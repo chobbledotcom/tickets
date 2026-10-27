@@ -37,9 +37,9 @@ src/features/public/ticket-payment.ts::loadPagePackages~0vaeh8c  Missing package
 
 # attendee-form-model: `?? → ||` where the left operand can never be a
 # falsy-but-non-null value, so the two operators always agree.
-src/features/admin/attendee-form-model.ts::parseAttendeeForm.lines.existingBooking~1genp17  ?? → || audited:0ni0min # existingByKey.get(key): ListingAttendeeRow|undefined — an object is always truthy
-src/features/admin/attendee-form-model.ts::parseAttendeeForm.lines.listing~1y7j49h  ?? → || audited:0ni0min # listingsById.get(id): ListingWithCount|undefined — an object is always truthy
-src/features/admin/attendee-form-model.ts::isPaymentLockedLine~1cyk75e  ?? → || audited:0ni0min # (existingBooking?.price_paid ?? 0): a number; the only falsy number is 0, and 0 ?? 0 === 0 || 0
+src/features/admin/attendee-form-model.ts::parseAttendeeForm.lines.existingBooking~1genp17  ?? → || audited:0uxwp16 # existingByKey.get(key): ListingAttendeeRow|undefined — an object is always truthy
+src/features/admin/attendee-form-model.ts::parseAttendeeForm.lines.listing~1y7j49h  ?? → || audited:0uxwp16 # listingsById.get(id): ListingWithCount|undefined — an object is always truthy
+src/features/admin/attendee-form-model.ts::isPaymentLockedLine~1cyk75e  ?? → || audited:0uxwp16 # (existingBooking?.price_paid ?? 0): a number; the only falsy number is 0, and 0 ?? 0 === 0 || 0
 src/features/admin/booking-warnings.ts::computeWarnings.warns~1e9bm1v  ?? → || audited:0wzoevf # incompleteParents stores only a non-empty translated warning string, otherwise get returns undefined
 src/features/admin/attendee-page-data.ts::assembleTemplateData.balanceNotice~0axstbd  ?? → || audited:037kilh # remaining_balance is an integer; its only falsy value is 0, which equals the fallback
 src/features/admin/attendee-page-data.ts::assembleTemplateData.hasMixedTimings~1hmlq9c  ?? → || audited:037kilh # hasMixedTimings is boolean|undefined, and false equals the fallback
@@ -311,12 +311,10 @@ src/features/admin/settings-domains.ts::runGuardedTask.run~0zdzaus  ?? → || au
 src/features/admin/guide.ts::handleAdminGuideGet.hostAppleWalletPassTypeId~0fwsjhh  ?? → || audited:0vr6gxg # the env builder gates every field truthy, and even a setHostConfigForTest override cannot reach the render: the sole consumer (WalletSetup in guide/tickets.tsx) gates its paragraph on `{configuredValue && …}`, so "" and null render identically
 src/features/admin/guide.ts::handleAdminGuideGet.hostGoogleWalletIssuerId~00ncc9m  ?? → || audited:0vr6gxg # the env builder gates every field truthy, and even a setHostConfigForTest override cannot reach the render: the sole consumer (WalletSetup in guide/tickets.tsx) gates its paragraph on `{configuredValue && …}`, so "" and null render identically
 src/features/admin/guide.ts::handleAdminGuideGet.hostEmailFromAddress~1owtz5h  ?? → || audited:0vr6gxg # getHostEmailConfigFromEnv gates on parseEmail-valid fields, and the sole guide consumer renders the value inside <code>: renderChild returns "" for null and for the empty string alike, so no override makes the two operators observable
-src/features/admin/attendee-form-model.ts::clampDayCount~0tzfryu  ?? → || audited:0ni0min # clampDurationDays clamps into [1, MAX_DURATION_DAYS], so raw values 0 and 1 both clamp to 1 — no input distinguishes the two operators
-src/features/admin/attendee-form-model.ts::clampDayCount~0tzfryu  1 → 0 audited:0ni0min # same clamp: a null raw clamps to 1 whether the fallback is 0 or 1, because clampDurationDays floors at 1
-src/features/admin/attendee-form-model.ts::resolveStatusId~07pfg6s  ?? → || audited:0ni0min # the two operators differ only at statusId 0, and the sole production caller (parseAttendeeForm) maps a non-positive raw to null before calling, so 0 never reaches the function
-src/features/admin/attendee-form-model.ts::resolveSharedDates.dated.duration~04xi3o1  ?? → || audited:0ni0min # bookingDurationDays returns null or a span of at least one whole day, never 0, so the nullish and falsy arms agree on every reachable value
-src/features/admin/attendee-form-model.ts::toLedgerOrder.fullSubtotal~16fny0e  0 → 1 audited:0ni0min # the manual-add order feeds only manualAddLedgerPoster, whose owedOrderForLedger reads total (forced to 0), extras (emptied), lines, and modifierApplications — never fullSubtotal
-src/features/admin/attendee-form-model.ts::toLedgerOrder.total~1qdsgd9  0 → 1 audited:0ni0min # owedOrderForLedger spreads the order and overwrites total with 0 before every consumer, so the value set here is never read
+src/features/admin/attendee-form-model.ts::clampDayCount~0tzfryu  ?? → || audited:0uxwp16 # clampDurationDays clamps into [1, MAX_DURATION_DAYS], so raw values 0 and 1 both clamp to 1 — no input distinguishes the two operators
+src/features/admin/attendee-form-model.ts::clampDayCount~0tzfryu  1 → 0 audited:0uxwp16 # same clamp: a null raw clamps to 1 whether the fallback is 0 or 1, because clampDurationDays floors at 1
+src/features/admin/attendee-form-model.ts::resolveStatusId~07pfg6s  ?? → || audited:0uxwp16 # the two operators differ only at statusId 0, and the sole production caller (parseAttendeeForm) maps a non-positive raw to null before calling, so 0 never reaches the function
+src/features/admin/attendee-form-model.ts::resolveSharedDates.dated.duration~04xi3o1  ?? → || audited:0uxwp16 # bookingDurationDays returns null or a span of at least one whole day, never 0, so the nullish and falsy arms agree on every reachable value
 src/features/admin/attendees-route-helpers.ts::loadPaymentReviewActionData.listingId~1glbb8m  ?? → || audited:09nlv1i # getFirstBooking returns a listing_attendees row, whose listingId comes from an AUTOINCREMENT key that starts at 1, so 0 never occurs and the nullish and falsy arms agree on every reachable value
 # Door-safe check-in projection: the fields it blanks are contact columns the
 # fixed DOOR_SAFE_COLUMNS layout never renders, so no rendered page can carry
@@ -337,3 +335,13 @@ src/features/admin/auth.ts::createLoginSession~11fciup  ?? → || audited:1k77c4
 # Contact history editor (features/admin/contact-history.ts): the counter
 # fallback runs on a strict non-negative integer or null.
 src/features/admin/contact-history.ts::nonNegativeInt~1sju92h  ?? → || audited:0mx51nm # getOptionalInt answers a non-negative integer or null; its only falsy value is 0, which equals the 0 fallback, so 0 ?? 0 = 0 || 0
+
+# Admin API attendee create (features/admin/api-attendees.ts): the daily-line
+# count is clamped to the booking range, and a site always has a public
+# default status.
+src/features/admin/api-attendees.ts::LINE_SCHEMA.durationDays~1x7kj9p  1 → 0  audited:1n1mrq1   # the schema's floor feeds clampDurationDays, which clamps to 1..MAX_DURATION_DAYS, so a slipped 0 stores the same one day
+src/features/admin/api-attendees.ts::parseLine.date~0ch97uo  ?? → ||  audited:1n1mrq1   # date reaches the fallback only as undefined or a daily line's real calendar day; "" cannot arrive, because a non-daily line refuses any present date and a daily line demands a real YYYY-MM-DD day
+src/features/admin/api-attendees.ts::parseLine.durationDays~1y2h8m9  ?? → ||  audited:1n1mrq1   # the line schema admits undefined or a whole number from 1, never a falsy non-null
+src/features/admin/api-attendees.ts::parseLine.durationDays~1y2h8m9  1 → 0  audited:1n1mrq1   # the fallback feeds clampDurationDays, whose floor is 1
+src/features/admin/api-attendees.ts::parseLine.durationDays~1aetpe1  1 → 0  audited:1n1mrq1   # the non-daily arm's count never escapes: a non-daily line's date is null, and the bookings map carries durationDays only for dated lines
+src/features/admin/api-attendees.ts::resolveStatusId~1ns133z  No public default status is configured→""  audited:1n1mrq1   # the seed inserts a public default and the status save and delete refuse to remove the last one, so no write path can make the state the message names

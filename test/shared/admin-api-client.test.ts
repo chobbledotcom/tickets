@@ -41,6 +41,13 @@ const stubTransport = (
 };
 
 describe("admin api client", () => {
+  test("list refuses a resource that serves no list route", async () => {
+    const { transport } = stubTransport({});
+    await expect(
+      adminApiList(transport, ADMIN_API_RESOURCES.attendees),
+    ).rejects.toThrow("admin api attendees serves no list route");
+  });
+
   test("list builds the table's path and validates the envelope", async () => {
     const { calls, transport } = stubTransport({
       attributes: [ATTRIBUTE],
@@ -160,7 +167,7 @@ describe("admin api client", () => {
 
   test("a malformed response throws with the resource and field named", async () => {
     const { transport } = stubTransport({
-      attributes: [{ id: "not-a-number" }],
+      attributes: [{ id: "not-a-number" }, { id: "also-bad" }],
     });
     const failure = await adminApiList(
       transport,
@@ -171,7 +178,18 @@ describe("admin api client", () => {
       (failure as Error).message,
       "admin api attributes response failed validation",
     );
-    assertStringIncludes((failure as Error).message, "attributes.0.id");
+    // Two rejected fields read as one sentence joined by a semicolon.
+    assertStringIncludes((failure as Error).message, "; attributes.1.id");
+  });
+
+  test("an informational status is refused like any non-2xx answer", async () => {
+    const { transport } = stubTransport({ attributes: [ATTRIBUTE] }, 150);
+    const failure = await adminApiList(
+      transport,
+      ADMIN_API_RESOURCES.attributes,
+    ).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(AdminApiError);
+    expect((failure as AdminApiError).status).toBe(150);
   });
 
   test("a schema-invalid success keeps the served status", async () => {
@@ -181,6 +199,7 @@ describe("admin api client", () => {
       ADMIN_API_RESOURCES.attributes,
     ).catch((error: unknown) => error);
     expect(failure).toBeInstanceOf(AdminApiSchemaError);
+    expect((failure as AdminApiSchemaError).name).toBe("AdminApiSchemaError");
     expect((failure as AdminApiSchemaError).status).toBe(200);
     assertStringIncludes(
       (failure as Error).message,
@@ -198,6 +217,7 @@ describe("admin api client", () => {
       {},
     ).catch((error: unknown) => error);
     expect(failure).toBeInstanceOf(AdminApiError);
+    expect((failure as AdminApiError).name).toBe("AdminApiError");
     expect((failure as Error).message).toBe("kaboom (status 418)");
   });
 
