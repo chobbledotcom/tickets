@@ -336,12 +336,12 @@ src/features/admin/auth.ts::createLoginSession~11fciup  ?? → || audited:1k77c4
 # fallback runs on a strict non-negative integer or null.
 src/features/admin/contact-history.ts::nonNegativeInt~1sju92h  ?? → || audited:0mx51nm # getOptionalInt answers a non-negative integer or null; its only falsy value is 0, which equals the 0 fallback, so 0 ?? 0 = 0 || 0
 
-# Admin API attendee create (features/admin/api-attendees.ts): the daily-line
-# count is clamped to the booking range, and a site always has a public
-# default status.
-src/features/admin/api-attendees.ts::LINE_SCHEMA.durationDays~1x7kj9p  1 → 0  audited:1n1mrq1   # the schema's floor feeds clampDurationDays, which clamps to 1..MAX_DURATION_DAYS, so a slipped 0 stores the same one day
-src/features/admin/api-attendees.ts::parseLine.date~0ch97uo  ?? → ||  audited:1n1mrq1   # date reaches the fallback only as undefined or a daily line's real calendar day; "" cannot arrive, because a non-daily line refuses any present date and a daily line demands a real YYYY-MM-DD day
-src/features/admin/api-attendees.ts::parseLine.durationDays~1y2h8m9  ?? → ||  audited:1n1mrq1   # the line schema admits undefined or a whole number from 1, never a falsy non-null
-src/features/admin/api-attendees.ts::parseLine.durationDays~1y2h8m9  1 → 0  audited:1n1mrq1   # the fallback feeds clampDurationDays, whose floor is 1
-src/features/admin/api-attendees.ts::parseLine.durationDays~1aetpe1  1 → 0  audited:1n1mrq1   # the non-daily arm's count never escapes: a non-daily line's date is null, and the bookings map carries durationDays only for dated lines
-src/features/admin/api-attendees.ts::resolveStatusId~1ns133z  No public default status is configured→""  audited:1n1mrq1   # the seed inserts a public default and the status save and delete refuse to remove the last one, so no write path can make the state the message names
+# Admin API attendee create (features/admin/api-attendees-parse.ts): the
+# daily-line count is clamped to the booking range, and a site always has a
+# public default status.
+src/features/admin/api-attendees-parse.ts::LINE_SCHEMA.durationDays~1x7kj9p  1 → 0  audited:1n1mrq1   # the schema's floor feeds clampDurationDays, which clamps to 1..MAX_DURATION_DAYS, so a slipped 0 stores the same one day
+src/features/admin/api-attendees-parse.ts::resolveLineDate.date~0ch97uo  ?? → ||  audited:02kcb1u   # date reaches the fallback only as undefined or a daily line's real calendar day; "" cannot arrive, because a non-daily line refuses any present date and a daily line demands a real YYYY-MM-DD day
+src/features/admin/api-attendees-parse.ts::parseLine.durationDays~1y2h8m9  ?? → ||  audited:1n1mrq1   # the line schema admits undefined or a whole number from 1, never a falsy non-null
+src/features/admin/api-attendees-parse.ts::parseLine.durationDays~1y2h8m9  1 → 0  audited:1n1mrq1   # the fallback feeds clampDurationDays, whose floor is 1
+src/features/admin/api-attendees-parse.ts::parseLine.durationDays~1aetpe1  1 → 0  audited:1n1mrq1   # the non-daily arm's count never escapes: a non-daily line's date is null, and the bookings map carries durationDays only for dated lines
+src/features/admin/api-attendees-parse.ts::resolveStatusId~1ns133z  No public default status is configured→""  audited:1n1mrq1   # the seed inserts a public default and the status save and delete refuse to remove the last one, so no write path can make the state the message names
