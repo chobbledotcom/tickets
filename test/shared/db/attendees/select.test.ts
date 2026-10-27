@@ -136,8 +136,8 @@ describe("attendeeColumns", () => {
     const subqueries = (field: AttendeeField): number =>
       (attendeeColumns("inner", [field], "attendee").match(/\(SELECT/g) ?? [])
         .length;
-    expect(subqueries("price_paid")).toBe(6);
-    expect(subqueries("refunded")).toBe(7);
+    expect(subqueries("price_paid")).toBe(8);
+    expect(subqueries("refunded")).toBe(11);
     expect(subqueries("remaining_balance")).toBe(1);
   });
 
@@ -319,7 +319,7 @@ describe("attendee SELECT — exact generated SQL", () => {
 
   test("the full field set produces the exact column list (all three ledger subqueries inline)", () => {
     const chainReturned =
-      "NOT EXISTS(SELECT 1 FROM booking_tax_assessments AS assessment JOIN transfers AS chain ON chain.event_group = assessment.event_group WHERE assessment.booking_group = listingAttendee.ledger_event_group AND chain.kind NOT GLOB 'refund_*' AND NOT EXISTS(SELECT 1 FROM transfers AS returned WHERE returned.reverses_id = chain.id))";
+      "NOT EXISTS(SELECT 1 FROM booking_tax_assessments AS assessment JOIN transfers AS chain ON chain.event_group = assessment.event_group WHERE assessment.booking_group = listingAttendee.ledger_event_group AND chain.kind NOT GLOB 'refund_*' AND NOT EXISTS(SELECT 1 FROM transfers AS returned WHERE returned.kind GLOB 'refund_*' AND returned.reverses_group = chain.event_group AND returned.amount = chain.amount AND returned.source_type = chain.dest_type AND returned.source_id = chain.dest_id AND returned.dest_type = chain.source_type AND returned.dest_id = chain.source_id))";
     const saleTotal =
       "(SELECT COALESCE(SUM(CASE WHEN source_type = 'attendee' AND source_id = CAST(listingAttendee.attendee_id AS TEXT) AND dest_type = 'revenue' AND dest_id = CAST(listingAttendee.listing_id AS TEXT) THEN amount WHEN dest_type = 'attendee' AND dest_id = CAST(listingAttendee.attendee_id AS TEXT) AND source_type = 'revenue' AND source_id = CAST(listingAttendee.listing_id AS TEXT) THEN -amount ELSE 0 END), 0) FROM transfers WHERE (kind = 'sale' AND source_type = 'attendee' AND source_id = CAST(listingAttendee.attendee_id AS TEXT) AND dest_type = 'revenue' AND dest_id = CAST(listingAttendee.listing_id AS TEXT) AND event_group = listingAttendee.ledger_event_group) OR (kind = 'tax_sale' AND event_group IN (SELECT assessment.event_group FROM booking_tax_assessments AS assessment WHERE assessment.booking_group = listingAttendee.ledger_event_group) AND ((source_type = 'attendee' AND source_id = CAST(listingAttendee.attendee_id AS TEXT) AND dest_type = 'revenue' AND dest_id = CAST(listingAttendee.listing_id AS TEXT)) OR (dest_type = 'attendee' AND dest_id = CAST(listingAttendee.attendee_id AS TEXT) AND source_type = 'revenue' AND source_id = CAST(listingAttendee.listing_id AS TEXT)))))";
     expect(attendeeColumns("inner", ATTENDEE_FIELDS, "attendee")).toBe(

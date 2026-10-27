@@ -153,17 +153,29 @@ const bookingLegSpecs = (
     (line: BookingFacts["lines"][number]) => line.listingId,
     (line) => line.gross,
   )(facts.lines.filter((line) => line.gross > 0));
-  const assessment = assessTax(
-    {
-      lines: [...grossByListing].map(([listingId, gross]) => ({
-        gross,
-        listingId,
-      })),
-      modifiers: facts.modifiers.map((modifier) => ({ ...modifier })),
-    },
-    facts.vat ?? NO_TAX,
-  );
-  const sales: LegSpec[] = assessment.lines
+  // A discount larger than the ticket income nets below zero. There is no
+  // taxable income then: no VAT leg and no included-tax share, and the legs
+  // are exactly the facts as booked.
+  const net =
+    [...grossByListing.values()].reduce((total, gross) => total + gross, 0) +
+    facts.modifiers.reduce((total, modifier) => total + modifier.delta, 0);
+  const assessment =
+    net < 0
+      ? null
+      : assessTax(
+          {
+            lines: [...grossByListing].map(([listingId, gross]) => ({
+              gross,
+              listingId,
+            })),
+            modifiers: facts.modifiers.map((modifier) => ({ ...modifier })),
+          },
+          facts.vat ?? NO_TAX,
+        );
+  const sales: LegSpec[] = (
+    assessment?.lines ??
+    [...grossByListing].map(([listingId, gross]) => ({ gross, listingId }))
+  )
     .filter((line) => line.gross > 0)
     .map(({ listingId, gross }) => ({
       amount: gross,
@@ -172,7 +184,7 @@ const bookingLegSpecs = (
       refParts: [KIND.sale, listingId],
       source: attendee,
     }));
-  const modifiers = assessment.modifiers
+  const modifiers = (assessment?.modifiers ?? facts.modifiers)
     .filter((modifier) => modifier.delta !== 0)
     .map((modifier) => modifierLeg(attendee, modifier));
   const fee = optionalLeg(facts.bookingFee, {
@@ -192,7 +204,7 @@ const bookingLegSpecs = (
     ...modifiers,
     ...fee,
     ...payment,
-    ...vatLegSpec(assessment.taxAmount, attendee),
+    ...vatLegSpec(assessment ? assessment.taxAmount : 0, attendee),
   ];
 };
 

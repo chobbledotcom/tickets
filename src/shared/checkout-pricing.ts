@@ -424,7 +424,14 @@ export const priceCheckout = (intent: CheckoutIntent): PricedOrder => {
       intent.feeSubtotal === undefined &&
       tax.policy.mode !== "add_to_total"
       ? unmodifiedReservationLines(intent, intent.reservationAmount)
-      : reservationLines(modifiers.lines, intent.reservationAmount, tax.total)
+      : reservationLines(
+          modifiers.lines,
+          intent.reservationAmount,
+          // A percentage deposit follows the configured full-order subtotal
+          // when the caller overrides it; otherwise it follows the charged,
+          // tax-inclusive total.
+          intent.feeSubtotal === undefined ? tax.total : fullSubtotal,
+        )
     : modifiers.lines;
   const extras = [
     ...(intent.reservationAmount ? [] : modifiers.extras),

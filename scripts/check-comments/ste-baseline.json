@@ -358,9 +358,6 @@
     "long-sentence": 7,
     "semicolon": 2
   },
-  "src/shared/checkout-ledger.ts": {
-    "wordy": 1
-  },
   "src/shared/checkout-pricing.ts": {
     "semicolon": 5,
     "wordy": 1,
@@ -1211,29 +1208,6 @@
     "long-sentence": 7,
     "semicolon": 6,
     "wordy": 1
-  },
-  "src/shared/redact-path.ts": {
-    "long-sentence": 1
-  },
-  "src/shared/refund-ledger/placeholder.ts": {
-    "banned-modal": 1
-  },
-  "src/shared/refund-ledger/plan.ts": {
-    "banned-modal": 1
-  },
-  "src/shared/refund-ledger/record.ts": {
-    "present-perfect": 1,
-    "semicolon": 1
-  },
-  "src/shared/regexp.ts": {
-    "long-sentence": 1
-  },
-  "src/shared/renewal-helpers.ts": {
-    "long-sentence": 1
-  },
-  "src/shared/renewal-tier.ts": {
-    "long-sentence": 1,
-    "banned-modal": 1
   },
   "src/shared/reorder.ts": {
     "long-sentence": 1,

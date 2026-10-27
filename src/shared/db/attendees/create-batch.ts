@@ -179,14 +179,19 @@ export const writeAsLedgerBatch = async (
       always,
     ),
   );
-  const eventGroup: SqlStatement[] = [
-    {
-      args: [plan.bookingGroup, tokenIndex],
-      sql: `UPDATE listing_attendees SET ledger_event_group = ?
+  // Only a booking that posted legs carries the order's link: a fully-free
+  // order's money projects to 0, so its rows read back with an empty group.
+  const eventGroup: SqlStatement[] =
+    plan.legs.length > 0
+      ? [
+          {
+            args: [plan.bookingGroup, tokenIndex],
+            sql: `UPDATE listing_attendees SET ledger_event_group = ?
           WHERE attendee_id = ${ATTENDEE_BY_TOKEN_SQL}
           AND ledger_event_group = ''`,
-    },
-  ];
+          },
+        ]
+      : [];
   const assessment = await initialTaxAssessmentStatement(
     plan.bookingGroup,
     plan.taxAssessment,
