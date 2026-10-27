@@ -194,6 +194,20 @@ export const requirePaidDefaultStatus: () => Promise<AttendeeStatus> =
 export const requirePublicStatusId = async (): Promise<number> =>
   (await requirePublicDefaultStatus()).id;
 
+/** The status new bookings start in, read from a status list the caller has
+ *  already loaded. Both attendee create paths resolve a missing choice to it —
+ *  the admin form and the admin JSON API — so the rule lives beside the save
+ *  and delete guards that keep one status carrying the flag. A list without a
+ *  public default is a broken setup and fails loudly; the seed and the write
+ *  guards make that state unreachable. */
+export const publicDefaultStatusOf = (
+  statuses: readonly AttendeeStatus[],
+): AttendeeStatus =>
+  requireValue(
+    statuses.find((status) => status.is_public_default),
+    "No public default status is configured",
+  );
+
 /** The three columns a status write reads back about itself, opened by the
  * table — so the two default flags arrive as the booleans they are declared
  * to be, not as the 1/0 the database stores. */

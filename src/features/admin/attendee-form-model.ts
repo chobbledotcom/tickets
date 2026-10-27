@@ -7,7 +7,10 @@
  * with no add/remove buttons and no server round-trips.
  */
 
-import type { AttendeeStatus } from "#db/attendee-statuses.ts";
+import {
+  publicDefaultStatusOf,
+  type AttendeeStatus,
+} from "#db/attendee-statuses.ts";
 import type {
   DesiredListingLine,
   ListingAttendeeRow,
@@ -19,6 +22,8 @@ import {
   type PackagePricesByListingId,
   parseLines,
 } from "#routes/admin/attendee-form-lines.ts";
+import { quantityOverCap } from "#shared/booking-inputs.ts";
+import { countsPerDate } from "#shared/capacity-rules.ts";
 import { listPriceOrder, type PricedOrder } from "#shared/checkout-pricing.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -234,7 +239,7 @@ const clampDayCount = (raw: number | null): number =>
 export const resolveStatusId = (
   statusId: number | null,
   statuses: AttendeeStatus[],
-): number => statusId ?? statuses.find((s) => s.is_public_default)!.id;
+): number => statusId ?? publicDefaultStatusOf(statuses).id;
 
 /**
  * Derive the shared date range from an attendee's existing bookings. Only dated
@@ -333,7 +338,7 @@ export const validateAttendeeBlock = (
 
 /** True when a booked line targets a daily listing (needs the shared date). */
 const isBookedDaily = (line: AttendeeFormLine): boolean =>
-  isBookedLine(line) && line.listing!.listing_type === "daily";
+  isBookedLine(line) && countsPerDate(line.listing!.listing_type);
 
 /** Validate one line. Date/duration/overbooking concerns are surfaced as
  * non-blocking warnings elsewhere, not as errors. The paid-line no-quantity rule
@@ -343,7 +348,7 @@ const validateLine = (line: AttendeeFormLine): string | null => {
   // isBookedLine already guarantees an integer quantity ≥ 1. The only quantity
   // error left is exceeding the listing's per-booking maximum.
   if (!isBookedLine(line)) return null;
-  if (line.quantity! > line.listing!.max_quantity) {
+  if (quantityOverCap(line.quantity!, line.listing!.max_quantity)) {
     return t("attendee_form.qty_max", { max: line.listing!.max_quantity });
   }
   return null;
@@ -401,7 +406,7 @@ export const validateParsedForm = (
 /** Booking date/duration for a line: the shared range for daily listings, none
  * for standard listings. */
 const lineDate = (line: AttendeeFormLine, parsed: ParsedAttendeeForm) =>
-  line.listing!.listing_type === "daily"
+  countsPerDate(line.listing!.listing_type)
     ? { date: parsed.startDate, durationDays: parsed.dayCount }
     : { date: null, durationDays: 1 };
 

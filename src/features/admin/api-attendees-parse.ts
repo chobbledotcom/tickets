@@ -8,12 +8,14 @@ import * as v from "valibot";
 import {
   type AttendeeStatus,
   attendeeStatuses,
+  publicDefaultStatusOf,
 } from "#db/attendee-statuses.ts";
 import { hasDuplicateBookingSlot } from "#db/attendees/booking-slot.ts";
 import { getListingsById } from "#db/listings/records.ts";
+import { quantityOverCap } from "#shared/booking-inputs.ts";
+import { countsPerDate } from "#shared/capacity-rules.ts";
 import type { CreateAdjustment } from "#shared/checkout-complete.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
-import { requireValue } from "#shared/required-value.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { isIsoDate } from "#shared/validation/date-string.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
@@ -186,10 +188,10 @@ const parseLine = (
   const line = parsed.output;
   const listing = listingsById.get(line.listingId);
   if (!listing) return errorResult(`${at} references an unknown listing`);
-  if (line.quantity > listing.max_quantity) {
+  if (quantityOverCap(line.quantity, listing.max_quantity)) {
     return errorResult(`${at}.quantity is more than the listing allows`);
   }
-  const isDaily = listing.listing_type === "daily";
+  const isDaily = countsPerDate(listing.listing_type);
   if (!isDaily) {
     const refusal = standardLineRefusal(line, at);
     if (refusal !== null) return errorResult(refusal);
@@ -283,12 +285,7 @@ const resolveStatusId = (
       ? errorResult(`Unknown status '${name}'`)
       : okResult(status.id);
   }
-  return okResult(
-    requireValue(
-      statuses.find((candidate) => candidate.is_public_default),
-      "No public default status is configured",
-    ).id,
-  );
+  return okResult(publicDefaultStatusOf(statuses).id);
 };
 
 /** The status and retry token a body asks for, or the refusal. */
