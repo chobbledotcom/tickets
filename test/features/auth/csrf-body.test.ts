@@ -10,12 +10,7 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import {
-  ADMIN_API,
-  AUTH_FORM,
-  SCANNER_JSON,
-  withAuth,
-} from "#routes/auth.ts";
+import { ADMIN_API, AUTH_FORM, SCANNER_JSON, withAuth } from "#routes/auth.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
