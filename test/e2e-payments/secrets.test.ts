@@ -58,6 +58,17 @@ describe("required provider secrets", () => {
     );
   });
 
+  it("fails a missing Square location id", async () => {
+    await withEnv(
+      { SQUARE_ACCESS_TOKEN: "EAAA-sandbox", SQUARE_LOCATION_ID: undefined },
+      async () => {
+        expect(() => providerSecrets("square")).toThrow(
+          /SQUARE_ACCESS_TOKEN\/SQUARE_LOCATION_ID not set/,
+        );
+      },
+    );
+  });
+
   it("returns Square credentials with no production mode knob", async () => {
     await withEnv(
       {
@@ -80,6 +91,29 @@ describe("required provider secrets", () => {
         expect(() => providerSecrets("sumup")).toThrow(
           /SUMUP_API_KEY\/SUMUP_MERCHANT_CODE not set/,
         );
+      },
+    );
+  });
+
+  it("fails a missing SumUp merchant code", async () => {
+    await withEnv(
+      { SUMUP_API_KEY: "sk_sandbox_ok", SUMUP_MERCHANT_CODE: undefined },
+      async () => {
+        expect(() => providerSecrets("sumup")).toThrow(
+          /SUMUP_API_KEY\/SUMUP_MERCHANT_CODE not set/,
+        );
+      },
+    );
+  });
+
+  it("returns SumUp credentials", async () => {
+    await withEnv(
+      { SUMUP_API_KEY: "sk_sandbox_ok", SUMUP_MERCHANT_CODE: "MC1234" },
+      async () => {
+        expect(providerSecrets("sumup")).toEqual({
+          apiKey: "sk_sandbox_ok",
+          merchantCode: "MC1234",
+        });
       },
     );
   });
