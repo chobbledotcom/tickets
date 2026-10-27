@@ -62,8 +62,23 @@ src/shared/db/name-registry.ts::isNameTakenAnywhere.ownedByOther~1x88e07  ?? →
 src/features/admin/catalog-transfer/bundle-groups.ts::validateGroups~0bnxwrf  ?? → || audited:1m08ncr # isPackage is boolean|undefined, and false equals the false fallback
 src/features/admin/catalog-transfer/bundle-site.ts::groupViewOf.isPackage~1hwf5fo  ?? → || audited:0qsndgn # isPackage is boolean|undefined, and false equals the false fallback
 src/features/admin/catalog-transfer/bundle-site.ts::collectPairs~0bnxwrf  ?? → || audited:0qsndgn # isPackage is boolean|undefined, and false equals the false fallback
-src/features/admin/catalog-transfer/schema.ts::formatTransferIssues.parts~0f9t11y  ?? → || audited:0jt0zem # formatTransferIssues flat.root: string[]|undefined — an array is always truthy
-src/features/admin/catalog-transfer/schema.ts::formatTransferIssues.parts~19zbaq1  ?? → || audited:0jt0zem # formatTransferIssues flat.nested: object|undefined — an object is always truthy
+src/features/admin/catalog-transfer/schema.ts::formatTransferIssues.parts~0f9t11y  ?? → || audited:1w12n5i # formatTransferIssues flat.root: string[]|undefined — an array is always truthy
+src/features/admin/catalog-transfer/schema.ts::formatTransferIssues.parts~19zbaq1  ?? → || audited:1w12n5i # formatTransferIssues flat.nested: object|undefined — an object is always truthy
+# isStorableDatetime: the first m[N] read sits in a `=== undefined` test that is
+# always false (m[0] is the whole match), each `? 0 :` fallback feeds a `> bound`
+# guard it can never trip, and the month/day range checks are redundant with the
+# UTC round-trip.
+src/features/admin/catalog-transfer/schema.ts::isStorableDatetime.s~0gf6dwg@1  6 → 0 audited:1w12n5i # first m[6] is read only as `m[6] === undefined`, and m[0] (the whole match) is never undefined
+src/features/admin/catalog-transfer/schema.ts::isStorableDatetime.s~14temsn  0 → 1 audited:1w12n5i # the seconds fallback runs only when m[6] is absent, and both 0 and 1 pass `s > 59`
+src/features/admin/catalog-transfer/schema.ts::isStorableDatetime.oh~0hj1n6d@1  7 → 0 audited:1w12n5i # first m[7] is read only as `m[7] === undefined`, and m[0] is never undefined
+src/features/admin/catalog-transfer/schema.ts::isStorableDatetime.oh~1pz434n  0 → 1 audited:1w12n5i # the offset-hours fallback runs only when m[7] is absent, and both 0 and 1 pass `oh > 23`
+src/features/admin/catalog-transfer/schema.ts::isStorableDatetime.om~0hhs8h6@1  8 → 0 audited:1w12n5i # first m[8] is read only as `m[8] === undefined`, and m[0] is never undefined
+src/features/admin/catalog-transfer/schema.ts::isStorableDatetime.om~0ewm4dj  0 → 1 audited:1w12n5i # the offset-minutes fallback runs only when m[8] is absent, and both 0 and 1 pass `om > 59`
+src/features/admin/catalog-transfer/schema.ts::isStorableDatetime~1rz2ivi  1 → 0 audited:1w12n5i # `mo < 1 → mo < 0`: month 0 rolls to the previous December in Date.UTC, which the round-trip rejects exactly as the guard does
+src/features/admin/catalog-transfer/schema.ts::isStorableDatetime~0wfcsiq  || → && audited:1w12n5i # `mo < 1 ||` → `&&`: the month range guard is redundant with the UTC round-trip, which rolls bad months into a mismatching year
+src/features/admin/catalog-transfer/schema.ts::isStorableDatetime~0xsreed  || → && audited:1w12n5i # `mo > 12 ||` → `&&`: the month range guard is redundant with the UTC round-trip, which rolls bad months into a mismatching year
+src/features/admin/catalog-transfer/schema.ts::isStorableDatetime~1hwrquc  1 → 0 audited:1w12n5i # `d < 1 → d < 0`: day 0 rolls to the previous month's last day in Date.UTC, which the round-trip rejects exactly as the guard does
+src/features/admin/catalog-transfer/schema.ts::filterDayPricesToDuration.max~0mwju9v  ?? → || audited:1w12n5i # durationDays is validated to be at least 1, so `?? 1` and `|| 1` pick the same value
 
 # middleware.ts's Content-Type fallback already equals the only falsy string.
 # Once a tracking key is found, continuing instead of breaking can only
