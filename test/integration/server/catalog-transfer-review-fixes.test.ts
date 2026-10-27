@@ -21,8 +21,9 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { featureSetting } from "#test-utils/settings.ts";
 
-/** Import a listing that asks for a built site, and assert the refusal names it. */
-const refusePlanImport = async (name: string): Promise<void> => {
+/** Import a listing that asks for a built site, answering the refusal
+ * message the import raises. */
+const refusedPlanImportError = async (name: string): Promise<string> => {
   const result = await importCatalog({
     kind: "listing",
     listing: {
@@ -33,10 +34,10 @@ const refusePlanImport = async (name: string): Promise<void> => {
     },
     version: 1,
   });
-  expect(result).toMatchObject({
-    error: t("catalog_transfer.site_plan_listing_refused", { name }),
-    ok: false,
-  });
+  if (result.ok) {
+    throw new Error(`the built-site plan import was accepted: ${name}`);
+  }
+  return result.error;
 };
 
 const importLogisticsListing = async (name: string): Promise<boolean> => {
@@ -139,9 +140,15 @@ describeWithEnv(
     });
 
     test("refuses a built-site plan listing whatever the builder configuration", async () => {
-      await refusePlanImport("No Builder");
+      expect(await refusedPlanImportError("No Builder")).toBe(
+        t("catalog_transfer.site_plan_listing_refused", { name: "No Builder" }),
+      );
       using _builderOn = withEnv({ CAN_BUILD_SITES: "true" });
-      await refusePlanImport("Builder On");
+      expect(await refusedPlanImportError("Builder On")).toBe(
+        t("catalog_transfer.site_plan_listing_refused", {
+          name: "Builder On",
+        }),
+      );
     });
 
     test("clears uses-logistics when logistics is disabled", async () => {
@@ -301,11 +308,12 @@ describeWithEnv(
         name: "Hooked",
         webhookUrl: "https://example.com/hook",
       });
-      // The editor blob must not carry the PII sink URL the edit form hides…
+      // The editor blob drops the field outright; it does not carry a
+      // nullish placeholder for it.
       const editorBlob = unwrapExport(
         await exportListing(listing.id, "editor"),
       );
-      expect(editorBlob.listing.webhookUrl).toBeUndefined();
+      expect(Object.hasOwn(editorBlob.listing, "webhookUrl")).toBe(false);
       // …but staff still round-trip it.
       const ownerBlob = unwrapExport(await exportListing(listing.id, "owner"));
       expect(ownerBlob.listing.webhookUrl).toBe("https://example.com/hook");

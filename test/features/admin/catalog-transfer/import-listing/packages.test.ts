@@ -121,8 +121,8 @@ describeWithEnv("catalog-transfer package day overrides", { db: true }, () => {
       kind: "listing",
       name: "Custom Joiner 3",
     });
-    expect(
-      (await getGroupDayPrices(group.id)).get(imported.id),
-    ).toBeUndefined();
+    // No override rows exist for the group at all: the checker's early
+    // return leaves nothing written, not even an empty entry.
+    expect(await getGroupDayPrices(group.id)).toEqual(new Map());
   });
 });

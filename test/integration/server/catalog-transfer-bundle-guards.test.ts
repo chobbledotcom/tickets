@@ -5,7 +5,7 @@ import { hmacHash } from "#crypto/hashing.ts";
 import { execute } from "#db/client.ts";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { listingParents } from "#db/listing-parents.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
 import { loadCatalogNameIndex, matchName } from "#db/name-registry.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import type { CatalogBundle } from "#routes/admin/catalog-transfer/schema.ts";
@@ -208,6 +208,13 @@ describeWithEnv("catalog bundle import guard parity", { db: true }, () => {
       version: 1,
     });
     if (!result.ok) throw new Error(result.error);
+    expect(result.value).toEqual({ groups: 0, kind: "bundle", listings: 2 });
+    const { listing } = await loadCatalogNameIndex();
+    const topId = matchName(listing, "Planned Top");
+    if (!topId.ok) throw new Error("Planned Top was not imported");
+    const kidId = matchName(listing, "Planned Kid");
+    if (!kidId.ok) throw new Error("Planned Kid was not imported");
+    expect(await listingParents.getIds(kidId.id)).toEqual([topId.id]);
   });
 
   test("accepts a child that keeps its own booking page", async () => {
@@ -228,5 +235,15 @@ describeWithEnv("catalog bundle import guard parity", { db: true }, () => {
       }),
     );
     if (!result.ok) throw new Error(result.error);
+    expect(result.value).toEqual({ groups: 0, kind: "bundle", listings: 1 });
+    const { listing } = await loadCatalogNameIndex();
+    const topId = matchName(listing, "Alone Top");
+    if (!topId.ok) throw new Error("Alone Top was not imported");
+    const kidId = matchName(listing, "Alone Kid");
+    if (!kidId.ok) throw new Error("Alone Kid was not imported");
+    expect(await listingParents.getIds(kidId.id)).toEqual([topId.id]);
+    const storedKid = await getListingWithCount(kidId.id);
+    if (!storedKid) throw new Error("Alone Kid is missing after import");
+    expect(storedKid.bookable_alone).toBe(true);
   });
 });

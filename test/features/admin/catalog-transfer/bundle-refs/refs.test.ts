@@ -68,9 +68,13 @@ describe("bundle reference resolution", () => {
       siteIndex,
       "listing",
     );
-    expect(resolvedReference(refs, "Stored")).toEqual({ siteId: 5 });
-    expect(resolvedReference(refs, "Missing")).toBeUndefined();
-    expect(resolvedReference(refs, "Absent")).toBeUndefined();
+    // Every name the map holds answers its reference or undefined — the
+    // error entry itself never escapes.
+    expect(
+      [...refs.keys()].map((name) => resolvedReference(refs, name)),
+    ).toEqual([{ siteId: 5 }, undefined]);
+    // A name the map does not hold answers undefined too.
+    expect(resolvedReference(refs, "Absent")).toEqual(undefined);
   });
 
   test("firstReferenceError returns the first refusal, or null", () => {
