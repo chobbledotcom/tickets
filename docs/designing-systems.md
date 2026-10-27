@@ -129,10 +129,10 @@ These checks serve different purposes.
   The Square model also trusts the configured provider lifetime. Claim
   admission remains a model assumption. Mirror tests and database tests check
   these inputs and boundaries. Model safety does not prove SQL atomicity,
-  provider truth or eventual task execution. After a model change, corrupt an
-  emitted edge. Confirm that the checker reports a counterexample.
-  Direct generator tests keep unsafe outcomes visible. SumUp and Square
-  extraction stop if a declared transition fails.
+  provider truth or eventual task execution. The check also corrupts one
+  emitted refund edge. The checker must report a counterexample, or the run
+  fails. Direct generator tests keep unsafe outcomes visible. SumUp and
+  Square extraction stop if a declared transition fails.
 - **Make proof code read like its rules.** Give each fact named record fields.
   Use short rule names that describe the business condition. Prefer explicit
   conditions to dense Boolean formulas. Declare each fact schema once in its
