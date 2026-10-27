@@ -72,6 +72,17 @@ describeWithEnv(
       );
     });
 
+    test("returns the invalid-response error when no pull zone is linked", async () => {
+      using _fetch = stubFetch(
+        new Response(JSON.stringify({ Id: 7, LinkedPullZones: [] })),
+      );
+      const result = await bunnyCdnApi.createEdgeScript("Test", "code");
+      expect(result).toEqual({
+        error: "Create edge script returned an invalid response",
+        ok: false,
+      });
+    });
+
     test("returns error on API failure", async () => {
       await withMocks(
         () =>

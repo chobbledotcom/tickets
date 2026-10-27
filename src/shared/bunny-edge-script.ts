@@ -81,10 +81,17 @@ export const createEdgeScriptImpl = async (
   );
   if (!result.ok) return result.error;
   const { DefaultHostname, Id, LinkedPullZones } = result.value;
+  const [linkedPullZone] = LinkedPullZones;
+  if (linkedPullZone === undefined) {
+    return {
+      error: "Create edge script returned an invalid response",
+      ok: false,
+    };
+  }
   return {
     defaultHostname: DefaultHostname ?? "",
     ok: true,
-    pullZoneId: LinkedPullZones[0]!.Id,
+    pullZoneId: linkedPullZone.Id,
     scriptId: Id,
   };
 };

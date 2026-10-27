@@ -26,7 +26,17 @@ export type ApiClientFetch = (
 const defaultFetch: ApiClientFetch = (url, buildInit) =>
   fetchText(url, buildInit());
 
-/** The shared request steps, configured for one API. */
+/** The init one request carries. Headers stay a plain record, so the factory
+ * can merge the client's auth headers under the caller's own headers. A
+ * `Headers` instance defeats that merge, so the record type rejects one. */
+export type ApiRequestInit = Omit<RequestInit, "headers"> & {
+  headers?: Record<string, string>;
+};
+
+/** The shared request steps, configured for one API. A client whose errors
+ * are the shared message string can leave both error parsers off. A client
+ * with its own error shape must supply both, so a half-configured factory
+ * cannot report a bare string where its error type promises more. */
 export type ApiClientConfig<E = string> = {
   /** The URL every path is joined onto. */
   baseUrl: string;
@@ -44,20 +54,25 @@ export type ApiClientConfig<E = string> = {
   unreadableError?: (label: string) => E;
   /** The fetch step. Defaults to `fetchText`. */
   fetchImpl?: ApiClientFetch;
-};
+} & ([E] extends [string]
+  ? Record<never, never>
+  : {
+      parseError: (response: FetchResult, label: string) => E;
+      unreadableError: (label: string) => E;
+    });
 
 /** One status-checked call: a path, an init, and a label for failures. The
  * shared shape of `fetch` (whole answer) and `send` (no body read). */
 export type CheckedRequest<E, T> = (
   path: string,
-  init: RequestInit,
+  init: ApiRequestInit,
   label: string,
 ) => Promise<Result<T, E>>;
 
 /** One configured client: the shared request, send, and raw steps. */
 export type ApiClient<E = string> = {
   /** Fetch one URL with the client's base and headers, no status handling. */
-  raw: (path: string, init?: RequestInit) => Promise<FetchResult>;
+  raw: (path: string, init?: ApiRequestInit) => Promise<FetchResult>;
   /** Ask once, check the status, and hand back the whole answer. A call that
    * reads its own body (a raw text token, a non-JSON answer) starts here. */
   fetch: CheckedRequest<E, FetchResult>;
@@ -66,7 +81,7 @@ export type ApiClient<E = string> = {
   /** Ask once, check the status, and validate the JSON body through a schema. */
   request: <T>(
     path: string,
-    init: RequestInit,
+    init: ApiRequestInit,
     schema: GenericSchema<unknown, T>,
     label: string,
   ) => Promise<Result<T, E>>;
@@ -78,6 +93,17 @@ const defaultParseError = (
   label: string,
   errorKeys: string[] | undefined,
 ): string => parseApiError(response, label, errorKeys).error;
+
+/** The shared JSON read: one parsed body, or undefined when the text is torn.
+ * JSON.parse never produces undefined for a real document, so undefined can
+ * only mean torn text — a body of `null` still reads as null. */
+export const jsonBodyOrUndefined = (text: string): unknown | undefined => {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return;
+  }
+};
 
 /** A body the client cannot read: a torn JSON document, or a valid document
  * that fails its schema. Named after the label the request carried, the way
@@ -93,6 +119,8 @@ const defaultUnreadableError = (label: string): string =>
 export const defineApiClient = <E = string>(
   config: ApiClientConfig<E>,
 ): ApiClient<E> => {
+  // The config type pins both parsers whenever E is not the shared message
+  // string, so these defaults only run for the string error shape.
   const parseError: (response: FetchResult, label: string) => E =
     config.parseError ??
     ((response, label) =>
@@ -101,12 +129,12 @@ export const defineApiClient = <E = string>(
     config.unreadableError ?? ((label) => defaultUnreadableError(label) as E);
   const fetchImpl = config.fetchImpl ?? defaultFetch;
 
-  const raw = (path: string, init: RequestInit = {}): Promise<FetchResult> =>
+  const raw = (path: string, init: ApiRequestInit = {}): Promise<FetchResult> =>
     fetchImpl(`${config.baseUrl}${path}`, () => ({
       ...init,
       headers: {
         ...config.headers(),
-        ...(init.headers as Record<string, string> | undefined),
+        ...init.headers,
       },
     }));
 
@@ -114,7 +142,7 @@ export const defineApiClient = <E = string>(
    * `onOk` or report the parsed error. */
   const check = async <T>(
     path: string,
-    init: RequestInit,
+    init: ApiRequestInit,
     label: string,
     onOk: (response: FetchResult) => Result<T, E>,
   ): Promise<Result<T, E>> => {
@@ -129,10 +157,8 @@ export const defineApiClient = <E = string>(
     raw,
     request: (path, init, schema, label) =>
       check(path, init, label, (response) => {
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(response.text);
-        } catch {
+        const parsed = jsonBodyOrUndefined(response.text);
+        if (parsed === undefined) {
           return errorResult(unreadableError(label));
         }
         const validated = safeParse(schema, parsed);

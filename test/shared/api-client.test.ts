@@ -127,21 +127,44 @@ test("raw returns the untouched response", async () => {
   expect(JSON.parse(response.text)).toEqual({ name: "raw" });
 });
 
-test("a custom error parser supplies the error branch", async () => {
-  type RichError = { message: string; code?: string };
-  const rich = defineApiClient<RichError>({
+type RichError = { message: string; code?: string };
+
+/** A client whose errors carry a code beside the message, so both custom
+ * parsers are pinned: the status branch and the unreadable branch. */
+const richErrorClient = () =>
+  defineApiClient<RichError>({
     baseUrl: "https://api.example.test",
     headers: () => ({}),
     parseError: (response) => ({
       code: `E${response.status}`,
       message: response.text,
     }),
+    unreadableError: (label) => ({
+      code: "EPARSE",
+      message: `${label} was unreadable`,
+    }),
   });
+
+test("a custom error parser supplies the error branch", async () => {
+  const rich = richErrorClient();
   using _fetch = stubFetch(new Response("nope", { status: 500 }));
   const result = await rich.send("/things", {}, "List things");
   expect(result.ok).toBe(false);
   if (!result.ok) {
     expect(result.error).toEqual({ code: "E500", message: "nope" });
+  }
+});
+
+test("a rich-error client's unreadable parser supplies that branch too", async () => {
+  const rich = richErrorClient();
+  using _fetch = stubFetch(new Response("not json", { status: 200 }));
+  const result = await rich.request("/things", {}, schema, "List things");
+  expect(result.ok).toBe(false);
+  if (!result.ok) {
+    expect(result.error).toEqual({
+      code: "EPARSE",
+      message: "List things was unreadable",
+    });
   }
 });
 

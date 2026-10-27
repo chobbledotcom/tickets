@@ -2,7 +2,7 @@
 
 /* jscpd:ignore-start */
 import * as v from "valibot";
-import { defineApiClient } from "#shared/api-client.ts";
+import { type ApiRequestInit, defineApiClient } from "#shared/api-client.ts";
 import {
   getTursoApiToken,
   getTursoGroup,
@@ -110,7 +110,7 @@ export const createTursoApi = (
    * so an aborted signal never prevents removal of an incomplete destination. */
   const fetchApi = (
     path: string,
-    init: RequestInit = {},
+    init: ApiRequestInit = {},
     interruptible = true,
   ): Promise<FetchResult> =>
     client.raw(path, {
