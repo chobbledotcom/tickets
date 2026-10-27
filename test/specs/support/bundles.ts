@@ -323,9 +323,8 @@ export const customerOpensPartPage: ReadAboutOneThing<TestBrowser> = async (
  * answer, be that thing's page, and offer a way to book it — a row left in the
  * database that nobody can reach is not "for sale". */
 export const expectPartOnSaleAlone: ActOnOneThing = async (world, part) => {
-  const listing = listingNamed(world, part);
   const browser = await customerOpensPartPage(world, part);
   assertStringIncludes(browser.pageText, part);
-  const box = `quantity_${listing.id}`;
+  const box = `quantity_${listingNamed(world, part).id}`;
   expect(whyValueCannotBeSent(browser.currentHtml, box, "1")).toBeNull();
 };

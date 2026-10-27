@@ -56,7 +56,7 @@ src/features/public/ticket-form.ts::listingsWithQuantity.withQty.qty~0q3jgeq  ??
 
 # attendee entity page: `?? → ||` where the operand's only falsy-non-null
 # value equals the "" fallback.
-src/features/admin/attendee-page.ts::attendeePage.tabs.sections.load~1e06wxq  ?? → || audited:0vp311s # ctx.query.get("token"): string|null; the only falsy-non-null value "" equals the "" fallback
+src/features/admin/attendee-page.ts::attendeePage.tabs.sections.load~1e06wxq  ?? → || audited:017u8kr # ctx.query.get("token"): string|null; the only falsy-non-null value "" equals the "" fallback
 src/shared/db/name-registry.ts::matchName.ids~140086l  ?? → || audited:1xvsf3q # matchName index.get(): number[]|undefined — an array is always truthy
 src/shared/db/name-registry.ts::isNameTakenAnywhere.ownedByOther~1x88e07  ?? → || audited:1xvsf3q # isNameTakenAnywhere index.get(): number[]|undefined — an array is always truthy
 src/features/admin/catalog-transfer/bundle-groups.ts::validateGroups~0bnxwrf  ?? → || audited:1m08ncr # isPackage is boolean|undefined, and false equals the false fallback
@@ -207,7 +207,7 @@ src/features/auth.ts::parseCsrfBody.err~0mxpuuo   → "mutated" audited:1bovven 
 src/features/auth.ts::parseCsrfBody~1gwik7o  ?? → || audited:1bovven # err is a Response object or null, and objects are always truthy
 src/features/admin/users.ts::toDisplayUser.inviteExpired~1fwmcbe  false → true audited:08ev9ii # the flag has one reader, userStatus, which answers "Active" from the activated flag before it looks at this one, so the value it takes for an activated user is never read
 src/features/admin/entity-write-tab.ts::defineEditEntityPage.extraTabs~1333wen  ?? → || audited:1gtnu6j # configuredExtraTabs is an array of tab definitions or undefined, and an array is always truthy, so || keeps exactly what ?? keeps
-src/features/admin/attendee-page.ts::loadEditPanel.data.returnUrl~0i4v0pb  ?? → || audited:0vp311s # URLSearchParams.get gives back a string or null, and the only falsy string is the empty fallback itself
+src/features/admin/attendee-page.ts::loadEditPanel.data.returnUrl~0i4v0pb  ?? → || audited:017u8kr # URLSearchParams.get gives back a string or null, and the only falsy string is the empty fallback itself
 src/features/admin/route-tables.ts::idParamOf.name~0rg3o3r   → "mutated" audited:1xymyec # the stand-in name for a path with no "/:" is only ever fed to the guard below, which throws for every name that is not "id" and does not end with "Id", and the message it throws names the pattern rather than the name
 
 # Route ordering (router.ts) — two array fallbacks, and a replacement string
@@ -347,3 +347,7 @@ src/features/admin/api-attendees.ts::parseLine.durationDays~1y2h8m9  ?? → ||  
 src/features/admin/api-attendees.ts::parseLine.durationDays~1y2h8m9  1 → 0  audited:1n1mrq1   # the fallback feeds clampDurationDays, whose floor is 1
 src/features/admin/api-attendees.ts::parseLine.durationDays~1aetpe1  1 → 0  audited:1n1mrq1   # the non-daily arm's count never escapes: a non-daily line's date is null, and the bookings map carries durationDays only for dated lines
 src/features/admin/api-attendees.ts::resolveStatusId~1ns133z  No public default status is configured→""  audited:1n1mrq1   # the seed inserts a public default and the status save and delete refuse to remove the last one, so no write path can make the state the message names
+# Shared record-note routes (features/admin/record-notes.ts): the loader
+# answers a Record object (always truthy) or null, so both operators send
+# null to the 404 response and agree on every object.
+src/features/admin/record-notes.ts::recordNoteFeature.loadRecordOr404~0v35mfs  ?? → || audited:0s93yuw # loadRecord answers Record | null; every Record is an object (truthy), null is not a value a 404-worthy call yields under ?? that || would not also send — both map null to notFoundResponse

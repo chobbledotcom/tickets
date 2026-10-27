@@ -169,6 +169,14 @@ describeWithEnv(
           },
           "ticketToken must be non-empty text",
         ],
+        [
+          {
+            lines: [{ listingId: listing.id, quantity: 1 }],
+            name: "Long token",
+            ticketToken: "t".repeat(251),
+          },
+          "ticketToken must be 250 characters or fewer",
+        ],
       ] as const) {
         await assertJson(
           apiRequest("/api/admin/attendees", { body, method: "POST" }),

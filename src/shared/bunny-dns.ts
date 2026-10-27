@@ -1,12 +1,12 @@
 /** Bunny DNS client: zone reads, subdomain availability, CNAME registration
  *  with certificate retry, and record cleanup. */
 
+import * as v from "valibot";
 import { range } from "#fp";
 import {
   type BunnyApiResult,
   bunnyGetJson,
-  bunnyJsonRequest,
-  bunnyKeyRequest,
+  bunnyRequest,
   okOrError,
   parseBunnyError,
   reported,
@@ -18,18 +18,20 @@ import {
 } from "#shared/config.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 
-interface BunnyDnsRecord {
-  Id: number;
-  Name: string;
-  Type: number;
-  Value: string;
-}
+const BunnyDnsRecordSchema = v.object({
+  Id: v.number(),
+  Name: v.string(),
+  Type: v.number(),
+  Value: v.string(),
+});
 
-interface BunnyDnsZone {
-  Domain: string;
-  Id: number;
-  Records: BunnyDnsRecord[];
-}
+const BunnyDnsZoneSchema = v.object({
+  Domain: v.string(),
+  Id: v.number(),
+  Records: v.array(BunnyDnsRecordSchema),
+});
+
+type BunnyDnsZone = v.InferOutput<typeof BunnyDnsZoneSchema>;
 
 /** Bunny DNS record type for CNAME (0=A, 1=AAAA, 2=CNAME, 3=TXT, 4=MX, 5=Redirect) */
 const DNS_RECORD_TYPE_CNAME = 2;
@@ -42,8 +44,9 @@ type DnsZoneResult =
 
 /** Get a DNS zone by ID, returning the zone domain and records. */
 export const getDnsZoneImpl = async (): Promise<DnsZoneResult> => {
-  const result = await bunnyGetJson<BunnyDnsZone>(
+  const result = await bunnyGetJson(
     `/dnszone/${getBunnyDnsZoneId()}`,
+    BunnyDnsZoneSchema,
     "Get DNS zone",
   );
   return result.ok ? { ok: true, zone: result.data } : result;
@@ -126,18 +129,18 @@ const addCnameRecord = async (
     Type: DNS_RECORD_TYPE_CNAME,
     Value: target,
   };
-  const dnsUrl = `https://api.bunny.net/dnszone/${zoneId}/records`;
-  const addResponse = await bunnyJsonRequest(
-    dnsUrl,
-    JSON.stringify(dnsRecordBody),
+  const dnsPath = `/dnszone/${zoneId}/records`;
+  const addResponse = await bunnyRequest(
+    dnsPath,
     "PUT",
+    JSON.stringify(dnsRecordBody),
   );
 
   if (!addResponse.ok) {
     const err = parseBunnyError(addResponse, "Add DNS CNAME record");
     logError({
       code: ErrorCode.CDN_REQUEST,
-      detail: `${err.error} | url=${dnsUrl} body=${JSON.stringify(
+      detail: `${err.error} | url=${dnsPath} body=${JSON.stringify(
         dnsRecordBody,
       )}`,
     });
@@ -227,7 +230,7 @@ export const deleteDnsRecordImpl = async (
   zoneId: string,
   recordId: number,
 ): Promise<BunnyApiResult> => {
-  const url = `https://api.bunny.net/dnszone/${zoneId}/records/${recordId}`;
-  const response = await bunnyKeyRequest(url, "DELETE");
+  const path = `/dnszone/${zoneId}/records/${recordId}`;
+  const response = await bunnyRequest(path, "DELETE");
   return okOrError(response, "Delete DNS record");
 };

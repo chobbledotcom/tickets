@@ -7,9 +7,9 @@
 // jscpd:ignore-start
 import { t } from "#i18n";
 import {
-  adminBrowser,
   browserSeenBy,
   organiserSendsAndIsTold,
+  withAdminPage,
 } from "#test/specs/support/browser.ts";
 import {
   signInAndRemember,
@@ -49,18 +49,18 @@ export const ownerChangesPassword = async (
     newPassword: string;
   },
 ): Promise<void> => {
-  const browser = await adminBrowser(world);
-  await browser.visit(SETTINGS_PAGE);
-  await organiserSendsAndIsTold(
-    world,
-    browser,
-    {
-      current_password: chosen.currentPassword ?? TEST_ADMIN_PASSWORD,
-      new_password: chosen.newPassword,
-      new_password_confirm: chosen.confirmPassword ?? chosen.newPassword,
-    },
-    t("settings.change_password"),
-  );
+  await withAdminPage(world, SETTINGS_PAGE, async (browser) => {
+    await organiserSendsAndIsTold(
+      world,
+      browser,
+      {
+        current_password: chosen.currentPassword ?? TEST_ADMIN_PASSWORD,
+        new_password: chosen.newPassword,
+        new_password_confirm: chosen.confirmPassword ?? chosen.newPassword,
+      },
+      t("settings.change_password"),
+    );
+  });
 };
 
 /** The owner signs in a second time, in a window of their own that sends

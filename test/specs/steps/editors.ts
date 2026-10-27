@@ -24,11 +24,11 @@ import {
   privatePagePath,
   SOMEWHERE_ELSE,
   signedInEditor,
-  somethingForSale,
   somethingSoldAndPaidFor,
   TAKINGS,
 } from "#test/specs/support/editors.ts";
 import { sessionCookie } from "#test/specs/support/evidence.ts";
+import { somethingForSale } from "#test/specs/support/listings.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,

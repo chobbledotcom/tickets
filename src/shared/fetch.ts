@@ -117,14 +117,13 @@ export const parseApiError = (
     `${label} failed (${response.status}): ${apiErrorMessage(response.text, keys)}`,
   );
 
-/** Fetch a URL and eagerly read the response body, preventing resource leaks. */
-export const fetchText = async (
-  url: string,
-  init?: RequestInit,
+/** Eagerly read a raw Response into the shared FetchResult shape, preventing
+ * resource leaks. Shared by `fetchText` and a caller that counts its own
+ * subrequest (the storage listing). */
+export const readFetchResult = async (
+  response: Response,
   maximumResponseBytes?: number,
 ): Promise<FetchResult> => {
-  countExternalSubrequest(`fetch ${new URL(url).origin}`);
-  const response = await fetch(url, init);
   const text = await responseText(response, maximumResponseBytes);
   return {
     headers: response.headers,
@@ -132,4 +131,14 @@ export const fetchText = async (
     status: response.status,
     text,
   };
+};
+
+/** Fetch a URL and eagerly read the response body, preventing resource leaks. */
+export const fetchText = async (
+  url: string,
+  init?: RequestInit,
+  maximumResponseBytes?: number,
+): Promise<FetchResult> => {
+  countExternalSubrequest(`fetch ${new URL(url).origin}`);
+  return readFetchResult(await fetch(url, init), maximumResponseBytes);
 };

@@ -13,6 +13,7 @@ import {
 } from "#shared/admin-features.ts";
 import {
   adminPageHtmlAt,
+  articleOutOf,
   browserOf,
   keepsWhatTheOrganiserSaw,
   ORGANISER,
@@ -139,13 +140,8 @@ export const ownerChoosesFeature =
 /** Just the feature list out of the settings page. The page names features
  * elsewhere too, so a word found anywhere on it proves nothing about the
  * list. */
-export const featureListOn = (html: string): string => {
-  const start = html.indexOf('id="settings-features"');
-  if (start < 0) throw new Error("The settings page shows no feature list");
-  const end = html.indexOf("</article>", start);
-  if (end < 0) throw new Error("The feature list never closes");
-  return html.slice(start, end);
-};
+export const featureListOn = (html: string): string =>
+  articleOutOf(html, "settings-features");
 
 /** The owner opens their settings, keeping the feature list for the Then
  * steps. */

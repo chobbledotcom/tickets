@@ -146,7 +146,7 @@ export const ADMIN_AREA_LOADERS: Record<AdminAreaId, AdminAreaLoader> = {
   ),
   contactHistory: area(
     () => import("#routes/admin/contact-history.ts"),
-    ["attendees", "detail-rows", "privacy"],
+    ["attendees", "detail-rows", "entity-pages", "privacy"],
   ),
   dashboard: area(
     () => import("#routes/admin/dashboard.ts"),
@@ -178,6 +178,7 @@ export const ADMIN_AREA_LOADERS: Record<AdminAreaId, AdminAreaLoader> = {
       "images",
       "listings-table",
       "modifiers",
+      "notes",
       "questions",
       "validation",
     ],
@@ -231,6 +232,7 @@ export const ADMIN_AREA_LOADERS: Record<AdminAreaId, AdminAreaLoader> = {
       "listings-table",
       "logistics",
       "modifiers",
+      "notes",
       "questions",
       "servicing",
       "validation",
@@ -260,7 +262,7 @@ export const ADMIN_AREA_LOADERS: Record<AdminAreaId, AdminAreaLoader> = {
   ),
   questions: area(
     () => import("#routes/admin/questions.ts"),
-    ["entity-pages", "modifiers", "questions", "validation"],
+    ["entity-pages", "modifiers", "notes", "questions", "validation"],
   ),
   // The scanner serves three segments: the doors list, the listing page's
   // scanner, and the group page's. The group scanner page also reads the

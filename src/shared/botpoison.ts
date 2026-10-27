@@ -8,13 +8,20 @@
  * reaches the browser.
  */
 
+import { defineApiClient } from "#shared/api-client.ts";
 import { getBotpoisonSecretKey } from "#shared/config.ts";
 import { errorMessage } from "#shared/error-message.ts";
-import { fetchText } from "#shared/fetch.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 
 /** Botpoison verification endpoint */
 const BOTPOISON_VERIFY_URL = "https://api.botpoison.com/verify";
+
+/** The shared Botpoison client. Its one call carries no auth header — the
+ * secret travels in the JSON body — so the client only owns the URL join. */
+const botpoisonClient = defineApiClient({
+  baseUrl: BOTPOISON_VERIFY_URL,
+  headers: () => ({}),
+});
 
 /** Hidden form field populated by the browser widget with the solved challenge */
 export const BOTPOISON_FIELD = "_botpoison";
@@ -35,7 +42,7 @@ export const verifyBotpoisonSolution = async (
   if (!secretKey) return false;
 
   try {
-    const { ok, status, text } = await fetchText(BOTPOISON_VERIFY_URL, {
+    const { ok, status, text } = await botpoisonClient.raw("", {
       body: JSON.stringify({ secretKey, solution }),
       headers: {
         Accept: "application/json",
