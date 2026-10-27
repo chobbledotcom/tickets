@@ -1,12 +1,12 @@
 /** Bunny pull-zone client: reads the edge script's linked pull zone, and adds
  *  or updates hostnames on the pull zone. */
 
+import * as v from "valibot";
 import {
   type BunnyApiError,
   type BunnyApiResult,
   bunnyGetJson,
-  bunnyJsonRequest,
-  bunnyKeyRequest,
+  bunnyRequest,
   okOrError,
   reported,
 } from "#shared/bunny-api.ts";
@@ -15,14 +15,14 @@ import { toStableHostname } from "#shared/site-address.ts";
 
 const HOSTNAME_ALREADY_REGISTERED = "pullzone.hostname_already_registered";
 
-interface EdgeScriptLinkedPullZone {
-  Id: number;
-}
+const EdgeScriptLinkedPullZoneSchema = v.object({ Id: v.number() });
 
-interface EdgeScriptResponse {
-  DefaultHostname: string;
-  LinkedPullZones: EdgeScriptLinkedPullZone[];
-}
+const EdgeScriptResponseSchema = v.object({
+  DefaultHostname: v.string(),
+  LinkedPullZones: v.array(EdgeScriptLinkedPullZoneSchema),
+});
+
+type EdgeScriptResponse = v.InferOutput<typeof EdgeScriptResponseSchema>;
 
 export type CdnHostnameResult = { ok: true; hostname: string } | BunnyApiError;
 
@@ -45,8 +45,9 @@ export type EdgeScriptLookup = {
 export const getEdgeScriptImpl = (): Promise<
   { ok: true; data: EdgeScriptResponse } | BunnyApiError
 > =>
-  bunnyGetJson<EdgeScriptResponse>(
+  bunnyGetJson(
     `/compute/script/${encodeURIComponent(getBunnyScriptId())}`,
+    EdgeScriptResponseSchema,
     "Get edge script",
   );
 
@@ -100,9 +101,9 @@ const pullZonePost = async (
   label: string,
 ): Promise<BunnyApiResult> => {
   const suffix = action ? `/${action}` : "";
-  const url = `https://api.bunny.net/pullzone/${pullZoneId}${suffix}`;
+  const path = `/pullzone/${pullZoneId}${suffix}`;
 
-  const response = await bunnyJsonRequest(url, JSON.stringify(body), "POST");
+  const response = await bunnyRequest(path, "POST", JSON.stringify(body));
   return okOrError(response, label);
 };
 
@@ -110,11 +111,11 @@ const pullZonePost = async (
 const loadFreeCertificate = async (
   hostname: string,
 ): Promise<BunnyApiResult> => {
-  const url = `https://api.bunny.net/pullzone/loadFreeCertificate?hostname=${encodeURIComponent(
+  const path = `/pullzone/loadFreeCertificate?hostname=${encodeURIComponent(
     hostname,
   )}`;
 
-  const response = await bunnyKeyRequest(url, "GET");
+  const response = await bunnyRequest(path, "GET");
 
   return okOrError(response, "Load free certificate");
 };
