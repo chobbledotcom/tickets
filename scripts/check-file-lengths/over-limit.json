@@ -1,6 +1,6 @@
 {
   "src/features/admin/attendee-form-model.ts": 547,
-  "src/features/auth.ts": 743,
+  "src/features/auth.ts": 742,
   "src/fp.ts": 585,
   "src/shared/db/attendees/servicing.ts": 905,
   "src/shared/db/client.ts": 920,
@@ -20,7 +20,6 @@
   "test/integration/bunny-cdn/domain.test.ts": 584,
   "test/integration/db/attendees/create-attendee-atomic.test.ts": 655,
   "test/integration/db/migration-restore/helpers.ts": 508,
-
   "test/integration/server/parents-duplicate.test.ts": 560,
   "test/integration/server/settings/apple-wallet.test.ts": 681,
   "test/integration/server/settings/superuser.test.ts": 507,
