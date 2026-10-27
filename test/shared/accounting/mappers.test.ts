@@ -298,6 +298,30 @@ describeWithEnv("accounting > mapBooking", { encryptionKey: true }, () => {
     expect(balanceOf(attendeeAccount(3))(legs)).toBe(-12000);
   });
 
+  test("keeps discount legs whole when splitting an inclusive total", async () => {
+    const legs = (
+      await mapBooking(
+        facts({
+          amountPaid: 0,
+          lines: [{ gross: 12000, listingId: 1 }],
+          modifiers: [
+            { delta: -1000, modifierId: 10 }, // discount
+            { delta: 200, modifierId: 11 }, // surcharge
+          ],
+          vat: { mode: "calculate_from_total", rate: 0.2 },
+        }),
+      )
+    ).map(asTransfer);
+
+    // Taxable base = 12000 − 1000 + 200 = 11200 → 1867 VAT at 20% inclusive.
+    expect(soleLegOf("vat")(legs).amount).toBe(1867);
+    expect(soleLegOf("sale")(legs).amount).toBe(10164);
+    // The discount leg stays whole; the surcharge leg is reduced by its share.
+    expect(balanceOf(modifierAccount(10))(legs)).toBe(-1000);
+    expect(balanceOf(modifierAccount(11))(legs)).toBe(169);
+    expect(balanceOf(attendeeAccount(3))(legs)).toBe(-11200);
+  });
+
   test("posts a pre-computed VAT amount as the vat leg", async () => {
     const legs = (
       await mapBooking(
@@ -375,6 +399,34 @@ describeWithEnv("accounting > mapBooking", { encryptionKey: true }, () => {
         ),
       ),
       "negative vat amount",
+    );
+  });
+
+  test("rejects a non-finite pre-computed VAT amount", async () => {
+    assertStringIncludes(
+      await rejectionMessage(
+        mapBooking(
+          facts({
+            lines: [{ gross: 10000, listingId: 1 }],
+            vat: { amount: Number.NaN },
+          }),
+        ),
+      ),
+      "non-finite vat amount",
+    );
+  });
+
+  test("rejects a fractional pre-computed VAT amount", async () => {
+    assertStringIncludes(
+      await rejectionMessage(
+        mapBooking(
+          facts({
+            lines: [{ gross: 10000, listingId: 1 }],
+            vat: { amount: 10.5 },
+          }),
+        ),
+      ),
+      "non-integer vat amount",
     );
   });
 });

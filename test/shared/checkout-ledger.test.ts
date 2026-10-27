@@ -63,4 +63,13 @@ describe("bookingFactsFromOrder", () => {
     expect(facts.lines).toEqual([{ gross: 25000, listingId: 1 }]);
     expect(facts.bookingFee).toBe(0);
   });
+
+  test("carries the booking's VAT facts", () => {
+    const facts = bookingFactsFromOrder(
+      order({ lines: [line(1, 10000, 1)], total: 0 }),
+      ctx,
+      { mode: "add_to_total", rate: 0.2 },
+    );
+    expect(facts.vat).toEqual({ mode: "add_to_total", rate: 0.2 });
+  });
 });
