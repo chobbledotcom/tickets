@@ -1,8 +1,6 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { createOwnerNote, getNoteRows } from "#db/notes/queries.ts";
-import { questionNotes } from "#db/notes/target.ts";
 import {
   expectFlash,
   expectFlashRedirect,
@@ -54,9 +52,6 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     test("deletes question with correct text confirmation", async () => {
       const id = await createQuestion("Confirm Delete");
-      // A question can carry owner notes; deleting the question must clear
-      // them with it.
-      await createOwnerNote(questionNotes(id), "a note on this question");
       const { response } = await adminFormPost(
         `/admin/questions/${id}/delete`,
         { confirm_identifier: "Confirm Delete" },
@@ -70,7 +65,6 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const { questionsTable } = await import("#db/questions/tables.ts");
       const found = await questionsTable.read.one({ id: id });
       expect(found).toBeNull();
-      expect(await getNoteRows("question", [id])).toEqual([]);
     });
 
     test("deletes a multiline question via its flattened confirmation text", async () => {

@@ -14,6 +14,7 @@ import { adminPattern } from "#shared/admin-surface.ts";
  */
 
 import { getListingWithCount } from "#db/listings/records.ts";
+import { listingNoteFeature } from "./catalog-notes.ts";
 import { createItemImageHandlers } from "./item-images.ts";
 import { listingPage } from "./listing-page.ts";
 import {
@@ -36,6 +37,7 @@ import {
   handleListingRecalculatePost,
 } from "./listings-recalculate.ts";
 import { handleAttachmentDelete } from "./listings-uploads.ts";
+import { bindNoteRoutes } from "./record-notes.ts";
 
 const listingImageHandlers = createItemImageHandlers({
   disabledPath: (id) => `/admin/listing/${id}/edit`,
@@ -55,6 +57,7 @@ const listingImageHandlers = createItemImageHandlers({
  * refund bundles therefore keep resolving to their own handlers. */
 export const adminHandlers = defineRoutes({
   ...entityTabRoutes(adminPattern("listing"), listingPage),
+  ...bindNoteRoutes("/admin/listing", "id", listingNoteFeature.routes),
   "DELETE /admin/listing/:id/delete": handleAdminListingDelete,
   "GET /admin/listing/:id/attendees.csv": handleAdminListingExport,
   "GET /admin/listing/:id/deactivate": idRouteFor(listingDeactivate.get),

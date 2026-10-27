@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, queryAll } from "#db/client.ts";
-import noteEntitiesQuestion from "#db/migrations/2026-10-27_note_entities_question.ts";
+import noteEntitiesGroupListing from "#db/migrations/2026-10-27_note_entities_group_listing.ts";
 import { MIGRATION_IDS } from "#db/migrations/registry.ts";
 import { recreateTable, syncIndexes } from "#db/migrations/schema-sync.ts";
 import type { Migration } from "#db/migrations/types.ts";
@@ -9,7 +9,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 
 /** Put system_notes back the way it was before this migration: its CHECK names
- *  only attendees, so a note about a question is rejected. */
+ *  only attendees, so a note about a group or a listing is rejected. */
 const downgradeToAttendeeOnlyNotes = async (): Promise<void> => {
   await execute("DROP TABLE IF EXISTS system_notes");
   await execute(`CREATE TABLE system_notes (
@@ -31,15 +31,17 @@ const downgradeToAttendeeOnlyNotes = async (): Promise<void> => {
 };
 
 const migration = (): Migration =>
-  noteEntitiesQuestion(buildMigrationContext({ recreateTable, syncIndexes }));
+  noteEntitiesGroupListing(
+    buildMigrationContext({ recreateTable, syncIndexes }),
+  );
 
 const runMigration = (): Promise<void> => migration().up();
 
 describeWithEnv(
-  "db > migrations > 2026-10-27_note_entities_question",
+  "db > migrations > 2026-10-27_note_entities_group_listing",
   { db: true },
   () => {
-    test("rebuilds system_notes so its CHECK accepts question notes", async () => {
+    test("rebuilds system_notes so its CHECK accepts group and listing notes", async () => {
       await downgradeToAttendeeOnlyNotes();
       await execute(
         "INSERT INTO system_notes (entity_type, entity_id, type, note) VALUES ('attendee', 7, 'owner', 'kept')",
@@ -53,10 +55,13 @@ describeWithEnv(
       );
       expect(rows).toEqual([{ entity_type: "attendee", note: "kept" }]);
 
-      // The rebuilt table's CHECK names 'question' too, so a question note
-      // that the old CHECK would have refused is accepted.
+      // The rebuilt table's CHECK names 'group' and 'listing' too, so notes
+      // the old CHECK would have refused are accepted.
       await execute(
-        "INSERT INTO system_notes (entity_type, entity_id, type, note, created) VALUES ('question', 3, 'owner', 'new', '2026-10-27T00:00:00.000Z')",
+        "INSERT INTO system_notes (entity_type, entity_id, type, note, created) VALUES ('group', 3, 'owner', 'about a group', '2026-10-27T00:00:00.000Z')",
+      );
+      await execute(
+        "INSERT INTO system_notes (entity_type, entity_id, type, note, created) VALUES ('listing', 4, 'owner', 'about a listing', '2026-10-27T00:00:00.000Z')",
       );
     });
 
@@ -69,18 +74,18 @@ describeWithEnv(
       await runMigration();
 
       await execute(
-        "INSERT INTO system_notes (entity_type, entity_id, type, note, created) VALUES ('question', 1, 'owner', 'twice', '2026-10-27T00:00:00.000Z')",
+        "INSERT INTO system_notes (entity_type, entity_id, type, note, created) VALUES ('listing', 1, 'owner', 'twice', '2026-10-27T00:00:00.000Z')",
       );
       const rows = await queryAll<{ entity_type: string }>(
         "SELECT entity_type FROM system_notes",
       );
-      expect(rows).toEqual([{ entity_type: "question" }]);
+      expect(rows).toEqual([{ entity_type: "listing" }]);
     });
   },
 );
 
 test("registers the migration after the one before it", () => {
-  const index = MIGRATION_IDS.indexOf("2026-10-27_note_entities_question");
+  const index = MIGRATION_IDS.indexOf("2026-10-27_note_entities_group_listing");
   expect(MIGRATION_IDS[index - 1]).toBe(
     "2026-10-26_attendees_pending_flags_index",
   );

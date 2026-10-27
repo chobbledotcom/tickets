@@ -203,7 +203,7 @@ describeWithEnv("admin role matrix", { db: true }, () => {
     // The scanner's ticket-cache reads are record routes like their scanner
     // pages: the gate runs before the record lookup, so the matrix walks them.
     expect(roleOnly.length).toBe(64);
-    expect(recordPages.length).toBe(95);
+    expect(recordPages.length).toBe(97);
   });
 
   test("never serves a page to a role it does not declare", async () => {
@@ -280,8 +280,8 @@ describeWithEnv("admin role matrix", { db: true }, () => {
   });
 
   test("covers the write routes the surface declares", () => {
-    expect(writableRoutes().length).toBe(95);
-    expect(insiderWritableRoutes().length).toBe(94);
+    expect(writableRoutes().length).toBe(97);
+    expect(insiderWritableRoutes().length).toBe(96);
   });
 });
 

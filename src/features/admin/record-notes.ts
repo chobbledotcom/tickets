@@ -2,14 +2,22 @@
  * The add-and-delete note routes every record kind with a notes section needs.
  * A record kind supplies how it loads its records and how its note URLs are
  * shaped. The four routes (add GET/POST, delete GET/POST) are the same for
- * every kind, so one factory serves attendees and questions alike.
+ * every kind, so one factory serves attendees, groups, and listings alike.
+ * The factory hands back the record page's banner wiring from the same
+ * config.
  */
 
-import { addPageImageUrls } from "#db/image-urls.ts";
-import { createOwnerNote, deleteNotes, getNote } from "#db/notes/queries.ts";
+import { addNoteImageUrls, addPageImageUrls } from "#db/image-urls.ts";
+import {
+  createOwnerNote,
+  deleteNotes,
+  getNote,
+  getNotesFor,
+} from "#db/notes/queries.ts";
 import { type NoteEntity, noteTargets } from "#db/notes/target.ts";
 import type { SystemNote } from "#db/notes/types.ts";
 import { t } from "#i18n";
+import type { PageCtx } from "#routes/admin/entity-pages.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { createEntityHandler } from "#routes/entity.ts";
@@ -22,11 +30,18 @@ import {
 import type { RouteHandlerFn } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
-import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
+import { withReturnUrl } from "#shared/return-url-field.tsx";
 import {
+  getSessionPrivateKey,
+  requireRequestPrivateKey,
+} from "#shared/session-private-key.ts";
+import {
+  addNoteLinkProse,
   adminNoteDeletePage,
   adminNoteNewPage,
+  NotesSection,
 } from "#templates/admin/attendee-notes.tsx";
+import { isOwnerRole, isStaffRole } from "#types";
 import { type AuthOption, resolveAuth } from "./confirmation.ts";
 
 export interface RecordNoteRoutesConfig<Record extends { id: number }> {
@@ -43,7 +58,7 @@ export interface RecordNoteRoutesConfig<Record extends { id: number }> {
   loadRecord: (id: number, session: AuthSession) => Promise<Record | null>;
   /** The record's display name for the add-note heading. */
   nameOf: (record: Record) => string;
-  /** One record's notes base path: `/admin/questions/7/note`. */
+  /** One record's notes base path: `/admin/groups/7/note`. */
   noteBasePath: (id: number) => string;
   /** The record's own page, where note actions return by default. */
   recordPagePath: (id: number) => string;
@@ -82,7 +97,7 @@ const noteParamHandler =
     );
 
 /** Bind the four note routes under a record kind's paths. `basePath` is the
- * record's path without the id (for example "/admin/questions"), `idParam` the
+ * record's path without the id (for example "/admin/groups"), `idParam` the
  * route param that names the record (for example "id"), and `routes` the
  * handlers to bind. The route-map shape is the one `defineRoutes` wants, so a
  * caller spreads the result into its route table. */
@@ -118,9 +133,31 @@ const returnTo =
   (recordId: number, returnUrl: string): string =>
     returnUrl || recordPagePath(recordId);
 
-export const recordNoteRoutes = <Record extends { id: number }>(
+/** One page slot over a record and the request's context. */
+type RecordSlot<Entity, T> = (entity: Entity, ctx: PageCtx) => Promise<T>;
+
+/** One record kind's notes feature: the four note routes its route table
+ * binds, and the page wiring its record page composes from the same config. */
+export interface RecordNoteFeature<Record extends { id: number }> {
+  page: {
+    /** The notes section as the record page's whole banner, or null for a
+     * session that cannot decrypt notes (a content-only editor). A page whose
+     * banner carries more composes its own from notesFor and noteDeleteUrl. */
+    banner: RecordSlot<Record, JSX.Element | null>;
+    noteDeleteUrl: (note: SystemNote) => string;
+    /** One record's notes, decrypted, with image references resolved. Empty
+     * for a session that cannot derive the owner key. */
+    notesFor: (entity: Record, session: AuthSession) => Promise<SystemNote[]>;
+    /** The "Add a note" link beside the heading, returning to the record
+     * page. Staff-only, like the banner. */
+    proseExtra: RecordSlot<Record, JSX.Element | null>;
+  };
+  routes: RecordNoteHandlers;
+}
+
+export const recordNoteFeature = <Record extends { id: number }>(
   config: RecordNoteRoutesConfig<Record>,
-): RecordNoteHandlers => {
+): RecordNoteFeature<Record> => {
   const { activeSection, entityKind, loadRecord, nameOf, noteBasePath } =
     config;
   const { requireSession, withForm } = resolveAuth(config.auth);
@@ -239,5 +276,59 @@ export const recordNoteRoutes = <Record extends { id: number }>(
       );
     })(request, { id, noteId });
 
-  return { addGet, addPost, deleteGet, deletePost };
+  /** One note's are-you-sure delete URL, returning to the record page. */
+  const noteDeleteUrl = (note: SystemNote): string =>
+    withReturnUrl(
+      `${config.noteBasePath(note.entity_id)}/${note.id}/delete`,
+      config.recordPagePath(note.entity_id),
+    );
+
+  /** One record's notes, decrypted, with image references resolved. A session
+   * that cannot derive the owner key reads none: a content-only editor, or a
+   * session whose wrapped key is unavailable. The banner is decoration, and
+   * must never break the page under it. */
+  const notesFor = async (
+    entity: Record,
+    session: AuthSession,
+  ): Promise<SystemNote[]> => {
+    const key = await getSessionPrivateKey(session);
+    if (!key) return [];
+    const loaded = await getNotesFor(targetOf(entity.id), key);
+    await addNoteImageUrls(loaded);
+    return loaded;
+  };
+
+  /** Whether the session can read owner-key-encrypted notes at all: the staff
+   * floor. A content-only editor cannot decrypt them. */
+  const staffSession = (ctx: PageCtx): boolean =>
+    isStaffRole(ctx.session.adminLevel);
+
+  return {
+    page: {
+      banner: async (entity, ctx) => {
+        if (!staffSession(ctx)) return null;
+        const isOwner = isOwnerRole(ctx.session.adminLevel);
+        return NotesSection({
+          deleteHref: noteDeleteUrl,
+          isOwner,
+          notes: await notesFor(entity, ctx.session),
+        });
+      },
+      noteDeleteUrl,
+      notesFor,
+      /** The "Add a note" link beside the heading, returning to the record
+       * page. Staff-only, like the notes it opens. Read-only mode hides it
+       * by the shared link renderer. */
+      proseExtra: (entity, ctx) => {
+        if (!staffSession(ctx)) return Promise.resolve(null);
+        return addNoteLinkProse(
+          withReturnUrl(
+            config.noteBasePath(entity.id),
+            config.recordPagePath(entity.id),
+          ),
+        );
+      },
+    },
+    routes: { addGet, addPost, deleteGet, deletePost },
+  };
 };

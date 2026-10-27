@@ -10,13 +10,13 @@ import { defineRoutes } from "#routes/router.ts";
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import { bindNoteRoutes, recordNoteRoutes } from "./record-notes.ts";
+import { bindNoteRoutes, recordNoteFeature } from "./record-notes.ts";
 
-/** The attendee's add/delete note routes. */
-const attendeeNoteRoutes = recordNoteRoutes({
+/** The attendee's note routes and its page banner wiring. Attendee pages are
+ * staff-visible, and the note routes declare the same staff floor the "any"
+ * shorthand enforces. */
+export const attendeeNoteFeature = recordNoteFeature({
   activeSection: adminPattern("attendees"),
-  // Attendee pages are staff-visible, and the note routes declare the same
-  // staff floor the "any" shorthand enforces.
   auth: "any",
   entityKind: "attendee",
   loadRecord: async (attendeeId) =>
@@ -27,5 +27,9 @@ const attendeeNoteRoutes = recordNoteRoutes({
 });
 
 export const adminHandlers = defineRoutes({
-  ...bindNoteRoutes("/admin/attendee", "attendeeId", attendeeNoteRoutes),
+  ...bindNoteRoutes(
+    "/admin/attendee",
+    "attendeeId",
+    attendeeNoteFeature.routes,
+  ),
 });

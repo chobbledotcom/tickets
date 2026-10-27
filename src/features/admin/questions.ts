@@ -46,7 +46,6 @@ import {
   appendWithCreationLog,
   confirmDeleteWithLog,
 } from "./logged-actions.ts";
-import { questionNoteRoutes } from "./question-notes.ts";
 import { questionPage } from "./question-page.ts";
 import {
   answerOrder,
@@ -61,7 +60,6 @@ import {
   redirectToQuestion,
 } from "./questions/answers.ts";
 import { questionTextForm } from "./questions/forms.ts";
-import { bindNoteRoutes } from "./record-notes.ts";
 
 /** Handle GET /admin/questions */
 const handleQuestionsGet = ownerPage(async (session) => {
@@ -212,7 +210,6 @@ export const adminHandlers = defineRoutes({
   "GET /admin/questions/:id/answers/:answerId/recalculate":
     handleAnswerRecalculateGet,
   "GET /admin/questions/:id/delete": idRouteFor(questionDelete.get),
-  ...bindNoteRoutes("/admin/questions", "id", questionNoteRoutes),
   "POST /admin/listing/:id/questions": handleListingQuestionsPost,
   "POST /admin/questions": handleQuestionsPost,
   "POST /admin/questions/:id/answers": handleAddAnswer,

@@ -7,6 +7,8 @@ import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { groups } from "#db/groups.ts";
+import { createOwnerNote, getNoteRows } from "#db/notes/queries.ts";
+import { noteTargets } from "#db/notes/target.ts";
 import { deleteGroup } from "#routes/admin/groups.ts";
 import {
   imageNamesForItem,
@@ -114,6 +116,11 @@ describeWithEnv("admin group pages", { db: true }, () => {
       groupId: group.id,
       name: "Freed listing",
     });
+    // The group carries a note; deleting the group must clear it with it.
+    await createOwnerNote(
+      noteTargets.of("group")(group.id),
+      "a note on this group",
+    );
 
     await deleteGroup(group.id);
     groups.cache.invalidate();
@@ -124,5 +131,6 @@ describeWithEnv("admin group pages", { db: true }, () => {
       ),
     ).toEqual([]);
     expect(await listingGroups.getIds(listing.id)).toEqual([]);
+    expect(await getNoteRows("group", [group.id])).toEqual([]);
   });
 });

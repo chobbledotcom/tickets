@@ -7,16 +7,13 @@ import {
   deleteWithChildren,
   executeBatch,
 } from "#db/client.ts";
-import { noteDeleteStatement } from "#db/notes/queries.ts";
 
 /**
  * Delete a question and all related data in a single batch, child rows before
  * the question itself. Every attendee_answers row carries question_id (choice
  * and free-text alike, the validate trigger enforces it), so the answers delete
  * by it directly. The answer→modifier link is a column on answers, so it's
- * removed with the rows. The question's own notes go with it. A note names
- * the record it is about by entity_type + entity_id, so it cannot ride a
- * plain question_id delete.
+ * removed with the rows.
  */
 export const deleteQuestion = async (id: number): Promise<void> => {
   await executeBatch([
@@ -35,7 +32,6 @@ export const deleteQuestion = async (id: number): Promise<void> => {
       table: "listing_questions",
       value: id,
     }),
-    noteDeleteStatement("question", { args: [id], sql: "?" }),
     deleteByFieldStatement({ field: "id", table: "questions", value: id }),
   ]);
 };

@@ -189,6 +189,14 @@ export const AREAS_A_L = {
       groupEdit: "/admin/groups/:id/edit",
       groupImages: "/admin/groups/:id/images",
       groupNew: "/admin/groups/new",
+      groupNote: {
+        audience: STAFF_ADMIN_LEVELS,
+        pattern: "/admin/groups/:id/note",
+      },
+      groupNoteDelete: {
+        audience: STAFF_ADMIN_LEVELS,
+        pattern: "/admin/groups/:id/note/:noteId/delete",
+      },
       groupRemoveListings: "/admin/groups/:id/remove-listings",
     },
   },
@@ -278,6 +286,8 @@ export const AREAS_A_L = {
         audience: CONTENT_ADMIN_LEVELS,
         pattern: "/admin/listing/new",
       },
+      listingNote: "/admin/listing/:id/note",
+      listingNoteDelete: "/admin/listing/:id/note/:noteId/delete",
       listingQr: "/admin/listing/:id/qr",
       listingQuestions: {
         audience: OWNER_AUDIENCE,

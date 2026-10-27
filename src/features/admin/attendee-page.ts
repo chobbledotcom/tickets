@@ -7,9 +7,6 @@
 
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { hasAssignedBuiltSite } from "#db/built-sites/claims.ts";
-import { addNoteImageUrls } from "#db/image-urls.ts";
-import { getNotesFor } from "#db/notes/queries.ts";
-import { attendeeNotes } from "#db/notes/target.ts";
 import {
   loadPaymentMoveSnapshot,
   type PaymentMoveSnapshot,
@@ -56,13 +53,11 @@ import { adminPattern } from "#shared/admin-surface.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { isIncompletePayment } from "#shared/incomplete-payment.ts";
 import { withReturnUrl } from "#shared/return-url-field.tsx";
-import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
   AttendeeAnswersTable,
   AttendeeBookingsTable,
 } from "#templates/admin/attendee-detail.tsx";
 import { AttendeeFormPanel } from "#templates/admin/attendee-form.tsx";
-import { addNoteLinkProse } from "#templates/admin/attendee-notes.tsx";
 import {
   attendeeBanner,
   attendeeSummaryRows,
@@ -73,6 +68,7 @@ import {
   type PaymentRefreshControl,
 } from "#templates/admin/attendees.tsx";
 import { isOwnerRole } from "#types";
+import { attendeeNoteFeature } from "./attendee-notes.ts";
 
 type AttendeePageEntity = LoadedAttendee & {
   readonly paymentMove: PaymentMoveSnapshot | "not_loaded";
@@ -314,11 +310,10 @@ const overviewTab: TabDef<AttendeePageEntity> = {
 /** The tabbed attendee page. */
 export const attendeePage: EntityPage<AttendeePageEntity> = defineEntityPage({
   banner: async ({ attendee }, ctx) => {
-    const notes = await getNotesFor(
-      attendeeNotes(attendee.id),
-      await requireRequestPrivateKey(),
+    const notes = await attendeeNoteFeature.page.notesFor(
+      attendee,
+      ctx.session,
     );
-    await addNoteImageUrls(notes);
     return attendeeBanner({
       attendee,
       isOwner: ctx.session.adminLevel === "owner",
@@ -331,13 +326,8 @@ export const attendeePage: EntityPage<AttendeePageEntity> = defineEntityPage({
   // A single attendee is a page *within* the Attendees section: highlight the
   // top-level link, but never re-open the section's "Add" sub-nav beside it.
   navActive: { section: adminPattern("attendees") },
-  proseExtra: ({ attendee }) =>
-    addNoteLinkProse(
-      withReturnUrl(
-        `/admin/attendee/${attendee.id}/note`,
-        `/admin/attendees/${attendee.id}`,
-      ),
-    ),
+  proseExtra: ({ attendee }, ctx) =>
+    attendeeNoteFeature.page.proseExtra(attendee, ctx),
   tabs: [
     overviewTab,
     writeFormTab<AttendeePageEntity>("edit", "entity.tab.edit", loadEditPanel),
