@@ -5,10 +5,7 @@
 
 /* jscpd:ignore-start -- import block */
 import type { GenericSchema } from "valibot";
-import {
-  defineApiClient,
-  type ApiClientFetch,
-} from "#shared/api-client.ts";
+import { type ApiClientFetch, defineApiClient } from "#shared/api-client.ts";
 import { dryRunOrFetchText } from "#shared/builder-dry-run.ts";
 import { getBunnyApiKey } from "#shared/config.ts";
 import { type FetchResult, parseApiError } from "#shared/fetch.ts";
