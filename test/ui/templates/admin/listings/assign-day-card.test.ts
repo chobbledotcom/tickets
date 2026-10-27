@@ -14,6 +14,14 @@ const card = (extra: Record<string, unknown> = {}) => ({
 describe("the assign-day card", () => {
   test("names the bookings without a day and offers the dates", () => {
     const html = String(AssignUndatedDayCard({ card: card() }));
+    // The heading and its copy share a prose block; the date field follows
+    // outside it, as a control rather than prose copy.
+    expect(
+      html.includes('<div class="prose"><h2>2 bookings have no day</h2>'),
+    ).toBe(true);
+    expect(html.includes('</p></div><label for="assign_undated_to">')).toBe(
+      true,
+    );
     expect(html.includes("2 bookings have no day")).toBe(true);
     expect(html.includes("Move these bookings to")).toBe(true);
     expect(html.includes('value="2026-11-05"')).toBe(true);
@@ -28,6 +36,11 @@ describe("the assign-day card", () => {
       }),
     );
     expect(html.includes("This listing has no bookable dates")).toBe(true);
+    // The plain-saying paragraph sits inside the prose block: the prose div
+    // and then the notice close right after it.
+    expect(
+      html.endsWith("no date to give these bookings.</p></div></div>"),
+    ).toBe(true);
     expect(html.includes("Move these bookings to")).toBe(false);
   });
 
