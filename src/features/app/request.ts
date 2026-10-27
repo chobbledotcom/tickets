@@ -31,7 +31,6 @@ import {
   withCookie,
 } from "#routes/response.ts";
 import { getPrefix, settingsForPath } from "#routes/settings-bundles.ts";
-import { routeStatic } from "#routes/static.ts";
 import { parseCookies, parseRequest } from "#routes/url.ts";
 import {
   loadEffectiveDomain,
@@ -78,6 +77,13 @@ const loadSetupRoutes = once(async () =>
   (await import("#routes/setup.ts")).createSetupRouter(
     settings.setup.isComplete,
   ),
+);
+
+/** The static asset and health routes, loaded only when a request reaches
+ * them. Keeping them out of the eager import graph avoids pulling the
+ * sitemap's DB graph into every module that imports `#routes`. */
+const loadStaticRoutes = once(
+  async () => (await import("#routes/static.ts")).routeStatic,
 );
 
 const handleRequestInternal = defineAppRoute(
@@ -265,7 +271,11 @@ const processRequest = async (request: Request): Promise<Response> => {
 
     const bufferedRequest = await bufferRequestIfNeeded(request);
 
-    const staticResponse = await routeStatic(bufferedRequest, path, method);
+    const staticResponse = await (await loadStaticRoutes())(
+      bufferedRequest,
+      path,
+      method,
+    );
     if (staticResponse) {
       return finish(await applySecurityHeaders(staticResponse, path));
     }
