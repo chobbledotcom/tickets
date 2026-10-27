@@ -42,10 +42,12 @@ export const childEditPage =
           <BackButton href={frame.backHref}>{frame.backLabel}</BackButton>
         </p>
 
-        <h1>{frame.heading}</h1>
-        <p>
-          <small>{frame.context}</small>
-        </p>
+        <div class="prose">
+          <h1>{frame.heading}</h1>
+          <p>
+            <small>{frame.context}</small>
+          </p>
+        </div>
 
         <CsrfForm action={frame.formAction}>{formContent}</CsrfForm>
 

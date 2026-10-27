@@ -11,7 +11,7 @@ import type { DebugPageState } from "#templates/admin/debug-state.ts";
 import { settingsPage } from "#templates/admin/settings/page-shell.tsx";
 import { Badge, statusBadge } from "#templates/components/badge.tsx";
 import { LabelledRow } from "#templates/components/labelled-row.tsx";
-import { TitledArticle } from "#templates/components/page-structure.tsx";
+import { ProseArticle } from "#templates/components/prose-article.tsx";
 import type { AdminSession } from "#types";
 
 /* jscpd:ignore-end */
@@ -50,23 +50,6 @@ const sentryStatus = (configured: boolean): JSX.Element => (
       </CsrfForm>
     ) : null}
   </>
-);
-
-/** The article/h2/table-scroll scaffolding shared by every debug section. */
-const DebugSection = ({
-  title,
-  rows,
-}: {
-  title: string;
-  rows: readonly RowSpec[];
-}): JSX.Element => (
-  <TitledArticle title={title}>
-    <div class="table-scroll">
-      <table>
-        <tbody>{renderRows(rows)}</tbody>
-      </table>
-    </div>
-  </TitledArticle>
 );
 
 /** A debug section that opens with a prose intro (h2 + paragraph) before the
@@ -176,7 +159,7 @@ type DebugSectionSpec = {
 
 /** Every plain label/value debug section, in the order the page shows them.
  *  One loop in {@link adminDebugPage} renders them all through
- *  {@link DebugSection}; only the limits and prune tables (which need their
+ *  {@link ProseArticle}; only the limits and prune tables (which need their
  *  own column headers) live outside this list. */
 const DEBUG_SECTIONS: readonly DebugSectionSpec[] = [
   {
@@ -428,7 +411,13 @@ export const adminDebugPage = (
       </div>
 
       {DEBUG_SECTIONS.map((section) => (
-        <DebugSection rows={section.rows(s)} title={t(section.titleKey)} />
+        <ProseArticle heading={<h2>{t(section.titleKey)}</h2>}>
+          <div class="table-scroll">
+            <table>
+              <tbody>{renderRows(section.rows(s))}</tbody>
+            </table>
+          </div>
+        </ProseArticle>
       ))}
       <LimitsSection limits={s.limits} />
     </>,

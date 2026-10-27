@@ -177,6 +177,37 @@ export const toPageWrite = (
   });
 };
 
+/** The content-page write fields a fixed page does not carry. A body that
+ *  names one gets the field-named refusal. A fixed page holds only its
+ *  content, so a client cannot send it the other fields. The type refuses a
+ *  name outside the declared update body. The fixed-page test reads its cases
+ *  from that schema. A new schema field must join this list. */
+const FIXED_PAGE_BARRED_FIELDS: readonly Exclude<
+  keyof UpdateSitePageBody,
+  "content"
+>[] = ["hidden", "meta_description", "meta_title", "name", "parent", "slug"];
+
+/** The fixed page's content: the one writable field of a home, contact or
+ *  terms page. A body naming any content-page field a fixed page does not
+ *  carry is refused with the field-named message. A supplied content runs
+ *  the shared text rule: trimmed, and a non-string is refused with the field
+ *  message. A value past the form's textarea cap answers the form's length
+ *  message. A silent body keeps the stored text unchanged. The stored text
+ *  can exceed the cap, because the terms editor stores text with no length
+ *  cap. The cap check runs on a supplied value only. */
+export const toFixedPageContent = (
+  body: Record<string, unknown>,
+  stored: string,
+): Result<string> => {
+  for (const field of FIXED_PAGE_BARRED_FIELDS) {
+    if (body[field] !== undefined) {
+      return errorResult(`${field} cannot change on a fixed page`);
+    }
+  }
+  if (body.content === undefined) return okResult(stored);
+  return optionalTextField(body, "content", stored);
+};
+
 /** The tx step both parent writes share: drop the page's current parent
  *  edge, if it has one, then run the next step. */
 const dropCurrentEdgeThen =
