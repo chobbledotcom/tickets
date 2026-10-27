@@ -34,11 +34,14 @@ describe("what a note is about", () => {
 
     const grouped = groupNotesByTargetId(notes);
 
-    expect(grouped.get(1)?.map((note) => note.note)).toEqual([
-      "first",
-      "second",
-    ]);
-    expect(grouped.get(2)?.map((note) => note.note)).toEqual(["other"]);
-    expect(grouped.get(3)).toBeUndefined();
+    // The whole map answers at once: which records carry notes, each in input
+    // order, and nothing for a record with none.
+    expect(Object.fromEntries(grouped)).toEqual({
+      1: [
+        { entity_id: 1, note: "first" },
+        { entity_id: 1, note: "second" },
+      ],
+      2: [{ entity_id: 2, note: "other" }],
+    });
   });
 });
