@@ -79,6 +79,12 @@ export const mapByIds = async <Row, Value = number>(
 ): Promise<Map<number, Value>> =>
   new Map((await rowsByIds<Row>(ids, buildSql)).map(toEntry));
 
+/** Whether a failed batch tripped a guard's NOT NULL insert — the one shape
+ * every guard abort surfaces with, named by the constraint that tripped it. */
+export const notNullGuardFailure = (error: unknown, column: string): boolean =>
+  error instanceof Error &&
+  error.message.includes(`NOT NULL constraint failed: ${column}`);
+
 type NameRow<Raw> = { id: number; name: Raw };
 type Decryptor<Raw> = (raw: Raw) => Promise<string>;
 type NameMap = Promise<Map<number, string>>;

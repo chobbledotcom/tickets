@@ -90,10 +90,10 @@ describe("signedSumCase", () => {
 
 describe("creditsLessWriteoffDebits", () => {
   test("sums dest credits minus writeoff-directed source debits, scanning only both legs", () => {
-    const credited = `dest_type = '${REVENUE}' AND dest_id = CAST(listing.id AS TEXT)`;
+    const credited = `dest_type = '${REVENUE}' AND dest_id = CAST(listing.id AS TEXT) AND (kind IS NULL OR kind NOT IN ('${KIND.refundTaxSale}', '${KIND.refundTaxModifier}'))`;
     const writtenOff =
       `source_type = '${REVENUE}' AND source_id = CAST(listing.id AS TEXT)` +
-      ` AND dest_type = '${WRITEOFF_TYPE}'`;
+      ` AND (dest_type = '${WRITEOFF_TYPE}' OR kind IN ('${KIND.taxSale}', '${KIND.taxModifier}'))`;
     expect(creditsLessWriteoffDebits(REVENUE, "listing.id")).toBe(
       "(SELECT COALESCE(SUM(" +
         `CASE WHEN ${credited} THEN amount WHEN ${writtenOff} THEN -amount ELSE 0 END` +
@@ -142,7 +142,13 @@ describe("order amount subqueries", () => {
 
   test("keeps fees and manual charges out of the reservation subtotal", () => {
     expect(reservationSubtotalSubquery(ATTENDEE, "a.id")).toBe(
-      expectedTotal([KIND.sale, KIND.modifier]),
+      expectedTotal([
+        KIND.sale,
+        KIND.modifier,
+        KIND.taxSale,
+        KIND.taxModifier,
+        KIND.vat,
+      ]),
     );
   });
 
@@ -151,8 +157,10 @@ describe("order amount subqueries", () => {
       expectedTotal([
         KIND.sale,
         KIND.modifier,
-        KIND.fee,
+        KIND.taxSale,
+        KIND.taxModifier,
         KIND.vat,
+        KIND.fee,
         MANUAL_ATTENDEE_CHARGE,
       ]),
     );

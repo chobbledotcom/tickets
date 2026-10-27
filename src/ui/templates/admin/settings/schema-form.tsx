@@ -245,6 +245,25 @@ const secretField = (spec: SecretFieldSpec, state: object): JSX.Element => (
 
 const renderField = (spec: FieldSpec, state: object): Child => {
   switch (spec.kind) {
+    case "hidden":
+      return (
+        <input
+          name={spec.fieldName}
+          type="hidden"
+          value={stringState(state, spec.stateField)}
+        />
+      );
+    case "numericText":
+      return (
+        <TextField
+          inputmode="decimal"
+          label={t(spec.labelKey)}
+          name={spec.fieldName}
+          pattern={spec.pattern}
+          type="text"
+          value={stringState(state, spec.stateField)}
+        />
+      );
     case "checkbox":
       return checkboxField(spec, state);
     case "radios":

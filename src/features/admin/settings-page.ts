@@ -5,8 +5,9 @@
  */
 
 import { getAdminFeatureUsage } from "#db/admin-features.ts";
-import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
+import { serializeTaxPolicy } from "#db/settings/tax.ts";
+import { settings } from "#db/settings.ts";
 import { type AuthSession, ownerPage } from "#routes/auth.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { enabledFeaturesWithUsage } from "#shared/admin-features.ts";
@@ -69,6 +70,7 @@ const getSettingsPageState = async () => {
     getAdminFeatureUsage(),
   ]);
   const existingPaymentProvider = existingPaymentProviderState();
+  const tax = settings.tax;
   return {
     bookingFee: settings.bookingFee,
     businessEmail: settings.businessEmail,
@@ -77,6 +79,7 @@ const getSettingsPageState = async () => {
     currency: settings.currency,
     embedHosts: settings.embedHosts,
     enabledFeatures: enabledFeaturesWithUsage(settings.features, featureUsage),
+    expectedTax: serializeTaxPolicy(tax),
     headerImageUrl: settings.headerImageUrl,
     paymentProvider: settings.paymentProvider,
     paymentProviderRecoveryChoices: existingPaymentProvider.recoveryChoices,
@@ -87,6 +90,8 @@ const getSettingsPageState = async () => {
     squareWebhookConfigured: settings.square.webhookSignatureKey !== "",
     storageEnabled: isStorageEnabled(),
     superuser,
+    taxMode: tax.mode,
+    taxRate: tax.mode === "none" ? "" : (tax.rateBasisPoints / 100).toFixed(2),
     termsAndConditions: settings.terms,
     theme: settings.theme,
     underlineLinks: settings.underlineLinks,

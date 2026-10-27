@@ -5,6 +5,7 @@ import type {
   ParsedAttendeeForm,
 } from "#routes/admin/attendee-form-model.ts";
 import type { AttendeeLogisticsData } from "#routes/admin/attendee-logistics.ts";
+import type { TaxSavePreview } from "#shared/tax/save.ts";
 import type { Attendee } from "#types";
 
 /** Everything the editable attendee form needs to render. */
@@ -25,6 +26,7 @@ export interface AttendeeFormTemplateData extends SelectedQuestionAnswers {
   returnUrl?: string | undefined;
   saveError?: string | undefined;
   statuses: AttendeeStatus[];
+  taxPreview?: TaxSavePreview;
   topWarnings: string[];
 }
 

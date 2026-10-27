@@ -15,10 +15,13 @@ const state = {
   calendarFeedsGroupBy: "attendees",
   customCss: "body { color: red; }",
   embedHosts: "example.com",
+  expectedTax: '{"mode":"none"}',
   externalOrderEnabled: true,
   listingColumnOrder: "",
   showPublicApi: true,
   siteFooter: "",
+  taxMode: "none",
+  taxRate: "",
   termsAndConditions: "Be kind.",
   theme: "light",
   underlineLinks: false,
@@ -107,6 +110,27 @@ describe("settingsForm", () => {
 });
 
 describe("settingsForm multi-field forms", () => {
+  test("renders the tax rate as decimal text and preserves the expected policy", () => {
+    const html = String(
+      settingsForm(SETTINGS_FORMS.tax, {
+        expectedTax: '{"mode":"calculate_from_total","rateBasisPoints":725}',
+        taxMode: "calculate_from_total",
+        taxRate: "7.25",
+      }),
+    );
+    assertStringIncludes(html, 'action="/admin/settings/tax"');
+    assertStringIncludes(
+      html,
+      'checked name="tax_mode" type="radio" value="calculate_from_total"',
+    );
+    assertStringIncludes(html, 'inputmode="decimal"');
+    assertStringIncludes(html, 'name="tax_rate"');
+    assertStringIncludes(html, 'pattern="[0-9]+([.][0-9]{1,2})?"');
+    assertStringIncludes(html, 'type="text" value="7.25"');
+    assertStringIncludes(html, 'name="expected_tax"');
+    assertStringIncludes(html, 'type="hidden"');
+    assertStringIncludes(html, "&quot;rateBasisPoints&quot;:725");
+  });
   const themeState = { theme: "dark", underlineLinks: false };
 
   test("checks exactly the radio matching the saved value", () => {

@@ -12,6 +12,7 @@ import { setSumupCheckoutId, storeSumupCheckout } from "#db/sumup-checkouts.ts";
 import { sumOf } from "#fp";
 import { t } from "#i18n";
 import { closedCheckoutErrorFor } from "#payment/checkout-failure.ts";
+import { checkoutMetadata } from "#payment/checkout-session.ts";
 import { askProvider } from "#payment/provider-call.ts";
 import type { ProviderRead } from "#payment/provider-read.ts";
 import {
@@ -27,7 +28,6 @@ import { toMajorUnits } from "#shared/currency.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import {
-  assembleCheckoutMetadata,
   type CredentialCheck,
   createWithClient,
 } from "#shared/payment-helpers.ts";
@@ -211,7 +211,7 @@ export const sumupApi: {
     // operator's thank_you_url is always retained.
     await storeSumupCheckout(
       reference,
-      await assembleCheckoutMetadata("sumup", intent, totalMinor),
+      await checkoutMetadata("sumup", intent, order, totalMinor),
     );
 
     return withCheckoutClient(async (client) => {

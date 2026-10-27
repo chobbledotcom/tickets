@@ -62,24 +62,27 @@ export const saleLegPredicate = (
   ` AND ${accountPredicate("dest", REVENUE, listingIdExpr)}` +
   ` AND event_group = ${eventGroupExpr}`;
 
-/**
- * A *bare* scalar subquery (no alias — the caller names it, like
- * {@link accountBalanceSubquery}) for the GROSS credits to an account *minus*
- * only its write-off debits. Income is the gross sum of revenue credits —
- * deliberately NOT `balanceOf`, so an ordinary refund (`revenue:L→attendee`)
- * does not reduce it, matching the legacy `SUM(price_paid)`. A *manual*
- * write-off (`revenue:L→writeoff`, decision 14) must lower it. So this sums the
- * dest-side credits and subtracts the amounts the account paid out specifically
- * to the `writeoff` contra account, ignoring every other source-side leg. With
- * zero `writeoff` legs (production today) it equals the plain gross credit sum.
- * `idExpr` is the SQL for the account id in the surrounding query.
- */
+/** One booking's recognised ticket price, including signed tax corrections. */
+export const bookingSaleTotalSubquery = (
+  attendeeIdExpr: string,
+  listingIdExpr: string,
+  eventGroupExpr: string,
+): string => {
+  const credit = `${accountPredicate("source", ATTENDEE, attendeeIdExpr)} AND ${accountPredicate("dest", REVENUE, listingIdExpr)}`;
+  const debit = `${accountPredicate("dest", ATTENDEE, attendeeIdExpr)} AND ${accountPredicate("source", REVENUE, listingIdExpr)}`;
+  const original = `(${saleLegPredicate(attendeeIdExpr, listingIdExpr, eventGroupExpr)})`;
+  const correction = `(kind = '${KIND.taxSale}' AND event_group IN (SELECT assessment.event_group FROM booking_tax_assessments AS assessment WHERE assessment.booking_group = ${eventGroupExpr}) AND ((${credit}) OR (${debit})))`;
+  return `(SELECT ${signedSumCase(credit, debit)} FROM transfers WHERE ${original} OR ${correction})`;
+};
+
+/** Recognised income includes signed tax reclassifications and write-offs.
+ * Refunds leave that historical earned amount unchanged. */
 export const creditsLessWriteoffDebits = (
   type: string,
   idExpr: string,
 ): string => {
-  const credited = accountPredicate("dest", type, idExpr);
-  const writtenOff = `${accountPredicate("source", type, idExpr)} AND dest_type = '${WRITEOFF_TYPE}'`;
+  const credited = `${accountPredicate("dest", type, idExpr)} AND (kind IS NULL OR kind NOT IN ('${KIND.refundTaxSale}', '${KIND.refundTaxModifier}'))`;
+  const writtenOff = `${accountPredicate("source", type, idExpr)} AND (dest_type = '${WRITEOFF_TYPE}' OR kind IN ('${KIND.taxSale}', '${KIND.taxModifier}'))`;
   return (
     "(SELECT COALESCE(SUM(" +
     `CASE WHEN ${credited} THEN amount WHEN ${writtenOff} THEN -amount ELSE 0 END` +
@@ -144,21 +147,29 @@ const billedTotalSubquery = (
   return `(SELECT ${signedSumCase(billed, discounted)} FROM transfers WHERE kind IN (${kindList}) AND (${billed} OR ${discounted}))`;
 };
 
-/** Ticket sales and surcharges minus discounts, before booking fees. This is
- * the base used to calculate a reservation deposit. */
+/** The kinds that bill the customer for the booking itself, in the order the
+ * subtotal reads them. Booking fees and later manual charges extend it. */
+const TAXED_SALE_KINDS = [
+  KIND.sale,
+  KIND.modifier,
+  KIND.taxSale,
+  KIND.taxModifier,
+  KIND.vat,
+] as const;
+
+/** Customer subtotal including tax, before booking fees. This is the base used
+ * to calculate a reservation deposit. */
 export const reservationSubtotalSubquery = (
   type: string,
   idExpr: string,
-): string => billedTotalSubquery(type, idExpr, [KIND.sale, KIND.modifier]);
+): string => billedTotalSubquery(type, idExpr, TAXED_SALE_KINDS);
 
 /** Total amount billed to one attendee. Booking fees and later manual charges
  * add to the saved ticket subtotal. Payments, refunds and write-offs do not. */
 export const orderTotalSubquery = (type: string, idExpr: string): string =>
   billedTotalSubquery(type, idExpr, [
-    KIND.sale,
-    KIND.modifier,
+    ...TAXED_SALE_KINDS,
     KIND.fee,
-    KIND.vat,
     MANUAL_ATTENDEE_CHARGE,
   ]);
 

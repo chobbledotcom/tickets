@@ -18,6 +18,7 @@ import type {
   PricedLine,
   PricedOrder,
 } from "#shared/checkout-pricing.ts";
+import { pricedOrder } from "#test-utils/factories-pricing.ts";
 import { taggedPaymentReference } from "#test-utils/processed-payments.ts";
 import type { Attendee } from "#types";
 
@@ -62,15 +63,6 @@ export const pricedLine = (
     unitPrice,
   },
   quantity,
-});
-
-const pricedOrder = (overrides: Partial<PricedOrder> = {}): PricedOrder => ({
-  extras: [],
-  fullSubtotal: 0,
-  lines: [],
-  modifierApplications: [],
-  total: 0,
-  ...overrides,
 });
 
 export const surcharge = (

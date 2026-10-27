@@ -13,6 +13,20 @@ import { PAYMENT_PROVIDER_IDS } from "#shared/payment-providers.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
 describe("settings bundles", () => {
+  for (const path of [
+    "/admin/settings",
+    "/admin/attendees/1",
+    "/api/listings/1/book",
+    "/ticket/event",
+    "/calculate",
+    "/pay/1",
+    "/payment/callback",
+    "/renew/1",
+  ]) {
+    test(`loads the atomic tax policy for ${path}`, () => {
+      assertArrayIncludes(settingsForPath(path), [CONFIG_KEYS.TAX]);
+    });
+  }
   test("extracts the first path segment without its leading slash", () => {
     expect(getPrefix("/admin/settings")).toBe("admin");
   });

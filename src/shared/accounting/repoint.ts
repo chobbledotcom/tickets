@@ -30,5 +30,10 @@ export const repointAttendeeStatements = (
       { dest_id: to.id },
       { dest_id: from.id, dest_type: from.type },
     ),
+    update(
+      "booking_tax_assessments",
+      { attendee_id: toAttendeeId },
+      { attendee_id: fromAttendeeId },
+    ),
   ];
 };

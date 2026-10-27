@@ -19,4 +19,12 @@ ChecksStillPass(previousChecksPassed, currentCheckPassed) ==
   THEN currentCheckPassed
   ELSE FALSE
 
+\* One attempted edge: the machine lands on the edge's target and the safety
+\* ledger carries the machine's own verdict. Which attempts exist and what
+\* their verdict means stay with each machine.
+\* @type: (Str, Str, Bool, Bool) => Bool;
+AttemptedEdge(state, targetState, verdict, safe) ==
+  /\ state' = targetState
+  /\ safe' = ChecksStillPass(safe, verdict)
+
 =============================================================================

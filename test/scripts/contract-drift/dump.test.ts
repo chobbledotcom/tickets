@@ -73,6 +73,7 @@ describe("contract dump", () => {
       "row",
       "square_link_ends",
       "sumup_recovery",
+      "vat",
     ]);
   });
 

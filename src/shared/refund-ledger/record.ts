@@ -18,15 +18,15 @@ import {
   refundLedgerResult,
 } from "./result.ts";
 
-/** Account read + the post's own checks, which travel as one read + write. */
-export const REFUND_LEDGER_BATCH_DATABASE_CALLS = 3;
+/** Assessment + account reads and the post's checks, then one atomic write. */
+export const REFUND_LEDGER_BATCH_DATABASE_CALLS = 4;
 
 const postComputedRefund = async (
   attendeeId: number,
   computed: ComputedRefund,
 ): Promise<RefundLedgerResult> => {
   try {
-    await postTransferGroups(computed.groups);
+    await postTransferGroups(computed.groups, computed.statements);
     return computed.result;
   } catch (error) {
     logRefundLedgerError({ attendeeId, error, kind: "single_post" });
@@ -138,7 +138,11 @@ export const recordAttendeeRefundsBatch = async (
   const posted = await runRefundLedgerBatchStep(
     targets.length,
     "batch_post",
-    () => postTransferGroupBatches(plans.map((plan) => plan.computed.groups)),
+    () =>
+      postTransferGroupBatches(
+        plans.map((plan) => plan.computed.groups),
+        plans.map((plan) => plan.computed.statements),
+      ),
   );
   if (posted.kind === "failed") {
     return new Map(

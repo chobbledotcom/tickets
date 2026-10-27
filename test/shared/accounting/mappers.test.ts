@@ -63,7 +63,12 @@ describeWithEnv("accounting > mapBooking", { encryptionKey: true }, () => {
     expect(surcharge.destination).toEqual(modifierAccount(11));
 
     const discount = theModifierLeg(
-      await mapBooking(facts({ modifiers: [{ delta: -500, modifierId: 10 }] })),
+      await mapBooking(
+        facts({
+          lines: [{ gross: 1000, listingId: 1 }],
+          modifiers: [{ delta: -500, modifierId: 10 }],
+        }),
+      ),
     );
     expect(discount.amount).toBe(500);
     expect(discount.source).toEqual(modifierAccount(10));
@@ -223,7 +228,12 @@ describeWithEnv("accounting > mapBooking", { encryptionKey: true }, () => {
     expect(surcharge.source).toEqual(attendeeAccount(3));
 
     const discount = theModifierLeg(
-      await mapBooking(facts({ modifiers: [{ delta: -1, modifierId: 10 }] })),
+      await mapBooking(
+        facts({
+          lines: [{ gross: 2, listingId: 1 }],
+          modifiers: [{ delta: -1, modifierId: 10 }],
+        }),
+      ),
     );
     expect(discount.amount).toBe(1);
     expect(discount.destination).toEqual(attendeeAccount(3));
@@ -245,7 +255,7 @@ describeWithEnv("accounting > mapBooking", { encryptionKey: true }, () => {
         facts({
           amountPaid: 0,
           lines: [{ gross: 10000, listingId: 1 }],
-          vat: { mode: "add_to_total", rate: 0.2 },
+          vat: { mode: "add_to_total", rateBasisPoints: 2000 },
         }),
       )
     ).map(asTransfer);
@@ -264,7 +274,7 @@ describeWithEnv("accounting > mapBooking", { encryptionKey: true }, () => {
         facts({
           amountPaid: 0,
           lines: [{ gross: 12000, listingId: 1 }],
-          vat: { mode: "calculate_from_total", rate: 0.2 },
+          vat: { mode: "calculate_from_total", rateBasisPoints: 2000 },
         }),
       )
     ).map(asTransfer);
@@ -284,7 +294,7 @@ describeWithEnv("accounting > mapBooking", { encryptionKey: true }, () => {
             { gross: 6000, listingId: 1 },
             { gross: 6000, listingId: 2 },
           ],
-          vat: { mode: "calculate_from_total", rate: 0.2 },
+          vat: { mode: "calculate_from_total", rateBasisPoints: 2000 },
         }),
       )
     ).map(asTransfer);
@@ -308,7 +318,7 @@ describeWithEnv("accounting > mapBooking", { encryptionKey: true }, () => {
             { delta: -1000, modifierId: 10 }, // discount
             { delta: 200, modifierId: 11 }, // surcharge
           ],
-          vat: { mode: "calculate_from_total", rate: 0.2 },
+          vat: { mode: "calculate_from_total", rateBasisPoints: 2000 },
         }),
       )
     ).map(asTransfer);
@@ -322,21 +332,6 @@ describeWithEnv("accounting > mapBooking", { encryptionKey: true }, () => {
     expect(balanceOf(attendeeAccount(3))(legs)).toBe(-11200);
   });
 
-  test("posts a pre-computed VAT amount as the vat leg", async () => {
-    const legs = (
-      await mapBooking(
-        facts({
-          amountPaid: 0,
-          lines: [{ gross: 10000, listingId: 1 }],
-          vat: { amount: 1500 },
-        }),
-      )
-    ).map(asTransfer);
-
-    expectVatBooking(legs, 1500, -11500);
-    expect(balanceOf(TAX_VAT)(legs)).toBe(1500);
-  });
-
   test("charges VAT on the net modifier base, not the booking fee", async () => {
     const legs = (
       await mapBooking(
@@ -348,7 +343,7 @@ describeWithEnv("accounting > mapBooking", { encryptionKey: true }, () => {
             { delta: -500, modifierId: 10 },
             { delta: 200, modifierId: 11 },
           ],
-          vat: { mode: "add_to_total", rate: 0.2 },
+          vat: { mode: "add_to_total", rateBasisPoints: 2000 },
         }),
       )
     ).map(asTransfer);
@@ -368,65 +363,23 @@ describeWithEnv("accounting > mapBooking", { encryptionKey: true }, () => {
         amountPaid: 0,
         lines: [{ gross: 10000, listingId: 1 }],
         modifiers: [{ delta: -10000, modifierId: 10 }],
-        vat: { mode: "add_to_total", rate: 0.2 },
+        vat: { mode: "add_to_total", rateBasisPoints: 2000 },
       }),
     );
     expect(legs.some((leg) => leg.kind === "vat")).toBe(false);
   });
 
-  test("rejects a non-positive VAT rate", async () => {
+  test("rejects a negative VAT rate", async () => {
     assertStringIncludes(
       await rejectionMessage(
         mapBooking(
           facts({
             lines: [{ gross: 10000, listingId: 1 }],
-            vat: { mode: "add_to_total", rate: 0 },
+            vat: { mode: "add_to_total", rateBasisPoints: -1 },
           }),
         ),
       ),
-      "invalid vat rate 0",
-    );
-  });
-
-  test("rejects a negative pre-computed VAT amount", async () => {
-    assertStringIncludes(
-      await rejectionMessage(
-        mapBooking(
-          facts({
-            lines: [{ gross: 10000, listingId: 1 }],
-            vat: { amount: -5 },
-          }),
-        ),
-      ),
-      "negative vat amount",
-    );
-  });
-
-  test("rejects a non-finite pre-computed VAT amount", async () => {
-    assertStringIncludes(
-      await rejectionMessage(
-        mapBooking(
-          facts({
-            lines: [{ gross: 10000, listingId: 1 }],
-            vat: { amount: Number.NaN },
-          }),
-        ),
-      ),
-      "non-finite vat amount",
-    );
-  });
-
-  test("rejects a fractional pre-computed VAT amount", async () => {
-    assertStringIncludes(
-      await rejectionMessage(
-        mapBooking(
-          facts({
-            lines: [{ gross: 10000, listingId: 1 }],
-            vat: { amount: 10.5 },
-          }),
-        ),
-      ),
-      "non-integer vat amount",
+      "invalid tax policy",
     );
   });
 });

@@ -109,5 +109,9 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
     "2026-10-27_note_entities_group_listing",
     () => import("./2026-10-27_note_entities_group_listing.ts"),
   ),
+  entry(
+    "2026-10-27_booking_tax_assessments",
+    () => import("./2026-10-27_booking_tax_assessments.ts"),
+  ),
 ];
 /* jscpd:ignore-end */

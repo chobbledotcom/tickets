@@ -3,6 +3,7 @@
 import { settings } from "#db/settings.ts";
 import { stageSquareLinkEnd } from "#db/square-link-ends.ts";
 import { closedCheckoutErrorFor } from "#payment/checkout-failure.ts";
+import { checkoutMetadata } from "#payment/checkout-session.ts";
 import { providerLineCopy } from "#payment/provider-line-copy.ts";
 import {
   ProviderTransportError,
@@ -13,14 +14,10 @@ import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { xCount } from "#shared/count-text.ts";
 import { CHECKOUT_WINDOW_MS } from "#shared/limits.ts";
 import { ErrorCode, logDebug } from "#shared/logger.ts";
-import {
-  assembleCheckoutMetadata,
-  buildProviderLineItems,
-  createWithClient,
-  PaymentUserError,
-} from "#shared/payment-helpers.ts";
+import { createWithClient, PaymentUserError } from "#shared/payment-helpers.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { normalizePhone } from "#shared/phone.ts";
+import { buildProviderLineItems } from "#shared/provider-line-items.ts";
 import type {
   CreatePaymentLinkInput,
   GetSquareClient,
@@ -129,11 +126,7 @@ export const createSquarePaymentLink = async (
     "Square",
     `Creating payment link for ${xCount(intent.items.length)} listings`,
   );
-  const metadata = await assembleCheckoutMetadata(
-    "square",
-    intent,
-    order.total,
-  );
+  const metadata = await checkoutMetadata("square", intent, order, order.total);
   const lineItems = buildProviderLineItems<SquareLineItem>(
     order,
     config.currency,

@@ -20,6 +20,7 @@ import { attendeesApi } from "#db/attendees/api.ts";
 import type { PendingNotificationFlag } from "#db/attendees/notification-flags.ts";
 import { decryptAttendeeFields } from "#db/attendees/pii.ts";
 import { getAttendeeRawByToken } from "#db/attendees/queries.ts";
+import { getListingsById } from "#db/listings/records.ts";
 import { byId, sum, sumOf } from "#fp";
 import { emailPendingForAdminLines } from "#routes/admin/attendees-route-helpers.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
@@ -32,10 +33,11 @@ import {
   type CreateAdjustment,
 } from "#shared/checkout-complete.ts";
 import {
-  lineListPrice,
   listPriceOrder,
   type PricedOrder,
 } from "#shared/checkout-pricing.ts";
+import { requireValue } from "#shared/required-value.ts";
+import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { queueManualAddWebhooks } from "#shared/webhook/delivery.ts";
 import type { Attendee } from "#types";
@@ -112,15 +114,15 @@ const createFromParsed = async (parsed: ParsedApiCreate): Promise<Response> => {
     quantity: line.quantity,
   }));
   const order = toLedgerOrder(lines);
-  const gross = sumOf(lineListPrice)(order.lines);
   const receipts = { adjustments, payments };
   // Admin manual add can deliberately overbook (a warning shows, the system
-  // does not block). The poster records the sale legs at the lines' prices
-  // plus the payment and adjustment legs in the same create transaction. The
-  // input carries the projected net as remainingBalance, so the attendee owes
-  // the lines and charges minus what was paid or written off.
+  // does not block). The poster records the sale and VAT legs at the lines'
+  // prices plus the payment and adjustment legs in the same create
+  // transaction. The input carries the projected net as remainingBalance, so
+  // the attendee owes the lines, the tax, and the charges minus what was paid
+  // or written off.
   const remainingBalance =
-    gross -
+    order.tax.total -
     sum(payments) +
     sumOf((adjustment: CreateAdjustment) => adjustment.amount)(adjustments);
   let result: CreateAttendeeResult;

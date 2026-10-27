@@ -28,6 +28,8 @@ export const TextField = ({
   maxlength,
   minlength,
   step,
+  inputmode,
+  pattern,
 }: {
   label: Child;
   name: string;
@@ -49,6 +51,8 @@ export const TextField = ({
   /** Shortest value the browser accepts (omitted for no minimum). */
   minlength?: number | undefined;
   step?: string | undefined;
+  inputmode?: "decimal" | undefined;
+  pattern?: string | undefined;
 }): JSX.Element => (
   <label>
     {label}
@@ -56,11 +60,13 @@ export const TextField = ({
       autocomplete="off"
       autofocus={autofocus}
       data-duplicate-field={duplicate ? name : undefined}
+      inputmode={inputmode}
       max={max}
       maxlength={maxlength ?? MAX_INPUT_LENGTH}
       min={min}
       minlength={minlength}
       name={name}
+      pattern={pattern}
       placeholder={placeholder}
       required={required}
       step={step}

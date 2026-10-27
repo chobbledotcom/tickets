@@ -96,6 +96,30 @@ for all optional variables.
   during checkout
 - Admin-issued full refunds for individual attendees or all attendees in bulk
 
+### Tax
+
+- Owners select No tax, Add tax to listed prices, or Listed prices include tax.
+  Rates support two decimal places. A rate of 0% is valid.
+- Tax applies after surcharges and discounts. Booking fees remain outside tax.
+- Each booking stores its original price basis and tax policy. A settings edit
+  does not change money on past bookings.
+- An explicit attendee save applies the current policy to the original basis.
+  The form shows the tax and balance before and after the save.
+- A save adds ledger corrections. It does not take or return money. A negative
+  balance means that the attendee has credit.
+- Percentage deposits use the total with tax. Fixed and per-item deposits keep
+  their stated amounts. Balance payments do not add tax again.
+- Signed checkout metadata retains the charged policy. Old signed sessions
+  without a tax policy remain untaxed.
+- Refunds reverse the original entries and every tax correction. The existing
+  review rules still apply to unsettled payments and operator money.
+
+`deno task verify:models` checks the production-derived VAT machine with
+Apalache. It checks the initial state and an unrestricted inductive step.
+The arithmetic domain uses representative minor-unit amounts. These checks do
+not prove database atomicity or provider behaviour. They do not establish legal
+tax compliance.
+
 ### Check-in
 
 - Each ticket gets a unique URL (`/t/:token`) with a QR code

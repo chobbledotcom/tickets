@@ -11,40 +11,28 @@
  * the rows when the paths priced differently.
  */
 
-import type { BookingFacts, VatFacts } from "#accounting/mappers.ts";
-import {
-  lineListPrice,
-  lineTotalsByListingId,
-  type PricedOrder,
-} from "#shared/checkout-pricing.ts";
+import type { BookingFacts } from "#accounting/mappers.ts";
+import { type PricedOrder, taxBasisOfOrder } from "#shared/checkout-pricing.ts";
 
-/** The per-order facts the pure pricing cannot supply (id, clock, VAT). */
+/** The per-order facts the pure pricing cannot supply. */
 export type BookingLedgerContext = {
   readonly attendeeId: number;
   readonly occurredAt: string;
   readonly eventId: string;
 };
 
-/** Build the booking's ledger facts from a priced order. `vat` carries the
- *  booking's VAT facts. Omit it for a booking that charges no tax. */
+/** Build the booking's ledger facts from its fixed tax assessment. */
 export const bookingFactsFromOrder = (
   order: PricedOrder,
   ctx: BookingLedgerContext,
-  vat?: VatFacts,
 ): BookingFacts => ({
   amountPaid: order.total,
   attendeeId: ctx.attendeeId,
   bookingFee: order.extras.find((extra) => extra.key === "fee")?.amount ?? 0,
   eventId: ctx.eventId,
-  lines: [...lineTotalsByListingId(order.lines, lineListPrice)].map(
-    ([listingId, gross]) => ({ gross, listingId }),
-  ),
-  modifiers: order.modifierApplications.map((application) => ({
-    delta: application.delta,
-    modifierId: application.modifierId,
-  })),
+  ...taxBasisOfOrder(order),
   occurredAt: ctx.occurredAt,
-  ...(vat === undefined ? {} : { vat }),
+  vat: order.tax.policy,
 });
 
 /**

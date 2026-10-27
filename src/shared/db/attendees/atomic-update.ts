@@ -100,6 +100,10 @@ export type ExistingLine = {
   booking: ListingAttendeeRow;
 };
 
+export type AttendeeEditWork = {
+  before: SqlStatement[];
+  after: SqlStatement[];
+};
 /** Read all current listing_attendees rows for an attendee, with line keys. */
 export const loadExistingLines = async (
   attendeeId: number,
@@ -240,6 +244,8 @@ export const updateStatementFor = (
     return `${setClause}\n              AND ${condition}`;
   });
 
+const EMPTY_EDIT_WORK: AttendeeEditWork = { after: [], before: [] };
+
 /**
  * Apply a desired final-state line set to an existing attendee atomically.
  *
@@ -252,6 +258,7 @@ export const applyAttendeeAtomicEdit = async (
   pii: UpdateAttendeePIIInput,
   desired: DesiredListingLine[],
   allowOverbook = false,
+  work: AttendeeEditWork = EMPTY_EDIT_WORK,
 ): Promise<UpdateAttendeeAtomicResult> => {
   if (desired.length === 0) {
     return { listingIds: [], reason: "no_lines", success: false };
@@ -289,6 +296,7 @@ export const applyAttendeeAtomicEdit = async (
   // capacity-checked write is immediately followed by CAPACITY_GUARD, which
   // aborts (and rolls back) the whole batch if that write affected no rows.
   const statements: Array<{ args: InValue[]; sql: string }> = [
+    ...work.before,
     ...(await attendeePiiWriteStatements(attendeeId, pii)),
   ];
 
@@ -338,6 +346,7 @@ export const applyAttendeeAtomicEdit = async (
     );
     if (!allowOverbook) statements.push(CAPACITY_GUARD);
   }
+  statements.push(...work.after);
 
   // The batch runs as one ACID transaction. After the preflight above this
   // only fails if a concurrent booking consumed the capacity in the meantime —

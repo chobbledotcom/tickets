@@ -5,12 +5,30 @@
 
 import { stageCheckoutAnswers } from "#db/checkout-pending-answers.ts";
 import { checkoutFailure } from "#payment/checkout-failure.ts";
-import { withCheckoutError } from "#shared/payment-helpers.ts";
+import type { PricedOrder } from "#shared/checkout-pricing.ts";
+import {
+  assembleCheckoutMetadata,
+  withCheckoutError,
+} from "#shared/payment-helpers.ts";
 import type {
   CheckoutIntent,
   CheckoutSessionResult,
 } from "#shared/payments.ts";
 import type { PaymentProviderType } from "#types";
+
+/** The signed metadata every provider carries. The tax policy is frozen at
+ * pricing time, so later settings changes cannot move a checkout on its way. */
+export const checkoutMetadata = (
+  provider: PaymentProviderType,
+  intent: CheckoutIntent,
+  order: PricedOrder,
+  amount: number,
+): Promise<Record<string, string>> =>
+  assembleCheckoutMetadata(
+    provider,
+    { ...intent, taxPolicy: order.tax.policy },
+    amount,
+  );
 
 type SuccessfulCheckoutResult = Exclude<
   CheckoutSessionResult,

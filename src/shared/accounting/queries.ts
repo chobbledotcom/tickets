@@ -280,6 +280,8 @@ export const ledgerTotals = async (
     `SELECT
        COALESCE(SUM(CASE
          WHEN kind = '${KIND.sale}' AND dest_type = '${REVENUE}' THEN amount
+         WHEN kind = '${KIND.taxSale}' AND dest_type = '${REVENUE}' THEN amount
+         WHEN kind = '${KIND.taxSale}' AND source_type = '${REVENUE}' THEN -amount
          WHEN kind = '${MANUAL_LISTING_INCOME}' AND dest_type = '${REVENUE}' THEN amount
          WHEN kind = '${KIND.adjustment}' AND dest_type = '${REVENUE}' AND source_type = '${WRITEOFF_TYPE}' THEN amount
          WHEN kind = '${KIND.adjustment}' AND source_type = '${REVENUE}' AND dest_type = '${WRITEOFF_TYPE}' THEN -amount

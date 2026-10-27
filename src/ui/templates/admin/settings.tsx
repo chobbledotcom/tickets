@@ -41,6 +41,9 @@ export type SettingsPageState = {
   squareWebhookConfigured: boolean;
   webhookUrl: string;
   bookingFee: string;
+  taxMode: "none" | "add_to_total" | "calculate_from_total";
+  taxRate: string;
+  expectedTax: string;
   embedHosts: string;
   enabledFeatures: EnabledFeatures;
   termsAndConditions: string;
@@ -77,6 +80,7 @@ export const adminSettingsPage = (
       {ProviderCredentialsForm(s)}
       {SquareWebhookForm(s)}
       {s.paymentProvider ? settingsForm(SETTINGS_FORMS.bookingFee, s) : null}
+      {settingsForm(SETTINGS_FORMS.tax, s)}
 
       {settingsForm(SETTINGS_FORMS.terms, s)}
       {settingsForm(SETTINGS_FORMS.siteFooter, s)}

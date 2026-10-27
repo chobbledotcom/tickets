@@ -90,11 +90,15 @@ export const orderSummary = (order: PricedOrder, isDeposit = false): string =>
           {order.extras.map((extra) => (
             <SummaryRow
               amount={extra.amount * extra.quantity}
-              label={quantityLabel(extra.quantity, extra.name)}
+              label={
+                extra.key === "vat"
+                  ? t("public.ticket.vat")
+                  : quantityLabel(extra.quantity, extra.name)
+              }
             />
           ))}
           {order.modifierApplications
-            .filter((app) => app.delta < 0)
+            .filter((app) => !isDeposit && app.delta < 0)
             .map((app) => (
               <SummaryRow amount={app.delta} label={app.name} />
             ))}
@@ -107,6 +111,20 @@ export const orderSummary = (order: PricedOrder, isDeposit = false): string =>
           />
         </tfoot>
       </table>
+      {order.tax.policy.mode !== "none" && (
+        <p class="order-summary-tax">
+          {isDeposit
+            ? t("public.ticket.vat_deposit", {
+                amount: formatCurrency(order.tax.taxAmount),
+                total: formatCurrency(order.tax.total),
+              })
+            : order.tax.policy.mode === "calculate_from_total"
+              ? t("public.ticket.vat_included", {
+                  amount: formatCurrency(order.tax.taxAmount),
+                })
+              : null}
+        </p>
+      )}
     </div>,
   );
 

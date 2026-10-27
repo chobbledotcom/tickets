@@ -125,8 +125,22 @@ export type SecretFieldSpec = {
   configuredStateField: string;
 };
 
+/** Decimal text keeps the submitted precision available to the route guard. */
+export type NumericTextFieldSpec = FieldSpecBase & {
+  kind: "numericText";
+  labelKey: string;
+  pattern: string;
+};
+
+/** A saved value used to reject a stale multi-field form. */
+export type HiddenFieldSpec = FieldSpecBase & {
+  kind: "hidden";
+};
+
 export type FieldSpec =
   | CheckboxFieldSpec
+  | HiddenFieldSpec
+  | NumericTextFieldSpec
   | RadiosFieldSpec
   | SecretFieldSpec
   | SelectFieldSpec;

@@ -250,8 +250,7 @@
     "present-perfect": 3
   },
   "src/shared/booking.ts": {
-    "long-sentence": 3,
-    "banned-modal": 1
+    "long-sentence": 1
   },
   "src/shared/booking/build-tree.ts": {
     "long-sentence": 11,
@@ -505,7 +504,7 @@
     "present-perfect": 1
   },
   "src/shared/db/attendees/select.ts": {
-    "long-sentence": 9,
+    "long-sentence": 7,
     "banned-modal": 1,
     "semicolon": 5,
     "contraction": 1
@@ -1146,7 +1145,7 @@
     "contraction": 2,
     "banned-modal": 8,
     "wordy": 1,
-    "semicolon": 8,
+    "semicolon": 7,
     "long-sentence": 15,
     "participle": 1
   },
@@ -1212,6 +1211,29 @@
     "long-sentence": 7,
     "semicolon": 6,
     "wordy": 1
+  },
+  "src/shared/redact-path.ts": {
+    "long-sentence": 1
+  },
+  "src/shared/refund-ledger/placeholder.ts": {
+    "banned-modal": 1
+  },
+  "src/shared/refund-ledger/plan.ts": {
+    "banned-modal": 1
+  },
+  "src/shared/refund-ledger/record.ts": {
+    "present-perfect": 1,
+    "semicolon": 1
+  },
+  "src/shared/regexp.ts": {
+    "long-sentence": 1
+  },
+  "src/shared/renewal-helpers.ts": {
+    "long-sentence": 1
+  },
+  "src/shared/renewal-tier.ts": {
+    "long-sentence": 1,
+    "banned-modal": 1
   },
   "src/shared/reorder.ts": {
     "long-sentence": 1,

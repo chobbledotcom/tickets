@@ -15,6 +15,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { expectNoAttendeesForListings } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { pricedOrder } from "#test-utils/factories-pricing.ts";
 import { runAndCountRoundTrips } from "#test-utils/query-log.ts";
 import type { ContactInfo } from "#types";
 import { ticketListingFor } from "./ticket-payment/helpers.ts";
@@ -292,13 +293,13 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         },
         quantity: 1,
       };
-      return {
+      return pricedOrder({
         extras: [],
         fullSubtotal: gross,
         lines: [line],
         modifierApplications: [],
         total: 0,
-      };
+      });
     };
 
     /** A fresh five-spot listing with the one-unit reservation input every
@@ -348,7 +349,7 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       for (let i = 0; i < N; i++) {
         listings.push(await createTestListing({ maxAttendees: 5 }));
       }
-      const ledgerOrder: PricedOrder = {
+      const ledgerOrder = pricedOrder({
         extras: [],
         fullSubtotal: N * 1000,
         lines: listings.map((l) => ({
@@ -364,7 +365,7 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         })),
         modifierApplications: [],
         total: 0,
-      };
+      });
 
       const { value: result, roundTrips } = await runAndCountRoundTrips(
         async () => {

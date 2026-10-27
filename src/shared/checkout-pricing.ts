@@ -8,6 +8,8 @@
  * providers in lock-step and gives later pricing features one place to plug in.
  */
 
+/* jscpd:ignore-start */
+import { settings } from "#db/settings.ts";
 import { sum, sumByKey, sumOf } from "#fp";
 import { feeSubtotalFor, getBookingFeeAmount } from "#shared/booking-fee.ts";
 import { largestRemainderAllocation } from "#shared/largest-remainder.ts";
@@ -21,6 +23,9 @@ import {
   allocateReservationDeposit,
   computeReservationDeposit,
 } from "#shared/reservation-amount.ts";
+import { assessTax } from "#shared/tax/assessment.ts";
+import type { TaxAssessment, TaxBasis, TaxPolicy } from "#shared/tax/types.ts";
+/* jscpd:ignore-end */
 
 /** One ticket line and the amount charged per unit (deposit- and
  * discount-aware). A single cart item can split into several lines when a
@@ -59,6 +64,7 @@ export type PricedOrder = {
   lines: PricedLine[];
   extras: ExtraLine[];
   modifierApplications: ModifierApplication[];
+  tax: TaxAssessment;
   /** Sum of all line and extra charges, in minor units. */
   total: number;
   /** The pre-extras item subtotal the booking fee is charged on. */
@@ -110,7 +116,10 @@ export type ListPriceLine = {
  *  `owedOrderForLedger` and `bookingFactsFromOrder` recognise each line's
  *  gross as a `sale` leg (income) with no `payment` or `fee` leg. The caller
  *  reconciles any already-paid portion on top. */
-export const listPriceOrder = (lines: ListPriceLine[]): PricedOrder => ({
+export const listPriceOrder = (
+  lines: ListPriceLine[],
+  taxPolicy: TaxPolicy = settings.tax,
+): PricedOrder => ({
   extras: [],
   fullSubtotal: 0,
   lines: lines.map((line): PricedLine => {
@@ -128,7 +137,35 @@ export const listPriceOrder = (lines: ListPriceLine[]): PricedOrder => ({
     };
   }),
   modifierApplications: [],
+  tax: assessTax(
+    {
+      lines: [
+        ...sumByKey(
+          (line: ListPriceLine) => line.listing.id,
+          (line: ListPriceLine) =>
+            (line.unitPrice ?? line.listing.unit_price) * line.quantity,
+        )(lines),
+      ].map(([listingId, gross]) => ({ gross, listingId })),
+      modifiers: [],
+    },
+    taxPolicy,
+  ),
   total: 0,
+});
+
+/** The fixed basis an order is taxed against: what each listing sold and what
+ * its modifiers changed, before any tax. Refunds and attendee saves reuse it,
+ * so a re-assessment can never drift from the price the buyer was shown. */
+export const taxBasisOfOrder = (
+  order: Pick<PricedOrder, "lines" | "modifierApplications">,
+): TaxBasis => ({
+  lines: [...lineTotalsByListingId(order.lines, lineListPrice)].map(
+    ([listingId, gross]) => ({ gross, listingId }),
+  ),
+  modifiers: order.modifierApplications.map(({ delta, modifierId }) => ({
+    delta,
+    modifierId,
+  })),
 });
 
 /** The booking-fee extra line for a subtotal, or [] when the fee is zero. */
@@ -373,19 +410,29 @@ export const priceCheckout = (intent: CheckoutIntent): PricedOrder => {
     quantity: item.quantity,
   }));
   const modifiers = applyModifiers(baseLines, modifierSpecs);
+  const tax = assessTax(
+    taxBasisOfOrder({
+      lines: baseLines,
+      modifierApplications: modifiers.applications,
+    }),
+    intent.taxPolicy ?? settings.tax,
+  );
   // The booking fee is charged on the full order plus any net modifier change.
   const fullSubtotal = feeSubtotalFor(intent) + modifiers.modifierTotal;
   const lines = intent.reservationAmount
-    ? modifierSpecs.length === 0 && intent.feeSubtotal === undefined
+    ? modifierSpecs.length === 0 &&
+      intent.feeSubtotal === undefined &&
+      tax.policy.mode !== "add_to_total"
       ? unmodifiedReservationLines(intent, intent.reservationAmount)
-      : reservationLines(
-          modifiers.lines,
-          intent.reservationAmount,
-          fullSubtotal,
-        )
+      : reservationLines(modifiers.lines, intent.reservationAmount, tax.total)
     : modifiers.lines;
   const extras = [
     ...(intent.reservationAmount ? [] : modifiers.extras),
+    ...(!intent.reservationAmount &&
+    tax.policy.mode === "add_to_total" &&
+    tax.taxAmount > 0
+      ? [{ amount: tax.taxAmount, key: "vat", name: "VAT", quantity: 1 }]
+      : []),
     ...feeExtras(fullSubtotal),
   ];
   return {
@@ -393,6 +440,7 @@ export const priceCheckout = (intent: CheckoutIntent): PricedOrder => {
     fullSubtotal,
     lines,
     modifierApplications: modifiers.applications,
+    tax,
     total: sumOf(lineCharge)(lines) + sumOf(extraCharge)(extras),
   };
 };
@@ -422,7 +470,9 @@ export const ticketPaymentBreakdown = (
 
   const remainingBalance = Math.max(
     0,
-    paid.fullSubtotal - ticketLineTotal(paid),
+    paid.tax.total -
+      (paid.total -
+        (paid.extras.find((extra) => extra.key === "fee")?.amount ?? 0)),
   );
   return { paidByItem, remainingBalance };
 };

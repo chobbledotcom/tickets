@@ -226,7 +226,7 @@ export const createAttendeeForSession = async (
     const remainingBalance =
       intent.reservationAmount === undefined
         ? 0
-        : pricedOrder.fullSubtotal - orderLineTotal(pricedOrder);
+        : pricedOrder.tax.total - orderLineTotal(pricedOrder);
 
     // Build every fallible input before starting the atomic write. A failure
     // here means nothing committed yet, while a write failure below must be

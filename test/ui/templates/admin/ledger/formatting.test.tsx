@@ -77,6 +77,60 @@ describe("admin ledger formatting", () => {
     });
   });
 
+  test("names tax income corrections without calling them write-offs", () => {
+    for (const [kind, type, label] of [
+      [KIND.taxSale, REVENUE, "Tax change to ticket income"],
+      [KIND.taxModifier, MODIFIER, "Tax change to option income"],
+      [KIND.refundTaxSale, REVENUE, "Ticket tax change reversed"],
+      [KIND.refundTaxModifier, MODIFIER, "Option tax change reversed"],
+    ] as const) {
+      const increase = {
+        amount: 25,
+        destination: account(type, 1),
+        kind,
+        source: account(ATTENDEE, 1),
+      };
+      const reduction = {
+        ...increase,
+        destination: increase.source,
+        source: increase.destination,
+      };
+      expect(transferEventLabel(transfer(increase))).toBe(label);
+      expect(humanAmount(transfer(increase))).toBe(25);
+      expect(humanAmount(transfer(reduction))).toBe(-25);
+      const lead = kind.startsWith("refund_")
+        ? "Refund reversed a tax change and"
+        : "Tax change";
+      assertStringIncludes(describeTransfer(increase), `${lead} increased`);
+      assertStringIncludes(describeTransfer(reduction), `${lead} reduced`);
+    }
+  });
+
+  test("shows VAT reductions and their refund reversal with the right signs", () => {
+    const reduction = {
+      amount: 25,
+      destination: account(ATTENDEE, 1),
+      kind: KIND.vat,
+      source: account("tax", "vat"),
+    };
+    expect(humanAmount(transfer(reduction))).toBe(-25);
+    assertStringIncludes(
+      describeTransfer(reduction),
+      "Value added tax reduced.",
+    );
+    const refund = {
+      ...reduction,
+      destination: reduction.source,
+      kind: KIND.refundVat,
+      source: reduction.destination,
+    };
+    expect(humanAmount(transfer(refund))).toBe(25);
+    assertStringIncludes(
+      describeTransfer(refund),
+      "Value added tax reduction reversed.",
+    );
+  });
+
   describe("humanDescription for a service cost", () => {
     test("reads as cost added when the money came out of the cost account", () => {
       const html = describeTransfer({

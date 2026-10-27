@@ -20,6 +20,7 @@ import {
   type PurchaseUnitFacts,
   resolvePurchaseUnit,
 } from "#shared/purchase-unit.ts";
+import type { TaxPolicy } from "#shared/tax/types.ts";
 import type { ContactInfo, PaymentProviderType } from "#types";
 /* jscpd:ignore-end */
 
@@ -45,7 +46,7 @@ export type CheckoutItem = {
    * Signed per line as the item's `k`/`r` edge tag and stamped onto the line's
    * booking row. */
   packageGroupId?: number | undefined;
-  /** What one purchased unit buys. Absent = plain tickets; a months unit
+  /** What one purchased unit buys. Absent = plain tickets. A months unit
    *  names the term the provider checkout and the order summary state — ×3
    *  beside a "(1 Month)" plan buys three months of one site, not three
    *  sites. Display only: fulfilment reads its own facts. */
@@ -100,6 +101,8 @@ export type ModifierSpec = {
 /** Fields shared between BookingIntent and CheckoutIntent that carry
  * deposit, redirect, and child-allocation metadata through the checkout. */
 type CheckoutMetaFields = {
+  /** Tax policy frozen when this checkout starts. */
+  taxPolicy?: TaxPolicy | undefined;
   /** Reserved attendee whose outstanding balance this session settles. */
   balanceAttendeeId?: number | undefined;
   /** Pricing rule used to re-derive a deposit and its balance. */
@@ -165,6 +168,8 @@ export type SessionMetadata = ContactInfo & {
   balance_attendee_id: string;
   /** Reservation-amount snapshot when the items are deposit-priced ("" if not). */
   reservation_amount: string;
+  /** JSON tax policy snapshot; empty only for legacy sessions. */
+  tax_policy: string;
   /** JSON array of applied modifier references ("" when none applied). */
   modifiers: string;
   /** Explicit thank-you redirect a parent booking carries so a folded child

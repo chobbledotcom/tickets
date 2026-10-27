@@ -23,6 +23,7 @@ import {
   trackSql,
 } from "#db/query-log.ts";
 import { isReadSql, sqlOf, writeSqlOf } from "#db/sql-text.ts";
+import { trackedTxBatch, trackedTxExecute } from "#db/tracked-transaction.ts";
 import { lazyRef } from "#fp";
 import { invalidateCachesForWrite } from "#shared/cache-registry.ts";
 import { getEnv } from "#shared/env.ts";
@@ -615,20 +616,10 @@ type TransactionWork<T> = (tx: TxScope) => Promise<T>;
  *  snapshot ({@link withReadSnapshot}). */
 type TransactionRunner = <T>(work: TransactionWork<T>) => Promise<T>;
 
-/** Run statements through an open transaction as one tracked batch, and one
- *  tracked statement. Both transaction kinds share these, so their reads and
- *  writes reach the query log alike. */
-const trackedTxBatch =
-  (tx: Transaction) =>
-  (statements: InStatement[]): Promise<ResultSet[]> =>
-    trackSql(statements.map(sqlOf), () => tx.batch(statements));
-
-const trackedTxExecute =
-  (tx: Transaction) =>
-  (stmt: InStatement): Promise<ResultSet> =>
-    trackSql(sqlOf(stmt), () => tx.execute(stmt));
-
-const runWriteTransactionOnce: TransactionRunner = async (work) => {
+const runWriteTransactionOnce = async <T>(
+  work: TransactionWork<T>,
+  invalidateCaches: boolean,
+): Promise<T> => {
   const tx = await getDb().transaction("write");
   const writtenSql: string[] = [];
   let statementCount = 0;
@@ -653,7 +644,9 @@ const runWriteTransactionOnce: TransactionRunner = async (work) => {
   try {
     const result = await work(scope);
     await tx.commit();
-    for (const sql of writtenSql) invalidateForSql(sql);
+    if (invalidateCaches) {
+      for (const sql of writtenSql) invalidateForSql(sql);
+    }
     return result;
   } catch (error) {
     // After a failed commit the transaction may already be aborted, so the
@@ -685,9 +678,13 @@ const TRANSACTION_ROLLBACK_SUBREQUEST_RESERVE = {
  * Concurrent calls serialise on the shared connection. A retry re-runs `work`
  * on a fresh transaction, so `work` must be safe to run twice.
  *
- * Cache invalidations fire once the commit succeeds.
+ * Cache invalidations fire once the commit succeeds. Settings writers that
+ * synchronize their own cache can explicitly preserve the loaded snapshot.
  */
-export const withTransaction = <T>(work: TransactionWork<T>): Promise<T> => {
+export const withTransaction = <T>(
+  work: TransactionWork<T>,
+  { invalidateCaches = true }: { invalidateCaches?: boolean } = {},
+): Promise<T> => {
   // The async body runs synchronously up to its first await — reading the prior
   // tail there — so reserving our slot (`writeQueue.tail = run`) before any other
   // call interleaves keeps the queue strictly ordered. We wait for the previous
@@ -698,7 +695,7 @@ export const withTransaction = <T>(work: TransactionWork<T>): Promise<T> => {
     return retryOnTransientDatabaseError(
       () =>
         withSubrequestReserve(TRANSACTION_ROLLBACK_SUBREQUEST_RESERVE, () =>
-          runWriteTransactionOnce(work),
+          runWriteTransactionOnce(work, invalidateCaches),
         ),
       {
         // A transaction holds writes: an upstream failure at begin or commit

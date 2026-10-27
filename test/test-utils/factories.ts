@@ -324,6 +324,7 @@ export const webhookMeta = (
   reservation_amount: "",
   site_token_index: "",
   special_instructions: "",
+  tax_policy: "",
   text_answer_ids: "",
   thank_you_url: "",
   ...metadata,

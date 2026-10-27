@@ -1,3 +1,5 @@
+import { unique } from "#fp";
+
 type TlaAtom = string | boolean;
 
 export type TlaRecord = Readonly<Record<string, TlaAtom>>;
@@ -46,7 +48,7 @@ export const tlaRecords = <const Schema extends TlaRecordSchema>(
     .map(([field, type]) => `${field}: ${type}`)
     .join(", ");
   const alias = `${name.charAt(0).toLowerCase()}${name.slice(1)}Fact`;
-  return `\\* @typeAlias: ${alias} = { ${fields} };\n\\* @type: Set($${alias});\n${name} == {\n${values.map(record).join(",\n")}\n}`;
+  return `\\* @typeAlias: ${alias} = { ${fields} };\n\\* @type: Set($${alias});\n${name} == {\n${unique(values.map(record)).join(",\n")}\n}`;
 };
 
 export const tlaModule = (

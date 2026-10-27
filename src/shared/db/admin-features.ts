@@ -11,6 +11,7 @@ import {
   type SqlStatement,
 } from "#db/client.ts";
 import { invalidateListingsCache } from "#db/listings/records.ts";
+import { notNullGuardFailure } from "#db/query.ts";
 import { settingsVersionIncrement } from "#db/settings/cache.ts";
 import {
   type BooleanJsonField,
@@ -54,10 +55,6 @@ const requireSettingCondition = (
   sql: `INSERT INTO settings (key, value)
         SELECT ?, NULL WHERE NOT (${conditionSql})`,
 });
-
-const isRequiredSettingWriteFailure = (error: unknown): boolean =>
-  error instanceof Error &&
-  error.message.includes("NOT NULL constraint failed: settings.value");
 
 const initialFeatureValue = (key: AdminFeatureKey, enabled: boolean): string =>
   serializeEnabledFeatures(
@@ -247,7 +244,7 @@ const disableLogisticsFeature = async (): Promise<boolean> => {
       await saveLogisticsDisable(prepared);
       return true;
     } catch (error) {
-      if (!isRequiredSettingWriteFailure(error)) throw error;
+      if (!notNullGuardFailure(error, "settings.value")) throw error;
       await validateStoredFeatureSetting();
       if ((await prepareLogisticsDefault()).current !== prepared.current) {
         continue;

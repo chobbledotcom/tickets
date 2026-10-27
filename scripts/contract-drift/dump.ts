@@ -115,6 +115,16 @@ type MachineContract = {
 
 type MachineLoader = () => Promise<MachineContract>;
 
+/** One machine's loader: import its spec module, then derive the contract
+ * from that module's own declarations. */
+const machineLoader =
+  <Spec>(
+    load: () => Promise<Spec>,
+    contract: (spec: Spec) => Promise<MachineContract>,
+  ): MachineLoader =>
+  () =>
+    load().then(contract);
+
 /** One machine's declared contract: its events beside its declared table,
  * the table read through the dump's own validator. A table that comes from
  * its own module carries that module's specifier, so a not-found error can
@@ -134,12 +144,13 @@ const machineContract = async (
 });
 
 const MACHINE_LOADERS: Readonly<Record<string, MachineLoader>> = {
-  refund: () =>
-    import("#payment/refund-machine-spec.ts").then((m) =>
-      machineContract("refund", m.REFUND_EVENTS, () => m.EXPECTED_MOVES),
-    ),
-  review: () =>
-    import("#payment/review-machine-spec.ts").then((m) =>
+  refund: machineLoader(
+    () => import("#payment/refund-machine-spec.ts"),
+    (m) => machineContract("refund", m.REFUND_EVENTS, () => m.EXPECTED_MOVES),
+  ),
+  review: machineLoader(
+    () => import("#payment/review-machine-spec.ts"),
+    (m) =>
       machineContract(
         "review",
         m.REVIEW_EVENTS,
@@ -149,9 +160,10 @@ const MACHINE_LOADERS: Readonly<Record<string, MachineLoader>> = {
           ).then((t) => t.EXPECTED_MOVES),
         "#test/shared/payment/review-machine-spec/expected-moves.ts",
       ),
-    ),
-  row: () =>
-    import("#payment/row-machine-spec.ts").then((m) =>
+  ),
+  row: machineLoader(
+    () => import("#payment/row-machine-spec.ts"),
+    (m) =>
       machineContract(
         "row",
         m.ROW_EVENTS,
@@ -161,23 +173,29 @@ const MACHINE_LOADERS: Readonly<Record<string, MachineLoader>> = {
           ).then((t) => t.EXPECTED_MOVES),
         "#test/shared/payment/row-machine-spec/expected-moves.ts",
       ),
-    ),
-  square_link_ends: () =>
-    import("#payment/square-link-end-machine-spec.ts").then((m) =>
+  ),
+  square_link_ends: machineLoader(
+    () => import("#payment/square-link-end-machine-spec.ts"),
+    (m) =>
       machineContract(
         "square_link_ends",
         m.LINK_END_EVENTS,
         () => m.LINK_END_MOVES,
       ),
-    ),
-  sumup_recovery: () =>
-    import("#payment/sumup-recovery-machine-spec.ts").then((m) =>
+  ),
+  sumup_recovery: machineLoader(
+    () => import("#payment/sumup-recovery-machine-spec.ts"),
+    (m) =>
       machineContract(
         "sumup_recovery",
         m.RECOVERY_EVENTS,
         () => m.RECOVERY_MOVES,
       ),
-    ),
+  ),
+  vat: machineLoader(
+    () => import("#shared/tax/machine-spec.ts"),
+    (m) => machineContract("vat", m.TAX_EVENTS, () => m.TAX_MOVES),
+  ),
 };
 
 /** Sorted copy, so one dump of one tree is always the same JSON. */

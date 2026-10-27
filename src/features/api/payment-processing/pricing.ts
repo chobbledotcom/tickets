@@ -23,6 +23,7 @@ import {
   checkoutItem,
   type ModifierSpec,
 } from "#shared/payments.ts";
+import { NO_TAX } from "#shared/tax/types.ts";
 import type { ListingWithCount } from "#types";
 
 /** Check if the amount charged matches the current listing price (including booking fee).
@@ -70,6 +71,7 @@ export const checkoutIntentForSession = (
       : {}),
   })),
   modifiers: modifierSpecs,
+  taxPolicy: intent.taxPolicy ?? NO_TAX,
   ...(intent.dayCount ? { dayCount: intent.dayCount } : {}),
   ...(intent.reservationAmount
     ? { reservationAmount: intent.reservationAmount }

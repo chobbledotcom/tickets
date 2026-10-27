@@ -52,6 +52,16 @@ describe("largestRemainderAllocation", () => {
     expect(largestRemainderAllocation([0.4, 0.4], 1)).toEqual([1, 0]);
   });
 
+  test("keeps whole-money remainders exact beyond safe intermediate multiplication", () => {
+    const weight = 2500000000000005;
+    expect(
+      largestRemainderAllocation(
+        [weight, weight, weight, 2, 3],
+        7125000000000019,
+      ),
+    ).toEqual([2375000000000005, 2375000000000005, 2375000000000004, 2, 3]);
+  });
+
   test("returns zeros for an amount that is negative but greater than -1", () => {
     expect(largestRemainderAllocation([10, 20], -0.5)).toEqual([0, 0]);
   });

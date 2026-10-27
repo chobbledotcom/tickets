@@ -35,6 +35,43 @@ const addressProviderLabel = (provider: AddressLookupSetting): string =>
 
 export const SETTINGS_FORM_DEFINITIONS = [
   form({
+    action: "/admin/settings/tax",
+    copy: {
+      descriptionKey: "settings.tax_hint",
+      submitLabelKey: "settings.save_tax",
+      titleKey: "settings.tax",
+    },
+    fields: [
+      {
+        fieldName: "tax_mode",
+        kind: "radios",
+        options: [
+          { labelKey: "settings.tax_none", value: "none" },
+          { labelKey: "settings.tax_add", value: "add_to_total" },
+          { labelKey: "settings.tax_included", value: "calculate_from_total" },
+        ],
+        stateField: "taxMode",
+      },
+      {
+        fieldName: "tax_rate",
+        kind: "numericText",
+        labelKey: "settings.tax_rate",
+        pattern: "[0-9]+([.][0-9]{1,2})?",
+        stateField: "taxRate",
+      },
+      {
+        fieldName: "expected_tax",
+        kind: "hidden",
+        stateField: "expectedTax",
+      },
+    ],
+    formId: "settings-tax",
+    kind: "fields",
+    name: "tax",
+    page: "main",
+    routeLabel: "Tax",
+  }),
+  form({
     action: "/admin/settings/business-email",
     copy: {
       descriptionKey: "settings.business_email_hint",

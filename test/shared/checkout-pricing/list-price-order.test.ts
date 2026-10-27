@@ -65,4 +65,23 @@ describe("listPriceOrder", () => {
       item: { unitPrice: 0 },
     });
   });
+  test("keeps the full tax assessment while collecting nothing", () => {
+    const order = listPriceOrder([line(1, 500, 2)], {
+      mode: "add_to_total",
+      rateBasisPoints: 2000,
+    });
+    expect(order.total).toBe(0);
+    expect(order.tax.total).toBe(1200);
+    expect(order.tax.taxAmount).toBe(200);
+  });
+  test("groups separate paths of one listing before tax rounding", () => {
+    const order = listPriceOrder(
+      [line(1, 1, 1), line(1, 1, 1), line(2, 1, 1)],
+      { mode: "calculate_from_total", rateBasisPoints: 2000 },
+    );
+    expect(order.tax.basis.lines).toEqual([
+      { gross: 2, listingId: 1 },
+      { gross: 1, listingId: 2 },
+    ]);
+  });
 });

@@ -32,6 +32,8 @@ export const KIND = {
   refundModifier: "refund_modifier",
   /** A refunded booking's reversed `sale` leg. */
   refundSale: "refund_sale",
+  refundTaxModifier: "refund_tax_modifier",
+  refundTaxSale: "refund_tax_sale",
   /** A refunded booking's reversed `vat` leg. */
   refundVat: "refund_vat",
   /** An admin void — a transfer that exactly undoes another via `reverses_id`. */
@@ -40,6 +42,8 @@ export const KIND = {
   sale: "sale",
   /** An operator-recorded service cost (and its correcting adjustment legs). */
   serviceCost: "service_cost",
+  taxModifier: "tax_modifier",
+  taxSale: "tax_sale",
   /** VAT collected on a booking's ticket sales, kept apart from ticket income. */
   vat: "vat",
 } as const;

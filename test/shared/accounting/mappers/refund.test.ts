@@ -98,7 +98,7 @@ describeWithEnv("accounting > mapRefund", { encryptionKey: true }, () => {
     const order = await bookingOrder({
       amountPaid: 12000,
       lines: [{ gross: 10000, listingId: 1 }],
-      vat: { mode: "add_to_total", rate: 0.2 },
+      vat: { mode: "add_to_total", rateBasisPoints: 2000 },
     });
     const { all, refund } = await refundAndAll(order);
 

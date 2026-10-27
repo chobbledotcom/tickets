@@ -32,6 +32,8 @@ import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import type { EmailEntry } from "#shared/email.ts";
 import { nowIso } from "#shared/now.ts";
 import type { CheckoutItem } from "#shared/payments.ts";
+import { assessTax } from "#shared/tax/assessment.ts";
+import { NO_TAX } from "#shared/tax/types.ts";
 import { registeredActivityMessage } from "#shared/webhook/delivery.ts";
 import type { ContactInfo } from "#types";
 
@@ -82,6 +84,7 @@ const EMPTY_PRICED_ORDER: PricedOrder = {
   fullSubtotal: 0,
   lines: [],
   modifierApplications: [],
+  tax: assessTax({ lines: [], modifiers: [] }, NO_TAX),
   total: 0,
 };
 

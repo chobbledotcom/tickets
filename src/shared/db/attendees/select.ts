@@ -10,6 +10,7 @@ import { KIND } from "#accounting/kinds.ts";
 import {
   accountPredicate,
   attendeeOwedSubquery,
+  bookingSaleTotalSubquery,
   saleLegPredicate,
 } from "#accounting/projection-sql.ts";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
@@ -82,13 +83,24 @@ export const refundedForBooking = (row: RefundedRowExprs): string => {
     `kind = '${KIND.refundCash}'` +
       ` AND ${accountPredicate("source", ATTENDEE, attendeeId)}`,
   );
+  const chainFullyReturned =
+    "NOT EXISTS(SELECT 1 FROM booking_tax_assessments AS assessment" +
+    " JOIN transfers AS chain ON chain.event_group = assessment.event_group" +
+    ` WHERE assessment.booking_group = ${eventGroup}` +
+    " AND chain.kind NOT GLOB 'refund_*'" +
+    " AND NOT EXISTS(SELECT 1 FROM transfers AS returned" +
+    " WHERE returned.kind GLOB 'refund_*'" +
+    " AND returned.reverses_group = chain.event_group" +
+    " AND returned.amount = chain.amount" +
+    " AND returned.source_type = chain.dest_type AND returned.source_id = chain.dest_id" +
+    " AND returned.dest_type = chain.source_type AND returned.dest_id = chain.source_id))";
   return (
-    `(SELECT CASE WHEN ${wasSold} THEN ${saleCameBack}` +
+    `(SELECT CASE WHEN ${wasSold} THEN ${saleCameBack} AND ${chainFullyReturned}` +
     ` WHEN ${placeholderWhen} THEN ${cashCameBack}` +
     // A row with no recorded order has nothing to reverse into: its group is
     // '' and every leg test below would match nothing, so never fall through.
     ` WHEN ${eventGroup} = '' THEN 0` +
-    ` ELSE ${orderWasReversed} AND ${orderFullyReturned} END)`
+    ` ELSE ${orderWasReversed} AND ${orderFullyReturned} AND ${chainFullyReturned} END)`
   );
 };
 
@@ -97,14 +109,10 @@ export const refundedFromLedger = (row: RefundedRowExprs): string =>
   `${refundedForBooking(row)} AS refunded`;
 
 /**
- * Amount paid for one booking row, read from the ledger and scoped to the row's
- * `ledger_event_group` so an attendee with several orders for one listing gets
- * this booking's leg. One `sale` leg can back several rows (a child folding
- * under several parents), so it is split between them in quantity proportion by
- * row id — the shares telescope to the whole leg, losing no penny. Every
- * expression passed in must be table-qualified, or the correlated subqueries'
- * inner `sibling` alias shadows it. A site has one currency, so amounts sum
- * directly.
+ * One booking's ticket income, including its tax corrections, split between
+ * rows in quantity proportion by row id. The shares telescope to the full
+ * amount without losing a penny. Expressions must be table-qualified so the
+ * inner `sibling` alias cannot shadow them.
  */
 export const pricePaidFromLedger = (
   attendeeIdExpr: string,
@@ -112,11 +120,11 @@ export const pricePaidFromLedger = (
   eventGroupExpr: string,
   rowIdExpr: string,
 ): string => {
-  const saleTotal = `(SELECT COALESCE(SUM(amount), 0) FROM transfers WHERE ${saleLegPredicate(
+  const saleTotal = bookingSaleTotalSubquery(
     attendeeIdExpr,
     listingIdExpr,
     eventGroupExpr,
-  )})`;
+  );
   const siblingQty = (idBound: string): string =>
     "(SELECT COALESCE(SUM(sibling.quantity), 0) FROM listing_attendees AS sibling" +
     ` WHERE sibling.attendee_id = ${attendeeIdExpr}` +

@@ -36,6 +36,7 @@ import {
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import type { AccountRef, TransferInput } from "#shared/ledger/types.ts";
 import { nowIso } from "#shared/now.ts";
+import { postInitialTaxAssessmentTx } from "#shared/tax/store.ts";
 
 /* jscpd:ignore-end */
 
@@ -62,6 +63,7 @@ export const bookingBatchPlan = async (
   },
 ): Promise<BookingBatchPlan> => ({
   ...(finalize !== undefined ? { finalize } : {}),
+  bookingGroup: await bookingEventGroup(ledger.eventId),
   legs: await mapBooking(
     bookingFactsFromOrder(ledger.pricedOrder, {
       attendeeId: BATCH_LEG_ATTENDEE_PLACEHOLDER,
@@ -69,6 +71,7 @@ export const bookingBatchPlan = async (
       occurredAt: ledger.occurredAt,
     }),
   ),
+  taxAssessment: ledger.pricedOrder.tax,
   usages,
 });
 
@@ -114,14 +117,32 @@ export const postBookingLegsTx = async (
 export const manualAddLedgerPoster =
   (order: PricedOrder): AttendeeCreationWork =>
   async (tx, attendeeId) => {
+    const occurredAt = nowIso();
+    const bookingGroup = await bookingEventGroup(String(attendeeId));
     const legs = await mapBooking(
       bookingFactsFromOrder(owedOrderForLedger(order), {
         attendeeId,
         eventId: String(attendeeId),
-        occurredAt: nowIso(),
+        occurredAt,
       }),
     );
     await postBookingLegsTx(tx, attendeeId, legs);
+    if (legs.length === 0) {
+      await tx.execute(
+        update(
+          "listing_attendees",
+          { ledger_event_group: bookingGroup },
+          { attendee_id: attendeeId, ledger_event_group: "" },
+        ),
+      );
+    }
+    await postInitialTaxAssessmentTx(
+      tx,
+      attendeeId,
+      bookingGroup,
+      order.tax,
+      occurredAt,
+    );
   };
 
 /** One named one-off amount an API create records. `amount` is signed minor

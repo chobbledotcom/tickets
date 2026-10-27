@@ -1,3 +1,4 @@
+import { isInverseOf } from "#shared/ledger/reverse.ts";
 /** Decide which ledger groups an observed provider refund can reverse. */
 
 import { attendeeAccount, WORLD } from "#accounting/accounts.ts";
@@ -9,6 +10,7 @@ import {
 } from "#accounting/mappers.ts";
 import { transfersByAccounts } from "#accounting/queries.ts";
 import { balanceEventGroup } from "#db/attendees/balance.ts";
+import type { SqlStatement } from "#db/client.ts";
 /* jscpd:ignore-start -- imports */
 import { requiredMapValue } from "#fp";
 import { accountKey } from "#shared/ledger/account.ts";
@@ -17,6 +19,12 @@ import { balanceOf } from "#shared/ledger/project.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import { nowIso } from "#shared/now.ts";
 import { requireValue } from "#shared/required-value.ts";
+import {
+  readTaxAssessments,
+  type StoredTaxAssessment,
+  taxAssessmentGuard,
+  taxRefundStatements,
+} from "#shared/tax/store.ts";
 import {
   type RefundLedgerResult,
   type RefundReferences,
@@ -28,6 +36,7 @@ import {
 export type ComputedRefund = {
   readonly groups: TransferInput[][];
   readonly postFailureResult: RefundLedgerResult;
+  readonly statements: SqlStatement[];
   readonly result: RefundLedgerResult;
 };
 
@@ -35,7 +44,8 @@ const computedRefund = (
   groups: TransferInput[][],
   result: RefundLedgerResult,
   postFailureResult: RefundLedgerResult = result,
-): ComputedRefund => ({ groups, postFailureResult, result });
+  statements: SqlStatement[] = [],
+): ComputedRefund => ({ groups, postFailureResult, result, statements });
 
 export type RefundPlanInput = {
   readonly attendeeId: number;
@@ -60,14 +70,24 @@ type AccountRefundGroup = {
 const isPaymentOnlyGroup = (group: AccountRefundGroup): boolean =>
   group.legs.every(isProviderPaymentLeg);
 
-/** The original account event groups that a returned charge can reverse. */
-const accountRefundGroups = (legs: Transfer[]): AccountRefundGroup[] =>
-  [
+/** Each booking and its tax corrections form one obligation for refund guards. */
+const accountRefundGroups = (
+  legs: Transfer[],
+  assessments: readonly StoredTaxAssessment[] = [],
+): AccountRefundGroup[] => {
+  const bookings = new Map(
+    assessments.map(({ eventGroup, bookingGroup }) => [
+      eventGroup,
+      bookingGroup,
+    ]),
+  );
+  return [
     ...Map.groupBy(
       legs.filter((leg) => !isRefundLeg(leg.kind)),
-      (leg) => leg.eventGroup,
-    ).entries(),
+      (leg) => bookings.get(leg.eventGroup) ?? leg.eventGroup,
+    ),
   ].map(([eventGroup, legs]) => ({ eventGroup, legs }));
+};
 
 /** Whether every original order group contains only provider cash. */
 export const isPaymentOnlyAccount = (legs: Transfer[]): boolean => {
@@ -171,17 +191,37 @@ const reversalGroups = async (
   legs: Transfer[],
   groups: AccountRefundGroup[],
 ): Promise<ReversalGroups> => {
-  const reversed = new Set(
-    legs.filter((leg) => isRefundLeg(leg.kind)).map((leg) => leg.eventGroup),
+  const reversed = Map.groupBy(
+    legs.filter((leg) => isRefundLeg(leg.kind)),
+    (leg) => leg.eventGroup,
   );
-  const alreadyRecorded = await Promise.all(
-    groups.map(async (group) =>
-      reversed.has(await refundEventGroup(group.eventGroup)),
-    ),
+  const pending = await Promise.all(
+    groups.map(async (group) => {
+      const physical = await Promise.all(
+        [...Map.groupBy(group.legs, (leg) => leg.eventGroup)].map(
+          async ([eventGroup, originals]) => {
+            const reversals =
+              reversed.get(await refundEventGroup(eventGroup)) ?? [];
+            return originals.every((original) =>
+              reversals.some(
+                (reversal) =>
+                  reversal.reversesGroup === eventGroup &&
+                  isInverseOf(reversal, original),
+              ),
+            )
+              ? []
+              : originals;
+          },
+        ),
+      );
+      return { ...group, legs: physical.flat() };
+    }),
   );
   return {
-    alreadyRecorded: groups.filter((_, index) => alreadyRecorded[index]),
-    toRecord: groups.filter((_, index) => alreadyRecorded[index] === false),
+    alreadyRecorded: groups.filter(
+      (_, index) => pending[index]!.legs.length === 0,
+    ),
+    toRecord: pending.filter(({ legs }) => legs.length > 0),
   };
 };
 
@@ -242,10 +282,11 @@ const hasUnsettledObligation = (facts: RefundGroupFacts): boolean =>
 const computeAttendeeRefundFromLegs = async (
   input: RefundPlanInput,
   legs: Transfer[],
+  assessments: readonly StoredTaxAssessment[],
 ): Promise<ComputedRefund> => {
   const { attendeeId, memo, references } = input;
   const account = attendeeAccount(attendeeId);
-  const groups = accountRefundGroups(legs);
+  const groups = accountRefundGroups(legs, assessments);
   const returned = await returnedRefundGroups(groups, references);
   const factsFor = (group: AccountRefundGroup): RefundGroupFacts =>
     refundGroupFacts(account, group);
@@ -281,16 +322,37 @@ const computeAttendeeRefundFromLegs = async (
     indexesWhollyInGroups(returned.placements, alreadyRecorded),
     reviewReferenceIndexes,
   );
-  if (toRecord.length === 0) return computedRefund([], result);
+  const latest = new Map(
+    assessments.map((assessment) => [assessment.bookingGroup, assessment]),
+  );
+  const eligibleIds = new Set(eligible.map(({ eventGroup }) => eventGroup));
   const occurredAt = nowIso();
+  const statements = await taxRefundStatements(
+    [...latest.values()].filter(({ bookingGroup }) =>
+      eligibleIds.has(bookingGroup),
+    ),
+    occurredAt,
+  );
+  // Also fence an empty snapshot: a legacy booking can gain its first assessment.
+  if (toRecord.length > 0 || statements.length > 0) {
+    statements.unshift(
+      taxAssessmentGuard({
+        args: [attendeeId, assessments.length],
+        sql: "(SELECT COUNT(*) FROM booking_tax_assessments WHERE attendee_id = ?) = ?",
+      }),
+    );
+  }
   return computedRefund(
     await Promise.all(
-      toRecord.map((order) =>
-        mapRefund({ memo, occurredAt, orderLegs: order.legs }),
+      toRecord.flatMap((order) =>
+        [...Map.groupBy(order.legs, (leg) => leg.eventGroup).values()].map(
+          (orderLegs) => mapRefund({ memo, occurredAt, orderLegs }),
+        ),
       ),
     ),
     result,
     postFailureResult,
+    statements,
   );
 };
 
@@ -298,6 +360,10 @@ const computeAttendeeRefundFromLegs = async (
 export const computeAttendeeRefunds = async (
   inputs: readonly RefundPlanInput[],
 ): Promise<ComputedRefund[]> => {
+  // A reassessment committed after this read must fail the refund's revision fence.
+  const assessments = await readTaxAssessments(
+    inputs.map(({ attendeeId }) => attendeeId),
+  );
   const accounts = inputs.map(({ attendeeId }) => attendeeAccount(attendeeId));
   const transfers = await transfersByAccounts(accounts);
   return await Promise.all(
@@ -308,7 +374,11 @@ export const computeAttendeeRefunds = async (
         accountKey(account),
         `Refund ledger read omitted attendee ${input.attendeeId}`,
       );
-      return computeAttendeeRefundFromLegs(input, legs);
+      return computeAttendeeRefundFromLegs(
+        input,
+        legs,
+        assessments.filter(({ attendeeId }) => attendeeId === input.attendeeId),
+      );
     }),
   );
 };

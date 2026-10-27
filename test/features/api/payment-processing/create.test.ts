@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { encrypt } from "#crypto/encryption.ts";
 import { decryptWithOwnerKey } from "#crypto/hybrid.ts";
@@ -12,73 +12,25 @@ import {
   alreadyProcessedResult,
   bookingSlot,
   createAttendeeForSession,
-  pairEntriesByListing,
 } from "#routes/api/payment-processing/create.ts";
 import { specForFailure } from "#routes/api/payment-processing/store-refund.ts";
 import { promoActivityLines } from "#routes/api/payment-processing/tail.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
-import type {
-  ModifierApplication,
-  PricedOrder,
-} from "#shared/checkout-pricing.ts";
+import type { ModifierApplication } from "#shared/checkout-pricing.ts";
 import type {
   CheckoutIntent,
   ModifierSpec,
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
+import { assessTax } from "#shared/tax/assessment.ts";
+import type { TaxPolicy } from "#shared/tax/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListingWithCount, webhookMeta } from "#test-utils/factories.ts";
+import { pricedOrder as makePricedOrder } from "#test-utils/factories-pricing.ts";
 import type { ListingWithCount } from "#types";
-
-/** A validated item carries a listing (the only field the pairing reads). */
-const item = (id: number) => ({ listing: testListingWithCount({ id }) });
-/** A created booking row — the pairing keys on its `listing_id`. */
-const row = (listing_id: number) => ({ listing_id });
-
-describe("pairEntriesByListing", () => {
-  test("pairs a one-row-per-item order by listing id", () => {
-    const items = [item(10), item(20)];
-    const entries = pairEntriesByListing([row(20), row(10)], items);
-    // Order-independent: each row resolves to its own listing, not the item
-    // at the same index.
-    expect(entries.map((e) => e.attendee.listing_id)).toEqual([20, 10]);
-    expect(entries.map((e) => e.listing.id)).toEqual([20, 10]);
-  });
-
-  test("maps MORE rows than items — the multi-parent expansion — without mis-aligning", () => {
-    // A child (30) chosen under two parents (10, 20) is ONE signed item but
-    // TWO per-parent booking rows, so four rows resolve against three items;
-    // a positional pairing would read past the end and throw.
-    const items = [item(10), item(20), item(30)];
-    const attendees = [row(10), row(20), row(30), row(30)];
-    const entries = pairEntriesByListing(attendees, items);
-    expect(entries).toHaveLength(4);
-    // Every entry's listing matches its own row's listing id — including both
-    // child rows, which share listing 30.
-    expect(entries.every((e) => e.attendee.listing_id === e.listing.id)).toBe(
-      true,
-    );
-    expect(entries.filter((e) => e.listing.id === 30)).toHaveLength(2);
-  });
-
-  test("resolves a parent-less remainder row (same listing, extra row) too", () => {
-    // A remainder row shares the child's listing id with its allocation row.
-    const entries = pairEntriesByListing(
-      [row(10), row(30), row(30)],
-      [item(10), item(30)],
-    );
-    expect(entries.map((e) => e.listing.id)).toEqual([10, 30, 30]);
-  });
-
-  test("fails when a created row has no loaded listing", () => {
-    expect(() => pairEntriesByListing([row(30)], [item(10)])).toThrow(
-      "Listing 30 was not loaded for a created booking",
-    );
-  });
-});
 
 test("builds standalone and package booking slots", () => {
   expect(bookingSlot({ e: 7, p: 100, q: 1 })).toEqual({
@@ -120,6 +72,7 @@ type PreparationOptions = {
   safeName?: string;
   secondListingName?: string;
   total: number;
+  taxPolicy?: TaxPolicy;
 };
 
 /** The buyer's contact fields every preparation fixture shares. */
@@ -142,6 +95,32 @@ const buildIntent = (
   modifiers: [],
   reservationAmount: options.reservationAmount,
 });
+
+const secondListingFor = (
+  options: PreparationOptions,
+): {
+  bookingItem: BookingIntent["items"][number];
+  checkoutItem: CheckoutIntent["items"][number];
+  listing: ListingWithCount | null;
+} | null => {
+  if (options.secondListingName === undefined) return null;
+  const listing = testListingWithCount({
+    id: 2,
+    name: options.secondListingName,
+    unit_price: 0,
+  });
+  return {
+    bookingItem: { e: 2, p: 0, q: 1 },
+    checkoutItem: {
+      listingId: 2,
+      name: options.secondListingName,
+      quantity: 1,
+      slug: "second-choice",
+      unitPrice: 0,
+    },
+    listing,
+  };
+};
 
 const preparationResult = (options: PreparationOptions) => {
   const listing = testListingWithCount({
@@ -169,31 +148,17 @@ const preparationResult = (options: PreparationOptions) => {
   };
   const contact = { ...PREPARATION_CONTACT, date: null };
   // A free second listing keeps the order's totals whole.
-  const secondListing =
-    options.secondListingName === undefined
-      ? null
-      : testListingWithCount({
-          id: 2,
-          name: options.secondListingName,
-          unit_price: 0,
-        });
-  const secondBookingItem = { e: 2, p: 0, q: 1 };
-  const secondCheckoutItem = {
-    listingId: 2,
-    name: options.secondListingName ?? "",
-    quantity: 1,
-    slug: "second-choice",
-    unitPrice: 0,
-  };
+  const second = secondListingFor(options);
+  const secondListing = second?.listing ?? null;
   const intent = buildIntent(options, [
     bookingItem,
-    ...(secondListing ? [secondBookingItem] : []),
+    ...(second ? [second.bookingItem] : []),
   ]);
   const pricingIntent: CheckoutIntent = {
     ...contact,
-    items: secondListing ? [checkoutItem, secondCheckoutItem] : [checkoutItem],
+    items: second ? [checkoutItem, second.checkoutItem] : [checkoutItem],
   };
-  const pricedOrder: PricedOrder = {
+  const pricedOrder = makePricedOrder({
     extras: [],
     fullSubtotal: options.fullSubtotal ?? 1000,
     lines: [
@@ -205,13 +170,21 @@ const preparationResult = (options: PreparationOptions) => {
             : checkoutItem,
         quantity: 1,
       },
-      ...(secondListing
-        ? [{ chargedUnitAmount: 0, item: secondCheckoutItem, quantity: 1 }]
+      ...(second
+        ? [{ chargedUnitAmount: 0, item: second.checkoutItem, quantity: 1 }]
         : []),
     ],
     modifierApplications: [],
+    ...(options.taxPolicy
+      ? {
+          tax: assessTax(
+            { lines: [{ gross: 1000, listingId: 1 }], modifiers: [] },
+            options.taxPolicy,
+          ),
+        }
+      : {}),
     total: options.total,
-  };
+  });
   const session: ValidatedPaymentSession = {
     amountTotal: 1000,
     currency: "GBP",
@@ -232,13 +205,13 @@ const preparationResult = (options: PreparationOptions) => {
         listing,
         name: options.safeName ?? listing.name,
       },
-      ...(secondListing
+      ...(second
         ? [
             {
               expectedPrice: 0,
-              item: secondBookingItem,
-              listing: secondListing,
-              name: secondListing.name,
+              item: second.bookingItem,
+              listing: secondListing!,
+              name: secondListing!.name,
             },
           ]
         : []),
@@ -325,6 +298,16 @@ describeWithEnv("payment booking lines", { db: true }, () => {
       total: 250,
     });
     expect(create.calls[0]!.args[0].remainingBalance).toBe(750);
+  });
+  test("leaves the full VAT assessment less the actual deposit owed", async () => {
+    using create = stubSuccessfulBooking();
+    await preparationResult({
+      chargedUnitAmount: 240,
+      reservationAmount: "20%",
+      taxPolicy: { mode: "add_to_total", rateBasisPoints: 2000 },
+      total: 240,
+    });
+    expect(create.calls[0]!.args[0].remainingBalance).toBe(960);
   });
 
   test("reports the exact modifier sellout failure", async () => {
