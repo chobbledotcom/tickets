@@ -111,6 +111,11 @@ jobs:
       - name: Check the coverage exclusion list only shrinks
         run: deno task check:coverage-exclusions
 
+      # Warns on weak assertions in test files the branch touches, fails on
+      # ones it adds, against the merge base on origin/main (issue #2298).
+      - name: Check the test quality gate
+        run: deno task check:test-quality
+
       # A helper the branch adds is invisible to the base tree; running the
       # dump against it here is what exercises that import (issue #2740).
       - name: Check contract drift against the base tree
