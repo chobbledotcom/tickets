@@ -1,7 +1,7 @@
 /**
  * The hosting-provider layer everything that touches a built site's
- * infrastructure shares: which provider a site runs on, and whether the host
- * holds what it takes to reach a site on it.
+ * infrastructure shares. It names which provider a site runs on, and whether
+ * the host holds what it takes to reach a site on it.
  */
 
 import type { HostingProvider } from "#db/built-sites/types.ts";

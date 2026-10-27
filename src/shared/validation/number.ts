@@ -38,11 +38,11 @@ type IntSchema = v.GenericSchema<string, number>;
 const parseIntWithSchema = (schema: IntSchema, value: string): number | null =>
   parseOrNull(schema, value.trim());
 
-/** Parse a strict non-negative decimal integer, or null when it isn't one. */
+/** Parse a strict non-negative decimal integer, or null when it is not one. */
 export const parseNonNegativeInt = (value: string): number | null =>
   parseIntWithSchema(NonNegativeIntSchema, value);
 
-/** Parse a strict positive decimal integer, or null when it isn't one. */
+/** Parse a strict positive decimal integer, or null when it is not one. */
 export const parsePositiveInt = (value: string): number | null =>
   parseIntWithSchema(PositiveIntSchema, value);
 

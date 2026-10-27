@@ -26,7 +26,7 @@ const forbiddenResponse = (): Response =>
 
 /**
  * Sanitize an attachment name for use in the Content-Disposition header.
- * Strips characters that could be used for HTTP header injection or path traversal.
+ * Strips characters that can be used for HTTP header injection or path traversal.
  */
 const sanitizeAsciiFilename = (name: string): string =>
   sanitizeBasename(name, [/[^\x20-\x7E]/g, ""], [/[":;\\]/g, "_"]);

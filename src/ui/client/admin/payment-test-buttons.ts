@@ -3,8 +3,8 @@
 import { csrfPost } from "./csrf.ts";
 
 /** The answer a connection-test endpoint returns: whether the connection
- * passed, and the lines to show — words the server rendered from the
- * message catalog, so this script holds no copy of its own. */
+ * passed, and the lines to show. These are words the server rendered from
+ * the message catalog. This script holds no copy of its own. */
 interface ConnectionAnswer {
   lines: string[];
   ok: boolean;
@@ -26,10 +26,10 @@ const showTestResult = (
 };
 
 /** Wire up one payment provider's "Test Connection" button. The provider's
- * own name gives the two element ids, the result class and the test address,
- * so the page and this script cannot disagree about any of them. The page
- * also owns every label: the answer's words come from the server, and the
- * testing and failure labels ride along as data attributes. */
+ * own name gives the two element ids, the result class, and the test address.
+ * The page and this script cannot disagree about any of them. The page also
+ * owns every label: the answer's words come from the server, and the testing
+ * and failure labels ride along as data attributes. */
 const setupTestButton = (provider: string) => {
   const button = document.getElementById(`${provider}-test-btn`);
   if (!(button instanceof HTMLButtonElement)) return;

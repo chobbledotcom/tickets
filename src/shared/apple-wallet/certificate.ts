@@ -65,7 +65,7 @@ const readCertificateParts = (pem: string): CertificateParts => {
   fieldAt(fields, 2, 0x03, "signature");
 
   const bodyFields = readDerChildren(body);
-  // TBSCertificate starts with optional [0] EXPLICIT version; absent means v1.
+  // TBSCertificate starts with optional [0] EXPLICIT version. Absent means v1.
   // The remaining fixed order is serial, signature, issuer, validity, subject,
   // then SubjectPublicKeyInfo.
   const offset = bodyFields[0]?.tag === 0xa0 ? 1 : 0;
@@ -104,7 +104,7 @@ export const readAppleCertificate = (pem: string): AppleCertificate => {
   };
 };
 
-/** Whether the certificate has supported RSA/X.509 fields and an importable key. */
+/** Whether the certificate holds supported RSA/X.509 fields and an importable key. */
 export const isValidAppleCertificate = async (
   pem: string,
 ): Promise<boolean> => {

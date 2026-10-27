@@ -18,7 +18,7 @@ type RetainedBuild = { result: BuildSiteResult; retainedId: number };
 
 /**
  * Build one site and retain a row for it as part of the build. The retain
- * callback must have stored the row before the caller sees success, so a
+ * callback must store the row before the caller sees success, so a
  * provider that reports a site nobody recorded fails loudly instead.
  */
 export const buildRetainedSite = async (

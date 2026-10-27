@@ -7,7 +7,7 @@ import {
   words,
 } from "./columns.ts";
 
-/** What a decision may never be, whatever else is true of it. */
+/** What a decision can never be, whatever else is true of it. */
 export const paymentCaseDecisionTable: [name: string, table: Table] = [
   "payment_case_decisions",
   {

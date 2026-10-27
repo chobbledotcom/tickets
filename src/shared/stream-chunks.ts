@@ -2,7 +2,7 @@
  * Read a byte stream one chunk at a time.
  *
  * Both the storage byte-collector and the line reader walk a
- * `ReadableStream<Uint8Array>` with the same getReader/read/done loop; this
+ * `ReadableStream<Uint8Array>` with the same getReader/read/done loop. This
  * holds that loop in one place and hands each chunk out as it arrives. The
  * reader lock is always released, even when the caller stops early or throws.
  */

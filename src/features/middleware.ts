@@ -273,9 +273,9 @@ export const applySecurityHeaders = async (
   const provider = settings.paymentProvider;
   const sandbox = provider !== null && paymentProviderUsesSandbox(provider);
   // Every page the layout renders links /custom.css, so the policy must
-  // follow the stylesheet's saved flag (computed when the CSS was saved) on
-  // every routed response. The read is the cached snapshot, never a query of
-  // its own.
+  // follow the stylesheet's saved flag on every routed response. The flag is
+  // computed when the CSS was saved. The read is the cached snapshot, never a
+  // query of its own.
   const baseCsp = buildCspHeader(
     embeddable,
     { provider, sandbox },
@@ -289,7 +289,7 @@ export const applySecurityHeaders = async (
   const csp = frameAncestors ? `${frameAncestors}; ${baseCsp}` : baseCsp;
   const securityHeaders = getSecurityHeaders(path, csp);
 
-  // Check before setting security headers (they don't include cache-control)
+  // Check before setting security headers (they do not include cache-control)
   const hasCacheControl = response.headers.has("cache-control");
 
   for (const [key, value] of Object.entries(securityHeaders)) {
@@ -310,7 +310,7 @@ export const applySecurityHeaders = async (
   }
 
   // Prevent CDN from caching dynamic responses — static assets already set
-  // their own cache-control (e.g. "public, max-age=31536000, immutable")
+  // their own cache-control (for example, "public, max-age=31536000, immutable")
   if (!hasCacheControl) {
     response.headers.set("cache-control", "private, no-store");
   }

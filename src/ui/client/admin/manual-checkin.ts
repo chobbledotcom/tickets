@@ -210,8 +210,8 @@ export const initManualCheckin = (): void => {
     );
   };
 
-  /** A person the door still owes tickets keeps their option, showing what
-   * is left: part of a party, or listings a scan did not cover. */
+  /** A person the door still owes tickets keeps their option. The option
+   * shows what is left: part of a party, or listings a scan did not cover. */
   const showRemaining = (attendeeId: string, remaining: number) => {
     for (const opt of allOptions()) {
       if (opt.dataset.attendeeId !== attendeeId) continue;

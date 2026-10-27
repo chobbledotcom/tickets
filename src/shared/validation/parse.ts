@@ -3,7 +3,7 @@ import * as v from "valibot";
 /**
  * Run a valibot schema and give back its parsed value, or `null` when the input
  * does not pass. This is the single "try to parse, else null" step every
- * null-on-invalid parser in this folder is built on (money, number, …), so the
+ * null-on-invalid parser in this folder is built on (money, number, …). The
  * `v.safeParse` call and its success check live in exactly one place.
  */
 export const parseOrNull = <TSchema extends v.GenericSchema>(

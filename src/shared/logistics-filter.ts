@@ -1,8 +1,8 @@
 /**
- * The calendar's "by logistics agent" filter: the filter value, parsing a raw
- * query param into it, matching a booking's assignment against it, and the
- * rendered "Agent: All / None / Van 1 / …" bar. Mirrors the listing-type filter
- * so the calendar drives the same kind of control.
+ * The calendar's "by logistics agent" filter. It covers the filter value,
+ * parsing a raw query param into it, and matching a booking's assignment
+ * against it. It also renders the "Agent: All / None / Van 1 / …" bar. Mirrors
+ * the listing-type filter so the calendar drives the same kind of control.
  */
 
 import { escapeHtml } from "#jsx/escape-html.ts";
@@ -28,9 +28,9 @@ export const agentFilterParam = (filter: AgentFilter): string =>
   filter === "all" ? "" : String(filter);
 
 /**
- * Whether a booking's drop-off/collection pair matches the active filter:
- * everything for "all", an unassigned pair for "none", and either side equal
- * to the chosen agent for a specific id.
+ * Whether a booking's drop-off/collection pair matches the active filter.
+ * Everything matches for "all". An unassigned pair matches for "none". Either
+ * side equal to the chosen agent matches for a specific id.
  */
 export const assignmentMatchesAgentFilter = (
   filter: AgentFilter,
@@ -44,7 +44,7 @@ export const assignmentMatchesAgentFilter = (
 
 /**
  * Render the "Agent: All / None / …" filter as a paragraph of links. The active
- * option is bold + underlined; the rest link via `hrefFor`.
+ * option is bold and underlined. The rest link via `hrefFor`.
  */
 export const renderAgentFilter = (
   active: AgentFilter,

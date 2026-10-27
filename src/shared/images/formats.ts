@@ -10,7 +10,7 @@ type ImageFormat = {
 };
 
 /** Every image format the app can recognise. GIF stays readable for legacy
- * files, but cannot be uploaded because the WebP conversion would lose motion. */
+ * files, but cannot be uploaded because the WebP conversion loses motion. */
 export const IMAGE_FORMATS = {
   "image/gif": {
     extension: ".gif",

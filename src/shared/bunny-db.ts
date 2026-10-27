@@ -65,9 +65,9 @@ const regionIds = (regions: RegionConfig[]): string[] =>
   regions.map((region) => region.id);
 
 /**
- * Ask Bunny which database regions it will accept right now, so a new database
- * runs on every one of Bunny's servers instead of a fixed list. Reading the
- * live config means new Bunny regions are used automatically, with no code
+ * Ask Bunny which database regions it will accept right now. A new database
+ * then runs on every one of Bunny's servers instead of a fixed list. Reading
+ * the live config means new Bunny regions are used automatically, with no code
  * change needed when Bunny adds a server.
  */
 const getAllRegions = async (): Promise<

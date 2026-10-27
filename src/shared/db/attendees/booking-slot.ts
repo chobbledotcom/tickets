@@ -15,7 +15,7 @@ import { seenBefore } from "#shared/seen-before.ts";
 
 /** Identity of a booking slot:
  * `${listingId}|${date}|${parentListingId}|${packageGroupId}`. Two rows with
- * the same slot would collide on the `listing_attendees` unique index. */
+ * the same slot collide on the `listing_attendees` unique index. */
 export const bookingSlotKey = (
   listingId: number,
   date: string | null | undefined,
@@ -23,9 +23,9 @@ export const bookingSlotKey = (
   packageGroupId = 0,
 ): string => `${listingId}|${date ?? ""}|${parentListingId}|${packageGroupId}`;
 
-/** True when any two of the given lines target the same booking slot — which
- * the unique index would reject. Shared by the create and edit paths so the
- * slot identity is defined once. */
+/** True when any two of the given lines target the same booking slot — the
+ * unique index rejects such a pair. Shared by the create and edit paths so
+ * the slot identity is defined once. */
 export const hasDuplicateBookingSlot = (
   lines: readonly {
     listingId: number;

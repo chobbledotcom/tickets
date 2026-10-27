@@ -32,7 +32,7 @@ export const bufferRequestIfNeeded: RequestTransform = (request) =>
     ? bufferRequestBody(request)
     : Promise.resolve(request);
 
-/** Whether this request should record SQL for the admin debug footer. */
+/** Whether this request records SQL for the admin debug footer. */
 export const shouldLogQueries = (method: string, prefix: string): boolean =>
   method === "GET" && prefix === "admin";
 
@@ -103,7 +103,7 @@ export const trackingRedirectLocation = (
 export const isSetupPath = (path: string): boolean =>
   path === "/setup" || path.startsWith("/setup/");
 
-/** Whether the settings-version read may start before database setup. */
+/** Whether the settings-version read can start before database setup. */
 export const shouldPrefetchSettings = (path: string): boolean =>
   !isSetupPath(path);
 

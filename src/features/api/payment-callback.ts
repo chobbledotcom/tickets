@@ -100,7 +100,7 @@ const processedOutcome = (
     error: result.error,
     listingId,
   };
-  // A transient lock, not a money answer: nobody has decided anything yet.
+  // A transient lock, not a money answer: nobody decided anything yet.
   if (result.status === 409 && result.refunded === undefined) {
     return { ...failure, kind: "held" };
   }

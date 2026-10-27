@@ -12,7 +12,7 @@ export type RetryContext = {
  * `backoffMs.length` is the number of RETRIES, so there are one more attempts
  * than delays.
  *
- * `onError` may throw to abort: to propagate a non-retryable error, or to swap
+ * `onError` can throw to abort: to propagate a non-retryable error, or to swap
  * in a friendlier one once `willRetry` is false. If it does not throw and the
  * retries run out, the last error is rethrown unchanged.
  */

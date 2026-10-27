@@ -44,7 +44,7 @@ export const isTokenExpired = (
   nowS: number,
 ): boolean => expiryUnixS < nowS || expiryUnixS - nowS > maxAgeS + 60;
 
-/** Returns true when a token is expired as of right now, using the current
+/** Returns true when a token is expired as of right now. Uses the current
  * clock to compute nowS. Convenience wrapper over isTokenExpired. */
 export const isExpiredNow = (expiryUnixS: number, maxAgeS: number): boolean =>
   isTokenExpired(expiryUnixS, maxAgeS, nowSeconds());

@@ -9,7 +9,7 @@ type ScopedPaymentRow = {
 /**
  * What claiming reads off an attendee: which one it is, and what its payment
  * references can match. A `LoadedRefundAttendee` carries more than this, and
- * fits; naming the narrower shape says which parts this decision rests on.
+ * fits. Naming the narrower shape says which parts this decision rests on.
  */
 export type ClaimableAttendee = {
   readonly attendeeId: number;

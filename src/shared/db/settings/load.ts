@@ -32,8 +32,8 @@ import {
 /**
  * Load only the given config keys, fetching just the ones not already resolved
  * at the current settings version (one `WHERE key IN (...)` query) and
- * decrypting only those. When the shared version has moved since the cache was
- * stamped, the whole cache is discarded and the requested keys are reloaded.
+ * decrypting only those. A shared version newer than the cache stamp discards
+ * the whole cache and reloads the requested keys.
  */
 export const loadKeys = async (keys: readonly string[]): Promise<void> => {
   // Record everything declared this request, regardless of cache state, so the

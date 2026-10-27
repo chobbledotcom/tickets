@@ -6,7 +6,7 @@
  * encrypted with the gateway passphrase BEFORE they leave this process, so the
  * relay only ever sees ciphertext (`isEncrypted: true`).
  *
- * Credentials and the passphrase live in encrypted settings; plaintext PII is
+ * Credentials and the passphrase live in encrypted settings. Plaintext PII is
  * supplied transiently by the caller (decrypted under the owner's key) and is
  * never persisted in cleartext.
  */

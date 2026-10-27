@@ -45,7 +45,7 @@ type SingleTokenPassData = Extract<
 
 /**
  * Look up the single token's pass data and hand it to the builder, or return
- * the not-found/error response when the token doesn't resolve. Shared by the
+ * the not-found/error response when the token does not resolve. Shared by the
  * Apple and Google wallet routes, which build different passes from the same
  * lookup.
  */

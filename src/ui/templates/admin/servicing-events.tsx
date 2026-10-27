@@ -1,7 +1,7 @@
 /**
  * Shared rendering for service events: the edit link and date label used by
- * both the dashboard's upcoming list and the /admin/servicing table, plus the
- * dashboard's upcoming-events section itself.
+ * both the dashboard's upcoming list and the /admin/servicing table. It also
+ * renders the dashboard's upcoming-events section itself.
  */
 
 import type { ServicingEventSummary } from "#db/attendees/servicing.ts";

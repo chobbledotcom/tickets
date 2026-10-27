@@ -96,7 +96,7 @@ const namesFrom = <Entry>(
 ): string[] => entries.map(getName);
 
 /** Build a Turso client around one platform API token. The optional signal
- * cancels in-flight requests; cleanup deletes always ignore it so an
+ * cancels in-flight requests. Cleanup deletes always ignore it so an
  * incomplete destination can still be removed after an interrupt. */
 export const createTursoApi = (
   apiToken: string,

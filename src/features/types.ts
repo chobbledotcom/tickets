@@ -2,7 +2,7 @@
  * Shared types for route handlers
  */
 
-/** Signature for path/method dispatch functions; returns null to delegate. */
+/** Signature for path and method dispatch functions. Returns null to delegate. */
 export type PathMethodRoute = (
   request: Request,
   path: string,

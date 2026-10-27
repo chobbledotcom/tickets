@@ -2,8 +2,8 @@
  * Attendee table row construction — the one place that turns attendee booking
  * lines into `AttendeeTableRow`s for the unified attendee table.
  *
- * This module is pure: callers fetch (and decrypt) the attendees and listings;
- * these helpers only reshape them.
+ * This module is pure: callers fetch (and decrypt) the attendees and listings.
+ * These helpers only reshape them.
  */
 
 import { type PairBookings, pairKey } from "#booking/ticket-moves.ts";
@@ -15,9 +15,9 @@ import type {
   DisplayAttendee,
 } from "#types";
 
-/** One table row for a single booking line — the roster, check-in, calendar,
- * and group tables, where each line keeps its own date, quantity, and
- * per-listing check-in action. */
+/** One table row for a single booking line. Used by the roster, check-in,
+ * calendar, and group tables, where each line keeps its own date, quantity,
+ * and per-listing check-in action. */
 export const attendeeLineRow = (
   attendee: DisplayAttendee,
   listing: AttendeeRowListing,
@@ -27,8 +27,8 @@ export const attendeeLineRow = (
 });
 
 /** Attach each line's whole booking on its listing, read by `getPairBookings`.
- * A page can show only some of a pair's lines — one date, one filter — and
- * the check-in controls must still see the whole booking a check-in moves. */
+ * A page can show only some of a pair's lines — one date, one filter. The
+ * check-in controls must still see the whole booking a check-in moves. */
 export const withPairBookings =
   (bookings: PairBookings) =>
   (rows: readonly AttendeeTableRow[]): AttendeeTableRow[] =>

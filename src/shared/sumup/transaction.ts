@@ -104,8 +104,8 @@ const TRANSACTION_RUNGS = (
     "unsupported_status",
     (event) => event.event_type === "CHARGE_BACK",
   ),
-  // A refunded transaction that names no refund has lost the only account
-  // SumUp keeps of the money that went back.
+  // A refunded transaction that names no refund lost the only account SumUp
+  // keeps of the money that went back.
   refuseUnless(
     "missing_documented_resource",
     (transaction) =>

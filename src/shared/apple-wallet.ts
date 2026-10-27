@@ -32,7 +32,7 @@ export type WalletPassData = {
 export type PassData = WalletPassData & {
   /** VoiceOver accessibility description for the pass */
   description: string;
-  /** Base URL for Apple Wallet web service (e.g. https://example.com) */
+  /** Base URL for Apple Wallet web service (for example, https://example.com) */
   webServiceURL: string;
   /** Optional pass colors (CSS rgb() format) */
   foregroundColor?: string;
@@ -172,7 +172,7 @@ const buildEventTicketFields = (data: PassData): EventTicketFields => {
   return fields;
 };
 
-/** Apple requires SHA-1 for manifest entries; CMS signs the manifest with SHA-256. */
+/** Apple requires SHA-1 for manifest entries. CMS signs the manifest with SHA-256. */
 export const sha1Hex = async (data: Uint8Array): Promise<string> =>
   new Uint8Array(
     await crypto.subtle.digest("SHA-1", data as BufferSource),
@@ -210,7 +210,7 @@ export const buildPkpass = async (
   const manifestBytes = new TextEncoder().encode(manifestJson);
 
   // Sign the exact JSON string stored as manifest.json. Reserializing the
-  // object after signing would change its bytes and invalidate the signature.
+  // object after signing changes its bytes and invalidates the signature.
   const signature = await signManifest(
     manifestJson,
     creds.signingCert,

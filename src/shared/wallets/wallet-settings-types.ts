@@ -11,8 +11,8 @@ export type EncryptedUpdateFn = (key: string) => (v: string) => Promise<void>;
 
 /**
  * Mixin shared wallet config resolution properties onto a target object.
- * Uses Object.defineProperties to preserve getter semantics (spread would
- * eagerly evaluate getters, breaking `this` references like `this.dbConfig`).
+ * Uses Object.defineProperties to preserve getter semantics (a spread eagerly
+ * evaluates getters, breaking `this` references like `this.dbConfig`).
  *
  * The target must already define `dbConfig` as a getter.
  */

@@ -69,8 +69,8 @@ const repairLegacyTableRename = async (
     return;
   }
   // state === "both" — a failed prior migration attempt created the empty
-  // target before the legacy table could be renamed. Only auto-resolve when
-  // the target is provably empty; otherwise refuse to guess how to merge.
+  // target before it renamed the legacy table. Only auto-resolve when the
+  // target is provably empty. Otherwise refuse to guess how to merge.
   const targetCount = await countRows(target);
   if (targetCount > 0) {
     throw new Error(

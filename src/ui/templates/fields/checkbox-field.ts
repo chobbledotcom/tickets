@@ -2,8 +2,8 @@ import type { ChoiceField } from "#shared/forms/field.ts";
 
 /**
  * A single on/off checkbox field: one option whose value is "1". The caller
- * passes the already-translated copy — its hint, its label, and the option's
- * own label — so the translation keys stay at the call sites for the i18n scan.
+ * passes the already-translated copy: its hint, its label, and the option's
+ * own label. The translation keys stay at the call sites for the i18n scan.
  */
 export const checkboxField = <TName extends string>(
   name: TName,

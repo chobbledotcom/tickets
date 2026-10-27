@@ -78,7 +78,7 @@ export const balanceInvalidPage = messagePublicPage(
 );
 
 /** Shown when the link is valid but the booking has no bookable (quantity > 0)
- * line to pay into — an honest message rather than "link not valid". */
+ * line to pay into. This is an honest message rather than "link not valid". */
 export const balanceNoItemsPage = messagePublicPage(
   "public_balance.no_tickets_title",
   "public_balance.no_tickets_heading",

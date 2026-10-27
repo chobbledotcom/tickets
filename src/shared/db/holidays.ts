@@ -25,7 +25,7 @@ export type HolidayInput = {
   endDate: DateString;
 };
 
-/** Cached holidays table — name is encrypted, dates are plaintext; writes
+/** Cached holidays table: name is encrypted, dates are plaintext. Writes
  * auto-invalidate the cache. */
 export const holidays = defineCachedListTable<Holiday, HolidayInput>({
   name: "holidays",

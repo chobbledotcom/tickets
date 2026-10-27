@@ -25,9 +25,10 @@ type StandInPackage = {
   memberListingIds: readonly number[];
 };
 
-/** Build the page's stand-ins: every hidden package's name keyed by its group
- * id, plus each of its members and those members' required children by listing
- * id (a child booked as part of a hidden bundle must not be named either). */
+/** Build the page's stand-ins. Every hidden package's name is keyed by its
+ * group id. Each of its members and those members' required children are
+ * keyed by listing id. A child booked as part of a hidden bundle must not be
+ * named either. */
 export const packageStandIns = (
   packages: readonly StandInPackage[],
   childIdsOfMember: (memberListingId: number) => readonly number[],

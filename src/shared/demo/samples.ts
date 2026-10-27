@@ -3,7 +3,7 @@
  *
  * These arrays (and the generated listing pools) replace user-entered text
  * when demo mode is on, and feed the database seeder. Only code that writes
- * demo values should import this module — the per-render demo check lives in
+ * demo values imports this module. The per-render demo check lives in
  * `#shared/demo/mode.ts` so pages never load these pools.
  */
 
@@ -256,8 +256,8 @@ export const DEMO_SPECIAL_INSTRUCTIONS = [
 
 /**
  * Demo listing names — pretend rock/heavy-metal band listings.
- * Generated procedurally from a seeded PRNG so the list stays deterministic
- * across runs (tests rely on this) but offers far more variety than a
+ * Generated procedurally from a seeded PRNG. The list stays deterministic
+ * across runs (tests rely on this), yet offers far more variety than a
  * hand-curated list while staying on-theme.
  */
 export const DEMO_LISTING_NAMES = generateBandNames(

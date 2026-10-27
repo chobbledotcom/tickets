@@ -6,8 +6,8 @@ import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import { executeUpdate, queryOne } from "#db/client.ts";
 
 /**
- * Store the phone blind-index on an attendee, but only if one isn't set yet.
- * Idempotent: re-texting the same attendee won't overwrite it.
+ * Store the phone blind-index on an attendee, but only if one is not set yet.
+ * Idempotent: re-texting the same attendee will not overwrite it.
  */
 export const setAttendeePhoneIndexIfEmpty = async (
   attendeeId: number,

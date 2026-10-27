@@ -21,7 +21,7 @@ const optionFromParam = (
   return id === null ? undefined : options.find((option) => option.id === id);
 };
 
-/** Resolve valid URL params to one scope. A valid listing wins; otherwise a
+/** Resolve valid URL params to one scope. A valid listing wins. Otherwise a
  * valid group is used, including when the listing param was invalid. */
 export const resolveLedgerScope = (
   params: URLSearchParams,
@@ -53,7 +53,7 @@ export const setLedgerScopeParam = (
   }
 };
 
-/** Listing ids accepted by the transfer query. Null means every listing; an
+/** Listing ids accepted by the transfer query. Null means every listing. An
  * empty selected group remains an empty array and therefore fails closed. */
 export const listingIdsForLedgerScope = (
   scope: LedgerScope,

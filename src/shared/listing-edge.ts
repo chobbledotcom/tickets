@@ -1,6 +1,6 @@
-/** The would-be edge row a listing form input projects onto, with each
- *  optional field defaulted the way the form layer does. Shared by the listing
- *  save's edge validation and the catalog import so the defaults never drift. */
+/** The edge row a listing form input projects onto, with each optional field
+ *  defaulted the way the form layer does. Shared by the listing save's edge
+ *  validation and the catalog import so the defaults never drift. */
 
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import type { EdgeListing } from "#shared/listing-parents-rules.ts";
@@ -18,8 +18,8 @@ export const dayPriceFieldsFromInput = (
 });
 
 /** Project a (possibly partial) listing form input onto the edge-compatibility
- *  shape for the row it would become, defaulting each optional field as the form
- *  layer does. */
+ *  shape for the row it becomes. Default each optional field as the form layer
+ *  does. */
 export const listingInputToEdge = (
   input: ListingInput,
   id: number,

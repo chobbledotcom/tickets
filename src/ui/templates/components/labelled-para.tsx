@@ -3,7 +3,7 @@
  * `<p><strong>{label}</strong> {value}</p>` shape used by the payment page
  * summary and the admin attendee-details block. Modelling the lines as data
  * (a `{ label, value }[]`) keeps the paragraph markup in one place so the two
- * pages can't drift.
+ * pages cannot drift.
  */
 
 import type { Child } from "#jsx/jsx-runtime.ts";

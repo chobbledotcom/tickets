@@ -3,9 +3,9 @@
  */
 
 /** Remembers every key it is given. Returns false the first time a key
- * arrives and true when the same key comes back — so a loop can catch
+ * arrives, and true when the same key comes back. A loop can then catch
  * repeats (a name referenced twice, a duplicate ignore-list entry) the
- * moment they appear, without managing its own Set. */
+ * moment they appear. It needs no Set of its own. */
 export const seenBefore = (): ((key: string) => boolean) => {
   const seen = new Set<string>();
   return (key: string): boolean => {

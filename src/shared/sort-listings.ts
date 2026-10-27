@@ -1,9 +1,9 @@
 /**
  * Unified listing sorting — deterministic ordering for all listing lists.
  *
- * Tier 0: Standard listings with no date → sorted by name
- * Tier 1: Standard listings with dates  → sorted by date ASC, then name
- * Tier 2: Daily listings                → sorted by next bookable date ASC, then name
+ * Tier 0: Standard listings with no date, sorted by name.
+ * Tier 1: Standard listings with dates, sorted by date ASC then name.
+ * Tier 2: Daily listings, sorted by next bookable date ASC then name.
  */
 
 import { getAllGroupNames, getListingsByGroupId } from "#db/groups.ts";
@@ -81,8 +81,9 @@ export const sortListings = <T extends SortableListing>(
   return [...listings].sort(compareListings(nextDates));
 };
 
-/** Load all listings with holidays and return them sorted. With a filter, only
- * the listings it keeps are returned; without one, every listing is returned. */
+/** Load all listings with holidays and return them sorted. With a filter,
+ * only the listings it keeps are returned. Without one, every listing is
+ * returned. */
 export const loadSortedListings = async (
   keepListing: (listing: ListingWithCount) => boolean = () => true,
 ): Promise<{ listings: ListingWithCount[]; holidays: Holiday[] }> => {

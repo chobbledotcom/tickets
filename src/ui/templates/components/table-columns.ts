@@ -11,6 +11,6 @@
 /** A recurring kind of table column with a codified width + alignment. */
 export type ColumnKind = "reorder" | "amount" | "quantity" | "actions";
 
-/** The CSS class for a column {@link ColumnKind} (e.g. `colClass("amount")` →
- * `"col-amount"`), for use on the column's <th> and every matching <td>. */
+/** The CSS class for a column {@link ColumnKind} (for example, `colClass("amount")`
+ * → `"col-amount"`), for use on the column's <th> and every matching <td>. */
 export const colClass = (kind: ColumnKind): string => `col-${kind}`;

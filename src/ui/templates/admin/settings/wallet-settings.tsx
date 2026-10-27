@@ -1,11 +1,12 @@
 /**
  * Shared scaffold for the Apple/Google Wallet advanced-settings forms.
  *
- * The two wallet forms are structural twins — a {@link SettingsSection} with a
- * host-config-override hint, a set of plain text inputs, and a set of masked
- * secret textareas — differing only in their action, copy, and field lists.
- * {@link WalletSettingsForm} renders that scaffold from a field-list config so
- * a wallet form is one declaration, not another hand-authored component.
+ * The two wallet forms are structural twins. Each is a {@link SettingsSection}
+ * with a host-config-override hint, a set of plain text inputs, and a set of
+ * masked secret textareas. They differ only in their action, copy, and field
+ * lists. {@link WalletSettingsForm} renders that scaffold from a field-list
+ * config so a wallet form is one declaration, not another hand-authored
+ * component.
  */
 
 import { t } from "#i18n";
@@ -17,9 +18,9 @@ import {
 } from "#templates/components/settings-section.tsx";
 import { TextFields } from "#templates/components/text-fields.tsx";
 
-/** The host-config sentence appended to a wallet form's description: the host
- *  provides wallet credentials that the site is either falling back to (no
- *  override yet) or overriding. Empty when the host provides none. */
+/** The host-config sentence appended to a wallet form's description. The host
+ *  provides wallet credentials that the site either falls back to (no
+ *  override yet) or overrides. Empty when the host provides none. */
 export const hostOverrideHint = (
   hostLabel: string | null,
   configured: boolean,

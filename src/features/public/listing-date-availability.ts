@@ -39,7 +39,7 @@ export const loadDailyDateAvailability = async (
   const rows = uniqueBy((listing: ListingWithCount) => listing.id)([...daily]);
   if (rows.length === 0) return new Set();
   // A parent with required children needs the children's combined capacity on
-  // the date, not merely its own places: a minimum its children cannot serve
+  // the date, not merely its own places. A minimum its children cannot serve
   // makes the date as unavailable as an empty row. A hidden or standard child
   // is no public card, so the links load it here and the snapshot reads its
   // capacity beside the cards.

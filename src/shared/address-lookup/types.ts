@@ -30,7 +30,7 @@ export const isAddressLookupSetting = guardFor(AddressLookupSettingSchema);
 export type AddressLookupProvider = Exclude<AddressLookupSetting, "none">;
 
 /** One matching address: its ready-to-display line, plus the provider's
- * latitude/longitude when it knows them ("" when it doesn't). */
+ * latitude/longitude when it knows them ("" when it does not). */
 export const AddressMatchSchema = v.strictObject({
   lat: v.string(),
   line: v.string(),
@@ -42,11 +42,11 @@ export type AddressMatch = v.InferOutput<typeof AddressMatchSchema>;
 export type AddressLookupProviderDefinition = {
   /** Provider name shown in the settings picklist (a brand, not translated). */
   label: string;
-  /** i18n key for the search box label (e.g. "Postcode"). */
+  /** i18n key for the search box label (for example, "Postcode"). */
   searchLabelKey: string;
   /**
    * Normalise a raw search to the provider's canonical form for its locale
-   * (e.g. UK postcodes: uppercase, one space before the last three
+   * (for example, UK postcodes: uppercase, one space before the last three
    * characters). Returns null when the search can never match, so the caller
    * can report that without spending a provider request.
    */

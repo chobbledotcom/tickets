@@ -101,9 +101,9 @@ export const STRING_SETTING_DEFINITIONS = [
     storage: "plaintext",
   }),
   // The provider that was active before the operator switched new sales off
-  // ("none"). Its credentials stay stored, so refunds, replayed callbacks, and
+  // ("none"). Its credentials stay stored. Refunds, replayed callbacks, and
   // in-flight completions of payments that already exist keep running against
-  // the provider that captured them rather than stranding the money.
+  // the provider that captured them. The money does not get stranded.
   setting({
     key: CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER,
     storage: "plaintext",

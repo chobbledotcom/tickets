@@ -20,10 +20,11 @@ import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import type { PaymentProviderType } from "#types";
 
 /**
- * Config for a payment provider's credential-save route. Collapses the shape
- * shared by Stripe/Square/SumUp: extract a masked secret (+ optional text
- * fields) → validate → "secret required unless already stored" → persist
- * credentials → select the provider → sibling test route.
+ * Config for a payment provider's credential-save route. It collapses the
+ * shape shared by Stripe/Square/SumUp. The steps: extract a masked secret
+ * (plus optional text fields), validate, require a secret unless one is
+ * already stored, persist credentials, and select the provider. A sibling
+ * test route follows.
  */
 type ProviderCredentialsConfig<T> = {
   /** Provider selected on a successful save. */

@@ -20,9 +20,9 @@ export const DEFAULT_PBKDF2_ITERATIONS = 75_000;
 
 /**
  * Minimum length for the E2E passphrase. This passphrase is the *only* secret
- * protecting attendee phone numbers and message text once they reach the cloud
- * relay, so we require a reasonably long one rather than accepting whatever the
- * owner types.
+ * protecting attendee phone numbers and message text once they reach the
+ * cloud relay. We require a reasonably long one rather than accepting
+ * whatever the owner types.
  */
 export const SMS_PASSPHRASE_MIN_LENGTH = 12;
 
@@ -51,7 +51,7 @@ const deriveKey = async (
 };
 
 /**
- * Encrypt a single field (e.g. message text or one phone number) for SMS Gate.
+ * Encrypt a single field (for example, message text or one phone number) for SMS Gate.
  * Each call uses a fresh random salt/IV, so encrypting the same value twice
  * yields different ciphertext.
  */
