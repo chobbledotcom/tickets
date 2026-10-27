@@ -71,6 +71,8 @@ describe("LedgerTable", () => {
       [KIND.payment, "Payment received"],
       [KIND.refundCash, "Refund paid"],
       [KIND.refundFee, "Booking fee refunded"],
+      [KIND.refundManualAttendeeCharge, "Extra amount refunded"],
+      [KIND.refundManualAttendeeWriteoff, "Amount owed again"],
       [KIND.refundModifier, "Price change refunded"],
       [KIND.refundSale, "Booking refunded"],
       [KIND.reversal, "Change reversed"],
