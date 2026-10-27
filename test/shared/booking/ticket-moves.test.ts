@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   linePair,
+  movesThatMoved,
   pairBookingsOf,
   pairKey,
   type StoredTicketLine,
@@ -124,6 +125,13 @@ describe("booking > ticket moves", () => {
 
   test("counts the tickets a set of moves covers", () => {
     expect(ticketCount([move(2), move(0), move(3)])).toBe(5);
+  });
+
+  test("keeps only the moves that moved some tickets", () => {
+    const zero = answer(0, 2);
+    const one = answer(1, 1);
+    const two = answer(2, 0);
+    expect(movesThatMoved([zero, one, two])).toEqual([one, two]);
   });
 });
 

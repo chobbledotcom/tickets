@@ -18,6 +18,7 @@ import { jsonResponse } from "#routes/response.ts";
 import {
   ADMIN_API_RESOURCES,
   type AdminApiResource,
+  type AdminApiServes,
 } from "#shared/admin-api-resources.ts";
 import { runDeps, testTable } from "#test-utils/cli-table.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -282,6 +283,41 @@ describe("CLI curl", () => {
   });
 });
 
+/** Whether a resource serves a standard verb; absent means all five. */
+const resourceServes = (
+  entry: AdminApiResource,
+  verb: keyof AdminApiServes,
+): boolean => entry.serves === undefined || entry.serves[verb] === true;
+
+/** The standard routes a resource serves, one per verb it declares. */
+const standardRoutesFor = (entry: AdminApiResource): string[] => {
+  const root = `/api/admin/${entry.path}`;
+  const idParam = `:${entry.label.toLowerCase()}Id`;
+  const routes: string[] = [];
+  if (resourceServes(entry, "list")) routes.push(`GET ${root}`);
+  if (resourceServes(entry, "get")) routes.push(`GET ${root}/${idParam}`);
+  if (resourceServes(entry, "create")) routes.push(`POST ${root}`);
+  if (resourceServes(entry, "update")) routes.push(`PUT ${root}/${idParam}`);
+  if (resourceServes(entry, "delete")) routes.push(`DELETE ${root}/${idParam}`);
+  return routes;
+};
+
+/** One resource's declared routes: the standard routes it serves, its child
+ *  routes, and its custom routes. */
+const resourceRoutes = (entry: AdminApiResource): string[] => {
+  const root = `/api/admin/${entry.path}`;
+  const idParam = `:${entry.label.toLowerCase()}Id`;
+  const children = Object.entries(entry.children ?? {}).flatMap(([, child]) => [
+    `POST ${root}/${idParam}/${child.path}`,
+    `PUT ${root}/${idParam}/${child.path}/:${child.idParam}`,
+    `DELETE ${root}/${idParam}/${child.path}/:${child.idParam}`,
+  ]);
+  const custom = Object.entries(entry.custom ?? {}).map(
+    ([, route]) => `${route.method} ${root}/${route.subpath}`,
+  );
+  return [...standardRoutesFor(entry), ...children, ...custom];
+};
+
 describe("CLI table-vs-server", () => {
   test("exposes exactly the routes the admin API serves", () => {
     // Every route key the server registers must be one the table can name:
@@ -289,29 +325,7 @@ describe("CLI table-vs-server", () => {
     // Neither side can silently drift.
     const entries: readonly [string, AdminApiResource][] =
       Object.entries(ADMIN_API_RESOURCES);
-    const declared = entries.flatMap(([, entry]) => {
-      const root = `/api/admin/${entry.path}`;
-      const idParam = `:${entry.label.toLowerCase()}Id`;
-      const children = Object.entries(entry.children ?? {}).flatMap(
-        ([, child]) => [
-          `POST ${root}/${idParam}/${child.path}`,
-          `PUT ${root}/${idParam}/${child.path}/:${child.idParam}`,
-          `DELETE ${root}/${idParam}/${child.path}/:${child.idParam}`,
-        ],
-      );
-      const custom = Object.entries(entry.custom ?? {}).map(
-        ([, route]) => `${route.method} ${root}/${route.subpath}`,
-      );
-      return [
-        `GET ${root}`,
-        `GET ${root}/${idParam}`,
-        `POST ${root}`,
-        `PUT ${root}/${idParam}`,
-        `DELETE ${root}/${idParam}`,
-        ...children,
-        ...custom,
-      ];
-    });
+    const declared = entries.flatMap(([, entry]) => resourceRoutes(entry));
     // A custom route may occupy the standard delete's key, and the server's
     // route map holds each key once.
     expect([...new Set(declared)].sort()).toEqual(

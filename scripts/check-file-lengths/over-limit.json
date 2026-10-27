@@ -1,5 +1,5 @@
 {
-  "src/features/admin/attendee-form-model.ts": 565,
+  "src/features/admin/attendee-form-model.ts": 547,
   "src/features/auth.ts": 743,
   "src/fp.ts": 585,
   "src/shared/db/attendees/servicing.ts": 905,
@@ -15,7 +15,7 @@
   "src/shared/storage.ts": 543,
   "src/shared/types.ts": 783,
   "src/ui/static/style.scss": 3174,
-  "src/ui/templates/admin/questions.tsx": 589,
+  "src/ui/templates/admin/questions.tsx": 586,
   "test/features/admin/debug/server.test.ts": 667,
   "test/fp/collections.test.ts": 515,
   "test/integration/bunny-cdn/domain.test.ts": 584,

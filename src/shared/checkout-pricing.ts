@@ -86,6 +86,51 @@ export const lineTotalsByListingId = (
 export const lineListPrice = (line: PricedLine): number =>
   line.item.unitPrice * line.quantity;
 
+/** The listing fields a list-price order reads. The shape stays structural so
+ *  the pricing module stays free of the heavy `ListingWithCount` import. */
+type ListPriceListing = {
+  id: number;
+  name: string;
+  slug: string;
+  unit_price: number;
+};
+
+/** One bookable line a list-price order prices at the listing's list price. */
+export type ListPriceLine = {
+  listing: ListPriceListing;
+  quantity: number;
+  /** Per-unit charge override (a package deal, a free member). It defaults to
+   *  the listing's own list price. A stored 0 is a deliberate free line. */
+  unitPrice?: number;
+};
+
+/** The gross order for a booking an operator records directly. The manual-add
+ *  form and the admin JSON API create share it. Every line is at the listing's
+ *  list price (or the caller's override), with no extras and a zero total.
+ *  `owedOrderForLedger` and `bookingFactsFromOrder` recognise each line's
+ *  gross as a `sale` leg (income) with no `payment` or `fee` leg. The caller
+ *  reconciles any already-paid portion on top. */
+export const listPriceOrder = (lines: ListPriceLine[]): PricedOrder => ({
+  extras: [],
+  fullSubtotal: 0,
+  lines: lines.map((line): PricedLine => {
+    const unitPrice = line.unitPrice ?? line.listing.unit_price;
+    return {
+      chargedUnitAmount: unitPrice,
+      item: {
+        listingId: line.listing.id,
+        name: line.listing.name,
+        quantity: line.quantity,
+        slug: line.listing.slug,
+        unitPrice,
+      },
+      quantity: line.quantity,
+    };
+  }),
+  modifierApplications: [],
+  total: 0,
+});
+
 /** The booking-fee extra line for a subtotal, or [] when the fee is zero. */
 const feeExtras = (fullSubtotal: number): ExtraLine[] => {
   const amount = getBookingFeeAmount(fullSubtotal);

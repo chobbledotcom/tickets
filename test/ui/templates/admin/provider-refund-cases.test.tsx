@@ -69,7 +69,11 @@ describe("provider refund recovery templates", () => {
     const html = String(<ProviderRefundCaseQueue page={queue} />);
 
     assertStringIncludes(html, "Refunds needing attention");
-    assertStringIncludes(html, '<section class="prose" id="refund-recovery">');
+    assertStringIncludes(html, '<section id="refund-recovery">');
+    assertStringIncludes(
+      html,
+      '<div class="prose"><h2>Refunds needing attention</h2>',
+    );
     assertStringIncludes(html, "SumUp");
     assertStringIncludes(html, "£25");
     assertStringIncludes(html, 'href="/admin/privacy/refunds/17"');
