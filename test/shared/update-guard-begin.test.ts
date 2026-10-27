@@ -177,10 +177,14 @@ describe("waitForBeginPropagation", () => {
 
 describe("runUnderUpdateGuard", () => {
   test("sets the flag, deploys, confirms the new build, and lifts", async () => {
-    const { calls, io } = recordingUpdateGuard([
-      page("active", "v2026-01-01-000000"),
-      page("active", MOCK_RELEASE.tag_name),
-    ]);
+    const clock = fakeClock();
+    const { calls, io } = recordingUpdateGuard(
+      [
+        page("active", "v2026-01-01-000000"),
+        page("active", MOCK_RELEASE.tag_name),
+      ],
+      { now: clock.now, sleep: clock.sleep },
+    );
     const result = await runUnderUpdateGuard(
       io,
       async () => {
@@ -195,10 +199,11 @@ describe("runUnderUpdateGuard", () => {
   });
 
   test("skips the first wait for a build that predates update mode", async () => {
-    const { calls, io } = recordingUpdateGuard([
-      page("unsupported"),
-      page("active", MOCK_RELEASE.tag_name),
-    ]);
+    const clock = fakeClock();
+    const { calls, io } = recordingUpdateGuard(
+      [page("unsupported"), page("active", MOCK_RELEASE.tag_name)],
+      { now: clock.now, sleep: clock.sleep },
+    );
     await runUnderUpdateGuard(
       io,
       async () => {
@@ -233,7 +238,11 @@ describe("runUnderUpdateGuard", () => {
   });
 
   test("leaves the flag set when the deploy throws", async () => {
-    const { calls, io } = recordingUpdateGuard([page("active")]);
+    const clock = fakeClock();
+    const { calls, io } = recordingUpdateGuard([page("active")], {
+      now: clock.now,
+      sleep: clock.sleep,
+    });
     await expect(
       runUnderUpdateGuard(
         io,
@@ -262,6 +271,7 @@ describe("runUnderUpdateGuard", () => {
   });
 
   test("leaves the flag set when the lift fails", async () => {
+    const clock = fakeClock();
     const calls: string[] = [];
     const io: UpdateGuardIo = {
       clearFlag: () => {
@@ -272,9 +282,11 @@ describe("runUnderUpdateGuard", () => {
         calls.push("fetch");
         return Promise.resolve(page("active", MOCK_RELEASE.tag_name));
       },
+      now: clock.now,
       setFlag: async (value) => {
         calls.push(`set:${value}`);
       },
+      sleep: clock.sleep,
     };
     await expect(
       runUnderUpdateGuard(

@@ -29,6 +29,7 @@ import {
   withMocks,
 } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
+import { withVirtualBackoff } from "#test-utils/virtual-time.ts";
 
 /** GitHub release API response with no assets */
 const MOCK_RELEASE_NO_ASSET = {
@@ -254,7 +255,9 @@ describeWithEnv("server (admin update)", { db: true }, () => {
             release: new Response(JSON.stringify(MOCK_RELEASE_NO_ASSET)),
           }),
         async () => {
-          const { response } = await adminFormPost("/admin/update");
+          const { response } = await withVirtualBackoff(() =>
+            adminFormPost("/admin/update"),
+          );
           expectRedirect(response, "/admin/update");
           expectFlash(
             response,
@@ -269,7 +272,9 @@ describeWithEnv("server (admin update)", { db: true }, () => {
       await setupForDeploy();
       using _env = withEnv({ BUNNY_SCRIPT_ID: "42" });
       await withMocks(stubSuccessfulDeploy, async ({ deployStub }) => {
-        const { response } = await adminFormPost("/admin/update");
+        const { response } = await withVirtualBackoff(() =>
+          adminFormPost("/admin/update"),
+        );
         expectRedirect(response, "/admin/update");
         expectFlash(response, expect.stringContaining("Updated to"));
         expect(deployStub.calls.length).toBe(1);
@@ -285,7 +290,9 @@ describeWithEnv("server (admin update)", { db: true }, () => {
             download: () => new Response("Not Found", { status: 404 }),
           }),
         async () => {
-          const { response } = await adminFormPost("/admin/update");
+          const { response } = await withVirtualBackoff(() =>
+            adminFormPost("/admin/update"),
+          );
           expectFlash(
             response,
             expect.stringContaining("Update failed"),
@@ -309,7 +316,9 @@ describeWithEnv("server (admin update)", { db: true }, () => {
               new Response("console.log('code')", { status: 200 }),
           }),
         async () => {
-          const { response } = await adminFormPost("/admin/update");
+          const { response } = await withVirtualBackoff(() =>
+            adminFormPost("/admin/update"),
+          );
           expectFlash(
             response,
             expect.stringContaining("Update failed"),
