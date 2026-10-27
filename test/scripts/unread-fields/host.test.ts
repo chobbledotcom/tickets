@@ -129,6 +129,36 @@ describe("the compiler's view of a repository", () => {
           `${root}/.deno/npm/registry.npmjs.org/pkg/index.d.ts`,
         ),
       ).toBe(false);
+      expect(
+        belongsToRepository(
+          root,
+          `${root}/npm/registry.npmjs.org/pkg/index.d.ts`,
+        ),
+      ).toBe(false);
+      expect(
+        belongsToRepository(root, `${root}/deps/https/example.com/mod.ts`),
+      ).toBe(false);
+      expect(
+        belongsToRepository(root, `${root}/remote/https/example.com/mod.ts`),
+      ).toBe(false);
+    });
+
+    test("keeps the repository when its own path carries a cache marker", () => {
+      // The markers answer for paths below the root only. A checkout in a
+      // folder called `deps` or `remote` is still repository code, and a
+      // drop here would read as a clean bill.
+      expect(
+        belongsToRepository(
+          "/build/deps/tickets",
+          "/build/deps/tickets/src/index.ts",
+        ),
+      ).toBe(true);
+      expect(
+        belongsToRepository("/srv/remote/site", "/srv/remote/site/src/app.ts"),
+      ).toBe(true);
+      expect(
+        belongsToRepository("/work/npm/repo", "/work/npm/repo/src/app.ts"),
+      ).toBe(true);
     });
   });
 
