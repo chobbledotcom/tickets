@@ -95,7 +95,7 @@ export const getDailyListingAttendeesByDate = (
   date: string,
 ): Promise<Attendee[]> => {
   const { startAt, endAt } = dateToRange(date);
-  // Servicing holds occupy dates too; realLinesOnly drops no-quantity rows.
+  // Servicing holds occupy dates too. `realLinesOnly` drops no-quantity rows.
   return bookingScopedAttendeeRows({
     dailyRange: { after: startAt, before: endAt },
     kind: "attendee-or-servicing",
@@ -146,18 +146,18 @@ export const getAttendeesByListingIds = (
 };
 
 export type ListingWithAttendeeRaw = {
-  /** Every row the (person, listing) pair holds — several can share the pair
-   * (two parents, two dates), so a caller that wants one line picks the first
-   * while a booking-wide caller sums them. */
+  /** Every row the (person, listing) pair holds. Several can share the pair
+   * (two parents, two dates), so a caller that wants one line picks the
+   * first. A booking-wide caller sums them. */
   attendeeRows: Attendee[];
   listing: ListingWithCount;
 };
 
 /** Read one listing and the attendee's booking rows on it in one round-trip.
- * The attendee half is every line for THIS listing: a person booked on
- * several listings has lines per listing, and the listing-scoped routes act
- * on the ones the address names — never on whichever line a scan reaches
- * first. A person with no booking on the listing reads as no rows. */
+ * The attendee half is every line for THIS listing. A person booked on
+ * several listings has lines per listing. The listing-scoped routes act on
+ * the ones the address names, never on whichever line a scan reaches first.
+ * A person with no booking on the listing reads as no rows. */
 export const getListingWithAttendeeRaw = async (
   listingId: number,
   attendeeId: number,

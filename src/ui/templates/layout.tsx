@@ -82,8 +82,8 @@ export const Layout = ({
           {isDemoMode() && <Raw html={demoBanner()} />}
           <main id="main-content" tabindex="-1">
             {/* No header image in iframe embed mode: the host page already
-                carries its own branding, and the image request would only
-                duplicate it. */}
+                carries its own branding, and the image request only
+                duplicates it. */}
             {headerImage && !getIframeMode() && (
               <img
                 alt=""
@@ -95,8 +95,8 @@ export const Layout = ({
                 did (a targeted CsrfForm or an inline banner marked it consumed).
                 Evaluated after `children`, so the consumed flag is already set.
                 This is why no page needs to thread flash.success/error to be
-                shown — placing it once, structurally, removes the whole class of
-                "handler set the cookie but the page dropped it" bug. */}
+                shown. Placing it once, structurally, removes the whole class
+                of "handler set the cookie but the page dropped it" bug. */}
             {!flashConsumed() && requestFlash()}
             {beforeContent}
             <PageRegions className={contentClassName}>{children}</PageRegions>

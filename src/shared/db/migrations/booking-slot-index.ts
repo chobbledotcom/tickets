@@ -2,10 +2,10 @@ import { queryRowsWithArg } from "./master-query.ts";
 import { SCHEMA } from "./schema/index.ts";
 import type { MigrationContext, SchemaRequirement } from "./types.ts";
 
-/** The unique booking-slot index on `listing_attendees`. Widening it (adding a
- * column to its identity) means DROP + recreate: `syncIndexes` never alters a
- * same-named index whose columns changed, so a widening migration drops the
- * old index first and lets the (updated) SCHEMA recreate it. */
+/** The unique booking-slot index on `listing_attendees`. Widening it (adding
+ * a column to its identity) means DROP plus recreate. `syncIndexes` never
+ * alters a same-named index whose columns changed. A widening migration drops
+ * the old index first and lets the (updated) SCHEMA recreate it. */
 export const SLOT_INDEX = "idx_listing_attendees_listing_attendee_start";
 
 /** The requirement an index-only widening migration declares and verifies. */
@@ -23,19 +23,20 @@ export const recreateSlotIndex = async ({
   await syncIndexes();
 };
 
-/** The slot index's identity columns as the SCHEMA currently declares them —
- * the postcondition every widening migration must land, read from the one
- * declaration so this list can never drift from what `syncIndexes` creates. */
+/** The slot index's identity columns as the SCHEMA currently declares them.
+ * This is the postcondition every widening migration must land. It reads from
+ * the one declaration so this list can never drift from what `syncIndexes`
+ * creates. */
 export const slotIndexColumns = (): string[] =>
   SCHEMA.flatMap(([, table]) => table.indexes ?? []).find(
     (index) => index.name === SLOT_INDEX,
   )!.columns;
 
 /** Verify the slot index exists AND its live definition carries every declared
- * identity column. Recreation happens under the index's old name, so a bare
+ * identity column. Recreation happens under the index's old name. A bare
  * existence check cannot tell a landed widening from a stale pre-drop
  * definition that somehow survived (the snapshot-lag class the sync layer
- * documents) — read the live CREATE INDEX sql and demand every column. */
+ * documents). Read the live CREATE INDEX sql and demand every column. */
 export const verifySlotIndex =
   ({ getDb }: Pick<MigrationContext, "getDb">) =>
   async (): Promise<void> => {

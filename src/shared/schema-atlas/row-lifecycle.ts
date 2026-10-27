@@ -21,8 +21,9 @@ import {
 } from "#shared/schema-atlas/machine-spec.ts";
 import type { AtlasMachine, AtlasState } from "#shared/schema-atlas/types.ts";
 
-/** Where each node sits on the map: free on the left, the held column up
- * top, the ownerless work below it, and the ended row at the bottom. */
+/** Where each node sits on the map. Free nodes sit on the left. The held
+ * column sits up top, the ownerless work below it, and the ended row at the
+ * bottom. */
 const LAYOUTS: MachineLayouts<RowNodeId> = {
   claim: { x: 370, y: 110 },
   claim_review: { x: 640, y: 110 },
@@ -35,7 +36,7 @@ const LAYOUTS: MachineLayouts<RowNodeId> = {
   unrecorded: { x: 640, y: 400 },
 };
 
-/** The lifecycle's words for the worst work this node carries; a node with
+/** The lifecycle's words for the worst work this node carries. A node with
  * no live work carries no facts — its detail copy says why. */
 const rowFacts = (state: PaymentRowState): AtlasState["facts"] => {
   const work = paymentWorkFor([state]);

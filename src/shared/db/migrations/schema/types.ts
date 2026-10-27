@@ -17,7 +17,7 @@ export type Table = {
 
 /**
  * A SQLite trigger that maintains or validates stored data. Unlike indexes,
- * triggers aren't part of a single table's definition, so they live in their
+ * triggers are not part of a single table's definition, so they live in their
  * own list. `table` is the table
  * the trigger fires ON — used to re-create the trigger after that table is
  * rebuilt by {@link recreateTable}, which silently drops attached triggers.

@@ -12,7 +12,7 @@ import { getRequestTrace, type RequestTrace } from "#shared/request-context.ts";
 
 /**
  * Read one fact off the request being served. Undefined when none is, which is
- * what the reporter wants for a field it should leave off the report.
+ * what the reporter wants for a field it leaves off the report.
  */
 const fromTrace =
   <T>(read: (trace: RequestTrace) => T) =>

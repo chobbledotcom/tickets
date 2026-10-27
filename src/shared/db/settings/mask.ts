@@ -3,7 +3,7 @@
  *
  * A masked secret field renders its current value as a row of bullets and
  * submits this sentinel when the operator leaves it untouched. The writers
- * treat the sentinel as "no change"; any other non-empty value replaces the
+ * treat the sentinel as "no change". Any other non-empty value replaces the
  * stored secret.
  */
 

@@ -42,7 +42,7 @@ const SQUARE_FIELD_LABELS: Record<RejectedBuyerField, string> = {
 
 const closedSquareError = closedCheckoutErrorFor("square");
 
-/** A rejected buyer field is the one failure the buyer can act on, so it is
+/** A rejected buyer field is the one failure the buyer can act on. It is
  * told to them in their own words before the closed provider facts. */
 const rethrowAsUserError = (error: unknown): never => {
   const rejectedField =

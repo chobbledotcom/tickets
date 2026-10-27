@@ -25,9 +25,10 @@ export const SCHEMA: [name: string, table: Table][] = [
 /** Ordered table names — matches FK dependency order (parents before children) */
 export const SCHEMA_TABLE_NAMES: string[] = SCHEMA.map(([name]) => name);
 
-// ─── Schema hash (auto-detects changes even if LATEST_UPDATE isn't bumped) ──
+// ─── Schema hash (auto-detects changes even when LATEST_UPDATE is not bumped) ──
 
-/** DJB2 hash — deterministic, fast, good enough for change detection */
+/** DJB2 hash — deterministic, fast, good enough for change detection. Even if
+ *  LATEST_UPDATE stays the same, a schema change still moves the hash. */
 const djb2 = (str: string): string => {
   const hash = str
     .split("")

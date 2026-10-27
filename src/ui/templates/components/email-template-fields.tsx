@@ -2,10 +2,10 @@
  * Shared subject/html/text fields for the email-template settings forms.
  *
  * The admin-notification and confirmation forms render an identical
- * subject + html_body + plain_text_body triple, differing only by the
- * template `kind` (which keys the id, data-default-tpl, data-fill-default
- * and the DEFAULT_TEMPLATES entry). This module factors that shape out so
- * the two forms can't drift.
+ * subject + html_body + plain_text_body triple. They differ only by the
+ * template `kind`. The `kind` keys the id, data-default-tpl,
+ * data-fill-default, and the DEFAULT_TEMPLATES entry. This module factors
+ * that shape out so the two forms cannot drift.
  */
 
 import { t } from "#i18n";

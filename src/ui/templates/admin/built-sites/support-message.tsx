@@ -25,8 +25,8 @@ export const SupportMessagePanel = ({
   state: SupportMessageResult;
 }): JSX.Element => {
   // A refused save's draft survives here even when the follow-up read also
-  // fails: the read error shows above the editor instead of in its place,
-  // so the operator keeps their text to retry with.
+  // fails. The read error shows above the editor instead of in its place.
+  // The operator keeps their text to retry with.
   const draft = savedFormValueOrNull("support_message");
   const readFailed = !state.ok;
   if (readFailed && draft === null) {

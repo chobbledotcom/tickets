@@ -1,9 +1,9 @@
 /**
  * The filter and sort controls every attendee list shares. Each control in
  * {@link CONTROL_ROWS} says when a list offers it, so a page gets exactly the
- * controls its setup supports — the attendees browser gets the type bar and
- * listing dropdown, a listing's roster gets the day dropdown and check-in bar,
- * and both get the sort bar — all linking through the setup's own base path.
+ * controls its setup supports. The attendees browser gets the type bar and
+ * listing dropdown. A listing's roster gets the day dropdown and check-in
+ * bar. Both get the sort bar. All link through the setup's own base path.
  */
 
 /* jscpd:ignore-start -- imports */
@@ -275,10 +275,10 @@ export const AttendeeListPagination = ({
 };
 
 /**
- * An attendee table with its list's controls figured out for it: the offered
- * filter/sort bars above, the CSV download (when the list has one) and any
- * extra actions below, then paging. Reuse this wherever a filterable list of
- * attendees renders.
+ * An attendee table with its list's controls figured out for it. It places
+ * the offered filter and sort bars above, the CSV download (when the list has
+ * one) and any extra actions below, then paging. Reuse this wherever a
+ * filterable list of attendees renders.
  */
 export const FilteredAttendeeTable = ({
   view,

@@ -31,7 +31,7 @@ import {
 } from "#shared/settings/registry.ts";
 
 /** Sync getter per accessor entry, typed by the underlying snapshot field so
- * sealed settings (e.g. the bulk-email draft) keep their brand. */
+ * sealed settings (for example, the bulk-email draft) keep their brand. */
 type GeneratedGetters = {
   readonly [K in keyof StringAccessors]: SettingsData[StringAccessors[K]["key"]];
 };

@@ -110,9 +110,9 @@ const getAppEnvVarNamesImpl = async (
     : result;
 };
 
-/** One env var entry as the PATCH body sends it: an existing record's id and
- * contexts, or a new entry's key with the production context unless the
- * caller narrows it. */
+/** One env var entry as the PATCH body sends it. An existing record carries
+ * its id and contexts. A new entry carries its key with the production
+ * context, unless the caller narrows it. */
 export interface DenoEnvVarUpdate {
   contexts?: "all" | string[];
   id?: string;
@@ -158,7 +158,7 @@ const setEnvVarImpl = (appId: string, entry: DenoEnvVarUpdate) =>
 
 /** Set secret environment variables on a Deno Deploy app, all in production.
  * (Re-sending existing secrets risks clearing them: the GET response masks
- * secret values, so a round-trip GET→merge→PATCH would PATCH with empty
+ * secret values, so a round-trip GET→merge→PATCH patches with empty
  * values. The supplied pairs always carry their full value.) */
 const envVar = ([key, value]: [string, string]): DenoEnvVarUpdate => ({
   contexts: ["production"],

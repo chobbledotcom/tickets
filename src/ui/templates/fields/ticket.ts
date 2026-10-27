@@ -1,7 +1,7 @@
 /**
  * Ticket (public booking) and contact form fields.
  *
- * Tickets always have a name; the rest of the contact fields are driven by a
+ * Tickets always have a name. The rest of the contact fields are driven by a
  * listing's `fields` setting (a comma-separated list of contact field names).
  * When a paid listing uses Square, email is forced on because Square requires
  * an email per checkout — `withRequiredEmail` upgrades the parsed list.
@@ -66,7 +66,7 @@ const emailField: Field = {
  * HTML `pattern` attribute for the phone input. Browsers compile `pattern` with
  * the RegExp `v` flag, under which an unescaped `(` `)` inside a character class
  * is a syntax error — so the parens are escaped. Shared between the ticket
- * phone field and the admin attendee form so the two can't drift.
+ * phone field and the admin attendee form so the two cannot drift.
  */
 export const PHONE_INPUT_PATTERN = "[+\\d][\\d\\s\\-\\(\\)]{5,}";
 

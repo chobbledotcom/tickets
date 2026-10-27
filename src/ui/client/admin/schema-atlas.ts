@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 /**
  * The system-map diagram: reads the JSON the page embedded (labels already
- * resolved server-side) and draws one interactive SVG per machine — click a
+ * resolved server-side) and draws one interactive SVG per machine. Click a
  * state to light up its ways forward. The static list below each diagram
  * carries the same facts, so the page is complete without this script.
  */

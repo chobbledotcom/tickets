@@ -141,8 +141,8 @@ export const hashSessionToken = async (token: string): Promise<TokenHash> => {
 
 /**
  * HMAC-SHA256 of one text under a caller-supplied key. Each purpose derives
- * its own key (the blind index from the site key, a door's cache key from
- * the site key and the door's name), so no two uses share a key.
+ * its own key. The blind index derives from the site key. A door's cache key
+ * derives from the site key and the door's name. No two uses share a key.
  */
 export const hmacWithKey = (key: Uint8Array, value: string): Uint8Array => {
   const mac = createHmac("sha256", key);

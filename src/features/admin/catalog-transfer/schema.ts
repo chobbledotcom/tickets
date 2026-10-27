@@ -152,10 +152,10 @@ const ListingFieldsSchema = v.strictObject(
   projectCatalogFields(listingCatalogFields, "schema", TRANSFER_FIELD_SCHEMAS),
 );
 
-/** Drop day-price keys beyond the listing's own duration. The form only
- * reads `day_price_1..durationDays`. A stored/blob entry above that (for
- * example duration 2 with a "5" price) is inert and must not silently
- * activate if the duration rises later. The filter mirrors the form, which
+/** Drop day-price keys beyond the listing's own duration: the form only reads
+ * `day_price_1..durationDays`. A stored or blob entry above that (for
+ * example, duration 2 with a "5" price) is inert. It must not activate if the
+ * duration is later raised. Filtered (not rejected) to mirror the form, which
  * just ignores the extra inputs. */
 const filterDayPricesToDuration = (
   data: v.InferOutput<typeof ListingFieldsSchema>,

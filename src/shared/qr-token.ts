@@ -2,7 +2,7 @@
  * Signed tokens for QR-code pre-filled booking links.
  *
  * A token embeds a small JSON payload (customer name, price, quantity, date,
- * expiry) and an HMAC signature over a domain-separated message so the
+ * expiry) and an HMAC signature over a domain-separated message. The
  * signature can never collide with CSRF or any other signed token in the app.
  *
  * Format: qr1.{payloadB64url}.{hmacB64url}

@@ -294,7 +294,7 @@ const failedEmailDelivery = (error: unknown): EmailDeliveryResult => ({
 const PROVIDER_ERROR_KEYS = ["message", "Message", "errors", "error"];
 
 /** How much of a provider's reply can enter a log line, a flash message, or
- * the activity log, so a verbose body cannot flood any of them. */
+ * the activity log. A verbose body cannot flood any of them. */
 const MAX_REASON_LENGTH = 300;
 
 /** Cut a provider's reply to that length, marking the cut. */
@@ -304,14 +304,14 @@ export const cappedReply = (text: string): string =>
     : text;
 
 /** Any email-shaped token in a reply is an address that must not reach the
- * logs — a provider can echo the recipient, the sender, or an account
- * address the send never named. Greedy on purpose: better to blank an odd
- * token than to let an address through. */
+ * logs. A provider can echo the recipient, the sender, or an account address
+ * the send never named. Greedy on purpose: better to blank an odd token than
+ * to let an address through. */
 const EMAIL_SHAPED = /\S+@\S+/g;
 
 /** Pull the reason out of a provider's error reply: the parsed message or the
- * raw body, on one line, capped, and with every email-shaped value blanked.
- * Empty when the reply body says nothing. */
+ * raw body. It comes on one line, capped, and with every email-shaped value
+ * blanked. Empty when the reply body says nothing. */
 export const failureReason = (text: string): string => {
   const withoutAddresses = apiErrorMessage(text, PROVIDER_ERROR_KEYS).replace(
     EMAIL_SHAPED,

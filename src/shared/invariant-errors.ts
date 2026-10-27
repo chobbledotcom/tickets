@@ -31,7 +31,7 @@ const invariantReporter =
     return t(key);
   };
 
-/** A provider refund went through but our ledger could not record it. */
+/** A provider refund went through but our ledger failed to record it. */
 export const reportRefundNotRecorded = invariantReporter(
   "error.refund_not_recorded",
 );

@@ -37,9 +37,9 @@ export type SumupCheckoutEntry = {
   sumupId: string;
 };
 
-/** A staged row found by its SumUp id, still sealed: the booking metadata
+/** A staged row found by its SumUp id, still sealed. The booking metadata
  *  stays encrypted until the reference that names the row arrives (from the
- *  fetched checkout — the plaintext reference never rests in this database). */
+ *  fetched checkout). The plaintext reference never rests in this database. */
 export type SealedSumupCheckout = {
   metadata: KeyEncrypted;
   referenceIndex: string;
@@ -95,8 +95,8 @@ export const setSumupCheckoutId = async (
     },
   );
   // The hosted URL must never reach a customer while this checkout's
-  // callbacks would still be refused as unknown, so creation fails here —
-  // before the URL is exposed — when the id did not land on exactly one row.
+  // callbacks are still refused as unknown. Creation fails here — before the
+  // URL is exposed — when the id did not land on exactly one row.
   if (result.rowsAffected !== 1) {
     throw new Error(
       `Staging the SumUp checkout id updated ${result.rowsAffected} rows, expected exactly 1`,

@@ -58,14 +58,14 @@ export interface RecordTargets<Kind extends string> {
   deleteFrom: (table: string) => (target: RecordTarget<Kind>) => SqlStatement;
   /** A condition that only holds while this kind of record still exists. */
   existsSql: (kind: Kind, idSql: SqlParameterToken) => string;
-  /** The record a key names. Refuses a key this domain could not have minted,
-   *  because a key that names no record of ours is a bug, not a miss. */
+  /** The record a key names. Refuses a key this domain did not mint, because
+   *  a key that names no record of ours is a bug, not a miss. */
   fromKey: (key: RecordTargetKey<Kind>) => RecordTarget<Kind>;
   /** The stable key for one record. */
   key: (target: RecordTarget<Kind>) => RecordTargetKey<Kind>;
   /** Name records of one kind: `of("listing")(7)`. */
   of: (kind: Kind) => (id: number) => RecordTarget<Kind>;
-  /** The same records with repeats dropped, keeping the first of each. */
+  /** The same records with repeats dropped. Keeps the first of each. */
   unique: (targets: readonly RecordTarget<Kind>[]) => RecordTarget<Kind>[];
   /** Ask for one record's rows. Pass a table alias when the read joins. */
   where: (target: RecordTarget<Kind>, alias?: string) => WhereClause[];

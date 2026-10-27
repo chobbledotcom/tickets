@@ -73,8 +73,8 @@ export const groupFilterHref =
     hrefWithParams(path, filterParams({ ...fixed, groupId }));
 
 /** Build the CSV-export URL so it carries the current type, group, and
- *  attribute filters through, keeping the download aligned with the filtered
- *  table. */
+ *  attribute filters through. This keeps the download aligned with the
+ *  filtered table. */
 export const csvExportHref = (filters: ListingLinkFilters): string =>
   hrefWithParams("/admin/listings/csv", filterParams(filters));
 

@@ -119,8 +119,8 @@ const bookingsForDate = (
 
 /** A day's heading relative to the real today. The opened day and its
  * following day read as "Today"/"Tomorrow" when they line up with the real
- * calendar, and as a full date label ("Monday 6 July 2026") otherwise. So a
- * staff member who opens a future date sees which day each section is. */
+ * calendar. Otherwise they read as a full date label ("Monday 6 July 2026").
+ * So a staff member who opens a future date sees which day each section is. */
 const dayHeading = (date: string, today: DateString): string =>
   date === today
     ? t("deliveries.today")

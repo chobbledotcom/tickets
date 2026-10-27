@@ -4,9 +4,8 @@
  * This constant is rendered in the admin guide and README.
  * A test in test/shared/webhook-example.test.ts calls the real
  * buildWebhookPayload() with matching inputs and asserts
- * the output has the same keys, types, and structure —
- * so a payload shape change will break the test and force
- * an update here.
+ * the output has the same keys, types, and structure.
+ * A payload shape change will break the test and force an update here.
  */
 
 import type { WebhookPayload } from "#shared/webhook.ts";
@@ -36,7 +35,7 @@ export const EXAMPLE_CURRENCY = "GBP";
 const EXAMPLE_DOMAIN = "tickets.example.com";
 export const EXAMPLE_BUSINESS_EMAIL = "hello@example.com";
 
-/** The example payload, matching what buildWebhookPayload would produce */
+/** The example payload, matching what buildWebhookPayload produces */
 export const WEBHOOK_EXAMPLE_PAYLOAD: WebhookPayload = {
   address: EXAMPLE_ATTENDEE.address,
   amount_owed: EXAMPLE_ATTENDEE.remaining_balance,

@@ -134,7 +134,7 @@ const ListingPickCheckboxes = ({
 );
 
 /** The Public URL rows for this group: its live rows, or the note that says
- * why its public route would not work. */
+ * why its public route does not work. */
 const publicUrlRowsProps = (
   group: Group,
   shareable: boolean,

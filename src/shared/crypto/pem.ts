@@ -9,7 +9,7 @@ const PEM_BLOCK = /-----BEGIN ([A-Z0-9 ]+)-----([\s\S]*?)-----END \1-----/g;
 // Require complete four-character groups and legal final padding before decode.
 const BASE64 =
   /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
-// OpenSSL PKCS #12 exports may print these human-readable fields around the
+// OpenSSL PKCS #12 exports can print these human-readable fields around the
 // actual PEM block. They are not part of the key or certificate bytes.
 const EXPORT_METADATA_LINE =
   /^(?:Bag Attributes|Key Attributes:.*|subject=.*|issuer=.*|[ \t]+(?:friendlyName|localKeyID|Microsoft CSP Name|[0-9]+(?:\.[0-9]+)+):.*)$/;
@@ -21,7 +21,7 @@ const isExportMetadata = (text: string): boolean =>
       (line) => line.trim().length === 0 || EXPORT_METADATA_LINE.test(line),
     );
 
-/** Decode one unencrypted PEM block, allowing standard export metadata. */
+/** Decode one unencrypted PEM block. Standard export metadata is allowed. */
 export const readPem = (
   pem: string,
   allowedLabels: readonly string[],

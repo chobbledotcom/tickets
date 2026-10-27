@@ -1,7 +1,7 @@
 /**
- * The booking form only offers the dates and lengths EVERY item supports, so
- * two items with no overlap leave the buyer a bare "nothing is available" with
- * no way to tell which items clash. These rules name them.
+ * The booking form only offers the dates and lengths EVERY item supports.
+ * Two items with no overlap leave the buyer a bare "nothing is available"
+ * with no way to tell which items clash. These rules name them.
  *
  * Pure and render-time only. When no rule speaks, the selectors keep their
  * plain "nothing available" copy.
@@ -57,13 +57,13 @@ const nothingSharedRule =
   };
 
 /** The conflict rules, in display order. Each speaks only when it can name the
- * clash; anything else falls back to the selectors' plain empty copy. */
+ * clash. Anything else falls back to the selectors' plain empty copy. */
 const CART_CONFLICT_REASONS: readonly Reason<[CartFacts]>[] = [
   // An item with no dates of its own: the problem is that item, not the mix.
-  // Speaks only when SOME items still have dates: when every item is dateless
-  // there are no "others" left to book (and a single-item page has nothing to
-  // book the others without), so the selector's plain "no dates" copy covers
-  // those cases instead.
+  // Speaks only when SOME items still have dates. When every item is
+  // dateless, there are no "others" left to book. A single-item page has
+  // nothing to book the others without. The selector's plain "no dates" copy
+  // covers those cases instead.
   ({ dateItems }) => {
     const dateless = dateItems.filter((item) => item.dates.length === 0);
     return dateless.length > 0 && dateless.length < dateItems.length

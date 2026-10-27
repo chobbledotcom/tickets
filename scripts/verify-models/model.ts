@@ -44,6 +44,7 @@ export interface PaymentModel {
   readonly authorityStates: readonly string[];
   readonly claimedRows: readonly string[];
   readonly claimMirror: string;
+  readonly moneyEventIds: readonly string[];
   readonly prunableStates: readonly string[];
   readonly rowMoves: readonly Move[];
   readonly rowStart: string;
@@ -107,6 +108,7 @@ const appendRefundMoves = (
   node: string,
   state: RefundAuthorityState,
   authorityMoves: AuthorityMove[],
+  moneyEventIds: string[],
   sendAuthorityNames: string[],
 ): void => {
   for (const event of REFUND_EVENTS) {
@@ -124,7 +126,10 @@ const appendRefundMoves = (
       sourceState: node,
       targetState: refundNodeOf(next),
     });
-    if (event.movesMoney) sendAuthorityNames.push(next.kind);
+    if (event.movesMoney) {
+      moneyEventIds.push(event.id);
+      sendAuthorityNames.push(next.kind);
+    }
   }
 };
 
@@ -143,12 +148,23 @@ const refundMoves = (start: string) => {
     },
   ];
   const sendAuthorityNames: string[] = [];
+  const moneyEventIds: string[] = [];
   for (const node of REFUND_NODES) {
     for (const rep of node.reps) {
-      appendRefundMoves(node.id, rep.state, authorityMoves, sendAuthorityNames);
+      appendRefundMoves(
+        node.id,
+        rep.state,
+        authorityMoves,
+        moneyEventIds,
+        sendAuthorityNames,
+      );
     }
   }
-  return { authorityMoves, sendAuthorityNames: unique(sendAuthorityNames) };
+  return {
+    authorityMoves,
+    moneyEventIds: unique(moneyEventIds),
+    sendAuthorityNames: unique(sendAuthorityNames),
+  };
 };
 
 /** Run the production transitions. No stored copy supplies proof inputs. */
@@ -166,7 +182,9 @@ export const paymentModel = async (): Promise<PaymentModel> => {
     "claimed and unclaimed states",
     (state) => state.claim !== undefined,
   );
-  const { authorityMoves, sendAuthorityNames } = refundMoves(refund.start);
+  const { authorityMoves, moneyEventIds, sendAuthorityNames } = refundMoves(
+    refund.start,
+  );
   // A refund state is eligible for deletion only when the lifecycle declares
   // it prunable: completed and locally recorded. Every representative of one
   // node must agree.
@@ -181,6 +199,7 @@ export const paymentModel = async (): Promise<PaymentModel> => {
     authorityStates: ["absent", ...refund.states],
     claimedRows,
     claimMirror: CLAIM_MIRROR,
+    moneyEventIds,
     prunableStates: ["absent", ...prunableRefundStates],
     rowMoves: movesOf(row),
     rowStart: row.start,

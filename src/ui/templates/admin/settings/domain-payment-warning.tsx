@@ -1,7 +1,7 @@
 /**
  * Warning shown in the domain settings forms: changing the site's domain
- * changes the payment webhook URL, so a provider that sends webhooks must be
- * set up again afterwards or payments stop being confirmed.
+ * changes the payment webhook URL. A provider that sends webhooks must be set
+ * up again afterwards, or payments stop being confirmed.
  *
  * Which providers those are, and what each one's operator must redo, come
  * from the provider registry. A provider that sends no webhook has nothing to

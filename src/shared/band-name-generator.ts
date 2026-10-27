@@ -4,7 +4,7 @@
  *
  * Word pools live in the `band-name-generator/word-pools/` folder. This
  * module composes them with a small set of slot-heavy templates and a
- * seeded PRNG (mulberry32) so every output is deterministic given a seed
+ * seeded PRNG (mulberry32). Every output is deterministic given a seed,
  * yet the variety is enormous.
  */
 
@@ -121,7 +121,7 @@ const fixArticles = (s: string): string =>
 
 /**
  * Replace each `{slot}` in `template` with a random pick from the matching
- * pool, then capitalise the first character and tidy up `a`/`an` so patterns
+ * pool. Then capitalise the first character and tidy up `a`/`an`. Patterns
  * that begin with a lowercase pool entry still read as a proper sentence.
  */
 const renderTemplate = (template: string, rand: Rand): string => {

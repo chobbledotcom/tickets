@@ -356,12 +356,12 @@ export type ContactTokenSync = {
    * names the booking's source — a genuinely admin-made booking. A channel
    * the edit adds inherits the stored source instead. */
   source: BookingSource;
-  /** Only real bookings should be linked into Previous bookings. */
+  /** Only real bookings link into Previous bookings. */
   hasBooking: boolean;
   /** True when this sync is triggered by an attendee gaining its first real
-   * booking (a placeholder edited to a real quantity). A missing contact row is
-   * then created for an unchanged contact value so the booking links, rather
-   * than skipped the way a routine unchanged edit skips an erased row. */
+   * booking (a placeholder edited to a real quantity). A missing contact row
+   * is then created for an unchanged contact value so the booking links. It
+   * is not skipped the way a routine unchanged edit skips an erased row. */
   firstRealBooking: boolean;
 };
 

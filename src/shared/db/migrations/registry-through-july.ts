@@ -193,8 +193,8 @@ export const ENTRIES_THROUGH_JULY: MigrationRegistryEntry[] = [
     "2026-06-24_attendees_kind",
     () => import("./2026-06-24_attendees_kind.ts"),
   ),
-  // Pure index add (idempotent CREATE INDEX IF NOT EXISTS via syncIndexes);
-  // order-independent, appended last.
+  // Pure index add (idempotent CREATE INDEX IF NOT EXISTS via syncIndexes).
+  // Order-independent, appended last.
   entry(
     "2026-06-25_listing_attendee_ledger_event_group_index",
     () => import("./2026-06-25_listing_attendee_ledger_event_group_index.ts"),
@@ -207,7 +207,7 @@ export const ENTRIES_THROUGH_JULY: MigrationRegistryEntry[] = [
     "2026-06-27_service_costs",
     () => import("./2026-06-27_service_costs.ts"),
   ),
-  // Pure additive column add (use_defaults on listings); from main.
+  // Pure additive column add (use_defaults on listings). From main.
   entry(
     "2026-06-28_listing_use_defaults",
     () => import("./2026-06-28_listing_use_defaults.ts"),
@@ -367,8 +367,8 @@ export const ENTRIES_THROUGH_JULY: MigrationRegistryEntry[] = [
   // there. Creating these tables asks the database to match the whole current
   // schema, which includes the two columns notes gained. On a site that
   // skipped the note release, those columns are still missing from a
-  // system_notes table that already has rows, and SQLite refuses to add a
-  // NOT NULL column to a table with rows. The note migration is the one that
+  // system_notes table that already has rows. SQLite refuses to add a NOT
+  // NULL column to a table with rows. The note migration is the one that
   // knows how to do it — add them with a default, fill them in, then rebuild.
   entry(
     "2026-07-26_payment_records",

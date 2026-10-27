@@ -306,7 +306,7 @@ export const getAttendeesByTokens = async (
 export const getAttendeesByIdsWithBookings = async (
   ids: number[],
 ): Promise<Map<number, AttendeeWithBookings>> => {
-  // The only caller looks up exactly one id; an empty list is a caller bug
+  // The only caller looks up exactly one id. An empty list is a caller bug
   // and fails loudly in SQL rather than answering an empty map.
   const rows = await queryAll<AttendeeScanRow>(
     `SELECT ${ATTENDEE_SCAN_COLUMNS}

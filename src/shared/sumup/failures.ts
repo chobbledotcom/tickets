@@ -7,8 +7,8 @@ import { logDebug } from "#shared/logger.ts";
 /* jscpd:ignore-end */
 
 /** The immediate answer to a SumUp refund call. Its empty success body only
- * proves that the request was sent; a fresh transaction read must decide
- * whether SumUp has accepted or completed it. */
+ * proves that the request was sent. A fresh transaction read must decide
+ * whether SumUp accepted or completed it. */
 export type SumupRefundSubmission =
   | { kind: "sent" }
   | Extract<

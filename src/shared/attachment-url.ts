@@ -21,7 +21,8 @@ const buildMessage = (
 
 /**
  * Generate a signed attachment download URL.
- * Returns the path + query string (e.g., /attachment/42?a=7&exp=1234567890&sig=...).
+ * Returns the path plus query string, for example
+ * `/attachment/42?a=7&exp=1234567890&sig=...`.
  */
 export const signAttachmentUrl = async (
   listingId: number,

@@ -88,10 +88,10 @@ export const adminLandingPath = (adminLevel: AdminLevel): string => {
   );
 };
 
-/** Where a reader lands after acting on one of a section's records: the
- * record's own page, or the section's list when it has no record page. The
- * page opens on the first tab its viewer can see, so every role that reaches
- * this has somewhere to land. */
+/** Where a reader lands after acting on one of a section's records. It lands
+ * on the record's own page, or on the section's list when the record has no
+ * page. The page opens on the first tab its viewer can see, so every role that
+ * reaches this has somewhere to land. */
 export const entityReturnPath = (sectionPath: string, id: number): string => {
   const section = ADMIN_SURFACE.sections.find(
     (candidate) => landingPattern(candidate) === sectionPath,

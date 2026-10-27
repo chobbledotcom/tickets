@@ -2,9 +2,9 @@
  * Ends a Square payment link, and reads Square's delete answer into the one
  * event that answer proves.
  *
- * Only `cancelled_order_id` proves the order went CANCELED. Square has
- * answered 200 without it while the link stayed payable and was later paid,
- * so that shape is a failure, not a success. A 404 proves the link is already
+ * Only `cancelled_order_id` proves the order went CANCELED. Square answered
+ * 200 without it while the link stayed payable and was later paid. That shape
+ * is a failure, not a success. A 404 proves the link is already
  * gone. A refusal that names a paid or completed order ends the row too,
  * because the webhook and the return path own completion. Every other answer
  * proves nothing, and the row waits out the failure retry.
@@ -58,7 +58,7 @@ const cancelledOrderIdOf = (body: Record<string, unknown>): string | null => {
 };
 
 /** Whether a refusal names a paid or completed order. Square words its
- * refusal in the error `code` and `detail`; the sandbox e2e leg pins the
+ * refusal in the error `code` and `detail`. The sandbox e2e leg pins the
  * exact shape, so this reads the state words themselves. The match is whole
  * words only: "UNPAID" contains "PAID", but an unpaid order can still end. */
 const refusalNamesPaidOrder = (

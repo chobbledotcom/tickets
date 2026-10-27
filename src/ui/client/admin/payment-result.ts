@@ -14,6 +14,6 @@ export const initPaymentResultNotifier = (): void => {
       location.origin,
     );
   } catch {
-    // opener may be cross-origin or closed
+    // opener can be cross-origin or closed
   }
 };

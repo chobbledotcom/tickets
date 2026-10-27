@@ -54,10 +54,10 @@ const daysMismatchOf = firstMismatchOf((member) => member.customisable_days);
 
 /**
  * Why a group page must not offer a candidate listing to the operator, or null
- * when it can join. The picker's short why for the same two homogeneity
- * rules the saves enforce (same listing type, same customisable-days
- * setting), so the affordance and the refusal cannot drift. Pure: the caller
- * supplies the members' settings and the candidate's.
+ * when it can join. The picker shows the same short why for the two
+ * homogeneity rules the saves enforce (same listing type, same
+ * customisable-days setting). The affordance and the refusal cannot drift.
+ * Pure: the caller supplies the members' settings and the candidate's.
  */
 export const groupCandidateBlockedError = (
   members: readonly GroupListingSettings[],

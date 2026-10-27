@@ -18,8 +18,9 @@ type SumupAnomalyKey =
 export type SchemaAnomalyKey = SumupAnomalyKey;
 
 /** One stored row that breaks a declared rule: the rule's key, the record,
- * and the stored state word beside it when the rule judges that word. A
- * scan whose rule is carried by the record id alone sends no word. */
+ * and the stored state word beside it. The state word is included when the
+ * rule judges that word. A scan whose rule is carried by the record id alone
+ * sends no word. */
 export type SchemaAnomaly = {
   readonly key: SchemaAnomalyKey;
   readonly recordId: string;
@@ -58,9 +59,9 @@ const sumupAnomaly = (row: SumupScanRow): SchemaAnomaly => {
 // The operator sees `reference_index`, a one-way code this database cannot
 // turn back into the buyer's reference. `sumup_id` only picks which fault
 // the row has, and no amount or buyer fact is selected. The word and
-// checkout-id rule is `recoveryCheckoutIdAgrees`, and the clock rule mirrors
-// the declared checkable list bound below: a checkable row carries a
-// well-formed check time, every other row carries none.
+// checkout-id rule is `recoveryCheckoutIdAgrees`. The clock rule mirrors the
+// declared checkable list bound below. A checkable row carries a well-formed
+// check time. Every other row carries none.
 const SUMUP_SCAN_SQL = `SELECT reference_index AS record_id, recovery_state, sumup_id
           FROM sumup_checkouts
          WHERE recovery_state NOT IN (${SUMUP_STATE_SLOTS})
