@@ -5,23 +5,39 @@ import {
   tlaRecords,
   tlaSet,
 } from "#scripts/verify-models/data.ts";
-import { classifyBookingLedger } from "#shared/session-ledger.ts";
+import {
+  type BookingLedgerDisposition,
+  classifyBookingLedger,
+} from "#shared/session-ledger.ts";
 
 /* jscpd:ignore-end */
 
-/** The durable booking ledger's three dispositions, named by the production
- * classifier. `classifyBookingLedger(hasLegs, ownerAttendeeId)` decides them,
- * so the model's ledger states are genuinely derived from the ledger code. */
-const LEDGER_STATES: readonly string[] = [
-  classifyBookingLedger(false, null).status,
-  classifyBookingLedger(true, 1).status,
-  classifyBookingLedger(true, null).status,
-];
+/** One classifier call per ledger disposition. The `Record` annotation makes
+ * a new disposition status a type error here, so the fact table cannot
+ * silently miss a ledger state the production classifier can produce.
+ * `classifyBookingLedger(hasLegs, ownerAttendeeId)` decides each status, so
+ * the model's ledger states are genuinely derived from the ledger code. */
+const LEDGER_DISPOSITIONS: Record<
+  BookingLedgerDisposition["status"],
+  BookingLedgerDisposition
+> = {
+  booked: classifyBookingLedger(true, 1),
+  orphaned: classifyBookingLedger(true, null),
+  unrecorded: classifyBookingLedger(false, null),
+};
 
-/** The temporary processed_payments row. `none` is absent or deleted, the
- * stale cleanup only removes a `reserved` (unresolved) row, and a finalized
- * row carries the attendee id. */
+const LEDGER_STATES: readonly string[] = Object.values(LEDGER_DISPOSITIONS).map(
+  (disposition) => disposition.status,
+);
+
+/** The temporary processed_payments row states this proof tracks. `none` is
+ * absent or deleted, the stale cleanup only removes a `reserved` (unresolved)
+ * row, and a finalized row carries the attendee id. A terminal-failure row
+ * stays outside the proof: a booked ledger can never produce one, and its
+ * replay answers from the recorded outcome rather than the ledger. */
 const ROW_STATES = ["none", "reserved", "finalized"] as const;
+
+type RowState = (typeof ROW_STATES)[number];
 
 const deliveryFields = {
   books: "Bool",
@@ -37,29 +53,35 @@ const deliveryFields = {
  * delivery leaves behind; `books`/`refunds` are what it does to money. */
 type Delivery = {
   readonly books: boolean;
-  readonly ledgerAfter: string;
-  readonly ledgerBefore: string;
+  readonly ledgerAfter: BookingLedgerDisposition["status"];
+  readonly ledgerBefore: BookingLedgerDisposition["status"];
   readonly refunds: boolean;
-  readonly rowAfter: string;
-  readonly rowBefore: string;
+  readonly rowAfter: RowState;
+  readonly rowBefore: RowState;
 };
 
 /** The one delivery for a (ledger, row) pair, from the production branches:
  * - reserveSession claims the missing row, the `unrecorded` ledger replay
  *   answer is null, the booking succeeds and finalizes the row (books).
+ * - reserveSession also claims the missing row of a booked ledger, and
+ *   replaySuccess then heals that fresh reservation (no booking, no refund).
  * - an existing reserved row answers 409 held; an existing finalized row
  *   replays success; neither books nor refunds.
- * - replaySuccess heals the row of a booked ledger whose temporary row is
- *   gone; alreadyHandledSession acknowledges an orphaned ledger. A delivery
+ * - alreadyHandledSession acknowledges an orphaned ledger. A delivery
  *   to a booked or orphaned ledger never reaches a refund branch, which runs
  *   only after the ledger replay preflight answers `unrecorded`. */
-const deliveryFor = (ledgerBefore: string, rowBefore: string): Delivery => {
-  const freshBooking = ledgerBefore === "unrecorded" && rowBefore === "none";
-  const healsRow = ledgerBefore === "booked" && rowBefore === "none";
+const deliveryFor = (
+  disposition: BookingLedgerDisposition,
+  rowBefore: RowState,
+): Delivery => {
+  const status = disposition.status;
+  const noRow = rowBefore === "none";
+  const freshBooking = status === "unrecorded" && noRow;
+  const healsRow = status === "booked" && noRow;
   return {
     books: freshBooking,
-    ledgerAfter: freshBooking ? "booked" : ledgerBefore,
-    ledgerBefore,
+    ledgerAfter: freshBooking ? "booked" : status,
+    ledgerBefore: status,
     refunds: false,
     rowAfter: freshBooking || healsRow ? "finalized" : rowBefore,
     rowBefore,
@@ -68,8 +90,10 @@ const deliveryFor = (ledgerBefore: string, rowBefore: string): Delivery => {
 
 /** The complete delivery truth table for one payment session: one outcome
  * per (ledger, row) pair. */
-const DELIVERIES: readonly Delivery[] = LEDGER_STATES.flatMap((ledgerBefore) =>
-  ROW_STATES.map((rowBefore) => deliveryFor(ledgerBefore, rowBefore)),
+const DELIVERIES: readonly Delivery[] = Object.values(
+  LEDGER_DISPOSITIONS,
+).flatMap((disposition) =>
+  ROW_STATES.map((rowBefore) => deliveryFor(disposition, rowBefore)),
 );
 
 const moduleFor = (deliveries: readonly Delivery[]): string =>

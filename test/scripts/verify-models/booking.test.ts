@@ -36,10 +36,11 @@ describe("booking replay checker data", () => {
     expect(classifyBookingLedger(false, null).status).toBe("unrecorded");
     expect(classifyBookingLedger(true, 1).status).toBe("booked");
     expect(classifyBookingLedger(true, null).status).toBe("orphaned");
-    expect(members(data, "LedgerStates")).toEqual([
-      "unrecorded",
+    // A TLA set has no order, so compare the names as a sorted list.
+    expect(members(data, "LedgerStates").sort()).toEqual([
       "booked",
       "orphaned",
+      "unrecorded",
     ]);
     expect(members(data, "RowStates")).toEqual([
       "none",
@@ -70,6 +71,16 @@ describe("booking replay checker data", () => {
       refunds: false,
       rowAfter: "finalized",
       rowBefore: "none",
+    });
+    // A live reservation answers 409 held before the ledger preflight runs,
+    // so the row keeps its reserved state.
+    expect(facts).toContainEqual({
+      books: false,
+      ledgerAfter: "booked",
+      ledgerBefore: "booked",
+      refunds: false,
+      rowAfter: "reserved",
+      rowBefore: "reserved",
     });
     // Exactly one delivery books, none refunds, and a delivery to a booked
     // ledger keeps the ledger booked.

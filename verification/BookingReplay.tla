@@ -61,6 +61,28 @@ DeliveryStep ==
     /\ noRefundAfterHonoured' =
          ChecksStillPass(noRefundAfterHonoured, ~RefundsWhenHonoured(fact))
 
+\* A delivery claims the missing row and stops before any outcome. This is
+\* the in-flight window: reserveSession inserted the reserved row and the
+\* request has not settled. A concurrent delivery sees the reserved row and
+\* answers 409 held.
+ReserveStep ==
+  /\ ledger = "unrecorded"
+  /\ row = "none"
+  /\ row' = "reserved"
+  /\ UNCHANGED <<ledger, bookings, noRefundAfterHonoured>>
+
+\* The request that reserved the row settles its honour path:
+\* createBookingAtomic writes the ledger legs and finalizes the row in one
+\* batch. The refund outcomes of a fresh delivery stay outside this proof,
+\* which constrains money only after the ledger records a honoured booking.
+SettleReserved ==
+  /\ ledger = "unrecorded"
+  /\ row = "reserved"
+  /\ ledger' = "booked"
+  /\ row' = "finalized"
+  /\ bookings' = bookings + 1
+  /\ noRefundAfterHonoured' = noRefundAfterHonoured
+
 \* Stale reservation cleanup removes an abandoned in-flight reservation. It
 \* only prunes an unresolved row; a finalized row is never stale work.
 StaleCleanup ==
@@ -77,7 +99,7 @@ DeleteRow ==
   /\ UNCHANGED <<ledger, bookings, noRefundAfterHonoured>>
 
 Next ==
-  DeliveryStep \/ StaleCleanup \/ DeleteRow \/
+  DeliveryStep \/ ReserveStep \/ SettleReserved \/ StaleCleanup \/ DeleteRow \/
   UNCHANGED <<ledger, row, bookings, noRefundAfterHonoured>>
 
 InductionStart == Safety
