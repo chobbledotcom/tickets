@@ -34,7 +34,7 @@ describe("signed VAT metadata", () => {
           expect(
             Object.values(wire).every((value) => value.length <= 255),
           ).toBe(true);
-          expect(wire.tax_policy).toBeUndefined();
+          expect(Object.keys(wire)).not.toContain("tax_policy");
           expect(wire.b).toContain("tax_policy");
         }
         const metadata = extractSessionMetadata(wireMetadata(wire));

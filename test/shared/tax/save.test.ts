@@ -45,6 +45,7 @@ import {
   bookedAttendee,
 } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { insertModifier } from "#test-utils/modifiers.ts";
 
 const added: TaxPolicy = { mode: "add_to_total", rateBasisPoints: 2000 };
 const included: TaxPolicy = {
@@ -52,6 +53,29 @@ const included: TaxPolicy = {
   rateBasisPoints: 2000,
 };
 const occurredAt = "2026-10-27T10:00:00.000Z";
+
+/** Post one legacy booking's legs straight through the production mapper, so
+ * the stored transfers are exactly what the pre-tax code wrote. */
+const postLegacyLegs = async (
+  tx: Parameters<ReturnType<typeof manualAddLedgerPoster>>[0],
+  attendeeId: number,
+  lines: readonly { gross: number; listingId: number }[],
+  modifiers: readonly { delta: number; modifierId: number }[],
+): Promise<void> => {
+  await postBookingLegsTx(
+    tx,
+    attendeeId,
+    await mapBooking({
+      amountPaid: 0,
+      attendeeId,
+      bookingFee: 0,
+      eventId: String(attendeeId),
+      lines: lines.map((line) => ({ ...line })),
+      modifiers: modifiers.map((modifier) => ({ ...modifier })),
+      occurredAt,
+    }),
+  );
+};
 
 const booking = async (legacy = false) => {
   await settings.update.tax(NO_TAX);
@@ -65,18 +89,11 @@ const booking = async (legacy = false) => {
         tx: Parameters<ReturnType<typeof manualAddLedgerPoster>>[0],
         attendeeId: number,
       ) => {
-        await postBookingLegsTx(
+        await postLegacyLegs(
           tx,
           attendeeId,
-          await mapBooking({
-            amountPaid: 0,
-            attendeeId,
-            bookingFee: 0,
-            eventId: String(attendeeId),
-            lines: [{ gross: 10000, listingId: listing.id }],
-            modifiers: [],
-            occurredAt,
-          }),
+          [{ gross: 10000, listingId: listing.id }],
+          [],
         );
       }
     : manualAddLedgerPoster(listPriceOrder([{ listing, quantity: 1 }]));
@@ -341,5 +358,106 @@ describeWithEnv("tax > explicit attendee saves", { db: true }, () => {
         )
       )?.status_id,
     ).toBe(status.id);
+  });
+
+  /** A legacy booking whose legs carry one £1 modifier, posted through the
+   * production mapper: a charge funds nothing and bills the attendee, a
+   * discount funds the attendee from the modifier's account. */
+  const legacyBookingWithModifier = async (
+    direction: "charge" | "discount",
+  ) => {
+    await settings.update.tax(NO_TAX);
+    const listing = await createTestListing({
+      maxAttendees: 10,
+      name: "Tax place",
+      unitPrice: 10000,
+    });
+    const modifier = await insertModifier({
+      calcValue: 100,
+      direction,
+      name: direction === "charge" ? "Add-on" : "Discount",
+    });
+    const work = async (
+      tx: Parameters<ReturnType<typeof manualAddLedgerPoster>>[0],
+      attendeeId: number,
+    ) => {
+      await postLegacyLegs(
+        tx,
+        attendeeId,
+        [{ gross: 10000, listingId: listing.id }],
+        [
+          {
+            delta: direction === "charge" ? 100 : -100,
+            modifierId: modifier.id,
+          },
+        ],
+      );
+    };
+    const attendee = bookedAttendee(
+      await createAttendeeAtomicImpl(
+        {
+          bookings: [{ listingId: listing.id, quantity: 1 }],
+          email: `tax-${direction}@example.com`,
+          name: "Before",
+        },
+        work,
+      ),
+    );
+    const desired = (await loadExistingLines(attendee.id)).map(
+      ({ key, booking: line }) =>
+        keepLine(line.listing_id, key, { quantity: line.quantity }),
+    );
+    return { attendee, desired, listing, modifier };
+  };
+
+  /** Save the legacy booking under the added policy through the production
+   * edit work and return the stored assessments. */
+  const saveUnderAddedPolicy = async (
+    fixture: Awaited<ReturnType<typeof legacyBookingWithModifier>>,
+  ) => {
+    await settings.update.tax(added);
+    const plan = await buildTaxSavePlan(fixture.attendee.id);
+    expect(plan.preview.changed).toBe(true);
+    const result = await applyAttendeeAtomicEdit(
+      fixture.attendee.id,
+      { ...attendeePiiOf(fixture.attendee), name: "After" },
+      fixture.desired,
+      false,
+      await attendeeTaxSaveWork(
+        fixture.attendee.id,
+        fixture.attendee.status_id,
+        true,
+        plan,
+      ),
+    );
+    expect(result.success).toBe(true);
+    return readTaxAssessments([fixture.attendee.id]);
+  };
+
+  it("rebuilds a legacy assessment with its modifier and corrects both on save", async () => {
+    const fixture = await legacyBookingWithModifier("charge");
+    const assessments = await saveUnderAddedPolicy(fixture);
+    expect(assessments.map((row) => row.state.revision)).toEqual([0, 1]);
+    expect(assessments[1]!.state.assessment.basis.modifiers).toEqual([
+      { delta: 100, modifierId: fixture.modifier.id },
+    ]);
+    expect(await figures(fixture)).toEqual({
+      income: 10000,
+      owed: 12120,
+      tax: 2020,
+    });
+  });
+
+  it("rebuilds a legacy discount's modifier from the funding side", async () => {
+    const fixture = await legacyBookingWithModifier("discount");
+    const assessments = await saveUnderAddedPolicy(fixture);
+    expect(assessments[1]!.state.assessment.basis.modifiers).toEqual([
+      { delta: -100, modifierId: fixture.modifier.id },
+    ]);
+    expect(await figures(fixture)).toEqual({
+      income: 10000,
+      owed: 11880,
+      tax: 1980,
+    });
   });
 });

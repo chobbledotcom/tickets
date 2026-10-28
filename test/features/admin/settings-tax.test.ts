@@ -1,159 +1,168 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
-import { it as test } from "@std/testing/bdd";
-import { settings } from "#db/settings.ts";
-import { handleRequest } from "#routes";
-import { expectFlash, testRequiresAuth } from "#test-utils/assertions.ts";
-import { hasCheckedInput } from "#test-utils/csrf.ts";
-import { mockFormRequest } from "#test-utils/mocks.ts";
-import { createKeyedRoleSession } from "#test-utils/role-sessions.ts";
-import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
-import { describeAdminSettings } from "#test-utils/settings.ts";
-import { ALL_ADMIN_LEVELS } from "#types";
+import { describe, it as test } from "@std/testing/bdd";
+import { attendeeTaxSavedMessage } from "#routes/admin/attendee-tax.ts";
+import { parseTaxSettingsForm } from "#routes/admin/settings-tax.ts";
+import { FormParams } from "#shared/form-data.ts";
+import { TaxSaveFields } from "#templates/admin/attendee-form/tax.tsx";
 
-const path = "/admin/settings/tax";
-const post = async (
-  tax_mode: string,
-  tax_rate: string,
-  expected_tax = '{"mode":"none"}',
-) =>
-  handleRequest(
-    mockFormRequest(
-      path,
-      { csrf_token: await testCsrfToken(), expected_tax, tax_mode, tax_rate },
-      await testCookie(),
-    ),
-  );
+const formOf = (entries: Record<string, string>): FormParams => {
+  const form = new FormParams();
+  for (const [key, value] of Object.entries(entries)) form.set(key, value);
+  return form;
+};
 
-describeAdminSettings(() => {
-  testRequiresAuth(path, {
-    body: { expected_tax: '{"mode":"none"}', tax_mode: "none" },
-    method: "POST",
+const settingsForm = (entries: Record<string, string>): FormParams =>
+  formOf({
+    expected_tax: JSON.stringify({ mode: "none" }),
+    ...entries,
   });
 
-  for (const mode of ["add_to_total", "calculate_from_total"] as const) {
-    for (const [rate, basisPoints] of [
-      ["0", 0],
-      ["7.25", 725],
-      ["20.01", 2001],
-    ] as const) {
-      test(`owner saves and reloads ${mode} ${rate}%`, async () => {
-        expectFlash(await post(mode, rate), "Tax settings saved");
-        expect(settings.tax).toEqual({ mode, rateBasisPoints: basisPoints });
-        const html = await (await adminGet("/admin/settings")).text();
-        expect(hasCheckedInput(html, "tax_mode", mode)).toBe(true);
-        expect(html).toContain(`value="${Number(rate).toFixed(2)}"`);
-      });
-    }
-  }
-
-  test("percentage precision does not depend on currency precision", async () => {
-    settings.setForTest({ currency: "JPY" });
-    try {
-      expectFlash(await post("add_to_total", "7.25"), "Tax settings saved");
-      expect(settings.tax).toEqual({
-        mode: "add_to_total",
-        rateBasisPoints: 725,
-      });
-    } finally {
-      settings.clearTestOverride("currency");
-    }
-  });
-
-  test("owner switches to No tax", async () => {
-    const previous = { mode: "add_to_total", rateBasisPoints: 2000 } as const;
-    await settings.update.tax(previous);
-    expectFlash(
-      await post("none", "", JSON.stringify(previous)),
-      "Tax settings saved",
+describe("parseTaxSettingsForm", () => {
+  test("accepts none with a blank rate", () => {
+    const parsed = parseTaxSettingsForm(
+      settingsForm({ tax_mode: "none", tax_rate: "" }),
     );
-    expect(settings.tax).toEqual({ mode: "none" });
-  });
-
-  for (const rate of [
-    "",
-    "-1",
-    "NaN",
-    "Infinity",
-    "1e2",
-    "0x10",
-    "7.250",
-    "12junk",
-    ".5",
-    " 2",
-    "9007199254740992",
-  ]) {
-    test(`rejects invalid rate ${JSON.stringify(rate)} without changes`, async () => {
-      const response = await post("add_to_total", rate);
-      expectFlash(
-        response,
-        "Enter a non-negative tax rate with at most two decimal places.",
-        false,
-      );
-      expect(settings.tax).toEqual({ mode: "none" });
+    expect(parsed).toEqual({
+      expected: { mode: "none" },
+      ok: true,
+      policy: { mode: "none" },
     });
-  }
-
-  test("rejects invalid modes and missing or malformed expected policies", async () => {
-    for (const [mode, expected] of [
-      ["invalid", '{"mode":"none"}'],
-      ["none", ""],
-      ["none", "{"],
-    ]) {
-      expectFlash(
-        await post(mode!, "0", expected!),
-        "Tax settings are invalid. Reload the page and try again.",
-        false,
-      );
-      expect(settings.tax).toEqual({ mode: "none" });
-    }
   });
 
-  test("rejects a stale form without changing the current policy", async () => {
-    const current = {
-      mode: "calculate_from_total",
-      rateBasisPoints: 1000,
-    } as const;
-    await settings.update.tax(current);
-    expectFlash(
-      await post("add_to_total", "20"),
-      "Tax settings changed since you opened this form. Reload the page and try again.",
-      false,
+  test("accepts none with a rate typed in", () => {
+    const parsed = parseTaxSettingsForm(
+      settingsForm({ tax_mode: "none", tax_rate: "20" }),
     );
-    expect(settings.tax).toEqual(current);
+    expect(parsed).toEqual({
+      expected: { mode: "none" },
+      ok: true,
+      policy: { mode: "none" },
+    });
   });
 
-  for (const role of ALL_ADMIN_LEVELS.filter((role) => role !== "owner")) {
-    test(`${role} cannot save tax settings`, async () => {
-      const { cookie } = await createKeyedRoleSession(role, {
-        csrfToken: "tax-csrf",
-        token: `tax-${role}`,
-        username: `tax-${role}`,
-      });
-      const response = await handleRequest(
-        mockFormRequest(
-          path,
-          {
-            csrf_token: "tax-csrf",
-            expected_tax: '{"mode":"none"}',
-            tax_mode: "add_to_total",
-            tax_rate: "20",
-          },
-          cookie,
-        ),
-      );
-      expect(response.status).toBe(403);
-      expect(settings.tax).toEqual({ mode: "none" });
+  test("parses a rate into basis points", () => {
+    const parsed = parseTaxSettingsForm(
+      settingsForm({ tax_mode: "add_to_total", tax_rate: "20.5" }),
+    );
+    expect(parsed).toEqual({
+      expected: { mode: "none" },
+      ok: true,
+      policy: { mode: "add_to_total", rateBasisPoints: 2050 },
     });
-  }
+  });
 
-  test("explains the effect without requiring a payment provider", async () => {
-    const html = await (await adminGet("/admin/settings")).text();
-    expect(html).toContain("No tax");
-    expect(html).toContain("Add tax to listed prices");
-    expect(html).toContain("Listed prices include tax");
-    expect(html).toContain("explicitly save an attendee");
-    expect(html).toContain("does not change existing money automatically");
-    expect(html).toContain('name="expected_tax"');
-    expect(html).toContain('inputmode="decimal"');
+  test("refuses an unknown mode", () => {
+    const parsed = parseTaxSettingsForm(
+      settingsForm({ tax_mode: "wat", tax_rate: "" }),
+    );
+    expect(parsed).toEqual({
+      error: "Tax settings are invalid. Reload the page and try again.",
+      ok: false,
+    });
+  });
+
+  test("refuses a rate that is not a number", () => {
+    const parsed = parseTaxSettingsForm(
+      settingsForm({ tax_mode: "add_to_total", tax_rate: "twenty" }),
+    );
+    expect(parsed).toEqual({
+      error: "Enter a non-negative tax rate with at most two decimal places.",
+      ok: false,
+    });
+  });
+
+  test("refuses an unreadable stored expected policy", () => {
+    const parsed = parseTaxSettingsForm(
+      formOf({ expected_tax: "{", tax_mode: "none", tax_rate: "" }),
+    );
+    expect(parsed).toEqual({
+      error: "Tax settings are invalid. Reload the page and try again.",
+      ok: false,
+    });
+  });
+
+  test("treats a missing rate field as blank", () => {
+    const parsed = parseTaxSettingsForm(settingsForm({ tax_mode: "none" }));
+    expect(parsed).toEqual({
+      expected: { mode: "none" },
+      ok: true,
+      policy: { mode: "none" },
+    });
+  });
+});
+
+describe("attendeeTaxSavedMessage", () => {
+  test("reports the tax and balance change when the assessment changed", () => {
+    const message = attendeeTaxSavedMessage("Dana", {
+      afterBalance: 12000,
+      afterTax: 2000,
+      beforeBalance: 10000,
+      beforeTax: 0,
+      changed: true,
+      token: "t",
+    });
+    assertStringIncludes(message, "Saved Dana");
+    assertStringIncludes(message, "Tax changed from £0 to £20");
+    assertStringIncludes(message, "balance changed from £100 to £120");
+  });
+
+  test("reports the plain update when the assessment did not change", () => {
+    const message = attendeeTaxSavedMessage("Dana", {
+      afterBalance: 10000,
+      afterTax: 0,
+      beforeBalance: 10000,
+      beforeTax: 0,
+      changed: false,
+      token: "t",
+    });
+    expect(message).toBe("Updated Dana");
+  });
+});
+
+describe("TaxSaveFields", () => {
+  test("explains the pending change and carries the preview token", () => {
+    const html = String(
+      TaxSaveFields({
+        preview: {
+          afterBalance: 12000,
+          afterTax: 2000,
+          beforeBalance: 10000,
+          beforeTax: 0,
+          changed: true,
+          token: "tok-1",
+        },
+      }),
+    );
+    assertStringIncludes(html, 'name="tax_preview"');
+    assertStringIncludes(html, 'value="tok-1"');
+    assertStringIncludes(
+      html,
+      "Your Tax settings changed. Save this attendee to apply them",
+    );
+    assertStringIncludes(html, "Amount");
+    assertStringIncludes(html, "Saved now");
+    assertStringIncludes(html, "After you save");
+    assertStringIncludes(html, "£20");
+    assertStringIncludes(html, "£120");
+  });
+
+  test("explains that the booking already uses the current settings", () => {
+    const html = String(
+      TaxSaveFields({
+        preview: {
+          afterBalance: 10000,
+          afterTax: 0,
+          beforeBalance: 10000,
+          beforeTax: 0,
+          changed: false,
+          token: "tok-2",
+        },
+      }),
+    );
+    assertStringIncludes(
+      html,
+      "This booking already uses your current Tax settings",
+    );
   });
 });

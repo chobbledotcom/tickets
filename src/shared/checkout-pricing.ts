@@ -74,9 +74,6 @@ const lineCharge = (line: PricedLine): number =>
 
 const extraCharge = (extra: ExtraLine): number => extra.amount * extra.quantity;
 
-export const ticketLineTotal = (order: Pick<PricedOrder, "lines">): number =>
-  sumOf(lineCharge)(order.lines);
-
 /** Sum a per-line value, grouped by listing id. Pass {@link lineCharge} for the
  *  amount charged now, or {@link lineListPrice} for the gross list price. */
 export const lineTotalsByListingId = (
