@@ -18,12 +18,14 @@ import {
   transfersByAccount,
 } from "#accounting/queries.ts";
 import { postTransfers } from "#accounting/store.ts";
+import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import {
   applyAttendeeAtomicEdit,
   loadExistingLines,
 } from "#db/attendees/atomic-update.ts";
 import { createAttendeeAtomicImpl } from "#db/attendees/create.ts";
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";
+import { queryOne } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
 import { attendeeTaxSaveWork } from "#routes/admin/attendee-tax.ts";
 import {
@@ -303,5 +305,41 @@ describeWithEnv("tax > explicit attendee saves", { db: true }, () => {
         (row) => row.state.kind,
       ),
     ).toEqual(["refunded"]);
+  });
+
+  it("reconciles the receivable to zero when the save leaves no real line", async () => {
+    const fixture = await booking();
+    await settings.update.tax(added);
+    const status = await attendeeStatuses.table.insert({ name: "Ready" });
+    const result = await applyAttendeeAtomicEdit(
+      fixture.attendee.id,
+      { ...attendeePiiOf(fixture.attendee), name: "Gone" },
+      fixture.desired.map((line) =>
+        keepLine(line.listingId, line.key, {
+          quantity: 0,
+        }),
+      ),
+      false,
+      await attendeeTaxSaveWork(
+        fixture.attendee.id,
+        status.id,
+        false,
+        await buildTaxSavePlan(fixture.attendee.id),
+      ),
+    );
+    expect(result.success).toBe(true);
+    expect(await figures(fixture)).toEqual({
+      income: 10000,
+      owed: 0,
+      tax: 2000,
+    });
+    expect(
+      (
+        await queryOne<{ status_id: number | null }>(
+          "SELECT status_id FROM attendees AS attendee WHERE id = ?",
+          [fixture.attendee.id],
+        )
+      )?.status_id,
+    ).toBe(status.id);
   });
 });

@@ -9,6 +9,12 @@ import {
 } from "#shared/tax/types.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 
+/** The basis lines for the gross amounts keyed by listing: one line each. */
+export const taxBasisLines = (
+  grossByListing: ReadonlyMap<number, number>,
+): TaxBasis["lines"] =>
+  [...grossByListing].map(([listingId, gross]) => ({ gross, listingId }));
+
 const MinorUnitsSchema = integerAtLeast(0);
 const minorUnits = (value: bigint): number =>
   v.parse(MinorUnitsSchema, Number(value));

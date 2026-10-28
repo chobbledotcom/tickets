@@ -194,7 +194,16 @@ const MACHINE_LOADERS: Readonly<Record<string, MachineLoader>> = {
   ),
   vat: machineLoader(
     () => import("#shared/tax/machine-spec.ts"),
-    (m) => machineContract("vat", m.TAX_EVENTS, () => m.TAX_MOVES),
+    (m) =>
+      machineContract(
+        "vat",
+        m.TAX_EVENTS,
+        () =>
+          import("#test/shared/tax/machine-spec/expected-moves.ts").then(
+            (t) => t.EXPECTED_MOVES,
+          ),
+        "#test/shared/tax/machine-spec/expected-moves.ts",
+      ),
   ),
 };
 

@@ -2,7 +2,8 @@ import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import { movesIn } from "#shared/schema-atlas/machine-spec.ts";
 import { vatLedgerAtlas } from "#shared/schema-atlas/vat-ledger.ts";
-import { TAX_EVENTS, TAX_MOVES, TAX_NODES } from "#shared/tax/machine-spec.ts";
+import { TAX_EVENTS, TAX_NODES } from "#shared/tax/machine-spec.ts";
+import { EXPECTED_MOVES } from "#test/shared/tax/machine-spec/expected-moves.ts";
 
 describe("VAT atlas graph", () => {
   it("draws exactly the independently declared accepted moves", () => {
@@ -10,7 +11,7 @@ describe("VAT atlas graph", () => {
       const drawn = vatLedgerAtlas.states.find((state) => state.id === node.id);
       if (!drawn) throw new Error("Missing VAT state");
       const expected = TAX_EVENTS.flatMap((event) => {
-        const target = movesIn(TAX_MOVES).expected(node.id, event.id, "");
+        const target = movesIn(EXPECTED_MOVES).expected(node.id, event.id, "");
         return target === "refused"
           ? []
           : [{ actor: event.actor, labelKey: event.labelKey, to: target }];

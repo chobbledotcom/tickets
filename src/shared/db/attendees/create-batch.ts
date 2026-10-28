@@ -179,7 +179,7 @@ export const writeAsLedgerBatch = async (
       always,
     ),
   );
-  // Only a booking that posted legs carries the order's link: a fully-free
+  // Only a booking that posted legs carries the order's link. A fully-free
   // order's money projects to 0, so its rows read back with an empty group.
   const eventGroup: SqlStatement[] =
     plan.legs.length > 0

@@ -359,8 +359,8 @@
     "semicolon": 2
   },
   "src/shared/checkout-pricing.ts": {
-    "semicolon": 5,
     "wordy": 1,
+    "semicolon": 5,
     "long-sentence": 7,
     "banned-modal": 1
   },
@@ -514,7 +514,7 @@
     "participle": 2
   },
   "src/shared/db/attendees/update.ts": {
-    "long-sentence": 3,
+    "long-sentence": 2,
     "semicolon": 2
   },
   "src/shared/db/backup-snapshot.ts": {

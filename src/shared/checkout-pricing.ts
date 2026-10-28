@@ -3,7 +3,7 @@
  *
  * Turns a CheckoutIntent into a fully-priced order — the single source of
  * truth for what each payment provider charges. Stripe and Square render the
- * `lines` and `extras` into their own line-item shapes; SumUp (which carries
+ * `lines` and `extras` into their own line-item shapes. SumUp (which carries
  * no line items) just reads `total`. Centralising this keeps the three
  * providers in lock-step and gives later pricing features one place to plug in.
  */
@@ -23,7 +23,7 @@ import {
   allocateReservationDeposit,
   computeReservationDeposit,
 } from "#shared/reservation-amount.ts";
-import { assessTax } from "#shared/tax/assessment.ts";
+import { assessTax, taxBasisLines } from "#shared/tax/assessment.ts";
 import type { TaxAssessment, TaxBasis, TaxPolicy } from "#shared/tax/types.ts";
 /* jscpd:ignore-end */
 
@@ -139,13 +139,13 @@ export const listPriceOrder = (
   modifierApplications: [],
   tax: assessTax(
     {
-      lines: [
-        ...sumByKey(
+      lines: taxBasisLines(
+        sumByKey(
           (line: ListPriceLine) => line.listing.id,
           (line: ListPriceLine) =>
             (line.unitPrice ?? line.listing.unit_price) * line.quantity,
         )(lines),
-      ].map(([listingId, gross]) => ({ gross, listingId })),
+      ),
       modifiers: [],
     },
     taxPolicy,
@@ -159,9 +159,7 @@ export const listPriceOrder = (
 export const taxBasisOfOrder = (
   order: Pick<PricedOrder, "lines" | "modifierApplications">,
 ): TaxBasis => ({
-  lines: [...lineTotalsByListingId(order.lines, lineListPrice)].map(
-    ([listingId, gross]) => ({ gross, listingId }),
-  ),
+  lines: taxBasisLines(lineTotalsByListingId(order.lines, lineListPrice)),
   modifiers: order.modifierApplications.map(({ delta, modifierId }) => ({
     delta,
     modifierId,

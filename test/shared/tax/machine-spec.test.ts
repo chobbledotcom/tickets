@@ -1,17 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
-import {
-  TAX_EVENTS,
-  TAX_MOVES,
-  TAX_NODES,
-  taxNodeOf,
-} from "#shared/tax/machine-spec.ts";
+import { TAX_EVENTS, TAX_NODES, taxNodeOf } from "#shared/tax/machine-spec.ts";
+import { EXPECTED_MOVES } from "#test/shared/tax/machine-spec/expected-moves.ts";
 import { registerConformanceSweep } from "#test-utils/machine-spec.ts";
 
 describe("VAT assessment contract", () => {
   registerConformanceSweep({
     events: TAX_EVENTS,
-    moves: TAX_MOVES,
+    moves: EXPECTED_MOVES,
     nodeOf: taxNodeOf,
     nodes: TAX_NODES,
   });

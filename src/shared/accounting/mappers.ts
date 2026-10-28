@@ -26,7 +26,7 @@ import type {
   Transfer,
   TransferInput,
 } from "#shared/ledger/types.ts";
-import { assessTax } from "#shared/tax/assessment.ts";
+import { assessTax, taxBasisLines } from "#shared/tax/assessment.ts";
 import { NO_TAX, type TaxPolicy, TaxPolicySchema } from "#shared/tax/types.ts";
 
 const BOOKING = "booking";
@@ -164,18 +164,12 @@ const bookingLegSpecs = (
       ? null
       : assessTax(
           {
-            lines: [...grossByListing].map(([listingId, gross]) => ({
-              gross,
-              listingId,
-            })),
+            lines: taxBasisLines(grossByListing),
             modifiers: facts.modifiers.map((modifier) => ({ ...modifier })),
           },
           facts.vat ?? NO_TAX,
         );
-  const sales: LegSpec[] = (
-    assessment?.lines ??
-    [...grossByListing].map(([listingId, gross]) => ({ gross, listingId }))
-  )
+  const sales: LegSpec[] = (assessment?.lines ?? taxBasisLines(grossByListing))
     .filter((line) => line.gross > 0)
     .map(({ listingId, gross }) => ({
       amount: gross,

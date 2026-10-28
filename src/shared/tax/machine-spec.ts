@@ -1,7 +1,6 @@
 /* jscpd:ignore-start */
 import {
   type MachineEvent,
-  type MachineMoves,
   type MachineNode,
   machineRep,
 } from "#shared/schema-atlas/machine-spec.ts";
@@ -146,17 +145,3 @@ export const TAX_NODES: readonly MachineNode<TaxMachineState, TaxNodeId>[] = (
     ),
   ),
 }));
-
-/** Independent contract table. Refused stale writes are intentionally absent. */
-export const TAX_MOVES: MachineMoves<TaxNodeId, TaxEventId> =
-  Object.fromEntries(
-    TAX_NODES.map(({ id }) => [
-      id,
-      Object.fromEntries(
-        TAX_EVENTS.filter((item) => !item.stale).map((item) => [
-          item.id,
-          item.action === "refund" ? "refunded" : id,
-        ]),
-      ),
-    ]),
-  ) as MachineMoves<TaxNodeId, TaxEventId>;

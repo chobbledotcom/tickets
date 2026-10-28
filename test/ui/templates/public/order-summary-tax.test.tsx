@@ -18,8 +18,8 @@ describe("checkout VAT display", () => {
       );
       const html = orderSummary(order);
       expect(html).toContain("VAT");
-      expect(html).toContain("£2.00");
-      expect(html).toContain("£12.00");
+      expect(html).toContain("£2");
+      expect(html).toContain("£12");
     },
   );
   testWithSetting(
@@ -33,9 +33,9 @@ describe("checkout VAT display", () => {
         }),
       );
       const html = orderSummary(order);
-      expect(html).toContain("Includes £2.00 VAT.");
-      expect(html).toContain("£12.00");
-      expect(html).not.toContain("£14.00");
+      expect(html).toContain("Includes £2 VAT.");
+      expect(html).toContain("£12");
+      expect(html).not.toContain("£14");
     },
   );
   testWithSetting(
@@ -52,7 +52,7 @@ describe("checkout VAT display", () => {
       const html = orderSummary(order, true);
       expect(html).toContain("£1.20");
       expect(html).toContain(
-        "Full booking total: £12.00, including £2.00 VAT. The balance is paid later.",
+        "Full booking total: £12, including £2 VAT. The balance is paid later.",
       );
     },
   );

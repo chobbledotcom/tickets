@@ -62,7 +62,9 @@ export const checkoutIntentForSession = (
     ...checkoutItem(
       { ...v.listing, name: v.name },
       v.item.q,
-      v.item.p / v.item.q,
+      // A zero-quantity line charges nothing, so its per-unit price stays 0
+      // rather than dividing the line total by zero.
+      v.item.q === 0 ? 0 : v.item.p / v.item.q,
       // A session that renews a site prices its lines by months per unit.
       { renewal: intent.siteTokenIndex !== undefined },
     ),
