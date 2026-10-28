@@ -23,7 +23,7 @@ import {
 import { entityDeletePage } from "#templates/admin/confirm-page.tsx";
 import {
   ActionButton,
-  GuideFooter,
+  guideFooterFor,
   type IconName,
   SaveChangesButton,
 } from "#templates/components/actions.tsx";
@@ -173,24 +173,22 @@ const imageUploadForm = (
   </SaveForm>
 );
 
-export const adminImagesPage = successListPage<Image[]>(
+export const adminImagesPage = successListPage<Image>(
   "terms.images",
   "/admin/images",
-  (images, session) => {
-    const storageEnabled = isStorageEnabled();
-    return (
-      <>
-        {storageEnabled
-          ? imagesOrEmpty(images, () => renderTable(imageTable, images))
-          : storageDisabledNotice()}
-        {/* The images page is editor-reachable, but the guide is staff-only, so
-          gate the link by role — editors otherwise get a 403. */}
-        <GuideFooter adminLevel={session.adminLevel} href="/admin/guide#images">
-          {t("images.guide_link")}
-        </GuideFooter>
-      </>
-    );
-  },
+  (images, session) => ({
+    columns: imageColumns,
+    empty: <p>{t("images.empty")}</p>,
+    // The images page is editor-reachable, but the guide is staff-only, so
+    // the footer gates the link by role — editors otherwise get a 403.
+    guideFooter: guideFooterFor(
+      "/admin/guide#images",
+      "images.guide_link",
+      session.adminLevel,
+    ),
+    items: images,
+    ...(isStorageEnabled() ? {} : { unavailable: storageDisabledNotice() }),
+  }),
 );
 
 export const adminImageNewPage = flashFormPage(

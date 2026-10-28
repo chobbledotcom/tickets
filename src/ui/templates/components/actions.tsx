@@ -249,7 +249,18 @@ export const GuideFooter = ({
   );
 
 /** A footer that links one Guide section, labelled from the catalog. The
- * staff-only pages it serves may always render the link. */
-export const guideFooterFor = (href: string, labelKey: string): SafeHtml => (
-  <GuideFooter href={href}>{t(labelKey)}</GuideFooter>
+ *  staff-only pages it serves may always render the link. A page that an
+ *  editor or agent can also reach passes the viewer's admin level, so the
+ *  footer hides the link from non-staff. */
+export const guideFooterFor = (
+  href: string,
+  labelKey: string,
+  adminLevel?: AdminLevel,
+): SafeHtml => (
+  <GuideFooter
+    href={href}
+    {...(adminLevel !== undefined ? { adminLevel } : {})}
+  >
+    {t(labelKey)}
+  </GuideFooter>
 );
