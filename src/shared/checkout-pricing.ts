@@ -430,7 +430,7 @@ export const priceCheckout = (intent: CheckoutIntent): PricedOrder => {
     ...(!intent.reservationAmount &&
     tax.policy.mode === "add_to_total" &&
     tax.taxAmount > 0
-      ? [{ amount: tax.taxAmount, key: "vat", name: "VAT", quantity: 1 }]
+      ? [{ amount: tax.taxAmount, key: "vat", name: "Tax", quantity: 1 }]
       : []),
     ...feeExtras(fullSubtotal),
   ];
