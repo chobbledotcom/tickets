@@ -95,7 +95,7 @@ The first pass merged the pairs that were real duplicated logic:
   parameter slice `SessionPaymentReference`, so the two charge-reference
   readers no longer repeat the type.
 
-The remaining 218 pairs sit in the baseline. They are import-block and
+The remaining 217 pairs sit in the baseline. They are import-block and
 signature matches, one-line field and schema builders, and the support test
 bodies. Each is a separate merge when its band is classified.
 
