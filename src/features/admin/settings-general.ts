@@ -71,6 +71,13 @@ const demoExtract =
     return form.getString(fieldName);
   };
 
+/** A settings save log line: the removed message when the value is empty,
+ * the updated message otherwise. */
+const removedOrUpdated =
+  (removedKey: string, updatedKey: string) =>
+  (value: string): string =>
+    value === "" ? t(removedKey) : t(updatedKey);
+
 /**
  * Handle POST /admin/settings/payment-provider - owner only
  */
@@ -137,10 +144,10 @@ export const handlePaymentProviderRecoveryPost: RequestRoute = settingsRoute(
  */
 export const handleEmbedHostsPost = settingsHandler({
   ...formLocation(SETTINGS_FORMS.embedHosts),
-  log: (v) =>
-    v === ""
-      ? t("success.embed_hosts_removed")
-      : t("success.embed_hosts_updated"),
+  log: removedOrUpdated(
+    "success.embed_hosts_removed",
+    "success.embed_hosts_updated",
+  ),
   // An empty list parses to "" and validates fine, so clearing needs no case.
   save: (v) => settings.update.embedHosts(parseEmbedHosts(v).join(", ")),
   validate: validateEmbedHosts,
@@ -152,8 +159,7 @@ export const handleEmbedHostsPost = settingsHandler({
 export const handleTermsPost = settingsHandler({
   ...formLocation(SETTINGS_FORMS.terms),
   extract: demoExtract(TERMS_DEMO_FIELDS, SETTINGS_FORMS.terms.fieldName),
-  log: (v) =>
-    v === "" ? t("success.terms_removed") : t("success.terms_updated"),
+  log: removedOrUpdated("success.terms_removed", "success.terms_updated"),
   save: (v) => settings.update.terms(v),
 });
 
@@ -163,10 +169,10 @@ export const handleTermsPost = settingsHandler({
 export const handleSiteFooterPost = settingsHandler({
   ...formLocation(SETTINGS_FORMS.siteFooter),
   extract: demoExtract(FOOTER_DEMO_FIELDS, SETTINGS_FORMS.siteFooter.fieldName),
-  log: (v) =>
-    v === ""
-      ? t("success.site_footer_removed")
-      : t("success.site_footer_updated"),
+  log: removedOrUpdated(
+    "success.site_footer_removed",
+    "success.site_footer_updated",
+  ),
   save: (v) => settings.update.siteFooter(v),
 });
 
