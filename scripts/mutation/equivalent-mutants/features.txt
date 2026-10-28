@@ -366,7 +366,6 @@ src/features/admin/api-attendees-parse.ts::resolveStatusId~1ns133z  No public de
 # answers a Record object (always truthy) or null, so both operators send
 # null to the 404 response and agree on every object.
 src/features/admin/record-notes.ts::recordNoteFeature.loadRecordOr404~0v35mfs  ?? → || audited:0s93yuw # loadRecord answers Record | null; every Record is an object (truthy), null is not a value a 404-worthy call yields under ?? that || would not also send — both map null to notFoundResponse
-src/features/admin/attendee-form-model.ts::toLedgerOrder.total~1qdsgd9  0 → 1 audited:0ni0min # owedOrderForLedger spreads the order and overwrites total with 0 before every consumer, so the value set here is never read
 src/ui/templates/checkin.tsx::staffBulkForm.value~1ffn39t  false → "" audited:1qxiq8y # the POST reads the field as form.get("check_in") === "true", so "false" and "" both answer checkout
 src/features/admin/attendees-csv.ts::formatPrice~1wguj7n  10 → 0 audited:0vatub4 # price_paid reaches the CSV only through String() of the ledger sale projection (a non-negative integer in minor units), a plain decimal string with no 0x/0o prefix, so parseInt with radix 0 reads it as base 10 exactly like radix 10
 src/features/admin/attendees-csv.ts::questionColumns.questions~1kswxdf  ?? → || audited:0vatub4 # data?.questions answers an array or undefined; an array is always truthy, so both operators fall through only to the same [] fallback
