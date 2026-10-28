@@ -47,16 +47,24 @@ const hostWithinReach = (
   putAWatchInPlace(world);
 };
 
+/** The host in reach of the email provider, which answers with one status —
+ * 200 when it takes the message, 500 when it is having a bad day. */
+const hostHearingTheProvider = (world: TicketsWorld, status: number): void =>
+  hostWithinReach(world, answersTheEmailProviderWith(status));
+
 /** The host listens, and messages sent to them arrive. */
 export const hostListens = (world: TicketsWorld): void =>
-  hostWithinReach(world, answersTheEmailProviderWith(200));
+  hostHearingTheProvider(world, 200);
 
 /** The host listens, but the email provider is having a bad day. */
 export const hostCannotTakeMessages = (world: TicketsWorld): void =>
-  hostWithinReach(world, answersTheEmailProviderWith(500));
+  hostHearingTheProvider(world, 500);
+
+/** A host state set for one scenario and put back at the end. */
+type SetsHostState = (world: TicketsWorld) => void;
 
 /** The host has no address configured, so none of this exists. */
-export const hostDoesNotListen = (world: TicketsWorld): void => {
+export const hostDoesNotListen: SetsHostState = (world) => {
   scenarioEnv(world, { ADMIN_EMAIL_ADDRESS: undefined });
 };
 

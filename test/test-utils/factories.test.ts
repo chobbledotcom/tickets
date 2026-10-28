@@ -7,6 +7,7 @@ import {
 } from "#test-utils/db.ts";
 import {
   bookTestAttendee,
+  createAttendeeOn,
   createTestAttendee,
 } from "#test-utils/db-helpers/attendees.ts";
 import {
@@ -199,6 +200,23 @@ describe("test-utils — listing & attendee factories", () => {
         3,
       );
       expect(attendee.quantity).toBe(3);
+    });
+  });
+
+  describe("createAttendeeOn", () => {
+    beforeEach(async () => {
+      await createTestDbWithSetup();
+    });
+
+    test("books one person onto an existing listing", async () => {
+      const listing = await createTestListing();
+      const attendee = await createAttendeeOn(
+        listing,
+        "Ada Lovelace",
+        "ada@example.com",
+      );
+      expect(attendee.id).toBeGreaterThan(0);
+      expect(attendee.listing_id).toBe(listing.id);
     });
   });
 

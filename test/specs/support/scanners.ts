@@ -26,6 +26,7 @@ import { invitedRoleJourney } from "#test/specs/support/staff-accounts.ts";
 import type {
   ActOnOnePerson,
   ActOnTheStory,
+  ReadAboutOneThing,
   TicketsWorld,
 } from "#test/specs/support/world.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
@@ -68,10 +69,10 @@ export const openScannerPage = (
 ): Promise<TestBrowser> => visiting(scannerBrowser(world), path);
 
 /** The door's scanner page for one listing, opened by the scanner. */
-export const openScannerDoor = async (
-  world: TicketsWorld,
-  listing: string,
-): Promise<TestBrowser> =>
+export const openScannerDoor: ReadAboutOneThing<TestBrowser> = async (
+  world,
+  listing,
+) =>
   openScannerPage(
     world,
     `/admin/listing/${listingIdNamed(world, listing)}/scanner`,

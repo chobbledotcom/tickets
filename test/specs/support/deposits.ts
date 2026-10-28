@@ -20,7 +20,7 @@ import {
   theBooking,
   theListing,
 } from "#test/specs/support/world.ts";
-import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createAttendeeOn } from "#test-utils/db-helpers/attendees.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 
@@ -32,19 +32,16 @@ const publicPageHtml: ReadOnePageHtml = pageHtmlVia((path) =>
 );
 
 /** A place taken but not paid for, so the whole price is owed. */
-export const unpaidPlace = async (
+type TakesAnUnpaidPlace = (
   world: TicketsWorld,
   name: string,
   price: string,
-): Promise<void> => {
+) => Promise<void>;
+
+export const unpaidPlace: TakesAnUnpaidPlace = async (world, name, price) => {
   const listing = await sellSomethingAt(world, name, price);
   const email = `${name.toLowerCase().replaceAll(" ", "-")}@example.com`;
-  const attendee = await createTestAttendee(
-    listing.id,
-    listing.slug,
-    `${name} Payer`,
-    email,
-  );
+  const attendee = await createAttendeeOn(listing, `${name} Payer`, email);
   world.attendeeId = attendee.id;
   world.attendeeEmail = email;
   world.attendeeName = `${name} Payer`;

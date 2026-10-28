@@ -132,9 +132,9 @@ export const assertRenderedOwed: CheckMoneyShown = async (
   attendeeId,
   minor,
 ) => {
-  const formatted = formatCurrency(minor);
-  const balancePage = await adminPageHtml(
+  const { formatted, page: balancePage } = await moneyShownOn(
     `/admin/attendees/${attendeeId}/ledger`,
+    minor,
   );
   assertStringIncludes(balancePage, "Balance outstanding:");
   assertStringIncludes(balancePage, formatted);
@@ -148,11 +148,24 @@ export const assertRenderedModifierRevenue: CheckMoneyShown = async (
   modifierId,
   minor,
 ) => {
-  const formatted = formatCurrency(minor);
-  const edit = await adminPageHtml(`/admin/modifiers/${modifierId}/edit`);
+  const { formatted, page: edit } = await moneyShownOn(
+    `/admin/modifiers/${modifierId}/edit`,
+    minor,
+  );
   assertStringIncludes(edit, `value="${formatted}"`);
   const list = await adminPageHtml("/admin/modifiers");
   assertStringIncludes(list, formatted);
+};
+
+/** One of the checks reads one record's page, and asserts the figure it
+ * renders. Loading the page and formatting the figure is the shared half. */
+const moneyShownOn = async (
+  path: string,
+  minor: number,
+): Promise<{ formatted: string; page: string }> => {
+  const formatted = formatCurrency(minor);
+  const page = await adminPageHtml(path);
+  return { formatted, page };
 };
 
 /** Slice the `#income-ledger` reconciliation article out of a listing detail

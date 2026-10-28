@@ -39,11 +39,13 @@ const rowNaming = (browser: TestBrowser, who: string): string | null =>
  * something back. Every way in is followed rather than built, so a person
  * the site stopped offering a way to remove is one the story cannot remove
  * either. */
-export const ownerTakesDown = async (
+type TakesSomeoneDown = (
   world: TicketsWorld,
   who: string,
   typed: string,
-): Promise<void> => {
+) => Promise<void>;
+
+export const ownerTakesDown: TakesSomeoneDown = async (world, who, typed) => {
   await withAdminPage(world, USERS_LIST, async (browser) => {
     await browser.clickLink(who);
     await takeDownFromActions(browser, typed, {

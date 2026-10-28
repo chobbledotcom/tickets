@@ -73,12 +73,19 @@ const sendSetup = (
  * what they are told is read back a step later. */
 const SETTER = "the setter";
 
-/** Somebody opens the setup page and sets the site up. */
-export const somebodySetsUp = async (
+/** Somebody sets the site up with a password and its confirmation. */
+type SetsUpTheSite = (
   world: TicketsWorld,
   password: string,
   confirmation: string,
-): Promise<string> => {
+) => Promise<string>;
+
+/** Somebody opens the setup page and sets the site up. */
+export const somebodySetsUp: SetsUpTheSite = async (
+  world,
+  password,
+  confirmation,
+) => {
   const browser = await openSetup();
   await sendSetup(browser, { ...CHOSEN, password }, confirmation);
   keepWhatTheyWereTold(world, SETTER, browser.pageText);
@@ -115,12 +122,12 @@ export const GOOD_PASSWORD = CHOSEN.password;
 export const whatSetterWasTold = (world: TicketsWorld): string =>
   whatTheyWereTold(world, SETTER);
 
+/** Whether a username and password together let somebody in. */
+type SignInCheck = (username: string, password: string) => Promise<boolean>;
+
 /** Whether somebody can sign in with a username and password. The proof that
  * the ceremony finished is a real sign-in, not a page that says it did. */
-const canSignIn = async (
-  username: string,
-  password: string,
-): Promise<boolean> => {
+const canSignIn: SignInCheck = async (username, password) => {
   const browser = await openAsNewcomer("/admin/login");
   // A site with no owner has no way in at all — not a wrong password, no door.
   if (!browser.currentHtml.includes('name="username"')) return false;

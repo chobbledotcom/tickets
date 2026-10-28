@@ -57,16 +57,24 @@ export const gatewayIsSwitchedOff = (): Promise<void> =>
 const bookingOf = (world: TicketsWorld, who: string) =>
   world.things.require("booking", who);
 
-/** Somebody books through the real public page, so the number under test is
- * one a visitor really typed rather than a row put straight into the table.
- * Their booking is kept under their own name, because a story that texts one
- * of two people has to reach that one. */
-export const somebodyBooks = async (
+/** Somebody books on a listing, giving a phone number or not. */
+type BooksOnAListing = (
   world: TicketsWorld,
   who: string,
   listingName: string,
   givingAPhone: boolean,
-): Promise<void> => {
+) => Promise<void>;
+
+/** Somebody books through the real public page, so the number under test is
+ * one a visitor really typed rather than a row put straight into the table.
+ * Their booking is kept under their own name, because a story that texts one
+ * of two people has to reach that one. */
+export const somebodyBooks: BooksOnAListing = async (
+  world,
+  who,
+  listingName,
+  givingAPhone,
+) => {
   const phone = givingAPhone
     ? phoneGivenBy(world.things.names("booking").length)
     : "";
@@ -136,10 +144,7 @@ export const organiserTexts = (
  * showing history at all, which is the very thing one of these scenarios
  * exists to prove. Their own page rather than the last one opened, so a story
  * about two people can read the one it did not just text. */
-export const historyShownTo = async (
-  world: TicketsWorld,
-  who: string,
-): Promise<string> => {
+export const historyShownTo = async (world: TicketsWorld, who: string) => {
   const page = await adminPageHtmlAt(world, textsPathFor(world, who));
   const start = page.indexOf(await textingCopy("sms.contact.history_heading"));
   if (start < 0) throw new Error(`${who}'s page shows no message history`);

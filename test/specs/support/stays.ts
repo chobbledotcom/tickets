@@ -54,19 +54,32 @@ export const dayFromToday = (world: TicketsWorld, days: number): string => {
   return addDays(testDate(world.firstDay), days);
 };
 
+/** What a stay listing story can pin beyond the length and the places: how far
+ * ahead it books, whether the customer picks their own length, and the group
+ * it belongs to. */
+interface StayOptions {
+  bookAheadDays?: number;
+  customerPicksDays?: boolean;
+  groupId?: number;
+}
+
 /** A listing booked by the day, where each booking covers `days` days and each
  * day has room for `placesADay` places. Remembered by the name the story uses. */
-export const openStayListing = async (
+type OpensAStay = (
   world: TicketsWorld,
   name: string,
   days: number,
   placesADay: number,
-  options: {
-    bookAheadDays?: number;
-    customerPicksDays?: boolean;
-    groupId?: number;
-  } = {},
-): Promise<Listing> =>
+  options?: StayOptions,
+) => Promise<Listing>;
+
+export const openStayListing: OpensAStay = async (
+  world,
+  name,
+  days,
+  placesADay,
+  options = {},
+) =>
   putsOnSaleByTheDay(world, name, {
     durationDays: days,
     maxAttendees: placesADay,
