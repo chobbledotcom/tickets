@@ -10,7 +10,6 @@ import {
 import {
   defineMaintenanceTasks,
   type MaintenanceTaskCheck,
-  type MaintenanceTaskContext,
 } from "#shared/maintenance/definition.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 import {
@@ -40,15 +39,6 @@ const alwaysEnabled = (
   maxExternalCalls: 0,
   settingsKeys,
 });
-
-/** Run one task runner its module imports on first use, and ask for a
- * follow-up when it reports work left. Importing inside the run keeps the
- * registry cheap to load on cold starts. */
-const runLazyTaskRunner =
-  (load: () => Promise<() => Promise<boolean>>) =>
-  async ({ requestFollowUp }: MaintenanceTaskContext): Promise<void> => {
-    if (await (await load())()) requestFollowUp();
-  };
 
 export const MAINTENANCE_TASKS = defineMaintenanceTasks([
   {
@@ -117,11 +107,12 @@ export const MAINTENANCE_TASKS = defineMaintenanceTasks([
     maxDatabaseCalls: 1 + SUMUP_RECOVERY_BATCH * 6,
     maxExternalCalls: SUMUP_RECOVERY_BATCH * 2,
     name: "sumup_checkout_recovery",
-    run: runLazyTaskRunner(() =>
-      import("#shared/sumup/recovery-run.ts").then(
-        ({ runSumupRecovery }) => runSumupRecovery,
-      ),
-    ),
+    run: async ({ requestFollowUp }) => {
+      const { runSumupRecovery } = await import(
+        "#shared/sumup/recovery-run.ts"
+      );
+      if (await runSumupRecovery()) requestFollowUp();
+    },
     wakePolicy: "organic_safe",
   },
   {
@@ -140,11 +131,14 @@ export const MAINTENANCE_TASKS = defineMaintenanceTasks([
     maxDatabaseCalls: 1 + SQUARE_LINK_EXPIRY_BATCH * 2,
     maxExternalCalls: SQUARE_LINK_EXPIRY_BATCH,
     name: "square_link_expiry",
-    run: runLazyTaskRunner(() =>
-      import("#shared/square/link-expiry-run.ts").then(
-        ({ runSquareLinkExpiry }) => runSquareLinkExpiry,
-      ),
-    ),
+    run: async ({ requestFollowUp }) => {
+      // Loaded on first run, like every task's runner, so the registry stays
+      // cheap to load on cold starts.
+      const { runSquareLinkExpiry } = await import(
+        "#shared/square/link-expiry-run.ts"
+      );
+      if (await runSquareLinkExpiry()) requestFollowUp();
+    },
     // Public traffic carries an external allowance of zero, so only
     // POST /scheduled can reach this task.
     wakePolicy: "scheduled_only",
