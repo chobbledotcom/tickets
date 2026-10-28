@@ -20,6 +20,7 @@ import {
 import type { MutantResult } from "#scripts/mutation/summary.ts";
 import { fakeResult } from "#test/scripts/mutation/summary/fixtures.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { pathExists } from "#test-utils/files.ts";
 
 const summary = (): MutationRunSummary => ({
   effective: 63,
@@ -47,14 +48,8 @@ const recordShaped = (id: string, root: string) => ({
 /** The journal's lines, or none when nothing was appended — a run that
  *  publishes nothing leaves no file behind to read. */
 const readJournalLines = async (root: string) => {
-  if (
-    !(await Deno.stat(join(root, MUTATION_JOURNAL_PATH)).then(
-      () => true,
-      () => false,
-    ))
-  ) {
-    return [];
-  }
+  const path = join(root, MUTATION_JOURNAL_PATH);
+  if (!(await pathExists(path))) return [];
   return await readJournal(root);
 };
 
