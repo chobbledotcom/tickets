@@ -29,6 +29,13 @@ Feature: Added VAT sits on top of the listed price
       And no value added tax was recorded or refunded
       And the customer owes nothing
 
+    @case:payment.added-vat-at-a-fractional-rate
+    Scenario: A customer buys a place when the site adds tax at a fractional rate
+      Given the site adds value added tax at 17.51 percent to listed prices
+      When a customer pays for a Concert place listed at 45.00
+      Then the Concert place has earned 45.00 and the VAT account holds 7.88
+      And the customer owes nothing
+
   @rule:payments.a-refund-under-added-vat-returns-everything
   @surface:admin
   Rule: A refund under added VAT returns everything and clears the tax

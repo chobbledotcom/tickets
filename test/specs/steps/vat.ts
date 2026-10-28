@@ -246,13 +246,6 @@ Then(
 );
 
 Then(
-  "the VAT account holds nothing",
-  async function (this: TicketsWorld): Promise<void> {
-    expect(await accountBalance(TAX_VAT)).toBe(0);
-  },
-);
-
-Then(
   "the {word} place and the VAT account both hold nothing",
   async function (this: TicketsWorld, name: string): Promise<void> {
     expect(await incomeOf(listingIdNamed(this, name))).toBe(0);
