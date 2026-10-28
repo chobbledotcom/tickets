@@ -269,10 +269,7 @@
   "docs/scheduled-maintenance.md": {
     "banned-modal \"would\" in Rate-limit % at the CDN before requests reach the edge script. The application deliberately does not keep a request counter for rejected calls: doing so would let unauthenticated traffic consume database subrequests before authentication. Keep the limit high enough for the monitor's retries, but far below a general API traffic rate.": 1
   },
-  "docs/test-duplication.md": {
-    "semicolon \";\" in The merges, in the order they landed: % adopted at the four files that hand-rolled it; % widened to carry a result back and adopted at seven; % and % in %; % in %; %; the reader's presses, the erase form and Refund All curried; the named step types %, %, % adopted at 31 helpers and the new % at nine more; % moved out of %; %, %, %, %, %, %; and the named shapes %, %, %, % and %.": 9,
-    "banned-modal \"could\" in The single pair at 48 tokens was the find that made the scan worth adding. % held its own copy of % and % from %. No config could see it, because no config scanned % against %. The golden test database was therefore built by a second copy of the production schema builder, and could drift from it. It now calls %.": 2
-  },
+  "docs/test-duplication.md": {},
   "e2e-payments/README.md": {
     "semicolon \";\" in a fresh file-backed app database;": 1,
     "semicolon \";\" in a new real % child process;": 1,
