@@ -5,11 +5,8 @@ import {
   type SqlParameter,
 } from "#db/numbered-statement.ts";
 import { settingsVersionIncrement } from "#db/settings/cache.ts";
-import { syncStoredSetting } from "#db/settings/raw-writes.ts";
-import {
-  type StringSettingKey,
-  setSnapshotField,
-} from "#db/settings/snapshot.ts";
+import { publishStoredSetting } from "#db/settings/raw-writes.ts";
+import type { StringSettingKey } from "#db/settings/snapshot.ts";
 
 const StoredJsonSchema = v.object({ value: v.string() });
 
@@ -55,8 +52,11 @@ export const booleanJsonField = (
     when: WhenClause,
     validate: (stored: string) => void,
   ): Promise<string | null> => {
+    // jscpd:ignore-start — the shared shape is withTransaction's own
+    // invocation shell. The bodies are two different compare-and-swap paths.
     const stored = await withTransaction(async (tx) => {
       const result = await tx.execute(statement(when));
+      // jscpd:ignore-end
       const [returned] = resultRows<unknown>(result);
       if (returned === undefined) {
         const currentResult = await tx.execute({
@@ -76,8 +76,7 @@ export const booleanJsonField = (
       return next;
     });
     if (stored === null) return null;
-    syncStoredSetting(key, (values) => values.set(key, stored));
-    setSnapshotField(key, stored);
+    publishStoredSetting(key, stored);
     return stored;
   };
 

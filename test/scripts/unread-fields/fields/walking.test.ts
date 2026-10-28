@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { scannedFixture } from "#test/scripts/unread-fields/fixture/build.ts";
+import { fieldsOf, pathsOf } from "./fields-of-source.ts";
 
 /**
  * Which parts of a shape hold fields, and which hold none.
@@ -348,5 +349,80 @@ describe("what the walk goes into", () => {
     expect(verdictOf("ReadsAnAsyncResult.validate.result", "value")).toBe(
       "read",
     );
+  });
+});
+
+/**
+ * Which value expressions the walk enters: the walk reads type syntax, so a
+ * value expression joins it only when the expression is the type the field
+ * hands out.
+ */
+describe("the value expressions the walk enters", () => {
+  test("goes into an object literal that is the field's own value", async () => {
+    const paths = pathsOf(
+      await fieldsOf(
+        `
+export class Holder {
+  config = { dead: 1 };
+}
+`,
+      ),
+    );
+
+    expect(paths).toEqual(["Holder.config", "Holder.config.dead"]);
+  });
+
+  test("stays out of the object literal that supplies a call", async () => {
+    // `config = make({ dead: 1 })` hands `config` the number the call
+    // returns, so `dead` is nobody's to reach off the field.
+    const paths = pathsOf(
+      await fieldsOf(
+        `
+declare function make(options: { dead: number }): number;
+export class Holder {
+  config = make({ dead: 1 });
+}
+`,
+      ),
+    );
+
+    expect(paths).toEqual(["Holder.config"]);
+  });
+
+  test("passes a wrapper through to the literal it wraps", async () => {
+    // `as const` and its four siblings change nothing, so the key under the
+    // wrapper is still a field.
+    const paths = pathsOf(
+      await fieldsOf(
+        `
+export class Holder {
+  config = { dead: 1 } as const;
+}
+`,
+      ),
+    );
+
+    expect(paths).toEqual(["Holder.config", "Holder.config.dead"]);
+  });
+
+  test("goes into a class expression a field holds", async () => {
+    // `config = class { ... }` gives the field the class's own type, so its
+    // members walk under the construction the value builds.
+    const paths = pathsOf(
+      await fieldsOf(
+        `
+export class Holder {
+  config = class {
+    builtOn = 1;
+  };
+}
+`,
+      ),
+    );
+
+    expect(paths).toEqual([
+      "Holder.config",
+      'Holder.config["new ()"].result.builtOn',
+    ]);
   });
 });

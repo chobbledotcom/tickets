@@ -13,14 +13,16 @@ import type {
   ReorderColumnOptions,
   TableColumn,
 } from "#shared/tables/column.ts";
-import { defineTable } from "#shared/tables/definition.ts";
 import { AgentHeader } from "#templates/admin/agent-header.tsx";
 import {
   AdminNav,
   type NavActive,
   StaffAdminNav,
 } from "#templates/admin/nav.tsx";
-import { renderTable } from "#templates/components/table.tsx";
+import {
+  renderListPartTable,
+  type TableContextOptions,
+} from "#templates/components/table.tsx";
 import { Layout } from "#templates/layout.tsx";
 import type { AdminSession, Theme } from "#types";
 /* jscpd:ignore-end */
@@ -111,11 +113,20 @@ export const FormHeader = ({
 
 /** The standard list body: intro, then the table or its empty note, then the
  *  guide footer. */
-export type AdminPageListPart<TItem> = {
+export type AdminPageListPart<
+  TItem,
+  TContext = undefined,
+> = TableContextOptions<TContext> & {
   intro?: Child;
   items: TItem[];
-  columns: readonly TableColumn<TItem>[];
+  columns: readonly TableColumn<TItem, TContext>[];
   empty: Child;
+  /** Replaces the table-or-empty section when set: the listing's source is
+   *  unavailable (the images page: file storage not configured). */
+  unavailable?: Child;
+  /** Wraps the table-or-empty section, when the page frames its list (the
+   *  logistics agents article). */
+  frame?: (section: Child) => Child;
   /** Optional move controls, hidden with their column in read-only mode. */
   reorder?: ReorderColumnOptions<TItem> | undefined;
   guideFooter?: Child;
@@ -133,7 +144,7 @@ export type AdminPageFormPart = {
  *  sheet, the logout page) set `staff` instead. Staff pages render through
  *  the staff nav with the bare agent header shown to agent users, and their
  *  notices stay inside the body. */
-export type AdminPageSpec<TItem = never> = {
+export type AdminPageSpec<TItem = never, TContext = undefined> = {
   title: string;
   active: NavActive;
   session: AdminSession;
@@ -147,7 +158,7 @@ export type AdminPageSpec<TItem = never> = {
   flash?: FlashFields;
   /** Top action row contents. AdminPage renders the scaffold around them. */
   actions?: Child;
-  list?: AdminPageListPart<TItem>;
+  list?: AdminPageListPart<TItem, TContext>;
   form?: AdminPageFormPart;
   body?: Child;
   staff?: { heading?: Child };
@@ -163,17 +174,28 @@ const specFlash = (flash: FlashFields): Child =>
   );
 
 /** The standard list body: intro, table-or-empty, guide footer. */
-const listBody = <TItem,>(list: AdminPageListPart<TItem>): JSX.Element => (
-  <>
-    {list.intro}
-    {list.items.length > 0
-      ? renderTable(defineTable(list.columns), list.items, {
-          ...(list.reorder !== undefined ? { reorder: list.reorder } : {}),
-        })
-      : list.empty}
-    {list.guideFooter}
-  </>
-);
+const listBody = <TItem, TContext>(
+  list: AdminPageListPart<TItem, TContext>,
+): JSX.Element => {
+  const section =
+    list.unavailable !== undefined
+      ? list.unavailable
+      : list.items.length > 0
+        ? renderListPartTable(
+            list.columns,
+            list.items,
+            list.reorder,
+            list.context,
+          )
+        : list.empty;
+  return (
+    <>
+      {list.intro}
+      {list.frame !== undefined ? list.frame(section) : section}
+      {list.guideFooter}
+    </>
+  );
+};
 
 /** The render function a flash-carrying admin page exposes: given the viewer's
  *  session and optional error/success notices, it returns the page HTML. Shared
@@ -186,8 +208,8 @@ export type FlashPageRenderer = (
 
 /** Open an admin page from its spec — the one render function every admin
  *  page goes through. */
-export const renderAdminPageSpec = <TItem,>(
-  spec: AdminPageSpec<TItem>,
+export const renderAdminPageSpec = <TItem, TContext = undefined>(
+  spec: AdminPageSpec<TItem, TContext>,
 ): string => {
   if (spec.staff !== undefined) {
     return String(

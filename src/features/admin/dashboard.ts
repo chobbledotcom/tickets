@@ -1,4 +1,5 @@
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 
 /**
  * Admin dashboard route
@@ -280,7 +281,7 @@ const handleWelcomeDismiss = formPost(OWNER_FORM)(async () => {
   return redirect("/admin", t("admin.dashboard.welcome.dismissed"), true);
 });
 
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin": handleAdminGet,
   "GET /admin/listings": handleAdminListingsGet,
   "GET /admin/listings/csv": handleListingsCsvExport,

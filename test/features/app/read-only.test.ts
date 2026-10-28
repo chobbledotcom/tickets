@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { readOnlyBlock } from "#routes/app/read-only.ts";
+import { ADMIN_SURFACE, oneServedPath } from "#shared/admin-surface.ts";
 
 /** The ordinary expired-deadline mode: READ_ONLY_FROM in the past. */
 const ordinary = (path: string, method: string): "api" | "page" | null =>
@@ -28,6 +29,27 @@ describe("read-only request guard", () => {
       "/admin/modifiers/42/delete",
     ]) {
       expect(ordinary(path, "GET")).toBe("page");
+    }
+  });
+
+  test("keeps the GET page of every admin write the mode keeps open", () => {
+    // The check-in POST stays open, and the check-in page is the form the
+    // operator submits a multi-ticket check-in from. Redirecting that page
+    // would keep the operation open while hiding its only form.
+    expect(ordinary("/admin/listing/42/attendee/99/checkin", "GET")).toBeNull();
+  });
+
+  test("keeps the form page of every declared write the mode keeps open", () => {
+    // The whole surface at once: when the mode keeps a write open, the page
+    // its GET serves stays open too — the operator submits the operation
+    // from that page. The reverse is not required: a write the mode blocks
+    // may keep a readable GET (the built-site support message does). A new
+    // write declaration lands in this walk automatically.
+    for (const destination of Object.values(ADMIN_SURFACE.destinations)) {
+      if (destination.intent !== "write-form") continue;
+      const path = oneServedPath(destination.pattern);
+      if (ordinary(path, "POST") !== null) continue;
+      expect(ordinary(path, "GET"), destination.id).toBeNull();
     }
   });
 

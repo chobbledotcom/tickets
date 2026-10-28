@@ -103,10 +103,10 @@ export const generateDataKey = (): Promise<CryptoKey> =>
   ]);
 
 /**
- * Export a CryptoKey and encrypt it with a wrapping key using AES-GCM.
+ * Wrap a symmetric key with another key using AES-GCM.
  * Returns format: wk:1:$base64iv:$base64wrapped
  */
-const exportAndWrapKey = async (
+export const wrapKey = async (
   keyToWrap: CryptoKey,
   wrappingKey: CryptoKey,
 ): Promise<WrappedKey> => {
@@ -116,9 +116,10 @@ const exportAndWrapKey = async (
 };
 
 /**
- * Decrypt a wrapped key payload and reimport it as an AES-GCM CryptoKey.
+ * Unwrap a symmetric key.
+ * Expects format: wk:1:$base64iv:$base64wrapped
  */
-const unwrapAndImportKey = async (
+export const unwrapKey = async (
   wrapped: WrappedKey,
   unwrappingKey: CryptoKey,
 ): Promise<CryptoKey> => {
@@ -138,15 +139,6 @@ const unwrapAndImportKey = async (
 };
 
 /**
- * Wrap a symmetric key with another key using AES-GCM
- * Returns format: wk:1:$base64iv:$base64wrapped
- */
-export const wrapKey = (
-  keyToWrap: CryptoKey,
-  wrappingKey: CryptoKey,
-): Promise<WrappedKey> => exportAndWrapKey(keyToWrap, wrappingKey);
-
-/**
  * Wrap a DATA_KEY under the password-bound (v2) KEK in one step. The single
  * place new wrapped_data_keys are produced — setup, login migration, invite
  * acceptance, password change, and superuser creation all go through here, so
@@ -158,15 +150,6 @@ export const wrapDataKeyForPassword = async (
   passwordHash: PasswordHash,
 ): Promise<WrappedKey> =>
   wrapKey(dataKey, await deriveKEKFromPassword(password, passwordHash));
-
-/**
- * Unwrap a symmetric key
- * Expects format: wk:1:$base64iv:$base64wrapped
- */
-export const unwrapKey = (
-  wrapped: WrappedKey,
-  unwrappingKey: CryptoKey,
-): Promise<CryptoKey> => unwrapAndImportKey(wrapped, unwrappingKey);
 
 /**
  * Derive a wrapping/unwrapping key from a session token using PBKDF2.
@@ -217,7 +200,7 @@ const withTokenKey =
  */
 export const wrapKeyWithToken = withTokenKey<CryptoKey, WrappedKey>(
   "encrypt",
-  exportAndWrapKey,
+  wrapKey,
 );
 
 /**
@@ -225,7 +208,7 @@ export const wrapKeyWithToken = withTokenKey<CryptoKey, WrappedKey>(
  */
 export const unwrapKeyWithToken = withTokenKey<WrappedKey, CryptoKey>(
   "decrypt",
-  unwrapAndImportKey,
+  unwrapKey,
 );
 
 /**

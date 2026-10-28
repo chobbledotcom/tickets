@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { attendeeBookingsFromLines } from "#routes/admin/attendee-form-dates.ts";
 import {
   ATTENDEE_FORM_ID,
-  attendeeBookingsFromLines,
   parseAttendeeForm,
   toLedgerOrder,
 } from "#routes/admin/attendee-form-model.ts";

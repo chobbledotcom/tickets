@@ -23,6 +23,7 @@ import {
 import { copyLoaded } from "#test/specs/support/copy.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
+  type ActOnTheStory,
   keepWhatTheyWereTold,
   type StoryJourney,
   scenarioEnv,
@@ -85,13 +86,20 @@ export const ownerOpensFeatureChoice: ActsOnAFeature = async (
   );
 };
 
-/** Send one feature choice from the window in front of the owner, and keep
- * what the site said back. */
-const sendFeatureChoice = async (
+/** One feature choice sent from the window in front of the owner. */
+type SendsAFeatureChoice = (
   world: TicketsWorld,
   browser: TestBrowser,
   enabled: boolean,
-): Promise<void> => {
+) => Promise<void>;
+
+/** Send one feature choice from the window in front of the owner, and keep
+ * what the site said back. */
+const sendFeatureChoice: SendsAFeatureChoice = async (
+  world,
+  browser,
+  enabled,
+) => {
   await fillInAndSend(
     browser,
     { enabled: String(enabled) },
@@ -145,9 +153,7 @@ export const featureListOn = (html: string): string =>
 
 /** The owner opens their settings, keeping the feature list for the Then
  * steps. */
-export const ownerLooksAtSettings = async (
-  world: TicketsWorld,
-): Promise<void> => {
+export const ownerLooksAtSettings: ActOnTheStory = async (world) => {
   const page = await adminPageHtmlAt(world, SETTINGS_PATH);
   keepWhatTheyWereTold(world, ORGANISER, featureListOn(page));
 };
@@ -182,7 +188,10 @@ export const statusIn = (row: string, printed: string): string => {
   return only;
 };
 
+/** A site state set for one scenario and put back at the end. */
+type SetsSiteState = (world: TicketsWorld) => void;
+
 /** A site nobody can change anything on, undone when the scenario ends. */
-export const keepSiteForReadingOnly = (world: TicketsWorld): void => {
+export const keepSiteForReadingOnly: SetsSiteState = (world) => {
   scenarioEnv(world, { READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
 };

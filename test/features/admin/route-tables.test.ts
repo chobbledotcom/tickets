@@ -1,6 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
+import {
+  crudRoutes,
+  defineAdminRoutes,
+  entityTabRoutes,
+} from "#routes/admin/route-tables.ts";
 
 const request = new Request("http://localhost/admin/things/7");
 
@@ -116,5 +120,26 @@ describe("crudRoutes", () => {
     expect(routes["POST /admin/things/:id/delete"]).toBe(crud.deletePost);
     expect(routes["POST /admin/things/:id/edit"]).toBe(crud.editPost);
     expect(Object.keys(routes)).toHaveLength(6);
+  });
+});
+
+describe("defineAdminRoutes", () => {
+  test("passes a route whose path a declared destination serves", () => {
+    const handler = () => Promise.resolve(new Response("ok"));
+    const routes = defineAdminRoutes({
+      "GET /admin/settings": handler,
+    });
+    expect(routes["GET /admin/settings"]).toBe(handler);
+  });
+
+  test("refuses a route whose path no destination declares", () => {
+    expect(() =>
+      defineAdminRoutes({
+        "POST /admin/settings/never-declared": () =>
+          Promise.resolve(new Response("ok")),
+      }),
+    ).toThrow(
+      'No admin route is declared for "POST /admin/settings/never-declared"',
+    );
   });
 });

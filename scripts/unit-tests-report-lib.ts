@@ -30,6 +30,7 @@
 
 import { filter, map, pipe, sort, sumOf } from "#fp";
 import { endsWithAny } from "#fp-strings";
+import { nonBlankLines } from "./lines.ts";
 
 /** A source or test file paired with its line count. */
 export type FileLines = {
@@ -101,8 +102,7 @@ export const hasExemptPrefix = (path: string, prefixes: string[]): boolean =>
   prefixes.some((prefix) => path === prefix || path.startsWith(prefix));
 
 /** Count non-blank lines, so whitespace padding doesn't inflate the ratio. */
-export const countLines = (text: string): number =>
-  text.split("\n").filter((line) => line.trim() !== "").length;
+export const countLines = (text: string): number => nonBlankLines(text).length;
 
 /** A `.ts`/`.tsx` file of any kind, including declaration files. */
 const isTypeScriptPath = endsWithAny([".ts", ".tsx"]);

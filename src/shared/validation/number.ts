@@ -26,7 +26,7 @@ export const clampInteger = (
  * `qty_<id>`, where a lenient `Number.parseInt` accepts `"5abc"` as `5`.
  * Validation of the digits before the coercion closes that.
  */
-const NonNegativeIntSchema = v.pipe(
+export const NonNegativeIntSchema = v.pipe(
   NonEmptyTextSchema,
   v.digits(),
   v.transform(Number),
@@ -45,6 +45,26 @@ export const parseNonNegativeInt = (value: string): number | null =>
 /** Parse a strict positive decimal integer, or null when it is not one. */
 export const parsePositiveInt = (value: string): number | null =>
   parseIntWithSchema(PositiveIntSchema, value);
+
+/**
+ * Plain signed decimal integer strings: an optional minus, then digits only,
+ * so no fraction, exponent, or trailing junk. The public helper trims first.
+ *
+ * The attendee form reads payment and adjustment amounts out of text inputs,
+ * where a lenient `Number` accepts `"1e3"` and `" 5 "`. Validation of the
+ * digits before the coercion closes that. The adjustment amount is signed (a
+ * negative forgives part of the debt), so the sign is part of the shape.
+ */
+const SignedIntSchema = v.pipe(
+  NonEmptyTextSchema,
+  v.regex(/^-?\d+$/),
+  v.transform(Number),
+  v.safeInteger(),
+);
+
+/** Parse a strict signed decimal integer, or null when it is not one. */
+export const parseSignedInt = (value: string): number | null =>
+  parseIntWithSchema(SignedIntSchema, value);
 
 /** Whether a number can be stored safely as a positive database id. */
 export const isPositiveSafeInteger = (value: number): boolean =>

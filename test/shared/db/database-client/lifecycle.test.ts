@@ -1,4 +1,4 @@
-import type { Client } from "@libsql/client";
+import type { Client, Transaction } from "@libsql/client";
 import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -7,6 +7,34 @@ import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { hranaTestDatabase } from "#test-utils/hrana.ts";
 
 describe("database client delegation", () => {
+  /** A concurrency-1 database whose "SELECT 1" reply waits on `release`, so a
+   * test can hold the only shared slot open and watch later calls queue. */
+  const blockingConcurrencyDatabase = () => {
+    const time = new FakeTime();
+    const firstStarted = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const remote = hranaTestDatabase({
+      config: { concurrency: 1 },
+      select: async (sql) => {
+        if (sql === "SELECT 1") {
+          firstStarted.resolve();
+          await release.promise;
+        }
+        return emptyResultSet();
+      },
+    });
+    return {
+      firstStarted,
+      release,
+      remote,
+      time,
+      [Symbol.dispose]: (): void => {
+        time[Symbol.dispose]();
+        remote[Symbol.dispose]();
+      },
+    };
+  };
+
   test("delegates scripts through the shared limit", async () => {
     using remote = hranaTestDatabase();
     await remote.client.executeMultiple("SELECT 1;");
@@ -39,19 +67,8 @@ describe("database client delegation", () => {
   });
 
   test("shares the configured concurrency limit between pipeline and native reads", async () => {
-    using time = new FakeTime();
-    const firstStarted = Promise.withResolvers<void>();
-    const release = Promise.withResolvers<void>();
-    using remote = hranaTestDatabase({
-      config: { concurrency: 1 },
-      select: async (sql) => {
-        if (sql === "SELECT 1") {
-          firstStarted.resolve();
-          await release.promise;
-        }
-        return emptyResultSet();
-      },
-    });
+    using db = blockingConcurrencyDatabase();
+    const { firstStarted, release, remote, time } = db;
     const first = remote.client.batch(["SELECT 1"], "write");
     await firstStarted.promise;
     const rest = Promise.all([
@@ -116,6 +133,82 @@ describe("database client delegation", () => {
       ).toEqual(statements);
     });
   }
+
+  /** Hold the only shared slot with a top-level call, then start `queued` —
+   * the transaction operation under test — and watch it queue. When the slot
+   * frees, the queued operation completes, `close` ends the transaction, and
+   * the helper returns what the database saw. */
+  const queueBehindHeldSlot = async (
+    queued: (tx: Transaction) => Promise<unknown>,
+    close: "commit" | "rollback",
+  ): Promise<{ closed: boolean; requests: string[][] }> => {
+    using db = blockingConcurrencyDatabase();
+    const { firstStarted, release, remote, time } = db;
+    const transaction = await remote.client.transaction("write");
+    const first = remote.client.execute("SELECT 1");
+    await firstStarted.promise;
+    const waiting = queued(transaction);
+    try {
+      await time.tickAsync(0);
+      // A transaction operation never overlaps a top-level call: it queues
+      // behind the slot the first call holds.
+      expect(remote.requests).toHaveLength(1);
+    } finally {
+      release.resolve();
+      await Promise.all([first, waiting]);
+    }
+    await transaction[close]();
+    return { closed: transaction.closed, requests: remote.requests };
+  };
+
+  test("keeps interactive transaction statements inside the shared limit", async () => {
+    const { closed, requests } = await queueBehindHeldSlot(
+      (tx) => Promise.all([tx.execute("SELECT 2"), tx.batch(["SELECT 3"])]),
+      "commit",
+    );
+    expect(requests).toHaveLength(4);
+    expect(closed).toBe(true);
+  });
+
+  test("keeps interactive transaction scripts inside the shared limit", async () => {
+    // A first-operation script sends BEGIN and the sequence as two requests.
+    const { closed, requests } = await queueBehindHeldSlot(
+      (tx) => tx.executeMultiple("SELECT 2; SELECT 3;"),
+      "rollback",
+    );
+    expect(requests).toHaveLength(4);
+    expect(closed).toBe(true);
+  });
+
+  for (const close of ["commit", "rollback"] as const) {
+    test(`${close === "commit" ? "commits" : "rolls back"} a transaction even while the shared limit is occupied`, async () => {
+      using db = blockingConcurrencyDatabase();
+      const { firstStarted, release, remote, time } = db;
+      const transaction = await remote.client.transaction("write");
+      await transaction.execute("SELECT 2");
+      const first = remote.client.execute("SELECT 1");
+      await firstStarted.promise;
+      const closing = transaction[close]();
+      try {
+        await time.tickAsync(0);
+        // The close reaches the database without waiting for the shared slot.
+        expect(remote.requests).toHaveLength(3);
+      } finally {
+        release.resolve();
+        await Promise.all([first, closing]);
+      }
+      expect(transaction.closed).toBe(true);
+    });
+  }
+
+  test("delegates interactive transaction scripts through the shared limit", async () => {
+    using remote = hranaTestDatabase();
+    const transaction = await remote.client.transaction("write");
+    await transaction.executeMultiple("SELECT 4;");
+    await transaction.rollback();
+    expect(transaction.closed).toBe(true);
+    expect(remote.requests).toHaveLength(3);
+  });
 
   test("keeps local reads and writes on the native SQLite client", async () => {
     using local = hranaTestDatabase({ config: { url: "file::memory:" } });

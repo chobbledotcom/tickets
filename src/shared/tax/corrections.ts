@@ -6,6 +6,7 @@ import {
 } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import { legReference } from "#accounting/refs.ts";
+import { signedLegParts } from "#accounting/signed-leg.ts";
 import type { AccountRef, TransferInput } from "#shared/ledger/types.ts";
 import { taxRevisionGroup } from "#shared/tax/store.ts";
 import type { TaxAssessment } from "#shared/tax/types.ts";
@@ -43,8 +44,7 @@ export const taxCorrectionLegs = async (
     deltas
       .filter(({ delta }) => delta !== 0)
       .map(async ({ account, delta, kind }) => ({
-        amount: Math.abs(delta),
-        destination: delta > 0 ? account : attendee,
+        ...signedLegParts(account, attendee)(delta),
         eventGroup: group,
         kind,
         occurredAt,
@@ -56,7 +56,6 @@ export const taxCorrectionLegs = async (
           kind,
           account.id,
         ]),
-        source: delta > 0 ? attendee : account,
       })),
   );
 };

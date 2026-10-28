@@ -1,13 +1,13 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { getDb, queryAll } from "#db/client.ts";
+import { logisticsAgents } from "#db/logistics-agents.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import {
-  expectCsvDownloadHeaders,
   expectHtmlResponse,
-  expectRedirectWithFlash,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
@@ -18,59 +18,19 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { assignBookingToAgent } from "#test-utils/logistics.ts";
+import { featureSetting, withSetting } from "#test-utils/settings.ts";
+import {
+  setupDailyBooking,
+  setupMixedBookings,
+  setupTwoDailyBookings,
+} from "./calendar/shared.ts";
 import {
   bookDailyTicket,
   fetchCalendarHtml,
   fetchCalendarResponse,
   tomorrow,
 } from "./calendar-test-helpers.ts";
-
-async function setupDailyBooking(
-  date = tomorrow(),
-  opts = { email: "a@test.com", name: "User A" },
-) {
-  const listing = await createDailyTestListing();
-  await bookDailyTicket(listing.slug, { ...opts, date });
-  return { date, listing };
-}
-
-async function setupTwoDailyBookings(date = tomorrow()) {
-  const listing1 = await createDailyTestListing();
-  const listing2 = await createDailyTestListing();
-  await bookDailyTicket(listing1.slug, {
-    date,
-    email: "a@test.com",
-    name: "User A",
-  });
-  await bookDailyTicket(listing2.slug, {
-    date,
-    email: "b@test.com",
-    name: "User B",
-  });
-  return { date, listing1, listing2 };
-}
-
-async function setupMixedBookings(
-  listingDate: string,
-  dailyName = "Daily User",
-  standardName = "Standard User",
-) {
-  const dailyListing = await createDailyTestListing();
-  const standardListing = await createTestListing({
-    date: `${listingDate}T10:00`,
-    name: "Workshop",
-  });
-  await bookDailyTicket(dailyListing.slug, {
-    date: listingDate,
-    email: `${dailyName.toLowerCase().replace(" ", "")}@test.com`,
-    name: dailyName,
-  });
-  await submitTicketForm(standardListing.slug, {
-    email: `${standardName.toLowerCase().replace(" ", "")}@test.com`,
-    name: standardName,
-  });
-  return { dailyListing, listingDate, standardListing };
-}
 
 /** Create the canonical "Concert" standard listing booked by "Concert Fan".
  *  Shared by the "shows attendees when date is selected" and "does not show
@@ -361,106 +321,73 @@ describeWithEnv(
         assertStringIncludes(html, "User A");
         expect(html).toMatch(/<option selected[^>]*>January 2030<\/option>/);
       });
-    });
 
-    describe("GET /admin/calendar/export", () => {
-      testRequiresAuth("/admin/calendar/export?date=2026-03-15");
-
-      test("redirects to calendar when no date provided", async () => {
-        const response = await fetchCalendarResponse("/admin/calendar/export");
-        expectRedirectWithFlash(
-          "/admin/calendar",
-          "Select a date to export",
-          false,
-        )(response);
-      });
-
-      test("returns CSV with correct headers", async () => {
-        const { date } = await setupDailyBooking();
-
-        const response = await fetchCalendarResponse(
-          `/admin/calendar/export?date=${date}`,
-        );
-        expectCsvDownloadHeaders(response, `calendar_${date}_attendees.csv`);
-      });
-
-      test("includes Listing and Date columns in CSV", async () => {
-        const { listing, date } = await setupDailyBooking();
-
-        const response = await fetchCalendarResponse(
-          `/admin/calendar/export?date=${date}`,
-        );
-        const csv = await response.text();
-        const lines = csv.split("\n");
-        expect(lines[0]).toBe(
-          "Listing,Type,Date,Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL",
-        );
-        assertStringIncludes(lines[1] ?? "", listing.name);
-        assertStringIncludes(lines[1] ?? "", date);
-        assertStringIncludes(lines[1] ?? "", "User A");
-        assertStringIncludes(lines[1] ?? "", "Attendee");
-      });
-
-      test("includes attendees from multiple listings", async () => {
-        const { listing1, listing2 } = await setupTwoDailyBookings();
-
-        const response = await fetchCalendarResponse(
-          `/admin/calendar/export?date=${tomorrow()}`,
-        );
-        const csv = await response.text();
-        assertStringIncludes(csv, "User A");
-        assertStringIncludes(csv, "User B");
-        assertStringIncludes(csv, listing1.name);
-        assertStringIncludes(csv, listing2.name);
-      });
-
-      test("returns empty CSV when no attendees for date", async () => {
-        const validDate = tomorrow();
-        await createDailyTestListing();
-
-        const response = await fetchCalendarResponse(
-          `/admin/calendar/export?date=${validDate}`,
-        );
-        const csv = await response.text();
-        const lines = csv.split("\n");
-        expect(lines).toHaveLength(1);
-        assertStringIncludes(lines[0] ?? "", "Listing,Type,Date,Name");
-      });
-
-      test("includes standard listing attendees in CSV export", async () => {
+      test("does not show cancelled (no-quantity) standard bookings", async () => {
         const listing = await createTestListing({
           date: "2026-06-15T14:00",
           name: "Concert",
         });
         await submitTicketForm(listing.slug, {
-          email: "csvfan@test.com",
-          name: "CSV Fan",
+          email: "ghost@test.com",
+          name: "Ghost Fan",
+        });
+        // A cancelled/interested booking is a quantity-0 line: the operational
+        // calendar counts real attendees only.
+        await getDb().execute({
+          args: [listing.id],
+          sql: "UPDATE listing_attendees SET quantity = 0 WHERE listing_id = ?",
         });
 
-        const response = await fetchCalendarResponse(
-          "/admin/calendar/export?date=2026-06-15",
-        );
-        const csv = await response.text();
-        assertStringIncludes(csv, "Concert");
-        assertStringIncludes(csv, "CSV Fan");
+        const html = await fetchCalendarHtml("/admin/calendar?date=2026-06-15");
+        assert(!html.includes("Ghost Fan"));
       });
 
-      test("includes mixed daily and standard attendees in CSV export", async () => {
-        const listingDate = addDays(testDate(todayInTz("UTC")), 3);
-        const { dailyListing } = await setupMixedBookings(
-          listingDate,
-          "Daily CSV",
-          "Standard CSV",
-        );
+      test("lists logistics agents in the calendar filter bar", async () => {
+        await withSetting(featureSetting("logistics"), async () => {
+          await logisticsAgents.table.insert({ name: "Van One" });
+          const { date } = await setupDailyBooking();
 
-        const response = await fetchCalendarResponse(
-          `/admin/calendar/export?date=${listingDate}`,
-        );
-        const csv = await response.text();
-        assertStringIncludes(csv, "Daily CSV");
-        assertStringIncludes(csv, "Standard CSV");
-        assertStringIncludes(csv, dailyListing.name);
-        assertStringIncludes(csv, "Workshop");
+          const html = await fetchCalendarHtml(`/admin/calendar?date=${date}`);
+          assertStringIncludes(html, "Van One");
+        });
+      });
+
+      test("filters attendees by agent parameter", async () => {
+        await withSetting(featureSetting("logistics"), async () => {
+          const vanOne = (
+            await logisticsAgents.table.insert({ name: "Van One" })
+          ).id;
+          const vanTwo = (
+            await logisticsAgents.table.insert({ name: "Van Two" })
+          ).id;
+          const { date, listing1, listing2 } = await setupTwoDailyBookings();
+          const rows = await queryAll<{
+            listing_id: number;
+            attendee_id: number;
+          }>(
+            "SELECT listing_id, attendee_id FROM listing_attendees WHERE listing_id IN (?, ?)",
+            [listing1.id, listing2.id],
+          );
+          await assignBookingToAgent(
+            rows.find((row) => row.listing_id === listing1.id)!.attendee_id,
+            listing1.id,
+            vanOne,
+            date,
+          );
+          await assignBookingToAgent(
+            rows.find((row) => row.listing_id === listing2.id)!.attendee_id,
+            listing2.id,
+            vanTwo,
+            date,
+          );
+
+          const html = await fetchCalendarHtml(
+            `/admin/calendar?date=${date}&agent=${vanOne}`,
+          );
+          assertStringIncludes(html, "User A");
+          // User B's booking belongs to another agent, so it is filtered out.
+          assert(!html.includes("User B"));
+        });
       });
     });
   },

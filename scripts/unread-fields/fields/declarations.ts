@@ -5,7 +5,7 @@ import {
   type Step,
   throughConstructedResult,
 } from "#scripts/unread-fields/fields/steps.ts";
-import { answered } from "#scripts/unread-fields/host.ts";
+import { answered, belongsToRepository } from "#scripts/unread-fields/host.ts";
 import { ownerPath } from "#scripts/unread-fields/identity.ts";
 import {
   carriesAModifier,
@@ -31,6 +31,8 @@ export const isStatic = carriesAModifier(ts.ModifierFlags.Static);
 const holdsAField = (node: ts.Node): node is ts.NamedDeclaration =>
   ts.isTypeElement(node) ||
   ts.isClassElement(node) ||
+  ts.isPropertyAssignment(node) ||
+  ts.isShorthandPropertyAssignment(node) ||
   (ts.isParameter(node) &&
     ts.isParameterPropertyDeclaration(node, node.parent));
 
@@ -44,10 +46,10 @@ export const nameOf = (node: ts.Node): FieldName | undefined => {
 export const fieldNameOf = (node: ts.Node): FieldName | undefined =>
   holdsAField(node) ? nameOf(node) : undefined;
 
-export const writtenNames = (property: ts.Symbol): FieldName[] =>
+export const writtenNames = (property: ts.Symbol, root: string): FieldName[] =>
   mapNotNullish(nameOf)(
-    (property.declarations ?? []).filter(
-      (at) => !at.getSourceFile().isDeclarationFile,
+    (property.declarations ?? []).filter((at) =>
+      belongsToRepository(root, at.getSourceFile().fileName),
     ),
   );
 

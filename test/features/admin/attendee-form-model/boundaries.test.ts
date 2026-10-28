@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  attendeeBalanceNotice,
   isPaymentLockedLine,
   parseAttendeeForm,
 } from "#routes/admin/attendee-form-model.ts";
+import { attendeeBalanceNotice } from "#routes/admin/attendee-form-validation.ts";
 import {
   line,
   makeForm,

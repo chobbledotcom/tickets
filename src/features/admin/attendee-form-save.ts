@@ -13,10 +13,12 @@ import {
   type AttendeeAnswerSet,
   saveAttendeeAnswers,
 } from "#db/questions/attendee-answers/save.ts";
+import { sum, sumOf } from "#fp";
 import { t } from "#i18n";
 import {
   ATTENDEE_FORM_ID,
   type ParsedAttendeeForm,
+  receiptsOf,
   toCreateInput,
   toDesiredLines,
   toLedgerOrder,
@@ -33,7 +35,10 @@ import {
 } from "#routes/admin/attendees-route-helpers.ts";
 import { redirect } from "#routes/response.ts";
 import { createdBookingEntries } from "#shared/booking.ts";
-import { manualAddLedgerPoster } from "#shared/checkout-complete.ts";
+import {
+  apiCreateLedgerPoster,
+  type CreateAdjustment,
+} from "#shared/checkout-complete.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { TaxSavePlan } from "#shared/tax/save.ts";
 import { isTaxAssessmentConflict } from "#shared/tax/store.ts";
@@ -89,19 +94,26 @@ export const applyCreate = async (
     return { ok: false, saveError: t("attendee_form.error_no_lines") };
   }
   // Admin manual add can deliberately overbook (a warning shows, the system
-  // does not block). The ledger poster records the gross `sale` legs in the
-  // SAME create transaction. The input carries that gross as remainingBalance,
-  // so the webhook reports the amount the attendee owes.
+  // does not block). The poster records the sale legs at the lines' prices
+  // plus the payment and adjustment legs in the same create transaction. The
+  // input carries the projected net as remainingBalance, so the attendee owes
+  // the tax-inclusive total minus what was paid or written off.
   const order = toLedgerOrder(parsed);
+  const receipts = receiptsOf(parsed);
   const createResult = await attendeesApi.createAttendeeAtomic(
     {
       ...input,
       allowOverbook: true,
       emailPending: emailPendingForAdminLines(parsed.lines.map(adminLineSend)),
-      remainingBalance: order.tax.total,
+      remainingBalance:
+        order.tax.total -
+        sum(receipts.payments) +
+        sumOf((adjustment: CreateAdjustment) => adjustment.amount)(
+          receipts.adjustments,
+        ),
       source: "admin",
     },
-    manualAddLedgerPoster(order),
+    apiCreateLedgerPoster(order, receipts),
   );
   if (!createResult.success) {
     return { ok: false, saveError: t("attendee_form.error_capacity") };

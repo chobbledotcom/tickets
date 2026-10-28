@@ -12,6 +12,7 @@ import { notCoveredBy } from "#fp";
 import { integerAtLeast } from "#shared/validation/number.ts";
 import {
   type CheckOutput,
+  consoleOutput,
   formatFinding,
   reportCheck,
 } from "./check-report.ts";
@@ -21,6 +22,15 @@ import { collectFromFiles } from "./walk-files.ts";
 
 /** A registry of `{ path: count }`. */
 export type Counts = Record<string, number>;
+
+/** One whole-tree counts check's run: the roots it reads, the recorded
+ * counts, and where the report goes. The one signature every
+ * flat-counts-ratchet check exposes. */
+export type CountsCheck = (
+  roots: readonly string[],
+  accepted: Counts,
+  output: CheckOutput,
+) => Promise<number>;
 
 /** Whether any count in `fresh` rose above the number `recorded` holds for
  * the same key — a count that was never recorded starts at zero, so a new
@@ -176,6 +186,31 @@ export const recordedState = async <T>(
   return recorded;
 };
 
+/** One flat-counts check's entry wiring: the registry lives beside the
+ * calling module at `relative`, the record step runs for the mode `args`
+ * name with `countsRose` refusing a rise, and the check runs over `roots`
+ * against the state that survives. One mechanism behind every
+ * flat-counts-ratchet entry, so the entry scripts cannot drift apart. */
+export const countsCheckExit = async (
+  moduleUrl: string,
+  relative: string,
+  args: readonly string[],
+  roots: readonly string[],
+  fresh: (roots: readonly string[]) => Promise<Counts>,
+  run: CountsCheck,
+  output: CheckOutput = consoleOutput,
+): Promise<number> => {
+  const path = registryPath(moduleUrl, relative);
+  const accepted = await recordedState(
+    path,
+    updateMode(args),
+    await readCounts(path),
+    () => fresh(roots),
+    countsRose,
+  );
+  return await run(roots, accepted, output);
+};
+
 /** One finding a per-file rule reports. The path is added while scanning. */
 export interface PerFileFinding {
   /** How to put it right. */
@@ -279,11 +314,7 @@ export const registryCheck =
     rule: CountedFileRule,
     registry: string,
     words: CheckWords,
-  ): ((
-    roots: readonly string[],
-    accepted: Counts,
-    output: CheckOutput,
-  ) => Promise<number>) =>
+  ): CountsCheck =>
   async (roots, accepted, output) => {
     const paths: string[] = [];
     const found = await collectFromFiles(roots, collect, (file, content) => {

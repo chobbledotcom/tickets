@@ -12,11 +12,14 @@
 import { compact, range } from "#fp";
 import { t } from "#i18n";
 import {
+  ADJUSTMENT_SLOTS,
   ATTENDEE_FORM_ID,
   DAY_COUNT_FIELD,
+  PAYMENT_SLOTS,
   resolveStatusId,
   STATUS_FIELD,
 } from "#routes/admin/attendee-form-model.ts";
+import { ADJUSTMENT_DESCRIPTION_LIMIT } from "#shared/booking-inputs.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
 import { addDays } from "#shared/dates.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
@@ -73,9 +76,9 @@ const dayCountOptions = (startDate: string): SelectOption[] =>
 
 /** Shared start date + length for every daily listing. The length is a select
  * of day counts (the end date is derived, never edited directly). The
- * "availability inaccurate" notice shows until a date is saved, and a small
+ * "availability inaccurate" notice shows until a date is saved. A small
  * progressive-enhancement script (client/admin/attendee-dates.ts) re-shows it
- * when the dates are changed and reveals the length select once a start date is
+ * when the dates are changed. It reveals the length select once a start date is
  * set.
  *
  * The dates only apply to daily listings, so the whole section is hidden when
@@ -227,10 +230,29 @@ const ContactDetailFields = ({ data }: AttendeeFormProps): JSX.Element => (
   </>
 );
 
+/** One money block: the hint line, then one render per numbered slot. The
+ *  blocks are fixed blank-aligned, so the form needs no client script and a
+ *  rejected save keeps every value. Later money goes through the booking's
+ *  Ledger tab instead. */
+const MoneySlotsFields = ({
+  count,
+  hintKey,
+  renderSlot,
+}: {
+  count: number;
+  hintKey: string;
+  renderSlot: (slot: number) => JSX.Element;
+}): JSX.Element => (
+  <>
+    <p class="muted small">{t(hintKey)}</p>
+    {range(0, count).map(renderSlot)}
+  </>
+);
+
 /** The form's sections in order: contact details, then the custom questions
- * and shared dates when they apply, then the listing registrations. Each is a
- * legend-led {@link FormSection}, so a header can never regress to a bare
- * heading. */
+ * and shared dates when they apply, then the listing registrations, then the
+ * money an operator records now (create only). Each is a legend-led
+ * {@link FormSection}, so a header can never regress to a bare heading. */
 const editFormSections = (data: AttendeeFormTemplateData): FormSection[] =>
   compact([
     {
@@ -275,6 +297,65 @@ const editFormSections = (data: AttendeeFormTemplateData): FormSection[] =>
       ),
       legend: t("attendee_form.registrations_heading"),
     },
+    data.mode === "create"
+      ? {
+          children: (
+            <MoneySlotsFields
+              count={PAYMENT_SLOTS}
+              hintKey="attendee_form.payments_hint"
+              renderSlot={(slot) => (
+                <label for={`payment_amount_${slot}`}>
+                  {t("attendee_form.payment_amount", { slot: slot + 1 })}
+                  <input
+                    id={`payment_amount_${slot}`}
+                    min="1"
+                    name={`payment_amount_${slot}`}
+                    type="number"
+                    value={data.parsed.payments[slot] || ""}
+                  />
+                </label>
+              )}
+            />
+          ),
+          legend: t("attendee_form.payments_heading"),
+        }
+      : undefined,
+    data.mode === "create"
+      ? {
+          children: (
+            <MoneySlotsFields
+              count={ADJUSTMENT_SLOTS}
+              hintKey="attendee_form.adjustments_hint"
+              renderSlot={(slot) => (
+                <div>
+                  <label for={`adjustment_description_${slot}`}>
+                    {t("attendee_form.adjustment_description", {
+                      slot: slot + 1,
+                    })}
+                    <input
+                      id={`adjustment_description_${slot}`}
+                      maxlength={ADJUSTMENT_DESCRIPTION_LIMIT}
+                      name={`adjustment_description_${slot}`}
+                      type="text"
+                      value={data.parsed.adjustments[slot]?.description || ""}
+                    />
+                  </label>
+                  <label for={`adjustment_amount_${slot}`}>
+                    {t("attendee_form.adjustment_amount", { slot: slot + 1 })}
+                    <input
+                      id={`adjustment_amount_${slot}`}
+                      name={`adjustment_amount_${slot}`}
+                      type="number"
+                      value={data.parsed.adjustments[slot]?.amount || ""}
+                    />
+                  </label>
+                </div>
+              )}
+            />
+          ),
+          legend: t("attendee_form.adjustments_heading"),
+        }
+      : undefined,
   ]);
 
 const AttendeeEditForm = ({ data }: AttendeeFormProps): JSX.Element => {

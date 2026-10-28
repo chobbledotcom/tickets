@@ -2,12 +2,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { ListingAttendeeRow } from "#db/attendee-types.ts";
+import { resolveSharedDates } from "#routes/admin/attendee-form-dates.ts";
 import {
-  resolveSharedDates,
   toCreateInput,
   toDesiredLines,
-  validateParsedForm,
 } from "#routes/admin/attendee-form-model.ts";
+import { validateParsedForm } from "#routes/admin/attendee-form-validation.ts";
 import {
   line,
   parsedBase,

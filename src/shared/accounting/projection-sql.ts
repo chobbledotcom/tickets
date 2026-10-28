@@ -49,25 +49,33 @@ export const accountPredicate = (
  * the attendee to the listing's revenue account, scoped to the row's
  * `ledger_event_group`. The single home for "this row's sale leg" — shared by the
  * per-row amount-paid projection (`pricePaidFromLedger`) and the paid-line
- * existence check, so the two cannot drift. All three args are SQL column
- * expressions in the surrounding query (no leading `WHERE`).
+ * existence check, so the two cannot drift. No leading `WHERE`.
  */
-export const saleLegPredicate = (
+/** A SQL fragment keyed by the three ledger columns a booking's legs carry:
+ * the attendee, the listing's revenue account, and the booking's event group.
+ * Every argument is a SQL column expression in the surrounding query. */
+export type BookingLegSql = (
   attendeeIdExpr: string,
   listingIdExpr: string,
   eventGroupExpr: string,
-): string =>
+) => string;
+
+export const saleLegPredicate: BookingLegSql = (
+  attendeeIdExpr,
+  listingIdExpr,
+  eventGroupExpr,
+) =>
   `kind = '${KIND.sale}'` +
   ` AND ${accountPredicate("source", ATTENDEE, attendeeIdExpr)}` +
   ` AND ${accountPredicate("dest", REVENUE, listingIdExpr)}` +
   ` AND event_group = ${eventGroupExpr}`;
 
 /** One booking's recognised ticket price, including signed tax corrections. */
-export const bookingSaleTotalSubquery = (
-  attendeeIdExpr: string,
-  listingIdExpr: string,
-  eventGroupExpr: string,
-): string => {
+export const bookingSaleTotalSubquery: BookingLegSql = (
+  attendeeIdExpr,
+  listingIdExpr,
+  eventGroupExpr,
+) => {
   const credit = `${accountPredicate("source", ATTENDEE, attendeeIdExpr)} AND ${accountPredicate("dest", REVENUE, listingIdExpr)}`;
   const debit = `${accountPredicate("dest", ATTENDEE, attendeeIdExpr)} AND ${accountPredicate("source", REVENUE, listingIdExpr)}`;
   const original = `(${saleLegPredicate(attendeeIdExpr, listingIdExpr, eventGroupExpr)})`;

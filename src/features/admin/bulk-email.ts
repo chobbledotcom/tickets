@@ -1,4 +1,4 @@
-import { defineRoutes } from "#routes/router.ts";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 
 /**
  * Bulk email routes. Owner-only.
@@ -373,7 +373,7 @@ const handleSendPost = gatedPost(OWNER_FORM)(async (_session, _form) => {
   );
 });
 
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin/emails": handleComposeGet,
   "GET /admin/emails/preview": handlePreviewGet,
   "GET /admin/emails/templates/:id/delete": idRouteFor(templateDelete.get),

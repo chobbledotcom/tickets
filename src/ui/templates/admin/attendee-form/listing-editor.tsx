@@ -5,6 +5,7 @@ import {
   LINE_LISTING_PREFIX,
   LINE_PACKAGE_PREFIX,
   NO_QUANTITY_PREFIX,
+  PRICE_PREFIX,
   QTY_PREFIX,
 } from "#routes/admin/attendee-form-lines.ts";
 import {
@@ -27,6 +28,7 @@ import type {
 import { ErrorAlert } from "#templates/components/error.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
+import type { ListingWithCount } from "#types";
 
 /* jscpd:ignore-end */
 
@@ -58,11 +60,28 @@ const lineRowClass = (line: AttendeeFormLine, booked: boolean): string => {
     : "attendee-line attendee-line-empty";
 };
 
-const listingNameCell = (
+/** One row's cell: the line, the shared template data, and the row's index. */
+type ListingCell = (
   line: AttendeeFormLine,
   data: AttendeeFormTemplateData,
-): JSX.Element => {
-  const listing = line.listing!;
+  index: number,
+) => JSX.Element;
+
+/** A cell that reads the row's listing: the factory hands the cell the line's
+ *  listing, so the body starts from the listing it renders. */
+const listingCell =
+  (
+    render: (
+      listing: ListingWithCount,
+      line: AttendeeFormLine,
+      data: AttendeeFormTemplateData,
+      index: number,
+    ) => JSX.Element,
+  ): ListingCell =>
+  (line, data, index) =>
+    render(line.listing!, line, data, index);
+
+const listingNameCell = listingCell((listing, line, data) => {
   const label = pathLabel(line, data);
   return (
     <>
@@ -76,22 +95,17 @@ const listingNameCell = (
       })}
     </>
   );
-};
+});
 
-const listingDatesCell = (line: AttendeeFormLine): JSX.Element => (
+const listingDatesCell = listingCell((listing) => (
   <span class="muted small">
-    {line.listing!.listing_type === "daily"
+    {listing.listing_type === "daily"
       ? t("attendee_form.shared_dates")
       : t("attendee_form.fixed_date")}
   </span>
-);
+));
 
-const listingQuantityCell = (
-  line: AttendeeFormLine,
-  _data: AttendeeFormTemplateData,
-  index: number,
-): JSX.Element => {
-  const listing = line.listing!;
+const listingQuantityCell = listingCell((listing, line, _data, index) => {
   const paymentLocked = isPaymentLockedLine(line);
   return (
     <>
@@ -137,7 +151,7 @@ const listingQuantityCell = (
       ) : null}
     </>
   );
-};
+});
 
 const listingNoticesCell = (
   line: AttendeeFormLine,
@@ -161,6 +175,24 @@ const listingNoticesCell = (
   </>
 );
 
+/** The create form's agreed-price box: blank applies the package path's or the
+ *  listing's own price, so the placeholder names the price the row carries. */
+const listingPriceCell = listingCell((listing, line, _data, index) => {
+  const applies = line.packagePrice ?? listing.unit_price;
+  return (
+    <input
+      aria-label={t("attendee_form.price_aria", { title: listing.name })}
+      class="line-price"
+      min="0"
+      name={`${PRICE_PREFIX}${index}`}
+      placeholder={String(applies)}
+      title={t("attendee_form.price_hint")}
+      type="number"
+      value={line.priceRaw}
+    />
+  );
+});
+
 const listingColumns: readonly TableColumn<
   AttendeeFormLine,
   AttendeeFormTemplateData
@@ -181,6 +213,15 @@ const listingColumns: readonly TableColumn<
 ];
 
 const listingEditorTable = defineTable(listingColumns);
+
+/** The create form's editor: the standard columns plus the agreed-price box. */
+const createListingEditorTable = defineTable([
+  ...listingColumns.slice(0, 3),
+  translatedTableColumn("price", "attendee_form.col_price", listingPriceCell, {
+    className: "attendee-line-price",
+  }),
+  ...listingColumns.slice(3),
+]);
 
 /** The fixed listing editor with one quantity box per booking path. */
 export const ListingEditor = ({ data }: AttendeeFormProps): JSX.Element => {
@@ -208,16 +249,20 @@ export const ListingEditor = ({ data }: AttendeeFormProps): JSX.Element => {
           {t("attendee_form.show_package_paths")}
         </label>
       )}
-      {renderTable(listingEditorTable, data.parsed.lines, {
-        context: data,
-        rowAttrs: (line) => ({
-          class: lineRowClass(
-            line,
-            isRetainedLine(line) || Boolean(line.existingBooking),
-          ),
-        }),
-        tableClass: "line-editor",
-      })}
+      {renderTable(
+        data.mode === "create" ? createListingEditorTable : listingEditorTable,
+        data.parsed.lines,
+        {
+          context: data,
+          rowAttrs: (line) => ({
+            class: lineRowClass(
+              line,
+              isRetainedLine(line) || Boolean(line.existingBooking),
+            ),
+          }),
+          tableClass: "line-editor",
+        },
+      )}
     </div>
   );
 };

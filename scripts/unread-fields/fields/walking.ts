@@ -6,6 +6,7 @@
 
 import ts from "typescript";
 import { filter } from "#fp";
+import { onlyWraps } from "#scripts/unread-fields/writes.ts";
 import {
   holdsElements,
   holdsKeysAndValues,
@@ -67,6 +68,20 @@ const answeredWith = (
 const holdsOnlyCode = (node: ts.Node): boolean =>
   ts.isFunctionLike(node) || ts.isClassStaticBlockDeclaration(node);
 
+/** A value expression whose shape is the type it gives a field. An object
+ * literal and an array literal form their own type, and a class expression
+ * is the class it makes, so the walk goes into all three. The wrappers that
+ * change nothing — parentheses, a `!`, an `as`, a `satisfies`, and an
+ * angle-bracket assertion — pass a literal on unchanged. Every other value
+ * expression, a call or an access, hands back a type of its own: the object
+ * literal that supplies a call's argument is nobody's to read off the
+ * field. */
+const givesAType = (node: ts.Node): boolean =>
+  ts.isObjectLiteralExpression(node) ||
+  ts.isArrayLiteralExpression(node) ||
+  ts.isClassExpression(node) ||
+  onlyWraps(node);
+
 /** The parts of a generic the walk goes on through. A generic that hides its
  * argument keeps its own parts only, so the checker path carries the
  * argument's fields instead. */
@@ -111,7 +126,13 @@ const worthWalking =
     ) {
       return partsOfTheGeneric(node);
     }
-    if (!holdsOnlyCode(node)) return () => true;
+    if (!holdsOnlyCode(node)) {
+      // The walk reads type syntax, so a value expression joins it only when
+      // it is the type a field hands out. A call's argument is a value that
+      // never sits on the field's path.
+      if (ts.isExpression(node) && !givesAType(node)) return () => false;
+      return () => true;
+    }
     return (part) => ts.isTypeNode(part) || ts.isParameter(part);
   };
 

@@ -1,13 +1,11 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   alsoAbout,
-  encryptedPaymentColumn,
-  encryptedPaymentColumnOrNull,
   keyWords,
   madeAndTouched,
   ownerEncryptedPaymentColumn,
+  ownerEncryptedPaymentColumnOrNull,
   paymentRecord,
   wholeNumber,
   wholeNumberOrNull,
@@ -41,24 +39,16 @@ describe("the kinds of column a payment record is built from", () => {
   // column rather than what the code meant to put there — the one thing
   // TypeScript cannot see, since a type says "string" while the value is
   // bytes.
-  test("a hidden value must really be text, and carry every part", () => {
-    expect(encryptedPaymentColumn("evidence")).toBe(
-      "TEXT NOT NULL CHECK ((typeof(evidence) = 'text' AND evidence GLOB 'enc:1:?*:?*' AND evidence NOT GLOB 'enc:1:*:*:*'))",
+  test("an owner-only value must really be text, and carry every part", () => {
+    expect(ownerEncryptedPaymentColumn("evidence")).toBe(
+      "TEXT NOT NULL CHECK ((typeof(evidence) = 'text' AND evidence GLOB 'hyb:1:?*:?*:?*' AND evidence NOT GLOB 'hyb:1:*:*:*:*'))",
     );
   });
 
-  test("a hidden value that may be missing is checked only when it is there", () => {
-    expect(encryptedPaymentColumnOrNull("decision")).toBe(
-      "(decision IS NULL OR (typeof(decision) = 'text' AND decision GLOB 'enc:1:?*:?*' AND decision NOT GLOB 'enc:1:*:*:*'))",
+  test("an owner-only value that may be missing is checked only when it is there", () => {
+    expect(ownerEncryptedPaymentColumnOrNull("decision")).toBe(
+      "(decision IS NULL OR (typeof(decision) = 'text' AND decision GLOB 'hyb:1:?*:?*:?*' AND decision NOT GLOB 'hyb:1:*:*:*:*'))",
     );
-  });
-
-  test("an owner-only value must carry the public-key envelope", () => {
-    const rule = ownerEncryptedPaymentColumn("provider_reference");
-
-    assertStringIncludes(rule, "provider_reference GLOB 'hyb:1:?*:?*:?*'");
-    assertStringIncludes(rule, "provider_reference NOT GLOB 'hyb:1:*:*:*:*'");
-    assertStringIncludes(rule, "typeof(provider_reference) = 'text'");
   });
 
   test("every record says when it was made and last touched", () => {

@@ -45,14 +45,22 @@ export const rememberListing = (
 export const listingNamed = (world: TicketsWorld, name: string): Listing =>
   world.things.require("listing", name);
 
+/** Remember the thing a step just made or found under the story's name for it
+ * — the one shape every "handed a listing" step takes, by id or by creation. */
+const rememberMadeListing = async (
+  world: TicketsWorld,
+  name: string,
+  made: Promise<Listing>,
+): Promise<Listing> => rememberListing(world, name, await made);
+
 /** Keep the listing with this id, for a story that made one through a form
  * and was handed nothing but its id back. */
-export const rememberListingById = async (
+export const rememberListingById = (
   world: TicketsWorld,
   name: string,
   id: number,
 ): Promise<Listing> =>
-  rememberListing(world, name, await requireListingWithCount(id));
+  rememberMadeListing(world, name, requireListingWithCount(id));
 
 /** The id of the listing a story set up under this name. */
 export const listingIdNamed = (world: TicketsWorld, name: string): number =>
@@ -81,7 +89,7 @@ const putsUpForSale =
     name: string,
     options: TestListingOverrides = {},
   ): Promise<Listing> =>
-    rememberListing(world, name, await make({ ...options, name }));
+    rememberMadeListing(world, name, make({ ...options, name }));
 
 export const putsOnSale = putsUpForSale(createTestListing);
 export const putsOnSaleByTheDay = putsUpForSale(createDailyTestListing);
@@ -189,10 +197,8 @@ export const tickOnListingTab = async (
   saidAfter: string,
 ): Promise<void> => {
   const listing = listingNamed(world, listingName);
-  const browser = await openAdminPage(
-    world,
-    `/admin/listing/${listing.id}/${tab}`,
-  );
+  const tabPage = `/admin/listing/${listing.id}/${tab}`;
+  const browser = await openAdminPage(world, tabPage);
   requireCheckboxOffered(browser.currentHtml, field, String(boxId));
   await fillInAndSend(browser, { [field]: String(boxId) }, "Save");
   assertStringIncludes(browser.pageText, saidAfter);

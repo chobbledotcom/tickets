@@ -20,11 +20,14 @@ export const holidayInput = (
   startDate: dates.startDate,
 });
 
+/** The stored holiday columns the date reads fall back to on update. */
+export type StoredHolidayDates = { end_date: string; start_date: string };
+
 /** Read the start and end dates of one holiday: required on create, falling
  *  back to the stored dates on update. */
 export const readDates = (
   body: Record<string, unknown>,
-  existing: { end_date: string; start_date: string } | null,
+  existing: StoredHolidayDates | null,
 ): Result<{ endDate: DateString; startDate: DateString }> =>
   dateRange(
     existing

@@ -9,7 +9,6 @@ import { t } from "#i18n";
 import { ORGANISER, scenarioBrowser } from "#test/specs/support/browser.ts";
 import {
   addressesWrittenTo,
-  addressOf,
   bookedOnto,
   bookersFor,
   listingOffersEmailAction,
@@ -28,6 +27,7 @@ import {
   writtenMessage,
 } from "#test/specs/support/bulk-email.ts";
 import { asksNotToHearAboutPromotions } from "#test/specs/support/email-choices.ts";
+import { emailFor } from "#test/specs/support/emails.ts";
 import {
   type TicketsWorld,
   whatTheyWereTold,
@@ -129,14 +129,14 @@ When(
 Then(
   "it was written to {string}",
   function (this: TicketsWorld, who: string): void {
-    assertArrayIncludes(addressesWrittenTo(this), [addressOf(who)]);
+    assertArrayIncludes(addressesWrittenTo(this), [emailFor(who)]);
   },
 );
 
 Then(
   "nothing was written to {string}",
   function (this: TicketsWorld, who: string): void {
-    assert(!addressesWrittenTo(this).includes(addressOf(who)));
+    assert(!addressesWrittenTo(this).includes(emailFor(who)));
   },
 );
 

@@ -17,8 +17,14 @@
   "absolute": false,
   "gitignore": true,
   "exitCode": 1,
+  "ignoreIdentifiers": true,
+  "ignoreLiterals": true,
+  "ignoreAnnotations": true,
+  "kind": [
+    "exact"
+  ],
   "minLines": 1,
-  "minTokens": 17,
+  "minTokens": 15,
   "path": [
     "test/specs/support"
   ]

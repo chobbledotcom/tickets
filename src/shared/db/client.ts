@@ -15,7 +15,12 @@ import type {
 } from "@libsql/client";
 import { createDatabaseClient } from "#db/database-client.ts";
 import { classifyDatabaseError, DATABASE_RETRY } from "#db/errors.ts";
-import { beginTransaction, wrapExecute } from "#db/libsql-call.ts";
+import {
+  beginTransaction,
+  type TransactionOperation,
+  wrapExecute,
+  wrapTransactionOperations,
+} from "#db/libsql-call.ts";
 import { mustReadFromPrimary } from "#db/primary-reads.ts";
 import {
   countDatabaseRoundTrip,
@@ -139,10 +144,6 @@ const executeWithRoundTrip =
       around(statement, () => databaseRoundTrip(operation, execute)),
     );
 
-const executeWithRoundTripGuard = executeWithRoundTrip((_statement, execute) =>
-  execute(),
-);
-
 /** Count and retry a bare client statement. Transaction statements use only the
  * round-trip guard above: the transaction runner owns the retry decision. */
 const executeWithTransientRetry = executeWithRoundTrip((statement, execute) =>
@@ -151,32 +152,29 @@ const executeWithTransientRetry = executeWithRoundTrip((statement, execute) =>
   }),
 );
 
+/** The subrequest-budget label each interactive transaction operation counts
+ * against. */
+const TRANSACTION_OPERATION: Record<TransactionOperation, string> = {
+  batch: "transaction batch",
+  commit: "transaction commit",
+  execute: "transaction statement",
+  executeMultiple: "transaction script",
+  rollback: "transaction rollback",
+};
+
 const transactionWithRoundTripGuard = (transaction: Transaction): Transaction =>
-  proxyMembers(transaction, {
-    batch: (statements: InStatement[]) =>
-      databaseRoundTrip("transaction batch", () =>
-        transaction.batch(statements),
-      ),
-    commit: (): Promise<void> =>
-      databaseRoundTrip("transaction commit", () => transaction.commit()),
-    execute: executeWithRoundTripGuard(transaction, "transaction statement"),
-    executeMultiple: (sql: string): Promise<void> =>
-      databaseRoundTrip("transaction script", () =>
-        transaction.executeMultiple(sql),
-      ),
+  wrapTransactionOperations(transaction, (operation, run) =>
     // Rollback is mandatory cleanup: an interactive transaction left open (its
     // rollback blocked) poisons the shared write connection for the rest of the
     // request. It is counted like any other subrequest — so the running total
     // stays accurate for later calls — but never blocked, so it always runs even
-    // once the budget is spent (within the migration reserve, or on any path
-    // that still has real headroom below Bunny's hard cap).
-    rollback: (): Promise<void> =>
-      databaseRoundTrip(
-        "transaction rollback",
-        () => transaction.rollback(),
-        false,
-      ),
-  });
+    // once the budget is spent.
+    databaseRoundTrip(
+      TRANSACTION_OPERATION[operation],
+      run,
+      operation !== "rollback",
+    ),
+  );
 
 const guardedClients = new WeakMap<Client, Client>();
 

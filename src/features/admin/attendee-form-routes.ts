@@ -21,13 +21,13 @@ import {
   type ParsedAttendeeForm,
   parseAttendeeForm,
   resolveStatusId,
-  validateParsedForm,
 } from "#routes/admin/attendee-form-model.ts";
 import {
   applyCreate,
   applyEdit,
   type SaveOutcome,
 } from "#routes/admin/attendee-form-save.ts";
+import { validateParsedForm } from "#routes/admin/attendee-form-validation.ts";
 import { parseLogisticsPlan } from "#routes/admin/attendee-logistics.ts";
 import { attendeePage } from "#routes/admin/attendee-page.ts";
 import {
@@ -52,6 +52,7 @@ import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
+
 import {
   ATTENDEE_DEMO_FIELDS,
   loadAfterDemoOverrides,

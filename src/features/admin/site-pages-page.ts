@@ -29,6 +29,7 @@ const itemsTab = writeFormTab<SitePage>(
 /** The tabbed site-page page. */
 export const sitePageEntityPage: EntityPage<SitePage> =
   defineSiteContentPage<SitePage>({
+    deleteDestination: "sitePageDelete",
     deleteLabelKey: "site.pages.delete_submit",
     destination: "sitePage",
     editPanel: sitePageEditPanel,

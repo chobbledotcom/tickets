@@ -115,16 +115,6 @@ type MachineContract = {
 
 type MachineLoader = () => Promise<MachineContract>;
 
-/** One machine's loader: import its spec module, then derive the contract
- * from that module's own declarations. */
-const machineLoader =
-  <Spec>(
-    load: () => Promise<Spec>,
-    contract: (spec: Spec) => Promise<MachineContract>,
-  ): MachineLoader =>
-  () =>
-    load().then(contract);
-
 /** One machine's declared contract: its events beside its declared table,
  * the table read through the dump's own validator. A table that comes from
  * its own module carries that module's specifier, so a not-found error can
@@ -143,67 +133,80 @@ const machineContract = async (
   events,
 });
 
+/** Loads a machine whose events and declared table its own spec module
+ * exports under the given keys. The dump's test pins every machine, so a
+ * wrong key fails the suite instead of shipping a silent gap. */
+const ownMachineLoader =
+  (
+    machineId: string,
+    eventsKey: string,
+    movesKey: string,
+    specifier: string,
+  ): MachineLoader =>
+  () =>
+    import(specifier).then((module: Record<string, unknown>) =>
+      machineContract(
+        machineId,
+        module[eventsKey] as MachineEvents,
+        () => module[movesKey],
+      ),
+    );
+
+/** Loads a machine whose declared table lives in a test moves module. The
+ * call sites keep literal imports — the base-dump child resolves a variable
+ * specifier only with read permission it does not hold (issue #2740) — so
+ * this helper owns the shape the call sites would otherwise repeat. */
+const expectedMovesLoader =
+  (
+    machineId: string,
+    events: () => Promise<MachineEvents>,
+    moves: () => Promise<{ EXPECTED_MOVES: unknown }>,
+    movesModule: string,
+  ): MachineLoader =>
+  async () =>
+    machineContract(
+      machineId,
+      await events(),
+      async () => (await moves()).EXPECTED_MOVES,
+      movesModule,
+    );
+
 const MACHINE_LOADERS: Readonly<Record<string, MachineLoader>> = {
-  refund: machineLoader(
-    () => import("#payment/refund-machine-spec.ts"),
-    (m) => machineContract("refund", m.REFUND_EVENTS, () => m.EXPECTED_MOVES),
+  refund: ownMachineLoader(
+    "refund",
+    "REFUND_EVENTS",
+    "EXPECTED_MOVES",
+    "#payment/refund-machine-spec.ts",
   ),
-  review: machineLoader(
-    () => import("#payment/review-machine-spec.ts"),
-    (m) =>
-      machineContract(
-        "review",
-        m.REVIEW_EVENTS,
-        () =>
-          import(
-            "#test/shared/payment/review-machine-spec/expected-moves.ts"
-          ).then((t) => t.EXPECTED_MOVES),
-        "#test/shared/payment/review-machine-spec/expected-moves.ts",
-      ),
+  review: expectedMovesLoader(
+    "review",
+    async () => (await import("#payment/review-machine-spec.ts")).REVIEW_EVENTS,
+    () => import("#test/shared/payment/review-machine-spec/expected-moves.ts"),
+    "#test/shared/payment/review-machine-spec/expected-moves.ts",
   ),
-  row: machineLoader(
-    () => import("#payment/row-machine-spec.ts"),
-    (m) =>
-      machineContract(
-        "row",
-        m.ROW_EVENTS,
-        () =>
-          import(
-            "#test/shared/payment/row-machine-spec/expected-moves.ts"
-          ).then((t) => t.EXPECTED_MOVES),
-        "#test/shared/payment/row-machine-spec/expected-moves.ts",
-      ),
+  row: expectedMovesLoader(
+    "row",
+    async () => (await import("#payment/row-machine-spec.ts")).ROW_EVENTS,
+    () => import("#test/shared/payment/row-machine-spec/expected-moves.ts"),
+    "#test/shared/payment/row-machine-spec/expected-moves.ts",
   ),
-  square_link_ends: machineLoader(
-    () => import("#payment/square-link-end-machine-spec.ts"),
-    (m) =>
-      machineContract(
-        "square_link_ends",
-        m.LINK_END_EVENTS,
-        () => m.LINK_END_MOVES,
-      ),
+  square_link_ends: ownMachineLoader(
+    "square_link_ends",
+    "LINK_END_EVENTS",
+    "LINK_END_MOVES",
+    "#payment/square-link-end-machine-spec.ts",
   ),
-  sumup_recovery: machineLoader(
-    () => import("#payment/sumup-recovery-machine-spec.ts"),
-    (m) =>
-      machineContract(
-        "sumup_recovery",
-        m.RECOVERY_EVENTS,
-        () => m.RECOVERY_MOVES,
-      ),
+  sumup_recovery: ownMachineLoader(
+    "sumup_recovery",
+    "RECOVERY_EVENTS",
+    "RECOVERY_MOVES",
+    "#payment/sumup-recovery-machine-spec.ts",
   ),
-  vat: machineLoader(
-    () => import("#shared/tax/machine-spec.ts"),
-    (m) =>
-      machineContract(
-        "vat",
-        m.TAX_EVENTS,
-        () =>
-          import("#test/shared/tax/machine-spec/expected-moves.ts").then(
-            (t) => t.EXPECTED_MOVES,
-          ),
-        "#test/shared/tax/machine-spec/expected-moves.ts",
-      ),
+  vat: expectedMovesLoader(
+    "vat",
+    async () => (await import("#shared/tax/machine-spec.ts")).TAX_EVENTS,
+    () => import("#test/shared/tax/machine-spec/expected-moves.ts"),
+    "#test/shared/tax/machine-spec/expected-moves.ts",
   ),
 };
 

@@ -77,9 +77,12 @@ const chooserOffered = (
   return chooser;
 };
 
+/** One field's own markup on a page, or null when the page does not render it. */
+type OneFieldOnAPage = (page: string, field: string) => string | null;
+
 /** The box the visitor types in for one field, if it is one — its opening tag,
  * so its attributes can be read. */
-export const boxFor = (page: string, field: string): string | null => {
+export const boxFor: OneFieldOnAPage = (page, field) => {
   for (const box of withoutSwitchedOffGroups(page).matchAll(
     /<(?:input|textarea)\s([^>]*)>/g,
   )) {
@@ -129,7 +132,7 @@ export const optionMarkedChosen = (options: string): string | null =>
  * (`chosenByDefault` in rules.ts answers the what-would-the-browser-send
  * question). Throws when the page has no such dropdown, so "nothing is
  * picked" and "the control is missing" stay separate failures. */
-export const optionChosen = (html: string, field: string): string | null => {
+export const optionChosen: OneFieldOnAPage = (html, field) => {
   const marked = optionMarkedChosen(chooserOffered(html, field).options);
   return marked === null ? null : (attribute(marked, "value") ?? "");
 };

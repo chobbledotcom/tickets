@@ -302,7 +302,6 @@ export const ANY_USER_FORM: AuthPolicy<"form"> = {
   body: "form",
   roles: ALL_ADMIN_LEVELS,
 };
-export const AUTH_MULTIPART: AuthPolicy<"multipart"> = { body: "multipart" };
 export const OWNER_MULTIPART: AuthPolicy<"multipart"> = {
   body: "multipart",
   role: "owner",

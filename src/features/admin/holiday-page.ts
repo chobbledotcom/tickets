@@ -16,6 +16,7 @@ import { HolidayEditPanel } from "#templates/admin/holidays.tsx";
 /* jscpd:ignore-end */
 
 export const holidayPage: EditEntityPage<Holiday> = defineEditEntityPage({
+  deleteDestination: "holidayDelete",
   deleteLabelKey: "holidays.delete.submit",
   destination: "holiday",
   edit: (holiday, _ctx, rejected) =>
@@ -24,4 +25,5 @@ export const holidayPage: EditEntityPage<Holiday> = defineEditEntityPage({
     ),
   load: (id) => holidays.table.read.one({ id }),
   navActive: adminPattern("holidays"),
+  recordId: (holiday) => holiday.id,
 });

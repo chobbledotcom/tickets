@@ -113,9 +113,11 @@ type OpensAction = (
   attendeeName: string,
 ) => Promise<RefundWindows>;
 
-const opensAction =
-  (window: "first" | "second", action: OwnerAction): OpensAction =>
-  async (windows, attendeeId, attendeeName) => {
+function opensAction(
+  window: "first" | "second",
+  action: OwnerAction,
+): OpensAction {
+  return async (windows, attendeeId, attendeeName) => {
     const opened = await openActionForm(
       windows[window],
       attendeeId,
@@ -131,6 +133,7 @@ const opensAction =
     }
     return windows;
   };
+}
 
 /** Open only the first window's refund form, leaving the second for a merge. */
 export const openRefundInFirstWindow: OpensAction = opensAction(
@@ -254,10 +257,11 @@ export const startRefundAndWait = async (
   return running;
 };
 
+/** One later step on the two owner windows, ending with a browser to return. */
+type WindowStep = (windows: RefundWindows) => Promise<TestBrowser>;
+
 /** Submit the second window while the first provider answer remains paused. */
-export const submitSecond = async (
-  windows: RefundWindows,
-): Promise<TestBrowser> => {
+export const submitSecond: WindowStep = async (windows) => {
   runningRefund(windows);
   const second = secondPreparedForm(windows);
   await submitRenderedForm(second);
@@ -265,9 +269,7 @@ export const submitSecond = async (
 };
 
 /** Release the provider and wait until both it and the first browser finish. */
-export const releaseAndWait = async (
-  windows: RefundWindows,
-): Promise<TestBrowser> => {
+export const releaseAndWait: WindowStep = async (windows) => {
   const running = runningRefund(windows);
   running.pause.release();
   await Promise.all([running.pause.finished, running.submission]);

@@ -29,7 +29,7 @@ import { queryOne } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
 import { attendeeTaxSaveWork } from "#routes/admin/attendee-tax.ts";
 import {
-  manualAddLedgerPoster,
+  apiCreateLedgerPoster,
   postBookingLegsTx,
 } from "#shared/checkout-complete.ts";
 import { listPriceOrder } from "#shared/checkout-pricing.ts";
@@ -57,7 +57,7 @@ const occurredAt = "2026-10-27T10:00:00.000Z";
 /** Post one legacy booking's legs straight through the production mapper, so
  * the stored transfers are exactly what the pre-tax code wrote. */
 const postLegacyLegs = async (
-  tx: Parameters<ReturnType<typeof manualAddLedgerPoster>>[0],
+  tx: Parameters<ReturnType<typeof apiCreateLedgerPoster>>[0],
   attendeeId: number,
   lines: readonly { gross: number; listingId: number }[],
   modifiers: readonly { delta: number; modifierId: number }[],
@@ -86,7 +86,7 @@ const booking = async (legacy = false) => {
   });
   const work = legacy
     ? async (
-        tx: Parameters<ReturnType<typeof manualAddLedgerPoster>>[0],
+        tx: Parameters<ReturnType<typeof apiCreateLedgerPoster>>[0],
         attendeeId: number,
       ) => {
         await postLegacyLegs(
@@ -96,7 +96,10 @@ const booking = async (legacy = false) => {
           [],
         );
       }
-    : manualAddLedgerPoster(listPriceOrder([{ listing, quantity: 1 }]));
+    : apiCreateLedgerPoster(listPriceOrder([{ listing, quantity: 1 }]), {
+        adjustments: [],
+        payments: [],
+      });
   const attendee = bookedAttendee(
     await createAttendeeAtomicImpl(
       {
@@ -378,7 +381,7 @@ describeWithEnv("tax > explicit attendee saves", { db: true }, () => {
       name: direction === "charge" ? "Add-on" : "Discount",
     });
     const work = async (
-      tx: Parameters<ReturnType<typeof manualAddLedgerPoster>>[0],
+      tx: Parameters<ReturnType<typeof apiCreateLedgerPoster>>[0],
       attendeeId: number,
     ) => {
       await postLegacyLegs(

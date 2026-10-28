@@ -9,7 +9,7 @@
 import { planBookingPayment } from "#booking/payment-plan.ts";
 import { requirePublicStatusId } from "#db/attendee-statuses.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
-import { manualAddLedgerPoster } from "#shared/checkout-complete.ts";
+import { apiCreateLedgerPoster } from "#shared/checkout-complete.ts";
 import { listPriceOrder } from "#shared/checkout-pricing.ts";
 import { isPaymentsEnabled } from "#shared/config.ts";
 import type { EmailEntry } from "#shared/email.ts";
@@ -125,7 +125,7 @@ export const processBooking = async (
       remainingBalance,
       statusId: await requirePublicStatusId(),
     },
-    manualAddLedgerPoster(order),
+    apiCreateLedgerPoster(order, { adjustments: [], payments: [] }),
   );
 
   if (!result.success) {

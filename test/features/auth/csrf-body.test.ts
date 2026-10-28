@@ -10,13 +10,7 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import {
-  ADMIN_API,
-  AUTH_FORM,
-  AUTH_MULTIPART,
-  SCANNER_JSON,
-  withAuth,
-} from "#routes/auth.ts";
+import { ADMIN_API, AUTH_FORM, SCANNER_JSON, withAuth } from "#routes/auth.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
@@ -249,7 +243,7 @@ carriesItsTokenInAField("a form submission", formBody, (request) =>
 );
 
 carriesItsTokenInAField("a multipart submission", multipartBody, (request) =>
-  withAuth(request, AUTH_MULTIPART, (_session, formData) =>
+  withAuth(request, { body: "multipart" }, (_session, formData) =>
     Promise.resolve(new Response(String(formData.get("hello")))),
   ),
 );

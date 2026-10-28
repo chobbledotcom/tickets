@@ -7,6 +7,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   decodeEntities,
   findAllNavLinks,
+  regionOutOf,
 } from "#test-utils/test-browser/parsing.ts";
 
 describe("decodeEntities", () => {
@@ -57,5 +58,35 @@ describe("findAllNavLinks", () => {
         '<p>Read <a href="/page/how-to-find-us">the directions</a>.</p>',
       ),
     ).toEqual([]);
+  });
+});
+
+describe("regionOutOf", () => {
+  test("slices from the opening marker to the close", () => {
+    expect(
+      regionOutOf(
+        '<div class="a">middle</div>',
+        '<div class="a">',
+        "</div>",
+        "a",
+      ),
+    ).toBe('<div class="a">middle');
+  });
+
+  test("refuses a page that renders no such region", () => {
+    expect(() =>
+      regionOutOf("nothing here", "<main>", "</main>", "main"),
+    ).toThrow("the page renders no main");
+  });
+
+  test("refuses a region that never closes", () => {
+    expect(() =>
+      regionOutOf(
+        '<div class="a">never closed',
+        '<div class="a">',
+        "</div>",
+        "a",
+      ),
+    ).toThrow("the page renders no a");
   });
 });

@@ -23,11 +23,11 @@ import {
   type RefundCounts,
 } from "#routes/admin/refunds/provider.ts";
 import { refundReferenceProblemMessage } from "#routes/admin/refunds/readiness-problem.ts";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import { requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { ownerFormById } from "#routes/entity.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
-import { defineRoutes } from "#routes/router.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { fail, ok } from "#shared/response.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -306,7 +306,7 @@ const handleAdminRefundAllPost = ownerFormById(async (id, _session, form) => {
 });
 
 /** Routes that refund every eligible attendee on a listing. */
-export const bulkRefundHandlers = defineRoutes({
+export const bulkRefundHandlers = defineAdminRoutes({
   "GET /admin/listing/:id/refund-all": handleAdminRefundAllGet,
   "POST /admin/listing/:id/refund-all": handleAdminRefundAllPost,
 });

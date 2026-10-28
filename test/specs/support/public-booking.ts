@@ -11,11 +11,11 @@
  * a single listing is a list of one.
  */
 
+// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { bookingError } from "#booking/form.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
-// jscpd:ignore-start
 import {
   CUSTOMER,
   openAsNewcomer,
@@ -106,7 +106,7 @@ export interface OrderInHand extends FilledOrder {
 /** Somebody works through an order on a page the site serves. What comes back
  * differs — the order still on screen, or what happened when it was sent — so
  * the result is the part each one names for itself. */
-type FillsInOrder<Result> = (
+export type FillsInOrder<Result> = (
   path: string,
   lines: OrderLine[],
   choices: BookingChoices,

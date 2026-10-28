@@ -16,7 +16,6 @@ import { listingIdNamed } from "#test/specs/support/listings.ts";
 import {
   askForRefund,
   bookFreePlace,
-  bookingId,
   buyOnePlace,
   correctIncomeTo,
   expectRefundMessage,
@@ -35,7 +34,7 @@ import {
   sumOfAllBalances,
   worldBalance,
 } from "#test/specs/support/money-reads.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { type TicketsWorld, theBooking } from "#test/specs/support/world.ts";
 import { singleItem } from "#test-utils/factories.ts";
 
 // jscpd:ignore-end
@@ -75,9 +74,9 @@ When(
 Then(
   "no money is recorded for the booking",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await owedBy(bookingId(this))).toBe(0);
+    expect(await owedBy(theBooking(this))).toBe(0);
     expect(
-      (await transfersByAccount(attendeeAccount(bookingId(this)))).length,
+      (await transfersByAccount(attendeeAccount(theBooking(this)))).length,
     ).toBe(0);
     expect(await incomeOf(listingIdNamed(this, FREE_MEETUP))).toBe(0);
   },
@@ -130,8 +129,8 @@ Then(
   "the Show has still earned 45.00 and no money was handed back",
   async function (this: TicketsWorld): Promise<void> {
     expect(await incomeOf(listingIdNamed(this, SHOW))).toBe(4500);
-    expect(await owedBy(bookingId(this))).toBe(0);
-    const legs = await transfersByAccount(attendeeAccount(bookingId(this)));
+    expect(await owedBy(theBooking(this))).toBe(0);
+    const legs = await transfersByAccount(attendeeAccount(theBooking(this)));
     expect(legsOfKind(legs, "refund_cash").length).toBe(0);
     expect(kindsOf(legs)).toEqual(["payment", "sale"]);
     expect(await sumOfAllBalances()).toBe(0);
@@ -166,7 +165,7 @@ Then(
       1,
     );
     expect(
-      kindsOf(await transfersByAccount(attendeeAccount(bookingId(this)))),
+      kindsOf(await transfersByAccount(attendeeAccount(theBooking(this)))),
     ).toEqual(["payment", "sale"]);
     expect(await sumOfAllBalances()).toBe(0);
   },

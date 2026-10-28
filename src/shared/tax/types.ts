@@ -29,16 +29,19 @@ const TaxModifierSchema = v.strictObject({
   delta: integerAtLeast(Number.MIN_SAFE_INTEGER),
   modifierId: integerAtLeast(1),
 });
-export const TaxBasisSchema = v.strictObject({
+/** The priced lines and modifier deltas one tax computation carries. The
+ * assessment embeds this group as its basis and repeats the two lists at the
+ * top level of the stored object. */
+const TaxEntriesSchema = {
   lines: v.array(TaxLineSchema),
   modifiers: v.array(TaxModifierSchema),
-});
+};
+export const TaxBasisSchema = v.strictObject(TaxEntriesSchema);
 export type TaxBasis = v.InferOutput<typeof TaxBasisSchema>;
 
 export const TaxAssessmentSchema = v.strictObject({
   basis: TaxBasisSchema,
-  lines: v.array(TaxLineSchema),
-  modifiers: v.array(TaxModifierSchema),
+  ...TaxEntriesSchema,
   policy: TaxPolicySchema,
   taxAmount: integerAtLeast(0),
   taxableTotal: integerAtLeast(0),

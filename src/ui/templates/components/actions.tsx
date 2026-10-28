@@ -105,15 +105,17 @@ export const SaveActions = ({ children }: { children?: Child }): SafeHtml => (
   </p>
 );
 
-/** The standard "Save changes" submit button used on admin edit pages. */
-export const SaveChangesButton = (): SafeHtml => (
-  <SubmitButton icon="save">{t("common.save_changes")}</SubmitButton>
+/** The "Save" submit button with the given label. */
+const saveButton = (labelKey: string): SafeHtml => (
+  <SubmitButton icon="save">{t(labelKey)}</SubmitButton>
 );
 
+/** The standard "Save changes" submit button used on admin edit pages. */
+export const SaveChangesButton = (): SafeHtml =>
+  saveButton("common.save_changes");
+
 /** The "Save" submit button (shorter label than SaveChangesButton). */
-export const SaveButton = (): SafeHtml => (
-  <SubmitButton icon="save">{t("common.save")}</SubmitButton>
-);
+export const SaveButton = (): SafeHtml => saveButton("common.save");
 
 /**
  * Render `children` as an inert `<span>` or as an `<a>` link — one markup shape
@@ -247,7 +249,18 @@ export const GuideFooter = ({
   );
 
 /** A footer that links one Guide section, labelled from the catalog. The
- * staff-only pages it serves may always render the link. */
-export const guideFooterFor = (href: string, labelKey: string): SafeHtml => (
-  <GuideFooter href={href}>{t(labelKey)}</GuideFooter>
+ *  staff-only pages it serves may always render the link. A page that an
+ *  editor or agent can also reach passes the viewer's admin level, so the
+ *  footer hides the link from non-staff. */
+export const guideFooterFor = (
+  href: string,
+  labelKey: string,
+  adminLevel?: AdminLevel,
+): SafeHtml => (
+  <GuideFooter
+    href={href}
+    {...(adminLevel !== undefined ? { adminLevel } : {})}
+  >
+    {t(labelKey)}
+  </GuideFooter>
 );

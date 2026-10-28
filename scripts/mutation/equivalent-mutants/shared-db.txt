@@ -118,6 +118,12 @@ src/shared/db/groups/membership/package-writes.ts::packageGroupMembersErrorTx~1n
 src/shared/accounting/queries.ts::transfersByAccounts~1uo1zuf  ?? → || audited:1o7wako # Map.groupBy returns a transfer wrapper array or undefined, and every array is truthy
 src/shared/accounting/queries.ts::listingLegScope.clause~0hguk0m  0 → "" audited:1o7wako # matchesNothing is true for this clause, so rowsUnlessNoneMatch returns an empty result without reading clause
 
+# Attendee statuses (db/attendee-statuses.ts) — the public-default fallback in
+# the shared create resolver. The seed inserts a public default and the status
+# save and delete refuse to remove the last one, so no write path can make the
+# state the message names.
+src/shared/db/attendee-statuses.ts::publicDefaultStatusOf~1ouecqb  No public default status is configured→""  audited:0jpbm0m # the seed inserts a public default and the status save and delete refuse to remove the last one, so no write path can make the state the message names
+
 # Attendee PII (db/attendees/pii.ts) — three provably-equivalent survivors.
 src/shared/db/attendees/pii.ts::buildPiiBlob~1r4bpwk  attendees.pii_blob → "" audited:0n37kv2 # buildPiiBlob receives AttendeePii: every field is already a string, and it supplies the only literal/version fields itself, so the stored-JSON writer cannot reject any contract input; its error label is never observed
 src/shared/db/attendees/pii.ts::decryptPiiBlob.lat~0pjzbz9  ?? → || audited:0n37kv2 # decryptPiiBlob's `blob.la` is string|undefined and the fallback is "": truthy strings pass through, while both undefined and the only falsy string ("") produce "", so `??` and `||` agree on every input

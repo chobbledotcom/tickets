@@ -161,6 +161,14 @@ export const hmacHashSync = (value: string): BlindIndex =>
 export const hmacHash = async (value: string): Promise<BlindIndex> =>
   hmacHashSync(value);
 
+/** The blind-index marker for one keyed pair, so a row can be matched
+ * without decrypting. `prefix` keeps two domains' markers from colliding
+ * (an address search and a contact token never hash to the same value). */
+export const blindIndexFor =
+  (prefix: string) =>
+  (left: string, right: string): Promise<BlindIndex> =>
+    hmacHash(`${prefix}${left}:${right}`);
+
 /**
  * The key one door's offline scan cache digests under. The HMAC runs under
  * the site's encryption key with the door's name as the only variation. The

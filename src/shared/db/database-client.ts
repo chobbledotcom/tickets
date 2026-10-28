@@ -4,6 +4,8 @@ import {
   createClient,
   LibsqlBatchError,
   LibsqlError,
+  type Transaction,
+  type TransactionMode,
 } from "@libsql/client";
 import { expandConfig } from "@libsql/core/config";
 import { encodeBaseUrl } from "@libsql/core/uri";
@@ -17,7 +19,7 @@ import {
   Stmt,
 } from "@libsql/hrana-client";
 import promiseLimit from "promise-limit";
-import { wrapExecute } from "#db/libsql-call.ts";
+import { wrapExecute, wrapTransactionOperations } from "#db/libsql-call.ts";
 import { isReadSql, sqlOf } from "#db/sql-text.ts";
 import { bracket } from "#fp";
 import { proxyMembers } from "#shared/proxy-members.ts";
@@ -232,6 +234,15 @@ export const createDatabaseClient = (callerConfig: Config): Client => {
     <Args extends unknown[], Result>(run: (...args: Args) => Promise<Result>) =>
     (...args: Args): Promise<Result> =>
       limit(() => run(...args));
+  /** Interactive transaction statements share the parent client's concurrency
+   *  limit, so a transaction statement never overlaps a top-level call.
+   *  Commit and rollback close the transaction. Each must reach the database
+   *  even when a request that waits on this transaction's lock holds every
+   *  slot. They bypass the limit. */
+  const withTransactionLimit = (tx: Transaction): Transaction =>
+    wrapTransactionOperations(tx, (operation, run) =>
+      operation === "commit" || operation === "rollback" ? run() : limit(run),
+    );
   let pipeline: HttpClient | undefined;
   const getPipeline = (): HttpClient => {
     if (client.closed)
@@ -277,6 +288,7 @@ export const createDatabaseClient = (callerConfig: Config): Client => {
       resetPipeline();
       return client.reconnect();
     },
-    transaction: limited(client.transaction.bind(client)),
+    transaction: async (mode?: TransactionMode) =>
+      withTransactionLimit(await limit(() => client.transaction(mode))),
   });
 };

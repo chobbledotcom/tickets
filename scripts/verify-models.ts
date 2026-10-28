@@ -2,6 +2,11 @@
 import { join } from "node:path";
 import { projectRoot } from "#scripts/project-root.ts";
 import { makeScratchDir } from "#scripts/scratch.ts";
+import {
+  bookingReplayModelData,
+  deletedRowRefundData,
+  duplicateBookingData,
+} from "#scripts/verify-models/booking.ts";
 import { counterexampleData } from "#scripts/verify-models/counterexample.ts";
 import { modelData, paymentModel } from "#scripts/verify-models/model.ts";
 import { reviewModelData } from "#scripts/verify-models/review.ts";
@@ -16,6 +21,7 @@ const models = [
   { data: sumupModelData, module: "SumupRecovery" },
   { data: reviewModelData, module: "PaymentReview" },
   { data: async () => modelData(await paymentModel()), module: "JointState" },
+  { data: bookingReplayModelData, module: "BookingReplay" },
   { data: twoWorkersModelData, module: "TwoWorkers" },
 ];
 const checks = [
@@ -82,6 +88,35 @@ if (corrupted.success) {
     "The checker accepted a corrupted edge. The safety verdict is not trusted.",
   );
 }
+
+// The BookingReplay proof must reject both failure modes it rules out: a
+// duplicate booking and a refund that returns after the temporary row is
+// deleted. A pass on either would make the clean verdict worthless.
+const checkRejected = async (
+  module: string,
+  label: string,
+  data: () => Promise<string>,
+): Promise<void> => {
+  await Deno.copyFile(
+    join(projectRoot, `verification/${module}.tla`),
+    join(work, `${module}.tla`),
+  );
+  await Deno.writeTextFile(join(work, `${module}Data.tla`), await data());
+  const result = await runCheck(module, "InductionStart", 1);
+  if (result.success) {
+    throw new Error(
+      `The checker accepted a ${label}. The safety verdict is not trusted.`,
+    );
+  }
+};
+console.log("Check BookingReplay: duplicate booking counterexample.");
+await checkRejected("BookingReplay", "duplicate booking", duplicateBookingData);
+console.log("Check BookingReplay: deleted-row refund counterexample.");
+await checkRejected(
+  "BookingReplay",
+  "refund after the temporary row was deleted",
+  deletedRowRefundData,
+);
 await Deno.remove(work, { recursive: true });
 console.log(
   "All machine safety checks passed the initial state and inductive step.",

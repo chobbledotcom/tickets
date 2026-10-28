@@ -5,11 +5,11 @@
  * than being reached around.
  */
 
+// jscpd:ignore-start
 import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { getGroupPackagePrices, groups } from "#db/groups.ts";
 import { map } from "#fp";
-// jscpd:ignore-start
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import {
@@ -41,6 +41,7 @@ import {
   type ActOnOneThing,
   type AsksAboutOneThing,
   asksIfThereIs,
+  type ChangeOneThing,
   type ReadAboutOneThing,
   stillThere,
   type TicketsWorld,
@@ -74,15 +75,23 @@ export interface ThingForSale extends PartOfBundle {
 const bundleNamed = (world: TicketsWorld, name: string): Group =>
   world.things.require("bundle", name);
 
+/** Put the site's public pages up and make a group, the shape every
+ * bundle-building step starts from. */
+export const publicSiteGroup = async (
+  group: Parameters<typeof createTestGroup>[0] = {},
+): Promise<Group> => {
+  await enablePublicSite();
+  return createTestGroup(group ?? {});
+};
+
 /** Things that exist and belong together, before the organiser has decided
  * they are a bundle at all. */
-export const thingsGroupedTogether = async (
-  world: TicketsWorld,
-  name: string,
-  parts: ThingForSale[],
-): Promise<void> => {
-  await enablePublicSite();
-  const group = await createTestGroup({ name });
+export const thingsGroupedTogether: ChangeOneThing<ThingForSale[]> = async (
+  world,
+  name,
+  parts,
+) => {
+  const group = await publicSiteGroup({ name });
   world.things.remember("bundle", name, group);
   for (const part of parts) {
     const listing = rememberListing(
@@ -152,8 +161,12 @@ const boxCleared = (html: string, field: string): string[] => {
 };
 
 /** The organiser's own page for one bundle. */
-const bundlePage: ReadAboutOneThing<TestBrowser> = async (world, name) =>
-  openAdminPage(world, `/admin/groups/${bundleNamed(world, name).id}/edit`);
+type OpensBundlePage = (
+  world: TicketsWorld,
+  bundle: string,
+) => Promise<TestBrowser>;
+const bundlePage: OpensBundlePage = async (world, bundle) =>
+  openAdminPage(world, `/admin/groups/${bundleNamed(world, bundle).id}/edit`);
 
 /** The organiser fills in the bundle's own form and saves it, and is handed
  * back what the site told them — some of these saves are meant to be refused,
@@ -268,17 +281,28 @@ export const customerOpensBundlePage: ReadAboutOneThing<TestBrowser> = async (
 /** A customer buys some of the bundle from its own page, and keeps the code
  * the site gives them under the bundle's name, so the story can read the
  * ticket they end up holding. */
-export const customerBuysBundles = async (
+type BuysBundles = (
   world: TicketsWorld,
   name: string,
   howMany: number,
-): Promise<void> => {
-  const group = bundleNamed(world, name);
+) => Promise<void>;
+
+export const customerBuysBundles: BuysBundles = async (
+  world,
+  name,
+  howMany,
+) => {
   const browser = await customerOpensBundlePage(world, name);
+  // The box's name carries the group it belongs to, read off the page the
+  // customer is really filling in rather than guessed from the id.
+  const quantityField = stillThere(
+    browser.currentHtml.match(/name="(package_quantity_[^"]*)"/)?.[1],
+    "bundle quantity box",
+  );
   const filledIn = {
     email: "buyer@example.com",
     name: "Buyer",
-    [`package_quantity_${group.id}`]: String(howMany),
+    [quantityField]: String(howMany),
   };
   expectCanReallySend(browser.currentHtml, filledIn);
   await browser.submitForm(filledIn, "Continue");

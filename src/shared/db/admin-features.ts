@@ -18,7 +18,10 @@ import {
   booleanJsonField,
   type WhenClause,
 } from "#db/settings/json-field.ts";
-import { syncStoredSetting } from "#db/settings/raw-writes.ts";
+import {
+  publishStoredSetting,
+  syncStoredSetting,
+} from "#db/settings/raw-writes.ts";
 import { setSnapshotField } from "#db/settings/snapshot.ts";
 import { range } from "#fp";
 import {
@@ -93,12 +96,8 @@ const featureWriteStatement = (
   when: WhenClause,
 ): SqlStatement => featureField(key, enabled).statement(when);
 
-const syncFeatureSetting = (stored: string): void => {
-  syncStoredSetting(CONFIG_KEYS.ENABLED_FEATURES, (values) =>
-    values.set(CONFIG_KEYS.ENABLED_FEATURES, stored),
-  );
-  setSnapshotField(CONFIG_KEYS.ENABLED_FEATURES, stored);
-};
+const syncFeatureSetting = (stored: string): void =>
+  publishStoredSetting(CONFIG_KEYS.ENABLED_FEATURES, stored);
 
 const writeAdminFeatureEnabled = async (
   key: AdminFeatureKey,

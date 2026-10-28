@@ -34,10 +34,14 @@ import {
   type EditEntityPage,
 } from "#routes/admin/entity-write-tab.ts";
 import { loadAccountLedger } from "#routes/admin/ledger/statements.ts";
-import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
+import {
+  crudRoutes,
+  defineAdminRoutes,
+  entityTabRoutes,
+} from "#routes/admin/route-tables.ts";
 import { AUTH_FORM, withAuth } from "#routes/auth.ts";
 import { notFoundResponse, redirect } from "#routes/response.ts";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { normalizeCode, validateCalcValue } from "#shared/price-modifier.ts";
@@ -248,6 +252,7 @@ const loadModifierEditPanel = async (
 };
 
 const modifierPage: EditEntityPage<Modifier> = defineEditEntityPage({
+  deleteDestination: "modifierDelete",
   deleteLabelKey: "modifiers.delete.submit",
   destination: "modifier",
   edit: (modifier, ctx, rejected) =>
@@ -260,6 +265,7 @@ const modifierPage: EditEntityPage<Modifier> = defineEditEntityPage({
   guideFooter: () => Promise.resolve(ModifiersGuideFooter()),
   load: (id) => getModifier(id),
   navActive: { section: adminPattern("modifiers") },
+  recordId: (modifier) => modifier.id,
 });
 
 // The list and entity page load the ledger-projected Modifier. Writes and
@@ -355,7 +361,7 @@ const handleModifierRecalculatePost: TypedRouteHandler<
 
 /** Modifier routes. The edit POST restates the standard key with its own
  * handler. */
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   ...crudRoutes(adminPattern("modifiers"), crud),
   ...entityTabRoutes(adminPattern("modifier"), modifierPage),
   "GET /admin/modifiers/recalculate/:modifierId": handleModifierRecalculateGet,

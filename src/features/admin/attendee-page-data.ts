@@ -29,12 +29,12 @@ import {
 import type { BookedAnswer, QuestionWithAnswers } from "#db/question-types.ts";
 /* jscpd:ignore-start */
 import { filter, identity, mapById } from "#fp";
-import {
-  type AttendeeFormLine,
-  attendeeBalanceNotice,
-  type ParsedAttendeeForm,
-  resolveSharedDates,
+import { resolveSharedDates } from "#routes/admin/attendee-form-dates.ts";
+import type {
+  AttendeeFormLine,
+  ParsedAttendeeForm,
 } from "#routes/admin/attendee-form-model.ts";
+import { attendeeBalanceNotice } from "#routes/admin/attendee-form-validation.ts";
 import { buildAttendeeLogisticsData } from "#routes/admin/attendee-logistics.ts";
 import { withDecryptedAttendee } from "#routes/admin/attendees-route-helpers.ts";
 import { computeWarnings } from "#routes/admin/booking-warnings.ts";
@@ -192,6 +192,7 @@ const lineForExistingRow = (
   packageGroupId: existing.booking.package_group_id,
   packagePrice,
   parentListingId: existing.booking.parent_listing_id,
+  priceRaw: "",
   quantity: existing.booking.quantity,
 });
 
@@ -212,6 +213,7 @@ const blankLine = (
   packageGroupId,
   packagePrice,
   parentListingId: 0,
+  priceRaw: "",
   quantity,
 });
 
@@ -279,10 +281,12 @@ export const buildCreateForm = (
   startDate: string,
 ): ParsedAttendeeForm => ({
   address: "",
+  adjustments: [null, null, null],
   dayCount: 1,
   email: "",
   lines: buildFormLines(renderListings, [], packagePaths, preselectedQty),
   name: "",
+  payments: [null, null, null],
   phone: "",
   returnUrl: "",
   special_instructions: "",
@@ -303,10 +307,12 @@ export const buildEditFormFromAttendee = (
     hasMixedTimings: shared.hasMixedTimings,
     parsed: {
       address: attendee.address || "",
+      adjustments: [null, null, null],
       dayCount: shared.dayCount,
       email: attendee.email || "",
       lines: buildFormLines(renderListings, existing, packagePaths, new Map()),
       name: attendee.name,
+      payments: [null, null, null],
       phone: attendee.phone || "",
       returnUrl: "",
       special_instructions: attendee.special_instructions || "",

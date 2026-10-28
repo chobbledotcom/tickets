@@ -2,15 +2,14 @@ import { isOneOf } from "#fp";
 import { readOnlyGetRoutePatterns } from "#shared/admin-pages.ts";
 import { routePathPatternToRegex } from "#shared/route-pattern.ts";
 
-const READ_ONLY_GET_PATTERNS = readOnlyGetRoutePatterns().map(
-  routePathPatternToRegex,
-);
-
 /** The admin sign-in and sign-out. They are the only admin writes that stay
  * open while an update runs. */
 const READ_ONLY_SIGN_IN_OUT_PATHS = ["/admin/login", "/admin/logout"];
 
-const READ_ONLY_ADMIN_OPERATION_PATTERNS = [
+/** The admin writes read-only mode keeps open, by their declared paths.
+ * Check-ins and payments still happen while the site is read-only, so the
+ * operations a working site cannot pause stay open. */
+const READ_ONLY_ADMIN_OPERATION_PATHS = [
   "/admin/attendees/:attendeeId/refresh-payment",
   "/admin/backup/create",
   "/admin/debug/sentry",
@@ -20,7 +19,19 @@ const READ_ONLY_ADMIN_OPERATION_PATTERNS = [
   "/admin/groups/:id/scan",
   ...READ_ONLY_SIGN_IN_OUT_PATHS,
   "/admin/support",
-].map(routePathPatternToRegex);
+];
+
+const READ_ONLY_ADMIN_OPERATION_PATTERNS = READ_ONLY_ADMIN_OPERATION_PATHS.map(
+  routePathPatternToRegex,
+);
+
+const READ_ONLY_GET_PATTERNS = readOnlyGetRoutePatterns()
+  // A write this mode keeps open keeps the page its GET serves too. The
+  // check-in POST is the operation, and the check-in page is the only form
+  // the operator submits a multi-ticket check-in from. A write whose GET no
+  // route serves loses nothing. The request meets the same 404 either way.
+  .filter((pattern) => !READ_ONLY_ADMIN_OPERATION_PATHS.includes(pattern))
+  .map(routePathPatternToRegex);
 
 const READ_ONLY_SAFE_PATHS = [
   /^\/renew$/,

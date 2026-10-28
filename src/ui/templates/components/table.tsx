@@ -59,7 +59,10 @@ type TableRenderFrame<TRow, TContext, TKey extends string> = TableRenderShell<
   readonly reorder?: ReorderColumnOptions<TRow> | undefined;
 };
 
-type TableContextOptions<TContext> = [TContext] extends [undefined]
+/** The table-context options a caller supplies: optional-undefined when the
+ *  table's context type is undefined, required otherwise. Shared with the
+ *  admin page spec's list part, which passes the context straight through. */
+export type TableContextOptions<TContext> = [TContext] extends [undefined]
   ? { readonly context?: undefined }
   : { readonly context: TContext };
 
@@ -279,6 +282,22 @@ export const renderTable = <TRow, TKey extends string, TContext = undefined>(
     (options?.context ?? undefined) as TContext,
     options ?? {},
   );
+};
+
+/** Render a list part's table: the definition built from its columns, with
+ *  the part's reorder controls and table context. Beside renderTable so the
+ *  public signature's context guard stays in one module. */
+export const renderListPartTable = <TItem, TContext = undefined>(
+  columns: readonly TableColumn<TItem, TContext>[],
+  items: TItem[],
+  reorder: ReorderColumnOptions<TItem> | undefined,
+  context: TContext | undefined,
+): JSX.Element => {
+  const table = defineTable(columns);
+  const resolved = resolveColumns(table, undefined, undefined);
+  return renderColumns(items, resolved, (context ?? undefined) as TContext, {
+    ...(reorder !== undefined ? { reorder } : {}),
+  });
 };
 
 /** The standard up/down reorder-arrows column: prepended to a table's

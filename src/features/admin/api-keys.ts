@@ -1,6 +1,9 @@
 /* jscpd:ignore-start */
-import { entityTabRoutes } from "#routes/admin/route-tables.ts";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import {
+  defineAdminRoutes,
+  entityTabRoutes,
+} from "#routes/admin/route-tables.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 /* jscpd:ignore-end */
 /**
@@ -23,7 +26,8 @@ import {
   defineEntityPage,
   deleteActionTab,
   type EntityPage,
-  type TabDef,
+  overviewTab,
+  summarySection,
 } from "#routes/admin/entity-pages.ts";
 import { withOwnerData } from "#routes/admin/owner-route.ts";
 import { requireOwnerOr } from "#routes/auth.ts";
@@ -73,7 +77,6 @@ const handleApiKeysGet: TypedRouteHandler<"GET /admin/api-keys"> = (request) =>
  */
 const handleApiKeysPost: TypedRouteHandler<"POST /admin/api-keys"> =
   createActionHandler({
-    auth: "owner",
     execute: async (session, form) => {
       const name = form.getString("name");
       if (!name) {
@@ -105,6 +108,7 @@ const handleApiKeysPost: TypedRouteHandler<"POST /admin/api-keys"> =
         .createdApiKey as string;
       return `API key created\n${apiKey}`;
     },
+    pattern: "/admin/api-keys",
     redactedSecret: (session) =>
       (session as Record<string, unknown>).createdApiKey as string | undefined,
     successRedirect: "/admin/api-keys",
@@ -124,17 +128,6 @@ const apiKeyDelete = createConfirmedHandlers<{ id: number; name: string }>({
   successRedirect: "/admin/api-keys",
 });
 
-const overviewTab: TabDef<ApiKeyDisplay> = {
-  labelKey: "entity.tab.overview",
-  sections: [
-    {
-      kind: "summary",
-      rows: (apiKey) => Promise.resolve(apiKeySummaryRows(apiKey)),
-    },
-  ],
-  slug: "",
-};
-
 /** The owner-only API key summary and actions page. */
 const apiKeyPage: EntityPage<ApiKeyDisplay> = defineEntityPage({
   destination: "apiKey",
@@ -142,12 +135,12 @@ const apiKeyPage: EntityPage<ApiKeyDisplay> = defineEntityPage({
     (await getApiKeysForUser(session.userId)).find((key) => key.id === id) ??
     null,
   navActive: adminPattern("apiKeys"),
+  recordId: (apiKey) => apiKey.id,
   tabs: [
-    overviewTab,
-    deleteActionTab(
-      "api_keys.delete_submit",
-      (apiKey) => `/admin/api-keys/${apiKey.id}/delete`,
-    ),
+    overviewTab([
+      summarySection((apiKey) => Promise.resolve(apiKeySummaryRows(apiKey))),
+    ]),
+    deleteActionTab("api_keys.delete_submit", "apiKeyDelete"),
   ],
   titleOf: (apiKey) => apiKey.name,
 });
@@ -164,7 +157,7 @@ const handleApiDocsGet: TypedRouteHandler<"GET /admin/api-keys/docs"> = (
     ),
   );
 
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   ...entityTabRoutes(adminPattern("apiKey"), apiKeyPage),
   "GET /admin/api-keys": handleApiKeysGet,
   "GET /admin/api-keys/:apiKeyId/delete": (request, { apiKeyId }) =>

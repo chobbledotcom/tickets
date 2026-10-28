@@ -85,12 +85,19 @@ const STEPS = [
     cmd: ["task", "check:coverage-exclusions"],
     name: "check:coverage-exclusions",
   },
-  // The test-quality gate warns on weak assertions in test files the branch
-  // touches and fails on ones it adds, against the merge base on origin/main
-  // (see "Test Quality Standards" in AGENTS.md).
+  // The test-quality gate fails on every weak assertion a test file the
+  // branch touches carries — one the change adds or one it inherits — against
+  // the merge base on origin/main (see "Test Quality Standards" in AGENTS.md).
   {
     cmd: ["task", "check:test-quality"],
     name: "check:test-quality",
+  },
+  // The presence-assertion check holds every test file to its recorded
+  // toBeDefined() count in a registry that only falls (see "Test Quality
+  // Standards" in AGENTS.md).
+  {
+    cmd: ["task", "check:presence-assertions"],
+    name: "check:presence-assertions",
   },
   // The dump module must also run against the base tree: a helper the branch
   // adds is invisible to origin/main, and only this diff exercises that

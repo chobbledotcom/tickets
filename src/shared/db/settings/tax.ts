@@ -1,8 +1,10 @@
 import * as v from "valibot";
 import { resultRows, withTransaction } from "#db/client.ts";
 import { settingsVersionIncrement } from "#db/settings/cache.ts";
-import { settingUpsert, syncStoredSetting } from "#db/settings/raw-writes.ts";
-import { setSnapshotField } from "#db/settings/snapshot.ts";
+import {
+  publishStoredSetting,
+  settingUpsert,
+} from "#db/settings/raw-writes.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 import { sameTaxPolicy } from "#shared/tax/transitions.ts";
 import { NO_TAX, type TaxPolicy, TaxPolicySchema } from "#shared/tax/types.ts";
@@ -52,9 +54,6 @@ export const updateTaxPolicy = async (
     { invalidateCaches: false },
   );
   if (!committed) return false;
-  syncStoredSetting(CONFIG_KEYS.TAX, (values) =>
-    values.set(CONFIG_KEYS.TAX, stored),
-  );
-  setSnapshotField(CONFIG_KEYS.TAX, stored);
+  publishStoredSetting(CONFIG_KEYS.TAX, stored);
   return true;
 };

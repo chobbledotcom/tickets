@@ -142,9 +142,9 @@ export const completePaidOrder = async (
 /** Run `body` with the site's payment provider answering as stripe. Both the
  * refund driver and the shown-code driver need that same standing-in provider,
  * so they ask for it the one way. */
-export const withStripeAsProvider = async (
-  body: () => Promise<void>,
-): Promise<void> => {
+type WithStripeAsProvider = (body: () => Promise<void>) => Promise<void>;
+
+export const withStripeAsProvider: WithStripeAsProvider = async (body) => {
   await withMocks(
     () =>
       stub(paymentsApi, "getConfiguredProvider", () =>
@@ -152,6 +152,15 @@ export const withStripeAsProvider = async (
       ),
     body,
   );
+};
+
+/** Keep how many times the provider was asked to hand money back, so a Then
+ * can read the count back — both refund paths ask this way. */
+export const countsProviderRefundCalls = (
+  world: TicketsWorld,
+  calls: readonly unknown[],
+): void => {
+  world.refundCalls = () => calls.length;
 };
 
 /** Ask for a refund the way the organiser does: open the page that offers it,
@@ -176,7 +185,7 @@ export const refundByTyping = async (
         { confirm_identifier: where.typed },
         where.buttonText,
       );
-      world.refundCalls = () => mockRefund.calls.length;
+      countsProviderRefundCalls(world, mockRefund.calls);
     },
     {
       charge: (reference) => Promise.resolve(providerCharge(world, reference)),

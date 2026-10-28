@@ -68,6 +68,17 @@ export const syncWrittenSetting = (key: string, value: string): Promise<void> =>
     syncStoredSetting(key, (values) => values.set(key, value)),
   );
 
+/** Publish a committed settings write: mirror the value into this isolate's
+ * cache and the encrypted snapshot. For a write whose transaction already
+ * bumped the stored version. */
+export const publishStoredSetting = (
+  key: StringSettingKey,
+  value: string,
+): void => {
+  syncStoredSetting(key, (values) => values.set(key, value));
+  setSnapshotField(key, value);
+};
+
 /** Write a setting to the DB, update the raw cache in-place, and bump the
  *  shared version so other isolates reload on their next request. */
 export const writeRaw = async (key: string, value: string): Promise<void> => {

@@ -88,7 +88,9 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
       identifierLabel: "Name",
       load: () => Promise.resolve({ name: "Alpha" }),
       onConfirm: () => Promise.resolve(),
-      path: "/admin/test/:id/delete",
+      // An owner-only declared write: the default shorthand resolves to its
+      // audience, so an owner session gets through and a manager is refused.
+      path: "/admin/holidays/:id/delete",
       render: (_model, _session, error) =>
         Promise.resolve(`page${error ? `:${error}` : ""}`),
       successMessage: "deleted",
@@ -214,7 +216,7 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
       expect(response.status).toBe(302);
       assertStringIncludes(
         response.headers.get("location") ?? "",
-        "/admin/test/1/delete",
+        "/admin/holidays/1/delete",
       );
       expectFlash(
         response,
@@ -339,7 +341,7 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
       expect(postResponse.status).toBe(418);
     });
 
-    test("blocks a non-owner session unless the auth allows anyone", async () => {
+    test("blocks a non-owner session unless the route declares the role", async () => {
       const managerCookie = await createTestManagerSession();
       const csrf = await testCsrfToken();
 
@@ -351,15 +353,21 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
       );
       expect(blocked.status).toBe(403);
 
-      const anyResponse = await build({ auth: "any" }).get(
+      // The attendee delete declares the staff floor, so the same manager
+      // session gets through: the route, not the caller, decides.
+      const staffResponse = await build({
+        path: "/admin/attendees/:attendeeId/delete",
+      }).get(
         mockRequest("/admin/test/1/delete", {
           headers: { cookie: managerCookie },
         }),
         1,
       );
-      expect(await anyResponse.text()).toBe("page");
+      expect(await staffResponse.text()).toBe("page");
 
-      const anyPost = await build({ auth: "any" }).post(
+      const staffPost = await build({
+        path: "/admin/attendees/:attendeeId/delete",
+      }).post(
         mockFormRequest(
           "/admin/test/1/delete",
           { confirm_identifier: "Alpha", csrf_token: csrf },
@@ -368,7 +376,7 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
         1,
       );
       assertStringIncludes(
-        anyPost.headers.get("location") ?? "",
+        staffPost.headers.get("location") ?? "",
         "/admin/test",
       );
     });

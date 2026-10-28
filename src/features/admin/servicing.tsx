@@ -18,6 +18,7 @@ import {
 import { getAllListings, listingNames } from "#db/listings/records.ts";
 import { identity, map, mapById, unique } from "#fp";
 import { t } from "#i18n";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import {
   buildServicingFieldSchema,
   normalizeServicingForSave,
@@ -41,7 +42,7 @@ import {
 import { applyFlash } from "#routes/csrf.ts";
 import { createEntityHandler, createIdEntityHandler } from "#routes/entity.ts";
 import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 import {
   applyDemoOverrides,
   SERVICING_DEMO_FIELDS,
@@ -272,7 +273,7 @@ const handleServicingCostPost: TypedRouteHandler<"POST /admin/servicing/:id/cost
     },
   );
 
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin/servicing": handleServicingListGet,
   "GET /admin/servicing/:id": handleServicingGet,
   "GET /admin/servicing/new": handleServicingNewGet,

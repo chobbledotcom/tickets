@@ -7,7 +7,6 @@ import { transfersByAccount } from "#accounting/queries.ts";
 import { listingIdNamed } from "#test/specs/support/listings.ts";
 import {
   askForRefund,
-  bookingId,
   buyOnePlace,
   correctIncomeTo,
   sellPlacesAt,
@@ -24,7 +23,7 @@ import {
   worldBalance,
 } from "#test/specs/support/money-reads.ts";
 import { soleBookingOn } from "#test/specs/support/public-booking.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { type TicketsWorld, theBooking } from "#test/specs/support/world.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
@@ -65,7 +64,7 @@ Then(
   async function (this: TicketsWorld): Promise<void> {
     expect(await incomeOf(listingIdNamed(this, "Part One"))).toBe(3000);
     expect(await incomeOf(listingIdNamed(this, "Part Two"))).toBe(2000);
-    expect(await owedBy(bookingId(this))).toBe(0);
+    expect(await owedBy(theBooking(this))).toBe(0);
     expect(await worldBalance()).toBe(-5000);
     expect(await sumOfAllBalances()).toBe(0);
   },
@@ -76,7 +75,7 @@ Then(
   async function (this: TicketsWorld): Promise<void> {
     // Both listings must hold the very same booking — money alone could add up
     // while one of the places was never given to anybody.
-    const booking = bookingId(this);
+    const booking = theBooking(this);
     expect(await soleBookingOn(listingIdNamed(this, "Part One"))).toBe(booking);
     expect(await soleBookingOn(listingIdNamed(this, "Part Two"))).toBe(booking);
     const legs = await transfersByAccount(attendeeAccount(booking));
@@ -129,7 +128,7 @@ Then(
   async function (this: TicketsWorld): Promise<void> {
     const listingId = listingIdNamed(this, FESTIVAL);
     expect(timesProviderWasAsked(this)).toBe(1);
-    expect(await owedBy(bookingId(this))).toBe(0);
+    expect(await owedBy(theBooking(this))).toBe(0);
     // 140 sold − 40 written down − 70 refunded = 30 on the money record, while
     // the listing's income box ignores the refund and still reads 100.
     expect(await incomeOf(listingId)).toBe(3000);

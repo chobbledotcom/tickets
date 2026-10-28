@@ -16,7 +16,11 @@ import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import type { AdminRouteIntent } from "#shared/admin-surface/definitions.ts";
 import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
-import { adminDestination, adminRecordPath } from "#shared/admin-surface.ts";
+import {
+  adminDestination,
+  adminDestinationAllowed,
+  adminRecordPath,
+} from "#shared/admin-surface.ts";
 import {
   type FlankingNav,
   resolveTabSlug,
@@ -83,13 +87,21 @@ export interface AdminGatedItem<E> {
   visible?: (entity: E, session: AuthSession) => boolean;
 }
 
-/** An operator action. `visible` must gate on the same condition the target
- * route enforces — a forbidden or dead action link is never rendered. */
+/** An operator action. Its destination's declaration gives the action its
+ * audience and its address. A route that narrows also hides its link, and a
+ * dead or forbidden link cannot render. `visible` keeps only the
+ * data-dependent gates the declaration cannot express. */
 export interface ActionDef<E> extends AdminGatedItem<E> {
   /** Renders in the visually separated danger zone (delete, deactivate…). */
   danger?: boolean;
   descriptionKey?: string;
-  href: (entity: E, ctx: PageCtx) => string;
+  /** The route this action leads to. Its audience hides the link from a
+   * viewer it refuses, and its path over the entity is the address. */
+  destination: AdminDestinationId;
+  /** Address override for a link the declaration cannot name: a query string
+   * or an anchor (an SMS compose link, a page section). The audience still
+   * comes from `destination`. */
+  href?: (entity: E, ctx: PageCtx) => string;
   icon?: IconName;
 }
 
@@ -132,6 +144,19 @@ export interface TabDef<E> extends AdminGatedItem<E> {
   slug: string;
 }
 
+/** The Overview tab: the strip label and slug every entity page shares, over
+ *  the page's own sections. */
+export const overviewTab = <E>(sections: readonly Section<E>[]): TabDef<E> => ({
+  labelKey: "entity.tab.overview",
+  sections,
+  slug: "",
+});
+
+/** One summary section: the entity's own rows in the table view. */
+export const summarySection = <E>(
+  rows: (entity: E, ctx: PageCtx) => Promise<SummaryRow[]>,
+): Section<E> => ({ kind: "summary", rows });
+
 /** One entity's whole page, as data. */
 export interface EntityPageDef<E, Id extends EntityId = number> {
   /** The roles this page's tabs serve when the folded floor beneath the record path
@@ -156,6 +181,9 @@ export interface EntityPageDef<E, Id extends EntityId = number> {
   /** Extra content rendered inside the prose block beside the page `<h1>`
    *  (for example, the attendee page's "Add a note" link). */
   proseExtra?: SlotLoader<E>;
+  /** The record's id, for deriving an action's address from its destination.
+   * Required only when a tab carries actions. */
+  recordId?: RecordIdOf<E>;
   tabs: readonly TabDef<E>[];
   /** Flanking controls around the `<h1>`, for example a built-site pager whose
    * arrows keep the viewer on the same tab. */
@@ -163,21 +191,41 @@ export interface EntityPageDef<E, Id extends EntityId = number> {
   titleOf: (entity: E) => string;
 }
 
+/** The record's id, for deriving an action's address from its destination. */
+type RecordIdOf<E> = (entity: E) => string | number;
+
+/** The record id, absent on a page with no Actions tab. */
+type MaybeRecordIdOf<E> = RecordIdOf<E> | undefined;
+
+/** The per-record view arguments the page parts share: the entity the part
+ *  renders against, the page context, and the record id the page serves. */
+type RecordView<E> = {
+  ctx: PageCtx;
+  entity: E;
+  recordId: MaybeRecordIdOf<E>;
+};
+
 const resolveActions = <E>(
   actions: readonly ActionDef<E>[],
-  entity: E,
-  ctx: PageCtx,
+  { ctx, entity, recordId }: RecordView<E>,
 ): ResolvedAction[] =>
   actions
     .filter(
       (action) =>
-        !(isReadOnly() && action.intent === "write-form") &&
-        action.visible?.(entity, ctx.session) !== false,
+        adminDestinationAllowed(
+          action.destination,
+          ctx.session.adminLevel,
+          isReadOnly(),
+        ) && action.visible?.(entity, ctx.session) !== false,
     )
     .map((action) => ({
       danger: action.danger === true,
       descriptionKey: action.descriptionKey,
-      href: action.href(entity, ctx),
+      // `recordId` is set whenever a page carries actions: `defineEntityPage`
+      // refuses an Actions tab without one, so this call always lands.
+      href: action.href
+        ? action.href(entity, ctx)
+        : adminRecordPath(action.destination, recordId!(entity)),
       icon: action.icon,
       labelKey: action.labelKey,
     }));
@@ -187,8 +235,7 @@ const resolveActions = <E>(
  * until it returns here. */
 const loadSection = async <E>(
   section: Section<E>,
-  entity: E,
-  ctx: PageCtx,
+  { ctx, entity, recordId }: RecordView<E>,
 ): Promise<LoadedSection> => {
   switch (section.kind) {
     case "summary":
@@ -207,7 +254,11 @@ const loadSection = async <E>(
         ? await section.prepare(entity, ctx)
         : entity;
       const { plain, danger } = splitActions(
-        resolveActions(section.actions, prepared, ctx),
+        resolveActions(section.actions, {
+          ctx,
+          entity: prepared,
+          recordId,
+        }),
       );
       return { danger, kind: "actions", plain, titleKey: section.titleKey };
     }
@@ -283,16 +334,29 @@ const loadPageSections = async <E>(
   entity: E,
   ctx: PageCtx,
   panel: SlotLoader<E> | undefined,
+  recordId: MaybeRecordIdOf<E>,
 ): Promise<LoadedSection[]> => {
   if (panel) return [{ html: await panel(entity, ctx), kind: "custom" }];
   return Promise.all(
-    active.sections.map((section) => loadSection(section, entity, ctx)),
+    active.sections.map((section) =>
+      loadSection(section, { ctx, entity, recordId }),
+    ),
   );
 };
 
 export const defineEntityPage = <E, Id extends EntityId = number>(
   def: EntityPageDef<E, Id>,
 ): EntityPage<E, Id> => {
+  // An action's address derives from the record id, so a page with an Actions
+  // tab must name how to read it. A page without one never needs it.
+  const hasActionTab = def.tabs.some((tab) =>
+    tab.sections.some((section) => section.kind === "actions"),
+  );
+  if (hasActionTab && def.recordId === undefined) {
+    throw new Error(
+      `Entity page "${def.destination}" has an Actions tab but no recordId`,
+    );
+  }
   const basePath = (id: Id): string => adminRecordPath(def.destination, id);
   const route = adminDestination(def.destination);
   const guard = recordPageGuardFor(route, def.audience);
@@ -321,6 +385,7 @@ export const defineEntityPage = <E, Id extends EntityId = number>(
       entity,
       ctx,
       opts.panel,
+      def.recordId,
     );
     const [banner, guideFooter, proseExtra, titleNav] = await Promise.all([
       resolveSlot(def.banner, entity, ctx),
@@ -371,7 +436,7 @@ export const customSection = <E>(load: SlotLoader<E>): Section<E> => ({
  * type-the-name delete confirmation. */
 export const deleteActionTab = <E>(
   labelKey: string,
-  href: (entity: E, ctx: PageCtx) => string,
+  destination: AdminDestinationId,
 ): TabDef<E> => ({
   intent: "write-form",
   labelKey: "entity.tab.actions",
@@ -380,7 +445,7 @@ export const deleteActionTab = <E>(
       actions: [
         {
           danger: true,
-          href,
+          destination,
           icon: "trash-2",
           intent: "write-form",
           labelKey,

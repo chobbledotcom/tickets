@@ -7,7 +7,10 @@
  * reaches the next. Only the answers differ, so that is the only part passed.
  */
 
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import {
+  requiredWorldValue,
+  type TicketsWorld,
+} from "#test/specs/support/world.ts";
 import { installRecordingFetch } from "#test-utils/mocks.ts";
 
 /** How a story answers one call to the outside world, or nothing to let it
@@ -32,6 +35,13 @@ export const watchesOutgoing =
     world.messagesOut = watching;
     return watching;
   };
+
+/** The watch a story put in place, or a loud failure when none was. Every
+ * reader of what was sent starts from the watch the story stood up. */
+export const outgoingWatch = (
+  world: TicketsWorld,
+): Pick<WatchesOutgoing, "calls" | "emailCall"> =>
+  requiredWorldValue(world.messagesOut, "the outgoing watch");
 
 /** Answer the email provider with this status for one story, and remember
  * every send. Curried on how the provider's day is going, so a story about a
