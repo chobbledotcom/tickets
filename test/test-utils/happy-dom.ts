@@ -81,12 +81,6 @@ export const createDomInstaller = (
           disableIframePageLoading: true,
           disableJavaScriptEvaluation: true,
           disableJavaScriptFileLoading: true,
-          // An installed <iframe src> must not navigate: the navigation
-          // starts a 30s abort timer of its own, and a close() that lands
-          // while the frame's fetch is still in flight leaves that timer
-          // pending — the leak the sanitizer reports against the test
-          // (issue #2629).
-          navigation: { disableChildFrameNavigation: true },
         },
         url: "https://admin.test/",
       });
