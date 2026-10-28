@@ -31,6 +31,7 @@ export const isStatic = carriesAModifier(ts.ModifierFlags.Static);
 const holdsAField = (node: ts.Node): node is ts.NamedDeclaration =>
   ts.isTypeElement(node) ||
   ts.isClassElement(node) ||
+  ts.isPropertyAssignment(node) ||
   (ts.isParameter(node) &&
     ts.isParameterPropertyDeclaration(node, node.parent));
 
