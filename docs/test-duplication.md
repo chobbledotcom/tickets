@@ -210,8 +210,9 @@ genuine duplicates became shared helpers:
   them, and their callers migrated.
 - `ActsOnPersonsBooking` and the `StoryJourney`-derived shapes cover the
   booking and messaging signatures.
-- The two `takeOffSale` steps became one. The second module's story now uses
-  the first.
+- The two `takeOffSale` steps became one. Both stories now take a thing off
+  sale through the site's confirmed deactivate form, the way the catalogue
+  step always did.
 
 Three new twins this work made were caught and merged in the same change: the
 form-controls readers share `OneFieldOnAPage`, the refund-safety window steps

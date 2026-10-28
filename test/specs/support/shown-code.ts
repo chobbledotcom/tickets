@@ -18,6 +18,7 @@ import {
 import { listingIdNamed } from "#test/specs/support/listings.ts";
 import type { ActOnOneThing, TicketsWorld } from "#test/specs/support/world.ts";
 import { STUB_CHECKOUT_URL } from "#test-utils/checkout.ts";
+import { deactivateTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 
 // jscpd:ignore-end
@@ -231,10 +232,11 @@ export const meddledWith = (link: string): string => {
   return link.replace(code, code.slice(0, at) + swapped + code.slice(at + 1));
 };
 
-/** The organiser takes something off sale after the codes are printed. */
+/** The organiser takes something off sale after the codes are printed, the way
+ * the site really offers: its confirmed deactivate form. A write past that
+ * form would skip the very guard the next story leans on. */
 export const takeOffSale: ActOnOneThing = async (world, name) => {
-  const { listingsTable } = await import("#db/listings/records.ts");
-  await listingsTable.update(listingIdNamed(world, name), { active: false });
+  await deactivateTestListing(listingIdNamed(world, name));
 };
 
 /** Nothing at all was booked, whatever the page said. */
