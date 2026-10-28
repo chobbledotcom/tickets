@@ -356,8 +356,8 @@
     "banned-modal": 2
   },
   "src/shared/checkout-complete.ts": {
-    "long-sentence": 7,
-    "semicolon": 2
+    "long-sentence": 5,
+    "semicolon": 1
   },
   "src/shared/checkout-pricing.ts": {
     "semicolon": 5,
@@ -450,9 +450,9 @@
   },
   "src/shared/db/attendee-statuses.ts": {
     "wordy": 1,
-    "long-sentence": 3,
     "banned-modal": 1,
-    "semicolon": 2
+    "semicolon": 2,
+    "long-sentence": 3
   },
   "src/shared/db/attendee-types.ts": {
     "semicolon": 10,

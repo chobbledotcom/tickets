@@ -22,6 +22,7 @@ import {
 import { adminDestinationAt } from "#shared/admin-surface.ts";
 import {
   type AuthedBase,
+  type AuthedHandlerArgs,
   type AuthedHandleStep,
   authedHandlerWithStep,
 } from "#shared/app-forms.ts";
@@ -109,6 +110,21 @@ export const createVerifiedFormRoute = <TParams, TContext>(
     if (error) return error;
     return config.onConfirm(args);
   });
+
+/** Runs a verified delete: the delete step, then a redirect to the resource
+ * with a success flash. The delete and the redirect path read the loaded
+ * context, so the two flows cannot drift. The flash message defers its
+ * catalog read to request time, like every label. */
+export const verifiedDelete =
+  <TContext>(
+    del: (context: TContext) => Promise<unknown>,
+    redirectTo: (context: TContext) => string,
+    flashMessage: string | (() => string),
+  ): AuthedHandleStep<unknown, TContext> =>
+  async ({ context }: AuthedHandlerArgs<unknown, TContext>) => {
+    await del(context);
+    return redirect(redirectTo(context), confirmLabel(flashMessage), true);
+  };
 
 /** An explicit guard pair. Without one, both guards derive from the route
  * declaration at the handler's own path. */

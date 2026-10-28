@@ -15,6 +15,7 @@ import * as v from "valibot";
 import { ResourceIdSchema } from "#payment/resource-id.ts";
 import { providerDetail, transportError } from "#payment/transport-error.ts";
 import { optionalRecordList } from "#shared/validation/list.ts";
+import { integerAtLeast } from "#shared/validation/number.ts";
 import { parseOrThrow } from "#shared/validation/parse.ts";
 import {
   NonEmptyTextSchema,
@@ -26,7 +27,7 @@ import { isInstant } from "#shared/validation/timestamp.ts";
 /** Square states money as whole minor units, so the amount is checked as a
  *  whole number and held as a bigint. */
 const WireMoney = v.object({
-  amount: v.pipe(v.number(), v.safeInteger(), v.minValue(0)),
+  amount: integerAtLeast(0),
   currency: NonEmptyTextSchema,
 });
 

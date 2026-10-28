@@ -301,7 +301,7 @@ export const buildAttendeeEditForm = async (
   } = {},
 ): Promise<Record<string, string>> => {
   const { resolveSharedDates } = await import(
-    "#routes/admin/attendee-form-model.ts"
+    "#routes/admin/attendee-form-dates.ts"
   );
   const { loadExistingLines } = await import("#db/attendees/atomic-update.ts");
   const existing = await loadExistingLines(attendeeId);

@@ -27,6 +27,7 @@ import { t } from "#i18n";
 import {
   createConfirmedHandlers,
   createVerifiedFormRoute,
+  verifiedDelete,
 } from "#routes/admin/confirmation.ts";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import {
@@ -314,14 +315,11 @@ const handleDeleteOptionPost = createVerifiedFormRoute<
   identifierLabel: () => t("attributes.option_label"),
   loadContext: loadAttributeOption,
   mismatchRedirect: (_context, params) => optionDeletePath(params),
-  onConfirm: async ({ context: { attribute, option } }) => {
-    await deleteAttributeOptionWithLog(attribute, option);
-    return redirect(
-      `/admin/attributes/${attribute.id}`,
-      t("attributes.option_deleted"),
-      true,
-    );
-  },
+  onConfirm: verifiedDelete(
+    ({ attribute, option }) => deleteAttributeOptionWithLog(attribute, option),
+    ({ attribute }) => `/admin/attributes/${attribute.id}`,
+    () => t("attributes.option_deleted"),
+  ),
 });
 
 const editOptionPath = optionPath("edit");

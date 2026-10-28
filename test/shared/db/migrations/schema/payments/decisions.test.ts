@@ -38,10 +38,11 @@ describeWithEnv("db > payment decision and message rules", { db: true }, () => {
   // all allowed to be missing — but never held in the open.
   for (const [name, claim, decision, lastError] of [
     ["what the owner was looking at", "'Give it back'", "NULL", "NULL"],
-    ["what was decided", "'enc:1:a:b'", "'Refunded'", "NULL"],
-    ["what went wrong", "'enc:1:a:b'", "NULL", "'Card declined'"],
+    ["what was decided", "'hyb:1:a:b:c'", "'Refunded'", "NULL"],
+    ["what went wrong", "'hyb:1:a:b:c'", "NULL", "'Card declined'"],
+    ["under the database owner's key", "'enc:1:a:b'", "NULL", "NULL"],
   ] as const) {
-    test(`refuses a decision keeping ${name} in plain words`, async () => {
+    test(`refuses a decision keeping ${name}`, async () => {
       await expectRefused(`INSERT INTO payment_case_decisions
         (case_id, case_revision, claim, state, attempt_count, created_at,
          decision, last_error)
@@ -56,14 +57,22 @@ describeWithEnv("db > payment decision and message rules", { db: true }, () => {
     return expectAccepted(`INSERT INTO payment_case_decisions
       (case_id, case_revision, claim, state, attempt_count, created_at,
        decision, last_error)
-      VALUES (99, 1, 'enc:1:a:b', 'accepted', 0, 0, NULL, NULL)`);
+      VALUES (99, 1, 'hyb:1:a:b:c', 'accepted', 0, 0, NULL, NULL)`);
   });
+
+  test("accepts a decision whose outcome is held behind the owner's key", () =>
+    expectAccepted(`INSERT INTO payment_case_decisions
+      (case_id, case_revision, claim, state, attempt_count, created_at,
+       decision, last_error)
+      VALUES (98, 1, 'hyb:1:a:b:c', 'accepted', 0, 0,
+        'hyb:1:d:e:f', 'hyb:1:g:h:i')`));
 
   // The buyer's name, email, phone and address wait here until the message
   // goes out, so this column may never hold them in the open.
   for (const [name, data] of [
     ["in plain words", "Dear Buyer"],
-    ["behind an envelope with nothing in it", "enc:1:Dear Buyer"],
+    ["under the database owner's key", "enc:1:a:b"],
+    ["behind an envelope with nothing in it", "hyb:1:Dear Buyer"],
   ] as const) {
     test(`refuses a message to send held ${name}`, async () => {
       await expectRefused(`INSERT INTO payment_completion_deliveries
@@ -75,7 +84,7 @@ describeWithEnv("db > payment decision and message rules", { db: true }, () => {
   test("counts a decision as untried when the write does not say", async () => {
     await expectAccepted(`INSERT INTO payment_case_decisions
       (case_id, case_revision, claim, state, created_at)
-      VALUES (13, 1, 'enc:1:a:b', 'accepted', 1)`);
+      VALUES (13, 1, 'hyb:1:a:b:c', 'accepted', 1)`);
     const saved = await getDb().execute(
       "SELECT attempt_count FROM payment_case_decisions WHERE case_id = 13",
     );
@@ -85,8 +94,8 @@ describeWithEnv("db > payment decision and message rules", { db: true }, () => {
   test("gives each decision its own number", async () => {
     // The waiting-to-retry index finds a decision by its number, so two
     // sharing one would hide each other from the worker.
-    await expectAccepted(aDecision("11, 1, 'enc:1:a:b', 'accepted', 0, 1"));
-    await expectAccepted(aDecision("11, 2, 'enc:1:a:b', 'accepted', 0, 1"));
+    await expectAccepted(aDecision("11, 1, 'hyb:1:a:b:c', 'accepted', 0, 1"));
+    await expectAccepted(aDecision("11, 2, 'hyb:1:a:b:c', 'accepted', 0, 1"));
     const saved = await getDb().execute(
       "SELECT id FROM payment_case_decisions WHERE case_id = 11",
     );
@@ -98,9 +107,9 @@ describeWithEnv("db > payment decision and message rules", { db: true }, () => {
   test("refuses a second decision on the same version of a problem", async () => {
     // One version of a problem may only be settled once, so a double-click
     // cannot give the money back twice.
-    await expectAccepted(aDecision("12, 1, 'enc:1:a:b', 'accepted', 0, 1"));
+    await expectAccepted(aDecision("12, 1, 'hyb:1:a:b:c', 'accepted', 0, 1"));
     await expectRefusedAsRepeat(
-      aDecision("12, 1, 'enc:1:c:d', 'accepted', 0, 2"),
+      aDecision("12, 1, 'hyb:1:c:d:e', 'accepted', 0, 2"),
     );
   });
 });

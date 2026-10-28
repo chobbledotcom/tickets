@@ -4,8 +4,8 @@
  * Statuses are owner-defined labels an attendee moves through (e.g. a public
  * reservation that later becomes paid). The flags and the reservation amount
  * are stored as plaintext so the public balance-payment page and the payment
- * webhook can reason about reserved/paid state without the private key — only
- * the human-readable `name` is encrypted at rest.
+ * webhook can read the reserved/paid state. Only the human-readable `name` is
+ * encrypted at rest.
  */
 
 /* jscpd:ignore-start -- import block */
@@ -103,7 +103,7 @@ export type StatusDeleteBlocker = Exclude<
 
 /** The prerequisite a delete of this status would be refused on, or null when
  *  the delete can proceed (freely, or through a reassign choice). The delete
- *  command refuses in exactly this order; the delete page predicts it. */
+ *  command refuses in exactly this order. The delete page predicts it. */
 export const statusDeleteBlocker = (
   status: Pick<AttendeeStatus, "is_paid_default" | "is_public_default">,
   anotherStatusExists: boolean,
@@ -193,6 +193,20 @@ export const requirePaidDefaultStatus: () => Promise<AttendeeStatus> =
 /** The id of the public-default status. */
 export const requirePublicStatusId = async (): Promise<number> =>
   (await requirePublicDefaultStatus()).id;
+
+/** The status new bookings start in, read from a status list the caller has
+ *  already loaded. Both attendee create paths resolve a missing choice to it —
+ *  the admin form and the admin JSON API — so the rule lives beside the save
+ *  and delete guards that keep one status carrying the flag. A list without a
+ *  public default is a broken setup and fails loudly; the seed and the write
+ *  guards make that state unreachable. */
+export const publicDefaultStatusOf = (
+  statuses: readonly AttendeeStatus[],
+): AttendeeStatus =>
+  requireValue(
+    statuses.find((status) => status.is_public_default),
+    "No public default status is configured",
+  );
 
 /** The three columns a status write reads back about itself, opened by the
  * table — so the two default flags arrive as the booleans they are declared

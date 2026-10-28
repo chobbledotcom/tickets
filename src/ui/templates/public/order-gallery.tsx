@@ -100,6 +100,27 @@ const unavailableCard = (
         })}
       </div>`;
 
+/** One selectable cart card. A listing card and a package card differ only in
+ * the option key, the form-field prefix, and the text and image they pass in.
+ * The `selectableCard` shape is the same for both. */
+const renderSelectableCard =
+  (
+    states: OrderGalleryStates,
+    optionKey: (id: number) => string,
+    prefix: string,
+  ) =>
+  (id: number, name: string, detailHtml: string, imageHtml: string): string => {
+    const key = optionKey(id);
+    return selectableCard({
+      detailHtml,
+      fieldName: `${prefix}${id}`,
+      imageHtml,
+      key,
+      name,
+      stateLabel: states.labelFor(key),
+    });
+  };
+
 /**
  * One listing card in the order gallery. A `<label>` wraps a hidden checkbox so
  * the whole card toggles selection with no JavaScript; CSS highlights the card
@@ -130,15 +151,12 @@ const renderOrderCard =
       return unavailableCard(imageHtml, listing.name, status, attributesHtml);
     }
 
-    const key = listingOptionKey(listing.id);
-    return selectableCard({
-      detailHtml: `${priceHtml}${attributesHtml}`,
-      fieldName: `${SELECT_PREFIX}${listing.id}`,
+    return renderSelectableCard(states, listingOptionKey, SELECT_PREFIX)(
+      listing.id,
+      listing.name,
+      `${priceHtml}${attributesHtml}`,
       imageHtml,
-      key,
-      name: listing.name,
-      stateLabel: states.labelFor(key),
-    });
+    );
   };
 
 /**
@@ -157,15 +175,11 @@ const renderOrderPackageCard =
         t("public.registration_closed"),
       );
     }
-    const key = packageOptionKey(pkg.group.id);
-    return selectableCard({
-      detailHtml: "",
-      fieldName: `${PACKAGE_SELECT_PREFIX}${pkg.group.id}`,
-      imageHtml: "",
-      key,
-      name: pkg.group.name,
-      stateLabel: states.labelFor(key),
-    });
+    return renderSelectableCard(
+      states,
+      packageOptionKey,
+      PACKAGE_SELECT_PREFIX,
+    )(pkg.group.id, pkg.group.name, "", "");
   };
 
 /** The optional date field: shown whenever anything on the page needs a date

@@ -62,6 +62,16 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
     squareFetch(request(path, { body, method: "POST" }));
   const get = (path: string) => squareFetch(request(path));
 
+  /** GET one resource by its id path, read through `read`. */
+  const getById =
+    <Output>(
+      resource: string,
+      idField: string,
+      read: (body: unknown) => Output,
+    ) =>
+    async (input: Record<string, string>): Promise<Output> =>
+      read(await get(`/v2/${resource}/${encodeURIComponent(input[idField]!)}`));
+
   return {
     checkout: {
       paymentLinks: {
@@ -104,16 +114,10 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
       list: async () => squareAnswer.locations(await get("/v2/locations")),
     },
     orders: {
-      get: async (input: { orderId: string }) =>
-        squareAnswer.order(
-          await get(`/v2/orders/${encodeURIComponent(input.orderId)}`),
-        ),
+      get: getById("orders", "orderId", squareAnswer.order),
     },
     payments: {
-      get: async (input: { paymentId: string }) =>
-        squareAnswer.payment(
-          await get(`/v2/payments/${encodeURIComponent(input.paymentId)}`),
-        ),
+      get: getById("payments", "paymentId", squareAnswer.payment),
     },
     refunds: {
       refundPayment: async (input: RefundPaymentInput) =>

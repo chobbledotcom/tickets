@@ -3,11 +3,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   ATTENDEE_FORM_ID,
-  attendeeBalanceNotice,
   isPaymentLockedLine,
   parseAttendeeForm,
   toLedgerOrder,
 } from "#routes/admin/attendee-form-model.ts";
+import { attendeeBalanceNotice } from "#routes/admin/attendee-form-validation.ts";
 import {
   line,
   makeForm,

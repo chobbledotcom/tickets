@@ -159,23 +159,23 @@ const collectUniqueOptions = (
   return option && !acc.has(option.id) ? acc.set(option.id, option) : acc;
 };
 
+/** Decrypt one `[id, entity]` pair through its table, and keep the id. */
+const decryptPair =
+  <Entity>(fromDb: (entity: Entity) => Promise<Entity>) =>
+  async ([id, entity]: [number, Entity]): Promise<[number, Entity]> =>
+    [id, await fromDb(entity)] as const;
+
 const decryptAttributeRows = async (
   rows: JoinedAttributeRow[],
 ): Promise<DecryptedAttributeRows> => {
   const [attributes, options] = await Promise.all([
     Promise.all(
-      map(
-        async ([id, attribute]: [number, Attribute]) =>
-          [id, await attributesTable.fromDb(attribute)] as const,
-      )([
+      map(decryptPair(attributesTable.fromDb))([
         ...reduce(collectUniqueAttributes, new Map<number, Attribute>())(rows),
       ]),
     ),
     Promise.all(
-      map(
-        async ([id, option]: [number, AttributeOption]) =>
-          [id, await attributeOptionsTable.fromDb(option)] as const,
-      )([
+      map(decryptPair(attributeOptionsTable.fromDb))([
         ...reduce(
           collectUniqueOptions,
           new Map<number, AttributeOption>(),

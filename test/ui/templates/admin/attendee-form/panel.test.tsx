@@ -329,6 +329,55 @@ describe("attendee form panel", () => {
     );
   });
 
+  test("renders the create-only money sections with their blank slots", () => {
+    const html = render();
+    assertStringIncludes(html, "<legend>Payments already received</legend>");
+    assertStringIncludes(
+      html,
+      '<label for="payment_amount_0">Payment 1<input id="payment_amount_0" min="1" name="payment_amount_0" type="number" value=""></label>',
+    );
+    assertStringIncludes(html, 'name="payment_amount_2"');
+    assertStringIncludes(html, "<legend>Named charges or writeoffs</legend>");
+    assertStringIncludes(
+      html,
+      '<input id="adjustment_description_0" maxlength="200" name="adjustment_description_0" type="text" value="">',
+    );
+    assertStringIncludes(html, 'name="adjustment_amount_2"');
+  });
+
+  test("keeps submitted money values on a rejected save", () => {
+    const html = render({
+      parsed: parsed({
+        adjustments: [{ amount: "-500", description: "Delivery" }, null, null],
+        payments: ["2000", null, null],
+      }),
+    });
+    assertStringIncludes(
+      html,
+      '<input id="payment_amount_0" min="1" name="payment_amount_0" type="number" value="2000">',
+    );
+    assertStringIncludes(
+      html,
+      '<input id="adjustment_description_0" maxlength="200" name="adjustment_description_0" type="text" value="Delivery">',
+    );
+    assertStringIncludes(
+      html,
+      '<input id="adjustment_amount_0" name="adjustment_amount_0" type="number" value="-500">',
+    );
+  });
+
+  test("renders no money sections or price box in edit mode", () => {
+    const html = render({
+      attendee: { id: 42 } as AttendeeFormTemplateData["attendee"],
+      mode: "edit",
+      statuses: statuses(),
+    });
+    assert(!html.includes("Payments already received"));
+    assert(!html.includes("Named charges or writeoffs"));
+    assert(!html.includes('name="payment_amount_0"'));
+    assert(!html.includes('name="price_0"'));
+  });
+
   test("posts an edit to the attendee's own route and relabels the button", () => {
     const html = render({
       attendee: { id: 42 } as AttendeeFormTemplateData["attendee"],

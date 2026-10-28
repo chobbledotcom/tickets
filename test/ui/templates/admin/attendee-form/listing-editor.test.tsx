@@ -34,10 +34,12 @@ const booking = (
 
 const parsed = (lines: AttendeeFormLine[]): ParsedAttendeeForm => ({
   address: "",
+  adjustments: [null, null, null],
   dayCount: 1,
   email: "",
   lines,
   name: "Test",
+  payments: [null, null, null],
   phone: "",
   returnUrl: "",
   special_instructions: "",
@@ -148,6 +150,48 @@ describe("ListingEditor", () => {
     assertStringIncludes(html, '<tr class="attendee-line">');
     assert(!html.includes("attendee-line-empty"));
     assert(!html.includes("attendee-line-package-blank"));
+  });
+
+  test("gives create mode an agreed-price box per row", () => {
+    const html = String(
+      ListingEditor({
+        data: data([attendeeFormLine({ key: "s", quantity: 1 })]),
+      }),
+    );
+    assertStringIncludes(html, "<th>Agreed price</th>");
+    assertStringIncludes(
+      html,
+      '<td class="attendee-line-price"><input aria-label="Agreed price for Test Listing" class="line-price" min="0" name="price_0" placeholder="0" title="Optional, in pence or cents. Blank uses this row\'s usual price." type="number" value=""></td>',
+    );
+  });
+
+  test("a zero package price placeholders zero, not the listing price", () => {
+    const html = String(
+      ListingEditor({
+        data: data([
+          attendeeFormLine({
+            listing: testListingWithCount({ id: 9, unit_price: 900 }),
+            listingId: 9,
+            packageGroupId: 4,
+            packagePrice: 0,
+          }),
+        ]),
+      }),
+    );
+    assertStringIncludes(html, 'placeholder="0"');
+    assert(!html.includes('placeholder="900"'));
+  });
+
+  test("edit mode has no agreed-price box", () => {
+    const html = String(
+      ListingEditor({
+        data: data([attendeeFormLine({ key: "s", quantity: 1 })], {
+          mode: "edit",
+        }),
+      }),
+    );
+    assert(!html.includes("Agreed price"));
+    assert(!html.includes('name="price_0"'));
   });
 
   test("keeps a paid daily booking visible with its notices", () => {

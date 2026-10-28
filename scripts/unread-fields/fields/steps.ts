@@ -190,7 +190,8 @@ const ELEMENT = "[]";
 /** How a reader reaches through a member that has no name to give. An arrow
  * or a function expression written as a value takes the call step too, so
  * `run = (input) => x` and `run(input) { return x }` name the input the same
- * way. */
+ * way. An array written as a value takes the element step, the same way the
+ * `Array` type does: `config = [{ id: 1 }]` reads `config[0].id`. */
 const REACHED_THROUGH: ReadonlyMap<ts.SyntaxKind, string> = new Map([
   [ts.SyntaxKind.CallSignature, "()"],
   [ts.SyntaxKind.ConstructSignature, "new ()"],
@@ -200,6 +201,7 @@ const REACHED_THROUGH: ReadonlyMap<ts.SyntaxKind, string> = new Map([
   [ts.SyntaxKind.FunctionExpression, "()"],
   [ts.SyntaxKind.ArrayType, ELEMENT],
   [ts.SyntaxKind.MappedType, ELEMENT],
+  [ts.SyntaxKind.ArrayLiteralExpression, ELEMENT],
 ]);
 
 /** What a constructor's caller supplies an input through. */

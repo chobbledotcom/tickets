@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { NonNegativeIntSchema } from "#shared/validation/number.ts";
 import { UptimeKumaError } from "./error.ts";
 import { withEventTimeout } from "./event-capture.ts";
 import type { SocketListener, UptimeKumaSocket } from "./socket.ts";
@@ -12,17 +13,10 @@ import type { SocketListener, UptimeKumaSocket } from "./socket.ts";
  * version-bearing one arrives.
  */
 
-export const VersionNumberSchema = v.pipe(
-  v.string(),
-  v.regex(/^\d+$/),
-  v.transform(Number),
-  v.safeInteger(),
-);
-
 export const VersionSchema = v.pipe(
   v.string(),
   v.transform((version) => version.split(".")),
-  v.tuple([VersionNumberSchema, VersionNumberSchema]),
+  v.tuple([NonNegativeIntSchema, NonNegativeIntSchema]),
 );
 
 const InfoSchema = v.object({ version: v.optional(VersionSchema) });
