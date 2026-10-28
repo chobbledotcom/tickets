@@ -6,7 +6,7 @@ setting we can choose, and records the decision taken and what is left to do.
 **Decided and shipped.** The reusable helpers under `test/test-utils` are
 scanned at **40 tokens**, alongside `src/`, by `.jscpd.helpers.json`. The
 Cucumber support helpers under `test/specs/support` are scanned twice: at **19
-tokens** alongside `src/`, and at **17 tokens** on their own by
+tokens** alongside `src/`, and at **15 tokens** on their own by
 `.jscpd.support.json`. See [Where we are](#where-we-are) for the remaining
 steps.
 
@@ -25,7 +25,7 @@ lower number is a tighter net.
 | --------------------- | -------------------------------- | --------- |
 | `.jscpd.json`         | `src`, `e2e-payments`, `scripts` | 19        |
 | `.jscpd.specs.json`   | `src` + `test/specs/support`     | 19        |
-| `.jscpd.support.json` | `test/specs/support`             | 17        |
+| `.jscpd.support.json` | `test/specs/support`             | 15        |
 | `.jscpd.helpers.json` | `src` + `test/test-utils`        | 40        |
 | `.jscpd.test.json`    | `test`                           | 48        |
 | `.jscpd.css.json`     | `src/ui/static/style.scss`       | 50        |
@@ -126,7 +126,7 @@ clean at 19 and cannot go below it:
 
 So the number in _that_ config cannot come down. The support helpers therefore
 get a second scan of their own, `.jscpd.support.json`, which drops `src/` and
-holds them at 17. **19 is where the shared config sits, not where the helpers
+holds them at 15. **19 is where the shared config sits, not where the helpers
 have to stay.**
 
 ### What the curries cost, and where the helpers are now
@@ -139,6 +139,7 @@ Every family the 46 fell into was merged. The counts, measured after each step:
 | 18        | —            | 0         |
 | 17        | 9            | 0         |
 | 16        | 78           | 11        |
+| 15        | 100          | 0         |
 
 The merges, in the order they landed: `opensAdminPageAt` adopted at the four
 files that hand-rolled it; `withAdminPage` widened to carry a result back and
@@ -182,6 +183,40 @@ button as an argument named it too early.
 The gate also caught a twin this work created. `savesBundleForm` repeated
 `saveBundleForm`'s whole parameter list, and now takes
 `Parameters<typeof saveBundleForm>` instead.
+
+The step down to 15 cleared 100 pairs. Most were the signature-and-types-only
+class: two unrelated bodies behind the same `(world, who, listing)` or
+`(world, name, pounds)` head. Each adopted a named step type, or a small local
+type for its own shape, so the typed parameter list stopped repeating. The
+genuine duplicates became shared helpers:
+
+- `createAttendeeOn` in `booked-person.ts` is the one `createTestAttendee`
+  call on a listing. The note, deposit, and editor journeys route through it.
+- `askListingsApi` in `booking-api.ts` is the one "read an API listing
+  endpoint, expect a 200" open.
+- `sendWithTheCode` in `discount-codes.ts` is the one promo-code send.
+- `requireGroup` in `browser.ts` is the one "hand back the matched group or
+  fail loudly" guard.
+- `regionOutOf` in `browser.ts` is the one region-slice. `articleOutOf`,
+  `footerHtml`, and `proseHtml` all route through it.
+- `outgoingWatch` in `outgoing.ts` is the one "the watch a story put in
+  place" accessor.
+- The door and shown-code guards, the merge listing factory, the refund-call
+  counter, and the stay-listing open each became one helper.
+- `emailFor` is the one address rule. The bulk-email stories that spelled out
+  a second one now use it.
+- `theBooking` and `theListing` in `world.ts` are the one booking and listing
+  accessors. `bookingId`, `survivorId`, and `mergedListingId` folded into
+  them, and their callers migrated.
+- `ActsOnPersonsBooking` and the `StoryJourney`-derived shapes cover the
+  booking and messaging signatures.
+- The two `takeOffSale` steps became one. The second module's story now uses
+  the first.
+
+Three new twins this work made were caught and merged in the same change: the
+form-controls readers share `OneFieldOnAPage`, the refund-safety window steps
+share `WindowStep`, and the provider-script interface groups its count methods
+together so their `readonly` arrays do not re-read the same head.
 
 ### The other test helpers moved from 48 to 40
 
@@ -310,6 +345,8 @@ of 19,000 lines costs about one second.
   `.jscpd.support.json` added at 18 tokens. The pairs at 16 tokens went from 78
   to 11.
 - **Done.** `.jscpd.support.json` tightened to 17 tokens, and the nine pairs it
+  surfaced merged (see the list above).
+- **Done.** `.jscpd.support.json` tightened to 15 tokens, and the 100 pairs it
   surfaced merged (see the list above).
 - **Next.** Take `.jscpd.helpers.json` to 36 tokens. 17 pairs, mostly whole
   helpers that duplicate a sibling.

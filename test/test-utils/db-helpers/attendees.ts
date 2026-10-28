@@ -146,6 +146,15 @@ export const createTestAttendee = async (
   return (await getAttendeesRaw(listingId))[0] as Attendee;
 };
 
+/** Book one person on an already-made listing, through the site's own create.
+ * The caller says who the person is and the email they book with. */
+export const createAttendeeOn = async (
+  listing: Pick<Listing, "id" | "slug">,
+  who: string,
+  email: string,
+): Promise<Attendee> =>
+  createTestAttendee(listing.id, listing.slug, who, email);
+
 /** Insert an attendee with no listing booking (an orphan) created `daysAgo`
  *  ago. Returns its numeric id. The `tokenPrefix` distinguishes orphans from
  *  different test suites — `priv-orphan-…` for privacy, `sched-orphan-…` for

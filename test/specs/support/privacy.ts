@@ -9,6 +9,7 @@
  * is a note of its own, which is what the forgetting rule is about.
  */
 
+// jscpd:ignore-start
 import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import {
@@ -18,7 +19,6 @@ import {
 } from "#db/contact-preferences.ts";
 import { t } from "#i18n";
 import { somebodyBooksThroughTheSite } from "#test/specs/support/booking-setup.ts";
-// jscpd:ignore-start
 import {
   opensAdminPageAt,
   organiserSendsAndIsTold,
@@ -107,8 +107,7 @@ export const adaBooks = async (
 /** The organiser deletes a listing, following the way in they really have: its
  * own page, the Actions tab behind it, then typing the name to confirm. */
 export const organiserDeletesListing: ActOnOneThing = async (world, name) => {
-  const browser = await listingPage(world, name);
-  const told = await takeDownFromActions(browser, name, {
+  const told = await takeDownFromActions(await listingPage(world, name), name, {
     deleteLink: t("common.delete"),
     submit: t("listings_table.delete_listing"),
   });

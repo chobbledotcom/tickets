@@ -47,7 +47,9 @@ export const visitorOnNewsPage = (): Promise<TestBrowser> =>
 
 /** The post's own address, read off the news page's real link, so a post the
  * page stopped linking cannot be opened this way. */
-const newsLinkTo = async (name: string): Promise<string> => {
+type NewsLink = (name: string) => Promise<string>;
+
+const newsLinkTo: NewsLink = async (name) => {
   const cards = (await visitorOnNewsPage()).currentHtml.matchAll(
     /<a[^>]*href="(\/news\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/g,
   );

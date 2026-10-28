@@ -69,15 +69,12 @@ type TierStep = (
 export const groupDoorWithTiers: TierStep = async (world, groupName, tiers) => {
   const group = await createTestGroup({ name: groupName });
   world.things.remember("group_door", groupName, group.id);
+  const groupId = group.id;
   for (const tier of tiers) {
     rememberListing(
       world,
       tier,
-      await createTestListing({
-        groupId: group.id,
-        maxAttendees: 10,
-        name: tier,
-      }),
+      await createTestListing({ groupId, maxAttendees: 10, name: tier }),
     );
   }
 };
@@ -88,12 +85,12 @@ export const personWithTierTicket = async (
   who: string,
   tier: string,
 ): Promise<void> => {
-  const { token } = await createTestAttendeeDirect(
+  const attendee = await createTestAttendeeDirect(
     listingIdNamed(world, tier),
     who,
     `${who.toLowerCase()}@example.com`,
   );
-  rememberTicket(world, who, token);
+  rememberTicket(world, who, attendee.token);
 };
 
 /** Someone with one ticket that covers several of the group's tiers. */
@@ -129,10 +126,15 @@ export const peopleOfferedAtGroupDoor = offeredAt(groupDoorPageHtml);
  * ticks ride along untouched, the way a browser sends them. */
 const EVERY_LISTING_BOX = "scan_checks_in_all_listings";
 
-export const groupDoorChecksInAll = async (
+type TurnsOnGroupDoor = (
   world: TicketsWorld,
   groupName: string,
-): Promise<void> => {
+) => Promise<void>;
+
+export const groupDoorChecksInAll: TurnsOnGroupDoor = async (
+  world,
+  groupName,
+) => {
   const browser = await openAdminPage(world, groupEditPage(world, groupName));
   await sendOneBox(browser, browser.currentHtml, EVERY_LISTING_BOX, true);
 };

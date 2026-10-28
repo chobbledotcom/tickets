@@ -18,8 +18,9 @@ import {
   type BookingAttempt,
   type BookingChoices,
   daysOfferedFor,
+  type FilledOrder,
+  type FillsInOrder,
   type OrderInHand,
-  type OrderLine,
   visitorFillsInOrder,
 } from "#test/specs/support/public-booking.ts";
 import {
@@ -29,6 +30,7 @@ import {
 import {
   type ReadAboutOneThing,
   requiredWorldValue,
+  stillThere,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import type { TestListingOverrides } from "#test-utils/factories.ts";
@@ -67,10 +69,9 @@ export const choiceUnlikeTheirs = (
  * it, so the story can race somebody past it and read the refill back. */
 export const fillsIn = async (
   world: TicketsWorld,
-  path: string,
-  lines: OrderLine[],
-  choices: BookingChoices,
+  ...order: Parameters<FillsInOrder<FilledOrder>>
 ): Promise<void> => {
+  const [path, lines, choices] = order;
   const { press } = await visitorFillsInOrder(path, lines, choices);
   world.orderFilledIn = { choices, lines, press };
 };
@@ -88,8 +89,7 @@ export const refillPage = (world: TicketsWorld): string =>
 /** What a box on the refused page still holds, or a loud failure when the
  * page stopped rendering the box at all. */
 export const wordsInBox = (html: string, field: string): string => {
-  const box = boxFor(html, field);
-  if (!box) throw new Error(`The page has no ${field} box`);
+  const box = stillThere(boxFor(html, field), `${field} box`);
   return attribute(box, "value") ?? "";
 };
 

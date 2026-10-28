@@ -34,6 +34,7 @@ import {
   type AsksAboutOneThing,
   keepsAnswerAs,
   keepWhatTheyWereTold,
+  type ReadAboutOneThing,
   requiredWorldValue,
   type StoryJourney,
   type TicketsWorld,
@@ -113,10 +114,10 @@ export const visitorReading = (address: string): Promise<PageRead> =>
 /** The content box the edit form serves for one page, read off the page's own
  * row. Reading the stored row instead would pass even if the form stopped
  * carrying the content, which is the thing the rule is about. */
-export const reopenedPageContent = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<string> => {
+export const reopenedPageContent: ReadAboutOneThing<string> = async (
+  world,
+  name,
+) => {
   const wayIn = await linkIntoPage(world, name);
   const html = await adminPageHtmlAt(world, wayIn);
   const box = html.match(
@@ -198,10 +199,7 @@ const HIDDEN_BOX = "hidden";
 
 /** The owner opens one page's editor, by the way in from that page's own row
  * on their list. */
-const openPageEditor = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<TestBrowser> =>
+const openPageEditor: ReadAboutOneThing<TestBrowser> = async (world, name) =>
   openAdminPage(world, await linkIntoPage(world, name));
 
 /** One page's own editor, open on the screen, with its Hidden box read off the
@@ -227,13 +225,16 @@ export type ActsOnAPagesHiddenBox = (
   hidden: boolean,
 ) => Promise<void>;
 
+/** The owner changing the Hidden box on one page's own editor. */
+type SetsAPagesHiddenBox = ActsOnAPagesHiddenBox;
+
 /** The owner ticks or clears the Hidden box on one page's own editor and
  * saves. The form's own values ride along the way a real browser sends them;
  * only the box is named, and an empty list for it is exactly the nothing a
  * browser sends for a cleared box. A tick is only a tick when the box started
  * clear, and a clear only when it started ticked, so a save that silently
  * dropped the box — or a form that came back pre-ticked — fails here. */
-export const ownerSetsPageHidden: ActsOnAPagesHiddenBox = async (
+export const ownerSetsPageHidden: SetsAPagesHiddenBox = async (
   world,
   name,
   hidden,

@@ -12,6 +12,7 @@ import { formatCurrency } from "#shared/currency.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import {
   keepsWhatTheOrganiserSaw,
+  requireGroup,
   withAdminPage,
 } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
@@ -56,10 +57,10 @@ export const organiserCreatesCode = (
       /<a[^>]*href="\/admin\/modifiers\/(\d+)[^"]*"[^>]*>([\s\S]*?)<\/a>/g,
     );
     // Matched whole, so an older "SAVE100" can never stand in for "SAVE10".
-    const id = [...rows].find(
-      (row) => row[2]!.replace(/<[^>]*>/g, "").trim() === code,
-    )?.[1];
-    if (!id) throw new Error(`The modifier list offers no link to ${code}`);
+    const id = requireGroup(
+      [...rows].find((row) => row[2]!.replace(/<[^>]*>/g, "").trim() === code),
+      `The modifier list offers no link to ${code}`,
+    );
     world.things.remember("record", code, Number(id));
   });
 
@@ -70,6 +71,17 @@ export const codeBoxOffered: AsksAboutOneThing = async (world, listingName) => {
 };
 
 const CUSTOMER = { email: "quoter@example.com", name: "Quote Asker" };
+
+/** Send the booking page's form with the customer's own details and the code
+ * they typed, through whatever button the journey is pressing. */
+const sendWithTheCode = (
+  browser: TestBrowser,
+  code: string,
+  button: string,
+): Promise<void> => {
+  const payload = { ...CUSTOMER, promo_code: code };
+  return fillInAndSend(browser, payload, button);
+};
 
 /** One customer journey from a listing's booking page: the payment provider
  * stands ready, the page is opened, and the rest is what the journey does
@@ -102,7 +114,7 @@ const askForTotal = async (
   browser: TestBrowser,
   code: string,
 ): Promise<string> => {
-  await fillInAndSend(browser, { ...CUSTOMER, promo_code: code }, "Show total");
+  await sendWithTheCode(browser, code, "Show total");
   // A quote with no table is the site refusing to total the order, so the
   // story stops here rather than reading a refusal as a summary.
   requiredWorldValue(
@@ -159,11 +171,7 @@ export const customerPaysWithCode: StoryJourney<APlaceAndACode, void> =
       },
     );
     try {
-      await fillInAndSend(
-        browser,
-        { ...CUSTOMER, promo_code: code },
-        "Continue",
-      );
+      await sendWithTheCode(browser, code, "Continue");
     } finally {
       checkoutStub.restore();
     }

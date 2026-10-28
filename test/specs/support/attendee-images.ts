@@ -13,11 +13,12 @@ import { emailFor } from "#test/specs/support/emails.ts";
 import { showsPicture } from "#test/specs/support/picture-assertions.ts";
 import {
   type NoteImage,
+  type ReadAboutOneThing,
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
-import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createAttendeeOn } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
@@ -108,10 +109,10 @@ export const pageShowsPicture = (html: string, world: TicketsWorld): void => {
 /** The picture the story named, uploaded now. The world keeps it as the
  * picture the story's reference points at; the caller writes the words that
  * name it. */
-export const uploadsAPicture = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<NoteImage> => {
+export const uploadsAPicture: ReadAboutOneThing<NoteImage> = async (
+  world,
+  name,
+) => {
   const image = await makeImage(name);
   const picture: NoteImage = {
     alt: name,
@@ -123,23 +124,35 @@ export const uploadsAPicture = async (
   return picture;
 };
 
-/** Someone booked onto the note listing under their own email, with a
- * picture uploaded and the note typed around the picture's reference. The
- * world remembers the person and the picture; the caller writes the note
- * where their story does. */
-export const typedNoteWithPicture = async (
+/** What a note story gets back from seeding its person: the attendee row, the
+ * picture, and the note typed around the picture's reference. */
+type TypedNoteWithPicture = {
+  attendeeId: number;
+  picture: NoteImage;
+  typed: string;
+};
+
+/** Seeds one note listing's person: the world, who they are, the picture's
+ * name, and the words typed before the picture's reference. */
+type SeedsANote = (
   world: TicketsWorld,
   who: string,
   name: string,
   wordsBefore: string,
-): Promise<{ attendeeId: number; picture: NoteImage; typed: string }> => {
+) => Promise<TypedNoteWithPicture>;
+
+/** Someone booked onto the note listing under their own email, with a
+ * picture uploaded and the note typed around the picture's reference. The
+ * world remembers the person and the picture; the caller writes the note
+ * where their story does. */
+export const typedNoteWithPicture: SeedsANote = async (
+  world,
+  who,
+  name,
+  wordsBefore,
+) => {
   const listing = await createTestListing({ name: NOTE_LISTING });
-  const attendee = await createTestAttendee(
-    listing.id,
-    listing.slug,
-    who,
-    emailFor(who),
-  );
+  const attendee = await createAttendeeOn(listing, who, emailFor(who));
   const picture = await uploadsAPicture(world, name);
   world.attendeeId = attendee.id;
   world.things.remember("record", who, attendee.id);

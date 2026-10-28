@@ -43,6 +43,25 @@ const ask = async (
   return { body: await response.json(), status: response.status };
 };
 
+/** Read one of the booking API's listing endpoints, and fail the story when
+ * the site does not answer with a 200 — a reader that carried on with a
+ * refusal body would report on an answer nobody got. */
+const askListingsApi = async (
+  path: string,
+): Promise<Record<string, unknown>> => {
+  const { body, status } = await ask(path);
+  expect(status).toBe(200);
+  return body;
+};
+
+/** What the availability reader asks about, named as one type so the API
+ * helpers that share the shape do not each spell it out. */
+type ReadsAvailability<Answer> = (
+  world: TicketsWorld,
+  name: string,
+  day: string,
+) => Promise<Answer>;
+
 /** The organiser opens the booking API up to other systems. */
 export const openTheApi = (): Promise<void> =>
   settings.update.showPublicApi(true);
@@ -52,10 +71,9 @@ export const daysTheApiOffers: ReadAboutOneThing<string[]> = async (
   world,
   name,
 ) => {
-  const { body, status } = await ask(
+  const body = await askListingsApi(
     `/api/listings/${listingNamed(world, name).slug}`,
   );
-  expect(status).toBe(200);
   const { availableDates } = (body.listing ?? {}) as Record<string, unknown>;
   // Every day has to be a day. A list carrying anything else is a broken
   // promise to the systems that read it, even when the first day is fine.
@@ -69,21 +87,20 @@ export const daysTheApiOffers: ReadAboutOneThing<string[]> = async (
 };
 
 /** Whether the API says a stay starting on this day can still be booked. */
-export const apiSaysThereIsRoom = async (
-  world: TicketsWorld,
-  name: string,
-  day: string,
-): Promise<boolean> => {
+export const apiSaysThereIsRoom: ReadsAvailability<boolean> = async (
+  world,
+  name,
+  day,
+) => {
   const slug = listingNamed(world, name).slug;
-  const { body, status } = await ask(
+  const body = await askListingsApi(
     `/api/listings/${slug}/availability?date=${day}&quantity=1`,
   );
-  expect(status).toBe(200);
   // The answer has to be the yes-or-no the API documents. A missing or renamed
   // field would otherwise read as "no room" and pass a refusal story silently.
   const { available } = body;
   if (typeof available !== "boolean") {
-    throw new Error(`The API did not say whether there is room: ${status}`);
+    throw new Error(`The API did not say whether there is room: ${available}`);
   }
   return available;
 };
