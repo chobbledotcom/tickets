@@ -247,6 +247,32 @@ describeWithEnv(
           },
           "ticketToken must be 250 characters or fewer",
         ],
+        [
+          {
+            created: "not-an-instant",
+            lines: [{ listingId: listing.id, quantity: 1 }],
+            name: "Bad created",
+          },
+          "created must be a valid instant as 2026-09-01T09:00:00Z",
+        ],
+        [
+          {
+            created: 5,
+            lines: [{ listingId: listing.id, quantity: 1 }],
+            name: "Numeric created",
+          },
+          "created must be a valid instant as 2026-09-01T09:00:00Z",
+        ],
+        [
+          {
+            // Temporal rejects a calendar-impossible day that Date.parse
+            // would silently roll over, so the malformed instant is caught.
+            created: "2026-02-30T09:00:00Z",
+            lines: [{ listingId: listing.id, quantity: 1 }],
+            name: "Impossible created",
+          },
+          "created must be a valid instant as 2026-09-01T09:00:00Z",
+        ],
       ] as const) {
         await assertJson(
           apiRequest("/api/admin/attendees", { body, method: "POST" }),

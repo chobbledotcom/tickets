@@ -143,6 +143,7 @@ const prepareAttendeeWrite = async (
     {
       ...contactInfo,
       paymentId,
+      ...(input.created === undefined ? {} : { created: input.created }),
     },
     input.ticketToken ?? generateTicketToken(),
   );
