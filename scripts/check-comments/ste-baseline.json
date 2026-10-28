@@ -187,7 +187,7 @@
   },
   "src/features/router.ts": {
     "long-sentence": 1,
-    "semicolon": 3
+    "semicolon": 2
   },
   "src/features/settings-bundles.ts": {
     "long-sentence": 3,
@@ -356,8 +356,8 @@
     "banned-modal": 2
   },
   "src/shared/checkout-complete.ts": {
-    "long-sentence": 7,
-    "semicolon": 2
+    "long-sentence": 5,
+    "semicolon": 1
   },
   "src/shared/checkout-pricing.ts": {
     "semicolon": 5,
@@ -450,9 +450,9 @@
   },
   "src/shared/db/attendee-statuses.ts": {
     "wordy": 1,
-    "long-sentence": 3,
     "banned-modal": 1,
-    "semicolon": 2
+    "semicolon": 2,
+    "long-sentence": 3
   },
   "src/shared/db/attendee-types.ts": {
     "semicolon": 10,
@@ -629,7 +629,7 @@
   },
   "src/shared/db/listing-parents.ts": {
     "semicolon": 6,
-    "long-sentence": 12,
+    "long-sentence": 10,
     "banned-modal": 3,
     "contraction": 3
   },
@@ -937,8 +937,7 @@
     "participle": 1
   },
   "src/shared/db/slug-registry.ts": {
-    "long-sentence": 5,
-    "contraction": 1,
+    "long-sentence": 3,
     "banned-modal": 2
   },
   "src/shared/db/square-link-ends.ts": {
@@ -1739,8 +1738,6 @@
     "long-sentence": 1
   },
   "src/ui/templates/admin/logistics.tsx": {
-    "long-sentence": 1,
-    "contraction": 1,
     "semicolon": 1
   },
   "src/ui/templates/admin/migrate.tsx": {

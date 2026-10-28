@@ -32,9 +32,6 @@ type TxIdsWrite = (
 ) => Promise<void>;
 
 export type LinkTableSide = {
-  /** Add links for a key without touching its existing rows (one multi-row
-   * INSERT), inside an existing write transaction. No-op for an empty list. */
-  addIdsTx: TxIdsWrite;
   /** Remove every row for this key (used before deleting the record). */
   clear: (keyId: number) => Promise<void>;
   /** Copy all links from one key to another inside an existing write
@@ -168,11 +165,6 @@ export const linkTableSide = (
   };
 
   const linkSide: LinkTableSide = {
-    addIdsTx: async (tx, keyId, ids) => {
-      const deduped = dedupe(ids);
-      if (deduped.length === 0) return;
-      await tx.execute(insertStatement(keyId, deduped));
-    },
     clear: (keyId) => deleteByField(table, keyColumn, keyId),
     copyLinksTx: async (tx, sourceKeyId, newKeyId) => {
       await tx.execute({

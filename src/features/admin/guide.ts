@@ -1,4 +1,4 @@
-import { defineRoutes } from "#routes/router.ts";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 
 /**
  * Admin guide route
@@ -40,7 +40,7 @@ const handleAdminFormattingGet = contentPage((session) =>
   adminFormattingHelpPage(session),
 );
 
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin/formatting": handleAdminFormattingGet,
   "GET /admin/guide": handleAdminGuideGet,
 });

@@ -147,7 +147,7 @@ const WRAPPERS_THAT_DO_NOTHING: ReadonlySet<ts.SyntaxKind> = new Set([
   ts.SyntaxKind.TypeAssertionExpression,
 ]);
 
-const onlyWraps = (node: ts.Node): boolean =>
+export const onlyWraps = (node: ts.Node): boolean =>
   WRAPPERS_THAT_DO_NOTHING.has(node.kind);
 
 /** Whether an assignment writes into this node, out through the nested

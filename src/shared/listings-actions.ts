@@ -106,11 +106,17 @@ const validateMaxPrice = (input: ListingInput): string | null => {
     : null;
 };
 
+/** Facts a caller preloads to validate many listings with one shared read. */
+export type ListingValidationContext = {
+  siblingsByGroup?: Map<number, ListingWithCount[]>;
+};
+
 /** An async listing check that can depend on the update target's id (undefined
  * on create), returning a user-facing error or null. */
 type ListingUpdateCheck = (
   input: ListingInput,
   existingId: number | undefined,
+  preloaded: ListingValidationContext | undefined,
 ) => Promise<string | null>;
 
 /** Validate each selected group exists. The listing type must be compatible
@@ -149,7 +155,11 @@ const packageMembershipError = async (
   );
 };
 
-const validateListingGroup: ListingUpdateCheck = async (input, existingId) => {
+const validateListingGroup: ListingUpdateCheck = async (
+  input,
+  existingId,
+  preloaded,
+) => {
   const groupIds = input.wouldBeGroupIds ?? input.groupIds ?? [];
   if (groupIds.length === 0) return null;
   const planRule = planInGroupError(input.assignBuiltSite, input.name);
@@ -163,7 +173,8 @@ const validateListingGroup: ListingUpdateCheck = async (input, existingId) => {
   // the N+1 read guard: one cached groups load plus one sibling query for all
   // referenced groups, then the compatibility check runs in memory per group.
   const groupsById = await getGroupsById();
-  const siblingsByGroup = await getListingsByGroupIds(groupIds);
+  const siblingsByGroup =
+    preloaded?.siblingsByGroup ?? (await getListingsByGroupIds(groupIds));
   return firstProblem(async (groupId: number): Promise<string | null> => {
     const checked = checkGroupListingSettings(
       groupsById.get(groupId),
@@ -273,6 +284,7 @@ const validateMinQuantity = (input: ListingInput): string | null => {
 export const validateListingInput = async (
   input: ListingInput,
   existingId?: number,
+  preloaded?: ListingValidationContext,
 ): Promise<string | null> => {
   const nameError = await listingNameError(input.name, existingId);
   if (nameError) return nameError;
@@ -294,12 +306,12 @@ export const validateListingInput = async (
   }
   const customisableError = validateCustomisableDays(input);
   if (customisableError) return customisableError;
-  const groupError = await validateListingGroup(input, existingId);
+  const groupError = await validateListingGroup(input, existingId, preloaded);
   if (groupError) return groupError;
   // A type/duration/renewal edit can break an existing parent/child edge the
   // booking gate then can't date or price — re-check every touching edge against
   // the would-be fields and block the save (web form and admin JSON API alike).
-  const edgeError = await validateListingEdges(input, existingId);
+  const edgeError = await validateListingEdges(input, existingId, undefined);
   if (edgeError) return edgeError;
 
   return (

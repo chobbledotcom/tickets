@@ -2,9 +2,9 @@
 import type { Table } from "#db/migrations/schema/types.ts";
 import {
   alsoAbout,
-  encryptedPaymentColumnOrNull,
   keyWords,
   madeAndTouched,
+  ownerEncryptedPaymentColumnOrNull,
   wholeNumber,
   wholeNumberOrNull,
   words,
@@ -25,7 +25,7 @@ const HIDDEN_COLUMNS = [
 
 /** The only rule the table keeps: the buyer's details really are hidden. */
 const aboutThePayment = alsoAbout(
-  HIDDEN_COLUMNS.map(encryptedPaymentColumnOrNull),
+  HIDDEN_COLUMNS.map(ownerEncryptedPaymentColumnOrNull),
 );
 
 export const paymentSessionTable: [name: string, table: Table] = [

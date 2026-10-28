@@ -44,6 +44,7 @@ type ShapeTarget = (shape: Shape) => ts.Symbol;
 interface ExportWalk {
   checker: ts.TypeChecker;
   isExportedTarget: (target: ts.Symbol) => boolean;
+  root: string;
   store: FieldStore;
   targetOfShape: ShapeTarget;
   visitor: FieldVisitor;
@@ -243,7 +244,7 @@ const visitShape = (walk: ExportWalk, shape: Shape): void => {
   for (const base of inheritedTypesOf(shape)) {
     walk.visitor.visit(owner, base, state);
   }
-  const borrowed = borrowedFields(walk.checker, shape);
+  const borrowed = borrowedFields(walk.checker, shape, walk.root);
   visitBorrowedFields(walk, owner, target, state, borrowed.onItsValues);
   visitBorrowedFields(
     walk,
@@ -258,6 +259,7 @@ const visitShape = (walk: ExportWalk, shape: Shape): void => {
 /** Create one source-file scanner with shared checker caches. */
 export const exportedFields = (
   checker: ts.TypeChecker,
+  root: string,
 ): ((source: ts.SourceFile) => OwnedField[]) => {
   const targetOfShape = bindFirst(shapeTarget)(checker);
   const isExportedTarget = createExportedTargetLookup(checker, targetOfShape);
@@ -269,11 +271,13 @@ export const exportedFields = (
       checker,
       isExportedTarget,
       remember: store.remember,
+      root,
     };
     const visitor = createFieldVisitor(context);
     const walk = {
       checker,
       isExportedTarget,
+      root,
       store,
       targetOfShape,
       visitor,

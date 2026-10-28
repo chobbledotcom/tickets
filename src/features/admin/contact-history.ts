@@ -1,4 +1,6 @@
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+/* jscpd:ignore-start -- imports */
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 
 /**
  * The entity page for a single contact_preferences record, keyed by its HMAC
@@ -17,7 +19,6 @@ import {
   saveContactRecord,
 } from "#db/contact-preferences.ts";
 import { addPageImageUrls } from "#db/image-urls.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import {
   customSection,
@@ -138,7 +139,7 @@ const handleContactHistoryPost: TypedRouteHandler<
     return redirect(`/admin/history/${hmac}`, t("contact_history.saved"), true);
   });
 
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin/history/:hmac": (request, { hmac }) =>
     contactHistoryEntityPage.renderTab(request, hmac, ""),
   "POST /admin/history/:hmac": handleContactHistoryPost,

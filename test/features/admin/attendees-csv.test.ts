@@ -4,6 +4,7 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
   type CsvListingInfo,
+  csvDateRange,
   generateAttendeesCsv,
 } from "#routes/admin/attendees-csv.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
@@ -217,6 +218,14 @@ describe("generateAttendeesCsv", () => {
     const csv = generateAttendeesCsv(attendees, false);
     expect(csv.startsWith("Name,")).toBe(true);
     assert(!csv.includes("2026-03-15"));
+  });
+});
+
+describe("csvDateRange", () => {
+  test("names the stored end date when a booking's range cannot be read", () => {
+    expect(() => csvDateRange("2026-09-01", "not-a-date")).toThrow(
+      "a stored booking end date",
+    );
   });
 });
 

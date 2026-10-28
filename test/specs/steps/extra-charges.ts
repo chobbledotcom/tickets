@@ -11,7 +11,6 @@ import { accountBalance, transfersByAccount } from "#accounting/queries.ts";
 import { settings } from "#db/settings.ts";
 import { listingIdNamed } from "#test/specs/support/listings.ts";
 import {
-  bookingId,
   buyPlaceWithExtra,
   expectMoneyHandedBack,
   sellPlacesAt,
@@ -30,6 +29,7 @@ import {
 import {
   requiredWorldValue,
   type TicketsWorld,
+  theBooking,
 } from "#test/specs/support/world.ts";
 import { insertModifier } from "#test-utils/modifiers.ts";
 import { setupStripe } from "#test-utils/settings.ts";
@@ -72,7 +72,7 @@ Then(
     expect(await accountBalance(BOOKING_FEE_INCOME)).toBe(500);
     expect(await worldBalance()).toBe(-5500);
     // The fee is its own line on the booking, not part of the ticket's price.
-    const legs = await transfersByAccount(attendeeAccount(bookingId(this)));
+    const legs = await transfersByAccount(attendeeAccount(theBooking(this)));
     expect(kindsOf(legs)).toEqual(["fee", "payment", "sale"]);
     const fee = legsOfKind(legs, "fee")[0]!;
     expect(fee.amount).toBe(500);
@@ -83,7 +83,7 @@ Then(
 Then(
   "the customer owes nothing",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await owedBy(bookingId(this))).toBe(0);
+    expect(await owedBy(theBooking(this))).toBe(0);
   },
 );
 
@@ -102,7 +102,7 @@ Then(
     expect(await incomeOf(listingIdNamed(this, FEE_DAY))).toBe(0);
     expect(await accountBalance(BOOKING_FEE_INCOME)).toBe(0);
     const handedBackFee = await attendeeLegsOfKind(
-      bookingId(this),
+      theBooking(this),
       "refund_fee",
     );
     expect(handedBackFee.length).toBe(1);
@@ -113,7 +113,7 @@ Then(
 Then(
   "the site is holding none of the customer's money",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await owedBy(bookingId(this))).toBe(0);
+    expect(await owedBy(theBooking(this))).toBe(0);
     expect(await worldBalance()).toBe(0);
     expect(await sumOfAllBalances()).toBe(0);
   },
@@ -152,9 +152,9 @@ Then(
     const modifierId = requiredWorldValue(this.modifierId, "modifier id");
     expect(await accountBalance(modifierAccount(modifierId))).toBe(500);
     expect(await incomeOf(listingIdNamed(this, TALK))).toBe(5000);
-    expect(await owedBy(bookingId(this))).toBe(0);
+    expect(await owedBy(theBooking(this))).toBe(0);
     // The charge is its own line, paid to the charge itself.
-    const legs = await transfersByAccount(attendeeAccount(bookingId(this)));
+    const legs = await transfersByAccount(attendeeAccount(theBooking(this)));
     expect(kindsOf(legs)).toEqual(["modifier", "payment", "sale"]);
     const charge = legsOfKind(legs, "modifier")[0]!;
     expect(charge.amount).toBe(500);
@@ -196,7 +196,7 @@ Then(
     const modifierId = requiredWorldValue(this.modifierId, "modifier id");
     expect(await accountBalance(modifierAccount(modifierId))).toBe(0);
     const handedBackCharge = await attendeeLegsOfKind(
-      bookingId(this),
+      theBooking(this),
       "refund_modifier",
     );
     expect(handedBackCharge.length).toBe(1);
@@ -212,7 +212,7 @@ Then(
     // the whole 55.00 goes back where it came from, once.
     await expectMoneyHandedBack(this, 5500);
     // Nobody is left holding anything: not the customer, not the site.
-    expect(await owedBy(bookingId(this))).toBe(0);
+    expect(await owedBy(theBooking(this))).toBe(0);
     expect(await worldBalance()).toBe(0);
   },
 );

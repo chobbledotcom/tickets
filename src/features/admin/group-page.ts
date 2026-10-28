@@ -39,35 +39,28 @@ import {
 const staffOnly = (_group: Group, session: AuthSession): boolean =>
   isStaffRole(session.adminLevel);
 
-/** The Actions tab entries. Each `visible` repeats the gate its target route
- * enforces, so no dead or forbidden link renders. The tab itself is open to
- * content roles (staff + editor), so Bulk actions and Delete carry an explicit
- * `staffOnly` check. Export is the only button an editor can use. */
+/** The Actions tab entries. Each destination's declaration gives the action
+ * its audience and its address. A route that narrows also hides its link.
+ * The tab is open to content roles. Export is the only button an editor can
+ * use, because the bulk and delete routes keep staff audiences. */
 const GROUP_ACTIONS: readonly ActionDef<Group>[] = [
   {
     // A JSON export download (see catalog-transfer). A read, so — unlike bulk
     // actions and delete — it stays available in read-only mode.
-    href: (group) => `/admin/groups/${group.id}/export.json`,
+    destination: "groupExportJson",
     icon: "save",
     labelKey: "catalog_transfer.export_link",
   },
   {
-    href: (group) => `/admin/groups/${group.id}/bulk-actions`,
+    destination: "bulkActions",
     icon: "hammer",
-    intent: "write-form",
     labelKey: "groups.detail.bulk_actions",
-    // Bulk actions mutate the group's listings, so hide the link in
-    // read-only mode. Restrict it to staff now that editors reach this tab
-    // too.
-    visible: staffOnly,
   },
   {
     danger: true,
-    href: (group) => `/admin/groups/${group.id}/delete`,
+    destination: "groupDelete",
     icon: "trash-2",
-    intent: "write-form",
     labelKey: "groups.detail.delete_group",
-    visible: staffOnly,
   },
 ];
 
@@ -100,6 +93,7 @@ export const groupPage: EntityPage<Group> = defineEntityPage({
   // link, no "Add" sub-nav (see attendee-page.ts).
   navActive: { section: adminPattern("groups") },
   proseExtra: groupNoteFeature.page.proseExtra,
+  recordId: (group) => group.id,
   tabs: [
     panelTab(
       "",

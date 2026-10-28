@@ -13,6 +13,7 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+import { regionOutOf } from "#test-utils/test-browser/parsing.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
@@ -49,35 +50,18 @@ export const wordsWithSitePicture = (
   words: string,
 ): string => `${words}\n\n${sitePictureReference(world)}`;
 
-/** A page region a story reads: from one opening tag to where the region
- * closes. */
+/** A page region a story reads: from one opening marker to where it closes. */
 type PageRegion = (html: string) => string;
 
-/** The page region that starts at one opening tag and runs to its closing
- * tag. A region the page does not render is a loud failure. A story that
- * reads a missing region proves nothing. */
-const regionHtml = (
-  html: string,
-  openTag: string,
-  closeTag: string,
-  region: string,
-): string => {
-  const start = html.indexOf(openTag);
-  if (start === -1) throw new Error(`the page renders no ${region}`);
-  const end = html.indexOf(closeTag, start);
-  if (end === -1) throw new Error(`the page renders no ${region}`);
-  return html.slice(start, end);
-};
-
 /** The page's site footer region, where the footer's own words show. */
-export const footerHtml = (html: string): string =>
-  regionHtml(html, '<footer class="site-footer">', "</footer>", "site footer");
+export const footerHtml: PageRegion = (html) =>
+  regionOutOf(html, '<footer class="site-footer">', "</footer>", "site footer");
 
 /** The page's own-words region, where the owner's words render. The region
  * runs to the end of the page's <main>, because the site footer renders after
  * it and must never count as the page's own words. */
-export const proseHtml = (html: string): string =>
-  regionHtml(html, '<div class="prose">', "</main>", "words of its own");
+export const proseHtml: PageRegion = (html) =>
+  regionOutOf(html, '<div class="prose">', "</main>", "words of its own");
 
 /** The story's picture shows in one region of the page, and no unresolved
  * reference shows anywhere on the page. */

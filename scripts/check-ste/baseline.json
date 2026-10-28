@@ -269,10 +269,7 @@
   "docs/scheduled-maintenance.md": {
     "banned-modal \"would\" in Rate-limit % at the CDN before requests reach the edge script. The application deliberately does not keep a request counter for rejected calls: doing so would let unauthenticated traffic consume database subrequests before authentication. Keep the limit high enough for the monitor's retries, but far below a general API traffic rate.": 1
   },
-  "docs/test-duplication.md": {
-    "semicolon \";\" in The merges, in the order they landed: % adopted at the four files that hand-rolled it; % widened to carry a result back and adopted at seven; % and % in %; % in %; %; the reader's presses, the erase form and Refund All curried; the named step types %, %, % adopted at 31 helpers and the new % at nine more; % moved out of %; %, %, %, %, %, %; and the named shapes %, %, %, % and %.": 9,
-    "banned-modal \"could\" in The single pair at 48 tokens was the find that made the scan worth adding. % held its own copy of % and % from %. No config could see it, because no config scanned % against %. The golden test database was therefore built by a second copy of the production schema builder, and could drift from it. It now calls %.": 2
-  },
+  "docs/test-duplication.md": {},
   "e2e-payments/README.md": {
     "semicolon \";\" in a fresh file-backed app database;": 1,
     "semicolon \";\" in a new real % child process;": 1,
@@ -289,7 +286,6 @@
   "scripts/email-sandbox-e2e/README.md": {},
   "scripts/unread-fields/README.md": {
     "banned-modal \"would\" in % and % are two fields. A static belongs to the class object, and the report calls that object %, which is what TypeScript calls it. One line for both would call a field on a value read because the class side is.": 1,
-    "banned-modal \"would\" in A % block does not count either. It adds its shapes to the global scope rather than to what the file exports. The one in % holds the JSX contract, and the compiler reads those fields rather than any code here, so the scan would call them unread.": 1,
-    "wordy \"simply\" in A shape also hands on the fields it takes from somewhere else. That means a base it extends, an intersection, another type it simply names, or every arm of a union. % names one type, and % names two. The scan looks at the fields of every arm. A reader reaches the fields of one arm, after it narrows the value to that arm. The arms are often types the file keeps to itself, so no other shape reports them. A field written down in a library, such as the % that % carries, is not a field this repository exports.": 1
+    "banned-modal \"would\" in A % block does not count either. It adds its shapes to the global scope rather than to what the file exports. The one in % holds the JSX contract, and the compiler reads those fields rather than any code here, so the scan would call them unread.": 1
   }
 }

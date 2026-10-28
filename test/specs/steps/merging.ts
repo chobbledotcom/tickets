@@ -17,9 +17,7 @@ import {
   mergeChoices,
   mergeDeciding,
   mergeDuplicates,
-  mergedListingId,
   plainBookingField,
-  survivorId,
 } from "#test/specs/support/merging.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import {
@@ -33,6 +31,8 @@ import { dayFromToday } from "#test/specs/support/stays.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
+  theBooking,
+  theListing,
 } from "#test/specs/support/world.ts";
 
 // jscpd:ignore-end
@@ -92,7 +92,7 @@ Then(
 Then(
   "both bookings are still there, still counted",
   async function (this: TicketsWorld): Promise<void> {
-    const listingId = mergedListingId(this);
+    const listingId = theListing(this);
     // Nothing moved: both places still counted, and the books still balance.
     expect((await getAttendeesRaw(listingId)).length).toBe(2);
     expect(await incomeOf(listingId)).toBe(minorUnits("100.00"));
@@ -107,7 +107,7 @@ Then(
     _listing: string,
     amount: string,
   ): Promise<void> {
-    expect(await incomeOf(mergedListingId(this))).toBe(minorUnits(amount));
+    expect(await incomeOf(theListing(this))).toBe(minorUnits(amount));
     // However the money was decided, none of it may appear or vanish.
     expect(await sumOfAllBalances()).toBe(0);
   },
@@ -117,7 +117,7 @@ Then(
   "the booking they keep holds {word} of credit",
   async function (this: TicketsWorld, amount: string): Promise<void> {
     // Credit reads as a negative amount owed: the site owes them.
-    expect(await owedBy(survivorId(this))).toBe(-minorUnits(amount));
+    expect(await owedBy(theBooking(this))).toBe(-minorUnits(amount));
     expect(
       norm(
         await accountBalance(
@@ -132,14 +132,14 @@ Then(
   "the credit is shown on their money page",
   async function (this: TicketsWorld): Promise<void> {
     const page = await adminPageHtml(
-      `/admin/attendees/${survivorId(this)}/ledger`,
+      `/admin/attendees/${theBooking(this)}/ledger`,
     );
-    assertStringIncludes(page, formatCurrency(await owedBy(survivorId(this))));
+    assertStringIncludes(page, formatCurrency(await owedBy(theBooking(this))));
   },
 );
 
 Then("the person is owed nothing", async function (this: TicketsWorld) {
-  expect(await owedBy(survivorId(this))).toBe(0);
+  expect(await owedBy(theBooking(this))).toBe(0);
 });
 
 Then(
@@ -168,7 +168,7 @@ Then(
   async function (this: TicketsWorld): Promise<void> {
     const outcome = await mergeDuplicates(this);
     expect(outcome.applied).toBe(true);
-    const listingId = mergedListingId(this);
+    const listingId = theListing(this);
     expect((await getAttendeesRaw(listingId)).length).toBe(1);
     expect(await incomeOf(listingId)).toBe(0);
     expect(await sumOfAllBalances()).toBe(0);

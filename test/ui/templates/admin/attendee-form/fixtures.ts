@@ -10,10 +10,12 @@ export const parsed = (
   overrides: Partial<ParsedAttendeeForm> = {},
 ): ParsedAttendeeForm => ({
   address: "",
+  adjustments: [null, null, null],
   dayCount: 1,
   email: "",
   lines: [attendeeFormLine()],
   name: "Test",
+  payments: [null, null, null],
   phone: "",
   returnUrl: "",
   special_instructions: "",

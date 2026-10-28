@@ -6,7 +6,6 @@ import { expect } from "@std/expect";
 import { listingIdNamed } from "#test/specs/support/listings.ts";
 import {
   askForRefund,
-  bookingId,
   bookingPagePath,
   buyOnePlace,
   expectMoneyHandedBack,
@@ -22,7 +21,7 @@ import {
   owedBy,
   sumOfAllBalances,
 } from "#test/specs/support/money-reads.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { type TicketsWorld, theBooking } from "#test/specs/support/world.ts";
 
 // jscpd:ignore-end
 
@@ -52,7 +51,7 @@ Then(
   async function (this: TicketsWorld): Promise<void> {
     const listingId = listingIdNamed(this, CONCERT);
     expect(await incomeOf(listingId)).toBe(0);
-    expect(await owedBy(bookingId(this))).toBe(0);
+    expect(await owedBy(theBooking(this))).toBe(0);
     expect(await sumOfAllBalances()).toBe(0);
     // The money record nets the refund; the listing's own income box reports
     // the sale less write-offs, so an ordinary refund leaves it standing.
@@ -123,9 +122,9 @@ Then(
   "the customer was handed money back only once",
   async function (this: TicketsWorld): Promise<void> {
     expect(
-      (await attendeeLegsOfKind(bookingId(this), "refund_cash")).length,
+      (await attendeeLegsOfKind(theBooking(this), "refund_cash")).length,
     ).toBe(1);
-    expect(await owedBy(bookingId(this))).toBe(0);
+    expect(await owedBy(theBooking(this))).toBe(0);
     expect(await sumOfAllBalances()).toBe(0);
   },
 );

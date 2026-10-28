@@ -13,7 +13,7 @@ import {
   type SafetyBooking,
   safetyBooking,
 } from "#test/specs/support/refund-safety/state.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import type { StoryJourney, TicketsWorld } from "#test/specs/support/world.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { extractFormEntries } from "#test-utils/test-browser/forms.ts";
 import {
@@ -58,11 +58,10 @@ const attendeeOrNull = async (attendeeId: number) =>
 const attendeePair = (paidId: number, freeId: number) =>
   Promise.all([attendeeOrNull(paidId), attendeeOrNull(freeId)]);
 
-type ActsOnPaidBooking<Args extends unknown[], Answer> = (
-  world: TicketsWorld,
-  who: string,
-  ...args: Args
-) => Promise<Answer>;
+type ActsOnPaidBooking<Args extends unknown[], Answer> = StoryJourney<
+  [who: string, ...Args],
+  Answer
+>;
 
 function withPaidBooking<Args extends unknown[], Answer>(
   action: (
@@ -155,11 +154,14 @@ export const choosePaidDetails = (
   keptForms.set(world, { html: form.body, values });
 };
 
-/** Submit exactly the merge form and source choices the owner kept open. */
-export const submitKeptMerge = async (
+/** The merge the second owner window kept, pressed from that same window. */
+type SubmitsKeptMerge = (
   world: TicketsWorld,
   windows: RefundWindows,
-): Promise<TestBrowser> => {
+) => Promise<TestBrowser>;
+
+/** Submit exactly the merge form and source choices the owner kept open. */
+export const submitKeptMerge: SubmitsKeptMerge = async (world, windows) => {
   const kept = keptForms.get(world);
   if (kept === undefined) {
     throw new Error("The owner has not chosen what the merge should keep");

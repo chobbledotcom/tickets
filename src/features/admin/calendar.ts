@@ -1,4 +1,4 @@
-import { defineRoutes } from "#routes/router.ts";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 
 /**
  * Admin calendar view routes
@@ -446,7 +446,7 @@ const handleAdminCalendarExport = (request: Request) =>
   });
 
 /** Calendar routes */
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin/calendar": handleAdminCalendarGet,
   "GET /admin/calendar/export": handleAdminCalendarExport,
 });

@@ -20,7 +20,7 @@ import {
   renameAttributeOptionWithLog,
 } from "#routes/admin/attributes.ts";
 import { OWNER_API } from "#routes/auth.ts";
-import { jsonResponse } from "#routes/response.ts";
+import { reReadResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { apiChildSurface } from "#shared/rest/child-surface.ts";
@@ -69,14 +69,10 @@ const optionSurface = apiChildSurface({
 });
 
 /** The write response: the written attribute re-read from the primary. */
-const attributeResponse = async (
-  attributeId: number,
-  status?: number,
-): Promise<Response> =>
-  jsonResponse(
-    { attribute: await getAttributeWithOptionsOnPrimary(attributeId) },
-    status,
-  );
+const attributeResponse = reReadResponse(
+  "attribute",
+  getAttributeWithOptionsOnPrimary,
+);
 
 /** POST /api/admin/attributes/:attributeId/options */
 const handleOptionCreate: RouteHandlerFn = (request, params) =>

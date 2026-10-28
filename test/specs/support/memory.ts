@@ -95,8 +95,8 @@ export const namedThings = (): RemembersThings => {
         .map((key) => key.slice(kind.length + 2)),
     orMake: (kind, name, make) =>
       store.recall(kind, name) ?? store.remember(kind, name, make()),
-    recall: <Kind extends ThingKind>(kind: Kind, name: string) =>
-      kept.get(under(kind, name)) as ThingsByKind[Kind] | undefined,
+    recall: (kind, name) =>
+      kept.get(under(kind, name)) as ThingsByKind[typeof kind] | undefined,
     remember: (kind, name, thing) => {
       kept.set(under(kind, name), thing);
       return thing;

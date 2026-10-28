@@ -1,5 +1,7 @@
 /* jscpd:ignore-start -- imports */
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 
 /**
  * Admin routes for catalog import/export.
@@ -121,6 +123,19 @@ const handleImportPost: TypedRouteHandler<"POST /admin/catalog/import"> =
     if (!result.ok) return errorRedirect(IMPORT_PATH, result.error);
     const imported = result.value;
 
+    if (imported.kind === "bundle") {
+      await logActivity(
+        `Bundle import: ${imported.listings} listings and ${imported.groups} groups created`,
+      );
+      return redirect(
+        "/admin/listings",
+        t("catalog_transfer.imported_bundle", {
+          groups: imported.groups,
+          listings: imported.listings,
+        }),
+        true,
+      );
+    }
     if (imported.kind === "listing") {
       await logActivity(`Listing '${imported.name}' imported`, imported.id);
       return redirect(
@@ -138,7 +153,7 @@ const handleImportPost: TypedRouteHandler<"POST /admin/catalog/import"> =
   });
 
 /** Catalog import/export routes. */
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin/catalog/import": handleImportGet,
   "GET /admin/groups/:id/export.json": handleGroupExport,
   "GET /admin/listing/:id/export.json": handleListingExport,

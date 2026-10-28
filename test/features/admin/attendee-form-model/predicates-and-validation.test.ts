@@ -8,8 +8,8 @@ import {
   isNoQuantityLine,
   isRetainedLine,
   resolveStatusId,
-  validateParsedForm,
 } from "#routes/admin/attendee-form-model.ts";
+import { validateParsedForm } from "#routes/admin/attendee-form-validation.ts";
 import {
   line,
   parsedBase,

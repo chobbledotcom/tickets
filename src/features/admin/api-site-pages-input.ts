@@ -89,13 +89,20 @@ const optionalTextField = (
   withSupplied(body, key, stored, (raw) => {
     const value = raw.trim();
     const max = CONTENT_FIELD_LIMITS[key];
-    if (value.length > max) {
-      return errorResult(
-        t("fields.validation.max_length", { label: FIELD_LABELS[key](), max }),
-      );
-    }
+    if (value.length > max) return tooLong(FIELD_LABELS[key](), max);
     return okResult(value);
   });
+
+/** The "longer than the field's cap" refusal, in the form's own words. The
+ *  slug, the page name, and the text fields all refuse with the same message,
+ *  so the message construction lives once. */
+const tooLong = (label: string, max: number): Result<never> =>
+  errorResult(
+    t("fields.validation.max_length", {
+      label,
+      max,
+    }),
+  );
 
 /** The slug: absent keeps the stored one. A supplied value normalises and
  *  validates through the same rule the form's slug field runs, then the
@@ -108,14 +115,8 @@ const optionalSlug = (body: Record<string, unknown>, stored: string) =>
     if (invalid) return errorResult(invalid);
     // The form's slug field refuses a value past the input cap, after the
     // format check and before the reserved words. The same refusal here.
-    if (slug.length > MAX_INPUT_LENGTH) {
-      return errorResult(
-        t("fields.validation.max_length", {
-          label: t("common.slug"),
-          max: MAX_INPUT_LENGTH,
-        }),
-      );
-    }
+    if (slug.length > MAX_INPUT_LENGTH)
+      return tooLong(t("common.slug"), MAX_INPUT_LENGTH);
     if (isReservedSlug(slug)) {
       return errorResult(t("site.pages.error.reserved"));
     }
@@ -130,12 +131,7 @@ const pageName = (
 ): Result<string> => {
   const name = requireEntityField(body, "name", stored);
   if (name.ok && name.value.length > MAX_INPUT_LENGTH) {
-    return errorResult(
-      t("fields.validation.max_length", {
-        label: t("site.pages.field.name"),
-        max: MAX_INPUT_LENGTH,
-      }),
-    );
+    return tooLong(t("site.pages.field.name"), MAX_INPUT_LENGTH);
   }
   return name;
 };

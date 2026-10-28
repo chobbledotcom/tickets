@@ -1,5 +1,3 @@
-import { defineRoutes } from "#routes/router.ts";
-
 /**
  * Admin routes for custom questions management (owner-only)
  */
@@ -23,7 +21,10 @@ import { questionsOrder, questionsTable } from "#db/questions/tables.ts";
 import { fieldById, mapNotNullish } from "#fp";
 import { t } from "#i18n";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
-import { entityTabRoutes } from "#routes/admin/route-tables.ts";
+import {
+  defineAdminRoutes,
+  entityTabRoutes,
+} from "#routes/admin/route-tables.ts";
 import { OWNER_FORM, ownerPage } from "#routes/auth.ts";
 import { idRouteFor, ownerFormById } from "#routes/entity.ts";
 /* jscpd:ignore-start */
@@ -202,7 +203,7 @@ const handleListingQuestionsPost = createListingChoicePost({
 });
 
 /** Questions routes */
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   ...entityTabRoutes(adminPattern("question"), questionPage),
   "GET /admin/questions": handleQuestionsGet,
   "GET /admin/questions/:id/answers/:answerId/delete": handleDeleteAnswerGet,

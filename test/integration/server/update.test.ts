@@ -29,6 +29,7 @@ import {
   withMocks,
 } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
+import { withVirtualBackoff } from "#test-utils/virtual-time.ts";
 
 /** GitHub release API response with no assets */
 const MOCK_RELEASE_NO_ASSET = {
@@ -74,6 +75,21 @@ const deployMocks = (
 });
 
 const stubSuccessfulDeploy = () => deployMocks();
+
+/** Run a guarded /admin/update deploy whose mock setup comes from `mocks`,
+ * and assert the request fails with the "Update failed" flash. */
+const expectDeployFails = async (
+  mocks: () => ReturnType<typeof deployMocks>,
+): Promise<void> => {
+  await setupForDeploy();
+  using _env = withEnv({ BUNNY_SCRIPT_ID: "42" });
+  await withMocks(mocks, async () => {
+    const { response } = await withVirtualBackoff(() =>
+      adminFormPost("/admin/update"),
+    );
+    expectFlash(response, expect.stringContaining("Update failed"), false);
+  });
+};
 
 /** Production build with the given latest version + name stored, cache reloaded. */
 const setLatestVersion = async (
@@ -254,7 +270,9 @@ describeWithEnv("server (admin update)", { db: true }, () => {
             release: new Response(JSON.stringify(MOCK_RELEASE_NO_ASSET)),
           }),
         async () => {
-          const { response } = await adminFormPost("/admin/update");
+          const { response } = await withVirtualBackoff(() =>
+            adminFormPost("/admin/update"),
+          );
           expectRedirect(response, "/admin/update");
           expectFlash(
             response,
@@ -264,60 +282,36 @@ describeWithEnv("server (admin update)", { db: true }, () => {
         },
       );
     });
-
     test("deploys successfully and redirects with success flash", async () => {
       await setupForDeploy();
       using _env = withEnv({ BUNNY_SCRIPT_ID: "42" });
       await withMocks(stubSuccessfulDeploy, async ({ deployStub }) => {
-        const { response } = await adminFormPost("/admin/update");
+        const { response } = await withVirtualBackoff(() =>
+          adminFormPost("/admin/update"),
+        );
         expectRedirect(response, "/admin/update");
         expectFlash(response, expect.stringContaining("Updated to"));
         expect(deployStub.calls.length).toBe(1);
       });
     });
 
-    test("redirects with error when asset download fails", async () => {
-      await setupForDeploy();
-      using _env = withEnv({ BUNNY_SCRIPT_ID: "42" });
-      await withMocks(
-        () =>
-          deployMocks({
-            download: () => new Response("Not Found", { status: 404 }),
-          }),
-        async () => {
-          const { response } = await adminFormPost("/admin/update");
-          expectFlash(
-            response,
-            expect.stringContaining("Update failed"),
-            false,
-          );
-        },
-      );
-    });
+    test("redirects with error when asset download fails", () =>
+      expectDeployFails(() =>
+        deployMocks({
+          download: () => new Response("Not Found", { status: 404 }),
+        }),
+      ));
 
-    test("redirects with error when Bunny deploy fails", async () => {
-      await setupForDeploy();
-      using _env = withEnv({ BUNNY_SCRIPT_ID: "42" });
-      await withMocks(
-        () =>
-          deployMocks({
-            deployResult: {
-              error: "Upload script code failed (500): Server Error",
-              ok: false as const,
-            },
-            download: () =>
-              new Response("console.log('code')", { status: 200 }),
-          }),
-        async () => {
-          const { response } = await adminFormPost("/admin/update");
-          expectFlash(
-            response,
-            expect.stringContaining("Update failed"),
-            false,
-          );
-        },
-      );
-    });
+    test("redirects with error when Bunny deploy fails", () =>
+      expectDeployFails(() =>
+        deployMocks({
+          deployResult: {
+            error: "Upload script code failed (500): Server Error",
+            ok: false as const,
+          },
+          download: () => new Response("console.log('code')", { status: 200 }),
+        }),
+      ));
 
     test("redirects with error when another task is in progress", async () => {
       await setupForDeploy();

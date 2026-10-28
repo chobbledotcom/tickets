@@ -11,11 +11,8 @@ import {
 import { getListingWithAttendeesRaw } from "#db/listings/attendees.ts";
 /* jscpd:ignore-start */
 import {
-  AUTH_FORM,
-  AUTH_MULTIPART,
+  type AuthPolicy,
   type AuthSession,
-  OWNER_FORM,
-  OWNER_MULTIPART,
   requireSessionOr,
   withAuth,
 } from "#routes/auth.ts";
@@ -26,6 +23,7 @@ import {
   notFoundResponse,
   redirect,
 } from "#routes/response.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
@@ -152,8 +150,9 @@ type SessionFormOptionalString<TSession> = SessionFormValue<
 
 /** Configuration for createActionHandler */
 export type ActionHandlerConfig<TSession = AuthSession> = {
-  /** Auth mode: "owner" requires owner role, "any" allows any authenticated user */
-  auth: "owner" | "any";
+  /** The route this handler serves. Its declaration gives the policy its
+   * roles, so the audience is never written here a second time. */
+  pattern: string;
   /** CSRF body mode: "form" (default) or "multipart" */
   bodyMode?: "form" | "multipart";
   /** Executor: receives session and parsed form, returns nothing on success */
@@ -199,14 +198,11 @@ const executeActionOrError = async <TSession>(
 export const createActionHandler = <TSession = AuthSession>(
   config: ActionHandlerConfig<TSession>,
 ): ((request: Request) => Promise<Response>) => {
-  const policy =
-    config.bodyMode === "multipart"
-      ? config.auth === "owner"
-        ? OWNER_MULTIPART
-        : AUTH_MULTIPART
-      : config.auth === "owner"
-        ? OWNER_FORM
-        : AUTH_FORM;
+  const route = adminDestinationAt(config.pattern);
+  const policy: AuthPolicy<"form" | "multipart"> = {
+    body: config.bodyMode ?? "form",
+    roles: route.audience,
+  };
 
   const resolveListingId = (form: FormParams): number | undefined => {
     if (config.listingId === undefined) return;

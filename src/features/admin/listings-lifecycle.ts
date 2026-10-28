@@ -31,7 +31,6 @@ import type { AdminSession, ListingWithCount } from "#types";
 /* jscpd:ignore-end */
 
 const listingConfirmBase = {
-  auth: "any" as const,
   identifier: (listing: ListingWithCount) => listing.name,
   identifierLabel: t("listings_table.name_label"),
   load: (_id: number) => getListingWithCount(_id),

@@ -32,18 +32,19 @@ import {
 import { parseQuestionAnswers } from "#db/questions/parsing.ts";
 import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
-import { identity, mapById, sumOf } from "#fp";
+import { identity, mapById, sum, sumOf } from "#fp";
 import { t } from "#i18n";
 import {
   ATTENDEE_FORM_ID,
   type ParsedAttendeeForm,
   parseAttendeeForm,
+  receiptsOf,
   resolveStatusId,
   toCreateInput,
   toDesiredLines,
   toLedgerOrder,
-  validateParsedForm,
 } from "#routes/admin/attendee-form-model.ts";
+import { validateParsedForm } from "#routes/admin/attendee-form-validation.ts";
 import { parseLogisticsPlan } from "#routes/admin/attendee-logistics.ts";
 import { attendeePage } from "#routes/admin/attendee-page.ts";
 import {
@@ -74,7 +75,10 @@ import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { createdBookingEntries } from "#shared/booking.ts";
-import { manualAddLedgerPoster } from "#shared/checkout-complete.ts";
+import {
+  apiCreateLedgerPoster,
+  type CreateAdjustment,
+} from "#shared/checkout-complete.ts";
 import { lineListPrice } from "#shared/checkout-pricing.ts";
 import {
   ATTENDEE_DEMO_FIELDS,
@@ -318,19 +322,27 @@ const applyCreate = async (
     return { ok: false, saveError: t("attendee_form.error_no_lines") };
   }
   // Admin manual add can deliberately overbook (a warning shows, the system
-  // does not block). The ledger poster records the gross `sale` legs in the
-  // SAME create transaction. The input carries that gross as remainingBalance,
-  // so the webhook reports the amount the attendee owes.
+  // does not block). The poster records the sale legs at the lines' prices
+  // plus the payment and adjustment legs in the same create transaction. The
+  // input carries the projected net as remainingBalance, so the attendee owes
+  // the lines and charges minus what was paid or written off.
   const order = toLedgerOrder(parsed);
+  const receipts = receiptsOf(parsed);
+  const gross = sumOf(lineListPrice)(order.lines);
   const createResult = await attendeesApi.createAttendeeAtomic(
     {
       ...input,
       allowOverbook: true,
       emailPending: emailPendingForAdminLines(parsed.lines.map(adminLineSend)),
-      remainingBalance: sumOf(lineListPrice)(order.lines),
+      remainingBalance:
+        gross -
+        sum(receipts.payments) +
+        sumOf((adjustment: CreateAdjustment) => adjustment.amount)(
+          receipts.adjustments,
+        ),
       source: "admin",
     },
-    manualAddLedgerPoster(order),
+    apiCreateLedgerPoster(order, receipts),
   );
   if (!createResult.success) {
     return { ok: false, saveError: t("attendee_form.error_capacity") };

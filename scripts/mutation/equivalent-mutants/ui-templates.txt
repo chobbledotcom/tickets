@@ -30,7 +30,7 @@ src/ui/templates/admin/question-detail.tsx::QuestionAnswersSection.count~0zzucn2
 # calendar page detail table — the rows the calendar builds are the attendees
 # count row plus at least one checked-in row, so sharedRows.length is 0 or >= 2
 # and `> 0` and `> 1` agree on both.
-src/ui/templates/admin/calendar.tsx::adminCalendarPage.body~1bmsecb  0→1 audited:1j03zra # sharedRows is buildSharedDetailRows output without skipAttendees: one attendee-count row plus buildCheckedInRows (always at least one row), so the length is 0 or at least 2 — `> 0` and `> 1` pick the same branch on both
+src/ui/templates/admin/calendar.tsx::adminCalendarPage.body~1bmsecb  0→1 audited:094szfg # sharedRows is buildSharedDetailRows output without skipAttendees: one attendee-count row plus buildCheckedInRows (always at least one row), so the length is 0 or at least 2 — `> 0` and `> 1` pick the same branch on both
 
 # questions list page (ui/templates/admin/questions.tsx) — column keys the page
 # never reads back, and a Map.get fallback over always-truthy arrays.
@@ -45,6 +45,11 @@ src/ui/templates/admin/backup.tsx::backupsTable.key~1353jpe  created → "" audi
 src/ui/templates/admin/backup.tsx::backupsTable.key~1o7pzgq  timestamp → "" audited:1yglink # same as backup.tsx's created key — the backups table is rendered without columnKeys, hiddenKeys, or filters, so its column keys are never read
 src/ui/templates/admin/backup.tsx::backupsTable.key~1tpb30l  size → "" audited:1yglink # same as backup.tsx's created key — the backups table is rendered without columnKeys, hiddenKeys, or filters, so its column keys are never read
 src/ui/templates/admin/backup.tsx::backupsTable.key~120g5gv  actions → "" audited:1yglink # same as backup.tsx's created key — the backups table is rendered without columnKeys, hiddenKeys, or filters, so its column keys are never read
+# news list page (ui/templates/admin/news.tsx) — column keys the page never
+# reads back, same class as the backups list table above.
+src/ui/templates/admin/news.tsx::newsTable.key~1qw07sv  name → "" audited:09ud7v6 # a column `key` is read only by renderTable's columnKeys/hiddenKeys lookups and saved-filter value rendering; adminNewsListPage renders the news table with none of those options, so this key is never read
+src/ui/templates/admin/news.tsx::newsTable.key~1353jpe  created → "" audited:09ud7v6 # same as news.tsx's name key — the news list table is rendered without columnKeys, hiddenKeys, or filters, so its column keys are never read
+src/ui/templates/admin/news.tsx::newsTable.key~1rsequ7  delete → "" audited:09ud7v6 # same as news.tsx's name key — the news list table is rendered without columnKeys, hiddenKeys, or filters, so its column keys are never read
 src/ui/templates/admin/settings-statuses.tsx::statusColumns~1m0nc07  flags → "" audited:0peqe8g # the statuses list renders these columns with only a reorder option, so it supplies no columnKeys, no hiddenKeys, and no filters, and statusColumns never reaches renderColumnReference, so no reader of a column key is in play
 src/ui/templates/admin/settings-statuses.tsx::renderStatusFields.value~0evfpwz  ?? → || audited:0peqe8g # status?.name is a string or undefined, and the only falsy string is the empty fallback itself
 src/ui/templates/admin/settings-statuses.tsx::renderStatusFields.value~053yv47  ?? → || audited:0peqe8g # FormParams.get is a string or undefined, and the only falsy string is the empty fallback itself
@@ -131,12 +136,13 @@ src/ui/templates/admin/attendee-detail.tsx::AttendeeBookingsTable.names~1d4a28o 
 
 # attendee-form listing editor — column keys the editor table never reads
 # back, and two fallbacks whose left side can never be falsy-but-non-null.
-src/ui/templates/admin/attendee-form/listing-editor.tsx::listingColumns~0b4eb34  listing → "" audited:1req4zi # the listing editor table renders without columnKeys, hiddenKeys, or filters, so no code path reads its column keys
-src/ui/templates/admin/attendee-form/listing-editor.tsx::listingColumns~1pp18xr  dates → "" audited:1req4zi # same as the listing key — the editor table renders without columnKeys, hiddenKeys, or filters
-src/ui/templates/admin/attendee-form/listing-editor.tsx::listingColumns~0pvuhzr  quantity → "" audited:1req4zi # same as the listing key — the editor table renders without columnKeys, hiddenKeys, or filters
-src/ui/templates/admin/attendee-form/listing-editor.tsx::listingColumns.key~0s9jed5  notices → "" audited:1req4zi # same as the listing key — the editor table renders without columnKeys, hiddenKeys, or filters
-src/ui/templates/admin/attendee-form/listing-editor.tsx::pathLabel.name~0i58gz8  ?? → || audited:1req4zi # parentNamesById holds listing names, and a listing name is required and saved non-empty, so the left side is undefined or a non-empty string — the falsy fallback cannot occur
-src/ui/templates/admin/attendee-form/listing-editor.tsx::listingNoticesCell~0s46002  ?? → || audited:1req4zi # lineWarnings.get() returns string[]|undefined, and an array is always truthy, so ?? and || keep exactly the same entry
+src/ui/templates/admin/attendee-form/listing-editor.tsx::createListingEditorTable~0ugd1r3  price → "" audited:1vdep4w # the create editor table renders without columnKeys, hiddenKeys, or filters, so no code path reads its column keys
+src/ui/templates/admin/attendee-form/listing-editor.tsx::listingColumns~0b4eb34  listing → "" audited:1vdep4w # the listing editor table renders without columnKeys, hiddenKeys, or filters, so no code path reads its column keys
+src/ui/templates/admin/attendee-form/listing-editor.tsx::listingColumns~1pp18xr  dates → "" audited:1vdep4w # same as the listing key — the editor table renders without columnKeys, hiddenKeys, or filters
+src/ui/templates/admin/attendee-form/listing-editor.tsx::listingColumns~0pvuhzr  quantity → "" audited:1vdep4w # same as the listing key — the editor table renders without columnKeys, hiddenKeys, or filters
+src/ui/templates/admin/attendee-form/listing-editor.tsx::listingColumns.key~0s9jed5  notices → "" audited:1vdep4w # same as the listing key — the editor table renders without columnKeys, hiddenKeys, or filters
+src/ui/templates/admin/attendee-form/listing-editor.tsx::pathLabel.name~0i58gz8  ?? → || audited:1vdep4w # parentNamesById holds listing names, and a listing name is required and saved non-empty, so the left side is undefined or a non-empty string — the falsy fallback cannot occur
+src/ui/templates/admin/attendee-form/listing-editor.tsx::listingNoticesCell~0s46002  ?? → || audited:1vdep4w # lineWarnings.get() returns string[]|undefined, and an array is always truthy, so ?? and || keep exactly the same entry
 
 # servicing pages (features/admin/servicing) — three tables whose column keys
 # nothing reads back (each renderTable call passes no columnKeys, hiddenKeys,
@@ -168,3 +174,8 @@ src/ui/templates/admin/groups/form.tsx::packageMembersTable.key~0obhtqh  quantit
 
 src/ui/templates/admin/listings/overview.tsx::overviewStatsFromAttendees~0so9vc9  ?? → || audited:12t2kv3 # the operand is a Set or undefined, and every Set object is truthy
 src/ui/templates/admin/built-sites/support-message.tsx::SupportMessagePanel~0xks06p  ?? → || audited:0c28g25 # editorText settles to "" (not null) by the textarea's fallback, so the only falsy string is the empty string the fallback also supplies
+
+# bulk-email compose draft fallbacks: the draft body and marketing flag are a
+# string and a boolean, so `??` and `||` pick the same fallback on every input.
+src/ui/templates/admin/bulk-email.tsx::bulkEmailComposePage~0qxp0yv  ?? → || audited:1qie383 # `draft?.body ?? ""`: the body is a string, and its only falsy value "" is also the fallback, so ?? and || agree
+src/ui/templates/admin/bulk-email.tsx::bulkEmailComposePage.checked~0aepv7o  ?? → || audited:1qie383 # `draft?.marketing ?? false`: the flag is a boolean, and false equals the fallback, so ?? and || agree

@@ -39,6 +39,21 @@ export const decodeEntities = (text: string): string =>
     requiredMapValue(ENTITIES, entity, `No character for ${entity}`),
   );
 
+/** One region of a page, from its opening marker to where it closes. A page
+ * that renders no such region is a loud failure. */
+export const regionOutOf = (
+  html: string,
+  open: string,
+  close: string,
+  region: string,
+): string => {
+  const start = html.indexOf(open);
+  if (start < 0) throw new Error(`the page renders no ${region}`);
+  const end = html.indexOf(close, start);
+  if (end < 0) throw new Error(`the page renders no ${region}`);
+  return html.slice(start, end);
+};
+
 /** Collect all capture-group matches for a regex against a string */
 export const regexCollect = <T>(
   re: RegExp,

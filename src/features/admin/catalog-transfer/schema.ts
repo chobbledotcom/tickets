@@ -208,41 +208,85 @@ const VersionSchema = v.literal(
   `Unsupported export version (expected ${CATALOG_TRANSFER_VERSION})`,
 );
 
+/** One listing inside a bundle: the listing's own fields plus its group
+ * memberships (by name) and its parent listings (by name). The single-file
+ * listing blob is this body plus its envelope (`kind`, `version`). */
+export const ListingBodySchema = v.strictObject({
+  groups: v.optional(v.array(ListingMembershipSchema), []),
+  listing: ListingDataSchema,
+  parents: v.optional(v.array(NameRefSchema), []),
+});
+export type ListingBody = v.InferOutput<typeof ListingBodySchema>;
+
 /** A listing export: the listing's own fields plus its group memberships (by
  * name) and its parent listings (by name). */
 export const ListingTransferSchema = v.strictObject({
-  groups: v.optional(v.array(ListingMembershipSchema), []),
   kind: v.literal("listing"),
-  listing: ListingDataSchema,
-  parents: v.optional(v.array(NameRefSchema), []),
   version: VersionSchema,
+  ...ListingBodySchema.entries,
 });
 export type ListingTransfer = v.InferOutput<typeof ListingTransferSchema>;
 
+/** One group inside a bundle: the group's own fields plus its member listings
+ * (by name). The single-file group blob is this body plus its envelope. */
+export const GroupBodySchema = v.strictObject({
+  group: GroupDataSchema,
+  members: v.optional(v.array(GroupMemberSchema), []),
+});
+export type GroupBody = v.InferOutput<typeof GroupBodySchema>;
+
 /** A group export: the group's own fields plus its member listings (by name). */
 export const GroupTransferSchema = v.strictObject({
-  group: GroupDataSchema,
+  group: GroupBodySchema.entries.group,
   kind: v.literal("group"),
-  members: v.optional(v.array(GroupMemberSchema), []),
+  members: GroupBodySchema.entries.members,
   version: VersionSchema,
 });
 export type GroupTransfer = v.InferOutput<typeof GroupTransferSchema>;
 
-/** A catalog transfer blob: either a listing or a group export. */
+/** A catalog bundle: many listings and groups in one document. Every
+ * cross-reference is by name. It resolves inside the document first, then
+ * against the importing site. One file can thus carry a whole subtree the
+ * target does not hold yet. */
+export const CatalogBundleSchema = v.pipe(
+  v.strictObject({
+    groups: v.optional(v.array(GroupBodySchema), []),
+    kind: v.literal("bundle"),
+    listings: v.optional(v.array(ListingBodySchema), []),
+    version: VersionSchema,
+  }),
+  v.check(
+    (bundle) => bundle.listings.length + bundle.groups.length > 0,
+    "The bundle holds no listings and no groups — add at least one item.",
+  ),
+);
+export type CatalogBundle = v.InferOutput<typeof CatalogBundleSchema>;
+
+/** A catalog transfer blob: one listing, one group, or a bundle of many. */
 export const CatalogTransferSchema = v.variant("kind", [
   ListingTransferSchema,
   GroupTransferSchema,
+  CatalogBundleSchema,
 ]);
 export type CatalogTransfer = v.InferOutput<typeof CatalogTransferSchema>;
+
+/** The parse issues valibot reports for one rejected blob. */
+type TransferIssues = readonly [
+  v.BaseIssue<unknown>,
+  ...v.BaseIssue<unknown>[],
+];
+
+/** The one operator-facing opening for a rejected catalog file, shared by the
+ * single-blob and bundle formatters. */
+const catalogFileError = (parts: readonly string[]): string =>
+  `Invalid catalog file — ${parts.join("; ")}`;
 
 /**
  * Turn valibot parse issues into a single operator-facing message that names
  * the offending fields. A malformed blob then explains *which* field is
  * missing or invalid rather than surfacing a raw system error.
  */
-export const formatTransferIssues = (
-  issues: readonly [v.BaseIssue<unknown>, ...v.BaseIssue<unknown>[]],
-): string => {
+export const formatTransferIssues = (issues: TransferIssues): string => {
   // Every failure of these (object variant) schemas lands in `root` (the whole
   // blob is the wrong type) or `nested` (a keyed field is wrong). Those two
   // buckets always carry at least one message — no empty-parts fallback needed.
@@ -253,5 +297,62 @@ export const formatTransferIssues = (
       ([path, messages]) => `${path}: ${(messages as string[]).join("; ")}`,
     ),
   ];
-  return `Invalid catalog file — ${parts.join("; ")}`;
+  return catalogFileError(parts);
+};
+
+/** The submitted items of one kind, when the raw document holds an array. */
+const rawItemsOf = (raw: unknown, kind: "listings" | "groups"): unknown[] => {
+  if (typeof raw !== "object" || raw === null) return [];
+  const items = (raw as Record<string, unknown>)[kind];
+  if (!Array.isArray(items)) return [];
+  return items;
+};
+
+/** Read one segment of a raw bundle item: the item's name, when the raw
+ * document carries one. The parse failed, so no parsed output exists. The
+ * name comes straight from the submitted JSON. */
+const rawBundleItemName = (
+  raw: unknown,
+  kind: "listings" | "groups",
+  index: number,
+): string | null => {
+  const item = rawItemsOf(raw, kind)[index];
+  if (typeof item !== "object" || item === null) return null;
+  // A bundle item holds its name in the nested body ("listing": {...name}).
+  const record = item as Record<string, unknown>;
+  const body = record[kind === "listings" ? "listing" : "group"];
+  if (typeof body !== "object" || body === null) return null;
+  const name = (body as { name?: unknown }).name;
+  if (typeof name !== "string") return null;
+  return name.trim() === "" ? null : name;
+};
+
+/**
+ * Turn bundle parse issues into one operator-facing message that names each
+ * failing item and its invalid field. The item name comes from the raw
+ * document through the issue's path index. An item whose own name field
+ * failed reports by position (listing 2), because no name exists to show.
+ */
+export const formatBundleIssues = (
+  issues: TransferIssues,
+  raw: unknown,
+): string => {
+  const parts = issues.map((issue) => {
+    const keys = (issue.path ?? []).map((step) => step.key);
+    const kind = keys[0];
+    if (
+      (kind === "listings" || kind === "groups") &&
+      typeof keys[1] === "number"
+    ) {
+      const noun = kind === "listings" ? "listing" : "group";
+      const name = rawBundleItemName(raw, kind, keys[1]);
+      const where = name ?? `${noun} ${Number(keys[1]) + 1}`;
+      const field = keys.slice(2).map(String).join(".");
+      return field === ""
+        ? `"${where}": ${issue.message}`
+        : `"${where}": ${field}: ${issue.message}`;
+    }
+    return issue.message;
+  });
+  return catalogFileError([...new Set(parts)]);
 };

@@ -1,11 +1,10 @@
 import type { AdminSurfaceContext } from "#shared/admin-surface/definitions.ts";
-import type {
-  AdminNavEntry,
-  AdminSectionDef,
-} from "#shared/admin-surface/sections.ts";
+import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
+import type { AdminSectionDef } from "#shared/admin-surface/sections.ts";
 import {
   ADMIN_SURFACE,
   adminDestination,
+  adminDestinationAllowed,
   adminPath,
 } from "#shared/admin-surface.ts";
 import { normalizePath } from "#shared/path.ts";
@@ -25,29 +24,22 @@ export interface NavSection {
 const landingPattern = (section: AdminSectionDef): string =>
   adminDestination(section.landing).pattern;
 
-const sectionVisible = (
-  section: AdminSectionDef,
+/** Whether one nav link is a link this viewer can follow. The destination
+ * must admit the viewer, and any bespoke gate must agree. */
+const linkVisible = (
+  id: AdminDestinationId,
   ctx: AdminSurfaceContext,
+  visible: AdminSectionDef["visible"],
 ): boolean =>
-  adminDestination(section.landing).audience.includes(ctx.adminLevel) &&
-  (section.visible === undefined || section.visible(ctx));
-
-const navEntryVisible = (
-  entry: AdminNavEntry,
-  ctx: AdminSurfaceContext,
-): boolean => {
-  const route = adminDestination(entry.id);
-  return (
-    route.audience.includes(ctx.adminLevel) &&
-    !(ctx.isReadOnly && route.intent === "write-form") &&
-    (entry.visible === undefined || entry.visible(ctx))
-  );
-};
+  adminDestinationAllowed(id, ctx.adminLevel, ctx.isReadOnly) &&
+  (visible === undefined || visible(ctx));
 
 const visibleAdminSections = (
   ctx: AdminSurfaceContext,
 ): readonly AdminSectionDef[] =>
-  ADMIN_SURFACE.sections.filter((section) => sectionVisible(section, ctx));
+  ADMIN_SURFACE.sections.filter((section) =>
+    linkVisible(section.landing, ctx, section.visible),
+  );
 
 export const visibleTopLevel = (ctx: AdminSurfaceContext): NavLink[] =>
   visibleAdminSections(ctx).map((section) => ({
@@ -61,7 +53,7 @@ export const visibleSections = (ctx: AdminSurfaceContext): NavSection[] =>
     .filter((section) => section.nav.length > 1)
     .map((section) => ({
       items: section.nav
-        .filter((entry) => navEntryVisible(entry, ctx))
+        .filter((entry) => linkVisible(entry.id, ctx, entry.visible))
         .map((entry) => ({
           href: adminDestination(entry.id).pattern,
           labelKey: entry.labelKey,
@@ -101,5 +93,12 @@ export const entityReturnPath = (sectionPath: string, id: number): string => {
 
 export const readOnlyGetRoutePatterns = (): readonly string[] =>
   Object.values(ADMIN_SURFACE.destinations)
-    .filter((route) => route.intent === "write-form")
+    // A write whose declaration carries `readOnlyGet` serves a page on its
+    // GET (the built-site support message), so read-only mode keeps serving
+    // it instead of redirecting it. The writes read-only mode keeps open
+    // keep their GET pages through the allowed operations list in the
+    // read-only guard, not here.
+    .filter(
+      (route) => route.intent === "write-form" && route.readOnlyGet !== true,
+    )
     .map((route) => route.pattern);

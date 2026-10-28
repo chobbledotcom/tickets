@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { bookingDurationDays } from "#routes/admin/attendee-form-dates.ts";
-import { attendeeBalanceNotice } from "#routes/admin/attendee-form-model.ts";
+import { attendeeBalanceNotice } from "#routes/admin/attendee-form-validation.ts";
 import { bookingRow } from "#test-utils/factories.ts";
 
 describe("bookingDurationDays", () => {

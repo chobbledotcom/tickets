@@ -5,6 +5,7 @@ import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
 import {
   checkGroupCapAfterDurationChange,
   incrementAttachmentDownloads,
+  moveTickets,
   recomputeListingBookingRanges,
   updateAttendeePII,
   updateAttendeeStatus,
@@ -306,5 +307,36 @@ describeWithEnv("db > attendees > booking ranges", { db: true }, () => {
     expect(
       await checkGroupCapAfterDurationChange(target.id, group.id),
     ).toBeNull();
+  });
+});
+
+describeWithEnv("db > attendees > moveTickets", { db: true }, () => {
+  test("writes the moved count into the booking line's checked_in", async () => {
+    const listing = await createTestListing({ maxAttendees: 10 });
+    const { attendee } = await createTestAttendeeDirect(
+      listing.id,
+      "Door Arrival",
+      "door@example.com",
+    );
+
+    const moved = await moveTickets("admit", [
+      { attendeeId: attendee.id, count: 1, listingId: listing.id },
+    ]);
+
+    const row = await queryOne<{ checked_in: number }>(
+      "SELECT checked_in FROM listing_attendees WHERE attendee_id = ? AND listing_id = ?",
+      [attendee.id, listing.id],
+    );
+    // The write itself is the point: the answer alone cannot tell a stored
+    // count from a skipped one.
+    expect(row!.checked_in).toBe(1);
+    expect(moved).toEqual([
+      {
+        attendeeId: attendee.id,
+        count: 1,
+        listingId: listing.id,
+        owedAfter: 0,
+      },
+    ]);
   });
 });

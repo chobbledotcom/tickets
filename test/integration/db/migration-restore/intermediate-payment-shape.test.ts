@@ -4,7 +4,8 @@
  * The chain suites cannot see it — restoreSchemaBeforeMigrations drops each
  * pending migration's objects, so the first apply recreates every payment
  * table in its final shape and no intermediate apply meets a foreign one.
- * Here the dormant tables exist in the shape the intermediate build deployed.
+ * Here the dormant tables exist so the refund migration's drop path runs
+ * against them.
  */
 
 import { assert, assertArrayIncludes } from "@std/assert";
@@ -31,8 +32,9 @@ const MIGRATIONS = await loadMigrations();
 
 /**
  * The dormant tables the refund redefinition left alone. It rebuilt only
- * payment_charges, so the current declaration is also the shape the
- * intermediate build deployed for these five.
+ * payment_charges. The later owner-key migration redefines the four
+ * buyer-bearing ones, and every migration here drops these tables before the
+ * apply, so their exact shape on arrival is not what this test asserts.
  */
 const UNCHANGED_DORMANT_TABLES = [
   "payment_sessions",

@@ -74,6 +74,27 @@ Pin the version the harness expects (`STRIPE_MOCK_VERSION` in
 `scripts/stripe-mock/install.ts`). Once `.bin/stripe-mock` exists, the harness
 uses it as-is.
 
+## Dependency Install Policy
+
+CI and the container image install dependencies with one command,
+`scripts/ci/deno-install.sh`. The command runs `deno install --frozen` with an
+explicit npm lifecycle-script allowlist.
+
+- `--frozen` rejects a dependency change that did not update `deno.lock`. The
+  install fails instead of resolving a new tree.
+- The allowlist names the npm packages that need lifecycle scripts. It must
+  match the packages `deno.lock` records with `"scripts": true`. When you add
+  an npm dependency with a lifecycle script, name the package in the allowlist
+  in the same change.
+- Keep intentional local dependency updates separate. Run `deno install`
+  without `--frozen` locally to refresh `deno.lock`, and commit the updated
+  lock. CI then installs the committed tree with `--frozen`.
+
+The setup action pins the devenv CLI to a revision of the devenv source, not
+to `nixpkgs#devenv`, so the Nix registry does not move it. To update the CLI,
+choose a newer devenv revision, confirm it reports a version the project
+accepts, and replace the revision in `.github/actions/setup-devenv/action.yml`.
+
 ## Preferences
 
 These preferences are defaults, not laws. When the letter of a rule and its
@@ -513,8 +534,13 @@ automatic.
   The update refuses a rise. The 400-line aim is policy, not a gate: a file
   slightly over it owes a splitting issue
 - `deno task check:test-quality` — the weak-assertion gate: fails when a
-  change adds a weak assertion to a test file it touches, warns on the ones
-  already in the files it touches, against the merge base on `origin/main`
+  test file the change touches carries a weak assertion, added or
+  pre-existing, against the merge base on `origin/main`
+- `deno task check:presence-assertions` — the `toBeDefined()` block: holds
+  every test file to its recorded count in
+  `scripts/check-presence-assertions/registry.json`, and the count only
+  falls. Assert the value, shape, or invariant instead. Pass `--update`
+  after a fix. The update refuses a rise
 - `deno task check:ste` — mechanical STE rules over the Markdown, against
   baselines that only fall. Pass `--update` after a fix
 - `deno task check:merged-tree <pr-number | branch> [base]` — trial-merge the
@@ -632,9 +658,15 @@ drop you state out loud.
   shape, persisted rows. Avoid `toBeTruthy()`, compound booleans, and
   presence-only checks. Run `deno task test:quality-audit` when you bulk-add
   tests.
-- The weak-assertion gate (`deno task check:test-quality`) fails when a change
-  adds a weak assertion to a test file it touches, and warns on the ones
-  already in the files it touches. Fix a new finding in the same change.
+- The weak-assertion gate (`deno task check:test-quality`) fails when a test
+  file the change touches carries a weak assertion, added or pre-existing.
+  Fix every finding in a file you touch. A finding in a file you do not touch
+  stays informational.
+- `toBeDefined()` is blocked outright: `deno task check:presence-assertions`
+  holds every test file to its recorded count in
+  `scripts/check-presence-assertions/registry.json`, and the count only
+  falls. Assert the value, shape, or invariant instead. `toBeUndefined()`
+  stays allowed where the code documents an absent value.
 - For critical flows, cover negative paths, idempotency, concurrency, and
   metamorphic cases: webhook replay does not double-credit, capacity cannot go
   below zero, role downgrades remove access, PII stays encrypted or absent from

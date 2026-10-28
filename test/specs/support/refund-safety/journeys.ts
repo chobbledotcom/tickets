@@ -159,7 +159,9 @@ export const openSumupHostedCheckout = async (
 
 /** Point the site's payment provider at a SumUp account, so its checkouts go
  * through SumUp. */
-export const setupSumupPayment = async (): Promise<void> => {
+type SetsUpSumupPayment = () => Promise<void>;
+
+export const setupSumupPayment: SetsUpSumupPayment = async () => {
   await settings.update.sumup.apiKey("sumup_refund_story");
   await settings.update.sumup.merchantCode("SUMUP_STORY");
   await settings.update.paymentProvider("sumup");
@@ -312,9 +314,9 @@ const isListedRefundCase = (link: { readonly text: string }): boolean =>
   link.text.trim().startsWith("Open refund ");
 
 /** Follow the first concrete refund case from a rendered recovery queue. */
-export const openListedRefundCase = async (
-  browser: TestBrowser,
-): Promise<void> => {
+type FollowsARefundCase = (browser: TestBrowser) => Promise<void>;
+
+export const openListedRefundCase: FollowsARefundCase = async (browser) => {
   const detail = browser.links.find(isListedRefundCase);
   if (detail === undefined) {
     throw new Error("Refund recovery listed no provider case");

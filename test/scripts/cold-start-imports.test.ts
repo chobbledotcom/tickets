@@ -36,6 +36,9 @@ const DEFERRED_MODULES = [
   "src/ui/templates/public/shared.tsx",
   // Storage helpers split out so generic layouts do not pull them in.
   "src/shared/storage.ts",
+  // Static asset, health, robots, and sitemap routes load behind the first
+  // request, so importers of `#routes` do not pull the sitemap's DB graph.
+  "src/features/static.ts",
 ];
 
 const endsWith =

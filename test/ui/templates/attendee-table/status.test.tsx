@@ -95,6 +95,19 @@ describe("attendee status cells", () => {
     assert(!html.includes("badge-ok"));
   });
 
+  test("keeps the toggle form when the state badge is also available", () => {
+    // A staff session's check-in page sets both flags: the toggle form is
+    // what the operator acts on, never a read-only badge.
+    const html = renderStatus(
+      { checked_in: 1, id: 8 },
+      { showCheckin: true, showCheckinState: true },
+    );
+
+    assertStringIncludes(html, 'class="link-button checkout"');
+    assert(!html.includes("badge-ok"));
+    assert(!html.includes('<span class="muted small"'));
+  });
+
   test("keeps a supplied empty active filter instead of the default", () => {
     const html = renderStatus({ checked_in: 1, id: 8 }, { activeFilter: "" });
 
@@ -126,6 +139,10 @@ describe("attendee status cells", () => {
     assertStringIncludes(html, 'action="/admin/listing/9/attendee/8/checkin"');
     assertStringIncludes(
       html,
+      '<input name="check_in" type="hidden" value="false">',
+    );
+    assertStringIncludes(
+      html,
       '<input name="return_filter" type="hidden" value="in">',
     );
     assertStringIncludes(
@@ -149,7 +166,11 @@ describe("attendee status cells", () => {
       'href="/admin/listing/9/attendee/11/checkin' +
         '?return_url=%2Fadmin%2Fcheckin%2Ftoday&amp;return_filter=out"',
     );
-    assertStringIncludes(html, '<a class="link-button checkin"');
+    assertStringIncludes(
+      html,
+      'class="link-button checkin" href="/admin/listing/9/attendee/11/checkin' +
+        '?return_url=%2Fadmin%2Fcheckin%2Ftoday&amp;return_filter=out">Check in</a>',
+    );
     assert(!html.includes("Check out"));
   });
 
@@ -159,6 +180,15 @@ describe("attendee status cells", () => {
     // Both directions open the same page, so one link names both.
     expect(html).toBe(
       '<a class="link-button checkin" href="/admin/listing/9/attendee/12/checkin">Check in/out</a>',
+    );
+  });
+
+  test("a multi-ticket line with exactly one ticket left still says Check in/out", () => {
+    const html = renderStatus({ checked_in: 2, id: 16, quantity: 3 });
+
+    // One place remains, so both directions still open the quantity page.
+    expect(html).toBe(
+      '<a class="link-button checkin" href="/admin/listing/9/attendee/16/checkin">Check in/out</a>',
     );
   });
 
@@ -199,6 +229,46 @@ describe("attendee status cells", () => {
     );
 
     assertStringIncludes(html, '<button class="link-button checkin"');
+  });
+
+  test("a none-in multi-ticket line reads Check in, not Check in/out", () => {
+    const html = renderStatus({ checked_in: 0, id: 15, quantity: 3 });
+
+    expect(html).toBe(
+      '<a class="link-button checkin" href="/admin/listing/9/attendee/15/checkin">Check in</a>',
+    );
+  });
+
+  test("a checked-in single booking posts check_in=false", () => {
+    const html = renderStatus({ checked_in: 1, id: 16 });
+
+    assertStringIncludes(
+      html,
+      '<input name="check_in" type="hidden" value="false">',
+    );
+  });
+
+  test("a badge with one ticket left still says how many are in", () => {
+    const html = renderStatus(
+      { checked_in: 2, quantity: 3 },
+      { showCheckin: false, showCheckinState: true },
+    );
+
+    expect(html).toBe('<span class="badge-ok">Checked in (2 of 3)</span>');
+  });
+
+  test("keeps the toggle form when showCheckinState is explicitly false", () => {
+    const html = renderStatus(
+      { checked_in: 1, id: 17 },
+      { showCheckin: false, showCheckinState: false },
+    );
+
+    assert(html.includes("<form"));
+    assertStringIncludes(
+      html,
+      '<input name="check_in" type="hidden" value="false">',
+    );
+    assert(!html.includes("badge-ok"));
   });
 
   test("throws when a check-in row has no listing", () => {

@@ -1,6 +1,9 @@
 /* jscpd:ignore-start */
-import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
-import { defineRoutes } from "#routes/router.ts";
+import {
+  crudRoutes,
+  defineAdminRoutes,
+  entityTabRoutes,
+} from "#routes/admin/route-tables.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 
 /* jscpd:ignore-end */
@@ -160,7 +163,7 @@ const reassignChoice = async (
   return count === 0 ? null : { count, others };
 };
 
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   ...crudRoutes(adminPattern("statuses"), crud),
   ...entityTabRoutes(adminPattern("status"), attendeeStatusPage),
   "GET /admin/settings/statuses/:id/delete": (request, { id }) =>

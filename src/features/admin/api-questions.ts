@@ -1,3 +1,4 @@
+/* jscpd:ignore-start -- imports */
 import {
   isQuestionDisplayType,
   type Question,
@@ -17,11 +18,10 @@ import {
   questionsTable,
 } from "#db/questions/tables.ts";
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { OWNER_API } from "#routes/auth.ts";
-import { jsonResponse } from "#routes/response.ts";
+import { reReadResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
@@ -161,14 +161,10 @@ const answerTextCap = (text: string): Response | null =>
     : null;
 
 /** The write response: the written question re-read from the primary. */
-const questionResponse = async (
-  questionId: number,
-  status?: number,
-): Promise<Response> =>
-  jsonResponse(
-    { question: await getQuestionWithAnswersOnPrimary(questionId) },
-    status,
-  );
+const questionResponse = reReadResponse(
+  "question",
+  getQuestionWithAnswersOnPrimary,
+);
 
 /** POST /api/admin/questions/:questionId/answers */
 const handleAnswerCreate: RouteHandlerFn = (request, params) =>

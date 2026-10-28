@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
 import { createSitePage, sitePages, updateSitePage } from "#db/site-pages.ts";
-import { isSlugTakenAnywhere } from "#db/slug-registry.ts";
+import { isSlugTakenAnywhere, takenSlugIndexes } from "#db/slug-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -70,5 +70,14 @@ describeWithEnv("db > slug-registry", { db: true }, () => {
     if (taken && !taken.ok) {
       expect(taken.error).toBe("slugTaken");
     }
+  });
+
+  test("the batched taken check answers empty input and held slugs", async () => {
+    expect(await takenSlugIndexes([])).toEqual(new Set());
+    const listing = await createTestListing({ name: "Batched" });
+    const free = await hmacHash("never-registered");
+    const held = await takenSlugIndexes([listing.slug_index, free]);
+    expect(held.has(listing.slug_index)).toBe(true);
+    expect(held.has(free)).toBe(false);
   });
 });

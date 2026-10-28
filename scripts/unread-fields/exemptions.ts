@@ -130,32 +130,6 @@ const sumupHostedCheckout: FindingExemption = {
   },
 };
 
-const groupShowHiddenListings: FindingExemption = {
-  identity: {
-    exportedFrom: "src/shared/catalog-fields/fields.ts",
-    field: "showHiddenListings",
-    path: [{ name: "GroupInput" }],
-  },
-  reason: {
-    evidence:
-      "the groups table persists the show_hidden_listings column and buyerSeesMember reads the row field back",
-    kind: "persisted-format",
-  },
-};
-
-const groupScanChecksInAllListings: FindingExemption = {
-  identity: {
-    exportedFrom: "src/shared/catalog-fields/fields.ts",
-    field: "scanChecksInAllListings",
-    path: [{ name: "GroupInput" }],
-  },
-  reason: {
-    evidence:
-      "the groups table persists the scan_checks_in_all_listings column and the group scanner reads the row field back",
-    kind: "persisted-format",
-  },
-};
-
 const siteDataBlobs = exemptFieldsAt<SiteDataBlob>(
   "src/shared/db/built-sites/blob.ts",
   [{ name: "SiteDataBlob" }],
@@ -482,8 +456,6 @@ export const UNREAD_FIELD_EXEMPTIONS: readonly FindingExemption[] = [
   ...sumupCheckoutRequests,
   ...ticketCacheEntries,
   ...webhookPayloads,
-  groupScanChecksInAllListings,
-  groupShowHiddenListings,
   sumupHostedCheckout,
   ...warningDeleteProps,
 ].toSorted((left, right) =>

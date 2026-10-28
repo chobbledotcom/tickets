@@ -11,10 +11,14 @@ import { builtSites, builtSitesCrudTable } from "#db/built-sites.ts";
 import { t } from "#i18n";
 /* jscpd:ignore-start */
 import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
-import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
+import {
+  crudRoutes,
+  defineAdminRoutes,
+  entityTabRoutes,
+} from "#routes/admin/route-tables.ts";
 import { ownerPage } from "#routes/auth.ts";
 import { notFoundResponse } from "#routes/response.ts";
-import { defineRoutes, type RouteHandlerFn } from "#routes/router.ts";
+import type { RouteHandlerFn } from "#routes/router.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 import {
   inBuiltSitesOrder,
@@ -270,7 +274,7 @@ const gateOnBuilder = <Key extends string>(
 /** Built site routes (all gated on CAN_BUILD_SITES via gateOnBuilder). The
  * list GET restates the standard key with its own handler. */
 export const adminHandlers = gateOnBuilder(
-  defineRoutes({
+  defineAdminRoutes({
     ...crudRoutes(adminPattern("builtSites"), crud),
     ...entityTabRoutes(adminPattern("builtSite"), builtSitePage),
     "GET /admin/built-sites": handleBuiltSitesListGet,

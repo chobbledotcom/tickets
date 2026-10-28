@@ -248,8 +248,8 @@ src/shared/admin-surface.ts::adminRecordPath~11evcma  ?? → || audited:1b16u45 
 
 # db/listings/attendees.ts — fallbacks whose left side can never be a
 # falsy-but-present value that differs from the fallback itself.
-src/shared/db/listings/attendees.ts::listingAttendeeFilter.activeOnly~1bv0ikc  ?? → || audited:0wqao29 # activeOnly is boolean|undefined and the fallback is false, so false ?? false === false || false
-src/shared/db/listings/attendees.ts::listingAttendeeFilter.kindScope~0taxexu  ?? → || audited:0wqao29 # kindScope is one of two non-empty words or undefined, so it is never falsy-but-present
+src/shared/db/listings/attendees.ts::listingAttendeeFilter.activeOnly~1bv0ikc  ?? → || audited:04x3l2t # activeOnly is boolean|undefined and the fallback is false, so false ?? false === false || false
+src/shared/db/listings/attendees.ts::listingAttendeeFilter.kindScope~0taxexu  ?? → || audited:04x3l2t # kindScope is one of two non-empty words or undefined, so it is never falsy-but-present
 
 # db/client.ts — fallbacks whose left side can never be a falsy-but-present
 # value, and a label no code ever reads.

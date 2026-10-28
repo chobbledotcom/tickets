@@ -78,9 +78,12 @@ describe("attendee status templates", () => {
     assertStringIncludes(html, 'action="/admin/settings/statuses"');
     expect(html).toMatch(/name="name"[^>]*value=""/);
     assertStringIncludes(html, 'name="is_reservation" type="checkbox"');
-    assert(!html.includes('checked name="is_reservation"'));
-    assert(!html.includes('checked name="is_public_default"'));
-    assert(!html.includes('checked name="is_paid_default"'));
+    // The exclusive checkboxes carry data-exclusive attributes between
+    // `checked` and `name`. A bare `checked name=` substring cannot prove
+    // the flag is off, so match across the attributes.
+    expect(html).not.toMatch(/<input checked[^>]*name="is_reservation"/);
+    expect(html).not.toMatch(/<input checked[^>]*name="is_public_default"/);
+    expect(html).not.toMatch(/<input checked[^>]*name="is_paid_default"/);
     expect(html).toMatch(/name="reservation_amount"[^>]*value="0"/);
     assertStringIncludes(html, "Create status");
   });

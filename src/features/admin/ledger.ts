@@ -7,9 +7,9 @@ import {
 } from "#routes/admin/ledger/entries.ts";
 import { handleLedgerGet } from "#routes/admin/ledger/page.ts";
 import { handleAccountStatementGet } from "#routes/admin/ledger/statements.ts";
-import { defineRoutes } from "#routes/router.ts";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin/ledger": handleLedgerGet,
   "GET /admin/ledger/:type/:ref": handleAccountStatementGet,
   "GET /admin/ledger/:type/:ref/add": handleLedgerEntryAddGet,

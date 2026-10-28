@@ -17,6 +17,8 @@ import { expectCanReallySend } from "#test/specs/support/form-controls/rules.ts"
 import {
   requiredWorldValue,
   type TicketsWorld,
+  theBooking,
+  theListing,
 } from "#test/specs/support/world.ts";
 import { parseFlashCookie } from "#test-utils/assertions.ts";
 import { extractInputValue } from "#test-utils/csrf.ts";
@@ -30,6 +32,7 @@ import { postListingSale } from "#test-utils/ledger.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
 import { extractFormEntries } from "#test-utils/test-browser/forms.ts";
+import type { ListingWithCount } from "#types";
 
 // jscpd:ignore-end
 
@@ -116,6 +119,14 @@ const mergePost = async (
   );
 };
 
+/** One listing set up for a merge story, at the price the duplicate (or the
+ * free keeper) is sold for. */
+const createListingForMerge = (
+  name: string,
+  unitPrice: number,
+): Promise<ListingWithCount> =>
+  createTestListing({ maxAttendees: 10, name, unitPrice });
+
 /** Build a listing with two fully-PAID duplicate bookings (a target and a
  *  token-bearing source) on it — the same-listing conflict decision 17 must
  *  resolve. Income counts BOTH £50 tickets (£100) until the merge un-bills the
@@ -128,11 +139,7 @@ const twoPaidDuplicates = async (
   sourceId: number;
   sourceToken: string;
 }> => {
-  const listing = await createTestListing({
-    maxAttendees: 10,
-    name,
-    unitPrice: 5000,
-  });
+  const listing = await createListingForMerge(name, 5000);
   const { attendee: target } = await createTestAttendeeDirect(
     listing.id,
     `${name} Target`,
@@ -179,11 +186,7 @@ export const duplicatePair = async (
     world.duplicateToken = pair.sourceToken;
     return;
   }
-  const listing = await createTestListing({
-    maxAttendees: 10,
-    name,
-    unitPrice: 0,
-  });
+  const listing = await createListingForMerge(name, 0);
   const { attendee: keeper } = await createTestAttendeeDirect(
     listing.id,
     `${name} A`,
@@ -200,18 +203,10 @@ export const duplicatePair = async (
   world.duplicateToken = token;
 };
 
-/** The booking the organiser keeps. */
-export const survivorId = (world: TicketsWorld): number =>
-  requiredWorldValue(world.attendeeId, "the booking being kept");
-
-/** The listing the duplicate bookings sit on. */
-export const mergedListingId = (world: TicketsWorld): number =>
-  requiredWorldValue(world.listingId, "the listing being merged on");
-
 /** Open the merge page and read the choices it offers. */
 export const mergeChoices = (world: TicketsWorld): Promise<MergePreview> =>
   mergePreview(
-    survivorId(world),
+    theBooking(world),
     requiredWorldValue(world.duplicateToken, "the duplicate token"),
   );
 
@@ -269,7 +264,7 @@ export const mergeDeciding = async (
       fields[moneyField] = decision.money;
     }
   }
-  return mergeOutcomeOf(await mergePost(survivorId(world), fields));
+  return mergeOutcomeOf(await mergePost(theBooking(world), fields));
 };
 
 /** What the site told the organiser the merge did. */
@@ -327,12 +322,19 @@ export type PairSlot = {
  * their side names. A bundle slot rides a real package group, so its rows
  * match what a true bundle checkout stores, and each side is paid for what it
  * holds when the pair is paid. */
-export const duplicatePairOnSlots = async (
+type DuplicatesOnSlots = (
   world: TicketsWorld,
   name: string,
   slots: { source: PairSlot[]; target: PairSlot[] },
-  options: { daily?: boolean; paid?: boolean } = {},
-): Promise<void> => {
+  options?: { daily?: boolean; paid?: boolean },
+) => Promise<void>;
+
+export const duplicatePairOnSlots: DuplicatesOnSlots = async (
+  world,
+  name,
+  slots,
+  options = {},
+) => {
   const paid = options.paid ?? false;
   const unitPrice = paid ? 5000 : 0;
   const listing =
@@ -344,7 +346,7 @@ export const duplicatePairOnSlots = async (
           thankYouUrl: "",
           unitPrice,
         })
-      : await createTestListing({ maxAttendees: 10, name, unitPrice });
+      : await createListingForMerge(name, unitPrice);
   const bundlesSlots = [...slots.source, ...slots.target];
   let packageGroupId = 0;
   if (bundlesSlots.some((slot) => slot.bundle === true)) {
@@ -426,5 +428,5 @@ export const keptBookingRows = async (
   queryAll(
     `SELECT package_group_id, quantity, start_at, end_at FROM listing_attendees
       WHERE attendee_id = ? AND listing_id = ?`,
-    [survivorId(world), mergedListingId(world)],
+    [theBooking(world), theListing(world)],
   );

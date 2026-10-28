@@ -1,5 +1,5 @@
 import {
-  encryptedPaymentColumn,
+  ownerEncryptedPaymentColumn,
   paymentRecord,
   wholeNumberOrNull,
   words,
@@ -12,7 +12,7 @@ export const paymentCompletionDeliveriesTable = paymentRecord(
       ["delivery_key", words()],
       // The message carries the buyer's name, email, phone and address, so the
       // table demands it be hidden rather than trusting every writer to.
-      ["data", encryptedPaymentColumn("data")],
+      ["data", ownerEncryptedPaymentColumn("data")],
       ["completed_at", wholeNumberOrNull()],
     ],
     indexes: [

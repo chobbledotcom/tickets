@@ -8,7 +8,10 @@
 import { settings } from "#db/settings.ts";
 import { openAsNewcomer } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
-import { watchesOutgoing } from "#test/specs/support/outgoing.ts";
+import {
+  outgoingWatch,
+  watchesOutgoing,
+} from "#test/specs/support/outgoing.ts";
 import {
   keepWhatTheyWereTold,
   requiredWorldValue,
@@ -144,26 +147,23 @@ export const visitorWrites = async (
 export const whatVisitorWasTold = (world: TicketsWorld): string =>
   whatTheyWereTold(world, VISITOR);
 
-/** The watch on what left the site. Every read of what was sent starts here,
- * and it refuses a Scenario that never set the watch up. */
-const outgoing = (world: TicketsWorld) =>
-  requiredWorldValue(world.messagesOut, "the outgoing watch");
-
 /** Whether the site asked the spam checker anything at all. */
 export const spamCheckWasAsked = (world: TicketsWorld): boolean =>
-  outgoing(world).calls.some(({ url }) => url.includes("api.botpoison.com"));
+  outgoingWatch(world).calls.some(({ url }) =>
+    url.includes("api.botpoison.com"),
+  );
 
 /** Whether the site sent an email at all. Kept apart from reading the message
  * itself, so "nothing reached the owner" cannot be satisfied by a send whose
  * contents the story merely failed to read. */
 export const anEmailWasSent = (world: TicketsWorld): boolean =>
-  outgoing(world).emailCall() !== undefined;
+  outgoingWatch(world).emailCall() !== undefined;
 
 /** The message the site sent. A send with nothing readable in it is a broken
  * watch rather than an answer, so it fails loudly instead of reading as
  * "nothing was sent". */
 export const messageSent = (world: TicketsWorld): SentMessage => {
-  const watching = requiredWorldValue(world.messagesOut, "the outgoing watch");
+  const watching = outgoingWatch(world);
   const sent = watching.emailCall();
   if (!sent) throw new Error("The site sent no email to read");
   if (!sent.body)

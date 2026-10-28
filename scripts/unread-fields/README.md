@@ -90,6 +90,14 @@ A class that a module exports as its default without a name has no name. The
 report reaches it through that default export, so its fields sit under
 `default`, as `default.total`.
 
+A class field that holds an object literal counts each key as a field. The
+literal gives the field its type, so a caller reaches the key the same way it
+reaches a declared member. `config = { dead: 1 }` reports `Holder.config` and
+`Holder.config.dead`. An array literal reads one element down, the way an
+`Array` type does. `config = [{ id: 1 }]` reports `Holder.config["[]"].id`. A
+value a call returns is the field's type, not the call's argument. The object
+literal that supplies a call names no field of the value it returns.
+
 An object type nested inside one counts too, because `report.nested.deep`
 reaches it. A generic that holds one hands it on. So `Array<{ id: number }>` and
 `Record<string, { id: number }>` both count. `Array<T>`, `ReadonlyArray<T>` and
@@ -136,13 +144,16 @@ scope rather than to what the file exports. The one in
 those fields rather than any code here, so the scan would call them unread.
 
 A shape also hands on the fields it takes from somewhere else. That means a base
-it extends, an intersection, another type it simply names, or every arm of a
+it extends, an intersection, another type it names, or every arm of a
 union. `StripeRefund = StripeRefundFields` names one type, and
 `Success | Failure` names two. The scan looks at the fields of every arm. A
 reader reaches the fields of one arm, after it narrows the value to that arm.
 The arms are often types the file keeps to itself, so no other shape reports
 them. A field written down in a library, such as the `toFixed` that `number`
-carries, is not a field this repository exports.
+carries, is not a field this repository exports. A field written in the
+repository's own declaration file still counts, because a `.d.ts` file inside
+the repository is its code. A vendored `node_modules` or a Deno module cache
+under the root stays a library.
 
 ## Reads, not mentions
 

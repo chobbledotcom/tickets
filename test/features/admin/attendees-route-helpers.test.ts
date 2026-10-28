@@ -1,17 +1,22 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { PENDING_NOTIFICATION } from "#db/attendees/notification-flags.ts";
 import { getDb } from "#db/client.ts";
 import { deleteListing } from "#db/listings/delete.ts";
 import { handleRequest } from "#routes";
+import type { AttendeeFormLine } from "#routes/admin/attendee-form-model.ts";
 import {
+  anyNoQuantityLineMatches,
   attendeeActions,
   attendeeActionUrlWithReturn,
+  emailPendingForAdminLines,
   getReturnUrl,
   loadAttendeeForListing,
 } from "#routes/admin/attendees-route-helpers.ts";
 import { setupRefundTest } from "#test/features/admin/refunds-helpers.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
+import { attendeeFormLine } from "#test-utils/attendee-form-factories.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { claimCurrentAttendeeRows } from "#test-utils/payment-claim.ts";
@@ -126,4 +131,61 @@ test("an attendee-scoped action stays reachable without a booking", () => {
   // alone must keep the action available.
   expect(attendeeActions["payment-review"].isAvailable(false)).toBe(true);
   expect(attendeeActions["resend-notification"].isAvailable(false)).toBe(false);
+});
+
+const noQuantityLine = (listingId: number): AttendeeFormLine =>
+  attendeeFormLine({ listingId, noQuantity: true, quantity: 0 });
+
+test("anyNoQuantityLineMatches checks only the ticked quantity-0 lines", async () => {
+  // One ticked line: the check runs with that line's listing id and its
+  // answer becomes the result.
+  const seen: number[][] = [];
+  const check = async (_id: number, listingIds: number[]) => {
+    seen.push(listingIds);
+    return true;
+  };
+  await expect(
+    anyNoQuantityLineMatches(7, [noQuantityLine(42)], check),
+  ).resolves.toBe(true);
+  expect(seen).toEqual([[42]]);
+
+  // Two ticked lines: both listing ids pass through together.
+  await expect(
+    anyNoQuantityLineMatches(
+      7,
+      [noQuantityLine(42), noQuantityLine(43)],
+      check,
+    ),
+  ).resolves.toBe(true);
+  expect(seen[1]).toEqual([42, 43]);
+
+  // No ticked line: the answer is false without calling the check.
+  const booked = { ...noQuantityLine(42), noQuantity: false, quantity: 2 };
+  let called = false;
+  const spy = async (id: number, ids: number[]) => {
+    called = true;
+    return check(id, ids);
+  };
+  await expect(anyNoQuantityLineMatches(7, [booked], spy)).resolves.toBe(false);
+  expect(called).toBe(false);
+});
+
+test("emailPendingForAdminLines flags only a booked line collecting email", () => {
+  const { admin, none } = PENDING_NOTIFICATION;
+  // A booked line whose listing collects an email owes the admin send.
+  expect(emailPendingForAdminLines([{ fields: "email", isBooked: true }])).toBe(
+    admin,
+  );
+  // A booked line without an email field owes nothing.
+  expect(emailPendingForAdminLines([{ fields: "phone", isBooked: true }])).toBe(
+    none,
+  );
+  // An unbooked line never owes a send, even when it collects an email.
+  expect(
+    emailPendingForAdminLines([{ fields: "email", isBooked: false }]),
+  ).toBe(none);
+  // A line with no resolved listing fields owes nothing.
+  expect(
+    emailPendingForAdminLines([{ fields: undefined, isBooked: true }]),
+  ).toBe(none);
 });
