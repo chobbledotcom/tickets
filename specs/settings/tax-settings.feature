@@ -16,13 +16,13 @@ Feature: The organiser chooses how tax applies to listed prices
 
     @case:settings.setting-tax-added-to-prices
     Scenario: The organiser sets tax added to listed prices
-      When the organiser sets 20 percent value added tax added to listed prices
-      Then the tax settings show added value added tax at 20.00 percent
+      When the organiser sets 20 percent tax added to listed prices
+      Then the tax settings show tax added to listed prices at 20.00 percent
 
     @case:settings.setting-tax-included-in-prices
     Scenario: The organiser sets listed prices that include tax
-      When the organiser sets 17.51 percent value added tax included in listed prices
-      Then the tax settings show included value added tax at 17.51 percent
+      When the organiser sets 17.51 percent tax included in listed prices
+      Then the tax settings show listed prices include tax at 17.51 percent
 
   @rule:settings.a-rate-the-site-cannot-store-is-refused
   @surface:admin

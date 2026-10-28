@@ -18,8 +18,8 @@ Feature: An explicit save applies the current tax setting to a booking
     @case:attendees.changing-tax-settings-alone
     Scenario: The organiser changes the Tax setting and saves nothing
       Given a customer paid 45.00 for a Concert place
-      When the organiser sets 20 percent value added tax added to listed prices
-      Then no value added tax was recorded or refunded
+      When the organiser sets 20 percent tax added to listed prices
+      Then no tax was recorded or refunded
       And the customer owes nothing
 
   @rule:attendees.saving-a-booking-applies-the-current-tax-setting
@@ -31,8 +31,8 @@ Feature: An explicit save applies the current tax setting to a booking
     @case:attendees.saving-applies-the-current-tax-setting
     Scenario: The organiser saves a booking after changing the Tax setting
       Given a customer paid 45.00 for a Concert place
-      And the organiser sets 20 percent value added tax added to listed prices
+      And the organiser sets 20 percent tax added to listed prices
       When the organiser saves the Concert booking
-      Then the booking now carries 9.00 of value added tax and the customer owes 9.00
+      Then the booking now carries 9.00 of tax and the customer owes 9.00
       And the organiser is told the tax change was applied
       And no money was taken or returned

@@ -87,35 +87,35 @@ const payForOnePlace = async (
 // -- Tax settings ---------------------------------------------------------- //
 
 Given(
-  "the site adds {int} percent value added tax to listed prices",
+  "the site adds {int} percent tax to listed prices",
   async function (this: TicketsWorld, rate: number): Promise<void> {
     await settings.update.tax(taxPolicy("add_to_total", String(rate)));
   },
 );
 
 Given(
-  "the site adds value added tax at {word} percent to listed prices",
+  "the site adds tax at {word} percent to listed prices",
   async function (this: TicketsWorld, rate: string): Promise<void> {
     await settings.update.tax(taxPolicy("add_to_total", rate));
   },
 );
 
 Given(
-  "listed prices include {int} percent value added tax",
+  "listed prices include {int} percent tax",
   async function (this: TicketsWorld, rate: number): Promise<void> {
     await settings.update.tax(taxPolicy("calculate_from_total", String(rate)));
   },
 );
 
 Given(
-  "listed prices include value added tax at {word} percent",
+  "listed prices include tax at {word} percent",
   async function (this: TicketsWorld, rate: string): Promise<void> {
     await settings.update.tax(taxPolicy("calculate_from_total", rate));
   },
 );
 
 When(
-  "the organiser sets {word} percent value added tax added to listed prices",
+  "the organiser sets {word} percent tax added to listed prices",
   function (this: TicketsWorld, rate: string): Promise<unknown> {
     return submitRenderedAdminForm(this, "/admin/settings", "Save Tax", {
       tax_mode: "add_to_total",
@@ -125,7 +125,7 @@ When(
 );
 
 When(
-  "the organiser sets {word} percent value added tax included in listed prices",
+  "the organiser sets {word} percent tax included in listed prices",
   function (this: TicketsWorld, rate: string): Promise<unknown> {
     return submitRenderedAdminForm(this, "/admin/settings", "Save Tax", {
       tax_mode: "calculate_from_total",
@@ -147,7 +147,7 @@ When(
 );
 
 Then(
-  "the tax settings show added value added tax at {word} percent",
+  "the tax settings show tax added to listed prices at {word} percent",
   function (this: TicketsWorld, rate: string): void {
     const browser = scenarioBrowser(this);
     expect(
@@ -164,7 +164,7 @@ Then(
 );
 
 Then(
-  "the tax settings show included value added tax at {word} percent",
+  "the tax settings show listed prices include tax at {word} percent",
   function (this: TicketsWorld, rate: string): void {
     const browser = scenarioBrowser(this);
     expect(
@@ -207,7 +207,7 @@ When(
 );
 
 Given(
-  "a customer paid {word} for a {word} place with value added tax",
+  "a customer paid {word} for a {word} place with tax",
   async function (
     this: TicketsWorld,
     price: string,
@@ -222,7 +222,7 @@ Given(
 );
 
 Then(
-  "the {word} place has earned {word} and the VAT account holds {word}",
+  "the {word} place has earned {word} and the tax account holds {word}",
   async function (
     this: TicketsWorld,
     name: string,
@@ -246,7 +246,7 @@ Then(
 );
 
 Then(
-  "the {word} place and the VAT account both hold nothing",
+  "the {word} place and the tax account both hold nothing",
   async function (this: TicketsWorld, name: string): Promise<void> {
     expect(await incomeOf(listingIdNamed(this, name))).toBe(0);
     expect(await accountBalance(TAX_VAT)).toBe(0);
@@ -256,7 +256,7 @@ Then(
 /** The tax account's balance alone could hide a tax leg that a refund later
  *  reversed, so the booking's own legs are checked for both tax kinds too. */
 Then(
-  "no VAT was recorded or refunded",
+  "no tax was recorded or refunded",
   async function (this: TicketsWorld): Promise<void> {
     expect(await accountBalance(TAX_VAT)).toBe(0);
     const legs = await transfersByAccount(attendeeAccount(theBooking(this)));
@@ -294,7 +294,7 @@ When(
 );
 
 Then(
-  "the booking now carries {word} of value added tax and the customer owes {word}",
+  "the booking now carries {word} of tax and the customer owes {word}",
   async function (
     this: TicketsWorld,
     vat: string,
