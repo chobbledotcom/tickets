@@ -127,6 +127,22 @@ describe("adminCalendarPage", () => {
     assert(!html.includes("Export CSV"));
   });
 
+  test("shows the agent filter bar with a link per agent", () => {
+    const html = calendarHtml({
+      agents: [{ id: 3, name: "Van 1" }],
+    });
+    assertStringIncludes(html, "Agent");
+    // A specific agent's link carries the agent param and the #attendees
+    // anchor, so the roster's own filter and the page's section agree.
+    assertStringIncludes(html, 'href="/admin/calendar?agent=3#attendees"');
+  });
+
+  test("omits the agent filter bar when no agents exist", () => {
+    const html = calendarHtml();
+    assert(!html.includes(">Agent<"));
+    assert(!html.includes("agent="));
+  });
+
   test("includes Calendar link in admin nav", () => {
     const html = calendarHtml();
     assertStringIncludes(html, 'href="/admin/calendar"');

@@ -41,6 +41,7 @@ import {
   type MutantLoopContext,
   runFileMutants,
 } from "./run-file.ts";
+import { publishRunSummary } from "./run-journal.ts";
 import { collectStateBuilderFiles } from "./state-graph.ts";
 import { defaultStaticJobs, staticWorkerParent } from "./static.ts";
 import {
@@ -357,12 +358,14 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
   const early = unfinishedRunExit(opts, results.length, plans);
   if (early !== null) return early;
 
-  return reportIgnoreListStaleness(
+  const exitCode = reportIgnoreListStaleness(
     opts,
     plans,
     report(results),
     unconfirmedKeys,
   );
+  await publishRunSummary(opts, results);
+  return exitCode;
 };
 
 const mutate = async (

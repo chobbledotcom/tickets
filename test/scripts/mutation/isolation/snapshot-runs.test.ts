@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { assertStringIncludes } from "@std/assert";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -9,6 +9,7 @@ import {
   copyBackLockPath,
   createRunId,
   MUTATION_RECORD_FILE,
+  MUTATION_RUN_ROOT_ENV,
   MUTATION_SNAPSHOT_CHILD_ENV,
   markFinished,
   newRunRecord,
@@ -59,7 +60,7 @@ describe("running mutation inside a snapshot", () => {
       expect(record.exitCode).toBe(7);
       expect(record.args).toEqual(["src/a.ts", join(root, "test/a.test.ts")]);
       // The child is gone by the time the record settles, and its id with it.
-      expect(record.pid).toBeUndefined();
+      expect(Object.hasOwn(record, "pid")).toBe(false);
       // Nothing to bring back, so the shared copy-back lock is never taken —
       // a run with no kept files must not queue behind one that has them.
       expect(await pathExists(copyBackLockPath(root))).toBe(false);
@@ -257,8 +258,10 @@ describe("running mutation inside a snapshot", () => {
       // The child is its own process, never the supervisor: a record that
       // named the supervisor as its child would mislead a stray-run hunt.
       expect(running.at(0)?.pid).not.toBe(Deno.pid);
-      expect(running.at(-1)?.pid).toBeUndefined();
-      expect(running.at(-1)?.supervisorPid).toBe(Deno.pid);
+      const settled = running.at(-1);
+      assert(settled !== undefined);
+      expect(Object.hasOwn(settled, "pid")).toBe(false);
+      expect(settled.supervisorPid).toBe(Deno.pid);
     });
   });
 
@@ -283,6 +286,91 @@ describe("running mutation inside a snapshot", () => {
       assertStringIncludes(run.errors[0] ?? "", "missing-deno");
       expect(record.status).toBe("failed");
       expect(record.exitCode).toBe(1);
+    });
+  });
+
+  test("a conclusive child's summary lands in the tracked journal", async () => {
+    await withTempDir(async (root) => {
+      // The journal lives inside the checkout's scripts/mutation/, which a
+      // real checkout always carries; the temp root needs it made here.
+      await Deno.mkdir(join(root, "scripts/mutation"), { recursive: true });
+      await writeFakeMutationScript(
+        root,
+        `const runRoot = Deno.env.get("${MUTATION_RUN_ROOT_ENV}");
+         await Deno.writeTextFile(runRoot + "/summary.json", JSON.stringify({
+           effective: 1,
+           exhaustive: false,
+           finishedAt: "2026-10-28T12:00:00.000Z",
+           harness: false,
+           ignored: 0,
+           killed: 1,
+           score: 100,
+           sources: ["src/a.ts"],
+           survived: 0,
+           tests: ["test/a.test.ts"],
+           total: 1,
+         }));
+         Deno.exit(0);
+        `,
+      );
+
+      await captureMutationCommand(
+        ["src/a.ts", join(root, "test/a.test.ts")],
+        root,
+      );
+      const record = await readOnlyRunRecord(root);
+      const line = JSON.parse(
+        await Deno.readTextFile(join(root, "scripts/mutation/runs.jsonl")),
+      );
+
+      expect(record.status).toBe("passed");
+      expect(line.id).toBe(record.id);
+      expect(line.killed).toBe(1);
+      expect(line.score).toBe(100);
+      // The commit stamp names the checkout the supervisor stays in, so a
+      // score is always attributable to the tree that produced it.
+      expect(line.commit).toMatch(/^[0-9a-f]{40}$/);
+    });
+  });
+
+  test("a journal it cannot write is reported and the verdict stands", async () => {
+    await withTempDir(async (root) => {
+      await writeFakeMutationScript(
+        root,
+        `const runRoot = Deno.env.get("${MUTATION_RUN_ROOT_ENV}");
+         await Deno.writeTextFile(runRoot + "/summary.json", JSON.stringify({
+           effective: 1,
+           exhaustive: false,
+           finishedAt: "2026-10-28T12:00:00.000Z",
+           harness: false,
+           ignored: 0,
+           killed: 1,
+           score: 100,
+           sources: ["src/a.ts"],
+           survived: 0,
+           tests: ["test/a.test.ts"],
+           total: 1,
+         }));
+         Deno.exit(0);
+        `,
+      );
+      // `scripts/mutation` as a file, so the journal's append cannot open.
+      await Deno.writeTextFile(join(root, "scripts", "mutation"), "");
+
+      const run = await captureMutationCommand(
+        ["src/a.ts", join(root, "test/a.test.ts")],
+        root,
+      );
+      const record = await readOnlyRunRecord(root);
+
+      // The run's own verdict is untouched: the journal is record-keeping.
+      expect(run.result).toBe(0);
+      expect(record.status).toBe("passed");
+      expect(run.errors).toHaveLength(1);
+      assertStringIncludes(
+        run.errors[0] ?? "",
+        "could not be recorded in scripts/mutation/runs.jsonl",
+      );
     });
   });
 });

@@ -534,8 +534,8 @@ automatic.
   The update refuses a rise. The 400-line aim is policy, not a gate: a file
   slightly over it owes a splitting issue
 - `deno task check:test-quality` — the weak-assertion gate: fails when a
-  change adds a weak assertion to a test file it touches, warns on the ones
-  already in the files it touches, against the merge base on `origin/main`
+  test file the change touches carries a weak assertion, added or
+  pre-existing, against the merge base on `origin/main`
 - `deno task check:presence-assertions` — the `toBeDefined()` block: holds
   every test file to its recorded count in
   `scripts/check-presence-assertions/registry.json`, and the count only
@@ -658,9 +658,10 @@ drop you state out loud.
   shape, persisted rows. Avoid `toBeTruthy()`, compound booleans, and
   presence-only checks. Run `deno task test:quality-audit` when you bulk-add
   tests.
-- The weak-assertion gate (`deno task check:test-quality`) fails when a change
-  adds a weak assertion to a test file it touches, and warns on the ones
-  already in the files it touches. Fix a new finding in the same change.
+- The weak-assertion gate (`deno task check:test-quality`) fails when a test
+  file the change touches carries a weak assertion, added or pre-existing.
+  Fix every finding in a file you touch. A finding in a file you do not touch
+  stays informational.
 - `toBeDefined()` is blocked outright: `deno task check:presence-assertions`
   holds every test file to its recorded count in
   `scripts/check-presence-assertions/registry.json`, and the count only

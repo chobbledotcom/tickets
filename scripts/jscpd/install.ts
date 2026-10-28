@@ -16,10 +16,10 @@ import { projectRoot } from "#scripts/project-root.ts";
 import { sha256Hex } from "#shared/sha256.ts";
 import { streamChunks } from "#shared/stream-chunks.ts";
 
-export const JSCPD_VERSION = "5.2.0";
+export const JSCPD_VERSION = "5.4.2";
 export const JSCPD_URL = `https://registry.npmjs.org/jscpd-linux-x64-musl/-/jscpd-linux-x64-musl-${JSCPD_VERSION}.tgz`;
 export const JSCPD_SHA256 =
-  "6dc6cdd9d245b485e5382872546e406e1d608500832a63644353b97b1faedf8c";
+  "819a9522a7d0ed2e89861f38bc0001355a0c205f360607e209a0d5a51cf79dc7";
 
 export type JscpdPaths = {
   binDir: string;

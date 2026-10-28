@@ -50,6 +50,7 @@ import {
   type SnapshotArgsFn,
   selectedRuns,
 } from "./isolation-state.ts";
+import { appendRunJournalEntry } from "./run-journal.ts";
 import {
   type CopyBackFile,
   keepSnapshotFiles,
@@ -172,6 +173,15 @@ const finishChild = async (
   const exitCode = interrupted ? 130 : failedToKeep || code;
   const settled = settleRecord(record, interrupted, exitCode);
   await writeRunRecord(settled);
+  // The journal is auxiliary: a failure here is reported and the run's own
+  // verdict stands.
+  try {
+    await appendRunJournalEntry(root, settled);
+  } catch (error) {
+    console.error(
+      `The mutation run's numbers could not be recorded in scripts/mutation/runs.jsonl: ${errorMessage(error)}`,
+    );
+  }
   return { exitCode, record: settled };
 };
 

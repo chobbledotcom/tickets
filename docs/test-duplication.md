@@ -195,6 +195,20 @@ on a pair the baseline does not carry, and `deno task cpd:renamed --update`
 rewrites the baseline after a merge. The baseline records no written reason —
 the merge history carries it.
 
+Since jscpd 5.4.2 the strict scans (`.jscpd.json`, `.jscpd.test.json`,
+`.jscpd.helpers.json`, `.jscpd.support.json`) enable the Type-2 clone options
+`ignoreIdentifiers`, `ignoreLiterals` and `ignoreAnnotations`, and each reports
+only kind `exact`. jscpd classifies each matched window. A window whose raw
+tokens differ only in names, literal values or annotations is a `renamed`
+clone. A window with identical raw tokens is an `exact` clone. jscpd splits a
+longer match at the tokens that differ. A renamed copy can still leave a
+raw-identical stretch. When that stretch reaches the scan's `minTokens`, the
+strict gate reports it and demands the merge. The `kind` filter removes the
+renamed windows, so the gates still count only token-identical code. The
+renamed-clone gate still tracks renamed functions in the trees it scans. A run
+that asks for every kind, or a report without the `kind` filter, shows the
+renamed clones too.
+
 A pair changes status one way: merge it (extract a helper, or curry the parts
 that differ), then refresh the baseline. A new renamed copy anywhere in the
 scanned trees fails the gate, which is the point: the slug-index class of drift
