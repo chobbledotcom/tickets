@@ -29,7 +29,7 @@ import {
   overviewTab,
   summarySection,
 } from "#routes/admin/entity-pages.ts";
-import { withOwnerData } from "#routes/admin/owner-route.ts";
+import { withPageData } from "#routes/admin/page-route.ts";
 import { pageGuardFor } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse } from "#routes/response.ts";
@@ -46,8 +46,8 @@ import {
 
 /* jscpd:ignore-end */
 
-/** Owner-guarded handler that loads the caller's API keys up front. */
-const withOwnerApiKeys = withOwnerData("/admin/api-keys", (session) =>
+/** Gated handler that loads the caller's API keys up front. */
+const withOwnerApiKeys = withPageData("/admin/api-keys", (session) =>
   getApiKeysForUser(session.userId),
 );
 

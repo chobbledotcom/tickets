@@ -26,7 +26,7 @@ import {
   entityTabRoutes,
 } from "#routes/admin/route-tables.ts";
 import { authPage, formPolicyFor, pageGuardFor } from "#routes/auth.ts";
-import { idRouteFor, ownerFormById } from "#routes/entity.ts";
+import { entityFormById, idRouteFor } from "#routes/entity.ts";
 /* jscpd:ignore-start */
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
@@ -146,7 +146,7 @@ const handleQuestionEdit = createAuthedFormRoute<
 });
 
 /** Handle POST /admin/questions/:id/listings (assign question to listings) */
-const handleQuestionListings = ownerFormById(
+const handleQuestionListings = entityFormById(
   "/admin/questions/:id/listings",
   async (id, _session, form) => {
     const question = await getQuestionWithAnswers(id);

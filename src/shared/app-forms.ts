@@ -62,7 +62,7 @@ type AuthedHandlerConfig<TParams, TContext> = AuthedBase<TParams, TContext> & {
 /**
  * Authed form handler: CSRF + auth, optional entity load (null → 404), then
  * dispatch to `handle` with the raw form. Shared core used by the passthrough
- * factories (ownerFormById, groupFormPost) and createAuthedFormRoute.
+ * factories (entityFormById, groupFormPost) and createAuthedFormRoute.
  */
 export const createAuthedHandler =
   <TParams = Record<string, never>, TContext = void>(
@@ -82,10 +82,10 @@ export const createAuthedHandler =
       });
     });
 
-/** An owner-only authed form route with no params or loaded context:
- * {@link createAuthedHandler} with the owner policy the route's declaration
+/** An authed form route with no params or loaded context:
+ * {@link createAuthedHandler} with the form policy the route's declaration
  * gives it. Callers pass only their `handle` step and the pattern. */
-export const ownerFormHandler =
+export const formHandlerAt =
   (pattern: string) =>
   (
     handle: AuthedHandleStep<Record<string, never>, void>,

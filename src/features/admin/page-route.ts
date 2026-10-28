@@ -2,10 +2,9 @@ import { type AuthSession, pageGuardRun } from "#routes/auth.ts";
 import { notFoundResponse } from "#routes/response.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 
-/** Owner-gate a request and load the data its handler needs. The gate comes
- * from the route the handler serves, so the owner audience is written once,
- * in the admin surface. */
-export const withOwnerData =
+/** Gate a request by its route's declaration and load the data its handler
+ * needs. The audience is written once, in the admin surface. */
+export const withPageData =
   <T>(
     pattern: string,
     load: (session: AuthSession, request: Request) => Promise<T>,
@@ -19,17 +18,17 @@ export const withOwnerData =
     );
 
 /**
- * Owner-gate a request, look a value up, and 404 when it is absent — otherwise
- * hand the found value (and the session) to `whenFound`. Both the built-sites
- * (`:id` → site) and ledger (session → HTML) owner routes share this
- * "authenticate → look up or 404 → respond" shape.
+ * Gate a request by its route's declaration, look a value up, and 404 when it
+ * is absent. Otherwise hand the found value (and the session) to `whenFound`.
+ * Both the built-sites (`:id` → site) and ledger (session → HTML) routes share
+ * this "authenticate → look up or 404 → respond" shape.
  */
-export const ownerFoundOr404 = <T>(
+export const pageFoundOr404 = <T>(
   pattern: string,
   request: Request,
   find: (session: AuthSession) => Promise<T | null>,
   whenFound: ResponseHandler<[found: T, session: AuthSession]>,
 ): Promise<Response> =>
-  withOwnerData(pattern, find)(request, (session, found) =>
+  withPageData(pattern, find)(request, (session, found) =>
     found === null ? notFoundResponse() : whenFound(found, session),
   );

@@ -38,9 +38,9 @@ import {
 } from "#routes/auth.ts";
 import {
   createEntityHandler,
+  entityPageById,
   idRouteFor,
   orNotFound,
-  ownerGetById,
   throughParent,
 } from "#routes/entity.ts";
 import {
@@ -124,7 +124,7 @@ const loadAttributeListingUse = async (attributeId: number) => {
   };
 };
 
-const handleAttributeGet = ownerGetById(
+const handleAttributeGet = entityPageById(
   "/admin/attributes/:id",
   getAttributeWithOptions,
   async (attribute, session) => {

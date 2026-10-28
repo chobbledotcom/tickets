@@ -42,7 +42,7 @@ import {
   formPolicyFor,
   pageGuardFor,
 } from "#routes/auth.ts";
-import { idRouteFor, ownerFormById } from "#routes/entity.ts";
+import { entityFormById, idRouteFor } from "#routes/entity.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
@@ -351,7 +351,7 @@ const handleUserAgentsGet: TypedRouteHandler<"GET /admin/users/:id/agents"> =
 
 /** Handle POST /admin/users/:id/agents - save an agent user's logistics agents */
 const handleUserAgentsPost: TypedRouteHandler<"POST /admin/users/:id/agents"> =
-  ownerFormById("/admin/users/:id/agents", async (id, session, form) => {
+  entityFormById("/admin/users/:id/agents", async (id, session, form) => {
     const user = await loadDisplayUser(id);
     if (!user) {
       return usersErrorResponse(session, t("error.user_not_found"), 404);

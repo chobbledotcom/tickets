@@ -49,7 +49,7 @@ import {
 } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { adminDestinationAt } from "#shared/admin-surface.ts";
-import { ownerFormHandler } from "#shared/app-forms.ts";
+import { formHandlerAt } from "#shared/app-forms.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 import {
   isOrphanRetentionValue,
@@ -281,7 +281,7 @@ const handleRefundCasePost: RefundCaseRoute = (request, { id }) =>
  * The "Delete now" button additionally purges matching records immediately.
  * The "Save" button only stores the settings.
  */
-const handleOrphansPost = ownerFormHandler("/admin/privacy/orphans")(
+const handleOrphansPost = formHandlerAt("/admin/privacy/orphans")(
   async ({ form }) => {
     const retention = form.getString("retention");
     if (!isOrphanRetentionValue(retention)) {
@@ -309,7 +309,7 @@ const handleOrphansPost = ownerFormHandler("/admin/privacy/orphans")(
  * POST /admin/privacy/erase — delete one contact's recognition record, found
  * by hashing the entered email or phone the same way bookings record it.
  */
-const handleErasePost = ownerFormHandler("/admin/privacy/erase")(
+const handleErasePost = formHandlerAt("/admin/privacy/erase")(
   async ({ form }) => {
     const channel = form.getString("contact_type");
     const identifier = form.getString("identifier").trim();

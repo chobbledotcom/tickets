@@ -19,7 +19,7 @@ import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import { authResponsePage, pageGuardFor } from "#routes/auth.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { adminDestinationAt } from "#shared/admin-surface.ts";
-import { ownerFormHandler } from "#shared/app-forms.ts";
+import { formHandlerAt } from "#shared/app-forms.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { adminMigrateRebuildPaymentsPage } from "#templates/admin/migrate.tsx";
@@ -78,7 +78,7 @@ const handleRebuildGet = authResponsePage(
   );
 });
 
-const handleRebuildPost = ownerFormHandler(REBUILD_PATH)(async ({ form }) => {
+const handleRebuildPost = formHandlerAt(REBUILD_PATH)(async ({ form }) => {
   const privateKey = await requireRequestPrivateKey();
   const page = await legacyPaymentReferencePage(privateKey);
   const providers = statedProvidersFor(form, page);

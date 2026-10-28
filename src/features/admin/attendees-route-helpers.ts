@@ -36,8 +36,8 @@ import {
 import { applyFlash } from "#routes/csrf.ts";
 import {
   createEntityHandler,
+  entityFormById,
   type IdFormHandler,
-  ownerFormById,
 } from "#routes/entity.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
@@ -377,7 +377,7 @@ type AttendeeIdRouteParams = { attendeeId: number };
 export const attendeeFormPost =
   (pattern: string, handle: IdFormHandler) =>
   (request: Request, params: AttendeeIdRouteParams): Promise<Response> =>
-    ownerFormById(pattern, handle)(request, { id: params.attendeeId });
+    entityFormById(pattern, handle)(request, { id: params.attendeeId });
 
 export const getReturnUrl = (request: Request): string =>
   getSearchParam(request, "return_url");

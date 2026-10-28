@@ -18,7 +18,7 @@ import {
   generateCalendarCsv,
   toCalendarAttendees,
 } from "#routes/admin/calendar-csv.ts";
-import { withOwnerData } from "#routes/admin/owner-route.ts";
+import { withPageData } from "#routes/admin/page-route.ts";
 import type { AuthSession } from "#routes/auth.ts";
 /* jscpd:ignore-start */
 import { htmlResponse } from "#routes/response.ts";
@@ -110,7 +110,7 @@ const withBrowserList = (
   request: Request,
   handler: (session: AuthSession, list: BrowserList) => Promise<Response>,
 ): Promise<Response> =>
-  withOwnerData(pattern, async (_session, request) => {
+  withPageData(pattern, async (_session, request) => {
     const [listings, groups] = await loadListingsAndGroupNames();
     const setup = browserListSetup(listings, groupScopeOptions(groups));
     const state = readAttendeeListState(

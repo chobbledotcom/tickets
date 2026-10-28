@@ -111,11 +111,11 @@ export const createIdEntityHandler = <T>(
   createEntityHandler(({ id }: IdParam) => load(id));
 
 /**
- * Owner GET-by-ID route handler factory.
- * Loads entity by ID, returns 404 if missing, renders with session context,
- * and requires the owner role.
+ * Record GET-by-ID page route factory.
+ * Loads the entity by ID, returns 404 if missing, renders with session
+ * context, and gates by the route's declaration.
  */
-export const ownerGetById = <T>(
+export const entityPageById = <T>(
   pattern: string,
   load: EntityLoader<T>,
   render: ResponseHandler<[entity: T, session: AuthSession]>,
@@ -124,8 +124,9 @@ export const ownerGetById = <T>(
     render,
   );
 
-/** Owner POST-by-ID + CSRF */
-export const ownerFormById = (
+/** Record POST-by-ID route: the route's declared form policy gates it, CSRF
+ * check included. */
+export const entityFormById = (
   pattern: string,
   handler: IdFormHandler,
 ): IdRouteHandler =>

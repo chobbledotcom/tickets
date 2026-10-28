@@ -19,8 +19,8 @@ import {
   loadLedgerNamesForAccounts,
 } from "#routes/admin/ledger/names.ts";
 import {
-  ownerHtml,
-  ownerTypeRefHtml,
+  pageHtml,
+  pageTypeRefHtml,
 } from "#routes/admin/ledger/route-helpers.ts";
 import { accountFromRoute } from "#routes/admin/ledger/statements.ts";
 import { type AuthSession, formPolicyFor, withAuth } from "#routes/auth.ts";
@@ -181,7 +181,7 @@ const postedTransferRoute =
     });
 
 export const handleLedgerEntryAddGet: TypedRouteHandler<"GET /admin/ledger/:type/:ref/add"> =
-  ownerTypeRefHtml("/admin/ledger/:type/:ref/add")(
+  pageTypeRefHtml("/admin/ledger/:type/:ref/add")(
     (request, session, { type, ref }) =>
       loadedEntryPage(
         request,
@@ -229,7 +229,7 @@ export const handleLedgerEntryAddPost: TypedRouteHandler<
 export const handleLedgerEntryEditGet: TypedRouteHandler<
   "GET /admin/ledger/entries/:id/edit"
 > = (request, { id }) =>
-  ownerHtml("/admin/ledger/entries/:id/edit", request, (session) =>
+  pageHtml("/admin/ledger/entries/:id/edit", request, (session) =>
     loadedEntryPage(
       request,
       getEditableTransferById(id),

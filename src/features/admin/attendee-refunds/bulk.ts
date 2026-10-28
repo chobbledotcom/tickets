@@ -26,7 +26,7 @@ import { refundReferenceProblemMessage } from "#routes/admin/refunds/readiness-p
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import { pageGuardFor } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
-import { ownerFormById } from "#routes/entity.ts";
+import { entityFormById } from "#routes/entity.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { adminDestinationAt } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -302,7 +302,7 @@ const processRefundAll = async (
   });
 };
 
-const handleAdminRefundAllPost = ownerFormById(
+const handleAdminRefundAllPost = entityFormById(
   "/admin/listing/:id/refund-all",
   async (id, _session, form) => {
     const listing = await getListingWithCountPrimary(id);

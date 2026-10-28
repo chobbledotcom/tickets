@@ -3,6 +3,7 @@
  * toggle submit. One module so the listing-scoped attendee routes file stays
  * under its line budget. */
 
+/* jscpd:ignore-start -- imports */
 import { ticketCount } from "#booking/ticket-moves.ts";
 import { moveTicketsAndLog, ticketsWord } from "#db/attendees/door-moves.ts";
 import { hasActiveBookingLine } from "#db/attendees/queries.ts";
@@ -19,6 +20,7 @@ import {
   getReturnUrl,
   withAttendeeBooking,
 } from "./attendees-route-helpers.ts";
+/* jscpd:ignore-end */
 /** Return a redirect response when the attendee has no active booking line, or null otherwise. */
 export const redirectIfNoActiveBookingLine = async (
   attendeeId: number,
