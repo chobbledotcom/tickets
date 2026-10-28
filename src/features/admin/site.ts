@@ -44,6 +44,14 @@ type PageRenderer = (
   success?: string,
 ) => string;
 
+/** A textarea length check: a message naming the field when it is too long. */
+const maxTextareaValidator =
+  (fieldLabel: string) =>
+  (value: string): string | null =>
+    value.length > MAX_TEXTAREA_LENGTH
+      ? `${fieldLabel} must be ${MAX_TEXTAREA_LENGTH} characters or fewer (currently ${value.length})`
+      : null;
+
 /** Site-editing GET route that renders a site editor page */
 const siteGetRoute = (render: PageRenderer): RequestRoute =>
   sitePage((session, _request, flash) =>
@@ -111,10 +119,7 @@ const handleSiteContactPost = settingsHandler({
   log: () => "Contact page updated",
   redirectTo: "/admin/site/contact",
   save: (v) => settings.update.contactPageText(v),
-  validate: (v) =>
-    v.length > MAX_TEXTAREA_LENGTH
-      ? `Contact page text must be ${MAX_TEXTAREA_LENGTH} characters or fewer (currently ${v.length})`
-      : null,
+  validate: maxTextareaValidator("Contact page text"),
 });
 
 /** Handle GET /admin/site/order - order page editor (owner only).
@@ -147,10 +152,7 @@ const handleSiteOrderPost = settingsHandler({
   log: () => "Order page updated",
   redirectTo: "/admin/site/order",
   save: (v) => settings.update.orderIntroText(v),
-  validate: (v) =>
-    v.length > MAX_TEXTAREA_LENGTH
-      ? `Order intro must be ${MAX_TEXTAREA_LENGTH} characters or fewer (currently ${v.length})`
-      : null,
+  validate: maxTextareaValidator("Order intro"),
 });
 
 /** Site editor routes */
