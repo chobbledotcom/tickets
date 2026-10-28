@@ -45,6 +45,12 @@ describe("the single-form page", () => {
 describe("the other opener families", () => {
   beforeAll(setupAdminPageTest);
 
+  const seedsListPage = successListPage(
+    "admin.seeds.title",
+    "/admin/settings",
+    () => ({ columns: [], empty: <p>Body</p>, items: [] }),
+  );
+
   test("the opts-bag page shows the bag's notices in their channels", () => {
     const html = flashOptsPage("admin.seeds.title", "/admin/settings")(
       OWNER_SESSION,
@@ -69,9 +75,7 @@ describe("the other opener families", () => {
   });
 
   test("the list page shows only a write's success notice", () => {
-    const html = successListPage("admin.seeds.title", "/admin/settings", () => (
-      <p>Body</p>
-    ))([], OWNER_SESSION, "Invited");
+    const html = seedsListPage([], OWNER_SESSION, "Invited");
 
     assertStringIncludes(
       html,
@@ -81,9 +85,7 @@ describe("the other opener families", () => {
   });
 
   test("a family with no notices renders none", () => {
-    const html = successListPage("admin.seeds.title", "/admin/settings", () => (
-      <p>Body</p>
-    ))([], OWNER_SESSION);
+    const html = seedsListPage([], OWNER_SESSION);
 
     assert(!html.includes('role="alert"'));
   });

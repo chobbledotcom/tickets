@@ -14,6 +14,7 @@ import type {
 import { adminPath } from "#shared/admin-surface.ts";
 import { Flash } from "#shared/forms/flash.tsx";
 import {
+  type AdminPageListPart,
   type FlashPageRenderer,
   renderAdminPageSpec,
 } from "#templates/admin/admin-page-spec.tsx";
@@ -136,28 +137,30 @@ export const flashOptsPage =
   ): string =>
     openWithNotices(active, title, body, session, opts.error, opts.success);
 
-/** Bind a list page to its title, nav link, and a body built from the items
- *  and the viewer; the renderer carries a write's success notice — the exact
- *  signature the list-page routes call with. */
+/** Bind a list page to its title, nav link, and the spec's list part; the
+ *  renderer builds the table-or-empty body and carries a write's success
+ *  notice — the exact signature the list-page routes call with. */
 export const successListPage =
-  <Items,>(
+  <TItem, TContext = undefined>(
     titleKey: string,
     active: NavActive,
-    body: (items: Items, session: AdminSession) => Child,
+    list: (
+      items: TItem[],
+      session: AdminSession,
+    ) => AdminPageListPart<TItem, TContext>,
   ): ((
-    items: Items,
+    items: TItem[],
     session: AdminSession,
     successMessage?: string,
   ) => string) =>
   (items, session, successMessage) =>
-    openWithNotices(
+    renderAdminPageSpec({
       active,
-      t(titleKey),
-      body(items, session),
+      flash: { success: successMessage },
+      list: list(items, session),
       session,
-      undefined,
-      successMessage,
-    );
+      title: t(titleKey),
+    });
 
 /** A page that edits a many-to-many assignment: given the record, the list of
  *  things it can be assigned to, the currently-selected ids, the viewer's
