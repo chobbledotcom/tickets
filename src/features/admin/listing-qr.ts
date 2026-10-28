@@ -17,7 +17,7 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { getActiveHolidays } from "#db/holidays.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { withEntityLoader } from "#routes/admin/entity-handlers.ts";
-import { requireSessionOr } from "#routes/auth.ts";
+import { formPolicyFor, pageGuardFor } from "#routes/auth.ts";
 import { keepParentDailyDatesChildrenCanServe } from "#routes/public/booking-dates.ts";
 import { standalonePageServes } from "#routes/public/page-listings.ts";
 import {
@@ -25,6 +25,7 @@ import {
   jsonResponse,
   notFoundResponse,
 } from "#routes/response.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import {
   createAuthedFormRoute,
   type FormValidator,
@@ -290,6 +291,7 @@ const handlePost = createAuthedFormRoute<
   { id: number },
   QrContext
 >({
+  auth: formPolicyFor(adminDestinationAt("/admin/listing/:id/qr")),
   form: ({ bookableDates, listing }) =>
     createQrFormValidator(listing, bookableDates),
   loadContext: ({ id }) => loadQrContext(id),
@@ -310,7 +312,7 @@ const handleJsonGet: TypedRouteHandler<"GET /admin/listing/:id/qr.json"> = (
   request,
   { id },
 ) =>
-  requireSessionOr(request, () =>
+  pageGuardFor(adminDestinationAt("/admin/listing/:id/qr.json"))(request, () =>
     withListing(id)((listing) =>
       unlessChild(listing, async () => {
         const form = new FormParams(new URL(request.url).searchParams);

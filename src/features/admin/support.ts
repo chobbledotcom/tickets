@@ -11,7 +11,12 @@ import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 /* jscpd:ignore-start */
 import { addPageImageUrls } from "#db/image-urls.ts";
 import { t } from "#i18n";
-import { formPost, OWNER_FORM, ownerResponsePage } from "#routes/auth.ts";
+import {
+  authResponsePage,
+  formPolicyFor,
+  formPost,
+  pageGuardFor,
+} from "#routes/auth.ts";
 import { requireMessageField } from "#routes/csrf.ts";
 import {
   errorRedirect,
@@ -19,6 +24,7 @@ import {
   notFoundResponse,
   redirect,
 } from "#routes/response.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 /* jscpd:ignore-end */
 import { MESSAGE_SEND_FAILED } from "#shared/inbound-message.ts";
@@ -35,7 +41,9 @@ import { adminSupportPage } from "#templates/admin/support.tsx";
 const SUPPORT_PATH = "/admin/support";
 
 /** GET /admin/support — render the support page (404 when the feature is off). */
-const handleSupportGet = ownerResponsePage(async (session, _request, flash) => {
+const handleSupportGet = authResponsePage(
+  pageGuardFor(adminDestinationAt("/admin/support")),
+)(async (session, _request, flash) => {
   if (!isSupportEnabled()) return notFoundResponse();
   const supportText = getSupportPageText();
   await addPageImageUrls([supportText]);
@@ -66,7 +74,9 @@ const submitSupportMessage = async (form: FormParams): Promise<Response> => {
 };
 
 /** POST /admin/support — owner-only, CSRF-checked support message. */
-const handleSupportPost = formPost(OWNER_FORM)(submitSupportMessage);
+const handleSupportPost = formPost(
+  formPolicyFor(adminDestinationAt("/admin/support")),
+)(submitSupportMessage);
 
 /** Support routes */
 export const adminHandlers = defineAdminRoutes({

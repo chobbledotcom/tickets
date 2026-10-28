@@ -1,15 +1,20 @@
+/* jscpd:ignore-start -- imports */
 import {
   getModifier,
   modifierGroups,
   modifierListings,
   setModifierAnswers,
 } from "#db/modifiers.ts";
+import { formPolicyFor } from "#routes/auth.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { Modifier } from "#types";
 import { childAddOnSaveError } from "./modifier-add-on-reachability.ts";
+
+/* jscpd:ignore-end */
 
 /** Selected ids from a checkbox group, positive integers only. */
 const selectedIds = (form: FormParams, field: string): number[] =>
@@ -24,6 +29,7 @@ const selectedIds = (form: FormParams, field: string): number[] =>
  * `guard` runs before the write. A returned message blocks the save with that
  * error instead, for example the child-only add-on reachability check. */
 const saveModifierLinks = (
+  pattern: string,
   request: Request,
   id: number,
   save: (modifier: Modifier, form: FormParams) => Promise<unknown>,
@@ -31,6 +37,7 @@ const saveModifierLinks = (
   guard?: (modifier: Modifier, form: FormParams) => Promise<string | null>,
 ): Promise<Response> =>
   createAuthedHandler<{ id: number }, Modifier>({
+    auth: formPolicyFor(adminDestinationAt(pattern)),
     handle: async ({ context: modifier, form }) => {
       const error = guard ? await guard(modifier, form) : null;
       if (error) return errorRedirect(`/admin/modifiers/${id}/edit`, error);
@@ -76,6 +83,7 @@ export const handleScopeLinks: TypedRouteHandler<
   "POST /admin/modifiers/:id/links"
 > = (request, { id }) =>
   saveModifierLinks(
+    "/admin/modifiers/:id/links",
     request,
     id,
     writeScopeLinks,
@@ -87,6 +95,7 @@ export const handleAnswerLinks: TypedRouteHandler<
   "POST /admin/modifiers/:id/answers"
 > = (request, { id }) =>
   saveModifierLinks(
+    "/admin/modifiers/:id/answers",
     request,
     id,
     (modifier, form) =>

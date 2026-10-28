@@ -22,32 +22,26 @@ export interface ParsedArgs {
   useHarness: boolean;
 }
 
+/** The fields of `T` whose value is `V`, with `null` and `undefined` ignored:
+ *  derived from the type, so a new flag field joins the right setter union
+ *  without a hand-edited copy. */
+type FieldsOfType<T, V> = {
+  [Field in keyof T]-?: NonNullable<T[Field]> extends V ? Field : never;
+}[keyof T];
+
+/** A standalone flag: sets one boolean field on `parsed`. */
+const setBooleanFlag =
+  (field: FieldsOfType<ParsedArgs, boolean>) =>
+  (parsed: ParsedArgs): void => {
+    parsed[field] = true;
+  };
+
 /** Flags that stand alone; each just flips a field on `parsed`. */
 const BOOLEAN_FLAGS = new Map<string, (parsed: ParsedArgs) => void>([
-  [
-    "--exhaustive",
-    (parsed) => {
-      parsed.exhaustive = true;
-    },
-  ],
-  [
-    "--harness",
-    (parsed) => {
-      parsed.useHarness = true;
-    },
-  ],
-  [
-    "-h",
-    (parsed) => {
-      parsed.help = true;
-    },
-  ],
-  [
-    "--help",
-    (parsed) => {
-      parsed.help = true;
-    },
-  ],
+  ["--exhaustive", setBooleanFlag("exhaustive")],
+  ["--harness", setBooleanFlag("useHarness")],
+  ["-h", setBooleanFlag("help")],
+  ["--help", setBooleanFlag("help")],
 ]);
 
 /**
@@ -58,25 +52,22 @@ const BOOLEAN_FLAGS = new Map<string, (parsed: ParsedArgs) => void>([
 const toNumber = (value: string): number =>
   value.trim() === "" ? Number.NaN : Number(value);
 
+/** A value flag: records the parsed number on one field of `parsed`. */
+const setNumberFlag =
+  (field: FieldsOfType<ParsedArgs, number>) =>
+  (parsed: ParsedArgs, value: string): void => {
+    parsed[field] = toNumber(value);
+  };
+
 /** Flags that take a value; each records that value on `parsed`. */
 const VALUE_FLAGS = new Map<
   string,
   (parsed: ParsedArgs, value: string) => void
 >([
-  [
-    "--jobs",
-    (parsed, value) => {
-      parsed.batchJobs = toNumber(value);
-    },
-  ],
+  ["--jobs", setNumberFlag("batchJobs")],
   ["--source", (parsed, value) => parsed.sources.push(value)],
   ["--test", (parsed, value) => parsed.tests.push(value)],
-  [
-    "--deadline",
-    (parsed, value) => {
-      parsed.deadline = toNumber(value);
-    },
-  ],
+  ["--deadline", setNumberFlag("deadline")],
 ]);
 
 /** True for any recognised flag — so one option can't be read as another's value. */

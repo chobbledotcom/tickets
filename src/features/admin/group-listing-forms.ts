@@ -79,27 +79,30 @@ const groupPathOf = (groupId: number): string =>
   entityReturnPath(adminPattern("groups"), groupId);
 
 /** Handle POST /admin/groups/:id/add-listings - assign ungrouped listings to group */
-export const handleAddListingsToGroup = groupFormPost(async (group, form) => {
-  const groupPath = groupPathOf(group.id);
-  const listingIds = listingIdsFrom(form.getAll("listing_ids"));
-  if (listingIds.length === 0) {
+export const handleAddListingsToGroup = groupFormPost(
+  "/admin/groups/:id/add-listings",
+  async (group, form) => {
+    const groupPath = groupPathOf(group.id);
+    const listingIds = listingIdsFrom(form.getAll("listing_ids"));
+    if (listingIds.length === 0) {
+      return redirect(groupPath, t("success.listings_added_to_group"), true);
+    }
+    const listings = await selectedMembers(form.getAll("listing_ids"));
+    const packageError = await packageListingError(group, listings);
+    if (packageError) return redirect(groupPath, packageError, false);
+    // The write re-checks the selection's own rows, so a listing deleted since
+    // the page rendered refuses the whole batch.
+    const writeError = await assignListingsToGroup(listingIds, group.id);
+    if (writeError) {
+      const target = refusedWriteTarget(groupPath, writeError);
+      return redirect(target, writeError, false);
+    }
+    await logActivity(
+      `${xCount(listings.length)} listings added to group '${group.name}'`,
+    );
     return redirect(groupPath, t("success.listings_added_to_group"), true);
-  }
-  const listings = await selectedMembers(form.getAll("listing_ids"));
-  const packageError = await packageListingError(group, listings);
-  if (packageError) return redirect(groupPath, packageError, false);
-  // The write re-checks the selection's own rows, so a listing deleted since
-  // the page rendered refuses the whole batch.
-  const writeError = await assignListingsToGroup(listingIds, group.id);
-  if (writeError) {
-    const target = refusedWriteTarget(groupPath, writeError);
-    return redirect(target, writeError, false);
-  }
-  await logActivity(
-    `${xCount(listings.length)} listings added to group '${group.name}'`,
-  );
-  return redirect(groupPath, t("success.listings_added_to_group"), true);
-}, CONTENT_FORM);
+  },
+);
 
 /** Handle GET /admin/groups/:id/remove-listings — the confirmation page. The
  * Overview form submits its selection here by query string. */

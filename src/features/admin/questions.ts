@@ -25,11 +25,11 @@ import {
   defineAdminRoutes,
   entityTabRoutes,
 } from "#routes/admin/route-tables.ts";
-import { OWNER_FORM, ownerPage } from "#routes/auth.ts";
-import { idRouteFor, ownerFormById } from "#routes/entity.ts";
+import { authPage, formPolicyFor, pageGuardFor } from "#routes/auth.ts";
+import { entityFormById, idRouteFor } from "#routes/entity.ts";
 /* jscpd:ignore-start */
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
-import { adminPattern } from "#shared/admin-surface.ts";
+import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 import {
   createAuthedFormRoute,
   createOrderedCollectionHandlers,
@@ -63,7 +63,9 @@ import {
 import { questionTextForm } from "./questions/forms.ts";
 
 /** Handle GET /admin/questions */
-const handleQuestionsGet = ownerPage(async (session) => {
+const handleQuestionsGet = authPage(
+  pageGuardFor(adminDestinationAt("/admin/questions")),
+)(async (session) => {
   const flash = getFlash();
   const [questions, allListings] = await Promise.all([
     getAllQuestionsWithAnswers(),
@@ -93,7 +95,7 @@ const handleQuestionsGet = ownerPage(async (session) => {
 
 /** Handle POST /admin/questions (create question) */
 const handleQuestionsPost = createAuthedFormRoute({
-  auth: OWNER_FORM,
+  auth: formPolicyFor(adminDestinationAt("/admin/questions")),
   form: questionTextForm,
   onInvalid: ({ error }) => errorRedirect("/admin/questions", error),
   onValid: async ({ values: { display_type, text } }) => {
@@ -118,7 +120,7 @@ const handleQuestionEdit = createAuthedFormRoute<
   { display_type: string; text: string },
   QuestionIdParams
 >({
-  auth: OWNER_FORM,
+  auth: formPolicyFor(adminDestinationAt("/admin/questions/:id/edit")),
   form: questionTextForm,
   onInvalid: redirectToQuestion,
   onValid: async ({ params, values: { display_type, text } }) => {
@@ -144,29 +146,32 @@ const handleQuestionEdit = createAuthedFormRoute<
 });
 
 /** Handle POST /admin/questions/:id/listings (assign question to listings) */
-const handleQuestionListings = ownerFormById(async (id, _session, form) => {
-  const question = await getQuestionWithAnswers(id);
-  if (!question) return notFoundResponse();
-  const assignAll = form.get("assign_all") === "on";
-  const listingIds = form.getNumberArray("listing_ids");
-  await writeRowInTransaction(
-    await questionsTable.updateStatement(id, { assignAll }),
-    id,
-    (tx) => questionListings.setIdsTx(tx, id, listingIds),
-  );
-  await logActivity(
-    assignAll
-      ? `Question '${question.text}' assigned to all listings`
-      : `Question '${question.text}' assigned to ${listingIds.length} listing${
-          listingIds.length !== 1 ? "s" : ""
-        }`,
-  );
-  return redirect(
-    `/admin/questions/${id}`,
-    t("questions.listings_updated"),
-    true,
-  );
-});
+const handleQuestionListings = entityFormById(
+  "/admin/questions/:id/listings",
+  async (id, _session, form) => {
+    const question = await getQuestionWithAnswers(id);
+    if (!question) return notFoundResponse();
+    const assignAll = form.get("assign_all") === "on";
+    const listingIds = form.getNumberArray("listing_ids");
+    await writeRowInTransaction(
+      await questionsTable.updateStatement(id, { assignAll }),
+      id,
+      (tx) => questionListings.setIdsTx(tx, id, listingIds),
+    );
+    await logActivity(
+      assignAll
+        ? `Question '${question.text}' assigned to all listings`
+        : `Question '${question.text}' assigned to ${listingIds.length} listing${
+            listingIds.length !== 1 ? "s" : ""
+          }`,
+    );
+    return redirect(
+      `/admin/questions/${id}`,
+      t("questions.listings_updated"),
+      true,
+    );
+  },
+);
 
 const questionDelete = createConfirmedHandlers<QuestionWithAnswers>({
   // The confirmation page shows the flattened text (newlines become " / ").
@@ -183,7 +188,7 @@ const questionDelete = createConfirmedHandlers<QuestionWithAnswers>({
 });
 
 const questionOrder = createOrderedCollectionHandlers({
-  auth: OWNER_FORM,
+  auth: formPolicyFor(adminDestinationAt("/admin/questions/:id/move-up")),
   keys: async () =>
     (await getAllQuestionsWithAnswers()).map((question) => question.id),
   loadContext: ({ id }: QuestionIdParams) => getQuestionWithAnswers(id),
@@ -198,6 +203,7 @@ const handleListingQuestionsPost = createListingChoicePost({
   fieldName: "question_ids",
   label: "Questions",
   noun: "question",
+  pattern: "/admin/listing/:id/questions",
   saveIds: listingQuestions.setIds,
   tab: "questions",
 });

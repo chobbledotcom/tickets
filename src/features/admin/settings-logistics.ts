@@ -6,7 +6,7 @@ import {
   defineAdminRoutes,
   entityTabRoutes,
 } from "#routes/admin/route-tables.ts";
-import { type IdRouteHandler, ownerFormById } from "#routes/entity.ts";
+import { entityFormById, type IdRouteHandler } from "#routes/entity.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 /* jscpd:ignore-end */
 /**
@@ -96,7 +96,8 @@ const crud = createCrudHandlers({
 
 /** Save the agent and assigned users in one transaction. This stays separate
  * from create so crafted create forms cannot assign users. */
-const handleAgentEditPost: IdRouteHandler = ownerFormById(
+const handleAgentEditPost: IdRouteHandler = entityFormById(
+  "/admin/logistics/:id/edit",
   async (id, session, form) => {
     const result = await logisticsAgentEditResource.update(id, form);
     return operationResponse(

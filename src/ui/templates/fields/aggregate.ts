@@ -26,6 +26,11 @@ type AggregateFieldSpec = {
 const buildAggregateFields = (specs: readonly AggregateFieldSpec[]): Field[] =>
   specs.map(({ labelKey, name }) => aggregateIntegerField(name, t(labelKey)));
 
+/** The read-only aggregate field list for one counter group. */
+const aggregateFieldsFor =
+  (specs: readonly AggregateFieldSpec[]) => (): Field[] =>
+    buildAggregateFields(specs);
+
 const LISTING_AGGREGATE_FIELDS = [
   { labelKey: "fields.listing.booked_quantity", name: "booked_quantity" },
   { labelKey: "fields.listing.tickets_count", name: "tickets_count" },
@@ -40,11 +45,14 @@ const ANSWER_AGGREGATE_FIELDS = [
   { labelKey: "fields.answer.times_selected", name: "times_selected" },
 ] as const satisfies readonly AggregateFieldSpec[];
 
-export const getListingAggregateFields = (): Field[] =>
-  buildAggregateFields(LISTING_AGGREGATE_FIELDS);
+export const getListingAggregateFields = aggregateFieldsFor(
+  LISTING_AGGREGATE_FIELDS,
+);
 
-export const getModifierAggregateFields = (): Field[] =>
-  buildAggregateFields(MODIFIER_AGGREGATE_FIELDS);
+export const getModifierAggregateFields = aggregateFieldsFor(
+  MODIFIER_AGGREGATE_FIELDS,
+);
 
-export const getAnswerAggregateFields = (): Field[] =>
-  buildAggregateFields(ANSWER_AGGREGATE_FIELDS);
+export const getAnswerAggregateFields = aggregateFieldsFor(
+  ANSWER_AGGREGATE_FIELDS,
+);

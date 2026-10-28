@@ -34,9 +34,9 @@ import { t } from "#i18n";
 import { refundEvidenceActionAllowed } from "#payment/refund-authority-lifecycle.ts";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import {
-  OWNER_FORM,
-  ownerResponsePage,
-  requireOwnerOr,
+  authResponsePage,
+  formPolicyFor,
+  pageGuardFor,
   withAuth,
 } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
@@ -48,7 +48,8 @@ import {
   redirect,
 } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
-import { ownerFormHandler } from "#shared/app-forms.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
+import { formHandlerAt } from "#shared/app-forms.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 import {
   isOrphanRetentionValue,
@@ -82,7 +83,9 @@ const paymentWorkCursor = (request: Request) => {
   return {};
 };
 
-const handlePrivacyGet = ownerResponsePage(async (session, request, flash) => {
+const handlePrivacyGet = authResponsePage(
+  pageGuardFor(adminDestinationAt("/admin/privacy")),
+)(async (session, request, flash) => {
   const refundCursor = new URL(request.url).searchParams.get("refund_after");
   const refundAfter =
     refundCursor === null
@@ -117,17 +120,24 @@ type RefundCaseRoute = (
 ) => Promise<Response>;
 
 const handleRefundCaseGet: RefundCaseRoute = (request, { id }) =>
-  requireOwnerOr(request, async (session) => {
-    const refundCase = await loadProviderRefundCase(
-      id,
-      await requireRequestPrivateKey(),
-    );
-    return refundCase === null
-      ? notFoundResponse()
-      : htmlResponse(
-          adminProviderRefundCasePage(session, refundCase, applyFlash(request)),
-        );
-  });
+  pageGuardFor(adminDestinationAt("/admin/privacy/refunds/:id"))(
+    request,
+    async (session) => {
+      const refundCase = await loadProviderRefundCase(
+        id,
+        await requireRequestPrivateKey(),
+      );
+      return refundCase === null
+        ? notFoundResponse()
+        : htmlResponse(
+            adminProviderRefundCasePage(
+              session,
+              refundCase,
+              applyFlash(request),
+            ),
+          );
+    },
+  );
 
 const OWNER_CHOICE_LOG = {
   money_recorded: "privacy.refunds.log_money_recorded",
@@ -233,80 +243,90 @@ const checkProviderAgain = async (
 };
 
 const handleRefundCasePost: RefundCaseRoute = (request, { id }) =>
-  withAuth(request, OWNER_FORM, async (_session, form) => {
-    const choice = form.getString("choice");
-    const revision = parsePositiveInt(form.getString("revision"));
-    if (
-      revision === null ||
-      (choice !== "check_again" && !isOwnerChoice(choice))
-    ) {
-      return errorRedirect(
-        refundCasePath(id),
-        t("privacy.refunds.error_choice"),
-      );
-    }
-    if (choice === "check_again") return await checkProviderAgain(id, revision);
-    const result = await resolveProviderRefundCase({
-      activityMessage: t(OWNER_CHOICE_LOG[choice], { id }),
-      choice,
-      id,
-      privateKey: await requireRequestPrivateKey(),
-      revision,
-    });
-    if (result === "missing") return notFoundResponse();
-    if (result === "changed") {
-      return refundCaseChanged(id);
-    }
-    return redirect(PRIVACY_PATH, t("privacy.refunds.resolved"), true);
-  });
+  withAuth(
+    request,
+    formPolicyFor(adminDestinationAt("/admin/privacy/refunds/:id")),
+    async (_session, form) => {
+      const choice = form.getString("choice");
+      const revision = parsePositiveInt(form.getString("revision"));
+      if (
+        revision === null ||
+        (choice !== "check_again" && !isOwnerChoice(choice))
+      ) {
+        return errorRedirect(
+          refundCasePath(id),
+          t("privacy.refunds.error_choice"),
+        );
+      }
+      if (choice === "check_again") {
+        return await checkProviderAgain(id, revision);
+      }
+      const result = await resolveProviderRefundCase({
+        activityMessage: t(OWNER_CHOICE_LOG[choice], { id }),
+        choice,
+        id,
+        privateKey: await requireRequestPrivateKey(),
+        revision,
+      });
+      if (result === "missing") return notFoundResponse();
+      if (result === "changed") {
+        return refundCaseChanged(id);
+      }
+      return redirect(PRIVACY_PATH, t("privacy.refunds.resolved"), true);
+    },
+  );
 
 /**
  * POST /admin/privacy/orphans — save the retention age and auto-purge toggle.
  * The "Delete now" button additionally purges matching records immediately.
  * The "Save" button only stores the settings.
  */
-const handleOrphansPost = ownerFormHandler(async ({ form }) => {
-  const retention = form.getString("retention");
-  if (!isOrphanRetentionValue(retention)) {
-    return errorRedirect(PRIVACY_PATH, t("privacy.orphans.error_retention"));
-  }
-  await settings.update.orphanPurgeRetention(retention);
-  await settings.update.autoPurgeOrphans(form.has("auto_purge"));
+const handleOrphansPost = formHandlerAt("/admin/privacy/orphans")(
+  async ({ form }) => {
+    const retention = form.getString("retention");
+    if (!isOrphanRetentionValue(retention)) {
+      return errorRedirect(PRIVACY_PATH, t("privacy.orphans.error_retention"));
+    }
+    await settings.update.orphanPurgeRetention(retention);
+    await settings.update.autoPurgeOrphans(form.has("auto_purge"));
 
-  if (form.getString("action") === "purge") {
-    const deleted = await purgeOrphanedAttendees(
-      orphanRetentionCutoffIso(retention, nowMs()),
-    );
-    await logActivity(t("privacy.orphans.log_purged", { count: deleted }));
-    return redirect(
-      PRIVACY_PATH,
-      t("privacy.orphans.flash_purged", { count: deleted }),
-      true,
-    );
-  }
-  return redirect(PRIVACY_PATH, t("privacy.orphans.flash_saved"), true);
-});
+    if (form.getString("action") === "purge") {
+      const deleted = await purgeOrphanedAttendees(
+        orphanRetentionCutoffIso(retention, nowMs()),
+      );
+      await logActivity(t("privacy.orphans.log_purged", { count: deleted }));
+      return redirect(
+        PRIVACY_PATH,
+        t("privacy.orphans.flash_purged", { count: deleted }),
+        true,
+      );
+    }
+    return redirect(PRIVACY_PATH, t("privacy.orphans.flash_saved"), true);
+  },
+);
 
 /**
  * POST /admin/privacy/erase — delete one contact's recognition record, found
  * by hashing the entered email or phone the same way bookings record it.
  */
-const handleErasePost = ownerFormHandler(async ({ form }) => {
-  const channel = form.getString("contact_type");
-  const identifier = form.getString("identifier").trim();
-  if (!identifier) {
-    return errorRedirect(PRIVACY_PATH, t("privacy.erase.error_identifier"));
-  }
-  if (!isContactChannel(channel)) {
-    return errorRedirect(PRIVACY_PATH, t("privacy.erase.error_type"));
-  }
-  const deleted = await forgetContact(await contactHash(channel, identifier));
-  if (deleted === 0) {
-    return infoRedirect(PRIVACY_PATH, t("privacy.erase.flash_none"));
-  }
-  await logActivity(t("privacy.erase.log_done"));
-  return redirect(PRIVACY_PATH, t("privacy.erase.flash_done"), true);
-});
+const handleErasePost = formHandlerAt("/admin/privacy/erase")(
+  async ({ form }) => {
+    const channel = form.getString("contact_type");
+    const identifier = form.getString("identifier").trim();
+    if (!identifier) {
+      return errorRedirect(PRIVACY_PATH, t("privacy.erase.error_identifier"));
+    }
+    if (!isContactChannel(channel)) {
+      return errorRedirect(PRIVACY_PATH, t("privacy.erase.error_type"));
+    }
+    const deleted = await forgetContact(await contactHash(channel, identifier));
+    if (deleted === 0) {
+      return infoRedirect(PRIVACY_PATH, t("privacy.erase.flash_none"));
+    }
+    await logActivity(t("privacy.erase.log_done"));
+    return redirect(PRIVACY_PATH, t("privacy.erase.flash_done"), true);
+  },
+);
 
 /** Privacy routes */
 export const adminHandlers = defineAdminRoutes({

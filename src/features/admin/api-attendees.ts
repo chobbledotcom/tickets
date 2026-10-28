@@ -100,7 +100,8 @@ const retriedAttendeeResponse = async (
  *  loser, whose idempotent answer is the booking the winner stored. Any other
  *  failure is re-raised. */
 const createFromParsed = async (parsed: ParsedApiCreate): Promise<Response> => {
-  const { adjustments, lines, payments, statusId, ticketToken } = parsed;
+  const { adjustments, created, lines, payments, statusId, ticketToken } =
+    parsed;
   const bookings: ListingBooking[] = lines.map((line) => ({
     date: line.date,
     ...(line.date === null ? {} : { durationDays: line.durationDays }),
@@ -135,6 +136,7 @@ const createFromParsed = async (parsed: ParsedApiCreate): Promise<Response> => {
         special_instructions: parsed.special_instructions,
         statusId,
         ...(ticketToken === undefined ? {} : { ticketToken }),
+        ...(created === undefined ? {} : { created }),
       },
       apiCreateLedgerPoster(order, receipts),
     );

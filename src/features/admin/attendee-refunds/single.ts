@@ -18,7 +18,6 @@ import { refundWorkRemains } from "#routes/admin/refunds/candidates.ts";
 import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
 import { refundReferenceProblemMessage } from "#routes/admin/refunds/readiness-problem.ts";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
-import { OWNER_FORM, requireOwnerOr } from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
@@ -100,11 +99,12 @@ const getRefundPageState = async (
 };
 
 const handleAdminAttendeeRefundGet = attendeeActions.refund.page(
+  "/admin/attendees/:attendeeId/refund",
   getRefundPageState,
-  requireOwnerOr,
 );
 
 const handleAttendeeRefund = attendeeActions.refund.verified(
+  "/admin/attendees/:attendeeId/refund",
   "refund",
   async (data, form) => {
     const attendeeId = data.attendee.id;
@@ -147,7 +147,6 @@ const handleAttendeeRefund = attendeeActions.refund.verified(
       { form },
     );
   },
-  OWNER_FORM,
 );
 
 /** Routes that refund one attendee. */

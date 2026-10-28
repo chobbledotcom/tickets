@@ -1,7 +1,8 @@
 /* jscpd:ignore-start */
 
-import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
+import { formPolicyFor, pageGuardFor, withAuth } from "#routes/auth.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { Field } from "#shared/forms/field.ts";
@@ -102,6 +103,8 @@ export const createRecalculatePageRenderer =
  * by entity kind: the logged line and the success redirect.
  */
 export const createRecalculateHandlers = <T, F extends string, ID>(config: {
+  /** The route this pair serves, whose declaration names the audience. */
+  pattern: string;
   withEntity: (
     id: ID,
   ) => (handler: ResponseHandler<[entity: T]>) => Promise<Response>;
@@ -123,25 +126,29 @@ export const createRecalculateHandlers = <T, F extends string, ID>(config: {
   post: (request: Request, id: ID) => Promise<Response>;
 } => ({
   get: (request, id) =>
-    requireSessionOr(request, (session) =>
+    pageGuardFor(adminDestinationAt(config.pattern))(request, (session) =>
       config.withEntity(id)((entity) => {
         const flash = getFlash();
         return config.render(entity, session, flash.error, flash.success);
       }),
     ),
   post: (request, id) =>
-    withAuth(request, AUTH_FORM, (session, form) =>
-      config.withEntity(id)((entity) =>
-        runRecalculatePost({
-          fields: config.fields,
-          form,
-          log: () => config.log(entity),
-          renderChoose: () =>
-            config.render(entity, session, config.chooseMessage),
-          reset: (selected) => config.reset(config.entityId(entity), selected),
-          successMessage: config.successMessage,
-          successPath: config.successPath(entity),
-        }),
-      ),
+    withAuth(
+      request,
+      formPolicyFor(adminDestinationAt(config.pattern)),
+      (session, form) =>
+        config.withEntity(id)((entity) =>
+          runRecalculatePost({
+            fields: config.fields,
+            form,
+            log: () => config.log(entity),
+            renderChoose: () =>
+              config.render(entity, session, config.chooseMessage),
+            reset: (selected) =>
+              config.reset(config.entityId(entity), selected),
+            successMessage: config.successMessage,
+            successPath: config.successPath(entity),
+          }),
+        ),
     ),
 });

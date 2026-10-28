@@ -5,10 +5,11 @@
 /* jscpd:ignore-start */
 import {
   type AuthSession,
+  formPolicyFor,
   type Guard,
-  OWNER_FORM,
-  requireOwnerOr,
+  pageGuardFor,
 } from "#routes/auth.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ParamsRoute, ResponseHandler } from "#shared/response-steps.ts";
@@ -110,18 +111,26 @@ export const createIdEntityHandler = <T>(
   createEntityHandler(({ id }: IdParam) => load(id));
 
 /**
- * Owner GET-by-ID route handler factory.
- * Loads entity by ID, returns 404 if missing, renders with session context,
- * and requires the owner role.
+ * Record GET-by-ID page route factory.
+ * Loads the entity by ID, returns 404 if missing, renders with session
+ * context, and gates by the route's declaration.
  */
-export const ownerGetById = <T>(
+export const entityPageById = <T>(
+  pattern: string,
   load: EntityLoader<T>,
   render: ResponseHandler<[entity: T, session: AuthSession]>,
-): IdRouteHandler => createIdEntityHandler(load)(requireOwnerOr)(render);
+): IdRouteHandler =>
+  createIdEntityHandler(load)(pageGuardFor(adminDestinationAt(pattern)))(
+    render,
+  );
 
-/** Owner POST-by-ID + CSRF */
-export const ownerFormById = (handler: IdFormHandler): IdRouteHandler =>
+/** Record POST-by-ID route: the route's declared form policy gates it, CSRF
+ * check included. */
+export const entityFormById = (
+  pattern: string,
+  handler: IdFormHandler,
+): IdRouteHandler =>
   createAuthedHandler<{ id: number }>({
-    auth: OWNER_FORM,
+    auth: formPolicyFor(adminDestinationAt(pattern)),
     handle: ({ form, params, session }) => handler(params.id, session, form),
   });

@@ -1,9 +1,8 @@
 /* jscpd:ignore-start */
 import {
-  AUTH_FORM,
   type AuthPolicy,
   type AuthSession,
-  OWNER_FORM,
+  formPolicyFor,
   withAuth,
 } from "#routes/auth.ts";
 import { applyFlash, requireCsrfFormWithMessage } from "#routes/csrf.ts";
@@ -13,6 +12,7 @@ import {
   publicPageResponse,
   redirect,
 } from "#routes/response.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import type { Flash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -37,10 +37,11 @@ export type AuthedHandlerArgs<TParams, TContext> = {
   session: AuthSession;
 };
 
-/** Shared auth + load context fields for all authed-form route primitives. */
+/** Shared auth + load context fields for all authed-form route primitives.
+ * Every caller names the form policy its route's declaration gives it. */
 export type AuthedBase<TParams, TContext> = {
-  /** Auth policy (default AUTH_FORM). Use OWNER_FORM for owner-only routes. */
-  auth?: AuthPolicy<"form">;
+  /** The form policy, taken from the route's declaration. */
+  auth: AuthPolicy<"form">;
   /** Load context after auth. Returning null yields a 404. */
   loadContext?: (
     params: TParams,
@@ -61,37 +62,38 @@ type AuthedHandlerConfig<TParams, TContext> = AuthedBase<TParams, TContext> & {
 /**
  * Authed form handler: CSRF + auth, optional entity load (null → 404), then
  * dispatch to `handle` with the raw form. Shared core used by the passthrough
- * factories (ownerFormById, groupFormPost) and createAuthedFormRoute.
+ * factories (entityFormById, groupFormPost) and createAuthedFormRoute.
  */
 export const createAuthedHandler =
   <TParams = Record<string, never>, TContext = void>(
     config: AuthedHandlerConfig<TParams, TContext>,
   ) =>
   (request: Request, params: TParams): Promise<Response> =>
-    withAuth<"form">(
-      request,
-      config.auth ?? AUTH_FORM,
-      async (session, form) => {
-        const loaded = config.loadContext
-          ? await config.loadContext(params, session)
-          : (undefined as TContext);
-        if (config.loadContext && loaded === null) return notFoundResponse();
-        return config.handle({
-          context: loaded as TContext,
-          form,
-          params,
-          session,
-        });
-      },
-    );
+    withAuth<"form">(request, config.auth, async (session, form) => {
+      const loaded = config.loadContext
+        ? await config.loadContext(params, session)
+        : (undefined as TContext);
+      if (config.loadContext && loaded === null) return notFoundResponse();
+      return config.handle({
+        context: loaded as TContext,
+        form,
+        params,
+        session,
+      });
+    });
 
-/** An owner-only authed form route with no params or loaded context:
- * {@link createAuthedHandler} with the owner policy already applied, so callers
- * pass only their `handle` step. */
-export const ownerFormHandler = (
-  handle: AuthedHandleStep<Record<string, never>, void>,
-): ParamsRoute<Record<string, never>> =>
-  createAuthedHandler({ auth: OWNER_FORM, handle });
+/** An authed form route with no params or loaded context:
+ * {@link createAuthedHandler} with the form policy the route's declaration
+ * gives it. Callers pass only their `handle` step and the pattern. */
+export const formHandlerAt =
+  (pattern: string) =>
+  (
+    handle: AuthedHandleStep<Record<string, never>, void>,
+  ): ParamsRoute<Record<string, never>> =>
+    createAuthedHandler({
+      auth: formPolicyFor(adminDestinationAt(pattern)),
+      handle,
+    });
 
 /** Build an authed route from the shared auth/load config plus its own
  * handling step. The factories that layer more behaviour on top of

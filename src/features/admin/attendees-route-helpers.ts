@@ -27,17 +27,21 @@ import {
 import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
 import { withEntityLoader } from "#routes/admin/entity-handlers.ts";
 import {
-  AUTH_FORM,
-  type AuthPolicy,
   type AuthSession,
   formGuard,
-  requireSessionOr,
-  type SessionGuard,
+  formPolicyAt,
+  formPolicyFor,
+  pageGuardFor,
 } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
-import { createEntityHandler, type IdFormHandler } from "#routes/entity.ts";
+import {
+  createEntityHandler,
+  entityFormById,
+  type IdFormHandler,
+} from "#routes/entity.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import { findByIdThen } from "#shared/find-by-id.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -259,14 +263,16 @@ type AttendeeActionDefinition<
   /** A rendered action has a reachable target exactly when its scope exists. */
   isAvailable: (hasBooking: boolean) => boolean;
   load: (attendeeId: number) => Promise<Data | null>;
+  /** The action's declared route gives both gates, so the audience is written
+   * once, in the admin surface. */
   page: (
+    pattern: string,
     prepare: AttendeeActionPagePreparation<Data>,
-    requireSession?: SessionGuard<AuthSession>,
   ) => AttendeeActionRoute;
   verified: (
+    pattern: string,
     actionLabel: string | undefined,
     handler: ResponseHandler<[data: Data, form: FormParams]>,
-    auth?: AuthPolicy<"form">,
   ) => AttendeeActionRoute;
   url: (attendeeId: number) => string;
   readonly action: Action;
@@ -292,41 +298,42 @@ const scopedAction =
       action,
       isAvailable: (hasBooking) => scope === "attendee" || hasBooking,
       load,
-      page: (
-        prepare,
-        requireSession: SessionGuard<AuthSession> = requireSessionOr,
-      ) =>
-        actionHandler(requireSession)(async (data, session, request) => {
-          const returnUrl = getReturnUrl(request);
-          const page = await prepare(data);
-          if (page.reason !== null) {
+      page: (pattern, prepare) =>
+        actionHandler(pageGuardFor(adminDestinationAt(pattern)))(
+          async (data, session, request) => {
+            const returnUrl = getReturnUrl(request);
+            const page = await prepare(data);
+            if (page.reason !== null) {
+              return htmlResponse(
+                await page.render(data, session, returnUrl, page.reason),
+                400,
+              );
+            }
+            const flash = applyFlash(request);
             return htmlResponse(
-              await page.render(data, session, returnUrl, page.reason),
-              400,
+              await page.render(data, session, returnUrl, flash.error),
             );
-          }
-          const flash = applyFlash(request);
-          return htmlResponse(
-            await page.render(data, session, returnUrl, flash.error),
-          );
-        }),
+          },
+        ),
       url: (attendeeId) => attendeeActionUrl(attendeeId, action),
-      verified: (actionLabel, handler, auth: AuthPolicy<"form"> = AUTH_FORM) =>
-        actionHandler(formGuard(auth))((data, _session, form) => {
-          const error = verifyOrRedirect(
-            form,
-            data.attendee.name,
-            attendeeActionUrlWithReturn(
-              data.attendee.id,
-              action,
-              form.getString("return_url"),
-            ),
-            t("attendees.name_label"),
-            actionLabel,
-          );
-          if (error) return error;
-          return handler(data, form);
-        }),
+      verified: (pattern, actionLabel, handler) =>
+        actionHandler(formGuard(formPolicyFor(adminDestinationAt(pattern))))(
+          (data, _session, form) => {
+            const error = verifyOrRedirect(
+              form,
+              data.attendee.name,
+              attendeeActionUrlWithReturn(
+                data.attendee.id,
+                action,
+                form.getString("return_url"),
+              ),
+              t("attendees.name_label"),
+              actionLabel,
+            );
+            if (error) return error;
+            return handler(data, form);
+          },
+        ),
     };
   };
 
@@ -365,14 +372,12 @@ export const paymentRecoveryAction = (
 type AttendeeIdRouteParams = { attendeeId: number };
 
 /** A POST route scoped to one attendee, with no listing load. Shared by the
- * note and logistics POSTs. */
-export const attendeeFormPost = (
-  handle: IdFormHandler,
-): ((request: Request, params: AttendeeIdRouteParams) => Promise<Response>) =>
-  createAuthedHandler<AttendeeIdRouteParams>({
-    handle: ({ form, params, session }) =>
-      handle(params.attendeeId, session, form),
-  });
+ * note and logistics POSTs. The gate comes from the route the handler
+ * serves. */
+export const attendeeFormPost =
+  (pattern: string, handle: IdFormHandler) =>
+  (request: Request, params: AttendeeIdRouteParams): Promise<Response> =>
+    entityFormById(pattern, handle)(request, { id: params.attendeeId });
 
 export const getReturnUrl = (request: Request): string =>
   getSearchParam(request, "return_url");
@@ -389,7 +394,8 @@ type AttendeeFormAction = ResponseHandler<
 
 /** Create an attendee form handler with typed IDs. The `load` argument picks
  * the context: the line loader for row-scoped actions. The booking loader
- * serves the check-in actions that move the whole (person, listing) booking. */
+ * serves the check-in actions that move the whole (person, listing) booking.
+ * The gate comes from the route the handler serves. */
 const attendeeFormActionLoading =
   (
     load: (
@@ -398,9 +404,11 @@ const attendeeFormActionLoading =
     ) => Promise<AttendeeWithListing | null>,
   ) =>
   (
+    pattern: string,
     handler: AttendeeFormAction,
   ): ((request: Request, params: AttendeeRouteParams) => Promise<Response>) =>
     createAuthedHandler<AttendeeRouteParams, AttendeeWithListing>({
+      auth: formPolicyAt(pattern),
       handle: ({ context, form, params, session }) =>
         handler(context, session, form, params.listingId, params.attendeeId),
       loadContext: ({ listingId, attendeeId }) => load(listingId, attendeeId),

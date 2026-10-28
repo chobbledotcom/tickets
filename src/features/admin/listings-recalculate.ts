@@ -35,6 +35,7 @@ const listingRecalculateHandlers = createRecalculateHandlers({
   fields: LISTING_AGGREGATE_FIELDS,
   log: (listing) =>
     logActivity(`Listing '${listing.name}' totals recalculated`, listing),
+  pattern: "/admin/listings/recalculate/:listingId",
   render: renderListingRecalculatePage,
   reset: listingAggregates.reset,
   successMessage: t("listings_table.recalculate_success"),

@@ -40,6 +40,7 @@ const templateSavedResponse = (
 
 /** POST /admin/emails/templates — save or update a template. */
 export const handleTemplateSavePost = validatedEmailPost(
+  "/admin/emails/templates",
   async ({ subject, body, target }, form) => {
     const encSubject = await encryptWithOwnerKey(subject, settings.publicKey);
     const encBody = await encryptWithOwnerKey(body, settings.publicKey);

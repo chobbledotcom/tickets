@@ -16,9 +16,10 @@ import {
 } from "#db/payment-reference-rebuild.ts";
 import { t } from "#i18n";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
-import { ownerResponsePage } from "#routes/auth.ts";
+import { authResponsePage, pageGuardFor } from "#routes/auth.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
-import { ownerFormHandler } from "#shared/app-forms.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
+import { formHandlerAt } from "#shared/app-forms.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { adminMigrateRebuildPaymentsPage } from "#templates/admin/migrate.tsx";
@@ -59,7 +60,9 @@ const rowsNeedingProvider = (
   page: readonly LegacyPaymentReferencePreview[],
 ): LegacyPaymentReferencePreview[] => page.filter((row) => !row.alreadyTagged);
 
-const handleRebuildGet = ownerResponsePage(async (session, _request, flash) => {
+const handleRebuildGet = authResponsePage(
+  pageGuardFor(adminDestinationAt(REBUILD_PATH)),
+)(async (session, _request, flash) => {
   const [remaining, page] = await Promise.all([
     countLegacyPaymentReferences(),
     legacyPaymentReferencePage(await requireRequestPrivateKey()),
@@ -75,7 +78,7 @@ const handleRebuildGet = ownerResponsePage(async (session, _request, flash) => {
   );
 });
 
-const handleRebuildPost = ownerFormHandler(async ({ form }) => {
+const handleRebuildPost = formHandlerAt(REBUILD_PATH)(async ({ form }) => {
   const privateKey = await requireRequestPrivateKey();
   const page = await legacyPaymentReferencePage(privateKey);
   const providers = statedProvidersFor(form, page);

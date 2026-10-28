@@ -11,7 +11,7 @@ import {
   accountsOf,
   loadLedgerNamesForAccounts,
 } from "#routes/admin/ledger/names.ts";
-import { ownerTypeRefHtml } from "#routes/admin/ledger/route-helpers.ts";
+import { pageTypeRefHtml } from "#routes/admin/ledger/route-helpers.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { statementFor } from "#shared/ledger/project.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
@@ -64,9 +64,11 @@ export const loadAccountLedger = async (
 };
 
 export const handleAccountStatementGet: TypedRouteHandler<"GET /admin/ledger/:type/:ref"> =
-  ownerTypeRefHtml(async (_request, session, { type, ref }) => {
-    const account = accountFromRoute(type, ref);
-    if (!account) return null;
-    const { lines, names } = await loadAccountLedger(account);
-    return adminAccountStatementPage(account, lines, names, session);
-  });
+  pageTypeRefHtml("/admin/ledger/:type/:ref")(
+    async (_request, session, { type, ref }) => {
+      const account = accountFromRoute(type, ref);
+      if (!account) return null;
+      const { lines, names } = await loadAccountLedger(account);
+      return adminAccountStatementPage(account, lines, names, session);
+    },
+  );

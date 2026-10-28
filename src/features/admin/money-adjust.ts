@@ -11,13 +11,16 @@
 
 import { logActivity } from "#db/activity-log.ts";
 import { t } from "#i18n";
-import { formGuard, OWNER_FORM } from "#routes/auth.ts";
+import { formGuard, formPolicyFor } from "#routes/auth.ts";
 import { createIdEntityHandler } from "#routes/entity.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { parseSignedMinorUnits } from "#shared/validation/money.ts";
 
 /** Configuration for one entity's money-correction handler. */
 type MoneyAdjustConfig<Entity> = {
+  /** The route this handler serves, whose declaration names the audience. */
+  pattern: string;
   /** Load the entity by id (existence check + log label), or null when missing. */
   load: (id: number) => Promise<Entity | null>;
   /** The form field carrying the new value (major units). */
@@ -38,7 +41,7 @@ export const makeMoneyAdjustHandler = <Entity>(
   config: MoneyAdjustConfig<Entity>,
 ): ((request: Request, id: number) => Promise<Response>) => {
   const route = createIdEntityHandler<Entity>(config.load)(
-    formGuard(OWNER_FORM),
+    formGuard(formPolicyFor(adminDestinationAt(config.pattern))),
   )(async (entity, _session, form, _request, { id }) => {
     const target = parseSignedMinorUnits(form.getString(config.field));
     if (target === null) {

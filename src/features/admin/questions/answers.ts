@@ -31,7 +31,7 @@ import {
   createVerifiedFormRoute,
   verifiedDelete,
 } from "#routes/admin/confirmation.ts";
-import { formGuard, OWNER_FORM, requireOwnerOr } from "#routes/auth.ts";
+import { formGuard, formPolicyFor, pageGuardFor } from "#routes/auth.ts";
 import { createEntityHandler, throughParent } from "#routes/entity.ts";
 /* jscpd:ignore-start */
 import {
@@ -41,6 +41,7 @@ import {
   redirect,
   redirectToDetail,
 } from "#routes/response.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import {
   createAuthedFormRoute,
   createOrderedCollectionHandlers,
@@ -113,7 +114,7 @@ export const deleteAnswerWithLog = async (
 /** Handle POST /admin/questions/:id/answers (add answer) */
 export const handleAddAnswer: ParamsRoute<QuestionIdParams> =
   createAuthedFormRoute<{ text: string }, QuestionIdParams>({
-    auth: OWNER_FORM,
+    auth: formPolicyFor(adminDestinationAt("/admin/questions/:id/answers")),
     form: answerTextForm,
     onInvalid: redirectToQuestion,
     onValid: async ({ params, values: { text } }) => {
@@ -154,8 +155,20 @@ const answerEntityHandler = createEntityHandler<
   AnswerContext
 >(loadQuestionAndAnswer);
 const answerHandlers = {
-  get: answerEntityHandler(requireOwnerOr),
-  post: answerEntityHandler(formGuard(OWNER_FORM)),
+  get: answerEntityHandler(
+    pageGuardFor(
+      adminDestinationAt("/admin/questions/:id/answers/:answerId/delete"),
+    ),
+  ),
+  post: answerEntityHandler(
+    formGuard(
+      formPolicyFor(
+        adminDestinationAt(
+          "/admin/questions/:id/answers/:answerId/recalculate",
+        ),
+      ),
+    ),
+  ),
 };
 
 /** Owner GET route for an answer-scoped page that shows the current flash. */
@@ -183,7 +196,9 @@ export const handleDeleteAnswerGet: ParamsRoute<AnswerRouteParams> =
 export const handleDeleteAnswerPost: ParamsRoute<AnswerRouteParams> =
   createVerifiedFormRoute<AnswerRouteParams, AnswerContext>({
     actionLabel: "deletion",
-    auth: OWNER_FORM,
+    auth: formPolicyFor(
+      adminDestinationAt("/admin/questions/:id/answers/:answerId/delete"),
+    ),
     identifier: ({ answer }) => answer.text,
     identifierLabel: t("questions.answer_label"),
     loadContext: loadQuestionAndAnswer,
@@ -231,7 +246,9 @@ export const handleEditAnswerGet: ParamsRoute<AnswerRouteParams> =
 /** Handle POST /admin/questions/:id/answers/:answerId/edit (text + modifier) */
 export const handleEditAnswerPost: ParamsRoute<AnswerRouteParams> =
   createAuthedFormRoute<{ text: string }, AnswerRouteParams, AnswerContext>({
-    auth: OWNER_FORM,
+    auth: formPolicyFor(
+      adminDestinationAt("/admin/questions/:id/answers/:answerId/edit"),
+    ),
     form: answerTextForm,
     loadContext: loadQuestionAndAnswer,
     onInvalid: ({ error, params }) =>
@@ -328,7 +345,9 @@ export const answerOrder: {
   down: ParamsRoute<AnswerRouteParams>;
   up: ParamsRoute<AnswerRouteParams>;
 } = createOrderedCollectionHandlers({
-  auth: OWNER_FORM,
+  auth: formPolicyFor(
+    adminDestinationAt("/admin/questions/:id/answers/:answerId/move-up"),
+  ),
   keys: ({ context }) => context.question.answers.map((answer) => answer.id),
   loadContext: loadQuestionAndAnswer,
   movedMessage: "Answer moved",

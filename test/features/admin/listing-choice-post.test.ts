@@ -21,6 +21,7 @@ const makeHandler = (config?: {
     fieldName: "choice_ids",
     label: "Widgets",
     noun: "widget",
+    pattern: "/admin/listing/:id/questions",
     ...(config?.readIds ? { readIds: config.readIds } : {}),
     saveIds: (listingId, ids) => {
       saved.push({ ids, listingId });

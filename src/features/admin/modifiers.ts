@@ -39,10 +39,10 @@ import {
   defineAdminRoutes,
   entityTabRoutes,
 } from "#routes/admin/route-tables.ts";
-import { AUTH_FORM, withAuth } from "#routes/auth.ts";
+import { formPolicyFor, withAuth } from "#routes/auth.ts";
 import { notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { adminPattern } from "#shared/admin-surface.ts";
+import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { normalizeCode, validateCalcValue } from "#shared/price-modifier.ts";
 import { defineResource } from "#shared/rest/resource.ts";
@@ -289,27 +289,36 @@ const handleEditPost: TypedRouteHandler<"POST /admin/modifiers/:id/edit"> = (
   request,
   { id },
 ) =>
-  withAuth(request, AUTH_FORM, async (_session, form) => {
-    const modifier = await getModifier(id);
-    if (!modifier) return notFoundResponse();
-    const aggregates = parseEditableAggregateForm<ModifierAggregateValues>(
-      form,
-      getModifierAggregateFields(),
-    );
-    if (!aggregates.ok) {
-      return modifierPage.renderEditError(id, _session, form, aggregates.error);
-    }
-    const result = await getModifiersResource().update(id, form);
-    if (result.ok) {
-      if (aggregates.input) {
-        await modifierAggregates.update(id, aggregates.input);
+  withAuth(
+    request,
+    formPolicyFor(adminDestinationAt("/admin/modifiers/:id/edit")),
+    async (_session, form) => {
+      const modifier = await getModifier(id);
+      if (!modifier) return notFoundResponse();
+      const aggregates = parseEditableAggregateForm<ModifierAggregateValues>(
+        form,
+        getModifierAggregateFields(),
+      );
+      if (!aggregates.ok) {
+        return modifierPage.renderEditError(
+          id,
+          _session,
+          form,
+          aggregates.error,
+        );
       }
-      await logActivity(`Modifier '${result.row.name}' updated`);
-      return redirect("/admin/modifiers", t("modifiers.updated"), true);
-    }
-    if ("notFound" in result) return notFoundResponse();
-    return modifierPage.renderEditError(id, _session, form, result.error);
-  });
+      const result = await getModifiersResource().update(id, form);
+      if (result.ok) {
+        if (aggregates.input) {
+          await modifierAggregates.update(id, aggregates.input);
+        }
+        await logActivity(`Modifier '${result.row.name}' updated`);
+        return redirect("/admin/modifiers", t("modifiers.updated"), true);
+      }
+      if ("notFound" in result) return notFoundResponse();
+      return modifierPage.renderEditError(id, _session, form, result.error);
+    },
+  );
 
 /**
  * Post a manual `writeoff` adjustment so the modifier's projected revenue
@@ -323,6 +332,7 @@ const adjustModifierRevenueForm = makeMoneyAdjustHandler<Modifier>({
   field: "total_revenue",
   load: getModifier,
   logMessage: (modifier) => `Modifier '${modifier.name}' revenue adjusted`,
+  pattern: "/admin/modifiers/:id/revenue",
   successMessage: t("modifiers.adjust_revenue_success"),
 });
 
@@ -342,6 +352,7 @@ const modifierRecalculateHandlers = createRecalculateHandlers({
   fields: MODIFIER_AGGREGATE_FIELDS,
   log: (modifier) =>
     logActivity(`Modifier '${modifier.name}' totals recalculated`),
+  pattern: "/admin/modifiers/recalculate/:modifierId",
   render: renderModifierRecalculatePage,
   reset: modifierAggregates.reset,
   successMessage: t("modifiers.recalculate.success"),

@@ -43,9 +43,9 @@ import {
   loadQuestionsForExisting,
 } from "#routes/admin/attendee-questions.ts";
 import {
-  AUTH_FORM,
   type AuthSession,
-  requireSessionOr,
+  formPolicyAt,
+  pageGuardRun,
   withAuth,
 } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
@@ -76,7 +76,7 @@ import type { Attendee, ListingWithCount } from "#types";
 export const handleAttendeeNewGet: TypedRouteHandler<
   "GET /admin/attendees/new"
 > = (request) =>
-  requireSessionOr(request, async (session) => {
+  pageGuardRun("/admin/attendees/new", request, async (session) => {
     applyFlash(request);
     const renderListings = await getRenderListings([]);
     const params = new URL(request.url).searchParams;
@@ -142,7 +142,7 @@ const renderSubmittedForm = (
 const handleSubmit =
   (mode: "create" | "edit", attendeeId: number | null) =>
   (request: Request): Promise<Response> =>
-    withAuth(request, AUTH_FORM, (session, form) =>
+    withAuth(request, formPolicyAt("/admin/attendees/new"), (session, form) =>
       handleSubmitInner(mode, attendeeId, session, form),
     );
 

@@ -390,6 +390,7 @@ const adjustListingIncomeForm = makeMoneyAdjustHandler<ListingWithCount>({
   field: "income",
   load: getListingWithCount,
   logMessage: (listing) => `Listing '${listing.name}' income adjusted`,
+  pattern: "/admin/listing/:id/income",
   successMessage: t("listings_table.adjust_income_success"),
 });
 

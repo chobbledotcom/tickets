@@ -28,6 +28,7 @@ export const handleAdminListingExport: TypedRouteHandler<
   "GET /admin/listing/:id/export"
 > = (request, { id }) =>
   listingAttendeesLoader(
+    "/admin/listing/:id/export",
     request,
     id,
   )(

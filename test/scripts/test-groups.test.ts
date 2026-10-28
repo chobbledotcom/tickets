@@ -135,6 +135,13 @@ describe("test-groups", () => {
 
     test("the run-alone marker forces a solo isolate", () => {
       expect(mustRunAlone(`// ${RUN_ALONE_MARKER}\ndescribe("x");`)).toBe(true);
+      // The solo files carry a reason after the marker, so a stricter match
+      // would silently drop them back into a shared isolate.
+      expect(
+        mustRunAlone(
+          `// ${RUN_ALONE_MARKER} - a sibling's pending timer\ndescribe("x");`,
+        ),
+      ).toBe(true);
     });
 
     test("a plain test file can share an isolate", () => {

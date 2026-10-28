@@ -14,6 +14,7 @@ import { attendeeActions } from "./attendees-route-helpers.ts";
 
 /** The delete URL renders no destructive form while payment work blocks it. */
 export const handleAdminAttendeeDeleteGet = attendeeActions.delete.page(
+  "/admin/attendees/:attendeeId/delete",
   async ({ attendee }) => {
     const admission = (await loadPaymentMoveSnapshot([attendee.id])).admission
       .delete;
@@ -44,6 +45,7 @@ export const deleteAttendeeAndRedirect = (
 
 /** Delete the attendee after confirmation. The writer rechecks payment work. */
 export const handleAttendeeDelete = attendeeActions.delete.verified(
+  "/admin/attendees/:attendeeId/delete",
   "deletion",
   async ({ attendee }, form) => {
     const listing = await getListingWithCount(attendee.listing_id);

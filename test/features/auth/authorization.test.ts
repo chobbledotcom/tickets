@@ -7,14 +7,14 @@ import {
   type AuthPolicy,
   type AuthSession,
   anyUserPage,
+  pageGuardFor,
   requireContentOr,
   requireDeliveryOr,
-  requireOwnerOr,
-  requireSessionOr,
   requireSiteOr,
   withAuth,
   withSession,
 } from "#routes/auth.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestAgentSession,
@@ -31,8 +31,8 @@ type Guard = (
 ) => Promise<Response>;
 
 const EVERY_GUARD: Guard[] = [
-  requireOwnerOr,
-  requireSessionOr,
+  pageGuardFor(adminDestinationAt("/admin/backup")),
+  pageGuardFor(adminDestinationAt("/admin/calendar")),
   requireContentOr,
   requireSiteOr,
   requireDeliveryOr,
@@ -92,15 +92,20 @@ const expectAdmits = async (
 };
 
 describeWithEnv("auth authorization matrix", { db: true }, () => {
-  test("requireOwnerOr admits only the owner", async () => {
-    await expectAdmits(requireOwnerOr, await roleCookies(), ["owner"]);
+  test("an owner-declared page guard admits only the owner", async () => {
+    await expectAdmits(
+      pageGuardFor(adminDestinationAt("/admin/backup")),
+      await roleCookies(),
+      ["owner"],
+    );
   });
 
-  test("requireSessionOr (no role) admits only staff (owner, manager)", async () => {
-    await expectAdmits(requireSessionOr, await roleCookies(), [
-      "owner",
-      "manager",
-    ]);
+  test("a staff-declared page guard admits only staff (owner, manager)", async () => {
+    await expectAdmits(
+      pageGuardFor(adminDestinationAt("/admin/calendar")),
+      await roleCookies(),
+      ["owner", "manager"],
+    );
   });
 
   test("requireContentOr admits content editors (owner, manager, editor), not agents", async () => {
@@ -190,7 +195,7 @@ describeWithEnv("auth authorization matrix", { db: true }, () => {
   });
 
   test("an owner-only session gate gives a non-owner the owner-account body", async () => {
-    const response = await requireOwnerOr(
+    const response = await pageGuardFor(adminDestinationAt("/admin/backup"))(
       new Request("http://localhost/admin/x", {
         headers: { cookie: (await createTestEditorSession()).cookie },
       }),

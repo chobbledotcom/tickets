@@ -15,9 +15,10 @@ import {
 import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { OWNER_FORM, ownerPage } from "#routes/auth.ts";
+import { authPage, formPolicyFor, pageGuardFor } from "#routes/auth.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 /* jscpd:ignore-end */
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { builderApi } from "#shared/builder.ts";
 import {
@@ -49,7 +50,9 @@ const toDisplay = (
     siteUrl: s.siteUrl,
   }));
 
-const renderBuilderPage = ownerPage(async (session, _request, flash) =>
+const renderBuilderPage = authPage(
+  pageGuardFor(adminDestinationAt("/admin/builder")),
+)(async (session, _request, flash) =>
   adminBuilderPage(
     session,
     toDisplay(await builtSites.getAll()),
@@ -78,7 +81,7 @@ const dbProviderConfigError = (
 };
 
 const builderPost = createAuthedFormRoute({
-  auth: OWNER_FORM,
+  auth: formPolicyFor(adminDestinationAt("/admin/builder")),
   form: builderForm,
   onInvalid: ({ error }) => errorRedirect(BUILDER_PATH, error),
   onValid: async ({ form, values }) => {

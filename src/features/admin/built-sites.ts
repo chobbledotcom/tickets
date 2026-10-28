@@ -16,10 +16,10 @@ import {
   defineAdminRoutes,
   entityTabRoutes,
 } from "#routes/admin/route-tables.ts";
-import { ownerPage } from "#routes/auth.ts";
+import { authPage, pageGuardFor } from "#routes/auth.ts";
 import { notFoundResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
-import { adminPattern } from "#shared/admin-surface.ts";
+import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 import {
   inBuiltSitesOrder,
   readBuiltSitesSort,
@@ -117,31 +117,36 @@ const crud = createCrudHandlers({
   singular: "Built site",
 });
 
-const handleProvisionSiteScheduler = builtSiteAction(async (_site, _form, id) =>
-  builtSiteTabResult("maintenance")(t("built_sites.maintenance_provisioned"))(
-    id,
-    await provisionSiteScheduler(id),
-  ),
+const handleProvisionSiteScheduler = builtSiteAction(
+  "/admin/built-sites/:id/provision-scheduler",
+  async (_site, _form, id) =>
+    builtSiteTabResult("maintenance")(t("built_sites.maintenance_provisioned"))(
+      id,
+      await provisionSiteScheduler(id),
+    ),
 );
 
-const handleAddUptimeMonitor = builtSiteAction(async (site, _form, id) => {
-  const result = await uptimeKumaMonitorService.add(site);
-  if (!result.ok) {
-    return builtSiteTabError(id, "maintenance", result.error);
-  }
-  if (result.value.created) {
-    await logActivity(`Added Uptime Kuma monitor for '${site.name}'`);
-  }
-  return builtSiteTabSuccess(
-    id,
-    "maintenance",
-    t(
-      result.value.created
-        ? "built_sites.kuma_added"
-        : "built_sites.kuma_already_exists",
-    ),
-  );
-});
+const handleAddUptimeMonitor = builtSiteAction(
+  "/admin/built-sites/:id/add-uptime-monitor",
+  async (site, _form, id) => {
+    const result = await uptimeKumaMonitorService.add(site);
+    if (!result.ok) {
+      return builtSiteTabError(id, "maintenance", result.error);
+    }
+    if (result.value.created) {
+      await logActivity(`Added Uptime Kuma monitor for '${site.name}'`);
+    }
+    return builtSiteTabSuccess(
+      id,
+      "maintenance",
+      t(
+        result.value.created
+          ? "built_sites.kuma_added"
+          : "built_sites.kuma_already_exists",
+      ),
+    );
+  },
+);
 
 type EditResult = Awaited<ReturnType<typeof builtSiteTabError>>;
 
@@ -167,42 +172,48 @@ const runSiteUpdate = async (
  * *this site's* database, taken to our storage by the upgrade workflow, must
  * exist before the push.
  */
-const handleUpdateSite = builtSiteAction(async (site, _form, id) => {
-  const access = siteHostingAccess(site, "it can't be updated");
-  if (!access.ok) return builtSiteTabError(id, "update", access.error);
-  return runSiteUpdate(site, id, () =>
-    site.hostingProvider === "deno"
-      ? deployLatestReleaseToDeno(site.hostingId)
-      : deployLatestReleaseToScript(site.hostingId),
-  );
-});
-
-const handleRotateToken = builtSiteAction(async (site, _form, id) => {
-  // Rotation runs only on a fully confirmed provisioning. An empty
-  // read-only deadline marks a reserved-but-unconfirmed token. The
-  // assignment recovery can be re-pushing such a token, and rotating then
-  // races it.
-  if (!isProvisioned(site) || isReservedRenewal(site)) {
-    return builtSiteTabError(
-      id,
-      "renewal",
-      t("built_sites.renewal_not_provisioned"),
+const handleUpdateSite = builtSiteAction(
+  "/admin/built-sites/:id/update",
+  async (site, _form, id) => {
+    const access = siteHostingAccess(site, "it can't be updated");
+    if (!access.ok) return builtSiteTabError(id, "update", access.error);
+    return runSiteUpdate(site, id, () =>
+      site.hostingProvider === "deno"
+        ? deployLatestReleaseToDeno(site.hostingId)
+        : deployLatestReleaseToScript(site.hostingId),
     );
-  }
-  const pushed = await rotateRenewalToken(
-    site,
-    `Rotate token push failed for site ${id}`,
-  );
-  if (pushed) {
-    await logActivity(`Rotated renewal token for '${site.name}'`);
-  }
-  return editPushOk(
-    id,
-    pushed,
-    t("built_sites.token_rotated"),
-    t("built_sites.token_push_failed"),
-  );
-});
+  },
+);
+
+const handleRotateToken = builtSiteAction(
+  "/admin/built-sites/:id/rotate-renewal-token",
+  async (site, _form, id) => {
+    // Rotation runs only on a fully confirmed provisioning. An empty
+    // read-only deadline marks a reserved-but-unconfirmed token. The
+    // assignment recovery can be re-pushing such a token, and rotating then
+    // races it.
+    if (!isProvisioned(site) || isReservedRenewal(site)) {
+      return builtSiteTabError(
+        id,
+        "renewal",
+        t("built_sites.renewal_not_provisioned"),
+      );
+    }
+    const pushed = await rotateRenewalToken(
+      site,
+      `Rotate token push failed for site ${id}`,
+    );
+    if (pushed) {
+      await logActivity(`Rotated renewal token for '${site.name}'`);
+    }
+    return editPushOk(
+      id,
+      pushed,
+      t("built_sites.token_rotated"),
+      t("built_sites.token_push_failed"),
+    );
+  },
+);
 
 /**
  * Backfills the secrets we copy to freshly built sites onto an existing site.
@@ -210,39 +221,44 @@ const handleRotateToken = builtSiteAction(async (site, _form, id) => {
  * still missing. An existing secret is never overwritten: someone changed it
  * for a reason.
  */
-const handleAddSecrets = builtSiteAction(async (site, form, id) => {
-  const result = await addMissingSiteSecrets(
-    site,
-    form.getFlag("confirm_pair_secrets"),
-  );
-  if (!result.ok) {
-    return builtSiteTabError(
-      id,
-      "secrets",
-      t("built_sites.secrets_failed", { error: result.error }),
+const handleAddSecrets = builtSiteAction(
+  "/admin/built-sites/:id/add-secrets",
+  async (site, form, id) => {
+    const result = await addMissingSiteSecrets(
+      site,
+      form.getFlag("confirm_pair_secrets"),
     );
-  }
-  if (result.added.length === 0) {
+    if (!result.ok) {
+      return builtSiteTabError(
+        id,
+        "secrets",
+        t("built_sites.secrets_failed", { error: result.error }),
+      );
+    }
+    if (result.added.length === 0) {
+      return builtSiteTabSuccess(
+        id,
+        "secrets",
+        t("built_sites.no_missing_secrets"),
+      );
+    }
+    const summary = `${result.added.length} missing secret(s): ${result.added.join(
+      ", ",
+    )}`;
+    await logActivity(`Set ${summary} on '${site.name}'`);
     return builtSiteTabSuccess(
       id,
       "secrets",
-      t("built_sites.no_missing_secrets"),
+      t("built_sites.secrets_set", { summary }),
     );
-  }
-  const summary = `${result.added.length} missing secret(s): ${result.added.join(
-    ", ",
-  )}`;
-  await logActivity(`Set ${summary} on '${site.name}'`);
-  return builtSiteTabSuccess(
-    id,
-    "secrets",
-    t("built_sites.secrets_set", { summary }),
-  );
-});
+  },
+);
 
 /** Overrides the CRUD list: the renewal-tier summary sits beside the table,
  * and the address names the row order. */
-const handleBuiltSitesListGet = ownerPage(async (session, request) => {
+const handleBuiltSitesListGet = authPage(
+  pageGuardFor(adminDestinationAt("/admin/built-sites")),
+)(async (session, request) => {
   const sortOrder = readBuiltSitesSort(new URL(request.url).searchParams);
   const [sites, tiers] = await Promise.all([
     builtSites.getAll(),

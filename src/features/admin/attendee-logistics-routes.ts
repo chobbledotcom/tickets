@@ -147,4 +147,7 @@ const handleLogisticsSubmit = async (
 
 /** Handle POST /admin/attendees/:attendeeId/logistics. */
 export const handleAttendeeLogisticsPost: TypedRouteHandler<"POST /admin/attendees/:attendeeId/logistics"> =
-  attendeeFormPost(handleLogisticsSubmit);
+  attendeeFormPost(
+    "/admin/attendees/:attendeeId/logistics",
+    handleLogisticsSubmit,
+  );

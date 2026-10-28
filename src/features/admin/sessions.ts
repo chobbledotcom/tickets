@@ -10,8 +10,14 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { hashSessionToken } from "#crypto/hashing.ts";
 import { deleteOtherSessions, getAllSessions } from "#db/sessions.ts";
 import { t } from "#i18n";
-import { gatedPost, OWNER_FORM, ownerPage } from "#routes/auth.ts";
+import {
+  authPage,
+  formPolicyFor,
+  gatedPost,
+  pageGuardFor,
+} from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { adminSessionsPage } from "#templates/admin/sessions.tsx";
 
 /* jscpd:ignore-end */
@@ -20,16 +26,20 @@ import { adminSessionsPage } from "#templates/admin/sessions.tsx";
  * Handle GET /admin/sessions
  */
 const handleAdminSessionsGet: TypedRouteHandler<"GET /admin/sessions"> =
-  ownerPage(async (session, _request, flash) => {
-    const sessions = await getAllSessions();
-    const tokenHash = await hashSessionToken(session.token);
-    return adminSessionsPage(sessions, tokenHash, session, flash.success);
-  });
+  authPage(pageGuardFor(adminDestinationAt("/admin/sessions")))(
+    async (session, _request, flash) => {
+      const sessions = await getAllSessions();
+      const tokenHash = await hashSessionToken(session.token);
+      return adminSessionsPage(sessions, tokenHash, session, flash.success);
+    },
+  );
 
 /**
  * Handle POST /admin/sessions (log out of all other sessions)
  */
-const handleAdminSessionsPost = gatedPost(OWNER_FORM)(async (session) => {
+const handleAdminSessionsPost = gatedPost(
+  formPolicyFor(adminDestinationAt("/admin/sessions")),
+)(async (session) => {
   await deleteOtherSessions(session.token);
   return redirect("/admin/sessions", t("success.logged_out_everywhere"), true);
 });

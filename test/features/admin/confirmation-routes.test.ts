@@ -32,6 +32,7 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
         Promise.resolve(new Response("done")),
     ) =>
       createVerifiedFormRoute<{ slug: string }, { slug: string }>({
+        auth: { body: "form", role: "owner" },
         identifier: (_context, params) => `Name ${params.slug}`,
         identifierLabel: "Name",
         mismatchRedirect: (_context, params) => `/admin/away/${params.slug}`,
