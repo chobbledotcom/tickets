@@ -1,7 +1,6 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as bddTest, describe } from "@std/testing/bdd";
-import { signCsrfToken } from "#shared/csrf.ts";
 import { ErrorCode, formatErrorMessage } from "#shared/logger.ts";
 import {
   type ActivityLogRefs,
@@ -9,26 +8,12 @@ import {
   adminListingActivityLogPage,
 } from "#templates/admin/activity-log.tsx";
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
-import {
-  clearTestEncryptionKey,
-  setupTestEncryptionKey,
-} from "#test-utils/env.ts";
+import { withCsrfRequest } from "#test-utils/csrf-request.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { assertPageMatchesSnapshot } from "#test-utils/page-snapshot.ts";
-import { withRequestContext } from "#test-utils/request-context.ts";
 
 const test = (name: string, body: () => void | Promise<void>): void => {
-  bddTest(name, async () => {
-    setupTestEncryptionKey();
-    try {
-      await withRequestContext(async () => {
-        await signCsrfToken();
-        await body();
-      });
-    } finally {
-      clearTestEncryptionKey();
-    }
-  });
+  bddTest(name, () => withCsrfRequest(body));
 };
 
 /** Empty reference lookups — the global log always takes refs, even when no

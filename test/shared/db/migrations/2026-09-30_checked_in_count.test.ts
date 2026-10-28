@@ -80,4 +80,17 @@ describeWithEnv("db > migrations > checked_in count", { db: true }, () => {
 
     expect(await storedCount(906)).toBe(4);
   });
+
+  test("declares its id and the meaning of the count it stores", () => {
+    expect(migration().id).toBe("2026-09-30_checked_in_count");
+    expect(migration().description).toBe(
+      "checked_in becomes a count of admitted tickets, 0..quantity, instead of " +
+        "a 0/1 flag. A line an operator marked as arrived held its full quantity " +
+        "in practice, because the flag could not record less, so every stored 1 " +
+        "becomes the row's quantity. Ghost rows (quantity 0) and never-checked " +
+        "rows keep 0. It runs before this build serves a request, so every " +
+        "stored 1 it reads is still a flag. The count writers and readers land " +
+        "in the same build, so nothing reads a count as a flag.",
+    );
+  });
 });

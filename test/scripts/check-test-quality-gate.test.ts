@@ -122,7 +122,7 @@ describe("annotationLines", () => {
     ).toEqual([]);
   });
 
-  test("marks added findings as errors and existing ones as warnings", () => {
+  test("marks every finding the gate reports as an error", () => {
     const added = finding(
       "test/a.test.ts",
       "truthiness assertion; prefer an exact value or contract-specific matcher",
@@ -131,7 +131,7 @@ describe("annotationLines", () => {
     const existing = finding("test/a.test.ts", PRESENCE, 1);
     expect(annotationLines([added], [existing], true)).toEqual([
       "::error file=test/a.test.ts,line=2::truthiness assertion; prefer an exact value or contract-specific matcher",
-      `::warning file=test/a.test.ts,line=1::${PRESENCE}`,
+      `::error file=test/a.test.ts,line=1::${PRESENCE}`,
     ]);
   });
 

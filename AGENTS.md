@@ -534,8 +534,8 @@ automatic.
   The update refuses a rise. The 400-line aim is policy, not a gate: a file
   slightly over it owes a splitting issue
 - `deno task check:test-quality` — the weak-assertion gate: fails when a
-  change adds a weak assertion to a test file it touches, warns on the ones
-  already in the files it touches, against the merge base on `origin/main`
+  test file the change touches carries a weak assertion, added or
+  pre-existing, against the merge base on `origin/main`
 - `deno task check:ste` — mechanical STE rules over the Markdown, against
   baselines that only fall. Pass `--update` after a fix
 - `deno task check:merged-tree <pr-number | branch> [base]` — trial-merge the
@@ -653,9 +653,10 @@ drop you state out loud.
   shape, persisted rows. Avoid `toBeTruthy()`, compound booleans, and
   presence-only checks. Run `deno task test:quality-audit` when you bulk-add
   tests.
-- The weak-assertion gate (`deno task check:test-quality`) fails when a change
-  adds a weak assertion to a test file it touches, and warns on the ones
-  already in the files it touches. Fix a new finding in the same change.
+- The weak-assertion gate (`deno task check:test-quality`) fails when a test
+  file the change touches carries a weak assertion, added or pre-existing.
+  Fix every finding in a file you touch. A finding in a file you do not touch
+  stays informational.
 - For critical flows, cover negative paths, idempotency, concurrency, and
   metamorphic cases: webhook replay does not double-credit, capacity cannot go
   below zero, role downgrades remove access, PII stays encrypted or absent from
