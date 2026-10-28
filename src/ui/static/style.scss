@@ -2035,6 +2035,14 @@ button.secondary:hover,
   font-size: 0.95em;
 }
 
+/* The listing description markdown can embed a picture (a poster, a map).
+   Constrain it to the container so it never spills out of the card or row. */
+.ticket-card-description img,
+.description img,
+.description-compact img {
+  max-width: 100%;
+}
+
 .ticket-card-price {
   font-weight: bold;
 }
