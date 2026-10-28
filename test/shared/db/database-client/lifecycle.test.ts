@@ -135,14 +135,13 @@ describe("database client delegation", () => {
   }
 
   /** Hold the only shared slot with a top-level call, then start `queued` —
-   * the transaction operation under test — and watch it wait. When the slot
-   * frees, the queued operation completes, and `close` ends the transaction
-   * after `envelopes` more request groups. */
+   * the transaction operation under test — and watch it queue. When the slot
+   * frees, the queued operation completes, `close` ends the transaction, and
+   * the helper returns what the database saw. */
   const queueBehindHeldSlot = async (
     queued: (tx: Transaction) => Promise<unknown>,
-    envelopes: number,
     close: "commit" | "rollback",
-  ): Promise<void> => {
+  ): Promise<{ closed: boolean; requests: string[][] }> => {
     using db = blockingConcurrencyDatabase();
     const { firstStarted, release, remote, time } = db;
     const transaction = await remote.client.transaction("write");
@@ -159,24 +158,27 @@ describe("database client delegation", () => {
       await Promise.all([first, waiting]);
     }
     await transaction[close]();
-    expect(remote.requests).toHaveLength(2 + envelopes);
-    expect(transaction.closed).toBe(true);
+    return { closed: transaction.closed, requests: remote.requests };
   };
 
-  test("keeps interactive transaction statements inside the shared limit", () =>
-    queueBehindHeldSlot(
+  test("keeps interactive transaction statements inside the shared limit", async () => {
+    const { closed, requests } = await queueBehindHeldSlot(
       (tx) => Promise.all([tx.execute("SELECT 2"), tx.batch(["SELECT 3"])]),
-      2,
       "commit",
-    ));
+    );
+    expect(requests).toHaveLength(4);
+    expect(closed).toBe(true);
+  });
 
-  test("keeps interactive transaction scripts inside the shared limit", () =>
+  test("keeps interactive transaction scripts inside the shared limit", async () => {
     // A first-operation script sends BEGIN and the sequence as two requests.
-    queueBehindHeldSlot(
+    const { closed, requests } = await queueBehindHeldSlot(
       (tx) => tx.executeMultiple("SELECT 2; SELECT 3;"),
-      2,
       "rollback",
-    ));
+    );
+    expect(requests).toHaveLength(4);
+    expect(closed).toBe(true);
+  });
 
   for (const close of ["commit", "rollback"] as const) {
     test(`${close === "commit" ? "commits" : "rolls back"} a transaction even while the shared limit is occupied`, async () => {
