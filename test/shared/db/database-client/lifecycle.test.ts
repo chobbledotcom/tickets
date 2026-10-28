@@ -1,4 +1,4 @@
-import type { Client } from "@libsql/client";
+import type { Client, Transaction } from "@libsql/client";
 import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -134,28 +134,49 @@ describe("database client delegation", () => {
     });
   }
 
-  test("keeps interactive transaction statements inside the shared limit", async () => {
+  /** Hold the only shared slot with a top-level call, then start `queued` —
+   * the transaction operation under test — and watch it wait. When the slot
+   * frees, the queued operation completes, and `close` ends the transaction
+   * after `envelopes` more request groups. */
+  const queueBehindHeldSlot = async (
+    queued: (tx: Transaction) => Promise<unknown>,
+    envelopes: number,
+    close: "commit" | "rollback",
+  ): Promise<void> => {
     using db = blockingConcurrencyDatabase();
     const { firstStarted, release, remote, time } = db;
     const transaction = await remote.client.transaction("write");
     const first = remote.client.execute("SELECT 1");
     await firstStarted.promise;
-    const statements = Promise.all([
-      transaction.execute("SELECT 2"),
-      transaction.batch(["SELECT 3"]),
-    ]);
+    const waiting = queued(transaction);
     try {
       await time.tickAsync(0);
-      // A transaction statement never overlaps a top-level call: both queue
+      // A transaction operation never overlaps a top-level call: it queues
       // behind the slot the first call holds.
       expect(remote.requests).toHaveLength(1);
     } finally {
       release.resolve();
-      await Promise.all([first, statements]);
+      await Promise.all([first, waiting]);
     }
-    await transaction.commit();
-    expect(remote.requests).toHaveLength(4);
-  });
+    await transaction[close]();
+    expect(remote.requests).toHaveLength(2 + envelopes);
+    expect(transaction.closed).toBe(true);
+  };
+
+  test("keeps interactive transaction statements inside the shared limit", () =>
+    queueBehindHeldSlot(
+      (tx) => Promise.all([tx.execute("SELECT 2"), tx.batch(["SELECT 3"])]),
+      2,
+      "commit",
+    ));
+
+  test("keeps interactive transaction scripts inside the shared limit", () =>
+    // A first-operation script sends BEGIN and the sequence as two requests.
+    queueBehindHeldSlot(
+      (tx) => tx.executeMultiple("SELECT 2; SELECT 3;"),
+      2,
+      "rollback",
+    ));
 
   for (const close of ["commit", "rollback"] as const) {
     test(`${close === "commit" ? "commits" : "rolls back"} a transaction even while the shared limit is occupied`, async () => {

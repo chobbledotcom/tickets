@@ -36,13 +36,22 @@ export const beginTransaction = (
   mode === undefined ? target.transaction() : target.transaction(mode);
 
 /** The name of one interactive transaction operation, so a wrapper can treat
- * the closing operations (commit, rollback) differently from statements. */
-export type TransactionOperation =
-  | "batch"
-  | "commit"
-  | "execute"
-  | "executeMultiple"
-  | "rollback";
+ * the closing operations (commit, rollback) differently from statements.
+ * Derived from the SDK's own Transaction type: an operation is one that
+ * returns a Promise. A renamed or added SDK operation then fails to compile
+ * here until every wrapper handles it. */
+export type TransactionOperation = {
+  [K in keyof Transaction]-?: Transaction[K] extends (
+    ...args: never[]
+  ) => Promise<unknown>
+    ? K
+    : never;
+}[keyof Transaction];
+
+/** Each wrapped operation keeps the signature the SDK declares for it. */
+type WrappedTransactionOperations = {
+  [K in TransactionOperation]: Transaction[K];
+};
 
 /** Wrap each interactive transaction operation with `wrap`. The closing
  * operations (commit, rollback) reach `wrap` too, so a wrapper that must
@@ -53,14 +62,14 @@ export const wrapTransactionOperations = (
     operation: TransactionOperation,
     run: () => Promise<T>,
   ) => Promise<T>,
-): Transaction =>
-  proxyMembers(transaction, {
-    batch: (statements: InStatement[]) =>
-      wrap("batch", () => transaction.batch(statements)),
+): Transaction => {
+  const operations: WrappedTransactionOperations = {
+    batch: (statements) => wrap("batch", () => transaction.batch(statements)),
     commit: () => wrap("commit", () => transaction.commit()),
-    execute: (stmt: InStatement) =>
-      wrap("execute", () => transaction.execute(stmt)),
-    executeMultiple: (sql: string) =>
+    execute: (stmt) => wrap("execute", () => transaction.execute(stmt)),
+    executeMultiple: (sql) =>
       wrap("executeMultiple", () => transaction.executeMultiple(sql)),
     rollback: () => wrap("rollback", () => transaction.rollback()),
-  });
+  };
+  return proxyMembers(transaction, operations);
+};
