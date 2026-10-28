@@ -1,5 +1,5 @@
 import { assert, assertEquals, assertStringIncludes } from "@std/assert";
-import { join } from "@std/path";
+import { isAbsolute, join } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import {
@@ -18,6 +18,7 @@ import {
   writeRunSummary,
 } from "#scripts/mutation/run-journal.ts";
 import type { MutantResult } from "#scripts/mutation/summary.ts";
+import { projectRoot } from "#scripts/project-root.ts";
 import { fakeResult } from "#test/scripts/mutation/summary/fixtures.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { pathExists } from "#test-utils/files.ts";
@@ -54,10 +55,18 @@ const readJournalLines = async (root: string) => {
 };
 
 /** One child-side publish: the env names the run root, and the call's error
- *  lines come back for assertion. */
+ *  lines come back for assertion. The run's files default to absolute paths
+ *  under the checkout, the form the runner always hands the summary. */
 const publishInto = async (
   runRoot: string | undefined,
   results: MutantResult[],
+  files: {
+    sourceFiles: string[];
+    testFiles: string[];
+  } = {
+    sourceFiles: [join(projectRoot, "src/a.ts")],
+    testFiles: [join(projectRoot, "test/a.test.ts")],
+  },
 ): Promise<string[]> => {
   const errors: string[] = [];
   using _env = withEnv({ [MUTATION_RUN_ROOT_ENV]: runRoot });
@@ -65,12 +74,7 @@ const publishInto = async (
     errors.push(values.map(String).join(" "));
   });
   await publishRunSummary(
-    {
-      exhaustive: false,
-      sourceFiles: ["src/a.ts"],
-      testFiles: ["test/a.test.ts"],
-      useHarness: true,
-    },
+    { exhaustive: false, useHarness: true, ...files },
     results,
   );
   return errors;
@@ -229,6 +233,46 @@ describe("mutation run journal", () => {
       assertEquals(line.commit, null);
     } finally {
       await Deno.remove(root, { recursive: true });
+    }
+  });
+
+  test("a file outside the checkout cannot be journaled", async () => {
+    const outside = await Deno.makeTempDir();
+    try {
+      const runRoot = join(outside, "run");
+      await Deno.mkdir(runRoot, { recursive: true });
+      const errors = await publishInto(
+        runRoot,
+        [fakeResult("killed", 1, "true", "false")],
+        {
+          sourceFiles: [join(outside, "src/example.ts")],
+          testFiles: ["test/example.test.ts"],
+        },
+      );
+
+      assertEquals(errors.length, 1);
+      assertStringIncludes(errors[0] ?? "", "outside the checkout");
+      // A refused record writes nothing: the journal cannot half-name a run.
+      assertEquals(await pathExists(join(runRoot, "summary.json")), false);
+    } finally {
+      await Deno.remove(outside, { recursive: true });
+    }
+  });
+
+  test("the tracked journal records checkout-relative paths only", async () => {
+    const lines = await readJournal(projectRoot);
+    assert(lines.length > 0);
+    for (const line of lines) {
+      for (const file of [...line.sources, ...line.tests]) {
+        assert(
+          !isAbsolute(file),
+          `${line.id} records the machine path ${file}`,
+        );
+        assert(
+          !file.startsWith(".."),
+          `${line.id} escapes the checkout with ${file}`,
+        );
+      }
     }
   });
 

@@ -11,11 +11,11 @@
  * publishes no score, matching the terminal report's rule for partial runs.
  */
 
-import { join } from "@std/path";
+import { join, resolve } from "@std/path";
 import * as v from "valibot";
 import { nonBlankLines } from "#scripts/lines.ts";
 import { commandValue, runCommand } from "#scripts/precommit/git.ts";
-import { rel } from "#scripts/project-root.ts";
+import { underPath } from "#scripts/project-root.ts";
 import { readJsonOrNull } from "#scripts/read-json.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import {
@@ -126,6 +126,21 @@ export const readJournal = async (
   );
 };
 
+/** The checkout-relative form the journal records: a tracked file must never
+ *  name a machine path. The runner expands every file it was given against
+ *  the run's working directory, so that same directory is the base the
+ *  journal reads the file against, and one that escapes it fails the record
+ *  loudly instead of leaking. */
+const toJournalPath = (file: string): string => {
+  const within = underPath(resolve(Deno.cwd()), file);
+  if (within === null) {
+    throw new Error(
+      `${file} sits outside the checkout the run works in, so the journal cannot name it.`,
+    );
+  }
+  return within;
+};
+
 /** Publish a finished run's numbers for the tracked journal (issue #2301).
  * A failure here is a record-keeping failure: it must not turn a finished
  * run's verdict into a crash, so it is reported and the run's own exit code
@@ -154,9 +169,9 @@ export const publishRunSummary = async (
       ignored,
       killed,
       score,
-      sources: run.sourceFiles.map((file) => rel(file)),
+      sources: run.sourceFiles.map(toJournalPath),
       survived,
-      tests: run.testFiles.map((file) => rel(file)),
+      tests: run.testFiles.map(toJournalPath),
       total,
     });
   } catch (error) {

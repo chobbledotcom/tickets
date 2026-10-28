@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { assertStringIncludes } from "@std/assert";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -60,7 +60,7 @@ describe("running mutation inside a snapshot", () => {
       expect(record.exitCode).toBe(7);
       expect(record.args).toEqual(["src/a.ts", join(root, "test/a.test.ts")]);
       // The child is gone by the time the record settles, and its id with it.
-      expect(record.pid).toBeUndefined();
+      expect(Object.hasOwn(record, "pid")).toBe(false);
       // Nothing to bring back, so the shared copy-back lock is never taken —
       // a run with no kept files must not queue behind one that has them.
       expect(await pathExists(copyBackLockPath(root))).toBe(false);
@@ -258,8 +258,10 @@ describe("running mutation inside a snapshot", () => {
       // The child is its own process, never the supervisor: a record that
       // named the supervisor as its child would mislead a stray-run hunt.
       expect(running.at(0)?.pid).not.toBe(Deno.pid);
-      expect(running.at(-1)?.pid).toBeUndefined();
-      expect(running.at(-1)?.supervisorPid).toBe(Deno.pid);
+      const settled = running.at(-1);
+      assert(settled !== undefined);
+      expect(Object.hasOwn(settled, "pid")).toBe(false);
+      expect(settled.supervisorPid).toBe(Deno.pid);
     });
   });
 
