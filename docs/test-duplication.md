@@ -5,10 +5,11 @@ reason each limit holds, and the cost of the remaining steps.
 
 **Decided and shipped.** The reusable helpers under `test/test-utils` are
 scanned at **40 tokens**, alongside `src/`, by `.jscpd.helpers.json`. The
-Cucumber support helpers under `test/specs/support` are scanned twice: at **19
+Cucumber support helpers under `test/specs/support` are scanned twice: at **18
 tokens** alongside `src/`, and at **15 tokens** on their own by
-`.jscpd.support.json`. See [What is left](#what-is-left) for the remaining
-steps.
+`.jscpd.support.json`. The 18-token scan holds its accepted clones in the
+committed baseline `.jscpd.specs-baseline.json`, the way the renamed-clone gate
+does. See [What is left](#what-is-left) for the remaining steps.
 
 All counts come from commit `ebc7c12` and from jscpd 5.0.12 with `minLines: 1`,
 the setting every config in this repository uses. A count is the number of clone
@@ -24,7 +25,7 @@ lower number is a tighter net.
 | Config                | Scans                            | minTokens |
 | --------------------- | -------------------------------- | --------- |
 | `.jscpd.json`         | `src`, `e2e-payments`, `scripts` | 19        |
-| `.jscpd.specs.json`   | `src` + `test/specs/support`     | 19        |
+| `.jscpd.specs.json`   | `src` + `test/specs/support`     | 18        |
 | `.jscpd.support.json` | `test/specs/support`             | 15        |
 | `.jscpd.helpers.json` | `src` + `test/test-utils`        | 40        |
 | `.jscpd.test.json`    | `test`                           | 48        |
@@ -63,10 +64,40 @@ copied. `src/` is clean at 19 and cannot go below it:
 | 17        | 497                         |
 | 16        | 961                         |
 
-So the number in _that_ config cannot come down. The support helpers therefore
-get a second scan of their own, `.jscpd.support.json`, which drops `src/` and
-holds them at 15. **19 is where the shared config sits, not where the helpers
-have to stay.**
+So a 0% threshold cannot hold _that_ config below 19. The support helpers
+therefore get a second scan of their own, `.jscpd.support.json`, which drops
+`src/` and holds them at 15. **18 is where the shared config sits, not where
+the helpers have to stay.**
+
+### The 18-token shared scan carries a baseline
+
+Below 19 tokens the shared scan reads real signal and coincidence together.
+Dropping `.jscpd.specs.json` to 18 tokens surfaces 220 clone pairs. Most are
+the coincidence classes this document already names: import blocks, matching
+signatures and parameter lists, type aliases, schema table data, and support
+test bodies. The scan cannot hold those at zero without a full-band
+classification, so the config carries a committed baseline instead. `deno task
+cpd` runs the specs config with `--baseline .jscpd.specs-baseline.json
+--fail-on-new-clones`, exactly the way the renamed-clone gate does.
+`deno task cpd:specs --update` rewrites the baseline after a merge. A new
+18-token clone anywhere in the scanned trees fails the gate.
+
+The first pass merged the pairs that were real duplicated logic:
+
+- `order-gallery.tsx` routes both the listing card and the package card
+  through one `renderSelectableCard` helper. They differed only in the option
+  key, the form-field prefix, and the text.
+- `api-site-pages-input.ts` names the shared "longer than the field's cap"
+  refusal `tooLong`, and the slug, the page name, and the text fields all
+  route through it.
+- `validated-session.ts` names the repeated
+  `Pick<ValidatedPaymentSession, "id" | "paymentReference" | "provider">`
+  parameter slice `SessionPaymentReference`, so the two charge-reference
+  readers no longer repeat the type.
+
+The remaining 217 pairs sit in the baseline. They are import-block and
+signature matches, one-line field and schema builders, and the support test
+bodies. Each is a separate merge when its band is classified.
 
 Read a whole band before you lower a limit. A small sample can call a band
 noise while the full band marks an under-adopted curry. At 16 tokens, a sample
