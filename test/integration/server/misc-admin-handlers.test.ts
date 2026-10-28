@@ -284,7 +284,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
         "#db/questions/attendee-answers/reads.ts"
       );
 
-      expect(await loadAttendeeQuestionData([1, 2], [])).toBeUndefined();
+      expect(await loadAttendeeQuestionData([1, 2], [])).toBe(undefined);
     });
 
     test("loadAttendeeQuestionData returns undefined for empty listingIds", async () => {
@@ -292,7 +292,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
         "#db/questions/attendee-answers/reads.ts"
       );
 
-      expect(await loadAttendeeQuestionData([], [1, 2])).toBeUndefined();
+      expect(await loadAttendeeQuestionData([], [1, 2])).toBe(undefined);
     });
 
     test("loadAttendeeQuestionData returns undefined when no questions exist", async () => {
@@ -314,7 +314,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
         [listing.id],
         [attendee.id],
       );
-      expect(result).toBeUndefined();
+      expect(result).toBe(undefined);
     });
 
     test("loadAttendeeQuestionData returns question data when questions exist", async () => {
