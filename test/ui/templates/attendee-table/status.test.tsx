@@ -95,6 +95,19 @@ describe("attendee status cells", () => {
     assert(!html.includes("badge-ok"));
   });
 
+  test("keeps the toggle form when the state badge is also available", () => {
+    // A staff session's check-in page sets both flags: the toggle form is
+    // what the operator acts on, never a read-only badge.
+    const html = renderStatus(
+      { checked_in: 1, id: 8 },
+      { showCheckin: true, showCheckinState: true },
+    );
+
+    assertStringIncludes(html, 'class="link-button checkout"');
+    assert(!html.includes("badge-ok"));
+    assert(!html.includes('<span class="muted small"'));
+  });
+
   test("keeps a supplied empty active filter instead of the default", () => {
     const html = renderStatus({ checked_in: 1, id: 8 }, { activeFilter: "" });
 
@@ -126,6 +139,10 @@ describe("attendee status cells", () => {
     assertStringIncludes(html, 'action="/admin/listing/9/attendee/8/checkin"');
     assertStringIncludes(
       html,
+      '<input name="check_in" type="hidden" value="false">',
+    );
+    assertStringIncludes(
+      html,
       '<input name="return_filter" type="hidden" value="in">',
     );
     assertStringIncludes(
@@ -149,7 +166,11 @@ describe("attendee status cells", () => {
       'href="/admin/listing/9/attendee/11/checkin' +
         '?return_url=%2Fadmin%2Fcheckin%2Ftoday&amp;return_filter=out"',
     );
-    assertStringIncludes(html, '<a class="link-button checkin"');
+    assertStringIncludes(
+      html,
+      'class="link-button checkin" href="/admin/listing/9/attendee/11/checkin' +
+        '?return_url=%2Fadmin%2Fcheckin%2Ftoday&amp;return_filter=out">Check in</a>',
+    );
     assert(!html.includes("Check out"));
   });
 

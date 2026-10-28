@@ -11,7 +11,7 @@ src/features/admin/api-listing-body.ts::bodyToUpdateInput.input.wouldBeGroupIds~
 src/features/admin/api-listing-joins.ts::persistListingJoins.groupIds~0ey19t2  ?? → || audited:1q4nq0k # value.groupIds is an array or undefined, and arrays are always truthy
 src/features/admin/entity-pages.ts::defineEntityPage.renderPage.ctx.baseUrl~0v3px31  ?? → || audited:1i6yq97 # opts.baseUrl is a string and the only falsy string is the empty fallback itself
 src/features/admin/entity-pages.ts::defineEntityPage.renderPage.ctx.query~1xs3bh3  ?? → || audited:1i6yq97 # opts.query is a URLSearchParams object when present, so it is always truthy
-src/features/admin/listing-page-data.ts::loadListingRosterPanel.childNames~049e0ek  ?? → || audited:0phww1l # listingsByKey holds only non-empty ListingWithCount[], so get() is an array or undefined and an array is always truthy
+src/features/admin/listing-page-data.ts::loadListingRosterPanel.childNames~049e0ek  ?? → || audited:0ylj68l # listingsByKey holds only non-empty ListingWithCount[], so get() is an array or undefined and an array is always truthy
 src/features/admin/site-content-page.ts::defineSiteContentPage.tabs~0786g3u  ?? → || audited:1d0ow5b # extraTabs is an array when present, and arrays are always truthy
 src/ui/templates/admin/holidays.tsx::HolidayEditPanel.html~1nrsidb  ?? → || audited:0bymeb7 # values is a render-values object when present, so it is always truthy
 src/ui/client/admin/manual-checkin.ts::initManualCheckin.filterOptions.text~0hoqwoy  ?? → || audited:1jdc1my # textContent is string|null; its only falsy string is the empty fallback itself
@@ -336,11 +336,11 @@ src/features/admin/attendees-route-helpers.ts::loadPaymentReviewActionData.listi
 # Door-safe check-in projection: the fields it blanks are contact columns the
 # fixed DOOR_SAFE_COLUMNS layout never renders, so no rendered page can carry
 # the value and every value renders identically.
-src/features/checkin.ts::doorSafeEntries.attendee.address~0l1hej5  → "mutated" audited:0vuzwaw # the door-safe layout's columnKeys exclude the contact columns, so the blanked address can never render
-src/features/checkin.ts::doorSafeEntries.attendee.email~12hbckl  → "mutated" audited:0vuzwaw # same: email is absent from DOOR_SAFE_COLUMNS, so the blanked value is unobservable
-src/features/checkin.ts::doorSafeEntries.attendee.phone~0opqph9  → "mutated" audited:0vuzwaw # same: phone is absent from DOOR_SAFE_COLUMNS, so the blanked value is unobservable
-src/features/checkin.ts::doorSafeEntries.attendee.special_instructions~169zrbe  → "mutated" audited:0vuzwaw # same: special instructions are absent from DOOR_SAFE_COLUMNS, so the blanked value is unobservable
-src/ui/templates/checkin.tsx::staffBulkForm.value~1ffn39t  false → "" audited:1qxiq8y # the POST reads the field as form.get("check_in") === "true", so "false" and "" both answer checkout
+src/features/checkin.ts::doorSafeEntries.attendee.address~0l1hej5  → "mutated" audited:0px08fp # the door-safe layout's columnKeys exclude the contact columns, so the blanked address can never render
+src/features/checkin.ts::doorSafeEntries.attendee.email~12hbckl  → "mutated" audited:0px08fp # same: email is absent from DOOR_SAFE_COLUMNS, so the blanked value is unobservable
+src/features/checkin.ts::doorSafeEntries.attendee.phone~0opqph9  → "mutated" audited:0px08fp # same: phone is absent from DOOR_SAFE_COLUMNS, so the blanked value is unobservable
+src/features/checkin.ts::doorSafeEntries.attendee.special_instructions~169zrbe  → "mutated" audited:0px08fp # same: special instructions are absent from DOOR_SAFE_COLUMNS, so the blanked value is unobservable
+src/features/checkin.ts::agentRunSheetDates.today~14wz3mc  the configured timezone's clock → "" audited:0px08fp # agentRunSheetDates reads the site timezone, which setup validates as a real IANA zone; todayInTz then always answers a parseable YYYY-MM-DD, so parseDateStringOrThrow never raises this message
 src/features/admin/scan-answer.ts::listingScope.checkInEveryListing~0fgw13m  false → true audited:0b0nlsc # a one-listing scope holds exactly one listing id, so the warning reader's size>1 guard stays false and the owed pool holds one listing's rows, which "every group" and "the first group" answer the same
 src/features/admin/scan-answer.ts::resolveAttendeeName.fromEntry~1ssznli  0 → 1 audited:0b0nlsc # every entry of one token decrypts the same attendee row, and the empty-entries fallback decrypts that same row, so entries[0], entries[1], and the fallback answer one name
 src/features/admin/scan-answer.ts::personLoader.token~15m14rg  ?? → || audited:0b0nlsc # the token lookup's array index answers an AttendeeWithBookings object or undefined, and an object is always truthy
