@@ -25,6 +25,11 @@ import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { isIsoDate } from "#shared/validation/date-string.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 import {
+  epochMsToIso,
+  instantToEpochMs,
+  isInstant,
+} from "#shared/validation/timestamp.ts";
+import {
   validateAddress,
   validateEmail,
   validateName,
@@ -54,6 +59,9 @@ export type ApiLine = {
  * payments received now and the named one-off adjustments. */
 export type ParsedApiCreate = ContactInfo & {
   adjustments: CreateAdjustment[];
+  /** The business time the booking happened, when the caller stamps a
+   * historical one. Absent means now at insert. */
+  created: string | undefined;
   lines: ApiLine[];
   payments: number[];
   statusId: number;
@@ -194,6 +202,18 @@ const parseLine = (
   });
 };
 
+/** The business time the booking happened, when the caller stamps a
+ *  historical one. An absent value keeps the create-time clock. A supplied
+ *  instant is normalised to the canonical UTC millisecond form the clock
+ *  writes, so every stored `created` sorts the same way in date-ordered
+ *  lists. */
+const parseCreated = (raw: unknown): Result<string | undefined> => {
+  if (raw === undefined) return okResult(undefined);
+  return typeof raw === "string" && isInstant(raw)
+    ? okResult(epochMsToIso(instantToEpochMs(raw)))
+    : errorResult("created must be a valid instant as 2026-09-01T09:00:00Z");
+};
+
 /** The status a create body asks for. A named status resolves by name. When
  * the body names none, the attendee takes the public default, the same
  * coercion the manual-add form makes. A site with no public default is a
@@ -266,6 +286,8 @@ export const parseCreateBody: BodyRead<ParsedApiCreate> = async (body) => {
   }
   const statusAndToken = await parseStatusAndToken(body);
   if (!statusAndToken.ok) return statusAndToken;
+  const created = parseCreated(body.created);
+  if (!created.ok) return created;
   const payments = parsePayments(body.payments);
   if (!payments.ok) return payments;
   const adjustments = parseAdjustments(body.adjustments);
@@ -289,6 +311,7 @@ export const parseCreateBody: BodyRead<ParsedApiCreate> = async (body) => {
   return okResult({
     ...contact.value,
     adjustments: adjustments.value,
+    created: created.value,
     lines,
     payments: payments.value,
     statusId: statusAndToken.value.statusId,
