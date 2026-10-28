@@ -17,6 +17,9 @@ export const NO_QUANTITY_PREFIX = "noqty_";
 export const LINE_KEY_PREFIX = "line_key_";
 /** Per-line hidden field carrying the package path selected for a blank line. */
 export const LINE_PACKAGE_PREFIX = "line_package_";
+/** Per-line agreed-price field: `price_<i>`. Blank means the package path's or
+ *  the listing's own price applies. The edit form renders no price inputs. */
+export const PRICE_PREFIX = "price_";
 
 /** The packages each listing can book through, with each path's per-unit price
  * override. A null price means the listing's own price applies. */
@@ -92,6 +95,7 @@ const parseLine = (
         ? (packagesByListingId.get(listingId)?.get(packageGroupId) ?? null)
         : null,
     parentListingId: resolved.existingBooking?.parent_listing_id ?? 0,
+    priceRaw: form.getString(`${PRICE_PREFIX}${index}`),
     quantity: noQuantity
       ? 0
       : parseNonNegativeInt(form.getString(`${QTY_PREFIX}${index}`)),

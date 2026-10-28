@@ -42,13 +42,13 @@ export const FEATURE_BASELINE: readonly FindingIdentity[] = [
   ])(["slug"]),
   ...identitiesAt([
     [
-      "src/features/admin/attendee-form-model.ts",
+      "src/features/admin/attendee-form-validation.ts",
       [{ name: "AttendeeFieldError" }],
     ],
   ])(["field"]),
   ...identitiesAt([
     [
-      "src/features/admin/attendee-form-model.ts",
+      "src/features/admin/attendee-form-validation.ts",
       [{ name: "ValidationResult" }],
     ],
   ])(["lineErrors"]),

@@ -136,12 +136,13 @@ src/ui/templates/admin/attendee-detail.tsx::AttendeeBookingsTable.names~1d4a28o 
 
 # attendee-form listing editor — column keys the editor table never reads
 # back, and two fallbacks whose left side can never be falsy-but-non-null.
-src/ui/templates/admin/attendee-form/listing-editor.tsx::listingColumns~0b4eb34  listing → "" audited:1req4zi # the listing editor table renders without columnKeys, hiddenKeys, or filters, so no code path reads its column keys
-src/ui/templates/admin/attendee-form/listing-editor.tsx::listingColumns~1pp18xr  dates → "" audited:1req4zi # same as the listing key — the editor table renders without columnKeys, hiddenKeys, or filters
-src/ui/templates/admin/attendee-form/listing-editor.tsx::listingColumns~0pvuhzr  quantity → "" audited:1req4zi # same as the listing key — the editor table renders without columnKeys, hiddenKeys, or filters
-src/ui/templates/admin/attendee-form/listing-editor.tsx::listingColumns.key~0s9jed5  notices → "" audited:1req4zi # same as the listing key — the editor table renders without columnKeys, hiddenKeys, or filters
-src/ui/templates/admin/attendee-form/listing-editor.tsx::pathLabel.name~0i58gz8  ?? → || audited:1req4zi # parentNamesById holds listing names, and a listing name is required and saved non-empty, so the left side is undefined or a non-empty string — the falsy fallback cannot occur
-src/ui/templates/admin/attendee-form/listing-editor.tsx::listingNoticesCell~0s46002  ?? → || audited:1req4zi # lineWarnings.get() returns string[]|undefined, and an array is always truthy, so ?? and || keep exactly the same entry
+src/ui/templates/admin/attendee-form/listing-editor.tsx::createListingEditorTable~0ugd1r3  price → "" audited:1vdep4w # the create editor table renders without columnKeys, hiddenKeys, or filters, so no code path reads its column keys
+src/ui/templates/admin/attendee-form/listing-editor.tsx::listingColumns~0b4eb34  listing → "" audited:1vdep4w # the listing editor table renders without columnKeys, hiddenKeys, or filters, so no code path reads its column keys
+src/ui/templates/admin/attendee-form/listing-editor.tsx::listingColumns~1pp18xr  dates → "" audited:1vdep4w # same as the listing key — the editor table renders without columnKeys, hiddenKeys, or filters
+src/ui/templates/admin/attendee-form/listing-editor.tsx::listingColumns~0pvuhzr  quantity → "" audited:1vdep4w # same as the listing key — the editor table renders without columnKeys, hiddenKeys, or filters
+src/ui/templates/admin/attendee-form/listing-editor.tsx::listingColumns.key~0s9jed5  notices → "" audited:1vdep4w # same as the listing key — the editor table renders without columnKeys, hiddenKeys, or filters
+src/ui/templates/admin/attendee-form/listing-editor.tsx::pathLabel.name~0i58gz8  ?? → || audited:1vdep4w # parentNamesById holds listing names, and a listing name is required and saved non-empty, so the left side is undefined or a non-empty string — the falsy fallback cannot occur
+src/ui/templates/admin/attendee-form/listing-editor.tsx::listingNoticesCell~0s46002  ?? → || audited:1vdep4w # lineWarnings.get() returns string[]|undefined, and an array is always truthy, so ?? and || keep exactly the same entry
 
 # servicing pages (features/admin/servicing) — three tables whose column keys
 # nothing reads back (each renderTable call passes no columnKeys, hiddenKeys,
