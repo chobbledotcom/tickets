@@ -314,7 +314,7 @@ src/features/admin/guide.ts::handleAdminGuideGet.hostEmailFromAddress~1owtz5h  ?
 src/features/admin/attendee-form-model.ts::clampDayCount~0tzfryu  ?? → || audited:1pm1i84 # clampDurationDays clamps into [1, MAX_DURATION_DAYS], so raw values 0 and 1 both clamp to 1 — no input distinguishes the two operators
 src/features/admin/attendee-form-model.ts::clampDayCount~0tzfryu  1 → 0 audited:1pm1i84 # same clamp: a null raw clamps to 1 whether the fallback is 0 or 1, because clampDurationDays floors at 1
 src/features/admin/attendee-form-model.ts::resolveStatusId~11ecdpr  ?? → || audited:1pm1i84 # the two operators differ only at statusId 0, and the sole production caller (parseAttendeeForm) maps a non-positive raw to null before calling, so 0 never reaches the function
-src/features/admin/attendee-form-model.ts::resolveSharedDates.dated.duration~04xi3o1  ?? → || audited:1pm1i84 # bookingDurationDays returns null or a span of at least one whole day, never 0, so the nullish and falsy arms agree on every reachable value
+src/features/admin/attendee-form-dates.ts::resolveSharedDates.dated.duration~04xi3o1  ?? → || audited:0g0gch9 # bookingDurationDays returns null or a span of at least one whole day, never 0, so the nullish and falsy arms agree on every reachable value
 src/features/admin/attendees-route-helpers.ts::loadPaymentReviewActionData.listingId~1glbb8m  ?? → || audited:09nlv1i # getFirstBooking returns a listing_attendees row, whose listingId comes from an AUTOINCREMENT key that starts at 1, so 0 never occurs and the nullish and falsy arms agree on every reachable value
 # Door-safe check-in projection: the fields it blanks are contact columns the
 # fixed DOOR_SAFE_COLUMNS layout never renders, so no rendered page can carry

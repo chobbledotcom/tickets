@@ -50,6 +50,31 @@ describeWithEnv(
         expect(attendees[0]!.quantity).toBe(2);
       });
 
+      test("records a payment and an adjustment against the new attendee", async () => {
+        const { listing: event } = await setupListingAndLogin({
+          maxAttendees: 100,
+          maxQuantity: 5,
+          unitPrice: 2000,
+        });
+        const { response } = await adminFormPost("/admin/attendees/new", {
+          email: "paid@example.com",
+          name: "Paid",
+          ...attendeeLineFields([{ eventId: event.id, quantity: 2 }]),
+          adjustment_amount_0: "-500",
+          adjustment_description_0: "Delivery credit",
+          payment_amount_0: "1500",
+        });
+        expectRedirect(response, "/admin/attendees/");
+        const attendees = await expectAttendeeLineCount(event.id, 1);
+        // Gross 4000 minus the payment 1500 plus the writeoff 500 leaves 2000.
+        const { getAttendeeBalanceState } = await import(
+          "#db/attendees/balance.ts"
+        );
+        expect(
+          (await getAttendeeBalanceState(attendees[0]!.id))!.remainingBalance,
+        ).toBe(2000);
+      });
+
       test("a no-quantity-only create persists the line and clears any balance", async () => {
         const { listing: event } = await setupListingAndLogin({
           maxAttendees: 100,

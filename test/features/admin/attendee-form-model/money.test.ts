@@ -232,4 +232,23 @@ describe("receiptsOf", () => {
       payments: [],
     });
   });
+
+  test("drops an adjustment slot the validation would refuse", () => {
+    const receipts = receiptsOf(
+      parsedBase({
+        adjustments: [
+          { amount: "abc", description: "Not a number" },
+          { amount: "0", description: "Zero amount" },
+        ],
+      }),
+    );
+    expect(receipts).toEqual({ adjustments: [], payments: [] });
+  });
+
+  test("drops a payment slot the validation would refuse", () => {
+    const receipts = receiptsOf(
+      parsedBase({ payments: ["not-a-number", "0"] }),
+    );
+    expect(receipts).toEqual({ adjustments: [], payments: [] });
+  });
 });
