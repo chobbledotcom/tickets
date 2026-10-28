@@ -28,8 +28,3 @@ export const appendStepSummary = (markdown: string): boolean => {
 /** Publish the `result=executed` output the workflows' verify steps read. */
 export const publishExecutedResult = (): boolean =>
   appendToActionsFile("GITHUB_OUTPUT", "result=executed\n");
-
-/** Escape a value for use inside a `::error`/`::warning` annotation, whose
- *  message and properties cannot carry raw `%` or newlines. */
-export const escapeAnnotationValue = (value: string): string =>
-  value.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");

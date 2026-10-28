@@ -11,7 +11,6 @@ import { requireValue } from "#shared/required-value.ts";
 // (scripts/check-coverage-exclusions.ts) owns changes to that list: a branch
 // must not add an entry.
 import { COVERAGE_EXCLUSIONS } from "./check-coverage-exclusions/exclusions.ts";
-import { escapeAnnotationValue } from "./github-actions.ts";
 import { projectRoot } from "./project-root.ts";
 
 export type CoverageMetricFailure = {
@@ -30,6 +29,7 @@ export type CoverageFailure = {
 const SNIPPET_CONTEXT_LINES = 1;
 const MAX_SNIPPET_LINES_PER_FILE = 18;
 const MAX_GITHUB_ANNOTATIONS = 100;
+
 /** Line numbers captured by group 1 of every match of `pattern` in `record`.
  * Every caller's pattern has a `(\d+)` group 1, so each match always carries
  * one. */

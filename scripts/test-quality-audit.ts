@@ -16,11 +16,6 @@ const auditFile = async (path: string): Promise<TestQualityFinding[]> => {
 const testFiles = (): Promise<string[]> =>
   collectFiles("test", (path) => TEST_FILE_PATTERN.test(path));
 
-/** Findings for every test file in the repo, so the audit and its precommit
- *  gate read the same list. */
-export const auditTestFiles = async (): Promise<TestQualityFinding[]> =>
-  (await Promise.all((await testFiles()).map(auditFile))).flat();
-
 const formatFinding = (finding: TestQualityFinding): string =>
   `${relative(
     Deno.cwd(),
@@ -28,7 +23,9 @@ const formatFinding = (finding: TestQualityFinding): string =>
   )}:${finding.line}:${finding.column} ${finding.message}`;
 
 if (import.meta.main) {
-  const findings = await auditTestFiles();
+  const findings = (
+    await Promise.all((await testFiles()).map(auditFile))
+  ).flat();
   if (findings.length === 0) {
     console.log("Test quality audit found no weak assertion patterns.");
   } else {
