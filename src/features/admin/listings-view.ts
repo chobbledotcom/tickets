@@ -24,6 +24,7 @@ import {
   sort,
   unique,
 } from "#fp";
+import type { ListingAttendeesHandler } from "#routes/admin/actions.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import {
   type AttendeeFilter,
@@ -115,9 +116,7 @@ export const filteredAttendeesHandler =
   (
     request: Request,
     inner: ResponseHandler<[ctx: FilteredAttendees]>,
-  ): ResponseHandler<
-    [listing: ListingWithCount, attendees: Attendee[], session: AuthSession]
-  > =>
+  ): ListingAttendeesHandler =>
   (listing, attendees, session) => {
     const state: AttendeeListState<null> = readAttendeeListState(
       rosterListSetup(listing, []),

@@ -32,6 +32,8 @@ import {
   defineEntityPage,
   deleteActionTab,
   type EntityPage,
+  overviewTab,
+  summarySection,
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
 import {
@@ -214,28 +216,22 @@ const loadDisplayUser = async (id: number): Promise<DisplayUser | null> => {
   return user ? toDisplayUser(user, await loadAgentNameById()) : null;
 };
 
-const userOverviewTab: TabDef<DisplayUser> = {
-  labelKey: "entity.tab.overview",
-  sections: [
-    {
-      kind: "summary",
-      rows: (user) =>
-        Promise.resolve([
-          { labelKey: "users.col.role", value: user.adminLevel },
-          { labelKey: "common.status", value: userStatus(user) },
-          ...(user.adminLevel === "agent"
-            ? [
-                {
-                  labelKey: "users.agents.legend",
-                  value: agentNamesDisplay(user),
-                },
-              ]
-            : []),
-        ]),
-    },
-  ],
-  slug: "",
-};
+const userOverviewTab: TabDef<DisplayUser> = overviewTab([
+  summarySection((user) =>
+    Promise.resolve([
+      { labelKey: "users.col.role", value: user.adminLevel },
+      { labelKey: "common.status", value: userStatus(user) },
+      ...(user.adminLevel === "agent"
+        ? [
+            {
+              labelKey: "users.agents.legend",
+              value: agentNamesDisplay(user),
+            },
+          ]
+        : []),
+    ]),
+  ),
+]);
 
 const userActionsTab: TabDef<DisplayUser> = {
   ...deleteActionTab("users.delete_user.submit", "userDelete"),

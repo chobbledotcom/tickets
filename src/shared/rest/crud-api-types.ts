@@ -22,6 +22,16 @@ import type { AdminSession } from "#types";
  *  never an orphan row without its side effect. A resource with no side
  *  effects omits it and takes the plain (untransacted) single-statement
  *  path. */
+/** One side-effect's write-time validation: the post-save `input` (the row
+ *  fields after the write), the raw `body`, and the `existing` full row on
+ *  update (null on create). Returns `{ error }` to reject the whole write, or
+ *  `{ value }` with the prepared data to persist once the row exists. */
+export type CrudSideEffectValidate<Input, FullRow, Prepared> = (
+  input: Input,
+  body: Record<string, unknown>,
+  existing: FullRow | null,
+) => Promise<{ error: string } | { value: Prepared }>;
+
 export interface CrudSideEffect<Input, FullRow, Prepared, State = never> {
   /** Persist the prepared value on the open write transaction `tx`, given the
    *  written row's `id` and narrow pre-update state. A throw rolls back the row
@@ -34,13 +44,8 @@ export interface CrudSideEffect<Input, FullRow, Prepared, State = never> {
   ) => Promise<void>;
   /** Validate the side effect against the would-be `input` (the post-save row
    *  fields), the raw `body`, and the `existing` full row on update (null on
-   *  create). Returns `{ error }` to reject the whole write, or `{ value }` with
-   *  the prepared data to persist once the row exists. */
-  validate: (
-    input: Input,
-    body: Record<string, unknown>,
-    existing: FullRow | null,
-  ) => Promise<{ error: string } | { value: Prepared }>;
+   *  create). */
+  validate: CrudSideEffectValidate<Input, FullRow, Prepared>;
 }
 
 /** The post-commit hook shared by every write-config: it runs after a

@@ -11,6 +11,7 @@ import {
   type ActionDef,
   defineEntityPage,
   type EntityPage,
+  overviewTab,
   prepareOwnerFields,
   type SlotLoader,
   type TabDef,
@@ -117,10 +118,10 @@ const LISTING_ACTIONS: readonly ActionDef<LoadedListing>[] = [
   },
 ];
 
-/** The Overview tab: the details panel plus a short activity preview. */
-const overviewTab: TabDef<LoadedListing> = {
-  labelKey: "entity.tab.overview",
-  sections: [
+/** The Overview tab: the details panel plus a short activity preview.
+ *  Info + money: staff only (the old detail page was staff-only). */
+const overview = {
+  ...overviewTab<LoadedListing>([
     {
       kind: "custom",
       load: (entity, ctx) =>
@@ -131,9 +132,7 @@ const overviewTab: TabDef<LoadedListing> = {
       load: (entity) => loadListingActivityPreview(entity),
       viewAllTab: "activity",
     },
-  ],
-  slug: "",
-  // Info + money: staff only (the old detail page was staff-only).
+  ]),
   visible: staffOnly,
 };
 
@@ -177,7 +176,7 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
     listingNoteFeature.page.proseExtra(listing, ctx),
   recordId: ({ listing }) => listing.id,
   tabs: [
-    overviewTab,
+    overview,
     panelTab(
       "attendees",
       "entity.tab.attendees",

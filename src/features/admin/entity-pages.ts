@@ -144,6 +144,19 @@ export interface TabDef<E> extends AdminGatedItem<E> {
   slug: string;
 }
 
+/** The Overview tab: the strip label and slug every entity page shares, over
+ *  the page's own sections. */
+export const overviewTab = <E>(sections: readonly Section<E>[]): TabDef<E> => ({
+  labelKey: "entity.tab.overview",
+  sections,
+  slug: "",
+});
+
+/** One summary section: the entity's own rows in the table view. */
+export const summarySection = <E>(
+  rows: (entity: E, ctx: PageCtx) => Promise<SummaryRow[]>,
+): Section<E> => ({ kind: "summary", rows });
+
 /** One entity's whole page, as data. */
 export interface EntityPageDef<E, Id extends EntityId = number> {
   /** The roles this page's tabs serve when the folded floor beneath the record path
@@ -184,11 +197,17 @@ type RecordIdOf<E> = (entity: E) => string | number;
 /** The record id, absent on a page with no Actions tab. */
 type MaybeRecordIdOf<E> = RecordIdOf<E> | undefined;
 
+/** The per-record view arguments the page parts share: the entity the part
+ *  renders against, the page context, and the record id the page serves. */
+type RecordView<E> = {
+  ctx: PageCtx;
+  entity: E;
+  recordId: MaybeRecordIdOf<E>;
+};
+
 const resolveActions = <E>(
   actions: readonly ActionDef<E>[],
-  entity: E,
-  ctx: PageCtx,
-  recordId: MaybeRecordIdOf<E>,
+  { ctx, entity, recordId }: RecordView<E>,
 ): ResolvedAction[] =>
   actions
     .filter(
@@ -216,9 +235,7 @@ const resolveActions = <E>(
  * until it returns here. */
 const loadSection = async <E>(
   section: Section<E>,
-  entity: E,
-  ctx: PageCtx,
-  recordId: MaybeRecordIdOf<E>,
+  { ctx, entity, recordId }: RecordView<E>,
 ): Promise<LoadedSection> => {
   switch (section.kind) {
     case "summary":
@@ -237,7 +254,11 @@ const loadSection = async <E>(
         ? await section.prepare(entity, ctx)
         : entity;
       const { plain, danger } = splitActions(
-        resolveActions(section.actions, prepared, ctx, recordId),
+        resolveActions(section.actions, {
+          ctx,
+          entity: prepared,
+          recordId,
+        }),
       );
       return { danger, kind: "actions", plain, titleKey: section.titleKey };
     }
@@ -318,7 +339,7 @@ const loadPageSections = async <E>(
   if (panel) return [{ html: await panel(entity, ctx), kind: "custom" }];
   return Promise.all(
     active.sections.map((section) =>
-      loadSection(section, entity, ctx, recordId),
+      loadSection(section, { ctx, entity, recordId }),
     ),
   );
 };

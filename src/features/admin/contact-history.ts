@@ -1,3 +1,4 @@
+/* jscpd:ignore-start -- imports */
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 
@@ -18,7 +19,6 @@ import {
   saveContactRecord,
 } from "#db/contact-preferences.ts";
 import { addPageImageUrls } from "#db/image-urls.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import {
   customSection,

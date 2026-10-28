@@ -26,7 +26,8 @@ import {
   defineEntityPage,
   deleteActionTab,
   type EntityPage,
-  type TabDef,
+  overviewTab,
+  summarySection,
 } from "#routes/admin/entity-pages.ts";
 import { withOwnerData } from "#routes/admin/owner-route.ts";
 import { requireOwnerOr } from "#routes/auth.ts";
@@ -127,17 +128,6 @@ const apiKeyDelete = createConfirmedHandlers<{ id: number; name: string }>({
   successRedirect: "/admin/api-keys",
 });
 
-const overviewTab: TabDef<ApiKeyDisplay> = {
-  labelKey: "entity.tab.overview",
-  sections: [
-    {
-      kind: "summary",
-      rows: (apiKey) => Promise.resolve(apiKeySummaryRows(apiKey)),
-    },
-  ],
-  slug: "",
-};
-
 /** The owner-only API key summary and actions page. */
 const apiKeyPage: EntityPage<ApiKeyDisplay> = defineEntityPage({
   destination: "apiKey",
@@ -147,7 +137,9 @@ const apiKeyPage: EntityPage<ApiKeyDisplay> = defineEntityPage({
   navActive: adminPattern("apiKeys"),
   recordId: (apiKey) => apiKey.id,
   tabs: [
-    overviewTab,
+    overviewTab([
+      summarySection((apiKey) => Promise.resolve(apiKeySummaryRows(apiKey))),
+    ]),
     deleteActionTab("api_keys.delete_submit", "apiKeyDelete"),
   ],
   titleOf: (apiKey) => apiKey.name,

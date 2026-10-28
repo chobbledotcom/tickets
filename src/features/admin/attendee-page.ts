@@ -43,7 +43,9 @@ import {
   customSection,
   defineEntityPage,
   type EntityPage,
+  overviewTab,
   type PageCtx,
+  summarySection,
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
 import { writeFormTab } from "#routes/admin/entity-write-tab.ts";
@@ -224,94 +226,86 @@ const loadEditPanel = async (
 };
 
 /** The Overview tab's sections. */
-const overviewTab: TabDef<AttendeePageEntity> = {
-  labelKey: "entity.tab.overview",
-  sections: [
-    {
-      kind: "summary",
-      rows: ({ attendee, existing }) =>
-        Promise.resolve(
-          attendeeSummaryRows({
-            allowedDomain: getEffectiveDomain(),
-            attendee,
-            hasRealLine: existing.some((line) => line.booking.quantity > 0),
-            phonePrefix: settings.phonePrefix,
-          }),
-        ),
-    },
-    customSection(async ({ attendee, existing }) => {
-      const renderListings = await getRenderListings(existing);
-      // The read-only bookings table needs no blank path lines.
-      const { parsed } = buildEditFormFromAttendee(
+const overview: TabDef<AttendeePageEntity> = overviewTab([
+  summarySection(({ attendee, existing }) =>
+    Promise.resolve(
+      attendeeSummaryRows({
+        allowedDomain: getEffectiveDomain(),
         attendee,
-        existing,
-        renderListings,
-        [],
-      );
-      // One site serves every plan row this buyer holds, so the cue asks
-      // whether the buyer has a site at all — not per row. A sale that never
-      // completed cannot owe a site, so an incomplete payment shows no cue.
-      const bookings = attendeeBookingsFromLines(parsed.lines);
-      // A refunded plan's claim still holds the buyer's site, so its row
-      // joins the lookup instead of hiding behind its refund.
-      const planListingIds = bookings
-        .filter((booking) => booking.assignBuiltSite)
-        .map((booking) => booking.listingId);
-      return AttendeeBookingsTable({
-        bookings,
-        planSaleMissingSite:
-          planListingIds.length > 0 &&
-          // The same test the failed-payments delete uses.
-          !isIncompletePayment(
-            attendee,
-            // A site plan is a paid listing by definition.
-            true,
-            await hasAnyPaymentReference(attendee),
-          ) &&
-          !(await hasAssignedBuiltSite(attendee.id, planListingIds)),
-      });
-    }),
-    customSection(async ({ attendee, existing }) =>
-      AttendeeAnswersTable(
-        await loadQuestionsForExisting(attendee.id, existing),
-      ),
+        hasRealLine: existing.some((line) => line.booking.quantity > 0),
+        phonePrefix: settings.phonePrefix,
+      }),
     ),
-    {
-      kind: "custom",
-      load: ({ attendee, paymentReferences }, ctx) =>
-        Promise.resolve(
-          PaymentDetails({
-            attendee,
-            refresh: paymentRefreshControl(attendee.id, paymentReferences),
-            // The balance link targets the owner-only Ledger tab, so it
-            // must only render for owners (never render a forbidden link).
-            showBalanceLink: ctx.session.adminLevel === "owner",
-          }),
-        ),
-    },
-    {
-      kind: "activity",
-      load: ({ attendee }) => loadAttendeeActivityPreview(attendee.id),
-      viewAllTab: "activity",
-    },
-    {
-      kind: "custom",
-      load: async ({ attendee }, ctx) => {
-        const [contactRecords, previousBookings] = await Promise.all([
-          loadContactRecords(attendee),
-          loadPreviousBookings(attendee),
-        ]);
-        return ContactHistory({
+  ),
+  customSection(async ({ attendee, existing }) => {
+    const renderListings = await getRenderListings(existing);
+    // The read-only bookings table needs no blank path lines.
+    const { parsed } = buildEditFormFromAttendee(
+      attendee,
+      existing,
+      renderListings,
+      [],
+    );
+    // One site serves every plan row this buyer holds, so the cue asks
+    // whether the buyer has a site at all — not per row. A sale that never
+    // completed cannot owe a site, so an incomplete payment shows no cue.
+    const bookings = attendeeBookingsFromLines(parsed.lines);
+    // A refunded plan's claim still holds the buyer's site, so its row
+    // joins the lookup instead of hiding behind its refund.
+    const planListingIds = bookings
+      .filter((booking) => booking.assignBuiltSite)
+      .map((booking) => booking.listingId);
+    return AttendeeBookingsTable({
+      bookings,
+      planSaleMissingSite:
+        planListingIds.length > 0 &&
+        // The same test the failed-payments delete uses.
+        !isIncompletePayment(
           attendee,
-          contactRecords,
-          isOwner: isOwnerRole(ctx.session.adminLevel),
-          previousBookings,
-        });
-      },
+          // A site plan is a paid listing by definition.
+          true,
+          await hasAnyPaymentReference(attendee),
+        ) &&
+        !(await hasAssignedBuiltSite(attendee.id, planListingIds)),
+    });
+  }),
+  customSection(async ({ attendee, existing }) =>
+    AttendeeAnswersTable(await loadQuestionsForExisting(attendee.id, existing)),
+  ),
+  {
+    kind: "custom",
+    load: ({ attendee, paymentReferences }, ctx) =>
+      Promise.resolve(
+        PaymentDetails({
+          attendee,
+          refresh: paymentRefreshControl(attendee.id, paymentReferences),
+          // The balance link targets the owner-only Ledger tab, so it
+          // must only render for owners (never render a forbidden link).
+          showBalanceLink: ctx.session.adminLevel === "owner",
+        }),
+      ),
+  },
+  {
+    kind: "activity",
+    load: ({ attendee }) => loadAttendeeActivityPreview(attendee.id),
+    viewAllTab: "activity",
+  },
+  {
+    kind: "custom",
+    load: async ({ attendee }, ctx) => {
+      const [contactRecords, previousBookings] = await Promise.all([
+        loadContactRecords(attendee),
+        loadPreviousBookings(attendee),
+      ]);
+      return ContactHistory({
+        attendee,
+        contactRecords,
+        isOwner: isOwnerRole(ctx.session.adminLevel),
+        previousBookings,
+      });
     },
-  ],
-  slug: "",
-};
+  },
+]);
 
 /** The tabbed attendee page. */
 export const attendeePage: EntityPage<AttendeePageEntity> = defineEntityPage({
@@ -336,7 +330,7 @@ export const attendeePage: EntityPage<AttendeePageEntity> = defineEntityPage({
     attendeeNoteFeature.page.proseExtra(attendee, ctx),
   recordId: ({ attendee }) => attendee.id,
   tabs: [
-    overviewTab,
+    overview,
     writeFormTab<AttendeePageEntity>("edit", "entity.tab.edit", loadEditPanel),
     writeFormTab<AttendeePageEntity>(
       "logistics",

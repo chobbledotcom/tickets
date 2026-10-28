@@ -1,3 +1,4 @@
+/* jscpd:ignore-start -- imports */
 import {
   isQuestionDisplayType,
   type Question,
@@ -17,7 +18,6 @@ import {
   questionsTable,
 } from "#db/questions/tables.ts";
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { OWNER_API } from "#routes/auth.ts";

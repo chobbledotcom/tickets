@@ -16,6 +16,7 @@ import {
   defineEntityPage,
   deleteActionTab,
   type EntityPage,
+  overviewTab,
   type SlotLoader,
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
@@ -48,15 +49,11 @@ const loadListingsPanel: SlotLoader<QuestionWithAnswers> = async (question) => {
   });
 };
 
-const overviewTab: TabDef<QuestionWithAnswers> = {
-  labelKey: "entity.tab.overview",
-  sections: [
-    customSection(loadEditPanel),
-    customSection(loadAnswersPanel),
-    customSection(loadListingsPanel),
-  ],
-  slug: "",
-};
+const overview: TabDef<QuestionWithAnswers> = overviewTab([
+  customSection(loadEditPanel),
+  customSection(loadAnswersPanel),
+  customSection(loadListingsPanel),
+]);
 
 /** The tabbed question page. */
 export const questionPage: EntityPage<QuestionWithAnswers> = defineEntityPage({
@@ -65,7 +62,7 @@ export const questionPage: EntityPage<QuestionWithAnswers> = defineEntityPage({
   navActive: { section: adminPattern("questions") },
   recordId: (question) => question.id,
   tabs: [
-    overviewTab,
+    overview,
     deleteActionTab("questions.delete.submit", "questionDelete"),
   ],
   titleOf: (question) => questionTextFlat(question.text),

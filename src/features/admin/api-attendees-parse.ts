@@ -291,10 +291,16 @@ const resolveStatusId = (
   );
 };
 
-/** The status and retry token a body asks for, or the refusal. */
-const parseStatusAndToken = async (
+/** One JSON body read: the parsed value, or the field refusal. */
+type BodyRead<Parsed> = (
   body: Record<string, unknown>,
-): Promise<Result<{ statusId: number; ticketToken: string | undefined }>> => {
+) => Promise<Result<Parsed>>;
+
+/** The status and retry token a body asks for, or the refusal. */
+const parseStatusAndToken: BodyRead<{
+  statusId: number;
+  ticketToken: string | undefined;
+}> = async (body) => {
   const status = body.status;
   if (status !== undefined && (typeof status !== "string" || status === "")) {
     return errorResult("status must be text");
@@ -328,9 +334,7 @@ const parseStatusAndToken = async (
 
 /** Parse and validate a create body. A body with no lines, an unknown listing,
  *  or an unknown status is refused before anything is written. */
-export const parseCreateBody = async (
-  body: Record<string, unknown>,
-): Promise<Result<ParsedApiCreate>> => {
+export const parseCreateBody: BodyRead<ParsedApiCreate> = async (body) => {
   const contact = parseContact(body);
   if (!contact.ok) return contact;
 
