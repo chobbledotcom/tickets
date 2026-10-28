@@ -83,7 +83,7 @@ export const apiSaysThereIsRoom = async (
   // field would otherwise read as "no room" and pass a refusal story silently.
   const { available } = body;
   if (typeof available !== "boolean") {
-    throw new Error(`The API did not say whether there is room: ${status}`);
+    throw new Error(`The API did not say whether there is room: ${available}`);
   }
   return available;
 };

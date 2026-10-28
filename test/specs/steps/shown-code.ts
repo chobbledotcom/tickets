@@ -8,6 +8,7 @@ import {
   listingNamed,
   somethingForSale,
 } from "#test/specs/support/listings.ts";
+import { takeOffSale } from "#test/specs/support/public-list.ts";
 import {
   customerPaysMore,
   customerScans,
@@ -15,7 +16,6 @@ import {
   expectNothingBooked,
   meddledWith,
   organiserShowsCode,
-  takeOffSale,
 } from "#test/specs/support/shown-code.ts";
 import {
   requiredWorldValue,

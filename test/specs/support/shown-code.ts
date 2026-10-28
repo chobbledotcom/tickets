@@ -225,12 +225,6 @@ export const meddledWith = (link: string): string => {
   return link.replace(code, code.slice(0, at) + swapped + code.slice(at + 1));
 };
 
-/** The organiser takes something off sale after the codes are printed. */
-export const takeOffSale: ActOnOneThing = async (world, name) => {
-  const { listingsTable } = await import("#db/listings/records.ts");
-  await listingsTable.update(listingIdNamed(world, name), { active: false });
-};
-
 /** Nothing at all was booked, whatever the page said. */
 export const expectNothingBooked: ActOnOneThing = async (world, name) => {
   const { getAttendeesRaw } = await import(

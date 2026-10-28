@@ -140,17 +140,22 @@ Every family the 46 fell into was merged. The counts, measured after each step:
 | 17        | 9            | 0         |
 | 16        | 78           | 11        |
 
-The merges, in the order they landed: `opensAdminPageAt` adopted at the four
-files that hand-rolled it; `withAdminPage` widened to carry a result back and
-adopted at seven; `keepsWhatTheOrganiserSaw` and `visiting` in `browser.ts`;
-`forThisScenario` in `world.ts`; `organiserSavesFields`; the reader's presses,
-the erase form and Refund All curried; the named step types `ActOnOneThing`,
-`ReadAboutOneThing`, `AsksAboutOneThing` adopted at 31 helpers and the new
-`ActOnTheStory` at nine more; `emailFor` moved out of `tickets.ts`;
-`newcomerSends`, `recordPageUnder`, `wordsOnPageFrom`, `expectAccepted`,
-`savesServedForm`, `expectNotBooked`; and the named shapes `PageRead`,
-`StoredCounts`, `LineWithoutItsThing`, `FillsInServedForm` and
-`SavesNamedThingsForm`.
+The merges, in the order they landed:
+
+- `opensAdminPageAt` adopted at the four files that hand-rolled it.
+- `withAdminPage` widened to carry a result back and adopted at seven.
+- `keepsWhatTheOrganiserSaw` and `visiting` in `browser.ts`.
+- `forThisScenario` in `world.ts`.
+- `organiserSavesFields`.
+- The reader's presses, the erase form and Refund All curried.
+- The named step types `ActOnOneThing`, `ReadAboutOneThing`,
+  `AsksAboutOneThing` adopted at 31 helpers, and the new `ActOnTheStory` at
+  nine more.
+- `emailFor` moved out of `tickets.ts`.
+- `newcomerSends`, `recordPageUnder`, `wordsOnPageFrom`, `expectAccepted`,
+  `savesServedForm`, `expectNotBooked`.
+- The named shapes `PageRead`, `StoredCounts`, `LineWithoutItsThing`,
+  `FillsInServedForm` and `SavesNamedThingsForm`.
 
 The step down to 17 cleared nine pairs:
 
@@ -200,10 +205,11 @@ before any merge:
 
 The single pair at 48 tokens was the find that made the scan worth adding.
 `test/test-utils/test-state.ts` held its own copy of `createTableSql` and
-`createIndexSql` from `src/shared/db/migrations/schema-sync.ts`. No config could
-see it, because no config scanned `test/test-utils` against `src/`. The golden
-test database was therefore built by a second copy of the production schema
-builder, and could drift from it. It now calls `fullSchemaCreateStatements()`.
+`createIndexSql` from `src/shared/db/migrations/schema-sync.ts`. No config saw
+it, because no config scanned `test/test-utils` against `src/`. The golden test
+database was therefore built by a second copy of the production schema builder,
+with nothing to keep the two equal. It now calls
+`fullSchemaCreateStatements()`.
 
 The 12 further pairs down to 40 tokens were real merges, and they landed. The
 largest was a scaffold that 13 helper modules each spelled out for themselves:

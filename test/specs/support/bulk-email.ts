@@ -18,6 +18,7 @@ import {
   scenarioBrowser,
 } from "#test/specs/support/browser.ts";
 import { organiserAddsBooking } from "#test/specs/support/by-hand.ts";
+import { emailFor } from "#test/specs/support/emails.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
   listingIdNamed,
@@ -171,11 +172,6 @@ export const peopleBookOnto = async (
   );
 };
 
-/** The address the story gives somebody it names, so a later step can check who
- * the site really wrote to without the story repeating an address. */
-export const addressOf = (who: string): string =>
-  `${who.toLowerCase()}@example.com`;
-
 /** A listing booked by the day, made once per story and remembered by name, so
  * two people can book different days of the same thing. Room for a stay of up
  * to a week covers both a single day and a booking spanning several. */
@@ -199,7 +195,7 @@ export const personBooksDays = async (
   await organiserAddsBooking(world, listingName, {
     day: dayFromToday(world, firstDay),
     dayCount,
-    email: addressOf(who),
+    email: emailFor(who),
     who,
   });
 };
