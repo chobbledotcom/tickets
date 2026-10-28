@@ -280,7 +280,7 @@ const ADMIN_API_EXAMPLE_ATTENDEE = {
   attachment_downloads: 0,
   // A count of the line's admitted tickets, 0 up to quantity: one of two in.
   checked_in: 1,
-  created: "2026-06-01T10:00:00.000Z",
+  created: "2026-06-01T09:00:00.000Z",
   date: null,
   email: "jane@example.com",
   email_owed: 0,

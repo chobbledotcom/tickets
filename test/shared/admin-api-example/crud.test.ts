@@ -122,7 +122,7 @@ describe("documented admin CRUD endpoints", () => {
     });
     expect(attendee).toMatchObject({
       checked_in: 1,
-      created: "2026-06-01T10:00:00.000Z",
+      created: "2026-06-01T09:00:00.000Z",
       date: null,
       end_date: null,
       kind: "attendee",

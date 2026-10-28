@@ -257,6 +257,14 @@ describeWithEnv(
         ],
         [
           {
+            created: "",
+            lines: [{ listingId: listing.id, quantity: 1 }],
+            name: "Blank created",
+          },
+          "created must be a valid instant as 2026-09-01T09:00:00Z",
+        ],
+        [
+          {
             created: 5,
             lines: [{ listingId: listing.id, quantity: 1 }],
             name: "Numeric created",
