@@ -190,8 +190,9 @@ class: two unrelated bodies behind the same `(world, who, listing)` or
 type for its own shape, so the typed parameter list stopped repeating. The
 genuine duplicates became shared helpers:
 
-- `createAttendeeOn` in `booked-person.ts` is the one `createTestAttendee`
-  call on a listing. The note, deposit, and editor journeys route through it.
+- `createAttendeeOn` in `test/test-utils/db-helpers/attendees.ts` is the one
+  `createTestAttendee` call on a listing. The note, deposit, and editor
+  journeys route through it.
 - `askListingsApi` in `booking-api.ts` is the one "read an API listing
   endpoint, expect a 200" open.
 - `sendWithTheCode` in `discount-codes.ts` is the one promo-code send.
