@@ -41,6 +41,7 @@ import {
   crudDocs,
   type EndpointDoc,
   json,
+  renameOneText,
 } from "./admin-api-example/endpoint-doc.ts";
 import { QUESTION_ENDPOINTS } from "./admin-api-example/questions.ts";
 import { SITE_PAGE_ENDPOINTS } from "./admin-api-example/site-pages.ts";
@@ -265,10 +266,11 @@ const ADMIN_API_EXAMPLE_ATTRIBUTE_WITH_MEDIUM = {
  * the example must not read like the request also renames the attribute. */
 const ADMIN_API_EXAMPLE_OPTION_RENAMED = {
   ...ADMIN_API_EXAMPLE_ATTRIBUTE,
-  options: ADMIN_API_EXAMPLE_ATTRIBUTE.options.map((option) => ({
-    ...option,
-    text: option.text === "Hard" ? "Very hard" : option.text,
-  })),
+  options: renameOneText(
+    ADMIN_API_EXAMPLE_ATTRIBUTE.options,
+    "Hard",
+    "Very hard",
+  ),
 };
 
 /** Example attendee booking row, exactly as the attendees endpoint answers

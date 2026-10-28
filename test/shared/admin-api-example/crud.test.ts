@@ -410,7 +410,9 @@ describe("documented admin CRUD endpoints", () => {
     expect(isIsoDate(holiday.start_date)).toBe(true);
     expect(isIsoDate(holiday.end_date)).toBe(true);
     // A holiday that ended before it began could never be saved.
-    expect(holiday.end_date >= holiday.start_date).toBe(true);
+    expect(new Date(holiday.end_date).getTime()).toBeGreaterThanOrEqual(
+      new Date(holiday.start_date).getTime(),
+    );
   });
 
   test("the documented group shows every field a group carries", () => {

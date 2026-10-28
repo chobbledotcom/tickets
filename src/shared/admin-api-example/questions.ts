@@ -17,6 +17,7 @@ import {
   crudDocs,
   type EndpointDoc,
   json,
+  renameOneText,
 } from "./endpoint-doc.ts";
 
 // jscpd:ignore-end
@@ -73,10 +74,11 @@ const ADMIN_API_EXAMPLE_QUESTION_WITH_MEDIUM = {
 /** The answer to an answer rename: the question's own fields are untouched. */
 const ADMIN_API_EXAMPLE_ANSWER_RENAMED = {
   ...ADMIN_API_EXAMPLE_QUESTION,
-  answers: ADMIN_API_EXAMPLE_QUESTION.answers.map((answer) => ({
-    ...answer,
-    text: answer.text === "Large" ? "Extra large" : answer.text,
-  })),
+  answers: renameOneText(
+    ADMIN_API_EXAMPLE_QUESTION.answers,
+    "Large",
+    "Extra large",
+  ),
 };
 
 /** The documented path of one answer write route: the parent's id param and
