@@ -27,7 +27,10 @@ import {
   parseEditableAggregateForm,
   runRecalculatePost,
 } from "#routes/admin/aggregate-recalculation.ts";
-import { createVerifiedFormRoute } from "#routes/admin/confirmation.ts";
+import {
+  createVerifiedFormRoute,
+  verifiedDelete,
+} from "#routes/admin/confirmation.ts";
 import { formGuard, OWNER_FORM, requireOwnerOr } from "#routes/auth.ts";
 import { createEntityHandler, throughParent } from "#routes/entity.ts";
 /* jscpd:ignore-start */
@@ -186,14 +189,11 @@ export const handleDeleteAnswerPost: ParamsRoute<AnswerRouteParams> =
     loadContext: loadQuestionAndAnswer,
     mismatchRedirect: (_, { id, answerId }) =>
       `/admin/questions/${id}/answers/${answerId}/delete`,
-    onConfirm: async ({ context: { answer, question } }) => {
-      await deleteAnswerWithLog(question, answer);
-      return redirect(
-        `/admin/questions/${question.id}`,
-        t("questions.answer_deleted"),
-        true,
-      );
-    },
+    onConfirm: verifiedDelete(
+      ({ answer, question }) => deleteAnswerWithLog(question, answer),
+      ({ question }) => `/admin/questions/${question.id}`,
+      () => t("questions.answer_deleted"),
+    ),
   });
 
 /** The "answer"-trigger modifiers an answer can be linked to, as the lightweight
