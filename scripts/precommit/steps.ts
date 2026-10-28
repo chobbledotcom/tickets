@@ -92,6 +92,13 @@ const STEPS = [
     cmd: ["task", "check:test-quality"],
     name: "check:test-quality",
   },
+  // The presence-assertion check holds every test file to its recorded
+  // toBeDefined() count in a registry that only falls (see "Test Quality
+  // Standards" in AGENTS.md).
+  {
+    cmd: ["task", "check:presence-assertions"],
+    name: "check:presence-assertions",
+  },
   // The dump module must also run against the base tree: a helper the branch
   // adds is invisible to origin/main, and only this diff exercises that
   // import (issue #2740).

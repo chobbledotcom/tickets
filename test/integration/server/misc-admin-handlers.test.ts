@@ -350,10 +350,8 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
         [listing.id],
         [attendee.id],
       );
-      expect(result).toBeDefined();
-      expect(result!.questions.length).toBe(1);
-      expect(result!.questions[0]!.id).toBe(question.id);
-      expect(result!.attendeeAnswerMap).toBeDefined();
+      expect(result?.questions.map(({ id }) => id)).toEqual([question.id]);
+      expect(result?.attendeeAnswerMap).toEqual(new Map());
     });
   });
 });

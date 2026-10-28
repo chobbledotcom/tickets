@@ -79,22 +79,25 @@ const findAssertionlessTests = (
     }));
 };
 
-const findWeakAssertions = (
+/** Every `pattern` match in one file's comment-and-string-blanked code, with
+ * the line and column each match sits on. One scanner behind the
+ * weak-assertion audit and the presence-assertion gate, so the two cannot
+ * drift apart. */
+export const findWeakPattern = (
   path: string,
   content: string,
+  { message, pattern }: { message: string; pattern: RegExp },
 ): TestQualityFinding[] => {
   const findings: TestQualityFinding[] = [];
   const code = blankSpans(content, true);
-  for (const { message, pattern } of WEAK_ASSERTION_PATTERNS) {
-    let match = pattern.exec(code);
-    while (match !== null) {
-      findings.push({
-        ...lineColumnAt(content, match.index),
-        message,
-        path,
-      });
-      match = pattern.exec(code);
-    }
+  let match = pattern.exec(code);
+  while (match !== null) {
+    findings.push({
+      ...lineColumnAt(content, match.index),
+      message,
+      path,
+    });
+    match = pattern.exec(code);
   }
   return findings;
 };
@@ -104,5 +107,7 @@ export const auditTestContent = (
   content: string,
 ): TestQualityFinding[] => [
   ...findAssertionlessTests(path, content),
-  ...findWeakAssertions(path, content),
+  ...WEAK_ASSERTION_PATTERNS.flatMap((weak) =>
+    findWeakPattern(path, content, weak),
+  ),
 ];
