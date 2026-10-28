@@ -22,9 +22,16 @@ export interface ParsedArgs {
   useHarness: boolean;
 }
 
+/** The fields of `T` whose value is `V`, with `null` and `undefined` ignored:
+ *  derived from the type, so a new flag field joins the right setter union
+ *  without a hand-edited copy. */
+type FieldsOfType<T, V> = {
+  [Field in keyof T]-?: NonNullable<T[Field]> extends V ? Field : never;
+}[keyof T];
+
 /** A standalone flag: sets one boolean field on `parsed`. */
 const setBooleanFlag =
-  (field: "exhaustive" | "help" | "useHarness") =>
+  (field: FieldsOfType<ParsedArgs, boolean>) =>
   (parsed: ParsedArgs): void => {
     parsed[field] = true;
   };
@@ -47,7 +54,7 @@ const toNumber = (value: string): number =>
 
 /** A value flag: records the parsed number on one field of `parsed`. */
 const setNumberFlag =
-  (field: "batchJobs" | "deadline") =>
+  (field: FieldsOfType<ParsedArgs, number>) =>
   (parsed: ParsedArgs, value: string): void => {
     parsed[field] = toNumber(value);
   };
