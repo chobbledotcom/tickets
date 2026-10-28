@@ -195,6 +195,15 @@ on a pair the baseline does not carry, and `deno task cpd:renamed --update`
 rewrites the baseline after a merge. The baseline records no written reason —
 the merge history carries it.
 
+Since jscpd 5.4.2 the strict scans (`.jscpd.json`, `.jscpd.test.json`,
+`.jscpd.helpers.json`, `.jscpd.support.json`) enable the Type-2 clone options
+`ignoreIdentifiers`, `ignoreLiterals` and `ignoreAnnotations`, and each reports
+only kind `exact`. jscpd then classifies a match that differs only in names,
+literal values or annotations as a `renamed` clone instead of an `exact` one,
+and the exact-clone gates stay exact-only: a 0% share of token-identical code,
+with renamed copies left to the renamed-clone gate. A run that asks for every
+kind, or a report without the `kind` filter, shows the renamed clones too.
+
 A pair changes status one way: merge it (extract a helper, or curry the parts
 that differ), then refresh the baseline. A new renamed copy anywhere in the
 scanned trees fails the gate, which is the point: the slug-index class of drift
