@@ -18,10 +18,7 @@ import {
 } from "#test/specs/support/browser.ts";
 import { groupNamed } from "#test/specs/support/groups.ts";
 import { whatTheCustomerSees } from "#test/specs/support/list-narrowing.ts";
-import {
-  listingNamed,
-  putsPlainThingOnSale,
-} from "#test/specs/support/listings.ts";
+import { putsPlainThingOnSale } from "#test/specs/support/listings.ts";
 import type {
   ActOnOneThing,
   AsksAboutOneThing,
@@ -86,22 +83,29 @@ const expectInThisOrder = (page: string, words: string[]): void => {
   expect(found).toEqual([...found].toSorted((a, b) => a - b));
 };
 
+/** Checks the customer's page for one set of words, in the order given. */
+type ExpectsWordsInOrder = (world: TicketsWorld, words: string[]) => void;
+
 /** What the customer is looking at, read once, and checked for these words in
  * this order. Every ordering rule on the public list is this. */
-const expectCustomerSeesInOrder = (
-  world: TicketsWorld,
-  words: string[],
-): void => {
+const expectCustomerSeesInOrder: ExpectsWordsInOrder = (world, words) => {
   expectInThisOrder(whatTheCustomerSees(world), words);
 };
 
-/** The bundles come first, under their own heading and in the order named,
- * and everything else on sale begins below them. */
-export const expectBundlesGatheredFirst = (
+/** Two things read back in the order the site lists them. */
+type ExpectsTwoInOrder = (
   world: TicketsWorld,
   first: string,
   second: string,
-): void =>
+) => void;
+
+/** The bundles come first, under their own heading and in the order named,
+ * and everything else on sale begins below them. */
+export const expectBundlesGatheredFirst: ExpectsTwoInOrder = (
+  world,
+  first,
+  second,
+) =>
   expectCustomerSeesInOrder(world, [
     t("public.packages"),
     first,
@@ -133,11 +137,6 @@ export const sellsSomethingNobodyAttends = sellsSomethingThatIs({
 
 /** Something on sale that the organiser keeps off the public list. */
 export const sellsSomethingQuietly = sellsSomethingThatIs({ hidden: true });
-
-/** One named thing taken off sale. */
-export const takeOffSale: ActOnOneThing = async (world, name) => {
-  await deactivateTestListing(listingNamed(world, name).id);
-};
 
 /** How a group holds one of its things: on sale as normal, off sale, or full
  * with no room left. */

@@ -16,7 +16,10 @@ import { rosterPath } from "#test/specs/support/by-hand.ts";
 import { emailFor } from "#test/specs/support/emails.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import { rememberListing } from "#test/specs/support/listings.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import type {
+  ReadAboutOneThing,
+  TicketsWorld,
+} from "#test/specs/support/world.ts";
 import { createMultiBookingAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
@@ -120,10 +123,10 @@ export const movesPartOfAParty = async (
  * how many of its tickets are in — the words the organiser reads there. A
  * booking still owing tickets links "Check in" (or "Check in/out" once some
  * are in); a full one links only "Check out". */
-export const partCountOnTheList = async (
-  world: TicketsWorld,
-  listing: string,
-): Promise<string> =>
+export const partCountOnTheList: ReadAboutOneThing<string> = async (
+  world,
+  listing,
+) =>
   (
     await followOnTheList(world, listing, (html) =>
       html.includes(">Check in") ? "Check in" : "Check out",

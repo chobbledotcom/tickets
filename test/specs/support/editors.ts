@@ -36,7 +36,7 @@ import {
   stillThere,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createAttendeeOn } from "#test-utils/db-helpers/attendees.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 import type { ListingWithCount } from "#types";
@@ -118,12 +118,7 @@ export const TAKINGS = 37.5;
 export const somethingSoldAndPaidFor: ActOnOneThing = async (world, name) => {
   await somethingForSale(world, name);
   const listing = listingNamed(world, name);
-  const buyer = await createTestAttendee(
-    listing.id,
-    listing.slug,
-    "Buyer",
-    "buyer@example.com",
-  );
+  const buyer = await createAttendeeOn(listing, "Buyer", "buyer@example.com");
   await postListingSale({
     attendeeId: buyer.id,
     gross: toMinorUnits(TAKINGS),
@@ -140,9 +135,9 @@ export const ownersListingsPage = (world: TicketsWorld): Promise<string> =>
 /** The editor starts a new listing, picks what kind it is from the kinds the
  * site offers, fills the form in and saves it. */
 export const editorAddsListing: ActOnOneThing = async (world, name) => {
+  const typed = { max_attendees: "10", max_quantity: "1", name };
   const browser = await openAsEditor(world, "/admin/listing/new");
   await browser.clickLink(t("listings_table.listing_type_picker_custom"));
-  const typed = { max_attendees: "10", max_quantity: "1", name };
   expectCanReallySend(browser.currentHtml, typed);
   await browser.submitForm(typed, t("listings_table.create_listing"));
 };

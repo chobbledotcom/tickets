@@ -5,6 +5,7 @@
  * the story names and lets the site work that code out.
  */
 
+// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { base64ToBase64Url } from "#crypto/utils.ts";
@@ -16,7 +17,6 @@ import {
   saveContactRecord,
 } from "#db/contact-preferences.ts";
 import { mapNotNullish } from "#fp";
-// jscpd:ignore-start
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { openAdminPage } from "#test/specs/support/browser.ts";
 import { whyValueCannotBeSent } from "#test/specs/support/form-controls/rules.ts";

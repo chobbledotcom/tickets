@@ -39,6 +39,7 @@ import {
 } from "#test/specs/support/sales-pages.ts";
 import { dayFromToday } from "#test/specs/support/stays.ts";
 import {
+  type ActsOnPersonsBooking,
   type ReadAboutOneThing,
   requiredWorldValue,
   type TicketsWorld,
@@ -127,11 +128,7 @@ export const theDayTheyPicked = (world: TicketsWorld): string =>
   dayFromToday(world, 10);
 
 /** Somebody books the day they picked on a thing sold by the day. */
-export const customerBooksTheirDay = (
-  world: TicketsWorld,
-  who: string,
-  name: string,
-): Promise<void> =>
+export const customerBooksTheirDay: ActsOnPersonsBooking = (world, who, name) =>
   ordersAndKeepsTheCode(
     world,
     [name],

@@ -47,6 +47,12 @@ export type ActOnOnePerson = (
   world: TicketsWorld,
   who: string,
 ) => Promise<void>;
+/** Something a story does to one person's booking on a named listing. */
+export type ActsOnPersonsBooking = (
+  world: TicketsWorld,
+  who: string,
+  listing: string,
+) => Promise<void>;
 export type ActOnSomeMoney = (
   world: TicketsWorld,
   amount: string,

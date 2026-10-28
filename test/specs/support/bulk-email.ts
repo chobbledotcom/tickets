@@ -26,6 +26,7 @@ import {
 } from "#test/specs/support/listings.ts";
 import {
   answersTheEmailProviderWith,
+  outgoingWatch,
   type PutsAWatchInPlace,
 } from "#test/specs/support/outgoing.ts";
 import { dayFromToday, openStayListing } from "#test/specs/support/stays.ts";
@@ -36,6 +37,7 @@ import {
   type ReadAboutOneThing,
   type ReadsWhatWasKept,
   requiredWorldValue,
+  type StoryJourney,
   type TicketsWorld,
   whatWasKeptFor,
 } from "#test/specs/support/world.ts";
@@ -86,8 +88,8 @@ export const watchWhatIsSent: PutsAWatchInPlace =
 
 /** Every send the site really made to the email provider. */
 const sendsMade = (world: TicketsWorld) =>
-  requiredWorldValue(world.messagesOut, "the outgoing watch").calls.filter(
-    ({ url }) => url.includes("api.resend.com"),
+  outgoingWatch(world).calls.filter(({ url }) =>
+    url.includes("api.resend.com"),
   );
 
 /** How many times the site went to the provider at all. A story proving a send
@@ -183,13 +185,10 @@ const dailyListingNamed: ActOnOneThing = async (world, listingName) => {
 /** Somebody books one listing from a day, for however many days they stay. The
  * organiser adds it through the roster form, so a story never books past a way
  * in the site does not offer. */
-export const personBooksDays = async (
-  world: TicketsWorld,
-  who: string,
-  listingName: string,
-  firstDay: number,
-  dayCount: number,
-): Promise<void> => {
+export const personBooksDays: StoryJourney<
+  [who: string, listingName: string, firstDay: number, dayCount: number],
+  void
+> = async (world, who, listingName, firstDay, dayCount) => {
   if (!world.messagesOut) watchWhatIsSent(world);
   await dailyListingNamed(world, listingName);
   await organiserAddsBooking(world, listingName, {
@@ -339,12 +338,13 @@ export const wordsTheyWrote = (world: TicketsWorld): string =>
 
 /** The owner writes to one listing's attendees, all the way from that listing's
  * own page to the preview they end up on. */
-export const writesToListing = (
-  world: TicketsWorld,
-  listingName: string,
-  message: MessageWritten,
-): Promise<void> =>
-  writesOnPageFrom(world, opensEmailForListing(world, listingName), message);
+export const writesToListing: StoryJourney<
+  [listingName: string, message: MessageWritten],
+  void
+> = async (world, listingName, message) => {
+  const opening = opensEmailForListing(world, listingName);
+  await writesOnPageFrom(world, opening, message);
+};
 
 /** Whether the preview the owner is looking at offers to have the site send
  * the message for them. A page whose only Send button is switched off offers
