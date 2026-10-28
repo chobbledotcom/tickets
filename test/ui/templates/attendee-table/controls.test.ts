@@ -22,6 +22,7 @@ import {
 } from "#test-utils/attendee-list.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { makeRow } from "./shared.ts";
 
 const state = (
   overrides: Partial<AttendeeListState> = {},
@@ -138,6 +139,74 @@ describe("the shared attendee-list controls", () => {
     const roster = testRosterListSetup();
     assert(!controlsHtml(roster, state()).includes('name="group"'));
   });
+
+  test("the group form names its select and pins the empty and chosen options", () => {
+    const browser = testBrowserListSetup();
+    const html = controlsHtml(browser, state({ groupId: 5, sort: "oldest" }));
+
+    // A bare `name="group"` substring also matches the listing form's hidden
+    // inputs, so match the select tag itself.
+    expect(html).toMatch(/<select[^>]*name="group"/);
+    expect(html).toMatch(/<option value="">All groups<\/option>/);
+    expect(html).toMatch(/<option selected value="5">/);
+    expect(html).toMatch(/<form[^>]*class="filter-row"/);
+    expect(html).toMatch(/<form[^>]*method="get"/);
+  });
+
+  test("the listing form names its select and pins the chosen option", () => {
+    const browser = testBrowserListSetup();
+    const html = controlsHtml(browser, state({ listingId: 9 }));
+
+    expect(html).toMatch(/<select[^>]*name="listing"/);
+    expect(html).toMatch(/<option selected value="9">/);
+  });
+
+  test("marks the all-groups option when no group is chosen", () => {
+    const browser = testBrowserListSetup();
+    const html = controlsHtml(browser, state());
+
+    expect(html).toMatch(/<option selected value="">All groups<\/option>/);
+  });
+
+  test("marks the all-listings option when no listing is chosen", () => {
+    const browser = testBrowserListSetup();
+    const html = controlsHtml(browser, state());
+
+    expect(html).toMatch(/<option selected value="">All listings<\/option>/);
+  });
+
+  test("flags a deactivated listing in the listing dropdown", () => {
+    const browser = testBrowserListSetup({
+      listings: [
+        testListingWithCount({ id: 7, name: "Open" }),
+        testListingWithCount({ active: false, id: 9, name: "Closed" }),
+      ],
+    });
+    const html = controlsHtml(browser, state());
+
+    assertStringIncludes(html, "Closed (deactivated)");
+  });
+
+  test("drops the current page from the hidden inputs of a choice form", () => {
+    const browser = testBrowserListSetup();
+    const html = controlsHtml(browser, state({ groupId: 5, page: 3 }));
+
+    expect(html).not.toMatch(/name="page"/);
+  });
+
+  test("offers the group form alone for one listing and one group", () => {
+    const oneOfEach = testBrowserListSetup({
+      groups: [{ id: 5, name: "Solo" }],
+      listings: [testListingWithCount({ id: 7 })],
+    });
+    const html = controlsHtml(oneOfEach, state({ groupId: 5 }));
+
+    expect(html).toMatch(/<select[^>]*name="group"/);
+    expect(html).not.toMatch(/<select[^>]*name="listing"/);
+    // The group form clears its own choice, so the chosen group id never
+    // rides along as a hidden input.
+    expect(html).not.toMatch(/name="group" type="hidden"/);
+  });
 });
 
 describe("the shared pagination", () => {
@@ -167,6 +236,23 @@ describe("the shared pagination", () => {
       'href="/admin/listing/5/attendees?page=2" rel="next"',
     );
     assertStringIncludes(html, 'href="/admin/listing/5/attendees" rel="prev"');
+    assertStringIncludes(html, "Page 2");
+  });
+
+  test("renders a first page with its next link and page number", () => {
+    const html = String(
+      AttendeeListPagination({
+        hasNext: true,
+        view: {
+          setup: testRosterListSetup({ withPaging: true }),
+          state: state(),
+        },
+      }),
+    );
+
+    expect(html).toMatch(/<nav class="pagination"/);
+    assertStringIncludes(html, "Page 1");
+    assertStringIncludes(html, 'rel="next"');
   });
 });
 
@@ -212,5 +298,30 @@ describe("the filtered attendee table", () => {
       }),
     );
     assert(!html.includes("Export CSV"));
+  });
+
+  test("shows the result count for a filtered type and hides it for all", () => {
+    const options = { ...tableOptions, rows: [makeRow()] };
+    const filtered = String(
+      FilteredAttendeeTable({
+        options,
+        view: {
+          setup: testRosterListSetup(),
+          state: state({ type: "standard" }),
+        },
+      }),
+    );
+    assertStringIncludes(
+      filtered,
+      "Showing 1 attendee for <strong>Standard</strong>",
+    );
+
+    const all = String(
+      FilteredAttendeeTable({
+        options,
+        view: { setup: testRosterListSetup(), state: state() },
+      }),
+    );
+    assert(!all.includes("Showing 1 attendee"));
   });
 });
