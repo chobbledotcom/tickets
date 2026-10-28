@@ -85,9 +85,9 @@ const STEPS = [
     cmd: ["task", "check:coverage-exclusions"],
     name: "check:coverage-exclusions",
   },
-  // The test-quality gate warns on weak assertions in test files the branch
-  // touches and fails on ones it adds, against the merge base on origin/main
-  // (see "Test Quality Standards" in AGENTS.md).
+  // The test-quality gate fails on every weak assertion a test file the
+  // branch touches carries — one the change adds or one it inherits — against
+  // the merge base on origin/main (see "Test Quality Standards" in AGENTS.md).
   {
     cmd: ["task", "check:test-quality"],
     name: "check:test-quality",
