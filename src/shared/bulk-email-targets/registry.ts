@@ -105,12 +105,16 @@ const firstTarget = async <S>(
 ): Promise<BulkEmailTarget | null> =>
   (await firstMatch(parsers.map((parse) => () => parse(source)))) ?? null;
 
+/** Resolve a target from one source through an ordered set of parsers. */
+const targetFrom =
+  <Source>(
+    parsers: ReadonlyArray<(source: Source) => Parsed<BulkEmailTarget>>,
+  ) =>
+  (source: Source): Promise<BulkEmailTarget | null> =>
+    firstTarget(parsers, source);
+
 /** Resolve a compose-page target from query params, or null if it's gone. */
-export const targetFromQuery = (
-  params: URLSearchParams,
-): Promise<BulkEmailTarget | null> => firstTarget(QUERY_PARSERS, params);
+export const targetFromQuery = targetFrom(QUERY_PARSERS);
 
 /** Resolve a target from posted form fields, or null if a named target is gone. */
-export const targetFromForm = (
-  form: FormParams,
-): Promise<BulkEmailTarget | null> => firstTarget(FORM_PARSERS, form);
+export const targetFromForm = targetFrom(FORM_PARSERS);
