@@ -1,6 +1,6 @@
 /**
- * Builds a public content-page template (a news post, a site page): the shared
- * SEO shell wrapped around a body built from the item, its images, and the
+ * Builds a public content-page template (a news post, a site page). It wraps
+ * the shared SEO shell around a body built from the item, its images, and the
  * public nav. The two page kinds differ only in that body (and shell options),
  * so each template file is just one `seoContentPage(...)` call.
  */

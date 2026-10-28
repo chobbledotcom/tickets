@@ -20,7 +20,7 @@ type ReadyRefundReferenceBase = {
   reference: TaggedRefundPaymentReference;
 };
 
-/** One provider-tagged reference after its exact provider read has finished. */
+/** One provider-tagged reference after its exact provider read finishes. */
 export type ReadyRefundReference =
   | (ReadyRefundReferenceBase & {
       charge: ChargeMoney;

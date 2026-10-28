@@ -5,11 +5,13 @@
  * ./exclusion-ratchet.ts and the entry stays a one-liner.
  */
 
+/* jscpd:ignore-start -- imports */
 import { type CheckOutput, reportCheck } from "#scripts/check-report.ts";
+import { fileAtRevision } from "#scripts/file-at-revision.ts";
 import {
-  commandValue,
+  type MergeBaseListReader,
+  mergeBaseOrThrow,
   type RunCommand,
-  runGit,
 } from "#scripts/precommit/git.ts";
 import {
   EXCLUSIONS_PATH,
@@ -18,6 +20,8 @@ import {
   parseExclusionEntries,
   RATCHET_GUIDE,
 } from "./exclusion-ratchet.ts";
+
+/* jscpd:ignore-end */
 
 /**
  * The entries the gate actually enforces, `COVERAGE_EXCLUSIONS`, are the
@@ -40,39 +44,10 @@ const assertParseCoversRuntime = (
   }
 };
 
-/** The text of `path` at `revision`, or undefined when the revision does not
- * hold the file. A missing path is not an error: `git ls-tree` exits 0 with
- * an empty listing, and its exit codes do not depend on the git locale. A
- * probe or read failure must surface, because the ratchet would otherwise
- * read an empty base and reject unchanged entries as added. */
-const fileAtRevision = async (
-  run: RunCommand,
-  revision: string,
-  path: string,
-) => {
-  const tree = await runGit(run, ["ls-tree", revision, "--", path]);
-  if (tree.code !== 0) {
-    throw new Error(
-      `git ls-tree ${revision} -- ${path} failed: ${tree.stderr.trim()}`,
-    );
-  }
-  if (tree.stdout === "") return;
-  const show = await runGit(run, ["show", `${revision}:${path}`]);
-  if (show.code !== 0) {
-    throw new Error(
-      `git show ${revision}:${path} failed: ${show.stderr.trim()}`,
-    );
-  }
-  return show.stdout;
-};
-
 /** The exclusion entries the merge base holds: from the data module, or from
  * the gate module the list moved out of. Neither file at the base means the
  * base carried no exclusions. */
-export const baseEntries = async (
-  run: RunCommand,
-  mergeBase: string,
-): Promise<string[]> => {
+export const baseEntries: MergeBaseListReader = async (run, mergeBase) => {
   const moved = await fileAtRevision(run, mergeBase, EXCLUSIONS_PATH);
   if (moved !== undefined) return parseExclusionEntries(moved);
   const legacy = await fileAtRevision(run, mergeBase, LEGACY_PATH);
@@ -88,16 +63,7 @@ export const ratchetExit = async (
   runtimeEntries: readonly string[],
   output: CheckOutput,
 ): Promise<number> => {
-  const mergeBase = await commandValue(run, [
-    "merge-base",
-    "HEAD",
-    "origin/main",
-  ]);
-  if (mergeBase === undefined) {
-    throw new Error(
-      "The ratchet needs origin/main. Run git fetch origin main first.",
-    );
-  }
+  const mergeBase = await mergeBaseOrThrow(run, "ratchet");
   assertParseCoversRuntime(parseExclusionEntries(headSource), runtimeEntries);
   const base = await baseEntries(run, mergeBase);
   return reportCheck({

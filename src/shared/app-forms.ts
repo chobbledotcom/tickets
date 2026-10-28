@@ -48,7 +48,7 @@ export type AuthedBase<TParams, TContext> = {
   ) => Promise<TContext | null>;
 };
 
-/** The handling step run once auth (and any context load) has passed. */
+/** The handling step run once auth and any context load passes. */
 export type AuthedHandleStep<TParams, TContext> = ResponseHandler<
   [args: AuthedHandlerArgs<TParams, TContext>]
 >;

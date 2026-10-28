@@ -100,8 +100,10 @@ export const adminListingPickerPage = (session: AdminSession): string =>
     session,
     t("listings_table.add_listing"),
     <>
-      <h1>{t("listings_table.listing_type_picker_heading")}</h1>
-      <p>{t("listings_table.listing_type_picker_subheading")}</p>
+      <div class="prose">
+        <h1>{t("listings_table.listing_type_picker_heading")}</h1>
+        <p>{t("listings_table.listing_type_picker_subheading")}</p>
+      </div>
       <div class="listing-type-picker">
         {LISTING_TEMPLATES.filter(
           (tmpl) => !tmpl.requiresLogistics || settings.features.logistics,

@@ -37,17 +37,28 @@ const A_TICKET_PAGE = "https://example.test/t/ABC";
 const savePathFor = (which: EmailTemplateType): string =>
   `/admin/settings/email-templates/${which}`;
 
-/** The owner writes one email's wording and saves it, through the form the
- * page really serves. */
+/** The owner writes one email's wording and saves it. Through the form the
+ * page really serves by default; straight into the store when the story
+ * starts with the wording already written. */
 export const ownerWrites = async (
   world: TicketsWorld,
   which: EmailTemplateType,
   wording: EmailContent,
+  { throughTheForm = true }: { throughTheForm?: boolean } = {},
 ): Promise<void> => {
-  await organiserSendsTheFormAt(world, ADVANCED_PATH, savePathFor(which), {
-    ...wording,
-  });
-  world.wordingWritten = wording;
+  if (throughTheForm) {
+    await organiserSendsTheFormAt(world, ADVANCED_PATH, savePathFor(which), {
+      ...wording,
+    });
+    world.wordingWritten = wording;
+    return;
+  }
+  await Promise.all([
+    settings.update.email.template(which, "subject", wording.subject),
+    settings.update.email.template(which, "html", wording.html),
+    settings.update.email.template(which, "text", wording.text),
+  ]);
+  settings.invalidateCache();
 };
 
 /** An email's three parts, taken from wherever this reader finds them. Every
@@ -83,14 +94,20 @@ export const wordingKeptFor = readsAnEmail((which) =>
  * be the owner's words mixed into the site's. */
 export const SITES_OWN_WORDING: EmailContent = threeParts(() => "");
 
+/** What every box on one template's form would send, read off that form. */
+type ReadsTheEmailBoxes = (
+  world: TicketsWorld,
+  which: EmailTemplateType,
+) => Promise<EmailContent>;
+
 /** What every box on one template's form would send right now, read the way a
  * browser submits it. The claim is that the boxes are empty: a page that
  * prefilled one with the site's own wording would store that wording as the
  * owner's the first time they pressed Save. */
-export const wordingTheBoxesWouldSend = async (
-  world: TicketsWorld,
-  which: EmailTemplateType,
-): Promise<EmailContent> => {
+export const wordingTheBoxesWouldSend: ReadsTheEmailBoxes = async (
+  world,
+  which,
+) => {
   const page = await openAdminPage(world, ADVANCED_PATH);
   return threeParts((part) => {
     const sent = page.wouldSendAt(savePathFor(which), part);
@@ -175,17 +192,4 @@ export const whatTheBoxCarries = (
     fillsInWith: attribute("data-default-tpl"),
     hint: attribute("placeholder"),
   };
-};
-
-/** Wording the owner saved before the scenario started. */
-export const ownerAlreadyWrote = async (
-  which: EmailTemplateType,
-  wording: EmailContent,
-): Promise<void> => {
-  await Promise.all([
-    settings.update.email.template(which, "subject", wording.subject),
-    settings.update.email.template(which, "html", wording.html),
-    settings.update.email.template(which, "text", wording.text),
-  ]);
-  settings.invalidateCache();
 };

@@ -108,7 +108,7 @@ const handleResult = (el, result, messages) => {
     // before it re-posts, and a ticket whose only rows are "No check-in"
     // answers wrong_listing again.
     case "wrong_listing":
-      showStatus(el, getMessage(messages, "messageNoDoor", "This ticket has no door to check in at"), "error");
+      showStatus(el, getMessage(messages, "messageNoDoor", "This ticket has no door to check in at."), "error");
       break;
     case "not_found":
       showStatus(el, getMessage(messages, "messageNotFound", "Ticket not found"), "error");

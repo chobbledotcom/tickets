@@ -261,18 +261,21 @@ describe("the admin scanner page template", () => {
       RETENTION_DAYS,
     );
     assert(!quiet.includes("Scanning a ticket in this group"));
-    // A caller that leaves the flag off (as every listing door's route does)
-    // gets the quiet page too, so the parameter's own default stays quiet.
-    const unset = adminScannerPage(
+  });
+
+  test("a caller that omits the every-listing rule stays quiet, not warned", () => {
+    // A one-listing door's route passes the flag itself; a direct caller
+    // that leaves it out gets the safe default, never the warning.
+    const html = adminScannerPage(
       { name: "Doors" },
-      "/admin/listings/5/scan",
+      "/admin/listing/3/scan",
       OWNER_SESSION,
       [],
       undefined,
       DOOR_CACHE_KEY,
       RETENTION_DAYS,
     );
-    assert(!unset.includes("Scanning a ticket in this group"));
+    assert(!html.includes("Scanning a ticket in this group"));
   });
 
   test("carries every check-in message both checking paths read", () => {
@@ -385,7 +388,6 @@ describe("the admin scanner page template", () => {
       "queue-item-refunded": t("admin.scanner.queue_item_refunded"),
       "queue-item-still-queued": t("admin.scanner.queue_item_still_queued"),
       "queue-save-failed": t("admin.scanner.queue_save_failed"),
-      // The kept-scan sync's four words, which the offline door reads.
       "sync-done": t("admin.scanner.sync_done"),
       "sync-holds": t("admin.scanner.sync_holds"),
       "sync-running": t("admin.scanner.sync_running"),
@@ -440,6 +442,10 @@ describe("the admin scanner page template", () => {
       'class="scanner-overlay hidden" id="scanner-quantity"',
     );
     assertStringIncludes(html, 'id="scanner-start"');
+    // The offline-mode toggle the client binds and the quiet button it keeps.
+    assertStringIncludes(html, 'id="scanner-offline-toggle"');
+    assertStringIncludes(html, 'class="link-button muted"');
+    assertStringIncludes(html, 'aria-pressed="false"');
     // The camera hole and status line the scanner script starts from, and
     // the quantity ask's controls.
     assertStringIncludes(html, 'id="scanner-container"');
@@ -451,10 +457,6 @@ describe("the admin scanner page template", () => {
     assertStringIncludes(html, 'id="scanner-offline-banner-text"');
     assertStringIncludes(html, 'id="scanner-queue"');
     assertStringIncludes(html, 'id="scanner-queue-summary"');
-    // The toggle the door uses to switch to offline mode, styled as a quiet
-    // link so it never reads as the camera's start button.
-    assertStringIncludes(html, 'class="link-button muted"');
-    assertStringIncludes(html, 'id="scanner-offline-toggle"');
     assertStringIncludes(html, 'id="scanner-queue-items"');
     assertStringIncludes(html, 'id="scanner-quantity-message"');
     assertStringIncludes(html, 'for="scanner-quantity-select"');

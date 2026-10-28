@@ -12,7 +12,7 @@
 /* jscpd:ignore-start */
 import * as v from "valibot";
 import { decrypt, encrypt } from "#crypto/encryption.ts";
-import { hmacHash } from "#crypto/hashing.ts";
+import { blindIndexFor } from "#crypto/hashing.ts";
 import type { BlindIndex, EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { execute, queryOne, type SqlStatement } from "#db/client.ts";
 import {
@@ -28,10 +28,7 @@ import { defineStoredJson } from "#shared/validation/stored-json.ts";
  * Compute the blind-index HMAC for a lookup. The provider is part of the
  * keyed input so two providers' results for the same search never collide.
  */
-export const computeAddressSearchIndex = (
-  provider: string,
-  normalisedSearch: string,
-): Promise<BlindIndex> => hmacHash(`${provider}:${normalisedSearch}`);
+export const computeAddressSearchIndex = blindIndexFor("");
 
 /** The oldest `created` a cache row may have and still be served. */
 const freshCutoffIso = (): string => isoBefore(ADDRESS_CACHE_MS);

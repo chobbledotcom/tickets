@@ -21,7 +21,7 @@ import type { AdminSession } from "#types";
 /* jscpd:ignore-end */
 
 /** Message form delivering to the platform host (no Botpoison). Just a message
- * box: support always comes from the site's own business email, so there's no
+ * box: support always comes from the site's own business email, so there is no
  * address for the operator to enter. When the operator submitted recently, a
  * notice sits between the box and the button to discourage repeat sends. */
 const SupportForm = ({

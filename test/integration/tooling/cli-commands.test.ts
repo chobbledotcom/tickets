@@ -61,6 +61,8 @@ describe("CLI describe", () => {
   test("answers one JSON-shaped document with every resource, verb, child, and route", () => {
     const doc = describeEntries(Object.entries(ADMIN_API_RESOURCES));
     expect(Object.keys(doc.resources).sort()).toEqual([
+      "attendee-statuses",
+      "attendees",
       "attributes",
       "groups",
       "holidays",
@@ -68,6 +70,11 @@ describe("CLI describe", () => {
       "questions",
       "site-pages",
     ]);
+    // A create-only resource describes only the create verb.
+    expect(doc.resources.attendees!.label).toBe("Attendee");
+    expect(doc.resources.attendees!.verbs).toEqual({
+      create: { body: { kind: "server" } },
+    });
     const attributes = doc.resources.attributes!;
     expect(attributes.label).toBe("Attribute");
     expect(attributes.verbs.create).toEqual({
@@ -226,6 +233,31 @@ describe("CLI parser", () => {
       kind: "read",
       resource: "gadgets",
     });
+  });
+
+  test("a create-only resource serves only create", () => {
+    const attendeesTable = { attendees: ADMIN_API_RESOURCES.attendees };
+    expect(
+      parseCommand(attendeesTable, ["create", "attendees", "{}"]),
+    ).toMatchObject({
+      kind: "write",
+      resource: "attendees",
+      verb: "create",
+    });
+    for (const [verb, message] of [
+      ["list", "The 'list' command is not available for 'attendees'."],
+      ["get", "The 'get' command is not available for 'attendees'."],
+      ["update", "The 'update' command is not available for 'attendees'."],
+      ["delete", "The 'delete' command is not available for 'attendees'."],
+    ] as const) {
+      const args =
+        verb === "list"
+          ? [verb, "attendees"]
+          : verb === "get"
+            ? [verb, "attendees", "1"]
+            : [verb, "attendees", "1", "{}"];
+      expect(() => parseCommand(attendeesTable, args)).toThrow(message);
+    }
   });
 
   test("parses root and child writes with their bodies", () => {

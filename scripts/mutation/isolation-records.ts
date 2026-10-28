@@ -23,7 +23,8 @@ import { writeWholeOrNotAtAll } from "./write-whole.ts";
 /**
  * Write the record in one step: the new text goes to a spare file that is then
  * swapped into place, so another run reading at that moment sees either the
- * old record or the new one — never half of one.
+ * old record or the new one — never half of one. A write that fails takes its
+ * spare file back away with it.
  */
 export const writeRunRecord = async (
   record: MutationRunRecord,

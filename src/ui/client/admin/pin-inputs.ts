@@ -2,7 +2,7 @@
 /**
  * The Logistics tab's latitude/longitude pin inputs — the one pair the map
  * (logistics-map.ts) watches and the postcode search (address-lookup.ts)
- * fills. Null when the page doesn't carry both.
+ * fills. Null when the page does not carry both.
  */
 
 export type PinInputs = {

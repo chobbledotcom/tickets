@@ -13,7 +13,7 @@ import {
   type SafetyBooking,
   safetyBooking,
 } from "#test/specs/support/refund-safety/state.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import type { StoryJourney, TicketsWorld } from "#test/specs/support/world.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { extractFormEntries } from "#test-utils/test-browser/forms.ts";
 import {
@@ -21,6 +21,7 @@ import {
   findForms,
 } from "#test-utils/test-browser/pressing.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
+import type { Attendee } from "#types";
 import type { RefundWindows } from "./windows.ts";
 
 // jscpd:ignore-end
@@ -48,17 +49,19 @@ const requiredPaidToken = (world: TicketsWorld): string => {
   return world.duplicateToken;
 };
 
+/** An attendee record, or nothing when the id no longer resolves. */
+type AttendeeOrNull = Attendee | null;
+
 const attendeeOrNull = async (attendeeId: number) =>
   await getAttendeeOrNull(attendeeId, await getTestPrivateKey());
 
 const attendeePair = (paidId: number, freeId: number) =>
   Promise.all([attendeeOrNull(paidId), attendeeOrNull(freeId)]);
 
-type ActsOnPaidBooking<Args extends unknown[], Answer> = (
-  world: TicketsWorld,
-  who: string,
-  ...args: Args
-) => Promise<Answer>;
+type ActsOnPaidBooking<Args extends unknown[], Answer> = StoryJourney<
+  [who: string, ...Args],
+  Answer
+>;
 
 function withPaidBooking<Args extends unknown[], Answer>(
   action: (
@@ -72,13 +75,7 @@ function withPaidBooking<Args extends unknown[], Answer>(
 }
 
 const withPaidAndFreeAttendees = <Answer>(
-  action: (
-    world: TicketsWorld,
-    paid: SafetyBooking,
-    freeId: number,
-    paidAttendee: Awaited<ReturnType<typeof attendeeOrNull>>,
-    freeAttendee: Awaited<ReturnType<typeof attendeeOrNull>>,
-  ) => Promise<Answer>,
+  action: OnPaidAndFreeAttendees<Answer>,
 ): ActsOnPaidBooking<[], Answer> =>
   withPaidBooking(async (world, paid) => {
     const freeId = requiredFreeAttendeeId(world);
@@ -157,11 +154,14 @@ export const choosePaidDetails = (
   keptForms.set(world, { html: form.body, values });
 };
 
-/** Submit exactly the merge form and source choices the owner kept open. */
-export const submitKeptMerge = async (
+/** The merge the second owner window kept, pressed from that same window. */
+type SubmitsKeptMerge = (
   world: TicketsWorld,
   windows: RefundWindows,
-): Promise<TestBrowser> => {
+) => Promise<TestBrowser>;
+
+/** Submit exactly the merge form and source choices the owner kept open. */
+export const submitKeptMerge: SubmitsKeptMerge = async (world, windows) => {
   const kept = keptForms.get(world);
   if (kept === undefined) {
     throw new Error("The owner has not chosen what the merge should keep");
@@ -185,55 +185,80 @@ interface MovedPaymentRow {
   readonly protected_state: string;
 }
 
+/** The shape of a post-merge check: the paid booking, the free merge target,
+ * and both attendee records. */
+type OnPaidAndFreeAttendees<Answer> = (
+  world: TicketsWorld,
+  paid: SafetyBooking,
+  freeId: number,
+  paidAttendee: AttendeeOrNull,
+  freeAttendee: AttendeeOrNull,
+) => Promise<Answer>;
+
 /** Confirm a successful merge moved the dangerous payment row onto the free
- * attendee without copying the source's legacy payment field, then remember
- * that attendee as the one the rest of the visitor journey must open. */
-export const rememberMovedPaymentWork: ActsOnPaidBooking<[], void> =
-  withPaidAndFreeAttendees(async (world, paid, targetId, source, target) => {
-    const paymentRows = await queryAll<MovedPaymentRow>(
-      `SELECT attendee_id, protected_state
-         FROM processed_payments
-        WHERE payment_session_id = ?`,
-      [paid.sessionId],
-    );
-    expect(source).toBeNull();
-    if (target === null) throw new Error("The free merge target disappeared");
-    expect(target.payment_id).toBe("");
-    expect(paymentRows).toEqual([
-      { attendee_id: targetId, protected_state: "unrecorded" },
-    ]);
-    refundSafety(world).bookings.set(paid.who, {
-      ...paid,
-      attendeeId: targetId,
-    });
-    world.attendeeId = targetId;
+ * attendee without copying the source's legacy payment field. */
+const rememberMovedPayment: OnPaidAndFreeAttendees<void> = async (
+  world,
+  paid,
+  targetId,
+  source,
+  target,
+) => {
+  const paymentRows = await queryAll<MovedPaymentRow>(
+    `SELECT attendee_id, protected_state
+       FROM processed_payments
+      WHERE payment_session_id = ?`,
+    [paid.sessionId],
+  );
+  expect(source).toBeNull();
+  if (target === null) throw new Error("The free merge target disappeared");
+  expect(target.payment_id).toBe("");
+  expect(paymentRows).toEqual([
+    { attendee_id: targetId, protected_state: "unrecorded" },
+  ]);
+  refundSafety(world).bookings.set(paid.who, {
+    ...paid,
+    attendeeId: targetId,
   });
+  world.attendeeId = targetId;
+};
+
+/** The step that runs the moved-payment check and keeps the target attendee
+ * as the one the rest of the visitor journey must open. */
+export const rememberMovedPaymentWork: ActsOnPaidBooking<[], void> =
+  withPaidAndFreeAttendees(rememberMovedPayment);
 
 /** Both attendee records and their original booking rows survived the race. */
-export const expectBothBookingsPresent: ActsOnPaidBooking<[], void> =
-  withPaidAndFreeAttendees(
-    async (world, paid, freeId, paidAttendee, freeAttendee) => {
-      const freeListingId = world.listingId;
-      if (freeListingId === undefined) {
-        throw new Error("The free Workshop listing was not remembered");
-      }
-      const rows = await queryAll<BookingRow>(
-        `SELECT attendee_id, listing_id FROM listing_attendees
-       WHERE (attendee_id = ? AND listing_id = ?)
-          OR (attendee_id = ? AND listing_id = ?)
-       ORDER BY attendee_id`,
-        [paid.attendeeId, paid.listingId, freeId, freeListingId],
-      );
-      expect(paidAttendee?.name).toBe(paid.who);
-      expect(freeAttendee?.name).toBe(paid.who);
-      expect(rows).toHaveLength(2);
-      expect(rows).toContainEqual({
-        attendee_id: paid.attendeeId,
-        listing_id: paid.listingId,
-      });
-      expect(rows).toContainEqual({
-        attendee_id: freeId,
-        listing_id: freeListingId,
-      });
-    },
+const expectBothPresent: OnPaidAndFreeAttendees<void> = async (
+  world,
+  paid,
+  freeId,
+  paidAttendee,
+  freeAttendee,
+) => {
+  const freeListingId = world.listingId;
+  if (freeListingId === undefined) {
+    throw new Error("The free Workshop listing was not remembered");
+  }
+  const rows = await queryAll<BookingRow>(
+    `SELECT attendee_id, listing_id FROM listing_attendees
+   WHERE (attendee_id = ? AND listing_id = ?)
+      OR (attendee_id = ? AND listing_id = ?)
+   ORDER BY attendee_id`,
+    [paid.attendeeId, paid.listingId, freeId, freeListingId],
   );
+  expect(paidAttendee?.name).toBe(paid.who);
+  expect(freeAttendee?.name).toBe(paid.who);
+  expect(rows).toHaveLength(2);
+  expect(rows).toContainEqual({
+    attendee_id: paid.attendeeId,
+    listing_id: paid.listingId,
+  });
+  expect(rows).toContainEqual({
+    attendee_id: freeId,
+    listing_id: freeListingId,
+  });
+};
+
+export const expectBothBookingsPresent: ActsOnPaidBooking<[], void> =
+  withPaidAndFreeAttendees(expectBothPresent);

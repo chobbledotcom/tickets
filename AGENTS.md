@@ -74,6 +74,27 @@ Pin the version the harness expects (`STRIPE_MOCK_VERSION` in
 `scripts/stripe-mock/install.ts`). Once `.bin/stripe-mock` exists, the harness
 uses it as-is.
 
+## Dependency Install Policy
+
+CI and the container image install dependencies with one command,
+`scripts/ci/deno-install.sh`. The command runs `deno install --frozen` with an
+explicit npm lifecycle-script allowlist.
+
+- `--frozen` rejects a dependency change that did not update `deno.lock`. The
+  install fails instead of resolving a new tree.
+- The allowlist names the npm packages that need lifecycle scripts. It must
+  match the packages `deno.lock` records with `"scripts": true`. When you add
+  an npm dependency with a lifecycle script, name the package in the allowlist
+  in the same change.
+- Keep intentional local dependency updates separate. Run `deno install`
+  without `--frozen` locally to refresh `deno.lock`, and commit the updated
+  lock. CI then installs the committed tree with `--frozen`.
+
+The setup action pins the devenv CLI to a revision of the devenv source, not
+to `nixpkgs#devenv`, so the Nix registry does not move it. To update the CLI,
+choose a newer devenv revision, confirm it reports a version the project
+accepts, and replace the revision in `.github/actions/setup-devenv/action.yml`.
+
 ## Preferences
 
 These preferences are defaults, not laws. When the letter of a rule and its
@@ -512,14 +533,22 @@ automatic.
   against the accepted list that only shrinks. Pass `--update` after a split.
   The update refuses a rise. The 400-line aim is policy, not a gate: a file
   slightly over it owes a splitting issue
+- `deno task check:test-quality` — the weak-assertion gate: fails when a
+  change adds a weak assertion to a test file it touches, warns on the ones
+  already in the files it touches, against the merge base on `origin/main`
 - `deno task check:ste` — mechanical STE rules over the Markdown, against
   baselines that only fall. Pass `--update` after a fix
 - `deno task check:merged-tree <pr-number | branch> [base]` — trial-merge the
   head into the base in a throwaway worktree. It runs typecheck and the test
   suite on the merged tree, then removes the worktree. The boss runs it
   before a pull request is ready. The head CI and this check must both pass
+- `deno task check:required-checks` — fail when the merge queue's required
+  status checks in repository Settings no longer match the manifest at
+  `scripts/required-checks/checks.json`. The manifest is the reviewable
+  record of the gate (issue #2671).
 - `deno task contract:diff [base]` — print the semantic drift of this
-  branch's declared contracts (machine moves and money flags) against `base`,
+  branch's declared contracts (machine moves, money flags, and declared
+  moves tables) against `base`,
   the commit this branch and `origin/main` share by default. The task fetches
   the history it needs. An explicit `base` is read as the checkout holds it.
   Run `git fetch origin main` first for a current explicit base. Drift is a
@@ -538,6 +567,11 @@ automatic.
   to a module that opens the database, the network, or the wall clock. The
   finding names the import chain, and the fix is to split the IO shell out
   or drop the pure entry
+- `deno task suite:production` — run the production-shape checks as one
+  scheduled suite, separate from `deno task test`: the edge-bundle boot
+  smoke, the backup and restore drills, the concurrent-reservation race,
+  webhook replay and idempotency, and a `deno audit --level=critical`
+  security report (issue #2300).
 - `deno task grade:code [<file-or-dir>] [--csv <path>] [--no-jev]` — score
   source files against these rules. With no target, it grades every module under
   `src/`. `--no-jev` runs the mechanical checks only. A grade is advice, not a
@@ -619,6 +653,9 @@ drop you state out loud.
   shape, persisted rows. Avoid `toBeTruthy()`, compound booleans, and
   presence-only checks. Run `deno task test:quality-audit` when you bulk-add
   tests.
+- The weak-assertion gate (`deno task check:test-quality`) fails when a change
+  adds a weak assertion to a test file it touches, and warns on the ones
+  already in the files it touches. Fix a new finding in the same change.
 - For critical flows, cover negative paths, idempotency, concurrency, and
   metamorphic cases: webhook replay does not double-credit, capacity cannot go
   below zero, role downgrades remove access, PII stays encrypted or absent from

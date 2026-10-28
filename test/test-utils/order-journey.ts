@@ -49,10 +49,17 @@ import { checkoutSessionEvent } from "#test-utils/webhooks.ts";
 import type { Group, Listing } from "#types";
 
 /** One package in a journey's catalog: its members sell inside the bundle at
- * the given price (each `quantity` per package unit, default 1). */
+ * the given price (each `quantity` per package unit, default 1). A member
+ * with no `price` has a blank bundle price and sells inside the bundle at its
+ * own price; `ownPrice` is then the price printed on the member itself. */
 export type JourneyPackage = {
   name: string;
-  members: { name: string; price: number; quantity?: number }[];
+  members: {
+    name: string;
+    ownPrice?: number;
+    price?: number;
+    quantity?: number;
+  }[];
 };
 
 /** One standalone listing: free unless priced, dateless unless `daily`. */
@@ -124,6 +131,13 @@ export const expectStoredOrder = async (
   ).toEqual([...expected].sort(byRowIdentity));
 };
 
+/** What a package member's own listing sells for outside the bundle: its
+ * printed price, defaulting to its bundle price, then to free. */
+const memberUnitPrice = ({
+  ownPrice,
+  price,
+}: JourneyPackage["members"][number]): number => ownPrice ?? price ?? 0;
+
 /** Mint the spec's catalog: packages with priced members, plain/daily
  * listings, and parents with a sole bookable-alone child each. */
 const mintCatalog = async (
@@ -145,7 +159,7 @@ const mintCatalog = async (
           maxQuantity: 5,
           name: member.name,
           thankYouUrl: "",
-          unitPrice: member.price,
+          unitPrice: memberUnitPrice(member),
         }));
       listings.set(member.name, listing);
       memberGroupIds.set(member.name, [
@@ -162,7 +176,10 @@ const mintCatalog = async (
       groups.get(pkg.name)!.id,
       pkg.members.map((member) => ({
         listingId: listings.get(member.name)!.id,
-        price: member.price,
+        // A member with no bundle price stores no override: the bundle charges
+        // the listing's own price, exactly as a blank box on the group's form
+        // saves.
+        price: member.price ?? null,
         ...(member.quantity === undefined ? {} : { quantity: member.quantity }),
       })),
     );

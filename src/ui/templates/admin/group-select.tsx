@@ -11,7 +11,7 @@ interface ListingGroupSelectProps {
   selectedGroupIds: number[];
 }
 
-/** Group membership editor on the listing form: a checkbox per group, so a
+/** Group membership editor on the listing form: a checkbox per group. A
  * listing can belong to several groups at once (the listing-side mirror of the
  * group form's listing checkboxes). Membership is written to group_listings. */
 export const ListingGroupSelect = ({

@@ -20,6 +20,7 @@ import {
 } from "#db/listings/records.ts";
 /* jscpd:ignore-start */
 import { mapById, requiredMapValue } from "#fp";
+import { attendeeStatusApiRoutes } from "#routes/admin/api-attendee-statuses.ts";
 import { attributeApiRoutes } from "#routes/admin/api-attributes.ts";
 import { groupApiRoutes } from "#routes/admin/api-groups.ts";
 import { holidayApiRoutes } from "#routes/admin/api-holidays.ts";
@@ -30,18 +31,19 @@ import { apiErrorResponse } from "#routes/api/cors.ts";
 import { ADMIN_API, CONTENT_API } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
-import { listingSaveOrphanedAddOnTx } from "#shared/add-on-reachability.ts";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import {
   performListingDelete,
+  refuseUndatedListingSwitch,
   toggleListingActive,
   validateListingInput,
 } from "#shared/listings-actions.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
 import { apiEntityGate, withApiEntity } from "#shared/rest/crud-parsers.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import type { AdminListing, Attendee, Listing, ListingWithCount } from "#types";
+import type { AdminListing, Listing, ListingWithCount } from "#types";
+import { handleCreateAttendee, toApiAttendee } from "./api-attendees.ts";
 import { bodyToCreateInput, bodyToUpdateInput } from "./api-listing-body.ts";
 import {
   type PreparedListingJoins,
@@ -139,20 +141,6 @@ const toggleActiveRoute =
   (request: Request, params: RouteParams): Promise<Response> =>
     handleToggleActive(request, params.listingId as number, active);
 
-/** One attendee booking row as the admin API answers with it: the decrypted
- * roster row minus the sealed PII blob and its blind index. Storage details go
- * the same way slug_index goes from listing responses. */
-export type AdminApiAttendee = Omit<
-  Attendee,
-  "pii_blob" | "ticket_token_index"
->;
-
-const toApiAttendee = ({
-  pii_blob: _,
-  ticket_token_index: __,
-  ...attendee
-}: Attendee): AdminApiAttendee => attendee;
-
 /** The listing's roster as JSON. One row per booking line, newest first.
  * Every line shows, including a quantity-0 placeholder, and a booking on
  * another listing never appears. Staff-only: the dashboard's roster tab is a
@@ -201,7 +189,9 @@ const listingApiRoutes = defineCrudApi<
   afterCommit: syncListingPrices,
   // The add-on reachability half of the save refuses inside the row write's
   // transaction, so two concurrent page-removing saves cannot both commit.
-  checkTx: listingSaveOrphanedAddOnTx,
+  // The API has no assign step, so a type switch that leaves undated
+  // bookings behind is refused here outright.
+  checkTx: refuseUndatedListingSwitch,
   customHandlers: {
     attendees: handleListingAttendees,
     deactivate: toggleActiveRoute(false),
@@ -250,6 +240,8 @@ const listingApiRoutes = defineCrudApi<
 });
 
 export const adminApiRoutes = {
+  ...attendeeStatusApiRoutes,
+  "POST /api/admin/attendees": handleCreateAttendee,
   ...attributeApiRoutes,
   ...holidayApiRoutes,
   ...groupApiRoutes,

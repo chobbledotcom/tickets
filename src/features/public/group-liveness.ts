@@ -271,9 +271,9 @@ const loadDecidedGroups = async (
 export const loadPublicGroups = (): Promise<GroupWithMembers[]> =>
   loadDecidedGroups(true);
 
-/** Load non-hidden groups whose /ticket page serves: a package keeps its
- *  bookable-bundle gate, and a regular group keeps one visible active
- *  non-child member even when every parent is projected sold out. */
+/** Load non-hidden groups whose /ticket page serves. A package keeps its
+ *  bookable-bundle gate. A regular group keeps one visible active non-child
+ *  member even when every parent is projected sold out. */
 export const loadServedGroups = (): Promise<GroupWithMembers[]> =>
   loadDecidedGroups(false);
 

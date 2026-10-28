@@ -141,8 +141,8 @@ export const hashSessionToken = async (token: string): Promise<TokenHash> => {
 
 /**
  * HMAC-SHA256 of one text under a caller-supplied key. Each purpose derives
- * its own key (the blind index from the site key, a door's cache key from
- * the site key and the door's name), so no two uses share a key.
+ * its own key. The blind index derives from the site key. A door's cache key
+ * derives from the site key and the door's name. No two uses share a key.
  */
 export const hmacWithKey = (key: Uint8Array, value: string): Uint8Array => {
   const mac = createHmac("sha256", key);
@@ -160,6 +160,14 @@ export const hmacHashSync = (value: string): BlindIndex =>
 
 export const hmacHash = async (value: string): Promise<BlindIndex> =>
   hmacHashSync(value);
+
+/** The blind-index marker for one keyed pair, so a row can be matched
+ * without decrypting. `prefix` keeps two domains' markers from colliding
+ * (an address search and a contact token never hash to the same value). */
+export const blindIndexFor =
+  (prefix: string) =>
+  (left: string, right: string): Promise<BlindIndex> =>
+    hmacHash(`${prefix}${left}:${right}`);
 
 /**
  * The key one door's offline scan cache digests under. The HMAC runs under

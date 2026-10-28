@@ -7,12 +7,7 @@
  */
 
 import type { InValue } from "@libsql/client";
-import {
-  inPlaceholders,
-  queryAll,
-  type SqlStatement,
-  type TxScope,
-} from "#db/client.ts";
+import { inPlaceholders, queryAll, type SqlStatement } from "#db/client.ts";
 import { PRICE_TYPE_GROUP, PRICE_TYPE_GROUP_DAY } from "#db/price-types.ts";
 import { type DayPrices, type GroupListing, parseDayPrices } from "#types";
 
@@ -101,13 +96,4 @@ export const membershipStatements = (
       [...flatRows, ...dayRows],
     ),
   ].filter((stmt): stmt is SqlStatement => stmt !== null);
-};
-
-/** Write every membership (batched) inside an existing write transaction — the
- * catalog-import writer for a freshly-created listing or group. */
-export const writeMembershipsTx = async (
-  tx: TxScope,
-  memberships: readonly ImportedMembership[],
-): Promise<void> => {
-  for (const stmt of membershipStatements(memberships)) await tx.execute(stmt);
 };

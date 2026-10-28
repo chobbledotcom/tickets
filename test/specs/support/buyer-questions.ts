@@ -18,12 +18,14 @@ import {
 } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
+  listingIdNamed,
   listingNamed,
   tickOnListingTab,
 } from "#test/specs/support/listings.ts";
 import { movingRowsOn } from "#test/specs/support/reordering.ts";
 import {
   type ActOnOneThing,
+  type AsksAboutOneThing,
   type ReadAboutOneThing,
   requiredWorldValue,
   type TicketsWorld,
@@ -133,11 +135,17 @@ export const questionFieldOn = (
 
 /** A visitor books one place, answering the written question in their own
  * words — typed into the box the served page really offers. */
-export const visitorBooksAnswering = async (
+type BooksAnsweringAQuestion = (
   world: TicketsWorld,
   listingName: string,
   answer: string,
-): Promise<void> => {
+) => Promise<void>;
+
+export const visitorBooksAnswering: BooksAnsweringAQuestion = async (
+  world,
+  listingName,
+  answer,
+) => {
   const browser = await visitorOpensBooking(world, listingName);
   await fillInAndSend(
     browser,
@@ -158,9 +166,9 @@ export const answerInListDownload: ReadAboutOneThing = async (
   world,
   listingName,
 ) => {
-  const listing = listingNamed(world, listingName);
+  const attendeesPage = `/admin/listing/${listingIdNamed(world, listingName)}/attendees`;
   const browser = await adminBrowser(world);
-  await browser.visit(`/admin/listing/${listing.id}/attendees`);
+  await browser.visit(attendeesPage);
   await browser.clickLink("Export CSV");
   // A real CSV parse, so an answer holding a comma or a quote still lands in
   // its own column rather than spilling into the next one.
@@ -185,6 +193,11 @@ const openQuestionPage = opensAdminPageAt(
   (world) => `/admin/questions/${askedQuestion(world).id}`,
 );
 
+/** The question's Actions tab, open — where the delete lives. */
+const openQuestionActionsPage = opensAdminPageAt(
+  (world) => `/admin/questions/${askedQuestion(world).id}/actions`,
+);
+
 /** Whether the question's own page offers a way to add answer choices. A
  * written question has none to offer, so its page must not either. */
 export const questionPageOffersChoices = async (
@@ -192,32 +205,34 @@ export const questionPageOffersChoices = async (
 ): Promise<boolean> =>
   (await openQuestionPage(world)).pageText.includes("Add answer");
 
-/** The owner takes the question down from its own page, typing text to
- * confirm, and keeps what the site said. */
+/** The owner takes the question down from its own Actions tab, typing text
+ * to confirm, and keeps what the site said. */
 export const ownerTakesQuestionDown = takesDownFromOwnPage(
-  openQuestionPage,
+  openQuestionActionsPage,
   "Delete question",
 );
 
+/** Run a question-asking step and keep the question the story was acting on
+ * in place, recording the one just asked as another asked question. */
+const askingAnother =
+  (ask: AsksAChoiceQuestion): AsksAChoiceQuestion =>
+  async (world, listingName, text, answers) => {
+    const asked = requiredWorldValue(
+      world.buyerQuestion,
+      "the question the story acts on",
+    );
+    await ask(world, listingName, text, answers);
+    world.otherBuyerQuestions = [
+      ...(world.otherBuyerQuestions ?? []),
+      requiredWorldValue(world.buyerQuestion, `the question "${text}"`),
+    ];
+    world.buyerQuestion = asked;
+  };
+
 /** A second choice question with its answers, asked without disturbing the
  * question the story is acting on. */
-export const ownerAsksAnotherChoiceQuestion: AsksAChoiceQuestion = async (
-  world,
-  listingName,
-  text,
-  answers,
-) => {
-  const asked = requiredWorldValue(
-    world.buyerQuestion,
-    "the question the story acts on",
-  );
-  await ownerAsksChoiceQuestion(world, listingName, text, answers);
-  world.otherBuyerQuestions = [
-    ...(world.otherBuyerQuestions ?? []),
-    requiredWorldValue(world.buyerQuestion, `the question "${text}"`),
-  ];
-  world.buyerQuestion = asked;
-};
+export const ownerAsksAnotherChoiceQuestion: AsksAChoiceQuestion =
+  askingAnother(ownerAsksChoiceQuestion);
 
 /** The id of the question the story named by its text. */
 const questionIdFor = (world: TicketsWorld, text: string): number => {
@@ -276,10 +291,8 @@ export const ownerMovesAnswerUp: ActOnOneThing = (world, name) =>
 
 /** Whether the question's page still offers to move an answer up. A top
  * answer is one nobody could move further, so the page offers no arrow. */
-export const answerOffersMoveUp = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<boolean> => answerArrows.canMove(world, name, "up");
+export const answerOffersMoveUp: AsksAboutOneThing = (world, name) =>
+  answerArrows.canMove(world, name, "up");
 
 /** The answers one served booking page offers for a named question, in the
  * order the page renders them. */

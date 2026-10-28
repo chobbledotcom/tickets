@@ -10,9 +10,9 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
   ),
   // Everything the durable refund authority needs, in one migration. It drops
   // the dormant payment-record tables before the declarative apply reaches
-  // them: this release redefines those tables, and the apply can only ADD
-  // COLUMN to a table that already exists — it cannot drop the columns the
-  // redefinition removed, and SQLite refuses the NOT NULL columns it adds to
+  // them. This release redefines those tables, and the apply can only ADD
+  // COLUMN to a table that already exists. The apply cannot drop the columns
+  // the redefinition removed. SQLite refuses the NOT NULL columns it adds to
   // a table that holds rows. Splitting this work apart is what let an
   // upgrade break, so keep the drop and the apply in the same migration.
   entry(
@@ -102,6 +102,19 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
   entry(
     "2026-10-26_attendees_pending_flags_index",
     () => import("./2026-10-26_attendees_pending_flags_index.ts"),
+  ),
+  // A note can now be about a group or a listing, as well as an attendee. The
+  // system_notes CHECK is built from NOTE_ENTITIES, so it must name all three.
+  entry(
+    "2026-10-27_note_entities_group_listing",
+    () => import("./2026-10-27_note_entities_group_listing.ts"),
+  ),
+  // The dormant buyer-bearing payment tables accept DB-key enc:1 ciphertext.
+  // Nothing has ever written them, so this release drops the empty tables and
+  // the declarative apply recreates them demanding owner-key hyb:1.
+  entry(
+    "2026-10-28_dormant_payment_owner_key",
+    () => import("./2026-10-28_dormant_payment_owner_key.ts"),
   ),
 ];
 /* jscpd:ignore-end */

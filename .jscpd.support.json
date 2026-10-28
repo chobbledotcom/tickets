@@ -18,7 +18,7 @@
   "gitignore": true,
   "exitCode": 1,
   "minLines": 1,
-  "minTokens": 18,
+  "minTokens": 15,
   "path": [
     "test/specs/support"
   ]

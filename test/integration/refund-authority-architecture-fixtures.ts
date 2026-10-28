@@ -103,6 +103,7 @@ export const TEST_AUTHORITY_BUILDING_PATHS = [
   "integration/server/privacy-refund-recovery.test.ts",
   "integration/server/webhooks/multi-ticket-booking.test.ts",
   "integration/server/webhooks/refund-skip-conditions.test.ts",
+  "integration/server/webhooks/square.test.ts",
   "integration/server/webhooks/sumup.test.ts",
   "integration/server/webhooks/unrecognized-sessions.test.ts",
   "integration/stripe/core.test.ts",

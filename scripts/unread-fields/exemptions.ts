@@ -11,7 +11,10 @@ import {
   exemptFieldsAt,
   type FindingExemption,
 } from "#scripts/unread-fields/policy.ts";
-import type { AdminApiResource } from "#shared/admin-api-resources.ts";
+import type {
+  AdminApiResource,
+  AdminApiServes,
+} from "#shared/admin-api-resources.ts";
 import type { SumupCheckoutRequest } from "#shared/sumup/transport.ts";
 import type { WebhookPayload } from "#shared/webhook.ts";
 import type { WarningDeleteProps } from "#templates/admin/confirm-page.tsx";
@@ -32,8 +35,25 @@ const adminApiResources = exemptFieldsAt<AdminApiResource>(
   label: "check",
   listSchema: "check",
   path: "check",
+  serves: "check",
   singleSchema: "check",
   updateBodySchema: "check",
+});
+
+const adminApiServes = exemptFieldsAt<AdminApiServes>(
+  "src/shared/admin-api-resources.ts",
+  [{ name: "AdminApiServes" }],
+  {
+    evidence:
+      "the CLI's servesVerb, the describe verb filter, and the route-derivation test read entry.serves[verb] by key, which the reader cannot trace to named fields",
+    kind: "schema-driven",
+  },
+)({
+  create: "exempt",
+  delete: "exempt",
+  get: "exempt",
+  list: "exempt",
+  update: "exempt",
 });
 
 const publicListings = exemptFieldsAt<PublicListing>(
@@ -107,32 +127,6 @@ const sumupHostedCheckout: FindingExemption = {
   reason: {
     evidence: "sumupInit serialises the nested hosted checkout request",
     kind: "provider-input",
-  },
-};
-
-const groupShowHiddenListings: FindingExemption = {
-  identity: {
-    exportedFrom: "src/shared/catalog-fields/fields.ts",
-    field: "showHiddenListings",
-    path: [{ name: "GroupInput" }],
-  },
-  reason: {
-    evidence:
-      "the groups table persists the show_hidden_listings column and buyerSeesMember reads the row field back",
-    kind: "persisted-format",
-  },
-};
-
-const groupScanChecksInAllListings: FindingExemption = {
-  identity: {
-    exportedFrom: "src/shared/catalog-fields/fields.ts",
-    field: "scanChecksInAllListings",
-    path: [{ name: "GroupInput" }],
-  },
-  reason: {
-    evidence:
-      "the groups table persists the scan_checks_in_all_listings column and the group scanner reads the row field back",
-    kind: "persisted-format",
   },
 };
 
@@ -453,6 +447,7 @@ const exactExemptions = exactFieldExemptions([
 
 export const UNREAD_FIELD_EXEMPTIONS: readonly FindingExemption[] = [
   ...adminApiResources,
+  ...adminApiServes,
   ...bodyExemptions,
   ...exactExemptions,
   ...publicListings,
@@ -461,8 +456,6 @@ export const UNREAD_FIELD_EXEMPTIONS: readonly FindingExemption[] = [
   ...sumupCheckoutRequests,
   ...ticketCacheEntries,
   ...webhookPayloads,
-  groupScanChecksInAllListings,
-  groupShowHiddenListings,
   sumupHostedCheckout,
   ...warningDeleteProps,
 ].toSorted((left, right) =>

@@ -20,14 +20,7 @@ const inOptionDemand = ownerAt("src/shared/booking/option-demand.ts");
 const LISTING_INPUT_FIELDS = [
   "attachmentName",
   "attachmentUrl",
-  "bookableDays",
-  "description",
-  "location",
   "maxAttendees",
-  "minimumDaysBefore",
-  "nonTransferable",
-  "useDefaults",
-  "usesLogistics",
 ] as const;
 
 export const SHARED_A_PAYMENTS_BASELINE: readonly FindingIdentity[] = [
@@ -68,9 +61,6 @@ export const SHARED_A_PAYMENTS_BASELINE: readonly FindingIdentity[] = [
   ...identitiesAt([
     ["src/shared/bunny-edge-script.ts", [{ name: "EdgeScriptSecret" }]],
   ])(["Id", "LastModified"]),
-  ...identitiesAt([
-    ["src/shared/catalog-fields/fields.ts", [{ name: "GroupInput" }]],
-  ])(["description", "hidden", "termsAndConditions"]),
   ...identitiesAt([
     ["src/shared/catalog-fields/fields.ts", [{ name: "ListingInput" }]],
   ])(LISTING_INPUT_FIELDS),
@@ -310,8 +300,7 @@ export const SHARED_A_PAYMENTS_BASELINE: readonly FindingIdentity[] = [
     inRefundMachine("RefundNode", "reps", way("[]"), "state"),
     inRefundMachine("RefundMachineEvent", "run", way("()"), way("state")),
     inRefundMachine("RefundMachineEvent", "run", way("()"), way("result")),
-  ])(["armedAt", "lastObservedAt", "proof"]),
-  ...identitiesAt([inRefundState("SendArmedRefundState")])(["armedAt"]),
+  ])(["lastObservedAt", "proof"]),
   ...identitiesAt([inRefundState("ObservingRefundState")])(["lastObservedAt"]),
   ...identitiesAt([inRefundState("CompletedRefundState")])(["proof"]),
   ...identitiesAt([
@@ -319,7 +308,7 @@ export const SHARED_A_PAYMENTS_BASELINE: readonly FindingIdentity[] = [
       "src/shared/payment/refund-authority.ts",
       [{ name: "ActiveSentRefundState" }],
     ],
-  ])(["armedAt", "lastObservedAt"]),
+  ])(["lastObservedAt"]),
   ...identitiesAt([
     inOptionDemand("OptionVerdict", "outcome", "alternatives", way("[]")),
   ])(["dayCount"]),

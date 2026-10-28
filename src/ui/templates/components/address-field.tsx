@@ -1,7 +1,7 @@
 /**
  * The address textarea with the postcode search panel above it — the one
  * address-entry block the admin attendee forms share (Edit tab and Logistics
- * tab). The panel renders only while a lookup provider is configured; the
+ * tab). The panel renders only while a lookup provider is configured. The
  * textarea always stays editable.
  */
 

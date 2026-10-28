@@ -2,5 +2,5 @@
 
 import type { Child } from "#jsx/jsx-runtime.ts";
 
-/** A component that simply wraps its `children`. */
+/** A component that wraps its `children`. */
 export type ChildProps = { children: Child };

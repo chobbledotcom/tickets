@@ -4,9 +4,9 @@
  * Gate order matters: `requirePublicSite` runs FIRST, before any slug lookup,
  * so a disabled site redirects to the admin login without leaking whether a
  * given slug exists. Then the page resolves by its blind index (one narrow
- * decrypted read) and renders with the recursive public nav anchored on it —
- * the deepest submenu level of the nav model IS the page's own children (N7),
- * so one pure computation feeds both the nav and the body item list.
+ * decrypted read) and renders with the recursive public nav anchored on it.
+ * The deepest submenu level of the nav model IS the page's own children (N7).
+ * One pure computation feeds both the nav and the body item list.
  */
 
 import { hmacHash } from "#crypto/hashing.ts";
@@ -62,9 +62,9 @@ export const renderContentPage = async <
   return noindexWhen?.(item) ? applyNoindex(response) : response;
 };
 
-/** A public GET route for a slugged content page: the public-site gate runs
+/** A public GET route for a slugged content page. The public-site gate runs
  * FIRST (so a disabled site never leaks whether the slug exists), then the
- * slug handler. Shared by `/page/:slug` and `/news/:slug`. */
+ * slug handler runs. Shared by `/page/:slug` and `/news/:slug`. */
 export const publicSlugRoute =
   (
     handle: (slug: string) => Promise<Response>,

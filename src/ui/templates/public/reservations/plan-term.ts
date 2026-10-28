@@ -3,7 +3,7 @@ import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
 import { pricedMonthsForListing } from "./quantities.ts";
 
-/** The label above the quantity selector: a renewal page prices its counts by
+/** The label above the quantity selector. A renewal page prices its counts by
  *  the listing's months per unit, so a plan buys months where a ticket buys
  *  tickets. */
 export const monthsQuantity = (
@@ -14,7 +14,7 @@ export const monthsQuantity = (
     ? t("public.ticket.number_of_months")
     : t("public.ticket.number_of_tickets");
 
-/** A hidden selector buys exactly one unit; a plan hides its term there, so
+/** A hidden selector buys exactly one unit. A plan hides its term there, so
  *  the fixed purchase still states the months it grants. */
 export const termNoteFor = (
   listing: TicketListing["listing"],

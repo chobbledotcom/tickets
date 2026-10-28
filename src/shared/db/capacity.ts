@@ -197,6 +197,18 @@ export const buildGroupCountSql = (
   return buildUndatedGroupCountSql(excludeAttendeeId, groupRef);
 };
 
+/** The listing's own cap for one day: the counted demand plus the asking
+ * quantity against the listing's max. The line also enforces active = 1 (an
+ * inactive listing's max_attendees subquery is NULL, so the comparison
+ * fails). */
+const buildListingCapSql = (
+  count: CountSqlValues,
+  quantity: SqlParameterToken,
+): string =>
+  `(
+    ${buildListingCountSql(count)}
+  ) + ${quantity} <= (SELECT max_attendees FROM listings WHERE id = ${count.listingId} AND active = 1)`;
+
 /**
  * Build a single-day capacity clause (listing-cap + group-cap when applicable).
  * `dayRange` is null for non-daily / date-less bookings; those use the editable
@@ -207,17 +219,12 @@ const buildDayCapacitySql = (
   quantity: SqlParameterToken,
 ): string => {
   const { dayRange, excludeAttendeeId, listingId } = count;
-  const listingCount = buildListingCountSql(count);
   const groupCount = buildGroupCountSql(dayRange, excludeAttendeeId);
 
-  // The listing-cap line also enforces active = 1 (an inactive listing's
-  // max_attendees subquery is NULL, so the comparison fails). The group cap
-  // passes unless SOME group the listing belongs to is capped and would be
-  // pushed over by this booking — so an ungrouped or all-uncapped listing has
-  // no offending group and NOT EXISTS is satisfied.
-  return `(
-    ${listingCount}
-  ) + ${quantity} <= (SELECT max_attendees FROM listings WHERE id = ${listingId} AND active = 1)
+  // The group cap passes unless SOME group the listing belongs to is capped
+  // and would be pushed over by this booking — so an ungrouped or all-uncapped
+  // listing has no offending group and NOT EXISTS is satisfied.
+  return `${buildListingCapSql(count, quantity)}
   AND NOT EXISTS (
     SELECT 1
     FROM group_listings AS groupListing
@@ -236,12 +243,28 @@ const bindDayRange = (
     ? null
     : { endSql: bind(dayRange.endAt), startSql: bind(dayRange.startAt) };
 
+/** One clause per booked day, AND'd together, so a multi-day booking is
+ * judged on every day it occupies. A date-less demand is one clause. */
+const perDayClauses = (
+  date: string | null,
+  durationDays: number,
+  daySql: (dayRange: DayRange | null) => string,
+): string => {
+  if (!date) return daySql(null);
+  const booked = parseDateStringOrThrow(date, "a stored booking date");
+  return Array.from(
+    { length: clampDurationDays(durationDays) },
+    (_, index) => `(${daySql(dateToRange(addDays(booked, index)))})`,
+  ).join(" AND ");
+};
+
 /**
  * Build the WHERE clause for capacity checking on listing_attendees.
  * For multi-day daily bookings, emits one clause per day AND'd together so
  * the atomic SQL guard matches the per-day accuracy of the JS preflight.
  *
  * @param excludeAttendeeId - If set, excludes this attendee's rows from the count (for updates)
+ * @param scope - `{ groupCaps: false }` judges the listing's own cap alone.
  */
 export const buildCapacityCondition =
   (
@@ -250,6 +273,7 @@ export const buildCapacityCondition =
     date: string | null,
     excludeAttendeeId?: number,
     durationDays = 1,
+    scope: { groupCaps: boolean } = { groupCaps: true },
   ): CapacitySql =>
   (bind, shared = {}) => {
     const listingIdSql = shared.listingId ?? bind(listingId);
@@ -259,22 +283,42 @@ export const buildCapacityCondition =
         ? null
         : (shared.excludeAttendeeId ?? bind(excludeAttendeeId));
     const sqlFor = (dayRange: DayRange | null): string =>
-      buildDayCapacitySql(
-        {
-          dayRange: bindDayRange(bind, dayRange),
-          excludeAttendeeId: excludeAttendeeIdSql,
-          listingId: listingIdSql,
-        },
-        quantitySql,
-      );
-    if (!date) return sqlFor(null);
-
-    const booked = parseDateStringOrThrow(date, "a stored booking date");
-    return Array.from(
-      { length: clampDurationDays(durationDays) },
-      (_, index) => `(${sqlFor(dateToRange(addDays(booked, index)))})`,
-    ).join(" AND ");
+      scope.groupCaps
+        ? buildDayCapacitySql(
+            {
+              dayRange: bindDayRange(bind, dayRange),
+              excludeAttendeeId: excludeAttendeeIdSql,
+              listingId: listingIdSql,
+            },
+            quantitySql,
+          )
+        : buildListingCapSql(
+            {
+              dayRange: bindDayRange(bind, dayRange),
+              excludeAttendeeId: null,
+              listingId: listingIdSql,
+            },
+            quantitySql,
+          );
+    return perDayClauses(date, durationDays, sqlFor);
   };
+
+/**
+ * The per-day shape of {@link buildCapacityCondition}, judged against the
+ * listing's own cap alone — no group caps. The listing save's undated-move
+ * probe judges its offered dates with it. The confirmed save writes the
+ * submission's group memberships before the move reads them, so the probe
+ * cannot judge the old memberships against the new ones.
+ */
+export const buildListingCapCondition = (booking: LineBooking): CapacitySql =>
+  buildCapacityCondition(
+    booking.listingId,
+    booking.quantity,
+    booking.date,
+    undefined,
+    booking.durationDays,
+    { groupCaps: false },
+  );
 
 /** A clause that refuses nothing: the zero-quantity line's demand. */
 const alwaysFits: CapacitySql = () => "1";

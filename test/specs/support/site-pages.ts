@@ -3,7 +3,6 @@
  * opened by somebody never signed in, because that is who these pages are for.
  */
 
-import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { sitePages } from "#db/site-pages.ts";
 import { t } from "#i18n";
@@ -25,13 +24,17 @@ import {
   checkboxValueOffered,
   tickedCheckboxes,
 } from "#test/specs/support/form-controls/reading.ts";
-import { fillInAndSend } from "#test/specs/support/form-controls.ts";
+import {
+  fillInAndSend,
+  sendOneBox,
+} from "#test/specs/support/form-controls.ts";
 import { movingRowsOn } from "#test/specs/support/reordering.ts";
 import {
   type ActOnOneThing,
   type AsksAboutOneThing,
   keepsAnswerAs,
   keepWhatTheyWereTold,
+  type ReadAboutOneThing,
   requiredWorldValue,
   type StoryJourney,
   type TicketsWorld,
@@ -111,10 +114,10 @@ export const visitorReading = (address: string): Promise<PageRead> =>
 /** The content box the edit form serves for one page, read off the page's own
  * row. Reading the stored row instead would pass even if the form stopped
  * carrying the content, which is the thing the rule is about. */
-export const reopenedPageContent = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<string> => {
+export const reopenedPageContent: ReadAboutOneThing<string> = async (
+  world,
+  name,
+) => {
   const wayIn = await linkIntoPage(world, name);
   const html = await adminPageHtmlAt(world, wayIn);
   const box = html.match(
@@ -196,17 +199,14 @@ const HIDDEN_BOX = "hidden";
 
 /** The owner opens one page's editor, by the way in from that page's own row
  * on their list. */
-const openPageEditor = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<TestBrowser> =>
+const openPageEditor: ReadAboutOneThing<TestBrowser> = async (world, name) =>
   openAdminPage(world, await linkIntoPage(world, name));
 
 /** One page's own editor, open on the screen, with its Hidden box read off the
  * served form: the value ticking the box would send, and the boxes the page
- * shows ticked already. Both of the story's Hidden-box helpers read the page
- * this way, so a form that lost the box — or came back pre-ticked — fails
- * before any step acts on it. */
+ * shows ticked already. Read by the story's "comes back showing" helper, so a
+ * form that lost the box — or came back pre-ticked — fails before any step
+ * acts on it. */
 const editorServingHiddenBox = async (world: TicketsWorld, name: string) => {
   const browser = await openPageEditor(world, name);
   return {
@@ -225,23 +225,22 @@ export type ActsOnAPagesHiddenBox = (
   hidden: boolean,
 ) => Promise<void>;
 
+/** The owner changing the Hidden box on one page's own editor. */
+type SetsAPagesHiddenBox = ActsOnAPagesHiddenBox;
+
 /** The owner ticks or clears the Hidden box on one page's own editor and
  * saves. The form's own values ride along the way a real browser sends them;
  * only the box is named, and an empty list for it is exactly the nothing a
  * browser sends for a cleared box. A tick is only a tick when the box started
  * clear, and a clear only when it started ticked, so a save that silently
  * dropped the box — or a form that came back pre-ticked — fails here. */
-export const ownerSetsPageHidden: ActsOnAPagesHiddenBox = async (
+export const ownerSetsPageHidden: SetsAPagesHiddenBox = async (
   world,
   name,
   hidden,
 ) => {
-  const { browser, tick, ticked } = await editorServingHiddenBox(world, name);
-  const tickIsPresent = ticked.includes(tick);
-  assert(hidden ? !tickIsPresent : tickIsPresent);
-  await fillInAndSend(browser, {}, t("common.save_changes"), {
-    [HIDDEN_BOX]: hidden ? [tick] : [],
-  });
+  const browser = await openPageEditor(world, name);
+  await sendOneBox(browser, browser.currentHtml, HIDDEN_BOX, hidden);
   keepWhatTheyWereTold(world, OWNER, browser.pageText);
 };
 

@@ -7,17 +7,19 @@
 /** The box on the edit form. Its value is read off the page, not assumed. */
 const FIELD = "bookable_alone";
 
+// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { groups, setListingGroups } from "#db/groups.ts";
-// jscpd:ignore-start
+import { t } from "#i18n";
 import {
-  adminBrowser,
   type OpensASalesPage,
   openAsNewcomer,
   opensSalesPagesAt,
   organiserSendsAndIsTold,
 } from "#test/specs/support/browser.ts";
+import { publicSiteGroup } from "#test/specs/support/bundles.ts";
+import { copyLoaded } from "#test/specs/support/copy.ts";
 import {
   checkboxValueOffered,
   tickedCheckboxes,
@@ -25,6 +27,7 @@ import {
 import {
   listingIdNamed,
   listingNamed,
+  listingPage,
   rememberListing,
   setBoxOnListing,
 } from "#test/specs/support/listings.ts";
@@ -71,8 +74,7 @@ export const sellHiddenBundle: ChangeOneThing<string> = async (
   bundle,
   part,
 ) => {
-  await enablePublicSite();
-  const group = await createTestGroup({ isPackage: true, name: bundle });
+  const group = await publicSiteGroup({ isPackage: true, name: bundle });
   await groups.table.update(group.id, {
     hidePackageListings: true,
     isPackage: true,
@@ -176,13 +178,26 @@ export const tryStopSellingOnItsOwn: ChangeOneThing<void> = async (
   world,
   name,
 ) => {
-  const browser = await adminBrowser(world);
-  await browser.visit(`/admin/listing/${listingIdNamed(world, name)}/edit`);
+  const browser = await listingPage(world, name, "/edit");
   // The send must carry nothing for the box: the form's own ticked value
   // would ride along and the site would never see the untick.
   await organiserSendsAndIsTold(world, browser, {}, "Save Changes", {
     [FIELD]: servedBoxSend(browser.currentHtml, false),
   });
+};
+
+/** The organiser opens the real deactivation confirmation, types the thing's
+ * name to confirm, and keeps what the site said — a refused take-off-sale is
+ * a message on that page, and the thing stays on sale. */
+export const tryTakeOffSale: ActOnOneThing = async (world, name) => {
+  await copyLoaded("listings-table");
+  const browser = await listingPage(world, name, "/deactivate");
+  await organiserSendsAndIsTold(
+    world,
+    browser,
+    { confirm_identifier: name },
+    t("listings_table.deactivate_listing"),
+  );
 };
 
 /** Everything the site currently offers for sale, as the customer sees it. */

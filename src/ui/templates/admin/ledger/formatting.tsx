@@ -19,7 +19,7 @@ import {
 import { t } from "#i18n";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 
-type AccountCell = (account: AccountRef) => JSX.Element | string;
+export type AccountCell = (account: AccountRef) => JSX.Element | string;
 
 const humanAccount = (transfer: Transfer, type: string): AccountRef | null => {
   if (transfer.source.type === type) return transfer.source;
@@ -209,6 +209,22 @@ const TRANSFER_PRESENTATION: Record<TransferKind, TransferPresentation> = {
     description: textDescription("admin.ledger.human.refund_fee"),
     eventKey: "admin.ledger.event.refund_fee",
   },
+  [KIND.refundManualAttendeeCharge]: {
+    amount: negativeAmount,
+    description: accountDescription(
+      "admin.ledger.human.refund_manual_attendee_charge",
+      ATTENDEE,
+    ),
+    eventKey: "admin.ledger.event.refund_manual_attendee_charge",
+  },
+  [KIND.refundManualAttendeeWriteoff]: {
+    amount: positiveAmount,
+    description: accountDescription(
+      "admin.ledger.human.refund_manual_attendee_writeoff",
+      ATTENDEE,
+    ),
+    eventKey: "admin.ledger.event.refund_manual_attendee_writeoff",
+  },
   [KIND.refundModifier]: {
     amount: modifierAmount,
     description: modifierDescription,
@@ -259,6 +275,15 @@ const presentationFor = (transfer: Transfer): TransferPresentation => {
 
 export const transferEventLabel = (transfer: Transfer): string =>
   t(presentationFor(transfer).eventKey);
+
+/** The operator's own description suffix for an owner-entered entry, or ""
+ * when the leg carries none or is not an owner-entered entry. The loader
+ * decrypts the memo before the template renders it. */
+export const ledgerEntryMemo = (transfer: Transfer): string => {
+  if (!transfer.memo || !isManualLedgerEntryType(transfer.kind ?? ""))
+    return "";
+  return ` ${transfer.memo}.`;
+};
 
 export const humanDescription = (
   transfer: Transfer,

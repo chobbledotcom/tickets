@@ -125,7 +125,7 @@ const fieldAttributes = (
   placeholder: placeholderFor(definition.copy),
 });
 
-/** The saved value; a form with a "placeholder" fallback shows its
+/** The saved value. A form with a "placeholder" fallback shows its
  *  placeholder instead when nothing is saved yet. */
 const textValue = (
   definition: TextSettingsFormConfig,
@@ -266,8 +266,8 @@ const fieldsForm = (
   );
 
 /** Render a settings form from its registry definition. The definition's
- * state fields must be real fields of the page state handed in, so a typo'd
- * or misplaced definition fails to compile instead of rendering blank. */
+ * state fields must be real fields of the page state handed in. A typo'd or
+ * misplaced definition then fails to compile instead of rendering blank. */
 export const settingsForm = <
   const Definition extends SettingsFormConfig,
   State extends object,

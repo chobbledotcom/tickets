@@ -258,9 +258,9 @@ const disableLogisticsFeature = async (): Promise<boolean> => {
   throw new Error("Listing defaults changed too often to disable Logistics");
 };
 
-/** Change one feature without replacing other feature choices that may have
- * been saved at the same time. Logistics also removes its listing default in
- * the same transaction when it is disabled. */
+/** Change one feature without replacing other feature choices that were
+ * saved at the same time. Logistics also removes its listing default in the
+ * same transaction when it is disabled. */
 export const setAdminFeatureEnabled = (
   key: AdminFeatureKey,
   enabled: boolean,

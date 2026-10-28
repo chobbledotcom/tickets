@@ -16,6 +16,7 @@ import {
   sellOnItsOwn,
   sellWithAddOn,
   tryStopSellingOnItsOwn,
+  tryTakeOffSale,
 } from "#test/specs/support/add-ons.ts";
 import {
   browserSeenBy,
@@ -169,6 +170,13 @@ When(
   },
 );
 
+When(
+  "the organiser tries to take the {word} off sale",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    await tryTakeOffSale(this, name);
+  },
+);
+
 Then(
   "the organiser is told {string} still needs the {word}'s page",
   async function (
@@ -176,9 +184,9 @@ Then(
     choice: string,
     _addOn: string,
   ): Promise<void> {
+    // The unmark save and the refused take-off-sale both refuse through the
+    // add-on reachability guard, whose words name the stranded choice.
     await copyLoaded("modifiers");
-    // The unmark save refuses through the add-on reachability guard, whose
-    // words name the add-on and the required child listing.
     assertStringIncludes(
       ownerLastTold(this),
       t("modifiers.err_child_only_addon", { name: choice }),

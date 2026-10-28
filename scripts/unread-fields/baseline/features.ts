@@ -1,5 +1,4 @@
 // jscpd:ignore-start
-import { way } from "#scripts/unread-fields/fields/steps.ts";
 import {
   type FindingIdentity,
   identitiesAt,
@@ -133,42 +132,5 @@ export const FEATURE_BASELINE: readonly FindingIdentity[] = [
     "groupName",
     "promoCodesEnabled",
   ]),
-  ...identitiesAt([
-    inCatalogTransfer("ListingData"),
-    inCatalogTransfer("ListingTransfer", "listing"),
-    inCatalogTransfer("CatalogTransfer", "listing"),
-  ])([
-    "bookableDays",
-    "description",
-    "location",
-    "maxAttendees",
-    "minimumDaysBefore",
-    "nonTransferable",
-    "useDefaults",
-    "usesLogistics",
-  ]),
-  ...identitiesAt([
-    inCatalogTransfer("GroupData"),
-    inCatalogTransfer("GroupTransfer", "group"),
-    inCatalogTransfer("CatalogTransfer", "group"),
-  ])([
-    "description",
-    "hidden",
-    "scanChecksInAllListings",
-    "showHiddenListings",
-    "termsAndConditions",
-  ]),
-  ...identitiesAt([
-    inCatalogTransfer("ListingMembership"),
-    inCatalogTransfer("GroupMember"),
-    inCatalogTransfer("ListingTransfer", "groups", way("[]")),
-    inCatalogTransfer("GroupTransfer", "members", way("[]")),
-    inCatalogTransfer("CatalogTransfer", "groups", way("[]")),
-    inCatalogTransfer("CatalogTransfer", "members", way("[]")),
-  ])(["packagePrice", "quantity"]),
-  ...identitiesAt([
-    inCatalogTransfer("ListingTransfer"),
-    inCatalogTransfer("GroupTransfer"),
-    inCatalogTransfer("CatalogTransfer"),
-  ])(["version"]),
+  ...identitiesAt([inCatalogTransfer("CatalogBundle")])(["version"]),
 ];

@@ -156,9 +156,13 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       assertStringIncludes(body, 'class="bulk-checkin"');
       assertStringIncludes(body, "Check In All");
       // The form posts this hidden input, so the name the POST handler reads
-      // is part of what the page renders.
-      assertStringIncludes(body, 'name="check_in"');
-      assertStringIncludes(body, 'value="true"');
+      // is part of what the page renders. The input and the bulk button sit
+      // together, apart from the per-row forms that carry the same name.
+      assertStringIncludes(
+        body,
+        '<input name="check_in" type="hidden" value="true">' +
+          '<button class="bulk-checkin" type="submit">Check In All</button>',
+      );
     });
 
     test("displays booked date for daily listing in admin view", async () => {
@@ -291,7 +295,12 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
 
       const body = await (await adminGet(`/checkin/${token}`)).text();
       assertStringIncludes(body, "Check Out All");
-      assertStringIncludes(body, 'class="bulk-checkout"');
+      // The bulk way out posts its own false spelling, tied to its button.
+      assertStringIncludes(
+        body,
+        '<input name="check_in" type="hidden" value="false">' +
+          '<button class="bulk-checkout" type="submit">Check Out All</button>',
+      );
     });
 
     test("hides the bulk action when no eligible row remains", async () => {

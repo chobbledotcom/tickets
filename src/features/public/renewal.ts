@@ -19,7 +19,7 @@ import { applyNoindex } from "./types.ts";
 const renewalActionUrl = (token: string): string =>
   `/renew/?t=${encodeURIComponent(token)}`;
 
-/** Resolve site by token; null result becomes 404. */
+/** Resolve site by token. A null result becomes 404. */
 const resolveRenewalSite = async (token: string | null) => {
   if (!token) return null;
   const tokenIndex = await hmacHash(token);

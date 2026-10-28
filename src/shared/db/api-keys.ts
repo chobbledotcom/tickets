@@ -3,7 +3,7 @@
  *
  * API keys allow programmatic access to admin endpoints without
  * password-based login. Each key wraps the shared DATA_KEY with
- * a token-derived key (same crypto as session tokens), so the
+ * a token-derived key (same crypto as session tokens). The
  * plaintext API key is needed to decrypt attendee PII.
  *
  * Keys inherit admin_level from their parent user.
@@ -61,9 +61,9 @@ const apiKeysTable = defineIdTable<ApiKeyRow, ApiKeyInput>("api_keys", {
  * checked against the table rather than spelled out as SQL. */
 const apiKeys = readerFor(apiKeysTable);
 
-/** What the auth path reads: everything but the name, which it never shows —
- * so the one encrypted column is neither fetched nor decrypted on a request
- * that only needs to know whose key this is. */
+/** What the auth path reads: everything but the name, which it never shows.
+ * The one encrypted column is neither fetched nor decrypted on a request that
+ * only needs to know whose key this is. */
 const apiKeyAuthColumns = apiKeys.pick([
   "id",
   "user_id",

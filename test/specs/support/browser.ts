@@ -13,6 +13,7 @@ import {
   takeDownFromActions,
 } from "#test/specs/support/form-controls.ts";
 import { logInAsTestAdmin } from "#test-utils/e2e.ts";
+import { regionOutOf } from "#test-utils/test-browser/parsing.ts";
 import { TestBrowser } from "#test-utils/test-browser.ts";
 import {
   keepsAnswerAs,
@@ -127,10 +128,10 @@ export type PageAddress<Args extends unknown[] = []> =
   | ((world: TicketsWorld, ...args: Args) => string);
 
 /** The address itself, whichever of the two ways the caller named it. */
-const addressOf = <Args extends unknown[]>(
-  where: PageAddress<Args>,
+const addressOf = <PathArgs extends unknown[]>(
+  where: PageAddress<PathArgs>,
   world: TicketsWorld,
-  ...args: Args
+  ...args: PathArgs
 ): string => (typeof where === "string" ? where : where(world, ...args));
 
 /** The organiser opens one of their own pages and keeps what it said, so the
@@ -149,10 +150,10 @@ export const organiserReads = <Args extends unknown[]>(
  * site said back. Curried on the page and the button, because those are all
  * that differ between writing to the host and texting somebody. */
 export const writesOneMessage =
-  <Args extends unknown[]>(
-    where: PageAddress<Args>,
+  <MessageArgs extends unknown[]>(
+    where: PageAddress<MessageArgs>,
     button: () => string | Promise<string>,
-  ): StoryJourney<[string, ...Args], void> =>
+  ): StoryJourney<[string, ...MessageArgs], void> =>
   async (world, message, ...args) => {
     const page = await openAdminPage(world, addressOf(where, world, ...args));
     await organiserSendsAndIsTold(world, page, { message }, await button());
@@ -330,6 +331,22 @@ export const adminPageHtmlAt = async (
   path: string,
 ): Promise<string> => (await openAdminPage(world, path)).currentHtml;
 
+/** One named article out of a page, from its id marker to the article's
+ * close. Slicing by the id keeps the slice from accidentally matching an
+ * unrelated figure elsewhere on the page. */
+export const articleOutOf = (html: string, markerId: string): string =>
+  regionOutOf(html, `id="${markerId}"`, "</article>", markerId);
+
+/** The first capture of a match, or a loud failure naming what was missing. */
+export const requireGroup = (
+  match: RegExpMatchArray | null | undefined,
+  what: string,
+): string => {
+  const value = match?.[1];
+  if (!value) throw new Error(what);
+  return value;
+};
+
 /** The organiser opens one of their own pages, and something is done with
  * the window they are looking at — the opening every organiser action on a
  * page shares. Whatever the act works out comes back, so a caller that reads
@@ -395,8 +412,10 @@ export const makesRecordThroughForm =
     const browser = await openAdminPage(world, labelled.formPath);
     await fillInAndSend(browser, fields, labelled.button);
     keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
-    const id = browser.currentUrl.match(labelled.filedAt)?.[1];
-    if (!id) throw new Error(`No page address for the new "${name}"`);
+    const id = requireGroup(
+      browser.currentUrl.match(labelled.filedAt),
+      `No page address for the new "${name}"`,
+    );
     world.things.remember("record", name, Number(id));
   };
 

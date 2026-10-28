@@ -5,6 +5,8 @@ import {
   SINGLETON_ACCOUNTS,
 } from "#accounting/accounts.ts";
 import { transfersByAccount } from "#accounting/queries.ts";
+import { decrypt, ENCRYPTION_PREFIX } from "#crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import {
   accountsOf,
   loadLedgerNamesForAccounts,
@@ -29,13 +31,31 @@ export const accountFromRoute = (
   return id === null ? null : ROW_ACCOUNT_CONSTRUCTORS[type](id);
 };
 
+/** A memo the statement can show the reader: plaintext stays as stored, and an
+ * owner-key-encrypted memo (an operator-entered description) is decrypted for
+ * display. The prefix check keeps a PII-free plaintext memo (a refund reason
+ * code) from being parsed as ciphertext. A missing memo reads as empty. */
+export const readableMemo = async (
+  memo: string | undefined,
+): Promise<string> => {
+  if (memo === undefined || memo === "") return "";
+  if (!memo.startsWith(ENCRYPTION_PREFIX)) return memo;
+  return decrypt(memo as EnvKeyEncrypted<string>);
+};
+
 export const loadAccountLedger = async (
   account: AccountRef,
 ): Promise<AccountLedgerData> => {
   const transfers = await transfersByAccount(account);
+  const readable = await Promise.all(
+    transfers.map(async (transfer) => ({
+      ...transfer,
+      memo: await readableMemo(transfer.memo),
+    })),
+  );
   return {
     account,
-    lines: statementFor(account)(transfers),
+    lines: statementFor(account)(readable),
     names: await loadLedgerNamesForAccounts([
       account,
       ...accountsOf(transfers),

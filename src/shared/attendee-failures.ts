@@ -62,7 +62,7 @@ export const attendeeFailureFormatter =
     FAILURE_MESSAGE_BUILDERS[reason](messages, listingName);
 
 /** The item a refused order names: the first whose listing the failure says
- * is out of room, else the order's first item — read in the order the
+ * is out of room, else the order's first item. It reads in the order the
  * customer sees them, the way the write met them. */
 export const refusedOrderItem = <Item>(
   items: readonly Item[],

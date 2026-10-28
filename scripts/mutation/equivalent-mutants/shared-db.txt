@@ -64,9 +64,9 @@ src/shared/db/capacity-batch.ts::addDemandToBucket~1bo0bmf  ?? → || audited:1a
 
 # Atomic line values use non-empty timestamps and numeric package ids. The
 # delete pin reads the same stored timestamp domain as the line key.
-src/shared/db/attendees/atomic-update.ts::lineBooking.packageGroupId~0djpbjh  ?? → || audited:0jn7yv5 # packageGroupId is undefined or a number; zero and the zero fallback produce the same value
-src/shared/db/attendees/atomic-update.ts::lineKeyFromBooking~08fp1gg  ?? → || audited:0jn7yv5 # start_at is null or a non-empty stored timestamp, so both operators produce the timestamp or an empty key part
-src/shared/db/attendees/atomic-update.ts::applyAttendeeAtomicEdit.args~16je2gx  ?? → || audited:0jn7yv5 # booking.start_at has the same null-or-non-empty timestamp domain when it becomes the delete pin
+src/shared/db/attendees/atomic-update.ts::lineBooking.packageGroupId~0djpbjh  ?? → || audited:049scuh # packageGroupId is undefined or a number; zero and the zero fallback produce the same value
+src/shared/db/attendees/atomic-update.ts::lineKeyFromBooking~08fp1gg  ?? → || audited:049scuh # start_at is null or a non-empty stored timestamp, so both operators produce the timestamp or an empty key part
+src/shared/db/attendees/atomic-update.ts::applyAttendeeAtomicEdit.args~16je2gx  ?? → || audited:049scuh # booking.start_at has the same null-or-non-empty timestamp domain when it becomes the delete pin
 
 # Attendee creation receives validated non-empty discriminators, dates, tokens,
 # and finite money values. Empty optional contact fields use empty fallbacks.
@@ -247,8 +247,9 @@ src/shared/db/link-table.ts::rowsToIdsByKeys~0a4lik4 Unexpected link key→"" au
 src/shared/db/listings/catalog.ts::getListingOfferFlags.row.alias~1hl3tuf  listing → "" audited:143g2p7 # the reader consumes the alias only through truthiness, so the empty string behaves exactly like an absent alias
 src/shared/db/listings/catalog.ts::getListingOfferFlags~1u79xgr  ?? → || audited:143g2p7 # read.one answers the row object or null, and every row object is truthy
 
-src/shared/db/attendees/queries.ts::getAttendeeRaw~10a7m9s  ?? → || audited:1g0izqw # loadAttendeeRows answers an Attendee row object or undefined, and a row object is always truthy
-src/shared/db/attendees/queries.ts::getAttendeeNamesByIds~0i1nd31  false → true audited:1g0izqw # the paid flag gates payment_id inside decryptPiiBlob, and this reader returns only the name field
+src/shared/db/attendees/queries.ts::getAttendeeRaw~10a7m9s  ?? → || audited:1xidqhx # loadAttendeeRows answers an Attendee row object or undefined, and a row object is always truthy
+src/shared/db/attendees/queries.ts::getAttendeeRawByToken~06djxiz  ?? → || audited:1xidqhx # loadAttendeeRows answers an Attendee row object or undefined, and a row object is always truthy
+src/shared/db/attendees/queries.ts::getAttendeeNamesByIds~0i1nd31  false → true audited:1xidqhx # the paid flag gates payment_id inside decryptPiiBlob, and this reader returns only the name field
 
 # A booking event posts its legs once, together: the store rejects adding a
 # leg to an already-posted group (replay conflict), and mapBooking always
@@ -271,3 +272,9 @@ src/shared/db/settings/cache.ts::getCurrentSettingsVersion~18tvevh  10 → 0 aud
 src/shared/db/contact-tokens.ts::splitTokenBlob~05rrw2z  -→+ audited:0sppv7e # separatorAt === -1 distinguishes a legacy line with no tab; the mutant only relabels such lines to carry `raw.slice(0, -1)` as their marker while keeping the encrypted value identical (slice(0)). Every marker consumer (removeBookingToken, ensureBookingToken) compares that label against an HMAC blind marker computed from the token, which a ciphertext-derived prefix string can never equal through a production write — legacy rows store an AEAD ciphertext and marked rows name their marker behind a tab, and no writer emits the hybrid a distinguishing input would need
 src/shared/db/built-sites/claims.ts::takePooledSiteForBuyer.claim~0itqfwl  won→"" audited:14sfg38 # the "won" tag only names the transaction result inside the function; every caller observes the final "claimed" take, so no test can see the intermediate string
 src/shared/db/built-sites/claims.ts::assignedBuiltSiteExistsStatement.tail~0nk255t %20LIMIT 1→"" audited:14sfg38 # the statement feeds hasAssignedBuiltSite's rows.length > 0 check; the row count is zero or positive either way, so LIMIT 1 only bounds the fetch and no input distinguishes the two
+
+# Daily switch (daily-switch.ts): the move builds one DesiredListingLine per
+# undated row and hands it to updateStatementFor, which targets the row by its
+# slot pin (attendee, listing, old start, parent, package group) and never
+# reads the line's exists flag.
+src/shared/db/listings/daily-switch.ts::moveStatement.line.exists~1w8epkj true→false audited:0c2maua # updateStatementFor builds its UPDATE from the line's range and the caller's slot pin; nothing in the move path reads exists, so no input distinguishes the flag

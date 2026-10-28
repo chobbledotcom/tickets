@@ -26,18 +26,19 @@ runs:
       with:
         name: devenv
 
-    # devenv.lock pins the module flake that evaluates this project, but not
-    # the CLI driver, so the registry can move it. Fail below 2.2.
+    # The CLI is pinned to a devenv source revision, so the Nix registry can
+    # not move it. To update: choose a newer devenv revision, confirm it
+    # reports a version this project accepts, and replace the revision here.
     - name: Install devenv.sh
       shell: bash
       run: |
-        nix profile add nixpkgs#devenv
+        nix profile add "github:cachix/devenv/d9f86dc6fe4cb74c0f9377e5535acc0cdacee721#devenv"
         version="$(devenv --version)"
         echo "devenv CLI: $version"
         case "$version" in
           "devenv 2."[2-9].* | "devenv 2."[1-9][0-9].* | "devenv "[3-9].* ) ;;
           * )
-            echo "::error::devenv CLI older than 2.2 ($version). Pin the registry or raise the floor."
+            echo "::error::devenv CLI older than 2.2 ($version). The pinned revision must provide a supported CLI."
             exit 1
             ;;
         esac
@@ -59,10 +60,12 @@ runs:
         restore-keys: |
           deno-${{ runner.os }}-${{ runner.arch }}-${{ steps.deno-version.outputs.version }}-
 
+    # The install policy lives in scripts/ci/deno-install.sh: a frozen
+    # lockfile and an explicit npm lifecycle-script allowlist.
     - name: Install Deno dependencies
       if: inputs.install_dependencies == 'true'
       shell: bash
       run: |
         profile=""
         [ -n "${{ inputs.profile }}" ] && profile="--profile ${{ inputs.profile }}"
-        devenv $profile shell -- deno install --allow-scripts
+        devenv $profile shell -- bash scripts/ci/deno-install.sh

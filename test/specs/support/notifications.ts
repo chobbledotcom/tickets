@@ -11,23 +11,35 @@ import { personBookedOnListing } from "#test/specs/support/booked-person.ts";
 import { rowsOnList } from "#test/specs/support/form-controls/reading.ts";
 import { listingNamed } from "#test/specs/support/listings.ts";
 import {
+  type ActOnOneThing,
+  type ActOnTheStory,
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { setPendingNotificationFlags } from "#test-utils/db-helpers/attendees.ts";
+
 // jscpd:ignore-end
 
 /** One person's booking on a listing, with the sends it still owes: 1 says
  * the send never got accepted, 0 says it went out or nothing was owed. The
  * booking goes through the site's own create, so the flags are the only
  * thing the story sets by hand. */
-export const personWithTicketOwing = async (
+/** Somebody whose booking still owes the sends a merge story reads. */
+type OwesTheSends = (
   world: TicketsWorld,
   who: string,
   listing: string,
   email: number,
   webhooks: number,
-): Promise<void> => {
+) => Promise<void>;
+
+export const personWithTicketOwing: OwesTheSends = async (
+  world,
+  who,
+  listing,
+  email,
+  webhooks,
+) => {
   const { attendee } = await personBookedOnListing(world, who, listing);
   await setPendingNotificationFlags(attendee.id, email, webhooks);
 };
@@ -35,10 +47,10 @@ export const personWithTicketOwing = async (
 /** A listing a story named stops collecting an email, so a booking on it
  * owes no email any more. The contact-fields setting has its own story; this
  * only sets the fact the notice rule reads. */
-export const listingStopsCollectingAnEmail = async (
-  world: TicketsWorld,
-  listing: string,
-): Promise<void> => {
+export const listingStopsCollectingAnEmail: ActOnOneThing = async (
+  world,
+  listing,
+) => {
   await execute("UPDATE listings SET fields = 'phone' WHERE id = ?", [
     listingNamed(world, listing).id,
   ]);
@@ -47,9 +59,7 @@ export const listingStopsCollectingAnEmail = async (
 /** The pair the merge story set up owes different sends: the booking kept
  * owes an email, the duplicate owes its webhooks. So each side of the merge
  * screen has its own notice to show. */
-export const pairOwesDifferentSends = async (
-  world: TicketsWorld,
-): Promise<void> => {
+export const pairOwesDifferentSends: ActOnTheStory = async (world) => {
   await setPendingNotificationFlags(
     requiredWorldValue(world.attendeeId, "the booking being kept"),
     1,

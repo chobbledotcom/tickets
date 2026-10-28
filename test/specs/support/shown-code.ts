@@ -10,16 +10,16 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { handleRequest } from "#routes";
 import type { CheckoutIntent } from "#shared/payments.ts";
-import { openAdminPage, openAsNewcomer } from "#test/specs/support/browser.ts";
 import {
-  listingIdNamed,
-  rememberListing,
-} from "#test/specs/support/listings.ts";
+  openAdminPage,
+  openAsNewcomer,
+  requireGroup,
+} from "#test/specs/support/browser.ts";
+import { listingIdNamed } from "#test/specs/support/listings.ts";
 import type { ActOnOneThing, TicketsWorld } from "#test/specs/support/world.ts";
 import { STUB_CHECKOUT_URL } from "#test-utils/checkout.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { deactivateTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
-import { enablePublicSite, setupStripe } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
@@ -32,29 +32,6 @@ interface CodeWanted {
   price?: number;
   who?: string;
 }
-
-/** Something for sale that the organiser can print a code for. */
-export const somethingForSale = async (
-  world: TicketsWorld,
-  name: string,
-  options: { askForEmail?: boolean; canPayMore?: boolean; price: number },
-): Promise<void> => {
-  await enablePublicSite();
-  await setupStripe();
-  rememberListing(
-    world,
-    name,
-    await createTestListing({
-      canPayMore: options.canPayMore ?? false,
-      // Nothing beyond a name is asked for unless the story says so, which is
-      // what makes a complete code able to skip the form entirely.
-      fields: options.askForEmail ? "email" : "",
-      maxAttendees: 10,
-      name,
-      unitPrice: options.price,
-    }),
-  );
-};
 
 /** The screen the organiser is holding up, once they have put a code on it. */
 export interface CodeOnScreen {
@@ -181,7 +158,8 @@ export const customerScansLater = async (
 
 /** A customer scans a code the moment it goes up. */
 export const customerScans = (link: string): Promise<WhereTheCodeLed> =>
-  withPayingStubbed(async ({ timesReached, whatWasCharged }) => {
+  withPayingStubbed(async (paying) => {
+    const { timesReached, whatWasCharged } = paying;
     const response = await handleRequest(mockRequest(link));
     // The whole address has to be the payment page, not merely start like it.
     const sentToPay =
@@ -243,9 +221,10 @@ export const customerPaysMore = (
 /** The same code with its signed part meddled with, as anyone reading the link
  * off a poster could do. */
 export const meddledWith = (link: string): string => {
-  const found = link.match(/t=(.+)$/);
-  if (!found?.[1]) throw new Error("That code carries nothing to meddle with");
-  const code = found[1];
+  const code = requireGroup(
+    link.match(/t=(.+)$/),
+    "That code carries nothing to meddle with",
+  );
   // Change one character in the middle, leaving the shape of the code intact —
   // a link that still looks right but is not the one the site handed out.
   const at = Math.floor(code.length / 2);
@@ -253,10 +232,11 @@ export const meddledWith = (link: string): string => {
   return link.replace(code, code.slice(0, at) + swapped + code.slice(at + 1));
 };
 
-/** The organiser takes something off sale after the codes are printed. */
+/** The organiser takes something off sale after the codes are printed, the way
+ * the site really offers: its confirmed deactivate form. A write past that
+ * form would skip the very guard the next story leans on. */
 export const takeOffSale: ActOnOneThing = async (world, name) => {
-  const { listingsTable } = await import("#db/listings/records.ts");
-  await listingsTable.update(listingIdNamed(world, name), { active: false });
+  await deactivateTestListing(listingIdNamed(world, name));
 };
 
 /** Nothing at all was booked, whatever the page said. */

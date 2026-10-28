@@ -19,6 +19,7 @@ import {
   listingParents,
 } from "#db/listing-parents.ts";
 import { syncListingPrices } from "#db/listing-price-sync.ts";
+import { refuseUndatedSwitchTx } from "#db/listings/daily-switch.ts";
 import { deleteListing } from "#db/listings/delete.ts";
 import {
   getListingWithCount,
@@ -31,7 +32,10 @@ import {
 } from "#db/name-registry.ts";
 import { firstProblem, requiredMapValue } from "#fp";
 import { t } from "#i18n";
-import { deactivationOrphanedAddOnError } from "#shared/add-on-reachability.ts";
+import {
+  deactivationOrphanedAddOnError,
+  listingSaveOrphanedAddOnTx,
+} from "#shared/add-on-reachability.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { optionalFieldsSchema } from "#shared/catalog-fields/fields-schema.ts";
 import { formatCurrency } from "#shared/currency.ts";
@@ -102,11 +106,17 @@ const validateMaxPrice = (input: ListingInput): string | null => {
     : null;
 };
 
+/** Facts a caller preloads to validate many listings with one shared read. */
+export type ListingValidationContext = {
+  siblingsByGroup?: Map<number, ListingWithCount[]>;
+};
+
 /** An async listing check that can depend on the update target's id (undefined
  * on create), returning a user-facing error or null. */
 type ListingUpdateCheck = (
   input: ListingInput,
   existingId: number | undefined,
+  preloaded: ListingValidationContext | undefined,
 ) => Promise<string | null>;
 
 /** Validate each selected group exists. The listing type must be compatible
@@ -145,7 +155,11 @@ const packageMembershipError = async (
   );
 };
 
-const validateListingGroup: ListingUpdateCheck = async (input, existingId) => {
+const validateListingGroup: ListingUpdateCheck = async (
+  input,
+  existingId,
+  preloaded,
+) => {
   const groupIds = input.wouldBeGroupIds ?? input.groupIds ?? [];
   if (groupIds.length === 0) return null;
   const planRule = planInGroupError(input.assignBuiltSite, input.name);
@@ -159,7 +173,8 @@ const validateListingGroup: ListingUpdateCheck = async (input, existingId) => {
   // the N+1 read guard: one cached groups load plus one sibling query for all
   // referenced groups, then the compatibility check runs in memory per group.
   const groupsById = await getGroupsById();
-  const siblingsByGroup = await getListingsByGroupIds(groupIds);
+  const siblingsByGroup =
+    preloaded?.siblingsByGroup ?? (await getListingsByGroupIds(groupIds));
   return firstProblem(async (groupId: number): Promise<string | null> => {
     const checked = checkGroupListingSettings(
       groupsById.get(groupId),
@@ -269,6 +284,7 @@ const validateMinQuantity = (input: ListingInput): string | null => {
 export const validateListingInput = async (
   input: ListingInput,
   existingId?: number,
+  preloaded?: ListingValidationContext,
 ): Promise<string | null> => {
   const nameError = await listingNameError(input.name, existingId);
   if (nameError) return nameError;
@@ -290,12 +306,12 @@ export const validateListingInput = async (
   }
   const customisableError = validateCustomisableDays(input);
   if (customisableError) return customisableError;
-  const groupError = await validateListingGroup(input, existingId);
+  const groupError = await validateListingGroup(input, existingId, preloaded);
   if (groupError) return groupError;
   // A type/duration/renewal edit can break an existing parent/child edge the
   // booking gate then can't date or price — re-check every touching edge against
   // the would-be fields and block the save (web form and admin JSON API alike).
-  const edgeError = await validateListingEdges(input, existingId);
+  const edgeError = await validateListingEdges(input, existingId, undefined);
   if (edgeError) return edgeError;
 
   return (
@@ -466,4 +482,19 @@ export const toggleListingActive = async (
   );
   if (outcome !== null) return outcome;
   return { updated: (await getListingWithCount(listingId))! };
+};
+
+/** The listing save's in-transaction guard. It runs the add-on reachability
+ * half, and — unless this save carries a confirmed undated move — it refuses
+ * a type switch that leaves undated bookings behind. Both surfaces (the admin
+ * HTML form and the admin JSON API) run this hook. So a bare switch can never
+ * silently reopen a full listing through either one. */
+export const refuseUndatedListingSwitch = async (
+  tx: TxScope,
+  listingId: number,
+  input: ListingInput,
+): Promise<string | null> => {
+  const addOnRefusal = await listingSaveOrphanedAddOnTx(tx, listingId, input);
+  if (addOnRefusal !== null) return addOnRefusal;
+  return refuseUndatedSwitchTx(tx, listingId, input.listingType ?? "standard");
 };

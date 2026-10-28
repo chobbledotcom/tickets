@@ -1,6 +1,6 @@
 /**
  * The Liquid variables a confirmation email template can use, and a worked
- * loop over them — one declaration for every surface that shows the
+ * loop over them. One declaration serves every surface that shows the
  * reference: the advanced-settings form and the admin guide.
  *
  * The contract test in test/shared/email-renderer/variable-reference.test.ts

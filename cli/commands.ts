@@ -52,6 +52,21 @@ export type ParsedCommand =
       verb: "create" | "delete" | "update";
     };
 
+/** Whether a resource serves a standard verb. A `serves` declaration lists
+ *  the routes the server answers; absent means all five. A verb the resource
+ *  does not serve is a usage error, never a request the server 404s. */
+const servesVerb = (
+  entry: AdminApiResource,
+  verb: Exclude<StandardVerb, "describe">,
+): boolean => entry.serves === undefined || entry.serves[verb] === true;
+
+/** The usage error for a verb a resource does not serve. */
+const verbUnservedError = (verb: string, resource: string): CliError =>
+  new CliError(
+    "usage",
+    `The '${verb}' command is not available for '${resource}'.`,
+  );
+
 const unknownResource = (raw: string, table: Table): CliError =>
   new CliError(
     "usage",
@@ -184,6 +199,7 @@ const parseList = (table: Table, args: readonly string[]): ParsedCommand => {
   const [, resourceRaw, extra] = args;
   if (extra !== undefined) throw tooManyArguments();
   const { entry, name } = resolveResource(table, resourceRaw, "list");
+  if (!servesVerb(entry, "list")) throw verbUnservedError("list", name);
   return { entry, kind: "list", resource: name };
 };
 
@@ -192,6 +208,7 @@ const parseRead = (table: Table, args: readonly string[]): ParsedCommand => {
   const [, resourceRaw, idRaw, extra, ...rest] = args;
   if (extra !== undefined || rest.length > 0) throw tooManyArguments();
   const { entry, name } = resolveResource(table, resourceRaw, "get");
+  if (!servesVerb(entry, "get")) throw verbUnservedError("get", name);
   if (idRaw === undefined) {
     throw new CliError(
       "usage",
@@ -240,6 +257,7 @@ const parseWrite = (
   verb: "create" | "delete" | "update",
   args: readonly string[],
 ): ParsedCommand => {
+  if (!servesVerb(entry, verb)) throw verbUnservedError(verb, resource);
   const [, , idRaw, bodyRaw, extra, ...rest] = args;
   if (extra !== undefined || rest.length > 0) throw tooManyArguments();
   if (idRaw === undefined) throw missingWriteIdError(verb, entry);

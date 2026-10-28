@@ -9,7 +9,8 @@
 
 import * as v from "valibot";
 import { mapNotNullish } from "#fp";
-import { fetchText, parseApiError } from "#shared/fetch.ts";
+import { defineApiClient } from "#shared/api-client.ts";
+import { type FetchResult, parseApiError } from "#shared/fetch.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import type { AddressLookupProviderDefinition, AddressMatch } from "./types.ts";
 
@@ -84,12 +85,13 @@ export const fetchEasypostcodesAddresses = async (
   search: string,
   apiKey: string,
 ): Promise<Result<AddressMatch[]>> => {
-  let response: Awaited<ReturnType<typeof fetchText>>;
+  const client = defineApiClient({
+    baseUrl: API_BASE,
+    headers: () => ({ Key: apiKey }),
+  });
+  let response: FetchResult;
   try {
-    response = await fetchText(
-      API_BASE + encodeURIComponent(search) + GEO_QUERY,
-      { headers: { Key: apiKey } },
-    );
+    response = await client.raw(encodeURIComponent(search) + GEO_QUERY);
   } catch (error) {
     return errorResult(`EasyPostcodes lookup failed: ${String(error)}`);
   }

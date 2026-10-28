@@ -147,17 +147,22 @@ export const saveOwnerMoneyForm = async (
   return saved;
 };
 
+/** The status one saved owner address answers through the manager's browser. */
+const managerReadsAddress = async (
+  world: TicketsWorld,
+  manager: string,
+  address: string,
+): Promise<void> => {
+  const answer = await managerBrowser(world, manager).statusOf(address);
+  refundSafety(world).managerAnswer = answer;
+};
+
 /** Ask for the copied owner address through the manager's signed-in browser. */
-export const managerOpensSavedOwnerAddress: ActOnSavedOwnerForm = async (
+export const managerOpensSavedOwnerAddress: ActOnSavedOwnerForm = (
   world,
   manager,
   kind,
-) => {
-  const answer = await managerBrowser(world, manager).statusOf(
-    savedForm(world, kind).path,
-  );
-  refundSafety(world).managerAnswer = answer;
-};
+) => managerReadsAddress(world, manager, savedForm(world, kind).path);
 
 /** Submit a copied owner form with the manager's real session.
  *

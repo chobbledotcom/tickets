@@ -5,6 +5,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { scopeAttendees } from "#routes/admin/scan-answer.ts";
 import {
   deliverDigest,
   deliverTwoTier,
@@ -19,6 +20,7 @@ import { groupDoor, scanAtDoor } from "#test/features/admin/scanner/support.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { storedCheckinRows } from "#test-utils/db-helpers/checkin-rows.ts";
+import { withTestSession } from "#test-utils/session.ts";
 
 describeWithEnv(
   "a queued check-in replaying by token digest",
@@ -263,3 +265,25 @@ describeWithEnv(
     });
   },
 );
+
+describeWithEnv("the door's scope read", { db: true }, () => {
+  test("reads every line a door holds, including a no-quantity sentinel row", async () => {
+    // The scope read is what the offline cache and the manual pick list
+    // draw from; it must not drop a no-quantity sentinel row, whose line
+    // the booking still carries even though it owns no ticket.
+    const door = await groupDoor(1);
+    const attendee = await bookTestAttendee(
+      [{ listingId: door.members[0]!.id, quantity: 0 }],
+      "Ada NoQty",
+      "ada-noqty@example.com",
+    );
+    const rows = await withTestSession(() =>
+      scopeAttendees({
+        checkInEveryListing: false,
+        listingIds: new Set(door.members.map((m) => m.id)),
+      }),
+    );
+    expect(rows.map((row) => row.id)).toContain(attendee.id);
+    expect(rows.find((row) => row.id === attendee.id)!.quantity).toBe(0);
+  });
+});

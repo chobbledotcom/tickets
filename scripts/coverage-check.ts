@@ -4,6 +4,7 @@
  */
 
 import { sortedNumbers } from "#fp";
+import { escapeAnnotationValue } from "#scripts/check-report.ts";
 import { requireValue } from "#shared/required-value.ts";
 // Files excluded from coverage enforcement live in
 // ./check-coverage-exclusions/exclusions.ts. The exclusion ratchet

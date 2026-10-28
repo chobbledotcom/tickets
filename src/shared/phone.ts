@@ -24,8 +24,8 @@ export type PhoneLinks = { tel: string; whatsapp: string };
 
 /**
  * Build `tel:` and `wa.me` hrefs for a phone number, or null when the number
- * has no digits. The prefix is the country dialling code (e.g. "44"); a
- * leading "+" is tolerated so a settings value of either "44" or "+44" works.
+ * has no digits. The prefix is the country dialling code (for example, "44").
+ * A leading "+" is tolerated so a settings value of either "44" or "+44" works.
  * WhatsApp's wa.me wants the international number with no leading "+".
  */
 export const phoneLinks = (

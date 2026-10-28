@@ -48,7 +48,7 @@ type EventCapture = {
 /**
  * Captures every push of `event` until `cancel` or `received` resolves. Kuma
  * can send the same event more than once (an early stale list followed by the
- * real one), so the capture stays open and keeps the newest value.
+ * real one). The capture stays open and keeps the newest value.
  */
 export const captureEvents = (
   socket: UptimeKumaSocket,

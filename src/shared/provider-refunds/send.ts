@@ -55,7 +55,7 @@ const authorizeSend = async (
   }
   const refund = { charge, paymentReference: reference.reference };
   // The stored generation's capability must agree with what the registry
-  // declares for the tagged provider — a mismatch means the record and the
+  // declares for the tagged provider. A mismatch means the record and the
   // declaration disagree about how this provider refunds.
   if (isKeylessProvider(reference.provider)) {
     if (request.capability !== "keyless") {

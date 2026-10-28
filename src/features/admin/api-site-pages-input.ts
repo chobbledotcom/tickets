@@ -89,13 +89,20 @@ const optionalTextField = (
   withSupplied(body, key, stored, (raw) => {
     const value = raw.trim();
     const max = CONTENT_FIELD_LIMITS[key];
-    if (value.length > max) {
-      return errorResult(
-        t("fields.validation.max_length", { label: FIELD_LABELS[key](), max }),
-      );
-    }
+    if (value.length > max) return tooLong(FIELD_LABELS[key](), max);
     return okResult(value);
   });
+
+/** The "longer than the field's cap" refusal, in the form's own words. The
+ *  slug, the page name, and the text fields all refuse with the same message,
+ *  so the message construction lives once. */
+const tooLong = (label: string, max: number): Result<never> =>
+  errorResult(
+    t("fields.validation.max_length", {
+      label,
+      max,
+    }),
+  );
 
 /** The slug: absent keeps the stored one. A supplied value normalises and
  *  validates through the same rule the form's slug field runs, then the
@@ -108,14 +115,8 @@ const optionalSlug = (body: Record<string, unknown>, stored: string) =>
     if (invalid) return errorResult(invalid);
     // The form's slug field refuses a value past the input cap, after the
     // format check and before the reserved words. The same refusal here.
-    if (slug.length > MAX_INPUT_LENGTH) {
-      return errorResult(
-        t("fields.validation.max_length", {
-          label: t("common.slug"),
-          max: MAX_INPUT_LENGTH,
-        }),
-      );
-    }
+    if (slug.length > MAX_INPUT_LENGTH)
+      return tooLong(t("common.slug"), MAX_INPUT_LENGTH);
     if (isReservedSlug(slug)) {
       return errorResult(t("site.pages.error.reserved"));
     }
@@ -130,12 +131,7 @@ const pageName = (
 ): Result<string> => {
   const name = requireEntityField(body, "name", stored);
   if (name.ok && name.value.length > MAX_INPUT_LENGTH) {
-    return errorResult(
-      t("fields.validation.max_length", {
-        label: t("site.pages.field.name"),
-        max: MAX_INPUT_LENGTH,
-      }),
-    );
+    return tooLong(t("site.pages.field.name"), MAX_INPUT_LENGTH);
   }
   return name;
 };
@@ -175,6 +171,37 @@ export const toPageWrite = (
     name: name.value,
     slug: slug.value,
   });
+};
+
+/** The content-page write fields a fixed page does not carry. A body that
+ *  names one gets the field-named refusal. A fixed page holds only its
+ *  content, so a client cannot send it the other fields. The type refuses a
+ *  name outside the declared update body. The fixed-page test reads its cases
+ *  from that schema. A new schema field must join this list. */
+const FIXED_PAGE_BARRED_FIELDS: readonly Exclude<
+  keyof UpdateSitePageBody,
+  "content"
+>[] = ["hidden", "meta_description", "meta_title", "name", "parent", "slug"];
+
+/** The fixed page's content: the one writable field of a home, contact or
+ *  terms page. A body naming any content-page field a fixed page does not
+ *  carry is refused with the field-named message. A supplied content runs
+ *  the shared text rule: trimmed, and a non-string is refused with the field
+ *  message. A value past the form's textarea cap answers the form's length
+ *  message. A silent body keeps the stored text unchanged. The stored text
+ *  can exceed the cap, because the terms editor stores text with no length
+ *  cap. The cap check runs on a supplied value only. */
+export const toFixedPageContent = (
+  body: Record<string, unknown>,
+  stored: string,
+): Result<string> => {
+  for (const field of FIXED_PAGE_BARRED_FIELDS) {
+    if (body[field] !== undefined) {
+      return errorResult(`${field} cannot change on a fixed page`);
+    }
+  }
+  if (body.content === undefined) return okResult(stored);
+  return optionalTextField(body, "content", stored);
 };
 
 /** The tx step both parent writes share: drop the page's current parent

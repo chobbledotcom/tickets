@@ -112,7 +112,7 @@ export const createVerifiedFormRoute = <TParams, TContext>(
   });
 
 /** Auth option: string shorthand or explicit guard pair */
-type AuthOption<TSession> =
+export type AuthOption<TSession> =
   | "owner"
   | "any"
   | {
@@ -186,7 +186,9 @@ export type ConfirmedHandlers = {
   post: (request: Request, id: number) => Promise<Response>;
 };
 
-const resolveAuth = <TSession>(auth: AuthOption<TSession> | undefined) => {
+export const resolveAuth = <TSession>(
+  auth: AuthOption<TSession> | undefined,
+) => {
   if (typeof auth === "object") return auth;
   const isOwner = auth !== "any";
   return {

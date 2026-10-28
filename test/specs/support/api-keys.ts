@@ -18,6 +18,7 @@ import {
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
   type ActOnOneThing,
+  type ActOnTheStory,
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
@@ -43,7 +44,7 @@ const WHAT_THE_SITE_SELLS = "/api/admin/listings";
 const openKeysPage = opensAdminPageAt(KEYS_PAGE);
 
 /** The owner opens their keys page, and it is theirs to read. */
-export const ownerOpensKeys = async (world: TicketsWorld): Promise<void> => {
+export const ownerOpensKeys: ActOnTheStory = async (world) => {
   await openKeysPage(world);
 };
 

@@ -8,11 +8,13 @@ export interface WriteWholeDeps {
   writeTextFile(path: string, text: string): Promise<void>;
 }
 
-const realDeps: WriteWholeDeps = {
+/** The real calls, read at call time so a test that replaces a Deno method
+ * still reaches the replacement through the default deps. */
+const realDeps = (): WriteWholeDeps => ({
   remove: Deno.remove,
   rename: Deno.rename,
   writeTextFile: Deno.writeTextFile,
-};
+});
 
 /** Take a failed write's temp file back away. The write can die before the
  * temp exists, so an absent file means there is nothing left to do; any other
@@ -38,7 +40,7 @@ const removeLeftoverTemp = async (
 export const writeWholeOrNotAtAll = async (
   path: string,
   text: string,
-  deps: WriteWholeDeps = realDeps,
+  deps: WriteWholeDeps = realDeps(),
 ): Promise<void> => {
   const temp = `${path}.writing`;
   let renamed = false;

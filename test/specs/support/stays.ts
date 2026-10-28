@@ -12,14 +12,13 @@ import { adminBrowser } from "#test/specs/support/browser.ts";
 import {
   listingIdNamed,
   organiserSavesFields,
-  rememberListing,
+  putsOnSaleByTheDay,
 } from "#test/specs/support/listings.ts";
 import type {
   ReadAboutOneThing,
   TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { testDate } from "#test-utils/dates.ts";
-import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
 import type { Attendee, Listing } from "#types";
 // jscpd:ignore-end
 
@@ -55,20 +54,33 @@ export const dayFromToday = (world: TicketsWorld, days: number): string => {
   return addDays(testDate(world.firstDay), days);
 };
 
+/** What a stay listing story can pin beyond the length and the places: how far
+ * ahead it books, whether the customer picks their own length, and the group
+ * it belongs to. */
+interface StayOptions {
+  bookAheadDays?: number;
+  customerPicksDays?: boolean;
+  groupId?: number;
+}
+
 /** A listing booked by the day, where each booking covers `days` days and each
  * day has room for `placesADay` places. Remembered by the name the story uses. */
-export const openStayListing = async (
+type OpensAStay = (
   world: TicketsWorld,
   name: string,
   days: number,
   placesADay: number,
-  options: {
-    bookAheadDays?: number;
-    customerPicksDays?: boolean;
-    groupId?: number;
-  } = {},
-): Promise<Listing> => {
-  const listing = await createDailyTestListing({
+  options?: StayOptions,
+) => Promise<Listing>;
+
+export const openStayListing: OpensAStay = async (
+  world,
+  name,
+  days,
+  placesADay,
+  options = {},
+) =>
+  putsOnSaleByTheDay(world, name, {
     durationDays: days,
     maxAttendees: placesADay,
     ...(options.bookAheadDays === undefined
@@ -77,7 +89,6 @@ export const openStayListing = async (
     // Room to book several places at once, and the site's own thank-you page, so
     // a story reads what the customer is actually shown.
     maxQuantity: placesADay,
-    name,
     thankYouUrl: "",
     ...(options.groupId === undefined ? {} : { groupId: options.groupId }),
     // A listing whose customers choose their own length needs a price for each
@@ -91,8 +102,6 @@ export const openStayListing = async (
         }
       : {}),
   });
-  return rememberListing(world, name, listing);
-};
 
 /** Set how many days each stay covers — the listing's length box, through its
  * own edit form, so a page that stops offering the field fails the story. On a

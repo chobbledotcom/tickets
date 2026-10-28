@@ -25,6 +25,7 @@ import {
 import {
   requiredWorldValue,
   type TicketsWorld,
+  theBooking,
 } from "#test/specs/support/world.ts";
 import {
   refundCompletes,
@@ -34,29 +35,29 @@ import { setupStripe } from "#test-utils/settings.ts";
 import type { Listing } from "#types";
 // jscpd:ignore-end
 
-/** The booking the story is about. */
-export const bookingId = (world: TicketsWorld): number =>
-  requiredWorldValue(world.attendeeId, "attendee id");
-
 /** Pounds as the minor units the ledger stores, so a story can say "45.00". */
 export const minorUnits = (pounds: string): number =>
   Math.round(Number(pounds) * 100);
 
 /** A listing that sells places at the given price, remembered by name. */
-export const sellPlacesAt = async (
+type SellsPlacesAt = (
   world: TicketsWorld,
   name: string,
   pounds: string,
-): Promise<Listing> =>
+) => Promise<Listing>;
+
+export const sellPlacesAt: SellsPlacesAt = async (world, name, pounds) =>
   sellSomethingAt(world, name, pounds, { keepThankYouPage: true });
 
 /** One customer pays in full for one place, through the real payment return. */
-export const buyOnePlace = async (
+type BuysOnePlace = (
   world: TicketsWorld,
   name: string,
   pounds: string,
   who: string,
-): Promise<number> => {
+) => Promise<number>;
+
+export const buyOnePlace: BuysOnePlace = async (world, name, pounds, who) => {
   await setupStripe();
   const { id: listingId } = await sellPlacesAt(world, name, pounds);
   const attendeeId = await completePaidOrder(
@@ -118,7 +119,7 @@ export const buyPlaceWithExtra = async (
 
 /** One of the booking's own admin pages. */
 export const bookingPagePath = (world: TicketsWorld, page: string): string =>
-  `/admin/attendees/${bookingId(world)}/${page}`;
+  `/admin/attendees/${theBooking(world)}/${page}`;
 
 /** Ask for a refund the way the organiser does: open the booking's refund page,
  * type the name it asks for into its own form, and submit that form. The
@@ -177,7 +178,7 @@ export const expectMoneyHandedBack = async (
   minor: number,
 ): Promise<void> => {
   expect(timesProviderWasAsked(world)).toBe(1);
-  const handedBack = await attendeeLegsOfKind(bookingId(world), "refund_cash");
+  const handedBack = await attendeeLegsOfKind(theBooking(world), "refund_cash");
   expect(handedBack.length).toBe(1);
   expect(handedBack[0]!.amount).toBe(minor);
   expect(handedBack[0]!.destination).toEqual(WORLD);

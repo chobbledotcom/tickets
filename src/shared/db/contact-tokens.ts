@@ -7,7 +7,7 @@
  */
 
 import type { ResultSet } from "@libsql/client";
-import { hmacHash } from "#crypto/hashing.ts";
+import { blindIndexFor } from "#crypto/hashing.ts";
 import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/hybrid.ts";
 
 import { openEach } from "#crypto/open-each.ts";
@@ -57,11 +57,7 @@ const TAG_SOURCE: Record<string, BookingSource> = {
 
 const TOKEN_LINE_SEPARATOR = "\t";
 
-const tokenMarkerFor = (
-  contactHash: string,
-  ticketToken: string,
-): Promise<BlindIndex> =>
-  hmacHash(`contact-token:${contactHash}:${ticketToken}`);
+const tokenMarkerFor = blindIndexFor("contact-token:");
 
 type StoredTokenLine = {
   encrypted: OwnerKeyEncrypted;
@@ -356,12 +352,12 @@ export type ContactTokenSync = {
    * names the booking's source — a genuinely admin-made booking. A channel
    * the edit adds inherits the stored source instead. */
   source: BookingSource;
-  /** Only real bookings should be linked into Previous bookings. */
+  /** Only real bookings link into Previous bookings. */
   hasBooking: boolean;
   /** True when this sync is triggered by an attendee gaining its first real
-   * booking (a placeholder edited to a real quantity). A missing contact row is
-   * then created for an unchanged contact value so the booking links, rather
-   * than skipped the way a routine unchanged edit skips an erased row. */
+   * booking (a placeholder edited to a real quantity). A missing contact row
+   * is then created for an unchanged contact value so the booking links. It
+   * is not skipped the way a routine unchanged edit skips an erased row. */
   firstRealBooking: boolean;
 };
 

@@ -46,7 +46,7 @@ const localizedString = (
 
 /** Build the ListingTicketClass for inline JWT creation */
 export const buildListingTicketClass: WalletPartBuilder = (data, creds) => ({
-  // Google's schema fixes this field name; the domain calls it a listing.
+  // Google's schema fixes this field name. The domain calls it a listing.
   eventName: localizedString(data.listingName),
   id: `${creds.issuerId}.${data.serialNumber}-class`,
   issuerName: data.organizationName,
@@ -117,7 +117,7 @@ export const buildJwtPayload: WalletPartBuilder = (data, creds) => ({
   iss: creds.serviceAccountEmail,
   origins: [],
   payload: {
-    // Google's schema fixes these payload keys; they do not follow the
+    // Google's schema fixes these payload keys. They do not follow the
     // domain language.
     eventTicketClasses: [buildListingTicketClass(data, creds)],
     eventTicketObjects: [buildListingTicketObject(data, creds)],

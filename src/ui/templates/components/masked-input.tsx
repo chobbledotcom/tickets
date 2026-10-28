@@ -1,9 +1,9 @@
 /**
  * A labelled masked password input for a stored secret (API key, password).
  *
- * The input companion to {@link MaskedTextarea}: when the secret is already
+ * The input companion to {@link MaskedTextarea}. When the secret is already
  * configured, the value shows the mask sentinel rather than the stored
- * (encrypted) secret; submitting the sentinel back leaves the stored value
+ * (encrypted) secret. Submitting the sentinel back leaves the stored value
  * unchanged (see processSecretField).
  */
 

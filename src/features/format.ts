@@ -4,13 +4,13 @@
 
 import { nowMs } from "#shared/now.ts";
 
-/** Check if an listing's registration period has closed */
+/** Check if a listing's registration period closed */
 export const isRegistrationClosed = (listing: {
   closes_at: string | null;
 }): boolean =>
   listing.closes_at !== null && new Date(listing.closes_at).getTime() < nowMs();
 
-/** Format a countdown from now to a future closes_at date, e.g. "3 days and 5 hours from now" */
+/** Format a countdown to a future closes_at date, for example "3 days and 5 hours" */
 export const formatCountdown = (closesAt: string): string => {
   const diffMs = new Date(closesAt).getTime() - nowMs();
   if (diffMs <= 0) return "closed";

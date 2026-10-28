@@ -16,6 +16,7 @@ import {
   generateUniqueListingSlug,
   validateListingInput,
 } from "#shared/listings-actions.ts";
+import { requireEntityImport } from "#test-utils/catalog-import.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -24,7 +25,7 @@ import { testListingInput } from "#test-utils/factories.ts";
 const importedId = async (blob: unknown): Promise<number> => {
   const result = await importCatalog(blob);
   if (!result.ok) throw new Error(result.error);
-  return result.value.id;
+  return requireEntityImport(result).id;
 };
 
 const customListing = (name: string) => ({

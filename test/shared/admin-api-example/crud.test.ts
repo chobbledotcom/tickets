@@ -258,6 +258,7 @@ describe("documented admin CRUD endpoints", () => {
       ["attendees"],
       ["group"],
       ["holiday"],
+      ["status"],
       ["question"],
       ["page"],
     ]);
@@ -268,9 +269,24 @@ describe("documented admin CRUD endpoints", () => {
       (e: EndpointDoc) => e.method === "DELETE",
     );
 
-    expect(deletes.length).toBe(8);
-    for (const endpoint of deletes) {
+    // The nine confirmed content deletes answer with a plain ok. The three
+    // fixed-page deletes are refusals, because a fixed page cannot be
+    // deleted.
+    const okDeletes = deletes.filter(
+      (endpoint) => "status" in JSON.parse(endpoint.response),
+    );
+    expect(okDeletes.length).toBe(9);
+    for (const endpoint of okDeletes) {
       expect(JSON.parse(endpoint.response)).toEqual({ status: "ok" });
+    }
+    const fixedDeletes = deletes.filter((endpoint) =>
+      /^\/api\/admin\/site-pages\/(home|contact|terms)$/.test(endpoint.path),
+    );
+    expect(fixedDeletes.length).toBe(3);
+    for (const endpoint of fixedDeletes) {
+      expect(JSON.parse(endpoint.response).error).toBe(
+        "fixed pages cannot be deleted",
+      );
     }
   });
 

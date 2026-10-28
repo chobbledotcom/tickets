@@ -141,6 +141,27 @@ export const packageMemberQuantityBroken = (
     : null;
 };
 
+/** The user-facing refusal naming the member whose pick count the package
+ * breaks. Pure: the caller supplies the member's name. */
+export const packageMemberQuantityError = (
+  name: string,
+  member: PackageMemberQuantity,
+): string | null => {
+  const broken = packageMemberQuantityBroken(member);
+  if (broken === null) return null;
+  return broken.reason === "cap"
+    ? t("error.package_member_cap", {
+        max_quantity: member.max_quantity,
+        name,
+        quantity: broken.quantity,
+      })
+    : t("error.package_member_min", {
+        min_quantity: member.min_quantity,
+        name,
+        quantity: broken.quantity,
+      });
+};
+
 /**
  * Why a would-be parent/child edge conflicts with package membership — distinct
  * from {@link packageMemberError} (which is about a listing JOINING a package):

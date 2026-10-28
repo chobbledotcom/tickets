@@ -1,7 +1,7 @@
 /**
- * Bookings from OTHER attendees whose dates overlap a day range — the
- * Logistics tab's "Other Attendees" list, so an operator placing one job can
- * see everyone else booked on those days and jump between them.
+ * Bookings from OTHER attendees whose dates overlap a day range. They feed
+ * the Logistics tab's "Other Attendees" list. An operator placing one job
+ * sees everyone else booked on those days, and jumps between them.
  *
  * The overlap predicate is the same `start_at < end AND end_at > start` the
  * capacity checks use (`end_at` is the exclusive end of the booked range).

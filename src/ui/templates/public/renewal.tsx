@@ -1,6 +1,6 @@
 /**
  * Renewal-specific page templates. The picker itself is rendered by
- * `ticketPage` (shared with /ticket and /g/<slug>) — this file only holds
+ * `ticketPage` (shared with /ticket and /g/<slug>). This file only holds
  * the error page shown when no qualifying renewal tier is configured.
  */
 

@@ -46,14 +46,19 @@ export const rejectedChargeReference = (
 ): TaggedPaymentReference =>
   taggedPaymentReference(rejection.provider, rejection.paymentReference);
 
+/** The session fields that prove a charge identity: its own id, the provider
+ * resource id, and the provider. Both charge-reference readers take this
+ * slice, so the repeated `Pick` lives once. */
+type SessionPaymentReference = Pick<
+  ValidatedPaymentSession,
+  "id" | "paymentReference" | "provider"
+>;
+
 /** The durable charge identity proved by a validated session, or no charge for
  * a free checkout. A non-empty invalid id contradicts the session boundary and
  * fails where it is turned into storage/provider input. */
 export const paymentReferenceOf = (
-  session: Pick<
-    ValidatedPaymentSession,
-    "id" | "paymentReference" | "provider"
-  >,
+  session: SessionPaymentReference,
 ): TaggedPaymentReference | null => {
   if (session.paymentReference === "") return null;
   if (!isResourceId(session.paymentReference)) {
@@ -64,10 +69,7 @@ export const paymentReferenceOf = (
 
 /** A session path that requires captured money, narrowed to its charge. */
 export const paidPaymentReferenceOf = (
-  session: Pick<
-    ValidatedPaymentSession,
-    "id" | "paymentReference" | "provider"
-  >,
+  session: SessionPaymentReference,
 ): TaggedPaymentReference => {
   const reference = paymentReferenceOf(session);
   if (reference === null) {

@@ -20,6 +20,7 @@ import type { ImageTargetTranscoder } from "#shared/images/transcode.ts";
 import { MAX_ATTACHMENT_SIZE, MAX_IMAGE_SIZE } from "#shared/limits.ts";
 import { sortByName } from "#shared/name-order.ts";
 import { createScopedValue } from "#shared/request-scoped.ts";
+import { listBunnyDir } from "#shared/storage/bunny-listing.ts";
 import { streamChunks } from "#shared/stream-chunks.ts";
 import { countExternalSubrequest } from "#shared/subrequest-budget.ts";
 import { getDeleteOverride } from "#shared/test-overrides.ts";
@@ -507,22 +508,12 @@ export const listFilesWithMeta = async (
     return sortByName(files);
   }
   const config = getStorageConfig();
-  const url = `https://storage.bunnycdn.com/${config.zoneName}/${dir}`;
-  countExternalSubrequest("storage directory listing");
-  const response = await fetch(url, {
-    headers: { AccessKey: config.zoneKey },
-  });
-  // A folder with no objects yet (e.g. a site that has never been backed up)
-  // 404s; treat only that as "no files", the same way the local backend's
-  // readDirSafe handles a missing directory. Other failures (401/403 bad
-  // credentials, 5xx outages) must surface, not masquerade as an empty zone.
-  if (response.status === 404) return [];
-  if (!response.ok) {
-    throw new Error(
-      `Storage listing for ${prefix || "the zone root"} failed: HTTP ${response.status}`,
-    );
-  }
-  const items = (await response.json()) as Record<string, unknown>[];
+  const items = await listBunnyDir(
+    config.zoneName,
+    config.zoneKey,
+    dir,
+    prefix,
+  );
   return sortByName(
     items
       // Bunny lists directories alongside files; keep only files so per-site

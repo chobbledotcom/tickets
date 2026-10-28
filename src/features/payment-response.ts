@@ -1,7 +1,7 @@
 /**
- * Payment-flow responses, split from the boot-loaded `response.ts` because
- * they pull the payment templates (and full page layout) into the graph —
- * only the lazily-loaded payment routes need them.
+ * Payment-flow responses, split from the boot-loaded `response.ts`. They pull
+ * the payment templates (and full page layout) into the graph. Only the
+ * lazily-loaded payment routes need them.
  */
 
 import { getIframeMode } from "#shared/request-context.ts";
@@ -23,7 +23,7 @@ export interface StaffDiagnostics {
 
 /**
  * Create payment error response. Diagnostics render only for the failure
- * paths that had a browser request to inspect; callers without one omit them.
+ * paths that had a browser request to inspect. Callers without one omit them.
  */
 export const paymentErrorResponse = (
   message: string,

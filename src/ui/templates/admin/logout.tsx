@@ -12,8 +12,10 @@ export const adminLogoutPage = (session: AdminSession): string =>
     active: "",
     body: (
       <section aria-labelledby="logout-confirm-heading">
-        <h2 id="logout-confirm-heading">{t("logout.confirm_heading")}</h2>
-        <p>{t("logout.confirm_body")}</p>
+        <div class="prose">
+          <h2 id="logout-confirm-heading">{t("logout.confirm_heading")}</h2>
+          <p>{t("logout.confirm_body")}</p>
+        </div>
         <SaveForm
           action="/admin/logout"
           class="one-button"

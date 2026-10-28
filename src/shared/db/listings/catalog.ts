@@ -40,7 +40,7 @@ const catalogListingColumns = rawListingsTable.read.pick([
   "can_pay_more",
 ]);
 
-/** Read the flags that decide whether one listing may be offered. */
+/** Read the flags that decide whether one listing can be offered. */
 export const getListingOfferFlags = async (
   id: number,
 ): Promise<ListingOfferFlags | undefined> => {
@@ -83,7 +83,7 @@ export const getCatalogListings = async (): Promise<CatalogSourceListing[]> => {
           args: [],
           clause: catalogVisibleSql(settings.listingDefaults.hidden),
         },
-        // A child listing is only offered on its own when it says it may be.
+        // A child listing is only offered on its own when it says it can be.
         {
           args: [],
           clause: `(listing.bookable_alone = 1 OR listing.id NOT IN (

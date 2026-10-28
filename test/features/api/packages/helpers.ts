@@ -1,12 +1,25 @@
 import { expect } from "@std/expect";
+import { beforeEach } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
+import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createFlexPackage } from "#test-utils/packages.ts";
 import { apiGet } from "#test-utils/parents.ts";
+
+/** Run a package-booking suite under a db env with the public API enabled
+ * before each test. */
+export const describePackageBooking = (fn: () => void): void =>
+  describeWithEnv("API package booking", { db: true }, () => {
+    beforeEach(async () => {
+      await settings.update.showPublicApi(true);
+    });
+    fn();
+  });
 
 /** POST /api/packages/:slug/book with a minimal valid contact payload merged
  * with any extra body fields (quantity, date, dayCount, children). */

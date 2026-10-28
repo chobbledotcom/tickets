@@ -73,11 +73,6 @@ export const SHARED_FIELD_BASELINE: readonly FindingIdentity[] = [
       [{ name: "RefundReadinessRead" }],
     ],
   ])(["index"]),
-  ...identitiesAt([["src/shared/db/table.ts", [{ name: "Table" }]]])([
-    "inputKeyMap",
-    "schema",
-    "toDbValues",
-  ]),
   ...identitiesAt([
     ["src/shared/admin-surface/sections.ts", [{ name: "AdminNavEntry" }]],
     ["src/shared/db/attendees/servicing.ts", [{ name: "ServicingEvent" }]],

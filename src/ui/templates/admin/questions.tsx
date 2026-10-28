@@ -17,9 +17,7 @@ import {
 } from "#routes/admin/questions/forms.ts";
 /* jscpd:ignore-end */
 import { adminPath, adminPattern } from "#shared/admin-surface.ts";
-import { isReadOnly } from "#shared/env.ts";
 import { renderFields } from "#shared/forms/rendering.tsx";
-import { errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { childEditPage } from "#templates/admin/child-edit-page.tsx";
 import { warningDeletePage } from "#templates/admin/confirm-page.tsx";
 import {
@@ -27,32 +25,23 @@ import {
   type ExpectedActualItem,
   ExpectedActualNotice,
 } from "#templates/admin/expected-actual.tsx";
+import { answerPath } from "#templates/admin/question-detail.tsx";
 import { adminRecalculatePage } from "#templates/admin/recalculate.tsx";
 import { recalculateRowsFor } from "#templates/admin/recalculate-rows.ts";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import {
   CheckboxForm,
-  CheckboxLabel,
   IdCheckboxLabel,
 } from "#templates/components/aggregate-sections.tsx";
 import { linkCell } from "#templates/components/link-cell.tsx";
-import {
-  LinkedItemsCheckboxes,
-  toLinkedItemOptions,
-} from "#templates/components/linked-items.tsx";
-import {
-  reorderableListPage,
-  reorderCountTable,
-} from "#templates/components/reorder-list.tsx";
-import { SaveForm } from "#templates/components/save-form.tsx";
+import { reorderableListPage } from "#templates/components/reorder-list.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
 import { getAnswerAggregateFields } from "#templates/fields/aggregate.ts";
-import type { AdminSession, ListingWithCount } from "#types";
+import type { AdminSession } from "#types";
 import {
   type ListingPanelProps,
   listingChoicePanel,
 } from "./listing-panel-frame.tsx";
-import { WritableDangerLink, WritableOnly } from "./writable-only.tsx";
 
 /** Render question text flat for admin display: line breaks are replaced with
  * " / " so the text fits on one line in tables, headings, and confirmation
@@ -89,72 +78,9 @@ const questionListingsFor =
       totalListings,
     });
 
-const QuestionListingAssignment = ({
-  allListings,
-  assignedListingIds,
-  question,
-}: {
-  allListings: ListingWithCount[];
-  assignedListingIds: Set<number>;
-  question: QuestionWithAnswers;
-}): JSX.Element => {
-  if (allListings.length === 0) {
-    return (
-      <p>
-        <em>No listings yet.</em>
-      </p>
-    );
-  }
-  const listingText = question.assign_all
-    ? t("questions.all_listings")
-    : allListings
-        .filter((listing) => assignedListingIds.has(listing.id))
-        .map((listing) => listing.name)
-        .join(", ");
-  if (isReadOnly()) {
-    return <p>{listingText}</p>;
-  }
-  return (
-    <SaveForm
-      action={`/admin/questions/${question.id}/listings`}
-      id="question-listings"
-      submitLabel={t("questions.save_listings")}
-    >
-      <LinkedItemsCheckboxes
-        groups={[
-          {
-            label: t("terms.listings"),
-            options: toLinkedItemOptions(allListings, assignedListingIds),
-          },
-        ]}
-        heading={
-          question.assign_all
-            ? ({ type }) => t("questions.linked_all_listings", { type })
-            : undefined
-        }
-        leading={
-          <CheckboxLabel
-            checked={question.assign_all || undefined}
-            label={t("questions.assign_all_listings")}
-            name="assign_all"
-          />
-        }
-        name="listing_ids"
-      />
-    </SaveForm>
-  );
-};
-
 /** List all questions in a reorderable table, mirroring the listings table:
  * reorder arrows in the first column, then the question, its answer count, and
  * the listings it applies to. */
-/** Where one of a question's answers is edited, deleted, or recalculated. */
-const answerPath = (
-  route: "answerDelete" | "answerEdit" | "answerRecalculate",
-  questionId: number,
-  answerId: number,
-): string => adminPath(route, { answerId, id: questionId });
-
 export const adminQuestionsPage = (
   questions: QuestionWithAnswers[],
   session: AdminSession,
@@ -204,104 +130,6 @@ export const adminQuestionsPage = (
     session,
     title: t("questions.title"),
   });
-
-/** Single question detail / edit page */
-export const adminQuestionPage = (
-  question: QuestionWithAnswers,
-  session: AdminSession,
-  error?: string,
-  answerCounts?: Map<number, number>,
-  allListings: ListingWithCount[] = [],
-  assignedListingIds: Set<number> = new Set(),
-): string =>
-  errorAdminPage(
-    `Question: ${questionTextFlat(question.text)}`,
-    adminPattern("questions"),
-  )(
-    session,
-    error,
-  )(
-    <>
-      <h1>{questionTextFlat(question.text)}</h1>
-
-      <WritableOnly>
-        <SaveForm
-          action={`/admin/questions/${question.id}/edit`}
-          submitLabel={t("questions.edit.update")}
-        >
-          <Raw html={questionTextForm.renderField("text", question.text)} />
-          {question.display_type === "free_text" ? (
-            // Free-text questions can't become choice questions (it would orphan
-            // any stored text answers), so lock the type rather than offering it.
-            <input name="display_type" type="hidden" value="free_text" />
-          ) : (
-            <label>
-              Display as
-              <SelectField
-                name="display_type"
-                options={[
-                  { label: "Radio buttons", value: "radio" },
-                  { label: "Select box", value: "select" },
-                ]}
-                value={question.display_type}
-              />
-            </label>
-          )}
-        </SaveForm>
-      </WritableOnly>
-
-      {question.display_type === "free_text" ? (
-        <p>
-          <em>
-            Free-text questions collect a typed answer, so they have no answer
-            options to manage — and can't change the price, because a price
-            modifier attaches to a chosen answer, which a typed answer has none
-            of.
-          </em>
-        </p>
-      ) : (
-        <>
-          <h2>{t("questions.edit.answers_heading")}</h2>
-          <WritableOnly>
-            <SaveForm
-              action={`/admin/questions/${question.id}/answers`}
-              id="add-answer"
-              submitIcon="plus"
-              submitLabel={t("questions.edit.add_answer")}
-            >
-              <Raw html={answerTextForm.render()} />
-            </SaveForm>
-          </WritableOnly>
-
-          {reorderCountTable({
-            count: (a) => answerCounts?.get(a.id) ?? 0,
-            countHeader: t("questions.selected_column"),
-            editHref: (a) => answerPath("answerEdit", question.id, a.id),
-            emptyText: t("questions.edit.no_answers"),
-            items: question.answers,
-            label: (a) => a.text,
-            labelHeader: t("questions.answer_column"),
-            moveAction: (a) => (d) =>
-              `/admin/questions/${question.id}/answers/${a.id}/move-${d}`,
-            orderLabel: t("questions.order_column"),
-          })}
-        </>
-      )}
-
-      <h2>{t("questions.assign_to_listings")}</h2>
-      <QuestionListingAssignment
-        allListings={allListings}
-        assignedListingIds={assignedListingIds}
-        question={question}
-      />
-
-      <WritableDangerLink
-        href={adminPath("questionDelete", { id: question.id })}
-      >
-        {t("questions.delete.link")}
-      </WritableDangerLink>
-    </>,
-  );
 
 /** A linkable "answer"-trigger modifier for the answer edit page selector. */
 export type AnswerModifierOption = { id: number; name: string };

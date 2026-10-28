@@ -1,7 +1,7 @@
 /**
  * The modifier aggregate totals: the running-totals section shown on the edit
- * page and the standalone recalculate page that compares stored totals with
- * totals recounted from attendee records.
+ * page and the standalone recalculate page. The recalculate page compares
+ * stored totals with totals recounted from attendee records.
  */
 
 import type {

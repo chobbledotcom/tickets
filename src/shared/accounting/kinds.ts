@@ -24,6 +24,10 @@ export const KIND = {
   refundCash: "refund_cash",
   /** A refunded booking's reversed `fee` leg. */
   refundFee: "refund_fee",
+  /** A refunded booking's reversed owner-entered charge leg. */
+  refundManualAttendeeCharge: "refund_manual_attendee_charge",
+  /** A refunded booking's reversed owner-entered write-off leg. */
+  refundManualAttendeeWriteoff: "refund_manual_attendee_writeoff",
   /** A refunded booking's reversed `modifier` leg. */
   refundModifier: "refund_modifier",
   /** A refunded booking's reversed `sale` leg. */

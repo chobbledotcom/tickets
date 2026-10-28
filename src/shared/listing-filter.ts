@@ -31,7 +31,7 @@ const LISTING_FILTER_LABEL_KEYS: Record<ListingFilter, string> = {
   standard: "listings_table.filter.standard",
 };
 
-/** Human label for a filter value (e.g. for a "… for <Type>" heading).
+/** Human label for a filter value (for example, for a "… for <Type>" heading).
  * Resolved per call, so it reads the catalog once the catalog is loaded. */
 export const listingFilterLabel = (f: ListingFilter): string =>
   t(LISTING_FILTER_LABEL_KEYS[f]);
@@ -75,8 +75,8 @@ export const filterListingsByType =
 
 /**
  * Render the "Showing: All / Standard / …" filter as a plain paragraph of links.
- * Only the categories actually present are offered; the active one is bold +
- * underlined, the rest link via `hrefFor`.
+ * Only the categories actually present are offered. The active one is bold and
+ * underlined. The rest link via `hrefFor`.
  */
 export const renderTypeFilter = (
   active: ListingFilter,

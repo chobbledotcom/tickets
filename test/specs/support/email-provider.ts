@@ -15,7 +15,7 @@ import {
   organiserSendsTheFormAt,
 } from "#test/specs/support/browser.ts";
 import { copyFrom } from "#test/specs/support/copy.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import type { ActOnTheStory, TicketsWorld } from "#test/specs/support/world.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { settingsAsStored } from "#test-utils/settings.ts";
 
@@ -109,9 +109,7 @@ export const providerWillAnswer = (
 
 /** The owner presses Send Test Email, with the stub standing in for the
  * account they really have. */
-export const ownerSendsATestEmail = async (
-  world: TicketsWorld,
-): Promise<void> => {
+export const ownerSendsATestEmail: ActOnTheStory = async (world) => {
   using _provider = stubFetch(world.providerReply ?? new Response());
   await organiserSendsTheFormAt(world, ADVANCED_PATH, TEST_PATH);
 };

@@ -1,6 +1,6 @@
 /** Show items, prizes, rules, and the small filler pools (numbers, times, connectors). */
 
-/** Concrete things you'd see / smell / regret at a gig */
+/** Concrete things you see, smell, or regret at a gig */
 export const SHOW_ITEMS = [
   "denim",
   "leather",

@@ -229,7 +229,7 @@ export const createAttendeeForSession = async (
         : pricedOrder.fullSubtotal - orderLineTotal(pricedOrder);
 
     // Build every fallible input before starting the atomic write. A failure
-    // here is known not to have committed, while a write failure below must be
+    // here means nothing committed yet, while a write failure below must be
     // checked against primary state before deciding whether to refund.
     const plan = await bookingBatchPlan(
       pricedOrder.modifierApplications,

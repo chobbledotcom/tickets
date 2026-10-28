@@ -7,13 +7,13 @@ import { listingParents } from "#db/listing-parents.ts";
 import { requireListingWithCount } from "#db/listings/records.ts";
 import { getAllModifiers, modifierListings } from "#db/modifiers.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
-import { requireSuccess } from "#shared/result.ts";
+import { requireEntityImport } from "#test-utils/catalog-import.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   insertModifier,
-  linkModifierGroup,
+  optInAddOnForGroups,
   patchModifier,
 } from "#test-utils/modifiers.ts";
 
@@ -21,16 +21,6 @@ import {
 // listings, a group, and an opt-in modifier, and folding it into
 // catalog-transfer.test.ts would tip that file's per-request read count past
 // the N+1 guard.
-
-/** Create an active, group-scoped opt-in add-on covering `groupId`. */
-const groupOptInAddOn = async (
-  name: string,
-  groupId: number,
-): Promise<void> => {
-  const modifier = await insertModifier({ name });
-  await patchModifier(modifier.id, { scope: "groups", trigger: "optional" });
-  await linkModifierGroup(modifier.id, groupId);
-};
 
 describeWithEnv(
   "catalog-transfer child add-on reachability",
@@ -43,7 +33,7 @@ describeWithEnv(
       // dead-end the edge editor rejects.
       const group = await createTestGroup({ name: "Extra Group" });
       await createTestListing({ name: "Base Parent" });
-      await groupOptInAddOn("Group Extra", group.id);
+      await optInAddOnForGroups("Group Extra", [group.id]);
 
       const result = await importCatalog({
         groups: [{ group: "Extra Group" }],
@@ -66,7 +56,7 @@ describeWithEnv(
       // the edge editor exempts a bookable_alone child, and so must the import.
       const group = await createTestGroup({ name: "Alone Group" });
       const parent = await createTestListing({ name: "Alone Base Parent" });
-      await groupOptInAddOn("Alone Extra", group.id);
+      await optInAddOnForGroups("Alone Extra", [group.id]);
 
       const result = await importCatalog({
         groups: [{ group: "Alone Group" }],
@@ -75,7 +65,7 @@ describeWithEnv(
         parents: ["Alone Base Parent"],
         version: 1,
       });
-      const imported = requireSuccess(result);
+      const imported = requireEntityImport(result);
       expect(imported).toMatchObject({ kind: "listing", name: "Alone Kid" });
       expect(await requireListingWithCount(imported.id)).toMatchObject({
         bookable_alone: true,
@@ -90,7 +80,7 @@ describeWithEnv(
       const group = await createTestGroup({ name: "Shared Group" });
       const parent = await createTestListing({ name: "Shared Parent" });
       await assignListingsToGroup([parent.id], group.id);
-      await groupOptInAddOn("Shared Extra", group.id);
+      await optInAddOnForGroups("Shared Extra", [group.id]);
 
       const result = await importCatalog({
         groups: [{ group: "Shared Group" }],
@@ -99,7 +89,7 @@ describeWithEnv(
         parents: ["Shared Parent"],
         version: 1,
       });
-      const imported = requireSuccess(result);
+      const imported = requireEntityImport(result);
       expect(imported).toMatchObject({ kind: "listing", name: "Fine Kid" });
       expect(await listingParents.getIds(imported.id)).toEqual([parent.id]);
     });

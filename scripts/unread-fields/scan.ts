@@ -74,7 +74,7 @@ export const scanUnreadFields = async (root: string): Promise<Finding[]> => {
   );
   const program = answered(service.getProgram(), "program for the scan");
   const checker = program.getTypeChecker();
-  const fieldsOf = exportedFields(checker);
+  const fieldsOf = exportedFields(checker, root);
 
   // The program also holds every locale JSON that `src/` imports, and every
   // file it reached outside `src/`. Only the TypeScript the walk found counts.

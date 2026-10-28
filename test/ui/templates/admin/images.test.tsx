@@ -135,7 +135,7 @@ describe("admin image templates", () => {
       'checked name="image_items" type="checkbox" value="group:5"',
     );
     assertStringIncludes(html, '<a class="active" href="/admin/images">');
-    assertStringIncludes(html, '<p class="prose">');
+    assertStringIncludes(html, '<div class="prose"><h2>Danger zone</h2>');
     assertStringIncludes(html, 'class="btn secondary"');
     assertStringIncludes(html, "/icons.svg#trash-2");
     assertStringIncludes(html, 'href="/admin/images/3/delete"');

@@ -9,6 +9,7 @@ import { expect } from "@std/expect";
 import { getAllImages } from "#db/images.ts";
 import { openAdminPage } from "#test/specs/support/browser.ts";
 import {
+  type ActOnOneThing,
   requiredWorldValue,
   scenarioEnv,
   type TicketsWorld,
@@ -30,10 +31,7 @@ const configureLibrary = (world: TicketsWorld): void => {
 };
 
 /** The owner has one image in the library, under the name the story uses. */
-export const ownerHasImageInLibrary = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<void> => {
+export const ownerHasImageInLibrary: ActOnOneThing = async (world, name) => {
   configureLibrary(world);
   await makeImage(name);
 };

@@ -54,10 +54,15 @@ export const recordNoteWithPicture: KeepsANoteWithPicture = async (
 /** The organiser saves someone's record with a note past the length limit,
  * with the picture named in it. The site re-renders the editor in place, so
  * the page they are left reading carries the refusal and the note they sent. */
-export const saveRecordWithOverLongNote = async (
+type SavesOverLongNote = (
   world: TicketsWorld,
   who: string,
-): Promise<TestBrowser> => {
+) => Promise<TestBrowser>;
+
+export const saveRecordWithOverLongNote: SavesOverLongNote = async (
+  world,
+  who,
+) => {
   const image = requiredWorldValue(
     world.noteImage,
     "the picture a story named",

@@ -23,12 +23,33 @@ describe("attendee check-in quantity page", () => {
   test("offers every count up to the line's quantity, none selected but the whole", () => {
     const html = renderPage({ checked_in: 0, id: 7, quantity: 3 });
 
+    assertStringIncludes(html, "Check in tickets");
     assertStringIncludes(html, "Tickets to check in");
     assertStringIncludes(html, '<option selected value="3">3 tickets</option>');
     for (const option of ["1 ticket", "2 tickets", "3 tickets"]) {
       assertStringIncludes(html, `>${option}</option>`);
     }
     assert(!html.includes("Tickets to check out"));
+    assert(!html.includes("Check out tickets"));
+    // The one direction's form: its page frame, the hidden direction and
+    // filter fields, and the count select the page reads back.
+    assertStringIncludes(html, 'class="stack"');
+    assertStringIncludes(html, 'class="prose"');
+    assertStringIncludes(html, 'id="checkin-admit-count"');
+    assertStringIncludes(html, 'name="check_in" type="hidden" value="true"');
+    assertStringIncludes(html, 'name="return_filter" type="hidden"');
+    assertStringIncludes(html, 'name="quantity"');
+    assertStringIncludes(html, '<a class="active" href="/admin/">Home</a>');
+  });
+
+  test("a one-place line still reads as the check-in heading", () => {
+    const html = renderPage({ checked_in: 2, id: 11, quantity: 3 });
+
+    // One ticket remains, so the page still asks to check it in, and the
+    // check-in form is present beside the way out.
+    assertStringIncludes(html, "Check in tickets");
+    assertStringIncludes(html, "Tickets to check in");
+    assertStringIncludes(html, 'name="check_in" type="hidden" value="true"');
   });
 
   test("a partly admitted line offers both directions", () => {
@@ -38,6 +59,9 @@ describe("attendee check-in quantity page", () => {
     assertStringIncludes(html, '<option selected value="2">2 tickets</option>');
     assertStringIncludes(html, "Tickets to check out");
     assertStringIncludes(html, '<option selected value="1">1 ticket</option>');
+    // The way out is its own form, named and addressed apart from the way in.
+    assertStringIncludes(html, 'id="checkin-release-count"');
+    assertStringIncludes(html, 'name="check_in" type="hidden" value="false"');
   });
 
   test("a fully admitted line offers only the way out", () => {

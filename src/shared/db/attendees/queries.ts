@@ -4,6 +4,7 @@
 
 /* jscpd:ignore-start */
 import { saleLegPredicate } from "#accounting/projection-sql.ts";
+import { hmacHash } from "#crypto/hashing.ts";
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import { decryptAttendeeFields, decryptPiiBlob } from "#db/attendees/pii.ts";
@@ -315,6 +316,31 @@ export const hasPaidLine = rowExistsForIdList(
 export const getAttendeeRaw = async (id: number): Promise<Attendee | null> =>
   (await loadAttendeeRows({ join: "left", where: { attendeeIds: [id] } }))[0] ??
   null;
+
+/**
+ * Get an attendee by its plaintext ticket token, or null. Ticket tokens are
+ * unique, so this matches at most one attendee. Backs the admin API create's
+ * idempotent retry: the attendee under the retried token is returned as it
+ * reads now.
+ */
+export const getAttendeeRawByToken = async (
+  token: string,
+): Promise<Attendee | null> => {
+  const tokenIndex = await hmacHash(token);
+  return (
+    (
+      await loadAttendeeRows({
+        join: "left",
+        where: {
+          attendeeIdsSubquery: {
+            args: [tokenIndex],
+            sql: "SELECT id FROM attendees WHERE ticket_token_index = ?",
+          },
+        },
+      })
+    )[0] ?? null
+  );
+};
 
 /**
  * Get attendees by ID without decrypting PII, one row per (attendee, booking).

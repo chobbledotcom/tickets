@@ -71,20 +71,31 @@ type MachineEvents = readonly {
 /** One machine's declared table, validated into the dump's shape, or
  * undefined when the module that holds it does not exist in this tree: a
  * branch can introduce a table the base never had, and the base dump then
- * reports no table, which the differ reports as an added table. Any other
- * failure stops the dump. */
+ * reports no table, which the differ reports as an added table. The loader
+ * that imports the table hands over its specifier, and only an error that
+ * names that module reads as no table — a missing import one level deeper
+ * stops the dump, because it is a break, not an absent table (issue
+ * #2740). Any other failure stops the dump. */
 export const declaredTableOrNone = async (
   machineId: string,
   load: () => unknown,
+  tableModuleSpecifier?: string,
 ): Promise<DumpedDeclaredMoves | undefined> => {
   let table: unknown;
   try {
     table = await load();
   } catch (error) {
-    if (error instanceof TypeError && /module not found/i.test(error.message)) {
-      return;
+    // The error quotes the module bare ("#test/…") or resolved
+    // ("file:///…/test/…"); both carry the path without the "#".
+    const missingTableModule =
+      tableModuleSpecifier !== undefined &&
+      error instanceof TypeError &&
+      /module not found/i.test(error.message) &&
+      error.message.includes(tableModuleSpecifier.replace(/^#/, ""));
+    if (!missingTableModule) {
+      throw error;
     }
-    throw error;
+    return;
   }
   const parsed = v.safeParse(DumpedDeclaredMovesSchema, table);
   if (!parsed.success) {
@@ -105,53 +116,85 @@ type MachineContract = {
 type MachineLoader = () => Promise<MachineContract>;
 
 /** One machine's declared contract: its events beside its declared table,
- * the table read through the dump's own validator. */
+ * the table read through the dump's own validator. A table that comes from
+ * its own module carries that module's specifier, so a not-found error can
+ * be matched against the module it names. */
 const machineContract = async (
   machineId: string,
   events: MachineEvents,
   table: () => unknown,
+  tableModuleSpecifier?: string,
 ): Promise<MachineContract> => ({
-  declaredMoves: await declaredTableOrNone(machineId, table),
+  declaredMoves: await declaredTableOrNone(
+    machineId,
+    table,
+    tableModuleSpecifier,
+  ),
   events,
 });
 
+/** Loads a machine whose events and declared table its own spec module
+ * exports under the given keys. The dump's test pins every machine, so a
+ * wrong key fails the suite instead of shipping a silent gap. */
+const ownMachineLoader =
+  (
+    machineId: string,
+    eventsKey: string,
+    movesKey: string,
+    specifier: string,
+  ): MachineLoader =>
+  () =>
+    import(specifier).then((module: Record<string, unknown>) =>
+      machineContract(
+        machineId,
+        module[eventsKey] as MachineEvents,
+        () => module[movesKey],
+      ),
+    );
+
 const MACHINE_LOADERS: Readonly<Record<string, MachineLoader>> = {
-  refund: () =>
-    import("#payment/refund-machine-spec.ts").then((m) =>
-      machineContract("refund", m.REFUND_EVENTS, () => m.EXPECTED_MOVES),
-    ),
+  refund: ownMachineLoader(
+    "refund",
+    "REFUND_EVENTS",
+    "EXPECTED_MOVES",
+    "#payment/refund-machine-spec.ts",
+  ),
   review: () =>
     import("#payment/review-machine-spec.ts").then((m) =>
-      machineContract("review", m.REVIEW_EVENTS, () =>
-        import(
-          "#test/shared/payment/review-machine-spec/expected-moves.ts"
-        ).then((t) => t.EXPECTED_MOVES),
+      machineContract(
+        "review",
+        m.REVIEW_EVENTS,
+        () =>
+          import(
+            "#test/shared/payment/review-machine-spec/expected-moves.ts"
+          ).then((t) => t.EXPECTED_MOVES),
+        "#test/shared/payment/review-machine-spec/expected-moves.ts",
       ),
     ),
   row: () =>
     import("#payment/row-machine-spec.ts").then((m) =>
-      machineContract("row", m.ROW_EVENTS, () =>
-        import("#test/shared/payment/row-machine-spec/expected-moves.ts").then(
-          (t) => t.EXPECTED_MOVES,
-        ),
-      ),
-    ),
-  square_link_ends: () =>
-    import("#payment/square-link-end-machine-spec.ts").then((m) =>
       machineContract(
-        "square_link_ends",
-        m.LINK_END_EVENTS,
-        () => m.LINK_END_MOVES,
+        "row",
+        m.ROW_EVENTS,
+        () =>
+          import(
+            "#test/shared/payment/row-machine-spec/expected-moves.ts"
+          ).then((t) => t.EXPECTED_MOVES),
+        "#test/shared/payment/row-machine-spec/expected-moves.ts",
       ),
     ),
-  sumup_recovery: () =>
-    import("#payment/sumup-recovery-machine-spec.ts").then((m) =>
-      machineContract(
-        "sumup_recovery",
-        m.RECOVERY_EVENTS,
-        () => m.RECOVERY_MOVES,
-      ),
-    ),
+  square_link_ends: ownMachineLoader(
+    "square_link_ends",
+    "LINK_END_EVENTS",
+    "LINK_END_MOVES",
+    "#payment/square-link-end-machine-spec.ts",
+  ),
+  sumup_recovery: ownMachineLoader(
+    "sumup_recovery",
+    "RECOVERY_EVENTS",
+    "RECOVERY_MOVES",
+    "#payment/sumup-recovery-machine-spec.ts",
+  ),
 };
 
 /** Sorted copy, so one dump of one tree is always the same JSON. */

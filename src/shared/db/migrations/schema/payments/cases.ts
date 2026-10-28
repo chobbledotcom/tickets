@@ -1,5 +1,5 @@
 import {
-  encryptedPaymentColumn,
+  ownerEncryptedPaymentColumn,
   paymentRecord,
   wholeNumber,
   wholeNumberOrNull,
@@ -9,7 +9,7 @@ import {
 
 export const paymentCaseTable = paymentRecord("payment_cases", {
   columns: [
-    ["resource", encryptedPaymentColumn("resource")],
+    ["resource", ownerEncryptedPaymentColumn("resource")],
     ["resource_index", words()],
     ["reason", words()],
     ["state", words()],
@@ -21,11 +21,11 @@ export const paymentCaseTable = paymentRecord("payment_cases", {
     ["alerted_revision", wholeNumberOrNull()],
     ["alert_sent_at", wholeNumberOrNull()],
     ["alert_sent_revision", wholeNumberOrNull()],
-    // An empty claim would match another empty one, so two workers could
-    // both send the owner the same alert.
+    // An empty claim matches another empty one, so two workers can both
+    // send the owner the same alert.
     ["alert_lease_token", wordsOrNull()],
     ["alert_lease_expires_at", wholeNumberOrNull()],
-    ["evidence", encryptedPaymentColumn("evidence")],
+    ["evidence", ownerEncryptedPaymentColumn("evidence")],
     ["evidence_redacted_at", wholeNumberOrNull()],
     ["revision", wholeNumber(1)],
     ["resolved_at", wholeNumberOrNull()],

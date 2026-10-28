@@ -10,9 +10,8 @@
 import * as v from "valibot";
 import type { BuiltSite, HostingProvider } from "#db/built-sites/types.ts";
 import {
-  BUNNY_API_BASE,
   bunnyGetJson,
-  bunnyJsonRequest,
+  bunnyRequest,
   parseBunnyError,
 } from "#shared/bunny-api.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
@@ -61,15 +60,13 @@ const ScriptVariablesResponseSchema = v.object({
 const readBunnySupportMessage = async (
   hostingId: string,
 ): Promise<SupportMessageResult> => {
-  const result = await bunnyGetJson<unknown>(
+  const result = await bunnyGetJson(
     `/compute/script/${encodeURIComponent(hostingId)}`,
+    ScriptVariablesResponseSchema,
     "Read support message",
   );
   if (!result.ok) return result;
-  const variables = v.parse(
-    ScriptVariablesResponseSchema,
-    result.data,
-  ).EdgeScriptVariables;
+  const variables = result.data.EdgeScriptVariables;
   const variable = variables?.find(({ Name }) => Name === SUPPORT_MESSAGE_KEY);
   // Bunny's model allows an entry without a DefaultValue: that is no value,
   // the same state as an explicit null.
@@ -83,10 +80,10 @@ const writeBunnySupportMessage = async (
   hostingId: string,
   value: string,
 ): Promise<SupportMessageResult> => {
-  const response = await bunnyJsonRequest(
-    `${BUNNY_API_BASE}/compute/script/${encodeURIComponent(hostingId)}/variables`,
-    JSON.stringify({ DefaultValue: value, Name: SUPPORT_MESSAGE_KEY }),
+  const response = await bunnyRequest(
+    `/compute/script/${encodeURIComponent(hostingId)}/variables`,
     "PUT",
+    JSON.stringify({ DefaultValue: value, Name: SUPPORT_MESSAGE_KEY }),
   );
   if (!response.ok) {
     return parseBunnyError(response, "Set support message");

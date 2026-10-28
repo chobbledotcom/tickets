@@ -127,11 +127,9 @@ describeWithEnv("the scanner class's doors", { db: true }, () => {
     expect(response.status).toBe(200);
     const body = await response.text();
     assertStringIncludes(body, "Quiz");
-    // One listing's door checks in that listing only, so the warning a
-    // multi-listing group door shows has no place on this page.
-    assert(
-      !body.includes(t("admin.scanner.scan_checks_in_all_listings_warning")),
-    );
+    // A listing door admits that one listing, so the every-listing warning
+    // never appears on its page.
+    assert(!body.includes("Scanning a ticket in this group"));
     // The guide link behind this page is staff-only, so a scanner login must
     // not be promised it (never render a forbidden link).
     assert(!body.includes('href="/admin/guide'));

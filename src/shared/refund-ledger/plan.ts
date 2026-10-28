@@ -1,4 +1,4 @@
-/** Decide which ledger groups an observed provider refund may reverse. */
+/** Decide which ledger groups an observed provider refund can reverse. */
 
 import { attendeeAccount, WORLD } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
@@ -60,7 +60,7 @@ type AccountRefundGroup = {
 const isPaymentOnlyGroup = (group: AccountRefundGroup): boolean =>
   group.legs.every(isProviderPaymentLeg);
 
-/** The original account event groups that a returned charge may reverse. */
+/** The original account event groups that a returned charge can reverse. */
 const accountRefundGroups = (legs: Transfer[]): AccountRefundGroup[] =>
   [
     ...Map.groupBy(

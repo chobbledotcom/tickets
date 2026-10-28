@@ -42,7 +42,7 @@ export const parseFormData = async (request: Request): Promise<FormParams> => {
 
 /**
  * Extract text fields from FormData as FormParams (skips File entries).
- * Handles multi-value fields (e.g. checkbox groups) via append.
+ * Handles multi-value fields (for example, checkbox groups) via append.
  */
 export const formDataToParams = (formData: FormData): FormParams => {
   const params = new FormParams();
@@ -132,8 +132,8 @@ export const requireCsrfFormWithMessage = (
 /**
  * Record the form a redirect targeted (`?form=`) so a matching CsrfForm renders
  * the flash inline, and return the flash for callers that need it. The flash
- * itself is already in the request context (set by middleware) and is rendered
- * by the Layout backstop or the targeted form — handlers no longer thread it.
+ * itself is already in the request context (set by middleware). The Layout
+ * backstop or the targeted form renders it. Handlers no longer thread it.
  */
 export const applyFlash = (request: Request): Flash => {
   setFlashFormId(getSearchParam(request, "form"));

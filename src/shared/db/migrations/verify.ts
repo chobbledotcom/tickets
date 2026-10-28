@@ -24,10 +24,10 @@ const assertRequiredTables = (
   }
 };
 
-/** Build a check that every named object in a live set matches `expected`:
- *  "present" throws "missing <noun> <name>" for the first one absent;
- *  "absent" throws "legacy <noun> <name> still present" for the first
- *  survivor a migration was supposed to have dropped. */
+/** Build a check that every named object in a live set matches `expected`.
+ *  For "present", it throws "missing <noun> <name>" for the first one absent.
+ *  For "absent", it throws "legacy <noun> <name> still present" for the first
+ *  survivor a migration was supposed to drop. */
 const assertMembership =
   (
     liveSet: (live: LiveSchema) => { has(name: string): boolean },

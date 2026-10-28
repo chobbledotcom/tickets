@@ -1,9 +1,9 @@
 /**
  * The WebP output variants every uploaded image is transcoded into.
  *
- * Two sizes cover every display context: the full-size image (used on the
- * public listing page and the site header) and a thumbnail (used in the admin
- * listings table and the public order-gallery cards). Both are WebP.
+ * Two sizes cover every display context. The full-size image runs on the
+ * public listing page and the site header. The thumbnail runs in the admin
+ * listings table and the public order-gallery cards. Both are WebP.
  */
 
 import type { ImageTarget } from "./types.ts";

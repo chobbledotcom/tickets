@@ -6,10 +6,10 @@ export const DenoAppIdentitySchema = v.object({
 });
 
 /** One env var entry as the app GET answers it. The documented record
- * carries its id and its contexts, and the secret flag decides whether the
- * value is optional (the API omits a secret's value) or required (a plain
- * entry without a value is a contract failure, not a message that silently
- * reads as unset). */
+ * carries its id and its contexts. The secret flag decides whether the value
+ * is optional or required. The API omits a secret's value. A plain entry
+ * without a value is a contract failure, not a message that silently reads
+ * as unset. */
 const envVarEntry = <
   SecretSchema extends v.GenericSchema,
   ValueSchema extends v.GenericSchema,

@@ -16,15 +16,13 @@ import { stageSquareLinkEnd } from "#db/square-link-ends.ts";
 import { getDueSumupCheckouts } from "#db/sumup-recovery.ts";
 import { MAINTENANCE_TASKS } from "#shared/maintenance/registry.ts";
 import { maintenance } from "#shared/maintenance/runner.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import type { ActOnTheStory } from "#test/specs/support/world.ts";
 import { plantSumupRecoveryRow } from "#test-utils/sumup.ts";
 // jscpd:ignore-end
 
 /** The real scheduled maintenance job: the registry's tasks, through the
  * runner that claims and runs them. */
-export const runScheduledMaintenance = async (
-  _world: TicketsWorld,
-): Promise<void> => {
+export const runScheduledMaintenance: ActOnTheStory = async (_world) => {
   await maintenance.run(MAINTENANCE_TASKS);
 };
 
@@ -55,9 +53,7 @@ const plantCheckout = (
 
 /** The SumUp checkouts the retention story talks about: old and finished,
  * equally old but still waiting to hear, and recently finished. */
-export const plantRetentionCheckouts = async (
-  _world: TicketsWorld,
-): Promise<void> => {
+export const plantRetentionCheckouts: ActOnTheStory = async (_world) => {
   const old = dayAgoIso(2);
   await plantCheckout(CHECKOUT_IDS.oldFinished, "finished", old);
   await plantCheckout(CHECKOUT_IDS.oldWaiting, "waiting", old);
@@ -117,9 +113,7 @@ const stageOldAnswers = async (
 /** An old buyer's answers for a checkout whose payment link has ended but
  * whose link the site still holds: a payment made just before the end can
  * still arrive, so the answers must stay. */
-export const plantAnswersWithHeldLink = async (
-  _world: TicketsWorld,
-): Promise<void> => {
+export const plantAnswersWithHeldLink: ActOnTheStory = async (_world) => {
   const linkEnded = dayAgoIso(5);
   await stageOldAnswers(
     STAGED_ANSWER_SESSIONS.kept,
@@ -136,9 +130,7 @@ export const plantAnswersWithHeldLink = async (
 /** An equally old buyer's answers for a checkout whose payment link ended
  * and whose link the site no longer holds: nothing can arrive for it any
  * more. */
-export const plantAnswersWithGoneLink = async (
-  _world: TicketsWorld,
-): Promise<void> => {
+export const plantAnswersWithGoneLink: ActOnTheStory = async (_world) => {
   await stageOldAnswers(
     STAGED_ANSWER_SESSIONS.gone,
     "Vegetarian",
@@ -148,9 +140,7 @@ export const plantAnswersWithGoneLink = async (
 
 /** A buyer's answers staged just now, for a checkout still inside its
  * window. */
-export const plantRecentAnswers = async (
-  _world: TicketsWorld,
-): Promise<void> => {
+export const plantRecentAnswers: ActOnTheStory = async (_world) => {
   await stageCheckoutAnswers(
     STAGED_ANSWER_SESSIONS.recent,
     { "3": "Two tickets" },

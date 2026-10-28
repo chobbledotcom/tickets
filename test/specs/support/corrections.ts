@@ -51,13 +51,21 @@ export const surchargeId = (world: TicketsWorld): number =>
 
 /** Type a new figure into a correction form the page offers, and check the
  * organiser is told it saved — a refused save redirects just the same. */
-export const correctOnPage = async (
+type CorrectsOnAPage = (
   world: TicketsWorld,
   page: string,
   field: string,
   amount: string,
   told: string,
-): Promise<void> => {
+) => Promise<void>;
+
+export const correctOnPage: CorrectsOnAPage = async (
+  world,
+  page,
+  field,
+  amount,
+  told,
+) => {
   const browser = await submitRenderedAdminForm(
     world,
     page,

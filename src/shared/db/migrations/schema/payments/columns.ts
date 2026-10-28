@@ -44,18 +44,13 @@ const sealed = (name: string, prefix: string, parts: number): string =>
     parts,
   )}' AND ${name} NOT GLOB '${prefix}${":*".repeat(parts + 1)}')`;
 
-/** Hidden with this site's own key: a starting block, then the hidden text. */
-const ownSealed = (name: string): string => sealed(name, "enc:1", 2);
-
 /** Hidden for the owner with their public key, beyond the database key. */
 export const ownerEncryptedPaymentColumn = (name: string): string =>
   `TEXT NOT NULL CHECK (${sealed(name, "hyb:1", 3)})`;
 
-export const encryptedPaymentColumn = (name: string): string =>
-  `TEXT NOT NULL CHECK (${ownSealed(name)})`;
-
-export const encryptedPaymentColumnOrNull = (name: string): string =>
-  `(${name} IS NULL OR ${ownSealed(name)})`;
+/** The same shape, for a column a row can leave empty. */
+export const ownerEncryptedPaymentColumnOrNull = (name: string): string =>
+  `(${name} IS NULL OR ${sealed(name, "hyb:1", 3)})`;
 
 /** When a row was made and last touched. Every payment record carries both. */
 export const madeAndTouched: [string, string][] = [

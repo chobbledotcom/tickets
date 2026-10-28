@@ -16,7 +16,7 @@ export interface RawImage {
 
 /** One WebP output variant: cap the width at `maxWidth`, encode at `quality`. */
 export interface ImageTarget {
-  /** Longest edge (width) the variant may have; never upscales past the source. */
+  /** Longest edge (width) the variant can have. Never upscales past the source. */
   maxWidth: number;
   /** WebP quality 0–100 passed to the libwebp encoder. */
   quality: number;

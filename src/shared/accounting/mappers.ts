@@ -13,6 +13,10 @@ import {
   WORLD,
 } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
+import {
+  MANUAL_ATTENDEE_CHARGE,
+  MANUAL_ATTENDEE_WRITEOFF,
+} from "#accounting/manual-entries.ts";
 import { eventGroup, legReference, type RefPart } from "#accounting/refs.ts";
 import { sumByKey } from "#fp";
 import type {
@@ -53,6 +57,8 @@ const REFUND_KIND: Readonly<Record<string, string>> = {
   [KIND.modifier]: KIND.refundModifier,
   [KIND.payment]: KIND.refundCash,
   [KIND.sale]: KIND.refundSale,
+  [MANUAL_ATTENDEE_CHARGE]: KIND.refundManualAttendeeCharge,
+  [MANUAL_ATTENDEE_WRITEOFF]: KIND.refundManualAttendeeWriteoff,
 };
 
 const refundKind = (kind: string): string =>

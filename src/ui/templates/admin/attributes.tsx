@@ -223,14 +223,16 @@ export const adminAttributeOptionEditPage = (
       </SubmitButton>
     </>,
     <>
-      <h2>{t("attributes.edit_option.listings_heading")}</h2>
-      <p>
-        <small>
-          {t("attributes.edit_option.listings_count", {
-            count: listings.length,
-          })}
-        </small>
-      </p>
+      <div class="prose">
+        <h2>{t("attributes.edit_option.listings_heading")}</h2>
+        <p>
+          <small>
+            {t("attributes.edit_option.listings_count", {
+              count: listings.length,
+            })}
+          </small>
+        </p>
+      </div>
       <AttributeListingsTable
         emptyText={t("attributes.edit_option.listings_none")}
         listings={listings}
@@ -354,8 +356,8 @@ export const ListingAttributesPanel = (
                 ))
               ),
             // The row-based checkbox layout the logistics tab's user selector
-            // uses, so an attribute's options flow as a wrapping row under its
-            // legend instead of stacking one per line.
+            // uses. An attribute's options flow as a wrapping row under its
+            // legend, instead of stacking one per line.
             className: "checkboxes listing-section",
             legend: attribute.name,
           }))}

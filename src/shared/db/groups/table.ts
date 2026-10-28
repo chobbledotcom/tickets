@@ -1,5 +1,5 @@
 /** The `group_listings` link table: both directions of which listings sit in
- * which groups. A link row means the group holds that listing; groups read one
+ * which groups. A link row means the group holds that listing. Groups read one
  * side, listing records read the other, so the table homes apart from both. */
 
 import { linkTableSide } from "#db/link-table.ts";

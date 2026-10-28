@@ -41,7 +41,7 @@ export type AttendeeDataRule =
 
 /**
  * Every direct attendee-id column, plus dependent rows reached through another
- * key. Delete planning consumes this list directly; retained entries make the
+ * key. Delete planning consumes this list directly. Retained entries make the
  * exceptions explicit without turning them into deletes.
  */
 export const ATTENDEE_DATA_RULES: readonly AttendeeDataRule[] = [
@@ -120,7 +120,7 @@ export const ATTENDEE_DATA_RULES: readonly AttendeeDataRule[] = [
   },
 
   // A built site's assignment follows the person through a merge. A deletion
-  // clears only that live link; the provisioned site keeps its own lifecycle.
+  // clears only that live link. The provisioned site keeps its own lifecycle.
   {
     action: "repoint",
     field: "assigned_attendee_id",

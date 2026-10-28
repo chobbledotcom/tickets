@@ -1,11 +1,11 @@
 /**
  * sms_messages table operations.
  *
- * A lean, PII-free map from the gateway's message id to the attendee a text was
- * sent to, so delivery/failure webhooks can be attributed to the right
- * attendee. Message content and recipient numbers are NOT stored here — they
- * live only in the (encrypted) activity log. Rows are deleted on a terminal
- * status event and pruned by age as a backstop.
+ * A lean, PII-free map from the gateway's message id to the attendee a text
+ * was sent to. Delivery and failure webhooks can then be attributed to the
+ * right attendee. Message content and recipient numbers are NOT stored here —
+ * they live only in the (encrypted) activity log. Rows are deleted on a
+ * terminal status event and pruned by age as a backstop.
  */
 
 import {

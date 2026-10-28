@@ -23,6 +23,7 @@ import type {
   CodeOnScreen,
   WhereTheCodeLed,
 } from "#test/specs/support/shown-code.ts";
+import type { LostSumupPayment } from "#test/specs/support/sumup-recovery.ts";
 import { withEnv } from "#test-utils/env.ts";
 import type { RecordedFetchCall } from "#test-utils/mocks.ts";
 import type {
@@ -45,6 +46,12 @@ export type ActOnTheStory = (world: TicketsWorld) => Promise<void>;
 export type ActOnOnePerson = (
   world: TicketsWorld,
   who: string,
+) => Promise<void>;
+/** Something a story does to one person's booking on a named listing. */
+export type ActsOnPersonsBooking = (
+  world: TicketsWorld,
+  who: string,
+  listing: string,
 ) => Promise<void>;
 export type ActOnSomeMoney = (
   world: TicketsWorld,
@@ -187,6 +194,9 @@ export interface TicketsWorld extends World, EvidencePages {
   orderFilledIn?: OrderInHand;
   orderSent?: BookingAttempt;
   otherBuyerQuestions?: { id: number; text: string }[];
+  /** The page the payment link the site gave a buyer answered with, kept so
+   * a later step reads what that link really reaches. */
+  paymentLinkSaid?: string;
   placeholderId?: number;
   /** The answer the door held before its latest send, so a step can hold a
    * resend beside the landing it repeated. */
@@ -221,6 +231,9 @@ export interface TicketsWorld extends World, EvidencePages {
    * owner's text gives it and the address its picture shows at. */
   siteImage?: { alt: string; filename: string; id: number };
   stayStartsOn?: string;
+  /** The payment whose callback the site never heard about, kept so the
+   * later steps can book it, read it back, and open its payment link. */
+  sumupLostPayment?: LostSumupPayment;
   things: RemembersThings;
   ticketToken?: string;
   /** The three parts of an email's wording the owner last saved, kept so a

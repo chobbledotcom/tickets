@@ -192,12 +192,19 @@ type UpdateBody<E extends AdminApiResource> =
     ? v.InferOutput<E["updateBodySchema"]>
     : unknown;
 
-/** List one resource: GET /api/admin/{path}. */
+/** List one resource: GET /api/admin/{path}. A resource that serves no
+ *  collection route carries no list schema. A list call against it is a
+ *  caller bug that fails loudly. It never sends a route the server 404s. */
 export const adminApiList = async <E extends AdminApiResource>(
   transport: AdminApiTransport,
   entry: E,
-): Promise<v.InferOutput<E["listSchema"]>> =>
-  rootCall(transport, entry, "list", entry.listSchema, undefined, undefined);
+): Promise<v.InferOutput<NonNullable<E["listSchema"]>>> => {
+  const listSchema = entry.listSchema;
+  if (listSchema === undefined) {
+    throw new Error(`admin api ${entry.path} serves no list route`);
+  }
+  return rootCall(transport, entry, "list", listSchema, undefined, undefined);
+};
 
 /** One write: POST creates on the collection, PUT updates the row. The body
  *  type follows the entry's declared schema for that verb. */

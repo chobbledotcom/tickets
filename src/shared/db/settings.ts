@@ -374,9 +374,10 @@ const settingsBase = {
    * The settings version the loaded snapshot is stamped at (`-1` before any
    * load). Synchronous — it reads the in-memory cache stamp, not the DB — so it
    * is safe to call during a render. Used to cache-bust assets whose body is a
-   * setting (e.g. /custom.css): every settings write bumps this counter, so a
-   * URL keyed on it changes whenever any setting changes, letting the asset be
-   * served immutable while edits still appear on the next request.
+   * setting (for example, /custom.css). Every settings write bumps this
+   * counter, so a URL keyed on it changes whenever any setting changes. The
+   * asset is then served immutable while edits still appear on the next
+   * request.
    */
   get version(): number {
     return getCacheState().version;

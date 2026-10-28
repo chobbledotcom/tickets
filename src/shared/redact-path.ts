@@ -1,6 +1,6 @@
 /**
- * Strip the secret parts out of a request path, so a log line or an error
- * report can name the route without naming the person on it.
+ * Strip the secret parts out of a request path. A log line or an error
+ * report can then name the route without naming the person on it.
  *
  * A ticket token is the whole credential for that ticket: anybody holding one
  * can open the page. Every path segment that carries one is a secret.

@@ -14,10 +14,14 @@ src/shared/bearer.ts::bearerTokenOrNull~0zm5hxk  ?? → || audited:110btoy # the
 src/shared/uptime-kuma/socket.ts::KumaSocket.%23changeListeners~0x9mfb4  0 → -1 audited:0r62zcl # the private map's missing set and retained empty set behave identically: once adds to either, while off and emit are no-ops for both
 src/shared/uptime-kuma/matching.ts::SCHEDULED_MONITOR_RULES.holds~14f0p4m  1000 → 1001 audited:1hworfp # timeout is a positive whole number of seconds and the 25,000ms deadline lies between the same integer seconds under either multiplier
 
+src/shared/api-client.ts::defineApiClient.parseError~08p5dzp  ?? → || audited:054rc5f # parseError is a function or absent (exactOptionalPropertyTypes bars explicit undefined), and every function is truthy, so ?? and || fall back on exactly the same values
+src/shared/api-client.ts::defineApiClient.unreadableError~0ikqyef  ?? → || audited:054rc5f # unreadableError is a function or absent, and every function is truthy, so ?? and || fall back on exactly the same values
+src/shared/api-client.ts::defineApiClient.fetchImpl~0ce1lxq  ?? → || audited:054rc5f # fetchImpl is a function or absent, and every function is truthy, so ?? and || fall back on exactly the same values
+
 # `x ?? F` vs `x || F` differ only when x is falsy-but-not-null; these are all
 # cases where x can't be such a value, or F equals the only one it can be.
 src/shared/add-on-reachability.ts::listingSaveOrphanedAddOnTx.wouldBeGroupIds~0vobjmv  ?? → || audited:1lop1ee # input.wouldBeGroupIds is an array or undefined, and arrays are always truthy
-src/shared/checkout-pricing.ts::priceCheckout.modifierSpecs~1b95fmx  ?? → || audited:0egssse # intent.modifiers: an array is always truthy
+src/shared/checkout-pricing.ts::priceCheckout.modifierSpecs~1b95fmx  ?? → || audited:0qjbe5a # intent.modifiers: an array is always truthy
 src/shared/booking-lines.ts::checkoutBookingLines.packageGroupId~0eqzp6w  ?? → || audited:0dqe1ps # packageGroupId is absent or a positive database group id; an explicit 0 also has the same 0 fallback
 src/features/api/payment-processing/create.ts::bookingSlot.packageGroupId~0zn56vl  ?? → || audited:1wqtu53 # lineGroupId returns undefined or a positive package group id; an explicit 0 would also keep the same 0 fallback
 src/shared/logistics-filter.ts::parseAgentFilter.n~03f157n  ?? → || audited:18gjwl6 # raw: string|null, only falsy string "" === fallback ""
@@ -68,8 +72,8 @@ src/shared/site-build.ts::buildRetainedSite.result.retainedId~1yhgu6i  = → += 
 src/shared/db/built-site-scheduler.ts::ensureBuiltSiteSchedulerKey.updated.key~0z0c2lu  ?? → || audited:075dffi # scheduledTaskKey is null or a non-empty canonical key, so both operators select the candidate only when no key exists
 src/shared/deno-deploy-api.ts::revisionOutcome~0hg2lm6  ?? → || audited:0k0dsia # failure_reason is null or a non-empty picklist value, so both use the status only for null
 src/shared/deno-deploy-api.ts::denoEnvVarPatch.contexts~0jspgom ?? → || audited:0k0dsia # contexts is an optional string array; every array is truthy (even []), so ?? and || pick the same side for every typed value
-src/shared/bunny-edge-script.ts::createEdgeScriptImpl.defaultHostname~14iov21  ?? → || audited:0z8v32e # DefaultHostname is string|undefined; its only falsy string is already the same empty fallback
-src/shared/bunny-edge-script.ts::listEdgeScriptSecretsImpl.secrets~0cl5i4z  ?? → || audited:0z8v32e # Secrets is an array|null, and every present array is truthy while null takes the fallback either way
+src/shared/bunny-edge-script.ts::createEdgeScriptImpl.defaultHostname~185m0u5  ?? → || audited:1jw7c26 # DefaultHostname is string|undefined; its only falsy string is already the same empty fallback
+src/shared/bunny-edge-script.ts::listEdgeScriptSecretsImpl.secrets~0cl5i4z  ?? → || audited:1jw7c26 # Secrets is an array|null, and every present array is truthy while null takes the fallback either way
 src/shared/subrequest-budget.ts::getSubrequestUsage~13c9nif  ?? → || audited:0zfjs24 # scoped counts is an object when present, and every object is truthy
 src/shared/accounting/queries.ts::transferActivityBounds~0ioze8t  || → && audited:1o7wako # transferActivityBounds: MIN(occurred_at) and MAX(occurred_at) over one table are NULL together (both iff the table is empty), so either-null and both-null coincide
 src/shared/admin-features.ts::featureBySlug~1rzgri8  ?? → || audited:12gdroc # find(): AdminFeatureDefinition|undefined; a feature object is always truthy
@@ -84,7 +88,7 @@ src/shared/db/migrations/schema/admin-feature-triggers.ts::featureWriteTrigger.u
 # which assigns lineIdx as the flatMap array index, so the sort's input is
 # always already ascending — and `sort((a,b) => a/b)` is identity on an
 # already-ascending array, so swapping the comparator changes nothing.
-src/shared/checkout-pricing.ts::toLines.lineIdxs~1uom1op  - → / audited:0egssse # toUnits gives ascending lineIdx; a/b is identity on sorted input
+src/shared/checkout-pricing.ts::toLines.lineIdxs~1uom1op  - → / audited:0qjbe5a # toUnits gives ascending lineIdx; a/b is identity on sorted input
 
 # largest-remainder: option hooks are functions when present, so they are
 # truthy; undefined falls through to the same default under `??` and `||`.
@@ -244,8 +248,8 @@ src/shared/admin-surface.ts::adminRecordPath~11evcma  ?? → || audited:1b16u45 
 
 # db/listings/attendees.ts — fallbacks whose left side can never be a
 # falsy-but-present value that differs from the fallback itself.
-src/shared/db/listings/attendees.ts::listingAttendeeFilter.activeOnly~1bv0ikc  ?? → || audited:0wqao29 # activeOnly is boolean|undefined and the fallback is false, so false ?? false === false || false
-src/shared/db/listings/attendees.ts::listingAttendeeFilter.kindScope~0taxexu  ?? → || audited:0wqao29 # kindScope is one of two non-empty words or undefined, so it is never falsy-but-present
+src/shared/db/listings/attendees.ts::listingAttendeeFilter.activeOnly~1bv0ikc  ?? → || audited:04x3l2t # activeOnly is boolean|undefined and the fallback is false, so false ?? false === false || false
+src/shared/db/listings/attendees.ts::listingAttendeeFilter.kindScope~0taxexu  ?? → || audited:04x3l2t # kindScope is one of two non-empty words or undefined, so it is never falsy-but-present
 
 # db/client.ts — fallbacks whose left side can never be a falsy-but-present
 # value, and a label no code ever reads.

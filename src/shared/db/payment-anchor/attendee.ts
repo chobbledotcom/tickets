@@ -26,9 +26,9 @@ export interface PreparedClaimedAttendeePaymentAnchor {
 }
 
 /** Prepare one payment reference and its destructive-write fence together.
- * When the money already came back before this row is born — the rejected
- * charge flow refunds first — `unrecordedAt` stamps that truth on the row
- * from its first write, so a crash before the books catch up leaves a state
+ * When the money already came back before this row is born, `unrecordedAt`
+ * stamps that truth on the row from its first write. The rejected charge
+ * flow refunds first. A crash before the books catch up then leaves a state
  * every scan and route already understands. */
 export const prepareClaimedAttendeePaymentAnchor = async (
   payment: TaggedPaymentReference,

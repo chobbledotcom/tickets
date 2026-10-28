@@ -1,6 +1,6 @@
 import { inPlaceholders, queryAll } from "#db/client.ts";
 
-/** Maximum payment-reference rows one attendee refund may open. */
+/** Maximum payment-reference rows one attendee refund can open. */
 export const MAX_REFUND_REFERENCES_PER_ATTENDEE = 10;
 
 export type PaymentReferenceRow = {

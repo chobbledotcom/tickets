@@ -1,6 +1,6 @@
 /** Spread a door's ticket count over a person's booking lines. One person
  * can hold several lines on one listing (two dates, two parents, two
- * packages), so a count names tickets on the listing, never on each line. */
+ * packages). A count names tickets on the listing, never on each line. */
 
 import { remainingTickets } from "#booking/remaining-tickets.ts";
 import type { ListingAttendeeRow } from "#db/attendee-types.ts";
@@ -80,15 +80,15 @@ const ROOM: Record<TicketDirection, (line: StoredTicketLine) => number> = {
 const STEP: Record<TicketDirection, number> = { admit: 1, release: -1 };
 
 /** A ticket count is a whole number of tickets, zero or more. A negative or
- * fractional count would write a torn booking, so the write refuses it. */
+ * fractional count writes a torn booking, so the write refuses it. */
 const isWholeTicketCount = (count: number): boolean =>
   Number.isSafeInteger(count) && count >= 0;
 
 /** Move each count over the person's lines on that listing in the order
  * given, filling (or emptying) one line before the next. Answers the lines
- * that changed, the tickets each move really moved (less than asked when the
- * lines run out of room), and what each pair still owes afterwards. A count
- * that is not a whole number of tickets throws. */
+ * that changed and the tickets each move really moved (less than asked when
+ * the lines run out of room). It also answers what each pair still owes
+ * afterwards. A count that is not a whole number of tickets throws. */
 export const spreadTicketMoves = (
   direction: TicketDirection,
   lines: readonly StoredTicketLine[],

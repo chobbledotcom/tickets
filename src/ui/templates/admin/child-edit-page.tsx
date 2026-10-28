@@ -1,9 +1,9 @@
 /**
  * The shared frame for pages that edit one entry belonging to a parent record
- * (a question's answer, an attribute's option): the admin page shell, a back
- * link to the parent, the heading with a small line naming the parent, then
- * the entry's edit form, then the page's own sections (stats, related
- * records, the delete link).
+ * (a question's answer, an attribute's option). It holds the admin page
+ * shell, a back link to the parent, and the heading with a small line naming
+ * the parent. Below sit the entry's edit form and the page's own sections
+ * (stats, related records, the delete link).
  */
 
 import type { Child } from "#jsx/jsx-runtime.ts";
@@ -15,7 +15,7 @@ import type { AdminSession } from "#types";
 /* jscpd:ignore-end */
 
 export type ChildEditFrame = {
-  /** The nav item to mark active, e.g. "/admin/questions". */
+  /** The nav item to mark active, for example "/admin/questions". */
   active: string;
   /** Link back to the parent record's page. */
   backHref: string;
@@ -42,10 +42,12 @@ export const childEditPage =
           <BackButton href={frame.backHref}>{frame.backLabel}</BackButton>
         </p>
 
-        <h1>{frame.heading}</h1>
-        <p>
-          <small>{frame.context}</small>
-        </p>
+        <div class="prose">
+          <h1>{frame.heading}</h1>
+          <p>
+            <small>{frame.context}</small>
+          </p>
+        </div>
 
         <CsrfForm action={frame.formAction}>{formContent}</CsrfForm>
 

@@ -32,11 +32,11 @@ export const isCssResponse = (response: Response): boolean =>
 
 /**
  * Empty, uncached stylesheet served for `/custom.css` when the request pipeline
- * would otherwise answer with an HTML system page (site-not-activated,
+ * otherwise answers with an HTML system page (site-not-activated,
  * migration-in-progress, transient error). The public layout links
  * `/custom.css` on *every* page — including those system pages — so returning
  * HTML there trips the browser's strict MIME check. This keeps the asset a
- * stylesheet in every state; it is deliberately `no-store` so it can never be
+ * stylesheet in every state. It is deliberately `no-store` so it can never be
  * cached in place of the operator's real CSS once the site is healthy.
  */
 export const emptyCustomCssResponse = (): Response =>

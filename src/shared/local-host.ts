@@ -1,8 +1,8 @@
 /** Hosts that can use cleartext http for a credential-carrying request.
  * Loopback is one. The rest are ranges no packet can leave the operator's
- * network for: the private blocks, the CGNAT space where VPNs such as
- * Tailscale live, and link-local. Every other host needs HTTPS, so a bearer
- * token never crosses a public network unencrypted. */
+ * network for. These are the private blocks, the CGNAT space where VPNs such
+ * as Tailscale live, and link-local. Every other host needs HTTPS, so a
+ * bearer token never crosses a public network unencrypted. */
 
 /** The first 16-bit group of a bracketed IPv6 host, or null for any host that
  * is not one. The URL parser already rejects a bracketed host that is not
