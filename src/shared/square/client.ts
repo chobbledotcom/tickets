@@ -70,9 +70,7 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
       read: (body: unknown) => Output,
     ) =>
     async (input: Record<string, string>): Promise<Output> =>
-      read(
-        await get(`/v2/${resource}/${encodeURIComponent(input[idField]!)}`),
-      );
+      read(await get(`/v2/${resource}/${encodeURIComponent(input[idField]!)}`));
 
   return {
     checkout: {

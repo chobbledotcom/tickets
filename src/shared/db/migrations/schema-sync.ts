@@ -560,36 +560,33 @@ export const backfillListingAggregates: () => Promise<void> =
     await getDb().execute({ args: [], sql });
   });
 
-/** Run one one-time aggregate backfill statement. */
-const runAggregateBackfill =
-  (sql: string) =>
-  async (): Promise<void> => {
-    await getDb().execute(sql);
-  };
-
 /**
  * Recompute the modifiers aggregate columns from modifier_usages. One-time on
  * migration; afterwards the triggers keep them current. Idempotent (absolute
  * recompute, not a delta), so it's safe to re-run.
  */
-export const backfillModifierAggregates = runAggregateBackfill(
-  `UPDATE modifiers SET
+export const backfillModifierAggregates = async (): Promise<void> => {
+  await getDb().execute(
+    `UPDATE modifiers SET
        total_uses = COALESCE(
          (SELECT SUM(quantity) FROM modifier_usages WHERE modifier_id = modifiers.id), 0),
        usage_count = COALESCE(
          (SELECT COUNT(*) FROM modifier_usages WHERE modifier_id = modifiers.id), 0)`,
-);
+  );
+};
 
 /**
  * Recompute the answers.times_selected aggregate from attendee_answers.
  * One-time on migration; afterwards the triggers keep it current. Idempotent
  * (absolute recompute, not a delta), so it's safe to re-run.
  */
-export const backfillAnswerAggregates = runAggregateBackfill(
-  `UPDATE answers SET
+export const backfillAnswerAggregates = async (): Promise<void> => {
+  await getDb().execute(
+    `UPDATE answers SET
        times_selected = COALESCE(
          (SELECT COUNT(*) FROM attendee_answers WHERE answer_id = answers.id), 0)`,
-);
+  );
+};
 
 // One batched snapshot replaces the per-table tableExists/getExistingColumns
 // probes — dozens of subrequests that could alone exceed the edge cap.

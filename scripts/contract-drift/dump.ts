@@ -136,12 +136,13 @@ const machineContract = async (
 /** Loads a machine whose events and declared table its own spec module
  * exports under the given keys. The dump's test pins every machine, so a
  * wrong key fails the suite instead of shipping a silent gap. */
-const ownMachineLoader = (
-  machineId: string,
-  eventsKey: string,
-  movesKey: string,
-  specifier: string,
-): MachineLoader =>
+const ownMachineLoader =
+  (
+    machineId: string,
+    eventsKey: string,
+    movesKey: string,
+    specifier: string,
+  ): MachineLoader =>
   () =>
     import(specifier).then((module: Record<string, unknown>) =>
       machineContract(
