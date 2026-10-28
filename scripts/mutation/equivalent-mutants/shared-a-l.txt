@@ -97,8 +97,8 @@ src/shared/largest-remainder.ts::largestRemainderIndexes.tieBreaker~07p6b0t  ?? 
 
 # crypto/utils: Uint8Array indexing yields number|undefined; fallback is 0, and
 # the only falsy non-null byte is 0, so `byte ?? 0` and `byte || 0` agree.
-src/shared/crypto/utils.ts::constantTimeEqual~1sr6g7q  ?? → || audited:0jjy7kr # bufA[i]: number|undefined, 0 ?? 0 === 0 || 0
-src/shared/crypto/utils.ts::constantTimeEqual~0nflsgj  ?? → || audited:0jjy7kr # bufB[i]: number|undefined, 0 ?? 0 === 0 || 0
+src/shared/crypto/utils.ts::constantTimeEqual~1sr6g7q  ?? → || audited:1rmpzyq # bufA[i]: number|undefined, 0 ?? 0 === 0 || 0
+src/shared/crypto/utils.ts::constantTimeEqual~0nflsgj  ?? → || audited:1rmpzyq # bufB[i]: number|undefined, 0 ?? 0 === 0 || 0
 
 # savedFormValue: form?.getString(name) is string|undefined; the only falsy
 # non-null string is "" which equals the "" fallback, so ?? and || agree.
@@ -203,8 +203,8 @@ src/shared/logistics-filter.ts::parseAgentFilter.n~03f157n   → "mutated" audit
 # is only asked past the end of one string when the lengths differ — and that
 # seed already forces "not equal". Whatever the short side reads there cannot
 # change the answer.
-src/shared/crypto/utils.ts::constantTimeEqual~1sr6g7q  0 → 1 audited:0jjy7kr # only read past the end of the shorter string, where the length XOR has already decided the result
-src/shared/crypto/utils.ts::constantTimeEqual~0nflsgj  0 → 1 audited:0jjy7kr # same reader for the other side, reached only when the lengths already differ
+src/shared/crypto/utils.ts::constantTimeEqual~1sr6g7q  0 → 1 audited:1rmpzyq # only read past the end of the shorter string, where the length XOR has already decided the result
+src/shared/crypto/utils.ts::constantTimeEqual~0nflsgj  0 → 1 audited:1rmpzyq # same reader for the other side, reached only when the lengths already differ
 
 # crypto/der.ts — this value is written into a Uint8Array element. Adding or
 # subtracting 128 produces the same low eight bits, and Uint8Array discards all

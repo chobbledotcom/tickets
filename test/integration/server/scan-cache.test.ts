@@ -44,6 +44,31 @@ const authedGet = async (path: string): Promise<Response> =>
 const doorDigest = (door: string, token: string): Promise<string> =>
   hmacHex(deriveDoorCacheKey(door), token);
 
+/** Book one attendee on one listing under an explicit ticket token. Fails
+ * loudly when the booking does not land. */
+const bookToken = async (
+  listingId: number,
+  day: number,
+  name: string,
+  token: string,
+): Promise<void> => {
+  const result = await attendeesApi.createAttendeeAtomic({
+    bookings: [
+      {
+        date: addDays(testDate(todayInTz("UTC")), day),
+        listingId,
+        quantity: 1,
+      },
+    ],
+    email: `${name.toLowerCase().replace(/\s+/g, "-")}@example.com`,
+    name,
+    ticketToken: token,
+  });
+  if (!result.success) {
+    throw new Error(`booking for ${name} failed: ${result.reason}`);
+  }
+};
+
 describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
   test("serves an entry for every ticket the listing door can admit", async () => {
     const { listing, token: kept } = await createTestAttendeeWithToken(
@@ -69,6 +94,32 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
     });
   });
 
+  test("serves a legacy token beside a new one on the same door", async () => {
+    // No migration rewrites the tokens already in circulation, so one door's
+    // set holds both shapes: a token issued before the 128-bit format and a
+    // fresh one.
+    const listing = await createTestListing();
+    const door = doorCacheName("listing", listing.id);
+    const legacyToken = "A1B2C3D4E5";
+    const modernToken = generateTicketToken();
+    expect(legacyToken.length).toBe(10);
+    expect(modernToken.length).toBe(32);
+    await bookToken(listing.id, 2, "Ivy Issued", legacyToken);
+    await bookToken(listing.id, 2, "Jack Fresh", modernToken);
+    const digests = await Promise.all([
+      doorDigest(door, legacyToken),
+      doorDigest(door, modernToken),
+    ]);
+    expect(
+      await assertJson(
+        authedGet(`/admin/listing/${listing.id}/scan-cache`),
+        200,
+      ),
+    ).toEqual({
+      entries: digests.sort().map((hash) => ({ hash, tickets: 1 })),
+    });
+  });
+
   test("saves the set in digest order, not booking order", async () => {
     // Two doors whose tickets book on different days: one door's early day
     // holds the lesser digest, the other's the greater. The read meets one
@@ -91,28 +142,11 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
         digestA < digestB ? [tokenA, tokenB] : [tokenB, tokenA];
       const [lesserDigest, greaterDigest] =
         digestA < digestB ? [digestA, digestB] : [digestB, digestA];
-      const bookToken = async (day: number, name: string, token: string) => {
-        const result = await attendeesApi.createAttendeeAtomic({
-          bookings: [
-            {
-              date: addDays(testDate(todayInTz("UTC")), day),
-              listingId: listing.id,
-              quantity: 1,
-            },
-          ],
-          email: `${name.toLowerCase().replace(/\s+/g, "-")}@example.com`,
-          name,
-          ticketToken: token,
-        });
-        if (!result.success) {
-          throw new Error(`booking for ${name} failed: ${result.reason}`);
-        }
-      };
       const [earlyToken, lateToken] = earlyDayHoldsGreater
         ? [greaterToken, lesserToken]
         : [lesserToken, greaterToken];
-      await bookToken(2, people[0]!, earlyToken);
-      await bookToken(3, people[1]!, lateToken);
+      await bookToken(listing.id, 2, people[0]!, earlyToken);
+      await bookToken(listing.id, 3, people[1]!, lateToken);
       return { greaterDigest, lesserDigest, listing };
     };
     const earlyLesser = await doorWith(false, ["Eve Ash", "Finn Ash"]);
