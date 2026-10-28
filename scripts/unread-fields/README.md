@@ -90,6 +90,14 @@ A class that a module exports as its default without a name has no name. The
 report reaches it through that default export, so its fields sit under
 `default`, as `default.total`.
 
+A class field that holds an object literal counts each key as a field. The
+literal gives the field its type, so a caller reaches the key the same way it
+reaches a declared member. `config = { dead: 1 }` reports `Holder.config` and
+`Holder.config.dead`. An array literal reads one element down, the way an
+`Array` type does. `config = [{ id: 1 }]` reports `Holder.config["[]"].id`. A
+value a call returns is the field's type, not the call's argument. The object
+literal that supplies a call names no field of the value it returns.
+
 An object type nested inside one counts too, because `report.nested.deep`
 reaches it. A generic that holds one hands it on. So `Array<{ id: number }>` and
 `Record<string, { id: number }>` both count. `Array<T>`, `ReadonlyArray<T>` and
