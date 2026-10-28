@@ -159,7 +159,7 @@ const collectUniqueOptions = (
   return option && !acc.has(option.id) ? acc.set(option.id, option) : acc;
 };
 
-/** Decrypt one `[id, entity]` pair through its table, keeping the id. */
+/** Decrypt one `[id, entity]` pair through its table, and keep the id. */
 const decryptPair =
   <Entity>(fromDb: (entity: Entity) => Promise<Entity>) =>
   async ([id, entity]: [number, Entity]): Promise<[number, Entity]> =>
