@@ -10,12 +10,13 @@ import { getListingWithCount } from "#db/listings/records.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
-import { AUTH_FORM, formGuard } from "#routes/auth.ts";
+import { formGuard, formPolicyFor } from "#routes/auth.ts";
 import { createIdEntityHandler } from "#routes/entity.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { deactivationOrphanedAddOnError } from "#shared/add-on-reachability.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import {
   deleteOrphanedAddOnError,
   performListingDelete,
@@ -134,15 +135,17 @@ export const listingDelete = createConfirmedHandlers<ListingWithCount>({
 
 const unverifiedListingDelete = createIdEntityHandler<ListingWithCount>(
   getListingWithCount,
-)(formGuard(AUTH_FORM))(async (listing, _session, _form, _request, { id }) => {
-  // performListingDelete runs the orphaned-add-on guard inside the write
-  // transaction and returns its refusal. A change since the load cannot
-  // orphan an add-on, and a refusal cannot be reported as success.
-  const refusal = await performListingDelete(listing);
-  return refusal === null
-    ? redirect("/admin", t("success.listing_deleted"), true)
-    : redirect(`/admin/listing/${id}`, refusal, false);
-});
+)(formGuard(formPolicyFor(adminDestinationAt("/admin/listing/:id/delete"))))(
+  async (listing, _session, _form, _request, { id }) => {
+    // performListingDelete runs the orphaned-add-on guard inside the write
+    // transaction and returns its refusal. A change since the load cannot
+    // orphan an add-on, and a refusal cannot be reported as success.
+    const refusal = await performListingDelete(listing);
+    return refusal === null
+      ? redirect("/admin", t("success.listing_deleted"), true)
+      : redirect(`/admin/listing/${id}`, refusal, false);
+  },
+);
 
 export const handleAdminListingDelete: TypedRouteHandler<
   "POST /admin/listing/:id/delete"

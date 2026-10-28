@@ -8,7 +8,7 @@ import {
 } from "#db/admin-features.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
-import { OWNER_FORM, requireOwnerOr, withAuth } from "#routes/auth.ts";
+import { formPolicyFor, pageGuardFor, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import {
   errorRedirect,
@@ -22,6 +22,7 @@ import {
   enabledFeaturesWithUsage,
   featureBySlug,
 } from "#shared/admin-features.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { adminFeaturePage } from "#templates/admin/features.tsx";
 
@@ -65,30 +66,35 @@ const saveFeatureChoice = async (
 export const handleFeatureGet: TypedRouteHandler<
   "GET /admin/features/:slug"
 > = (request, { slug }) =>
-  requireOwnerOr(request, (session) =>
-    withAdminFeature(slug, async (feature) => {
-      const usage = await getAdminFeatureUsage();
-      const enabled = enabledFeaturesWithUsage(settings.features, usage)[
-        feature.key
-      ];
-      const flash = applyFlash(request);
-      return htmlResponse(
-        adminFeaturePage({
-          enabled,
-          error: flash.error,
-          feature,
-          inUse: usage[feature.key],
-          session,
-          success: flash.success,
-          theme: settings.theme,
-        }),
-      );
-    }),
+  pageGuardFor(adminDestinationAt("/admin/features/:slug"))(
+    request,
+    (session) =>
+      withAdminFeature(slug, async (feature) => {
+        const usage = await getAdminFeatureUsage();
+        const enabled = enabledFeaturesWithUsage(settings.features, usage)[
+          feature.key
+        ];
+        const flash = applyFlash(request);
+        return htmlResponse(
+          adminFeaturePage({
+            enabled,
+            error: flash.error,
+            feature,
+            inUse: usage[feature.key],
+            session,
+            success: flash.success,
+            theme: settings.theme,
+          }),
+        );
+      }),
   );
 
 export const handleFeaturePost: TypedRouteHandler<
   "POST /admin/features/:slug"
 > = (request, { slug }) =>
-  withAuth(request, OWNER_FORM, (_session, form) =>
-    withAdminFeature(slug, (feature) => saveFeatureChoice(feature, form)),
+  withAuth(
+    request,
+    formPolicyFor(adminDestinationAt("/admin/features/:slug")),
+    (_session, form) =>
+      withAdminFeature(slug, (feature) => saveFeatureChoice(feature, form)),
   );

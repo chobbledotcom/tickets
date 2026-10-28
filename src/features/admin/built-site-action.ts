@@ -1,11 +1,14 @@
+/* jscpd:ignore-start -- imports */
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { builtSitesCrudTable } from "#db/built-sites.ts";
-import { requireOwnerOr } from "#routes/auth.ts";
+import { pageGuardFor } from "#routes/auth.ts";
 import { requireCsrfForm } from "#routes/csrf.ts";
 import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { builtSitePage } from "./built-site-page.tsx";
+/* jscpd:ignore-end */
 
 export type BuiltSiteTab =
   | "maintenance"
@@ -44,10 +47,15 @@ const builtSiteHandler = createIdEntityHandler<BuiltSite>((id) =>
   builtSitesCrudTable.read.one({ id }),
 );
 
-export const builtSiteAction = (action: BuiltSitePost): IdRouteHandler =>
-  builtSiteHandler(requireOwnerOr)(async (site, _session, request, { id }) => {
-    const csrf = await requireCsrfForm(request, () =>
-      htmlResponse("CSRF token invalid", 403),
-    );
-    return csrf.ok ? action(site, csrf.form, id) : csrf.response;
-  });
+export const builtSiteAction = (
+  pattern: string,
+  action: BuiltSitePost,
+): IdRouteHandler =>
+  builtSiteHandler(pageGuardFor(adminDestinationAt(pattern)))(
+    async (site, _session, request, { id }) => {
+      const csrf = await requireCsrfForm(request, () =>
+        htmlResponse("CSRF token invalid", 403),
+      );
+      return csrf.ok ? action(site, csrf.form, id) : csrf.response;
+    },
+  );

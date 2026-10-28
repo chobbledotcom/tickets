@@ -18,7 +18,8 @@ import {
   generateCalendarCsv,
   toCalendarAttendees,
 } from "#routes/admin/calendar-csv.ts";
-import { type AuthSession, requireSessionOr } from "#routes/auth.ts";
+import { withOwnerData } from "#routes/admin/owner-route.ts";
+import type { AuthSession } from "#routes/auth.ts";
 /* jscpd:ignore-start */
 import { htmlResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
@@ -105,10 +106,11 @@ type BrowserList = {
 /** The start the attendees page and its CSV export share. A chosen group
  * resolves to its member listings through the one shared membership read. */
 const withBrowserList = (
+  pattern: string,
   request: Request,
   handler: (session: AuthSession, list: BrowserList) => Promise<Response>,
 ): Promise<Response> =>
-  requireSessionOr(request, async (session) => {
+  withOwnerData(pattern, async (_session, request) => {
     const [listings, groups] = await loadListingsAndGroupNames();
     const setup = browserListSetup(listings, groupScopeOptions(groups));
     const state = readAttendeeListState(
@@ -117,7 +119,7 @@ const withBrowserList = (
     );
     const memberIds =
       state.groupId === null ? null : await groupMemberIds(state.groupId);
-    return handler(session, {
+    return {
       listingIds: resolveListingIds(
         state.listingId,
         state.type,
@@ -126,50 +128,54 @@ const withBrowserList = (
       ),
       setup,
       state,
-    });
-  });
+    };
+  })(request, handler);
 
 /** The fixed page size lives in the query. */
 export const handleAttendeesListGet: TypedRouteHandler<
   "GET /admin/attendees"
 > = (request) =>
-  withBrowserList(request, async (session, { setup, state, listingIds }) => {
-    const [privateKey, holidays] = await Promise.all([
-      requireRequestPrivateKey(),
-      getActiveHolidays(),
-    ]);
-    const { rows, hasNext } = await getAttendeesPage({
-      listingIds,
-      page: state.page,
-      sort: state.sort,
-    });
-    const decrypted = await decryptAttendees(rows, privateKey);
-    // One row per attendee, its listings in the same display order as the
-    // listings page (sortListings decides that order for both).
-    const built = groupAttendeeRows(
-      decrypted,
-      sortListings(setup.listings, holidays),
-    );
-    const attendeeIds = unique(decrypted.map((a) => a.id));
-    const systemNotes = await loadNotesForAttendees(attendeeIds, () =>
-      Promise.resolve(privateKey),
-    );
+  withBrowserList(
+    "/admin/attendees",
+    request,
+    async (session, { setup, state, listingIds }) => {
+      const [privateKey, holidays] = await Promise.all([
+        requireRequestPrivateKey(),
+        getActiveHolidays(),
+      ]);
+      const { rows, hasNext } = await getAttendeesPage({
+        listingIds,
+        page: state.page,
+        sort: state.sort,
+      });
+      const decrypted = await decryptAttendees(rows, privateKey);
+      // One row per attendee, its listings in the same display order as the
+      // listings page (sortListings decides that order for both).
+      const built = groupAttendeeRows(
+        decrypted,
+        sortListings(setup.listings, holidays),
+      );
+      const attendeeIds = unique(decrypted.map((a) => a.id));
+      const systemNotes = await loadNotesForAttendees(attendeeIds, () =>
+        Promise.resolve(privateKey),
+      );
 
-    await addNoteImageUrls(systemNotes);
-    return htmlResponse(
-      adminAttendeesListPage({
-        allowedDomain: getEffectiveDomain(),
-        hasNext,
-        names: fieldById("name")(decrypted),
-        phonePrefix: settings.phonePrefix,
-        rows: built,
-        session,
-        setup,
-        state,
-        systemNotes,
-      }),
-    );
-  });
+      await addNoteImageUrls(systemNotes);
+      return htmlResponse(
+        adminAttendeesListPage({
+          allowedDomain: getEffectiveDomain(),
+          hasNext,
+          names: fieldById("name")(decrypted),
+          phonePrefix: settings.phonePrefix,
+          rows: built,
+          session,
+          setup,
+          state,
+          systemNotes,
+        }),
+      );
+    },
+  );
 
 /** Every booking row of every attendee matching the filter, across all pages —
  * the export is not paginated. Reuses the page query, so the all-listings case
@@ -193,22 +199,26 @@ const allAttendeeBookings = (
 export const handleAttendeesCsvExport: TypedRouteHandler<
   "GET /admin/attendees/csv"
 > = (request) =>
-  withBrowserList(request, async (_session, { setup, listingIds }) => {
-    const privateKey = await requireRequestPrivateKey();
-    const raw = await allAttendeeBookings(listingIds);
-    // Keep one CSV row per booking on the FILTERED listings only. The page
-    // query returns a matched attendee's other listings too (for the grouped
-    // table), which the export must not include.
-    const inFilter = listingIds && new Set(listingIds);
-    const bookings = inFilter
-      ? filter((a: Attendee) => inFilter.has(a.listing_id))(raw)
-      : raw;
-    const attendees = await decryptAttendees(bookings, privateKey);
-    const csv = generateCalendarCsv(
-      toCalendarAttendees(attendees, setup.listings),
-      undefined,
-      settings.timezone,
-    );
-    await logActivity("Attendees CSV exported");
-    return csvResponse(csv, "attendees.csv");
-  });
+  withBrowserList(
+    "/admin/attendees/csv",
+    request,
+    async (_session, { setup, listingIds }) => {
+      const privateKey = await requireRequestPrivateKey();
+      const raw = await allAttendeeBookings(listingIds);
+      // Keep one CSV row per booking on the FILTERED listings only. The page
+      // query returns a matched attendee's other listings too (for the grouped
+      // table), which the export must not include.
+      const inFilter = listingIds && new Set(listingIds);
+      const bookings = inFilter
+        ? filter((a: Attendee) => inFilter.has(a.listing_id))(raw)
+        : raw;
+      const attendees = await decryptAttendees(bookings, privateKey);
+      const csv = generateCalendarCsv(
+        toCalendarAttendees(attendees, setup.listings),
+        undefined,
+        settings.timezone,
+      );
+      await logActivity("Attendees CSV exported");
+      return csvResponse(csv, "attendees.csv");
+    },
+  );

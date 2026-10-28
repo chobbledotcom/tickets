@@ -25,7 +25,10 @@ import {
   type AdminDestinationDef,
   ownerOnlyAudience,
 } from "#shared/admin-surface/definitions.ts";
-import { adminPageAudience } from "#shared/admin-surface.ts";
+import {
+  adminDestinationAt,
+  adminPageAudience,
+} from "#shared/admin-surface.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { signCsrfToken, verifySignedCsrfToken } from "#shared/csrf.ts";
 import type { Flash } from "#shared/flash-context.ts";
@@ -259,7 +262,6 @@ const sessionRoleAllowed = (
 
 /** Auth policy presets — use with withAuth to avoid repeating policy objects */
 export const OWNER_FORM: AuthPolicy<"form"> = { body: "form", role: "owner" };
-export const AUTH_FORM: AuthPolicy<"form"> = { body: "form" };
 /** Agent-only form gate (delivery run-sheet actions). */
 export const AGENT_FORM: AuthPolicy<"form"> = { body: "form", role: "agent" };
 /** Content-editing form gate: staff plus the content-only `editor`. Used for the
@@ -392,25 +394,6 @@ export const withSession = async (
   return session ? handler(session) : onNoSession();
 };
 
-/** Require session — redirect if not authenticated, 403 if role check fails */
-export const requireSessionOr = async (
-  request: Request,
-  handler: AuthSessionHandler,
-  role?: AdminLevel,
-): Promise<Response> => {
-  const result = await requireSessionFor(request, "html", role);
-  return isResponse(result) ? result : handler(result);
-};
-
-/** Build a session guard that requires an exact role. */
-const requireRoleOr =
-  (role: AdminLevel) =>
-  (request: Request, handler: AuthSessionHandler): Promise<Response> =>
-    requireSessionOr(request, handler, role);
-
-/** Require owner session — shorthand for requireSessionOr with owner role */
-export const requireOwnerOr = requireRoleOr("owner");
-
 /** Build a session guard that admits any of the given roles. */
 const requireRolesOr =
   (roles: readonly AdminLevel[]) =>
@@ -461,6 +444,19 @@ export const recordPageGuardFor = (
 export const formPolicyFor = (
   route: AdminDestinationDef,
 ): AuthPolicy<"form"> => ({ body: "form", roles: route.audience });
+
+/** A form POST's policy at a declared route pattern. */
+export const formPolicyAt = (pattern: string): AuthPolicy<"form"> =>
+  formPolicyFor(adminDestinationAt(pattern));
+
+/** Run a session handler under a page's guard, the audience from the route's
+ * declaration. The shared tail of the "gate a request then handle" helpers,
+ * so the guard application is written once. */
+export const pageGuardRun = (
+  pattern: string,
+  request: Request,
+  run: (session: AuthSession) => Promise<Response>,
+): Promise<Response> => pageGuardFor(adminDestinationAt(pattern))(request, run);
 
 /** A gate a route runs before its handler: it authenticates/loads whatever
  * the handler needs, then calls it with that data — or answers the request
@@ -519,17 +515,6 @@ type ResponsePageFactory = (
     [session: AuthSession, request: Request, flash: Flash]
   >,
 ) => RequestRoute;
-
-/** Owner-only GET page: authenticate, apply flash, render HTML */
-export const ownerPage = authPage(requireOwnerOr);
-
-/** Owner-only GET route whose builder returns the full Response (may 404 or
- * redirect instead of rendering). */
-export const ownerResponsePage: ResponsePageFactory =
-  authResponsePage(requireOwnerOr);
-
-/** Authenticated GET page: authenticate, apply flash, render HTML */
-export const sessionPage = authPage(requireSessionOr);
 
 /** Content-editing GET route (staff or editor) whose builder returns the full
  * Response (may 404 or redirect instead of rendering). */

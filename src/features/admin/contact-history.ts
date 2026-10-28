@@ -25,9 +25,9 @@ import {
   defineEntityPage,
   type EntityPage,
 } from "#routes/admin/entity-pages.ts";
-import { AUTH_FORM, withAuth } from "#routes/auth.ts";
+import { formPolicyFor, withAuth } from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
-import { adminPattern } from "#shared/admin-surface.ts";
+import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -115,29 +115,37 @@ const contactHistoryEntityPage: EntityPage<ContactHistoryEntity, string> =
 const handleContactHistoryPost: TypedRouteHandler<
   "POST /admin/history/:hmac"
 > = (request, { hmac }) =>
-  withAuth(request, AUTH_FORM, async (session, form) => {
-    const pk = await requireRequestPrivateKey();
-    const hash = fromContactHashParam(hmac);
-    const current = await loadForRepair(hash, pk);
-    const updated = recordFromForm(form, current);
-    if (updated.adminNotes.length > MAX_TEXTAREA_LENGTH) {
-      await addPageImageUrls([updated.adminNotes]);
-      return contactHistoryEntityPage.renderPage(session, hmac, "", {
-        panel: () =>
-          Promise.resolve(
-            ContactHistoryForm({
-              formError: t("contact_history.note_too_long", {
-                max: MAX_TEXTAREA_LENGTH,
+  withAuth(
+    request,
+    formPolicyFor(adminDestinationAt("/admin/history/:hmac")),
+    async (session, form) => {
+      const pk = await requireRequestPrivateKey();
+      const hash = fromContactHashParam(hmac);
+      const current = await loadForRepair(hash, pk);
+      const updated = recordFromForm(form, current);
+      if (updated.adminNotes.length > MAX_TEXTAREA_LENGTH) {
+        await addPageImageUrls([updated.adminNotes]);
+        return contactHistoryEntityPage.renderPage(session, hmac, "", {
+          panel: () =>
+            Promise.resolve(
+              ContactHistoryForm({
+                formError: t("contact_history.note_too_long", {
+                  max: MAX_TEXTAREA_LENGTH,
+                }),
+                hmac,
+                record: updated,
               }),
-              hmac,
-              record: updated,
-            }),
-          ),
-      });
-    }
-    await saveContactRecord(hash, updated);
-    return redirect(`/admin/history/${hmac}`, t("contact_history.saved"), true);
-  });
+            ),
+        });
+      }
+      await saveContactRecord(hash, updated);
+      return redirect(
+        `/admin/history/${hmac}`,
+        t("contact_history.saved"),
+        true,
+      );
+    },
+  );
 
 export const adminHandlers = defineAdminRoutes({
   "GET /admin/history/:hmac": (request, { hmac }) =>

@@ -4,7 +4,7 @@ import {
   defineAdminRoutes,
   entityTabRoutes,
 } from "#routes/admin/route-tables.ts";
-import { adminPattern } from "#shared/admin-surface.ts";
+import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 
 /* jscpd:ignore-end */
 /**
@@ -33,7 +33,7 @@ import { catalogNameLengthError } from "#db/name-registry.ts";
 import { flatCollectionSwap } from "#db/ordered-collection.ts";
 import { t } from "#i18n";
 import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
-import { OWNER_FORM, requireOwnerOr } from "#routes/auth.ts";
+import { formPolicyFor, pageGuardFor } from "#routes/auth.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { createOrderedCollectionHandlers } from "#shared/app-forms.ts";
 import { getFlash } from "#shared/flash-context.ts";
@@ -126,7 +126,9 @@ const crud = createCrudHandlers({
 });
 
 const statusOrder = createOrderedCollectionHandlers({
-  auth: OWNER_FORM,
+  auth: formPolicyFor(
+    adminDestinationAt("/admin/settings/statuses/:id/move-up"),
+  ),
   keys: async () =>
     (await attendeeStatuses.getAll()).map((status) => status.id),
   loadContext: ({ id }: { id: number }) => getAttendeeStatus(id),
@@ -141,17 +143,20 @@ const statusOrder = createOrderedCollectionHandlers({
  * save refuses without it. The session guard (not the form policy) wraps it,
  * because it is a GET page. */
 const statusDeleteGet = (request: Request, id: number): Promise<Response> =>
-  requireOwnerOr(request, async (session) => {
-    const status = await getAttendeeStatus(id);
-    if (status === null) return notFoundResponse();
-    const prospects = await statusDeleteProspects(id);
-    const retire = prospects.blocker
-      ? { blocked: attendeeStatusDeleteMessage(prospects.blocker) }
-      : await reassignChoice(id, prospects.others);
-    return htmlResponse(
-      retireStatusDeletePage(status, retire, session, getFlash().error),
-    );
-  });
+  pageGuardFor(adminDestinationAt("/admin/settings/statuses/:id/delete"))(
+    request,
+    async (session) => {
+      const status = await getAttendeeStatus(id);
+      if (status === null) return notFoundResponse();
+      const prospects = await statusDeleteProspects(id);
+      const retire = prospects.blocker
+        ? { blocked: attendeeStatusDeleteMessage(prospects.blocker) }
+        : await reassignChoice(id, prospects.others);
+      return htmlResponse(
+        retireStatusDeletePage(status, retire, session, getFlash().error),
+      );
+    },
+  );
 
 /** The reassign choice a deletable status attendees hold needs, or null when
  *  nothing holds and the delete can proceed as it stands. */

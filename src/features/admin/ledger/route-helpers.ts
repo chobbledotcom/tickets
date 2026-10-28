@@ -3,10 +3,12 @@ import type { AuthSession } from "#routes/auth.ts";
 import { htmlResponse } from "#routes/response.ts";
 
 export const ownerHtml = (
+  pattern: string,
   request: Request,
   render: (session: AuthSession) => string | null | Promise<string | null>,
 ): Promise<Response> =>
   ownerFoundOr404(
+    pattern,
     request,
     (session) => Promise.resolve(render(session)),
     (html) => htmlResponse(html),
@@ -15,6 +17,7 @@ export const ownerHtml = (
 type TypeRefParams = { ref: string; type: string };
 
 export const ownerTypeRefHtml =
+  (pattern: string) =>
   (
     render: (
       request: Request,
@@ -23,4 +26,4 @@ export const ownerTypeRefHtml =
     ) => string | null | Promise<string | null>,
   ) =>
   (request: Request, params: TypeRefParams): Promise<Response> =>
-    ownerHtml(request, (session) => render(request, session, params));
+    ownerHtml(pattern, request, (session) => render(request, session, params));

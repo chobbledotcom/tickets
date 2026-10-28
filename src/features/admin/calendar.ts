@@ -48,9 +48,10 @@ import {
   generateCalendarCsv,
   toCalendarAttendees,
 } from "#routes/admin/calendar-csv.ts";
-import { requireSessionOr } from "#routes/auth.ts";
+import { type AuthSession, pageGuardFor } from "#routes/auth.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
 import { getAvailableDates, listingDateToCalendarDate } from "#shared/dates.ts";
@@ -224,17 +225,14 @@ const sortAttendeesByCreatedDesc = (attendees: Attendee[]): Attendee[] =>
     (a, b) => new Date(b.created).getTime() - new Date(a.created).getTime(),
   );
 
-/** Auth + parse date filter from request, then call handler */
+/** Auth + parse date filter from request, then call handler. The gate comes
+ * from the route the handler serves. */
 const withCalendarSession = (
+  pattern: string,
   request: Request,
-  handler: ResponseHandler<
-    [
-      session: Parameters<Parameters<typeof requireSessionOr>[1]>[0],
-      dateFilter: string | null,
-    ]
-  >,
+  handler: ResponseHandler<[session: AuthSession, dateFilter: string | null]>,
 ) =>
-  requireSessionOr(request, (session) =>
+  pageGuardFor(adminDestinationAt(pattern))(request, (session) =>
     handler(session, getDateFilter(request)),
   );
 
@@ -303,147 +301,158 @@ const buildAvailabilityRows = async (
  * Handle GET /admin/calendar
  */
 const handleAdminCalendarGet = (request: Request) =>
-  withCalendarSession(request, async (session, dateFilter) => {
-    // The availability rows need only the listings, so they join this
-    // Promise.all and overlap the date and holiday queries, not a later trip.
-    const listingCtxPromise = loadListingContext();
-    const loadAvailabilityRows = async (): Promise<AvailabilityRow[]> =>
-      buildAvailabilityRows((await listingCtxPromise).allListings, dateFilter);
-    const [listingCtx, attendeeDates, holidays, availabilityRows] =
-      await Promise.all([
-        listingCtxPromise,
-        getDailyListingAttendeeDates(),
-        getActiveHolidays(),
-        loadAvailabilityRows(),
-      ]);
-
-    const {
-      allListings,
-      dailyListings,
-      standardListings,
-      standardListingDateMap,
-    } = listingCtx;
-    const { agents, agentFilter } = dateFilter
-      ? await resolveAgentFilter(request)
-      : { agentFilter: "all" as AgentFilter, agents: [] };
-    let attendees: CalendarAttendeeRow[] = [];
-    if (dateFilter) {
-      const privateKey = await requireRequestPrivateKey();
-      const [rawDailyAttendees, standardAttendees] = await Promise.all([
-        getDailyListingAttendeesByDate(dateFilter),
-        loadStandardListingAttendees(
+  withCalendarSession(
+    "/admin/calendar",
+    request,
+    async (session, dateFilter) => {
+      // The availability rows need only the listings, so they join this
+      // Promise.all and overlap the date and holiday queries, not a later trip.
+      const listingCtxPromise = loadListingContext();
+      const loadAvailabilityRows = async (): Promise<AvailabilityRow[]> =>
+        buildAvailabilityRows(
+          (await listingCtxPromise).allListings,
           dateFilter,
-          standardListingDateMap,
+        );
+      const [listingCtx, attendeeDates, holidays, availabilityRows] =
+        await Promise.all([
+          listingCtxPromise,
+          getDailyListingAttendeeDates(),
+          getActiveHolidays(),
+          loadAvailabilityRows(),
+        ]);
+
+      const {
+        allListings,
+        dailyListings,
+        standardListings,
+        standardListingDateMap,
+      } = listingCtx;
+      const { agents, agentFilter } = dateFilter
+        ? await resolveAgentFilter(request)
+        : { agentFilter: "all" as AgentFilter, agents: [] };
+      let attendees: CalendarAttendeeRow[] = [];
+      if (dateFilter) {
+        const privateKey = await requireRequestPrivateKey();
+        const [rawDailyAttendees, standardAttendees] = await Promise.all([
+          getDailyListingAttendeesByDate(dateFilter),
+          loadStandardListingAttendees(
+            dateFilter,
+            standardListingDateMap,
+            privateKey,
+            standardListings,
+          ),
+        ]);
+        const hasPaidDailyListing = dailyListings.some(isPaidListing);
+        const dailyAttendees = await decryptAttendees(
+          rawDailyAttendees,
           privateKey,
-          standardListings,
+          hasPaidDailyListing,
+        );
+        const sortedAttendees = sortAttendeesByCreatedDesc([
+          ...dailyAttendees,
+          ...standardAttendees,
+        ]);
+        attendees = await filterAttendeesByAgent(
+          buildCalendarAttendees(allListings, sortedAttendees),
+          agentFilter,
+        );
+      }
+
+      const availableDates = compileDateOptions(
+        dailyListings,
+        attendeeDates,
+        standardListingDateMap,
+        standardListings,
+        holidays,
+      );
+      const [questionData, pairBookings] = await Promise.all([
+        loadAttendeeQuestionData(
+          attendees.map((a) => a.listingId),
+          attendees.map((a) => a.id),
+          await requireRequestPrivateKey(),
         ),
+        getPairBookings(attendees.map(linePair)),
       ]);
-      const hasPaidDailyListing = dailyListings.some(isPaidListing);
-      const dailyAttendees = await decryptAttendees(
-        rawDailyAttendees,
-        privateKey,
-        hasPaidDailyListing,
-      );
-      const sortedAttendees = sortAttendeesByCreatedDesc([
-        ...dailyAttendees,
-        ...standardAttendees,
-      ]);
-      attendees = await filterAttendeesByAgent(
-        buildCalendarAttendees(allListings, sortedAttendees),
-        agentFilter,
-      );
-    }
 
-    const availableDates = compileDateOptions(
-      dailyListings,
-      attendeeDates,
-      standardListingDateMap,
-      standardListings,
-      holidays,
-    );
-    const [questionData, pairBookings] = await Promise.all([
-      loadAttendeeQuestionData(
-        attendees.map((a) => a.listingId),
-        attendees.map((a) => a.id),
-        await requireRequestPrivateKey(),
-      ),
-      getPairBookings(attendees.map(linePair)),
-    ]);
-
-    return htmlResponse(
-      adminCalendarPage(
-        attendees,
-        pairBookings,
-        getEffectiveDomain(),
-        session,
-        dateFilter,
-        availableDates,
-        todayInTz(settings.timezone),
-        getMonthFilter(request),
-        settings.phonePrefix,
-        questionData,
-        allListings.some(isPaidListing),
-        availabilityRows,
-        agents,
-        agentFilter,
-      ),
-    );
-  });
+      return htmlResponse(
+        adminCalendarPage(
+          attendees,
+          pairBookings,
+          getEffectiveDomain(),
+          session,
+          dateFilter,
+          availableDates,
+          todayInTz(settings.timezone),
+          getMonthFilter(request),
+          settings.phonePrefix,
+          questionData,
+          allListings.some(isPaidListing),
+          availabilityRows,
+          agents,
+          agentFilter,
+        ),
+      );
+    },
+  );
 
 /**
  * Handle GET /admin/calendar/export (CSV export for calendar view)
  */
 const handleAdminCalendarExport = (request: Request) =>
-  withCalendarSession(request, async (_session, dateFilter) => {
-    if (!dateFilter) {
-      return redirect(
-        "/admin/calendar",
-        t("admin.calendar.select_date_export"),
-        false,
+  withCalendarSession(
+    "/admin/calendar/export",
+    request,
+    async (_session, dateFilter) => {
+      if (!dateFilter) {
+        return redirect(
+          "/admin/calendar",
+          t("admin.calendar.select_date_export"),
+          false,
+        );
+      }
+
+      const privateKey = await requireRequestPrivateKey();
+      const [listingCtx, rawDailyAttendees] = await Promise.all([
+        loadListingContext(),
+        getDailyListingAttendeesByDate(dateFilter),
+      ]);
+      const { allListings, standardListingDateMap } = listingCtx;
+
+      const [dailyDecrypted, standardAttendees] = await Promise.all([
+        decryptAttendees(rawDailyAttendees, privateKey),
+        loadStandardListingAttendees(
+          dateFilter,
+          standardListingDateMap,
+          privateKey,
+        ),
+      ]);
+
+      const allAttendees = sortAttendeesByCreatedDesc([
+        ...dailyDecrypted,
+        ...standardAttendees,
+      ]);
+      const { agents, agentFilter } = await resolveAgentFilter(request);
+      const attendees = await filterAttendeesByAgent(
+        buildCalendarAttendees(allListings, allAttendees),
+        agentFilter,
       );
-    }
+      const calendarAttendees: CalendarAttendee[] = attendees;
 
-    const privateKey = await requireRequestPrivateKey();
-    const [listingCtx, rawDailyAttendees] = await Promise.all([
-      loadListingContext(),
-      getDailyListingAttendeesByDate(dateFilter),
-    ]);
-    const { allListings, standardListingDateMap } = listingCtx;
-
-    const [dailyDecrypted, standardAttendees] = await Promise.all([
-      decryptAttendees(rawDailyAttendees, privateKey),
-      loadStandardListingAttendees(
-        dateFilter,
-        standardListingDateMap,
-        privateKey,
-      ),
-    ]);
-
-    const allAttendees = sortAttendeesByCreatedDesc([
-      ...dailyDecrypted,
-      ...standardAttendees,
-    ]);
-    const { agents, agentFilter } = await resolveAgentFilter(request);
-    const attendees = await filterAttendeesByAgent(
-      buildCalendarAttendees(allListings, allAttendees),
-      agentFilter,
-    );
-    const calendarAttendees: CalendarAttendee[] = attendees;
-
-    const logisticsCsv = await buildLogisticsCsvContext(
-      allListings,
-      attendees,
-      agents,
-    );
-    const csv = generateCalendarCsv(
-      calendarAttendees,
-      logisticsCsv,
-      settings.timezone,
-    );
-    const filename = `calendar_${dateFilter}_attendees.csv`;
-    await logActivity(`Calendar CSV exported for date ${dateFilter}`);
-    return csvResponse(csv, filename);
-  });
+      const logisticsCsv = await buildLogisticsCsvContext(
+        allListings,
+        attendees,
+        agents,
+      );
+      const csv = generateCalendarCsv(
+        calendarAttendees,
+        logisticsCsv,
+        settings.timezone,
+      );
+      const filename = `calendar_${dateFilter}_attendees.csv`;
+      await logActivity(`Calendar CSV exported for date ${dateFilter}`);
+      return csvResponse(csv, filename);
+    },
+  );
 
 /** Calendar routes */
 export const adminHandlers = defineAdminRoutes({

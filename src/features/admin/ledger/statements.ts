@@ -64,9 +64,11 @@ export const loadAccountLedger = async (
 };
 
 export const handleAccountStatementGet: TypedRouteHandler<"GET /admin/ledger/:type/:ref"> =
-  ownerTypeRefHtml(async (_request, session, { type, ref }) => {
-    const account = accountFromRoute(type, ref);
-    if (!account) return null;
-    const { lines, names } = await loadAccountLedger(account);
-    return adminAccountStatementPage(account, lines, names, session);
-  });
+  ownerTypeRefHtml("/admin/ledger/:type/:ref")(
+    async (_request, session, { type, ref }) => {
+      const account = accountFromRoute(type, ref);
+      if (!account) return null;
+      const { lines, names } = await loadAccountLedger(account);
+      return adminAccountStatementPage(account, lines, names, session);
+    },
+  );

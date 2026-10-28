@@ -5,10 +5,11 @@
 /* jscpd:ignore-start */
 import {
   type AuthSession,
+  formPolicyFor,
   type Guard,
-  OWNER_FORM,
-  requireOwnerOr,
+  pageGuardFor,
 } from "#routes/auth.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ParamsRoute, ResponseHandler } from "#shared/response-steps.ts";
@@ -115,13 +116,20 @@ export const createIdEntityHandler = <T>(
  * and requires the owner role.
  */
 export const ownerGetById = <T>(
+  pattern: string,
   load: EntityLoader<T>,
   render: ResponseHandler<[entity: T, session: AuthSession]>,
-): IdRouteHandler => createIdEntityHandler(load)(requireOwnerOr)(render);
+): IdRouteHandler =>
+  createIdEntityHandler(load)(pageGuardFor(adminDestinationAt(pattern)))(
+    render,
+  );
 
 /** Owner POST-by-ID + CSRF */
-export const ownerFormById = (handler: IdFormHandler): IdRouteHandler =>
+export const ownerFormById = (
+  pattern: string,
+  handler: IdFormHandler,
+): IdRouteHandler =>
   createAuthedHandler<{ id: number }>({
-    auth: OWNER_FORM,
+    auth: formPolicyFor(adminDestinationAt(pattern)),
     handle: ({ form, params, session }) => handler(params.id, session, form),
   });

@@ -17,9 +17,10 @@ import {
   defineAdminRoutes,
   entityTabRoutes,
 } from "#routes/admin/route-tables.ts";
+import { formPolicyFor } from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { adminPattern } from "#shared/admin-surface.ts";
+import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { createdBookingEntries } from "#shared/booking.ts";
 import {
@@ -87,6 +88,7 @@ import {
  * not apply here.
  */
 const handleDeleteIncomplete = attendeeFormAction(
+  "/admin/listing/:listingId/attendee/:attendeeId/delete-incomplete",
   async (data, _session, _form, listingId, attendeeId) => {
     // The failed-payments delete form lives on the Attendees tab, so both
     // outcomes return there. The operator stays on the table they are
@@ -165,6 +167,9 @@ const handleAddAttendee: TypedRouteHandler<"POST /admin/listing/:listingId/atten
     { listingId: number },
     ListingWithCount
   >({
+    auth: formPolicyFor(
+      adminDestinationAt("/admin/listing/:listingId/attendee"),
+    ),
     form: (listing) => ({
       validate: (form) =>
         validateForm<AddAttendeeFormValues>(
@@ -225,24 +230,28 @@ const handleAddAttendee: TypedRouteHandler<"POST /admin/listing/:listingId/atten
 
 const handleAdminResendNotificationGet = attendeeActions[
   "resend-notification"
-].page(async ({ attendee }) => {
-  // The send choice is part of the page: the webhook option exists only
-  // when a live line's listing carries a webhook address.
-  const entries = await bookingEntries(attendee.id);
-  const hasWebhook =
-    registrationWebhookUrls(entries.filter((entry) => !entry.attendee.refunded))
-      .length > 0;
-  return {
-    reason: null,
-    render: (data, session, returnUrl, error) =>
-      adminResendNotificationPage(
-        { ...data, hasWebhook },
-        session,
-        returnUrl,
-        error,
-      ),
-  };
-});
+].page(
+  "/admin/attendees/:attendeeId/resend-notification",
+  async ({ attendee }) => {
+    // The send choice is part of the page: the webhook option exists only
+    // when a live line's listing carries a webhook address.
+    const entries = await bookingEntries(attendee.id);
+    const hasWebhook =
+      registrationWebhookUrls(
+        entries.filter((entry) => !entry.attendee.refunded),
+      ).length > 0;
+    return {
+      reason: null,
+      render: (data, session, returnUrl, error) =>
+        adminResendNotificationPage(
+          { ...data, hasWebhook },
+          session,
+          returnUrl,
+          error,
+        ),
+    };
+  },
+);
 
 /** Every booking line the attendee holds, rebuilt as notification entries.
  * Each entry comes from its own row and listing. A confirmation never treats
@@ -416,7 +425,11 @@ const resendNotification = async (
 
 const handleResendNotification = attendeeActions[
   "resend-notification"
-].verified(undefined, resendNotification);
+].verified(
+  "/admin/attendees/:attendeeId/resend-notification",
+  undefined,
+  resendNotification,
+);
 
 /**
  * Attendee routes

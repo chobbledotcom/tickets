@@ -17,13 +17,14 @@ import { hashPhone, recordContacts } from "#db/contact-preferences.ts";
 import { countSmsMessages, recordSmsMessage } from "#db/sms-messages.ts";
 import { t } from "#i18n";
 import {
-  AUTH_FORM,
   type AuthSession,
-  requireSessionOr,
+  formPolicyFor,
+  pageGuardFor,
   withAuth,
 } from "#routes/auth.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { bestEffort } from "#shared/logger.ts";
@@ -55,7 +56,7 @@ const historyFor = async (attendeeId: number): Promise<SmsHistoryItem[]> =>
 
 /** GET /admin/sms */
 const handleSmsGet = (request: Request): Promise<Response> =>
-  requireSessionOr(request, async (session) => {
+  pageGuardFor(adminDestinationAt("/admin/sms"))(request, async (session) => {
     const listingId = parsePositiveIntId(getSearchParam(request, "listing"));
     const attendeeId = parsePositiveIntId(getSearchParam(request, "attendee"));
     const flash = getFlash();
@@ -174,7 +175,7 @@ const sendSms = (
 
 /** POST /admin/sms */
 const handleSmsPost = (request: Request): Promise<Response> =>
-  withAuth(request, AUTH_FORM, sendSms);
+  withAuth(request, formPolicyFor(adminDestinationAt("/admin/sms")), sendSms);
 
 export const adminHandlers = defineAdminRoutes({
   "GET /admin/sms": handleSmsGet,

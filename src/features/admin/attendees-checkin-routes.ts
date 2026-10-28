@@ -7,9 +7,10 @@ import { ticketCount } from "#booking/ticket-moves.ts";
 import { moveTicketsAndLog, ticketsWord } from "#db/attendees/door-moves.ts";
 import { hasActiveBookingLine } from "#db/attendees/queries.ts";
 import { t } from "#i18n";
-import { requireSessionOr } from "#routes/auth.ts";
+import { pageGuardFor } from "#routes/auth.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
 import { attendeeCheckinQuantityPage } from "#templates/admin/attendees/checkin-quantity.tsx";
@@ -39,7 +40,11 @@ export const handleAttendeeCheckinGet = (
   request: Request,
   { attendeeId, listingId }: { attendeeId: number; listingId: number },
 ): Promise<Response> =>
-  requireSessionOr(request, (session) =>
+  pageGuardFor(
+    adminDestinationAt(
+      "/admin/listing/:listingId/attendee/:attendeeId/checkin",
+    ),
+  )(request, (session) =>
     withAttendeeBooking(
       listingId,
       attendeeId,
@@ -73,6 +78,7 @@ const rosterLanding = (form: FormParams, listingId: number): string => {
  * page's count cannot overshoot either direction. Admit caps at what the
  * pair owes, and release stops at zero. */
 export const handleAttendeeCheckin = attendeeBookingFormAction(
+  "/admin/listing/:listingId/attendee/:attendeeId/checkin",
   async (data, _session, form, listingId, attendeeId) => {
     // Refuse on a no-quantity ghost row (checked against the exact (attendee,
     // listing) pair). moveTickets no-ops anyway, but this keeps the message

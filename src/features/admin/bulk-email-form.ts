@@ -4,8 +4,9 @@
  */
 
 import { t } from "#i18n";
-import { formPost, OWNER_FORM } from "#routes/auth.ts";
+import { formPolicyFor, formPost } from "#routes/auth.ts";
 import { errorRedirect } from "#routes/response.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { validateDraftInput } from "#shared/bulk-email.ts";
 import {
   targetFromForm,
@@ -57,9 +58,10 @@ const validateFormBody = async (
 /** An owner POST that starts from a validated compose form: bounce back on a
  * validation redirect, else hand the extracted fields (and raw form) on. */
 export const validatedEmailPost = (
+  pattern: string,
   next: (fields: ValidatedEmailForm, form: FormParams) => Promise<Response>,
 ): RequestRoute =>
-  formPost(OWNER_FORM)(async (form) => {
+  formPost(formPolicyFor(adminDestinationAt(pattern)))(async (form) => {
     const result = await validateFormBody(form);
     return result instanceof Response ? result : next(result, form);
   });

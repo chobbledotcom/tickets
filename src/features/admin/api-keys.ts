@@ -4,7 +4,7 @@ import {
   entityTabRoutes,
 } from "#routes/admin/route-tables.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { adminPattern } from "#shared/admin-surface.ts";
+import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 /* jscpd:ignore-end */
 /**
  * Admin API key management routes
@@ -30,7 +30,7 @@ import {
   summarySection,
 } from "#routes/admin/entity-pages.ts";
 import { withOwnerData } from "#routes/admin/owner-route.ts";
-import { requireOwnerOr } from "#routes/auth.ts";
+import { pageGuardFor } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { PUBLIC_API_ENDPOINTS } from "#shared/admin-api-example/public.ts";
@@ -47,7 +47,7 @@ import {
 /* jscpd:ignore-end */
 
 /** Owner-guarded handler that loads the caller's API keys up front. */
-const withOwnerApiKeys = withOwnerData((session) =>
+const withOwnerApiKeys = withOwnerData("/admin/api-keys", (session) =>
   getApiKeysForUser(session.userId),
 );
 
@@ -151,7 +151,7 @@ const apiKeyPage: EntityPage<ApiKeyDisplay> = defineEntityPage({
 const handleApiDocsGet: TypedRouteHandler<"GET /admin/api-keys/docs"> = (
   request,
 ) =>
-  requireOwnerOr(request, (session) =>
+  pageGuardFor(adminDestinationAt("/admin/api-keys/docs"))(request, (session) =>
     htmlResponse(
       adminApiDocsPage(session, PUBLIC_API_ENDPOINTS, ADMIN_API_ENDPOINTS),
     ),

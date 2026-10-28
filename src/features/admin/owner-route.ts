@@ -1,16 +1,21 @@
-import { type AuthSession, requireOwnerOr } from "#routes/auth.ts";
+import { type AuthSession, pageGuardRun } from "#routes/auth.ts";
 import { notFoundResponse } from "#routes/response.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 
-/** Owner-gate a request and load the data its handler needs. */
+/** Owner-gate a request and load the data its handler needs. The gate comes
+ * from the route the handler serves, so the owner audience is written once,
+ * in the admin surface. */
 export const withOwnerData =
-  <T>(load: (session: AuthSession) => Promise<T>) =>
+  <T>(
+    pattern: string,
+    load: (session: AuthSession, request: Request) => Promise<T>,
+  ) =>
   (
     request: Request,
     handle: ResponseHandler<[session: AuthSession, data: T]>,
   ): Promise<Response> =>
-    requireOwnerOr(request, async (session) =>
-      handle(session, await load(session)),
+    pageGuardRun(pattern, request, async (session) =>
+      handle(session, await load(session, request)),
     );
 
 /**
@@ -20,10 +25,11 @@ export const withOwnerData =
  * "authenticate → look up or 404 → respond" shape.
  */
 export const ownerFoundOr404 = <T>(
+  pattern: string,
   request: Request,
   find: (session: AuthSession) => Promise<T | null>,
   whenFound: ResponseHandler<[found: T, session: AuthSession]>,
 ): Promise<Response> =>
-  withOwnerData(find)(request, (session, found) =>
+  withOwnerData(pattern, find)(request, (session, found) =>
     found === null ? notFoundResponse() : whenFound(found, session),
   );
