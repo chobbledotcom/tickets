@@ -30,6 +30,23 @@ const printBlockOf = (css: string): string => {
   throw new Error("Unterminated @media print block");
 };
 
+/** One rule body's declarations, as a `property: value` map. Both style
+ * lookups share it so the print block and the base cascade parse the same
+ * way. */
+const declarationsOf = (body: string): Record<string, string> =>
+  Object.fromEntries(
+    body
+      .split(";")
+      .filter(Boolean)
+      .map((declaration) => {
+        const colon = declaration.indexOf(":");
+        return [
+          declaration.slice(0, colon).trim(),
+          declaration.slice(colon + 1).trim(),
+        ];
+      }),
+  );
+
 const printStyleOf = (
   css: string,
   selector: string,
@@ -45,21 +62,52 @@ const printStyleOf = (
       .split(",")
       .map((s) => s.trim());
     if (!selectors.includes(selector)) continue;
-    return Object.fromEntries(
-      rule
-        .slice(brace + 1)
-        .split(";")
-        .filter(Boolean)
-        .map((declaration) => {
-          const colon = declaration.indexOf(":");
-          return [
-            declaration.slice(0, colon).trim(),
-            declaration.slice(colon + 1).trim(),
-          ];
-        }),
-    );
+    return declarationsOf(rule.slice(brace + 1));
   }
   throw new Error(`No print rule styles ${selector}`);
+};
+
+/** Index just past an at-rule that starts at `start`: a statement (`@layer
+ * name;`) ends at its `;`, a block (media query, keyframes) at its matching
+ * `}`. Either way it owns no top-level rule. */
+const afterAtRule = (css: string, start: number): number => {
+  const brace = css.indexOf("{", start);
+  const semicolon = css.indexOf(";", start);
+  if (semicolon !== -1 && (brace === -1 || semicolon < brace)) {
+    return semicolon + 1;
+  }
+  let depth = 0;
+  for (let i = brace; i < css.length; i++) {
+    if (css[i] === "{") depth++;
+    else if (css[i] === "}" && --depth === 0) return i + 1;
+  }
+  throw new Error("Unterminated at-rule block");
+};
+
+/** The compiled stylesheet's top-level rule whose selector group names the
+ * given selector, as its declaration map. Throws when no top-level rule
+ * styles it. */
+const styleOf = (css: string, selector: string): Record<string, string> => {
+  for (let i = 0; i < css.length; ) {
+    if (css[i] === "@") {
+      i = afterAtRule(css, i);
+      continue;
+    }
+    const brace = css.indexOf("{", i);
+    if (brace === -1) break;
+    const close = css.indexOf("}", brace);
+    if (close === -1) break;
+    if (
+      css
+        .slice(i, brace)
+        .split(",")
+        .some((s) => s.trim() === selector)
+    ) {
+      return declarationsOf(css.slice(brace + 1, close));
+    }
+    i = close + 1;
+  }
+  throw new Error(`No top-level rule styles ${selector}`);
 };
 
 describeWithEnv(
@@ -193,6 +241,26 @@ describeWithEnv(
           (css) => {
             assertStringIncludes(css, ":root");
             assertStringIncludes(css, "--color-link");
+          },
+        );
+      });
+
+      test("keeps description images within their container", async () => {
+        await expectStaticFile(
+          "/style.css",
+          "text/css; charset=utf-8",
+          (css) => {
+            // A description's markdown image (a poster, a map) must not
+            // spill out of the ticket card, the header, a listing row, or
+            // the prose block.
+            expect(
+              styleOf(css, ".ticket-card-description img")["max-width"],
+            ).toBe("100%");
+            expect(styleOf(css, ".description img")["max-width"]).toBe("100%");
+            expect(styleOf(css, ".description-compact img")["max-width"]).toBe(
+              "100%",
+            );
+            expect(styleOf(css, ".prose img")["max-width"]).toBe("100%");
           },
         );
       });
