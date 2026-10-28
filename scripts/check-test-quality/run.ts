@@ -1,8 +1,8 @@
 /**
  * The test-quality gate's IO shell: find the test files the change touches,
- * audit them at the merge base and in the working tree, and report the weak
- * assertions the change adds. The entry at `../check-test-quality.ts` runs
- * this with the real git and console; tests call `gateExit` directly.
+ * audit them at the merge base and in the working tree, and report every weak
+ * assertion a touched file carries. The entry at `../check-test-quality.ts`
+ * runs this with the real git and console; tests call `gateExit` directly.
  */
 
 /* jscpd:ignore-start -- imports */
@@ -113,11 +113,13 @@ export const gateExit = async (
     output.logError(line);
   }
   return reportCheck({
-    found: added.map(formatGateFinding),
+    // Both kinds gate: an assertion the change adds and one the touched file
+    // already carried must both leave the file before it can merge.
+    found: [...added, ...existing].map(formatGateFinding),
     guide: RATCHET_GUIDE,
     ...output,
-    noun: "new-weak-assertion",
+    noun: "weak-assertion",
     success:
-      "The test quality gate finds no new weak assertions against origin/main.",
+      "The test quality gate finds no weak assertions in the test files this change touches.",
   });
 };

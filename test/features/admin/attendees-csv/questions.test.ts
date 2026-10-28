@@ -92,6 +92,20 @@ describe("CSV with custom questions", () => {
     expect(row!.endsWith(',"Coeliac, no nuts"')).toBe(true);
   });
 
+  test("leaves a free-text column blank when the attendee gave no text answer", () => {
+    const [, row] = generateAttendeesCsv(
+      [testAttendee({ id: 1 })],
+      false,
+      undefined,
+      {
+        attendeeAnswerMap: new Map(),
+        questions: [NOTES_Q],
+        textAnswerMap: new Map(),
+      },
+    ).split("\n");
+    expect(row!.endsWith(",")).toBe(true);
+  });
+
   test("stops a free-text answer that starts like a spreadsheet formula", () => {
     const [, row] = freeTextCsv("=2+5*9");
     expect(row!.endsWith(',"\t=2+5*9"')).toBe(true);

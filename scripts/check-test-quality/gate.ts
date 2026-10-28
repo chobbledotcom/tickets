@@ -2,10 +2,10 @@ import { escapeAnnotationValue } from "#scripts/check-report.ts";
 import type { TestQualityFinding } from "#scripts/test-quality-audit-model.ts";
 
 /**
- * The test-quality gate: a branch must not add a weak assertion to a test
- * file it touches, compared with the merge base on `origin/main`. Removing or
- * moving an existing weak assertion is always allowed. See "Test Quality
- * Standards" in AGENTS.md.
+ * The test-quality gate: a test file the branch touches must hold no weak
+ * assertion at all, compared with the merge base on `origin/main` — one the
+ * change adds and one it inherits both fail. Removing a weak assertion is the
+ * only way out. See "Test Quality Standards" in AGENTS.md.
  */
 
 /** Where a reader finds the rule and the way out. */
@@ -44,8 +44,8 @@ export const partitionFindings = (
 export const formatGateFinding = (finding: TestQualityFinding): string =>
   `${finding.path}:${finding.line}:${finding.column} ${finding.message}`;
 
-/** The GitHub Actions annotation lines for one run, or none outside CI. New
- * findings are errors; pre-existing findings in a touched file are warnings.
+/** The GitHub Actions annotation lines for one run, or none outside CI. Every
+ * finding the gate reports fails the run, so each annotation is an error.
  * The cap keeps a long finding list from flooding the run log. */
 export const annotationLines = (
   added: readonly TestQualityFinding[],
@@ -53,15 +53,12 @@ export const annotationLines = (
   inCi: boolean,
 ): string[] => {
   if (!inCi) return [];
-  const entries = [
-    ...added.map((finding) => ({ finding, kind: "error" as const })),
-    ...existing.map((finding) => ({ finding, kind: "warning" as const })),
-  ];
+  const entries = [...added, ...existing];
   const lines = entries
     .slice(0, MAX_GITHUB_ANNOTATIONS)
     .map(
-      ({ finding, kind }) =>
-        `::${kind} file=${escapeAnnotationValue(finding.path)},line=${finding.line}::${escapeAnnotationValue(finding.message)}`,
+      (finding) =>
+        `::error file=${escapeAnnotationValue(finding.path)},line=${finding.line}::${escapeAnnotationValue(finding.message)}`,
     );
   if (entries.length > MAX_GITHUB_ANNOTATIONS) {
     lines.push(

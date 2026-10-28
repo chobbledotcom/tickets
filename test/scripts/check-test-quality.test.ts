@@ -82,29 +82,33 @@ describe("gateExit", () => {
     },
   });
 
-  test("passes when the change adds no weak assertion", async () => {
-    const base = weakHeadFile();
+  test("passes when the touched test file holds no weak assertion", async () => {
+    // The merge base carries the same weak assertion; removing it is the
+    // ratchet's way out, so a cleaned file passes whatever it inherited.
     const code = await runGate(
-      () => Promise.resolve(weakHeadFile()),
-      baseAnswers(base),
+      () => Promise.resolve(cleanHeadFile()),
+      baseAnswers(weakHeadFile()),
     );
     expect(code).toBe(0);
     expect(output.lines).toEqual([
-      "The test quality gate finds no new weak assertions against origin/main.",
+      "The test quality gate finds no weak assertions in the test files this change touches.",
     ]);
   });
 
-  test("annotates an existing weak assertion as a warning in CI", async () => {
+  test("fails and marks an inherited weak assertion as an error in CI", async () => {
     const code = await runGate(
       () => Promise.resolve(weakHeadFile()),
       baseAnswers(weakHeadFile()),
       { GITHUB_ACTIONS: "1" },
     );
-    expect(code).toBe(0);
-    expect(output.lines).toEqual([
-      "::warning file=test/a.test.ts,line=4::truthiness assertion; prefer an exact value or contract-specific matcher",
-      "The test quality gate finds no new weak assertions against origin/main.",
-    ]);
+    expect(code).toBe(1);
+    const joined = output.lines.join("\n");
+    assertStringIncludes(
+      joined,
+      "::error file=test/a.test.ts,line=4::truthiness assertion; prefer an exact value or contract-specific matcher",
+    );
+    assertStringIncludes(joined, "test/a.test.ts:4:3");
+    assertStringIncludes(joined, RATCHET_GUIDE);
   });
 
   test("fails and names a weak assertion the change adds", async () => {
@@ -122,7 +126,7 @@ describe("gateExit", () => {
     assertStringIncludes(joined, RATCHET_GUIDE);
   });
 
-  test("ignores a weak assertion the change only moves", async () => {
+  test("fails on a weak assertion the change only moves", async () => {
     const moved = [
       'import { expect } from "@std/expect";',
       "",
@@ -142,7 +146,8 @@ describe("gateExit", () => {
       "",
     ].join("\n");
     const code = await runGate(() => Promise.resolve(moved), baseAnswers(base));
-    expect(code).toBe(0);
+    expect(code).toBe(1);
+    assertStringIncludes(output.lines.join("\n"), "test/a.test.ts:5:3");
   });
 
   test("fails when a new test file the change adds carries a weak assertion", async () => {
