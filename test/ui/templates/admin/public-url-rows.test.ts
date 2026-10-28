@@ -1,3 +1,4 @@
+// test-groups: run-alone - the coverage job attributes a sibling's pending timer in the shared isolate to this suite.
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";

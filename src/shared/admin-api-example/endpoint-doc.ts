@@ -19,6 +19,15 @@ export type EndpointDoc = {
 /** Example bodies are read on a page, so they stay indented. */
 export const json = (data: unknown): string => JSON.stringify(data, null, 2);
 
+/** One item's text renamed when it equals `from`, unchanged otherwise — the
+ *  "after a rename" example bodies, which keep every other field. */
+export const renameOneText = <Item extends { text: string }>(
+  items: readonly Item[],
+  from: string,
+  to: string,
+): Item[] =>
+  items.map((item) => ({ ...item, text: item.text === from ? to : item.text }));
+
 /** The documented base path of one child write route: the parent's id param
  *  and the child segment both come from the resource table. */
 export const childDocBase = <

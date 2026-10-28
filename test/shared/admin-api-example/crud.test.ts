@@ -122,7 +122,7 @@ describe("documented admin CRUD endpoints", () => {
     });
     expect(attendee).toMatchObject({
       checked_in: 1,
-      created: "2026-06-01T10:00:00.000Z",
+      created: "2026-06-01T09:00:00.000Z",
       date: null,
       end_date: null,
       kind: "attendee",
@@ -410,7 +410,9 @@ describe("documented admin CRUD endpoints", () => {
     expect(isIsoDate(holiday.start_date)).toBe(true);
     expect(isIsoDate(holiday.end_date)).toBe(true);
     // A holiday that ended before it began could never be saved.
-    expect(holiday.end_date >= holiday.start_date).toBe(true);
+    expect(new Date(holiday.end_date).getTime()).toBeGreaterThanOrEqual(
+      new Date(holiday.start_date).getTime(),
+    );
   });
 
   test("the documented group shows every field a group carries", () => {

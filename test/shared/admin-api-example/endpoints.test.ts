@@ -101,6 +101,58 @@ describe("every documented endpoint", () => {
     expect(stateAfter("reactivate")).toBe(true);
   });
 
+  test("the documented create answer echoes the body created instant", () => {
+    // The answer example is the booking the body example creates, so a caller
+    // copying both reads one business time, not two.
+    const endpoint = documented(
+      ADMIN_API_ENDPOINTS,
+      "POST",
+      "/api/admin/attendees",
+    );
+    const requested = JSON.parse(endpoint.request!).created;
+    const answered = JSON.parse(endpoint.response).attendee.created;
+    expect(answered).toBe(requested);
+  });
+
+  test("a child rename answer changes one item's text and keeps the rest", () => {
+    const renames = [
+      {
+        base: "/api/admin/attributes/:attributeId",
+        child: "/options/:optionId",
+        items: "options",
+        singular: "attribute",
+        textsAfter: ["Easy", "Very hard"],
+      },
+      {
+        base: "/api/admin/questions/:questionId",
+        child: "/answers/:answerId",
+        items: "answers",
+        singular: "question",
+        textsAfter: ["Small", "Extra large"],
+      },
+    ] as const;
+    for (const rename of renames) {
+      const before = JSON.parse(
+        documented(ADMIN_API_ENDPOINTS, "GET", rename.base).response,
+      )[rename.singular];
+      const after = JSON.parse(
+        documented(ADMIN_API_ENDPOINTS, "PUT", `${rename.base}${rename.child}`)
+          .response,
+      )[rename.singular];
+      const { [rename.items]: oldItems, ...oldRecord } = before;
+      const { [rename.items]: newItems, ...newRecord } = after;
+      // A child rename answers with the record exactly as the get example
+      // holds it; only the renamed item's text moved.
+      expect(newRecord).toEqual(oldRecord);
+      expect(newItems).toEqual(
+        oldItems.map((item: { text: string }, i: number) => ({
+          ...item,
+          text: rename.textsAfter[i],
+        })),
+      );
+    }
+  });
+
   test("no documented request asks for a blank or zero value", () => {
     // Every value in a request example is something a caller would copy, so an
     // empty name or a zero quantity would be a request the endpoint refuses.
