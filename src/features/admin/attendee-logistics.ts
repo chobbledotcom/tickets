@@ -77,23 +77,25 @@ export type AttendeeLogisticsTabData = {
 const suffix = (listingId?: number): string =>
   listingId === undefined ? "" : `_${listingId}`;
 
+/** The form field for one logistics control, named per control and listing. */
+const logisticsField =
+  (name: string) =>
+  (listingId?: number): string =>
+    `${name}${suffix(listingId)}`;
+
 /** Start-agent select field name. With a listing id it is the split
  * (per-listing) field. Without one, the single field applies to every
  * listing. */
-export const startAgentField = (listingId?: number): string =>
-  `logistics_start${suffix(listingId)}`;
+export const startAgentField = logisticsField("logistics_start");
 
 /** End-agent select field name (see {@link startAgentField}). */
-export const endAgentField = (listingId?: number): string =>
-  `logistics_end${suffix(listingId)}`;
+export const endAgentField = logisticsField("logistics_end");
 
 /** Start-time field name. */
-export const startTimeField = (listingId?: number): string =>
-  `logistics_start_time${suffix(listingId)}`;
+export const startTimeField = logisticsField("logistics_start_time");
 
 /** End-time field name. */
-export const endTimeField = (listingId?: number): string =>
-  `logistics_end_time${suffix(listingId)}`;
+export const endTimeField = logisticsField("logistics_end_time");
 
 /** A logistics listing the attendee books, with its current assignment. */
 export type LogisticsLine = {

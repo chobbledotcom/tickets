@@ -192,17 +192,20 @@ const DESCRIPTION_PATTERNS = [
   "{bandDescriptor} of {genre} return for one {tourAdj} {listingType}",
 ] as const;
 
+/** One name from the given templates: pick one, then fill its slots. */
+const generatorFor =
+  (patterns: readonly string[]) =>
+  (rand: Rand): string =>
+    renderTemplate(pickFrom(rand, patterns), rand);
+
 /** Generate a single band name using the supplied PRNG */
-const generateBandName = (rand: Rand): string =>
-  renderTemplate(pickFrom(rand, BAND_PATTERNS), rand);
+const generateBandName = generatorFor(BAND_PATTERNS);
 
 /** Generate a single venue / location name using the supplied PRNG */
-const generateVenueName = (rand: Rand): string =>
-  renderTemplate(pickFrom(rand, VENUE_PATTERNS), rand);
+const generateVenueName = generatorFor(VENUE_PATTERNS);
 
 /** Generate a single gig-description blurb using the supplied PRNG */
-const generateDescription = (rand: Rand): string =>
-  renderTemplate(pickFrom(rand, DESCRIPTION_PATTERNS), rand);
+const generateDescription = generatorFor(DESCRIPTION_PATTERNS);
 
 // ---------------------------------------------------------------------------
 // Bulk generation
