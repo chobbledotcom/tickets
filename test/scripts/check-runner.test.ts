@@ -10,6 +10,7 @@ import {
 import {
   type Counts,
   compareCounts,
+  countsCheckExit,
   countsRose,
   ratchetedState,
   readCounts,
@@ -436,5 +437,42 @@ describe("the record step of a ratchet", () => {
         Promise.resolve({ "a.md": { ";": 1 } }),
       ),
     ).toEqual({ "a.md": { ";": 1 } });
+  });
+
+  test("countsCheckExit wires the read, the mode, the rose, and the run together", async () => {
+    const moduleUrl = `file://${dir.path}/entry.ts`;
+    const path = `${dir.path}/counts.json`;
+    counted(path, { "a.md": 2 });
+    const ran: [readonly string[], Counts][] = [];
+    const run = (
+      roots: readonly string[],
+      accepted: Counts,
+    ): Promise<number> => {
+      ran.push([roots, accepted]);
+      return Promise.resolve(0);
+    };
+    const output = { log: () => {}, logError: () => {} };
+    const wiring = (args: readonly string[], fresh: () => Promise<Counts>) =>
+      countsCheckExit(
+        moduleUrl,
+        "./counts.json",
+        args,
+        ["docs"],
+        fresh,
+        run,
+        output,
+      );
+
+    // Without the flag the recorded counts reach the run unchanged.
+    expect(await wiring([], () => Promise.resolve({ "a.md": 1 }))).toBe(0);
+    expect(ran).toEqual([[["docs"], { "a.md": 2 }]]);
+
+    // `--update` records a fall, and a rise refuses the record: both leave
+    // the recorded counts on disk and hand them to the run.
+    for (const fresh of [{ "a.md": 1 }, { "a.md": 3 }]) {
+      expect(await wiring(["--update"], () => Promise.resolve(fresh))).toBe(0);
+      expect(ran.at(-1)).toEqual([["docs"], { "a.md": 1 }]);
+      expect(JSON.parse(Deno.readTextFileSync(path))).toEqual({ "a.md": 1 });
+    }
   });
 });

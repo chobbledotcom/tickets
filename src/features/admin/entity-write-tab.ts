@@ -16,7 +16,7 @@ import {
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
 import type { AuthSession } from "#routes/auth.ts";
-import { adminRecordPath } from "#shared/admin-surface.ts";
+import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
 import type { FormParams } from "#shared/form-data.ts";
 
 export interface RejectedEdit {
@@ -108,6 +108,8 @@ export const writeFormTab: PanelTab = panelTabWithIntent("write-form");
  * standard delete-only Actions tab. */
 export interface EditEntityPageDef<Entity extends { id: number; name: string }>
   extends Omit<EntityPageDef<Entity>, "tabs" | "titleOf"> {
+  /** The write route the delete action leads to. */
+  deleteDestination: AdminDestinationId;
   deleteLabelKey: string;
   edit: EditPanelLoader<Entity>;
   editSlug?: string;
@@ -120,6 +122,7 @@ export const defineEditEntityPage = <
   config: EditEntityPageDef<Entity>,
 ): EditEntityPage<Entity> => {
   const {
+    deleteDestination,
     deleteLabelKey,
     edit,
     editSlug = "edit",
@@ -132,10 +135,7 @@ export const defineEditEntityPage = <
     tabs: [
       writeFormTab(editSlug, "entity.tab.edit", edit),
       ...extraTabs,
-      deleteActionTab<Entity>(
-        deleteLabelKey,
-        (entity) => `${adminRecordPath(page.destination, entity.id)}/delete`,
-      ),
+      deleteActionTab<Entity>(deleteLabelKey, deleteDestination),
     ],
     titleOf: (entity) => entity.name,
   });

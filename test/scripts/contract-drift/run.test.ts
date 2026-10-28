@@ -83,6 +83,7 @@ const fakeDeps = (
       log: (line) => seen.logs.push(line),
       logError: (line) => seen.errors.push(line),
     },
+    parentEnv: () => ({}),
     removeTree: () => Promise.resolve(),
     runBaseDump: (dir) => {
       seen.dumpDirs.push(dir);

@@ -54,6 +54,7 @@ describe("prepareOwnerFields", () => {
 
 const ACTIONS: readonly ActionDef<Fixture>[] = [
   {
+    destination: "attendeeRefund",
     href: (entity, ctx) =>
       `/admin/holidays/${entity.id}/refund?return_url=${encodeURIComponent(ctx.returnUrl)}`,
     labelKey: "attendee_form.action_refund",
@@ -61,8 +62,7 @@ const ACTIONS: readonly ActionDef<Fixture>[] = [
   },
   {
     danger: true,
-    href: (entity) => `/admin/holidays/${entity.id}/delete`,
-    intent: "write-form",
+    destination: "holidayDelete",
     labelKey: "attendee_form.action_delete",
   },
 ];
@@ -75,6 +75,7 @@ const def: EntityPageDef<Fixture> = {
   load: (id) =>
     Promise.resolve(id === 404 ? null : { id, name: "Widget", paid: false }),
   navActive: "/admin/attendees",
+  recordId: (entity) => entity.id,
   tabs: [
     {
       labelKey: "entity.tab.overview",
@@ -301,15 +302,36 @@ describe("defineEntityPage", () => {
     assert(!html.includes("entity.tab."));
   });
 
+  test("refuses an Actions tab without a recordId", () => {
+    expect(() =>
+      defineEntityPage({
+        destination: "holiday",
+        load: def.load,
+        navActive: def.navActive,
+        tabs: [
+          {
+            labelKey: "entity.tab.actions",
+            sections: [
+              {
+                actions: [
+                  { danger: true, destination: "holidayDelete", labelKey: "x" },
+                ],
+                kind: "actions",
+                titleKey: "entity.tab.actions",
+              },
+            ],
+            slug: "actions",
+          },
+        ],
+        titleOf: def.titleOf,
+      }),
+    ).toThrow('Entity page "holiday" has an Actions tab but no recordId');
+  });
+
   test("deleteActionTab renders one write-only danger action", async () => {
     const deletePage = defineEntityPage({
       ...def,
-      tabs: [
-        deleteActionTab<Fixture>(
-          "common.delete",
-          (entity) => `/admin/holidays/${entity.id}/delete`,
-        ),
-      ],
+      tabs: [deleteActionTab<Fixture>("common.delete", "holidayDelete")],
     });
     const html = await (await deletePage.renderPage(SESSION, 7, "")).text();
     assertStringIncludes(html, 'href="/admin/holidays/7/delete"');
@@ -325,6 +347,7 @@ describe("defineEntityPage", () => {
 
   test("an edit page preserves the submitted form at status 400", async () => {
     const editPage = defineEditEntityPage({
+      deleteDestination: "holidayDelete",
       deleteLabelKey: "common.delete",
       destination: def.destination,
       edit: (entity, ctx, rejected) =>
@@ -336,6 +359,7 @@ describe("defineEntityPage", () => {
       editSlug: "",
       load: def.load,
       navActive: def.navActive,
+      recordId: (entity) => entity.id,
     });
     const response = await editPage.renderEditError(
       7,

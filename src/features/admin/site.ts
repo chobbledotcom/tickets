@@ -1,4 +1,4 @@
-import { defineRoutes } from "#routes/router.ts";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 
 /**
  * Admin site page editor routes - manage public site content.
@@ -156,7 +156,7 @@ const handleSiteOrderPost = settingsHandler({
 });
 
 /** Site editor routes */
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin/site": siteGetRoute(renderHomePage),
   "GET /admin/site/contact": siteGetRoute(renderContactPage),
   "GET /admin/site/order": handleSiteOrderGet,

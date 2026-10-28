@@ -15,6 +15,7 @@ import { defineSiteContentPage } from "./site-content-page.ts";
 
 /** The tabbed news page. */
 export const newsPage: EntityPage<NewsPost> = defineSiteContentPage<NewsPost>({
+  deleteDestination: "newsDelete",
   deleteLabelKey: "news.delete_submit",
   destination: "newsPost",
   editPanel: newsEditPanel,

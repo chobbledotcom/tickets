@@ -1,4 +1,4 @@
-import { defineRoutes } from "#routes/router.ts";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 
 /**
  * Admin update routes — check for and apply software updates
@@ -112,7 +112,7 @@ const deployUpdate = async (): Promise<Response> => {
   });
 };
 
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin/update": handleUpdateGet,
   "POST /admin/update": (r: Request) => withAuth(r, OWNER_FORM, deployUpdate),
   "POST /admin/update/check": (r: Request) =>

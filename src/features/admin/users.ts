@@ -1,7 +1,8 @@
 /* jscpd:ignore-start */
 
 import { fieldById } from "#fp";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 
 /**
  * Admin user management routes - owner only
@@ -31,6 +32,8 @@ import {
   defineEntityPage,
   deleteActionTab,
   type EntityPage,
+  overviewTab,
+  summarySection,
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
 import {
@@ -213,34 +216,25 @@ const loadDisplayUser = async (id: number): Promise<DisplayUser | null> => {
   return user ? toDisplayUser(user, await loadAgentNameById()) : null;
 };
 
-const userOverviewTab: TabDef<DisplayUser> = {
-  labelKey: "entity.tab.overview",
-  sections: [
-    {
-      kind: "summary",
-      rows: (user) =>
-        Promise.resolve([
-          { labelKey: "users.col.role", value: user.adminLevel },
-          { labelKey: "common.status", value: userStatus(user) },
-          ...(user.adminLevel === "agent"
-            ? [
-                {
-                  labelKey: "users.agents.legend",
-                  value: agentNamesDisplay(user),
-                },
-              ]
-            : []),
-        ]),
-    },
-  ],
-  slug: "",
-};
+const userOverviewTab: TabDef<DisplayUser> = overviewTab([
+  summarySection((user) =>
+    Promise.resolve([
+      { labelKey: "users.col.role", value: user.adminLevel },
+      { labelKey: "common.status", value: userStatus(user) },
+      ...(user.adminLevel === "agent"
+        ? [
+            {
+              labelKey: "users.agents.legend",
+              value: agentNamesDisplay(user),
+            },
+          ]
+        : []),
+    ]),
+  ),
+]);
 
 const userActionsTab: TabDef<DisplayUser> = {
-  ...deleteActionTab(
-    "users.delete_user.submit",
-    (user) => `/admin/users/${user.id}/delete`,
-  ),
+  ...deleteActionTab("users.delete_user.submit", "userDelete"),
   visible: (user, session) => user.id !== session.userId,
 };
 
@@ -249,6 +243,7 @@ const userPage: EntityPage<DisplayUser> = defineEntityPage({
   destination: "user",
   load: (id) => loadDisplayUser(id),
   navActive: { section: adminPattern("users") },
+  recordId: (user) => user.id,
   tabs: [
     userOverviewTab,
     {
@@ -394,7 +389,7 @@ const userDelete = createConfirmedHandlers<DisplayUser>({
   successRedirect: "/admin/users",
 });
 
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin/user/new": handleUserNewGet,
   "GET /admin/users": handleUsersGet,
   "GET /admin/users/:id": handleUserManageGet,

@@ -108,6 +108,16 @@ export const adminRecordPath = (
   return pattern.replace(only, String(record));
 };
 
+/** One path a pattern can serve. Numeric parameters take a plausible id and
+ * the rest take a word. That is enough for the router to match the route and
+ * for a guard to run. A caller asks this before it looks any record up. */
+export const oneServedPath = (pattern: string): string =>
+  pattern
+    .replace(/:(\w+)/g, (_, name: string) =>
+      name === "id" || name.endsWith("Id") ? "1" : "value",
+    )
+    .replace(/\/$/, "");
+
 export const adminDestinationAllowed = (
   id: AdminDestinationId,
   adminLevel: AdminLevel,

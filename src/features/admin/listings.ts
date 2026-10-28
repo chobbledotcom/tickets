@@ -1,6 +1,8 @@
-import { entityTabRoutes } from "#routes/admin/route-tables.ts";
+import {
+  defineAdminRoutes,
+  entityTabRoutes,
+} from "#routes/admin/route-tables.ts";
 import { idRouteFor } from "#routes/entity.ts";
-import { defineRoutes } from "#routes/router.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 /**
  * Admin listing management routes — assembled from per-feature modules:
@@ -55,7 +57,7 @@ const listingImageHandlers = createItemImageHandlers({
  * literal segments over the `:tab` param. The remaining literal sub-routes
  * below (duplicate, export, new, …) and those in the scanner / qr.json /
  * refund bundles therefore keep resolving to their own handlers. */
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   ...entityTabRoutes(adminPattern("listing"), listingPage),
   ...bindNoteRoutes("/admin/listing", "id", listingNoteFeature.routes),
   "DELETE /admin/listing/:id/delete": handleAdminListingDelete,

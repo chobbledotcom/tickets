@@ -1,4 +1,4 @@
-import { defineRoutes } from "#routes/router.ts";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 
 /**
  * Admin builder routes — create new Tickets instances via Bunny API
@@ -164,7 +164,7 @@ const builderPost = createAuthedFormRoute({
   },
 });
 
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin/builder": handleBuilderGet,
   "POST /admin/builder": (r: Request) =>
     isBuilderEnabled() ? builderPost(r, {}) : notFoundResponse(),

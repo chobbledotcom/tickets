@@ -16,6 +16,7 @@ import { AttendeeStatusEditPanel } from "#templates/admin/settings-statuses.tsx"
 
 export const attendeeStatusPage: EditEntityPage<AttendeeStatus> =
   defineEditEntityPage({
+    deleteDestination: "statusDelete",
     deleteLabelKey: "statuses.delete_button",
     destination: "status",
     edit: (status, _ctx, rejected) =>
@@ -27,4 +28,5 @@ export const attendeeStatusPage: EditEntityPage<AttendeeStatus> =
       ),
     load: (id) => getAttendeeStatus(id),
     navActive: adminPattern("statuses"),
+    recordId: (status) => status.id,
   });

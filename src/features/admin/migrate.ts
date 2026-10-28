@@ -15,9 +15,9 @@ import {
   type StatedPaymentProviders,
 } from "#db/payment-reference-rebuild.ts";
 import { t } from "#i18n";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import { ownerResponsePage } from "#routes/auth.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
-import { defineRoutes } from "#routes/router.ts";
 import { ownerFormHandler } from "#shared/app-forms.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -115,7 +115,7 @@ const handleRebuildPost = ownerFormHandler(async ({ form }) => {
   );
 });
 
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin/migrate/rebuild-payment-references": handleRebuildGet,
   "POST /admin/migrate/rebuild-payment-references": handleRebuildPost,
 });

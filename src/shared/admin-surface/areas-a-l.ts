@@ -53,12 +53,19 @@ export const AREAS_A_L = {
       attendeeDelete: "/admin/attendees/:attendeeId/delete",
       attendeeEdit: "/admin/attendees/:attendeeId/edit",
       attendeeLogistics: "/admin/attendees/:attendeeId/logistics",
+      attendeeMerge: "/admin/attendees/:attendeeId/merge",
       attendeeNew: "/admin/attendees/new",
       attendeePaymentReview: {
         audience: OWNER_AUDIENCE,
         pattern: "/admin/attendees/:attendeeId/payment-review",
       },
+      attendeeRefreshPayment: "/admin/attendees/:attendeeId/refresh-payment",
       attendeeResend: "/admin/attendees/:attendeeId/resend-notification",
+      listingAttendeeAdd: "/admin/listing/:listingId/attendee",
+      listingAttendeeCheckin:
+        "/admin/listing/:listingId/attendee/:attendeeId/checkin",
+      listingAttendeeDeleteIncomplete:
+        "/admin/listing/:listingId/attendee/:attendeeId/delete-incomplete",
     },
   },
   attributes: {
@@ -70,8 +77,15 @@ export const AREAS_A_L = {
     },
     write: {
       attributeDelete: "/admin/attributes/:id/delete",
+      attributeEdit: "/admin/attributes/:id/edit",
+      attributeMoveDown: "/admin/attributes/:id/move-down",
+      attributeMoveUp: "/admin/attributes/:id/move-up",
+      attributeOptionAdd: "/admin/attributes/:id/options",
       attributeOptionDelete: "/admin/attributes/:id/options/:optionId/delete",
       attributeOptionEdit: "/admin/attributes/:id/options/:optionId/edit",
+      attributeOptionMoveDown:
+        "/admin/attributes/:id/options/:optionId/move-down",
+      attributeOptionMoveUp: "/admin/attributes/:id/options/:optionId/move-up",
     },
   },
   auth: {
@@ -88,6 +102,9 @@ export const AREAS_A_L = {
       backup: "/admin/backup",
       backupDownload: "/admin/backup/download/:filename",
     },
+    write: {
+      backupCreate: "/admin/backup/create",
+    },
   },
   builder: {
     audience: OWNER_AUDIENCE,
@@ -100,9 +117,25 @@ export const AREAS_A_L = {
       builtSites: "/admin/built-sites",
     },
     write: {
+      builtSiteAddSecrets: "/admin/built-sites/:id/add-secrets",
+      builtSiteAddUptimeMonitor: "/admin/built-sites/:id/add-uptime-monitor",
+      builtSiteBumpDeadline: "/admin/built-sites/:id/bump-deadline",
       builtSiteDelete: "/admin/built-sites/:id/delete",
       builtSiteEdit: "/admin/built-sites/:id/edit",
       builtSiteNew: "/admin/built-sites/new",
+      builtSiteOverrideDeadline: "/admin/built-sites/:id/override-deadline",
+      builtSiteProvisionRenewal: "/admin/built-sites/:id/provision-renewal",
+      builtSiteProvisionScheduler: "/admin/built-sites/:id/provision-scheduler",
+      builtSiteReSyncDeadline: "/admin/built-sites/:id/re-sync-deadline",
+      builtSiteRotateRenewalToken:
+        "/admin/built-sites/:id/rotate-renewal-token",
+      builtSiteSupportMessage: {
+        // The tab renders the stored message for a read-only viewer, so
+        // read-only mode keeps serving the route's GET.
+        pattern: "/admin/built-sites/:id/support-message",
+        readOnlyGet: true,
+      },
+      builtSiteUpdate: "/admin/built-sites/:id/update",
     },
   },
   bulkActions: {
@@ -121,7 +154,9 @@ export const AREAS_A_L = {
       emails: "/admin/emails",
     },
     write: {
+      emailSend: "/admin/emails/send",
       emailTemplateDelete: "/admin/emails/templates/:id/delete",
+      emailTemplateSave: "/admin/emails/templates",
     },
   },
   calendar: {
@@ -158,11 +193,20 @@ export const AREAS_A_L = {
       listingsCsv: "/admin/listings/csv",
       log: "/admin/log",
     },
+    write: {
+      welcomeDismiss: {
+        audience: OWNER_AUDIENCE,
+        pattern: "/admin/welcome/dismiss",
+      },
+    },
   },
   debug: {
     audience: OWNER_AUDIENCE,
     view: {
       debug: "/admin/debug",
+    },
+    write: {
+      debugSentry: "/admin/debug/sentry",
     },
   },
   deliveries: {
@@ -171,6 +215,9 @@ export const AREAS_A_L = {
     audience: DELIVERY_ADMIN_LEVELS,
     view: {
       deliveries: "/admin/deliveries",
+    },
+    write: {
+      deliveriesMark: "/admin/deliveries/mark",
     },
   },
   groups: {
@@ -182,12 +229,14 @@ export const AREAS_A_L = {
       groups: "/admin/groups",
     },
     write: {
+      groupAddListings: "/admin/groups/:id/add-listings",
       groupDelete: {
         audience: STAFF_ADMIN_LEVELS,
         pattern: "/admin/groups/:id/delete",
       },
       groupEdit: "/admin/groups/:id/edit",
       groupImages: "/admin/groups/:id/images",
+      groupImagesUpload: "/admin/groups/:id/images/upload",
       groupNew: "/admin/groups/new",
       groupNote: {
         audience: STAFF_ADMIN_LEVELS,
@@ -243,6 +292,7 @@ export const AREAS_A_L = {
     write: {
       ledgerAdd: "/admin/ledger/:type/:ref/add",
       ledgerEdit: "/admin/ledger/entries/:id/edit",
+      ledgerEntryDelete: "/admin/ledger/entries/:id/delete",
     },
   },
   listingQr: {
@@ -264,9 +314,21 @@ export const AREAS_A_L = {
       listingExport: "/admin/listing/:id/export",
     },
     write: {
+      listingAttachmentDelete: {
+        audience: CONTENT_ADMIN_LEVELS,
+        pattern: "/admin/listing/:id/attachment/delete",
+      },
       listingAttributes: {
         audience: OWNER_AUDIENCE,
         pattern: "/admin/listing/:id/attributes",
+      },
+      listingChildren: {
+        audience: CONTENT_ADMIN_LEVELS,
+        pattern: "/admin/listing/:id/children",
+      },
+      listingCreate: {
+        audience: CONTENT_ADMIN_LEVELS,
+        pattern: "/admin/listing",
       },
       listingDeactivate: "/admin/listing/:id/deactivate",
       listingDelete: "/admin/listing/:id/delete",
@@ -281,6 +343,14 @@ export const AREAS_A_L = {
       listingImages: {
         audience: CONTENT_ADMIN_LEVELS,
         pattern: "/admin/listing/:id/images",
+      },
+      listingImagesUpload: {
+        audience: CONTENT_ADMIN_LEVELS,
+        pattern: "/admin/listing/:id/images/upload",
+      },
+      listingIncome: {
+        audience: OWNER_AUDIENCE,
+        pattern: "/admin/listing/:id/income",
       },
       listingNew: {
         audience: CONTENT_ADMIN_LEVELS,

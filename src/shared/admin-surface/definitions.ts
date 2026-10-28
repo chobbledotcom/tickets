@@ -4,7 +4,7 @@
  *
  * One area declares its own routes once. Its audience is the area default, so
  * a route only names a role when it differs from the rest of its area. The
- * segments an area serves derive from the patterns it declares; `segments`
+ * segments an area serves derive from the patterns it declares. `segments`
  * lists only the extra ones an area serves without a page of its own.
  */
 
@@ -32,10 +32,16 @@ export const featureVisible =
   (ctx: AdminSurfaceContext): boolean =>
     ctx.enabledFeatures[feature];
 
-/** A route: its pattern alone, or a pattern whose role differs from its area. */
+/** A route: its pattern alone, or an object that differs from its area. The
+ * object names a role of its own, a GET read-only mode keeps serving, or
+ * both. */
 export type AdminDestinationSpec =
   | string
-  | { readonly audience: AdminAudience; readonly pattern: string };
+  | {
+      readonly audience?: AdminAudience;
+      readonly pattern: string;
+      readonly readOnlyGet?: true;
+    };
 
 type AdminRouteGroup = Readonly<Record<string, AdminDestinationSpec>>;
 
@@ -57,6 +63,9 @@ export type AdminDestinationDef = {
   readonly area: string;
   readonly audience: AdminAudience;
   readonly id: string;
+  /** The GET this write route serves is not a form: read-only mode keeps
+   * serving it instead of redirecting it. */
+  readonly readOnlyGet?: true;
   readonly intent: AdminRouteIntent;
   readonly pattern: string;
 };
@@ -71,13 +80,18 @@ const groupDestinations = (
   intent: AdminRouteIntent,
   group: AdminRouteGroup | undefined,
 ): AdminDestinationDef[] =>
-  Object.entries(group ?? {}).map(([id, spec]) => ({
-    area,
-    audience: typeof spec === "string" ? areaAudience : spec.audience,
-    id,
-    intent,
-    pattern: typeof spec === "string" ? spec : spec.pattern,
-  }));
+  Object.entries(group ?? {}).map(([id, spec]) => {
+    // The string form is the bare pattern; the object form names the rest.
+    const object = typeof spec === "string" ? { pattern: spec } : spec;
+    return {
+      area,
+      audience: object.audience ?? areaAudience,
+      id,
+      ...(object.readOnlyGet === true ? { readOnlyGet: true } : {}),
+      intent,
+      pattern: object.pattern,
+    };
+  });
 
 export type FoldedAdminSurface = {
   readonly areas: Readonly<Record<string, readonly string[]>>;

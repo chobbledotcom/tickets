@@ -6,12 +6,10 @@
 import { asString } from "#fp";
 import { t } from "#i18n";
 import {
-  AUTH_FORM,
   type AuthSession,
+  formPolicyFor,
   type Guard,
-  OWNER_FORM,
-  requireOwnerOr,
-  requireSessionOr,
+  pageGuardFor,
   type SessionGuard,
   withAuth,
 } from "#routes/auth.ts";
@@ -21,6 +19,7 @@ import {
   notFoundResponse,
   redirect,
 } from "#routes/response.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import {
   type AuthedBase,
   type AuthedHandlerArgs,
@@ -127,18 +126,17 @@ export const verifiedDelete =
     return redirect(redirectTo(context), confirmLabel(flashMessage), true);
   };
 
-/** Auth option: string shorthand or explicit guard pair */
-export type AuthOption<TSession> =
-  | "owner"
-  | "any"
-  | {
-      requireSession: SessionGuard<TSession>;
-      withForm: FormGuard<TSession>;
-    };
+/** An explicit guard pair. Without one, both guards derive from the route
+ * declaration at the handler's own path. */
+export type AuthOption<TSession> = {
+  requireSession: SessionGuard<TSession>;
+  withForm: FormGuard<TSession>;
+};
 
 /** Configuration for creating confirmed-action GET/POST handler pair */
 export type ConfirmedHandlerConfig<T, TSession = AuthSession> = {
-  /** Auth guards: "owner" | "any" shorthand, or explicit { requireSession, withForm } */
+  /** Optional explicit guard pair. Without one, both guards derive from the
+   * route's declaration at `path`. */
   auth?: AuthOption<TSession>;
   /** Route path pattern, for example "/admin/users/:id/delete" */
   path: string;
@@ -204,17 +202,19 @@ export type ConfirmedHandlers = {
 
 export const resolveAuth = <TSession>(
   auth: AuthOption<TSession> | undefined,
+  pattern: string,
 ) => {
-  if (typeof auth === "object") return auth;
-  const isOwner = auth !== "any";
+  if (auth) return auth;
+  // Without an explicit pair, the route's declaration gives both guards. The
+  // role is then written once, in the admin surface, and never again beside
+  // the handler.
+  const route = adminDestinationAt(pattern);
   return {
-    requireSession: (isOwner
-      ? requireOwnerOr
-      : requireSessionOr) as SessionGuard<TSession>,
+    requireSession: pageGuardFor(route) as SessionGuard<TSession>,
     withForm: ((r: Request, h: ResponseHandler<never[]>) =>
       withAuth(
         r,
-        isOwner ? OWNER_FORM : AUTH_FORM,
+        formPolicyFor(route),
         h as Parameters<typeof withAuth>[2],
       )) as FormGuard<TSession>,
   };
@@ -229,7 +229,7 @@ export const createConfirmedHandlers = <T, TSession = AuthSession>(
 ): ConfirmedHandlers => {
   const notFound = (id: number, session: TSession) =>
     config.onNotFound ? config.onNotFound(id, session) : notFoundResponse();
-  const { requireSession, withForm } = resolveAuth(config.auth);
+  const { requireSession, withForm } = resolveAuth(config.auth, config.path);
   const actionLabel = config.actionLabel ?? "deletion";
   const resolveRedirect = (model: T, id: number) =>
     typeof config.successRedirect === "function"

@@ -4,9 +4,9 @@ import { acknowledgeCurrentPaymentReview } from "#db/payment-review.ts";
 /* jscpd:ignore-start -- imports */
 import { t } from "#i18n";
 import type { PaymentWorkStatus } from "#payment/admit-move.ts";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import { OWNER_FORM, requireOwnerOr } from "#routes/auth.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
-import { defineRoutes } from "#routes/router.ts";
 import { adminPaymentReviewPage } from "#templates/admin/attendees.tsx";
 import {
   attendeeActions,
@@ -104,7 +104,7 @@ const handlePaymentReviewPost = attendeeActions[ACTION].verified(
   OWNER_FORM,
 );
 
-export const paymentReviewHandlers = defineRoutes({
+export const paymentReviewHandlers = defineAdminRoutes({
   "GET /admin/attendees/:attendeeId/payment-review": handlePaymentReviewGet,
   "POST /admin/attendees/:attendeeId/payment-review": handlePaymentReviewPost,
 });

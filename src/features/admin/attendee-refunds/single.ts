@@ -17,9 +17,9 @@ import {
 import { refundWorkRemains } from "#routes/admin/refunds/candidates.ts";
 import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
 import { refundReferenceProblemMessage } from "#routes/admin/refunds/readiness-problem.ts";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import { OWNER_FORM, requireOwnerOr } from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
-import { defineRoutes } from "#routes/router.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
   adminBlockedRefundAttendeePage,
@@ -151,7 +151,7 @@ const handleAttendeeRefund = attendeeActions.refund.verified(
 );
 
 /** Routes that refund one attendee. */
-export const singleRefundHandlers = defineRoutes({
+export const singleRefundHandlers = defineAdminRoutes({
   "GET /admin/attendees/:attendeeId/refund": handleAdminAttendeeRefundGet,
   "POST /admin/attendees/:attendeeId/refund": handleAttendeeRefund,
 });

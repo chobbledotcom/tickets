@@ -40,6 +40,7 @@ import {
   validateListingInput,
 } from "#shared/listings-actions.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
+import type { CrudSideEffectValidate } from "#shared/rest/crud-api-types.ts";
 import { apiEntityGate, withApiEntity } from "#shared/rest/crud-parsers.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { AdminListing, Listing, ListingWithCount } from "#types";
@@ -167,11 +168,11 @@ const handleListingAttendees: RouteHandlerFn = (request, { listingId }) =>
 /** The JSON write's join validation: the base joins come from the input. The
  *  child edges come from the body, validated against the parent before the row
  *  is written. */
-const prepareApiListingJoins = async (
-  input: ListingInput,
-  body: Record<string, unknown>,
-  existing: ListingWithCount | null,
-): Promise<{ error: string } | { value: PreparedListingJoins }> => {
+const prepareApiListingJoins: CrudSideEffectValidate<
+  ListingInput,
+  ListingWithCount,
+  PreparedListingJoins
+> = async (input, body, existing) => {
   const childEdges = await prepareChildEdges(body, input, existing);
   if ("error" in childEdges) return childEdges;
   return {

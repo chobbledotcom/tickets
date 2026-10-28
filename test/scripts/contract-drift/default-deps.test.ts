@@ -6,6 +6,7 @@ import { ContractsSchema } from "#scripts/contract-drift/dump.ts";
 import {
   type DriftDeps,
   defaultDriftDeps,
+  withoutCheckoutContext,
 } from "#scripts/contract-drift/run.ts";
 import type { CapturedOutput } from "#scripts/process.ts";
 import { projectRoot } from "#scripts/project-root.ts";
@@ -139,6 +140,59 @@ describe("contract drift default dependencies", () => {
       await deps.git(["worktree", "remove", "--force", worktree]);
       await deps.removeTree(dir);
     }
+  });
+
+  test("creates the base worktree under the checkout context a git hook leaks", async () => {
+    // A pre-commit or pre-push hook runs its steps with GIT_DIR,
+    // GIT_INDEX_FILE, and GIT_WORK_TREE pointed at this checkout. A worktree
+    // child that inherits them wrote the base index through the worktree's
+    // .git file, and the worktree add failed with "Not a directory".
+    const deps = defaultDriftDeps({
+      parentEnv: () => ({
+        GIT_DIR: ".git",
+        GIT_INDEX_FILE: ".git/index",
+        GIT_WORK_TREE: ".",
+        HOME: Deno.env.get("HOME") ?? "",
+        PATH: Deno.env.get("PATH") ?? "",
+      }),
+    });
+    const dir = await deps.makeTempDir();
+    const worktree = `${dir}/base`;
+    try {
+      const added = await deps.git([
+        "worktree",
+        "add",
+        "--detach",
+        worktree,
+        "HEAD",
+      ]);
+      expect(added.success).toBe(true);
+    } finally {
+      await deps.git(["worktree", "remove", "--force", worktree]);
+      await deps.removeTree(dir);
+    }
+  });
+
+  test("drops the hook's checkout context and keeps the rest of the env", () => {
+    expect(
+      withoutCheckoutContext({
+        GIT_ALTERNATE_OBJECT_DIRECTORIES: ".git/objects",
+        GIT_AUTHOR_NAME: "kept",
+        GIT_CEILING_DIRECTORIES: "/home/user",
+        GIT_COMMON_DIR: ".git",
+        GIT_DIR: ".git",
+        GIT_INDEX_FILE: ".git/index",
+        GIT_OBJECT_DIRECTORY: ".git/objects",
+        GIT_PREFIX: "",
+        GIT_WORK_TREE: ".",
+        HOME: "/home/user",
+        PATH: "/bin",
+      }),
+    ).toEqual({
+      GIT_AUTHOR_NAME: "kept",
+      HOME: "/home/user",
+      PATH: "/bin",
+    });
   });
 
   test("resolves the base without a fetch when the checkout holds origin/main", async () => {

@@ -20,6 +20,7 @@ import {
   adminReturnPath,
   RETURN_URL_PARAM,
 } from "#routes/admin/login-return.ts";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import {
   ANY_USER_FORM,
   anyUserPage,
@@ -28,7 +29,6 @@ import {
 } from "#routes/auth.ts";
 import { parseFormData } from "#routes/csrf.ts";
 import { redirect } from "#routes/response.ts";
-import { defineRoutes } from "#routes/router.ts";
 import { parseCookies } from "#routes/url.ts";
 import { adminLandingPath } from "#shared/admin-pages.ts";
 import {
@@ -197,7 +197,7 @@ const handleLoginGet = (request: Request): Promise<Response> =>
 
 const handleLogoutGet = anyUserPage((session) => adminLogoutPage(session));
 
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin/login": handleLoginGet,
   "GET /admin/logout": handleLogoutGet,
   "POST /admin/login": handleAdminLogin,

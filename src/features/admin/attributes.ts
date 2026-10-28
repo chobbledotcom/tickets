@@ -29,6 +29,7 @@ import {
   createVerifiedFormRoute,
   verifiedDelete,
 } from "#routes/admin/confirmation.ts";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import {
   formGuard,
   OWNER_FORM,
@@ -48,7 +49,6 @@ import {
   redirect,
   redirectToDetail,
 } from "#routes/response.ts";
-import { defineRoutes } from "#routes/router.ts";
 import {
   createAuthedFormRoute,
   createOrderedCollectionHandlers,
@@ -378,7 +378,7 @@ const handleListingAttributesPost = createListingChoicePost({
   tab: "attributes",
 });
 
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin/attributes": handleAttributesGet,
   "GET /admin/attributes/:id": handleAttributeGet,
   "GET /admin/attributes/:id/delete": idRouteFor(attributeDelete.get),

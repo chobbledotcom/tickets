@@ -1,4 +1,4 @@
-import { defineRoutes } from "#routes/router.ts";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 /**
  * Admin Support page routes — let the site operator message the platform host.
  *
@@ -69,7 +69,7 @@ const submitSupportMessage = async (form: FormParams): Promise<Response> => {
 const handleSupportPost = formPost(OWNER_FORM)(submitSupportMessage);
 
 /** Support routes */
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin/support": handleSupportGet,
   "POST /admin/support": handleSupportPost,
 });
