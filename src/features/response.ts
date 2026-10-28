@@ -256,6 +256,13 @@ const jsonBody = encodedResponse("application/json");
 export const jsonResponse = (data: unknown, status = 200): Response =>
   jsonBody(JSON.stringify(data), status);
 
+/** One JSON response whose body is a record re-read from the primary, so a
+ * lagging replica cannot 404 the row the write just made. */
+export const reReadResponse =
+  (key: string, read: (id: number) => Promise<unknown>) =>
+  async (id: number, status?: number): Promise<Response> =>
+    jsonResponse({ [key]: await read(id) }, status);
+
 /** Create plain text response */
 export const plainResponse: EncodedResponse = encodedResponse("text/plain");
 

@@ -150,6 +150,12 @@ const executeWithTransientRetry = executeWithRoundTrip((statement, execute) =>
   }),
 );
 
+/** Run one multi-statement script under the round-trip guard. */
+const executeMultipleWithRoundTrip =
+  (label: string, execute: (sql: string) => Promise<void>) =>
+  (sql: string): Promise<void> =>
+    databaseRoundTrip(label, () => execute(sql));
+
 const transactionWithRoundTripGuard = (transaction: Transaction): Transaction =>
   proxyMembers(transaction, {
     batch: (statements: InStatement[]) =>
@@ -159,10 +165,9 @@ const transactionWithRoundTripGuard = (transaction: Transaction): Transaction =>
     commit: (): Promise<void> =>
       databaseRoundTrip("transaction commit", () => transaction.commit()),
     execute: executeWithRoundTripGuard(transaction, "transaction statement"),
-    executeMultiple: (sql: string): Promise<void> =>
-      databaseRoundTrip("transaction script", () =>
-        transaction.executeMultiple(sql),
-      ),
+    executeMultiple: executeMultipleWithRoundTrip("transaction script", (sql) =>
+      transaction.executeMultiple(sql),
+    ),
     // Rollback is mandatory cleanup: an interactive transaction left open (its
     // rollback blocked) poisons the shared write connection for the rest of the
     // request. It is counted like any other subrequest — so the running total
@@ -188,8 +193,9 @@ const withRoundTripGuard = (client: Client): Client => {
     batch: (statements: InStatement[], mode?: TransactionMode) =>
       databaseRoundTrip("batch", () => client.batch(statements, mode)),
     execute: executeWithTransientRetry(client, "statement"),
-    executeMultiple: (sql: string): Promise<void> =>
-      databaseRoundTrip("script", () => client.executeMultiple(sql)),
+    executeMultiple: executeMultipleWithRoundTrip("script", (sql) =>
+      client.executeMultiple(sql),
+    ),
     migrate: (statements: InStatement[]): Promise<ResultSet[]> =>
       databaseRoundTrip("migration batch", () => client.migrate(statements)),
     sync: () => databaseRoundTrip("replica sync", () => client.sync()),

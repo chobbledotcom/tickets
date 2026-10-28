@@ -7,7 +7,7 @@
  */
 
 import type { ResultSet } from "@libsql/client";
-import { hmacHash } from "#crypto/hashing.ts";
+import { blindIndexFor } from "#crypto/hashing.ts";
 import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/hybrid.ts";
 
 import { openEach } from "#crypto/open-each.ts";
@@ -57,11 +57,7 @@ const TAG_SOURCE: Record<string, BookingSource> = {
 
 const TOKEN_LINE_SEPARATOR = "\t";
 
-const tokenMarkerFor = (
-  contactHash: string,
-  ticketToken: string,
-): Promise<BlindIndex> =>
-  hmacHash(`contact-token:${contactHash}:${ticketToken}`);
+const tokenMarkerFor = blindIndexFor("contact-token:");
 
 type StoredTokenLine = {
   encrypted: OwnerKeyEncrypted;

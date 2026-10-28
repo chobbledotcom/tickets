@@ -133,11 +133,31 @@ const machineContract = async (
   events,
 });
 
+/** Loads a machine whose events and declared table its own spec module
+ * exports under the given keys. The dump's test pins every machine, so a
+ * wrong key fails the suite instead of shipping a silent gap. */
+const ownMachineLoader = (
+  machineId: string,
+  eventsKey: string,
+  movesKey: string,
+  specifier: string,
+): MachineLoader =>
+  () =>
+    import(specifier).then((module: Record<string, unknown>) =>
+      machineContract(
+        machineId,
+        module[eventsKey] as MachineEvents,
+        () => module[movesKey],
+      ),
+    );
+
 const MACHINE_LOADERS: Readonly<Record<string, MachineLoader>> = {
-  refund: () =>
-    import("#payment/refund-machine-spec.ts").then((m) =>
-      machineContract("refund", m.REFUND_EVENTS, () => m.EXPECTED_MOVES),
-    ),
+  refund: ownMachineLoader(
+    "refund",
+    "REFUND_EVENTS",
+    "EXPECTED_MOVES",
+    "#payment/refund-machine-spec.ts",
+  ),
   review: () =>
     import("#payment/review-machine-spec.ts").then((m) =>
       machineContract(
@@ -162,22 +182,18 @@ const MACHINE_LOADERS: Readonly<Record<string, MachineLoader>> = {
         "#test/shared/payment/row-machine-spec/expected-moves.ts",
       ),
     ),
-  square_link_ends: () =>
-    import("#payment/square-link-end-machine-spec.ts").then((m) =>
-      machineContract(
-        "square_link_ends",
-        m.LINK_END_EVENTS,
-        () => m.LINK_END_MOVES,
-      ),
-    ),
-  sumup_recovery: () =>
-    import("#payment/sumup-recovery-machine-spec.ts").then((m) =>
-      machineContract(
-        "sumup_recovery",
-        m.RECOVERY_EVENTS,
-        () => m.RECOVERY_MOVES,
-      ),
-    ),
+  square_link_ends: ownMachineLoader(
+    "square_link_ends",
+    "LINK_END_EVENTS",
+    "LINK_END_MOVES",
+    "#payment/square-link-end-machine-spec.ts",
+  ),
+  sumup_recovery: ownMachineLoader(
+    "sumup_recovery",
+    "RECOVERY_EVENTS",
+    "RECOVERY_MOVES",
+    "#payment/sumup-recovery-machine-spec.ts",
+  ),
 };
 
 /** Sorted copy, so one dump of one tree is always the same JSON. */
