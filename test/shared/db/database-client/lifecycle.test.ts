@@ -7,6 +7,34 @@ import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { hranaTestDatabase } from "#test-utils/hrana.ts";
 
 describe("database client delegation", () => {
+  /** A concurrency-1 database whose "SELECT 1" reply waits on `release`, so a
+   * test can hold the only shared slot open and watch later calls queue. */
+  const blockingConcurrencyDatabase = () => {
+    const time = new FakeTime();
+    const firstStarted = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const remote = hranaTestDatabase({
+      config: { concurrency: 1 },
+      select: async (sql) => {
+        if (sql === "SELECT 1") {
+          firstStarted.resolve();
+          await release.promise;
+        }
+        return emptyResultSet();
+      },
+    });
+    return {
+      firstStarted,
+      release,
+      remote,
+      time,
+      [Symbol.dispose]: (): void => {
+        time[Symbol.dispose]();
+        remote[Symbol.dispose]();
+      },
+    };
+  };
+
   test("delegates scripts through the shared limit", async () => {
     using remote = hranaTestDatabase();
     await remote.client.executeMultiple("SELECT 1;");
@@ -39,19 +67,8 @@ describe("database client delegation", () => {
   });
 
   test("shares the configured concurrency limit between pipeline and native reads", async () => {
-    using time = new FakeTime();
-    const firstStarted = Promise.withResolvers<void>();
-    const release = Promise.withResolvers<void>();
-    using remote = hranaTestDatabase({
-      config: { concurrency: 1 },
-      select: async (sql) => {
-        if (sql === "SELECT 1") {
-          firstStarted.resolve();
-          await release.promise;
-        }
-        return emptyResultSet();
-      },
-    });
+    using db = blockingConcurrencyDatabase();
+    const { firstStarted, release, remote, time } = db;
     const first = remote.client.batch(["SELECT 1"], "write");
     await firstStarted.promise;
     const rest = Promise.all([
@@ -116,6 +133,59 @@ describe("database client delegation", () => {
       ).toEqual(statements);
     });
   }
+
+  test("keeps interactive transaction statements inside the shared limit", async () => {
+    using db = blockingConcurrencyDatabase();
+    const { firstStarted, release, remote, time } = db;
+    const transaction = await remote.client.transaction("write");
+    const first = remote.client.execute("SELECT 1");
+    await firstStarted.promise;
+    const statements = Promise.all([
+      transaction.execute("SELECT 2"),
+      transaction.batch(["SELECT 3"]),
+    ]);
+    try {
+      await time.tickAsync(0);
+      // A transaction statement never overlaps a top-level call: both queue
+      // behind the slot the first call holds.
+      expect(remote.requests).toHaveLength(1);
+    } finally {
+      release.resolve();
+      await Promise.all([first, statements]);
+    }
+    await transaction.commit();
+    expect(remote.requests).toHaveLength(4);
+  });
+
+  for (const close of ["commit", "rollback"] as const) {
+    test(`${close === "commit" ? "commits" : "rolls back"} a transaction even while the shared limit is occupied`, async () => {
+      using db = blockingConcurrencyDatabase();
+      const { firstStarted, release, remote, time } = db;
+      const transaction = await remote.client.transaction("write");
+      await transaction.execute("SELECT 2");
+      const first = remote.client.execute("SELECT 1");
+      await firstStarted.promise;
+      const closing = transaction[close]();
+      try {
+        await time.tickAsync(0);
+        // The close reaches the database without waiting for the shared slot.
+        expect(remote.requests).toHaveLength(3);
+      } finally {
+        release.resolve();
+        await Promise.all([first, closing]);
+      }
+      expect(transaction.closed).toBe(true);
+    });
+  }
+
+  test("delegates interactive transaction scripts through the shared limit", async () => {
+    using remote = hranaTestDatabase();
+    const transaction = await remote.client.transaction("write");
+    await transaction.executeMultiple("SELECT 4;");
+    await transaction.rollback();
+    expect(transaction.closed).toBe(true);
+    expect(remote.requests).toHaveLength(3);
+  });
 
   test("keeps local reads and writes on the native SQLite client", async () => {
     using local = hranaTestDatabase({ config: { url: "file::memory:" } });

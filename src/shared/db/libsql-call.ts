@@ -6,6 +6,7 @@ import type {
   Transaction,
   TransactionMode,
 } from "@libsql/client";
+import { proxyMembers } from "#shared/proxy-members.ts";
 
 export type ExecuteMethod = (
   statement: InStatement | string,
@@ -33,3 +34,33 @@ export const beginTransaction = (
   mode?: TransactionMode,
 ): Promise<Transaction> =>
   mode === undefined ? target.transaction() : target.transaction(mode);
+
+/** The name of one interactive transaction operation, so a wrapper can treat
+ * the closing operations (commit, rollback) differently from statements. */
+export type TransactionOperation =
+  | "batch"
+  | "commit"
+  | "execute"
+  | "executeMultiple"
+  | "rollback";
+
+/** Wrap each interactive transaction operation with `wrap`. The closing
+ * operations (commit, rollback) reach `wrap` too, so a wrapper that must
+ * never block them can pass them straight through. */
+export const wrapTransactionOperations = (
+  transaction: Transaction,
+  wrap: <T>(
+    operation: TransactionOperation,
+    run: () => Promise<T>,
+  ) => Promise<T>,
+): Transaction =>
+  proxyMembers(transaction, {
+    batch: (statements: InStatement[]) =>
+      wrap("batch", () => transaction.batch(statements)),
+    commit: () => wrap("commit", () => transaction.commit()),
+    execute: (stmt: InStatement) =>
+      wrap("execute", () => transaction.execute(stmt)),
+    executeMultiple: (sql: string) =>
+      wrap("executeMultiple", () => transaction.executeMultiple(sql)),
+    rollback: () => wrap("rollback", () => transaction.rollback()),
+  });
