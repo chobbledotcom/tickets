@@ -42,6 +42,8 @@ export type EncryptedAttendeeData = {
 /** Input for encrypting attendee fields */
 export type EncryptInput = ContactInfo & {
   paymentId: string;
+  /** Business time the booking happened. Defaults to the create-time clock. */
+  created?: string;
 };
 
 /** Input for building an Attendee result from an insert */
@@ -139,6 +141,9 @@ export type AttendeeInput = ContactFields & {
   webhooksPending?: PendingNotificationFlag;
   /** Stable token used to make a retried create identify the same attendee. */
   ticketToken?: string;
+  /** Business time the booking happened, when the caller stamps a historical
+   * one. Defaults to the create-time clock. */
+  created?: string;
 };
 
 /** Row from listing_attendees — per-listing booking data */

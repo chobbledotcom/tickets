@@ -195,7 +195,7 @@ export const encryptAttendeeFields = async (
   ]);
 
   return {
-    created: nowIso(),
+    created: input.created ?? nowIso(),
     encryptedPiiBlob,
     piiPaymentSessionId: input.paymentId === "" ? "" : null,
     ticketToken,

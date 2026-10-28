@@ -198,10 +198,13 @@ const ADMIN_API_ATTENDEE_STATUS_DELETE_BODY = {
  *  with the attendee's contact fields and the status by name. The line carries
  *  an agreed per-unit `price` (minor units), the body records a `payment`
  *  already received, and a named `adjustment` bills the delivery. All amounts
- *  are minor units. */
+ *  are minor units. An optional `created` stamps the business time the booking
+ *  happened, for a phone booking taken on an earlier day. When absent, the
+ *  booking is stamped now. */
 const ADMIN_API_ATTENDEE_CREATE_BODY = {
   address: "12 Main Street, Springfield",
   adjustments: [{ amount: 250, description: "Delivery" }],
+  created: "2026-06-01T09:00:00.000Z",
   email: "jane@example.com",
   lines: [{ listingId: 4, price: 4500, quantity: 2 }],
   name: "Jane Doe",
@@ -279,7 +282,7 @@ const ADMIN_API_EXAMPLE_ATTENDEE = {
   attachment_downloads: 0,
   // A count of the line's admitted tickets, 0 up to quantity: one of two in.
   checked_in: 1,
-  created: "2026-06-01T10:00:00.000Z",
+  created: "2026-06-01T09:00:00.000Z",
   date: null,
   email: "jane@example.com",
   email_owed: 0,
@@ -473,7 +476,7 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
   }),
   {
     description:
-      "Create a booking. The answer is the stored attendee row. The create never emails the buyer; a caller-chosen ticketToken makes a retry a no-op.",
+      "Create a booking. The answer is the stored attendee row. The create never emails the buyer; a caller-chosen ticketToken makes a retry a no-op. An optional created stamps the business time the booking happened.",
     method: "POST",
     path: "/api/admin/attendees",
     request: json(ADMIN_API_ATTENDEE_CREATE_BODY),

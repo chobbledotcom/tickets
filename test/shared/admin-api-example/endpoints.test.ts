@@ -101,6 +101,19 @@ describe("every documented endpoint", () => {
     expect(stateAfter("reactivate")).toBe(true);
   });
 
+  test("the documented create answer echoes the body created instant", () => {
+    // The answer example is the booking the body example creates, so a caller
+    // copying both reads one business time, not two.
+    const endpoint = documented(
+      ADMIN_API_ENDPOINTS,
+      "POST",
+      "/api/admin/attendees",
+    );
+    const requested = JSON.parse(endpoint.request!).created;
+    const answered = JSON.parse(endpoint.response).attendee.created;
+    expect(answered).toBe(requested);
+  });
+
   test("a child rename answer changes one item's text and keeps the rest", () => {
     const renames = [
       {
