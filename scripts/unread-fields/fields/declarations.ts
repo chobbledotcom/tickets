@@ -32,6 +32,7 @@ const holdsAField = (node: ts.Node): node is ts.NamedDeclaration =>
   ts.isTypeElement(node) ||
   ts.isClassElement(node) ||
   ts.isPropertyAssignment(node) ||
+  ts.isShorthandPropertyAssignment(node) ||
   (ts.isParameter(node) &&
     ts.isParameterPropertyDeclaration(node, node.parent));
 

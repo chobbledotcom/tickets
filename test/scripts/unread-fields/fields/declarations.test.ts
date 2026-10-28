@@ -90,6 +90,23 @@ export class Holder {
     expect(paths).toEqual(["Holder.config", "Holder.config.dead"]);
   });
 
+  test("reads a key an object literal writes in shorthand", async () => {
+    // `{ dead }` gives the field the key and the const's value. The key is a
+    // field the same way `dead: 1` is one.
+    const paths = pathsOf(
+      await fieldsOf(
+        `
+const dead = 1;
+export class Holder {
+  config = { dead };
+}
+`,
+      ),
+    );
+
+    expect(paths).toEqual(["Holder.config", "Holder.config.dead"]);
+  });
+
   test("reads the keys of a nested object literal", async () => {
     const paths = pathsOf(
       await fieldsOf(
