@@ -90,7 +90,6 @@ export const paidInput = (
 export const buildPlan = async (opts: {
   eventId: string;
   lines: PricedLine[];
-  fullSubtotal?: number;
   total?: number;
   usages?: ModifierApplication[];
   sessionId?: string;
@@ -98,7 +97,6 @@ export const buildPlan = async (opts: {
   if (opts.sessionId) await reserveSession(opts.sessionId);
   const usages = opts.usages ?? [];
   const order = pricedOrder({
-    fullSubtotal: opts.fullSubtotal ?? 0,
     lines: opts.lines,
     modifierApplications: usages,
     total: opts.total ?? 0,

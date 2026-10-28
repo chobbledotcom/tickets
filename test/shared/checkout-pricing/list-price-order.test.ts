@@ -45,7 +45,6 @@ describe("listPriceOrder", () => {
     // gross is what the attendee owes.
     expect(order.extras).toEqual([]);
     expect(order.modifierApplications).toEqual([]);
-    expect(order.fullSubtotal).toBe(0);
     expect(order.total).toBe(0);
     expect(sumOf(lineListPrice)(order.lines)).toBe(2000);
   });

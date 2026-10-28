@@ -116,9 +116,6 @@ export const AREAS_M_Z = {
       settings: "/admin/settings",
       settingsAdvanced: "/admin/settings-advanced",
     },
-    write: {
-      tax: "/admin/settings/tax",
-    },
   },
   settingsLogistics: {
     audience: OWNER_AUDIENCE,

@@ -81,7 +81,6 @@ const MODIFIER_SOLD_OUT_MESSAGE =
  *  mapBooking yields no legs while the modifier stock is still consumed. */
 const EMPTY_PRICED_ORDER: PricedOrder = {
   extras: [],
-  fullSubtotal: 0,
   lines: [],
   modifierApplications: [],
   tax: assessTax({ lines: [], modifiers: [] }, NO_TAX),

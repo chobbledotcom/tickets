@@ -202,7 +202,7 @@ describeWithEnv("admin role matrix", { db: true }, () => {
     // would otherwise make this suite pass by testing nothing.
     // The scanner's ticket-cache reads are record routes like their scanner
     // pages: the gate runs before the record lookup, so the matrix walks them.
-    expect(roleOnly.length).toBe(65);
+    expect(roleOnly.length).toBe(64);
     expect(recordPages.length).toBe(97);
   });
 
@@ -280,8 +280,8 @@ describeWithEnv("admin role matrix", { db: true }, () => {
   });
 
   test("covers the write routes the surface declares", () => {
-    expect(writableRoutes().length).toBe(98);
-    expect(insiderWritableRoutes().length).toBe(97);
+    expect(writableRoutes().length).toBe(97);
+    expect(insiderWritableRoutes().length).toBe(96);
   });
 });
 
@@ -289,10 +289,12 @@ describe("the routes this suite cannot ask", () => {
   test("are the writes at a path no route declares", async () => {
     // A write with no declared path takes its roles from its handler alone,
     // and nothing above compares the two. The count is stated so the gap
-    // cannot widen unnoticed.
+    // cannot widen unnoticed. The settings POST endpoints (booking fee,
+    // theme, tax, and their siblings) sit here with the handler's owner
+    // gate as their only declaration.
     const paths = new Set(declared.map((one) => one.pattern));
     const methods = await writeRoutes();
     const undeclared = [...methods.keys()].filter((path) => !paths.has(path));
-    expect(undeclared.length).toBe(101);
+    expect(undeclared.length).toBe(102);
   });
 });

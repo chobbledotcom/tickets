@@ -32,7 +32,6 @@ export const pricedOrder = (
   overrides: Partial<PricedOrder> = {},
 ): PricedOrder => ({
   extras: [],
-  fullSubtotal: 0,
   lines: [],
   modifierApplications: [],
   tax: assessTax(

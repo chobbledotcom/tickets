@@ -63,7 +63,6 @@ const modifier: ModifierSpec = {
 
 const standardOrder = (overrides: Partial<PricedOrder> = {}): PricedOrder =>
   pricedOrder({
-    fullSubtotal: 1000,
     lines: [{ chargedUnitAmount: 1000, item: checkoutItem(), quantity: 1 }],
     total: 1000,
     ...overrides,
@@ -258,7 +257,6 @@ describe("paidPricingRefund", () => {
 
   test("accepts a signed deposit while checking the full item price", () => {
     const depositOrder = standardOrder({
-      fullSubtotal: 2000,
       lines: [
         {
           chargedUnitAmount: 250,

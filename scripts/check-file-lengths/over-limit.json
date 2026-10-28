@@ -28,7 +28,7 @@
   "test/scripts/code-quality/detectors.ts": 850,
   "test/scripts/precommit.test.ts": 503,
   "test/scripts/precommit/mutation-step.test.ts": 506,
-  "test/shared/checkout-pricing.test.ts": 640,
+  "test/shared/checkout-pricing.test.ts": 630,
   "test/shared/dates.test.ts": 804,
   "test/shared/db/client.test.ts": 579,
   "test/shared/db/groups.test.ts": 777,

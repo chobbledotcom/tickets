@@ -44,7 +44,6 @@ const pricedOrder = (
   modifierApplications: PricedOrder["modifierApplications"] = [],
 ): PricedOrder => ({
   extras: [],
-  fullSubtotal: total,
   lines: [
     {
       chargedUnitAmount: total,

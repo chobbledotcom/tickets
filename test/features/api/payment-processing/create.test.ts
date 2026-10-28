@@ -62,7 +62,6 @@ test("fails when a promo code has no pricing application", () => {
 
 type PreparationOptions = {
   chargedUnitAmount?: number;
-  fullSubtotal?: number;
   listingName?: string;
   /** Staged text-answer refs, for tests that reach the tail's answer read. */
   listingTextAnswerIds?: BookingIntent["listingTextAnswerIds"];
@@ -160,7 +159,6 @@ const preparationResult = (options: PreparationOptions) => {
   };
   const pricedOrder = makePricedOrder({
     extras: [],
-    fullSubtotal: options.fullSubtotal ?? 1000,
     lines: [
       {
         chargedUnitAmount: options.chargedUnitAmount ?? 1000,
@@ -293,7 +291,6 @@ describeWithEnv("payment booking lines", { db: true }, () => {
     using create = stubSuccessfulBooking();
     await preparationResult({
       chargedUnitAmount: 250,
-      fullSubtotal: 1000,
       reservationAmount: "25%",
       total: 250,
     });

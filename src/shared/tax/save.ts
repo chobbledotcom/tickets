@@ -24,12 +24,11 @@ import {
   taxStateInsert,
 } from "#shared/tax/store.ts";
 import { reassessTax } from "#shared/tax/transitions.ts";
-import { NO_TAX, type TaxBasis, type TaxPolicy } from "#shared/tax/types.ts";
+import { NO_TAX, type TaxBasis } from "#shared/tax/types.ts";
 /* jscpd:ignore-end */
 
 export type TaxSavePreview = {
   token: string;
-  policy: TaxPolicy;
   changed: boolean;
   beforeTax: number;
   afterTax: number;
@@ -200,7 +199,6 @@ export const buildTaxSavePlan = async (
       beforeBalance,
       beforeTax,
       changed,
-      policy,
       token,
     },
   };

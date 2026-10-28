@@ -295,7 +295,6 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       };
       return pricedOrder({
         extras: [],
-        fullSubtotal: gross,
         lines: [line],
         modifierApplications: [],
         total: 0,
@@ -351,7 +350,6 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       }
       const ledgerOrder = pricedOrder({
         extras: [],
-        fullSubtotal: N * 1000,
         lines: listings.map((l) => ({
           chargedUnitAmount: 0,
           item: {

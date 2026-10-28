@@ -67,8 +67,6 @@ export type PricedOrder = {
   tax: TaxAssessment;
   /** Sum of all line and extra charges, in minor units. */
   total: number;
-  /** The pre-extras item subtotal the booking fee is charged on. */
-  fullSubtotal: number;
 };
 
 const lineCharge = (line: PricedLine): number =>
@@ -121,7 +119,6 @@ export const listPriceOrder = (
   taxPolicy: TaxPolicy = settings.tax,
 ): PricedOrder => ({
   extras: [],
-  fullSubtotal: 0,
   lines: lines.map((line): PricedLine => {
     const unitPrice = line.unitPrice ?? line.listing.unit_price;
     return {
@@ -442,7 +439,6 @@ export const priceCheckout = (intent: CheckoutIntent): PricedOrder => {
   ];
   return {
     extras,
-    fullSubtotal,
     lines,
     modifierApplications: modifiers.applications,
     tax,
