@@ -341,7 +341,7 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
       expect(postResponse.status).toBe(418);
     });
 
-    test("blocks a non-owner session unless the auth allows anyone", async () => {
+    test("blocks a non-owner session unless the route declares the role", async () => {
       const managerCookie = await createTestManagerSession();
       const csrf = await testCsrfToken();
 
@@ -353,8 +353,9 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
       );
       expect(blocked.status).toBe(403);
 
-      const anyResponse = await build({
-        auth: "any",
+      // The attendee delete declares the staff floor, so the same manager
+      // session gets through: the route, not the caller, decides.
+      const staffResponse = await build({
         path: "/admin/attendees/:attendeeId/delete",
       }).get(
         mockRequest("/admin/test/1/delete", {
@@ -362,10 +363,9 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
         }),
         1,
       );
-      expect(await anyResponse.text()).toBe("page");
+      expect(await staffResponse.text()).toBe("page");
 
-      const anyPost = await build({
-        auth: "any",
+      const staffPost = await build({
         path: "/admin/attendees/:attendeeId/delete",
       }).post(
         mockFormRequest(
@@ -376,7 +376,7 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
         1,
       );
       assertStringIncludes(
-        anyPost.headers.get("location") ?? "",
+        staffPost.headers.get("location") ?? "",
         "/admin/test",
       );
     });

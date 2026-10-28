@@ -17,9 +17,6 @@ import { recordNoteFeature } from "./record-notes.ts";
 /** The group's note routes and its page banner wiring. */
 export const groupNoteFeature = recordNoteFeature({
   activeSection: adminPattern("groups"),
-  // The staff floor the "any" shorthand enforces: an editor session cannot
-  // decrypt notes, so the routes keep the notes system's own audience.
-  auth: "any",
   entityKind: "group",
   loadRecord: (id: number) => getGroupById(id),
   nameOf: (group: Group) => group.name,
@@ -31,7 +28,6 @@ export const groupNoteFeature = recordNoteFeature({
 /** The listing's note routes and its page banner wiring. */
 export const listingNoteFeature = recordNoteFeature({
   activeSection: adminPattern("listings"),
-  auth: "any",
   entityKind: "listing",
   loadRecord: (id: number) => getListingWithCount(id),
   nameOf: (listing: ListingWithCount) => listing.name,

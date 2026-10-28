@@ -93,10 +93,28 @@ export const entityReturnPath = (sectionPath: string, id: number): string => {
 
 /** The write routes whose GET is not a write form. The built-site
  * support-message tab renders the stored message for a read-only viewer, so
- * read-only mode must keep serving its GET instead of redirecting it. */
+ * read-only mode must keep serving its GET instead of redirecting it. (The
+ * writes read-only mode keeps open keep their GET pages through the allowed
+ * operations list in the read-only guard, not here.) */
 const READ_ONLY_SAFE_WRITE_PATTERNS: Record<string, true> = {
   "/admin/built-sites/:id/support-message": true,
 };
+
+// A stale entry silently stops exempting its route, and the read-only
+// redirect returns for a page that must stay readable. Refuse the fold the
+// moment an entry names no declared write.
+for (const pattern of Object.keys(READ_ONLY_SAFE_WRITE_PATTERNS)) {
+  const destination = Object.values(ADMIN_SURFACE.destinations).find(
+    (one) => one.pattern === pattern,
+  );
+  if (destination?.intent !== "write-form") {
+    throw new Error(
+      'READ_ONLY_SAFE_WRITE_PATTERNS names "' +
+        pattern +
+        '", which no declared admin write serves',
+    );
+  }
+}
 
 export const readOnlyGetRoutePatterns = (): readonly string[] =>
   Object.values(ADMIN_SURFACE.destinations)

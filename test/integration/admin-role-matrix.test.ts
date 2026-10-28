@@ -15,9 +15,11 @@
  * - A page for one record needs no record to exist: the gate runs before the
  *   lookup, so a role it excludes meets a 403 whether or not the record is
  *   there. The pages that answer 404 instead are named below, with why.
- * - A route that writes is asked with its own method and a valid CSRF token,
- *   so the only thing left to refuse it is its role gate. A role it excludes
- *   is refused before anything is written.
+ * - A route that writes is asked with every method its path serves — a POST
+ *   beside a DELETE, and the form page's own GET — each carrying a valid CSRF
+ *   token where the method takes a body, so the only thing left to refuse it
+ *   is its role gate. A role the declaration excludes is refused before
+ *   anything is written or shown.
  */
 
 import { expect } from "@std/expect";
@@ -71,14 +73,20 @@ const refusalFor = (
   _channel: "page" | "write",
 ): number => (FEATURE_OFF_AREAS.has(destination.area) ? GONE : FORBIDDEN);
 
-/** Every method and path the admin serves that is not a GET. */
-const writeRoutes = async (): Promise<Map<string, string>> => {
-  const byPath = new Map<string, string>();
+/** Every method the admin serves at each path, GET included. A write (a
+ * settings sub-form, a reorder move, an image upload, a scan) is its own
+ * route with its own gate, and the write walks below ask it with every method
+ * its path serves — a path can carry a POST beside a DELETE (the confirmed
+ * deletes do), and each method's gate is its own. Only views are walked as
+ * pages. */
+const servedMethods = async (): Promise<Map<string, string[]>> => {
+  const byPath = new Map<string, string[]>();
   for (const loader of Object.values(ADMIN_AREA_LOADERS)) {
     for (const route of Object.keys(await loader.load())) {
       const boundary = route.indexOf(" ");
       const method = route.slice(0, boundary);
-      if (method !== "GET") byPath.set(route.slice(boundary + 1), method);
+      const path = route.slice(boundary + 1);
+      byPath.set(path, [...(byPath.get(path) ?? []), method]);
     }
   }
   return byPath;
@@ -86,10 +94,10 @@ const writeRoutes = async (): Promise<Map<string, string>> => {
 
 describeWithEnv("admin role matrix", { db: true }, () => {
   const cookies = new Map<AdminLevel, string>();
-  let methods: Map<string, string>;
+  let methods: Map<string, string[]>;
 
   beforeEach(async () => {
-    methods = await writeRoutes();
+    methods = await servedMethods();
     const owner = await getTestSession();
     cookies.set("owner", owner.cookie);
     cookies.set("manager", await createTestManagerSession());
@@ -133,22 +141,31 @@ describeWithEnv("admin role matrix", { db: true }, () => {
   const outsidersOf = (destination: AdminDestinationDef): AdminLevel[] =>
     ALL_ADMIN_LEVELS.filter((level) => !destination.audience.includes(level));
 
+  /** The methods a route's own path serves, GET included. A declaration can
+   * spell a path's parameters differently from the route (the check-in page
+   * does), so only an exact path is askable by method; the manifest proves
+   * every declaration is served some other way. */
+  const methodsOf = (destination: AdminDestinationDef): readonly string[] =>
+    methods.get(destination.pattern) ?? [];
+
   /** Ask one route as every role it keeps out, reporting each answer that was
-   * not the refusal that route owes them. */
+   * not the refusal that route owes them. Every method the path serves is
+   * asked: a POST beside a DELETE carries two gates, and each must refuse. */
   const refusalsOf = async (
     destination: AdminDestinationDef,
-    method: string,
+    methodList: readonly string[] = methodsOf(destination),
   ): Promise<string[]> => {
-    const channel = method === "GET" ? "page" : "write";
     const path = oneServedPath(destination.pattern);
     const wrong: string[] = [];
-    for (const adminLevel of outsidersOf(destination)) {
-      const expected = refusalFor(destination, adminLevel, channel);
-      const status = await askAs(path, adminLevel, method);
-      if (status !== expected) {
-        wrong.push(
-          `${method} ${destination.pattern} answered ${status} to ${adminLevel}, wanted ${expected}`,
-        );
+    for (const method of methodList) {
+      for (const adminLevel of outsidersOf(destination)) {
+        const expected = refusalFor(destination, adminLevel, "write");
+        const status = await askAs(path, adminLevel, method);
+        if (status !== expected) {
+          wrong.push(
+            `${method} ${destination.pattern} answered ${status} to ${adminLevel}, wanted ${expected}`,
+          );
+        }
       }
     }
     return wrong;
@@ -156,7 +173,7 @@ describeWithEnv("admin role matrix", { db: true }, () => {
 
   /** The declared routes that also take a write at their own path. */
   const writableRoutes = (): AdminDestinationDef[] =>
-    declared.filter((one) => methods.has(one.pattern));
+    declared.filter((one) => methodsOf(one).some((method) => method !== "GET"));
 
   /** The JSON scanner APIs, whose Content-Type middleware answers 400 before
    * the role gate runs — this suite's form body can neither be admitted nor
@@ -174,15 +191,49 @@ describeWithEnv("admin role matrix", { db: true }, () => {
       (one) => one.id !== "logout" && !JSON_API_WRITE_IDS.has(one.id),
     );
 
+  /** The write methods the walks ask: one pair per method each writable
+   * route's path serves, GET left out. */
+  const writeMethodPairs = (): number =>
+    writableRoutes().reduce(
+      (count, one) =>
+        count + methodsOf(one).filter((method) => method !== "GET").length,
+      0,
+    );
+
+  /** The writable routes whose GET serves a page at the same path: a write's
+   * own form page, or a view page whose POST the walks ask. The declaration
+   * governs that GET like the write, so the walks below ask both. */
+  const formPageRoutes = (): AdminDestinationDef[] =>
+    insiderWritableRoutes().filter((one) => methodsOf(one).includes("GET"));
+
+  /** Ask one route as every role it admits, reporting each answer that
+   * forbids them. */
+  const admissionsOf = async (
+    destination: AdminDestinationDef,
+    methodList: readonly string[],
+  ): Promise<string[]> => {
+    const path = oneServedPath(destination.pattern);
+    const refused: string[] = [];
+    for (const method of methodList) {
+      for (const adminLevel of destination.audience) {
+        const status = await askAs(path, adminLevel, method);
+        if (status === FORBIDDEN) {
+          refused.push(
+            `${method} ${destination.pattern} refused ${adminLevel}`,
+          );
+        }
+      }
+    }
+    return refused;
+  };
+
   const askOutsiders = async (
     destinations: readonly AdminDestinationDef[],
-    methodOf?: (destination: AdminDestinationDef) => string,
+    methodList?: readonly string[],
   ): Promise<string[]> => {
     const wrong: string[] = [];
     for (const destination of destinations) {
-      wrong.push(
-        ...(await refusalsOf(destination, methodOf?.(destination) ?? "GET")),
-      );
+      wrong.push(...(await refusalsOf(destination, methodList)));
     }
     return wrong;
   };
@@ -231,17 +282,19 @@ describeWithEnv("admin role matrix", { db: true }, () => {
   });
 
   test("refuses a record page before looking the record up", async () => {
-    expect(await askOutsiders(recordPages)).toEqual([]);
+    // A record page is asked with GET only: its write methods belong to the
+    // write walks below.
+    expect(await askOutsiders(recordPages, ["GET"])).toEqual([]);
   });
 
   test("refuses a write from a role the route does not declare", async () => {
     // The token is real, so a request that gets past the role gate would go
     // on to do the write. Nothing is written while this passes, and a gate
     // that admits too much shows up as an answer that is not a refusal.
+    // Every method the path serves is asked, so a DELETE beside a POST
+    // cannot carry a gate the surface never saw.
     const wrong = await askOutsiders(
       writableRoutes().filter((one) => !JSON_API_WRITE_IDS.has(one.id)),
-      (one) =>
-        requiredMapValue(methods, one.pattern, `No method for ${one.pattern}`),
     );
     expect(wrong).toEqual([]);
   });
@@ -253,20 +306,9 @@ describeWithEnv("admin role matrix", { db: true }, () => {
     // suite to prove; here the question is only whether the gate let it in.
     const refused: string[] = [];
     for (const destination of insiderWritableRoutes()) {
-      const method = requiredMapValue(
-        methods,
-        destination.pattern,
-        `No method for ${destination.pattern}`,
+      refused.push(
+        ...(await admissionsOf(destination, [...methodsOf(destination)])),
       );
-      const path = oneServedPath(destination.pattern);
-      for (const adminLevel of destination.audience) {
-        const status = await askAs(path, adminLevel, method);
-        if (status === FORBIDDEN) {
-          refused.push(
-            `${method} ${destination.pattern} refused ${adminLevel}`,
-          );
-        }
-      }
     }
     expect(refused).toEqual([]);
   });
@@ -274,6 +316,14 @@ describeWithEnv("admin role matrix", { db: true }, () => {
   test("covers the write routes the surface declares", () => {
     expect(writableRoutes().length).toBe(198);
     expect(insiderWritableRoutes().length).toBe(195);
+    // The DELETE beside the confirmed POST deletes: each method's gate is
+    // its own, so the walks above must ask both.
+    expect(writeMethodPairs()).toBe(200);
+    // The writable routes whose GET serves a page at the same path — a
+    // write's own form page, or a view page whose POST the walks ask too.
+    // The refusal walk asks those GETs like the writes, so this pins their
+    // number too.
+    expect(formPageRoutes().length).toBe(79);
   });
 });
 
@@ -283,8 +333,13 @@ describe("the routes this suite cannot ask", () => {
     // and nothing above compares the two. Every write now declares a path, so
     // the gap cannot widen unnoticed.
     const paths = new Set(declared.map((one) => one.pattern));
-    const methods = await writeRoutes();
-    const undeclared = [...methods.keys()].filter((path) => !paths.has(path));
+    const served = await servedMethods();
+    const undeclared = [...served.entries()]
+      .filter(
+        ([path, servedMethods]) =>
+          servedMethods.some((method) => method !== "GET") && !paths.has(path),
+      )
+      .map(([path]) => path);
     expect(undeclared).toEqual([]);
   });
 });

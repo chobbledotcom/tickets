@@ -110,18 +110,17 @@ export const createVerifiedFormRoute = <TParams, TContext>(
     return config.onConfirm(args);
   });
 
-/** Auth option: string shorthand or explicit guard pair */
-export type AuthOption<TSession> =
-  | "owner"
-  | "any"
-  | {
-      requireSession: SessionGuard<TSession>;
-      withForm: FormGuard<TSession>;
-    };
+/** An explicit guard pair. Without one, both guards derive from the route
+ * declaration at the handler's own path. */
+export type AuthOption<TSession> = {
+  requireSession: SessionGuard<TSession>;
+  withForm: FormGuard<TSession>;
+};
 
 /** Configuration for creating confirmed-action GET/POST handler pair */
 export type ConfirmedHandlerConfig<T, TSession = AuthSession> = {
-  /** Auth guards: "owner" | "any" shorthand, or explicit { requireSession, withForm } */
+  /** Optional explicit guard pair. Without one, both guards derive from the
+   * route's declaration at `path`. */
   auth?: AuthOption<TSession>;
   /** Route path pattern, for example "/admin/users/:id/delete" */
   path: string;
@@ -189,10 +188,10 @@ export const resolveAuth = <TSession>(
   auth: AuthOption<TSession> | undefined,
   pattern: string,
 ) => {
-  if (typeof auth === "object") return auth;
-  // The shorthand promises the route's own audience. "owner" and "any" both
-  // derive their guards from the declaration at `pattern`. The role is then
-  // written once, in the admin surface, and never again beside the handler.
+  if (auth) return auth;
+  // Without an explicit pair, the route's declaration gives both guards. The
+  // role is then written once, in the admin surface, and never again beside
+  // the handler.
   const route = adminDestinationAt(pattern);
   return {
     requireSession: pageGuardFor(route) as SessionGuard<TSession>,

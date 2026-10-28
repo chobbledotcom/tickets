@@ -84,8 +84,6 @@ describe("bindNoteRoutes", () => {
  *  serve in this test. */
 const groupNoteFeature = recordNoteFeature({
   activeSection: adminPattern("groups"),
-  // The routes under test keep the staff-generic gate the factory ships with.
-  auth: "any",
   entityKind: "group",
   loadRecord: (id) => getGroupById(id),
   nameOf: (group) => group.name,
