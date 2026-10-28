@@ -14,10 +14,14 @@
 import { join } from "@std/path";
 import * as v from "valibot";
 import { nonBlankLines } from "#scripts/lines.ts";
+import { commandValue, runCommand } from "#scripts/precommit/git.ts";
 import { rel } from "#scripts/project-root.ts";
 import { readJsonOrNull } from "#scripts/read-json.ts";
 import { errorMessage } from "#shared/error-message.ts";
-import { MUTATION_RUN_ROOT_ENV } from "./isolation-state.ts";
+import {
+  MUTATION_RUN_ROOT_ENV,
+  type MutationRunRecord,
+} from "./isolation-state.ts";
 import { type MutantResult, summarize } from "./summary.ts";
 import { writeWholeOrNotAtAll } from "./write-whole.ts";
 
@@ -75,13 +79,22 @@ export const readRunSummary = (
 export const runSummaryPath = (runRoot: string): string =>
   join(runRoot, RUN_SUMMARY_FILE);
 
-/** The journal line for a finished run. Pure, so the fold from the run's
- *  record and the child's summary is directly testable. */
-export const journalEntry = (
-  id: string,
-  commit: string | null,
-  summary: MutationRunSummary,
-): MutationJournalEntry => ({ commit, id, ...summary });
+/** Append the run's published numbers to the tracked journal (issue #2301).
+ * Only a conclusive run publishes: a run the deadline or an interrupt stopped
+ * has no score, and the child publishes none for it. The journal is
+ * auxiliary — a failure here is reported and the run's own verdict stands. */
+export const appendRunJournalEntry = async (
+  root: string,
+  record: MutationRunRecord,
+  gitValue: (args: string[]) => Promise<string | undefined> = (args) =>
+    commandValue(runCommand, args),
+): Promise<void> => {
+  if (record.status !== "passed" && record.status !== "failed") return;
+  const commit = (await gitValue(["rev-parse", "HEAD"])) ?? null;
+  const summary = await readRunSummary(record.root);
+  if (summary === null) return;
+  await appendJournalEntry(root, { ...summary, commit, id: record.id });
+};
 
 /** Append one run to the tracked journal. One line per call, written through
  *  an append-mode handle, so runs that finish side by side cannot tear each
