@@ -32,7 +32,7 @@ ledger.
 | M3 provider ownership (was PR 3)        | Complete: #2048 (payment processing core), #2050 (bounded registration delivery), #2060 (observation boundary + SumUp callback wiring; F2 closed).                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | M4 settled-money diagnosis (was PR 4)   | Part A complete for the current path: #2065 (one durable `payment_charges` authority, one provider-send permit, one owner-recovery lifecycle), #2079 (resumable placeholder completion; each machine declared as a checked spec feeding the `/admin/schema` map), #2084 (the declared seam between the machines, witnessed in every crash test, with a live stored-data check on the map), and #2109 (the SumUp checkout-recovery task on the current path). Whole-checkout diagnosis, stable booking obligations, allocation, and durable Refund All jobs remain later milestones. |
 | M5 cases (was PR 5)                     | The current-row review/acknowledgement slice landed in M4 Part A. Remaining aggregate case kinds ship with their M6–M8 producers and actions, not as a dormant layer.                                                                                                                                                                                                                                                                                                                                                                                                               |
-| M6–M11 atomic aggregate cutover         | Not started as a production cutover. #2056 started its read-only verifier early. Creation, reads, jobs, completion, delivery, site effects, and bounded history migration activate together; no intermediate layer may merge as a live parallel path.                                                                                                                                                                                                                                                                                                                               |
+| M6–M11 atomic aggregate cutover         | Not started as a production cutover. #2056 started its read-only verifier early; that pull request is still open and unmerged. Creation, reads, jobs, completion, delivery, site effects, and bounded history migration activate together; no intermediate layer may merge as a live parallel path.                                                                                                                                                                                                                                                                                                                               |
 | M12–M13                                 | Not started.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 Budgets below count `src/` lines only. Observed totals run 4–15x the `src/`
@@ -1613,10 +1613,11 @@ unfinished work within explicit provider, database, and total subrequest
 budgets. Each persisted renewal effect carries a stable provider idempotency
 key, or the runner reads the remote state before re-attempting — an uncertain
 success is never blindly replayed, so a site cannot be extended twice.
-Assignment claims a site atomically: the claim requires the site to still be
-assignable inside the mutating statement itself (today `assignBuiltSite`
-overwrites without that check, so two concurrent paid completions can take the
-same site), and the loser moves to the next site or builds one. A site build
+Assignment claims a site atomically, and that claim already exists:
+`claimBuiltSiteStatement` (`src/shared/db/built-sites/claims.ts`) requires the
+site to still be assignable inside the mutating statement itself, and the loser
+moves to the next site or builds one. #2418 shipped that claim and its
+racing-claim regression test, which closes fault F45. A site build
 gets the same no-blind-replay rule as renewals: the persisted effect carries a
 stable creation identity, and a retry after a lost response reads the provider
 and adopts the site that identity already created instead of provisioning a
@@ -1628,7 +1629,8 @@ interruption, a concurrent payment, or an attendee merge.
 #### Work package M11: Verify and copy retained payment records
 
 Src target: verifier 400–600; copy 800–1,200 (cutover exception). The verifier
-is read-only and parallelizable — #2056 already started it. The copy is the
+is read-only and parallelizable — #2056 already started it, and that pull
+request is still open. The copy is the
 activation gate for the complete M6–M11 runtime, not a later bridge.
 
 - The verifier reads the retained payment stores — `processed_payments`,
@@ -1787,7 +1789,7 @@ mechanism and a regression test, or — if implementation proves the finding wro
 | F42 | A historical identity deduplication dropping its local booking facts                   | M11                                      |
 | F43 | An already-canonical payment reference migrated again as new input                     | M4, M11                                  |
 | F44 | A legacy deletion stripping folded local facts from a sale the aggregate represents    | M6                                       |
-| F45 | Two concurrent paid completions claiming the same built site                           | M10                                      |
+| F45 | Two concurrent paid completions claiming the same built site                           | Closed by #2418                          |
 | F46 | A site build replayed after a lost response, provisioning a second site                | M10                                      |
 | F47 | A parallel refund adapter completing after its retirement pass                         | Closed by M4; no adapter exists          |
 | F48 | A multi-listing payment credited in full to each listing, or its shared order lost     | M6, M7, M8                               |
