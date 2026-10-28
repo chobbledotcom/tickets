@@ -24,6 +24,7 @@ export interface VisitContext {
   checker: ts.TypeChecker;
   isExportedTarget: IsExportedTarget;
   remember: RememberField;
+  root: string;
 }
 
 type Visit<Value, Result> = (
