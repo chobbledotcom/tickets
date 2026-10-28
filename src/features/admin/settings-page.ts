@@ -1,15 +1,16 @@
 /**
  * Admin settings page rendering - GET /admin/settings and
  * GET /admin/settings-advanced, plus the state-gathering they depend on.
- * Owner-only access enforced via ownerPage.
+ * Owner-only access.
  */
 
 import { getAdminFeatureUsage } from "#db/admin-features.ts";
 import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
-import { type AuthSession, ownerPage } from "#routes/auth.ts";
+import { type AuthSession, authPage, pageGuardFor } from "#routes/auth.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { enabledFeaturesWithUsage } from "#shared/admin-features.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { getCdnHostname } from "#shared/bunny-cdn.ts";
 import {
   getBunnyDnsSubdomainSuffix,
@@ -182,19 +183,23 @@ const renderAdvancedSettingsPage = async (
  * Handle GET /admin/settings - owner only
  */
 export const handleAdminSettingsGet: TypedRouteHandler<"GET /admin/settings"> =
-  ownerPage((session) => renderSettingsPage(session));
+  authPage(pageGuardFor(adminDestinationAt("/admin/settings")))((session) =>
+    renderSettingsPage(session),
+  );
 
 /**
  * Handle GET /admin/settings-advanced - owner only
  */
 export const handleAdminSettingsAdvancedGet: TypedRouteHandler<"GET /admin/settings-advanced"> =
-  ownerPage(async (session) => {
-    const flash = getFlash();
-    const [subdomainPreview = "", subdomainPreviewFullDomain = ""] =
-      flash.result ? flash.result.split("\n") : [];
-    return await renderAdvancedSettingsPage(
-      session,
-      subdomainPreview,
-      subdomainPreviewFullDomain,
-    );
-  });
+  authPage(pageGuardFor(adminDestinationAt("/admin/settings-advanced")))(
+    async (session) => {
+      const flash = getFlash();
+      const [subdomainPreview = "", subdomainPreviewFullDomain = ""] =
+        flash.result ? flash.result.split("\n") : [];
+      return await renderAdvancedSettingsPage(
+        session,
+        subdomainPreview,
+        subdomainPreviewFullDomain,
+      );
+    },
+  );

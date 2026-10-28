@@ -20,6 +20,7 @@ const saveSupportMessageResult = builtSiteTabResult(
 /** POST /admin/built-sites/:id/support-message — persistence is one variable
  * upsert, so an exact replay saves the same text again. */
 export const handleSaveSiteSupportMessage = builtSiteAction(
+  "/admin/built-sites/:id/support-message",
   async (site, form, id) => {
     // Raw, not getString: markdown's own meaning (an indented code block,
     // the blank line before a list) lives in the whitespace.

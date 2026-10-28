@@ -19,12 +19,13 @@ import { getQuestionsWithListingIds } from "#db/questions/queries.ts";
 /* jscpd:ignore-start */
 import { filter, map, pipe, unique } from "#fp";
 import { t } from "#i18n";
-import { AUTH_FORM, formGuard } from "#routes/auth.ts";
+import { formGuard, formPolicyFor } from "#routes/auth.ts";
 import {
   type AttendeeRouteParams,
   createEntityHandler,
 } from "#routes/entity.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
   applyAttendeeMerge,
@@ -435,7 +436,11 @@ const parseMergeDecisionForm = (
 
 const mergeHandler = createEntityHandler<AttendeeRouteParams, Attendee>(
   ({ attendeeId }) => loadMergeTarget(attendeeId),
-)(formGuard(AUTH_FORM));
+)(
+  formGuard(
+    formPolicyFor(adminDestinationAt("/admin/attendees/:attendeeId/merge")),
+  ),
+);
 
 /**
  * Build the merge panel for the attendee page's Actions tab. It holds the

@@ -10,7 +10,7 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { ADMIN_API, AUTH_FORM, SCANNER_JSON, withAuth } from "#routes/auth.ts";
+import { ADMIN_API, SCANNER_JSON, withAuth } from "#routes/auth.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
@@ -237,7 +237,7 @@ const multipartBody = async (
 };
 
 carriesItsTokenInAField("a form submission", formBody, (request) =>
-  withAuth(request, AUTH_FORM, (_session, form) =>
+  withAuth(request, { body: "form" }, (_session, form) =>
     Promise.resolve(new Response(form.getString("hello"))),
   ),
 );
@@ -259,7 +259,7 @@ describeWithEnv("a form sent as a read", { db: true }, () => {
       },
     });
 
-    const response = await withAuth(request, AUTH_FORM, () =>
+    const response = await withAuth(request, { body: "form" }, () =>
       Promise.resolve(new Response("in")),
     );
 

@@ -5,7 +5,6 @@ import { acknowledgeCurrentPaymentReview } from "#db/payment-review.ts";
 import { t } from "#i18n";
 import type { PaymentWorkStatus } from "#payment/admit-move.ts";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
-import { OWNER_FORM, requireOwnerOr } from "#routes/auth.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
 import { adminPaymentReviewPage } from "#templates/admin/attendees.tsx";
 import {
@@ -36,6 +35,7 @@ const reviewError = (
   );
 
 const handlePaymentReviewGet = attendeeActions[ACTION].page(
+  "/admin/attendees/:attendeeId/payment-review",
   ({ paymentReview }) => {
     const messageKey = REVIEW_GUARD[paymentReview.status];
     return {
@@ -55,10 +55,10 @@ const handlePaymentReviewGet = attendeeActions[ACTION].page(
         ),
     };
   },
-  requireOwnerOr,
 );
 
 const handlePaymentReviewPost = attendeeActions[ACTION].verified(
+  "/admin/attendees/:attendeeId/payment-review",
   "payment review",
   async ({ attendee, listingId }, form) => {
     const result = await acknowledgeCurrentPaymentReview({
@@ -101,7 +101,6 @@ const handlePaymentReviewPost = attendeeActions[ACTION].verified(
         );
     }
   },
-  OWNER_FORM,
 );
 
 export const paymentReviewHandlers = defineAdminRoutes({

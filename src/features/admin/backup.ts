@@ -1,5 +1,6 @@
 /** Admin backup routes. Restores run out of band through `deno task restore`. */
 
+/* jscpd:ignore-start -- imports */
 import { getEncryptionKeyString } from "#crypto/encryption.ts";
 import { backupBudget, createAndUploadBackup } from "#db/backup.ts";
 import {
@@ -13,9 +14,10 @@ import {
 import { t } from "#i18n";
 import { createActionHandler } from "#routes/admin/actions.ts";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
-import { ownerPage, requireOwnerOr } from "#routes/auth.ts";
+import { authPage, pageGuardFor } from "#routes/auth.ts";
 import { downloadResponse, htmlResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { formatDatetimeLabel } from "#shared/dates.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { formatBytes } from "#shared/format-units.ts";
@@ -33,6 +35,8 @@ import {
   type BackupEntry,
   type BackupPageState,
 } from "#templates/admin/backup.tsx";
+
+/* jscpd:ignore-end */
 
 const parseBackupEntry = (file: StorageFileMeta): BackupEntry => {
   const takenAt = new Date(parseBackupTime(file.name)!);
@@ -88,14 +92,15 @@ const getBackupPageState = async (): Promise<BackupPageState> => {
   }
 };
 
-const handleBackupGet: TypedRouteHandler<"GET /admin/backup"> = ownerPage(
-  async (session, _request, flash) =>
-    adminBackupPage(
-      session,
-      await getBackupPageState(),
-      flash.error,
-      flash.success,
-    ),
+const handleBackupGet: TypedRouteHandler<"GET /admin/backup"> = authPage(
+  pageGuardFor(adminDestinationAt("/admin/backup")),
+)(async (session, _request, flash) =>
+  adminBackupPage(
+    session,
+    await getBackupPageState(),
+    flash.error,
+    flash.success,
+  ),
 );
 
 const handleBackupCreate: TypedRouteHandler<"POST /admin/backup/create"> =
@@ -117,20 +122,23 @@ const handleBackupCreate: TypedRouteHandler<"POST /admin/backup/create"> =
 const handleBackupDownload: TypedRouteHandler<
   "GET /admin/backup/download/:filename"
 > = (request, { filename }) =>
-  requireOwnerOr(request, async () => {
-    if (!isBackupLeaf(filename)) {
-      return htmlResponse("Invalid backup filename", 400);
-    }
+  pageGuardFor(adminDestinationAt("/admin/backup/download/:filename"))(
+    request,
+    async () => {
+      if (!isBackupLeaf(filename)) {
+        return htmlResponse("Invalid backup filename", 400);
+      }
 
-    const data = await downloadRaw(`${backupDir()}${filename}`);
-    if (!data) return htmlResponse("Backup file not found", 404);
+      const data = await downloadRaw(`${backupDir()}${filename}`);
+      if (!data) return htmlResponse("Backup file not found", 404);
 
-    const body = data.buffer.slice(
-      data.byteOffset,
-      data.byteOffset + data.byteLength,
-    ) as ArrayBuffer;
-    return downloadResponse(body, filename, "application/zip");
-  });
+      const body = data.buffer.slice(
+        data.byteOffset,
+        data.byteOffset + data.byteLength,
+      ) as ArrayBuffer;
+      return downloadResponse(body, filename, "application/zip");
+    },
+  );
 
 export const adminHandlers = defineAdminRoutes({
   "GET /admin/backup": handleBackupGet,

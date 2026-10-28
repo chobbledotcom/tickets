@@ -28,16 +28,17 @@ import { csvResponse, loadAttendeeLinkRefs } from "#routes/admin/actions.ts";
 import { generateListingsCsv } from "#routes/admin/listings-csv.ts";
 import { returnPathFromQuery } from "#routes/admin/login-return.ts";
 import {
+  authPage,
   contentPage,
+  formPolicyFor,
   formPost,
-  OWNER_FORM,
-  requireSessionOr,
-  sessionPage,
+  pageGuardFor,
   withSession,
 } from "#routes/auth.ts";
 import { flashForPage } from "#routes/flash-for-page.ts";
 import { htmlResponse, redirect, redirectResponse } from "#routes/response.ts";
 import { adminLandingPath } from "#shared/admin-pages.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 /* jscpd:ignore-start */
 import { getFlash } from "#shared/flash-context.ts";
 import { groupScopeOptions } from "#shared/ledger-scope.ts";
@@ -213,7 +214,7 @@ const handleAdminListingsGet: TypedRouteHandler<"GET /admin/listings"> =
 const handleListingsCsvExport: TypedRouteHandler<"GET /admin/listings/csv"> = (
   request,
 ) =>
-  requireSessionOr(request, async () => {
+  pageGuardFor(adminDestinationAt("/admin/listings/csv"))(request, async () => {
     const groupNames = await getAllGroupNames();
     const groups = groupScopeOptions(groupNames);
     const groupId = groupIdFromRequest(request, groups);
@@ -263,20 +264,22 @@ const loadActivityLogRefs = async (
   return { attendees, listings };
 };
 
-const handleAdminLog: TypedRouteHandler<"GET /admin/log"> = sessionPage(
-  async (session) => {
-    const entries = await getAllActivityLog(LOG_DISPLAY_LIMIT + 1);
-    const truncated = entries.length > LOG_DISPLAY_LIMIT;
-    const displayEntries = entries.slice(0, LOG_DISPLAY_LIMIT);
-    const refs = await loadActivityLogRefs(displayEntries);
-    return adminGlobalActivityLogPage(displayEntries, truncated, session, refs);
-  },
-);
+const handleAdminLog: TypedRouteHandler<"GET /admin/log"> = authPage(
+  pageGuardFor(adminDestinationAt("/admin/log")),
+)(async (session) => {
+  const entries = await getAllActivityLog(LOG_DISPLAY_LIMIT + 1);
+  const truncated = entries.length > LOG_DISPLAY_LIMIT;
+  const displayEntries = entries.slice(0, LOG_DISPLAY_LIMIT);
+  const refs = await loadActivityLogRefs(displayEntries);
+  return adminGlobalActivityLogPage(displayEntries, truncated, session, refs);
+});
 
 /** The owner chose "Got it": store the welcome flag as off for the site, so no
  *  later login shows the message again. Owner-only, with the form CSRF check
  *  in `formPost`. */
-const handleWelcomeDismiss = formPost(OWNER_FORM)(async () => {
+const handleWelcomeDismiss = formPost(
+  formPolicyFor(adminDestinationAt("/admin/welcome/dismiss")),
+)(async () => {
   await settings.update.welcomeEnabled(false);
   return redirect("/admin", t("admin.dashboard.welcome.dismissed"), true);
 });

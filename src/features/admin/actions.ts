@@ -13,7 +13,7 @@ import { getListingWithAttendeesRaw } from "#db/listings/attendees.ts";
 import {
   type AuthPolicy,
   type AuthSession,
-  requireSessionOr,
+  pageGuardFor,
   withAuth,
 } from "#routes/auth.ts";
 import {
@@ -109,21 +109,24 @@ export const withDecryptedAttendees = async (
   return handler(result.listing, attendees, session);
 };
 
-/** Require auth then load listing with decrypted attendees */
+/** Require auth then load listing with decrypted attendees. The gate comes
+ * from the route the handler serves, so the audience is written once, in the
+ * admin surface. */
 export const withListingAttendeesAuth = (
+  pattern: string,
   request: Request,
   listingId: number,
   handler: ListingAttendeesHandler,
 ): Promise<Response> =>
-  requireSessionOr(request, (session) =>
+  pageGuardFor(adminDestinationAt(pattern))(request, (session) =>
     withDecryptedAttendees(session, listingId, handler),
   );
 
 /** Curried: require auth then load listing with decrypted attendees */
 export const listingAttendeesLoader =
-  (request: Request, listingId: number) =>
+  (pattern: string, request: Request, listingId: number) =>
   (handler: ListingAttendeesHandler): Promise<Response> =>
-    withListingAttendeesAuth(request, listingId, handler);
+    withListingAttendeesAuth(pattern, request, listingId, handler);
 
 /** Error mapping: convert an Error into a redirect response */
 export type ErrorMapper = (error: Error) => Response;

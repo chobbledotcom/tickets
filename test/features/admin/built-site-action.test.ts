@@ -36,14 +36,16 @@ describeWithEnv("built-site actions", { db: true }, () => {
   test("loads the site and parsed form for an owner", async () => {
     const site = await insertScheduledTestSite();
     const { cookie, csrfToken } = await getTestSession();
-    const route = builtSiteAction((loaded, form, id) =>
-      Promise.resolve(
-        Response.json({
-          id,
-          name: loaded.name,
-          value: form.getString("value"),
-        }),
-      ),
+    const route = builtSiteAction(
+      "/admin/built-sites/:id/update",
+      (loaded, form, id) =>
+        Promise.resolve(
+          Response.json({
+            id,
+            name: loaded.name,
+            value: form.getString("value"),
+          }),
+        ),
     );
 
     const response = await route(
@@ -66,7 +68,7 @@ describeWithEnv("built-site actions", { db: true }, () => {
     const site = await insertScheduledTestSite();
     const { cookie } = await getTestSession();
     let called = false;
-    const route = builtSiteAction(() => {
+    const route = builtSiteAction("/admin/built-sites/:id/update", () => {
       called = true;
       return Promise.resolve(new Response());
     });

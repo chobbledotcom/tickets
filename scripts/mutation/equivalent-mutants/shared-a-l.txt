@@ -31,7 +31,6 @@ src/shared/config.ts::getBotpoisonPublicKey~0v606rk  ?? → || audited:06e6k0z #
 src/shared/config.ts::getBotpoisonSecretKey~0yy1bjh  ?? → || audited:06e6k0z # getEnv(): string|undefined, only falsy string "" === fallback ""
 src/shared/qr-token.ts::buildQrBookPayload.d~1ywzxp9  ?? → || audited:1tggeae # input.date?: string, only falsy string "" === fallback ""
 src/shared/qr-token.ts::buildQrBookPayload.n~1tn44vm  ?? → || audited:1tggeae # input.name?: string, only falsy string "" === fallback ""
-src/shared/app-forms.ts::createAuthedHandler~1q900po  ?? → || audited:1i44e8o # config.auth is an AuthPolicy object when present, so it is always truthy
 src/shared/site-renewal.ts::renewalDeadlineBaseMs~00cywnq  ?? → || audited:1kq4bqb # parseReadOnlyFromMs(): number|null, 0 ?? 0 === 0 || 0
 src/shared/site-assignment.ts::sendSiteAssignmentEmail.config~0yvlh8h  ?? → || audited:17snbhm # getEmailConfig(): EmailConfig|null
 src/shared/site-assignment.ts::sendSiteAssignmentEmail.replyTo~195nl86  ?? → || audited:17snbhm # parseEmail(): ValidEmail|null, always truthy or null

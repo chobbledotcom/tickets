@@ -29,7 +29,7 @@ export const ownerRefundChoiceTestState = (
     "possibly_sent",
   );
 
-/** Store one canonical authority row for owner-route and database tests. */
+/** Store one canonical authority row for the refund-route and database tests. */
 export const addProviderRefundTestCase = async (
   reference: string,
   state: RefundAuthorityState = ownerRefundChoiceTestState(

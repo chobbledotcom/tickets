@@ -15,9 +15,10 @@ import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { loadLedgerNames } from "#routes/admin/ledger/names.ts";
 import { pickerDatesFromBounds } from "#routes/admin/ledger/picker-dates.ts";
-import { requireOwnerOr } from "#routes/auth.ts";
+import { pageGuardFor } from "#routes/auth.ts";
 import { htmlResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { formatSignedCurrency } from "#shared/currency.ts";
 import { addDays } from "#shared/dates.ts";
 import {
@@ -157,62 +158,65 @@ const buildStats = async (
 export const handleLedgerGet: TypedRouteHandler<"GET /admin/ledger"> = (
   request,
 ) =>
-  requireOwnerOr(request, async (session) => {
-    const url = new URL(request.url);
-    const params = url.searchParams;
-    const from = dateParam(params, "from");
-    const to = dateParam(params, "to");
-    const tz = settings.timezone;
-    const today = todayInTz(tz);
-    const range = filterRange(from, to, tz);
+  pageGuardFor(adminDestinationAt("/admin/ledger"))(
+    request,
+    async (session) => {
+      const url = new URL(request.url);
+      const params = url.searchParams;
+      const from = dateParam(params, "from");
+      const to = dateParam(params, "to");
+      const tz = settings.timezone;
+      const today = todayInTz(tz);
+      const range = filterRange(from, to, tz);
 
-    const [listings, groupNames] = await loadListingsAndGroupNames();
-    const listingOptions = sortScopeOptions(
-      listings.map((listing) => ({ id: listing.id, name: listing.name })),
-    );
-    const groupOptions = groupScopeOptions(groupNames);
-    const scope = resolveLedgerScope(params, listingOptions, groupOptions);
-    const groupListingIds =
-      scope.kind === "group" ? await groupListings.getIds(scope.id) : [];
-    const fetched = await visibleTransfers(
-      range,
-      listingIdsForLedgerScope(scope, groupListingIds),
-      LEDGER_DISPLAY_LIMIT + 1,
-    );
-    const truncated = fetched.length > LEDGER_DISPLAY_LIMIT;
-    const transfers = truncated
-      ? fetched.slice(0, LEDGER_DISPLAY_LIMIT)
-      : fetched;
-    const [names, stats, dates] = await Promise.all([
-      loadLedgerNames(transfers),
-      buildStats(range, scope, groupListingIds),
-      buildPickerDates(tz, today),
-    ]);
-    const filters: LedgerFilterState = {
-      from,
-      fromMonth: monthParam(params, "fromCal"),
-      scope,
-      to,
-      toMonth: monthParam(params, "toCal"),
-      view: viewParam(params),
-    };
+      const [listings, groupNames] = await loadListingsAndGroupNames();
+      const listingOptions = sortScopeOptions(
+        listings.map((listing) => ({ id: listing.id, name: listing.name })),
+      );
+      const groupOptions = groupScopeOptions(groupNames);
+      const scope = resolveLedgerScope(params, listingOptions, groupOptions);
+      const groupListingIds =
+        scope.kind === "group" ? await groupListings.getIds(scope.id) : [];
+      const fetched = await visibleTransfers(
+        range,
+        listingIdsForLedgerScope(scope, groupListingIds),
+        LEDGER_DISPLAY_LIMIT + 1,
+      );
+      const truncated = fetched.length > LEDGER_DISPLAY_LIMIT;
+      const transfers = truncated
+        ? fetched.slice(0, LEDGER_DISPLAY_LIMIT)
+        : fetched;
+      const [names, stats, dates] = await Promise.all([
+        loadLedgerNames(transfers),
+        buildStats(range, scope, groupListingIds),
+        buildPickerDates(tz, today),
+      ]);
+      const filters: LedgerFilterState = {
+        from,
+        fromMonth: monthParam(params, "fromCal"),
+        scope,
+        to,
+        toMonth: monthParam(params, "toCal"),
+        view: viewParam(params),
+      };
 
-    return htmlResponse(
-      adminLedgerPage(
-        {
-          dates,
-          filters,
-          groups: groupOptions,
-          listings: listingOptions,
-          names,
-          returnUrl: url.pathname + url.search,
-          stats: stats.rows,
-          statsHeading: stats.heading,
-          today,
-          transfers,
-          truncated,
-        },
-        session,
-      ),
-    );
-  });
+      return htmlResponse(
+        adminLedgerPage(
+          {
+            dates,
+            filters,
+            groups: groupOptions,
+            listings: listingOptions,
+            names,
+            returnUrl: url.pathname + url.search,
+            stats: stats.rows,
+            statsHeading: stats.heading,
+            today,
+            transfers,
+            truncated,
+          },
+          session,
+        ),
+      );
+    },
+  );

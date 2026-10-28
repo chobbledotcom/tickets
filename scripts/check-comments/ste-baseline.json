@@ -48,7 +48,7 @@
     "wordy": 5,
     "semicolon": 3,
     "contraction": 2,
-    "banned-modal": 6
+    "banned-modal": 5
   },
   "src/features/checkin.ts": {
     "long-sentence": 3,

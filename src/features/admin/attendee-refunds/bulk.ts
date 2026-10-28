@@ -24,10 +24,11 @@ import {
 } from "#routes/admin/refunds/provider.ts";
 import { refundReferenceProblemMessage } from "#routes/admin/refunds/readiness-problem.ts";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
-import { requireOwnerOr } from "#routes/auth.ts";
+import { pageGuardFor } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
-import { ownerFormById } from "#routes/entity.ts";
+import { entityFormById } from "#routes/entity.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { fail, ok } from "#shared/response.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -52,42 +53,45 @@ const handleAdminRefundAllGet = (
   request: Request,
   { id }: ListingRouteParams,
 ): Promise<Response> =>
-  requireOwnerOr(request, async (session) => {
-    const listing = await getListingWithCount(id);
-    if (listing === null) return notFoundResponse();
-    const flash = applyFlash(request);
-    const summary = await getRefundAllSummary(id);
-    const blocker = refundAllBlockerMessage(summary.blockedBy);
-    const { total } = summary;
-    return total === 0
-      ? htmlResponse(
-          adminRefundAllAttendeesPage(
-            listing,
-            {
-              count: 0,
-              flash: flash.error,
-              kind: "unavailable",
-              reason: t("error.no_attendees_to_refund"),
-            },
-            session,
-          ),
-          400,
-        )
-      : htmlResponse(
-          adminRefundAllAttendeesPage(
-            listing,
-            blocker === null
-              ? { count: total, flash: flash.error, kind: "available" }
-              : {
-                  count: total,
-                  flash: flash.error,
-                  kind: "unavailable",
-                  reason: blocker,
-                },
-            session,
-          ),
-        );
-  });
+  pageGuardFor(adminDestinationAt("/admin/listing/:id/refund-all"))(
+    request,
+    async (session) => {
+      const listing = await getListingWithCount(id);
+      if (listing === null) return notFoundResponse();
+      const flash = applyFlash(request);
+      const summary = await getRefundAllSummary(id);
+      const blocker = refundAllBlockerMessage(summary.blockedBy);
+      const { total } = summary;
+      return total === 0
+        ? htmlResponse(
+            adminRefundAllAttendeesPage(
+              listing,
+              {
+                count: 0,
+                flash: flash.error,
+                kind: "unavailable",
+                reason: t("error.no_attendees_to_refund"),
+              },
+              session,
+            ),
+            400,
+          )
+        : htmlResponse(
+            adminRefundAllAttendeesPage(
+              listing,
+              blocker === null
+                ? { count: total, flash: flash.error, kind: "available" }
+                : {
+                    count: total,
+                    flash: flash.error,
+                    kind: "unavailable",
+                    reason: blocker,
+                  },
+              session,
+            ),
+          );
+    },
+  );
 
 interface RefundResponseContext {
   counts: RefundCounts;
@@ -298,12 +302,15 @@ const processRefundAll = async (
   });
 };
 
-const handleAdminRefundAllPost = ownerFormById(async (id, _session, form) => {
-  const listing = await getListingWithCountPrimary(id);
-  return listing === null
-    ? notFoundResponse()
-    : processRefundAll(listing, form);
-});
+const handleAdminRefundAllPost = entityFormById(
+  "/admin/listing/:id/refund-all",
+  async (id, _session, form) => {
+    const listing = await getListingWithCountPrimary(id);
+    return listing === null
+      ? notFoundResponse()
+      : processRefundAll(listing, form);
+  },
+);
 
 /** Routes that refund every eligible attendee on a listing. */
 export const bulkRefundHandlers = defineAdminRoutes({

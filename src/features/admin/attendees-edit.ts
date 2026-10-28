@@ -6,15 +6,17 @@
  * `refund_cash` leg is what the per-row `refunded` projection reads.
  */
 
+/* jscpd:ignore-start -- imports */
 import { getFirstBooking } from "#db/attendees/queries.ts";
 import {
   getRefundPaymentReferencesForAttendee,
   type TaggedRefundPaymentReference,
 } from "#db/payment-references.ts";
 import { t } from "#i18n";
-import { AUTH_FORM, withAuth } from "#routes/auth.ts";
+import { formPolicyFor, withAuth } from "#routes/auth.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { reportRefundNotRecorded } from "#shared/invariant-errors.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -25,6 +27,8 @@ import {
   type RefreshPaymentResult,
   refreshClaimedPayment,
 } from "./refunds/refresh.ts";
+
+/* jscpd:ignore-end */
 
 type RefreshPaymentContext = {
   attendee: Attendee;
@@ -122,14 +126,20 @@ const refreshPaymentResponse = (
 export const handleRefreshPayment: TypedRouteHandler<
   "POST /admin/attendees/:attendeeId/refresh-payment"
 > = (request, { attendeeId }) =>
-  withAuth(request, AUTH_FORM, async (_session, _form) => {
-    const form = _form as FormParams;
-    const state = await loadRefreshState(attendeeId, form);
-    if (state instanceof Response) return state;
-    const { attendee, listingId, references } = state;
-    const result = await refreshClaimedPayment(
-      { attendee, references: [...references] },
-      listingId,
-    );
-    return refreshPaymentResponse(attendeeId, listingId, form, result);
-  });
+  withAuth(
+    request,
+    formPolicyFor(
+      adminDestinationAt("/admin/attendees/:attendeeId/refresh-payment"),
+    ),
+    async (_session, _form) => {
+      const form = _form as FormParams;
+      const state = await loadRefreshState(attendeeId, form);
+      if (state instanceof Response) return state;
+      const { attendee, listingId, references } = state;
+      const result = await refreshClaimedPayment(
+        { attendee, references: [...references] },
+        listingId,
+      );
+      return refreshPaymentResponse(attendeeId, listingId, form, result);
+    },
+  );

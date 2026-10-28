@@ -3,11 +3,12 @@ import { logActivity } from "#db/activity-log.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
-import { formGuard, OWNER_FORM } from "#routes/auth.ts";
+import { formGuard, formPolicyFor } from "#routes/auth.ts";
 import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
 import { notFoundResponse, redirect } from "#routes/response.ts";
 /* jscpd:ignore-end */
 import type { AdminFeatureKey } from "#shared/admin-features.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { countLabel } from "#shared/format-units.ts";
 
@@ -16,6 +17,8 @@ type ListingChoicePostConfig = {
   fieldName: string;
   label: string;
   noun: string;
+  /** The route this post serves, whose declaration names the audience. */
+  pattern: string;
   readIds?: (
     form: FormParams,
     fieldName: string,
@@ -29,13 +32,14 @@ export const createListingChoicePost = ({
   fieldName,
   label,
   noun,
+  pattern,
   readIds,
   saveIds,
   tab,
 }: ListingChoicePostConfig): IdRouteHandler =>
   createIdEntityHandler<
     NonNullable<Awaited<ReturnType<typeof getListingWithCount>>>
-  >(getListingWithCount)(formGuard(OWNER_FORM))(
+  >(getListingWithCount)(formGuard(formPolicyFor(adminDestinationAt(pattern))))(
     async (listing, _session, form, _request, { id }) => {
       if (!settings.features[feature]) return notFoundResponse();
       const ids = readIds

@@ -19,15 +19,16 @@ import {
   loadLedgerNamesForAccounts,
 } from "#routes/admin/ledger/names.ts";
 import {
-  ownerHtml,
-  ownerTypeRefHtml,
+  pageHtml,
+  pageTypeRefHtml,
 } from "#routes/admin/ledger/route-helpers.ts";
 import { accountFromRoute } from "#routes/admin/ledger/statements.ts";
-import { type AuthSession, OWNER_FORM, withAuth } from "#routes/auth.ts";
+import { type AuthSession, formPolicyFor, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import type { IdParam } from "#routes/entity.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
@@ -107,9 +108,11 @@ type OwnerLedgerFormHandler = ResponseHandler<
 >;
 
 const ownerLedgerForm = (
+  pattern: string,
   request: Request,
   handler: OwnerLedgerFormHandler,
-): Promise<Response> => withAuth(request, OWNER_FORM, handler);
+): Promise<Response> =>
+  withAuth(request, formPolicyFor(adminDestinationAt(pattern)), handler);
 
 const accountStatementPath = (account: AccountRef): string =>
   `/admin/ledger/${account.type}/${account.id}`;
@@ -170,58 +173,63 @@ const loadedEntryPage = async <Loaded>(
 };
 
 const postedTransferRoute =
-  (handler: PostedTransferHandler) =>
+  (pattern: string, handler: PostedTransferHandler) =>
   (request: Request, params: IdParam): Promise<Response> =>
-    ownerLedgerForm(request, async (_session, form) => {
+    ownerLedgerForm(pattern, request, async (_session, form) => {
       const posted = await editPostedTransfer(params.id, form);
       return posted ? handler(posted, form) : notFoundResponse();
     });
 
 export const handleLedgerEntryAddGet: TypedRouteHandler<"GET /admin/ledger/:type/:ref/add"> =
-  ownerTypeRefHtml((request, session, { type, ref }) =>
-    loadedEntryPage(
-      request,
-      loadAddableAccount(type, ref),
-      (loaded) => accountStatementPath(loaded.account),
-      (loaded, error, returnUrl) =>
-        adminLedgerEntryNewPage({
-          ...loaded,
-          error,
-          returnUrl,
-          session,
-          values: blankEntryValues(loaded.options),
-        }),
-    ),
+  pageTypeRefHtml("/admin/ledger/:type/:ref/add")(
+    (request, session, { type, ref }) =>
+      loadedEntryPage(
+        request,
+        loadAddableAccount(type, ref),
+        (loaded) => accountStatementPath(loaded.account),
+        (loaded, error, returnUrl) =>
+          adminLedgerEntryNewPage({
+            ...loaded,
+            error,
+            returnUrl,
+            session,
+            values: blankEntryValues(loaded.options),
+          }),
+      ),
   );
 
 export const handleLedgerEntryAddPost: TypedRouteHandler<
   "POST /admin/ledger/:type/:ref/add"
 > = (request, { type, ref }) =>
-  ownerLedgerForm(request, async (session, form) => {
-    const loaded = await loadAddableAccount(type, ref);
-    if (!loaded) return notFoundResponse();
-    const returnUrl = returnUrlFromForm(
-      form,
-      accountStatementPath(loaded.account),
-    );
-    const redirectUrl = ledgerEntryAddHref(loaded.account, returnUrl);
-    const parsed = defineLedgerEntryAddForm(loaded.options).validate(form);
-    if (!parsed.valid) return errorRedirect(redirectUrl, parsed.error);
-    await postManualLedgerEntry({
-      account: loaded.account,
-      amount: parsed.values.amount,
-      occurredAt: parsed.values.occurred_at,
-      postedBy: String(session.userId),
-      type: parsed.values.entry_type,
-    });
-    await logActivity("Manual ledger entry added");
-    return redirect(returnUrl, t("admin.ledger.flash.added"), true);
-  });
+  ownerLedgerForm(
+    "/admin/ledger/:type/:ref/add",
+    request,
+    async (session, form) => {
+      const loaded = await loadAddableAccount(type, ref);
+      if (!loaded) return notFoundResponse();
+      const returnUrl = returnUrlFromForm(
+        form,
+        accountStatementPath(loaded.account),
+      );
+      const redirectUrl = ledgerEntryAddHref(loaded.account, returnUrl);
+      const parsed = defineLedgerEntryAddForm(loaded.options).validate(form);
+      if (!parsed.valid) return errorRedirect(redirectUrl, parsed.error);
+      await postManualLedgerEntry({
+        account: loaded.account,
+        amount: parsed.values.amount,
+        occurredAt: parsed.values.occurred_at,
+        postedBy: String(session.userId),
+        type: parsed.values.entry_type,
+      });
+      await logActivity("Manual ledger entry added");
+      return redirect(returnUrl, t("admin.ledger.flash.added"), true);
+    },
+  );
 
 export const handleLedgerEntryEditGet: TypedRouteHandler<
   "GET /admin/ledger/entries/:id/edit"
 > = (request, { id }) =>
-  ownerHtml(request, (session) =>
+  pageHtml("/admin/ledger/entries/:id/edit", request, (session) =>
     loadedEntryPage(
       request,
       getEditableTransferById(id),
@@ -268,7 +276,7 @@ const deletePostedTransfer: PostedTransferHandler = async (posted, form) => {
 };
 
 export const handleLedgerEntryEditPost: TypedRouteHandler<"POST /admin/ledger/entries/:id/edit"> =
-  postedTransferRoute(updatePostedTransfer);
+  postedTransferRoute("/admin/ledger/entries/:id/edit", updatePostedTransfer);
 
 export const handleLedgerEntryDeletePost: TypedRouteHandler<"POST /admin/ledger/entries/:id/delete"> =
-  postedTransferRoute(deletePostedTransfer);
+  postedTransferRoute("/admin/ledger/entries/:id/delete", deletePostedTransfer);

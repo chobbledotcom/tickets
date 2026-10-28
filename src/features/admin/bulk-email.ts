@@ -35,7 +35,12 @@ import {
   handleTemplateSavePost,
   templateDelete,
 } from "#routes/admin/bulk-email-templates.ts";
-import { gatedPost, OWNER_FORM, ownerResponsePage } from "#routes/auth.ts";
+import {
+  authResponsePage,
+  formPolicyFor,
+  gatedPost,
+  pageGuardFor,
+} from "#routes/auth.ts";
 import { idRouteFor } from "#routes/entity.ts";
 import {
   errorRedirect,
@@ -43,6 +48,7 @@ import {
   notFoundResponse,
   redirectResponse,
 } from "#routes/response.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import {
   absoluteEmailImageUrls,
   buildBulkPayload,
@@ -204,7 +210,9 @@ const decryptTemplateSubjects = async (
 
 /** The flash itself is rendered by the targeted form or the Layout backstop,
  * not threaded here. */
-const handleComposeGet = ownerResponsePage(async (session, request) => {
+const handleComposeGet = authResponsePage(
+  pageGuardFor(adminDestinationAt("/admin/emails")),
+)(async (session, request) => {
   const params = new URL(request.url).searchParams;
   const target = await targetFromQuery(params);
   if (!target) return notFoundResponse();
@@ -258,6 +266,7 @@ const handleComposeGet = ownerResponsePage(async (session, request) => {
 
 /** POST /admin/emails/preview — validate, persist the draft, redirect to preview. */
 const handlePreviewPost = validatedEmailPost(
+  "/admin/emails/preview",
   async ({ body, marketing, subject, target }) => {
     await saveDraft({ body, marketing, subject, target });
     return ok(PREVIEW_PATH, t("bulk_email.review_before_sending"));
@@ -265,7 +274,9 @@ const handlePreviewPost = validatedEmailPost(
 );
 
 /** GET /admin/emails/preview — render the saved draft for confirmation. */
-const handlePreviewGet = ownerResponsePage(async (session) => {
+const handlePreviewGet = authResponsePage(
+  pageGuardFor(adminDestinationAt("/admin/emails/preview")),
+)(async (session) => {
   const privateKey = await requireRequestPrivateKey();
   const draft = await parseSavedDraft(privateKey);
   if (!draft) return redirectResponse(COMPOSE_PATH);
@@ -314,7 +325,9 @@ const handlePreviewGet = ownerResponsePage(async (session) => {
 });
 
 /** POST /admin/emails/send — send the saved draft via the bulk provider. */
-const handleSendPost = gatedPost(OWNER_FORM)(async (_session, _form) => {
+const handleSendPost = gatedPost(
+  formPolicyFor(adminDestinationAt("/admin/emails/send")),
+)(async (_session, _form) => {
   const draft = await parseSavedDraft(await requireRequestPrivateKey());
   if (!draft) {
     return errorRedirect(COMPOSE_PATH, t("bulk_email.no_draft"));

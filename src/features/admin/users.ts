@@ -38,14 +38,14 @@ import {
 } from "#routes/admin/entity-pages.ts";
 import {
   type AuthSession,
-  OWNER_FORM,
-  ownerPage,
-  requireOwnerOr,
+  authPage,
+  formPolicyFor,
+  pageGuardFor,
 } from "#routes/auth.ts";
-import { idRouteFor, ownerFormById } from "#routes/entity.ts";
+import { entityFormById, idRouteFor } from "#routes/entity.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
-import { adminPattern } from "#shared/admin-surface.ts";
+import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { getFlash } from "#shared/flash-context.ts";
@@ -201,7 +201,7 @@ const userPageOpts = (
  * Handle GET /admin/users
  */
 const handleUsersGet: TypedRouteHandler<"GET /admin/users"> = (request) =>
-  requireOwnerOr(request, async (session) =>
+  pageGuardFor(adminDestinationAt("/admin/users"))(request, async (session) =>
     htmlResponse(
       await renderUsersPage(session, {
         ...userPageOpts(session),
@@ -285,13 +285,15 @@ const handleUserManageGet: TypedRouteHandler<"GET /admin/users/:id"> =
 /**
  * Handle GET /admin/user/new - show invite user form
  */
-const handleUserNewGet = ownerPage(async (session) =>
+const handleUserNewGet = authPage(
+  pageGuardFor(adminDestinationAt("/admin/user/new")),
+)(async (session) =>
   adminUserNewPage(session, await loadAssignableAgents(), getFlash().error),
 );
 
 /** Handle POST /admin/users - create invited user */
 const handleUsersPost = createAuthedFormRoute<InviteUserFormValues>({
-  auth: OWNER_FORM,
+  auth: formPolicyFor(adminDestinationAt("/admin/users")),
   form: {
     validate: (form) => getInviteUserForm().validate(form),
   },
@@ -349,7 +351,7 @@ const handleUserAgentsGet: TypedRouteHandler<"GET /admin/users/:id/agents"> =
 
 /** Handle POST /admin/users/:id/agents - save an agent user's logistics agents */
 const handleUserAgentsPost: TypedRouteHandler<"POST /admin/users/:id/agents"> =
-  ownerFormById(async (id, session, form) => {
+  entityFormById("/admin/users/:id/agents", async (id, session, form) => {
     const user = await loadDisplayUser(id);
     if (!user) {
       return usersErrorResponse(session, t("error.user_not_found"), 404);

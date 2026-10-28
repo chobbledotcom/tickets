@@ -31,16 +31,16 @@ import {
 } from "#routes/admin/confirmation.ts";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import {
+  authPage,
   formGuard,
-  OWNER_FORM,
-  ownerPage,
-  requireOwnerOr,
+  formPolicyFor,
+  pageGuardFor,
 } from "#routes/auth.ts";
 import {
   createEntityHandler,
+  entityPageById,
   idRouteFor,
   orNotFound,
-  ownerGetById,
   throughParent,
 } from "#routes/entity.ts";
 import {
@@ -49,6 +49,7 @@ import {
   redirect,
   redirectToDetail,
 } from "#routes/response.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import {
   createAuthedFormRoute,
   createOrderedCollectionHandlers,
@@ -78,7 +79,9 @@ import {
 
 /* jscpd:ignore-end */
 
-const handleAttributesGet = ownerPage(async (session) => {
+const handleAttributesGet = authPage(
+  pageGuardFor(adminDestinationAt("/admin/attributes")),
+)(async (session) => {
   const flash = getFlash();
   return adminAttributesPage(
     await getAllAttributesWithOptions(),
@@ -88,7 +91,7 @@ const handleAttributesGet = ownerPage(async (session) => {
 });
 
 const handleAttributesPost = createAuthedFormRoute({
-  auth: OWNER_FORM,
+  auth: formPolicyFor(adminDestinationAt("/admin/attributes")),
   form: attributeNameForm,
   onInvalid: ({ error }) => errorRedirect("/admin/attributes", error),
   onValid: async ({ values: { name } }) => {
@@ -121,7 +124,8 @@ const loadAttributeListingUse = async (attributeId: number) => {
   };
 };
 
-const handleAttributeGet = ownerGetById(
+const handleAttributeGet = entityPageById(
+  "/admin/attributes/:id",
   getAttributeWithOptions,
   async (attribute, session) => {
     const { listingCounts, rowsFor } = await loadAttributeListingUse(
@@ -205,7 +209,7 @@ const handleAttributeEdit = createAuthedFormRoute<
   { name: string },
   AttributeParams
 >({
-  auth: OWNER_FORM,
+  auth: formPolicyFor(adminDestinationAt("/admin/attributes/:id/edit")),
   form: attributeNameForm,
   onInvalid: redirectToAttribute,
   onValid: ({ params, values: { name } }) =>
@@ -224,7 +228,7 @@ const handleAddOption = createAuthedFormRoute<
   { text: string },
   AttributeParams
 >({
-  auth: OWNER_FORM,
+  auth: formPolicyFor(adminDestinationAt("/admin/attributes/:id/options")),
   form: attributeOptionForm,
   onInvalid: redirectToAttribute,
   onValid: ({ params, values: { text } }) =>
@@ -267,8 +271,18 @@ const attributeOptionHandler = createEntityHandler<
   AttributeOptionContext
 >(loadAttributeOption);
 const attributeOptionHandlers = {
-  get: attributeOptionHandler(requireOwnerOr),
-  post: attributeOptionHandler(formGuard(OWNER_FORM)),
+  get: attributeOptionHandler(
+    pageGuardFor(
+      adminDestinationAt("/admin/attributes/:id/options/:optionId/delete"),
+    ),
+  ),
+  post: attributeOptionHandler(
+    formGuard(
+      formPolicyFor(
+        adminDestinationAt("/admin/attributes/:id/options/:optionId/delete"),
+      ),
+    ),
+  ),
 };
 
 const handleDeleteOptionGet = attributeOptionHandlers.get(
@@ -310,7 +324,9 @@ const handleDeleteOptionPost = createVerifiedFormRoute<
   AttributeOptionContext
 >({
   actionLabel: "deletion",
-  auth: OWNER_FORM,
+  auth: formPolicyFor(
+    adminDestinationAt("/admin/attributes/:id/options/:optionId/delete"),
+  ),
   identifier: ({ option }) => option.text,
   identifierLabel: () => t("attributes.option_label"),
   loadContext: loadAttributeOption,
@@ -329,7 +345,9 @@ const handleEditOptionPost = createAuthedFormRoute<
   AttributeOptionParams,
   AttributeOptionContext
 >({
-  auth: OWNER_FORM,
+  auth: formPolicyFor(
+    adminDestinationAt("/admin/attributes/:id/options/:optionId/edit"),
+  ),
   form: attributeOptionForm,
   loadContext: loadAttributeOption,
   onInvalid: ({ error, params }) =>
@@ -345,7 +363,9 @@ const handleEditOptionPost = createAuthedFormRoute<
 });
 
 const optionOrder = createOrderedCollectionHandlers({
-  auth: OWNER_FORM,
+  auth: formPolicyFor(
+    adminDestinationAt("/admin/attributes/:id/options/:optionId/move-up"),
+  ),
   keys: ({ context }) => context.attribute.options.map((item) => item.id),
   loadContext: loadAttributeOption,
   movedMessage: "Option moved",
@@ -358,7 +378,7 @@ const optionOrder = createOrderedCollectionHandlers({
 });
 
 const attributeOrder = createOrderedCollectionHandlers({
-  auth: OWNER_FORM,
+  auth: formPolicyFor(adminDestinationAt("/admin/attributes/:id/move-up")),
   keys: getAttributeIdsOrdered,
   loadContext: ({ id }: AttributeParams) => getAttributeId(id),
   movedMessage: "Attribute moved",
@@ -372,6 +392,7 @@ const handleListingAttributesPost = createListingChoicePost({
   fieldName: "option_ids",
   label: "Attributes",
   noun: "option",
+  pattern: "/admin/listing/:id/attributes",
   readIds: async (form, fieldName) =>
     attributeOptionIdsIn(await form.getNumberArray(fieldName)),
   saveIds: listingAttributeOptions.setIds,

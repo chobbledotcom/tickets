@@ -8,8 +8,15 @@ import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import { hasRecentBackup } from "#db/backup-storage.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
-import { OWNER_FORM, ownerPage, withAuth } from "#routes/auth.ts";
+/* jscpd:ignore-start -- imports */
+import {
+  authPage,
+  formPolicyAt,
+  pageGuardFor,
+  withAuth,
+} from "#routes/auth.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#shared/build-info.ts";
 import {
   getBunnyScriptId,
@@ -32,6 +39,8 @@ import {
   adminUpdatePage,
   type UpdatePageState,
 } from "#templates/admin/update.tsx";
+
+/* jscpd:ignore-end */
 
 const UPDATE_PATH = "/admin/update";
 
@@ -62,7 +71,9 @@ const getUpdatePageState = (): UpdatePageState => {
 };
 
 /** GET /admin/update — show current version and update status */
-const handleUpdateGet = ownerPage((session) => {
+const handleUpdateGet = authPage(
+  pageGuardFor(adminDestinationAt("/admin/update")),
+)((session) => {
   const flash = getFlash();
   return adminUpdatePage(
     session,
@@ -114,7 +125,8 @@ const deployUpdate = async (): Promise<Response> => {
 
 export const adminHandlers = defineAdminRoutes({
   "GET /admin/update": handleUpdateGet,
-  "POST /admin/update": (r: Request) => withAuth(r, OWNER_FORM, deployUpdate),
+  "POST /admin/update": (r: Request) =>
+    withAuth(r, formPolicyAt("/admin/update"), deployUpdate),
   "POST /admin/update/check": (r: Request) =>
-    withAuth(r, OWNER_FORM, checkForUpdate),
+    withAuth(r, formPolicyAt("/admin/update/check"), checkForUpdate),
 });
