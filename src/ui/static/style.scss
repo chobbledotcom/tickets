@@ -2035,11 +2035,13 @@ button.secondary:hover,
   font-size: 0.95em;
 }
 
-/* The listing description markdown can embed a picture (a poster, a map).
-   Constrain it to the container so it never spills out of the card or row. */
+/* Rendered markdown can embed a picture (a poster, a map). Constrain it to
+   its container so it never spills out of the card, the row, or the prose
+   block. */
 .ticket-card-description img,
 .description img,
-.description-compact img {
+.description-compact img,
+.prose img {
   max-width: 100%;
 }
 

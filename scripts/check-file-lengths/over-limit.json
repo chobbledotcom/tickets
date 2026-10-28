@@ -13,7 +13,7 @@
   "src/shared/payment/refund-machine-spec.ts": 534,
   "src/shared/storage.ts": 534,
   "src/shared/types.ts": 783,
-  "src/ui/static/style.scss": 3182,
+  "src/ui/static/style.scss": 3184,
   "test/features/admin/debug/server.test.ts": 667,
   "test/fp/collections.test.ts": 515,
   "test/integration/bunny-cdn/domain.test.ts": 584,

@@ -250,8 +250,9 @@ describeWithEnv(
           "/style.css",
           "text/css; charset=utf-8",
           (css) => {
-            // A listing description's markdown image (a poster, a map) must not
-            // spill out of the ticket card, the header, or a listing row.
+            // A description's markdown image (a poster, a map) must not
+            // spill out of the ticket card, the header, a listing row, or
+            // the prose block.
             expect(
               styleOf(css, ".ticket-card-description img")["max-width"],
             ).toBe("100%");
@@ -259,6 +260,7 @@ describeWithEnv(
             expect(styleOf(css, ".description-compact img")["max-width"]).toBe(
               "100%",
             );
+            expect(styleOf(css, ".prose img")["max-width"]).toBe("100%");
           },
         );
       });
