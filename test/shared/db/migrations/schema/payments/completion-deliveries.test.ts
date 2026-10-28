@@ -24,7 +24,7 @@ describe("the messages sent after a payment", () => {
   test("demands the message be hidden, because it holds the buyer's details", () => {
     // Name, email, phone and address travel in here, so the table refuses a
     // plain one rather than trusting every writer to hide it.
-    assertStringIncludes(column("data"), "GLOB 'enc:1:?*:?*'");
+    assertStringIncludes(column("data"), "GLOB 'hyb:1:?*:?*:?*'");
     assertStringIncludes(column("data"), "TEXT NOT NULL");
   });
 
@@ -59,11 +59,27 @@ describeWithEnv("db > message rules", { db: true }, () => {
       (payment_id, delivery_key, data)
       VALUES ('pay_1', '${key}', ${data})`;
 
-  test("refuses a message left in plain words", async () => {
-    await expectRefused(aMessage("plain", "'Jane Smith'"));
+  for (const [name, data] of [
+    ["left in plain words", "'Jane Smith'"],
+    ["held under the database owner's key", "'enc:1:a:b'"],
+    ["behind an upper-case envelope", "'HYB:1:a:b:c'"],
+    ["wearing an envelope with nothing in it", "'hyb:1:Jane Smith'"],
+  ] as const) {
+    test(`refuses a message ${name}`, async () => {
+      await expectRefused(aMessage("plain", data));
+    });
+  }
+
+  test("refuses a message that is bytes only reading like an envelope", async () => {
+    await expectRefused({
+      args: [new TextEncoder().encode("hyb:1:a:b:c")],
+      sql: `INSERT INTO payment_completion_deliveries
+        (payment_id, delivery_key, data)
+        VALUES ('pay_1', 'bytes', ?)`,
+    });
   });
 
   test("accepts a message that is hidden", async () => {
-    await expectAccepted(aMessage("hidden", "'enc:1:a:b'"));
+    await expectAccepted(aMessage("hidden", "'hyb:1:a:b:c'"));
   });
 });

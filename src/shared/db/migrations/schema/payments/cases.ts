@@ -1,5 +1,5 @@
 import {
-  encryptedPaymentColumn,
+  ownerEncryptedPaymentColumn,
   paymentRecord,
   wholeNumber,
   wholeNumberOrNull,
@@ -9,7 +9,7 @@ import {
 
 export const paymentCaseTable = paymentRecord("payment_cases", {
   columns: [
-    ["resource", encryptedPaymentColumn("resource")],
+    ["resource", ownerEncryptedPaymentColumn("resource")],
     ["resource_index", words()],
     ["reason", words()],
     ["state", words()],
@@ -25,7 +25,7 @@ export const paymentCaseTable = paymentRecord("payment_cases", {
     // send the owner the same alert.
     ["alert_lease_token", wordsOrNull()],
     ["alert_lease_expires_at", wholeNumberOrNull()],
-    ["evidence", encryptedPaymentColumn("evidence")],
+    ["evidence", ownerEncryptedPaymentColumn("evidence")],
     ["evidence_redacted_at", wholeNumberOrNull()],
     ["revision", wholeNumber(1)],
     ["resolved_at", wholeNumberOrNull()],

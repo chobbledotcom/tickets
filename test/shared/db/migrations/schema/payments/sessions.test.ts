@@ -12,10 +12,10 @@ import {
 const COLUMNS =
   "id, origin, provider, mode, account_id, expected_amount, expected_currency, booking_intent, session_resource, session_reference_index, state, revision, created_at, updated_at, result_state, ticket_state, completion_state";
 
-const aPayment = (id: string, index: string, intent = "'enc:1:a:b'") =>
+const aPayment = (id: string, index: string, intent = "'hyb:1:a:b:c'") =>
   `INSERT INTO payment_sessions (${COLUMNS})
     VALUES ('${id}', 'current', 'stripe', 'test', 'acct', 100, 'GBP',
-      ${intent}, 'enc:1:a:b', '${index}', 'pending', 1, 1, 1,
+      ${intent}, 'hyb:1:a:b:c', '${index}', 'pending', 1, 1, 1,
       'none', 'none', 'none')`;
 
 test("is what a payment itself is made of", () => {
@@ -70,8 +70,9 @@ describeWithEnv("db > payment session rules", { db: true }, () => {
   // because it checks what landed rather than what the code meant to write.
   for (const [name, intent] of [
     ["in plain words", "'Jane Smith'"],
-    ["behind an upper-case envelope", "'ENC:1:a:b'"],
-    ["wearing an envelope with nothing in it", "'enc:1:Jane Smith'"],
+    ["under the database owner's key", "'enc:1:a:b'"],
+    ["behind an upper-case envelope", "'HYB:1:a:b:c'"],
+    ["wearing an envelope with nothing in it", "'hyb:1:Jane Smith'"],
   ] as const) {
     test(`refuses a booking held ${name}`, async () => {
       await expectRefused(aPayment("plain", "plain-index", intent));
@@ -80,12 +81,16 @@ describeWithEnv("db > payment session rules", { db: true }, () => {
 
   test("refuses a booking that is bytes only reading like an envelope", async () => {
     await expectRefused({
-      args: [new TextEncoder().encode("enc:1:a:b")],
+      args: [new TextEncoder().encode("hyb:1:a:b:c")],
       sql: `INSERT INTO payment_sessions (${COLUMNS})
         VALUES ('bytes', 'current', 'stripe', 'test', 'acct', 100, 'GBP',
-          ?, 'enc:1:a:b', 'bytes-index', 'pending', 1, 1, 1,
+          ?, 'hyb:1:a:b:c', 'bytes-index', 'pending', 1, 1, 1,
           'none', 'none', 'none')`,
     });
+  });
+
+  test("accepts a booking held behind the owner's key", async () => {
+    await expectAccepted(aPayment("hidden-ok", "hidden-index"));
   });
 
   test("starts a payment at version one when the write does not say", async () => {
