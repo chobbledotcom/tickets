@@ -1738,8 +1738,6 @@
     "long-sentence": 1
   },
   "src/ui/templates/admin/logistics.tsx": {
-    "long-sentence": 1,
-    "contraction": 1,
     "semicolon": 1
   },
   "src/ui/templates/admin/migrate.tsx": {

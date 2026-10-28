@@ -6,7 +6,7 @@ import { Raw, type SafeHtml } from "#jsx/jsx-runtime.ts";
 import { adminDestinationAllowed, adminPath } from "#shared/admin-surface.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { isReadOnly } from "#shared/env.ts";
-import { defineTable } from "#shared/tables/definition.ts";
+import type { TableColumn } from "#shared/tables/column.ts";
 import {
   editPanel,
   flashFormPage,
@@ -19,12 +19,10 @@ import {
 } from "#templates/admin/ledger/statement.tsx";
 import { MoneyAdjustSection } from "#templates/admin/money-adjust-section.tsx";
 import { guideFooterFor } from "#templates/components/actions.tsx";
-import { itemsOrEmptyNote } from "#templates/components/reorder-list.tsx";
 import {
   SaveForm,
   saveFormComponent,
 } from "#templates/components/save-form.tsx";
-import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import { getModifierForm } from "#templates/fields/modifier.ts";
 import type { AdminSession, Modifier } from "#types";
@@ -107,7 +105,7 @@ const ModifierFieldsForm = saveFormComponent<
   submitLabel: t("common.save_changes"),
 }));
 
-const modifiersTable = defineTable<Modifier, AdminSession>([
+const modifierColumns: readonly TableColumn<Modifier, AdminSession>[] = [
   translatedTableColumn("name", "common.name", (modifier, session) =>
     adminDestinationAllowed(
       "modifierEdit",
@@ -144,19 +142,18 @@ const modifiersTable = defineTable<Modifier, AdminSession>([
     header: () => t("modifiers.revenue_column"),
     key: "revenue",
   },
-]);
+];
 
-export const adminModifiersPage = successListPage<Modifier[]>(
+export const adminModifiersPage = successListPage<Modifier, AdminSession>(
   "terms.modifiers",
   "/admin/modifiers",
-  (modifiers, session) => (
-    <>
-      {itemsOrEmptyNote(modifiers, t("modifiers.no_modifiers"), (rows) =>
-        renderTable(modifiersTable, rows, { context: session }),
-      )}
-      <ModifiersGuideFooter />
-    </>
-  ),
+  (modifiers, session) => ({
+    columns: modifierColumns,
+    context: session,
+    empty: <p>{t("modifiers.no_modifiers")}</p>,
+    guideFooter: ModifiersGuideFooter(),
+    items: modifiers,
+  }),
 );
 
 export const adminModifierNewPage = flashFormPage(

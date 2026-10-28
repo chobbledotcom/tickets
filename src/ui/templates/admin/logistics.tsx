@@ -5,9 +5,9 @@
  * simple id + name list with add / edit / remove). Logistics listings surface
  * start and end agent selectors on their attendees.
  *
- * The main settings page is hand-rolled (its has-logistics toggle + inline
- * agents list + add form don't fit the standard resource list shell), but the
- * agent create/delete pages go through {@link defineAdminResourcePages}. The
+ * The main settings page opens through the AdminPageSpec list facet. Its
+ * agents article frames the table and the inline add form. The agent
+ * create/delete pages go through {@link defineAdminResourcePages}. The
  * edit form is a panel in the logistics-agent entity page.
  */
 
@@ -19,7 +19,6 @@ import { adminPath, adminPattern } from "#shared/admin-surface.ts";
 import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
 import { entityToFieldValues } from "#shared/forms/values.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
-import { defineTable } from "#shared/tables/definition.ts";
 import {
   recordEditPanel,
   successListPage,
@@ -29,7 +28,7 @@ import {
   defineAdminResourcePages,
 } from "#templates/admin/resource-pages.tsx";
 import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
-import { GuideFooter } from "#templates/components/actions.tsx";
+import { guideFooterFor } from "#templates/components/actions.tsx";
 import {
   CheckboxFieldset,
   CheckboxLabel,
@@ -37,7 +36,6 @@ import {
 } from "#templates/components/aggregate-sections.tsx";
 import { ProseArticle } from "#templates/components/prose-article.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
-import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import { logisticsAgentForm } from "#templates/fields/listing.ts";
 import type { AdminLevel, LogisticsAgent } from "#types";
@@ -53,52 +51,44 @@ const agentColumns: TableColumn<LogisticsAgent>[] = [
   )),
 ];
 
-/** The logistics-agents list with inline add form (shown when logistics is on). */
-const AgentsSection = ({
-  agents,
-}: {
-  agents: LogisticsAgent[];
-}): JSX.Element => (
-  <ProseArticle
-    heading={<h2>{t("logistics.agents_heading")}</h2>}
-    prose={<p>{t("logistics.agents_hint")}</p>}
-  >
-    {agents.length === 0 ? (
-      <p>{t("logistics.no_agents_yet")}</p>
-    ) : (
-      renderTable(defineTable(agentColumns), agents)
-    )}
-    <WritableOnly>
-      <SaveForm
-        action={adminPattern("logistics")}
-        submitIcon="plus"
-        submitLabel={t("logistics.add_agent")}
-      >
-        <SectionFieldset
-          className="listing-section"
-          legend={t("logistics.add_agent")}
-        >
-          <Raw html={logisticsAgentForm.render()} />
-        </SectionFieldset>
-      </SaveForm>
-    </WritableOnly>
-  </ProseArticle>
-);
-
 /**
- * Admin logistics settings page with logistics-agent management.
+ * Admin logistics settings page with logistics-agent management: the agents
+ * article frames the list, with the inline add form under it.
  */
-export const adminLogisticsPage = successListPage<LogisticsAgent[]>(
+export const adminLogisticsPage = successListPage<LogisticsAgent>(
   "logistics.title",
   adminPattern("logistics"),
-  (agents) => (
-    <>
-      <AgentsSection agents={agents} />
-      <GuideFooter href={`${adminPattern("guide")}#logistics`}>
-        {t("logistics.guide_link")}
-      </GuideFooter>
-    </>
-  ),
+  (agents) => ({
+    columns: agentColumns,
+    empty: <p>{t("logistics.no_agents_yet")}</p>,
+    frame: (section) => (
+      <ProseArticle
+        heading={<h2>{t("logistics.agents_heading")}</h2>}
+        prose={<p>{t("logistics.agents_hint")}</p>}
+      >
+        {section}
+        <WritableOnly>
+          <SaveForm
+            action={adminPattern("logistics")}
+            submitIcon="plus"
+            submitLabel={t("logistics.add_agent")}
+          >
+            <SectionFieldset
+              className="listing-section"
+              legend={t("logistics.add_agent")}
+            >
+              <Raw html={logisticsAgentForm.render()} />
+            </SectionFieldset>
+          </SaveForm>
+        </WritableOnly>
+      </ProseArticle>
+    ),
+    guideFooter: guideFooterFor(
+      `${adminPattern("guide")}#logistics`,
+      "logistics.guide_link",
+    ),
+    items: agents,
+  }),
 );
 
 /** Logistics agent create/edit form values. */
