@@ -110,6 +110,21 @@ const lazyRouter = <M>(
 ): (() => Promise<RouterFn>) =>
   once(async () => createRouter(routes(await load())));
 
+/** Lazy-load a module that names one GET and one POST handler for a public
+ * page, and mount them under the given path. */
+const getPostRoutes = <Module extends Record<string, RouteHandlerFn>>(
+  load: () => Promise<Module>,
+  getKey: keyof Module & string,
+  postKey: keyof Module & string,
+  path: string,
+): (() => Promise<RouterFn>) =>
+  lazyRouter(load, (module) =>
+    defineRoutes({
+      [`GET /${path}`]: module[getKey]!,
+      [`POST /${path}`]: module[postKey]!,
+    }),
+  );
+
 // Handlers loaded on demand by the custom prefix handlers below (not lazy
 // prefix routers, so they stay out of the LAZY_PREFIXES table).
 const loadPublicPages = once(() => import("#routes/public/pages.ts"));
@@ -178,13 +193,11 @@ const PREFIX_LOADERS = {
   ),
   pay: lazyExport(() => import("#routes/public/balance.ts"), "routeBalance"),
   payment: lazyExport(() => import("#routes/api/webhooks.ts"), "routePayment"),
-  renew: lazyRouter(
+  renew: getPostRoutes(
     () => import("#routes/public/renewal.ts"),
-    ({ handleRenewalGet, handleRenewalPost }) =>
-      defineRoutes({
-        "GET /renew": handleRenewalGet,
-        "POST /renew": handleRenewalPost,
-      }),
+    "handleRenewalGet",
+    "handleRenewalPost",
+    "renew",
   ),
   sms: lazyExport(
     () => import("#routes/api/sms-webhook.ts"),
@@ -192,13 +205,11 @@ const PREFIX_LOADERS = {
   ),
   t: lazyExport(() => import("#routes/tickets/index.ts"), "routeTicketView"),
   ticket: ticketLoader,
-  unsubscribe: lazyRouter(
+  unsubscribe: getPostRoutes(
     () => import("#routes/public/unsubscribe.ts"),
-    ({ handleUnsubscribeGet, handleUnsubscribePost }) =>
-      defineRoutes({
-        "GET /unsubscribe": handleUnsubscribeGet,
-        "POST /unsubscribe": handleUnsubscribePost,
-      }),
+    "handleUnsubscribeGet",
+    "handleUnsubscribePost",
+    "unsubscribe",
   ),
   v1: lazyExport(
     () => import("#routes/wallet/webservice.ts"),

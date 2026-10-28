@@ -71,7 +71,7 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
     ) =>
     async (input: Record<string, string>): Promise<Output> =>
       read(
-        await get(`/v2/${resource}/${encodeURIComponent(input[idField])}`),
+        await get(`/v2/${resource}/${encodeURIComponent(input[idField]!)}`),
       );
 
   return {
