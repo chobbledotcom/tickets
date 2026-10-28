@@ -94,14 +94,20 @@ export const wordingKeptFor = readsAnEmail((which) =>
  * be the owner's words mixed into the site's. */
 export const SITES_OWN_WORDING: EmailContent = threeParts(() => "");
 
+/** What every box on one template's form would send, read off that form. */
+type ReadsTheEmailBoxes = (
+  world: TicketsWorld,
+  which: EmailTemplateType,
+) => Promise<EmailContent>;
+
 /** What every box on one template's form would send right now, read the way a
  * browser submits it. The claim is that the boxes are empty: a page that
  * prefilled one with the site's own wording would store that wording as the
  * owner's the first time they pressed Save. */
-export const wordingTheBoxesWouldSend = async (
-  world: TicketsWorld,
-  which: EmailTemplateType,
-): Promise<EmailContent> => {
+export const wordingTheBoxesWouldSend: ReadsTheEmailBoxes = async (
+  world,
+  which,
+) => {
   const page = await openAdminPage(world, ADVANCED_PATH);
   return threeParts((part) => {
     const sent = page.wouldSendAt(savePathFor(which), part);

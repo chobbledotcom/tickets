@@ -1,13 +1,13 @@
 # Duplication limits for the test helpers: what each step down costs
 
-This measured how tightly jscpd can scan the two test helper trees, priced every
-setting we can choose, and records the decision taken and what is left to do.
+This document records the duplication limits for the test helper trees, the
+reason each limit holds, and the cost of the remaining steps.
 
 **Decided and shipped.** The reusable helpers under `test/test-utils` are
 scanned at **40 tokens**, alongside `src/`, by `.jscpd.helpers.json`. The
 Cucumber support helpers under `test/specs/support` are scanned twice: at **19
-tokens** alongside `src/`, and at **17 tokens** on their own by
-`.jscpd.support.json`. See [Where we are](#where-we-are) for the remaining
+tokens** alongside `src/`, and at **15 tokens** on their own by
+`.jscpd.support.json`. See [What is left](#what-is-left) for the remaining
 steps.
 
 All counts come from commit `ebc7c12` and from jscpd 5.0.12 with `minLines: 1`,
@@ -25,7 +25,7 @@ lower number is a tighter net.
 | --------------------- | -------------------------------- | --------- |
 | `.jscpd.json`         | `src`, `e2e-payments`, `scripts` | 19        |
 | `.jscpd.specs.json`   | `src` + `test/specs/support`     | 19        |
-| `.jscpd.support.json` | `test/specs/support`             | 17        |
+| `.jscpd.support.json` | `test/specs/support`             | 15        |
 | `.jscpd.helpers.json` | `src` + `test/test-utils`        | 40        |
 | `.jscpd.test.json`    | `test`                           | 48        |
 | `.jscpd.css.json`     | `src/ui/static/style.scss`       | 50        |
@@ -51,72 +51,11 @@ A test body is different. It repeats by design, and the shared mechanism is the
 test framework itself. That is why the whole of `test/` sits at 48 tokens, and
 why the helper trees can be held tighter than the tree that contains them.
 
-## What a helper tree costs at each setting
+## The support helpers hold at 15 tokens
 
-### The Cucumber helpers hold at 19 until the curries land
-
-`test/specs/support` reports no clones at 19 tokens. Below that the count rises
-steeply:
-
-| minTokens | Clone pairs |
-| --------- | ----------- |
-| 19        | 0           |
-| 16        | 75          |
-| 14        | 238         |
-| 12        | 444         |
-| 10        | 823         |
-
-**An earlier version of this document called the pairs at 16 tokens noise, and
-called 19 a floor. That was wrong.** The reasoning is recorded here so that it
-is not repeated. It rested on a sample of eight pairs, and on one argument: that
-a wrapper like this one is already a single call to the shared `openAdminPage`,
-so the merge exists.
-
-```typescript
-const openKeysPage = (world: TicketsWorld): Promise<TestBrowser> =>
-  openAdminPage(world, KEYS_PAGE);
-```
-
-The shared call is not what repeats. The wrapper shape repeats, and a curry
-takes it. `browser.ts` already holds that curry:
-
-```typescript
-const openKeysPage = opensAdminPageAt(KEYS_PAGE);
-```
-
-A classification of all 78 pairs, rather than eight, gives this:
-
-| At 16 tokens, the two sides…               | Pairs |
-| ------------------------------------------ | ----- |
-| call a shared helper — a curry takes them  | 46    |
-| share only an assertion helper             | 5     |
-| match on the signature and the types alone | 27    |
-
-The 46 are merges. The 27 are the honest exception: two unrelated bodies behind
-the same `(world: TicketsWorld, name: string)` parameter list. A named type for
-that signature removes the repetition, and `ActOnOneThing` in
-`test/specs/support/world.ts` is that type already.
-
-### The factories exist, and the pairs mark who never adopted them
-
-Every family the 46 fall into has a factory in `test/specs/support/browser.ts`
-written for it. The pairs pile up at the call sites that hand-rolled the factory
-instead:
-
-| Factory                   | Files that use it | Sites that hand-roll it |
-| ------------------------- | ----------------- | ----------------------- |
-| `opensAdminPageAt`        | 2                 | 4, now 0                |
-| `withAdminPage`           | 1                 | about 21                |
-| `submitRenderedAdminForm` | 2                 | 9                       |
-
-This is why the band read as noise. An under-adopted curry looks exactly like
-unavoidable duplication, because the pairs cluster where the curry is absent.
-
-### The remaining limit is the config, not the helpers
-
-`.jscpd.specs.json` scans `src/` alongside the support helpers, so a helper that
-reimplements production logic is flagged against the source it copied. `src/` is
-clean at 19 and cannot go below it:
+The shared scan `.jscpd.specs.json` reads `src/` alongside the support helpers,
+so a helper that reimplements production logic is flagged against the source it
+copied. `src/` is clean at 19 and cannot go below it:
 
 | minTokens | Clone pairs in `src/` alone |
 | --------- | --------------------------- |
@@ -126,103 +65,65 @@ clean at 19 and cannot go below it:
 
 So the number in _that_ config cannot come down. The support helpers therefore
 get a second scan of their own, `.jscpd.support.json`, which drops `src/` and
-holds them at 17. **19 is where the shared config sits, not where the helpers
+holds them at 15. **19 is where the shared config sits, not where the helpers
 have to stay.**
 
-### What the curries cost, and where the helpers are now
+Read a whole band before you lower a limit. A small sample can call a band
+noise while the full band marks an under-adopted curry. At 16 tokens, a sample
+of eight pairs read the band as noise. A classification of all 78 pairs found
+46 merges behind a curry that `browser.ts` already holds. The other 32 pairs
+were 5 pairs that share only an assertion helper and 27 pairs that match on the
+signature and the types alone.
 
-Every family the 46 fell into was merged. The counts, measured after each step:
+### The named step types in `world.ts`
 
-| minTokens | Pairs before | Pairs now |
-| --------- | ------------ | --------- |
-| 19        | 0            | 0         |
-| 18        | —            | 0         |
-| 17        | 9            | 0         |
-| 16        | 78           | 11        |
+Two unrelated bodies behind the same `(world: TicketsWorld, name: string)`
+parameter list are the honest exception. The repetition is the parameter list
+itself, and a named type removes it. `ActOnOneThing`, `ReadAboutOneThing`,
+`AsksAboutOneThing`, and `ActOnTheStory` in `world.ts` name the common
+parameter lists. `ActsOnPersonsBooking` and the `StoryJourney`-derived shapes
+cover the booking and messaging signatures.
 
-The merges, in the order they landed: `opensAdminPageAt` adopted at the four
-files that hand-rolled it; `withAdminPage` widened to carry a result back and
-adopted at seven; `keepsWhatTheOrganiserSaw` and `visiting` in `browser.ts`;
-`forThisScenario` in `world.ts`; `organiserSavesFields`; the reader's presses,
-the erase form and Refund All curried; the named step types `ActOnOneThing`,
-`ReadAboutOneThing`, `AsksAboutOneThing` adopted at 31 helpers and the new
-`ActOnTheStory` at nine more; `emailFor` moved out of `tickets.ts`;
-`newcomerSends`, `recordPageUnder`, `wordsOnPageFrom`, `expectAccepted`,
-`savesServedForm`, `expectNotBooked`; and the named shapes `PageRead`,
-`StoredCounts`, `LineWithoutItsThing`, `FillsInServedForm` and
-`SavesNamedThingsForm`.
+### The one helper for each repeated thing
 
-The step down to 17 cleared nine pairs:
-
-- The admins that opened a listing page went through `openAdminPage` or
-  `withAdminPage` instead of spelling out `adminBrowser` and `visit`.
-- `expectPartOnSaleAlone` stopped re-reading the listing it had just opened.
-- The second choice question became `askingAnother(ownerAsksChoiceQuestion)`.
-- The duplicated `somethingForSale` became one helper in `listings.ts` with a
-  `ForSaleOptions` shape.
-- The email wording helpers merged into one `ownerWrites` with a direct-store
-  path.
-- `featureListOn` and `incomeLedgerArticle` share `articleOutOf` in
-  `browser.ts`.
-- Ticking one box and saving is `sendOneBox` in `form-controls.ts`.
-- A stay listing goes through `putsOnSaleByTheDay`.
-- The merge-race checks apply `withPaidAndFreeAttendees` to named checks of
-  one `OnPaidAndFreeAttendees` type.
-- The scan caught two twins this work made. `listingPage` is now one helper
-  shared by the admin add-ons and privacy journeys. `ownerChangesPassword`
-  opens its page through `withAdminPage`.
+- `opensAdminPageAt` and `withAdminPage` in `browser.ts` are the curries for
+  the admin-page opens. `withAdminPage` carries a result back.
+- `createAttendeeOn` in `test/test-utils/db-helpers/attendees.ts` is the one
+  `createTestAttendee` call on a listing. The note, deposit, and editor
+  journeys route through it.
+- `askListingsApi` in `booking-api.ts` is the one "read an API listing
+  endpoint, expect a 200" open.
+- `sendWithTheCode` in `discount-codes.ts` is the one promo-code send.
+- `requireGroup` in `browser.ts` is the one "hand back the matched group or
+  fail loudly" guard.
+- `regionOutOf` in `browser.ts` is the one region-slice. `articleOutOf`,
+  `footerHtml`, and `proseHtml` all route through it.
+- `outgoingWatch` in `outgoing.ts` is the one "the watch a story put in
+  place" accessor.
+- `emailFor` is the one address rule, and `ownerWrites` is the one email
+  wording helper. The bulk-email stories use both.
+- `theBooking` and `theListing` in `world.ts` are the one booking and listing
+  accessors.
+- The two steps that take a thing off sale are one step. Both stories use the
+  site's confirmed deactivate form, the way the catalogue step always did.
 
 Two helpers keep their own shape, and say why in a comment. `deposits.ts` joins
 a person's names with a hyphen, so its address is a different address, not the
 same one written twice. `asksNotToHearAboutPromotions` has to serve the choices
 page before it can name the button on it, because serving the page is what loads
-that group of copy. The specs caught the second one: a curry that named the
-button as an argument named it too early.
+that group of copy.
 
-The gate also caught a twin this work created. `savesBundleForm` repeated
-`saveBundleForm`'s whole parameter list, and now takes
-`Parameters<typeof saveBundleForm>` instead.
+## The other helper tree holds at 40 tokens
 
-### The other test helpers moved from 48 to 40
+`.jscpd.helpers.json` reads `test/test-utils` against `src/` at 40 tokens. The
+golden test database is built by `fullSchemaCreateStatements()` from
+`src/shared/db/migrations/schema-sync.ts`, the one production schema builder. A
+helper that reaches the app goes through `awaitTestRequest` or `testPageHtml`
+in `test/test-utils/mocks.ts`.
 
-`test/test-utils` was scanned only at 48 tokens, and only against the rest of
-`test/`. These counts are for the helper files scanned together with `src/`,
-before any merge:
+## What is left
 
-| minTokens | Clone pairs |
-| --------- | ----------- |
-| 48        | 1           |
-| 44        | 4           |
-| 42        | 8           |
-| 40        | 13          |
-| 38        | 21          |
-| 36        | 35          |
-
-The single pair at 48 tokens was the find that made the scan worth adding.
-`test/test-utils/test-state.ts` held its own copy of `createTableSql` and
-`createIndexSql` from `src/shared/db/migrations/schema-sync.ts`. No config could
-see it, because no config scanned `test/test-utils` against `src/`. The golden
-test database was therefore built by a second copy of the production schema
-builder, and could drift from it. It now calls `fullSchemaCreateStatements()`.
-
-The 12 further pairs down to 40 tokens were real merges, and they landed. The
-largest was a scaffold that 13 helper modules each spelled out for themselves:
-
-```typescript
-const { handleRequest } = await import("#routes");
-const { mockFormRequest } = await import("#test-utils/mocks.ts");
-```
-
-`mocks.ts` already held `awaitTestRequest`, which does exactly this. Every
-helper module went through it or `testPageHtml`. `sendToApp`, the third export
-of that merge, later folded back to nothing. Issue #2191 settled on the static
-`#routes` import as the one way to reach the app, so the pass-through helper had
-no work left.
-
-## What is left, and what each step costs
-
-These counts are for the helper files and `src/` at the commit above, after the
-merges:
+These counts are for the helper files and `src/` at the commit above:
 
 | minTokens | Clone pairs | Note                                       |
 | --------- | ----------- | ------------------------------------------ |
@@ -236,10 +137,8 @@ merges:
 **These are counts, not verdicts.** A sample of the 24-token band showed valibot
 schema fields that match across unrelated schemas, which is the same coincidence
 that exempts `src/shared/db/migrations/schema/columns.ts` from `.jscpd.json`,
-and one-line field builders that match on a signature. That is a sample, and the
-Cucumber section above records what happens when a sample is read as a floor:
-the pairs there turned out to mark an under-adopted curry, not noise. Classify a
-band the way that section does, and try the curry, before calling any of it
+and one-line field builders that match on a signature. A sample is not a
+decision. Classify a whole band, and try the curry, before you call any of it
 unavoidable.
 
 Each step down is a separate job. Take the number in `.jscpd.helpers.json` down,
@@ -258,9 +157,8 @@ detection. All four were deleted and every caller now uses `hmacHash` directly.
 Since jscpd 5.2.0 the gate is jscpd's own. `deno task cpd:renamed` runs
 `.jscpd.renamed.json`, which passes `--similarity 0.99`: whole functions,
 methods and arrow functions are compared by AST shape, with names and literals
-left out, so a renamed copy scores 1.0 and is reported with kind `similar`. This
-replaced both hand-rolled scans (`scripts/cpd-renamed.ts` and
-`scripts/check-shapes.ts`). The accepted matches live in the committed baseline
+left out, so a renamed copy scores 1.0 and is reported with kind `similar`. The
+accepted matches live in the committed baseline
 `.jscpd.renamed-baseline.json`. The flag `--fail-on-new-clones` fails the build
 on a pair the baseline does not carry, and `deno task cpd:renamed --update`
 rewrites the baseline after a merge. The baseline records no written reason —
@@ -274,10 +172,10 @@ cannot regrow silently.
 **The baseline shrinks as merges land** — merge a family, run
 `deno task cpd:renamed --update`, and its fingerprints drop out. The larger
 families at the time of writing are the field-picking map pairs across the admin
-pages and the table `getXById` wrappers, which are the coincidence class from
-the old shape check: enough code builds an object from another object's fields
-for unrelated functions to match, and the baseline absorbs them while the real
-merges proceed.
+pages and the table `getXById` wrappers, which are the coincidence class:
+enough code builds an object from another object's fields for unrelated
+functions to match, and the baseline absorbs them while the real merges
+proceed.
 
 ## What was measured and rejected
 
@@ -301,17 +199,3 @@ clone between a support helper and a test body, and today the count of those is
 zero, so nothing is lost. `test/test-utils` is not carved out: it stays in both
 scans, so its clones against test bodies are still caught at 48. The second scan
 of 19,000 lines costs about one second.
-
-## Where we are
-
-- **Done.** `test/test-utils` scanned at 40 tokens against `src/`. The
-  production-schema reimplementation removed. 12 helper merges landed.
-- **Done.** Every curry family in `test/specs/support` merged, and
-  `.jscpd.support.json` added at 18 tokens. The pairs at 16 tokens went from 78
-  to 11.
-- **Done.** `.jscpd.support.json` tightened to 17 tokens, and the nine pairs it
-  surfaced merged (see the list above).
-- **Next.** Take `.jscpd.helpers.json` to 36 tokens. 17 pairs, mostly whole
-  helpers that duplicate a sibling.
-- **Then.** 32, 28, and below. Classify each band before you price it, and reach
-  for a curry before you call any pair unavoidable.

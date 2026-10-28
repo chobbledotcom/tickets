@@ -7,17 +7,18 @@
 /** The box on the edit form. Its value is read off the page, not assumed. */
 const FIELD = "bookable_alone";
 
+// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { groups, setListingGroups } from "#db/groups.ts";
 import { t } from "#i18n";
-// jscpd:ignore-start
 import {
   type OpensASalesPage,
   openAsNewcomer,
   opensSalesPagesAt,
   organiserSendsAndIsTold,
 } from "#test/specs/support/browser.ts";
+import { publicSiteGroup } from "#test/specs/support/bundles.ts";
 import { copyLoaded } from "#test/specs/support/copy.ts";
 import {
   checkboxValueOffered,
@@ -73,8 +74,7 @@ export const sellHiddenBundle: ChangeOneThing<string> = async (
   bundle,
   part,
 ) => {
-  await enablePublicSite();
-  const group = await createTestGroup({ isPackage: true, name: bundle });
+  const group = await publicSiteGroup({ isPackage: true, name: bundle });
   await groups.table.update(group.id, {
     hidePackageListings: true,
     isPackage: true,

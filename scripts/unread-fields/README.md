@@ -136,13 +136,16 @@ scope rather than to what the file exports. The one in
 those fields rather than any code here, so the scan would call them unread.
 
 A shape also hands on the fields it takes from somewhere else. That means a base
-it extends, an intersection, another type it simply names, or every arm of a
+it extends, an intersection, another type it names, or every arm of a
 union. `StripeRefund = StripeRefundFields` names one type, and
 `Success | Failure` names two. The scan looks at the fields of every arm. A
 reader reaches the fields of one arm, after it narrows the value to that arm.
 The arms are often types the file keeps to itself, so no other shape reports
 them. A field written down in a library, such as the `toFixed` that `number`
-carries, is not a field this repository exports.
+carries, is not a field this repository exports. A field written in the
+repository's own declaration file still counts, because a `.d.ts` file inside
+the repository is its code. A vendored `node_modules` or a Deno module cache
+under the root stays a library.
 
 ## Reads, not mentions
 

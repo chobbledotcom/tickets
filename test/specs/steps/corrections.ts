@@ -28,7 +28,6 @@ import {
 } from "#test/specs/support/deposits.ts";
 import { listingIdNamed } from "#test/specs/support/listings.ts";
 import {
-  bookingId,
   expectMoneyHandedBack,
   minorUnits,
 } from "#test/specs/support/money.ts";
@@ -49,6 +48,7 @@ import {
 import {
   requiredWorldValue,
   type TicketsWorld,
+  theBooking,
 } from "#test/specs/support/world.ts";
 
 // jscpd:ignore-end
@@ -60,7 +60,7 @@ const CHARGE = "manual_attendee_charge";
 Then(
   "the booking holds one sale and one payment of {word}, in one order",
   async function (this: TicketsWorld, amount: string): Promise<void> {
-    const legs = await transfersByAccount(attendeeAccount(bookingId(this)));
+    const legs = await transfersByAccount(attendeeAccount(theBooking(this)));
     expect(kindsOf(legs)).toEqual(["payment", "sale"]);
     // Both belong to the same order, so nothing was recorded twice.
     expect(new Set(legs.map((leg) => leg.eventGroup)).size).toBe(1);
@@ -171,7 +171,7 @@ Given(
     listing: string,
   ): Promise<void> {
     await unpaidPlace(this, listing, amount);
-    expect(await owedBy(bookingId(this))).toBe(minorUnits(amount));
+    expect(await owedBy(theBooking(this))).toBe(minorUnits(amount));
   },
 );
 
@@ -179,14 +179,14 @@ When(
   "the organiser lets them off {word}",
   async function (this: TicketsWorld, amount: string): Promise<void> {
     await rememberMoneyBefore(this);
-    await addBalanceEntry(this, bookingId(this), GOODWILL, amount);
+    await addBalanceEntry(this, theBooking(this), GOODWILL, amount);
   },
 );
 
 When(
   "the organiser charges them {word} more",
   function (this: TicketsWorld, amount: string): Promise<void> {
-    return addBalanceEntry(this, bookingId(this), CHARGE, amount);
+    return addBalanceEntry(this, theBooking(this), CHARGE, amount);
   },
 );
 
@@ -195,8 +195,8 @@ const expectOwed = async function (
   this: TicketsWorld,
   amount: string,
 ): Promise<void> {
-  expect(await owedBy(bookingId(this))).toBe(minorUnits(amount));
-  await assertRenderedOwed(bookingId(this), minorUnits(amount));
+  expect(await owedBy(theBooking(this))).toBe(minorUnits(amount));
+  await assertRenderedOwed(theBooking(this), minorUnits(amount));
 };
 
 Then("they owe {word}, on the books and on their money page", expectOwed);
@@ -292,9 +292,9 @@ Then("they still owe {word}, on the books and on their money page", expectOwed);
 Then(
   "they owe nothing, and their money page says the booking is fully paid",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await owedBy(bookingId(this))).toBe(0);
+    expect(await owedBy(theBooking(this))).toBe(0);
     const page = await adminPageHtml(
-      `/admin/attendees/${bookingId(this)}/ledger`,
+      `/admin/attendees/${theBooking(this)}/ledger`,
     );
     assertStringIncludes(page, "This booking is fully paid");
   },
@@ -348,7 +348,7 @@ Then(
 Then(
   "the {word} earned {word} and the customer owes nothing",
   earnedAnd(async (world) => {
-    expect(await owedBy(bookingId(world))).toBe(0);
+    expect(await owedBy(theBooking(world))).toBe(0);
   }),
 );
 
@@ -361,7 +361,7 @@ Then(
   "the customer has the whole {word} back and owes nothing",
   async function (this: TicketsWorld, amount: string): Promise<void> {
     await expectMoneyHandedBack(this, minorUnits(amount));
-    expect(await owedBy(bookingId(this))).toBe(0);
+    expect(await owedBy(theBooking(this))).toBe(0);
   },
 );
 

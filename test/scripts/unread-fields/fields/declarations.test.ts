@@ -72,4 +72,38 @@ export class HoldsAMadeClass {
 
     assertArrayIncludes(paths, ["typeof HoldsAMadeClass.made.builtOn"]);
   });
+
+  test("keeps a field a repository declaration file writes down", async () => {
+    // A `.d.ts` file inside the repository is the repository's own code, not
+    // a library. Its `isDeclarationFile` flag is set all the same, so the
+    // ownership question has to be a path check, not a flag. The base is a
+    // script's declaration, so it is no exported shape and nothing but the
+    // borrowed-field walk reports its member.
+    const paths = pathsOf(
+      await fieldsOf(
+        `
+export interface ExtendsADeclaredBase extends Base {}
+`,
+        { "globals.d.ts": "interface Base { declaredField: number }\n" },
+      ),
+    );
+
+    expect(paths).toEqual(["ExtendsADeclaredBase.declaredField"]);
+  });
+
+  test("keeps a call signature a repository declaration file writes down", async () => {
+    const paths = pathsOf(
+      await fieldsOf(
+        `
+export type UsesACall = Callable;
+`,
+        {
+          "globals.d.ts":
+            "interface Callable { (input: { onlyInCall: number }): void }\n",
+        },
+      ),
+    );
+
+    expect(paths).toEqual(['UsesACall["()"].input.onlyInCall']);
+  });
 });

@@ -12,7 +12,11 @@ import { handleRequest } from "#routes";
 // jscpd:ignore-start
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { personBookedOnListing } from "#test/specs/support/booked-person.ts";
-import { expectAccepted, openAdminPage } from "#test/specs/support/browser.ts";
+import {
+  expectAccepted,
+  openAdminPage,
+  requireGroup,
+} from "#test/specs/support/browser.ts";
 import {
   listingIdNamed,
   listingNamed,
@@ -25,6 +29,7 @@ import {
 import { dayFromToday, openStayListing } from "#test/specs/support/stays.ts";
 import {
   type ActOnOneThing,
+  type ActsOnPersonsBooking,
   type ReadAboutOneThing,
   type ReadsWhatWasKept,
   type TicketsWorld,
@@ -76,12 +81,20 @@ export type DoorPaths = { page: string; scan: string };
 
 /** Someone with a ticket for one of the story's listings. Both the listing and
  * the ticket are kept under the names the story uses for them. */
-export const personWithTicket = async (
+/** Somebody the door lets in with a ticket for one listing, named once. */
+type PersonWithATicket = (
   world: TicketsWorld,
   who: string,
   listing: string,
-  options: { needsIdChecked?: boolean; places?: number } = {},
-): Promise<void> => {
+  options?: { needsIdChecked?: boolean; places?: number },
+) => Promise<void>;
+
+export const personWithTicket: PersonWithATicket = async (
+  world,
+  who,
+  listing,
+  options = {},
+) => {
   const { token } = await personBookedOnListing(world, who, listing, {
     nonTransferable: options.needsIdChecked ?? false,
     places: options.places ?? 1,
@@ -108,12 +121,20 @@ export const rememberTicket = (
 /** Someone who booked a stay of several days through the listing's own page.
  * The ticket they hold is the one the site hands them on the page their
  * booking lands on — nothing is invented for them. */
-export const personWithStayTicket = async (
+/** Somebody whose stay booking covers a run of days. */
+type PersonWithStayTicket = (
   world: TicketsWorld,
   who: string,
   listing: string,
   days: number,
-): Promise<void> => {
+) => Promise<void>;
+
+export const personWithStayTicket: PersonWithStayTicket = async (
+  world,
+  who,
+  listing,
+  days,
+) => {
   await openStayListing(world, listing, days, 5);
   const booking = await visitorBooks(world, listingNamed(world, listing), {
     day: dayFromToday(world, 10),
@@ -136,11 +157,11 @@ export const otherListing: ActOnOneThing = async (world, listing) => {
 export const ticketOf: ReadsWhatWasKept<"ticket"> = whatWasKeptFor("ticket");
 
 /** Their money is given back, so the ticket should no longer let them in. */
-export const refundTicket = async (
-  world: TicketsWorld,
-  who: string,
-  listing: string,
-): Promise<void> => {
+export const refundTicket: ActsOnPersonsBooking = async (
+  world,
+  who,
+  listing,
+) => {
   const [attendee] = await getAttendeesByTokens([ticketOf(world, who)]);
   if (!attendee) throw new Error(`${who}'s ticket is not on any booking`);
   await postAttendeeRefund({
@@ -152,13 +173,13 @@ export const refundTicket = async (
 /** The one-use code the scanner page carries for its own requests. Reading it
  * off the page is what the page's own script does, so a page that stopped
  * supplying it fails the story here rather than the story inventing one. */
-export const codeOnPage = (browser: TestBrowser): string => {
-  const found = browser.currentHtml.match(
-    /<meta[^>]*name="csrf-token"[^>]*content="([^"]*)"/,
+export const codeOnPage = (browser: TestBrowser): string =>
+  requireGroup(
+    browser.currentHtml.match(
+      /<meta[^>]*name="csrf-token"[^>]*content="([^"]*)"/,
+    ),
+    "The scanner page carries no code to send",
   );
-  if (!found?.[1]) throw new Error("The scanner page carries no code to send");
-  return found[1];
-};
 
 /** The browser's cookies as one header value — the request the page's own
  * script sends carries them. */
@@ -286,11 +307,11 @@ export const offeredAt =
 
 /** One thing the door records about a person it is offering. A row missing it
  * is a broken page, not an empty answer. */
-const readOf = (row: string, what: string): string => {
-  const found = row.match(new RegExp(`data-${what}="([^"]*)"`));
-  if (!found?.[1]) throw new Error(`A row at the door has no ${what}`);
-  return found[1];
-};
+const readOf = (row: string, what: string): string =>
+  requireGroup(
+    row.match(new RegExp(`data-${what}="([^"]*)"`)),
+    `A row at the door has no ${what}`,
+  );
 
 /** The people the listing's door offers when the organiser looks someone up by
  * hand instead of reading their ticket. */

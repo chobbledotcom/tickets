@@ -4,11 +4,11 @@
  * whose customers may pay more than it asks.
  */
 
+// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { execute } from "#db/client.ts";
 import type { ChargeMoney } from "#payment/resources.ts";
-// jscpd:ignore-start
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import {
   browserSeenBy,
@@ -19,6 +19,7 @@ import { usableInputsOfKind } from "#test/specs/support/form-controls/reading.ts
 import { sellSomethingAt } from "#test/specs/support/listings.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import {
+  countsProviderRefundCalls,
   refundByTyping,
   runStripeSuccess,
 } from "#test/specs/support/money-drivers.ts";
@@ -113,12 +114,19 @@ const firstProviderCharge = (world: TicketsWorld) => {
 };
 
 /** One listing, one paid place each for the named people. */
-export const paidPlaceEach = async (
+type PaysForOnePlaceEach = (
   world: TicketsWorld,
   name: string,
   price: string,
   people: string[],
-): Promise<void> => {
+) => Promise<void>;
+
+export const paidPlaceEach: PaysForOnePlaceEach = async (
+  world,
+  name,
+  price,
+  people,
+) => {
   await setupStripe();
   const listing = await sellSomethingAt(world, name, price);
   world.confirmName = name;
@@ -174,7 +182,7 @@ export const openRefundEveryone: ActOnTheStory = async (world) => {
       REFUND_FORM_BY_TARGET.listing.page(theListing(world)),
     );
     world.bulkRefundMessage = browser.pageText;
-    world.refundCalls = () => mockRefund.calls.length;
+    countsProviderRefundCalls(world, mockRefund.calls);
   });
 };
 

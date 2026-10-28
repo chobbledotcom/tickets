@@ -20,6 +20,10 @@ import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 export type Direction = "up" | "down";
 
+/** The address one world sees a list at: fixed, or worked out from the world
+ * when the address carries its state. */
+type ListPath = string | ((world: TicketsWorld) => string);
+
 /** Moving one named row around a list. */
 /** Whether the list offers to move one named row one way. */
 type AsksAboutAMove = (
@@ -40,10 +44,7 @@ export interface MovesNamedRows {
  * directly, or hands a function when the address carries the world's state.
  * This function stays flat at module level with a block body, because the
  * coverage merge mis-sums a nested arrow's body lines across isolates. */
-const listPathOn = (
-  listPath: string | ((world: TicketsWorld) => string),
-  world: TicketsWorld,
-): string => {
+const listPathOn = (listPath: ListPath, world: TicketsWorld): string => {
   if (typeof listPath === "function") {
     return listPath(world);
   }
@@ -51,7 +52,7 @@ const listPathOn = (
 };
 
 export const movingRowsOn = (
-  listPath: string | ((world: TicketsWorld) => string),
+  listPath: ListPath,
   openAt: OpensAtOneRow,
 ): MovesNamedRows => {
   /** The list in front of somebody, and where this row's arrow for going that

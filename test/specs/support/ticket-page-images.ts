@@ -20,6 +20,7 @@ import {
 } from "#test/specs/support/package-section.ts";
 import {
   requiredWorldValue,
+  type StoryJourney,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
@@ -46,11 +47,10 @@ export const referenceNoImageAnswers = (image: string): string =>
 
 /** Something plain on sale, with the public site on so a visitor can read its
  * page, and the description the story wrote for it. */
-export const sellsReadableThing = async (
-  world: TicketsWorld,
-  name: string,
-  description: string,
-): Promise<void> => {
+export const sellsReadableThing: StoryJourney<
+  [name: string, description: string],
+  void
+> = async (world, name, description) => {
   await enablePublicSite();
   await putsPlainThingOnSale(world, name, { description });
 };
@@ -123,13 +123,21 @@ export const visitorReadsMixedPage = (
   );
 };
 
+/** Reads the page that sells two things together, each reached by its own
+ * slug. */
+type ReadsTwoSlugs = (
+  world: TicketsWorld,
+  firstSlug: string,
+  secondSlug: string,
+) => Promise<TestBrowser>;
+
 /** A visitor reads the plain page that sells two things together, each thing
  * reached by its own slug. */
-export const visitorReadsTwoThingsFromOnePage = (
-  world: TicketsWorld,
-  first: string,
-  second: string,
-): Promise<TestBrowser> =>
+export const visitorReadsTwoThingsFromOnePage: ReadsTwoSlugs = (
+  world,
+  first,
+  second,
+) =>
   openAsNewcomer(
     `/ticket/${listingNamed(world, first).slug}+${
       listingNamed(world, second).slug

@@ -20,6 +20,7 @@ import {
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
   type ActOnOneThing,
+  type ActOnTheStory,
   keepWhatTheyWereTold,
   requiredWorldValue,
   type TicketsWorld,
@@ -71,13 +72,16 @@ export const followsChoicesLink = async (
   return rememberBrowser(world, READER, await openAsNewcomer(link));
 };
 
+/** One reader's own choices page, open after one press on it. */
+type OpensAChoicesPage = (email: string) => Promise<TestBrowser>;
+
 /** Somebody tells the site they would rather not hear about promotions — the
  * way a real reader does: their own choices page, its real Unsubscribe form.
  * Shared with the stories about writing to the people who booked, so both
  * exercise the one mechanism a reader really has. */
-export const asksNotToHearAboutPromotions = async (
-  email: string,
-): Promise<TestBrowser> => {
+export const asksNotToHearAboutPromotions: OpensAChoicesPage = async (
+  email,
+) => {
   // Not newcomerSends: the button's wording only exists once the choices page
   // has been served, because serving it is what loads that group of copy. A
   // caller that named the button as an argument would name it too early.
@@ -104,8 +108,8 @@ const pressesOnTheirPage: ActOnOneThing = async (world, label) => {
 /** One of the presses the reader's page offers, named by its button. The
  * wording is looked up at the moment of the press, not when this file loads. */
 const pressing =
-  (buttonKey: string) =>
-  (world: TicketsWorld): Promise<void> =>
+  (buttonKey: string): ActOnTheStory =>
+  (world) =>
     pressesOnTheirPage(world, t(buttonKey));
 
 export const asksToStopHearing = pressing("unsubscribe.unsubscribe_button");

@@ -1,6 +1,6 @@
 import ts from "typescript";
 import { unique } from "#fp";
-import { answered } from "#scripts/unread-fields/host.ts";
+import { answered, belongsToRepository } from "#scripts/unread-fields/host.ts";
 import { isStatic, nameOf, writtenNames } from "./declarations.ts";
 import { type FieldName, fieldNameText } from "./names.ts";
 import { inheritsFrom, type Shape } from "./shapes.ts";
@@ -22,6 +22,7 @@ const partsOf = (type: ts.Type): readonly ts.Type[] =>
 const writtenSignatures = (
   checker: ts.TypeChecker,
   type: ts.Type,
+  root: string,
 ): ts.SignatureDeclaration[] =>
   unique(
     [ts.SignatureKind.Call, ts.SignatureKind.Construct]
@@ -29,17 +30,20 @@ const writtenSignatures = (
       .map((signature) =>
         answered(signature.getDeclaration(), "borrowed signature declaration"),
       )
-      .filter((declaration) => !declaration.getSourceFile().isDeclarationFile),
+      .filter((declaration) =>
+        belongsToRepository(root, declaration.getSourceFile().fileName),
+      ),
   );
 
 const fieldsFrom = (
   checker: ts.TypeChecker,
   type: ts.Type,
   location: ts.Node,
+  root: string,
 ): BorrowedField[] =>
   partsOf(type).flatMap((part) =>
     checker.getPropertiesOfType(part).flatMap((property) => {
-      const names = writtenNames(property);
+      const names = writtenNames(property, root);
       return names.length === 0
         ? []
         : [
@@ -54,6 +58,7 @@ const fieldsFrom = (
 export const borrowedFields = (
   checker: ts.TypeChecker,
   shape: Shape,
+  root: string,
 ): BorrowedFields => {
   if (!inheritsFrom(shape)) {
     return { onItsValues: [], onTheClass: [], signatures: [] };
@@ -61,9 +66,9 @@ export const borrowedFields = (
   // The declaration, not the name: an unnamed class has no name node, and
   // both give the same type.
   const type = checker.getTypeAtLocation(shape);
-  const onItsValues = fieldsFrom(checker, type, shape);
+  const onItsValues = fieldsFrom(checker, type, shape, root);
   const signatures = partsOf(type).flatMap((part) =>
-    writtenSignatures(checker, part),
+    writtenSignatures(checker, part, root),
   );
   if (!ts.isClassDeclaration(shape) || !shape.heritageClauses) {
     return { onItsValues, onTheClass: [], signatures };
@@ -83,6 +88,7 @@ export const borrowedFields = (
         checker,
         checker.getTypeAtLocation(base.expression),
         base.expression,
+        root,
       ),
     )
     .filter((field) =>

@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
   answered,
+  belongsToRepository,
   compilerOptions,
   pathIs,
   serviceHost,
@@ -101,6 +102,63 @@ describe("the compiler's view of a repository", () => {
 
     test("raises anything that is not the path being absent", () => {
       expect(() => pathIs("isFile")("a\u0000b")).toThrow(TypeError);
+    });
+  });
+
+  describe("belongsToRepository", () => {
+    test("owns a declaration file under the root", () => {
+      // A `.d.ts` file inside the repository is the repository's own code,
+      // even though the compiler flags it as a declaration file.
+      expect(belongsToRepository(root, `${root}/src/static.d.ts`)).toBe(true);
+      expect(belongsToRepository(root, file)).toBe(true);
+    });
+
+    test("leaves a library outside the root alone", () => {
+      expect(
+        belongsToRepository(root, "/home/user/.cache/deno/npm/pkg/index.d.ts"),
+      ).toBe(false);
+    });
+
+    test("leaves a vendored or cached dependency under the root alone", () => {
+      expect(
+        belongsToRepository(root, `${root}/node_modules/pkg/index.d.ts`),
+      ).toBe(false);
+      expect(
+        belongsToRepository(
+          root,
+          `${root}/.deno/npm/registry.npmjs.org/pkg/index.d.ts`,
+        ),
+      ).toBe(false);
+      expect(
+        belongsToRepository(
+          root,
+          `${root}/npm/registry.npmjs.org/pkg/index.d.ts`,
+        ),
+      ).toBe(false);
+      expect(
+        belongsToRepository(root, `${root}/deps/https/example.com/mod.ts`),
+      ).toBe(false);
+      expect(
+        belongsToRepository(root, `${root}/remote/https/example.com/mod.ts`),
+      ).toBe(false);
+    });
+
+    test("keeps the repository when its own path carries a cache marker", () => {
+      // The markers answer for paths below the root only. A checkout in a
+      // folder called `deps` or `remote` is still repository code, and a
+      // drop here would read as a clean bill.
+      expect(
+        belongsToRepository(
+          "/build/deps/tickets",
+          "/build/deps/tickets/src/index.ts",
+        ),
+      ).toBe(true);
+      expect(
+        belongsToRepository("/srv/remote/site", "/srv/remote/site/src/app.ts"),
+      ).toBe(true);
+      expect(
+        belongsToRepository("/work/npm/repo", "/work/npm/repo/src/app.ts"),
+      ).toBe(true);
     });
   });
 

@@ -73,10 +73,16 @@ export interface RefundProviderScript {
   /** Queue one refund answer but hold it until the story releases it. */
   pause(...plan: RefundPlan): PausedProviderRefund;
 
+  /** How many charge reads the story made, for one provider or charge. */
   readCount(provider?: PaymentProviderType, reference?: string): number;
-  readonly reads: readonly ProviderReadCall[];
+  /** Every charge read, in the order the story made them. The array itself
+   * stays readonly; the property can be reassigned, but no caller does. */
+  reads: readonly ProviderReadCall[];
+  /** How many refund sends the story made, for one provider or charge. */
   sendCount(provider?: PaymentProviderType, reference?: string): number;
-  readonly sends: readonly ProviderRefundCall[];
+  /** Every refund send, in the order the story made them. The array itself
+   * stays readonly; the property can be reassigned, but no caller does. */
+  sends: readonly ProviderRefundCall[];
 
   /** Say exactly what one provider currently reports about one charge. */
   show(

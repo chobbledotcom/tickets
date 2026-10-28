@@ -17,8 +17,8 @@ import {
   sellsSomethingNobodyAttends,
   sellsSomethingQuietly,
   siteIsCalled,
-  takeOffSale,
 } from "#test/specs/support/public-list.ts";
+import { takeOffSale } from "#test/specs/support/shown-code.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 
 // jscpd:ignore-end

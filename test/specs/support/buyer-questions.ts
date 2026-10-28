@@ -18,12 +18,14 @@ import {
 } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
+  listingIdNamed,
   listingNamed,
   tickOnListingTab,
 } from "#test/specs/support/listings.ts";
 import { movingRowsOn } from "#test/specs/support/reordering.ts";
 import {
   type ActOnOneThing,
+  type AsksAboutOneThing,
   type ReadAboutOneThing,
   requiredWorldValue,
   type TicketsWorld,
@@ -133,11 +135,17 @@ export const questionFieldOn = (
 
 /** A visitor books one place, answering the written question in their own
  * words — typed into the box the served page really offers. */
-export const visitorBooksAnswering = async (
+type BooksAnsweringAQuestion = (
   world: TicketsWorld,
   listingName: string,
   answer: string,
-): Promise<void> => {
+) => Promise<void>;
+
+export const visitorBooksAnswering: BooksAnsweringAQuestion = async (
+  world,
+  listingName,
+  answer,
+) => {
   const browser = await visitorOpensBooking(world, listingName);
   await fillInAndSend(
     browser,
@@ -158,9 +166,9 @@ export const answerInListDownload: ReadAboutOneThing = async (
   world,
   listingName,
 ) => {
-  const listing = listingNamed(world, listingName);
+  const attendeesPage = `/admin/listing/${listingIdNamed(world, listingName)}/attendees`;
   const browser = await adminBrowser(world);
-  await browser.visit(`/admin/listing/${listing.id}/attendees`);
+  await browser.visit(attendeesPage);
   await browser.clickLink("Export CSV");
   // A real CSV parse, so an answer holding a comma or a quote still lands in
   // its own column rather than spilling into the next one.
@@ -283,10 +291,8 @@ export const ownerMovesAnswerUp: ActOnOneThing = (world, name) =>
 
 /** Whether the question's page still offers to move an answer up. A top
  * answer is one nobody could move further, so the page offers no arrow. */
-export const answerOffersMoveUp = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<boolean> => answerArrows.canMove(world, name, "up");
+export const answerOffersMoveUp: AsksAboutOneThing = (world, name) =>
+  answerArrows.canMove(world, name, "up");
 
 /** The answers one served booking page offers for a named question, in the
  * order the page renders them. */
