@@ -129,7 +129,12 @@ export const AREAS_A_L = {
       builtSiteReSyncDeadline: "/admin/built-sites/:id/re-sync-deadline",
       builtSiteRotateRenewalToken:
         "/admin/built-sites/:id/rotate-renewal-token",
-      builtSiteSupportMessage: "/admin/built-sites/:id/support-message",
+      builtSiteSupportMessage: {
+        // The tab renders the stored message for a read-only viewer, so
+        // read-only mode keeps serving the route's GET.
+        pattern: "/admin/built-sites/:id/support-message",
+        readOnlyGet: true,
+      },
       builtSiteUpdate: "/admin/built-sites/:id/update",
     },
   },

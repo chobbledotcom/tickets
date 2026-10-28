@@ -32,10 +32,12 @@ export const featureVisible =
   (ctx: AdminSurfaceContext): boolean =>
     ctx.enabledFeatures[feature];
 
-/** A route: its pattern alone, or a pattern whose role differs from its area. */
+/** A route: its pattern alone, a pattern whose role differs from its area, or
+ * a pattern whose GET read-only mode keeps serving. */
 export type AdminDestinationSpec =
   | string
-  | { readonly audience: AdminAudience; readonly pattern: string };
+  | { readonly audience: AdminAudience; readonly pattern: string }
+  | { readonly pattern: string; readonly readOnlyGet: true };
 
 type AdminRouteGroup = Readonly<Record<string, AdminDestinationSpec>>;
 
@@ -57,6 +59,9 @@ export type AdminDestinationDef = {
   readonly area: string;
   readonly audience: AdminAudience;
   readonly id: string;
+  /** The GET this write route serves is not a form: read-only mode keeps
+   * serving it instead of redirecting it. */
+  readonly readOnlyGet?: true;
   readonly intent: AdminRouteIntent;
   readonly pattern: string;
 };
@@ -73,8 +78,14 @@ const groupDestinations = (
 ): AdminDestinationDef[] =>
   Object.entries(group ?? {}).map(([id, spec]) => ({
     area,
-    audience: typeof spec === "string" ? areaAudience : spec.audience,
+    audience:
+      typeof spec === "string" || !("audience" in spec)
+        ? areaAudience
+        : spec.audience,
     id,
+    ...(typeof spec !== "string" && "readOnlyGet" in spec
+      ? { readOnlyGet: true }
+      : {}),
     intent,
     pattern: typeof spec === "string" ? spec : spec.pattern,
   }));
