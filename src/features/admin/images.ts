@@ -1,5 +1,7 @@
 /* jscpd:ignore-start -- imports */
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 
 /**
  * First-class image library admin routes.
@@ -285,7 +287,7 @@ const handleImageOptionsGet: TypedRouteHandler<"GET /admin/images/options"> =
     return jsonResponse({ images: options });
   });
 
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin/images": handleImagesListGet,
   "GET /admin/images/:id/delete": handleImageDeleteGet,
   "GET /admin/images/:id/edit": handleImageEditGet,

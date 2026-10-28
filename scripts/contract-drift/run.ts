@@ -18,6 +18,30 @@ const DUMP_DIR = join("scripts", "contract-drift");
 const DUMP_FILES = ["dump.ts", "dump-entry.ts"] as const;
 const WORKTREE_SUBDIR = "base";
 
+/** The env keys a git hook sets to point its children at this checkout. A
+ * `git worktree add` child that inherits them wrote the base index through
+ * the worktree's .git file, and the add failed with "Not a directory". */
+const CHECKOUT_CONTEXT: Record<string, true> = {
+  GIT_ALTERNATE_OBJECT_DIRECTORIES: true,
+  GIT_CEILING_DIRECTORIES: true,
+  GIT_COMMON_DIR: true,
+  GIT_DIR: true,
+  GIT_INDEX_FILE: true,
+  GIT_OBJECT_DIRECTORY: true,
+  GIT_PREFIX: true,
+  GIT_WORK_TREE: true,
+};
+
+/** The git child's environment: the parent's environment without the
+ * checkout context, so git rediscovers this checkout from the working
+ * directory, and the base worktree stands on its own gitdir. */
+export const withoutCheckoutContext = (
+  env: Record<string, string>,
+): Record<string, string> =>
+  Object.fromEntries(
+    Object.entries(env).filter(([key]) => !CHECKOUT_CONTEXT[key]),
+  );
+
 /** The dump child's whole environment, without DENO_COVERAGE_DIR. A
  * coverage run puts that variable in every child, and a `deno run` child
  * then writes coverage files of its own. The base worktree is gone before
@@ -38,6 +62,9 @@ export interface DriftDeps {
   readonly makeTempDir: () => Promise<string>;
   readonly mergeBase: () => Promise<string>;
   readonly output: CheckOutput;
+  /** The parent process environment, read fresh per git call, so a git
+   * hook's checkout context is visible where the hook set it. */
+  readonly parentEnv: () => Record<string, string>;
   readonly removeTree: (path: string) => Promise<void>;
   readonly runBaseDump: (worktreeDir: string) => Promise<CapturedOutput>;
 }
@@ -45,7 +72,10 @@ export interface DriftDeps {
 /** The drift task's real dependencies. The suite overrides `git` to test
  * the base resolution without a network. */
 export const defaultDriftDeps = (
-  overrides: { readonly git?: DriftDeps["git"] } = {},
+  overrides: {
+    readonly git?: DriftDeps["git"];
+    readonly parentEnv?: DriftDeps["parentEnv"];
+  } = {},
 ): DriftDeps => {
   const deps: DriftDeps = {
     copyDumpModule: async (worktreeDir) => {
@@ -58,11 +88,18 @@ export const defaultDriftDeps = (
         );
       }
     },
-    git: overrides.git ?? ((args) => runCommand(["git", ...args])),
+    git:
+      overrides.git ??
+      ((args) =>
+        runCommand(["git", ...args], {
+          clearEnv: true,
+          env: withoutCheckoutContext(deps.parentEnv()),
+        })),
     headContracts: currentContracts,
     makeTempDir: () => Deno.makeTempDir({ prefix: "tickets-contract-drift-" }),
     mergeBase: () => mergeBaseWithMain(deps),
     output: consoleOutput,
+    parentEnv: overrides.parentEnv ?? (() => Deno.env.toObject()),
     removeTree: (path) => Deno.remove(path, { recursive: true }),
     runBaseDump: (worktreeDir) =>
       runCommand(

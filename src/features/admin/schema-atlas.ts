@@ -5,8 +5,8 @@
 import { scanSchemaAnomalies } from "#db/schema-anomaly-scan.ts";
 import { settings } from "#db/settings.ts";
 import { listUnansweredSumupMoney } from "#db/sumup-recovery.ts";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import { ownerPage } from "#routes/auth.ts";
-import { defineRoutes } from "#routes/router.ts";
 import { adminSchemaAtlasPage } from "#templates/admin/schema-atlas.tsx";
 
 const handleSchemaAtlasGet = ownerPage(async (session) => {
@@ -17,6 +17,6 @@ const handleSchemaAtlasGet = ownerPage(async (session) => {
   return adminSchemaAtlasPage(session, settings.theme, anomalies, unanswered);
 });
 
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin/schema": handleSchemaAtlasGet,
 });

@@ -10,10 +10,13 @@ describeWithEnv("admin action success cookie", { db: true }, () => {
     const cookie = await testCookie();
     const csrfToken = await testCsrfToken();
     const handler = createActionHandler({
-      auth: "owner",
       cookie: () => "restore_session=; Max-Age=0; Path=/",
       execute: () => Promise.resolve(),
       message: "Cookie action completed",
+      // An owner-only declared write. The audience the handler derives from
+      // it lets the test's owner session through; the request path and the
+      // redirect are the test's own, and the success cookie is what it checks.
+      pattern: "/admin/backup/create",
       successRedirect: "/admin/test-cookie",
     });
 

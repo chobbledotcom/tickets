@@ -536,6 +536,11 @@ automatic.
 - `deno task check:test-quality` — the weak-assertion gate: fails when a
   test file the change touches carries a weak assertion, added or
   pre-existing, against the merge base on `origin/main`
+- `deno task check:presence-assertions` — the `toBeDefined()` block: holds
+  every test file to its recorded count in
+  `scripts/check-presence-assertions/registry.json`, and the count only
+  falls. Assert the value, shape, or invariant instead. Pass `--update`
+  after a fix. The update refuses a rise
 - `deno task check:ste` — mechanical STE rules over the Markdown, against
   baselines that only fall. Pass `--update` after a fix
 - `deno task check:merged-tree <pr-number | branch> [base]` — trial-merge the
@@ -657,6 +662,11 @@ drop you state out loud.
   file the change touches carries a weak assertion, added or pre-existing.
   Fix every finding in a file you touch. A finding in a file you do not touch
   stays informational.
+- `toBeDefined()` is blocked outright: `deno task check:presence-assertions`
+  holds every test file to its recorded count in
+  `scripts/check-presence-assertions/registry.json`, and the count only
+  falls. Assert the value, shape, or invariant instead. `toBeUndefined()`
+  stays allowed where the code documents an absent value.
 - For critical flows, cover negative paths, idempotency, concurrency, and
   metamorphic cases: webhook replay does not double-credit, capacity cannot go
   below zero, role downgrades remove access, PII stays encrypted or absent from

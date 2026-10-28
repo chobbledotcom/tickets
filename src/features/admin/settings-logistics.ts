@@ -1,9 +1,12 @@
 /* jscpd:ignore-start */
 
 import { t } from "#i18n";
-import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
+import {
+  crudRoutes,
+  defineAdminRoutes,
+  entityTabRoutes,
+} from "#routes/admin/route-tables.ts";
 import { type IdRouteHandler, ownerFormById } from "#routes/entity.ts";
-import { defineRoutes } from "#routes/router.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 /* jscpd:ignore-end */
 /**
@@ -109,7 +112,7 @@ const handleAgentEditPost: IdRouteHandler = ownerFormById(
 
 /** Logistics settings + agent routes. The agent edit POST restates the
  * standard key with its own handler. */
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   ...crudRoutes(adminPattern("logistics"), crud),
   ...entityTabRoutes(adminPattern("logisticsAgent"), logisticsAgentPage),
   "POST /admin/logistics/:id/edit": handleAgentEditPost,

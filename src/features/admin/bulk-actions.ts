@@ -1,6 +1,7 @@
 /* jscpd:ignore-start */
 import { identity, mapById, requiredMapValue } from "#fp";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 
 /* jscpd:ignore-end */
 /**
@@ -366,7 +367,7 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
   return redirect(`/admin/groups/${newGroupId}`, success, true);
 });
 
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin/groups/:id/bulk-actions": handleBulkActionsGet,
   "GET /admin/groups/:id/bulk-actions/deactivate": handleDeactivateGroupGet,
   "GET /admin/groups/:id/bulk-actions/duplicate": handleDuplicateGroupGet,

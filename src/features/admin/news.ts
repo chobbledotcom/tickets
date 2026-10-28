@@ -17,7 +17,7 @@ import {
 } from "#db/news-posts.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { defineRoutes } from "#routes/router.ts";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import { normalizeSlug } from "#shared/slug.ts";
 import {
   adminNewsDeletePage,
@@ -95,7 +95,7 @@ const content = defineSiteContent("/admin/site/news", (paths) => ({
 
 // ─── Routes ─────────────────────────────────────────────────────
 
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin/site/news": content.list,
   "GET /admin/site/news/:id": content.entity,
   "GET /admin/site/news/:id/:tab": content.entityTab,

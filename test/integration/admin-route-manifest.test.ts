@@ -14,9 +14,8 @@ import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { requiredMapValue } from "#fp";
 import { ADMIN_AREA_LOADERS } from "#routes/admin/area-loaders.ts";
 import { adminPathSegment } from "#shared/admin-surface/definitions.ts";
-import { ADMIN_SURFACE } from "#shared/admin-surface.ts";
+import { ADMIN_SURFACE, oneServedPath } from "#shared/admin-surface.ts";
 import { routePathPatternToRegex } from "#shared/route-pattern.ts";
-import { oneServedPath } from "#test-utils/admin-surface.ts";
 
 const loadAreaRoutes = async (): Promise<Map<string, string[]>> => {
   const routesByArea = new Map<string, string[]>();
@@ -88,21 +87,26 @@ describe("admin route manifest", () => {
     }
   });
 
-  test("every UI destination is served by a GET route in its area", () => {
+  test("every UI destination is served by a route in its area", () => {
+    // A view is a page: a GET route in its area must answer it. A write is
+    // served by its own write route, or — for a write that is really a form
+    // page (a new/edit form, an Actions tab) — by the GET route it sits
+    // under. The role matrix walks each write with its method; this check
+    // only proves a declaration names a path its area actually serves.
     for (const destination of Object.values(ADMIN_SURFACE.destinations)) {
       const servedPath = oneServedPath(destination.pattern);
-      expect(
-        getRoutesOf(
-          requiredMapValue(
-            routesByArea,
-            destination.area,
-            `No routes loaded for area ${destination.area}`,
-          ),
-        ).some((route) =>
-          routePathPatternToRegex(routeParts(route)[1]).test(servedPath),
-        ),
-        `${destination.id}: GET ${destination.pattern}`,
-      ).toBe(true);
+      const served = requiredMapValue(
+        routesByArea,
+        destination.area,
+        `No routes loaded for area ${destination.area}`,
+      ).some((route) => {
+        const [method, path] = routeParts(route);
+        return (
+          routePathPatternToRegex(path).test(servedPath) &&
+          (destination.intent === "view" ? method === "GET" : true)
+        );
+      });
+      expect(served, `${destination.id}: ${destination.pattern}`).toBe(true);
     }
   });
 

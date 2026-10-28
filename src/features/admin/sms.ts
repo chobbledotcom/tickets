@@ -1,5 +1,5 @@
 /* jscpd:ignore-start */
-import { defineRoutes } from "#routes/router.ts";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 
 /**
  * Admin SMS page, reached at `/admin/sms?listing=:id&attendee=:id`.
@@ -176,7 +176,7 @@ const sendSms = (
 const handleSmsPost = (request: Request): Promise<Response> =>
   withAuth(request, AUTH_FORM, sendSms);
 
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin/sms": handleSmsGet,
   "POST /admin/sms": handleSmsPost,
 });

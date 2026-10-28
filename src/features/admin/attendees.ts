@@ -13,9 +13,12 @@ import { hasAnyPaymentReference } from "#db/payment-references.ts";
 import { getAttendeeTextAnswersBatch } from "#db/questions/attendee-answers/reads.ts";
 import { t } from "#i18n";
 import { emailPendingForAdminLines } from "#routes/admin/attendees-route-helpers.ts";
-import { entityTabRoutes } from "#routes/admin/route-tables.ts";
+import {
+  defineAdminRoutes,
+  entityTabRoutes,
+} from "#routes/admin/route-tables.ts";
 import { redirect } from "#routes/response.ts";
-import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { createdBookingEntries } from "#shared/booking.ts";
@@ -425,7 +428,7 @@ const handleResendNotification = attendeeActions[
  * Payment review: attendee-payment-review.ts
  * Refunds: attendee-refunds.ts
  */
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   ...entityTabRoutes(adminPattern("attendee"), attendeePage),
   ...paymentReviewHandlers,
   "DELETE /admin/attendees/:attendeeId/delete": handleAttendeeDelete,

@@ -32,6 +32,8 @@ const imagesVisible = (): boolean => isStorageEnabled();
  * carries its own numeric `id`). `extraTabs` slot in between Edit and Images
  * (Pages uses this for its Items manager). */
 export interface SiteContentPageDef<E extends { id: number }> {
+  /** The write route the delete action leads to. */
+  deleteDestination: AdminDestinationId;
   /** The locale key for the delete action on the Actions tab. */
   deleteLabelKey: string;
   destination: AdminDestinationId;
@@ -70,7 +72,7 @@ export const defineSiteContentPage = <E extends { id: number }>(
   // makes the whole tab write-only.
   const actionsTab = deleteActionTab<E>(
     def.deleteLabelKey,
-    (entity) => `${adminRecordPath(def.destination, entity.id)}/delete`,
+    def.deleteDestination,
   );
   return defineEntityPage({
     destination: def.destination,
@@ -80,6 +82,7 @@ export const defineSiteContentPage = <E extends { id: number }>(
       ),
     load: def.load,
     navActive: def.navActive,
+    recordId: (entity) => entity.id,
     tabs: [editTab, ...(def.extraTabs ?? []), imagesTab, actionsTab],
     titleOf: def.titleOf,
   });

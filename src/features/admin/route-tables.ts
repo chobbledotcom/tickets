@@ -8,9 +8,17 @@
 
 import type { EntityPage } from "#routes/admin/entity-pages.ts";
 import type { IdRouteHandler } from "#routes/entity.ts";
-import type { TypedRouteHandler } from "#routes/router.ts";
+import {
+  defineRoutes,
+  type RouteTableFactory,
+  type TypedRouteHandler,
+} from "#routes/router.ts";
+import { ADMIN_SURFACE, oneServedPath } from "#shared/admin-surface.ts";
 import type { RequestRoute } from "#shared/response-steps.ts";
-import type { RouteParamNames } from "#shared/route-pattern.ts";
+import {
+  type RouteParamNames,
+  routePathPatternToRegex,
+} from "#shared/route-pattern.ts";
 
 /** The two GET routes every entity page owns: the declared detail path (its
  * default tab) and the `/:tab` variant beneath it. */
@@ -86,3 +94,23 @@ export const crudRoutes = <Base extends string>(
     [`POST ${base}/:id/delete`]: crud.deletePost,
     [`POST ${base}/:id/edit`]: crud.editPost,
   }) as CrudRoutes<Base>;
+
+/** Define an admin route table. It refuses any route whose path no declared
+ * destination serves. A route without a declaration has no audience, so the
+ * role matrix and the nav cannot say who reaches it. A new route must not
+ * arrive that way. The typed call signature is shared with `defineRoutes`.
+ * This adds the bind-time declaration check on top. */
+export const defineAdminRoutes: RouteTableFactory = (routes) => {
+  const destinations = Object.values(ADMIN_SURFACE.destinations);
+  for (const route of Object.keys(routes)) {
+    const boundary = route.indexOf(" ");
+    const pattern = routePathPatternToRegex(route.slice(boundary + 1));
+    const declared = destinations.some((destination) =>
+      pattern.test(oneServedPath(destination.pattern)),
+    );
+    if (!declared) {
+      throw new Error(`No admin route is declared for "${route}"`);
+    }
+  }
+  return defineRoutes(routes);
+};

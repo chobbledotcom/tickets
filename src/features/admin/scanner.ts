@@ -7,6 +7,7 @@ import { getListingWithCount } from "#db/listings/records.ts";
 import { PRUNE_SCAN_OPERATIONS_RETENTION_DAYS } from "#db/processed-scan-operations.ts";
 import { filter, groupToMap, sumOf } from "#fp";
 import { sortedByString } from "#fp-strings";
+import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import { pageGuardFor, SCANNER_JSON, withAuth } from "#routes/auth.ts";
 import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
 import {
@@ -14,7 +15,6 @@ import {
   jsonResponse,
   notFoundResponse,
 } from "#routes/response.ts";
-import { defineRoutes } from "#routes/router.ts";
 import { adminDestination } from "#shared/admin-surface.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
 import type { RequestRoute } from "#shared/response-steps.ts";
@@ -202,7 +202,7 @@ const handleGroupScanPost: IdRouteHandler = (request, { id }) =>
   });
 
 /** Scanner routes */
-export const adminHandlers = defineRoutes({
+export const adminHandlers = defineAdminRoutes({
   "GET /admin/groups/:id/scan-cache": handleGroupScanCacheGet,
   "GET /admin/groups/:id/scanner": handleGroupScannerGet,
   "GET /admin/listing/:id/scan-cache": handleListingScanCacheGet,
