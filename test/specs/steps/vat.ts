@@ -13,7 +13,7 @@ import { type TicketsWorld, theBooking } from "#test/specs/support/world.ts";
 /** The tax account's balance alone could hide a tax leg that a refund later
  *  reversed, so the booking's own legs are checked for both tax kinds too. */
 Then(
-  "no value added tax was recorded or refunded",
+  "no VAT was recorded or refunded",
   async function (this: TicketsWorld): Promise<void> {
     expect(await accountBalance(TAX_VAT)).toBe(0);
     const legs = await transfersByAccount(attendeeAccount(theBooking(this)));

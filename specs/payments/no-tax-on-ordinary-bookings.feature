@@ -3,7 +3,7 @@
 @actor:organiser
 @edition:managed @edition:self-hosted
 Feature: The books carry no tax for ordinary bookings
-  A booking records value added tax only when it carries tax facts. The
+  A booking records VAT only when it carries tax facts. The
   bookings the site takes today carry none, so a sale keeps its whole price
   as income and its refund hands back exactly what was paid.
 
@@ -16,7 +16,7 @@ Feature: The books carry no tax for ordinary bookings
     @case:payment.no-tax-when-a-place-is-sold
     Scenario: A customer buys a place at its listed price
       Given a customer paid 45.00 for a Concert place
-      Then no value added tax was recorded or refunded
+      Then no VAT was recorded or refunded
       And the customer owes nothing
 
   @rule:payments.a-refund-of-a-tax-free-booking-reverses-no-tax
@@ -29,5 +29,5 @@ Feature: The books carry no tax for ordinary bookings
     Scenario: The organiser refunds a place that carried no tax
       Given a customer paid 45.00 for a Concert place
       When the organiser refunds the booking
-      Then no value added tax was recorded or refunded
+      Then no VAT was recorded or refunded
       And no money is left unaccounted for

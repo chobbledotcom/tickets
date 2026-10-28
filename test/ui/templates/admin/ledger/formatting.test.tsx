@@ -48,11 +48,9 @@ describe("admin ledger formatting", () => {
     });
 
     test("names the VAT kinds", () => {
-      expect(transferEventLabel(transfer({ kind: KIND.vat }))).toBe(
-        "Value added tax",
-      );
+      expect(transferEventLabel(transfer({ kind: KIND.vat }))).toBe("VAT");
       expect(transferEventLabel(transfer({ kind: KIND.refundVat }))).toBe(
-        "Value added tax refunded",
+        "VAT refunded",
       );
     });
   });
@@ -64,7 +62,7 @@ describe("admin ledger formatting", () => {
         kind: KIND.vat,
         source: account(ATTENDEE, 1),
       });
-      assertStringIncludes(html, "Value added tax recorded");
+      assertStringIncludes(html, "VAT recorded");
     });
 
     test("reads as tax refunded for the refund_vat leg", () => {
@@ -73,7 +71,7 @@ describe("admin ledger formatting", () => {
         kind: KIND.refundVat,
         source: account("tax", "vat"),
       });
-      assertStringIncludes(html, "Value added tax refunded");
+      assertStringIncludes(html, "VAT refunded");
     });
   });
 
@@ -114,10 +112,7 @@ describe("admin ledger formatting", () => {
       source: account("tax", "vat"),
     };
     expect(humanAmount(transfer(reduction))).toBe(-25);
-    assertStringIncludes(
-      describeTransfer(reduction),
-      "Value added tax reduced.",
-    );
+    assertStringIncludes(describeTransfer(reduction), "VAT reduced.");
     const refund = {
       ...reduction,
       destination: reduction.source,
@@ -125,10 +120,7 @@ describe("admin ledger formatting", () => {
       source: reduction.destination,
     };
     expect(humanAmount(transfer(refund))).toBe(25);
-    assertStringIncludes(
-      describeTransfer(refund),
-      "Value added tax reduction reversed.",
-    );
+    assertStringIncludes(describeTransfer(refund), "VAT reduction reversed.");
   });
 
   describe("humanDescription for a service cost", () => {
