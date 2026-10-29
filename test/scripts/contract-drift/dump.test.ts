@@ -297,10 +297,12 @@ describe("declaredTableOrNone", () => {
     // agreement to the runtime: Deno's own not-found error for a mapped
     // specifier must carry the bare path the matcher looks for.
     const specifier = "#test/shared/payment/m/no-such-table-module.ts";
-    const failure = await import(specifier).then(
-      (): TypeError | undefined => undefined,
-      (error: unknown) => (error instanceof TypeError ? error : undefined),
-    );
+    let failure: TypeError | undefined;
+    try {
+      await import(specifier);
+    } catch (error) {
+      failure = error instanceof TypeError ? error : undefined;
+    }
     expect(failure?.message).toContain(specifier.replace(/^#/, ""));
     expect(
       await declaredTableOrNone("m", () => import(specifier), specifier),
