@@ -67,6 +67,14 @@ describe("currency", () => {
     });
 
     testWithSetting(
+      "does not sign a negative zero",
+      { currency: "GBP" },
+      () => {
+        expect(formatCurrency(-0)).toBe("£0");
+      },
+    );
+
+    testWithSetting(
       "formats USD with dollar symbol",
       { currency: "USD" },
       () => {
