@@ -115,11 +115,11 @@ describe("generateSecureToken", () => {
 });
 
 describe("generateTicketToken", () => {
-  it("returns an uppercase hex string of 10 characters", () => {
-    // 5 bytes = 10 hex characters
+  it("returns an uppercase hex string of 32 characters", () => {
+    // 16 bytes = 32 hex characters
     const token = generateTicketToken();
     expect(token).toMatch(/^[0-9A-F]+$/);
-    expect(token.length).toBe(10);
+    expect(token.length).toBe(32);
   });
 
   it("contains no dashes or underscores", () => {
@@ -132,8 +132,10 @@ describe("generateTicketToken", () => {
     expectUniqueGeneratedValues(generateTicketToken)(100);
   });
 
-  it("encodes exactly five random bytes as uppercase hex", () =>
-    withRandomBytes([0, 1, 10, 254, 255])(() => {
-      expect(generateTicketToken()).toBe("00010AFEFF");
+  it("encodes exactly sixteen random bytes as uppercase hex", () =>
+    withRandomBytes([
+      0, 1, 10, 254, 255, 16, 32, 64, 128, 15, 240, 12, 34, 56, 78, 170,
+    ])(() => {
+      expect(generateTicketToken()).toBe("00010AFEFF102040800FF00C22384EAA");
     }));
 });
