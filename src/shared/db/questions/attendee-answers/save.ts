@@ -255,7 +255,7 @@ export const prepareAttendeeAnswerSave = async (
 
 /** Bind a prepared answer save onto one real attendee id. A save that must
  * ride a create transaction is prepared with a placeholder key first. This
- * rekeys the single set onto the id the insert made. The prepared string
+ * rekeys each set onto the id the insert made. The prepared string
  * rows are reused as-is. Only the attendee key changes. */
 export const bindPreparedSaveToAttendee = (
   prepared: PreparedAnswerSave,

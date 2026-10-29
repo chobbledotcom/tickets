@@ -383,6 +383,15 @@ describeWithEnv(
           },
           "answers[0].freeText must be 10240 characters or fewer",
         ],
+        [
+          {
+            answers: [
+              { freeText: "a", questionId: freeText.id },
+              { freeText: "b", questionId: freeText.id },
+            ],
+          },
+          `answers[1] answers question ${freeText.id} twice`,
+        ],
       ] as const) {
         await assertJson(createBooking(listing.id, body), 400, (parsed) =>
           expect(parsed.error).toBe(error),

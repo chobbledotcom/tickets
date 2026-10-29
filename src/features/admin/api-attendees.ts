@@ -27,7 +27,6 @@ import { recordAttendeeAnswersSql } from "#db/questions/attendee-answers/at-book
 import {
   type AttendeeAnswerSet,
   bindPreparedSaveToAttendee,
-  type PreparedAnswerSave,
   prepareAttendeeAnswerSave,
   saveAttendeeAnswersTx,
 } from "#db/questions/attendee-answers/save.ts";
@@ -116,16 +115,25 @@ const toAnswerSet = (answers: ApiAnswer[]): AttendeeAnswerSet => {
 /** The answer write for one created attendee rides the create transaction.
  *  It runs the answer save, then the answers-at-booking record. A failing
  *  answers write rolls the booking back. The save is prepared before the
- *  transaction opens and bound onto the attendee id the insert just made. */
-const answersCreationWork =
-  (prepared: PreparedAnswerSave, listingIds: number[]): AttendeeCreationWork =>
-  async (tx, attendeeId) => {
+ *  transaction opens and bound onto the attendee id the insert just made.
+ *  An answerless body skips the save. The record still runs: the public
+ *  checkout records the questions a booking was asked even when the buyer
+ *  answered none. */
+const answersCreationWork = async (
+  answers: ApiAnswer[],
+  listingIds: number[],
+): Promise<AttendeeCreationWork> => {
+  const prepared = await prepareAttendeeAnswerSave(
+    new Map(answers.length === 0 ? [] : [[0, toAnswerSet(answers)]]),
+  );
+  return async (tx, attendeeId) => {
     await saveAttendeeAnswersTx(
       tx,
       bindPreparedSaveToAttendee(prepared, attendeeId),
       [recordAttendeeAnswersSql(attendeeId, listingIds)],
     );
   };
+};
 
 /** The existing booking for a retried token, or null when the token is fresh.
  *  The unique ticket_token_index is the backstop for a race. Two concurrent
@@ -170,19 +178,14 @@ const createFromParsed = async (parsed: ParsedApiCreate): Promise<Response> => {
     sumOf((adjustment: CreateAdjustment) => adjustment.amount)(adjustments);
   // The answers are encrypted and blind-indexed before the transaction opens.
   // The write itself rides the create work below. An answerless body prepares
-  // nothing, so the ledger poster alone is the work.
-  const answerWork =
-    parsed.answers.length === 0
-      ? undefined
-      : answersCreationWork(
-          await prepareAttendeeAnswerSave(
-            new Map([[0, toAnswerSet(parsed.answers)]]),
-          ),
-          lineListingIds(lines),
-        );
+  // no save but still records the questions the booking was asked.
+  const answerWork = await answersCreationWork(
+    parsed.answers,
+    lineListingIds(lines),
+  );
   const creationWork: AttendeeCreationWork = async (tx, attendeeId) => {
     await apiCreateLedgerPoster(order, receipts)(tx, attendeeId);
-    if (answerWork !== undefined) await answerWork(tx, attendeeId);
+    await answerWork(tx, attendeeId);
   };
   let result: CreateAttendeeResult;
   try {

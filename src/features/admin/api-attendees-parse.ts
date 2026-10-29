@@ -372,9 +372,23 @@ const parseAnswers = async (
   if (raw === undefined) return okResult([]);
   const { questions } = await getQuestionsWithListingIds(listingIds);
   const questionsById = new Map(questions.map((q) => [q.id, q]));
-  return parseEach(raw, "answers", (item, at) =>
+  const answers = parseEach(raw, "answers", (item, at) =>
     parseAnswer(item, questionsById, at),
   );
+  if (!answers.ok) return answers;
+  // One entry per question. The save keeps only the last of two answers to
+  // the same question. A body that names a question twice hides an answer
+  // instead of recording both.
+  const seen = new Set<number>();
+  for (const [index, answer] of answers.value.entries()) {
+    if (seen.has(answer.questionId)) {
+      return errorResult(
+        `answers[${index}] answers question ${answer.questionId} twice`,
+      );
+    }
+    seen.add(answer.questionId);
+  }
+  return answers;
 };
 
 /** Every line's refusal, or the validated lines. The listings are resolved

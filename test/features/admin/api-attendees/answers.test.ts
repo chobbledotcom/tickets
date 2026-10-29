@@ -127,6 +127,37 @@ describeWithEnv(
       expect(allergyRow.changed).toBe(false);
     });
 
+    test("an answerless create still records the questions the booking was asked", async () => {
+      const { allergies, listing, meal } =
+        await seedAnsweringListing("Blank Fair");
+      const created = await assertJson(
+        createBooking(listing.id, { name: "No Answers" }),
+        201,
+      );
+      const attendeeId = created.attendee.id as number;
+
+      const rows = await queryAll<{
+        answer_id: number | null;
+        question_id: number;
+      }>(
+        "SELECT question_id, answer_id FROM answers_at_booking WHERE attendee_id = ?",
+        [attendeeId],
+      );
+      expect(rows).toHaveLength(2);
+      expect(new Set(rows.map((row) => row.question_id))).toEqual(
+        new Set([meal.id, allergies.id]),
+      );
+      for (const row of rows) expect(row.answer_id).toBeNull();
+
+      const booked = await getBookedAnswers(attendeeId, getTestPrivateKey);
+      expect(booked).toHaveLength(2);
+      for (const row of booked) {
+        expect(row.answer).toBeNull();
+        expect(row.answerAtBooking).toBeNull();
+        expect(row.changed).toBe(false);
+      }
+    });
+
     test("a repeated free text reuses its strings row: the used count rises, no duplicate row", async () => {
       const { allergies, listing } = await seedAnsweringListing("Dedup Fair");
       for (const name of ["Vegan One", "Vegan Two"]) {
