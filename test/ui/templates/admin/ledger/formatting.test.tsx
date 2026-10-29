@@ -47,22 +47,22 @@ describe("admin ledger formatting", () => {
       expect(transferEventLabel(transfer({ kind: "" }))).toBe("No event type");
     });
 
-    test("names the VAT kinds", () => {
-      expect(transferEventLabel(transfer({ kind: KIND.vat }))).toBe("VAT");
+    test("names the Tax kinds", () => {
+      expect(transferEventLabel(transfer({ kind: KIND.vat }))).toBe("Tax");
       expect(transferEventLabel(transfer({ kind: KIND.refundVat }))).toBe(
-        "VAT refunded",
+        "Tax refunded",
       );
     });
   });
 
-  describe("humanDescription for VAT", () => {
+  describe("humanDescription for Tax", () => {
     test("reads as tax recorded for the vat leg", () => {
       const html = describeTransfer({
         destination: account("tax", "vat"),
         kind: KIND.vat,
         source: account(ATTENDEE, 1),
       });
-      assertStringIncludes(html, "VAT recorded");
+      assertStringIncludes(html, "Tax recorded");
     });
 
     test("reads as tax refunded for the refund_vat leg", () => {
@@ -71,7 +71,7 @@ describe("admin ledger formatting", () => {
         kind: KIND.refundVat,
         source: account("tax", "vat"),
       });
-      assertStringIncludes(html, "VAT refunded");
+      assertStringIncludes(html, "Tax refunded");
     });
   });
 
@@ -104,7 +104,7 @@ describe("admin ledger formatting", () => {
     }
   });
 
-  test("shows VAT reductions and their refund reversal with the right signs", () => {
+  test("shows Tax reductions and their refund reversal with the right signs", () => {
     const reduction = {
       amount: 25,
       destination: account(ATTENDEE, 1),
@@ -112,7 +112,7 @@ describe("admin ledger formatting", () => {
       source: account("tax", "vat"),
     };
     expect(humanAmount(transfer(reduction))).toBe(-25);
-    assertStringIncludes(describeTransfer(reduction), "VAT reduced.");
+    assertStringIncludes(describeTransfer(reduction), "Tax reduced.");
     const refund = {
       ...reduction,
       destination: reduction.source,
@@ -120,7 +120,7 @@ describe("admin ledger formatting", () => {
       source: reduction.destination,
     };
     expect(humanAmount(transfer(refund))).toBe(25);
-    assertStringIncludes(describeTransfer(refund), "VAT reduction reversed.");
+    assertStringIncludes(describeTransfer(refund), "Tax reduction reversed.");
   });
 
   describe("humanDescription for a service cost", () => {

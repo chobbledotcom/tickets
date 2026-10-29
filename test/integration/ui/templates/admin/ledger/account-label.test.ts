@@ -25,7 +25,7 @@ describe("money account labels", () => {
     );
     assertStringIncludes(html, "Card / bank");
     assertStringIncludes(html, "Booking fees");
-    assertStringIncludes(html, "VAT");
+    assertStringIncludes(html, "Tax");
     assertStringIncludes(html, "Corrections");
     assert(!html.includes("/admin/ledger/external/"));
     assert(!html.includes("/admin/ledger/fee_income/"));

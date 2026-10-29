@@ -1,10 +1,16 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { settings } from "#db/settings.ts";
 import { attendeeTaxSavedMessage } from "#routes/admin/attendee-tax.ts";
 import { parseTaxSettingsForm } from "#routes/admin/settings-tax.ts";
 import { FormParams } from "#shared/form-data.ts";
+import type { TaxPolicy } from "#shared/tax/types.ts";
 import { TaxSaveFields } from "#templates/admin/attendee-form/tax.tsx";
+import { hasCheckedInput, inputTagWithValue } from "#test-utils/csrf.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { adminFormPost, getTestSession } from "#test-utils/session.ts";
 
 const formOf = (entries: Record<string, string>): FormParams => {
   const form = new FormParams();
@@ -164,5 +170,62 @@ describe("TaxSaveFields", () => {
       html,
       "This booking already uses your current Tax settings",
     );
+  });
+});
+
+/** Stores the given policy, then posts the site's tax form, which asks for
+ *  the given added rate while expecting the policy it read. The fixed
+ *  expected policy is what makes the stale save refused. */
+const postTaxForm = async (stored: TaxPolicy, rate: string) => {
+  await settings.update.tax(stored);
+  return adminFormPost("/admin/settings/tax", {
+    expected_tax: JSON.stringify({ mode: "none" }),
+    tax_mode: "add_to_total",
+    tax_rate: rate,
+  });
+};
+
+describeWithEnv("server (settings form) — tax save", { db: true }, () => {
+  test("saves a tax choice through the settings form", async () => {
+    const { response, cookie } = await postTaxForm({ mode: "none" }, "20");
+    expect(response.status).toBe(302);
+    expect(settings.tax).toEqual({
+      mode: "add_to_total",
+      rateBasisPoints: 2000,
+    });
+    const page = await awaitTestRequest("/admin/settings", { cookie });
+    const html = await page.text();
+    expect(hasCheckedInput(html, "tax_mode", "add_to_total")).toBe(true);
+    expect(inputTagWithValue(html, "20.00", "tax_rate")).not.toBe("");
+  });
+
+  test("refuses a rate the site cannot store", async () => {
+    const { response } = await postTaxForm(
+      { mode: "none" },
+      "99999999999999999999",
+    );
+    expect(response.status).toBe(302);
+    expect(settings.tax).toEqual({ mode: "none" });
+  });
+
+  test("refuses a save whose stored setting has moved", async () => {
+    const { response } = await postTaxForm(
+      { mode: "add_to_total", rateBasisPoints: 2000 },
+      "20",
+    );
+    expect(response.status).toBe(302);
+    expect(settings.tax).toEqual({
+      mode: "add_to_total",
+      rateBasisPoints: 2000,
+    });
+  });
+
+  test("shows an empty rate box when the site collects no tax", async () => {
+    await settings.update.tax({ mode: "none" });
+    const { cookie } = await getTestSession();
+    const page = await awaitTestRequest("/admin/settings", { cookie });
+    const html = await page.text();
+    expect(hasCheckedInput(html, "tax_mode", "none")).toBe(true);
+    expect(inputTagWithValue(html, "", "tax_rate")).not.toBe("");
   });
 });

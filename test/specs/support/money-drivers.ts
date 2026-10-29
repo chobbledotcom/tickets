@@ -10,6 +10,7 @@ import { handleRequest } from "#routes";
 import { paymentsApi } from "#shared/payments.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { stripeApi } from "#shared/stripe.ts";
+import type { TaxPolicy } from "#shared/tax/types.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import {
   expectHtmlResponse,
@@ -38,6 +39,9 @@ export type StripeOrder = {
   email: string;
   sessionId: string;
   paymentIntent: string;
+  /** The tax policy frozen into the signed metadata, when the checkout was
+   * taken under one. Absent for a legacy untaxed checkout. */
+  taxPolicy?: TaxPolicy;
 };
 
 const providerCharge = (world: TicketsWorld, reference: string): ChargeMoney =>
@@ -66,6 +70,9 @@ export const withStripeSuccess = async (
       name: order.name,
       ...(order.modifiers
         ? { modifiers: JSON.stringify(order.modifiers) }
+        : {}),
+      ...(order.taxPolicy
+        ? { tax_policy: JSON.stringify(order.taxPolicy) }
         : {}),
     },
     order.total,
