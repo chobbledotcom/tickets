@@ -253,6 +253,20 @@ export const prepareAttendeeAnswerSave = async (
   return { normalized, preparedStringRows };
 };
 
+/** Bind a prepared answer save onto one real attendee id. A save that must
+ * ride a create transaction is prepared with a placeholder key first. This
+ * rekeys the single set onto the id the insert made. The prepared string
+ * rows are reused as-is. Only the attendee key changes. */
+export const bindPreparedSaveToAttendee = (
+  prepared: PreparedAnswerSave,
+  attendeeId: number,
+): PreparedAnswerSave => ({
+  ...prepared,
+  normalized: new Map(
+    [...prepared.normalized.values()].map((set) => [attendeeId, set]),
+  ),
+});
+
 /** Run a prepared answer save on the caller's open transaction, so a caller
  *  that already holds one keeps its own atomicity. The save always writes
  *  something: the caller's guard rules out an empty save, and a save with

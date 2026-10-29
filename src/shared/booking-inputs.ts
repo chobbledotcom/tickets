@@ -72,7 +72,7 @@ const parseAdjustment = (
 
 /** Parse every element of an optional array, or the first refusal. Absent
  *  parses to an empty array. */
-const parseEach = <T>(
+export const parseEach = <T>(
   raw: unknown,
   label: string,
   parseOne: (item: unknown, at: string) => Result<T>,

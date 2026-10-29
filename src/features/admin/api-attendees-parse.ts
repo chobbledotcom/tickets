@@ -1,7 +1,8 @@
 /** Body parsing for POST /api/admin/attendees. It validates the create
  * request: contact PII, at least one booking line, the payments already
- * received, and the named one-off adjustments. Each line can carry an optional
- * agreed per-unit price. Pure data-in/data-out. The route owns the writes. */
+ * received, the named one-off adjustments, and the buyer's answers. Each line
+ * can carry an optional agreed per-unit price. Pure data-in/data-out. The
+ * route owns the writes. */
 
 import * as v from "valibot";
 /* jscpd:ignore-start */
@@ -12,15 +13,18 @@ import {
 } from "#db/attendee-statuses.ts";
 import { hasDuplicateBookingSlot } from "#db/attendees/booking-slot.ts";
 import { getListingsById } from "#db/listings/records.ts";
+import type { QuestionWithAnswers } from "#db/question-types.ts";
+import { getQuestionsWithListingIds } from "#db/questions/queries.ts";
 import {
   parseAdjustments,
+  parseEach,
   parseLinePrice,
   parsePayments,
   quantityOverCap,
 } from "#shared/booking-inputs.ts";
 import { countsPerDate } from "#shared/capacity-rules.ts";
 import type { CreateAdjustment } from "#shared/checkout-complete.ts";
-import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
+import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { isIsoDate } from "#shared/validation/date-string.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
@@ -54,11 +58,21 @@ export type ApiLine = {
   quantity: number;
 };
 
+/** The ids of the listings the lines book, in line order. */
+export const lineListingIds = (lines: ApiLine[]): number[] =>
+  lines.map((line) => line.listing.id);
+
+/** One answer a create body carries: a chosen option, or free text. */
+export type ApiAnswer =
+  | { answerId: number; questionId: number }
+  | { freeText: string; questionId: number };
+
 /** The validated create body. It holds the contact PII, the resolved status,
  * the optional retry token, and at least one booking line. It also holds the
- * payments received now and the named one-off adjustments. */
+ * payments received now, the named one-off adjustments, and the answers. */
 export type ParsedApiCreate = ContactInfo & {
   adjustments: CreateAdjustment[];
+  answers: ApiAnswer[];
   /** The business time the booking happened, when the caller stamps a
    * historical one. Absent means now at insert. */
   created: string | undefined;
@@ -272,6 +286,110 @@ const parseStatusAndToken: BodyRead<{
   });
 };
 
+/** A strict positive whole id, or null. JSON ids are numbers. A string or a
+ * fraction is refused, never coerced. */
+const positiveIntegerId = (raw: unknown): number | null =>
+  typeof raw === "number" && Number.isSafeInteger(raw) && raw >= 1 ? raw : null;
+
+/** One answer's value: the free text, or the chosen option id. The caller has
+ * already refused a kind the question does not ask for, so only the matching
+ * branch runs. */
+const parseAnsweredValue = (
+  entry: Record<string, unknown>,
+  question: QuestionWithAnswers,
+  at: string,
+): Result<ApiAnswer> => {
+  if (question.display_type === "free_text") {
+    const freeText = entry.freeText;
+    if (typeof freeText !== "string" || freeText.trim() === "") {
+      return errorResult(`${at}.freeText must be non-empty text`);
+    }
+    const trimmed = freeText.trim();
+    if (trimmed.length > MAX_TEXTAREA_LENGTH) {
+      return errorResult(
+        `${at}.freeText must be ${MAX_TEXTAREA_LENGTH} characters or fewer`,
+      );
+    }
+    return okResult({ freeText: trimmed, questionId: question.id });
+  }
+  const answerId = positiveIntegerId(entry.answerId);
+  const answer =
+    answerId === null
+      ? undefined
+      : question.answers.find((candidate) => candidate.id === answerId);
+  if (!answer) {
+    return errorResult(`${at}.answerId is not one of the question's answers`);
+  }
+  if (!answer.active) {
+    return errorResult(`${at}.answerId is a deactivated answer`);
+  }
+  return okResult({ answerId: answer.id, questionId: question.id });
+};
+
+/** One answer entry's refusal, or the validated answer. The question must be
+ * one the booking asks: `assign_all` questions apply to every listing, others
+ * only when a booked line links them. `at` names the entry in the body, like
+ * `answers[0]`. */
+const parseAnswer = (
+  raw: unknown,
+  questionsById: Map<number, QuestionWithAnswers>,
+  at: string,
+): Result<ApiAnswer> => {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    return errorResult(`${at} must name a question and an answer`);
+  }
+  const entry = raw as Record<string, unknown>;
+  const questionId = positiveIntegerId(entry.questionId);
+  if (questionId === null) {
+    return errorResult(`${at}.questionId must be a positive whole number`);
+  }
+  const question = questionsById.get(questionId);
+  if (!question) {
+    return errorResult(`${at} names a question this booking does not ask`);
+  }
+  const hasAnswerId = entry.answerId !== undefined;
+  const hasFreeText = entry.freeText !== undefined;
+  if (hasAnswerId === hasFreeText) {
+    return errorResult(`${at} must name an answerId or a freeText, not both`);
+  }
+  if (hasAnswerId && question.display_type === "free_text") {
+    return errorResult(`${at}.answerId only applies to choice questions`);
+  }
+  if (!hasAnswerId && question.display_type !== "free_text") {
+    return errorResult(`${at}.freeText only applies to free-text questions`);
+  }
+  return parseAnsweredValue(entry, question, at);
+};
+
+/** The answers a create body carries, or the refusal. An absent `answers`
+ * means none. The questions are validated against the ones the booked lines
+ * ask, so every answer lands on a question the answers-at-booking snapshot
+ * records. */
+const parseAnswers = async (
+  raw: unknown,
+  listingIds: number[],
+): Promise<Result<ApiAnswer[]>> => {
+  if (raw === undefined) return okResult([]);
+  const { questions } = await getQuestionsWithListingIds(listingIds);
+  const questionsById = new Map(questions.map((q) => [q.id, q]));
+  return parseEach(raw, "answers", (item, at) =>
+    parseAnswer(item, questionsById, at),
+  );
+};
+
+/** Every line's refusal, or the validated lines. The listings are resolved
+ * from the database once and shared across the lines. */
+const parseLines = async (linesRaw: unknown[]): Promise<Result<ApiLine[]>> => {
+  const listingsById = await getListingsById();
+  const lines: ApiLine[] = [];
+  for (const [index, rawLine] of linesRaw.entries()) {
+    const parsed = parseLine(rawLine, listingsById, index);
+    if (!parsed.ok) return parsed;
+    lines.push(parsed.value);
+  }
+  return okResult(lines);
+};
+
 /** Parse and validate a create body. A body with no lines, an unknown listing,
  *  or an unknown status is refused before anything is written. */
 export const parseCreateBody: BodyRead<ParsedApiCreate> = async (body) => {
@@ -293,13 +411,9 @@ export const parseCreateBody: BodyRead<ParsedApiCreate> = async (body) => {
   const adjustments = parseAdjustments(body.adjustments);
   if (!adjustments.ok) return adjustments;
 
-  const listingsById = await getListingsById();
-  const lines: ApiLine[] = [];
-  for (const [index, rawLine] of linesRaw.entries()) {
-    const parsed = parseLine(rawLine, listingsById, index);
-    if (!parsed.ok) return parsed;
-    lines.push(parsed.value);
-  }
+  const linesResult = await parseLines(linesRaw);
+  if (!linesResult.ok) return linesResult;
+  const lines = linesResult.value;
   if (
     hasDuplicateBookingSlot(
       lines.map((line) => ({ date: line.date, listingId: line.listing.id })),
@@ -307,10 +421,13 @@ export const parseCreateBody: BodyRead<ParsedApiCreate> = async (body) => {
   ) {
     return errorResult("Two lines book the same slot");
   }
+  const answers = await parseAnswers(body.answers, lineListingIds(lines));
+  if (!answers.ok) return answers;
 
   return okResult({
     ...contact.value,
     adjustments: adjustments.value,
+    answers: answers.value,
     created: created.value,
     lines,
     payments: payments.value,

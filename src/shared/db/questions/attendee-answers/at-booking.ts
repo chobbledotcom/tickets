@@ -54,6 +54,18 @@ const recordAnswersSql = (
     WHERE true
     ON CONFLICT (attendee_id, question_id) DO NOTHING`;
 
+/** The answers-at-booking record: the questions the booked listings asked,
+ * and the answer given for each. `attendeeSlot` binds the attendee — a plain
+ * `?` for a known id, or the booking batch's own token subselect. */
+const recordAnswersStatement = (
+  attendeeSlot: string,
+  attendeeValue: string | number,
+  listingIds: number[],
+): SqlStatement => ({
+  args: listingIds.flatMap((listingId) => [attendeeValue, listingId]),
+  sql: recordAnswersSql(listingIds.length, attendeeSlot),
+});
+
 /** The answers a reservation boundary rides with its booking batch: the answer
  * save plus the answers-at-booking record, with the attendee resolved from the
  * batch's own ticket token. The boundary runs these after the booking rows, so
@@ -69,11 +81,15 @@ export const bookedAnswersTail =
   ): ((tokenIndex: string) => SqlStatement[]) =>
   (tokenIndex) => [
     ...bookedAnswerSaveStatements(prepared, tokenIndex),
-    {
-      args: listingIds.flatMap((listingId) => [tokenIndex, listingId]),
-      sql: recordAnswersSql(listingIds.length, ATTENDEE_BY_TOKEN_SQL),
-    },
+    recordAnswersStatement(ATTENDEE_BY_TOKEN_SQL, tokenIndex, listingIds),
   ];
+
+/** The answers-at-booking record for one known attendee, to ride a standalone
+ * answer save on a caller's own create transaction. */
+export const recordAttendeeAnswersSql = (
+  attendeeId: number,
+  listingIds: number[],
+): SqlStatement => recordAnswersStatement("?", attendeeId, listingIds);
 
 /** Each question that an attendee with a record was asked at booking or
  * answers now, joined to both answers. Only an attendee with a record has

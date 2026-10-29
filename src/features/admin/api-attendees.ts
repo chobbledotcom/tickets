@@ -3,11 +3,12 @@
  *
  * The create mirrors the manual-add form. It can overbook. A line can carry
  * an agreed per-unit `price`. The body can record `payments` already received.
- * It can carry named `adjustments` (one-off charges or writeoffs). The ledger
- * posts every leg at creation, so the projected balance is right from birth.
- * It never emails the buyer. The operator re-sends from the admin page. The
- * attendee rows, their listing lines, and the ledger legs commit together. A
- * caller-chosen `ticketToken` makes a retried create a no-op.
+ * It can carry named `adjustments` (one-off charges or writeoffs). It can
+ * carry the buyer's `answers` to the booking's questions. The ledger posts
+ * every leg at creation, so the projected balance is right from birth. It
+ * never emails the buyer. The operator re-sends from the admin page. The
+ * attendee rows, their listing lines, the ledger legs, and the answers commit
+ * together. A caller-chosen `ticketToken` makes a retried create a no-op.
  */
 
 /* jscpd:ignore-start */
@@ -17,9 +18,19 @@ import type {
   ListingBooking,
 } from "#db/attendee-types.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
+import type { AttendeeCreationWork } from "#db/attendees/create-batch.ts";
 import type { PendingNotificationFlag } from "#db/attendees/notification-flags.ts";
 import { decryptAttendeeFields } from "#db/attendees/pii.ts";
 import { getAttendeeRawByToken } from "#db/attendees/queries.ts";
+import type { TextAnswer } from "#db/question-types.ts";
+import { recordAttendeeAnswersSql } from "#db/questions/attendee-answers/at-booking.ts";
+import {
+  type AttendeeAnswerSet,
+  bindPreparedSaveToAttendee,
+  type PreparedAnswerSave,
+  prepareAttendeeAnswerSave,
+  saveAttendeeAnswersTx,
+} from "#db/questions/attendee-answers/save.ts";
 import { byId, sum, sumOf } from "#fp";
 import { emailPendingForAdminLines } from "#routes/admin/attendees-route-helpers.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
@@ -41,7 +52,9 @@ import { queueManualAddWebhooks } from "#shared/webhook/delivery.ts";
 import type { Attendee } from "#types";
 /* jscpd:ignore-end */
 import {
+  type ApiAnswer,
   type ApiLine,
+  lineListingIds,
   type ParsedApiCreate,
   parseCreateBody,
 } from "./api-attendees-parse.ts";
@@ -82,6 +95,37 @@ const toLedgerOrder = (lines: ApiLine[]): PricedOrder =>
       ...(line.price === undefined ? {} : { unitPrice: line.price }),
     })),
   );
+
+/** The parsed answers reduced to the shape the answer save prepares: the
+ *  chosen option ids and the free-text answers. A choice entry's question is
+ *  implied by its answer. The question ids ride on the free-text entries. */
+const toAnswerSet = (answers: ApiAnswer[]): AttendeeAnswerSet => {
+  const answerIds: number[] = [];
+  const textAnswers: TextAnswer[] = [];
+  for (const answer of answers) {
+    if ("answerId" in answer) answerIds.push(answer.answerId);
+    else
+      textAnswers.push({
+        questionId: answer.questionId,
+        text: answer.freeText,
+      });
+  }
+  return { answerIds, textAnswers };
+};
+
+/** The answer write for one created attendee rides the create transaction.
+ *  It runs the answer save, then the answers-at-booking record. A failing
+ *  answers write rolls the booking back. The save is prepared before the
+ *  transaction opens and bound onto the attendee id the insert just made. */
+const answersCreationWork =
+  (prepared: PreparedAnswerSave, listingIds: number[]): AttendeeCreationWork =>
+  async (tx, attendeeId) => {
+    await saveAttendeeAnswersTx(
+      tx,
+      bindPreparedSaveToAttendee(prepared, attendeeId),
+      [recordAttendeeAnswersSql(attendeeId, listingIds)],
+    );
+  };
 
 /** The existing booking for a retried token, or null when the token is fresh.
  *  The unique ticket_token_index is the backstop for a race. Two concurrent
@@ -124,6 +168,22 @@ const createFromParsed = async (parsed: ParsedApiCreate): Promise<Response> => {
     gross -
     sum(payments) +
     sumOf((adjustment: CreateAdjustment) => adjustment.amount)(adjustments);
+  // The answers are encrypted and blind-indexed before the transaction opens.
+  // The write itself rides the create work below. An answerless body prepares
+  // nothing, so the ledger poster alone is the work.
+  const answerWork =
+    parsed.answers.length === 0
+      ? undefined
+      : answersCreationWork(
+          await prepareAttendeeAnswerSave(
+            new Map([[0, toAnswerSet(parsed.answers)]]),
+          ),
+          lineListingIds(lines),
+        );
+  const creationWork: AttendeeCreationWork = async (tx, attendeeId) => {
+    await apiCreateLedgerPoster(order, receipts)(tx, attendeeId);
+    if (answerWork !== undefined) await answerWork(tx, attendeeId);
+  };
   let result: CreateAttendeeResult;
   try {
     result = await attendeesApi.createAttendeeAtomic(
@@ -142,7 +202,7 @@ const createFromParsed = async (parsed: ParsedApiCreate): Promise<Response> => {
         ...(ticketToken === undefined ? {} : { ticketToken }),
         ...(created === undefined ? {} : { created }),
       },
-      apiCreateLedgerPoster(order, receipts),
+      creationWork,
     );
   } catch (error) {
     if (ticketToken !== undefined) {

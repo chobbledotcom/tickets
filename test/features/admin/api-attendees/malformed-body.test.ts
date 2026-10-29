@@ -1,5 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { listingQuestions } from "#db/questions/queries.ts";
+import {
+  addAnswer,
+  assignQuestion,
+  createQuestion,
+} from "#test/shared/db/questions/helpers.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -286,6 +292,100 @@ describeWithEnv(
           apiRequest("/api/admin/attendees", { body, method: "POST" }),
           400,
           (parsed) => expect(parsed.error).toBe(error),
+        );
+      }
+    });
+
+    test("answers that are malformed, ask the wrong kind, or miss the booking", async () => {
+      const listing = await createTestListing({ name: "Bad Answer Fair" });
+      const { answer: veggie, question: meal } = await assignQuestion(
+        listing.id,
+        "Meal?",
+        "Veggie",
+      );
+      const inactive = await addAnswer(meal.id, 1, "Meat", {
+        active: false,
+      });
+      const other = await createTestListing({ name: "Other Fair" });
+      const { answer: otherAnswer, question: otherQuestion } =
+        await assignQuestion(other.id, "Other?", "No");
+      const freeText = await createQuestion("Allergies?", {
+        displayType: "free_text",
+      });
+      await listingQuestions.setIds(listing.id, [meal.id, freeText.id]);
+
+      for (const [body, error] of [
+        [{ answers: 5 }, "answers must be an array"],
+        [{ answers: [5] }, "answers[0] must name a question and an answer"],
+        [
+          { answers: [{ answerId: veggie.id }] },
+          "answers[0].questionId must be a positive whole number",
+        ],
+        [
+          { answers: [{ answerId: veggie.id, questionId: 0 }] },
+          "answers[0].questionId must be a positive whole number",
+        ],
+        [
+          { answers: [{ answerId: veggie.id, questionId: "1" }] },
+          "answers[0].questionId must be a positive whole number",
+        ],
+        [
+          { answers: [{ answerId: veggie.id, questionId: 99999 }] },
+          "answers[0] names a question this booking does not ask",
+        ],
+        [
+          {
+            answers: [
+              { answerId: otherAnswer.id, questionId: otherQuestion.id },
+            ],
+          },
+          "answers[0] names a question this booking does not ask",
+        ],
+        [
+          { answers: [{ answerId: 0, questionId: meal.id }] },
+          "answers[0].answerId is not one of the question's answers",
+        ],
+        [
+          { answers: [{ answerId: inactive.id, questionId: meal.id }] },
+          "answers[0].answerId is a deactivated answer",
+        ],
+        [
+          { answers: [{ questionId: meal.id }] },
+          "answers[0] must name an answerId or a freeText, not both",
+        ],
+        [
+          {
+            answers: [
+              { answerId: veggie.id, freeText: "x", questionId: meal.id },
+            ],
+          },
+          "answers[0] must name an answerId or a freeText, not both",
+        ],
+        [
+          { answers: [{ answerId: veggie.id, questionId: freeText.id }] },
+          "answers[0].answerId only applies to choice questions",
+        ],
+        [
+          { answers: [{ freeText: "x", questionId: meal.id }] },
+          "answers[0].freeText only applies to free-text questions",
+        ],
+        [
+          { answers: [{ freeText: "", questionId: freeText.id }] },
+          "answers[0].freeText must be non-empty text",
+        ],
+        [
+          { answers: [{ freeText: 5, questionId: freeText.id }] },
+          "answers[0].freeText must be non-empty text",
+        ],
+        [
+          {
+            answers: [{ freeText: "x".repeat(10241), questionId: freeText.id }],
+          },
+          "answers[0].freeText must be 10240 characters or fewer",
+        ],
+      ] as const) {
+        await assertJson(createBooking(listing.id, body), 400, (parsed) =>
+          expect(parsed.error).toBe(error),
         );
       }
     });
