@@ -18,6 +18,7 @@ import type {
   PricedLine,
   PricedOrder,
 } from "#shared/checkout-pricing.ts";
+import { pricedOrder } from "#test-utils/factories-pricing.ts";
 import { taggedPaymentReference } from "#test-utils/processed-payments.ts";
 import type { Attendee } from "#types";
 
@@ -64,15 +65,6 @@ export const pricedLine = (
   quantity,
 });
 
-const pricedOrder = (overrides: Partial<PricedOrder> = {}): PricedOrder => ({
-  extras: [],
-  fullSubtotal: 0,
-  lines: [],
-  modifierApplications: [],
-  total: 0,
-  ...overrides,
-});
-
 export const surcharge = (
   modifierId: number,
   delta: number,
@@ -98,7 +90,6 @@ export const paidInput = (
 export const buildPlan = async (opts: {
   eventId: string;
   lines: PricedLine[];
-  fullSubtotal?: number;
   total?: number;
   usages?: ModifierApplication[];
   sessionId?: string;
@@ -106,7 +97,6 @@ export const buildPlan = async (opts: {
   if (opts.sessionId) await reserveSession(opts.sessionId);
   const usages = opts.usages ?? [];
   const order = pricedOrder({
-    fullSubtotal: opts.fullSubtotal ?? 0,
     lines: opts.lines,
     modifierApplications: usages,
     total: opts.total ?? 0,

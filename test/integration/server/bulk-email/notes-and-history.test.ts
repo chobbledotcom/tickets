@@ -5,7 +5,7 @@ import { encryptWithOwnerKey } from "#crypto/hybrid.ts";
 
 import { base64ToBase64Url } from "#crypto/utils.ts";
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
-import { execute, queryOne } from "#db/client.ts";
+import { execute, executeUpdate, queryOne } from "#db/client.ts";
 import {
   getContactRecord,
   hashEmail,
@@ -227,8 +227,11 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       );
       // Give the first booking a status so its name shows in the table.
       const status = await attendeeStatuses.table.insert({ name: "Confirmed" });
-      const { updateAttendeeStatus } = await import("#db/attendees/update.ts");
-      await updateAttendeeStatus(first.id, status.id);
+      await executeUpdate(
+        "attendees",
+        { status_id: status.id },
+        { id: first.id },
+      );
 
       const html = await (
         await adminGet(`/admin/attendees/${second.id}`)

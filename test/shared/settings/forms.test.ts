@@ -57,6 +57,14 @@ const multi = (
 });
 
 const EXPECTED_FORM_ROWS = [
+  multi(
+    "tax",
+    "main",
+    "/admin/settings/tax",
+    "settings-tax",
+    ["tax_mode", "tax_rate", "expected_tax"],
+    "Tax",
+  ),
   single(
     "businessEmail",
     "main",

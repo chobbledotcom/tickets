@@ -95,6 +95,7 @@ const EXPECTED_CONFIG_KEY_NAMES = lines(`
   SUMUP_MERCHANT_CODE
   SUPERUSER_CHOICE
   SUPPORT_FORM_LAST_SUBMITTED
+  TAX
   TERMS_AND_CONDITIONS
   THEME
   UNDERLINE_LINKS
@@ -110,6 +111,7 @@ const EXPECTED_SETTING_ROWS = [
   ["ADDRESS_LOOKUP_PROVIDER", "plaintext", null],
   ["ADDRESS_LOOKUP_API_KEY", "encrypted", null],
   ["ENABLED_FEATURES", "plaintext", null],
+  ["TAX", "plaintext", null],
   ["CUSTOM_CSS", "plaintext", "customCss"],
   ["CUSTOM_DOMAIN", "plaintext", "customDomain"],
   [

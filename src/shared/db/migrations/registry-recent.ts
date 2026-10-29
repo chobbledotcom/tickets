@@ -109,6 +109,10 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
     "2026-10-27_note_entities_group_listing",
     () => import("./2026-10-27_note_entities_group_listing.ts"),
   ),
+  entry(
+    "2026-10-27_booking_tax_assessments",
+    () => import("./2026-10-27_booking_tax_assessments.ts"),
+  ),
   // The dormant buyer-bearing payment tables accept DB-key enc:1 ciphertext.
   // Nothing has ever written them, so this release drops the empty tables and
   // the declarative apply recreates them demanding owner-key hyb:1.

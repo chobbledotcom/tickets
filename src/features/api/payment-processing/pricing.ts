@@ -23,6 +23,7 @@ import {
   checkoutItem,
   type ModifierSpec,
 } from "#shared/payments.ts";
+import { NO_TAX } from "#shared/tax/types.ts";
 import type { ListingWithCount } from "#types";
 
 /** Check if the amount charged matches the current listing price (including booking fee).
@@ -61,7 +62,9 @@ export const checkoutIntentForSession = (
     ...checkoutItem(
       { ...v.listing, name: v.name },
       v.item.q,
-      v.item.p / v.item.q,
+      // A zero-quantity line charges nothing, so its per-unit price stays 0
+      // rather than dividing the line total by zero.
+      v.item.q === 0 ? 0 : v.item.p / v.item.q,
       // A session that renews a site prices its lines by months per unit.
       { renewal: intent.siteTokenIndex !== undefined },
     ),
@@ -70,6 +73,7 @@ export const checkoutIntentForSession = (
       : {}),
   })),
   modifiers: modifierSpecs,
+  taxPolicy: intent.taxPolicy ?? NO_TAX,
   ...(intent.dayCount ? { dayCount: intent.dayCount } : {}),
   ...(intent.reservationAmount
     ? { reservationAmount: intent.reservationAmount }

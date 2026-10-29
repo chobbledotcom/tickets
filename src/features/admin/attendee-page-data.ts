@@ -1,3 +1,4 @@
+import { buildTaxSavePlan } from "#shared/tax/save.ts";
 /**
  * Data loaders for the attendee entity page — everything the
  * tabs and the create form need, factored so each tab loads only its own
@@ -473,6 +474,8 @@ export const buildTemplateData = async (
     { attendee, mode, opts, parsed },
     await loadTemplateParts(parsed, attendee),
   );
+  if (attendee !== null)
+    data.taxPreview = (await buildTaxSavePlan(attendee.id)).preview;
   await addPageImageUrls(data.questions.map((q) => q.text));
   return data;
 };

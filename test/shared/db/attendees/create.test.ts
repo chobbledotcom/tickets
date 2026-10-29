@@ -49,7 +49,6 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     });
     const { plan } = await buildPlan({
       eventId: "sess_batch_ok",
-      fullSubtotal: 600,
       lines: [line(listing.id, 500, 1)],
       sessionId: "sess_batch_ok",
       total: 600,
@@ -95,7 +94,6 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     });
     const { plan } = await buildPlan({
       eventId: "sess_mismatched_payment",
-      fullSubtotal: 500,
       lines: [line(listing.id, 500, 1)],
       sessionId: "sess_mismatched_payment",
       total: 500,
@@ -141,7 +139,6 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     });
     const { plan } = await buildPlan({
       eventId: "sess_batch_soldout",
-      fullSubtotal: 600,
       lines: [line(listing.id, 500, 1)],
       sessionId: "sess_batch_soldout",
       total: 600,
@@ -172,7 +169,6 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     });
     const { plan } = await buildPlan({
       eventId: "sess_batch_full",
-      fullSubtotal: 500,
       lines: [line(listing.id, 500, 1)],
       total: 500,
     });
@@ -291,7 +287,6 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     ];
     const { plan } = await buildPlan({
       eventId: "sess_cap_with_stock",
-      fullSubtotal: 800,
       lines: [line(listing.id, 500, 1)],
       total: 800,
       usages,
@@ -308,7 +303,6 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     });
     const { plan } = await buildPlan({
       eventId: "sess_batch_existing_ledger",
-      fullSubtotal: 500,
       lines: [line(listing.id, 500, 1)],
       sessionId: "sess_batch_existing_ledger",
       total: 500,

@@ -6,6 +6,7 @@ import { catalogTables } from "./tables-catalog.ts";
 import { contentTables } from "./tables-content.ts";
 import { coreTables } from "./tables-core.ts";
 import { questionTables } from "./tables-questions.ts";
+import { taxTables } from "./tables-tax.ts";
 import { TRIGGERS } from "./triggers.ts";
 import type { Table } from "./types.ts";
 import { SCHEMA_MIGRATIONS_TABLE } from "./version.ts";
@@ -20,6 +21,7 @@ export const SCHEMA: [name: string, table: Table][] = [
   ...questionTables,
   ...contentTables,
   ...paymentTables,
+  ...taxTables,
 ];
 
 /** Ordered table names — matches FK dependency order (parents before children) */

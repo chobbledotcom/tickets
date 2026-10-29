@@ -101,7 +101,6 @@ describe("reservation booking fee", () => {
         reservationAmount: "10",
         special_instructions: "",
       });
-      expect(order.fullSubtotal).toBe(3000);
       expect(order.extras).toEqual([
         { amount: 150, key: "fee", name: "Booking fee", quantity: 1 },
       ]);

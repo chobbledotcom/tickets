@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { bookingFactsFromOrder } from "#shared/checkout-ledger.ts";
+import { assessTax } from "#shared/tax/assessment.ts";
 import {
   pricedLine as line,
   pricedOrder as order,
@@ -40,6 +41,7 @@ describe("bookingFactsFromOrder", () => {
       lines: [{ gross: 10000, listingId: 1 }],
       modifiers: [{ delta: -500, modifierId: 7 }],
       occurredAt: "2026-06-21T00:00:00.000Z",
+      vat: { mode: "none" },
     });
   });
 
@@ -62,5 +64,20 @@ describe("bookingFactsFromOrder", () => {
     );
     expect(facts.lines).toEqual([{ gross: 25000, listingId: 1 }]);
     expect(facts.bookingFee).toBe(0);
+  });
+
+  test("carries the booking's VAT facts", () => {
+    const facts = bookingFactsFromOrder(
+      order({
+        lines: [line(1, 10000, 1)],
+        tax: assessTax(
+          { lines: [{ gross: 10000, listingId: 1 }], modifiers: [] },
+          { mode: "add_to_total", rateBasisPoints: 2000 },
+        ),
+        total: 0,
+      }),
+      ctx,
+    );
+    expect(facts.vat).toEqual({ mode: "add_to_total", rateBasisPoints: 2000 });
   });
 });

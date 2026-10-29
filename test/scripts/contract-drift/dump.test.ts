@@ -44,15 +44,19 @@ const targetsOf = (cell: DumpedMoveCell): readonly string[] =>
   typeof cell === "string" ? [cell] : Object.values(cell.perRep);
 
 /** One machine's declared cells must stay inside its own states and
- * events. */
+ * events. Returns the number of from-state and event keys it checked, so
+ * the sweep's caller can tell an empty walk from a real one. */
 const checkCells = (
   machine: DumpedMachine,
   events: ReadonlySet<string>,
-): void => {
+): number => {
+  let checked = 0;
   for (const [from, cells] of Object.entries(machine.declaredMoves ?? {})) {
     assertArrayIncludes(machine.states, [from], `cells from ${from}`);
+    checked += 1;
     for (const [event, cell] of Object.entries(cells)) {
       assertArrayIncludes([...events], [event], `${from} --${event}-->`);
+      checked += 1;
       for (const to of targetsOf(cell)) {
         assertArrayIncludes(
           machine.states,
@@ -62,6 +66,7 @@ const checkCells = (
       }
     }
   }
+  return checked;
 };
 
 describe("contract dump", () => {
@@ -73,6 +78,7 @@ describe("contract dump", () => {
       "row",
       "square_link_ends",
       "sumup_recovery",
+      "vat",
     ]);
   });
 
@@ -184,14 +190,18 @@ describe("contract dump", () => {
   });
 
   test("keeps every declared cell inside its machine's states and events", async () => {
+    let checked = 0;
     for (const machine of Object.values((await currentContracts()).machines)) {
       const events = new Set(
         Object.values(machine.edges)
           .flat()
           .map((edge) => edge.event),
       );
-      checkCells(machine, events);
+      checked += checkCells(machine, events);
     }
+    // A sweep that walks nothing proves nothing, so the atlas's machines
+    // must actually carry declared cells.
+    expect(checked).toBeGreaterThan(0);
   });
 
   test("refuses an edge without an event", () => {
@@ -221,7 +231,10 @@ describe("contract dump", () => {
   test("dumps no declared table when the machine has none", () => {
     const state = oneState("schema.m.edge.e", true);
     const dumped = dumpMachine(machineWith([state]), [oneEvent]);
-    expect(dumped.declaredMoves).toBeUndefined();
+    // The machine's own shape dumps whole; only the table is absent.
+    expect(dumped.declaredMoves).toEqual(undefined);
+    expect(dumped.start).toBe(state.id);
+    expect(dumped.states).toEqual([state.id]);
   });
 
   test("refuses a machine with no start", () => {
@@ -262,7 +275,7 @@ describe("declaredTableOrNone", () => {
         },
         "#test/shared/payment/m/expected-moves.ts",
       ),
-    ).toBeUndefined();
+    ).toEqual(undefined);
   });
 
   test("reads a bare quoted specifier as no table too", async () => {
@@ -276,7 +289,7 @@ describe("declaredTableOrNone", () => {
         },
         "#test/shared/payment/m/expected-moves.ts",
       ),
-    ).toBeUndefined();
+    ).toEqual(undefined);
   });
 
   test("reads a module the real loader cannot find as no table", async () => {
@@ -284,9 +297,16 @@ describe("declaredTableOrNone", () => {
     // agreement to the runtime: Deno's own not-found error for a mapped
     // specifier must carry the bare path the matcher looks for.
     const specifier = "#test/shared/payment/m/no-such-table-module.ts";
+    let failure: TypeError | undefined;
+    try {
+      await import(specifier);
+    } catch (error) {
+      failure = error instanceof TypeError ? error : undefined;
+    }
+    expect(failure?.message).toContain(specifier.replace(/^#/, ""));
     expect(
       await declaredTableOrNone("m", () => import(specifier), specifier),
-    ).toBeUndefined();
+    ).toEqual(undefined);
   });
 
   test("hands every test-module table load its own specifier", async () => {

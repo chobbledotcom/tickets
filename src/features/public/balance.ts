@@ -30,6 +30,7 @@ import {
   type CheckoutIntent,
   getActivePaymentProvider,
 } from "#shared/payments.ts";
+import { NO_TAX } from "#shared/tax/types.ts";
 import {
   balanceInvalidPage,
   balanceNoItemsPage,
@@ -155,6 +156,7 @@ const handleBalancePost = (
           name: "Balance payment",
           phone: "",
           special_instructions: "",
+          taxPolicy: NO_TAX,
         };
         const result = await provider.createCheckoutSession(
           intent,

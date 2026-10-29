@@ -16,6 +16,7 @@ import { WRITEOFF } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import { eventGroup, legReference, type RefPart } from "#accounting/refs.ts";
 import { insertStatement } from "#accounting/rows.ts";
+import { signedLegParts } from "#accounting/signed-leg.ts";
 /* jscpd:ignore-end */
 import { postTransfersTx } from "#accounting/store.ts";
 import { orIgnore, type TxScope } from "#db/client.ts";
@@ -41,15 +42,13 @@ const writeoffAdjustmentLeg = async (
   const occurredAt = nowIso();
   const parts: RefPart[] = [...keyParts, delta, occurredAt];
   return {
-    amount: Math.abs(delta),
+    ...signedLegParts(account, WRITEOFF)(delta),
     // Crediting the account sources from writeoff (the figure rises).
     // Debiting it sinks back to writeoff (the figure falls).
-    destination: delta > 0 ? account : WRITEOFF,
     eventGroup: await eventGroup(parts),
     kind: KIND.adjustment,
     occurredAt,
     reference: await legReference(parts),
-    source: delta > 0 ? WRITEOFF : account,
   };
 };
 

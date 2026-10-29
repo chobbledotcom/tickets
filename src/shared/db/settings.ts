@@ -50,6 +50,7 @@ import {
   setSnapshotField,
   snap,
 } from "#db/settings/snapshot.ts";
+import { parseTaxPolicy, updateTaxPolicy } from "#db/settings/tax.ts";
 import { cssUsesBunnyFonts } from "#routes/public/bunny-fonts.ts";
 import {
   type AddressLookupSetting,
@@ -72,6 +73,7 @@ import {
   type ListingColumnKey,
 } from "#shared/tables/configurable.ts";
 import type { TableLayout } from "#shared/tables/layout.ts";
+import type { TaxPolicy } from "#shared/tax/types.ts";
 import { appleWallet } from "#shared/wallets/apple-wallet-settings.ts";
 import { googleWallet } from "#shared/wallets/google-wallet-settings.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
@@ -263,6 +265,9 @@ const settingsBase = {
   get superuserChoice(): SuperuserChoice {
     return knownSetting(snap("superuser_choice"), isSuperuserChoice, "");
   },
+  get tax(): TaxPolicy {
+    return parseTaxPolicy(snap(CONFIG_KEYS.TAX));
+  },
   get theme(): Theme {
     return snap("theme");
   },
@@ -365,6 +370,7 @@ const settingsBase = {
       CONFIG_KEYS.SUPPORT_FORM_LAST_SUBMITTED,
       "support_form_last_submitted",
     ),
+    tax: updateTaxPolicy,
     theme: rawUpdate(CONFIG_KEYS.THEME, "theme") as (v: Theme) => Promise<void>,
     underlineLinks: boolUpdate(CONFIG_KEYS.UNDERLINE_LINKS, "underline_links"),
     welcomeEnabled: boolUpdate(CONFIG_KEYS.WELCOME_ENABLED, "welcome_enabled"),

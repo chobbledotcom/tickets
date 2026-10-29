@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import {
   attendeeAccount,
   revenueAccount,
@@ -10,22 +10,13 @@ import { repointAttendeeStatements } from "#accounting/repoint.ts";
 import { postTransfers } from "#accounting/store.ts";
 import { executeBatch } from "#db/client.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
+import { assessTax } from "#shared/tax/assessment.ts";
+import {
+  initialTaxAssessmentStatement,
+  readTaxAssessments,
+} from "#shared/tax/store.ts";
+import { NO_TAX } from "#shared/tax/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-
-describe("accounting > repoint > repointAttendeeStatements", () => {
-  test("builds source- and dest-id updates scoped to the attendee account", () => {
-    expect(repointAttendeeStatements(3, 7)).toEqual([
-      {
-        args: ["7", "3", "attendee"],
-        sql: "UPDATE transfers SET source_id = ? WHERE source_id = ? AND source_type = ?",
-      },
-      {
-        args: ["7", "3", "attendee"],
-        sql: "UPDATE transfers SET dest_id = ? WHERE dest_id = ? AND dest_type = ?",
-      },
-    ]);
-  });
-});
 
 /** A paid booking on one attendee: sale (attendee→revenue) + payment. */
 const booking = (attendeeId: number): TransferInput[] => [
@@ -52,7 +43,28 @@ const booking = (attendeeId: number): TransferInput[] => [
 describeWithEnv("accounting > repoint (integration)", { db: true }, () => {
   test("moves every leg from the source attendee onto the target", async () => {
     await postTransfers(booking(3));
-    await executeBatch(repointAttendeeStatements(3, 7));
+    const assessment = assessTax(
+      { lines: [{ gross: 5000, listingId: 1 }], modifiers: [] },
+      NO_TAX,
+    );
+    await executeBatch([
+      await initialTaxAssessmentStatement(
+        "evt",
+        assessment,
+        "2026-06-21T00:00:00.000Z",
+        "?",
+        [3],
+      ),
+      ...repointAttendeeStatements(3, 7),
+    ]);
+    expect(await readTaxAssessments([3])).toEqual([]);
+    expect(
+      (await readTaxAssessments([7])).map((record) => ({
+        basis: record.state.assessment.basis,
+        group: record.bookingGroup,
+        owner: record.attendeeId,
+      })),
+    ).toEqual([{ basis: assessment.basis, group: "evt", owner: 7 }]);
 
     expect((await transfersByAccount(attendeeAccount(3))).length).toBe(0);
     expect((await transfersByAccount(attendeeAccount(7))).length).toBe(2);

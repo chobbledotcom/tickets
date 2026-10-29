@@ -8,10 +8,11 @@ import {
   paidPricingRefund,
 } from "#routes/api/payment-processing/pricing.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
-import type { PricedOrder } from "#shared/checkout-pricing.ts";
+import { type PricedOrder, priceCheckout } from "#shared/checkout-pricing.ts";
 import type { CheckoutItem, ModifierSpec } from "#shared/payments.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { pricedOrder } from "#test-utils/factories-pricing.ts";
+import { testWithSetting } from "#test-utils/settings.ts";
 
 const checkoutItem = (overrides: Partial<CheckoutItem> = {}): CheckoutItem => ({
   listingId: 7,
@@ -62,7 +63,6 @@ const modifier: ModifierSpec = {
 
 const standardOrder = (overrides: Partial<PricedOrder> = {}): PricedOrder =>
   pricedOrder({
-    fullSubtotal: 1000,
     lines: [{ chargedUnitAmount: 1000, item: checkoutItem(), quantity: 1 }],
     total: 1000,
     ...overrides,
@@ -88,6 +88,30 @@ const payMoreItem = (amount: number): ValidatedItem =>
   });
 
 describe("checkoutIntentForSession", () => {
+  testWithSetting(
+    "uses frozen VAT instead of current settings, and leaves legacy sessions untaxed",
+    {
+      booking_fee: "0",
+      tax: JSON.stringify({ mode: "add_to_total", rateBasisPoints: 5000 }),
+    },
+    () => {
+      const frozen = checkoutIntentForSession(
+        bookingIntent({
+          taxPolicy: { mode: "add_to_total", rateBasisPoints: 2000 },
+        }),
+        [validated()],
+        [],
+      );
+      expect(priceCheckout(frozen).total).toBe(1200);
+      const legacy = checkoutIntentForSession(
+        bookingIntent(),
+        [validated()],
+        [],
+      );
+      expect(legacy.taxPolicy).toEqual({ mode: "none" });
+      expect(priceCheckout(legacy).total).toBe(1000);
+    },
+  );
   test("copies every contact field and current signed pricing field", () => {
     const packageItem = { e: 7, k: "p", p: 3000, q: 3, r: 9 } as const;
     const value = checkoutIntentForSession(
@@ -120,6 +144,7 @@ describe("checkoutIntentForSession", () => {
       phone: "01234",
       reservationAmount: "500",
       special_instructions: "Note",
+      taxPolicy: { mode: "none" },
     });
   });
 
@@ -232,7 +257,6 @@ describe("paidPricingRefund", () => {
 
   test("accepts a signed deposit while checking the full item price", () => {
     const depositOrder = standardOrder({
-      fullSubtotal: 2000,
       lines: [
         {
           chargedUnitAmount: 250,

@@ -1,6 +1,7 @@
 /* jscpd:ignore-start */
 
 import { settings } from "#db/settings.ts";
+import { checkoutMetadata } from "#payment/checkout-session.ts";
 import type { Money } from "#payment/money.ts";
 import { askProvider, type ProviderCall } from "#payment/provider-call.ts";
 import {
@@ -27,11 +28,8 @@ import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { CHECKOUT_WINDOW_MINUTES } from "#shared/limits.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowSeconds } from "#shared/now.ts";
-import {
-  assembleCheckoutMetadata,
-  buildProviderLineItems,
-} from "#shared/payment-helpers.ts";
 import type { CheckoutIntent, SetupWebhookEndpoint } from "#shared/payments.ts";
+import { buildProviderLineItems } from "#shared/provider-line-items.ts";
 import type {
   StripeCheckoutLineItemParams,
   StripeCheckoutSessionCreateParams,
@@ -114,11 +112,7 @@ const createCheckoutSession = async (
   );
   // Build the signed metadata before the expiry, so the window is measured
   // from just before the request reaches Stripe.
-  const metadata = await assembleCheckoutMetadata(
-    "stripe",
-    intent,
-    order.total,
-  );
+  const metadata = await checkoutMetadata("stripe", intent, order, order.total);
   const params: StripeCheckoutSessionCreateParams = {
     cancel_url: `${baseUrl}/payment/cancel?session_id={CHECKOUT_SESSION_ID}`,
     // Stripe ends its own page at this time, so no stored handle and no

@@ -18,7 +18,6 @@ describeWithEnv("db > attendees > batch event group", { db: true }, () => {
     });
     const { plan } = await buildPlan({
       eventId: "single-leg-event",
-      fullSubtotal: 500,
       lines: [pricedLine(listing.id, 500, 1)],
       total: 0,
     });

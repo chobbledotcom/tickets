@@ -3,11 +3,13 @@
  *
  * Turns a CheckoutIntent into a fully-priced order — the single source of
  * truth for what each payment provider charges. Stripe and Square render the
- * `lines` and `extras` into their own line-item shapes; SumUp (which carries
+ * `lines` and `extras` into their own line-item shapes. SumUp (which carries
  * no line items) just reads `total`. Centralising this keeps the three
  * providers in lock-step and gives later pricing features one place to plug in.
  */
 
+/* jscpd:ignore-start */
+import { settings } from "#db/settings.ts";
 import { sum, sumByKey, sumOf } from "#fp";
 import { feeSubtotalFor, getBookingFeeAmount } from "#shared/booking-fee.ts";
 import { largestRemainderAllocation } from "#shared/largest-remainder.ts";
@@ -21,6 +23,9 @@ import {
   allocateReservationDeposit,
   computeReservationDeposit,
 } from "#shared/reservation-amount.ts";
+import { assessTax, taxBasisLines } from "#shared/tax/assessment.ts";
+import type { TaxAssessment, TaxBasis, TaxPolicy } from "#shared/tax/types.ts";
+/* jscpd:ignore-end */
 
 /** One ticket line and the amount charged per unit (deposit- and
  * discount-aware). A single cart item can split into several lines when a
@@ -59,19 +64,15 @@ export type PricedOrder = {
   lines: PricedLine[];
   extras: ExtraLine[];
   modifierApplications: ModifierApplication[];
+  tax: TaxAssessment;
   /** Sum of all line and extra charges, in minor units. */
   total: number;
-  /** The pre-extras item subtotal the booking fee is charged on. */
-  fullSubtotal: number;
 };
 
 const lineCharge = (line: PricedLine): number =>
   line.chargedUnitAmount * line.quantity;
 
 const extraCharge = (extra: ExtraLine): number => extra.amount * extra.quantity;
-
-export const ticketLineTotal = (order: Pick<PricedOrder, "lines">): number =>
-  sumOf(lineCharge)(order.lines);
 
 /** Sum a per-line value, grouped by listing id. Pass {@link lineCharge} for the
  *  amount charged now, or {@link lineListPrice} for the gross list price. */
@@ -110,9 +111,11 @@ export type ListPriceLine = {
  *  `owedOrderForLedger` and `bookingFactsFromOrder` recognise each line's
  *  gross as a `sale` leg (income) with no `payment` or `fee` leg. The caller
  *  reconciles any already-paid portion on top. */
-export const listPriceOrder = (lines: ListPriceLine[]): PricedOrder => ({
+export const listPriceOrder = (
+  lines: ListPriceLine[],
+  taxPolicy: TaxPolicy = settings.tax,
+): PricedOrder => ({
   extras: [],
-  fullSubtotal: 0,
   lines: lines.map((line): PricedLine => {
     const unitPrice = line.unitPrice ?? line.listing.unit_price;
     return {
@@ -128,7 +131,33 @@ export const listPriceOrder = (lines: ListPriceLine[]): PricedOrder => ({
     };
   }),
   modifierApplications: [],
+  tax: assessTax(
+    {
+      lines: taxBasisLines(
+        sumByKey(
+          (line: ListPriceLine) => line.listing.id,
+          (line: ListPriceLine) =>
+            (line.unitPrice ?? line.listing.unit_price) * line.quantity,
+        )(lines),
+      ),
+      modifiers: [],
+    },
+    taxPolicy,
+  ),
   total: 0,
+});
+
+/** The fixed basis an order is taxed against: what each listing sold and what
+ * its modifiers changed, before any tax. Refunds and attendee saves reuse it,
+ * so a re-assessment can never drift from the price the buyer was shown. */
+export const taxBasisOfOrder = (
+  order: Pick<PricedOrder, "lines" | "modifierApplications">,
+): TaxBasis => ({
+  lines: taxBasisLines(lineTotalsByListingId(order.lines, lineListPrice)),
+  modifiers: order.modifierApplications.map(({ delta, modifierId }) => ({
+    delta,
+    modifierId,
+  })),
 });
 
 /** The booking-fee extra line for a subtotal, or [] when the fee is zero. */
@@ -373,26 +402,43 @@ export const priceCheckout = (intent: CheckoutIntent): PricedOrder => {
     quantity: item.quantity,
   }));
   const modifiers = applyModifiers(baseLines, modifierSpecs);
+  const tax = assessTax(
+    taxBasisOfOrder({
+      lines: baseLines,
+      modifierApplications: modifiers.applications,
+    }),
+    intent.taxPolicy ?? settings.tax,
+  );
   // The booking fee is charged on the full order plus any net modifier change.
   const fullSubtotal = feeSubtotalFor(intent) + modifiers.modifierTotal;
   const lines = intent.reservationAmount
-    ? modifierSpecs.length === 0 && intent.feeSubtotal === undefined
+    ? modifierSpecs.length === 0 &&
+      intent.feeSubtotal === undefined &&
+      tax.policy.mode !== "add_to_total"
       ? unmodifiedReservationLines(intent, intent.reservationAmount)
       : reservationLines(
           modifiers.lines,
           intent.reservationAmount,
-          fullSubtotal,
+          // A percentage deposit follows the configured full-order subtotal
+          // when the caller overrides it; otherwise it follows the charged,
+          // tax-inclusive total.
+          intent.feeSubtotal === undefined ? tax.total : fullSubtotal,
         )
     : modifiers.lines;
   const extras = [
     ...(intent.reservationAmount ? [] : modifiers.extras),
+    ...(!intent.reservationAmount &&
+    tax.policy.mode === "add_to_total" &&
+    tax.taxAmount > 0
+      ? [{ amount: tax.taxAmount, key: "vat", name: "Tax", quantity: 1 }]
+      : []),
     ...feeExtras(fullSubtotal),
   ];
   return {
     extras,
-    fullSubtotal,
     lines,
     modifierApplications: modifiers.applications,
+    tax,
     total: sumOf(lineCharge)(lines) + sumOf(extraCharge)(extras),
   };
 };
@@ -422,7 +468,9 @@ export const ticketPaymentBreakdown = (
 
   const remainingBalance = Math.max(
     0,
-    paid.fullSubtotal - ticketLineTotal(paid),
+    paid.tax.total -
+      (paid.total -
+        (paid.extras.find((extra) => extra.key === "fee")?.amount ?? 0)),
   );
   return { paidByItem, remainingBalance };
 };

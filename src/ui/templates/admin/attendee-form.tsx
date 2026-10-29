@@ -29,6 +29,7 @@ import { parseDateString } from "#shared/validation/date-string.ts";
 import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import { ListingEditor } from "#templates/admin/attendee-form/listing-editor.tsx";
 import { LogisticsSection } from "#templates/admin/attendee-form/logistics.tsx";
+import { TaxSaveFields } from "#templates/admin/attendee-form/tax.tsx";
 import type {
   AttendeeFormProps,
   AttendeeFormTemplateData,
@@ -258,6 +259,12 @@ const editFormSections = (data: AttendeeFormTemplateData): FormSection[] =>
       children: <ContactDetailFields data={data} />,
       legend: t("attendee_form.details_heading"),
     },
+    data.taxPreview
+      ? {
+          children: <TaxSaveFields preview={data.taxPreview} />,
+          legend: t("attendee_form.tax_heading"),
+        }
+      : undefined,
     data.questions.length > 0
       ? {
           children: (

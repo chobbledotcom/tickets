@@ -70,7 +70,8 @@ export const listingMoneyTotals = async (
      SELECT
        COUNT(*) AS transfer_count,
        COALESCE(SUM(CASE
-          WHEN transfer.kind = '${KIND.sale}' AND ${revenueCredit} THEN transfer.amount
+          WHEN transfer.kind IN ('${KIND.sale}', '${KIND.taxSale}') AND ${revenueCredit} THEN transfer.amount
+          WHEN transfer.kind = '${KIND.taxSale}' AND ${revenueDebit} THEN -transfer.amount
           ELSE 0 END), 0) AS gross_sales,
        COALESCE(SUM(CASE
           WHEN transfer.kind = '${MANUAL_LISTING_INCOME}' AND ${revenueCredit} THEN transfer.amount
@@ -80,7 +81,8 @@ export const listingMoneyTotals = async (
           WHEN transfer.kind = '${KIND.adjustment}' AND ${revenueDebit} AND transfer.dest_type = '${WRITEOFF_TYPE}' THEN -transfer.amount
           ELSE 0 END), 0) AS manual_adjustments,
        COALESCE(SUM(CASE
-          WHEN transfer.kind = '${KIND.refundSale}' AND ${revenueDebit} THEN transfer.amount
+          WHEN transfer.kind IN ('${KIND.refundSale}', '${KIND.refundTaxSale}') AND ${revenueDebit} THEN transfer.amount
+          WHEN transfer.kind = '${KIND.refundTaxSale}' AND ${revenueCredit} THEN -transfer.amount
           ELSE 0 END), 0) AS refunds,
        COALESCE(SUM(CASE
          WHEN transfer.kind = '${MANUAL_LISTING_COST}' AND ${revenueDebit} THEN transfer.amount

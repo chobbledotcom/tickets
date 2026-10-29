@@ -152,6 +152,25 @@ const ownMachineLoader =
       ),
     );
 
+/** Loads a machine whose declared table lives in a test moves module. The
+ * call sites keep literal imports — the base-dump child resolves a variable
+ * specifier only with read permission it does not hold (issue #2740) — so
+ * this helper owns the shape the call sites would otherwise repeat. */
+const expectedMovesLoader =
+  (
+    machineId: string,
+    events: () => Promise<MachineEvents>,
+    moves: () => Promise<{ EXPECTED_MOVES: unknown }>,
+    movesModule: string,
+  ): MachineLoader =>
+  async () =>
+    machineContract(
+      machineId,
+      await events(),
+      async () => (await moves()).EXPECTED_MOVES,
+      movesModule,
+    );
+
 const MACHINE_LOADERS: Readonly<Record<string, MachineLoader>> = {
   refund: ownMachineLoader(
     "refund",
@@ -159,30 +178,18 @@ const MACHINE_LOADERS: Readonly<Record<string, MachineLoader>> = {
     "EXPECTED_MOVES",
     "#payment/refund-machine-spec.ts",
   ),
-  review: () =>
-    import("#payment/review-machine-spec.ts").then((m) =>
-      machineContract(
-        "review",
-        m.REVIEW_EVENTS,
-        () =>
-          import(
-            "#test/shared/payment/review-machine-spec/expected-moves.ts"
-          ).then((t) => t.EXPECTED_MOVES),
-        "#test/shared/payment/review-machine-spec/expected-moves.ts",
-      ),
-    ),
-  row: () =>
-    import("#payment/row-machine-spec.ts").then((m) =>
-      machineContract(
-        "row",
-        m.ROW_EVENTS,
-        () =>
-          import(
-            "#test/shared/payment/row-machine-spec/expected-moves.ts"
-          ).then((t) => t.EXPECTED_MOVES),
-        "#test/shared/payment/row-machine-spec/expected-moves.ts",
-      ),
-    ),
+  review: expectedMovesLoader(
+    "review",
+    async () => (await import("#payment/review-machine-spec.ts")).REVIEW_EVENTS,
+    () => import("#test/shared/payment/review-machine-spec/expected-moves.ts"),
+    "#test/shared/payment/review-machine-spec/expected-moves.ts",
+  ),
+  row: expectedMovesLoader(
+    "row",
+    async () => (await import("#payment/row-machine-spec.ts")).ROW_EVENTS,
+    () => import("#test/shared/payment/row-machine-spec/expected-moves.ts"),
+    "#test/shared/payment/row-machine-spec/expected-moves.ts",
+  ),
   square_link_ends: ownMachineLoader(
     "square_link_ends",
     "LINK_END_EVENTS",
@@ -194,6 +201,12 @@ const MACHINE_LOADERS: Readonly<Record<string, MachineLoader>> = {
     "RECOVERY_EVENTS",
     "RECOVERY_MOVES",
     "#payment/sumup-recovery-machine-spec.ts",
+  ),
+  vat: expectedMovesLoader(
+    "vat",
+    async () => (await import("#shared/tax/machine-spec.ts")).TAX_EVENTS,
+    () => import("#test/shared/tax/machine-spec/expected-moves.ts"),
+    "#test/shared/tax/machine-spec/expected-moves.ts",
   ),
 };
 

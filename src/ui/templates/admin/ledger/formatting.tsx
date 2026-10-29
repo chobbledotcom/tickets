@@ -9,6 +9,7 @@ import {
   REVENUE,
   type RowAccountType,
   type SingletonAccountType,
+  TAX,
   WRITEOFF_TYPE,
 } from "#accounting/accounts.ts";
 import { isTransferKind, KIND, type TransferKind } from "#accounting/kinds.ts";
@@ -56,6 +57,16 @@ const fallbackHumanDescription: DescriptionRule = linkedAccountsDescription(
   "admin.ledger.human.money_from",
   "admin.ledger.human.money_to",
 );
+
+/** The sentence for a leg whose tax side decides the wording: charged to the
+ * tax account reads one way, a later correction the other. */
+const taxFlowDescription =
+  (
+    humanKey: string,
+    reductionKey: string,
+    chargedToTax: (transfer: Transfer) => boolean,
+  ): TransferPresentation["description"] =>
+  (transfer) => <>{t(chargedToTax(transfer) ? humanKey : reductionKey)}</>;
 
 const saleDescription: DescriptionRule = linkedAccountsDescription(
   null,
@@ -174,6 +185,40 @@ const modifierDescription = eitherWayDescription(
 const modifierAmount: AmountRule = (transfer) =>
   transfer.destination.type === MODIFIER ? transfer.amount : -transfer.amount;
 
+const taxSaleAmount: AmountRule = (transfer) =>
+  transfer.destination.type === REVENUE ? transfer.amount : -transfer.amount;
+
+const vatAmount: AmountRule = (transfer) =>
+  transfer.destination.type === TAX ? transfer.amount : -transfer.amount;
+
+const taxSaleDescription = eitherWayDescription(
+  REVENUE,
+  (transfer) => transfer.destination.type === REVENUE,
+  "admin.ledger.human.tax_sale_increase",
+  "admin.ledger.human.tax_sale_reduce",
+);
+
+const taxModifierDescription = eitherWayDescription(
+  MODIFIER,
+  (transfer) => transfer.destination.type === MODIFIER,
+  "admin.ledger.human.tax_modifier_increase",
+  "admin.ledger.human.tax_modifier_reduce",
+);
+
+const refundTaxSaleDescription = eitherWayDescription(
+  REVENUE,
+  (transfer) => transfer.destination.type === REVENUE,
+  "admin.ledger.human.refund_tax_sale_increase",
+  "admin.ledger.human.refund_tax_sale_reduce",
+);
+
+const refundTaxModifierDescription = eitherWayDescription(
+  MODIFIER,
+  (transfer) => transfer.destination.type === MODIFIER,
+  "admin.ledger.human.refund_tax_modifier_increase",
+  "admin.ledger.human.refund_tax_modifier_reduce",
+);
+
 /**
  * Every application-owned event chooses its detailed label, simple description,
  * and displayed amount together. Adding a KIND member cannot update only one.
@@ -235,6 +280,15 @@ const TRANSFER_PRESENTATION: Record<TransferKind, TransferPresentation> = {
     description: accountDescription("admin.ledger.human.refund_sale", REVENUE),
     eventKey: "admin.ledger.event.refund_sale",
   },
+  [KIND.refundVat]: {
+    amount: vatAmount,
+    description: taxFlowDescription(
+      "admin.ledger.human.refund_vat",
+      "admin.ledger.human.refund_vat_reduction",
+      (transfer) => transfer.source.type === TAX,
+    ),
+    eventKey: "admin.ledger.event.refund_vat",
+  },
   [KIND.reversal]: {
     amount: positiveAmount,
     description: fallbackHumanDescription,
@@ -249,6 +303,35 @@ const TRANSFER_PRESENTATION: Record<TransferKind, TransferPresentation> = {
     amount: serviceCostAmount,
     description: serviceCostDescription,
     eventKey: "admin.ledger.event.service_cost",
+  },
+  [KIND.taxSale]: {
+    amount: taxSaleAmount,
+    description: taxSaleDescription,
+    eventKey: "admin.ledger.event.tax_sale",
+  },
+  [KIND.taxModifier]: {
+    amount: modifierAmount,
+    description: taxModifierDescription,
+    eventKey: "admin.ledger.event.tax_modifier",
+  },
+  [KIND.refundTaxSale]: {
+    amount: taxSaleAmount,
+    description: refundTaxSaleDescription,
+    eventKey: "admin.ledger.event.refund_tax_sale",
+  },
+  [KIND.refundTaxModifier]: {
+    amount: modifierAmount,
+    description: refundTaxModifierDescription,
+    eventKey: "admin.ledger.event.refund_tax_modifier",
+  },
+  [KIND.vat]: {
+    amount: vatAmount,
+    description: taxFlowDescription(
+      "admin.ledger.human.vat",
+      "admin.ledger.human.vat_reduction",
+      (transfer) => transfer.destination.type === TAX,
+    ),
+    eventKey: "admin.ledger.event.vat",
   },
 };
 
@@ -311,6 +394,7 @@ const STATEMENT_BALANCE_KEYS: Record<StatementAccountType, string> = {
   [FEE_INCOME]: "admin.ledger.balance",
   [MODIFIER]: "admin.ledger.balance",
   [REVENUE]: "admin.ledger.income_balance",
+  [TAX]: "admin.ledger.balance",
   [WRITEOFF_TYPE]: "admin.ledger.balance",
 };
 

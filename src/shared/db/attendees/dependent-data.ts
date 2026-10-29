@@ -39,18 +39,31 @@ export type AttendeeDataRule =
       table: string;
     };
 
+/** The direct rule for one table's attendee column, with the action fixed by
+ * the first call. The single shape for every plain attendee-id entry. */
+const direct =
+  (action: "delete" | "repoint" | "retain") =>
+  (table: string, field = "attendee_id"): AttendeeDataRule => ({
+    action,
+    field,
+    kind: "direct",
+    table,
+  });
+
+/** The retained durable-payment tables. */
+const retainHistory = (table: string): AttendeeDataRule => ({
+  action: "retain",
+  kind: "payment_history",
+  table,
+});
+
 /**
  * Every direct attendee-id column, plus dependent rows reached through another
  * key. Delete planning consumes this list directly. Retained entries make the
  * exceptions explicit without turning them into deletes.
  */
 export const ATTENDEE_DATA_RULES: readonly AttendeeDataRule[] = [
-  {
-    action: "delete",
-    field: "attendee_id",
-    kind: "direct",
-    table: "checkout_stages",
-  },
+  direct("delete")("checkout_stages"),
   {
     action: "delete",
     attendeeField: "attendee_id",
@@ -60,99 +73,33 @@ export const ATTENDEE_DATA_RULES: readonly AttendeeDataRule[] = [
     table: "refund_confirmation_references",
     tableField: "confirmation_identity",
   },
-  {
-    action: "delete",
-    field: "attendee_id",
-    kind: "direct",
-    table: "refund_confirmations",
-  },
-  {
-    action: "delete",
-    field: "attendee_id",
-    kind: "direct",
-    table: "processed_payments",
-  },
-  {
-    action: "delete",
-    field: "attendee_id",
-    kind: "direct",
-    table: "attendee_answers",
-  },
-  {
-    action: "delete",
-    field: "attendee_id",
-    kind: "direct",
-    table: "answers_at_booking",
-  },
-  {
-    action: "delete",
-    field: "attendee_id",
-    kind: "direct",
-    table: "listing_attendees",
-  },
-  {
-    action: "delete",
-    field: "servicing_attendee_id",
-    kind: "direct",
-    table: "service_costs",
-  },
+  direct("delete")("refund_confirmations"),
+  direct("delete")("processed_payments"),
+  direct("delete")("attendee_answers"),
+  direct("delete")("booking_tax_assessments"),
+  direct("delete")("answers_at_booking"),
+  direct("delete")("listing_attendees"),
+  direct("delete")("service_costs", "servicing_attendee_id"),
   { action: "delete", kind: "notes", table: "system_notes" },
 
   // Activity and modifier rows are historical ledgers. In-flight SMS rows
   // retire on their provider callback or age prune, not with the attendee.
-  {
-    action: "retain",
-    field: "attendee_id",
-    kind: "direct",
-    table: "activity_log",
-  },
-  {
-    action: "retain",
-    field: "attendee_id",
-    kind: "direct",
-    table: "modifier_usages",
-  },
-  {
-    action: "retain",
-    field: "attendee_id",
-    kind: "direct",
-    table: "sms_messages",
-  },
+  direct("retain")("activity_log"),
+  direct("retain")("modifier_usages"),
+  direct("retain")("sms_messages"),
 
   // A built site's assignment follows the person through a merge. A deletion
   // clears only that live link. The provisioned site keeps its own lifecycle.
-  {
-    action: "repoint",
-    field: "assigned_attendee_id",
-    kind: "direct",
-    table: "built_sites",
-  },
+  direct("repoint")("built_sites", "assigned_attendee_id"),
   // A durable payment session has a lifecycle of its own. Its eventual
   // detach/redaction rule must not be guessed by an attendee purge.
-  {
-    action: "retain",
-    field: "attendee_id",
-    kind: "direct",
-    table: "payment_sessions",
-  },
+  direct("retain")("payment_sessions"),
   // The aggregate's child rows stay with its durable payment history. Keeping
   // every payment table in this schema means a new child cannot silently miss
   // the attendee-deletion decision.
-  {
-    action: "retain",
-    kind: "payment_history",
-    table: "payment_completion_effects",
-  },
-  {
-    action: "retain",
-    kind: "payment_history",
-    table: "payment_completion_deliveries",
-  },
-  { action: "retain", kind: "payment_history", table: "payment_charges" },
-  { action: "retain", kind: "payment_history", table: "payment_cases" },
-  {
-    action: "retain",
-    kind: "payment_history",
-    table: "payment_case_decisions",
-  },
+  retainHistory("payment_completion_effects"),
+  retainHistory("payment_completion_deliveries"),
+  retainHistory("payment_charges"),
+  retainHistory("payment_cases"),
+  retainHistory("payment_case_decisions"),
 ];

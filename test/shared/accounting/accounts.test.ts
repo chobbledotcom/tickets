@@ -10,6 +10,7 @@ import {
   ROW_ACCOUNT_CONSTRUCTORS,
   revenueAccount,
   SINGLETON_ACCOUNTS,
+  TAX_VAT,
   WORLD,
   WRITEOFF,
 } from "#accounting/accounts.ts";
@@ -18,6 +19,7 @@ describe("accounting > accounts", () => {
   test("exposes the fixed singleton accounts", () => {
     expect(WORLD).toEqual({ id: "world", type: "external" });
     expect(BOOKING_FEE_INCOME).toEqual({ id: "booking", type: "fee_income" });
+    expect(TAX_VAT).toEqual({ id: "vat", type: "tax" });
     expect(WRITEOFF).toEqual({ id: "default", type: "writeoff" });
   });
 
@@ -70,7 +72,7 @@ describe("accounting > accounts", () => {
     });
 
     test("isSingletonAccountType accepts the singleton types only", () => {
-      for (const type of ["external", "fee_income", "writeoff"]) {
+      for (const type of ["external", "fee_income", "tax", "writeoff"]) {
         expect(isSingletonAccountType(type)).toBe(true);
       }
       for (const type of ["attendee", "cost", "modifier", "revenue", "nope"]) {
@@ -83,6 +85,7 @@ describe("accounting > accounts", () => {
     test("every singleton type resolves to its own account", () => {
       expect(SINGLETON_ACCOUNTS.external).toEqual(WORLD);
       expect(SINGLETON_ACCOUNTS.fee_income).toEqual(BOOKING_FEE_INCOME);
+      expect(SINGLETON_ACCOUNTS.tax).toEqual(TAX_VAT);
       expect(SINGLETON_ACCOUNTS.writeoff).toEqual(WRITEOFF);
     });
 

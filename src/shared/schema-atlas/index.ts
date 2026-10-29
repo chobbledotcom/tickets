@@ -7,6 +7,7 @@ import { rowLifecycleAtlas } from "#shared/schema-atlas/row-lifecycle.ts";
 import { squareLinkEndAtlas } from "#shared/schema-atlas/square-link-end.ts";
 import { sumupRecoveryAtlas } from "#shared/schema-atlas/sumup-recovery.ts";
 import type { AtlasMachine } from "#shared/schema-atlas/types.ts";
+import { vatLedgerAtlas } from "#shared/schema-atlas/vat-ledger.ts";
 
 export const SCHEMA_ATLAS_MACHINES: readonly AtlasMachine[] = [
   refundAuthorityAtlas,
@@ -14,4 +15,5 @@ export const SCHEMA_ATLAS_MACHINES: readonly AtlasMachine[] = [
   rowLifecycleAtlas,
   squareLinkEndAtlas,
   sumupRecoveryAtlas,
+  vatLedgerAtlas,
 ];

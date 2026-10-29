@@ -13,8 +13,10 @@ import { reviewModelData } from "#scripts/verify-models/review.ts";
 import { squareModelData } from "#scripts/verify-models/square.ts";
 import { sumupModelData } from "#scripts/verify-models/sumup.ts";
 import { twoWorkersModelData } from "#scripts/verify-models/two-workers.ts";
+import { vatModelData } from "#scripts/verify-models/vat.ts";
 
 const models = [
+  { data: vatModelData, module: "VatLedger" },
   { data: squareModelData, module: "SquareLinkEnd" },
   { data: sumupModelData, module: "SumupRecovery" },
   { data: reviewModelData, module: "PaymentReview" },

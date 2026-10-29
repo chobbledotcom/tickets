@@ -6,7 +6,8 @@
  * Run-sheet reads live next door in `logistics-run-sheet.ts`.
  */
 
-import { executeBatch, inPlaceholders, queryAll, update } from "#db/client.ts";
+import { executeBatch, queryAll, update } from "#db/client.ts";
+import { rowsByIds } from "#db/query.ts";
 
 /** A start/end agent pair (null = unassigned) plus optional start/end times
  * ("" when unset). Times are logistics-only metadata — never used for
@@ -124,11 +125,11 @@ export const getLogisticsAssignments = async (
 export const getLogisticsAssignmentsForAttendees = async (
   attendeeIds: number[],
 ): Promise<BookingLogisticsAssignment[]> => {
-  if (attendeeIds.length === 0) return [];
-  const rows = await queryAll<AssignmentRow>(
-    `SELECT attendee_id, listing_id, start_agent_id, end_agent_id, start_time, end_time
-     FROM listing_attendees WHERE attendee_id IN (${inPlaceholders(attendeeIds)})`,
+  const rows = await rowsByIds<AssignmentRow>(
     attendeeIds,
+    (ids) =>
+      `SELECT attendee_id, listing_id, start_agent_id, end_agent_id, start_time, end_time
+     FROM listing_attendees WHERE attendee_id IN (${ids})`,
   );
   return mapBookingRows(rows, rowToAssignment);
 };

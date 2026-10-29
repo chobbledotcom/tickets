@@ -36,6 +36,7 @@ import {
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import type { AccountRef, TransferInput } from "#shared/ledger/types.ts";
 import { nowIso } from "#shared/now.ts";
+import { postInitialTaxAssessmentTx } from "#shared/tax/store.ts";
 
 /* jscpd:ignore-end */
 
@@ -62,6 +63,7 @@ export const bookingBatchPlan = async (
   },
 ): Promise<BookingBatchPlan> => ({
   ...(finalize !== undefined ? { finalize } : {}),
+  bookingGroup: await bookingEventGroup(ledger.eventId),
   legs: await mapBooking(
     bookingFactsFromOrder(ledger.pricedOrder, {
       attendeeId: BATCH_LEG_ATTENDEE_PLACEHOLDER,
@@ -69,6 +71,7 @@ export const bookingBatchPlan = async (
       occurredAt: ledger.occurredAt,
     }),
   ),
+  taxAssessment: ledger.pricedOrder.tax,
   usages,
 });
 
@@ -204,4 +207,22 @@ export const apiCreateLedgerPoster =
         ),
       )),
     ]);
+    // A free add posts no legs at all: the row still carries the group the
+    // later refund reconciliation reads.
+    if (legs.length === 0) {
+      await tx.execute(
+        update(
+          "listing_attendees",
+          { ledger_event_group: group },
+          { attendee_id: attendeeId, ledger_event_group: "" },
+        ),
+      );
+    }
+    await postInitialTaxAssessmentTx(
+      tx,
+      attendeeId,
+      group,
+      order.tax,
+      ctx.occurredAt,
+    );
   };

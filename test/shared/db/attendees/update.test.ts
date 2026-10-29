@@ -1,14 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { attendeeStatuses } from "#db/attendee-statuses.ts";
-import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
 import {
   checkGroupCapAfterDurationChange,
   incrementAttachmentDownloads,
   moveTickets,
   recomputeListingBookingRanges,
   updateAttendeePII,
-  updateAttendeeStatus,
 } from "#db/attendees/update.ts";
 import { executeUpdate, queryOne } from "#db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -22,7 +19,6 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
-import { postListingSale } from "#test-utils/ledger.ts";
 
 describeWithEnv(
   "db > attendees > incrementAttachmentDownloads",
@@ -120,43 +116,6 @@ describeWithEnv("db > attendees > updateAttendeePII", { db: true }, () => {
     expect(bystander.name).toBe("Untouched");
     expect(bystander.email).toBe("same@example.com");
     expect(bystander.id).toBe(other.id);
-  });
-});
-
-describeWithEnv("db > attendees > updateAttendeeStatus", { db: true }, () => {
-  const attendeeOwing = async () => {
-    const listing = await createTestListing({ maxAttendees: 10 });
-    const { attendee } = await createTestAttendeeDirect(
-      listing.id,
-      "Reserved",
-      "reserved@example.com",
-    );
-    const status = await attendeeStatuses.table.insert({ name: "Ready" });
-    await postListingSale({
-      amountPaid: 200,
-      attendeeId: attendee.id,
-      gross: 1000,
-      listingId: listing.id,
-    });
-    return { attendee, status };
-  };
-
-  test("changes the status without clearing money owed by default", async () => {
-    const { attendee, status } = await attendeeOwing();
-    await updateAttendeeStatus(attendee.id, status.id);
-    expect(await getAttendeeBalanceState(attendee.id)).toEqual({
-      remainingBalance: 800,
-      statusId: status.id,
-    });
-  });
-
-  test("clears money owed in the same status update when requested", async () => {
-    const { attendee } = await attendeeOwing();
-    await updateAttendeeStatus(attendee.id, null, true);
-    expect(await getAttendeeBalanceState(attendee.id)).toEqual({
-      remainingBalance: 0,
-      statusId: null,
-    });
   });
 });
 

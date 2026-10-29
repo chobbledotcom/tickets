@@ -6,6 +6,7 @@ import {
   BOOKING_FEE_INCOME,
   modifierAccount,
   revenueAccount,
+  TAX_VAT,
   WORLD,
 } from "#accounting/accounts.ts";
 import {
@@ -14,7 +15,7 @@ import {
   mapRefund,
 } from "#accounting/mappers.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
-import type { Transfer } from "#shared/ledger/types.ts";
+import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 import {
   asTransfer,
   facts,
@@ -25,6 +26,16 @@ import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("accounting > mapRefund", { encryptionKey: true }, () => {
   const REFUND_AT = "2026-06-22T00:00:00.000Z";
+
+  /** Asserts every named account returns to a zero balance after the refund. */
+  const expectZeroBalances = (
+    all: Transfer[],
+    accounts: AccountRef[],
+  ): void => {
+    for (const acct of accounts) {
+      expect(balanceOf(acct)(all)).toBe(0);
+    }
+  };
 
   const bookingOrder = async (
     overrides: Partial<BookingFacts> = {},
@@ -71,13 +82,40 @@ describeWithEnv("accounting > mapRefund", { encryptionKey: true }, () => {
   test("reverses every leg so revenue, the attendee and cash return to zero", async () => {
     const order = await bookingOrder(paidBookingNettingToZero);
     const { all } = await refundAndAll(order);
-    expect(balanceOf(revenueAccount(1))(all)).toBe(0);
-    expect(balanceOf(revenueAccount(2))(all)).toBe(0);
-    expect(balanceOf(modifierAccount(10))(all)).toBe(0);
-    expect(balanceOf(modifierAccount(11))(all)).toBe(0);
-    expect(balanceOf(BOOKING_FEE_INCOME)(all)).toBe(0);
-    expect(balanceOf(attendeeAccount(3))(all)).toBe(0);
-    expect(balanceOf(WORLD)(all)).toBe(0); // cash in, then back out
+    // Cash came in, then went back out; every account nets to zero.
+    expectZeroBalances(all, [
+      revenueAccount(1),
+      revenueAccount(2),
+      modifierAccount(10),
+      modifierAccount(11),
+      BOOKING_FEE_INCOME,
+      attendeeAccount(3),
+      WORLD,
+    ]);
+  });
+
+  test("reverses the vat leg like every other leg", async () => {
+    const order = await bookingOrder({
+      amountPaid: 12000,
+      lines: [{ gross: 10000, listingId: 1 }],
+      vat: { mode: "add_to_total", rateBasisPoints: 2000 },
+    });
+    const { all, refund } = await refundAndAll(order);
+
+    // The refund relabels the vat leg `refund_vat` and swaps its ends.
+    const vatRefund = refund.filter((leg) => leg.kind === "refund_vat");
+    expect(vatRefund.length).toBe(1);
+    expect(vatRefund[0]!.amount).toBe(2000);
+    expect(vatRefund[0]!.source).toEqual(TAX_VAT);
+    expect(vatRefund[0]!.destination).toEqual(attendeeAccount(3));
+
+    // Booking + refund zero the tax account, the revenue and the attendee.
+    expectZeroBalances(all, [
+      TAX_VAT,
+      revenueAccount(1),
+      attendeeAccount(3),
+      WORLD,
+    ]);
   });
 
   test("cancels a deposit booking: full gross reversed, deposit returned", async () => {

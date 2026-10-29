@@ -47,6 +47,7 @@ export const STRING_SETTING_DEFINITIONS = [
   setting({ key: CONFIG_KEYS.ADDRESS_LOOKUP_PROVIDER, storage: "plaintext" }),
   setting({ key: CONFIG_KEYS.ADDRESS_LOOKUP_API_KEY, storage: "encrypted" }),
   setting({ key: CONFIG_KEYS.ENABLED_FEATURES, storage: "plaintext" }),
+  setting({ key: CONFIG_KEYS.TAX, storage: "plaintext" }),
   // Custom CSS is served verbatim as a public stylesheet at /custom.css, so it
   // is stored unencrypted. There is nothing secret about it.
   setting({

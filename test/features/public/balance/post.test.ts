@@ -105,6 +105,9 @@ describeWithEnv("server (public balance page) > POST", { db: true }, () => {
       name: "Balance payment",
       phone: "",
       special_instructions: "",
+      // A balance settles money already owed, so the intent freezes No tax:
+      // the owed amount was priced when the booking was made.
+      taxPolicy: { mode: "none" },
     });
   });
 

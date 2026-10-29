@@ -57,6 +57,7 @@ import {
 import { stripeRoutes } from "#routes/admin/settings-stripe.ts";
 import { sumupRoutes } from "#routes/admin/settings-sumup.ts";
 import { handleSuperuserPost } from "#routes/admin/settings-superuser.ts";
+import { handleTaxPost } from "#routes/admin/settings-tax.ts";
 import {
   handleAppleWalletPost,
   handleGoogleWalletPost,
@@ -108,6 +109,7 @@ export const adminHandlers = defineAdminRoutes({
   "POST /admin/settings/sumup": sumupRoutes.save,
   "POST /admin/settings/sumup/test": sumupRoutes.test,
   "POST /admin/settings/superuser": handleSuperuserPost,
+  "POST /admin/settings/tax": handleTaxPost,
   "POST /admin/settings/terms": handleTermsPost,
   "POST /admin/settings/theme": handleThemePost,
 });

@@ -250,8 +250,7 @@
     "present-perfect": 3
   },
   "src/shared/booking.ts": {
-    "long-sentence": 3,
-    "banned-modal": 1
+    "long-sentence": 1
   },
   "src/shared/booking/build-tree.ts": {
     "long-sentence": 11,
@@ -360,8 +359,8 @@
     "semicolon": 1
   },
   "src/shared/checkout-pricing.ts": {
-    "semicolon": 5,
     "wordy": 1,
+    "semicolon": 5,
     "long-sentence": 7,
     "banned-modal": 1
   },
@@ -502,7 +501,7 @@
     "present-perfect": 1
   },
   "src/shared/db/attendees/select.ts": {
-    "long-sentence": 9,
+    "long-sentence": 7,
     "banned-modal": 1,
     "semicolon": 5,
     "contraction": 1
@@ -515,7 +514,7 @@
     "participle": 2
   },
   "src/shared/db/attendees/update.ts": {
-    "long-sentence": 3,
+    "long-sentence": 2,
     "semicolon": 2
   },
   "src/shared/db/backup-snapshot.ts": {
@@ -1143,7 +1142,7 @@
     "contraction": 2,
     "banned-modal": 8,
     "wordy": 1,
-    "semicolon": 8,
+    "semicolon": 7,
     "long-sentence": 15,
     "participle": 1
   },

@@ -46,6 +46,81 @@ describe("admin ledger formatting", () => {
     test("names a transfer with no kind at all", () => {
       expect(transferEventLabel(transfer({ kind: "" }))).toBe("No event type");
     });
+
+    test("names the Tax kinds", () => {
+      expect(transferEventLabel(transfer({ kind: KIND.vat }))).toBe("Tax");
+      expect(transferEventLabel(transfer({ kind: KIND.refundVat }))).toBe(
+        "Tax refunded",
+      );
+    });
+  });
+
+  describe("humanDescription for Tax", () => {
+    test("reads as tax recorded for the vat leg", () => {
+      const html = describeTransfer({
+        destination: account("tax", "vat"),
+        kind: KIND.vat,
+        source: account(ATTENDEE, 1),
+      });
+      assertStringIncludes(html, "Tax recorded");
+    });
+
+    test("reads as tax refunded for the refund_vat leg", () => {
+      const html = describeTransfer({
+        destination: account(ATTENDEE, 1),
+        kind: KIND.refundVat,
+        source: account("tax", "vat"),
+      });
+      assertStringIncludes(html, "Tax refunded");
+    });
+  });
+
+  test("names tax income corrections without calling them write-offs", () => {
+    for (const [kind, type, label] of [
+      [KIND.taxSale, REVENUE, "Tax change to ticket income"],
+      [KIND.taxModifier, MODIFIER, "Tax change to option income"],
+      [KIND.refundTaxSale, REVENUE, "Ticket tax change reversed"],
+      [KIND.refundTaxModifier, MODIFIER, "Option tax change reversed"],
+    ] as const) {
+      const increase = {
+        amount: 25,
+        destination: account(type, 1),
+        kind,
+        source: account(ATTENDEE, 1),
+      };
+      const reduction = {
+        ...increase,
+        destination: increase.source,
+        source: increase.destination,
+      };
+      expect(transferEventLabel(transfer(increase))).toBe(label);
+      expect(humanAmount(transfer(increase))).toBe(25);
+      expect(humanAmount(transfer(reduction))).toBe(-25);
+      const lead = kind.startsWith("refund_")
+        ? "Refund reversed a tax change and"
+        : "Tax change";
+      assertStringIncludes(describeTransfer(increase), `${lead} increased`);
+      assertStringIncludes(describeTransfer(reduction), `${lead} reduced`);
+    }
+  });
+
+  test("shows Tax reductions and their refund reversal with the right signs", () => {
+    const reduction = {
+      amount: 25,
+      destination: account(ATTENDEE, 1),
+      kind: KIND.vat,
+      source: account("tax", "vat"),
+    };
+    expect(humanAmount(transfer(reduction))).toBe(-25);
+    assertStringIncludes(describeTransfer(reduction), "Tax reduced.");
+    const refund = {
+      ...reduction,
+      destination: reduction.source,
+      kind: KIND.refundVat,
+      source: reduction.destination,
+    };
+    expect(humanAmount(transfer(refund))).toBe(25);
+    assertStringIncludes(describeTransfer(refund), "Tax reduction reversed.");
   });
 
   describe("humanDescription for a service cost", () => {

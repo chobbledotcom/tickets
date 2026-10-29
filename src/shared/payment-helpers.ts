@@ -6,17 +6,13 @@
 import * as v from "valibot";
 import { signedEdgeFor } from "#booking/signed-metadata.ts";
 import { hmacHash } from "#crypto/hashing.ts";
+import { settings } from "#db/settings.ts";
 import { lazyRef, map } from "#fp";
 import type {
   BookingIntent,
   BookingItem,
   ModifierRef,
 } from "#shared/booking-intent.ts";
-import type {
-  ExtraLine,
-  PricedLine,
-  PricedOrder,
-} from "#shared/checkout-pricing.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import {
   type ErrorCodeType,
@@ -137,24 +133,6 @@ export const cachedClientFactory = <Config, Client>(opts: {
   };
   return { getClient, reset: () => setCache(null) };
 };
-
-/**
- * Render a priced order into a provider's line-item array: each ticket line via
- * `line`, each extra (booking fee, …) via `extra`. Providers supply the two
- * shape callbacks; the ordering (tickets, then extras) matches what Stripe and
- * Square built by hand before.
- */
-export const buildProviderLineItems = <Item>(
-  order: PricedOrder,
-  currency: string,
-  render: {
-    line: (line: PricedLine, currency: string) => Item;
-    extra: (extra: ExtraLine, currency: string) => Item;
-  },
-): Item[] => [
-  ...order.lines.map((line) => render.line(line, currency)),
-  ...order.extras.map((extra) => render.extra(extra, currency)),
-];
 
 /** Run an operation with the lazily-resolved client. Returns null when the
  * client is unconfigured or the operation fails (unless the error should
@@ -289,6 +267,7 @@ export const buildItemsMetadata = async (
   const withoutUrl = buildMetadata({
     ...intentRest,
     items: toBookingItems(intent),
+    taxPolicy: intent.taxPolicy ?? settings.tax,
     ...(modifiers !== undefined ? { modifiers } : {}),
     ...(siteTokenIndex !== undefined ? { siteTokenIndex } : {}),
   });
@@ -372,6 +351,7 @@ type MetadataInput = Pick<BookingIntent, "name" | "email" | "items" | "date"> &
       | "modifiers"
       | "thankYouUrl"
       | "allocations"
+      | "taxPolicy"
     >
   >;
 
@@ -398,6 +378,7 @@ export const buildMetadata = (
   ...(intent.modifiers?.length
     ? { modifiers: JSON.stringify(intent.modifiers) }
     : {}),
+  ...(intent.taxPolicy ? { tax_policy: JSON.stringify(intent.taxPolicy) } : {}),
   ...(intent.thankYouUrl ? { thank_you_url: intent.thankYouUrl } : {}),
   ...(intent.allocations?.length
     ? { allocations: JSON.stringify(intent.allocations) }
@@ -433,6 +414,7 @@ const PACKED_KEYS = [
   "date",
   "day_count",
   "reservation_amount",
+  "tax_policy",
   "balance_attendee_id",
   "site_token_index",
 ] as const;
@@ -599,6 +581,7 @@ export const extractSessionMetadata = (
     reservation_amount: get("reservation_amount"),
     site_token_index: get("site_token_index"),
     special_instructions: get("special_instructions"),
+    tax_policy: get("tax_policy"),
     text_answer_ids: get("text_answer_ids"),
     thank_you_url: get("thank_you_url"),
   };

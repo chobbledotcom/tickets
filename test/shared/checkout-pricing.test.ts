@@ -66,7 +66,6 @@ describe("priceCheckout", () => {
       expect(order.lines).toHaveLength(1);
       expect(order.lines[0]!.chargedUnitAmount).toBe(1000);
       expect(order.extras).toEqual([]);
-      expect(order.fullSubtotal).toBe(2000);
       expect(order.total).toBe(2000);
     },
   );
@@ -230,7 +229,6 @@ describe("priceCheckout", () => {
         }),
       );
       expect(order.lines[0]!.chargedUnitAmount).toBe(100);
-      expect(order.fullSubtotal).toBe(2000);
       expect(order.extras[0]!.amount).toBe(100);
       // Deposit (2 × £1) + fee (£1) = £3.
       expect(order.total).toBe(300);
@@ -252,7 +250,6 @@ describe("priceCheckout", () => {
         }),
       );
       expect(order.lines[0]!.chargedUnitAmount).toBe(250);
-      expect(order.fullSubtotal).toBe(5000);
       // Deposit (2 × £2.50 = £5) + fee (5% of £50 = £2.50) = £7.50.
       expect(order.total).toBe(750);
     },
@@ -265,7 +262,6 @@ describe("priceCheckout", () => {
       const order = priceCheckout(
         intentWith([item({ quantity: 3 })], { reservationAmount: "10" }),
       );
-      expect(order.fullSubtotal).toBe(3000);
       expect(order.extras).toEqual([
         { amount: 150, key: "fee", name: "Booking fee", quantity: 1 },
       ]);
@@ -301,7 +297,6 @@ describe("priceCheckout", () => {
         { amount: 500, key: "mod:1", name: "Parking", quantity: 1 },
         { amount: 250, key: "fee", name: "Booking fee", quantity: 1 },
       ]);
-      expect(order.fullSubtotal).toBe(2500);
       expect(order.total).toBe(2750);
     },
   );
@@ -319,7 +314,6 @@ describe("priceCheckout", () => {
       expect(order.lines).toEqual([
         { chargedUnitAmount: 900, item: item({ quantity: 2 }), quantity: 2 },
       ]);
-      expect(order.fullSubtotal).toBe(1800);
       expect(order.extras).toEqual([
         { amount: 180, key: "fee", name: "Booking fee", quantity: 1 },
       ]);
@@ -362,7 +356,6 @@ describe("priceCheckout", () => {
       expect(order.lines).toEqual([
         { chargedUnitAmount: 50, item: item(), quantity: 1 },
       ]);
-      expect(order.fullSubtotal).toBe(500);
       expect(order.extras).toEqual([
         { amount: 50, key: "fee", name: "Booking fee", quantity: 1 },
       ]);
@@ -389,7 +382,6 @@ describe("priceCheckout", () => {
       );
       // Full modified subtotal is £15.00; checkout charges a £1.50 deposit
       // plus a £1.50 booking fee, not the full £5.00 add-on.
-      expect(order.fullSubtotal).toBe(1500);
       expect(order.lines).toEqual([
         { chargedUnitAmount: 150, item: item(), quantity: 1 },
       ]);
@@ -419,7 +411,6 @@ describe("priceCheckout", () => {
           reservationAmount: "10%",
         }),
       );
-      expect(order.fullSubtotal).toBe(900);
       expect(order.lines).toEqual([
         { chargedUnitAmount: 90, item: item(), quantity: 1 },
       ]);
@@ -440,7 +431,6 @@ describe("priceCheckout", () => {
           reservationAmount: "10%",
         }),
       );
-      expect(order.fullSubtotal).toBe(500);
       expect(order.lines).toEqual([
         { chargedUnitAmount: 50, item: freeItem, quantity: 1 },
       ]);

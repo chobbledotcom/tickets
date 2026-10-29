@@ -76,8 +76,7 @@ Init ==
 ReviewStep ==
   \E attempt \in ReviewAttempts :
     /\ attempt.sourceState = reviewState
-    /\ reviewState' = attempt.targetState
-    /\ allAttemptsSafe' = ChecksStillPass(allAttemptsSafe, SafeAttempt(attempt))
+    /\ AttemptedEdge(reviewState, attempt.targetState, SafeAttempt(attempt), allAttemptsSafe)
 
 Next == ReviewStep \/ UNCHANGED <<reviewState, allAttemptsSafe>>
 

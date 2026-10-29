@@ -3,7 +3,6 @@ import { buildBookingTree } from "#booking/build-tree.ts";
 import type { FoldBase, FoldChildrenResult } from "#booking/fold-tree.ts";
 import { buildOrderLines, nodeQuantitiesFor } from "#booking/order-lines.ts";
 import type { BookingTree } from "#booking/tree.ts";
-import { sumOf } from "#fp";
 import { apiError } from "#routes/api/cors.ts";
 import {
   bookingSuccessResponse,
@@ -117,10 +116,6 @@ export const applyChildSelectionsToForm = (
   }
   return null;
 };
-
-/** The price (minor units) of a folded multi-item order. */
-const foldedOrderTotal = (items: CheckoutItem[]): number =>
-  sumOf((item: CheckoutItem) => item.unitPrice * item.quantity)(items);
 
 /** The shared input to a folded booking: the contact, the chosen date, the
  * fold result, the priced order lines, and the parent's thank-you URL. The
@@ -243,8 +238,9 @@ const completeFoldedBooking = async (
   input: FoldedBookingInput,
 ): Promise<Response> => {
   const { contact, date, fold, items } = input;
-  const total = foldedOrderTotal(items);
   const intent = foldedIntent(input);
+  const order = priceCheckout(intent);
+  const total = order.total;
   if (isPaymentsEnabled() && total > 0) {
     // Reject a folded order whose parent or any child already exhausted
     // capacity before creating a checkout session. The web paid path runs the same
@@ -270,17 +266,14 @@ const completeFoldedBooking = async (
   // balance projects from them. So build the zeroed-total owed order the web
   // free path uses. A genuinely free order (payments enabled, total 0) owes
   // nothing and posts no legs.
-  const remainingBalance = isPaymentsEnabled() ? 0 : total;
+  const remainingBalance = isPaymentsEnabled() ? 0 : order.tax.total;
   const reservation = await createFreeReservation({
     allocations: fold.allocations,
     contact,
     date,
     dayCount: fold.dayCount,
     items,
-    ledgerOrder:
-      remainingBalance > 0
-        ? owedOrderForLedger(priceCheckout({ ...intent, feeSubtotal: 0 }))
-        : null,
+    ledgerOrder: isPaymentsEnabled() ? order : owedOrderForLedger(order),
     listings: fold.listings,
     modifierUsages: [],
     remainingBalance,

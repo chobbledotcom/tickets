@@ -5,11 +5,13 @@
  * to the store.
  */
 
+import * as v from "valibot";
 import {
   attendeeAccount,
   BOOKING_FEE_INCOME,
   modifierAccount,
   revenueAccount,
+  TAX_VAT,
   WORLD,
 } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
@@ -24,6 +26,8 @@ import type {
   Transfer,
   TransferInput,
 } from "#shared/ledger/types.ts";
+import { assessTax, taxBasisLines } from "#shared/tax/assessment.ts";
+import { NO_TAX, type TaxPolicy, TaxPolicySchema } from "#shared/tax/types.ts";
 
 const BOOKING = "booking";
 const REFUND = "refund";
@@ -59,6 +63,7 @@ const REFUND_KIND: Readonly<Record<string, string>> = {
   [KIND.sale]: KIND.refundSale,
   [MANUAL_ATTENDEE_CHARGE]: KIND.refundManualAttendeeCharge,
   [MANUAL_ATTENDEE_WRITEOFF]: KIND.refundManualAttendeeWriteoff,
+  [KIND.vat]: KIND.refundVat,
 };
 
 const refundKind = (kind: string): string =>
@@ -70,6 +75,7 @@ const refundKind = (kind: string): string =>
  * signed effect (negative = discount). `amountPaid` is the cash actually received
  * now (a deposit, or the full amount). `eventId` is any stable per-booking id
  * (for example the payment reference) — it is hashed into the references, never stored.
+ * `vat` is the booking's VAT facts. A booking without `vat` charges no tax.
  */
 export type BookingFacts = {
   readonly attendeeId: number;
@@ -79,6 +85,7 @@ export type BookingFacts = {
   readonly modifiers: ReadonlyArray<{ modifierId: number; delta: number }>;
   readonly bookingFee: number;
   readonly amountPaid: number;
+  readonly vat?: TaxPolicy;
 };
 
 type LegSpec = {
@@ -121,6 +128,20 @@ const modifierLeg = (
       };
 };
 
+/** The single attendee→`tax:vat` leg, dropped when the tax is zero. */
+const vatLegSpec = (vatAmount: number, attendee: AccountRef): LegSpec[] =>
+  vatAmount > 0
+    ? [
+        {
+          amount: vatAmount,
+          destination: TAX_VAT,
+          kind: KIND.vat,
+          refParts: [KIND.vat],
+          source: attendee,
+        },
+      ]
+    : [];
+
 const bookingLegSpecs = (
   facts: BookingFacts,
   attendee: AccountRef,
@@ -132,14 +153,32 @@ const bookingLegSpecs = (
     (line: BookingFacts["lines"][number]) => line.listingId,
     (line) => line.gross,
   )(facts.lines.filter((line) => line.gross > 0));
-  const sales: LegSpec[] = [...grossByListing].map(([listingId, gross]) => ({
-    amount: gross,
-    destination: revenueAccount(listingId),
-    kind: KIND.sale,
-    refParts: [KIND.sale, listingId],
-    source: attendee,
-  }));
-  const modifiers = facts.modifiers
+  // A discount larger than the ticket income nets below zero. There is no
+  // taxable income then: no VAT leg and no included-tax share, and the legs
+  // are exactly the facts as booked.
+  const net =
+    [...grossByListing.values()].reduce((total, gross) => total + gross, 0) +
+    facts.modifiers.reduce((total, modifier) => total + modifier.delta, 0);
+  const assessment =
+    net < 0
+      ? null
+      : assessTax(
+          {
+            lines: taxBasisLines(grossByListing),
+            modifiers: facts.modifiers.map((modifier) => ({ ...modifier })),
+          },
+          facts.vat ?? NO_TAX,
+        );
+  const sales: LegSpec[] = (assessment?.lines ?? taxBasisLines(grossByListing))
+    .filter((line) => line.gross > 0)
+    .map(({ listingId, gross }) => ({
+      amount: gross,
+      destination: revenueAccount(listingId),
+      kind: KIND.sale,
+      refParts: [KIND.sale, listingId],
+      source: attendee,
+    }));
+  const modifiers = (assessment?.modifiers ?? facts.modifiers)
     .filter((modifier) => modifier.delta !== 0)
     .map((modifier) => modifierLeg(attendee, modifier));
   const fee = optionalLeg(facts.bookingFee, {
@@ -154,7 +193,13 @@ const bookingLegSpecs = (
     refParts: [KIND.payment],
     source: WORLD,
   });
-  return [...sales, ...modifiers, ...fee, ...payment];
+  return [
+    ...sales,
+    ...modifiers,
+    ...fee,
+    ...payment,
+    ...vatLegSpec(assessment ? assessment.taxAmount : 0, attendee),
+  ];
 };
 
 /**
@@ -192,6 +237,9 @@ const assertValidFacts = (facts: BookingFacts): void => {
   }
   requireAmount("bookingFee", facts.bookingFee);
   requireAmount("amountPaid", facts.amountPaid);
+  if (facts.vat !== undefined && !v.is(TaxPolicySchema, facts.vat)) {
+    problems.push("invalid tax policy");
+  }
   if (problems.length > 0) {
     throw new Error(`mapBooking: invalid facts (${problems.join(", ")})`);
   }

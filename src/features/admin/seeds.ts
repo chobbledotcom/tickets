@@ -11,8 +11,8 @@ import { t } from "#i18n";
 import {
   authPage,
   formPolicyFor,
+  formPost,
   pageGuardFor,
-  withAuth,
 } from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
 import { adminDestinationAt } from "#shared/admin-surface.ts";
@@ -31,24 +31,21 @@ const handleSeedsGet: TypedRouteHandler<"GET /admin/seeds"> = authPage(
   return adminSeedsPage(session, flash.error, flash.success);
 });
 
-const handleSeedsPost: TypedRouteHandler<"POST /admin/seeds"> = (request) =>
-  withAuth(
-    request,
-    formPolicyFor(adminDestinationAt("/admin/seeds")),
-    async (_session, form) => {
-      const parsed = seedsForm.validate(form);
-      if (!parsed.valid) return redirect("/admin/seeds", parsed.error, false);
-      // The form schema bounds both counts (min/max on the fields), so the
-      // parsed values are already inside the seeds limits.
-      const { listing_count, attendees_per_listing } = parsed.values;
-      const result = await createSeeds(listing_count, attendees_per_listing);
-      const message = t("admin.seeds.created", {
-        attendees: result.attendeesCreated,
-        listings: result.listingsCreated,
-      });
-      return redirect("/admin/seeds", message, true);
-    },
-  );
+const handleSeedsPost: TypedRouteHandler<"POST /admin/seeds"> = formPost(
+  formPolicyFor(adminDestinationAt("/admin/seeds")),
+)(async (form) => {
+  const parsed = seedsForm.validate(form);
+  if (!parsed.valid) return redirect("/admin/seeds", parsed.error, false);
+  // The form schema bounds both counts (min/max on the fields), so the
+  // parsed values are already inside the seeds limits.
+  const { listing_count, attendees_per_listing } = parsed.values;
+  const result = await createSeeds(listing_count, attendees_per_listing);
+  const message = t("admin.seeds.created", {
+    attendees: result.attendeesCreated,
+    listings: result.listingsCreated,
+  });
+  return redirect("/admin/seeds", message, true);
+});
 
 /** Seeds routes */
 export const adminHandlers = defineAdminRoutes({

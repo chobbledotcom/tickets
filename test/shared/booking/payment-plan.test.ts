@@ -25,7 +25,7 @@ describe("planBookingPayment", () => {
       name: "opens checkout at the custom price",
     },
     {
-      expected: { kind: "direct", remainingBalance: 0 },
+      expected: { kind: "direct" },
       input: {
         customUnitPrice: 0,
         paymentsEnabled: true,
@@ -35,7 +35,7 @@ describe("planBookingPayment", () => {
       name: "honours an explicit free custom price",
     },
     {
-      expected: { kind: "direct", remainingBalance: 200 },
+      expected: { kind: "direct" },
       input: {
         customUnitPrice: undefined,
         paymentsEnabled: false,
@@ -45,7 +45,7 @@ describe("planBookingPayment", () => {
       name: "records the listing price as owed without a provider",
     },
     {
-      expected: { kind: "direct", remainingBalance: 450 },
+      expected: { kind: "direct" },
       input: {
         customUnitPrice: 150,
         paymentsEnabled: false,
@@ -55,7 +55,7 @@ describe("planBookingPayment", () => {
       name: "records the custom price as owed without a provider",
     },
     {
-      expected: { kind: "direct", remainingBalance: 0 },
+      expected: { kind: "direct" },
       input: {
         customUnitPrice: undefined,
         paymentsEnabled: false,

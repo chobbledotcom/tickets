@@ -272,14 +272,12 @@ const renderQuote = async (
   }
   // No payment provider: the booking is taken without charging. A paid order
   // still records its full value as the amount owed (see processSubmission).
-  // Surface that figure instead of implying that the order is free. The
-  // `fullSubtotal` field is the order value before any deposit split or booking
-  // fee. The submit path stores it as the remaining balance.
+  // Show the tax-inclusive debt without a booking fee.
   return htmlResponse(
-    pricedOrder.fullSubtotal > 0
+    pricedOrder.tax.total > 0
       ? orderSummaryMessage(
           `No online payment is needed now — you'll owe ${formatCurrency(
-            pricedOrder.fullSubtotal,
+            pricedOrder.tax.total,
           )} for this booking.`,
         )
       : orderSummaryMessage("No payment required for this booking."),

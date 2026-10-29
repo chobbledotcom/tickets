@@ -11,13 +11,17 @@ import {
   type SqlStatement,
 } from "#db/client.ts";
 import { invalidateListingsCache } from "#db/listings/records.ts";
+import { notNullGuardFailure } from "#db/query.ts";
 import { settingsVersionIncrement } from "#db/settings/cache.ts";
 import {
   type BooleanJsonField,
   booleanJsonField,
   type WhenClause,
 } from "#db/settings/json-field.ts";
-import { syncStoredSetting } from "#db/settings/raw-writes.ts";
+import {
+  publishStoredSetting,
+  syncStoredSetting,
+} from "#db/settings/raw-writes.ts";
 import { setSnapshotField } from "#db/settings/snapshot.ts";
 import { range } from "#fp";
 import {
@@ -54,10 +58,6 @@ const requireSettingCondition = (
   sql: `INSERT INTO settings (key, value)
         SELECT ?, NULL WHERE NOT (${conditionSql})`,
 });
-
-const isRequiredSettingWriteFailure = (error: unknown): boolean =>
-  error instanceof Error &&
-  error.message.includes("NOT NULL constraint failed: settings.value");
 
 const initialFeatureValue = (key: AdminFeatureKey, enabled: boolean): string =>
   serializeEnabledFeatures(
@@ -96,12 +96,8 @@ const featureWriteStatement = (
   when: WhenClause,
 ): SqlStatement => featureField(key, enabled).statement(when);
 
-const syncFeatureSetting = (stored: string): void => {
-  syncStoredSetting(CONFIG_KEYS.ENABLED_FEATURES, (values) =>
-    values.set(CONFIG_KEYS.ENABLED_FEATURES, stored),
-  );
-  setSnapshotField(CONFIG_KEYS.ENABLED_FEATURES, stored);
-};
+const syncFeatureSetting = (stored: string): void =>
+  publishStoredSetting(CONFIG_KEYS.ENABLED_FEATURES, stored);
 
 const writeAdminFeatureEnabled = async (
   key: AdminFeatureKey,
@@ -247,7 +243,7 @@ const disableLogisticsFeature = async (): Promise<boolean> => {
       await saveLogisticsDisable(prepared);
       return true;
     } catch (error) {
-      if (!isRequiredSettingWriteFailure(error)) throw error;
+      if (!notNullGuardFailure(error, "settings.value")) throw error;
       await validateStoredFeatureSetting();
       if ((await prepareLogisticsDefault()).current !== prepared.current) {
         continue;

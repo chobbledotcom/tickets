@@ -182,6 +182,7 @@ export const AREAS_M_Z = {
       settingsSumup: "/admin/settings/sumup",
       settingsSumupTest: "/admin/settings/sumup/test",
       settingsSuperuser: "/admin/settings/superuser",
+      settingsTax: "/admin/settings/tax",
       settingsTerms: "/admin/settings/terms",
       settingsTheme: "/admin/settings/theme",
     },

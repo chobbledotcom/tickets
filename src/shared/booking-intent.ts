@@ -10,6 +10,7 @@
 /* jscpd:ignore-start -- imports */
 import * as v from "valibot";
 import { parseReservationAmount } from "#shared/reservation-amount.ts";
+import { TaxPolicySchema } from "#shared/tax/types.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 import { optionalStringThat } from "#shared/validation/string.ts";
 
@@ -139,6 +140,7 @@ export const BookingIntentSchema = v.pipe(
     ),
     siteTokenIndex: v.optional(v.string()),
     special_instructions: v.string(),
+    taxPolicy: v.optional(TaxPolicySchema),
     thankYouUrl: v.optional(v.string()),
   }),
   // Paying off a balance is one made-up line holding what is still owed, and

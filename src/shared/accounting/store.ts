@@ -325,18 +325,23 @@ const nothingToPost = (
 });
 
 /**
- * Post several independent sets of event groups from one ledger snapshot and
- * one write. A stored-data conflict rejects only its own set. Malformed input
- * and database failures still reject the whole call.
+ * Post several independent sets from one ledger snapshot and one write.
+ * Each accepted set's companion guards and domain writes precede its transfer
+ * inserts in the same commit. A stored-data conflict omits that set and its
+ * companions. Database failures roll back the whole call.
  */
 export const postTransferGroupBatches = async <
   const Batches extends readonly TransferInput[][][],
 >(
   batches: Batches,
+  companionStatements: readonly (readonly SqlStatement[])[] = [],
 ): Promise<ResultPerBatch<Batches>> => {
   const groups = batches.flat();
   const nonEmpty = groups.filter((inputs) => inputs.length > 0);
-  if (nonEmpty.length === 0) {
+  if (
+    nonEmpty.length === 0 &&
+    companionStatements.every((statements) => statements.length === 0)
+  ) {
     // Mapped from the sets given, so it is one outcome per set by construction.
     return batches.map(nothingToPost) as ResultPerBatch<Batches>;
   }
@@ -346,8 +351,10 @@ export const postTransferGroupBatches = async <
   const planned = batches.map((batch) =>
     planTransferBatch(batch, snapshot, recordedAt),
   );
-  const inserts = planned.flatMap((batch) =>
-    batch.kind === "posted" ? batch.inserts : [],
+  const inserts = planned.flatMap((batch, index) =>
+    batch.kind === "posted"
+      ? [...(companionStatements[index] ?? []), ...batch.inserts]
+      : [],
   );
   if (inserts.length > 0) await executeBatch(inserts);
   // Mapped from the sets given, so it is one outcome per set by construction.
@@ -360,8 +367,12 @@ export const postTransferGroupBatches = async <
 
 export const postTransferGroups = async (
   groups: TransferInput[][],
+  companionStatements: readonly SqlStatement[] = [],
 ): Promise<PostResult[]> => {
-  const [result] = await postTransferGroupBatches([groups]);
+  const [result] = await postTransferGroupBatches(
+    [groups],
+    [companionStatements],
+  );
   if (result.kind === "conflict") throw result.error;
   return result.results;
 };

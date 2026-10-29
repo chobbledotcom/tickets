@@ -24,6 +24,8 @@ import {
 } from "#db/processed-payments.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
+import { assessTax } from "#shared/tax/assessment.ts";
+import { NO_TAX } from "#shared/tax/types.ts";
 import { seedOrderActivity } from "#test-utils/contact-tokens.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -42,7 +44,6 @@ const pricedOrder = (
   modifierApplications: PricedOrder["modifierApplications"] = [],
 ): PricedOrder => ({
   extras: [],
-  fullSubtotal: total,
   lines: [
     {
       chargedUnitAmount: total,
@@ -57,6 +58,16 @@ const pricedOrder = (
     },
   ],
   modifierApplications,
+  tax: assessTax(
+    {
+      lines: [{ gross: total, listingId }],
+      modifiers: modifierApplications.map(({ modifierId, delta }) => ({
+        delta,
+        modifierId,
+      })),
+    },
+    NO_TAX,
+  ),
   total,
 });
 

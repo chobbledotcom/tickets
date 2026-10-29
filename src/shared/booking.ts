@@ -6,15 +6,13 @@
  * Callers handle input parsing/validation and response formatting.
  */
 
-import { mapBooking } from "#accounting/mappers.ts";
 import { planBookingPayment } from "#booking/payment-plan.ts";
 import { requirePublicStatusId } from "#db/attendee-statuses.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
-import type { AttendeeCreationWork } from "#db/attendees/create.ts";
-import { postBookingLegsTx } from "#shared/checkout-complete.ts";
+import { apiCreateLedgerPoster } from "#shared/checkout-complete.ts";
+import { listPriceOrder } from "#shared/checkout-pricing.ts";
 import { isPaymentsEnabled } from "#shared/config.ts";
 import type { EmailEntry } from "#shared/email.ts";
-import { nowIso } from "#shared/now.ts";
 import { singleListingAnswerIds } from "#shared/payment-helpers.ts";
 import { checkoutItem, getActivePaymentProvider } from "#shared/payments.ts";
 import { logAndNotifyRegistration } from "#shared/webhook/delivery.ts";
@@ -33,29 +31,6 @@ export const createdBookingEntries = (
       attendee,
       listing: listingById.get(attendee.listing_id)!,
     }));
-
-/**
- * Creation work for a provider-less owed booking: inside the create
- * transaction, post the booking's gross `sale` leg with nothing paid, so the
- * attendee owes exactly `gross` in the ledger, and stamp the booking row's
- * `ledger_event_group` so its per-row amount-paid projection resolves the sale.
- * The single-listing API booking has no priced order, so the facts are built
- * directly — the same legs `mapBooking` would produce from one gross line.
- */
-const owedBookingLedgerPoster =
-  (listingId: number, gross: number): AttendeeCreationWork =>
-  async (tx, attendeeId) => {
-    const legs = await mapBooking({
-      amountPaid: 0,
-      attendeeId,
-      bookingFee: 0,
-      eventId: `booking-${attendeeId}`,
-      lines: [{ gross, listingId }],
-      modifiers: [],
-      occurredAt: nowIso(),
-    });
-    await postBookingLegsTx(tx, attendeeId, legs);
-  };
 
 /** True when the listing still has spots for this quantity on this date (no
  * date for a date-less listing, whose capacity is one running total). */
@@ -132,7 +107,10 @@ export const processBooking = async (
   // reservation — so nothing is collected up front but the balance is tracked.
   // The attendee starts in the public-default status, matching the web free
   // path so a balance-carrying booking is never left status-less.
-  const remainingBalance = payment.remainingBalance;
+  const order = listPriceOrder([
+    { listing, quantity, unitPrice: customUnitPrice ?? listing.unit_price },
+  ]);
+  const remainingBalance = order.tax.total;
   const result = await attendeesApi.createAttendeeAtomic(
     {
       ...contact,
@@ -147,14 +125,7 @@ export const processBooking = async (
       remainingBalance,
       statusId: await requirePublicStatusId(),
     },
-    // An owed booking must record its balance in the ledger at creation, since
-    // the outstanding balance projects from it: post the booking's gross sale
-    // leg with nothing paid, so the attendee owes the full value (mirroring the
-    // web provider-less path's ledger dual-write). A free or paid-in-full
-    // booking owes nothing, so it posts no legs and runs as a plain batch.
-    remainingBalance > 0
-      ? owedBookingLedgerPoster(listing.id, remainingBalance)
-      : undefined,
+    apiCreateLedgerPoster(order, { adjustments: [], payments: [] }),
   );
 
   if (!result.success) {

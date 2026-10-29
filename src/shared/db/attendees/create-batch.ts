@@ -18,10 +18,13 @@ import {
 } from "#db/modifier-usage.ts";
 import { boundSlots, type NumberedSql } from "#db/numbered-statement.ts";
 import { batchFinalizeStatements } from "#db/payment-finalize.ts";
+import { notNullGuardFailure } from "#db/query.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { namedError } from "#shared/named-error.ts";
 import { nowIso } from "#shared/now.ts";
+import { initialTaxAssessmentStatement } from "#shared/tax/store.ts";
+import type { TaxAssessment } from "#shared/tax/types.ts";
 
 export type PreparedWrite = {
   enc: EncryptedAttendeeData;
@@ -47,6 +50,8 @@ export type BatchTail = (tokenIndex: string) => SqlStatement[];
 export type BookingBatchPlan = {
   usages: ModifierUsage[];
   legs: TransferInput[];
+  bookingGroup: string;
+  taxAssessment: TaxAssessment;
   finalize?: {
     paymentReference: TaggedPaymentReference | null;
     sessionId: string;
@@ -65,15 +70,8 @@ const bookingWriteGuard = (): SqlStatement => ({
         SELECT NULL, NULL, 1 WHERE changes() != ?`,
 });
 
-const isRequiredColumnFailure =
-  (column: string) =>
-  (error: unknown): boolean =>
-    error instanceof Error &&
-    error.message.includes(`NOT NULL constraint failed: ${column}`);
-
-const isBookingWriteGuardFailure = isRequiredColumnFailure(
-  "listing_attendees.listing_id",
-);
+const isBookingWriteGuardFailure = (error: unknown): boolean =>
+  notNullGuardFailure(error, "listing_attendees.listing_id");
 
 const guardedBookings = (statements: SqlStatement[]): SqlStatement[] =>
   statements.flatMap((statement) => [statement, bookingWriteGuard()]);
@@ -181,19 +179,26 @@ export const writeAsLedgerBatch = async (
       always,
     ),
   );
+  // Only a booking that posted legs carries the order's link. A fully-free
+  // order's money projects to 0, so its rows read back with an empty group.
   const eventGroup: SqlStatement[] =
-    plan.legs.length === 0
-      ? []
-      : [
+    plan.legs.length > 0
+      ? [
           {
-            args: [plan.legs[0]!.eventGroup, tokenIndex],
-            // Fill only rows still missing their order's link, so the stamp
-            // stays per ORDER — see postBookingLegsTx.
+            args: [plan.bookingGroup, tokenIndex],
             sql: `UPDATE listing_attendees SET ledger_event_group = ?
-                  WHERE attendee_id = ${ATTENDEE_BY_TOKEN_SQL}
-                  AND ledger_event_group = ''`,
+          WHERE attendee_id = ${ATTENDEE_BY_TOKEN_SQL}
+          AND ledger_event_group = ''`,
           },
-        ];
+        ]
+      : [];
+  const assessment = await initialTaxAssessmentStatement(
+    plan.bookingGroup,
+    plan.taxAssessment,
+    plan.legs[0]?.occurredAt ?? recordedAt,
+    ATTENDEE_BY_TOKEN_SQL,
+    [tokenIndex],
+  );
   const finalize = plan.finalize
     ? await batchFinalizeStatements(
         plan.finalize.sessionId,
@@ -207,6 +212,7 @@ export const writeAsLedgerBatch = async (
     ...usages,
     ...legs,
     ...eventGroup,
+    assessment,
     ...finalize,
     ...(tail?.(tokenIndex) ?? []),
   ]);

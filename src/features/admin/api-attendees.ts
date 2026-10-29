@@ -41,11 +41,7 @@ import {
   apiCreateLedgerPoster,
   type CreateAdjustment,
 } from "#shared/checkout-complete.ts";
-import {
-  lineListPrice,
-  listPriceOrder,
-  type PricedOrder,
-} from "#shared/checkout-pricing.ts";
+import { listPriceOrder, type PricedOrder } from "#shared/checkout-pricing.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { queueManualAddWebhooks } from "#shared/webhook/delivery.ts";
 import type { Attendee } from "#types";
@@ -165,15 +161,15 @@ const createFromParsed = async (parsed: ParsedApiCreate): Promise<Response> => {
     quantity: line.quantity,
   }));
   const order = toLedgerOrder(lines);
-  const gross = sumOf(lineListPrice)(order.lines);
   const receipts = { adjustments, payments };
   // Admin manual add can deliberately overbook (a warning shows, the system
-  // does not block). The poster records the sale legs at the lines' prices
-  // plus the payment and adjustment legs in the same create transaction. The
-  // input carries the projected net as remainingBalance, so the attendee owes
-  // the lines and charges minus what was paid or written off.
+  // does not block). The poster records the sale and VAT legs at the lines'
+  // prices plus the payment and adjustment legs in the same create
+  // transaction. The input carries the projected net as remainingBalance, so
+  // the attendee owes the lines and charges minus what was paid or written
+  // off. The net includes the tax, because the sale total is tax-inclusive.
   const remainingBalance =
-    gross -
+    order.tax.total -
     sum(payments) +
     sumOf((adjustment: CreateAdjustment) => adjustment.amount)(adjustments);
   // The answers are encrypted and blind-indexed before the transaction opens.

@@ -114,7 +114,7 @@ describe("contract drift default dependencies", () => {
 
   test("runs the real dump entry and prints contracts", async () => {
     const deps = defaultDriftDeps();
-    expect(dumpedMachines(await deps.runBaseDump(projectRoot))).toHaveLength(5);
+    expect(dumpedMachines(await deps.runBaseDump(projectRoot))).toHaveLength(6);
   });
 
   test("runs the copied dump entry in a worktree at the merge base", async () => {
@@ -273,6 +273,6 @@ describe("contract drift default dependencies", () => {
   test("dumps the head's contracts in process", async () => {
     const deps = defaultDriftDeps();
     const head = await deps.headContracts();
-    expect(Object.keys(head.machines)).toHaveLength(5);
+    expect(Object.keys(head.machines)).toHaveLength(6);
   });
 });

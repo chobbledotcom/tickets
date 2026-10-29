@@ -12,19 +12,16 @@
  */
 
 import type { BookingFacts } from "#accounting/mappers.ts";
-import {
-  lineListPrice,
-  lineTotalsByListingId,
-  type PricedOrder,
-} from "#shared/checkout-pricing.ts";
+import { type PricedOrder, taxBasisOfOrder } from "#shared/checkout-pricing.ts";
 
-/** The per-order facts the pure pricing cannot supply (id, clock). */
+/** The per-order facts the pure pricing cannot supply. */
 export type BookingLedgerContext = {
   readonly attendeeId: number;
   readonly occurredAt: string;
   readonly eventId: string;
 };
 
+/** Build the booking's ledger facts from its fixed tax assessment. */
 export const bookingFactsFromOrder = (
   order: PricedOrder,
   ctx: BookingLedgerContext,
@@ -33,14 +30,9 @@ export const bookingFactsFromOrder = (
   attendeeId: ctx.attendeeId,
   bookingFee: order.extras.find((extra) => extra.key === "fee")?.amount ?? 0,
   eventId: ctx.eventId,
-  lines: [...lineTotalsByListingId(order.lines, lineListPrice)].map(
-    ([listingId, gross]) => ({ gross, listingId }),
-  ),
-  modifiers: order.modifierApplications.map((application) => ({
-    delta: application.delta,
-    modifierId: application.modifierId,
-  })),
+  ...taxBasisOfOrder(order),
   occurredAt: ctx.occurredAt,
+  vat: order.tax.policy,
 });
 
 /**

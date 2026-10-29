@@ -2,7 +2,6 @@
  * Update operations for attendees and their per-listing bookings.
  */
 
-import { ledgerTx } from "#accounting/ledger-tx.ts";
 import {
   type StoredTicketLine,
   spreadTicketMoves,
@@ -21,9 +20,7 @@ import {
   rawSql,
   resultRows,
   type TxScope,
-  update,
   useTransaction,
-  withTransaction,
 } from "#db/client.ts";
 import { filter, map, pipe, reduce, sumOf, unique } from "#fp";
 import { countsPerDate } from "#shared/capacity-rules.ts";
@@ -55,29 +52,6 @@ export const moveTickets = (
     }
     return moved;
   });
-
-/**
- * Set an attendee's status from the admin edit form (a plain column write,
- * outside the encrypted pii_blob). The outstanding balance is NOT set from the
- * form — it projects from the transfers ledger, and an operator adjusts it
- * through the ledger's manual write-off entries.
- *
- * Every assignment uses a write transaction so it serialises with status
- * deletion. When `clearBalance` is set, a stranded receivable is reconciled to
- * 0 in that SAME transaction, so the two writes land atomically.
- */
-export const updateAttendeeStatus = async (
-  attendeeId: number,
-  statusId: number | null,
-  clearBalance = false,
-): Promise<void> => {
-  await withTransaction(async (tx) => {
-    await tx.execute(
-      update("attendees", { status_id: statusId }, { id: attendeeId }),
-    );
-    if (clearBalance) await ledgerTx.correct.owed(tx, attendeeId, 0);
-  });
-};
 
 export const incrementAttachmentDownloads = async (
   attendeeId: number,

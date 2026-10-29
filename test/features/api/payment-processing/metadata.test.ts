@@ -29,6 +29,7 @@ const bareMetadata: SessionMetadata = {
   reservation_amount: "",
   site_token_index: "",
   special_instructions: "",
+  tax_policy: "",
   text_answer_ids: "",
   thank_you_url: "",
 };
@@ -80,6 +81,7 @@ describe("reading a booking out of a paid checkout", () => {
       reservationAmount: undefined,
       siteTokenIndex: undefined,
       special_instructions: "",
+      taxPolicy: { mode: "none" },
       thankYouUrl: undefined,
     });
   });
@@ -117,6 +119,13 @@ describe("reading a booking out of a paid checkout", () => {
       extractIntent(session({ modifiers: JSON.stringify([{ i: 3, q: 2 }]) }))
         ?.modifiers,
     ).toEqual([{ i: 3, q: 2 }]);
+  });
+  test("keeps the checkout's frozen tax policy", () => {
+    const taxPolicy = { mode: "add_to_total", rateBasisPoints: 1725 };
+    expect(
+      extractIntent(session({ tax_policy: JSON.stringify(taxPolicy) }))
+        ?.taxPolicy,
+    ).toEqual(taxPolicy);
   });
 
   // Our checkout only ever writes a whole number of days here, and leaves the
@@ -162,6 +171,11 @@ describe("reading a booking out of a paid checkout", () => {
     ["the child tickets are not a list", { allocations: '{"childId":2}' }],
     ["the balance attendee is not a number", { balance_attendee_id: "me" }],
     ["a deposit cannot be read as an amount", { reservation_amount: "lots" }],
+    ["the tax policy is malformed", { tax_policy: "{" }],
+    [
+      "the tax rate is fractional",
+      { tax_policy: '{"mode":"add_to_total","rateBasisPoints":0.1}' },
+    ],
   ] as const) {
     test(`reads no booking when ${name}`, () => {
       expect(extractIntent(session(metadata))).toBe(null);

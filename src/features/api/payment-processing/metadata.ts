@@ -18,6 +18,7 @@ import type {
   SessionMetadata,
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
+import { NO_TAX } from "#shared/tax/types.ts";
 
 /**
  * The ledger occurredAt for a payment: the provider's checkout time — the
@@ -48,6 +49,7 @@ const jsonMetaField =
  * checkout sent none. Modifiers are an empty list. */
 const parseAnswerRefs = jsonMetaField(undefined);
 const parseModifierRefs = jsonMetaField([]);
+const parseTaxPolicy = jsonMetaField(NO_TAX);
 
 /** The lines being booked. A checkout with none is not a booking, so an empty
  * field reads as nothing the schema will accept. */
@@ -93,6 +95,7 @@ export const extractIntentFromMetadata = (
     reservationAmount: metadata.reservation_amount || undefined,
     siteTokenIndex: metadata.site_token_index || undefined,
     special_instructions: metadata.special_instructions,
+    taxPolicy: parseTaxPolicy(metadata.tax_policy),
     thankYouUrl: metadata.thank_you_url || undefined,
   });
   return result.success ? result.output : null;
