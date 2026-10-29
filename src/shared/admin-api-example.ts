@@ -195,15 +195,21 @@ const ADMIN_API_ATTENDEE_STATUS_DELETE_BODY = {
 } satisfies DeleteBody;
 
 /** The create body a caller copies: one booking line on a standard listing,
- *  with the attendee's contact fields and the status by name. The line carries
- *  an agreed per-unit `price` (minor units), the body records a `payment`
- *  already received, and a named `adjustment` bills the delivery. All amounts
- *  are minor units. An optional `created` stamps the business time the booking
- *  happened, for a phone booking taken on an earlier day. When absent, the
- *  booking is stamped now. */
+ * with the attendee's contact fields and the status by name. The line carries
+ * an agreed per-unit `price` (minor units), the body records a `payment`
+ * already received, and a named `adjustment` bills the delivery. The buyer's
+ * `answers` carry one entry per question: a choice answer names its answerId,
+ * a free-text answer names its freeText. All amounts are minor units. An
+ * optional `created` stamps the business time the booking happened, for a
+ * phone booking taken on an earlier day. When absent, the booking is stamped
+ * now. */
 const ADMIN_API_ATTENDEE_CREATE_BODY = {
   address: "12 Main Street, Springfield",
   adjustments: [{ amount: 250, description: "Delivery" }],
+  answers: [
+    { answerId: 3, questionId: 2 },
+    { freeText: "Vegetarian", questionId: 5 },
+  ],
   created: "2026-06-01T09:00:00.000Z",
   email: "jane@example.com",
   lines: [{ listingId: 4, price: 4500, quantity: 2 }],
@@ -476,7 +482,7 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
   }),
   {
     description:
-      "Create a booking. The answer is the stored attendee row. The create never emails the buyer; a caller-chosen ticketToken makes a retry a no-op. An optional created stamps the business time the booking happened.",
+      "Create a booking. The answer is the stored attendee row. The body can carry the buyer's answers to the booking's questions: { questionId, answerId } for a choice, or { questionId, freeText } for free text. The create never emails the buyer; a caller-chosen ticketToken makes a retry a no-op. An optional created stamps the business time the booking happened.",
     method: "POST",
     path: "/api/admin/attendees",
     request: json(ADMIN_API_ATTENDEE_CREATE_BODY),
