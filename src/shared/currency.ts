@@ -57,7 +57,9 @@ export const formatCurrency = (
   currency: string = settings.currency,
 ): string => {
   const { divisor, formatter } = currencyFormat(currency);
-  return formatter.format(Number(minorUnits) / divisor);
+  // A negative zero carries no meaning and formats with a minus sign.
+  const amount = Number(minorUnits);
+  return formatter.format(amount === 0 ? 0 : amount / divisor);
 };
 
 /** Format a signed change in minor units. Positive value is added, negative

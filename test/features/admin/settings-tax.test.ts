@@ -1,4 +1,4 @@
-import { assertStringIncludes } from "@std/assert";
+import { assertFalse, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -110,7 +110,23 @@ describe("attendeeTaxSavedMessage", () => {
     });
     assertStringIncludes(message, "Saved Dana");
     assertStringIncludes(message, "Tax changed from £0 to £20");
-    assertStringIncludes(message, "balance changed from £100 to £120");
+    assertStringIncludes(
+      message,
+      "outstanding balance changed from £100 to £120",
+    );
+  });
+
+  test("shows a zero before balance as plain zero, not negative zero", () => {
+    const message = attendeeTaxSavedMessage("Dana", {
+      afterBalance: 1200,
+      afterTax: 1200,
+      beforeBalance: -0,
+      beforeTax: 0,
+      changed: true,
+      token: "t",
+    });
+    assertStringIncludes(message, "outstanding balance changed from £0 to £12");
+    assertFalse(message.includes("-£0"));
   });
 
   test("reports the plain update when the assessment did not change", () => {
