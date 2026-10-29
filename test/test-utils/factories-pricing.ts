@@ -1,11 +1,10 @@
-import {
-  lineListPrice,
-  lineTotalsByListingId,
-  type PricedLine,
-  type PricedOrder,
-} from "#shared/checkout-pricing.ts";
+import type { PricedLine, PricedOrder } from "#shared/checkout-pricing.ts";
 import { assessTax } from "#shared/tax/assessment.ts";
 import { NO_TAX } from "#shared/tax/types.ts";
+
+/** The no-tax assessment a default order carries. Tests that need a taxed
+ *  order pass their own `tax` override. */
+const noTaxAssessment = assessTax({ lines: [], modifiers: [] }, NO_TAX);
 
 /** Factory for a {@link PricedLine}: `chargedUnitAmount` defaults to `unitPrice`
  *  but can be overridden to test discount/non-discount pricing paths. */
@@ -34,17 +33,7 @@ export const pricedOrder = (
   extras: [],
   lines: [],
   modifierApplications: [],
-  tax: assessTax(
-    {
-      lines: [
-        ...lineTotalsByListingId(overrides.lines ?? [], lineListPrice),
-      ].map(([listingId, gross]) => ({ gross, listingId })),
-      modifiers: (overrides.modifierApplications ?? []).map(
-        ({ modifierId, delta }) => ({ delta, modifierId }),
-      ),
-    },
-    NO_TAX,
-  ),
+  tax: noTaxAssessment,
   total: 0,
   ...overrides,
 });
