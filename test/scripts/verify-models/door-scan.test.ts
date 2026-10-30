@@ -59,6 +59,12 @@ describe("door scan checker data", () => {
     expect(facts).toContainEqual(factOf("one", 2, 3));
   });
 
+  test("records that a line owing more than one place asks first", async () => {
+    const data = await doorScanModelData();
+    const facts = records(data, "AdmitFacts");
+    expect(facts).toContainEqual(factOf("one", 0, 0));
+  });
+
   test("records that a listing with every place in admits nothing", async () => {
     const data = await doorScanModelData();
     const facts = records(data, "AdmitFacts");
@@ -83,7 +89,7 @@ describe("door scan checker data", () => {
     const data = await doorScanModelData();
     const facts = records(data, "AdmitFacts");
     expect(facts).toContainEqual(factOf("two", 0, 1));
-    expect(facts).toHaveLength(11);
+    expect(facts).toHaveLength(12);
   });
 
   test("every derived admission stays at or under the listing's quantity", () => {

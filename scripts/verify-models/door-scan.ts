@@ -78,6 +78,7 @@ const DOOR_SCOPE = new Set(
 type Controls = {
   checkEvery?: boolean;
   count?: number;
+  force?: boolean;
   idVerified?: boolean;
 };
 
@@ -90,7 +91,7 @@ const factsOf = (
 ): AdmitFact[] => {
   const entries = rows.map(rowOf);
   const decision = decideScan(
-    { entries, force: false, scope: DOOR_SCOPE },
+    { entries, force: controls.force ?? false, scope: DOOR_SCOPE },
     controls.checkEvery ?? false,
     controls.idVerified ?? false,
     controls.count,
@@ -171,6 +172,9 @@ export const admitFacts = (): AdmitFact[] => [
   ...factsOf([partyRow(0)], { count: 3 }),
   // An over-pick caps at what the listing still owes.
   ...factsOf([partyRow(2)], { count: 5 }),
+  // A line that owes more than one place and gets no pick asks first, and
+  // admits nothing yet.
+  ...factsOf([partyRow(0)]),
   // Every place already in: the scan admits nothing.
   ...factsOf([partyRow(3)]),
   // A refunded row never admits.
@@ -188,6 +192,8 @@ export const admitFacts = (): AdmitFact[] => [
   // first is fully in.
   ...factsOf([partyRow(0), guestRow(0)], { checkEvery: true, count: 1 }),
   ...factsOf([partyRow(3), guestRow(0)]),
+  // A forced scan of an empty ticket finds no row, so it names no facts.
+  ...factsOf([], { force: true }),
 ];
 
 /** One over-pick fact changed to admit past the listing's quantity. The
