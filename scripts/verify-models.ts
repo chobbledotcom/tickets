@@ -11,6 +11,7 @@ import { counterexampleData } from "#scripts/verify-models/counterexample.ts";
 import { modelData, paymentModel } from "#scripts/verify-models/model.ts";
 import { reviewModelData } from "#scripts/verify-models/review.ts";
 import {
+  dateLessSoldOutPairData,
   overfillCapacityData,
   sharedGroupCapacityModelData,
 } from "#scripts/verify-models/shared-group-capacity.ts";
@@ -101,13 +102,15 @@ const checkRejected = async (
   module: string,
   label: string,
   data: () => Promise<string>,
+  init: string,
+  length: number,
 ): Promise<void> => {
   await Deno.copyFile(
     join(projectRoot, `verification/${module}.tla`),
     join(work, `${module}.tla`),
   );
   await Deno.writeTextFile(join(work, `${module}Data.tla`), await data());
-  const result = await runCheck(module, "InductionStart", 1);
+  const result = await runCheck(module, init, length);
   if (result.success) {
     throw new Error(
       `The checker accepted a ${label}. The safety verdict is not trusted.`,
@@ -115,32 +118,44 @@ const checkRejected = async (
   }
 };
 console.log("Check BookingReplay: duplicate booking counterexample.");
-await checkRejected("BookingReplay", "duplicate booking", duplicateBookingData);
+await checkRejected(
+  "BookingReplay",
+  "duplicate booking",
+  duplicateBookingData,
+  "InductionStart",
+  1,
+);
 console.log("Check BookingReplay: deleted-row refund counterexample.");
 await checkRejected(
   "BookingReplay",
   "refund after the temporary row was deleted",
   deletedRowRefundData,
+  "InductionStart",
+  1,
 );
 
-// The SharedGroupCapacity proof must reject an overfill: the fit function
-// overreports the whole orders a real pool holds. A pass would make the
-// clean verdict worthless.
+// The SharedGroupCapacity proof must reject both failure modes it rules out:
+// a fit ceiling that overreports the whole orders a real pool holds, and an
+// allow gate that passes a sold-out date-less pair. A pass on either would
+// make the clean verdict worthless.
 console.log("Check SharedGroupCapacity: overfill counterexample.");
-await Deno.copyFile(
-  join(projectRoot, "verification/SharedGroupCapacity.tla"),
-  join(work, "SharedGroupCapacity.tla"),
+await checkRejected(
+  "SharedGroupCapacity",
+  "group overfill",
+  overfillCapacityData,
+  "Init",
+  0,
 );
-await Deno.writeTextFile(
-  join(work, "SharedGroupCapacityData.tla"),
-  await overfillCapacityData(),
+console.log(
+  "Check SharedGroupCapacity: date-less sold-out pair counterexample.",
 );
-const overfill = await runCheck("SharedGroupCapacity", "Init", 0);
-if (overfill.success) {
-  throw new Error(
-    "The checker accepted an overfill. The safety verdict is not trusted.",
-  );
-}
+await checkRejected(
+  "SharedGroupCapacity",
+  "date-less sold-out pair",
+  dateLessSoldOutPairData,
+  "Init",
+  0,
+);
 await Deno.remove(work, { recursive: true });
 console.log(
   "All machine safety checks passed the initial state and inductive step.",

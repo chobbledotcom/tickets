@@ -125,13 +125,18 @@ These checks serve different purposes.
     phase separately, so a fence that omits any one of them never clears the
     stored claim. A take replaces a claim only on an absent or expired row.
     Lease expiry never cancels a provider request that is already in flight.
+  - `verification/SharedGroupCapacity.tla` checks the shared group capacity
+    of one parent and its required child. One order takes two spots in every
+    group the pair shares. The fit ceiling never reports more whole orders
+    than the remaining spots hold. A date-less surface never sells a pair
+    whose shared static cap is below two spots.
   The models trust representative coverage and event annotations.
   The Square model also trusts the configured provider lifetime. Claim
   admission remains a model assumption. Mirror tests and database tests check
   these inputs and boundaries. Model safety does not prove SQL atomicity,
-  provider truth or eventual task execution. The check also corrupts one
-  emitted refund edge. The checker must report a counterexample, or the run
-  fails. Direct generator tests keep unsafe outcomes visible. SumUp and
+  provider truth or eventual task execution. The check also corrupts emitted
+  edges and one fit ceiling. The checker must report a counterexample, or the
+  run fails. Direct generator tests keep unsafe outcomes visible. SumUp and
   Square extraction stop if a declared transition fails.
 - **Make proof code read like its rules.** Give each fact named record fields.
   Use short rule names that describe the business condition. Prefer explicit

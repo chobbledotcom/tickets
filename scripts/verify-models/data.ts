@@ -1,10 +1,10 @@
 import { unique } from "#fp";
 
-type TlaAtom = string | boolean;
+type TlaAtom = string | boolean | number;
 
 export type TlaRecord = Readonly<Record<string, TlaAtom>>;
-type TlaRecordSchema = Readonly<Record<string, "Str" | "Bool">>;
-type FieldValues = { Str: string; Bool: boolean };
+type TlaRecordSchema = Readonly<Record<string, "Str" | "Bool" | "Int">>;
+type FieldValues = { Bool: boolean; Int: number; Str: string };
 export type TlaFact<Schema extends TlaRecordSchema> = {
   readonly [Field in keyof Schema]: FieldValues[Schema[Field]];
 };
@@ -29,6 +29,13 @@ export const modelDataFor =
   (moduleFor: () => string): ModelDataSource =>
   async () =>
     moduleFor();
+
+/** A data source over rows with each one changed by `corrupt`. A negative
+ *  control feeds it to the checker, and the checker must reject it. */
+export const corruptedDataFor =
+  <Row>(rows: readonly Row[], moduleFor: (rows: readonly Row[]) => string) =>
+  (corrupt: (row: Row) => Row): ModelDataSource =>
+    modelDataFor(() => moduleFor(rows.map(corrupt)));
 
 const atom = (value: TlaAtom): string =>
   typeof value === "boolean"

@@ -1,5 +1,6 @@
 /* jscpd:ignore-start -- imports */
 import {
+  corruptedDataFor,
   type ModelDataSource,
   modelDataFor,
   tlaModule,
@@ -109,9 +110,7 @@ const moduleFor = (deliveries: readonly Delivery[]): string =>
   ]);
 
 /** A data source over the deliveries with each one changed by `corrupt`. */
-const corruptedModelData = (
-  corrupt: (delivery: Delivery) => Delivery,
-): ModelDataSource => modelDataFor(() => moduleFor(DELIVERIES.map(corrupt)));
+const corruptedModelData = corruptedDataFor(DELIVERIES, moduleFor);
 
 /** The clean proof data. The check must pass. */
 export const bookingReplayModelData: ModelDataSource = modelDataFor(() =>

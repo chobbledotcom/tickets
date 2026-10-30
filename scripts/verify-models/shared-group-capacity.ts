@@ -3,9 +3,12 @@ import {
   ticketsThatFitInPool,
 } from "#booking/model.ts";
 import {
+  corruptedDataFor,
   type ModelDataSource,
   modelDataFor,
+  type TlaFact,
   tlaModule,
+  tlaRecords,
 } from "#scripts/verify-models/data.ts";
 import {
   PARENT_CHILD_GROUP_UNITS,
@@ -14,18 +17,20 @@ import {
 } from "#shared/group-capacity.ts";
 import { byGroup } from "#test-utils/by-group-map.ts";
 
-/** One generated group scenario. Every value is a production function
+/** One capacity fact for the checker. Every value is a production function
  *  output. A date-less surface has no per-date remaining, so `dateLess` is
  *  true and the dummy `remaining` is unused. A pair with no shared static cap
  *  has `hasStaticCap` false and a dummy `staticCap`. */
-type GroupFact = {
-  readonly allowed: boolean;
-  readonly dateLess: boolean;
-  readonly fits: number;
-  readonly hasStaticCap: boolean;
-  readonly remaining: number;
-  readonly staticCap: number;
-};
+const groupFields = {
+  allowed: "Bool",
+  dateLess: "Bool",
+  fits: "Int",
+  hasStaticCap: "Bool",
+  remaining: "Int",
+  staticCap: "Int",
+} as const;
+
+type GroupFact = TlaFact<typeof groupFields>;
 
 /** One parent/child pair with its group memberships and group maps. The
  *  memberships cover every branch the capacity functions take, so the model
@@ -106,6 +111,27 @@ const SCENARIOS: readonly Scenario[] = [
     { 29: 1 },
     { 29: 5 },
   ),
+  scenario(
+    "uncapped static group with one spot left",
+    [30],
+    [30],
+    {},
+    { 30: 1 },
+  ),
+  scenario(
+    "static cap and remaining both below two",
+    [31],
+    [31],
+    { 31: 1 },
+    { 31: 1 },
+  ),
+  scenario(
+    "date-less pool with a static cap of ten",
+    [32],
+    [32],
+    { 32: 10 },
+    {},
+  ),
 ];
 
 /** The production outputs for one scenario. `sharedGroupRemaining` supplies
@@ -140,22 +166,13 @@ const factFor = (scenario: Scenario): GroupFact => {
 
 const FACTS: readonly GroupFact[] = SCENARIOS.map(factFor);
 
-const recordFor = (fact: GroupFact): string =>
-  `[allowed |-> ${fact.allowed ? "TRUE" : "FALSE"}, dateLess |-> ${
-    fact.dateLess ? "TRUE" : "FALSE"
-  }, fits |-> ${fact.fits}, hasStaticCap |-> ${
-    fact.hasStaticCap ? "TRUE" : "FALSE"
-  }, remaining |-> ${fact.remaining}, staticCap |-> ${fact.staticCap}]`;
-
 const moduleFor = (facts: readonly GroupFact[]): string =>
   tlaModule("SharedGroupCapacityData", [
     `PARENT_CHILD_GROUP_UNITS == ${PARENT_CHILD_GROUP_UNITS}`,
     `MaxRemaining == ${Math.max(...facts.map((fact) => fact.remaining))}`,
     `MaxStaticCap == ${Math.max(...facts.map((fact) => fact.staticCap))}`,
     `MaxSold == ${Math.max(...facts.map((fact) => fact.fits))}`,
-    "\\* @typeAlias: groupFact = { allowed: Bool, dateLess: Bool, fits: Int, hasStaticCap: Bool, remaining: Int, staticCap: Int };",
-    "\\* @type: Set($groupFact);",
-    `GroupFacts == {\n${facts.map(recordFor).join(",\n")}\n}`,
+    tlaRecords("GroupFacts", groupFields, facts),
   ]);
 
 /** The clean proof data. The check must pass. */
@@ -163,12 +180,24 @@ export const sharedGroupCapacityModelData: ModelDataSource = modelDataFor(() =>
   moduleFor(FACTS),
 );
 
+/** A negative control over the clean facts, with each fact changed by
+ *  `corrupt`. The checker must reject the result. */
+const corruptedFacts = corruptedDataFor(FACTS, moduleFor);
+
 /** The negative control for an overfill: the fit function overreports the
  *  whole orders every real pool holds. The checker must reject it. */
-export const overfillCapacityData: ModelDataSource = modelDataFor(() =>
-  moduleFor(
-    FACTS.map((fact) =>
-      fact.dateLess ? fact : { ...fact, fits: fact.fits + 1 },
-    ),
-  ),
+export const overfillCapacityData: ModelDataSource = corruptedFacts((fact) =>
+  fact.dateLess ? fact : { ...fact, fits: fact.fits + 1 },
+);
+
+/** The negative control for a sold-out date-less pair: the allow gate passes
+ *  a pair whose shared static cap is below two spots. The checker must
+ *  reject it. */
+export const dateLessSoldOutPairData: ModelDataSource = corruptedFacts(
+  (fact) =>
+    fact.dateLess &&
+    fact.hasStaticCap &&
+    fact.staticCap < PARENT_CHILD_GROUP_UNITS
+      ? { ...fact, allowed: true }
+      : fact,
 );
