@@ -1,6 +1,8 @@
 /* jscpd:ignore-start -- imports */
 import {
+  corruptedDataFor,
   type ModelDataSource,
+  modelDataFor,
   tlaModule,
   tlaRecords,
   tlaSet,
@@ -107,31 +109,29 @@ const moduleFor = (deliveries: readonly Delivery[]): string =>
     ),
   ]);
 
-const modelDataFor =
-  (deliveries: readonly Delivery[]): ModelDataSource =>
-  async () =>
-    moduleFor(deliveries);
+/** A data source over the deliveries with each one changed by `corrupt`. */
+const corruptedModelData = corruptedDataFor(DELIVERIES, moduleFor);
 
 /** The clean proof data. The check must pass. */
-export const bookingReplayModelData: ModelDataSource = modelDataFor(DELIVERIES);
+export const bookingReplayModelData: ModelDataSource = modelDataFor(() =>
+  moduleFor(DELIVERIES),
+);
 
 /** The negative control for a duplicate booking: every delivery to an
  *  already booked ledger books again. The checker must reject it. */
-export const duplicateBookingData: ModelDataSource = modelDataFor(
-  DELIVERIES.map((delivery) =>
+export const duplicateBookingData: ModelDataSource = corruptedModelData(
+  (delivery) =>
     delivery.ledgerBefore === "booked"
       ? { ...delivery, books: true }
       : delivery,
-  ),
 );
 
 /** The negative control for replay protection that disappears after the
  *  temporary row is deleted: a delivery to a booked ledger with no row
  *  refunds. The checker must reject it. */
-export const deletedRowRefundData: ModelDataSource = modelDataFor(
-  DELIVERIES.map((delivery) =>
+export const deletedRowRefundData: ModelDataSource = corruptedModelData(
+  (delivery) =>
     delivery.ledgerBefore === "booked" && delivery.rowBefore === "none"
       ? { ...delivery, refunds: true }
       : delivery,
-  ),
 );

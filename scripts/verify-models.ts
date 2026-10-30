@@ -3,32 +3,17 @@ import { join } from "node:path";
 import { projectRoot } from "#scripts/project-root.ts";
 import { makeScratchDir } from "#scripts/scratch.ts";
 import {
-  bookingReplayModelData,
   deletedRowRefundData,
   duplicateBookingData,
 } from "#scripts/verify-models/booking.ts";
 import { counterexampleData } from "#scripts/verify-models/counterexample.ts";
+import { corruptSplitData } from "#scripts/verify-models/largest-remainder-split.ts";
+import { MODELS } from "#scripts/verify-models/registry.ts";
 import {
-  corruptSplitData,
-  largestRemainderSplitModelData,
-} from "#scripts/verify-models/largest-remainder-split.ts";
-import { modelData, paymentModel } from "#scripts/verify-models/model.ts";
-import { reviewModelData } from "#scripts/verify-models/review.ts";
-import { squareModelData } from "#scripts/verify-models/square.ts";
-import { sumupModelData } from "#scripts/verify-models/sumup.ts";
-import { twoWorkersModelData } from "#scripts/verify-models/two-workers.ts";
-import { vatModelData } from "#scripts/verify-models/vat.ts";
+  dateLessSoldOutPairData,
+  overfillCapacityData,
+} from "#scripts/verify-models/shared-group-capacity.ts";
 
-const models = [
-  { data: vatModelData, module: "VatLedger" },
-  { data: squareModelData, module: "SquareLinkEnd" },
-  { data: sumupModelData, module: "SumupRecovery" },
-  { data: reviewModelData, module: "PaymentReview" },
-  { data: largestRemainderSplitModelData, module: "LargestRemainderSplit" },
-  { data: async () => modelData(await paymentModel()), module: "JointState" },
-  { data: bookingReplayModelData, module: "BookingReplay" },
-  { data: twoWorkersModelData, module: "TwoWorkers" },
-];
 const checks = [
   { init: "Init", length: 0, name: "initial state" },
   {
@@ -56,7 +41,7 @@ const runCheck = (module: string, init: string, length: number) =>
     stderr: "inherit",
     stdout: "inherit",
   }).output();
-for (const model of models) {
+for (const model of MODELS) {
   await Deno.copyFile(
     join(projectRoot, `verification/${model.module}.tla`),
     join(work, `${model.module}.tla`),
@@ -101,13 +86,15 @@ const checkRejected = async (
   module: string,
   label: string,
   data: () => Promise<string>,
+  init: string,
+  length: number,
 ): Promise<void> => {
   await Deno.copyFile(
     join(projectRoot, `verification/${module}.tla`),
     join(work, `${module}.tla`),
   );
   await Deno.writeTextFile(join(work, `${module}Data.tla`), await data());
-  const result = await runCheck(module, "InductionStart", 1);
+  const result = await runCheck(module, init, length);
   if (result.success) {
     throw new Error(
       `The checker accepted a ${label}. The safety verdict is not trusted.`,
@@ -115,25 +102,62 @@ const checkRejected = async (
   }
 };
 console.log("Check BookingReplay: duplicate booking counterexample.");
-await checkRejected("BookingReplay", "duplicate booking", duplicateBookingData);
+await checkRejected(
+  "BookingReplay",
+  "duplicate booking",
+  duplicateBookingData,
+  "InductionStart",
+  1,
+);
 console.log("Check BookingReplay: deleted-row refund counterexample.");
 await checkRejected(
   "BookingReplay",
   "refund after the temporary row was deleted",
   deletedRowRefundData,
+  "InductionStart",
+  1,
+);
+
+// The SharedGroupCapacity proof must reject both failure modes it rules out:
+// a fit ceiling that overreports the whole orders a real pool holds, and an
+// allow gate that passes a sold-out date-less pair. A pass on either would
+// make the clean verdict worthless.
+console.log("Check SharedGroupCapacity: overfill counterexample.");
+await checkRejected(
+  "SharedGroupCapacity",
+  "group overfill",
+  overfillCapacityData,
+  "Init",
+  0,
+);
+console.log(
+  "Check SharedGroupCapacity: date-less sold-out pair counterexample.",
+);
+await checkRejected(
+  "SharedGroupCapacity",
+  "date-less sold-out pair",
+  dateLessSoldOutPairData,
+  "Init",
+  0,
 );
 // The LargestRemainderSplit proof must reject both failure modes it guards:
 // an award past a part's cap and accounting that strands an owed unit. A pass
 // on either would make the clean verdict worthless.
 console.log("Check LargestRemainderSplit: over-cap award counterexample.");
-await checkRejected("LargestRemainderSplit", "an award past a part's cap", () =>
-  corruptSplitData("cap guard"),
+await checkRejected(
+  "LargestRemainderSplit",
+  "an award past a part's cap",
+  () => corruptSplitData("cap guard"),
+  "InductionStart",
+  1,
 );
 console.log("Check LargestRemainderSplit: stranded owed unit counterexample.");
 await checkRejected(
   "LargestRemainderSplit",
   "accounting that strands an owed unit",
   () => corruptSplitData("unconserved accounting"),
+  "InductionStart",
+  1,
 );
 await Deno.remove(work, { recursive: true });
 console.log(
