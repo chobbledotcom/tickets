@@ -47,58 +47,47 @@ const factOf = (
 });
 
 describe("door scan checker data", () => {
-  test("records the one-at-a-time walk on a three-place party", async () => {
-    const data = await doorScanModelData();
-    const facts = records(data, "AdmitFacts");
-    expect(facts).toContainEqual(factOf("one", 0, 1));
-    expect(facts).toContainEqual(factOf("one", 1, 2));
-    expect(facts).toContainEqual(factOf("one", 2, 3));
-  });
-
-  test("records the full pick and caps an over-pick at what remains", async () => {
-    const data = await doorScanModelData();
-    const facts = records(data, "AdmitFacts");
-    expect(facts).toContainEqual(factOf("one", 0, 3));
-    expect(facts).toContainEqual(factOf("one", 2, 3));
-  });
-
-  test("records two rows of one booking as one listing count", async () => {
-    const data = await doorScanModelData();
-    const facts = records(data, "AdmitFacts");
-    expect(facts).toContainEqual(factOf("one", 0, 2));
-  });
-
-  test("records that a line owing more than one place asks first", async () => {
-    const data = await doorScanModelData();
-    const facts = records(data, "AdmitFacts");
-    expect(facts).toContainEqual(factOf("one", 0, 0));
-  });
-
-  test("records that a listing with every place in admits nothing", async () => {
-    const data = await doorScanModelData();
-    const facts = records(data, "AdmitFacts");
-    expect(facts).toContainEqual(factOf("one", 3, 3));
-    expect(facts).toContainEqual(factOf("two", 1, 1));
-  });
-
-  test("records each gate: refunded, no-check-in and the ID hold", async () => {
-    const data = await doorScanModelData();
-    const facts = records(data, "AdmitFacts");
-    expect(facts).toContainEqual(factOf("one", 0, 0, { refunded: true }));
-    expect(facts).toContainEqual(factOf("one", 0, 0, { purchaseOnly: true }));
-    expect(facts).toContainEqual(
-      factOf("one", 0, 0, { idVerified: false, nonTransferable: true }),
-    );
-    expect(facts).toContainEqual(
+  test("records exactly the facts the scenarios derive", () => {
+    expect(admitFacts()).toEqual([
+      // A party of three, admitted place by place.
+      factOf("one", 0, 1),
+      factOf("one", 1, 2),
+      factOf("one", 2, 3),
+      // A full pick admits the whole party in one scan.
+      factOf("one", 0, 3),
+      // An over-pick caps at what the listing still owes.
+      factOf("one", 2, 3),
+      // Two rows of one booking admit against the listing's one count.
+      factOf("one", 0, 2),
+      // A line owing more than one place asks first, and admits nothing.
+      factOf("one", 0, 0),
+      // Every place already in admits nothing.
+      factOf("one", 3, 3),
+      // The gates: a refunded row, an ID hold, a verified hold, and a
+      // no-check-in row.
+      factOf("one", 0, 0, { refunded: true }),
+      factOf("one", 0, 0, { nonTransferable: true }),
       factOf("one", 0, 1, { idVerified: true, nonTransferable: true }),
-    );
+      factOf("one", 0, 0, { purchaseOnly: true }),
+      // The single-ticket listing: admitted, then already in.
+      factOf("two", 0, 1),
+      factOf("two", 1, 1),
+      // Without the box, one picked scan admits the first listing that
+      // owes only, and never reaches the next one.
+      factOf("one", 0, 1),
+      // Under the box, one scan admits every listing that still owes.
+      factOf("one", 0, 1),
+      factOf("two", 0, 1),
+      // The walk lands on the next listing when the first is fully in.
+      factOf("two", 0, 1),
+    ]);
   });
 
-  test("records the single-ticket listing's admit and the group box", async () => {
+  test("names the data module and the quantity constants the proof reads", async () => {
     const data = await doorScanModelData();
-    const facts = records(data, "AdmitFacts");
-    expect(facts).toContainEqual(factOf("two", 0, 1));
-    expect(facts).toHaveLength(13);
+    expect(data).toContain("MODULE DoorScanData");
+    expect(data).toContain("QuantityOne ==");
+    expect(data).toContain("QuantityTwo ==");
   });
 
   test("every derived admission stays at or under the listing's quantity", () => {

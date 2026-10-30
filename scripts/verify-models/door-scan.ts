@@ -38,10 +38,10 @@ type ScanRow = {
   checkedIn: number;
   id: number;
   listingId: number;
-  nonTransferable?: boolean;
-  purchaseOnly?: boolean;
+  nonTransferable: boolean;
+  purchaseOnly: boolean;
   quantity: number;
-  refunded?: boolean;
+  refunded: boolean;
 };
 
 const rowOf = (row: ScanRow): TokenEntry => ({
@@ -49,13 +49,13 @@ const rowOf = (row: ScanRow): TokenEntry => ({
     checked_in: row.checkedIn,
     id: row.id,
     quantity: row.quantity,
-    refunded: row.refunded ?? false,
+    refunded: row.refunded,
   } as Attendee,
   listing: {
     id: row.listingId,
     name: `Listing ${row.listingId}`,
-    non_transferable: row.nonTransferable ?? false,
-    purchase_only: row.purchaseOnly ?? false,
+    non_transferable: row.nonTransferable,
+    purchase_only: row.purchaseOnly,
   } as ListingWithCount,
   parentListingId: 0,
 });
@@ -90,10 +90,15 @@ const factsOf = (
   controls: Controls = {},
 ): AdmitFact[] => {
   const entries = rows.map(rowOf);
+  // The controls default to their off state: unforced, one listing at a
+  // time, and no verified ID.
+  const forced = Boolean(controls.force);
+  const everyListing = Boolean(controls.checkEvery);
+  const verified = Boolean(controls.idVerified);
   const decision = decideScan(
-    { entries, force: controls.force ?? false, scope: DOOR_SCOPE },
-    controls.checkEvery ?? false,
-    controls.idVerified ?? false,
+    { entries, force: forced, scope: DOOR_SCOPE },
+    everyListing,
+    verified,
     controls.count,
   );
   const factOf = (
@@ -103,7 +108,7 @@ const factsOf = (
   ): AdmitFact => ({
     after,
     before,
-    idVerified: controls.idVerified ?? false,
+    idVerified: verified,
     listing: requireValue(
       representatives.find(
         (representative) => representative.id === entry.listing.id,
@@ -160,7 +165,10 @@ const partyRow = (
   checkedIn,
   id: 7,
   listingId: partyListing.id,
+  nonTransferable: false,
+  purchaseOnly: false,
   quantity: partyListing.quantity,
+  refunded: false,
   ...overrides,
 });
 
@@ -169,7 +177,10 @@ const guestRow = (checkedIn: number): ScanRow => ({
   checkedIn,
   id: 8,
   listingId: guestListing.id,
+  nonTransferable: false,
+  purchaseOnly: false,
   quantity: guestListing.quantity,
+  refunded: false,
 });
 
 /** The gate rows: a refunded row, an ID-held row and a no-check-in row,
@@ -211,6 +222,9 @@ export const admitFacts = (): AdmitFact[] => [
   // Listing "two": a single ticket.
   ...factsOf([guestRow(0)], { count: 1 }),
   ...factsOf([guestRow(1)]),
+  // Without the box, one picked scan admits the first listing that owes
+  // only, and never reaches the next one.
+  ...factsOf([partyRow(0), guestRow(0)], { count: 1 }),
   // The group's check-every-listing box admits every listing that still
   // owes, and the one-at-a-time walk lands on the next listing when the
   // first is fully in.
