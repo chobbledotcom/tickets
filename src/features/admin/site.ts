@@ -13,7 +13,13 @@ import {
   settingsHandler,
   settingsToggle,
 } from "#routes/admin/settings-helpers.ts";
-import { type AuthSession, SITE_FORM, sitePage } from "#routes/auth.ts";
+import {
+  type AuthSession,
+  requireSiteOr,
+  SITE_FORM,
+  sitePage,
+} from "#routes/auth.ts";
+import { authFlashPage } from "#routes/auth-flash-page.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { isBotpoisonEnabled } from "#shared/config.ts";
@@ -54,9 +60,7 @@ const maxTextareaValidator =
 
 /** Site-editing GET route that renders a site editor page */
 const siteGetRoute = (render: PageRenderer): RequestRoute =>
-  sitePage((session, _request, flash) =>
-    render(session, flash.error, flash.success),
-  );
+  authFlashPage(requireSiteOr, render);
 
 /** Render homepage editor with current state */
 const renderHomePage: PageRenderer = (session, error, success) =>

@@ -1,13 +1,15 @@
 /** The custom questions an attendee's listings ask, and its answers. */
 
-import type { ExistingLine } from "#db/attendees/atomic-update.ts";
+import {
+  type ExistingLine,
+  existingListingIds,
+} from "#db/attendees/atomic-update.ts";
 import type { SelectedQuestionAnswers } from "#db/question-types.ts";
 import { getBookedAnswers } from "#db/questions/attendee-answers/at-booking.ts";
 import {
   getAttendeeTextAnswers,
   loadAttendeeQuestionData,
 } from "#db/questions/attendee-answers/reads.ts";
-import { unique } from "#fp";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 
 /** The empty question/answer set: no questions and nothing picked. A fresh
@@ -26,7 +28,7 @@ export const loadQuestionsForExisting = async (
   attendeeId: number,
   existing: ExistingLine[],
 ): Promise<SelectedQuestionAnswers> => {
-  const listingIds = unique(existing.map((e) => e.booking.listing_id));
+  const listingIds = existingListingIds(existing);
   const [data, atBooking] = await Promise.all([
     loadAttendeeQuestionData(listingIds, [attendeeId]),
     getBookedAnswers(attendeeId, requireRequestPrivateKey),

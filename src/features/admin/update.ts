@@ -8,13 +8,9 @@ import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import { hasRecentBackup } from "#db/backup-storage.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
+import { formPolicyAt, pageGuardFor, withAuth } from "#routes/auth.ts";
 /* jscpd:ignore-start -- imports */
-import {
-  authPage,
-  formPolicyAt,
-  pageGuardFor,
-  withAuth,
-} from "#routes/auth.ts";
+import { authFlashPage } from "#routes/auth-flash-page.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
 import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#shared/build-info.ts";
@@ -23,7 +19,6 @@ import {
   getEffectiveDomain,
   isBunnyCdnEnabled,
 } from "#shared/config.ts";
-import { getFlash } from "#shared/flash-context.ts";
 import {
   deployAndReport,
   hostedSiteUpdateGuardIo,
@@ -71,17 +66,11 @@ const getUpdatePageState = (): UpdatePageState => {
 };
 
 /** GET /admin/update — show current version and update status */
-const handleUpdateGet = authPage(
+const handleUpdateGet = authFlashPage(
   pageGuardFor(adminDestinationAt("/admin/update")),
-)((session) => {
-  const flash = getFlash();
-  return adminUpdatePage(
-    session,
-    getUpdatePageState(),
-    flash.error,
-    flash.success,
-  );
-});
+  (session, error, success) =>
+    adminUpdatePage(session, getUpdatePageState(), error, success),
+);
 
 /** Check GitHub for a newer release, store result, redirect with flash */
 const checkForUpdate = async (): Promise<Response> => {

@@ -1,5 +1,13 @@
 import { escapeHtml } from "#jsx/escape-html.ts";
 
+/** Extend HTML escaping with a replacement for apostrophes. XML and the
+ * email HTML bodies escape the same set. They differ only in that one token. */
+export const escapeHtmlApostrophes =
+  (apostrophe: string) =>
+  (text: string): string =>
+    // A function replacement: a string replacement turns a `$` in the token
+    // into a match reference.
+    escapeHtml(text).replace(/'/g, () => apostrophe);
+
 /** Escape text for XML (extends HTML escaping with apostrophe). */
-export const escapeXml = (text: string): string =>
-  escapeHtml(text).replace(/'/g, "&apos;");
+export const escapeXml = escapeHtmlApostrophes("&apos;");

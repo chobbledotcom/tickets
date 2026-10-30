@@ -8,15 +8,10 @@ import type { TypedRouteHandler } from "#routes/router.ts";
  */
 
 import { t } from "#i18n";
-import {
-  authPage,
-  formPolicyFor,
-  formPost,
-  pageGuardFor,
-} from "#routes/auth.ts";
+import { formPolicyFor, formPost, pageGuardFor } from "#routes/auth.ts";
+import { authFlashPage } from "#routes/auth-flash-page.ts";
 import { redirect } from "#routes/response.ts";
 import { adminDestinationAt } from "#shared/admin-surface.ts";
-import { getFlash } from "#shared/flash-context.ts";
 import { createSeeds } from "#shared/seeds.ts";
 import { adminSeedsPage } from "#templates/admin/seeds.tsx";
 import { seedsForm } from "#templates/fields/seeds.ts";
@@ -24,12 +19,10 @@ import { seedsForm } from "#templates/fields/seeds.ts";
 /* jscpd:ignore-end */
 
 /** Handle GET /admin/seeds (show seed form) */
-const handleSeedsGet: TypedRouteHandler<"GET /admin/seeds"> = authPage(
+const handleSeedsGet: TypedRouteHandler<"GET /admin/seeds"> = authFlashPage(
   pageGuardFor(adminDestinationAt("/admin/seeds")),
-)((session) => {
-  const flash = getFlash();
-  return adminSeedsPage(session, flash.error, flash.success);
-});
+  (session, error, success) => adminSeedsPage(session, error, success),
+);
 
 const handleSeedsPost: TypedRouteHandler<"POST /admin/seeds"> = formPost(
   formPolicyFor(adminDestinationAt("/admin/seeds")),

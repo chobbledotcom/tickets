@@ -38,6 +38,81 @@ describeWithEnv("the admin ledger page", { db: true }, () => {
     assertStringIncludes(html, "Sprint night");
   });
 
+  /** The scoped stats: a second seed date keeps these legs out of the
+   *  all-scope table's range above. */
+  const SCOPED_SEED_DATE = "2030-07-08T00:00:00.000Z";
+  const SCOPED_SEED_RANGE = "from=2030-07-08&to=2030-07-09";
+
+  test("the listing scope stats head with the listing's name and total its own figures", async () => {
+    const listing = await createTestListing({ name: "Scoped solo" });
+    const other = await createTestListing({ name: "Scoped aside" });
+    await postTransfers([
+      tx({
+        amount: 25000,
+        destination: account("revenue", listing.id),
+        kind: KIND.sale,
+        occurredAt: SCOPED_SEED_DATE,
+        reference: "scoped-solo",
+      }),
+      tx({
+        amount: 30000,
+        destination: account("revenue", other.id),
+        kind: KIND.sale,
+        occurredAt: SCOPED_SEED_DATE,
+        reference: "scoped-aside",
+      }),
+    ]);
+
+    const body = await renderAdminPage(
+      `/admin/ledger?${SCOPED_SEED_RANGE}&listing=${listing.id}`,
+    );
+
+    assertStringIncludes(body, "<h2>Scoped solo</h2>");
+    assertStringIncludes(body, formatSignedCurrency(25000, true));
+    // The other listing's sale stays out of the stats and the rows.
+    expect(body.includes(formatSignedCurrency(30000, true))).toBe(false);
+  });
+
+  test("the group scope stats total the group's listings, not the group's id", async () => {
+    const group = await createTestGroup({ name: "Scoped pair" });
+    const left = await createTestListing({ name: "Scoped left" });
+    const right = await createTestListing({ name: "Scoped right" });
+    const stray = await createTestListing({ name: "Scoped stray" });
+    await assignListingsToGroup([left.id, right.id], group.id);
+    await postTransfers([
+      tx({
+        amount: 25000,
+        destination: account("revenue", left.id),
+        kind: KIND.sale,
+        occurredAt: SCOPED_SEED_DATE,
+        reference: "scoped-left",
+      }),
+      tx({
+        amount: 30000,
+        destination: account("revenue", right.id),
+        kind: KIND.sale,
+        occurredAt: SCOPED_SEED_DATE,
+        reference: "scoped-right",
+      }),
+      tx({
+        amount: 40000,
+        destination: account("revenue", stray.id),
+        kind: KIND.sale,
+        occurredAt: SCOPED_SEED_DATE,
+        reference: "scoped-stray",
+      }),
+    ]);
+
+    const body = await renderAdminPage(
+      `/admin/ledger?${SCOPED_SEED_RANGE}&group=${group.id}`,
+    );
+
+    assertStringIncludes(body, "<h2>Scoped pair</h2>");
+    assertStringIncludes(body, formatSignedCurrency(55000, true));
+    // The listing outside the group stays out of the stats and the rows.
+    expect(body.includes(formatSignedCurrency(40000, true))).toBe(false);
+  });
+
   /** The ledger rows this suite seeds sit on their own day, and the render
    *  filters to it: the top table's totals are global, so the assertions must
    *  not read whatever legs another test file left in the shared isolate. */

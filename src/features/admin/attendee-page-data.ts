@@ -11,6 +11,7 @@ import { getAttendeeActivityLog } from "#db/activity-log.ts";
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import {
   type ExistingLine,
+  existingListingIds,
   loadExistingLines,
 } from "#db/attendees/atomic-update.ts";
 import { getAttendeeOrderSummary } from "#db/attendees/balance.ts";
@@ -112,7 +113,7 @@ export const getRenderListings = async (
 ): Promise<ListingWithCount[]> => {
   const all = await getAllListings();
   const active = filter((l: ListingWithCount) => l.active)(all);
-  const bookedIds = new Set(existing.map((e) => e.booking.listing_id));
+  const bookedIds = new Set(existingListingIds(existing));
   const inactiveBooked = filter(
     (l: ListingWithCount) => !l.active && bookedIds.has(l.id),
   )(all);
