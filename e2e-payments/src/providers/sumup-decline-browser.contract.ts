@@ -24,7 +24,10 @@ import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import { type Browser, chromium, type Page } from "playwright";
 import { config } from "#e2e/config.ts";
 import { sumup } from "#e2e/providers/sumup.ts";
-import { browserLaunchOptions } from "#scripts/browser-options.ts";
+import {
+  browserLaunchOptions,
+  withStrictBrowserTimeouts,
+} from "#scripts/browser-options.ts";
 
 const DECLINE_URL = "https://checkout.sumup.com/pay/canned-decline";
 
@@ -57,6 +60,7 @@ const withCannedCheckout = async <T>(
   run: (page: Page) => Promise<T>,
 ): Promise<T> => {
   const page = await browser.newPage();
+  withStrictBrowserTimeouts(page);
   try {
     await page.route("**/*", (route) =>
       route.fulfill({ body: CANNED_CHECKOUT, contentType: "text/html" }),

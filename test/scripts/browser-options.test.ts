@@ -4,6 +4,7 @@ import type { LaunchOptions } from "playwright";
 import {
   browserLaunchOptions,
   defineScreenshotBrowserLauncher,
+  withStrictBrowserTimeouts,
 } from "#scripts/browser-options.ts";
 import { requireValue } from "#shared/required-value.ts";
 
@@ -35,6 +36,19 @@ describe("screenshot browser options", () => {
       executablePath: "/usr/bin/ch",
       headless: false,
     });
+  });
+
+  test("bounds a contract page with strict action and navigation timeouts", () => {
+    const timeouts: [string, number][] = [];
+    withStrictBrowserTimeouts({
+      setDefaultNavigationTimeout: (timeout) =>
+        timeouts.push(["navigation", timeout]),
+      setDefaultTimeout: (timeout) => timeouts.push(["action", timeout]),
+    });
+    expect(timeouts).toEqual([
+      ["action", 10_000],
+      ["navigation", 15_000],
+    ]);
   });
 
   test("launches Chromium with screenshot-mode headless and CDP fix", async () => {

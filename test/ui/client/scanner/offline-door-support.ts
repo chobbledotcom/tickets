@@ -21,11 +21,11 @@ import type { Page } from "playwright";
 import { encode } from "uqr";
 import * as v from "valibot";
 import type { TicketCacheEntry } from "#routes/admin/scan-cache.ts";
+import { withStrictBrowserTimeouts } from "#scripts/browser-options.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";
 import {
   type BrowserContract,
   testOwnerCookiePair,
-  withStrictBrowserTimeouts,
 } from "#test-utils/browser-contract.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { storedCheckinRows } from "#test-utils/db-helpers/checkin-rows.ts";

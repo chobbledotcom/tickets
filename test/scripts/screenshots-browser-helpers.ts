@@ -2,7 +2,10 @@ import { Buffer } from "node:buffer";
 import { expect } from "@std/expect";
 import { type Browser, chromium, type Page } from "playwright";
 import sharp from "sharp";
-import { defineScreenshotBrowserLauncher } from "#scripts/browser-options.ts";
+import {
+  defineScreenshotBrowserLauncher,
+  withStrictBrowserTimeouts,
+} from "#scripts/browser-options.ts";
 import { chromiumExecutable } from "#scripts/screenshots/browser.ts";
 import {
   capturePreparedLayers,
@@ -14,7 +17,6 @@ import {
   withScreenshotLayerStyle,
   withWholePaintGroups,
 } from "#scripts/screenshots/layers.ts";
-import { withStrictBrowserTimeouts } from "#test-utils/browser-contract.ts";
 
 export const withLayer = <T>(
   page: Page,

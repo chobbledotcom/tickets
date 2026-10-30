@@ -2,10 +2,10 @@ import { expect } from "@std/expect";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { Browser } from "playwright";
 import sharp from "sharp";
+import { withStrictBrowserTimeouts } from "#scripts/browser-options.ts";
 import { capturePreparedPage } from "#scripts/screenshots/capture.ts";
 import { isolateElementCss } from "#scripts/screenshots/checks.ts";
 import { waitForScreenshotPage } from "#scripts/screenshots/readiness.ts";
-import { withStrictBrowserTimeouts } from "#test-utils/browser-contract.ts";
 import {
   launchScreenshotBrowser,
   layerStyle,
