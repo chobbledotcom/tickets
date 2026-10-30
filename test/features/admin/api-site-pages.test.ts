@@ -102,7 +102,7 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
           expect(body.page.meta_description).toBe("Before you come");
           expect(body.page.parent).toBeNull();
           // The slug HMAC never leaves the server.
-          expect(body.page.slug_index).toBeUndefined();
+          expect(Object.hasOwn(body.page, "slug_index")).toBe(false);
         },
       );
     });
@@ -301,6 +301,14 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
       await addPageItem(parent.id, "page", child.id);
 
       await putPageUnder(child.id, second.id);
+
+      await assertJson(
+        apiRequest(`/api/admin/site-pages/${child.id}`),
+        200,
+        (body) => {
+          expect(body.page.parent).toBe(second.id);
+        },
+      );
     });
 
     test("keeps a nested page in place when the update re-sends its parent", async () => {
