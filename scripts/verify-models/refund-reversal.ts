@@ -6,6 +6,7 @@
 import { createClient } from "@libsql/client";
 import { attendeeAccount } from "#accounting/accounts.ts";
 import { postTransferGroups } from "#accounting/store.ts";
+import { setEncryptionKeyForTest } from "#crypto/encryption.ts";
 import { execute, setDb } from "#db/client.ts";
 import { rebuildWipedSchema } from "#db/migrations.ts";
 import { once } from "#fp";
@@ -16,11 +17,12 @@ import {
   tlaSet,
 } from "#scripts/verify-models/data.ts";
 import {
-  FIXTURES,
   type Fixture,
+  fixtures,
   hasRefundLegs,
   labelFor,
   mergedGroupOf,
+  reversedGroup,
 } from "#scripts/verify-models/refund-reversal-fixtures.ts";
 import {
   type Facts,
@@ -38,7 +40,9 @@ import {
   computeAttendeeRefunds,
   refundGroupFacts,
 } from "#shared/refund-ledger/plan.ts";
+import { requireValue } from "#shared/required-value.ts";
 import type { StoredTaxAssessment } from "#shared/tax/store.ts";
+import { TEST_ENCRYPTION_KEY } from "#test-utils/internal.ts";
 
 /* jscpd:ignore-end */
 
@@ -55,9 +59,7 @@ const planFacts = (
   );
   const posted = computed.groups.flat();
   const reversed = new Set(
-    posted
-      .map((leg) => mergedGroupOf(fixture, leg.reversesGroup))
-      .filter((group) => group.length > 0),
+    posted.map((leg) => mergedGroupOf(fixture, reversedGroup(leg))),
   );
   const account = attendeeAccount(fixture.attendeeId);
   return {
@@ -67,7 +69,7 @@ const planFacts = (
           original.eventGroup === leg.reversesGroup &&
           isInverseOf(leg, original),
       ),
-      group: labelFor(fixture, mergedGroupOf(fixture, leg.reversesGroup)),
+      group: labelFor(fixture, mergedGroupOf(fixture, reversedGroup(leg))),
     })),
     references: fixture.references.map((reference) => ({
       outcome: computed.result.recorded.has(reference.index)
@@ -119,8 +121,11 @@ const postAssessment = async (record: StoredTaxAssessment): Promise<void> => {
 };
 
 /* The whole derivation runs against one throwaway ledger, so every fact is
- * the production function's live output over the fixture triples. */
+ * the production function's live output over the fixture triples. The test
+ * encryption key is pinned so the event groups and the ledger reads agree
+ * under any runner. */
 const bootLedger = once(async (): Promise<() => Promise<void>> => {
+  setEncryptionKeyForTest(TEST_ENCRYPTION_KEY);
   const client = createClient({
     url: `file:${await Deno.makeTempFile({ suffix: ".db" })}`,
   });
@@ -132,21 +137,20 @@ const bootLedger = once(async (): Promise<() => Promise<void>> => {
   };
 });
 
-const planFor = async (fixture: Fixture): Promise<ComputedRefund> => {
-  const plan = (
-    await computeAttendeeRefunds([
-      { attendeeId: fixture.attendeeId, references: fixture.references },
-    ])
-  )[0];
-  if (!plan)
-    throw new Error(`Missing refund plan for attendee ${fixture.attendeeId}`);
-  return plan;
-};
+const planFor = async (fixture: Fixture): Promise<ComputedRefund> =>
+  requireValue(
+    (
+      await computeAttendeeRefunds([
+        { attendeeId: fixture.attendeeId, references: fixture.references },
+      ])
+    )[0],
+    `Missing refund plan for attendee ${fixture.attendeeId}`,
+  );
 
 const deriveFacts = once(async (): Promise<Facts> => {
   const teardown = await bootLedger();
   let facts: Facts = { legs: [], references: [], reversals: [] };
-  for (const fixture of FIXTURES) {
+  for (const fixture of await fixtures()) {
     await postFixture(fixture);
     const current = fixture.legs;
     const first = await planFor(fixture);

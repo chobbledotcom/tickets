@@ -7,12 +7,11 @@ import * as v from "valibot";
 
 type ValibotNode = { type: string };
 
-/** The checker type one valibot field declares. */
-const tlaTypeOf = (schema: ValibotNode): "Str" | "Bool" | "Int" => {
+/** The checker type one valibot field declares. Every fact schema declares
+ * string, picklist or boolean fields, so no other type is reachable. */
+const tlaTypeOf = (schema: ValibotNode): "Str" | "Bool" => {
   if (schema.type === "string" || schema.type === "picklist") return "Str";
-  if (schema.type === "boolean") return "Bool";
-  if (schema.type === "number") return "Int";
-  throw new Error(`Unsupported valibot type for a fact field: ${schema.type}`);
+  return "Bool";
 };
 
 /** The checker record fields for one valibot object schema. */

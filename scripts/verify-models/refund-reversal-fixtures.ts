@@ -13,9 +13,11 @@ import {
 } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import { bookingEventGroup } from "#accounting/mappers.ts";
+import { once } from "#fp";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { isRefundLeg } from "#shared/refund-ledger/plan.ts";
 import type { RefundReferences } from "#shared/refund-ledger/result.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { assessTax } from "#shared/tax/assessment.ts";
 import type { StoredTaxAssessment } from "#shared/tax/store.ts";
 import { NO_TAX } from "#shared/tax/types.ts";
@@ -33,20 +35,20 @@ export type Fixture = {
   readonly replay: boolean;
 };
 
+/** The original group a posted refund leg reverses. Every refund leg the
+ * production plan maps carries it, so an absent value is a broken plan. */
+export const reversedGroup = (leg: TransferInput): string =>
+  requireValue(
+    leg.reversesGroup,
+    `Posted refund leg names no reversed group ${leg.reference}`,
+  );
+
 /** The account refund group a physical event group folds into. Assessments
  * name the booking group their correction legs belong to; a leg without an
  * assessment keeps its own event group. */
-export const mergedGroupOf = (
-  fixture: Fixture,
-  eventGroup: string | undefined,
-): string => {
-  if (eventGroup === undefined) return "";
-  return (
-    fixture.assessments.find(
-      (assessment) => assessment.eventGroup === eventGroup,
-    )?.bookingGroup ?? eventGroup
-  );
-};
+export const mergedGroupOf = (fixture: Fixture, eventGroup: string): string =>
+  fixture.assessments.find((assessment) => assessment.eventGroup === eventGroup)
+    ?.bookingGroup ?? eventGroup;
 
 /** Whether the ledger already holds a refund leg for this group. A refund
  * leg names the physical event group it reverses, so a merged group matches
@@ -59,21 +61,15 @@ export const hasRefundLegs = (
   legs.some(
     (leg) =>
       isRefundLeg(leg.kind) &&
-      mergedGroupOf(fixture, leg.reversesGroup) === eventGroup,
+      mergedGroupOf(fixture, reversedGroup(leg)) === eventGroup,
   );
 
 /** The label a fixture gives one of its account refund groups. */
-export const labelFor = (
-  fixture: Fixture,
-  eventGroup: string | undefined,
-): string => {
-  const label =
-    eventGroup === undefined ? undefined : fixture.labels[eventGroup];
-  if (label === undefined) {
-    throw new Error(`Fixture names no label for group ${eventGroup}`);
-  }
-  return label;
-};
+export const labelFor = (fixture: Fixture, eventGroup: string): string =>
+  requireValue(
+    fixture.labels[eventGroup],
+    `Fixture names no label for group ${eventGroup}`,
+  );
 
 /** One booking's provider payment and its sale leg, sharing one event group. */
 const bookingLegs = (
@@ -251,9 +247,15 @@ const taxFixture = async (): Promise<Fixture> => {
   };
 };
 
-export const FIXTURES: readonly Fixture[] = await Promise.all([
-  mixedFixture(),
-  operatorFixture(),
-  paymentFixture(),
-  taxFixture(),
-]);
+/** The fixture triples, built once on first use. Built lazily so the event
+ * groups resolve under the run's encryption key, not the key a fresh module
+ * load happens to see. */
+export const fixtures = once(
+  async (): Promise<readonly Fixture[]> =>
+    Promise.all([
+      mixedFixture(),
+      operatorFixture(),
+      paymentFixture(),
+      taxFixture(),
+    ]),
+);
