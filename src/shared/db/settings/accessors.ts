@@ -10,6 +10,7 @@
  * non-string writers (booleans, raw strings, last-modified timestamps).
  */
 
+import { snapGetters } from "#db/settings/namespace.ts";
 import {
   encryptedUpdate,
   plaintextUpdate,
@@ -19,7 +20,6 @@ import {
   type BoolSettingKey,
   type SettingsData,
   setSnapshotField,
-  snap,
 } from "#db/settings/snapshot.ts";
 import { nowIso } from "#shared/now.ts";
 import {
@@ -58,18 +58,17 @@ export { ENCRYPTED_KEY_SET };
 /** Plaintext keys as a Set for fast membership checks during snapshot apply. */
 export const PLAINTEXT_KEY_SET: ReadonlySet<string> = new Set(PLAINTEXT_KEYS);
 
-/** Build the generated getters and updaters in one pass over the registry. */
+/** Build the generated getters and updaters over the registry. */
 const buildStringAccessors = (): {
   getters: GeneratedGetters;
   updaters: GeneratedUpdaters;
 } => {
-  const getters = {};
+  const specs = Object.entries<AccessorSpec>(STRING_ACCESSORS);
+  const getters = snapGetters(
+    Object.fromEntries(specs.map(([name, spec]) => [name, spec.key])),
+  ) as GeneratedGetters;
   const updaters: Record<string, (v: string) => Promise<void>> = {};
-  for (const [name, spec] of Object.entries<AccessorSpec>(STRING_ACCESSORS)) {
-    Object.defineProperty(getters, name, {
-      enumerable: true,
-      get: () => snap(spec.key),
-    });
+  for (const [name, spec] of specs) {
     if ("readOnly" in spec && spec.readOnly) continue;
     const update = ENCRYPTED_KEY_SET.has(spec.key)
       ? encryptedUpdate
@@ -77,7 +76,7 @@ const buildStringAccessors = (): {
     updaters[name] = update(spec.key);
   }
   return {
-    getters: getters as GeneratedGetters,
+    getters,
     updaters: updaters as GeneratedUpdaters,
   };
 };

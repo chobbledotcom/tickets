@@ -8,6 +8,7 @@
 
 import type { LegacyPaymentReferencePreview } from "#db/payment-reference-rebuild.ts";
 import { t } from "#i18n";
+import { encodedAfter } from "#shared/encoded-after.ts";
 import type { FlashFields } from "#shared/flash-fields.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
@@ -27,8 +28,7 @@ export type RebuildPaymentsPageData = {
 } & FlashFields;
 
 /** The form field one row's provider choice arrives in. */
-const providerField = (paymentSessionId: string): string =>
-  `provider_${encodeURIComponent(paymentSessionId)}`;
+const providerField = encodedAfter("provider_");
 
 /** One old record, with a provider choice when the record does not name one. */
 const RecordRow = ({

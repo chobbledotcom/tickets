@@ -24,7 +24,12 @@ import {
 } from "#db/settings/cache.ts";
 import { withCurrentTask } from "#db/settings/current-task.ts";
 import { invalidateCache, loadKeys } from "#db/settings/load.ts";
-import { withProperties } from "#db/settings/namespace.ts";
+import {
+  isSet,
+  known,
+  snapGetters,
+  withProperties,
+} from "#db/settings/namespace.ts";
 import { updateUserPassword } from "#db/settings/password.ts";
 import { paymentProviderAccessors } from "#db/settings/payment-provider.ts";
 import {
@@ -98,21 +103,15 @@ export {
 
 const settingsBase = {
   // --- Address lookup ---
-  addressLookup: {
-    get apiKey(): string {
-      return snap("address_lookup_api_key");
-    },
-    get hasKey(): boolean {
-      return snap("address_lookup_api_key") !== "";
-    },
-    get provider(): AddressLookupSetting {
-      return knownSetting(
-        snap("address_lookup_provider"),
-        isAddressLookupSetting,
-        "none",
-      );
-    },
-  },
+  addressLookup: snapGetters({
+    apiKey: "address_lookup_api_key",
+    hasKey: isSet("address_lookup_api_key"),
+    provider: known({
+      fallback: "none",
+      isKnown: isAddressLookupSetting,
+      key: "address_lookup_provider",
+    }),
+  }),
   // --- Apple Wallet ---
   appleWallet: appleWallet.createReadSettings(snap as (k: string) => string),
   get attendeeColumnLayout(): TableLayout<AttendeeColumnKey> {
@@ -120,20 +119,11 @@ const settingsBase = {
       snap("attendee_column_order"),
     );
   },
-  get autoPurgeOrphans(): boolean {
-    return snap("auto_purge_orphans");
-  },
-  get bookingFee(): string {
-    return snap("booking_fee");
-  },
 
   // -----------------------------------------------------------------------
   // Sync reads — all populated by loadKeys()
   // -----------------------------------------------------------------------
 
-  get calendarFeedsEnabled(): boolean {
-    return snap("calendar_feeds_enabled");
-  },
   get calendarFeedsGroupBy(): "attendees" | "listings" {
     const value = snap("calendar_feeds_group_by");
     return value === "listings" ? "listings" : "attendees";
@@ -150,55 +140,27 @@ const settingsBase = {
   /** Clear all test overrides. */
   clearTestOverrides,
 
-  get contactFormEnabled(): boolean {
-    return snap("contact_form_enabled");
-  },
-
-  get country(): string {
-    return snap("country");
-  },
-
-  // Derived from country
-  get currency(): string {
-    return snap("currency");
-  },
-
-  /** Whether the saved custom CSS loads fonts from fonts.bunny.net. Derived
-   *  from custom_css when it is saved, so the CSP builder reads a flag instead
-   *  of scanning the stylesheet on every response. */
-  get customCssBunnyFonts(): boolean {
-    return snap("custom_css_bunny_fonts");
-  },
-
   // --- Email ---
-  email: {
-    get apiKey(): string {
-      return snap("email_api_key");
+  email: withProperties(
+    snapGetters({
+      apiKey: "email_api_key",
+      fromAddress: "email_from_address",
+      hasApiKey: isSet("email_api_key"),
+      provider: "email_provider",
+    }),
+    {
+      template(type: EmailTemplateType, format: EmailTemplateFormat): string {
+        return snap(TEMPLATE_KEYS[`${type}:${format}`]);
+      },
+      templateSet(type: EmailTemplateType): EmailContent {
+        return {
+          html: this.template(type, "html"),
+          subject: this.template(type, "subject"),
+          text: this.template(type, "text"),
+        };
+      },
     },
-    get fromAddress(): string {
-      return snap("email_from_address");
-    },
-    get hasApiKey(): boolean {
-      return snap("email_api_key") !== "";
-    },
-    get provider(): string {
-      return snap("email_provider");
-    },
-    template(type: EmailTemplateType, format: EmailTemplateFormat): string {
-      return snap(TEMPLATE_KEYS[`${type}:${format}`]);
-    },
-    templateSet(type: EmailTemplateType): EmailContent {
-      return {
-        html: this.template(type, "html"),
-        subject: this.template(type, "subject"),
-        text: this.template(type, "text"),
-      };
-    },
-  },
-  get externalOrderEnabled(): boolean {
-    return snap("external_order_enabled");
-  },
-
+  ),
   get features(): EnabledFeatures {
     return parseEnabledFeatures(snap(CONFIG_KEYS.ENABLED_FEATURES));
   },
@@ -216,15 +178,6 @@ const settingsBase = {
   },
   // --- Core ---
   loadKeys,
-  get orderEnabled(): boolean {
-    return snap("order_enabled");
-  },
-  get orphanPurgeRetention(): string {
-    return snap("orphan_purge_retention");
-  },
-  get phonePrefix(): string {
-    return snap("phone_prefix");
-  },
   /** Begin the per-request settings-version probe as early as possible. */
   prefetchVersion,
 
@@ -245,37 +198,16 @@ const settingsBase = {
     complete: completeSetup,
     isComplete: isSetupComplete,
   },
-  get showPublicApi(): boolean {
-    return snap("show_public_api");
-  },
   // --- SMS gateway ---
-  smsGateway: {
-    get hasPassphrase(): boolean {
-      return snap("sms_gateway_passphrase") !== "";
-    },
-    get hasPassword(): boolean {
-      return snap("sms_gateway_password") !== "";
-    },
-    get hasWebhookSecret(): boolean {
-      return snap("sms_gateway_webhook_secret") !== "";
-    },
-  },
+  smsGateway: snapGetters({
+    hasPassphrase: isSet("sms_gateway_passphrase"),
+    hasPassword: isSet("sms_gateway_password"),
+    hasWebhookSecret: isSet("sms_gateway_webhook_secret"),
+  }),
 
   // --- Superuser ---
-  get superuserChoice(): SuperuserChoice {
-    return knownSetting(snap("superuser_choice"), isSuperuserChoice, "");
-  },
   get tax(): TaxPolicy {
     return parseTaxPolicy(snap(CONFIG_KEYS.TAX));
-  },
-  get theme(): Theme {
-    return snap("theme");
-  },
-  get timezone(): string {
-    return snap("timezone");
-  },
-  get underlineLinks(): boolean {
-    return snap("underline_links");
   },
 
   // -----------------------------------------------------------------------
@@ -388,29 +320,47 @@ const settingsBase = {
   get version(): number {
     return getCacheState().version;
   },
-
-  /** True while the site shows the new-owner welcome steps. Setup turns it on
-   *  and the owner's "Got it" turns it off. An absent stored value reads as
-   *  off, so a site that never stored the flag never shows the message. */
-  get welcomeEnabled(): boolean {
-    return snap("welcome_enabled");
-  },
   withCurrentTask,
 };
 
-/** The namespace: the literal above, plus the two parts that build their own
+/** The stored settings that read straight from the snapshot, one getter per
+ *  name. Kept beside the namespace literal, so a new stored setting is one
+ *  line here rather than a hand-written getter. */
+const storedSettingGetters = snapGetters({
+  autoPurgeOrphans: "auto_purge_orphans",
+  bookingFee: "booking_fee",
+  calendarFeedsEnabled: "calendar_feeds_enabled",
+  contactFormEnabled: "contact_form_enabled",
+  country: "country",
+  currency: "currency",
+  /** Derived when the stylesheet is saved, so the CSP builder reads a flag
+   *  instead of scanning it on every response. */
+  customCssBunnyFonts: "custom_css_bunny_fonts",
+  externalOrderEnabled: "external_order_enabled",
+  orderEnabled: "order_enabled",
+  orphanPurgeRetention: "orphan_purge_retention",
+  phonePrefix: "phone_prefix",
+  showPublicApi: "show_public_api",
+  superuserChoice: known({
+    fallback: "",
+    isKnown: isSuperuserChoice,
+    key: "superuser_choice",
+  }),
+  theme: "theme",
+  timezone: "timezone",
+  underlineLinks: "underline_links",
+  /** An absent stored value reads as off, so a site that never stored the
+   *  flag never shows the welcome message. */
+  welcomeEnabled: "welcome_enabled",
+});
+
+/** The namespace: the literal above, plus the parts that build their own
  *  getters. */
 
-/** A stored setting, kept only when it is one of the values we know. Anything
- *  else — a value an older build wrote, or one a hand-edit left behind — reads
- *  as the fallback rather than leaking through. */
-const knownSetting = <TValue extends string>(
-  value: string,
-  isKnown: (candidate: string) => candidate is TValue,
-  fallback: TValue,
-): TValue => (isKnown(value) ? value : fallback);
-
 export const settings = withProperties(
-  withProperties(settingsBase, paymentProviderAccessors.getters),
+  withProperties(
+    withProperties(settingsBase, storedSettingGetters),
+    paymentProviderAccessors.getters,
+  ),
   stringAccessors.getters,
 );

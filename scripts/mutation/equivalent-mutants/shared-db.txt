@@ -186,8 +186,8 @@ src/shared/db/backup-snapshot.ts::exportTable.colList~0ou5ceg  = → += audited:
 # `last_active_payment_provider` CASE takes the `= 'disable'` branch, and both
 # WHERE terms are already true before the `CASE ?` that spells the credential
 # key is reached.
-src/shared/db/settings/payment-provider.ts::changePaymentProvider.chosen~08zft5u  ?? → || audited:0vwzeob # provider is PaymentProviderType | undefined, and no provider id is the empty string, so ?? and || pick the same side
-src/shared/db/settings/payment-provider.ts::changePaymentProvider.chosen~08zft5u   → "mutated" audited:0vwzeob # only kind "disable" takes this fallback, and the disable statement never evaluates a placeholder bound to chosen
+src/shared/db/settings/payment-provider.ts::changePaymentProvider.chosen~08zft5u  ?? → || audited:1eckgav # provider is PaymentProviderType | undefined, and no provider id is the empty string, so ?? and || pick the same side
+src/shared/db/settings/payment-provider.ts::changePaymentProvider.chosen~08zft5u   → "mutated" audited:1eckgav # only kind "disable" takes this fallback, and the disable statement never evaluates a placeholder bound to chosen
 
 # settings/payment-provider.ts — the same shape one line down. The chosen
 # provider's credential key fills slot ?4, which the statement reads in exactly
@@ -195,7 +195,7 @@ src/shared/db/settings/payment-provider.ts::changePaymentProvider.chosen~08zft5u
 # disable call omits the provider and so takes this empty fallback, and for
 # that kind the guard's left side is already true, so the row set is the same
 # whatever the key holds.
-src/shared/db/settings/payment-provider.ts::changePaymentProvider.chosenCredentialKey~1lnjyfd  → "mutated" audited:0vwzeob # only kind "disable" takes this fallback, and for that kind RECOVERY_ALLOWED is satisfied before the key is read
+src/shared/db/settings/payment-provider.ts::changePaymentProvider.chosenCredentialKey~1lnjyfd  → "mutated" audited:1eckgav # only kind "disable" takes this fallback, and for that kind RECOVERY_ALLOWED is satisfied before the key is read
 
 # listing-parents.ts — `edgeIncompatibilityAfterChange` reads its two link maps
 # with a `?? []` fallback. The maps come from `listingsForLinks`, whose values
