@@ -5,6 +5,7 @@ import { doorScanModelData } from "#scripts/verify-models/door-scan.ts";
 import { largestRemainderSplitModelData } from "#scripts/verify-models/largest-remainder-split.ts";
 import { modelData, paymentModel } from "#scripts/verify-models/model.ts";
 import { notificationFlagLeaseModelData } from "#scripts/verify-models/notification-flag-lease.ts";
+import { refundReversalModelData } from "#scripts/verify-models/refund-reversal.ts";
 import { reviewModelData } from "#scripts/verify-models/review.ts";
 import { sharedGroupCapacityModelData } from "#scripts/verify-models/shared-group-capacity.ts";
 import { squareModelData } from "#scripts/verify-models/square.ts";
@@ -29,4 +30,5 @@ export const MODELS = [
   { data: doorScanModelData, module: "DoorScan" },
   { data: sharedGroupCapacityModelData, module: "SharedGroupCapacity" },
   { data: attendeeCapacityModelData, module: "AttendeeCapacity" },
+  { data: refundReversalModelData, module: "RefundReversal" },
 ];

@@ -166,6 +166,16 @@ These checks serve different purposes.
     supplies every admission fact. The check corrupts an over-pick past the
     listing's quantity, a scan that takes a place back, and the admission of
     a refunded row. The checker must report a counterexample for each.
+  - `verification/RefundReversal.tla` checks one attendee's refund plan over
+    its account refund groups. A group reverses only when it carries provider
+    cash, no operator money, and it is payment-only or settled. Every posted
+    refund leg is the exact inverse of a recorded original leg. A group the
+    ledger already records never reverses again, so a second identical refund
+    records nothing and never credits twice. Each returned reference lands in
+    exactly one outcome: recorded, review, or unrecorded. The production plan
+    and ledger functions supply every fact. The check corrupts a reversal of
+    an operator-money group, a posted leg that is not an exact inverse, and a
+    double record. The checker must report a counterexample for each.
   The models trust representative coverage and event annotations.
   The Square model also trusts the configured provider lifetime. Claim
   admission remains a model assumption. Mirror tests and database tests check
