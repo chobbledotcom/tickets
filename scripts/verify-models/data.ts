@@ -37,6 +37,21 @@ export const corruptedDataFor =
   (corrupt: (row: Row) => Row): ModelDataSource =>
     modelDataFor(() => moduleFor(rows.map(corrupt)));
 
+/** Change the one fact the predicate names, or throw when no fact does. A
+ *  negative control corrupts one fact of the clean proof data; a changed
+ *  shape fails here instead of corrupting nothing. */
+export const corruptOneFact = <Fact>(
+  facts: readonly Fact[],
+  isVictim: (fact: Fact) => boolean,
+  missingMessage: string,
+  corrupt: (fact: Fact) => Fact,
+): readonly Fact[] => {
+  if (!facts.some((fact) => isVictim(fact))) {
+    throw new Error(missingMessage);
+  }
+  return facts.map((fact) => (isVictim(fact) ? corrupt(fact) : fact));
+};
+
 const atom = (value: TlaAtom): string =>
   typeof value === "boolean"
     ? value

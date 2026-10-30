@@ -6,6 +6,11 @@ import {
   deletedRowRefundData,
   duplicateBookingData,
 } from "#scripts/verify-models/booking.ts";
+import {
+  compoundingDiscountData,
+  overshootDiscountData,
+  staleFeeData,
+} from "#scripts/verify-models/checkout-composition.ts";
 import { counterexampleData } from "#scripts/verify-models/counterexample.ts";
 import {
   corruptDoorScanData,
@@ -167,6 +172,35 @@ await checkRejected(
   "LargestRemainderSplit",
   "accounting that strands an owed unit",
   () => corruptSplitData("unconserved accounting"),
+  "InductionStart",
+  1,
+);
+
+// The CheckoutComposition proof must reject the three failure modes it
+// rules out: a modifier that compounds on an earlier pass, a discount that
+// removes more than the units hold, and a booking fee charged on a stale
+// subtotal. A pass on any one would make the clean verdicts worthless.
+console.log("Check CheckoutComposition: compounding modifier counterexample.");
+await checkRejected(
+  "CheckoutComposition",
+  "a modifier that compounds on an earlier pass",
+  compoundingDiscountData,
+  "InductionStart",
+  1,
+);
+console.log("Check CheckoutComposition: overshooting discount counterexample.");
+await checkRejected(
+  "CheckoutComposition",
+  "a discount that removes more than the units hold",
+  overshootDiscountData,
+  "InductionStart",
+  1,
+);
+console.log("Check CheckoutComposition: stale-subtotal fee counterexample.");
+await checkRejected(
+  "CheckoutComposition",
+  "a booking fee charged on a stale subtotal",
+  staleFeeData,
   "InductionStart",
   1,
 );
