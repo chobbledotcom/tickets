@@ -1,182 +1,215 @@
 /* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { sum } from "#fp";
 import {
-  corruptAllocationData,
-  largestRemainderSplitData,
+  corruptSplitData,
   largestRemainderSplitModelData,
-  type SplitFact,
+  type SplitPartFact,
   splitCases,
-  splitModel,
+  splitFacts,
 } from "#scripts/verify-models/largest-remainder-split.ts";
 import { largestRemainderAllocation } from "#shared/largest-remainder.ts";
 import { records } from "#test-utils/tla-data.ts";
 
 /* jscpd:ignore-end */
 
-const FACT_FLAGS = ["conserved", "bounded", "nonNegative", "capped"] as const;
+type DataRecord = Record<string, string | boolean | number>;
 
-/** Every representative case, keyed by its sample tag: the weights, the
- *  amount and the exact allocation the production function must produce. */
-const EXPECTED: readonly (readonly [string, string, string, string])[] = [
-  ["zero amount", "[10,20]", "0", "[0,0]"],
-  ["negative amount above minus one", "[10,20]", "-0.5", "[0,0]"],
-  ["all weights zero", "[0,0]", "10", "[0,0]"],
-  [
-    "exact split with index tie-breaks",
-    "[1000,1000,1000]",
-    "100",
-    "[34,33,33]",
-  ],
-  ["leftovers to the largest fractional remainder", "[1,1,5]", "2", "[0,0,2]"],
-  ["biggest fraction, not biggest floor", "[3,1]", "3", "[2,1]"],
-  ["tie-break values decide a tie", "[3,5,2]", "5", "[2,2,1]"],
-  ["small positive total", "[0.4,0.4]", "1", "[1,0]"],
-  [
-    "deposit capped at the unit prices",
-    "[1000,1000,1000]",
-    "2500",
-    "[834,833,833]",
-  ],
-  ["a part at its cap receives no more", "[500,1000]", "2000", "[666,1334]"],
-  [
-    "whole-money remainders beyond safe multiplication",
-    "[2500000000000005,2500000000000005,2500000000000005,2,3]",
-    "7125000000000019",
-    "[2375000000000005,2375000000000005,2375000000000004,2,3]",
-  ],
-];
+/** The case that runs no split and the case with a fractional amount stay
+ *  out of the integer model; the other nine cases carry its facts. */
+const UNMODELLED_TAGS = ["negative amount above minus one"] as const;
 
-const factByTag = (facts: readonly SplitFact[], tag: string): SplitFact => {
-  const fact = facts.find((candidate) => candidate.sampleTag === tag);
-  if (!fact) throw new Error(`Missing split fact ${tag}`);
-  return { ...fact };
+const caseByTag = (tag: string) => {
+  const sample = splitCases.find((candidate) => candidate.sampleTag === tag);
+  if (!sample) throw new Error(`Missing split case ${tag}`);
+  return sample;
 };
 
+const partFactsOf = (
+  partFacts: readonly SplitPartFact[],
+  tag: string,
+): SplitPartFact[] => partFacts.filter((partFact) => partFact.caseTag === tag);
+
+const recordsOf = (data: string, name: string): DataRecord[] =>
+  records(data, name) as DataRecord[];
+
 describe("largest remainder split proof data", () => {
-  test("derives every fact from the production function", async () => {
-    const facts = await splitModel();
-    expect(facts).toHaveLength(EXPECTED.length);
-    for (const [tag, weights, amount, allocations] of EXPECTED) {
-      const fact = factByTag(facts, tag);
-      expect(fact.weights).toBe(weights);
-      expect(fact.amount).toBe(amount);
-      expect(fact.allocations).toBe(allocations);
-    }
-  });
-
-  test("marks every generated fact exact", async () => {
-    const data = await largestRemainderSplitModelData();
-    const facts = records(data, "SplitFacts");
-    expect(facts).toHaveLength(EXPECTED.length);
-    for (const fact of facts) {
-      for (const flag of FACT_FLAGS) {
-        expect(fact[flag]).toBe(true);
-      }
-    }
-  });
-
-  test("the exact allocations match the production function's own results", async () => {
-    const facts = await splitModel();
-    for (const sample of splitCases) {
-      const fact = factByTag(facts, sample.sampleTag);
-      expect(JSON.parse(fact.allocations)).toEqual(
-        largestRemainderAllocation(
-          sample.weights,
-          sample.amount,
-          sample.options,
-        ),
+  test("carries one part fact per part of every modelled case", () => {
+    const { caseFacts, partFacts } = splitFacts();
+    const modelled = splitCases.filter((sample) =>
+      Number.isInteger(sample.amount),
+    );
+    expect(caseFacts.map((caseFact) => caseFact.caseTag)).toEqual(
+      modelled.map((sample) => sample.sampleTag),
+    );
+    for (const sample of modelled) {
+      const parts = partFactsOf(partFacts, sample.sampleTag);
+      expect(parts.map((part) => part.partIndex)).toEqual(
+        sample.weights.map((_, index) => index + 1),
       );
     }
   });
 
-  test("retains an unconserved allocation as a false fact", async () => {
-    const facts = splitModel((weights, amount) =>
-      amount === 100
-        ? [34, 34, 33]
-        : largestRemainderAllocation(weights, amount),
-    );
-    const fact = factByTag(facts, "exact split with index tie-breaks");
-    expect(JSON.parse(fact.allocations)).toEqual([34, 34, 33]);
-    expect(fact.conserved).toBe(false);
-    expect(facts.some((candidate) => candidate.conserved === false)).toBe(true);
+  test("leaves the fractional-amount case to the direct tests", () => {
+    const { caseFacts } = splitFacts();
+    for (const tag of UNMODELLED_TAGS) {
+      expect(caseFacts.some((caseFact) => caseFact.caseTag === tag)).toBe(
+        false,
+      );
+      expect(splitCases.some((sample) => sample.sampleTag === tag)).toBe(true);
+    }
   });
 
-  test("retains an unbounded allocation as a false fact", async () => {
-    const facts = splitModel((weights, amount) =>
-      amount === 100
-        ? [35, 33, 32]
-        : largestRemainderAllocation(weights, amount),
+  test("carries each part's proportional floor and cap", () => {
+    const { partFacts } = splitFacts();
+    for (const part of partFacts) {
+      const sample = caseByTag(part.caseTag);
+      const runs = sample.amount > 0 && sum(sample.weights) > 0;
+      const weight = sample.weights[part.partIndex - 1]!;
+      const expectedFloor = runs
+        ? Math.floor((sample.amount * weight) / sum(sample.weights))
+        : 0;
+      expect(part.floor).toBe(expectedFloor);
+      expect(part.cap).toBe(sample.caps?.[part.partIndex - 1] ?? 0);
+    }
+  });
+
+  test("marks eligibility with the case's own guard", () => {
+    const { partFacts } = splitFacts();
+    for (const part of partFacts) {
+      const sample = caseByTag(part.caseTag);
+      const runs = sample.amount > 0 && sum(sample.weights) > 0;
+      if (!runs) {
+        // A case that runs no split awards nothing.
+        expect(part.eligible).toBe(false);
+      } else if (sample.caps === undefined) {
+        // A case without a guard lets every part receive.
+        expect(part.eligible).toBe(true);
+      } else if (part.eligible) {
+        // The honesty relation the model checks: an eligible part of a
+        // capped case has room under its cap for the one extra unit.
+        expect(part.floor + 1).toBeLessThanOrEqual(part.cap);
+      }
+    }
+  });
+
+  test("the guard leaves room for every owed unit", () => {
+    const { caseFacts, partFacts } = splitFacts();
+    for (const caseFact of caseFacts) {
+      const eligibleCount = partFactsOf(partFacts, caseFact.caseTag).filter(
+        (p) => p.eligible,
+      ).length;
+      expect(eligibleCount).toBeGreaterThanOrEqual(caseFact.leftover);
+    }
+  });
+
+  test("every case's accounting balances", () => {
+    const { caseFacts, partFacts } = splitFacts();
+    for (const caseFact of caseFacts) {
+      const sample = caseByTag(caseFact.caseTag);
+      const runs = sample.amount > 0 && sum(sample.weights) > 0;
+      const owed = runs
+        ? sample.amount -
+          sum(partFactsOf(partFacts, caseFact.caseTag).map((p) => p.floor))
+        : 0;
+      expect(caseFact.leftover).toBe(owed);
+      expect(caseFact.leftover).toBeLessThan(sample.weights.length);
+    }
+  });
+
+  test("the production result is reachable in the award loop", () => {
+    const { caseFacts, partFacts } = splitFacts();
+    for (const caseFact of caseFacts) {
+      const sample = caseByTag(caseFact.caseTag);
+      const output = largestRemainderAllocation(
+        sample.weights,
+        sample.amount,
+        sample.options ?? {},
+      );
+      const parts = partFactsOf(partFacts, caseFact.caseTag);
+      let bumps = 0;
+      for (const [index, allocation] of output.entries()) {
+        const part = parts[index]!;
+        const extra = allocation - part.floor;
+        expect([0, 1]).toContain(extra);
+        if (extra === 1) {
+          bumps += 1;
+          expect(part.eligible).toBe(true);
+        }
+      }
+      expect(bumps).toBe(caseFact.leftover);
+    }
+  });
+
+  test("a part at its cap receives no more", () => {
+    const { partFacts } = splitFacts();
+    const sample = caseByTag("a part at its cap receives no more");
+    const parts = partFactsOf(partFacts, sample.sampleTag);
+    const atCap = parts.find((part) => part.cap === part.floor)!;
+    const filler = parts.find((part) => part.cap !== part.floor)!;
+    expect(atCap.eligible).toBe(false);
+    expect(filler.eligible).toBe(true);
+    expect(filler.floor + 1).toBe(filler.cap);
+  });
+
+  test("corrupting the guard awards past a cap", async () => {
+    const data = await corruptSplitData("cap guard");
+    const parts = recordsOf(data, "SplitParts");
+    const cases = recordsOf(data, "SplitCases");
+    const flipped = parts.filter(
+      (part) =>
+        part.caseTag === "a part at its cap receives no more" &&
+        part.eligible === true &&
+        (part.floor as number) + 1 > (part.cap as number),
     );
-    expect(facts.some((candidate) => candidate.bounded === false)).toBe(true);
-    expect(facts.some((candidate) => candidate.conserved === false)).toBe(
-      false,
+    expect(flipped).toHaveLength(1);
+    expect(
+      cases.some(
+        (caseFact) =>
+          caseFact.caseTag === "a part at its cap receives no more" &&
+          caseFact.capped === true,
+      ),
+    ).toBe(true);
+  });
+
+  test("corrupting the accounting strands an owed unit", async () => {
+    const data = await corruptSplitData("unconserved accounting");
+    const cases = recordsOf(data, "SplitCases");
+    const parts = recordsOf(data, "SplitParts");
+    const victim = cases.find(
+      (caseFact) => caseFact.caseTag === "a part at its cap receives no more",
+    )!;
+    const eligibleCount = parts.filter(
+      (part) => part.caseTag === victim.caseTag && part.eligible === true,
+    ).length;
+    expect(victim.leftover).toBeGreaterThan(eligibleCount);
+  });
+
+  test("throws when the case to corrupt is missing", async () => {
+    await expect(
+      corruptSplitData("unconserved accounting", {
+        caseFacts: [],
+        partFacts: [],
+      }),
+    ).rejects.toThrow(
+      'The split model holds no "a part at its cap receives no more" case. There is no case to corrupt.',
     );
   });
 
-  test("retains a negative allocation as a false fact", async () => {
-    const facts = splitModel((weights, amount) =>
-      amount === 100
-        ? [-1, 51, 50]
-        : largestRemainderAllocation(weights, amount),
-    );
-    expect(facts.some((candidate) => candidate.nonNegative === false)).toBe(
-      true,
+  test("throws when the part to corrupt is missing", async () => {
+    const { caseFacts } = splitFacts();
+    await expect(
+      corruptSplitData("cap guard", { caseFacts, partFacts: [] }),
+    ).rejects.toThrow(
+      'The split model holds no part at its cap for "a part at its cap receives no more". There is no part to corrupt.',
     );
   });
 
-  test("retains an over-cap allocation as a false fact", async () => {
-    const facts = splitModel((weights, amount) =>
-      amount === 2500
-        ? [1200, 800, 500]
-        : largestRemainderAllocation(weights, amount),
-    );
-    expect(facts.some((candidate) => candidate.capped === false)).toBe(true);
-  });
-
-  test("detects a split that ignores its cap guard", async () => {
-    const facts = splitModel((weights, amount) =>
-      largestRemainderAllocation(weights, amount),
-    );
-    const overCap = facts.filter((fact) => fact.capped === false);
-    expect(overCap.map((fact) => fact.sampleTag)).toEqual([
-      "a part at its cap receives no more",
-    ]);
-    expect(overCap[0]?.conserved).toBe(true);
-  });
-
-  test("corrupt data flips exactly one fact's conservation flag", async () => {
-    const honest = records(
-      await largestRemainderSplitModelData(),
-      "SplitFacts",
-    );
-    const corrupted = records(await corruptAllocationData(), "SplitFacts");
-    expect(corrupted).toHaveLength(honest.length);
-    const changed = honest.flatMap((fact, index) => {
-      const after = corrupted[index];
-      if (after === undefined || after.conserved === fact.conserved) return [];
-      return [{ after, before: fact }];
-    });
-    expect(changed).toHaveLength(1);
-    expect(changed[0]?.before).toMatchObject({
-      allocations: "[34,33,33]",
-      amount: "100",
-      conserved: true,
-      weights: "[1000,1000,1000]",
-    });
-    expect(changed[0]?.after.conserved).toBe(false);
-  });
-
-  test("throws when the fact to corrupt is missing", async () => {
-    const facts = (await splitModel()).slice(0, 1);
-    await expect(corruptAllocationData(facts)).rejects.toThrow(
-      "There is no fact to corrupt",
-    );
-  });
-
-  test("the data module carries the fact table under its own name", async () => {
-    const data = largestRemainderSplitData(await splitModel());
+  test("the data module carries the fact tables under their own names", async () => {
+    const data = await largestRemainderSplitModelData();
     expect(data).toContain("MODULE LargestRemainderSplitData");
-    expect(data).toContain("SplitFacts ==");
+    expect(data).toContain("SplitCases ==");
+    expect(data).toContain("SplitParts ==");
   });
 });

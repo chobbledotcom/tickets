@@ -6,7 +6,6 @@ import {
   tlaModule,
   tlaRecords,
 } from "#scripts/verify-models/data.ts";
-import { largestRemainderAllocation } from "#shared/largest-remainder.ts";
 
 /* jscpd:ignore-end */
 
@@ -39,8 +38,8 @@ type SplitCase = {
 };
 
 /** The representative problems the proof covers: the money-path shapes plus
- *  the edge cases the direct tests pin. Every allocation runs through the
- *  production function; no stored answer supplies the proof. */
+ *  the edge cases the direct tests pin. The tests run every case through the
+ *  production function; the facts below carry no answer. */
 export const splitCases: readonly SplitCase[] = [
   {
     amount: 0,
@@ -113,109 +112,170 @@ export const splitCases: readonly SplitCase[] = [
   },
 ];
 
-/** The independent safety flags the proof asserts. Each one is recomputed from
- *  the raw weights and the produced parts, never from the production's
- *  internal floors, so a wrong floor or a wrong bump count shows up here. */
-type SplitFlags = {
-  readonly bounded: boolean;
-  readonly capped: boolean;
-  readonly conserved: boolean;
-  readonly nonNegative: boolean;
-};
+/** The cases the integer model covers. A fractional amount has no integer
+ *  fact, so that case's behaviour stays with the direct tests. */
+const modelCases = (): readonly SplitCase[] =>
+  splitCases.filter((sample) => Number.isInteger(sample.amount));
 
-const nonNegative = (allocations: readonly number[]): boolean =>
-  allocations.every((allocation) => allocation >= 0);
+/** Whether the split runs for a case, by production's own rule: a
+ *  non-positive amount or a non-positive weight total allocates nothing. */
+const splitRuns = (amount: number, weights: readonly number[]): boolean =>
+  amount > 0 && sum(weights) > 0;
 
-/** A running split conserves the amount: the parts sum to it exactly. When the
- *  amount or the weight total is not positive, production allocates nothing,
- *  so there is no split to conserve and no cap to exceed. */
-const flagsOf = (
-  weights: readonly number[],
+/** The floor share of every part, from the raw weights alone. */
+const floorShares = (amount: number, weights: readonly number[]): number[] =>
+  weights.map((weight) =>
+    splitRuns(amount, weights)
+      ? Math.floor((amount * weight) / sum(weights))
+      : 0,
+  );
+
+/** The units the award loop still owes after every part took its floor. */
+const owedUnits = (
   amount: number,
-  allocations: readonly number[],
-  caps: readonly number[] | undefined,
-): SplitFlags => {
-  const total = sum(weights);
-  const splitRuns = amount > 0 && total > 0;
-  return {
-    bounded: splitRuns
-      ? allocations.every((allocation, index) => {
-          const floor = Math.floor((amount * weights[index]!) / total);
-          return allocation >= floor && allocation <= floor + 1;
-        })
-      : nonNegative(allocations) && sum(allocations) === 0,
-    capped:
-      caps === undefined
-        ? true
-        : allocations.every((allocation, index) => allocation <= caps[index]!),
-    conserved: splitRuns ? sum(allocations) === amount : true,
-    nonNegative: nonNegative(allocations),
-  };
-};
+  weights: readonly number[],
+  floors: readonly number[],
+): number => (splitRuns(amount, weights) ? amount - sum(floors) : 0);
 
-const splitFields = {
-  allocations: "Str",
-  amount: "Str",
-  bounded: "Bool",
+/** The production guard's verdict for one part: may it receive the one extra
+ *  unit? A case without a guard lets every part receive; a case that runs no
+ *  split awards nothing. */
+const eligibleFor = (sample: SplitCase, floors: readonly number[]): boolean[] =>
+  sample.weights.map((_, index) =>
+    splitRuns(sample.amount, sample.weights)
+      ? (sample.options?.canReceive ?? (() => true))(index, floors[index]!)
+      : false,
+  );
+
+/** The cap the checker compares against, 0 when the case caps nothing. */
+const capOf = (sample: SplitCase, index: number): number =>
+  sample.caps?.[index] ?? 0;
+
+/** One case's accounting for the checker: which case it is, whether its parts
+ *  carry caps, and how many units the award loop owes. */
+export const splitCaseFields = {
   capped: "Bool",
-  conserved: "Bool",
-  nonNegative: "Bool",
-  sampleTag: "Str",
-  weights: "Str",
+  caseTag: "Str",
+  leftover: "Int",
 } as const;
 
-export type SplitFact = TlaFact<typeof splitFields>;
+/** One part's facts for the checker: its floor share, its cap, and the
+ *  production guard's verdict. */
+export const splitPartFields = {
+  cap: "Int",
+  caseTag: "Str",
+  eligible: "Bool",
+  floor: "Int",
+  partIndex: "Int",
+} as const;
 
-/** Every representative allocation and its independent safety flags. The
- *  allocation function is injectable so the tests can prove the flags stay
- *  visible when production returns an unsafe result. */
-export const splitModel = (
-  allocate: typeof largestRemainderAllocation = largestRemainderAllocation,
-): SplitFact[] =>
-  splitCases.map((sample) => {
-    const allocations = allocate(sample.weights, sample.amount, sample.options);
-    const flags = flagsOf(
-      sample.weights,
-      sample.amount,
-      allocations,
-      sample.caps,
-    );
-    return {
-      allocations: JSON.stringify(allocations),
-      amount: JSON.stringify(sample.amount),
-      ...flags,
-      sampleTag: sample.sampleTag,
-      weights: JSON.stringify([...sample.weights]),
-    };
-  });
+export type SplitCaseFact = TlaFact<typeof splitCaseFields>;
+export type SplitPartFact = TlaFact<typeof splitPartFields>;
+
+export type SplitFacts = {
+  readonly caseFacts: readonly SplitCaseFact[];
+  readonly partFacts: readonly SplitPartFact[];
+};
+
+/** The checker facts: one per case and one per part of every case. Every
+ *  number comes from the raw weights through the oracles above. */
+export const splitFacts = (): SplitFacts => {
+  const caseFacts: SplitCaseFact[] = [];
+  const partFacts: SplitPartFact[] = [];
+  for (const sample of modelCases()) {
+    const floors = floorShares(sample.amount, sample.weights);
+    const eligible = eligibleFor(sample, floors);
+    caseFacts.push({
+      capped: sample.caps !== undefined,
+      caseTag: sample.sampleTag,
+      leftover: owedUnits(sample.amount, sample.weights, floors),
+    });
+    for (const [index, floor] of floors.entries()) {
+      partFacts.push({
+        cap: capOf(sample, index),
+        caseTag: sample.sampleTag,
+        eligible: eligible[index]!,
+        floor,
+        partIndex: index + 1,
+      });
+    }
+  }
+  return { caseFacts, partFacts };
+};
 
 export const largestRemainderSplitData = (
-  facts: readonly SplitFact[],
+  caseFacts: readonly SplitCaseFact[],
+  partFacts: readonly SplitPartFact[],
 ): string =>
   tlaModule("LargestRemainderSplitData", [
-    tlaRecords("SplitFacts", splitFields, facts),
+    tlaRecords("SplitCases", splitCaseFields, caseFacts),
+    tlaRecords("SplitParts", splitPartFields, partFacts),
   ]);
 
-/** The generated checker data. Every allocation comes from the production
- *  function; no stored copy supplies the proof. */
-export const largestRemainderSplitModelData: ModelDataSource = async () =>
-  largestRemainderSplitData(splitModel());
+/** The generated checker data for the clean proof. */
+export const largestRemainderSplitModelData: ModelDataSource = async () => {
+  const { caseFacts, partFacts } = splitFacts();
+  return largestRemainderSplitData(caseFacts, partFacts);
+};
 
-/** The negative control: one running split whose parts do not conserve the
- *  amount. The checker must reject it, or the clean verdicts prove nothing.
- *  The facts are injectable so the tests can reach the missing-fact throw. */
-export const corruptAllocationData = async (
-  facts: readonly SplitFact[] = splitModel(),
-): Promise<string> => {
-  const victimTag = "exact split with index tie-breaks";
-  if (!facts.some((fact) => fact.sampleTag === victimTag)) {
-    throw new Error(
-      `The split model holds no "${victimTag}" fact. There is no fact to corrupt.`,
-    );
+/** The failure modes the checker must reject. Each one corrupts one fact of
+ *  the clean proof data. */
+type Corruption = "cap guard" | "unconserved accounting";
+
+/** The case whose owed units one corruption inflates: the guard covers
+ *  exactly one award there, so one extra owed unit strands the loop. */
+const accountingVictimTag = "a part at its cap receives no more";
+
+/** The part whose guard verdict the other corruption flips: a part that sits
+ *  at its cap and must not receive the extra unit. */
+const capVictimTag = "a part at its cap receives no more";
+
+/** Change the one fact the predicate names, or throw when no fact does. */
+const corruptOneFact = <Fact>(
+  facts: readonly Fact[],
+  isVictim: (fact: Fact) => boolean,
+  missingMessage: string,
+  corrupt: (fact: Fact) => Fact,
+): readonly Fact[] => {
+  if (!facts.some((fact) => isVictim(fact))) {
+    throw new Error(missingMessage);
   }
-  return largestRemainderSplitData(
-    facts.map((fact) =>
-      fact.sampleTag === victimTag ? { ...fact, conserved: false } : fact,
+  return facts.map((fact) => (isVictim(fact) ? corrupt(fact) : fact));
+};
+
+const corruptions: Readonly<
+  Record<Corruption, (facts: SplitFacts) => SplitFacts>
+> = {
+  "cap guard": ({ caseFacts, partFacts }) => ({
+    caseFacts,
+    partFacts: corruptOneFact(
+      partFacts,
+      (partFact) =>
+        partFact.caseTag === capVictimTag &&
+        !partFact.eligible &&
+        partFact.cap === partFact.floor,
+      `The split model holds no part at its cap for "${capVictimTag}". There is no part to corrupt.`,
+      (partFact) => ({ ...partFact, eligible: true }),
     ),
-  );
+  }),
+  "unconserved accounting": ({ caseFacts, partFacts }) => ({
+    caseFacts: corruptOneFact(
+      caseFacts,
+      (caseFact) => caseFact.caseTag === accountingVictimTag,
+      `The split model holds no "${accountingVictimTag}" case. There is no case to corrupt.`,
+      (caseFact) => ({ ...caseFact, leftover: caseFact.leftover + 1 }),
+    ),
+    partFacts,
+  }),
+};
+
+/** One corrupted proof-data set. The checker must report a counterexample
+ *  for it, or the clean verdicts prove nothing. The facts are injectable so
+ *  the tests can reach the missing-fact throw. */
+export const corruptSplitData = async (
+  corruption: Corruption,
+  facts: SplitFacts = splitFacts(),
+): Promise<string> => {
+  const { caseFacts, partFacts } = corruptions[corruption](facts);
+  return largestRemainderSplitData(caseFacts, partFacts);
 };

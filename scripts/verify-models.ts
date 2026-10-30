@@ -9,7 +9,7 @@ import {
 } from "#scripts/verify-models/booking.ts";
 import { counterexampleData } from "#scripts/verify-models/counterexample.ts";
 import {
-  corruptAllocationData,
+  corruptSplitData,
   largestRemainderSplitModelData,
 } from "#scripts/verify-models/largest-remainder-split.ts";
 import { modelData, paymentModel } from "#scripts/verify-models/model.ts";
@@ -122,15 +122,18 @@ await checkRejected(
   "refund after the temporary row was deleted",
   deletedRowRefundData,
 );
-// The LargestRemainderSplit proof must reject an allocation whose parts do not
-// conserve the amount. A pass on it would make the clean verdict worthless.
-console.log(
-  "Check LargestRemainderSplit: unconserved allocation counterexample.",
+// The LargestRemainderSplit proof must reject both failure modes it guards:
+// an award past a part's cap and accounting that strands an owed unit. A pass
+// on either would make the clean verdict worthless.
+console.log("Check LargestRemainderSplit: over-cap award counterexample.");
+await checkRejected("LargestRemainderSplit", "an award past a part's cap", () =>
+  corruptSplitData("cap guard"),
 );
+console.log("Check LargestRemainderSplit: stranded owed unit counterexample.");
 await checkRejected(
   "LargestRemainderSplit",
-  "an allocation that does not conserve the amount",
-  corruptAllocationData,
+  "accounting that strands an owed unit",
+  () => corruptSplitData("unconserved accounting"),
 );
 await Deno.remove(work, { recursive: true });
 console.log(

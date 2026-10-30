@@ -126,13 +126,15 @@ These checks serve different purposes.
     stored claim. A take replaces a claim only on an absent or expired row.
     Lease expiry never cancels a provider request that is already in flight.
   - `verification/LargestRemainderSplit.tla` checks the largest-remainder
-    allocation of a whole amount across weighted parts. Every part sums
-    exactly to the amount when a split runs, takes its floor share or one
-    minor unit more, never goes below zero, and respects its cap. The
-    production `largestRemainderAllocation` supplies every fact, and the
-    generator's independent oracles recompute each invariant from the raw
-    weights. The checker must also reject an allocation that does not
-    conserve the amount.
+    allocation of a whole amount across weighted parts. The model runs the
+    award loop itself: every part first holds its proportional floor, and the
+    loop gives the leftover units, one each, to any part the production
+    guard's eligibility verdict allows. The checker proves for every award
+    order that the awarded units stay accounted, no part takes more than one
+    extra unit, and no part passes its cap. The generator's independent
+    oracles derive every fact from the raw weights. The checker must also
+    reject an award past a part's cap and accounting that strands an owed
+    unit.
   The models trust representative coverage and event annotations.
   The Square model also trusts the configured provider lifetime. Claim
   admission remains a model assumption. Mirror tests and database tests check
