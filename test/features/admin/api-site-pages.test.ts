@@ -1,7 +1,7 @@
 // Contract tests for the site-pages admin JSON API: the content-page CRUD
 // (site_pages rows, addressed by id) and the refusals it carries. The input
 // mapping's field refusals live in api-site-pages-input.test.ts. Technical
-// surface — direct Deno tests (E2E_TESTS.md); the form-side parity pins live
+// surface — direct Deno tests (docs/e2e-tests.md); the form-side parity pins live
 // in test/features/admin/parity/site-pages.test.ts.
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";

@@ -151,7 +151,7 @@ When(
 );
 
 /** The `active` flag has no user-facing form claim, so a direct read is the
- * right way to check it (per E2E_TESTS.md). Asserts on the exact listing ids
+ * right way to check it (per docs/e2e-tests.md). Asserts on the exact listing ids
  * the Given step created — not a post-action membership re-query. */
 const assertActive = async (
   listingIds: number[],

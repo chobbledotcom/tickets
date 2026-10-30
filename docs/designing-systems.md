@@ -204,9 +204,9 @@ testable without a database.
 
 ## Modularised
 
-One concept per file; one layer per directory. `REPO_STRUCTURE.md` defines where
-things go (`src/features/*` routes, `src/shared/*` domain logic, `src/ui/*`
-presentation). Within `shared/`, the shapes to copy:
+One concept per file; one layer per directory. `docs/repo-structure.md` defines
+where things go (`src/features/*` routes, `src/shared/*` domain logic,
+`src/ui/*` presentation). Within `shared/`, the shapes to copy:
 
 - `src/shared/rest/` — `resource.ts` (the resource abstraction), `handlers.ts`
   (HTTP wiring), `crud-api.ts` (the JSON API): each file is one layer, named for

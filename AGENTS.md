@@ -100,7 +100,7 @@ accepts, and replace the revision in `.github/actions/setup-devenv/action.yml`.
 These preferences are defaults, not laws. When the letter of a rule and its
 purpose pull apart, serve the purpose. Say which rule you bent and why.
 
-- **Plan behavior before code**: Follow [PR_WORKFLOW.md](PR_WORKFLOW.md) for
+- **Plan behavior before code**: Follow [PR_WORKFLOW.md](docs/pr-workflow.md) for
   every non-trivial change. Fill in the behavior contract, challenge it, and get
   human approval before implementation.
 - **Infrastructure problems are not yours to fix**: If you think you hit an
@@ -646,7 +646,7 @@ Use helpers from `#test-utils` instead of defining local ones.
 Cucumber owns user journeys and observable business rules. Direct Deno tests own
 pure logic, technical contracts, and everything a story cannot prove. A Cucumber
 journey never supplies the only coverage of a production line or branch. See
-[E2E_TESTS.md](E2E_TESTS.md) for the full rules.
+[E2E_TESTS.md](docs/e2e-tests.md) for the full rules.
 
 A test that moves into a story is a replacement. Build the old test's claim list
 from `git diff "$base" HEAD -- "$file"` and `git show "$base:$file"`, never from
