@@ -38,7 +38,6 @@ type GroupFact = TlaFact<typeof groupFields>;
  *  all. */
 type Scenario = {
   readonly child: readonly number[];
-  readonly name: string;
   readonly parent: readonly number[];
   readonly remainingBy: Readonly<Record<number, number>>;
   readonly staticBy: Readonly<Record<number, number>>;
@@ -47,91 +46,31 @@ type Scenario = {
 /** One scenario row. The two listings use their own group ids, so no two
  *  rows share the same membership shape. */
 const scenario = (
-  name: string,
   parent: readonly number[],
   child: readonly number[],
   staticBy: Readonly<Record<number, number>>,
   remainingBy: Readonly<Record<number, number>>,
-): Scenario => ({ child, name, parent, remainingBy, staticBy });
+): Scenario => ({ child, parent, remainingBy, staticBy });
 
+/** One row per scenario. The generator test pins the fact each row must
+ *  produce, and its comments name what each row covers. */
 const SCENARIOS: readonly Scenario[] = [
-  scenario("shares no group at all", [1], [2], { 1: 10, 2: 10 }, { 1: 3 }),
-  scenario("shares a group with no cap", [7], [7], {}, {}),
-  scenario("shares one capped group", [11], [11], { 11: 10 }, { 11: 5 }),
-  scenario(
-    "takes the tightest of several shared groups",
-    [12, 13],
-    [12, 13],
-    { 12: 10, 13: 4 },
-    { 12: 5, 13: 2 },
-  ),
-  scenario(
-    "ignores the parent's own group the child never joins",
-    [14, 15],
-    [15],
-    { 14: 0, 15: 10 },
-    { 14: 0, 15: 5 },
-  ),
-  scenario(
-    "ignores the child's tighter group the parent never joins",
-    [16],
-    [16, 17],
-    { 16: 10, 17: 1 },
-    { 16: 5, 17: 1 },
-  ),
-  scenario(
-    "reads static cap and remaining from different shared groups",
-    [18, 19],
-    [18, 19],
-    { 18: 10, 19: 4 },
-    { 18: 5 },
-  ),
-  scenario(
-    "date-less pool with a static cap below two",
-    [23],
-    [23],
-    { 23: 1 },
-    {},
-  ),
-  scenario("pool below two spots", [24], [24], { 24: 10 }, { 24: 1 }),
-  scenario("pool of exactly two spots", [25], [25], { 25: 10 }, { 25: 2 }),
-  scenario("odd pool", [26], [26], { 26: 10 }, { 26: 3 }),
-  scenario("empty pool", [27], [27], { 27: 10 }, { 27: 0 }),
-  scenario(
-    "uncapped static group with tracked remaining",
-    [28],
-    [28],
-    {},
-    { 28: 5 },
-  ),
-  scenario(
-    "static cap below two with spots still free",
-    [29],
-    [29],
-    { 29: 1 },
-    { 29: 5 },
-  ),
-  scenario(
-    "uncapped static group with one spot left",
-    [30],
-    [30],
-    {},
-    { 30: 1 },
-  ),
-  scenario(
-    "static cap and remaining both below two",
-    [31],
-    [31],
-    { 31: 1 },
-    { 31: 1 },
-  ),
-  scenario(
-    "date-less pool with a static cap of ten",
-    [32],
-    [32],
-    { 32: 10 },
-    {},
-  ),
+  scenario([], [], {}, {}),
+  scenario([11], [11], { 11: 10 }, { 11: 5 }),
+  scenario([12, 13], [12, 13], { 12: 10, 13: 4 }, { 12: 5, 13: 2 }),
+  scenario([14, 15], [15], { 14: 0, 15: 10 }, { 14: 0, 15: 5 }),
+  scenario([16], [16, 17], { 16: 10, 17: 1 }, { 16: 5, 17: 1 }),
+  scenario([18, 19], [18, 19], { 18: 10, 19: 4 }, { 18: 5 }),
+  scenario([23], [23], { 23: 1 }, {}),
+  scenario([24], [24], { 24: 10 }, { 24: 1 }),
+  scenario([25], [25], { 25: 10 }, { 25: 2 }),
+  scenario([26], [26], { 26: 10 }, { 26: 3 }),
+  scenario([27], [27], { 27: 10 }, { 27: 0 }),
+  scenario([28], [28], {}, { 28: 5 }),
+  scenario([29], [29], { 29: 1 }, { 29: 5 }),
+  scenario([30], [30], {}, { 30: 1 }),
+  scenario([31], [31], { 31: 1 }, { 31: 1 }),
+  scenario([32], [32], { 32: 10 }, {}),
 ];
 
 /** The production outputs for one scenario. `sharedGroupRemaining` supplies
@@ -164,7 +103,8 @@ const factFor = (scenario: Scenario): GroupFact => {
   };
 };
 
-const FACTS: readonly GroupFact[] = SCENARIOS.map(factFor);
+/** Every scenario's production fact, in scenario order. */
+export const FACTS: readonly GroupFact[] = SCENARIOS.map(factFor);
 
 const moduleFor = (facts: readonly GroupFact[]): string =>
   tlaModule("SharedGroupCapacityData", [

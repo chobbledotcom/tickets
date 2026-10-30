@@ -136,3 +136,30 @@ scripts/bugs-lib.ts::getJson~0yt17y4  ?? → || audited:15tlsi9 # v.getDotPath r
 # anchor itself can hold a space, so a search that starts two characters
 # earlier finds the same first space.
 scripts/mutation/check-equivalents.ts::mutationOfKey~0u96moz  2 → 0 audited:1mflo87 # the :: and the anchor are space-free (escapePath and the anchor charset), so indexOf(" ", idx) and indexOf(" ", idx + 2) return the same position
+
+# scripts/verify-models/shared-group-capacity.ts — the multi-group scenario
+# rows each carry a member the production functions never read for that row:
+# the looser shared group, or the parent-only / child-only group the row
+# exists to ignore. sharedCappedGroupIds keeps only ids that both listings
+# name and the map caps, so mutating those members leaves the row's fact
+# unchanged, and the positional fact pin cannot see it.
+scripts/verify-models/shared-group-capacity.ts::SCENARIOS~0ctf4t4@1  12 → 0 audited:1qabh3w # group 12 is the looser shared group; group 13 alone still reads cap 4 and remaining 2
+scripts/verify-models/shared-group-capacity.ts::SCENARIOS~0ctf4t4@2  12 → 0 audited:1qabh3w # group 12 is the looser shared group; group 13 alone still reads cap 4 and remaining 2
+scripts/verify-models/shared-group-capacity.ts::SCENARIOS.12~1pxqspl  12 → 0 audited:1qabh3w # group 12 is the looser shared group; group 13 alone still reads cap 4 and remaining 2
+scripts/verify-models/shared-group-capacity.ts::SCENARIOS.12~0qeeb33  12 → 0 audited:1qabh3w # group 12 is the looser shared group; group 13 alone still reads cap 4 and remaining 2
+scripts/verify-models/shared-group-capacity.ts::SCENARIOS~0cuimms  14 → 0 audited:1qabh3w # group 14 is the parent's own group; the child never joins it, so the shared set never reads it
+scripts/verify-models/shared-group-capacity.ts::SCENARIOS.14~16522p2@1  14 → 0 audited:1qabh3w # group 14 is the parent's own group; the child never joins it, so the shared set never reads it
+scripts/verify-models/shared-group-capacity.ts::SCENARIOS.14~16522p2@1  0 → 1 audited:1qabh3w # the value sits on the parent-only group, which never joins the shared set
+scripts/verify-models/shared-group-capacity.ts::SCENARIOS.14~16522p2@2  14 → 0 audited:1qabh3w # group 14 is the parent's own group; the child never joins it, so the shared set never reads it
+scripts/verify-models/shared-group-capacity.ts::SCENARIOS.14~16522p2@2  0 → 1 audited:1qabh3w # the value sits on the parent-only group, which never joins the shared set
+scripts/verify-models/shared-group-capacity.ts::SCENARIOS~0iex7aw  17 → 0 audited:1qabh3w # group 17 is the child's own group; the parent never joins it, so the shared set never reads it
+scripts/verify-models/shared-group-capacity.ts::SCENARIOS.17~0683cwm@1  17 → 0 audited:1qabh3w # group 17 is the child's own group; the parent never joins it, so the shared set never reads it
+scripts/verify-models/shared-group-capacity.ts::SCENARIOS.17~0683cwm@1  1 → 0 audited:1qabh3w # the value sits on the child-only group, which never joins the shared set
+scripts/verify-models/shared-group-capacity.ts::SCENARIOS.17~0683cwm@2  17 → 0 audited:1qabh3w # group 17 is the child's own group; the parent never joins it, so the shared set never reads it
+scripts/verify-models/shared-group-capacity.ts::SCENARIOS.17~0683cwm@2  1 → 0 audited:1qabh3w # the value sits on the child-only group, which never joins the shared set
+scripts/verify-models/shared-group-capacity.ts::SCENARIOS.18~1piew2n  18 → 0 audited:1qabh3w # group 18's cap is the looser one; dropping its cap entry leaves group 19 as the cap minimum
+
+# factFor reads number | undefined; the only falsy number is 0, which is the
+# fallback itself, so ?? and || agree for every input.
+scripts/verify-models/shared-group-capacity.ts::factFor.remaining~14naslb  ?? → || audited:1qabh3w # the only falsy number is 0, which is the fallback itself
+scripts/verify-models/shared-group-capacity.ts::factFor.staticCap~00b11a1  ?? → || audited:1qabh3w # the only falsy number is 0, which is the fallback itself

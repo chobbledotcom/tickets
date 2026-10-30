@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   dateLessSoldOutPairData,
+  FACTS,
   overfillCapacityData,
   sharedGroupCapacityModelData,
 } from "#scripts/verify-models/shared-group-capacity.ts";
@@ -12,6 +13,18 @@ import { records } from "#test-utils/tla-data.ts";
 /* jscpd:ignore-end */
 
 type Fact = Record<string, string | boolean | number>;
+
+/** One expected fact, named by field: the allow gate, whether the pair reads
+ *  no per-date remaining, the whole orders that fit, and the shared static
+ *  cap and remaining spots. */
+const fact = (
+  allowed: boolean,
+  dateLess: boolean,
+  fits: number,
+  hasStaticCap: boolean,
+  remaining: number,
+  staticCap: number,
+): Fact => ({ allowed, dateLess, fits, hasStaticCap, remaining, staticCap });
 
 /** The clean facts and the overfill facts, matched by position because the
  *  corruption keeps every fact and its order. */
@@ -37,8 +50,8 @@ describe("shared group capacity checker data", () => {
 
   test("records the production outputs for every scenario", async () => {
     const [facts] = await factLists();
-    // Seventeen scenarios collapse to fourteen distinct facts: three produce
-    // the plain capped pool and two produce the no-group fact.
+    // Sixteen scenarios collapse to fourteen distinct facts: three produce
+    // the plain capped pool.
     expect(facts).toHaveLength(14);
     // A pair that shares no capped group contends over nothing and is never
     // refused on either fact.
@@ -170,6 +183,53 @@ describe("shared group capacity checker data", () => {
       remaining: 5,
       staticCap: 0,
     });
+  });
+
+  test("names the data module the runner writes it to", async () => {
+    const data = await sharedGroupCapacityModelData();
+    // The runner writes the data to SharedGroupCapacityData.tla, and the
+    // checker requires the module inside to carry the file's name.
+    expect(data).toContain("---- MODULE SharedGroupCapacityData ----");
+  });
+
+  test("produces the pinned fact for every scenario, in order", () => {
+    // Position on purpose: a changed scenario input that moves its output
+    // fails here even when the moved output equals another scenario's.
+    expect(FACTS).toEqual([
+      // Shares no group at all, or shares only groups with no cap: either
+      // way the pair contends over nothing and nothing refuses it.
+      fact(true, true, 0, false, 0, 0),
+      // Shares one capped group.
+      fact(true, false, 2, true, 5, 10),
+      // Takes the tightest of several shared groups.
+      fact(true, false, 1, true, 2, 4),
+      // Ignores the parent's own group the child never joins.
+      fact(true, false, 2, true, 5, 10),
+      // Ignores the child's tighter group the parent never joins.
+      fact(true, false, 2, true, 5, 10),
+      // Reads static cap and remaining from different shared groups.
+      fact(true, false, 2, true, 5, 4),
+      // Date-less pool with a static cap below two.
+      fact(false, true, 0, true, 0, 1),
+      // Pool below two spots.
+      fact(false, false, 0, true, 1, 10),
+      // Pool of exactly two spots.
+      fact(true, false, 1, true, 2, 10),
+      // Odd pool.
+      fact(true, false, 1, true, 3, 10),
+      // Empty pool.
+      fact(false, false, 0, true, 0, 10),
+      // Uncapped static group with tracked remaining.
+      fact(true, false, 2, false, 5, 0),
+      // Static cap below two with spots still free.
+      fact(false, false, 2, true, 5, 1),
+      // Uncapped static group with one spot left.
+      fact(false, false, 0, false, 1, 0),
+      // Static cap and remaining both below two.
+      fact(false, false, 0, true, 1, 1),
+      // Date-less pool with a static cap of ten.
+      fact(true, true, 0, true, 0, 10),
+    ]);
   });
 
   test("the overfill control inflates the fit ceiling of every date-full fact", async () => {
