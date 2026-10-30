@@ -9,9 +9,13 @@ import { sum } from "#fp";
 import {
   checkoutCompositionModelData,
   compositionFacts,
+  compoundingDiscountData,
   corruptCompositionData,
+  type OrderFact,
+  overshootDiscountData,
   type PassFact,
   SCENARIOS,
+  staleFeeData,
   type UnitFact,
 } from "#scripts/verify-models/checkout-composition.ts";
 import { feeSubtotalFor } from "#shared/booking-fee.ts";
@@ -323,6 +327,73 @@ describe("checkout composition proof data", () => {
     ).rejects.toThrow(
       'The composition holds no "modifiers never compound" order. There is no fee basis to corrupt.',
     );
+  });
+
+  test("throws when the second pass reads no reduced subtotal", async () => {
+    const secondPass: PassFact = {
+      currentSubtotal: 2000,
+      kind: "reduce",
+      orderTag: "modifiers never compound",
+      origSubtotal: 2000,
+      passIndex: 2,
+      removed: 100,
+      requested: 100,
+      scopedSubtotal: 2000,
+    };
+    await expect(
+      corruptCompositionData("compounding", {
+        orderFacts: [],
+        passFacts: [secondPass],
+        unitFacts: [],
+      }),
+    ).rejects.toThrow(
+      'The second "modifiers never compound" pass reads no reduced subtotal. There is no compounding to corrupt.',
+    );
+  });
+
+  test("throws when the discount to corrupt is missing", async () => {
+    await expect(
+      corruptCompositionData("overshooting discount", {
+        orderFacts: [],
+        passFacts: [],
+        unitFacts: [],
+      }),
+    ).rejects.toThrow(
+      'The composition holds no pass for "a discount that exceeds the units". There is no discount to corrupt.',
+    );
+  });
+
+  test("throws when the fee basis is not stale", async () => {
+    const orderFact: OrderFact = {
+      baseLineTotal: 1700,
+      extraTotal: 0,
+      feeCount: 0,
+      feeSubtotal: 1700,
+      lineTotal: 1700,
+      numPasses: 2,
+      orderTag: "modifiers never compound",
+      remainingBalance: 0,
+      subtotal: 1700,
+      total: 1700,
+    };
+    await expect(
+      corruptCompositionData("stale fee", {
+        orderFacts: [orderFact],
+        passFacts: [],
+        unitFacts: [],
+      }),
+    ).rejects.toThrow(
+      'The "modifiers never compound" fee basis equals the final subtotal. There is no stale basis to corrupt.',
+    );
+  });
+
+  test("the negative-control data sources build the corrupted modules", async () => {
+    const compounding = await compoundingDiscountData();
+    const overshoot = await overshootDiscountData();
+    const stale = await staleFeeData();
+    expect(compounding).toContain("MODULE CheckoutCompositionData");
+    expect(overshoot).toContain("MODULE CheckoutCompositionData");
+    expect(stale).toContain("MODULE CheckoutCompositionData");
   });
 
   test("the data module carries the fact tables under their own names", async () => {
