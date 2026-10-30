@@ -147,10 +147,9 @@ const fitsFor = async (
 
 /** The summed quantity of the lines on one slot. */
 const quantityOn = (lines: readonly Line[], slot: SlotName): number =>
-  lines.filter((row) => row.slot === slot).reduce(
-    (total, row) => total + row.quantity,
-    0,
-  );
+  lines
+    .filter((row) => row.slot === slot)
+    .reduce((total, row) => total + row.quantity, 0);
 
 /** The slot's total quantity after the batch commits: the demand that is not
  *  this attendee's own, plus what this attendee then holds. */
@@ -224,7 +223,11 @@ const scenario = (
 
 /** One scenario where the attendee already holds the given lines and no
  *  other attendee books the slots, so the booked totals equal the hold. */
-const editingHeld = (tag: string, existing: Line[], desired: Line[]): Scenario =>
+const editingHeld = (
+  tag: string,
+  existing: Line[],
+  desired: Line[],
+): Scenario =>
   scenario(
     tag,
     { one: quantityOn(existing, "one"), two: quantityOn(existing, "two") },
@@ -268,11 +271,11 @@ const SCENARIOS: readonly Scenario[] = [
     [line("two", 1, false), line("one", 2, false)],
   ),
   // A full edit: a preserve, an update, and a new insert all fit.
-  editingHeld(
-    "multi-line-commit",
-    bothSlotsHeld,
-    [line("one", 1, true), line("two", 2, true), line("one", 1, false)],
-  ),
+  editingHeld("multi-line-commit", bothSlotsHeld, [
+    line("one", 1, true),
+    line("two", 2, true),
+    line("one", 1, false),
+  ]),
   // A removal: omitting a line deletes it, and deletes carry no capacity
   // condition.
   editingHeld("delete-line", bothSlotsHeld, [line("one", 1, true)]),
