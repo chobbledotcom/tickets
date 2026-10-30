@@ -5,6 +5,7 @@ import sharp from "sharp";
 import { capturePreparedPage } from "#scripts/screenshots/capture.ts";
 import { isolateElementCss } from "#scripts/screenshots/checks.ts";
 import { waitForScreenshotPage } from "#scripts/screenshots/readiness.ts";
+import { withStrictBrowserTimeouts } from "#test-utils/browser-contract.ts";
 import {
   launchScreenshotBrowser,
   layerStyle,
@@ -48,6 +49,7 @@ describe("screenshot browser contracts", () => {
         throw new Error("Browser contract server did not open a TCP port");
       }
       const page = await browser.newPage();
+      withStrictBrowserTimeouts(page);
       try {
         await page.goto(`http://127.0.0.1:${server.addr.port}`, {
           waitUntil: "domcontentloaded",
@@ -91,6 +93,7 @@ describe("screenshot browser contracts", () => {
       deviceScaleFactor: 2,
       viewport: { height: 844, width: 390 },
     });
+    withStrictBrowserTimeouts(page);
     try {
       await page.setContent(`
         <style>

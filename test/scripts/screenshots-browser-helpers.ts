@@ -14,6 +14,7 @@ import {
   withScreenshotLayerStyle,
   withWholePaintGroups,
 } from "#scripts/screenshots/layers.ts";
+import { withStrictBrowserTimeouts } from "#test-utils/browser-contract.ts";
 
 export const withLayer = <T>(
   page: Page,
@@ -130,6 +131,7 @@ export const withPage = async (
   check: (page: Page) => Promise<void>,
 ): Promise<void> => {
   const page = await browser.newPage();
+  withStrictBrowserTimeouts(page);
   try {
     await installLayerCaptureClock(page);
     const url = `https://screenshots.test/${crypto.randomUUID()}`;

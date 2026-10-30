@@ -25,6 +25,7 @@ import { buildCheckinUrl } from "#shared/ticket-url.ts";
 import {
   type BrowserContract,
   testOwnerCookiePair,
+  withStrictBrowserTimeouts,
 } from "#test-utils/browser-contract.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { storedCheckinRows } from "#test-utils/db-helpers/checkin-rows.ts";
@@ -135,6 +136,7 @@ export const openDoor = async (
     reducedMotion: "reduce",
     serviceWorkers: "block",
   });
+  withStrictBrowserTimeouts(context);
   const [name, value] = await testOwnerCookiePair();
   await context.addCookies([{ name, url: contract.baseUrl, value }]);
   const page = await context.newPage();

@@ -15,6 +15,29 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import type { DescribeEnvOptions } from "#test-utils/internal.ts";
 import { testCookie } from "#test-utils/session.ts";
 
+/** Fast actions on a contract page must fail fast. The contract app runs on a
+ * local loopback server, so a click, a fill, or a navigation answers in
+ * milliseconds; a page that does not answer has a broken browser, and the
+ * suite must report it instead of burning the job's cap on a hang. */
+const STRICT_ACTION_TIMEOUT_MS = 10_000;
+const STRICT_NAVIGATION_TIMEOUT_MS = 15_000;
+
+/** A BrowserContext or a Page: the two timeout setters both accept. */
+export type BrowserTimeoutTarget = {
+  setDefaultNavigationTimeout(timeout: number): void;
+  setDefaultTimeout(timeout: number): void;
+};
+
+/** Bounds the fast actions on a contract page, so a hung browser fails at
+ * once instead of waiting out Playwright's 30-second default on every
+ * action. */
+export const withStrictBrowserTimeouts = (
+  target: BrowserTimeoutTarget,
+): void => {
+  target.setDefaultTimeout(STRICT_ACTION_TIMEOUT_MS);
+  target.setDefaultNavigationTimeout(STRICT_NAVIGATION_TIMEOUT_MS);
+};
+
 /** The browser contract a describe runs on: the app's loopback address and
  * the browser. The fields answer only inside a test or hook, once the
  * contract is open. */
@@ -93,6 +116,7 @@ export const withSignedInPage = async <T>(
     baseURL: baseUrl,
     reducedMotion: "reduce",
   });
+  withStrictBrowserTimeouts(context);
   const [name, value] = await testOwnerCookiePair();
   await context.addCookies([{ name, url: baseUrl, value }]);
   const page = await context.newPage();
