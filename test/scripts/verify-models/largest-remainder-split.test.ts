@@ -6,6 +6,7 @@ import {
   largestRemainderSplitData,
   largestRemainderSplitModelData,
   type SplitFact,
+  splitCases,
   splitModel,
 } from "#scripts/verify-models/largest-remainder-split.ts";
 import { largestRemainderAllocation } from "#shared/largest-remainder.ts";
@@ -37,6 +38,7 @@ const EXPECTED: readonly (readonly [string, string, string, string])[] = [
     "2500",
     "[834,833,833]",
   ],
+  ["a part at its cap receives no more", "[500,1000]", "2000", "[666,1334]"],
   [
     "whole-money remainders beyond safe multiplication",
     "[2500000000000005,2500000000000005,2500000000000005,2,3]",
@@ -76,19 +78,14 @@ describe("largest remainder split proof data", () => {
 
   test("the exact allocations match the production function's own results", async () => {
     const facts = await splitModel();
-    for (const fact of facts) {
-      const weights = JSON.parse(fact.weights) as number[];
-      const amount = JSON.parse(fact.amount) as number;
-      const options =
-        fact.sampleTag === "tie-break values decide a tie"
-          ? { tieBreaker: (index: number) => [-3, 2, -1][index]! }
-          : fact.sampleTag === "deposit capped at the unit prices"
-            ? {
-                canReceive: (_index: number, floor: number) => floor < 1000,
-              }
-            : undefined;
+    for (const sample of splitCases) {
+      const fact = factByTag(facts, sample.sampleTag);
       expect(JSON.parse(fact.allocations)).toEqual(
-        largestRemainderAllocation(weights, amount, options),
+        largestRemainderAllocation(
+          sample.weights,
+          sample.amount,
+          sample.options,
+        ),
       );
     }
   });
@@ -135,6 +132,17 @@ describe("largest remainder split proof data", () => {
         : largestRemainderAllocation(weights, amount),
     );
     expect(facts.some((candidate) => candidate.capped === false)).toBe(true);
+  });
+
+  test("detects a split that ignores its cap guard", async () => {
+    const facts = splitModel((weights, amount) =>
+      largestRemainderAllocation(weights, amount),
+    );
+    const overCap = facts.filter((fact) => fact.capped === false);
+    expect(overCap.map((fact) => fact.sampleTag)).toEqual([
+      "a part at its cap receives no more",
+    ]);
+    expect(overCap[0]?.conserved).toBe(true);
   });
 
   test("corrupt data flips exactly one fact's conservation flag", async () => {

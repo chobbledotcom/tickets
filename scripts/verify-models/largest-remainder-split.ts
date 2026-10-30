@@ -15,6 +15,19 @@ type SplitOptions = {
   readonly tieBreaker?: (index: number) => number;
 };
 
+/** The unit prices of the deposit case. */
+const unitPriceCaps = [1000, 1000, 1000] as const;
+
+/** The caps of the binding case: one floor sits at its cap, so the guard must
+ *  turn the bump away, and the other part fills to its exact cap. */
+const bindingCaps = [666, 1334] as const;
+
+/** A part whose floor sits below its cap can receive one more unit. */
+const canReceiveBelowCap =
+  (caps: readonly number[]) =>
+  (index: number, floor: number): boolean =>
+    floor < caps[index]!;
+
 /** One representative allocation. `caps` names the per-unit upper bound the
  *  split must respect when a `canReceive` option guards it. */
 type SplitCase = {
@@ -28,7 +41,7 @@ type SplitCase = {
 /** The representative problems the proof covers: the money-path shapes plus
  *  the edge cases the direct tests pin. Every allocation runs through the
  *  production function; no stored answer supplies the proof. */
-const CASES: readonly SplitCase[] = [
+export const splitCases: readonly SplitCase[] = [
   {
     amount: 0,
     caps: undefined,
@@ -80,10 +93,17 @@ const CASES: readonly SplitCase[] = [
   },
   {
     amount: 2500,
-    caps: [1000, 1000, 1000],
-    options: { canReceive: (_index, floor) => floor < 1000 },
+    caps: unitPriceCaps,
+    options: { canReceive: canReceiveBelowCap(unitPriceCaps) },
     sampleTag: "deposit capped at the unit prices",
     weights: [1000, 1000, 1000],
+  },
+  {
+    amount: 2000,
+    caps: bindingCaps,
+    options: { canReceive: canReceiveBelowCap(bindingCaps) },
+    sampleTag: "a part at its cap receives no more",
+    weights: [500, 1000],
   },
   {
     amount: 7125000000000019,
@@ -152,7 +172,7 @@ export type SplitFact = TlaFact<typeof splitFields>;
 export const splitModel = (
   allocate: typeof largestRemainderAllocation = largestRemainderAllocation,
 ): SplitFact[] =>
-  CASES.map((sample) => {
+  splitCases.map((sample) => {
     const allocations = allocate(sample.weights, sample.amount, sample.options);
     const flags = flagsOf(
       sample.weights,
@@ -183,9 +203,17 @@ export const largestRemainderSplitModelData: ModelDataSource = async () =>
 
 /** The negative control: one running split whose parts do not conserve the
  *  amount. The checker must reject it, or the clean verdicts prove nothing. */
-export const corruptAllocationData: ModelDataSource = async () =>
-  largestRemainderSplitData(
-    splitModel().map((fact, index) =>
-      index === 3 ? { ...fact, conserved: false } : fact,
+export const corruptAllocationData: ModelDataSource = async () => {
+  const facts = splitModel();
+  const victimTag = "exact split with index tie-breaks";
+  if (!facts.some((fact) => fact.sampleTag === victimTag)) {
+    throw new Error(
+      `The split model holds no "${victimTag}" fact. There is no fact to corrupt.`,
+    );
+  }
+  return largestRemainderSplitData(
+    facts.map((fact) =>
+      fact.sampleTag === victimTag ? { ...fact, conserved: false } : fact,
     ),
   );
+};
