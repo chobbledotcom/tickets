@@ -20,6 +20,7 @@ import { authResponsePage, pageGuardFor } from "#routes/auth.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { formHandlerAt } from "#shared/app-forms.ts";
+import { encodedAfter } from "#shared/encoded-after.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { adminMigrateRebuildPaymentsPage } from "#templates/admin/migrate.tsx";
@@ -31,8 +32,7 @@ const REBUILD_PATH = "/admin/migrate/rebuild-payment-references";
 /** The form field one row's provider choice arrives in. The session id is
  * escaped so a reference that carries a `&` or `=` cannot read as another
  * row's field. */
-const providerField = (paymentSessionId: string): string =>
-  `provider_${encodeURIComponent(paymentSessionId)}`;
+const providerField = encodedAfter("provider_");
 
 /** The provider the owner stated for each row that needs one. Null when a
  * row is left unstated: the run then fails rather than guessing. */
