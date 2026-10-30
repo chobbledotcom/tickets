@@ -1,10 +1,10 @@
 import { unique } from "#fp";
 
-type TlaAtom = string | boolean;
+type TlaAtom = string | boolean | number;
 
 export type TlaRecord = Readonly<Record<string, TlaAtom>>;
-type TlaRecordSchema = Readonly<Record<string, "Str" | "Bool">>;
-type FieldValues = { Str: string; Bool: boolean };
+type TlaRecordSchema = Readonly<Record<string, "Str" | "Bool" | "Int">>;
+type FieldValues = { Str: string; Bool: boolean; Int: number };
 export type TlaFact<Schema extends TlaRecordSchema> = {
   readonly [Field in keyof Schema]: FieldValues[Schema[Field]];
 };
@@ -28,7 +28,9 @@ const atom = (value: TlaAtom): string =>
     ? value
       ? "TRUE"
       : "FALSE"
-    : JSON.stringify(value);
+    : typeof value === "number"
+      ? String(value)
+      : JSON.stringify(value);
 
 export const tlaSet = (values: readonly string[]): string =>
   `{${values.map(atom).join(", ")}}`;

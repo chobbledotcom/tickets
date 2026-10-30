@@ -8,6 +8,10 @@ import {
   duplicateBookingData,
 } from "#scripts/verify-models/booking.ts";
 import { counterexampleData } from "#scripts/verify-models/counterexample.ts";
+import {
+  corruptSplitData,
+  largestRemainderSplitModelData,
+} from "#scripts/verify-models/largest-remainder-split.ts";
 import { modelData, paymentModel } from "#scripts/verify-models/model.ts";
 import { reviewModelData } from "#scripts/verify-models/review.ts";
 import { squareModelData } from "#scripts/verify-models/square.ts";
@@ -20,6 +24,7 @@ const models = [
   { data: squareModelData, module: "SquareLinkEnd" },
   { data: sumupModelData, module: "SumupRecovery" },
   { data: reviewModelData, module: "PaymentReview" },
+  { data: largestRemainderSplitModelData, module: "LargestRemainderSplit" },
   { data: async () => modelData(await paymentModel()), module: "JointState" },
   { data: bookingReplayModelData, module: "BookingReplay" },
   { data: twoWorkersModelData, module: "TwoWorkers" },
@@ -116,6 +121,19 @@ await checkRejected(
   "BookingReplay",
   "refund after the temporary row was deleted",
   deletedRowRefundData,
+);
+// The LargestRemainderSplit proof must reject both failure modes it guards:
+// an award past a part's cap and accounting that strands an owed unit. A pass
+// on either would make the clean verdict worthless.
+console.log("Check LargestRemainderSplit: over-cap award counterexample.");
+await checkRejected("LargestRemainderSplit", "an award past a part's cap", () =>
+  corruptSplitData("cap guard"),
+);
+console.log("Check LargestRemainderSplit: stranded owed unit counterexample.");
+await checkRejected(
+  "LargestRemainderSplit",
+  "accounting that strands an owed unit",
+  () => corruptSplitData("unconserved accounting"),
 );
 await Deno.remove(work, { recursive: true });
 console.log(

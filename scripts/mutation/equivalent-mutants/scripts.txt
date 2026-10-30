@@ -136,3 +136,6 @@ scripts/bugs-lib.ts::getJson~0yt17y4  ?? → || audited:15tlsi9 # v.getDotPath r
 # anchor itself can hold a space, so a search that starts two characters
 # earlier finds the same first space.
 scripts/mutation/check-equivalents.ts::mutationOfKey~0u96moz  2 → 0 audited:1mflo87 # the :: and the anchor are space-free (escapePath and the anchor charset), so indexOf(" ", idx) and indexOf(" ", idx + 2) return the same position
+
+scripts/verify-models/largest-remainder-split.ts::eligibleFor~0l3q3lq  ?? → || audited:1tndw7c # the operand is a function or undefined; a function is truthy, so only undefined reaches the fallback
+scripts/verify-models/largest-remainder-split.ts::capOf~0seo0lv  ?? → || audited:1tndw7c # the operand is a number or undefined; 0 is falsy but falls back to 0, so both operators agree on every value
