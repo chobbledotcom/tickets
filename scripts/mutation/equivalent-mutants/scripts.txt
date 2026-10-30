@@ -166,3 +166,15 @@ scripts/verify-models/shared-group-capacity.ts::factFor.staticCap~00b11a1  ?? �
 
 scripts/verify-models/largest-remainder-split.ts::eligibleFor~0l3q3lq  ?? → || audited:1tndw7c # the operand is a function or undefined; a function is truthy, so only undefined reaches the fallback
 scripts/verify-models/largest-remainder-split.ts::capOf~0seo0lv  ?? → || audited:1tndw7c # the operand is a number or undefined; 0 is falsy but falls back to 0, so both operators agree on every value
+# scripts/verify-models/door-scan.ts: the generator's only output is the
+# derived fact set, so a mutant that leaves every fact unchanged is
+# equivalent for any consumer, including the checker.
+scripts/verify-models/door-scan.ts::rowOf.parentListingId~1ovo5b4  0 → 1 audited:01ged2e # the door decision never reads parentListingId; the generator's rows carry it only to fill the TokenEntry shape
+scripts/verify-models/door-scan.ts::representatives.id~1p9fg0x  1 → 0 audited:01ged2e # representative ids bind the scenario rows to the door scope from this one table, so any consistent renumbering derives the same facts, and facts carry listing names, not ids
+scripts/verify-models/door-scan.ts::representatives.id~1ofgmy0  2 → 0 audited:01ged2e # representative ids bind the scenario rows to the door scope from this one table, so any consistent renumbering derives the same facts, and facts carry listing names, not ids
+scripts/verify-models/door-scan.ts::partyRow.id~1ptenev  7 → 0 audited:01ged2e # attendee ids reach neither the decision nor the derived facts
+scripts/verify-models/door-scan.ts::guestRow.id~1mrj0s6  8 → 0 audited:01ged2e # attendee ids reach neither the decision nor the derived facts
+scripts/verify-models/door-scan.ts::admitFacts.id~1n1imh5  9 → 0 audited:01ged2e # attendee ids reach neither the decision nor the derived facts
+scripts/verify-models/door-scan.ts::admitFacts.quantity~0236789  1 → 0 audited:01ged2e # the pick of 2 caps the two-row unit at 2 whether the second row owes 1 or 0, so the derived fact stays (0, 2)
+scripts/verify-models/door-scan.ts::admitFacts~0hqvvy8@2  0 → 1 audited:01ged2e # without the box the scan admits the party row only, so whether the untouched guest row owes a place changes no fact
+scripts/verify-models/door-scan.ts::admitFacts.force~1kw3cci  true → false audited:01ged2e # a scan of an empty ticket names no rows forced or not, so both pool outcomes derive no facts

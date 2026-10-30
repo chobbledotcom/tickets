@@ -7,6 +7,11 @@ import {
   duplicateBookingData,
 } from "#scripts/verify-models/booking.ts";
 import { counterexampleData } from "#scripts/verify-models/counterexample.ts";
+import {
+  corruptDoorScanData,
+  refundedAdmissionDoorScanData,
+  takeBackDoorScanData,
+} from "#scripts/verify-models/door-scan.ts";
 import { corruptSplitData } from "#scripts/verify-models/largest-remainder-split.ts";
 import { MODELS } from "#scripts/verify-models/registry.ts";
 import {
@@ -23,6 +28,7 @@ const checks = [
   },
 ];
 const work = await makeScratchDir("machine-proofs-");
+const decoder = new TextDecoder();
 await Deno.copyFile(
   join(projectRoot, "verification/ModelRules.tla"),
   join(work, "ModelRules.tla"),
@@ -38,9 +44,14 @@ const runCheck = (module: string, init: string, length: number) =>
       `${module}.tla`,
     ],
     cwd: work,
-    stderr: "inherit",
-    stdout: "inherit",
-  }).output();
+    stderr: "piped",
+    stdout: "piped",
+  })
+    .output()
+    .then((result) => ({
+      output: `${decoder.decode(result.stdout)}${decoder.decode(result.stderr)}`,
+      success: result.success,
+    }));
 for (const model of MODELS) {
   await Deno.copyFile(
     join(projectRoot, `verification/${model.module}.tla`),
@@ -55,33 +66,14 @@ for (const model of MODELS) {
     const result = await runCheck(model.module, check.init, check.length);
     if (!result.success) {
       throw new Error(
-        `${model.module} proof failed. Read the counterexample in ${work}`,
+        `${model.module} proof failed. Read the counterexample in ${work}\n${result.output}`,
       );
     }
   }
 }
 
-// The checker must reject corrupt data. A pass here would make the clean
-// verdicts worthless.
-console.log("Check JointState: corrupted edge counterexample.");
-await Deno.copyFile(
-  join(projectRoot, "verification/JointState.tla"),
-  join(work, "JointState.tla"),
-);
-await Deno.writeTextFile(
-  join(work, "JointStateData.tla"),
-  await counterexampleData(),
-);
-const corrupted = await runCheck("JointState", "InductionStart", 1);
-if (corrupted.success) {
-  throw new Error(
-    "The checker accepted a corrupted edge. The safety verdict is not trusted.",
-  );
-}
-
-// The BookingReplay proof must reject both failure modes it rules out: a
-// duplicate booking and a refund that returns after the temporary row is
-// deleted. A pass on either would make the clean verdict worthless.
+// Every negative control must reject its corrupted data with a real
+// counterexample, not with a checker crash. A crash rejects nothing.
 const checkRejected = async (
   module: string,
   label: string,
@@ -100,7 +92,26 @@ const checkRejected = async (
       `The checker accepted a ${label}. The safety verdict is not trusted.`,
     );
   }
+  if (
+    !/violated/.test(result.output) ||
+    !/Check the trace in:/.test(result.output)
+  ) {
+    throw new Error(
+      `The checker reported no violated invariant and no trace for a corrupted ${label}. The run failed for another reason, and its verdict is not trusted.\n${result.output}`,
+    );
+  }
 };
+
+// The checker must reject corrupt data. A pass here would make the clean
+// verdicts worthless.
+console.log("Check JointState: corrupted edge counterexample.");
+await checkRejected(
+  "JointState",
+  "corrupted edge",
+  counterexampleData,
+  "InductionStart",
+  1,
+);
 console.log("Check BookingReplay: duplicate booking counterexample.");
 await checkRejected(
   "BookingReplay",
@@ -156,6 +167,35 @@ await checkRejected(
   "LargestRemainderSplit",
   "accounting that strands an owed unit",
   () => corruptSplitData("unconserved accounting"),
+  "InductionStart",
+  1,
+);
+
+// The DoorScan proof must reject an admission past the listing's quantity.
+// A pass would make the no-over-admission verdict worthless.
+console.log("Check DoorScan: over-admission counterexample.");
+await checkRejected(
+  "DoorScan",
+  "an admission past the listing's quantity",
+  corruptDoorScanData,
+  "InductionStart",
+  1,
+);
+// The DoorScan proof must reject a scan that takes a place back.
+console.log("Check DoorScan: take-back counterexample.");
+await checkRejected(
+  "DoorScan",
+  "a scan that takes a place back",
+  takeBackDoorScanData,
+  "InductionStart",
+  1,
+);
+// The DoorScan proof must reject the admission of a refunded row.
+console.log("Check DoorScan: refunded-row admission counterexample.");
+await checkRejected(
+  "DoorScan",
+  "an admitted refunded row",
+  refundedAdmissionDoorScanData,
   "InductionStart",
   1,
 );

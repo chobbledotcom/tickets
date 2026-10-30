@@ -197,16 +197,6 @@ describe("decideScan", () => {
     });
   });
 
-  test("the pick cannot exceed what the line still owes", () => {
-    const row = standard({ admitted: 2, quantity: 3 });
-    expect(scanAt([row], { count: 5 })).toEqual({
-      kind: "admit",
-      remaining: 0,
-      rows: [row],
-      units: [{ rows: [row], tickets: 1 }],
-    });
-  });
-
   test("under the box the pick applies to every listing, capped per listing", () => {
     const four = standard({ quantity: 4 });
     const two = society({ quantity: 2 });
