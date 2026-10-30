@@ -176,4 +176,27 @@ export type CarriesCall = Pick<WithGenericCall, "run">;
     assertArrayIncludes(paths, ['CarriesCall.run["()"].name.readByName']);
     assert(!paths.includes('CarriesCall.run["()"].value'));
   });
+
+  test("walks a repository-declared container as a shape, not a built-in", async () => {
+    // A repository `.d.ts` that merges a member into `Set` is repository
+    // code. Its `Set` is not the language's element container, so the
+    // carried value reports the repository's member, not the element.
+    const paths = pathsOf(
+      await fieldsOf(
+        `
+interface CarriedByAPick {
+  items: Set<{ insideAPickedSet: number }>;
+}
+
+export type CarriesCollections = Pick<CarriedByAPick, "items">;
+`,
+        { "globals.d.ts": "interface Set<T> { customField: number }\n" },
+      ),
+    );
+
+    expect(paths).toEqual([
+      "CarriesCollections.items",
+      "CarriesCollections.items.customField",
+    ]);
+  });
 });

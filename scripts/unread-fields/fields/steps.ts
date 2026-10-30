@@ -4,16 +4,24 @@
  * declarations that share a name two fields.
  */
 import ts from "typescript";
-import { answered } from "#scripts/unread-fields/host.ts";
+import {
+  answered,
+  declaredByTheLanguage,
+} from "#scripts/unread-fields/host.ts";
 import { quotedInBrackets } from "#scripts/unread-fields/writes.ts";
 import { type FieldName, fieldNameText, isFieldName } from "./names.ts";
 
-type TypeQuestion = (checker: ts.TypeChecker) => (node: ts.Node) => boolean;
+type TypeQuestion = (
+  checker: ts.TypeChecker,
+  root: string,
+) => (node: ts.Node) => boolean;
 
-/** Whether the language itself wrote a declaration down — in a declaration
- * file — rather than this repository. */
-const declaredByTheLanguage = (at: ts.Declaration): boolean =>
-  at.getSourceFile().isDeclarationFile;
+/** The checker, the root, and the node a step decision reads. */
+type StepFromNode<Result> = (
+  checker: ts.TypeChecker,
+  root: string,
+  node: ts.Node,
+) => Result;
 
 /** A built-in type this reference names, picked from a list. A type the
  * repository wrote itself under a borrowed name (`type Partial<T> = ...`)
@@ -22,7 +30,7 @@ const declaredByTheLanguage = (at: ts.Declaration): boolean =>
  * resolves to its symbol. */
 const builtInNamed =
   (names: ReadonlySet<string>): TypeQuestion =>
-  (checker) =>
+  (checker, root) =>
   (node) => {
     if (
       !ts.isTypeReferenceNode(node) ||
@@ -34,7 +42,9 @@ const builtInNamed =
     const symbol = checker.getSymbolAtLocation(node.typeName) as ts.Symbol;
     // A resolved built-in always carries the language's own declarations.
     const declarations = symbol.declarations as readonly ts.Declaration[];
-    return declarations.every(declaredByTheLanguage);
+    return declarations.every((declaration) =>
+      declaredByTheLanguage(root, declaration),
+    );
   };
 
 /** The generics a reader reaches one member at a time. `Array<Row>` and
@@ -72,17 +82,15 @@ const fixedKeysOf = (node: ts.TypeNode): FieldName[] | undefined => {
 /** The generics a reader reaches one member at a time, except a `Record`
  * keyed by fixed names. Each key names one member, reached as `record.fixed`,
  * so the element step does not apply. */
-export const holdsElements =
-  (checker: ts.TypeChecker): ((node: ts.Node) => boolean) =>
-  (node) => {
-    if (!anElementContainer(checker)(node)) return false;
-    if (!aRecord(checker)(node)) return true;
-    const reference = node as ts.TypeReferenceNode;
-    // An element container always writes its arguments down — the name
-    // does not typecheck without them.
-    const [first] = reference.typeArguments as unknown as [ts.TypeNode];
-    return fixedKeysOf(first) === undefined;
-  };
+export const holdsElements: TypeQuestion = (checker, root) => (node) => {
+  if (!anElementContainer(checker, root)(node)) return false;
+  if (!aRecord(checker, root)(node)) return true;
+  const reference = node as ts.TypeReferenceNode;
+  // An element container always writes its arguments down — the name
+  // does not typecheck without them.
+  const [first] = reference.typeArguments as unknown as [ts.TypeNode];
+  return fixedKeysOf(first) === undefined;
+};
 
 const anElementContainer = builtInNamed(ELEMENT_CONTAINERS);
 
@@ -101,11 +109,12 @@ interface FixedParts {
 
 /** The two nodes that declare a direct fixed mapping. A remapped type keeps
  * the index path because its source keys do not name its output members. */
-const fixedPartsOf = (
-  checker: ts.TypeChecker,
-  node: ts.Node,
-): FixedParts | undefined => {
-  if (aRecord(checker)(node)) {
+const fixedPartsOf: StepFromNode<FixedParts | undefined> = (
+  checker,
+  root,
+  node,
+) => {
+  if (aRecord(checker, root)(node)) {
     const reference = node as ts.TypeReferenceNode;
     const [keys, value] = reference.typeArguments as unknown as [
       ts.TypeNode,
@@ -122,24 +131,26 @@ const fixedPartsOf = (
 };
 
 /** The named members a direct fixed mapping writes down in its key node. */
-export const fixedMembers =
-  (checker: ts.TypeChecker): ((node: ts.Node) => FixedMember[] | undefined) =>
-  (node) => {
-    const parts = fixedPartsOf(checker, node);
-    if (!parts) return;
-    const { keys, value } = parts;
-    const names = fixedKeysOf(keys);
-    if (!names) return;
-    const type = checker.getTypeAtLocation(node);
-    return names.map((name) => ({
-      name,
-      symbol: answered(
-        checker.getPropertyOfType(type, fieldNameText(name)),
-        `property ${fieldNameText(name)} of a fixed mapping`,
-      ),
-      value,
-    }));
-  };
+export const fixedMembers: StepFromNode<FixedMember[] | undefined> = (
+  checker,
+  root,
+  node,
+) => {
+  const parts = fixedPartsOf(checker, root, node);
+  if (!parts) return;
+  const { keys, value } = parts;
+  const names = fixedKeysOf(keys);
+  if (!names) return;
+  const type = checker.getTypeAtLocation(node);
+  return names.map((name) => ({
+    name,
+    symbol: answered(
+      checker.getPropertyOfType(type, fieldNameText(name)),
+      `property ${fieldNameText(name)} of a fixed mapping`,
+    ),
+    value,
+  }));
+};
 
 /** The generics that hold two different kinds of thing at once. The key and
  * the value of a map are reached by two different calls, so a field of each
@@ -252,14 +263,15 @@ const arrivesThroughACall = (node: ts.ParameterDeclaration): boolean => {
  * reached by two different calls, `keys()` and `values()`, so the first
  * argument is the key's type. A reference that writes no arguments down has
  * none of either, and a map's name does not typecheck without its two. */
-const throughTheMap = (
-  checker: ts.TypeChecker,
-  node: ts.Node,
-): { way: string } | undefined => {
+const throughTheMap: StepFromNode<{ way: string } | undefined> = (
+  checker,
+  root,
+  node,
+) => {
   const { parent } = node;
   if (!ts.isTypeReferenceNode(parent)) return;
   const [key] = parent.typeArguments ?? [];
-  if (!holdsKeysAndValues(checker)(parent)) return;
+  if (!holdsKeysAndValues(checker, root)(parent)) return;
   return { way: node === key ? "keys()" : "values()" };
 };
 
@@ -325,13 +337,14 @@ const stepOfTheTuplePlace = (
 
 /** The final fallthrough step: a list's `[]`, or the way a reader reaches
  * through a member with a spelling in the table. */
-const fallThroughText = (
-  checker: ts.TypeChecker,
-  node: ts.Node,
-): string | undefined => {
+const fallThroughText: StepFromNode<string | undefined> = (
+  checker,
+  root,
+  node,
+) => {
   if (handsBackItsResult(node)) return ITS_RESULT;
-  if (fixedMembers(checker)(node) !== undefined) return;
-  return holdsElements(checker)(node)
+  if (fixedMembers(checker, root, node) !== undefined) return;
+  return holdsElements(checker, root)(node)
     ? ELEMENT
     : REACHED_THROUGH.get(node.kind);
 };
@@ -351,13 +364,13 @@ const fallThroughText = (
  * A setter is a step of its own name, because a setter is nobody's to read
  * but its input is everybody's to supply. */
 export const underAnUnnamedPart =
-  (checker: ts.TypeChecker): PathFromNode<readonly Step[]> =>
+  (checker: ts.TypeChecker, root: string): PathFromNode<readonly Step[]> =>
   (path, node) => {
     const written = stepsWrittenOnThePart(node);
     if (written) return [...path, ...written];
-    const throughMap = throughTheMap(checker, node);
+    const throughMap = throughTheMap(checker, root, node);
     if (throughMap) return [...path, throughMap];
-    const fallThrough = fallThroughText(checker, node);
+    const fallThrough = fallThroughText(checker, root, node);
     return fallThrough === undefined ? path : throughWay(fallThrough)(path);
   };
 

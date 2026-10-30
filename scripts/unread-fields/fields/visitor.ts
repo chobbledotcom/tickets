@@ -1,5 +1,5 @@
 import ts from "typescript";
-import { answered } from "#scripts/unread-fields/host.ts";
+import { answered, belongsToRepository } from "#scripts/unread-fields/host.ts";
 import {
   fieldNameOf,
   fieldPath,
@@ -43,17 +43,17 @@ const isTypeReference = (node: ts.Node): node is TypeReference =>
 const referenceNameOf = (node: TypeReference): ts.EntityName | ts.Expression =>
   ts.isTypeReferenceNode(node) ? node.typeName : node.expression;
 
-const shapesOf = (target: ts.Symbol): Shape[] =>
+const shapesOf = (target: ts.Symbol, root: string): Shape[] =>
   (target.declarations ?? []).filter(
     (declaration): declaration is Shape =>
-      !declaration.getSourceFile().isDeclarationFile && isShape(declaration),
+      belongsToRepository(root, declaration.getSourceFile().fileName) &&
+      isShape(declaration),
   );
 
 export const createFieldVisitor = (context: VisitContext): FieldVisitor => {
-  const { checker, isExportedTarget, remember } = context;
-  const partsOf = membersOf(checker);
-  const fixedMembersOf = fixedMembers(checker);
-  const stepOf = underAnUnnamedPart(checker);
+  const { checker, isExportedTarget, remember, root } = context;
+  const partsOf = membersOf(checker, root);
+  const stepOf = underAnUnnamedPart(checker, root);
 
   const enterField = (
     path: readonly Step[],
@@ -102,7 +102,7 @@ export const createFieldVisitor = (context: VisitContext): FieldVisitor => {
   };
 
   const visitFixed: TryVisitNode = (path, node, state) => {
-    const fixed = fixedMembersOf(node);
+    const fixed = fixedMembers(checker, root, node);
     if (fixed === undefined) return false;
     for (const member of fixed) {
       visit(
@@ -115,7 +115,7 @@ export const createFieldVisitor = (context: VisitContext): FieldVisitor => {
   };
 
   const visitAsyncResult: TryVisitNode = (path, node, state) => {
-    if (!holdsAnAsyncResult(checker)(node)) return false;
+    if (!holdsAnAsyncResult(checker, root)(node)) return false;
     const [result] = (node as ts.TypeReferenceNode).typeArguments ?? [];
     visit(
       throughResult(path),
@@ -171,7 +171,7 @@ export const createFieldVisitor = (context: VisitContext): FieldVisitor => {
     target: ts.Symbol,
     state: WalkState,
   ): boolean => {
-    const shapes = shapesOf(target);
+    const shapes = shapesOf(target, root);
     if (shapes.length === 0) return false;
     if (isBackEdge(node, target, state)) return true;
     const activeReferences = new Set(state.activeReferences).add(node);

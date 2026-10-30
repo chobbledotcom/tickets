@@ -20,11 +20,14 @@ import {
  * mistaken for them — keep its members. Every other generic puts its
  * argument somewhere of its own, so only the checker knows where it lives. */
 const keepsItsArgumentVisible =
-  (checker: ts.TypeChecker): ((node: ts.TypeReferenceNode) => boolean) =>
+  (
+    checker: ts.TypeChecker,
+    root: string,
+  ): ((node: ts.TypeReferenceNode) => boolean) =>
   (node) =>
-    holdsElements(checker)(node) ||
-    holdsKeysAndValues(checker)(node) ||
-    passesMembersThrough(checker)(node);
+    holdsElements(checker, root)(node) ||
+    holdsKeysAndValues(checker, root)(node) ||
+    passesMembersThrough(checker, root)(node);
 
 /** `keyof Row` names the words a shape's fields are called, not the fields. */
 const isKeyOf = (node: ts.Node): boolean =>
@@ -111,7 +114,7 @@ const partsOfTheConditional = (
  * shape's own ones do. A generic that puts its argument under a named member —
  * `Box<T> = { value: T }` — leaves the argument to the checker path. */
 const worthWalking =
-  (checker: ts.TypeChecker) =>
+  (checker: ts.TypeChecker, root: string) =>
   (node: ts.Node): ((part: ts.Node) => boolean) => {
     // `keyof { paid: number }` is the one word "paid", not a shape with a
     // field, so nothing under it is a field either. `readonly` is a type
@@ -122,7 +125,7 @@ const worthWalking =
     }
     if (
       ts.isTypeReferenceNode(node) &&
-      !keepsItsArgumentVisible(checker)(node)
+      !keepsItsArgumentVisible(checker, root)(node)
     ) {
       return partsOfTheGeneric(node);
     }
@@ -138,11 +141,11 @@ const worthWalking =
 
 /** The parts of a node the walk goes on through. */
 export const membersOf =
-  (checker: ts.TypeChecker): ((node: ts.Node) => ts.Node[]) =>
+  (checker: ts.TypeChecker, root: string): ((node: ts.Node) => ts.Node[]) =>
   (node: ts.Node): ts.Node[] => {
     const parts: ts.Node[] = [];
     ts.forEachChild(node, (child) => {
       parts.push(child);
     });
-    return filter(worthWalking(checker)(node))(parts);
+    return filter(worthWalking(checker, root)(node))(parts);
   };
