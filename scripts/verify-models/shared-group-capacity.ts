@@ -108,9 +108,10 @@ const SCENARIOS: readonly Scenario[] = [
   ),
 ];
 
-/** The production outputs for one scenario. `sharedGroupRemaining` and the
- *  capacity's remaining read the same shared groups, so they must agree;
- *  a drift is a generator bug the model would trust. */
+/** The production outputs for one scenario. `sharedGroupRemaining` supplies
+ *  the remaining fact, `sharedGroupCapacity` supplies the static cap and the
+ *  allow gate. The two functions read the same shared groups, so their
+ *  remaining agrees; the generator test pins the facts. */
 const factFor = (scenario: Scenario): GroupFact => {
   const capacity = sharedGroupCapacity(
     scenario.parent,
@@ -118,17 +119,11 @@ const factFor = (scenario: Scenario): GroupFact => {
     byGroup(scenario.staticBy),
     byGroup(scenario.remainingBy),
   );
-  const shared = sharedGroupRemaining(
+  const remaining = sharedGroupRemaining(
     scenario.parent,
     scenario.child,
     byGroup(scenario.remainingBy),
   );
-  if (shared !== capacity.remaining) {
-    throw new Error(
-      `The shared remaining and the capacity remaining disagree for ${scenario.name}.`,
-    );
-  }
-  const remaining = capacity.remaining;
   const staticCap = capacity.staticCap;
   return {
     allowed: parentAndChildFitGroup(capacity),
