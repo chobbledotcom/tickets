@@ -24,10 +24,10 @@ import {
 
 /** The two racing recoveries. The claim transaction lets only one capture
  *  the outstanding flags. */
-export const WORKERS = ["w1", "w2"] as const;
+const WORKERS = ["w1", "w2"] as const;
 
 /** The two flag sides one attendee's row carries. */
-export const SIDES = ["email", "webhooks"] as const;
+const SIDES = ["email", "webhooks"] as const;
 
 /** The representative attendee the model leases: an admin-added line whose
  *  email badge is orange and whose webhooks badge is red. The claim
@@ -40,7 +40,7 @@ export const REPRESENTATIVE = {
 
 /** One claim fact: the flags the claim read, which sides it captured, and
  *  which recovery claimed. */
-export const ClaimFactSchema = v.object({
+const ClaimFactSchema = v.object({
   beforeEmail: v.picklist([0, 1, 2] as const),
   beforeWebhooks: v.picklist([0, 1, 2] as const),
   claimsEmail: v.boolean(),
@@ -50,14 +50,14 @@ export const ClaimFactSchema = v.object({
 export type ClaimFact = v.InferOutput<typeof ClaimFactSchema>;
 
 /** One restore fact: the colours one restore returns for the two sides. */
-export const RestoreFactSchema = v.object({
+const RestoreFactSchema = v.object({
   emailValue: v.picklist([1, 2] as const),
   webhooksValue: v.picklist([1, 2] as const),
 });
 export type RestoreFact = v.InferOutput<typeof RestoreFactSchema>;
 
 /** One clear fact: the side a clear-on-accept zeroes. */
-export const ClearFactSchema = v.object({
+const ClearFactSchema = v.object({
   side: v.picklist(SIDES),
 });
 export type ClearFact = v.InferOutput<typeof ClearFactSchema>;
