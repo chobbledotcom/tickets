@@ -169,12 +169,14 @@ describe("attendee capacity checker data", () => {
     const lines = records(data, "LineFacts") as Fact[];
     const batches = records(data, "BatchFacts") as Fact[];
     // The later slot-one insert stays refused, but the batch claims to
-    // commit anyway, so the earlier slot-two line survives.
+    // commit anyway, so the earlier slot-two line survives alone: the
+    // refused line's places never land, and both slots stay inside their
+    // caps, so NoPartialCommit alone can reject the control.
     expect(lines).toContainEqual(
       line("partial-basis", false, "insert", "one", 2),
     );
     expect(batches).toContainEqual(
-      batch("partial-basis", true, 2, false, 4, 1),
+      batch("partial-basis", true, 1, false, 2, 1),
     );
     // The overfill batch stays refused, so only the intended control breaks.
     expect(batches).toContainEqual(

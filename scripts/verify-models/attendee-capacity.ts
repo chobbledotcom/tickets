@@ -33,9 +33,15 @@ type SlotName = keyof typeof SLOT_IDS;
 /** The attendee every scenario edits. */
 const ATTENDEE_ID = 7;
 
-/** One line of an attendee's edit: which slot it books, its quantity, and
- *  whether it names an existing row (false for a new line). */
-type Line = { quantity: number; slot: SlotName; existing: boolean };
+/** One line of an attendee's edit: which slot it books, its quantity, the
+ *  package path it books through (part of the slot's identity), and whether
+ *  it names an existing row (false for a new line). */
+type Line = {
+  existing: boolean;
+  path: 0 | 1;
+  quantity: number;
+  slot: SlotName;
+};
 
 /** One scenario: the slots' caps and current demand, the attendee's existing
  *  lines, and the desired final line set. */
@@ -47,15 +53,14 @@ type Scenario = {
   tag: string;
 };
 
-/** The canonical row key, read from the production key function. Every
- *  existing scenario row uses the same parent and package identity, so the
- *  key reduces to the slot. A new line carries the empty key production uses
- *  for a newly-added line, so it never collides with an existing row. */
+/** The canonical row key, read from the production key function, from the
+ *  row's slot and package path. A new line carries the empty key production
+ *  uses for a newly-added line, so it never collides with an existing row. */
 const rowKey = (row: Line): string =>
   row.existing
     ? lineKeyFromBooking({
         listing_id: SLOT_IDS[row.slot],
-        package_group_id: 0,
+        package_group_id: row.path,
         parent_listing_id: 0,
         start_at: null,
       } as ListingAttendeeRow)
@@ -108,10 +113,10 @@ const seededClient = async (scenario: Scenario): Promise<Client> => {
     for (const row of scenario.existing) {
       if (row.slot !== slot) continue;
       await client.execute({
-        args: [SLOT_IDS[slot], ATTENDEE_ID, row.quantity],
+        args: [SLOT_IDS[slot], ATTENDEE_ID, row.quantity, row.path],
         sql: `INSERT INTO listing_attendees
-              (listing_id, attendee_id, quantity)
-              VALUES (?, ?, ?)`,
+              (listing_id, attendee_id, quantity, package_group_id)
+              VALUES (?, ?, ?, ?)`,
       });
     }
   }
@@ -120,13 +125,14 @@ const seededClient = async (scenario: Scenario): Promise<Client> => {
 
 /** The production capacity decision for one line, run against the seeded
  *  slots. An update excludes the attendee's own rows; an insert counts them.
- *  A preserve or delete carries no capacity condition, so it always fits. */
+ *  A preserve carries no capacity condition, so it always fits. A delete is
+ *  a line's absence, so it never becomes a fact. */
 const fitsFor = async (
   client: Client,
   row: Line,
   kind: LineFact["kind"],
 ): Promise<boolean> => {
-  if (kind === "preserve" || kind === "delete") return true;
+  if (kind === "preserve") return true;
   const statement = numberedStatement(
     capacityConditionFor(
       {
@@ -199,12 +205,14 @@ const factsFor = async (
   }
 };
 
-/** One scenario row on a slot. */
-const line = (slot: SlotName, quantity: number, existing: boolean): Line => ({
-  existing,
-  quantity,
-  slot,
-});
+/** One scenario row on a slot. A second row on a slot books through a second
+ *  package path, so the two rows stay two booking slots. */
+const line = (
+  slot: SlotName,
+  quantity: number,
+  existing: boolean,
+  path: 0 | 1 = 0,
+): Line => ({ existing, path, quantity, slot });
 
 /** One scenario over the two representative slots. Every scenario edits the
  *  same two listings, so the caps are the fixed checker constants. */
@@ -239,8 +247,10 @@ const editingHeld = (
  *  that edit both slots. */
 const bothSlotsHeld = [line("one", 1, true), line("two", 1, true)];
 
-/** One row per scenario. The generator test pins the fact each row must
- *  produce, and its comments name what each row covers. */
+/** One row per scenario. Two lines on one slot take different package paths:
+ *  production reads two same-path lines on a slot as one duplicate slot and
+ *  refuses the edit before its batch. The generator test pins the fact each
+ *  row must produce, and its comments name what each row covers. */
 const SCENARIOS: readonly Scenario[] = [
   // A create: the attendee commits one new line on slot one.
   editingHeld("create", [], [line("one", 2, false)]),
@@ -255,15 +265,15 @@ const SCENARIOS: readonly Scenario[] = [
     [line("one", 1, true)],
     [line("one", 3, true)],
   ),
-  // An insert past the cap, beside an unchanged preserve. The refused insert
-  // rolls the whole batch back.
+  // An insert past the cap, beside an unchanged preserve. Nothing of the
+  // batch commits.
   editingHeld(
     "insert-refused",
     [line("one", 1, true)],
-    [line("one", 1, true), line("one", 3, false)],
+    [line("one", 1, true), line("one", 3, false, 1)],
   ),
   // An earlier fitting insert on slot two, then a later refused insert on
-  // slot one. The refusal must take the earlier line back with it.
+  // slot one. The refusal must refuse the whole batch, earlier line included.
   scenario(
     "partial-basis",
     { one: 2, two: 0 },
@@ -274,7 +284,7 @@ const SCENARIOS: readonly Scenario[] = [
   editingHeld("multi-line-commit", bothSlotsHeld, [
     line("one", 1, true),
     line("two", 2, true),
-    line("one", 1, false),
+    line("one", 1, false, 1),
   ]),
   // A removal: omitting a line deletes it, and deletes carry no capacity
   // condition.
@@ -349,12 +359,27 @@ export const overfillInsertData: ModelDataSource = async () => {
   return moduleFor({ batches, lines });
 };
 
-/** The negative control for a partial commit: the batch commits with a later
- *  refused line, so an earlier line survives. The checker must reject it. */
+/** The negative control for a partial commit: the batch claims the commit a
+ *  lost guard would leave. The refused insert is the batch's last line, so
+ *  only the earlier fitting line lands: the totals and line count shrink to
+ *  the survivor, and every slot stays inside its cap. NoPartialCommit alone
+ *  must reject it. */
 export const partialCommitData: ModelDataSource = async () => {
   const facts = await proofFacts();
-  const batches = facts.batches.map((batch) =>
-    batch.batch === PARTIAL_TAG ? { ...batch, commits: true } : batch,
-  );
+  const batches = facts.batches.map((batch) => {
+    if (batch.batch !== PARTIAL_TAG) return batch;
+    const lines = facts.lines.filter((fact) => fact.batch === batch.batch);
+    const refusedOn = (listing: LineFact["listing"]) =>
+      lines
+        .filter((fact) => !fact.fits && fact.listing === listing)
+        .reduce((total, fact) => total + fact.quantity, 0);
+    return {
+      ...batch,
+      commits: true,
+      lineCountAfter: lines.filter((fact) => fact.fits).length,
+      slot1AfterTotal: batch.slot1AfterTotal - refusedOn("one"),
+      slot2AfterTotal: batch.slot2AfterTotal - refusedOn("two"),
+    };
+  });
   return moduleFor({ batches, lines: facts.lines });
 };
