@@ -21,6 +21,7 @@ import { paymentErrorResponse } from "#routes/payment-response.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
+import { encodedAfter } from "#shared/encoded-after.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import { parsePriceProof, verifyPrice } from "#shared/payment-signature.ts";
 import {
@@ -80,8 +81,7 @@ const logUnreadableBooking = paymentSessionErrorLogger("booking");
 
 /** The return URL that names this session — where one click re-asks the
  * provider, and where the waiting page's timed reload goes. */
-const returnAgainHref = (sessionId: string): string =>
-  `/payment/success?session_id=${encodeURIComponent(sessionId)}`;
+const returnAgainHref = encodedAfter("/payment/success?session_id=");
 
 /** The reload count the return URL carries, held to a whole number within
  * the limit, so a forged `wait` value changes no other page fact. */

@@ -141,33 +141,31 @@ export const childNodeKey = (parentNodeKey: string, childId: number): string =>
 // Form field names — the single source of truth render and submit share
 // ---------------------------------------------------------------------------
 
+/** The form control's name for one kind and the ids that address it, joined
+ * by underscores (for example `child_qty_5_9`). */
+const fieldNameFor =
+  (kind: string) =>
+  (...ids: number[]): string =>
+    [kind, ...ids].join("_");
+
 /** The per-listing quantity control (`quantity_<id>`) — a standalone listing, a
  * multi-slug cart member, a regular group member, or a parent. */
-export const quantityFieldName = (listingId: number): string =>
-  `quantity_${listingId}`;
+export const quantityFieldName = fieldNameFor("quantity");
 
 /** The pay-what-you-want price control for a top-level listing
  * (`custom_price_<id>`). */
-export const customPriceFieldName = (listingId: number): string =>
-  `custom_price_${listingId}`;
+export const customPriceFieldName = fieldNameFor("custom_price");
 
 /** One child's per-unit quantity control (`child_qty_<parentId>_<childId>`). */
-export const childQuantityFieldName = (
-  parentId: number,
-  childId: number,
-): string => `child_qty_${parentId}_${childId}`;
+export const childQuantityFieldName = fieldNameFor("child_qty");
 
 /** One child's pay-what-you-want price control
  * (`child_price_<parentId>_<childId>`). */
-export const childPriceFieldName = (
-  parentId: number,
-  childId: number,
-): string => `child_price_${parentId}_${childId}`;
+export const childPriceFieldName = fieldNameFor("child_price");
 
 /** One package's "number of packages" control (`package_quantity_<groupId>`).
  * Per group, so a page selling several bundles posts one count each. */
-export const packageQuantityFieldName = (groupId: number): string =>
-  `package_quantity_${groupId}`;
+export const packageQuantityFieldName = fieldNameFor("package_quantity");
 
 /** A node's per-package fixed quantity: a `FIXED` (package member) node carries
  * it; any other rule contributes 1 (a buyer-chosen node counts once per unit). */
