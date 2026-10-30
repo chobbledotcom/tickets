@@ -105,7 +105,13 @@ const checkRejected = async (
 // The checker must reject corrupt data. A pass here would make the clean
 // verdicts worthless.
 console.log("Check JointState: corrupted edge counterexample.");
-await checkRejected("JointState", "corrupted edge", counterexampleData);
+await checkRejected(
+  "JointState",
+  "corrupted edge",
+  counterexampleData,
+  "InductionStart",
+  1,
+);
 console.log("Check BookingReplay: duplicate booking counterexample.");
 await checkRejected(
   "BookingReplay",
@@ -172,6 +178,8 @@ await checkRejected(
   "DoorScan",
   "an admission past the listing's quantity",
   corruptDoorScanData,
+  "InductionStart",
+  1,
 );
 // The DoorScan proof must reject a scan that takes a place back.
 console.log("Check DoorScan: take-back counterexample.");
@@ -179,6 +187,8 @@ await checkRejected(
   "DoorScan",
   "a scan that takes a place back",
   takeBackDoorScanData,
+  "InductionStart",
+  1,
 );
 // The DoorScan proof must reject the admission of a refunded row.
 console.log("Check DoorScan: refunded-row admission counterexample.");
@@ -186,6 +196,8 @@ await checkRejected(
   "DoorScan",
   "an admitted refunded row",
   refundedAdmissionDoorScanData,
+  "InductionStart",
+  1,
 );
 await Deno.remove(work, { recursive: true });
 console.log(
