@@ -10,6 +10,10 @@ import {
 import { counterexampleData } from "#scripts/verify-models/counterexample.ts";
 import { modelData, paymentModel } from "#scripts/verify-models/model.ts";
 import { reviewModelData } from "#scripts/verify-models/review.ts";
+import {
+  overfillCapacityData,
+  sharedGroupCapacityModelData,
+} from "#scripts/verify-models/shared-group-capacity.ts";
 import { squareModelData } from "#scripts/verify-models/square.ts";
 import { sumupModelData } from "#scripts/verify-models/sumup.ts";
 import { twoWorkersModelData } from "#scripts/verify-models/two-workers.ts";
@@ -23,6 +27,7 @@ const models = [
   { data: async () => modelData(await paymentModel()), module: "JointState" },
   { data: bookingReplayModelData, module: "BookingReplay" },
   { data: twoWorkersModelData, module: "TwoWorkers" },
+  { data: sharedGroupCapacityModelData, module: "SharedGroupCapacity" },
 ];
 const checks = [
   { init: "Init", length: 0, name: "initial state" },
@@ -117,6 +122,25 @@ await checkRejected(
   "refund after the temporary row was deleted",
   deletedRowRefundData,
 );
+
+// The SharedGroupCapacity proof must reject an overfill: the fit function
+// overreports the whole orders a real pool holds. A pass would make the
+// clean verdict worthless.
+console.log("Check SharedGroupCapacity: overfill counterexample.");
+await Deno.copyFile(
+  join(projectRoot, "verification/SharedGroupCapacity.tla"),
+  join(work, "SharedGroupCapacity.tla"),
+);
+await Deno.writeTextFile(
+  join(work, "SharedGroupCapacityData.tla"),
+  await overfillCapacityData(),
+);
+const overfill = await runCheck("SharedGroupCapacity", "Init", 0);
+if (overfill.success) {
+  throw new Error(
+    "The checker accepted an overfill. The safety verdict is not trusted.",
+  );
+}
 await Deno.remove(work, { recursive: true });
 console.log(
   "All machine safety checks passed the initial state and inductive step.",

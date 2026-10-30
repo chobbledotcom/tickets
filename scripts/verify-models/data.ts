@@ -23,6 +23,13 @@ export const attemptFields = {
 
 export type ModelDataSource = () => Promise<string>;
 
+/** A data source that builds one fixed data module. Every model generator
+ *  uses it, so no generator re-declares the curried factory. */
+export const modelDataFor =
+  (moduleFor: () => string): ModelDataSource =>
+  async () =>
+    moduleFor();
+
 const atom = (value: TlaAtom): string =>
   typeof value === "boolean"
     ? value
