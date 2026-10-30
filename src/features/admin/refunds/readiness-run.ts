@@ -9,6 +9,7 @@ import {
   type RefundBudgetAudience,
   type RefundReadinessAction,
   type RefundReadinessBudget,
+  type RefundReadinessBudgetCheckpoint,
   refundReadinessFits,
 } from "./budget.ts";
 import { loadedRefundAttendee, type RefundCandidate } from "./candidates.ts";
@@ -188,21 +189,25 @@ const refuseForBudget = <TResult>(
   return run.notReady(message, "subrequest_budget");
 };
 
+/** The budget refusal when the remaining allowance cannot carry this
+ * checkpoint's work, or null when it fits. */
+const budgetRefusal = <TResult>(
+  run: RefundReadinessRun<TResult>,
+  candidates: LoadedRefundAttendee[],
+  checkpoint: RefundReadinessBudgetCheckpoint,
+  returned: ReadonlySet<string>,
+): TResult | null =>
+  budgetFits({ action: run.action, candidates, checkpoint, returned })
+    ? null
+    : refuseForBudget(run);
+
 /** Claim the exact loaded rows, establish provider readiness, then run them. */
 export const runRefundReadiness = async <TResult>(
   run: RefundReadinessRun<TResult>,
 ): Promise<TResult | BlockedRefundRun> => {
   const loaded = loadedBudgetCandidates(run.candidates);
-  if (
-    !budgetFits({
-      action: run.action,
-      candidates: loaded,
-      checkpoint: "before_claim",
-      returned: new Set(),
-    })
-  ) {
-    return refuseForBudget(run);
-  }
+  const claimRefusal = budgetRefusal(run, loaded, "before_claim", new Set());
+  if (claimRefusal !== null) return claimRefusal;
   return await underAttendeeClaim(run.claim, loaded, run.listingId, {
     admissionRefused: () => refuseForBudget(run),
     admit: ({ attendees, returned }) =>
@@ -216,12 +221,12 @@ export const runRefundReadiness = async <TResult>(
       if (block.kind === "claim_held") {
         return { kind: "blocked", reason: "refund_in_progress" };
       }
-      if (block.kind === "too_many_reference_holders") {
-        reportCandidateProblems(run, run.candidates, block.kind);
-        return run.notReady(t("error.payment_reference_holders_too_large"));
-      }
+      const message =
+        block.kind === "too_many_reference_holders"
+          ? t("error.payment_reference_holders_too_large")
+          : run.changedMessage;
       reportCandidateProblems(run, run.candidates, block.kind);
-      return run.notReady(run.changedMessage);
+      return run.notReady(message);
     },
     work: async (held) => {
       reconcileSharedReferences(held);
@@ -233,16 +238,13 @@ export const runRefundReadiness = async <TResult>(
         reportCandidateProblems(run, run.candidates, admissionProblem.reason);
         return run.notReady(admissionProblem.message);
       }
-      if (
-        !budgetFits({
-          action: run.action,
-          candidates: loaded,
-          checkpoint: "before_provider_read",
-          returned: held.alreadyReturned,
-        })
-      ) {
-        return refuseForBudget(run);
-      }
+      const providerRefusal = budgetRefusal(
+        run,
+        loaded,
+        "before_provider_read",
+        held.alreadyReturned,
+      );
+      if (providerRefusal !== null) return providerRefusal;
       const readiness = await run.prepare(
         run.candidates,
         held.claim,

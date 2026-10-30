@@ -32,6 +32,7 @@ import {
   type SqlStatement,
 } from "#db/client.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
+import { unique } from "#fp";
 import type { AttendeeUpdateFailureReason } from "#shared/attendee-failures.ts";
 
 /**
@@ -99,6 +100,11 @@ export type ExistingLine = {
   key: string;
   booking: ListingAttendeeRow;
 };
+
+/** The distinct listing ids an attendee's existing lines book, in line order. */
+export const existingListingIds = (
+  existing: readonly ExistingLine[],
+): number[] => unique(existing.map((line) => line.booking.listing_id));
 
 export type AttendeeEditWork = {
   before: SqlStatement[];

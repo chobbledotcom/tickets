@@ -7,7 +7,6 @@ import {
   onUsersInvalidated,
 } from "#db/users.ts";
 import { lazyRef, range, ttlCache } from "#fp";
-import { escapeHtml } from "#jsx/escape-html.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import type { EmailConfig } from "#shared/email.ts";
 import { sendEmailOk } from "#shared/email-ok.ts";
@@ -20,6 +19,7 @@ import {
   parseEmail,
   type ValidEmail,
 } from "#shared/validation/email.ts";
+import { escapeHtmlApostrophes } from "#shared/xml.ts";
 import { validateUsername } from "#templates/fields/validators.ts";
 import type { SuperuserChoice } from "#types";
 
@@ -184,8 +184,7 @@ export const createActivatedSuperuser = async (opts: {
 };
 
 /** Escape HTML special characters for safe email HTML bodies */
-const escapeHtmlEmail = (text: string): string =>
-  escapeHtml(text).replace(/'/g, "&#39;");
+const escapeHtmlEmail = escapeHtmlApostrophes("&#39;");
 
 /** Send the superuser credentials email. Returns true on 2xx status. */
 export const sendSuperuserCredentialsEmail = async (

@@ -141,15 +141,14 @@ const buildStats = async (
       };
     }
     case "listing":
-      return {
-        heading: scope.name,
-        rows: listingMoneyRows(await listingMoneyTotals(range, [scope.id])),
-      };
     case "group":
       return {
         heading: scope.name,
         rows: listingMoneyRows(
-          await listingMoneyTotals(range, groupListingIds),
+          await listingMoneyTotals(
+            range,
+            scope.kind === "listing" ? [scope.id] : groupListingIds,
+          ),
         ),
       };
   }

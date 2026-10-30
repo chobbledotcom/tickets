@@ -29,21 +29,26 @@ const SCHEMA_MARKERS = [
   [DB_SCHEMA_HASH_KEY, SCHEMA_HASH],
 ] as const;
 
-export const schemaMarkerStatements = (): SqlStatement[] =>
-  SCHEMA_MARKERS.map(([key, value]) => ({
+const buildSchemaMarkerStatements =
+  (build: (key: string, value: string) => SqlStatement) => (): SqlStatement[] =>
+    SCHEMA_MARKERS.map(([key, value]) => build(key, value));
+
+export const schemaMarkerStatements = buildSchemaMarkerStatements(
+  (key, value) => ({
     args: [value],
     sql: `INSERT OR REPLACE INTO settings (key, value) VALUES ('${key}', ?)`,
-  }));
+  }),
+);
 
 /** The same schema markers, written only while this request holds the lock. */
 const ownedSchemaMarkerStatements = (lockToken: string): SqlStatement[] =>
-  SCHEMA_MARKERS.map(([key, value]) =>
+  buildSchemaMarkerStatements((key, value) =>
     whileMigrationLockOwned(
       "INSERT OR REPLACE INTO settings (key, value) SELECT ?, ?",
       [key, value],
       lockToken,
     ),
-  );
+  )();
 
 export const writeSchemaMarkers = async (): Promise<void> => {
   await executeBatch(schemaMarkerStatements());
