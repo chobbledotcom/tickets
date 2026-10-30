@@ -3,6 +3,10 @@ import { join } from "node:path";
 import { projectRoot } from "#scripts/project-root.ts";
 import { makeScratchDir } from "#scripts/scratch.ts";
 import {
+  overfillInsertData,
+  partialCommitData,
+} from "#scripts/verify-models/attendee-capacity.ts";
+import {
   deletedRowRefundData,
   duplicateBookingData,
 } from "#scripts/verify-models/booking.ts";
@@ -148,6 +152,26 @@ await checkRejected(
   "SharedGroupCapacity",
   "date-less sold-out pair",
   dateLessSoldOutPairData,
+  "Init",
+  0,
+);
+// The AttendeeCapacity proof must reject both failure modes it rules out:
+// an insert past the slot's quantity and a partial commit that leaves an
+// earlier line when a later line is refused. A pass on either would make
+// the clean verdict worthless.
+console.log("Check AttendeeCapacity: overfill insert counterexample.");
+await checkRejected(
+  "AttendeeCapacity",
+  "an insert past the slot's quantity",
+  overfillInsertData,
+  "Init",
+  0,
+);
+console.log("Check AttendeeCapacity: partial commit counterexample.");
+await checkRejected(
+  "AttendeeCapacity",
+  "an earlier line surviving a later refused line",
+  partialCommitData,
   "Init",
   0,
 );
