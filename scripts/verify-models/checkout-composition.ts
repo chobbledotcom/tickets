@@ -16,6 +16,7 @@ import {
 import { feeSubtotalFor } from "#shared/booking-fee.ts";
 import {
   allocateDiscount,
+  type ModifierApplication,
   priceCheckout,
   ticketPaymentBreakdown,
 } from "#shared/checkout-pricing.ts";
@@ -28,7 +29,9 @@ import { modifierDelta } from "#shared/price-modifier.ts";
 /* jscpd:ignore-end */
 
 /** One order's final facts for the checker: the composition totals and the
- *  fee basis. */
+ *  fee basis. `subtotal` is the generator's own composition result;
+ *  `feeSubtotal` is the basis production recorded, so the checker sees a
+ *  fee charged on any other subtotal. */
 export const orderFields = {
   baseLineTotal: "Int",
   extraTotal: "Int",
@@ -42,10 +45,10 @@ export const orderFields = {
   total: "Int",
 } as const;
 
-/** One modifier pass's facts. `scopedSubtotal` is the base production read;
- *  `origSubtotal` is the same pre-modifier base, so the checker sees any
- *  compounding. `currentSubtotal` is the in-scope price sum the discount
- *  clamps against. */
+/** One modifier pass's facts. `scopedSubtotal` is the base production
+ *  recorded on the application; `origSubtotal` is the pre-modifier base the
+ *  generator derives itself, so the checker sees any compounding.
+ *  `currentSubtotal` is the in-scope price sum the discount clamps against. */
 export const passFields = {
   currentSubtotal: "Int",
   kind: "Str",
@@ -204,6 +207,7 @@ const intentFor = (
 const applyPass = (
   work: readonly WorkUnit[],
   spec: ModifierSpec,
+  application: ModifierApplication,
   orderTag: string,
   passIndex: number,
 ): {
@@ -213,8 +217,8 @@ const applyPass = (
   work: readonly WorkUnit[];
 } => {
   const scoped = work.filter((unit) => inScope(spec, unit));
-  const scopedSubtotal = sum(scoped.map((unit) => unit.orig));
-  const delta = modifierDelta(scopedSubtotal, spec.kind, spec.value);
+  const baseSubtotal = sum(scoped.map((unit) => unit.orig));
+  const delta = modifierDelta(baseSubtotal, spec.kind, spec.value);
   const kind = delta > 0 ? "add" : delta < 0 ? "reduce" : "zero";
   const requested = kind === "reduce" ? -delta * spec.quantity : 0;
   const currentSubtotal = sum(scoped.map((unit) => unit.price));
@@ -241,11 +245,11 @@ const applyPass = (
         currentSubtotal,
         kind,
         orderTag,
-        origSubtotal: scopedSubtotal,
+        origSubtotal: baseSubtotal,
         passIndex,
         removed,
         requested,
-        scopedSubtotal,
+        scopedSubtotal: application.scopedSubtotal,
       },
       units,
       work: work.map((unit) =>
@@ -259,11 +263,11 @@ const applyPass = (
       currentSubtotal,
       kind,
       orderTag,
-      origSubtotal: scopedSubtotal,
+      origSubtotal: baseSubtotal,
       passIndex,
       removed: 0,
       requested,
-      scopedSubtotal,
+      scopedSubtotal: application.scopedSubtotal,
     },
     units: [],
     work,
@@ -281,7 +285,14 @@ const factsFor = (scenario: Scenario): CompositionFacts => {
   let addExtraTotal = 0;
   let removedTotal = 0;
   for (const [index, spec] of scenario.modifiers.entries()) {
-    const applied = applyPass(work, spec, scenario.sampleTag, index + 1);
+    // Production records one application per spec, in spec order.
+    const applied = applyPass(
+      work,
+      spec,
+      order.modifierApplications[index]!,
+      scenario.sampleTag,
+      index + 1,
+    );
     passes.push(applied.passFact);
     units.push(...applied.units);
     work = applied.work;
@@ -289,7 +300,12 @@ const factsFor = (scenario: Scenario): CompositionFacts => {
     removedTotal += applied.passFact.removed;
   }
   const fees = order.extras.filter((extra) => extra.key === "fee");
-  const fullSubtotal = feeSubtotalFor(intent) + addExtraTotal - removedTotal;
+  const subtotal = feeSubtotalFor(intent) + addExtraTotal - removedTotal;
+  // The fee basis production itself recorded: the configured fee subtotal
+  // plus the net change its own applications report.
+  const feeBasis =
+    feeSubtotalFor(intent) +
+    sum(order.modifierApplications.map((application) => application.delta));
   return {
     orderFacts: [
       {
@@ -300,14 +316,14 @@ const factsFor = (scenario: Scenario): CompositionFacts => {
           order.extras.map((extra) => extra.amount * extra.quantity),
         ),
         feeCount: fees.length,
-        feeSubtotal: fullSubtotal,
+        feeSubtotal: feeBasis,
         lineTotal: sum(
           order.lines.map((line) => line.chargedUnitAmount * line.quantity),
         ),
         numPasses: scenario.modifiers.length,
         orderTag: scenario.sampleTag,
         remainingBalance: ticketPaymentBreakdown(intent).remainingBalance,
-        subtotal: fullSubtotal,
+        subtotal,
         total: order.total,
       },
     ],

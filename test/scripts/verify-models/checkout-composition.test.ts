@@ -213,7 +213,7 @@ describe("checkout composition proof data", () => {
     }
   });
 
-  test("the modifier applications agree with the derived passes", () => {
+  test("every pass carries production's recorded base and its own pre-modifier base", () => {
     for (const scenario of SCENARIOS) {
       const applications = applyModifiers(
         scenario.items.map((item) => ({
@@ -224,13 +224,16 @@ describe("checkout composition proof data", () => {
         [...scenario.modifiers],
       ).applications;
       const passes = passFactsOf(scenario.sampleTag);
-      expect(
+      expect(passes.map((passFact) => passFact.scopedSubtotal)).toEqual(
         applications.map((application) => application.scopedSubtotal),
-      ).toEqual(passes.map((passFact) => passFact.scopedSubtotal));
+      );
+      expect(passes.map((passFact) => passFact.origSubtotal)).toEqual(
+        applications.map((application) => application.scopedSubtotal),
+      );
     }
   });
 
-  test("the derived subtotal agrees with the production fee basis", () => {
+  test("the recorded fee basis agrees with the derived subtotal", () => {
     for (const scenario of SCENARIOS) {
       const orderFact = facts.orderFacts.find(
         (candidate) => candidate.orderTag === scenario.sampleTag,
@@ -246,6 +249,7 @@ describe("checkout composition proof data", () => {
       expect(orderFact.subtotal).toBe(
         feeSubtotalFor({ items: scenario.items }) + productionModifierTotal,
       );
+      expect(orderFact.feeSubtotal).toBe(orderFact.subtotal);
     }
   });
 
