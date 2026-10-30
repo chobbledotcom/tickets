@@ -15,7 +15,7 @@ import { encrypt } from "#crypto/encryption.ts";
 import { executeWithoutCacheInvalidation } from "#db/client.ts";
 import { boolUpdate, rawUpdate } from "#db/settings/accessors.ts";
 import { keyModeOf } from "#db/settings/constants.ts";
-import { withProperties } from "#db/settings/namespace.ts";
+import { isSet, snapGetters, withProperties } from "#db/settings/namespace.ts";
 import {
   deleteRaw,
   encryptedUpdate,
@@ -32,14 +32,6 @@ import {
   PaymentProviderSettingSchema,
   type PaymentProviderType,
 } from "#types";
-
-/** The credential getter shared by Stripe and SumUp: whether a secret key is
- * set. `keyName` is the setting the provider's secret is stored under. */
-const providerKeyStatus = (keyName: "stripe_secret_key" | "sumup_api_key") => ({
-  get hasKey(): boolean {
-    return snap(keyName) !== "";
-  },
-});
 
 /** Stripe alone names a key's mode by its prefix. A SumUp key starts `sup_sk_`
  * whichever account it belongs to, so only Stripe carries a `keyMode` getter. */
@@ -227,72 +219,48 @@ const changePaymentProvider = async (
 };
 
 /** Sync reads — which provider is live, and what each one has stored. */
-const getters = {
-  /** Keeps existing-payment work available while new sales are off. */
-  get lastActivePaymentProvider(): PaymentProviderType | null {
-    const value = snap("last_active_payment_provider");
-    if (value === "") return null;
-    if (isPaymentProvider(value)) return value;
-    throw new Error(`Invalid last_active_payment_provider setting: ${value}`);
-  },
-  get paymentProvider(): PaymentProviderType | null {
-    return snap("payment_provider");
-  },
-  get paymentProviderSetting(): PaymentProviderSetting | null {
-    return snap("payment_provider_setting");
-  },
+const getters = withProperties(
+  snapGetters({
+    paymentProvider: "payment_provider",
+    paymentProviderSetting: "payment_provider_setting",
+  }),
+  {
+    /** Keeps existing-payment work available while new sales are off. */
+    get lastActivePaymentProvider(): PaymentProviderType | null {
+      const value = snap("last_active_payment_provider");
+      if (value === "") return null;
+      if (isPaymentProvider(value)) return value;
+      throw new Error(`Invalid last_active_payment_provider setting: ${value}`);
+    },
 
-  // --- Square ---
-  square: {
-    get accessToken(): string {
-      return snap("square_access_token");
-    },
-    get hasToken(): boolean {
-      return snap("square_access_token") !== "";
-    },
-    get locationId(): string {
-      return snap("square_location_id");
-    },
-    get sandbox(): boolean {
-      return snap("square_sandbox");
-    },
-    get webhookSignatureKey(): string {
-      return snap("square_webhook_signature_key");
-    },
-  },
+    // --- Square ---
+    square: snapGetters({
+      accessToken: "square_access_token",
+      hasToken: isSet("square_access_token"),
+      locationId: "square_location_id",
+      sandbox: "square_sandbox",
+      webhookSignatureKey: "square_webhook_signature_key",
+    }),
 
-  // --- Stripe ---
-  stripe: withProperties(
-    withProperties(
-      {
-        get secretKey(): string {
-          return snap("stripe_secret_key");
-        },
-        get webhookEndpointId(): string {
-          return snap("stripe_webhook_endpoint_id");
-        },
-        get webhookSecret(): string {
-          return snap("stripe_webhook_secret");
-        },
-      },
-      providerKeyStatus("stripe_secret_key"),
+    // --- Stripe ---
+    stripe: withProperties(
+      snapGetters({
+        hasKey: isSet("stripe_secret_key"),
+        secretKey: "stripe_secret_key",
+        webhookEndpointId: "stripe_webhook_endpoint_id",
+        webhookSecret: "stripe_webhook_secret",
+      }),
+      stripeKeyMode,
     ),
-    stripeKeyMode,
-  ),
 
-  // --- SumUp ---
-  sumup: withProperties(
-    {
-      get apiKey(): string {
-        return snap("sumup_api_key");
-      },
-      get merchantCode(): string {
-        return snap("sumup_merchant_code");
-      },
-    },
-    providerKeyStatus("sumup_api_key"),
-  ),
-};
+    // --- SumUp ---
+    sumup: snapGetters({
+      apiKey: "sumup_api_key",
+      hasKey: isSet("sumup_api_key"),
+      merchantCode: "sumup_merchant_code",
+    }),
+  },
+);
 
 /** The provider choice written by one named background action. */
 const changeTo =
