@@ -5,7 +5,9 @@ import { escapeHtml } from "#jsx/escape-html.ts";
 export const escapeHtmlApostrophes =
   (apostrophe: string) =>
   (text: string): string =>
-    escapeHtml(text).replace(/'/g, apostrophe);
+    // A function replacement: a string replacement turns a `$` in the token
+    // into a match reference.
+    escapeHtml(text).replace(/'/g, () => apostrophe);
 
 /** Escape text for XML (extends HTML escaping with apostrophe). */
 export const escapeXml = escapeHtmlApostrophes("&apos;");
