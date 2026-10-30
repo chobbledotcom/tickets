@@ -140,6 +140,12 @@ These checks serve different purposes.
     oracles derive every fact from the raw weights. The checker must also
     reject an award past a part's cap and accounting that strands an owed
     unit.
+  - `verification/DoorScan.tla` checks the door scan admission machine. A
+    scan never admits a listing past the places its rows still owe, never
+    takes a place back, and never admits a refunded, no-check-in or
+    unverified non-transferable row. The production decision function
+    supplies every admission fact. The check corrupts one over-pick past the
+    listing's quantity, and the checker must report a counterexample.
   The models trust representative coverage and event annotations.
   The Square model also trusts the configured provider lifetime. Claim
   admission remains a model assumption. Mirror tests and database tests check

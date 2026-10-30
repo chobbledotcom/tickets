@@ -7,6 +7,7 @@ import {
   duplicateBookingData,
 } from "#scripts/verify-models/booking.ts";
 import { counterexampleData } from "#scripts/verify-models/counterexample.ts";
+import { corruptDoorScanData } from "#scripts/verify-models/door-scan.ts";
 import { corruptSplitData } from "#scripts/verify-models/largest-remainder-split.ts";
 import { MODELS } from "#scripts/verify-models/registry.ts";
 import {
@@ -158,6 +159,15 @@ await checkRejected(
   () => corruptSplitData("unconserved accounting"),
   "InductionStart",
   1,
+);
+
+// The DoorScan proof must reject an admission past the listing's quantity.
+// A pass would make the no-over-admission verdict worthless.
+console.log("Check DoorScan: over-admission counterexample.");
+await checkRejected(
+  "DoorScan",
+  "an admission past the listing's quantity",
+  corruptDoorScanData,
 );
 await Deno.remove(work, { recursive: true });
 console.log(
