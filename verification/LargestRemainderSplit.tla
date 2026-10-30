@@ -15,7 +15,7 @@ EXTENDS Integers, FiniteSets, LargestRemainderSplitData
 
 \* The widest case the facts may carry. A part index past this width breaks
 \* TypeOK in the award step, so the clean check fails until the width grows.
-MaxParts == 5
+MaxParts == 6
 
 VARIABLES
   \* @type: Str;

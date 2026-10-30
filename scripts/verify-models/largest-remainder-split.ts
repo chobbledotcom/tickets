@@ -21,6 +21,12 @@ const unitPriceCaps = [1000, 1000, 1000] as const;
  *  turn the bump away, and the other part fills to its exact cap. */
 const bindingCaps = [666, 1334] as const;
 
+/** The reservation deposit case: the caller allocates a deposit across price
+ *  tiers by capacity, and a part may receive only while its floor sits below
+ *  its own capacity. The tie-break keeps the caller's original order. */
+const reservationCapacities = [4, 1, 1] as const;
+const reservationOriginalIndexes = [2, 0, 1] as const;
+
 /** A part whose floor sits below its cap can receive one more unit. */
 const canReceiveBelowCap =
   (caps: readonly number[]) =>
@@ -103,6 +109,22 @@ export const splitCases: readonly SplitCase[] = [
     options: { canReceive: canReceiveBelowCap(bindingCaps) },
     sampleTag: "a part at its cap receives no more",
     weights: [500, 1000],
+  },
+  {
+    amount: 5,
+    caps: undefined,
+    options: {
+      canReceive: (index, floor) => floor < reservationCapacities[index]!,
+      tieBreaker: (index) => reservationOriginalIndexes[index]!,
+    },
+    sampleTag: "reservation deposit across capacities",
+    weights: [...reservationCapacities],
+  },
+  {
+    amount: 267,
+    caps: undefined,
+    sampleTag: "tax across lines and modifiers",
+    weights: [1200, 800, 450, 150, 75, 25],
   },
   {
     amount: 7125000000000019,

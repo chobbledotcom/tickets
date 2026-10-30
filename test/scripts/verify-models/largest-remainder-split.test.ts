@@ -34,6 +34,67 @@ const partFactsOf = (
 const recordsOf = (data: string, name: string): DataRecord[] =>
   records(data, name) as DataRecord[];
 
+/** Every case's exact shape and the exact allocation the production function
+ *  must produce for it. The pin keeps the representative table honest: a
+ *  changed weight, amount, tag or answer stops the proof data here. */
+const EXACT_CASES: readonly (readonly [
+  string,
+  readonly number[],
+  number,
+  readonly number[],
+])[] = [
+  ["zero amount", [10, 20], 0, [0, 0]],
+  ["negative amount above minus one", [10, 20], -0.5, [0, 0]],
+  ["all weights zero", [0, 0], 10, [0, 0]],
+  ["exact split with index tie-breaks", [1000, 1000, 1000], 100, [34, 33, 33]],
+  ["leftovers to the largest fractional remainder", [1, 1, 5], 2, [0, 0, 2]],
+  ["biggest fraction, not biggest floor", [3, 1], 3, [2, 1]],
+  ["tie-break values decide a tie", [3, 5, 2], 5, [2, 2, 1]],
+  ["small positive total", [0.4, 0.4], 1, [1, 0]],
+  [
+    "deposit capped at the unit prices",
+    [1000, 1000, 1000],
+    2500,
+    [834, 833, 833],
+  ],
+  ["a part at its cap receives no more", [500, 1000], 2000, [666, 1334]],
+  ["reservation deposit across capacities", [4, 1, 1], 5, [3, 1, 1]],
+  [
+    "tax across lines and modifiers",
+    [1200, 800, 450, 150, 75, 25],
+    267,
+    [119, 79, 45, 15, 7, 2],
+  ],
+  [
+    "whole-money remainders beyond safe multiplication",
+    [2500000000000005, 2500000000000005, 2500000000000005, 2, 3],
+    7125000000000019,
+    [2375000000000005, 2375000000000005, 2375000000000004, 2, 3],
+  ],
+];
+
+/** The caps each capped case carries, by tag. */
+const EXACT_CAPS: Readonly<Record<string, readonly number[]>> = {
+  "a part at its cap receives no more": [666, 1334],
+  "deposit capped at the unit prices": [1000, 1000, 1000],
+};
+
+/** The tie-break values a case's own option returns, per part. */
+const tieBreakerOf = (tag: string): (number | undefined)[] =>
+  caseByTag(tag).weights.map((_, index) =>
+    caseByTag(tag).options?.tieBreaker?.(index),
+  );
+
+/** The verdicts a case's own guard returns for the derived floors. */
+const guardVerdictsOf = (tag: string): boolean[] => {
+  const sample = caseByTag(tag);
+  const { partFacts } = splitFacts();
+  return partFactsOf(partFacts, tag).map(
+    (part) =>
+      sample.options?.canReceive?.(part.partIndex - 1, part.floor) ?? true,
+  );
+};
+
 describe("largest remainder split proof data", () => {
   test("carries one part fact per part of every modelled case", () => {
     const { caseFacts, partFacts } = splitFacts();
@@ -83,14 +144,11 @@ describe("largest remainder split proof data", () => {
       if (!runs) {
         // A case that runs no split awards nothing.
         expect(part.eligible).toBe(false);
-      } else if (sample.caps === undefined) {
-        // A case without a guard lets every part receive.
-        expect(part.eligible).toBe(true);
-      } else if (part.eligible) {
-        // The honesty relation the model checks: an eligible part of a
-        // capped case has room under its cap for the one extra unit.
-        expect(part.floor + 1).toBeLessThanOrEqual(part.cap);
+        continue;
       }
+      const floor = part.floor;
+      const guarded = sample.options?.canReceive ?? (() => true);
+      expect(part.eligible).toBe(guarded(part.partIndex - 1, floor));
     }
   });
 
@@ -201,6 +259,68 @@ describe("largest remainder split proof data", () => {
     const { caseFacts } = splitFacts();
     await expect(
       corruptSplitData("cap guard", { caseFacts, partFacts: [] }),
+    ).rejects.toThrow(
+      'The split model holds no part at its cap for "a part at its cap receives no more". There is no part to corrupt.',
+    );
+  });
+
+  test("every case carries its exact shape and production answer", () => {
+    expect(splitCases.map((sample) => sample.sampleTag)).toEqual(
+      EXACT_CASES.map(([tag]) => tag),
+    );
+    for (const [tag, weights, amount, output] of EXACT_CASES) {
+      const sample = caseByTag(tag);
+      expect(sample.weights).toEqual(weights);
+      expect(sample.amount).toBe(amount);
+      expect(sample.caps ?? null).toEqual(EXACT_CAPS[tag] ?? null);
+      expect(
+        largestRemainderAllocation(
+          sample.weights,
+          sample.amount,
+          sample.options ?? {},
+        ),
+      ).toEqual(output);
+    }
+    // The guard and tie-break decisions are facts of their own: the proof
+    // pins them per index, so a changed constant stops here.
+    expect(tieBreakerOf("tie-break values decide a tie")).toEqual([-3, 2, -1]);
+    expect(tieBreakerOf("reservation deposit across capacities")).toEqual([
+      2, 0, 1,
+    ]);
+    expect(guardVerdictsOf("a part at its cap receives no more")).toEqual([
+      false,
+      true,
+    ]);
+    expect(guardVerdictsOf("reservation deposit across capacities")).toEqual([
+      true,
+      true,
+      true,
+    ]);
+  });
+
+  test("the cap corruption needs a part at its cap to flip", async () => {
+    const { caseFacts } = splitFacts();
+    const victimCaseTag = "a part at its cap receives no more";
+    // The case holds an already-eligible part and a part below its cap, so
+    // no part of it may be flipped.
+    const partFacts: SplitPartFact[] = [
+      {
+        cap: 5,
+        caseTag: victimCaseTag,
+        eligible: true,
+        floor: 5,
+        partIndex: 1,
+      },
+      {
+        cap: 9,
+        caseTag: victimCaseTag,
+        eligible: false,
+        floor: 4,
+        partIndex: 2,
+      },
+    ];
+    await expect(
+      corruptSplitData("cap guard", { caseFacts, partFacts }),
     ).rejects.toThrow(
       'The split model holds no part at its cap for "a part at its cap receives no more". There is no part to corrupt.',
     );
