@@ -21,6 +21,7 @@ import type { Page } from "playwright";
 import { encode } from "uqr";
 import * as v from "valibot";
 import type { TicketCacheEntry } from "#routes/admin/scan-cache.ts";
+import { withStrictBrowserTimeouts } from "#scripts/browser-options.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";
 import {
   type BrowserContract,
@@ -135,6 +136,7 @@ export const openDoor = async (
     reducedMotion: "reduce",
     serviceWorkers: "block",
   });
+  withStrictBrowserTimeouts(context);
   const [name, value] = await testOwnerCookiePair();
   await context.addCookies([{ name, url: contract.baseUrl, value }]);
   const page = await context.newPage();

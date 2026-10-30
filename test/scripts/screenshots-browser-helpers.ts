@@ -2,7 +2,10 @@ import { Buffer } from "node:buffer";
 import { expect } from "@std/expect";
 import { type Browser, chromium, type Page } from "playwright";
 import sharp from "sharp";
-import { defineScreenshotBrowserLauncher } from "#scripts/browser-options.ts";
+import {
+  defineScreenshotBrowserLauncher,
+  withStrictBrowserTimeouts,
+} from "#scripts/browser-options.ts";
 import { chromiumExecutable } from "#scripts/screenshots/browser.ts";
 import {
   capturePreparedLayers,
@@ -130,6 +133,7 @@ export const withPage = async (
   check: (page: Page) => Promise<void>,
 ): Promise<void> => {
   const page = await browser.newPage();
+  withStrictBrowserTimeouts(page);
   try {
     await installLayerCaptureClock(page);
     const url = `https://screenshots.test/${crypto.randomUUID()}`;

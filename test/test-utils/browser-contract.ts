@@ -7,7 +7,10 @@
 
 import { afterAll, beforeAll } from "@std/testing/bdd";
 import { type Browser, chromium, type Page } from "playwright";
-import { browserLaunchOptions } from "#scripts/browser-options.ts";
+import {
+  browserLaunchOptions,
+  withStrictBrowserTimeouts,
+} from "#scripts/browser-options.ts";
 import { chromiumExecutable } from "#scripts/screenshots/browser.ts";
 import { defineLoopbackServer } from "#scripts/specs/evidence/server.ts";
 import { denoServeHandler } from "#src/serve-app.ts";
@@ -93,6 +96,7 @@ export const withSignedInPage = async <T>(
     baseURL: baseUrl,
     reducedMotion: "reduce",
   });
+  withStrictBrowserTimeouts(context);
   const [name, value] = await testOwnerCookiePair();
   await context.addCookies([{ name, url: baseUrl, value }]);
   const page = await context.newPage();
