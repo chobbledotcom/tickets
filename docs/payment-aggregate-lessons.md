@@ -8,7 +8,7 @@ findings, each tied to a file and line on that branch — is in `TODO.md` at
 commit `3cf6929b` on `base/payment-aggregate` (also reachable as
 `refs/pull/1962/head`). The table-hardening slice is at `369977cf`
 (`refs/pull/1973/head`). None of that branch's code is on main, so the findings
-are not jobs here — they are the failure map for the redo that PLAN.md plans.
+are not jobs here — they are the failure map for the redo that docs/plan.md plans.
 
 The one finding that applied to main's current code — `performListingDelete`
 removing the stored attachment file before the database delete, so a failed

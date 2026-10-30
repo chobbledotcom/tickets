@@ -1,7 +1,7 @@
 // Contract tests for the site-pages admin JSON API: the content-page CRUD
 // (site_pages rows, addressed by id) and the refusals it carries. The input
 // mapping's field refusals live in api-site-pages-input.test.ts. Technical
-// surface — direct Deno tests (E2E_TESTS.md); the form-side parity pins live
+// surface — direct Deno tests (docs/e2e-tests.md); the form-side parity pins live
 // in test/features/admin/parity/site-pages.test.ts.
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -102,7 +102,7 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
           expect(body.page.meta_description).toBe("Before you come");
           expect(body.page.parent).toBeNull();
           // The slug HMAC never leaves the server.
-          expect(body.page.slug_index).toBeUndefined();
+          expect(Object.hasOwn(body.page, "slug_index")).toBe(false);
         },
       );
     });
@@ -301,6 +301,14 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
       await addPageItem(parent.id, "page", child.id);
 
       await putPageUnder(child.id, second.id);
+
+      await assertJson(
+        apiRequest(`/api/admin/site-pages/${child.id}`),
+        200,
+        (body) => {
+          expect(body.page.parent).toBe(second.id);
+        },
+      );
     });
 
     test("keeps a nested page in place when the update re-sends its parent", async () => {

@@ -443,7 +443,7 @@ Deploy — or run `doctl apps create-deployment <your-app-id>`.
 ## Repository layout
 
 For the current repository layout and path conventions, see
-[`REPO_STRUCTURE.md`](./REPO_STRUCTURE.md).
+[`repo-structure.md`](./docs/repo-structure.md).
 
 ---
 

@@ -62,7 +62,7 @@ consistently wrong and governed nothing.
    deletions, recounted after formatting). One exception: an atomic cutover that
    would otherwise need a throwaway compatibility layer may exceed the cap — a
    bigger honest PR beats building a bridge in one PR and demolishing it in the
-   next. Say so in the description. PR_WORKFLOW.md's "repository source-line
+   next. Say so in the description. docs/pr-workflow.md's "repository source-line
    limit" is this rule, exception included. Tests, fixtures, and documentation
    do not count against the cap; never weaken them to shrink a diff. #2065 is
    the approved current-path exception: its `14881` gross changed `src/` code
@@ -109,7 +109,7 @@ consistently wrong and governed nothing.
    touches providers or adds queries (Bunny's hard limit is 50 subrequests per
    request); the fault-ledger rows closed; the tests and mutation commands run;
    and the old path deleted. The full field list is in steps 2, 5, and 6 of
-   `PR_WORKFLOW.md`. Review pure schemas, transactions, provider parsing, and
+   `docs/pr-workflow.md`. Review pure schemas, transactions, provider parsing, and
    orchestration as distinct commits where that helps.
 10. **Machines, seams, and witnesses ship with the first slice.** Any new
     stateful lifecycle — M5's cases, the M6–M8 aggregate states, M9–M10's

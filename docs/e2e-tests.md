@@ -1,7 +1,7 @@
 # End-to-end and acceptance tests
 
 How this repository writes Cucumber acceptance specifications and the direct
-tests that live alongside them. [AGENTS.md](AGENTS.md) covers everything else;
+tests that live alongside them. [AGENTS.md](../AGENTS.md) covers everything else;
 this file is the detail for anyone writing, migrating, or reviewing a story.
 
 Read [Migrating a test to a story](#migrating-a-test-to-a-story) before turning
@@ -73,7 +73,7 @@ Write the smallest scenario that proves the rule:
   name is the identifier the markup sends under, such as `admin_level`. It is
   not the word printed on that field's label. Where the site prints a word for a
   thing, the story uses that word — see
-  [Name a thing the way the site names it](AGENTS.md#preferences).
+  [Name a thing the way the site names it](../AGENTS.md#preferences).
 - Keep exact mutation-resistant assertions in the TypeScript step definition. A
   plain-language `Then the payment is refunded once` can assert the exact
   provider call count, stored note, terminal result, and lack of a duplicate.
@@ -142,7 +142,7 @@ Execution is equally strict:
 - `deno task specs:evidence` — the cases with declared screenshot captures
 
 The full list, with what each writes where, is in
-[AGENTS.md](AGENTS.md#scripts).
+[AGENTS.md](../AGENTS.md#scripts).
 
 ## Migrating a test to a story
 
