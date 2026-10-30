@@ -3,33 +3,16 @@ import { join } from "node:path";
 import { projectRoot } from "#scripts/project-root.ts";
 import { makeScratchDir } from "#scripts/scratch.ts";
 import {
-  bookingReplayModelData,
   deletedRowRefundData,
   duplicateBookingData,
 } from "#scripts/verify-models/booking.ts";
 import { counterexampleData } from "#scripts/verify-models/counterexample.ts";
-import { modelData, paymentModel } from "#scripts/verify-models/model.ts";
-import { reviewModelData } from "#scripts/verify-models/review.ts";
+import { MODELS } from "#scripts/verify-models/registry.ts";
 import {
   dateLessSoldOutPairData,
   overfillCapacityData,
-  sharedGroupCapacityModelData,
 } from "#scripts/verify-models/shared-group-capacity.ts";
-import { squareModelData } from "#scripts/verify-models/square.ts";
-import { sumupModelData } from "#scripts/verify-models/sumup.ts";
-import { twoWorkersModelData } from "#scripts/verify-models/two-workers.ts";
-import { vatModelData } from "#scripts/verify-models/vat.ts";
 
-const models = [
-  { data: vatModelData, module: "VatLedger" },
-  { data: squareModelData, module: "SquareLinkEnd" },
-  { data: sumupModelData, module: "SumupRecovery" },
-  { data: reviewModelData, module: "PaymentReview" },
-  { data: async () => modelData(await paymentModel()), module: "JointState" },
-  { data: bookingReplayModelData, module: "BookingReplay" },
-  { data: twoWorkersModelData, module: "TwoWorkers" },
-  { data: sharedGroupCapacityModelData, module: "SharedGroupCapacity" },
-];
 const checks = [
   { init: "Init", length: 0, name: "initial state" },
   {
@@ -57,7 +40,7 @@ const runCheck = (module: string, init: string, length: number) =>
     stderr: "inherit",
     stdout: "inherit",
   }).output();
-for (const model of models) {
+for (const model of MODELS) {
   await Deno.copyFile(
     join(projectRoot, `verification/${model.module}.tla`),
     join(work, `${model.module}.tla`),
