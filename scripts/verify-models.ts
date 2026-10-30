@@ -8,6 +8,10 @@ import {
   duplicateBookingData,
 } from "#scripts/verify-models/booking.ts";
 import { counterexampleData } from "#scripts/verify-models/counterexample.ts";
+import {
+  corruptAllocationData,
+  largestRemainderSplitModelData,
+} from "#scripts/verify-models/largest-remainder-split.ts";
 import { modelData, paymentModel } from "#scripts/verify-models/model.ts";
 import { reviewModelData } from "#scripts/verify-models/review.ts";
 import { squareModelData } from "#scripts/verify-models/square.ts";
@@ -20,6 +24,7 @@ const models = [
   { data: squareModelData, module: "SquareLinkEnd" },
   { data: sumupModelData, module: "SumupRecovery" },
   { data: reviewModelData, module: "PaymentReview" },
+  { data: largestRemainderSplitModelData, module: "LargestRemainderSplit" },
   { data: async () => modelData(await paymentModel()), module: "JointState" },
   { data: bookingReplayModelData, module: "BookingReplay" },
   { data: twoWorkersModelData, module: "TwoWorkers" },
@@ -116,6 +121,16 @@ await checkRejected(
   "BookingReplay",
   "refund after the temporary row was deleted",
   deletedRowRefundData,
+);
+// The LargestRemainderSplit proof must reject an allocation whose parts do not
+// conserve the amount. A pass on it would make the clean verdict worthless.
+console.log(
+  "Check LargestRemainderSplit: unconserved allocation counterexample.",
+);
+await checkRejected(
+  "LargestRemainderSplit",
+  "an allocation that does not conserve the amount",
+  corruptAllocationData,
 );
 await Deno.remove(work, { recursive: true });
 console.log(
