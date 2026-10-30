@@ -144,6 +144,37 @@ describeWithEnv("db > settings", { db: true }, () => {
     });
   });
 
+  describe("addressLookup provider getter behavior", () => {
+    test("settings.addressLookup.provider reads none when the stored value is unknown", async () => {
+      await settings.setRaw(
+        CONFIG_KEYS.ADDRESS_LOOKUP_PROVIDER,
+        "carrier-pigeon",
+      );
+      settings.invalidateCache();
+      await settings.loadKeys([CONFIG_KEYS.ADDRESS_LOOKUP_PROVIDER]);
+
+      expect(settings.addressLookup.provider).toBe("none");
+    });
+  });
+
+  describe("customCss writer behavior", () => {
+    test("settings.customCssBunnyFonts follows the stylesheet it was saved with", async () => {
+      await settings.update.customCss(
+        "@import url(https://fonts.bunny.net/css?family=aleo);",
+      );
+      expect(settings.getCachedRaw(CONFIG_KEYS.CUSTOM_CSS_BUNNY_FONTS)).toBe(
+        "true",
+      );
+      expect(settings.customCssBunnyFonts).toBe(true);
+
+      await settings.update.customCss("body { color: red }");
+      expect(settings.getCachedRaw(CONFIG_KEYS.CUSTOM_CSS_BUNNY_FONTS)).toBe(
+        "false",
+      );
+      expect(settings.customCssBunnyFonts).toBe(false);
+    });
+  });
+
   describe("superuserChoice writer behavior", () => {
     test("settings.update.superuserChoice persists across a round-trip", async () => {
       await settings.update.superuserChoice("enabled");
