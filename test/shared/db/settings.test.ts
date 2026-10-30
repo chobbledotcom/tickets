@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { decrypt } from "#crypto/encryption.ts";
 import type { WrappedKey } from "#crypto/sealed.ts";
 import { CONFIG_KEYS, settings } from "#db/settings.ts";
 import { getUserByUsername, verifyUserPassword } from "#db/users.ts";
@@ -70,8 +71,14 @@ describeWithEnv("db > settings", { db: true }, () => {
     test("updateUserPassword returns false when dataKey unwrap fails", async () => {
       const user = await getUserByUsername(TEST_ADMIN_USERNAME);
       expect(user).not.toBeNull();
+      const storedHash = user!.password_hash;
+      if (storedHash === "") {
+        throw new Error("the test admin has no stored password hash");
+      }
       const passwordHash = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
-      expect(passwordHash).toBeTruthy();
+
+      // The verify hands back the stored hash, decrypted, for KEK derivation.
+      expect(passwordHash).toBe(await decrypt(storedHash));
 
       const { settings: s } = await import("#db/settings.ts");
       const result = await s.updateUserPassword(user!.id, {
