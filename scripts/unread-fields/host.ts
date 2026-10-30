@@ -68,6 +68,15 @@ export const belongsToRepository = (root: string, file: string): boolean => {
   );
 };
 
+/** Whether the language wrote a declaration down. The repository wrote a
+ * declaration file under the root itself, so the compiler's
+ * `isDeclarationFile` flag cannot answer this. A vendored `node_modules` or
+ * a Deno module cache under the root is still a library. */
+export const declaredByTheLanguage = (
+  root: string,
+  at: ts.Declaration,
+): boolean => !belongsToRepository(root, at.getSourceFile().fileName);
+
 /** What the repository asks the compiler for, out of its own `deno.json`.
  * Strictness changes what a type means, so a scan that leaves it out reads a
  * different repository from the one Deno checks. */

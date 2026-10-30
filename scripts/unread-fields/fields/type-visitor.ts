@@ -1,7 +1,10 @@
 /** Checker-resolved values that syntax-only utility types hide. */
 
 import ts from "typescript";
-import { answered, belongsToRepository } from "#scripts/unread-fields/host.ts";
+import {
+  answered,
+  declaredByTheLanguage,
+} from "#scripts/unread-fields/host.ts";
 import { fieldPath, shapeAround, writtenNames } from "./declarations.ts";
 import type { FieldName } from "./names.ts";
 import { standsFor } from "./shapes.ts";
@@ -39,9 +42,8 @@ const builtInNameOf = (type: ts.Type, root: string): string | undefined => {
   const symbol = type.aliasSymbol ?? reference.target?.symbol ?? type.symbol;
   const declarations = symbol?.declarations ?? [];
   return declarations.length > 0 &&
-    declarations.every(
-      (declaration) =>
-        !belongsToRepository(root, declaration.getSourceFile().fileName),
+    declarations.every((declaration) =>
+      declaredByTheLanguage(root, declaration),
     )
     ? symbol?.name
     : undefined;

@@ -4,7 +4,10 @@
  * declarations that share a name two fields.
  */
 import ts from "typescript";
-import { answered, belongsToRepository } from "#scripts/unread-fields/host.ts";
+import {
+  answered,
+  declaredByTheLanguage,
+} from "#scripts/unread-fields/host.ts";
 import { quotedInBrackets } from "#scripts/unread-fields/writes.ts";
 import { type FieldName, fieldNameText, isFieldName } from "./names.ts";
 
@@ -19,13 +22,6 @@ type StepFromNode<Result> = (
   root: string,
   node: ts.Node,
 ) => Result;
-
-/** Whether the language wrote the declaration down. The repository wrote a
- * declaration file under the root itself, so the compiler's
- * `isDeclarationFile` flag cannot answer this. A vendored `node_modules` or
- * a Deno module cache under the root is still a library. */
-const declaredByTheLanguage = (root: string, at: ts.Declaration): boolean =>
-  !belongsToRepository(root, at.getSourceFile().fileName);
 
 /** A built-in type this reference names, picked from a list. A type the
  * repository wrote itself under a borrowed name (`type Partial<T> = ...`)
