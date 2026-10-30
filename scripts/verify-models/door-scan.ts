@@ -14,6 +14,7 @@ import {
   tlaModule,
   tlaRecords,
 } from "#scripts/verify-models/data.ts";
+import { requireValue } from "#shared/required-value.ts";
 import type { Attendee, ListingWithCount } from "#types";
 
 /* jscpd:ignore-end */
@@ -59,10 +60,20 @@ const rowOf = (row: ScanRow): TokenEntry => ({
   parentListingId: 0,
 });
 
-/** The door's own listings: the booking's two representatives. */
-const DOOR_SCOPE = new Set([1, 2]);
+/** The door's own listings: the booking's two representatives, with the
+ *  quantity each books. The scan rows, the checker's quantity constants and
+ *  the generator test all read this one table, so one change moves all
+ *  three together. */
+export const representatives = [
+  { id: 1, name: "one", quantity: 3 },
+  { id: 2, name: "two", quantity: 1 },
+] as const;
 
-const listingName = (id: number): string => (id === 1 ? "one" : "two");
+const [partyListing, guestListing] = representatives;
+
+const DOOR_SCOPE = new Set(
+  representatives.map((representative) => representative.id),
+);
 
 type Controls = {
   checkEvery?: boolean;
@@ -88,24 +99,38 @@ const factsOf = (
     after,
     before: entry.attendee.checked_in,
     idVerified: controls.idVerified ?? false,
-    listing: listingName(entry.listing.id),
+    listing: requireValue(
+      representatives.find(
+        (representative) => representative.id === entry.listing.id,
+      ),
+      `No representative listing ${entry.listing.id}`,
+    ).name,
     nonTransferable: entry.listing.non_transferable,
     purchaseOnly: entry.listing.purchase_only,
     refunded: entry.attendee.refunded,
   });
-  if (decision.kind === "admit") {
-    return decision.units.map((unit) => {
-      const row = unit.rows[0]!;
-      return factOf(row, row.attendee.checked_in + unit.tickets);
-    });
+  /** The facts for the rows a non-admit decision names: each keeps its
+   *  count. */
+  const keptFacts = (named: readonly TokenEntry[]): AdmitFact[] =>
+    named.map((entry) => factOf(entry, entry.attendee.checked_in));
+  // The switch names every decision kind, so a new kind without a fact rule
+  // fails the typecheck instead of deriving wrong facts.
+  switch (decision.kind) {
+    case "admit":
+      return decision.units.map((unit) => {
+        const row = unit.rows[0]!;
+        return factOf(row, row.attendee.checked_in + unit.tickets);
+      });
+    case "already_checked_in":
+      return keptFacts(decision.live);
+    case "select_quantity":
+    case "verify_id":
+      return keptFacts(decision.rows);
+    case "not_found":
+    case "refunded":
+    case "wrong_listing":
+      return keptFacts(entries);
   }
-  const named =
-    decision.kind === "already_checked_in"
-      ? decision.live
-      : "rows" in decision
-        ? decision.rows
-        : entries;
-  return named.map((entry) => factOf(entry, entry.attendee.checked_in));
 };
 
 /** A three-place party row on the first listing. */
@@ -115,8 +140,8 @@ const partyRow = (
 ): ScanRow => ({
   checkedIn,
   id: 7,
-  listingId: 1,
-  quantity: 3,
+  listingId: partyListing.id,
+  quantity: partyListing.quantity,
   ...overrides,
 });
 
@@ -124,8 +149,8 @@ const partyRow = (
 const guestRow = (checkedIn: number): ScanRow => ({
   checkedIn,
   id: 8,
-  listingId: 2,
-  quantity: 1,
+  listingId: guestListing.id,
+  quantity: guestListing.quantity,
 });
 
 /** The gate rows: a refunded row, an ID-held row and a no-check-in row,
@@ -171,14 +196,16 @@ export const admitFacts = (): AdmitFact[] => [
 export const corruptOneAdmission = (): AdmitFact[] =>
   admitFacts().map((fact) =>
     fact.listing === "one" && fact.before === 2 && fact.after === 3
-      ? { ...fact, after: 4 }
+      ? { ...fact, after: partyListing.quantity + 1 }
       : fact,
   );
 
 const moduleFor = (facts: readonly AdmitFact[]): string =>
   tlaModule("DoorScanData", [
-    "QuantityOne == 3",
-    "QuantityTwo == 1",
+    ...representatives.map(
+      (representative) =>
+        `Quantity${representative.name.charAt(0).toUpperCase()}${representative.name.slice(1)} == ${representative.quantity}`,
+    ),
     tlaRecords("AdmitFacts", admitFields, facts),
   ]);
 

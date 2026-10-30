@@ -10,11 +10,21 @@ import {
   corruptDoorScanData,
   corruptOneAdmission,
   doorScanModelData,
+  representatives,
 } from "#scripts/verify-models/door-scan.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { records } from "#test-utils/tla-data.ts";
 
 /* jscpd:ignore-end */
+
+/** The quantity each representative listing books. The derived facts and
+ *  the checker's quantity constants must both respect these. */
+const quantityOf: Record<string, number> = Object.fromEntries(
+  representatives.map((representative) => [
+    representative.name,
+    representative.quantity,
+  ]),
+);
 
 /** The fact one scan derives on one listing, with the common flags empty. */
 const factOf = (
@@ -77,7 +87,6 @@ describe("door scan checker data", () => {
   });
 
   test("every derived admission stays at or under the listing's quantity", () => {
-    const quantityOf: Record<string, number> = { one: 3, two: 1 };
     for (const fact of admitFacts()) {
       const quantity = requireValue(
         quantityOf[fact.listing],
