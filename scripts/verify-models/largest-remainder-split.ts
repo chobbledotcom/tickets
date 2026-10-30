@@ -202,9 +202,11 @@ export const largestRemainderSplitModelData: ModelDataSource = async () =>
   largestRemainderSplitData(splitModel());
 
 /** The negative control: one running split whose parts do not conserve the
- *  amount. The checker must reject it, or the clean verdicts prove nothing. */
-export const corruptAllocationData: ModelDataSource = async () => {
-  const facts = splitModel();
+ *  amount. The checker must reject it, or the clean verdicts prove nothing.
+ *  The facts are injectable so the tests can reach the missing-fact throw. */
+export const corruptAllocationData = async (
+  facts: readonly SplitFact[] = splitModel(),
+): Promise<string> => {
   const victimTag = "exact split with index tie-breaks";
   if (!facts.some((fact) => fact.sampleTag === victimTag)) {
     throw new Error(

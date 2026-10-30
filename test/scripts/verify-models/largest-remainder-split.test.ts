@@ -167,6 +167,13 @@ describe("largest remainder split proof data", () => {
     expect(changed[0]?.after.conserved).toBe(false);
   });
 
+  test("throws when the fact to corrupt is missing", async () => {
+    const facts = (await splitModel()).slice(0, 1);
+    await expect(corruptAllocationData(facts)).rejects.toThrow(
+      "There is no fact to corrupt",
+    );
+  });
+
   test("the data module carries the fact table under its own name", async () => {
     const data = largestRemainderSplitData(await splitModel());
     expect(data).toContain("MODULE LargestRemainderSplitData");
