@@ -5,24 +5,19 @@
 
 import * as v from "valibot";
 
-type ValibotNode = { type: string };
+/** The valibot field kinds one fact field may declare. Any other kind fails
+ *  to typecheck here, so the checker record types cannot drift. */
+type CheckerField = { readonly type: "boolean" | "picklist" | "string" };
 
-/** The checker type one valibot field declares. A field of any other kind
- * must name its checker type here first. */
-const tlaTypeOf = (schema: ValibotNode): "Str" | "Bool" => {
-  if (schema.type === "boolean") return "Bool";
-  if (schema.type === "string" || schema.type === "picklist") return "Str";
-  throw new Error(`The fact field schema ${schema.type} has no checker type.`);
-};
-
-/** The checker record fields for one valibot object schema. */
+/** The checker record fields for one valibot object schema: a boolean field
+ *  carries Bool, a string or picklist field carries Str. */
 const tlaFields = (schema: {
-  entries: Readonly<Record<string, ValibotNode>>;
-}) =>
+  entries: Readonly<Record<string, CheckerField>>;
+}): Readonly<Record<string, "Str" | "Bool">> =>
   Object.fromEntries(
     Object.entries(schema.entries).map(([field, fieldSchema]) => [
       field,
-      tlaTypeOf(fieldSchema),
+      fieldSchema.type === "boolean" ? "Bool" : "Str",
     ]),
   );
 
