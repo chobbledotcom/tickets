@@ -139,4 +139,49 @@ export type HoldsABarePromise = { wrapped: Promise };
 `),
     ).rejects.toThrow("The compiler had no asynchronous result type");
   });
+
+  test("walks the members a repository declaration file declares", async () => {
+    // A `.d.ts` file inside the repository is the repository's own code, so
+    // the reference to its interface must walk its members, not drop them as
+    // a library's. The base is a script's declaration, so it is no exported
+    // shape and nothing else reports its member.
+    const paths = pathsOf(
+      await fieldsOf(
+        `
+export interface HoldsADeclaredShape {
+  base: DeclaredBase;
+}
+`,
+        {
+          "globals.d.ts": "interface DeclaredBase { declaredMember: number }\n",
+        },
+      ),
+    );
+
+    expect(paths).toEqual([
+      "HoldsADeclaredShape.base",
+      "HoldsADeclaredShape.base.declaredMember",
+    ]);
+  });
+
+  test("walks a repository-declared container as a shape, not a built-in", async () => {
+    // A repository `.d.ts` that merges a member into `Set` is repository
+    // code. Its `Set` is a shape the walk enters, not the language's element
+    // container, so the borrowed member reports and the element step does not.
+    const paths = pathsOf(
+      await fieldsOf(
+        `
+export interface HoldsARepositorySet {
+  bag: Set<{ insideABag: number }>;
+}
+`,
+        { "globals.d.ts": "interface Set<T> { customField: number }\n" },
+      ),
+    );
+
+    expect(paths).toEqual([
+      "HoldsARepositorySet.bag",
+      "HoldsARepositorySet.bag.customField",
+    ]);
+  });
 });

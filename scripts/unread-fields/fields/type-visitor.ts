@@ -1,7 +1,7 @@
 /** Checker-resolved values that syntax-only utility types hide. */
 
 import ts from "typescript";
-import { answered } from "#scripts/unread-fields/host.ts";
+import { answered, belongsToRepository } from "#scripts/unread-fields/host.ts";
 import { fieldPath, shapeAround, writtenNames } from "./declarations.ts";
 import type { FieldName } from "./names.ts";
 import { standsFor } from "./shapes.ts";
@@ -34,13 +34,14 @@ const typeArgumentsOf = (
   return checker.getTypeArguments(type as unknown as ts.TypeReference);
 };
 
-const builtInNameOf = (type: ts.Type): string | undefined => {
+const builtInNameOf = (type: ts.Type, root: string): string | undefined => {
   const reference = type as ts.TypeReference;
   const symbol = type.aliasSymbol ?? reference.target?.symbol ?? type.symbol;
   const declarations = symbol?.declarations ?? [];
   return declarations.length > 0 &&
     declarations.every(
-      (declaration) => declaration.getSourceFile().isDeclarationFile,
+      (declaration) =>
+        !belongsToRepository(root, declaration.getSourceFile().fileName),
     )
     ? symbol?.name
     : undefined;
@@ -49,15 +50,16 @@ const builtInNameOf = (type: ts.Type): string | undefined => {
 const acceptedBuiltInName = (
   type: ts.Type,
   names: ReadonlySet<string>,
+  root: string,
 ): string | undefined => {
-  const name = builtInNameOf(type);
+  const name = builtInNameOf(type, root);
   return name && names.has(name) ? name : undefined;
 };
 
 const isAcceptedBuiltIn =
-  (names: ReadonlySet<string>): ((type: ts.Type) => boolean) =>
+  (names: ReadonlySet<string>, root: string): ((type: ts.Type) => boolean) =>
   (type) =>
-    acceptedBuiltInName(type, names) !== undefined;
+    acceptedBuiltInName(type, names, root) !== undefined;
 
 const parameterPath = (
   path: readonly Step[],
@@ -76,7 +78,7 @@ export const createTypeVisitor = (
   context: VisitContext,
   visitNode: VisitNode,
 ): VisitType => {
-  const { checker, isExportedTarget, remember } = context;
+  const { checker, isExportedTarget, remember, root } = context;
   const underElement = throughWay("[]");
   const typeNodesByTarget = new Map<
     ts.Symbol,
@@ -160,7 +162,7 @@ export const createTypeVisitor = (
   );
 
   const visitElementContainer: TryVisitType = (path, type, state) => {
-    const name = acceptedBuiltInName(type, ELEMENT_TYPES);
+    const name = acceptedBuiltInName(type, ELEMENT_TYPES, root);
     if (!name) return false;
     if (name === "Record" && visitWrittenType(path, type, state)) return true;
     const value = typeArgumentsOf(checker, type).at(-1);
@@ -169,11 +171,11 @@ export const createTypeVisitor = (
   };
 
   const visitMap = visitArguments(
-    isAcceptedBuiltIn(MAP_TYPES),
+    isAcceptedBuiltIn(MAP_TYPES, root),
     pathsByPlace([throughWay("keys()"), throughWay("values()")]),
   );
   const visitAsyncType = visitArguments(
-    isAcceptedBuiltIn(ASYNC_TYPES),
+    isAcceptedBuiltIn(ASYNC_TYPES, root),
     pathsByPlace([throughResult]),
   );
 
