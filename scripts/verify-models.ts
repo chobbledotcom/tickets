@@ -7,7 +7,11 @@ import {
   duplicateBookingData,
 } from "#scripts/verify-models/booking.ts";
 import { counterexampleData } from "#scripts/verify-models/counterexample.ts";
-import { corruptDoorScanData } from "#scripts/verify-models/door-scan.ts";
+import {
+  corruptDoorScanData,
+  refundedAdmissionDoorScanData,
+  takeBackDoorScanData,
+} from "#scripts/verify-models/door-scan.ts";
 import { corruptSplitData } from "#scripts/verify-models/largest-remainder-split.ts";
 import { MODELS } from "#scripts/verify-models/registry.ts";
 import {
@@ -168,6 +172,20 @@ await checkRejected(
   "DoorScan",
   "an admission past the listing's quantity",
   corruptDoorScanData,
+);
+// The DoorScan proof must reject a scan that takes a place back.
+console.log("Check DoorScan: take-back counterexample.");
+await checkRejected(
+  "DoorScan",
+  "a scan that takes a place back",
+  takeBackDoorScanData,
+);
+// The DoorScan proof must reject the admission of a refunded row.
+console.log("Check DoorScan: refunded-row admission counterexample.");
+await checkRejected(
+  "DoorScan",
+  "an admitted refunded row",
+  refundedAdmissionDoorScanData,
 );
 await Deno.remove(work, { recursive: true });
 console.log(

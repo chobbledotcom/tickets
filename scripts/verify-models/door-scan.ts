@@ -96,9 +96,13 @@ const factsOf = (
     controls.idVerified ?? false,
     controls.count,
   );
-  const factOf = (entry: TokenEntry, after: number): AdmitFact => ({
+  const factOf = (
+    entry: TokenEntry,
+    before: number,
+    after: number,
+  ): AdmitFact => ({
     after,
-    before: entry.attendee.checked_in,
+    before,
     idVerified: controls.idVerified ?? false,
     listing: requireValue(
       representatives.find(
@@ -110,17 +114,31 @@ const factsOf = (
     purchaseOnly: entry.listing.purchase_only,
     refunded: entry.attendee.refunded,
   });
+  /** The places this booking already holds on one listing, across all the
+   *  rows the scan names on it. */
+  const heldBefore = (listingId: number): number => {
+    let held = 0;
+    for (const entry of entries) {
+      if (entry.listing.id === listingId) held += entry.attendee.checked_in;
+    }
+    return held;
+  };
   /** The facts for the rows a non-admit decision names: each keeps its
    *  count. */
   const keptFacts = (named: readonly TokenEntry[]): AdmitFact[] =>
-    named.map((entry) => factOf(entry, entry.attendee.checked_in));
+    named.map((entry) =>
+      factOf(entry, entry.attendee.checked_in, entry.attendee.checked_in),
+    );
   // The switch names every decision kind, so a new kind without a fact rule
   // fails the typecheck instead of deriving wrong facts.
   switch (decision.kind) {
     case "admit":
+      // An admit moves the listing's whole count, which spans every row of
+      // the booking on that listing, not only the row the unit names first.
       return decision.units.map((unit) => {
         const row = unit.rows[0]!;
-        return factOf(row, row.attendee.checked_in + unit.tickets);
+        const before = heldBefore(row.listing.id);
+        return factOf(row, before, before + unit.tickets);
       });
     case "already_checked_in":
       return keptFacts(decision.live);
@@ -172,6 +190,12 @@ export const admitFacts = (): AdmitFact[] => [
   ...factsOf([partyRow(0)], { count: 3 }),
   // An over-pick caps at what the listing still owes.
   ...factsOf([partyRow(2)], { count: 5 }),
+  // Two rows of one booking on one listing admit against the listing's
+  // one count, not one row's count.
+  ...factsOf(
+    [partyRow(0, { quantity: 2 }), partyRow(0, { id: 9, quantity: 1 })],
+    { count: 2 },
+  ),
   // A line that owes more than one place and gets no pick asks first, and
   // admits nothing yet.
   ...factsOf([partyRow(0)]),
@@ -196,15 +220,40 @@ export const admitFacts = (): AdmitFact[] => [
   ...factsOf([], { force: true }),
 ];
 
-/** One over-pick fact changed to admit past the listing's quantity. The
- *  checker must report a counterexample for this data, or its clean
- *  verdicts prove nothing. */
+/** One fact of the clean fact set changed to report the given after count.
+ *  The checker must report a counterexample for the corrupted data, or its
+ *  clean verdicts prove nothing. Throws when no fact matches, so a changed
+ *  fact shape fails here instead of corrupting nothing. */
+export const corruptOneFact = (
+  match: (fact: AdmitFact) => boolean,
+  after: number,
+): AdmitFact[] => {
+  const facts = admitFacts();
+  if (!facts.some(match)) {
+    throw new Error("The corrupted control matches no admission fact.");
+  }
+  return facts.map((fact) => (match(fact) ? { ...fact, after } : fact));
+};
+
+/** The walk fact that admits the place after `before` checked-in places. */
+const walkFactAt =
+  (before: number) =>
+  (fact: AdmitFact): boolean =>
+    fact.listing === "one" &&
+    fact.before === before &&
+    fact.after === before + 1;
+
+/** One over-pick fact changed to admit past the listing's quantity. */
 export const corruptOneAdmission = (): AdmitFact[] =>
-  admitFacts().map((fact) =>
-    fact.listing === "one" && fact.before === 2 && fact.after === 3
-      ? { ...fact, after: partyListing.quantity + 1 }
-      : fact,
-  );
+  corruptOneFact(walkFactAt(2), partyListing.quantity + 1);
+
+/** One walk fact changed to take a place back. */
+export const corruptOneTakeBack = (): AdmitFact[] =>
+  corruptOneFact(walkFactAt(1), 0);
+
+/** The refunded row's fact changed to admit a place. */
+export const corruptOneRefundedAdmission = (): AdmitFact[] =>
+  corruptOneFact((fact) => fact.refunded, 1);
 
 const moduleFor = (facts: readonly AdmitFact[]): string =>
   tlaModule("DoorScanData", [
@@ -222,3 +271,13 @@ export const doorScanModelData: ModelDataSource = async () =>
  *  which the checker must reject. */
 export const corruptDoorScanData: ModelDataSource = async () =>
   moduleFor(corruptOneAdmission());
+
+/** The DoorScan data module with one scan taking a place back, which the
+ *  checker must reject. */
+export const takeBackDoorScanData: ModelDataSource = async () =>
+  moduleFor(corruptOneTakeBack());
+
+/** The DoorScan data module with one refunded row admitting a place, which
+ *  the checker must reject. */
+export const refundedAdmissionDoorScanData: ModelDataSource = async () =>
+  moduleFor(corruptOneRefundedAdmission());

@@ -1,6 +1,6 @@
 /** The door scan checker data: the production decision function supplies
- *  every admission fact, and the negative control keeps the no-over-
- *  admission verdict honest. */
+ *  every admission fact, and the negative controls keep the safety
+ *  verdicts honest. */
 
 /* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
@@ -9,8 +9,11 @@ import {
   admitFacts,
   corruptDoorScanData,
   corruptOneAdmission,
+  corruptOneFact,
   doorScanModelData,
+  refundedAdmissionDoorScanData,
   representatives,
+  takeBackDoorScanData,
 } from "#scripts/verify-models/door-scan.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { records } from "#test-utils/tla-data.ts";
@@ -59,6 +62,12 @@ describe("door scan checker data", () => {
     expect(facts).toContainEqual(factOf("one", 2, 3));
   });
 
+  test("records two rows of one booking as one listing count", async () => {
+    const data = await doorScanModelData();
+    const facts = records(data, "AdmitFacts");
+    expect(facts).toContainEqual(factOf("one", 0, 2));
+  });
+
   test("records that a line owing more than one place asks first", async () => {
     const data = await doorScanModelData();
     const facts = records(data, "AdmitFacts");
@@ -89,7 +98,7 @@ describe("door scan checker data", () => {
     const data = await doorScanModelData();
     const facts = records(data, "AdmitFacts");
     expect(facts).toContainEqual(factOf("two", 0, 1));
-    expect(facts).toHaveLength(12);
+    expect(facts).toHaveLength(13);
   });
 
   test("every derived admission stays at or under the listing's quantity", () => {
@@ -117,6 +126,24 @@ describe("door scan checker data", () => {
   test("the corrupted module admits past the listing's quantity", async () => {
     const data = await corruptDoorScanData();
     expect(records(data, "AdmitFacts")).toContainEqual(factOf("one", 2, 4));
+  });
+
+  test("the take-back module reverses one walk step", async () => {
+    const data = await takeBackDoorScanData();
+    expect(records(data, "AdmitFacts")).toContainEqual(factOf("one", 1, 0));
+  });
+
+  test("the refunded module admits a refunded row", async () => {
+    const data = await refundedAdmissionDoorScanData();
+    expect(records(data, "AdmitFacts")).toContainEqual(
+      factOf("one", 0, 1, { refunded: true }),
+    );
+  });
+
+  test("a control that matches no fact refuses to corrupt", () => {
+    expect(() => corruptOneFact(() => false, 0)).toThrow(
+      "The corrupted control matches no admission fact.",
+    );
   });
 
   test("corrupting one over-pick makes an admission past the quantity", () => {

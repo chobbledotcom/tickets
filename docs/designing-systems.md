@@ -144,8 +144,9 @@ These checks serve different purposes.
     scan never admits a listing past the places its rows still owe, never
     takes a place back, and never admits a refunded, no-check-in or
     unverified non-transferable row. The production decision function
-    supplies every admission fact. The check corrupts one over-pick past the
-    listing's quantity, and the checker must report a counterexample.
+    supplies every admission fact. The check corrupts an over-pick past the
+    listing's quantity, a scan that takes a place back, and the admission of
+    a refunded row. The checker must report a counterexample for each.
   The models trust representative coverage and event annotations.
   The Square model also trusts the configured provider lifetime. Claim
   admission remains a model assumption. Mirror tests and database tests check
