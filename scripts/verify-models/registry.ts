@@ -1,5 +1,6 @@
 /* jscpd:ignore-start -- imports */
 import { bookingReplayModelData } from "#scripts/verify-models/booking.ts";
+import { largestRemainderSplitModelData } from "#scripts/verify-models/largest-remainder-split.ts";
 import { modelData, paymentModel } from "#scripts/verify-models/model.ts";
 import { reviewModelData } from "#scripts/verify-models/review.ts";
 import { sharedGroupCapacityModelData } from "#scripts/verify-models/shared-group-capacity.ts";
@@ -17,6 +18,7 @@ export const MODELS = [
   { data: squareModelData, module: "SquareLinkEnd" },
   { data: sumupModelData, module: "SumupRecovery" },
   { data: reviewModelData, module: "PaymentReview" },
+  { data: largestRemainderSplitModelData, module: "LargestRemainderSplit" },
   { data: async () => modelData(await paymentModel()), module: "JointState" },
   { data: bookingReplayModelData, module: "BookingReplay" },
   { data: twoWorkersModelData, module: "TwoWorkers" },

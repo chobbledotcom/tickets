@@ -564,6 +564,7 @@ automatic.
   - SumUp recovery
   - payment review
   - Square link expiry
+  - largest remainder split
 
   Devenv supplies pinned Apalache and its Java runtime. CI and precommit run the
   same task

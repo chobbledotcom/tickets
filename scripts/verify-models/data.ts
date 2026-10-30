@@ -42,7 +42,9 @@ const atom = (value: TlaAtom): string =>
     ? value
       ? "TRUE"
       : "FALSE"
-    : JSON.stringify(value);
+    : typeof value === "number"
+      ? String(value)
+      : JSON.stringify(value);
 
 export const tlaSet = (values: readonly string[]): string =>
   `{${values.map(atom).join(", ")}}`;

@@ -7,6 +7,7 @@ import {
   duplicateBookingData,
 } from "#scripts/verify-models/booking.ts";
 import { counterexampleData } from "#scripts/verify-models/counterexample.ts";
+import { corruptSplitData } from "#scripts/verify-models/largest-remainder-split.ts";
 import { MODELS } from "#scripts/verify-models/registry.ts";
 import {
   dateLessSoldOutPairData,
@@ -138,6 +139,25 @@ await checkRejected(
   dateLessSoldOutPairData,
   "Init",
   0,
+);
+// The LargestRemainderSplit proof must reject both failure modes it guards:
+// an award past a part's cap and accounting that strands an owed unit. A pass
+// on either would make the clean verdict worthless.
+console.log("Check LargestRemainderSplit: over-cap award counterexample.");
+await checkRejected(
+  "LargestRemainderSplit",
+  "an award past a part's cap",
+  () => corruptSplitData("cap guard"),
+  "InductionStart",
+  1,
+);
+console.log("Check LargestRemainderSplit: stranded owed unit counterexample.");
+await checkRejected(
+  "LargestRemainderSplit",
+  "accounting that strands an owed unit",
+  () => corruptSplitData("unconserved accounting"),
+  "InductionStart",
+  1,
 );
 await Deno.remove(work, { recursive: true });
 console.log(

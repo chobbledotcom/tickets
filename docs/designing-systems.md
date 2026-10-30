@@ -130,6 +130,16 @@ These checks serve different purposes.
     group the pair shares. The fit ceiling never reports more whole orders
     than the remaining spots hold. A date-less surface never sells a pair
     whose shared static cap is below two spots.
+  - `verification/LargestRemainderSplit.tla` checks the largest-remainder
+    allocation of a whole amount across weighted parts. The model runs the
+    award loop itself: every part first holds its proportional floor, and the
+    loop gives the leftover units, one each, to any part the production
+    guard's eligibility verdict allows. The checker proves for every award
+    order that the awarded units stay accounted, no part takes more than one
+    extra unit, and no part passes its cap. The generator's independent
+    oracles derive every fact from the raw weights. The checker must also
+    reject an award past a part's cap and accounting that strands an owed
+    unit.
   The models trust representative coverage and event annotations.
   The Square model also trusts the configured provider lifetime. Claim
   admission remains a model assumption. Mirror tests and database tests check

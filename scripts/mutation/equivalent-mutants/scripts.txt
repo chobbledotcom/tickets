@@ -163,3 +163,6 @@ scripts/verify-models/shared-group-capacity.ts::SCENARIOS.18~1piew2n  18 → 0 a
 # fallback itself, so ?? and || agree for every input.
 scripts/verify-models/shared-group-capacity.ts::factFor.remaining~14naslb  ?? → || audited:1qabh3w # the only falsy number is 0, which is the fallback itself
 scripts/verify-models/shared-group-capacity.ts::factFor.staticCap~00b11a1  ?? → || audited:1qabh3w # the only falsy number is 0, which is the fallback itself
+
+scripts/verify-models/largest-remainder-split.ts::eligibleFor~0l3q3lq  ?? → || audited:1tndw7c # the operand is a function or undefined; a function is truthy, so only undefined reaches the fallback
+scripts/verify-models/largest-remainder-split.ts::capOf~0seo0lv  ?? → || audited:1tndw7c # the operand is a number or undefined; 0 is falsy but falls back to 0, so both operators agree on every value
