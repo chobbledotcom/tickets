@@ -5,6 +5,7 @@ import {
   readProviderJson,
 } from "#payment/provider-fetch.ts";
 import { providerDetail } from "#payment/transport-error.ts";
+import { encodedAfter } from "#shared/encoded-after.ts";
 
 /* jscpd:ignore-end */
 
@@ -51,8 +52,7 @@ const sumupInit = (
   method,
 });
 
-const merchantPath = (merchantCode: string): string =>
-  `/merchants/${encodeURIComponent(merchantCode)}`;
+const merchantPath = encodedAfter("/merchants/");
 
 /** Every SumUp call the app makes, over the shared provider boundary so each
  * one carries the timeout and the subrequest count the edge budget needs. */

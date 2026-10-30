@@ -20,10 +20,10 @@ import {
   publicPageResponse,
   redirect,
 } from "#routes/response.ts";
+import { encodedAfter } from "#shared/encoded-after.ts";
 import { unsubscribePage } from "#templates/public/unsubscribe.tsx";
 
-const pagePath = (hash: string): string =>
-  `/unsubscribe?email=${encodeURIComponent(hash)}`;
+const pagePath = encodedAfter("/unsubscribe?email=");
 
 /** GET /unsubscribe?email=<hash> — show current status and the toggle form. */
 export const handleUnsubscribeGet = async (
