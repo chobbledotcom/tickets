@@ -1,11 +1,13 @@
 /* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import * as v from "valibot";
 import {
   attendeeCapacityModelData,
   overfillInsertData,
   partialCommitData,
 } from "#scripts/verify-models/attendee-capacity.ts";
+import { tlaSchemaOf } from "#scripts/verify-models/attendee-capacity-facts.ts";
 import { records } from "#test-utils/tla-data.ts";
 
 /* jscpd:ignore-end */
@@ -181,6 +183,16 @@ describe("attendee capacity checker data", () => {
     // The overfill batch stays refused, so only the intended control breaks.
     expect(batches).toContainEqual(
       batch("insert-refused", false, 2, false, 4, 0),
+    );
+  });
+});
+
+describe("the checker type note derivation", () => {
+  test("stops on a field type with no checker note", () => {
+    // A field type outside the table has no checker note. The derivation
+    // stops instead of writing a wrong note the checker set would trust.
+    expect(() => tlaSchemaOf(v.object({ tags: v.array(v.string()) }))).toThrow(
+      "No checker type note for field type array.",
     );
   });
 });

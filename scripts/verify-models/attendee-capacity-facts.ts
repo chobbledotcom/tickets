@@ -52,7 +52,7 @@ export const tlaSchemaOf = <T extends v.ObjectEntries>(
     entries.map(([name, field]) => {
       const tlaType = TLA_TYPE_OF[field.type];
       if (tlaType === undefined) {
-        throw new Error(`No checker type note for a ${field.type} field.`);
+        throw new Error(`No checker type note for field type ${field.type}.`);
       }
       return [name, tlaType];
     }),
