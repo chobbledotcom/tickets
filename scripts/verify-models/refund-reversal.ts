@@ -5,11 +5,12 @@
 /* jscpd:ignore-start -- imports */
 import { createClient } from "@libsql/client";
 import { attendeeAccount } from "#accounting/accounts.ts";
+import { transfersByAccounts } from "#accounting/queries.ts";
 import { postTransferGroups } from "#accounting/store.ts";
 import { setEncryptionKeyForTest } from "#crypto/encryption.ts";
 import { execute, setDb } from "#db/client.ts";
 import { rebuildWipedSchema } from "#db/migrations.ts";
-import { once } from "#fp";
+import { once, requiredMapValue } from "#fp";
 import {
   type ModelDataSource,
   tlaModule,
@@ -32,8 +33,9 @@ import {
   referenceFields,
   reversalFields,
 } from "#scripts/verify-models/refund-reversal-schemas.ts";
+import { accountKey } from "#shared/ledger/account.ts";
 import { isInverseOf } from "#shared/ledger/reverse.ts";
-import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
+import type { Transfer } from "#shared/ledger/types.ts";
 import {
   accountRefundGroups,
   type ComputedRefund,
@@ -50,13 +52,10 @@ import { TEST_ENCRYPTION_KEY } from "#test-utils/internal.ts";
  * for the fixture's current ledger legs. */
 const planFacts = (
   fixture: Fixture,
-  currentLegs: readonly TransferInput[],
+  legs: Transfer[],
   computed: ComputedRefund,
 ): Facts => {
-  const groups = accountRefundGroups(
-    currentLegs as Transfer[],
-    fixture.assessments,
-  );
+  const groups = accountRefundGroups(legs, fixture.assessments);
   const posted = computed.groups.flat();
   const reversed = new Set(
     posted.map((leg) => mergedGroupOf(fixture, reversedGroup(leg))),
@@ -64,7 +63,7 @@ const planFacts = (
   const account = attendeeAccount(fixture.attendeeId);
   return {
     legs: posted.map((leg) => ({
-      exactInverse: currentLegs.some(
+      exactInverse: legs.some(
         (original) =>
           original.eventGroup === leg.reversesGroup &&
           isInverseOf(leg, original),
@@ -81,7 +80,7 @@ const planFacts = (
     })),
     reversals: groups.map((group) => ({
       ...refundGroupFacts(account, group),
-      alreadyRecorded: hasRefundLegs(fixture, currentLegs, group.eventGroup),
+      alreadyRecorded: hasRefundLegs(fixture, legs, group.eventGroup),
       group: labelFor(fixture, group.eventGroup),
       reverses: reversed.has(group.eventGroup),
     })),
@@ -137,6 +136,17 @@ const bootLedger = once(async (): Promise<() => Promise<void>> => {
   };
 });
 
+/** One attendee's ledger legs, read back through the production read, so the
+ * facts describe the posted rows and never the fixture's in-memory copy. */
+const ledgerLegs = async (attendeeId: number): Promise<Transfer[]> => {
+  const account = attendeeAccount(attendeeId);
+  return requiredMapValue(
+    await transfersByAccounts([account]),
+    accountKey(account),
+    `Refund ledger read omitted attendee ${attendeeId}`,
+  );
+};
+
 const planFor = async (fixture: Fixture): Promise<ComputedRefund> =>
   requireValue(
     (
@@ -147,21 +157,31 @@ const planFor = async (fixture: Fixture): Promise<ComputedRefund> =>
     `Missing refund plan for attendee ${fixture.attendeeId}`,
   );
 
+const postThenPlan = async (
+  fixture: Fixture,
+  plan: ComputedRefund,
+): Promise<ComputedRefund> => {
+  await postTransferGroups([plan.groups.flat()]);
+  return planFor(fixture);
+};
+
 const deriveFacts = once(async (): Promise<Facts> => {
   const teardown = await bootLedger();
   let facts: Facts = { legs: [], references: [], reversals: [] };
   for (const fixture of await fixtures()) {
     await postFixture(fixture);
-    const current = fixture.legs;
     const first = await planFor(fixture);
-    facts = mergeFacts(facts, planFacts(fixture, current, first));
+    const states: (readonly [ComputedRefund, Transfer[]])[] = [
+      [first, await ledgerLegs(fixture.attendeeId)],
+    ];
     if (fixture.replay) {
-      await postTransferGroups([first.groups.flat()]);
-      const replay = await planFor(fixture);
-      facts = mergeFacts(
-        facts,
-        planFacts(fixture, [...current, ...first.groups.flat()], replay),
-      );
+      states.push([
+        await postThenPlan(fixture, first),
+        await ledgerLegs(fixture.attendeeId),
+      ]);
+    }
+    for (const [plan, legs] of states) {
+      facts = mergeFacts(facts, planFacts(fixture, legs, plan));
     }
   }
   await teardown();

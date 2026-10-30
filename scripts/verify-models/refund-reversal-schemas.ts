@@ -7,11 +7,12 @@ import * as v from "valibot";
 
 type ValibotNode = { type: string };
 
-/** The checker type one valibot field declares. Every fact schema declares
- * string, picklist or boolean fields, so no other type is reachable. */
+/** The checker type one valibot field declares. A field of any other kind
+ * must name its checker type here first. */
 const tlaTypeOf = (schema: ValibotNode): "Str" | "Bool" => {
+  if (schema.type === "boolean") return "Bool";
   if (schema.type === "string" || schema.type === "picklist") return "Str";
-  return "Bool";
+  throw new Error(`The fact field schema ${schema.type} has no checker type.`);
 };
 
 /** The checker record fields for one valibot object schema. */
