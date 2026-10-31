@@ -8,6 +8,7 @@ import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { uploadRaw } from "#shared/storage.ts";
 import { setBuildTimestampForTest } from "#shared/update.ts";
 import {
+  expectDeployFailure,
   stubBunnyUpdateFlag,
   stubUpdateFetch,
   useLocalStoragePath,
@@ -269,17 +270,7 @@ describeWithEnv("server (admin update)", { db: true }, () => {
           deployMocks({
             release: new Response(JSON.stringify(MOCK_RELEASE_NO_ASSET)),
           }),
-        async () => {
-          const { response } = await withVirtualBackoff(() =>
-            adminFormPost("/admin/update"),
-          );
-          expectRedirect(response, "/admin/update");
-          expectFlash(
-            response,
-            expect.stringContaining("Update failed"),
-            false,
-          );
-        },
+        async () => expectDeployFailure(),
       );
     });
     test("deploys successfully and redirects with success flash", async () => {
