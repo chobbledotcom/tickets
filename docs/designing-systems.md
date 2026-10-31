@@ -125,6 +125,13 @@ These checks serve different purposes.
     phase separately, so a fence that omits any one of them never clears the
     stored claim. A take replaces a claim only on an absent or expired row.
     Lease expiry never cancels a provider request that is already in flight.
+  - `verification/NotificationFlagLease.tla` models the pending-notification
+    flag lease on one attendee's row. A claim captures each outstanding
+    flag's colour and zeroes the flag. The restore returns the captured
+    colour, never a fixed one, so the badge keeps saying what is owed. A
+    clear-on-accept removes the owed work. Two racing recoveries claim the
+    flags exactly once. The checker rejects a claim that zeroes a flag
+    without capturing it and a restore that invents a different colour.
   - `verification/SharedGroupCapacity.tla` checks the shared group capacity
     of one parent and its required child. One order takes two spots in every
     group the pair shares. The fit ceiling never reports more whole orders

@@ -13,6 +13,10 @@ import {
   takeBackDoorScanData,
 } from "#scripts/verify-models/door-scan.ts";
 import { corruptSplitData } from "#scripts/verify-models/largest-remainder-split.ts";
+import {
+  corruptClaimWithoutCaptureData,
+  corruptRestoreColourData,
+} from "#scripts/verify-models/notification-flag-lease.ts";
 import { MODELS } from "#scripts/verify-models/registry.ts";
 import {
   dateLessSoldOutPairData,
@@ -187,6 +191,29 @@ await checkRejected(
   "DoorScan",
   "a scan that takes a place back",
   takeBackDoorScanData,
+  "InductionStart",
+  1,
+);
+// The NotificationFlagLease proof must reject a claim that zeroes a flag
+// without capturing its value, and a restore that invents a colour. A pass
+// on either would make the clean verdicts worthless.
+console.log(
+  "Check NotificationFlagLease: claim-without-capture counterexample.",
+);
+await checkRejected(
+  "NotificationFlagLease",
+  "a claim that zeroes a flag without capturing it",
+  corruptClaimWithoutCaptureData,
+  "InductionStart",
+  1,
+);
+console.log(
+  "Check NotificationFlagLease: invented restore colour counterexample.",
+);
+await checkRejected(
+  "NotificationFlagLease",
+  "a restore that invents a colour different from the captured one",
+  corruptRestoreColourData,
   "InductionStart",
   1,
 );
