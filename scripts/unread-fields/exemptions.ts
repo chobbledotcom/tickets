@@ -251,10 +251,12 @@ const exactFieldExemptions = (
     })),
   );
 
-const schemaReason = (evidence: string): ExemptionReason => ({
-  evidence,
-  kind: "schema-driven",
-});
+/** One exemption reason carrying the evidence for its kind. */
+const reasonFor =
+  (kind: ExemptionReason["kind"]) =>
+  (evidence: string): ExemptionReason => ({ evidence, kind });
+
+const schemaReason = reasonFor("schema-driven");
 
 const stripeReason: ExemptionReason = {
   evidence: "createStripeRequest serialises the complete Stripe request",
@@ -262,10 +264,7 @@ const stripeReason: ExemptionReason = {
 };
 
 /** A field a handler reads by key off a raw record. */
-const dynamicReason = (evidence: string): ExemptionReason => ({
-  evidence,
-  kind: "dynamic-read",
-});
+const dynamicReason = reasonFor("dynamic-read");
 
 const settingsSnapshotFields = exactFieldsFrom(
   "src/shared/db/settings/snapshot.ts",

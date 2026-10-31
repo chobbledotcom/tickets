@@ -38,13 +38,17 @@ type IntSchema = v.GenericSchema<string, number>;
 const parseIntWithSchema = (schema: IntSchema, value: string): number | null =>
   parseOrNull(schema, value.trim());
 
+/** One integer parser for the given schema, trimming first. */
+const parseIntWith =
+  (schema: IntSchema) =>
+  (value: string): number | null =>
+    parseIntWithSchema(schema, value);
+
 /** Parse a strict non-negative decimal integer, or null when it is not one. */
-export const parseNonNegativeInt = (value: string): number | null =>
-  parseIntWithSchema(NonNegativeIntSchema, value);
+export const parseNonNegativeInt = parseIntWith(NonNegativeIntSchema);
 
 /** Parse a strict positive decimal integer, or null when it is not one. */
-export const parsePositiveInt = (value: string): number | null =>
-  parseIntWithSchema(PositiveIntSchema, value);
+export const parsePositiveInt = parseIntWith(PositiveIntSchema);
 
 /**
  * Plain signed decimal integer strings: an optional minus, then digits only,
@@ -63,8 +67,7 @@ const SignedIntSchema = v.pipe(
 );
 
 /** Parse a strict signed decimal integer, or null when it is not one. */
-export const parseSignedInt = (value: string): number | null =>
-  parseIntWithSchema(SignedIntSchema, value);
+export const parseSignedInt = parseIntWith(SignedIntSchema);
 
 /** Whether a number can be stored safely as a positive database id. */
 export const isPositiveSafeInteger = (value: number): boolean =>

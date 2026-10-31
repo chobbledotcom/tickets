@@ -85,17 +85,21 @@ const importRsaKey = (
   );
 };
 
+/** Import an RSA key for one usage from its JWK string. */
+const importRsaKeyFor =
+  (usage: "encrypt" | "decrypt") =>
+  (jwkString: string): Promise<CryptoKey> =>
+    importRsaKey(jwkString, usage);
+
 /**
  * Import a public key from JWK string
  */
-export const importPublicKey = (jwkString: string): Promise<CryptoKey> =>
-  importRsaKey(jwkString, "encrypt");
+export const importPublicKey = importRsaKeyFor("encrypt");
 
 /**
  * Import a private key from JWK string
  */
-export const importPrivateKey = (jwkString: string): Promise<CryptoKey> =>
-  importRsaKey(jwkString, "decrypt");
+export const importPrivateKey = importRsaKeyFor("decrypt");
 
 /** Prefix tagging a hybrid (RSA+AES) ciphertext: owner-key activity-log
  * messages and attendee PII. Distinguishes them from env-key {@link

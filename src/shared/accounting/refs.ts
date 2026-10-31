@@ -30,11 +30,15 @@ const digest = (domain: string, parts: RefPart[]): Promise<string> => {
   return hmacHash(`${domain}:${JSON.stringify(parts)}`);
 };
 
+/** One domain-prefixed digest of the same ref parts. */
+const digestFor =
+  (domain: string) =>
+  (parts: RefPart[]): Promise<string> =>
+    digest(domain, parts);
+
 /** The shared id for every leg of one business event (booking/refund/…). */
-export const eventGroup = (parts: RefPart[]): Promise<string> =>
-  digest("eg", parts);
+export const eventGroup = digestFor("eg");
 
 /** The per-leg idempotency key. The `domain` prefix keeps it distinct from an
  *  event group built from the same parts. */
-export const legReference = (parts: RefPart[]): Promise<string> =>
-  digest("ref", parts);
+export const legReference = digestFor("ref");

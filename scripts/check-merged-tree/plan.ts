@@ -31,13 +31,13 @@ export const worktreeArgs = (path: string, baseSha: string): string[] => [
   baseSha,
 ];
 
+/** One git command line that appends a single subject argument. */
+const gitArgs =
+  (command: string, ...flags: string[]) =>
+  (subject: string): string[] => [command, ...flags, subject];
+
 /** The trial merge: no commit and no fast-forward, so a conflict stops here. */
-export const mergeArgs = (headSha: string): string[] => [
-  "merge",
-  "--no-commit",
-  "--no-ff",
-  headSha,
-];
+export const mergeArgs = gitArgs("merge", "--no-commit", "--no-ff");
 
 /** The paths the trial merge left conflicted. */
 export const unmergedArgs = (): string[] => [
@@ -47,22 +47,26 @@ export const unmergedArgs = (): string[] => [
 ];
 
 /** Remove the throwaway worktree and its recorded state. */
-export const worktreeRemoveArgs = (path: string): string[] => [
-  "worktree",
-  "remove",
-  "--force",
-  path,
-];
+export const worktreeRemoveArgs = gitArgs("worktree", "remove", "--force");
 
 /** The head as the verdict lines print it. */
 export const labelFor = (head: Head): string =>
   head.kind === "pr" ? `PR #${head.number}` : head.name;
 
-export const successLine = (label: string, base: string): string =>
-  `MERGED-TREE CHECK PASSED: ${label} merges into ${base}`;
+/** One verdict line: the shared prefix plus the caller's wording. The wording
+ * keeps `{label}` and `{base}` where the head and base names go. */
+const verdictLine =
+  (wording: string) =>
+  (label: string, base: string): string =>
+    `MERGED-TREE CHECK ${wording
+      .replaceAll("{label}", label)
+      .replaceAll("{base}", base)}`;
 
-export const notMergeableHeader = (label: string, base: string): string =>
-  `MERGED-TREE CHECK FAILED: ${label} does not merge cleanly into ${base}`;
+export const successLine = verdictLine("PASSED: {label} merges into {base}");
+
+export const notMergeableHeader = verdictLine(
+  "FAILED: {label} does not merge cleanly into {base}",
+);
 
 export const checkFailedLine = (
   label: string,
@@ -71,14 +75,17 @@ export const checkFailedLine = (
 ): string =>
   `MERGED-TREE CHECK FAILED: ${label} merges into ${base} but ${task} fails on the merged tree`;
 
-export const fetchFailedLine = (label: string, base: string): string =>
-  `MERGED-TREE CHECK FAILED: cannot fetch ${label} or origin/${base}`;
+export const fetchFailedLine = verdictLine(
+  "FAILED: cannot fetch {label} or origin/{base}",
+);
 
-export const resolveFailedLine = (label: string, base: string): string =>
-  `MERGED-TREE CHECK FAILED: cannot resolve ${label} against origin/${base}`;
+export const resolveFailedLine = verdictLine(
+  "FAILED: cannot resolve {label} against origin/{base}",
+);
 
-export const worktreeFailedLine = (label: string, base: string): string =>
-  `MERGED-TREE CHECK FAILED: cannot create the trial worktree for ${label} into ${base}`;
+export const worktreeFailedLine = verdictLine(
+  "FAILED: cannot create the trial worktree for {label} into {base}",
+);
 
 export const cleanupFailedLine = (): string =>
   "MERGED-TREE CHECK FAILED: the trial worktree could not be cleaned up";

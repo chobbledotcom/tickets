@@ -158,16 +158,20 @@ export const staticImportsBySpecifier = (
   return bySpecifier;
 };
 
+/** The entry's reachable modules: with or without dynamic imports. */
+const reachableSpecifiers =
+  (runtime: boolean) =>
+  (graph: ModuleGraph): Set<string> =>
+    reachableModules(graph, runtime);
+
 /**
  * The modules the entry can reach at runtime: static imports plus dynamic
  * ones, because a deferred module still evaluates on first use. Type-only
  * imports reach nothing — a module only they can reach never evaluates, so
  * cycles inside that subtree cost no load order and no cold start.
  */
-export const runtimeReachableSpecifiers = (graph: ModuleGraph): Set<string> =>
-  reachableModules(graph, true);
+export const runtimeReachableSpecifiers = reachableSpecifiers(true);
 
 /** The modules the entry reaches through static imports alone — the set a
  * cold-start regression cares about, before any deferred import fires. */
-export const staticReachableSpecifiers = (graph: ModuleGraph): Set<string> =>
-  reachableModules(graph, false);
+export const staticReachableSpecifiers = reachableSpecifiers(false);

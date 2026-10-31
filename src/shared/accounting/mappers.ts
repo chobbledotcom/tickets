@@ -32,22 +32,26 @@ import { NO_TAX, type TaxPolicy, TaxPolicySchema } from "#shared/tax/types.ts";
 const BOOKING = "booking";
 const REFUND = "refund";
 
+/** The shared event group for one ledger leg: a tag and the id it refers to. */
+const eventGroupFor =
+  (tag: RefPart) =>
+  (subjectId: string): Promise<string> =>
+    eventGroup([tag, subjectId]);
+
 /**
  * The shared event group for a booking's legs, derived from its stable event
  * id. That id is the payment session id on the paid path, the attendee id on
  * the free/owed path. The single place the booking event key is built, so a ledger preflight
  * resolves exactly the group {@link mapBooking} posts under.
  */
-export const bookingEventGroup = (eventId: string): Promise<string> =>
-  eventGroup([BOOKING, eventId]);
+export const bookingEventGroup = eventGroupFor(BOOKING);
 
 /**
  * The event group a refund of one booking group is posted under. Derived from
  * the booking's, so a reversal already in the ledger can be recognised without
  * rebuilding the legs it writes.
  */
-export const refundEventGroup = (bookingGroup: string): Promise<string> =>
-  eventGroup([REFUND, bookingGroup]);
+export const refundEventGroup = eventGroupFor(REFUND);
 
 /**
  * The refund-side `kind` for each reversible booking leg. The cash leg is

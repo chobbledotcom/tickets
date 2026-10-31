@@ -126,11 +126,15 @@ const referencePlacements = (
     })),
   );
 
-const hasProviderPayment = (group: AccountRefundGroup): boolean =>
-  group.legs.some(isProviderPaymentLeg);
+/** Whether any leg of the group matches the predicate. */
+const hasLeg =
+  (isLeg: (leg: Transfer) => boolean) =>
+  (group: AccountRefundGroup): boolean =>
+    group.legs.some(isLeg);
 
-const hasOperatorMoney = (group: AccountRefundGroup): boolean =>
-  group.legs.some(isOperatorMoneyLeg);
+const hasProviderPayment = hasLeg(isProviderPaymentLeg);
+
+const hasOperatorMoney = hasLeg(isOperatorMoneyLeg);
 
 type ReturnedGroups = {
   readonly groups: AccountRefundGroup[];

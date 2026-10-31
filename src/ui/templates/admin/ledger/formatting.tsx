@@ -182,14 +182,18 @@ const modifierDescription = eitherWayDescription(
   "admin.ledger.human.modifier_reduce",
 );
 
-const modifierAmount: AmountRule = (transfer) =>
-  transfer.destination.type === MODIFIER ? transfer.amount : -transfer.amount;
+/** The signed amount for one destination type: positive for it, negative
+ * otherwise. */
+const signedAmountFor =
+  (destination: typeof MODIFIER | typeof REVENUE | typeof TAX): AmountRule =>
+  (transfer) =>
+    transfer.destination.type === destination
+      ? transfer.amount
+      : -transfer.amount;
 
-const taxSaleAmount: AmountRule = (transfer) =>
-  transfer.destination.type === REVENUE ? transfer.amount : -transfer.amount;
-
-const vatAmount: AmountRule = (transfer) =>
-  transfer.destination.type === TAX ? transfer.amount : -transfer.amount;
+const modifierAmount = signedAmountFor(MODIFIER);
+const taxSaleAmount = signedAmountFor(REVENUE);
+const vatAmount = signedAmountFor(TAX);
 
 const taxSaleDescription = eitherWayDescription(
   REVENUE,
