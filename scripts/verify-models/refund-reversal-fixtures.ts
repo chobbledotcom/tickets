@@ -15,7 +15,6 @@ import { KIND } from "#accounting/kinds.ts";
 import { bookingEventGroup } from "#accounting/mappers.ts";
 import { once } from "#fp";
 import type { TransferInput } from "#shared/ledger/types.ts";
-import { isRefundLeg } from "#shared/refund-ledger/plan.ts";
 import type { RefundReferences } from "#shared/refund-ledger/result.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { assessTax } from "#shared/tax/assessment.ts";
@@ -49,20 +48,6 @@ export const reversedGroup = (leg: TransferInput): string =>
 export const mergedGroupOf = (fixture: Fixture, eventGroup: string): string =>
   fixture.assessments.find((assessment) => assessment.eventGroup === eventGroup)
     ?.bookingGroup ?? eventGroup;
-
-/** Whether the ledger already holds a refund leg for this group. A refund
- * leg names the physical event group it reverses, so a merged group matches
- * any of the event groups its assessment folds into it. */
-export const hasRefundLegs = (
-  fixture: Fixture,
-  legs: readonly TransferInput[],
-  eventGroup: string,
-): boolean =>
-  legs.some(
-    (leg) =>
-      isRefundLeg(leg.kind) &&
-      mergedGroupOf(fixture, reversedGroup(leg)) === eventGroup,
-  );
 
 /** The label a fixture gives one of its account refund groups. */
 export const labelFor = (fixture: Fixture, eventGroup: string): string =>

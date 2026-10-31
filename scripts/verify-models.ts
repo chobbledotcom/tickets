@@ -25,6 +25,7 @@ import {
   doubleRecordData,
   nonInverseLegData,
   operatorMoneyReversalData,
+  unpairedLegData,
 } from "#scripts/verify-models/refund-reversal.ts";
 
 import { MODELS } from "#scripts/verify-models/registry.ts";
@@ -274,6 +275,16 @@ await checkRejected(
   "RefundReversal",
   "a posted leg that is not the exact inverse of a recorded leg",
   nonInverseLegData,
+  "InductionStart",
+  1,
+);
+// The RefundReversal proof must reject a posted leg that pairs with no leg
+// the ledger records. A pass would make the leg-pairing verdict worthless.
+console.log("Check RefundReversal: unpaired leg counterexample.");
+await checkRejected(
+  "RefundReversal",
+  "a posted leg that pairs with no recorded original",
+  unpairedLegData,
   "InductionStart",
   1,
 );

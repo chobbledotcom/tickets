@@ -21,13 +21,19 @@ const tlaFields = (schema: {
     ]),
   );
 
+/** The two plan evaluations one fixture feeds the checker: the first plan
+ *  over the fixture ledger, and the replay plan over the ledger the first
+ *  plan's refunds joined. */
+export const RoundNamesSchema = v.picklist(["first", "replay"]);
+export type RoundName = v.InferOutput<typeof RoundNamesSchema>;
+
 export const ReversalFactSchema = v.object({
-  alreadyRecorded: v.boolean(),
   group: v.string(),
   hasOperatorMoney: v.boolean(),
   hasProviderPayment: v.boolean(),
   paymentOnly: v.boolean(),
   reverses: v.boolean(),
+  round: RoundNamesSchema,
   settled: v.boolean(),
 });
 export type ReversalFact = v.InferOutput<typeof ReversalFactSchema>;
@@ -36,6 +42,8 @@ export const reversalFields = tlaFields(ReversalFactSchema);
 export const LegFactSchema = v.object({
   exactInverse: v.boolean(),
   group: v.string(),
+  original: v.string(),
+  round: RoundNamesSchema,
 });
 export type LegFact = v.InferOutput<typeof LegFactSchema>;
 export const legFields = tlaFields(LegFactSchema);
@@ -49,13 +57,26 @@ export const ReferenceOutcomesSchema = v.picklist([
 export const ReferenceFactSchema = v.object({
   outcome: ReferenceOutcomesSchema,
   reference: v.string(),
+  round: RoundNamesSchema,
 });
 export type ReferenceFact = v.InferOutput<typeof ReferenceFactSchema>;
 export const referenceFields = tlaFields(ReferenceFactSchema);
 
-/** The three fact sets one plan derives, in the shape the checker reads. */
+/** One (round, reference) pair the reference partition must cover. */
+export const ExpectedReferenceSchema = v.object({
+  reference: v.string(),
+  round: RoundNamesSchema,
+});
+export type ExpectedReference = v.InferOutput<typeof ExpectedReferenceSchema>;
+export const expectedReferenceFields = tlaFields(ExpectedReferenceSchema);
+
+/** The fact sets one plan evaluation derives, plus the original-leg universe
+ *  the leg facts pair against and the (round, reference) pairs the reference
+ *  partition must cover. */
 export type Facts = {
+  readonly expected: readonly ExpectedReference[];
   readonly legs: readonly LegFact[];
+  readonly originals: readonly string[];
   readonly references: readonly ReferenceFact[];
   readonly reversals: readonly ReversalFact[];
 };
