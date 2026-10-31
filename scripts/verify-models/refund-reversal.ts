@@ -39,7 +39,7 @@ import {
 } from "#scripts/verify-models/refund-reversal-schemas.ts";
 import { accountKey } from "#shared/ledger/account.ts";
 import { isInverseOf } from "#shared/ledger/reverse.ts";
-import type { Transfer } from "#shared/ledger/types.ts";
+import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import {
   accountRefundGroups,
   type ComputedRefund,
@@ -51,6 +51,22 @@ import type { StoredTaxAssessment } from "#shared/tax/store.ts";
 import { TEST_ENCRYPTION_KEY } from "#test-utils/internal.ts";
 
 /* jscpd:ignore-end */
+
+/* The recorded original one posted refund leg inverts. The plan posts every
+ * refund leg against a leg the ledger holds, so the derivation throws when
+ * the plan breaks the pairing, and the clean check fails with it. */
+const pairedOriginal = (
+  leg: TransferInput,
+  ledger: readonly Transfer[],
+): Transfer =>
+  requireValue(
+    ledger.find(
+      (candidate) =>
+        candidate.eventGroup === leg.reversesGroup &&
+        isInverseOf(leg, candidate),
+    ),
+    `The plan posts a refund leg that inverts no recorded original: ${leg.reference}`,
+  );
 
 /* One plan evaluation's facts, derived from the plan the production function
  * returned for the fixture's ledger legs at that round. The partition
@@ -68,22 +84,14 @@ const planFacts = (
   );
   const account = attendeeAccount(fixture.attendeeId);
   return {
-    legs: posted.map((leg) => {
-      /* The recorded original the posted leg inverts, or an empty reference
-       * when the plan posts a leg that inverts nothing. The checker reads the
-       * empty reference as a pairing failure through OriginalLegs. */
-      const original = legs.find(
-        (candidate) =>
-          candidate.eventGroup === leg.reversesGroup &&
-          isInverseOf(leg, candidate),
-      );
-      return {
-        exactInverse: original !== undefined,
-        group: labelFor(fixture, mergedGroupOf(fixture, reversedGroup(leg))),
-        original: original?.reference ?? "",
-        round,
-      };
-    }),
+    legs: posted.map((leg) => ({
+      /* The derivation throws on an unpaired leg, so every clean fact pairs
+       * and the verdict is true; the controls flip it for the checker. */
+      exactInverse: true,
+      group: labelFor(fixture, mergedGroupOf(fixture, reversedGroup(leg))),
+      original: pairedOriginal(leg, legs).reference,
+      round,
+    })),
     references: fixture.references.map((reference) => ({
       outcome: computed.result.recorded.has(reference.index)
         ? "recorded"
