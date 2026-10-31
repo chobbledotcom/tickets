@@ -16,6 +16,10 @@ import {
 import { slugify } from "#shared/slug.ts";
 import type { PaymentProviderType } from "#types";
 
+/** One getter for an env var: required, or empty when it is not set. */
+const envGetter = (name: string, required: boolean) => (): string =>
+  required ? requireEnv(name) : (getEnv(name) ?? "");
+
 /**
  * Pick the value for the active payment provider from a per-provider set, or
  * `null` when no provider is active. The set is keyed by the provider union,
@@ -174,7 +178,7 @@ export const isBunnyCdnEnabled = allEnvSet("BUNNY_API_KEY", "BUNNY_SCRIPT_ID");
 /**
  * Get the Bunny CDN API key from environment
  */
-export const getBunnyApiKey = (): string => requireEnv("BUNNY_API_KEY");
+export const getBunnyApiKey = envGetter("BUNNY_API_KEY", true);
 
 /**
  * Check if Bunny DNS subdomain feature is enabled.
@@ -193,16 +197,18 @@ export const isBuilderEnabled = (): boolean =>
   getEnv("CAN_BUILD_SITES") === "true";
 
 /** Get the Bunny DNS zone ID from environment */
-export const getBunnyDnsZoneId = (): string => requireEnv("BUNNY_DNS_ZONE_ID");
+export const getBunnyDnsZoneId = envGetter("BUNNY_DNS_ZONE_ID", true);
 
 /** Get the Bunny DNS subdomain suffix (e.g. ".tickets") from environment */
-export const getBunnyDnsSubdomainSuffix = (): string =>
-  getEnv("BUNNY_DNS_SUBDOMAIN_SUFFIX") ?? "";
+export const getBunnyDnsSubdomainSuffix = envGetter(
+  "BUNNY_DNS_SUBDOMAIN_SUFFIX",
+  false,
+);
 
 /**
  * Get the Bunny Edge Script ID from environment
  */
-export const getBunnyScriptId = (): string => requireEnv("BUNNY_SCRIPT_ID");
+export const getBunnyScriptId = envGetter("BUNNY_SCRIPT_ID", true);
 
 /**
  * Diagnostic key gating the verbose `/health` response. Empty when unset, in
@@ -210,21 +216,19 @@ export const getBunnyScriptId = (): string => requireEnv("BUNNY_SCRIPT_ID");
  * key reveals non-private build/runtime diagnostics (commit, build time) that
  * are useful for operators but needlessly helpful to an attacker.
  */
-export const getDebugKey = (): string => getEnv("DEBUG_KEY") ?? "";
+export const getDebugKey = envGetter("DEBUG_KEY", false);
 
 /**
  * Get the Botpoison public key from environment (safe to expose to browsers).
  * Returns empty string when unset.
  */
-export const getBotpoisonPublicKey = (): string =>
-  getEnv("BOTPOISON_PUBLIC_KEY") ?? "";
+export const getBotpoisonPublicKey = envGetter("BOTPOISON_PUBLIC_KEY", false);
 
 /**
  * Get the Botpoison secret key from environment (server-side verification only).
  * Returns empty string when unset.
  */
-export const getBotpoisonSecretKey = (): string =>
-  getEnv("BOTPOISON_SECRET_KEY") ?? "";
+export const getBotpoisonSecretKey = envGetter("BOTPOISON_SECRET_KEY", false);
 
 /**
  * Check if Botpoison spam protection is configured.
@@ -245,7 +249,7 @@ export const isBotpoisonEnabled = allEnvSet(
 export const isInstanceApiEnabled = allEnvSet("MAIN_INSTANCE_KEY");
 
 /** The shared secret authorizing the inter-instance site-credentials endpoint. */
-export const getMainInstanceKey = (): string => requireEnv("MAIN_INSTANCE_KEY");
+export const getMainInstanceKey = envGetter("MAIN_INSTANCE_KEY", true);
 
 /** Check if Deno Deploy hosting has its token, organization ID, and domain slug. */
 export const isDenoDeployEnabled = allEnvSet(
@@ -255,15 +259,13 @@ export const isDenoDeployEnabled = allEnvSet(
 );
 
 /** Get the Deno Deploy API token from environment. */
-export const getDenoDeployToken = (): string => requireEnv("DENO_DEPLOY_TOKEN");
+export const getDenoDeployToken = envGetter("DENO_DEPLOY_TOKEN", true);
 
 /** Get the Deno Deploy organization ID from environment. */
-export const getDenoDeployOrgId = (): string =>
-  requireEnv("DENO_DEPLOY_ORG_ID");
+export const getDenoDeployOrgId = envGetter("DENO_DEPLOY_ORG_ID", true);
 
 /** Get the Deno Deploy organization slug used in managed production domains. */
-export const getDenoDeployOrgSlug = (): string =>
-  requireEnv("DENO_DEPLOY_ORG_SLUG");
+export const getDenoDeployOrgSlug = envGetter("DENO_DEPLOY_ORG_SLUG", true);
 
 /** DEFAULT_DB_HOST's provider: "turso" when set to it, "bunny" otherwise. */
 export const getDefaultDbProvider = (): "bunny" | "turso" =>
@@ -277,14 +279,13 @@ export const isTursoEnabled = allEnvSet(
 );
 
 /** Get the Turso API token from environment. */
-export const getTursoApiToken = (): string => requireEnv("TURSO_API_TOKEN");
+export const getTursoApiToken = envGetter("TURSO_API_TOKEN", true);
 
 /** Get the Turso organization name from environment. */
-export const getTursoOrganization = (): string =>
-  requireEnv("TURSO_ORGANIZATION");
+export const getTursoOrganization = envGetter("TURSO_ORGANIZATION", true);
 
 /** Get the Turso database group from environment. */
-export const getTursoGroup = (): string => requireEnv("TURSO_GROUP");
+export const getTursoGroup = envGetter("TURSO_GROUP", true);
 
 /**
  * Sanitize a site name into a valid provider resource slug: the shared

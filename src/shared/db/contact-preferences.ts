@@ -54,11 +54,15 @@ export const contactHash = (
     ? hmacHash(normalizeFor(channel, id))
     : hmacHash(`${channel}:${normalizeFor(channel, id)}`);
 
-export const hashEmail = (email: string): Promise<string> =>
-  contactHash("email", email);
+/** The contact hash for one channel: normalize and digest the id. */
+const contactHashFor =
+  (channel: ContactChannel) =>
+  (id: string): Promise<string> =>
+    contactHash(channel, id);
 
-export const hashPhone = (phone: string): Promise<string> =>
-  contactHash("sms", phone);
+export const hashEmail = contactHashFor("email");
+
+export const hashPhone = contactHashFor("sms");
 
 /**
  * The contact hash is standard base64, so it can contain `+`, `/` and `=` —

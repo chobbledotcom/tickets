@@ -25,10 +25,7 @@ src/shared/checkout-pricing.ts::priceCheckout.modifierSpecs~1b95fmx  ?? → || a
 src/shared/booking-lines.ts::checkoutBookingLines.packageGroupId~0eqzp6w  ?? → || audited:0dqe1ps # packageGroupId is absent or a positive database group id; an explicit 0 also has the same 0 fallback
 src/features/api/payment-processing/create.ts::bookingSlot.packageGroupId~0zn56vl  ?? → || audited:1wqtu53 # lineGroupId returns undefined or a positive package group id; an explicit 0 would also keep the same 0 fallback
 src/shared/logistics-filter.ts::parseAgentFilter.n~03f157n  ?? → || audited:18gjwl6 # raw: string|null, only falsy string "" === fallback ""
-src/shared/config.ts::getBunnyDnsSubdomainSuffix~1pvt5gw  ?? → || audited:06e6k0z # getEnv(): string|undefined, only falsy string "" === fallback ""
-src/shared/config.ts::getDebugKey~036uuok  ?? → || audited:06e6k0z # getEnv(): string|undefined, only falsy string "" === fallback ""
-src/shared/config.ts::getBotpoisonPublicKey~0v606rk  ?? → || audited:06e6k0z # getEnv(): string|undefined, only falsy string "" === fallback ""
-src/shared/config.ts::getBotpoisonSecretKey~0yy1bjh  ?? → || audited:06e6k0z # getEnv(): string|undefined, only falsy string "" === fallback ""
+src/shared/config.ts::envGetter~1lnpo3e  ?? → || audited:1izqa2z # getEnv(): string|undefined, only falsy string "" === fallback ""
 src/shared/qr-token.ts::buildQrBookPayload.d~1ywzxp9  ?? → || audited:1tggeae # input.date?: string, only falsy string "" === fallback ""
 src/shared/qr-token.ts::buildQrBookPayload.n~1tn44vm  ?? → || audited:1tggeae # input.name?: string, only falsy string "" === fallback ""
 src/shared/site-renewal.ts::renewalDeadlineBaseMs~00cywnq  ?? → || audited:1kq4bqb # parseReadOnlyFromMs(): number|null, 0 ?? 0 === 0 || 0
@@ -43,8 +40,8 @@ src/shared/ledger/reconcile.ts::multisetDiff~06icm7q  ?? → || audited:03e6lpt 
 src/shared/ledger/reconcile.ts::multisetDiff.count~06icm7q  ?? → || audited:03e6lpt # multisetDiff: Map<string,number>.get count; 0 ?? 0 === 0 || 0
 src/shared/ledger/reconcile.ts::reconcileLegs.want~1kc2onf  ?? → || audited:03e6lpt # expected.get(): LegFingerprint[]|undefined — an array is always truthy
 src/shared/ledger/reconcile.ts::reconcileLegs.got~15zy9vn  ?? → || audited:03e6lpt # observed.get(): LegFingerprint[]|undefined — an array is always truthy
-src/shared/accounting/mappers.ts::refundKind~1mw4vn3  ?? → || audited:1qqzkiy # REFUND_KIND[kind]: every value is non-empty and a miss is undefined — never "", so ?? and || coincide
-src/shared/accounting/mappers.ts::mapRefund.kind~0rfpt43  ?? → || audited:1qqzkiy # refundKind(leg.kind ?? ""): string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
+src/shared/accounting/mappers.ts::refundKind~1mw4vn3  ?? → || audited:0gtxsck # REFUND_KIND[kind]: every value is non-empty and a miss is undefined — never "", so ?? and || coincide
+src/shared/accounting/mappers.ts::mapRefund.kind~0rfpt43  ?? → || audited:0gtxsck # refundKind(leg.kind ?? ""): string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
 src/shared/accounting/store.ts::planGroup.existing~1qc9xlq  ?? → || audited:04ew96l # planGroup existingByGroup.get(): Transfer[]|undefined — an array is always truthy
 src/shared/accounting/store.ts::newLegConflict~1dordwu  ?? → || audited:04ew96l # newLegConflict originalsById.get(id): Transfer|undefined — a Transfer object is always truthy
 src/shared/accounting/store.ts::eventGroupOf~004j2p7  Ledger event cannot be empty → "" audited:04ew96l # every caller drops empty groups first (postTransfersTx returns early, assertUniqueGroups and loadBatchSnapshot take nonEmpty, planTransferBatch skips them), so requireValue never throws and no test can read its message
@@ -306,7 +303,7 @@ src/shared/accounting/rows.ts::legColumns~1hsch91  ?? → || audited:1q09ha1 # i
 src/shared/ledger/reconcile.ts::IDENTITY_FIELDS~0pukv95  ?? → || audited:03e6lpt # reversesGroup identity: the only falsy-non-null value is "" and "" ?? "" === "" || ""
 src/shared/accounting/reverses-group.ts::readCursor~0ydkp21  ?? → || audited:1pyxzl5 # the stored cursor is a string or undefined; "" is the fallback itself, so "" ?? "" === "" || "" either way
 
-src/shared/accounting/mappers.ts::asOrderLegs.id~1ozfuby  0 → 1 audited:1qqzkiy # the placeholder id and recordedAt are metadata mapRefund never reads (money-identity fields only), so no reader can observe them
+src/shared/accounting/mappers.ts::asOrderLegs.id~1ozfuby  0 → 1 audited:0gtxsck # the placeholder id and recordedAt are metadata mapRefund never reads (money-identity fields only), so no reader can observe them
 
 # The historical backfill's leg choice is invisible: every backfilled
 # attendee's order posts a sale and a payment leg sharing one event group, so

@@ -8,7 +8,7 @@ import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import { hasRecentBackup } from "#db/backup-storage.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
-import { formPolicyAt, pageGuardFor, withAuth } from "#routes/auth.ts";
+import { formPolicyAt, gatedPost, pageGuardFor } from "#routes/auth.ts";
 /* jscpd:ignore-start -- imports */
 import { authFlashPage } from "#routes/auth-flash-page.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
@@ -114,8 +114,8 @@ const deployUpdate = async (): Promise<Response> => {
 
 export const adminHandlers = defineAdminRoutes({
   "GET /admin/update": handleUpdateGet,
-  "POST /admin/update": (r: Request) =>
-    withAuth(r, formPolicyAt("/admin/update"), deployUpdate),
-  "POST /admin/update/check": (r: Request) =>
-    withAuth(r, formPolicyAt("/admin/update/check"), checkForUpdate),
+  "POST /admin/update": gatedPost(formPolicyAt(UPDATE_PATH))(deployUpdate),
+  "POST /admin/update/check": gatedPost(formPolicyAt(`${UPDATE_PATH}/check`))(
+    checkForUpdate,
+  ),
 });

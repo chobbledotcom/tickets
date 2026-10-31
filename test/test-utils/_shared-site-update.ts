@@ -1,3 +1,4 @@
+import { expect } from "@std/expect";
 import { afterEach, beforeEach } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
@@ -6,10 +7,13 @@ import {
   updateBuildTagMeta,
   updatePageMeta,
 } from "#shared/update-guard.ts";
+import { expectFlash, expectRedirect } from "#test-utils/assertions.ts";
 import { type EnvScope, withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { type TempPath, tempDir } from "#test-utils/files.ts";
 import { MOCK_RELEASE } from "#test-utils/mocks.ts";
+import { adminFormPost } from "#test-utils/session.ts";
+import { withVirtualBackoff } from "#test-utils/virtual-time.ts";
 
 /** The stubbed update page: active, and naming the build the stubs deploy
  * (MOCK_RELEASE's tag_name, which the deploy stubs return, so guarded waits
@@ -118,4 +122,14 @@ export const recordingUpdateGuard = (
       },
     },
   };
+};
+
+/** POST the guarded deploy as the owner and expect the failure redirect: a
+ * 302 back to the update page carrying the "Update failed" error flash. */
+export const expectDeployFailure = async (): Promise<void> => {
+  const { response } = await withVirtualBackoff(() =>
+    adminFormPost("/admin/update"),
+  );
+  expectRedirect(response, "/admin/update");
+  expectFlash(response, expect.stringContaining("Update failed"), false);
 };

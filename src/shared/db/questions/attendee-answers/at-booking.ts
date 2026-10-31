@@ -155,10 +155,14 @@ const orNull = <Stored extends string, T>(
   read: (value: Stored) => Promise<T>,
 ): Promise<T | null> => (value === null ? Promise.resolve(null) : read(value));
 
-const readQuestion = (value: string): Promise<string> =>
-  questionsTable.readColumn("text", value);
-const readChoice = (value: string): Promise<string> =>
-  answersTable.readColumn("text", value);
+/** Read one row's `text` column from a questions/answers table. */
+const readTextFrom =
+  (table: { readColumn: (col: "text", value: string) => Promise<string> }) =>
+  (value: string): Promise<string> =>
+    table.readColumn("text", value);
+
+const readQuestion = readTextFrom(questionsTable);
+const readChoice = readTextFrom(answersTable);
 
 /** One attendee's answers now and at booking, in question order, with the
  * deleted questions last. Empty when the attendee has no record. The key is
