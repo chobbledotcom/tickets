@@ -21,6 +21,13 @@ import {
   corruptClaimWithoutCaptureData,
   corruptRestoreColourData,
 } from "#scripts/verify-models/notification-flag-lease.ts";
+import {
+  doubleRecordData,
+  nonInverseLegData,
+  operatorMoneyReversalData,
+  unpairedLegData,
+} from "#scripts/verify-models/refund-reversal.ts";
+
 import { MODELS } from "#scripts/verify-models/registry.ts";
 import {
   dateLessSoldOutPairData,
@@ -247,6 +254,47 @@ await checkRejected(
   "DoorScan",
   "an admitted refunded row",
   refundedAdmissionDoorScanData,
+  "InductionStart",
+  1,
+);
+// The RefundReversal proof must reject an operator-money group that reverses.
+// A pass would make the reversal-eligibility verdict worthless.
+console.log("Check RefundReversal: operator-money reversal counterexample.");
+await checkRejected(
+  "RefundReversal",
+  "a reversal of a group that carries operator money",
+  operatorMoneyReversalData,
+  "InductionStart",
+  1,
+);
+// The RefundReversal proof must reject a posted leg that is not the exact
+// inverse of a recorded leg. A pass would make the leg-inverse verdict
+// worthless.
+console.log("Check RefundReversal: non-inverse leg counterexample.");
+await checkRejected(
+  "RefundReversal",
+  "a posted leg that is not the exact inverse of a recorded leg",
+  nonInverseLegData,
+  "InductionStart",
+  1,
+);
+// The RefundReversal proof must reject a posted leg that pairs with no leg
+// the ledger records. A pass would make the leg-pairing verdict worthless.
+console.log("Check RefundReversal: unpaired leg counterexample.");
+await checkRejected(
+  "RefundReversal",
+  "a posted leg that pairs with no recorded original",
+  unpairedLegData,
+  "InductionStart",
+  1,
+);
+// The RefundReversal proof must reject a second identical refund that credits
+// again. A pass would make the no-double-record verdict worthless.
+console.log("Check RefundReversal: double-record counterexample.");
+await checkRejected(
+  "RefundReversal",
+  "a double record that credits twice",
+  doubleRecordData,
   "InductionStart",
   1,
 );

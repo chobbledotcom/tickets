@@ -53,7 +53,9 @@ export type RefundPlanInput = {
   readonly references: RefundReferences;
 };
 
-const isRefundLeg = (kind: string | undefined): boolean =>
+/** Whether a ledger leg belongs to a posted refund. The proof generator reads
+ * it to tell a group's original legs from the reversal already in the ledger. */
+export const isRefundLeg = (kind: string | undefined): boolean =>
   kind?.startsWith("refund_") ?? false;
 
 const isProviderPaymentLeg = legMatches({ from: WORLD, kind: KIND.payment });
@@ -61,7 +63,10 @@ const isProviderPaymentLeg = legMatches({ from: WORLD, kind: KIND.payment });
 const isOperatorMoneyLeg = (leg: Transfer): boolean =>
   leg.kind === KIND.adjustment || leg.kind?.startsWith("manual_") === true;
 
-type AccountRefundGroup = {
+/** One booking order and its tax corrections, the unit the refund guards
+ *  decide on. Exported for the proof generator, which rebuilds the same
+ *  groups from its fixture legs. */
+export type AccountRefundGroup = {
   readonly eventGroup: string;
   readonly legs: Transfer[];
 };
@@ -71,7 +76,7 @@ const isPaymentOnlyGroup = (group: AccountRefundGroup): boolean =>
   group.legs.every(isProviderPaymentLeg);
 
 /** Each booking and its tax corrections form one obligation for refund guards. */
-const accountRefundGroups = (
+export const accountRefundGroups = (
   legs: Transfer[],
   assessments: readonly StoredTaxAssessment[] = [],
 ): AccountRefundGroup[] => {
@@ -254,14 +259,18 @@ const indexesWhollyInGroups = indexesMatchingGroups(
     eventGroups.every((eventGroup) => groupIds.has(eventGroup)),
 );
 
-type RefundGroupFacts = {
+/** The boolean facts one account refund group carries. Exported for the
+ *  proof generator, which derives the same facts from its fixture legs. */
+export type RefundGroupFacts = {
   readonly hasOperatorMoney: boolean;
   readonly hasProviderPayment: boolean;
   readonly paymentOnly: boolean;
   readonly settled: boolean;
 };
 
-const refundGroupFacts = (
+/** The production facts of one group: provider cash, operator money, and
+ *  whether it is payment-only or settled. */
+export const refundGroupFacts = (
   account: ReturnType<typeof attendeeAccount>,
   group: AccountRefundGroup,
 ): RefundGroupFacts => ({
