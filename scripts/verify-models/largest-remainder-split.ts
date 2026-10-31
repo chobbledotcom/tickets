@@ -4,8 +4,7 @@ import {
   corruptOneFact,
   type ModelDataSource,
   type TlaFact,
-  tlaModule,
-  tlaRecords,
+  tlaRecordModuleFor,
 } from "#scripts/verify-models/data.ts";
 
 /* jscpd:ignore-end */
@@ -226,14 +225,11 @@ export const splitFacts = (): SplitFacts => {
   return { caseFacts, partFacts };
 };
 
-export const largestRemainderSplitData = (
-  caseFacts: readonly SplitCaseFact[],
-  partFacts: readonly SplitPartFact[],
-): string =>
-  tlaModule("LargestRemainderSplitData", [
-    tlaRecords("SplitCases", splitCaseFields, caseFacts),
-    tlaRecords("SplitParts", splitPartFields, partFacts),
-  ]);
+export const largestRemainderSplitData = tlaRecordModuleFor(
+  "LargestRemainderSplitData",
+  ["SplitCases", splitCaseFields],
+  ["SplitParts", splitPartFields],
+);
 
 /** The generated checker data for the clean proof. */
 export const largestRemainderSplitModelData: ModelDataSource = async () => {

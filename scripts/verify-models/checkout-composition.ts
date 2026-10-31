@@ -10,8 +10,7 @@ import { sum } from "#fp";
 import {
   type ModelDataSource,
   type TlaFact,
-  tlaModule,
-  tlaRecords,
+  tlaRecordModuleFor,
 } from "#scripts/verify-models/data.ts";
 import { feeSubtotalFor } from "#shared/booking-fee.ts";
 import {
@@ -386,16 +385,12 @@ export const compositionFacts = (): CompositionFacts => {
   return { orderFacts, passFacts, unitFacts };
 };
 
-export const checkoutCompositionData = (
-  orderFacts: readonly OrderFact[],
-  passFacts: readonly PassFact[],
-  unitFacts: readonly UnitFact[],
-): string =>
-  tlaModule("CheckoutCompositionData", [
-    tlaRecords("Orders", orderFields, orderFacts),
-    tlaRecords("Passes", passFields, passFacts),
-    tlaRecords("Units", unitFields, unitFacts),
-  ]);
+export const checkoutCompositionData = tlaRecordModuleFor(
+  "CheckoutCompositionData",
+  ["Orders", orderFields],
+  ["Passes", passFields],
+  ["Units", unitFields],
+);
 
 /** The generated checker data for the clean proof. */
 export const checkoutCompositionModelData: ModelDataSource = async () => {

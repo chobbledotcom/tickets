@@ -207,6 +207,9 @@ These checks serve different purposes.
   Use short rule names that describe the business condition. Prefer explicit
   conditions to dense Boolean formulas. Declare each fact schema once in its
   generator. Derive the TypeScript record type and checker type note from it.
+  For modules with only record tables, use `tlaRecordModuleFor` from
+  `scripts/verify-models/data.ts`. Bind table names and schemas once. Pass
+  the fact arrays to the result.
   Keep comments for assumptions that names cannot express. Keep checker type
   notes beside their declarations. Share common pure rules in
   `verification/ModelRules.tla`. `deno task cpd` checks all maintained TLA

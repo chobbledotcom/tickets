@@ -88,6 +88,30 @@ export const tlaModule = (
   definitions: readonly string[],
 ): string => `---- MODULE ${name} ----\n${definitions.join("\n")}\n====\n`;
 
+/** Binds one module's name and the name and field schema of every record
+ *  table in it. Each call supplies the rows and returns the module text. */
+export const tlaRecordModuleFor =
+  <const Schemas extends readonly TlaRecordSchema[]>(
+    name: string,
+    ...tables: {
+      readonly [Index in keyof Schemas]: readonly [
+        name: string,
+        schema: Schemas[Index],
+      ];
+    }
+  ) =>
+  (
+    ...rows: {
+      readonly [Index in keyof Schemas]: readonly TlaFact<Schemas[Index]>[];
+    }
+  ): string =>
+    tlaModule(
+      name,
+      tables.map(([table, schema], index) =>
+        tlaRecords(table, schema, rows[index]!),
+      ),
+    );
+
 /** The checker type note for one valibot field type. A field type outside the
  *  table has no checker note, so the generator stops instead of writing a
  *  wrong note. */
