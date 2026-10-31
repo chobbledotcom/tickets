@@ -25,9 +25,11 @@ batches.
 Static gates apply mutants in isolated sibling copies. Mutants that pass are
 written over the run's source file, tested in a fresh `deno test` subprocess,
 then restored. The normal `deno task mutation` command first copies the current
-checkout (including dirty source/test edits, excluding `.git`, cache/report
-folders, local databases, secrets, and generated assets) to
-`.mutation-runs/<id>/work`. Test-stage writes and per-mutant bundle rebuilds
+checkout (including dirty source/test edits and its built browser assets,
+excluding `.git`, cache/report folders, local databases, and secrets) to
+`.mutation-runs/<id>/work`. The built assets come along so a suite that reads
+them at module load — `src/features/assets.ts` is one — does not die at import
+inside the copy. Test-stage writes and per-mutant bundle rebuilds
 happen inside that copy, not the live files. Static worker copies are deleted
 before tests start. A run deletes its main copy as soon as it ends — reporting
 the failure if it cannot — so `.mutation-runs/` does not fill up with checkout

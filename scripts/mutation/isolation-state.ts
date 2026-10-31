@@ -55,9 +55,9 @@ const SKIPPED_FILE_NAMES = new Set([
   ".build-tag",
   ".db-key",
   ".env",
-  // Describes the assets of the checkout it was written in, which this copy
-  // deliberately leaves behind — carrying it over would claim a build that is
-  // not there.
+  // The built assets now come along, but this record names its source
+  // checkout by absolute path, so it cannot describe this copy — leaving it
+  // behind stops the snapshot claiming a build it never made itself.
   ".static-assets-cache.json",
   ".static-assets-build.lock",
   ".test-junit.xml",
@@ -115,14 +115,8 @@ const nowIso = (): string => new Date().toISOString();
 const pathParts = (path: string): string[] =>
   path.split(/[\\/]+/).filter((part) => part.length > 0);
 
-const slashPath = (path: string): string => pathParts(path).join("/");
-
 const isDatabaseFile = (name: string): boolean =>
   name.endsWith(".db") || name.endsWith(".db-shm") || name.endsWith(".db-wal");
-
-const isGeneratedStaticAsset = (relativePath: string): boolean =>
-  relativePath.startsWith("src/ui/static/") &&
-  (relativePath.endsWith(".js") || relativePath === "src/ui/static/style.css");
 
 export const shouldCopySnapshotPath = (relativePath: string): boolean => {
   const parts = pathParts(relativePath);
@@ -134,7 +128,10 @@ export const shouldCopySnapshotPath = (relativePath: string): boolean => {
     return false;
   }
   if (SKIPPED_FILE_NAMES.has(name) || isDatabaseFile(name)) return false;
-  return !isGeneratedStaticAsset(slashPath(relativePath));
+  // Everything else comes along, built browser assets included — a snapshot
+  // must stay as runnable as the checkout it was copied from, and modules
+  // like src/features/assets.ts read those files at import time.
+  return true;
 };
 
 const copyDirectory = async (
