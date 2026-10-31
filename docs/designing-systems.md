@@ -125,11 +125,30 @@ These checks serve different purposes.
     phase separately, so a fence that omits any one of them never clears the
     stored claim. A take replaces a claim only on an absent or expired row.
     Lease expiry never cancels a provider request that is already in flight.
+  - `verification/NotificationFlagLease.tla` models the pending-notification
+    flag lease on one attendee's row. A claim captures each outstanding
+    flag's colour and zeroes the flag. The restore returns the captured
+    colour, never a fixed one, so the badge keeps saying what is owed. A
+    clear-on-accept removes the owed work. Two racing recoveries claim the
+    flags exactly once. The checker rejects a claim that zeroes a flag
+    without capturing it and a restore that invents a different colour.
   - `verification/SharedGroupCapacity.tla` checks the shared group capacity
     of one parent and its required child. One order takes two spots in every
     group the pair shares. The fit ceiling never reports more whole orders
     than the remaining spots hold. A date-less surface never sells a pair
     whose shared static cap is below two spots.
+  - `verification/AttendeeCapacity.tla` checks one atomic attendee edit
+    batch over one attendee's lines. The batch inserts new capacity-checked
+    lines, updates changed lines with a pin on the old slot, and deletes
+    removed lines. The summed quantity on each slot never passes the
+    listing's quantity. A refused capacity write commits nothing, and a
+    committed attendee holds at least one line. An unchanged-preserved line
+    consumes no capacity headroom. The generator runs the production edit
+    statements against a seeded in-memory database: each line's fit verdict
+    is its own write landing, and each batch's commit is the real batch
+    surviving its guards. The check corrupts an insert past the slot's
+    quantity and a partial commit that leaves an earlier line when a later
+    line is refused. The checker must report a counterexample for each.
   - `verification/LargestRemainderSplit.tla` checks the largest-remainder
     allocation of a whole amount across weighted parts. The model runs the
     award loop itself: every part first holds its proportional floor, and the
@@ -161,6 +180,21 @@ These checks serve different purposes.
     supplies every admission fact. The check corrupts an over-pick past the
     listing's quantity, a scan that takes a place back, and the admission of
     a refunded row. The checker must report a counterexample for each.
+  - `verification/RefundReversal.tla` checks one attendee's refund plan over
+    its account refund groups, as a two-round machine: the first plan runs
+    over the fixture ledger and records the groups it reverses, then the
+    replay plan runs over the grown ledger. A group reverses only when it
+    carries provider cash, no operator money, and it is payment-only or
+    settled. Every posted refund leg is the exact inverse of a recorded
+    original leg and names that original. The model reads the recorded set
+    itself, so a group the ledger records never reverses again and a second
+    identical refund records nothing and never credits twice. Each plan
+    evaluation lands each returned reference in exactly one outcome:
+    recorded, review, or unrecorded. The production plan and ledger
+    functions supply every fact. The check corrupts a reversal of an
+    operator-money group, a posted leg that is not an exact inverse, a
+    posted leg that pairs with no recorded original, and a double record.
+    The checker must report a counterexample for each.
   The models trust representative coverage and event annotations.
   The Square model also trusts the configured provider lifetime. Claim
   admission remains a model assumption. Mirror tests and database tests check

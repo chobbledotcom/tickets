@@ -458,11 +458,11 @@
     "long-sentence": 3
   },
   "src/shared/db/attendees/atomic-update.ts": {
-    "long-sentence": 12,
+    "long-sentence": 11,
     "semicolon": 4,
     "banned-modal": 3,
     "participle": 1,
-    "contraction": 2
+    "contraction": 1
   },
   "src/shared/db/attendees/balance.ts": {
     "long-sentence": 5,

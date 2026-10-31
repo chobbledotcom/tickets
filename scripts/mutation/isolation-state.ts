@@ -5,9 +5,18 @@
  * rules that are cheap to unit-test directly.
  */
 
-import { isAbsolute, join, relative, resolve, SEPARATOR } from "@std/path";
+import {
+  basename,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+  SEPARATOR,
+} from "@std/path";
 import * as v from "valibot";
 import { projectRoot } from "#scripts/project-root.ts";
+import { BUILD_LOCK_PATH } from "#scripts/static-assets/build-lock.ts";
+import { STATIC_ASSET_MANIFEST_PATH } from "#scripts/static-assets/cache.ts";
 import { directoryEntries } from "#scripts/walk-files.ts";
 
 export const MUTATION_RUNS_DIR = ".mutation-runs";
@@ -55,11 +64,11 @@ const SKIPPED_FILE_NAMES = new Set([
   ".build-tag",
   ".db-key",
   ".env",
-  // Describes the assets of the checkout it was written in, which this copy
-  // deliberately leaves behind — carrying it over would claim a build that is
-  // not there.
-  ".static-assets-cache.json",
-  ".static-assets-build.lock",
+  // The browser-asset build's own records, named from its declarations: the
+  // manifest names the checkout it was written in by absolute path, so the
+  // copy cannot honour it, and the lock belongs to the checkout's build alone.
+  basename(STATIC_ASSET_MANIFEST_PATH),
+  basename(BUILD_LOCK_PATH),
   ".test-junit.xml",
   "bunny-script.ts",
   "bunny-script.ts.map",
@@ -115,14 +124,8 @@ const nowIso = (): string => new Date().toISOString();
 const pathParts = (path: string): string[] =>
   path.split(/[\\/]+/).filter((part) => part.length > 0);
 
-const slashPath = (path: string): string => pathParts(path).join("/");
-
 const isDatabaseFile = (name: string): boolean =>
   name.endsWith(".db") || name.endsWith(".db-shm") || name.endsWith(".db-wal");
-
-const isGeneratedStaticAsset = (relativePath: string): boolean =>
-  relativePath.startsWith("src/ui/static/") &&
-  (relativePath.endsWith(".js") || relativePath === "src/ui/static/style.css");
 
 export const shouldCopySnapshotPath = (relativePath: string): boolean => {
   const parts = pathParts(relativePath);
@@ -134,7 +137,10 @@ export const shouldCopySnapshotPath = (relativePath: string): boolean => {
     return false;
   }
   if (SKIPPED_FILE_NAMES.has(name) || isDatabaseFile(name)) return false;
-  return !isGeneratedStaticAsset(slashPath(relativePath));
+  // Everything else comes along, built browser assets included — a snapshot
+  // must stay as runnable as the checkout it was copied from, and modules
+  // like src/features/assets.ts read those files at import time.
+  return true;
 };
 
 const copyDirectory = async (

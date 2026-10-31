@@ -1,6 +1,10 @@
 import { expect } from "@std/expect";
+import { basename } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
 import { shouldCopySnapshotPath } from "#scripts/mutation/isolation-state.ts";
+import { BUILD_LOCK_PATH } from "#scripts/static-assets/build-lock.ts";
+import { STATIC_ASSET_MANIFEST_PATH } from "#scripts/static-assets/cache.ts";
+import { STATIC_ASSET_OUTFILES } from "#scripts/static-assets/outfiles.ts";
 
 /**
  * Every folder a snapshot must leave behind. Each one is either huge, rebuilt
@@ -91,9 +95,20 @@ describe("what a mutation snapshot leaves behind", () => {
     expect(shouldCopySnapshotPath("local.db-wal")).toBe(false);
   });
 
-  test("leaves built browser assets behind", () => {
-    expect(shouldCopySnapshotPath("src/ui/static/admin.js")).toBe(false);
-    expect(shouldCopySnapshotPath("src/ui/static/style.css")).toBe(false);
+  test("carries every browser bundle the asset build declares", () => {
+    // src/features/assets.ts reads these at module load, so a snapshot that
+    // dropped one would make every importing suite die at import.
+    for (const outfile of Object.values(STATIC_ASSET_OUTFILES)) {
+      expect(shouldCopySnapshotPath(outfile)).toBe(true);
+    }
+  });
+
+  test("leaves the browser-asset build's records behind", () => {
+    // The manifest names the checkout it was written in by absolute path, and
+    // the lock is the checkout's build's alone.
+    for (const record of [STATIC_ASSET_MANIFEST_PATH, BUILD_LOCK_PATH]) {
+      expect(shouldCopySnapshotPath(basename(record))).toBe(false);
+    }
   });
 
   test("copies a script that is built but does not live in the assets folder", () => {

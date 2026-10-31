@@ -66,7 +66,7 @@ src/shared/db/capacity-batch.ts::addDemandToBucket~1bo0bmf  ?? → || audited:1a
 # delete pin reads the same stored timestamp domain as the line key.
 src/shared/db/attendees/atomic-update.ts::lineBooking.packageGroupId~0djpbjh  ?? → || audited:049scuh # packageGroupId is undefined or a number; zero and the zero fallback produce the same value
 src/shared/db/attendees/atomic-update.ts::lineKeyFromBooking~08fp1gg  ?? → || audited:049scuh # start_at is null or a non-empty stored timestamp, so both operators produce the timestamp or an empty key part
-src/shared/db/attendees/atomic-update.ts::applyAttendeeAtomicEdit.args~16je2gx  ?? → || audited:049scuh # booking.start_at has the same null-or-non-empty timestamp domain when it becomes the delete pin
+src/shared/db/attendees/atomic-update.ts::buildAttendeeEditBatch.args~16je2gx  ?? → || audited:049scuh # booking.start_at has the same null-or-non-empty timestamp domain when it becomes the delete pin
 
 # Attendee creation receives validated non-empty discriminators, dates, tokens,
 # and finite money values. Empty optional contact fields use empty fallbacks.

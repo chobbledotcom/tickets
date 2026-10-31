@@ -3,6 +3,10 @@ import { join } from "node:path";
 import { projectRoot } from "#scripts/project-root.ts";
 import { makeScratchDir } from "#scripts/scratch.ts";
 import {
+  overfillInsertData,
+  partialCommitData,
+} from "#scripts/verify-models/attendee-capacity.ts";
+import {
   deletedRowRefundData,
   duplicateBookingData,
 } from "#scripts/verify-models/booking.ts";
@@ -18,6 +22,17 @@ import {
   takeBackDoorScanData,
 } from "#scripts/verify-models/door-scan.ts";
 import { corruptSplitData } from "#scripts/verify-models/largest-remainder-split.ts";
+import {
+  corruptClaimWithoutCaptureData,
+  corruptRestoreColourData,
+} from "#scripts/verify-models/notification-flag-lease.ts";
+import {
+  doubleRecordData,
+  nonInverseLegData,
+  operatorMoneyReversalData,
+  unpairedLegData,
+} from "#scripts/verify-models/refund-reversal.ts";
+
 import { MODELS } from "#scripts/verify-models/registry.ts";
 import {
   dateLessSoldOutPairData,
@@ -156,6 +171,26 @@ await checkRejected(
   "Init",
   0,
 );
+// The AttendeeCapacity proof must reject both failure modes it rules out:
+// an insert past the slot's quantity and a partial commit that leaves an
+// earlier line when a later line is refused. A pass on either would make
+// the clean verdict worthless.
+console.log("Check AttendeeCapacity: overfill insert counterexample.");
+await checkRejected(
+  "AttendeeCapacity",
+  "an insert past the slot's quantity",
+  overfillInsertData,
+  "Init",
+  0,
+);
+console.log("Check AttendeeCapacity: partial commit counterexample.");
+await checkRejected(
+  "AttendeeCapacity",
+  "an earlier line surviving a later refused line",
+  partialCommitData,
+  "Init",
+  0,
+);
 // The LargestRemainderSplit proof must reject both failure modes it guards:
 // an award past a part's cap and accounting that strands an owed unit. A pass
 // on either would make the clean verdict worthless.
@@ -224,12 +259,76 @@ await checkRejected(
   "InductionStart",
   1,
 );
+// The NotificationFlagLease proof must reject a claim that zeroes a flag
+// without capturing its value, and a restore that invents a colour. A pass
+// on either would make the clean verdicts worthless.
+console.log(
+  "Check NotificationFlagLease: claim-without-capture counterexample.",
+);
+await checkRejected(
+  "NotificationFlagLease",
+  "a claim that zeroes a flag without capturing it",
+  corruptClaimWithoutCaptureData,
+  "InductionStart",
+  1,
+);
+console.log(
+  "Check NotificationFlagLease: invented restore colour counterexample.",
+);
+await checkRejected(
+  "NotificationFlagLease",
+  "a restore that invents a colour different from the captured one",
+  corruptRestoreColourData,
+  "InductionStart",
+  1,
+);
 // The DoorScan proof must reject the admission of a refunded row.
 console.log("Check DoorScan: refunded-row admission counterexample.");
 await checkRejected(
   "DoorScan",
   "an admitted refunded row",
   refundedAdmissionDoorScanData,
+  "InductionStart",
+  1,
+);
+// The RefundReversal proof must reject an operator-money group that reverses.
+// A pass would make the reversal-eligibility verdict worthless.
+console.log("Check RefundReversal: operator-money reversal counterexample.");
+await checkRejected(
+  "RefundReversal",
+  "a reversal of a group that carries operator money",
+  operatorMoneyReversalData,
+  "InductionStart",
+  1,
+);
+// The RefundReversal proof must reject a posted leg that is not the exact
+// inverse of a recorded leg. A pass would make the leg-inverse verdict
+// worthless.
+console.log("Check RefundReversal: non-inverse leg counterexample.");
+await checkRejected(
+  "RefundReversal",
+  "a posted leg that is not the exact inverse of a recorded leg",
+  nonInverseLegData,
+  "InductionStart",
+  1,
+);
+// The RefundReversal proof must reject a posted leg that pairs with no leg
+// the ledger records. A pass would make the leg-pairing verdict worthless.
+console.log("Check RefundReversal: unpaired leg counterexample.");
+await checkRejected(
+  "RefundReversal",
+  "a posted leg that pairs with no recorded original",
+  unpairedLegData,
+  "InductionStart",
+  1,
+);
+// The RefundReversal proof must reject a second identical refund that credits
+// again. A pass would make the no-double-record verdict worthless.
+console.log("Check RefundReversal: double-record counterexample.");
+await checkRejected(
+  "RefundReversal",
+  "a double record that credits twice",
+  doubleRecordData,
   "InductionStart",
   1,
 );

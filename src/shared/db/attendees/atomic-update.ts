@@ -178,9 +178,9 @@ const preflightCapacityFailure = async (
  *  guard's `active = 1` subquery must not strand it on a deactivated listing.
  *  A line that keeps the same key but moves its date or changes quantity IS
  *  changed and must be capacity-checked. */
-const isUnchangedLine = (
+export const isUnchangedLine = (
   line: DesiredListingLine,
-  existingByKey: Map<string, ListingAttendeeRow>,
+  existingByKey: ReadonlyMap<string, ListingAttendeeRow>,
 ): boolean => {
   const existing = existingByKey.get(line.key);
   if (!existing || existing.quantity !== line.quantity) return false;
@@ -202,7 +202,7 @@ const changedLinesForPreflight = (
  *  updates only the target row. */
 const oldPinOf = (
   line: DesiredListingLine,
-  existingByKey: Map<string, ListingAttendeeRow>,
+  existingByKey: ReadonlyMap<string, ListingAttendeeRow>,
 ): {
   startAt: string | null;
   parentListingId: number;
@@ -250,6 +250,81 @@ export const updateStatementFor = (
     return `${setClause}\n              AND ${condition}`;
   });
 
+/** One desired line's write statement, and whether the batch must follow it
+ * with CAPACITY_GUARD: a capacity-checked write can affect zero rows, an
+ * unconditional one cannot. */
+export const lineStatementFor = (
+  line: DesiredListingLine,
+  attendeeId: number,
+  existingByKey: ReadonlyMap<string, ListingAttendeeRow>,
+  allowOverbook = false,
+): { guarded: boolean; statement: SqlStatement } => {
+  if (!line.exists) {
+    return {
+      guarded: !allowOverbook,
+      statement: buildCapacityCheckedInsert(
+        lineBooking(line),
+        (bind) => bind(attendeeId),
+        allowOverbook,
+      ),
+    };
+  }
+  const skipGuard = allowOverbook || isUnchangedLine(line, existingByKey);
+  return {
+    guarded: !skipGuard,
+    statement: updateStatementFor(
+      line,
+      attendeeId,
+      oldPinOf(line, existingByKey),
+      skipGuard,
+    ),
+  };
+};
+
+/** The write statements for one attendee edit: a delete per removed line, then
+ * the update and insert statements in line order, each capacity-checked write
+ * followed by CAPACITY_GUARD. The caller runs them as one batch, so a refused
+ * write rolls the whole edit back. */
+export const buildAttendeeEditBatch = (
+  attendeeId: number,
+  desired: readonly DesiredListingLine[],
+  existingByKey: ReadonlyMap<string, ListingAttendeeRow>,
+  allowOverbook = false,
+): SqlStatement[] => {
+  const desiredKeys = new Set(desired.map((line) => line.key));
+  const removed = [...existingByKey.values()].filter(
+    (row) => !desiredKeys.has(lineKeyFromBooking(row)),
+  );
+  const statements: SqlStatement[] = [];
+  for (const booking of removed) {
+    statements.push({
+      args: [
+        attendeeId,
+        booking.listing_id,
+        booking.start_at ?? null,
+        booking.parent_listing_id,
+        booking.package_group_id,
+      ],
+      sql: `DELETE FROM listing_attendees
+            WHERE attendee_id = ? AND listing_id = ? AND start_at IS ? AND parent_listing_id = ? AND package_group_id = ?`,
+    });
+  }
+  for (const line of [
+    ...desired.filter((line) => line.exists),
+    ...desired.filter((line) => !line.exists),
+  ]) {
+    const { guarded, statement } = lineStatementFor(
+      line,
+      attendeeId,
+      existingByKey,
+      allowOverbook,
+    );
+    statements.push(statement);
+    if (guarded) statements.push(CAPACITY_GUARD);
+  }
+  return statements;
+};
+
 const EMPTY_EDIT_WORK: AttendeeEditWork = { after: [], before: [] };
 
 /**
@@ -290,69 +365,20 @@ export const applyAttendeeAtomicEdit = async (
   );
   if (preflightFailure) return preflightFailure;
 
-  // Diff: removed / updated / new
-  const desiredKeys = new Set(desired.map((line) => line.key));
-  const removed: ExistingLine[] = existing.filter(
-    (row) => !desiredKeys.has(row.key),
-  );
-  const updates: DesiredListingLine[] = desired.filter((line) => line.exists);
-  const inserts: DesiredListingLine[] = desired.filter((line) => !line.exists);
-
   // Build one batch that runs as a single ACID transaction. Each
   // capacity-checked write is immediately followed by CAPACITY_GUARD, which
   // aborts (and rolls back) the whole batch if that write affected no rows.
   const statements: Array<{ args: InValue[]; sql: string }> = [
     ...work.before,
     ...(await attendeePiiWriteStatements(attendeeId, pii)),
+    ...buildAttendeeEditBatch(
+      attendeeId,
+      desired,
+      existingByKey,
+      allowOverbook,
+    ),
+    ...work.after,
   ];
-
-  // Step 2: Delete removed lines (identified by the full slot: listing_id +
-  // start_at + parent_listing_id + package_group_id).
-  for (const { booking } of removed) {
-    statements.push({
-      args: [
-        attendeeId,
-        booking.listing_id,
-        booking.start_at ?? null,
-        booking.parent_listing_id,
-        booking.package_group_id,
-      ],
-      sql: `DELETE FROM listing_attendees
-            WHERE attendee_id = ? AND listing_id = ? AND start_at IS ? AND parent_listing_id = ? AND package_group_id = ?`,
-    });
-  }
-
-  // Step 3: Update existing lines, capacity-checked + guarded unless
-  // overbooking or the line is an unchanged preserve (skipping the capacity
-  // re-check so a deactivated listing's hold isn't stranded). The WHERE pins
-  // by old start_at, parent_listing_id AND package_group_id so two rows for
-  // the same listing — different dates, parents, or package paths — update
-  // only the target row.
-  for (const line of updates) {
-    const skipGuard = allowOverbook || isUnchangedLine(line, existingByKey);
-    statements.push(
-      updateStatementFor(
-        line,
-        attendeeId,
-        oldPinOf(line, existingByKey),
-        skipGuard,
-      ),
-    );
-    if (!skipGuard) statements.push(CAPACITY_GUARD);
-  }
-
-  // Step 4: Insert new lines (capacity-checked + guarded unless overbooking).
-  for (const line of inserts) {
-    statements.push(
-      buildCapacityCheckedInsert(
-        lineBooking(line),
-        (bind) => bind(attendeeId),
-        allowOverbook,
-      ),
-    );
-    if (!allowOverbook) statements.push(CAPACITY_GUARD);
-  }
-  statements.push(...work.after);
 
   // The batch runs as one ACID transaction. After the preflight above this
   // only fails if a concurrent booking consumed the capacity in the meantime —

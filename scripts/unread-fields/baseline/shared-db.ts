@@ -3,7 +3,6 @@ import {
   identitiesAt,
 } from "#scripts/unread-fields/identity.ts";
 
-const PARENT_LISTING_FIELDS = ["parentListingId"] as const;
 const ASSIGNED_LISTING_FIELDS = ["assignedListingId"] as const;
 const BUILT_SITE_SHARED_FIELD_NAMES = [
   { input: "assignable", row: "assignable" },
@@ -26,9 +25,6 @@ export const SHARED_DB_BASELINE: readonly FindingIdentity[] = [
   ...identitiesAt([
     ["src/shared/db/activity-log.ts", [{ name: "ListingWithActivityLog" }]],
   ])(["listing"]),
-  ...identitiesAt([
-    ["src/shared/db/attendee-types.ts", [{ name: "DesiredListingLine" }]],
-  ])(PARENT_LISTING_FIELDS),
   ...identitiesAt([
     [
       "src/shared/db/attendees/atomic-update.ts",

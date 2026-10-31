@@ -15,7 +15,7 @@ import { join } from "node:path";
 import { withFileLock } from "#scripts/lock-file.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 
-const BUILD_LOCK_PATH = join(projectRoot, ".static-assets-build.lock");
+export const BUILD_LOCK_PATH = join(projectRoot, ".static-assets-build.lock");
 
 /** Run `body` with the browser-asset build to itself. */
 export const withStaticAssetBuildLock = <T>(
