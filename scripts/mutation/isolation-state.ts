@@ -5,9 +5,18 @@
  * rules that are cheap to unit-test directly.
  */
 
-import { isAbsolute, join, relative, resolve, SEPARATOR } from "@std/path";
+import {
+  basename,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+  SEPARATOR,
+} from "@std/path";
 import * as v from "valibot";
 import { projectRoot } from "#scripts/project-root.ts";
+import { BUILD_LOCK_PATH } from "#scripts/static-assets/build-lock.ts";
+import { STATIC_ASSET_MANIFEST_PATH } from "#scripts/static-assets/cache.ts";
 import { directoryEntries } from "#scripts/walk-files.ts";
 
 export const MUTATION_RUNS_DIR = ".mutation-runs";
@@ -55,11 +64,11 @@ const SKIPPED_FILE_NAMES = new Set([
   ".build-tag",
   ".db-key",
   ".env",
-  // The built assets now come along, but this record names its source
-  // checkout by absolute path, so it cannot describe this copy — leaving it
-  // behind stops the snapshot claiming a build it never made itself.
-  ".static-assets-cache.json",
-  ".static-assets-build.lock",
+  // The browser-asset build's own records, named from its declarations: the
+  // manifest names the checkout it was written in by absolute path, so the
+  // copy cannot honour it, and the lock belongs to the checkout's build alone.
+  basename(STATIC_ASSET_MANIFEST_PATH),
+  basename(BUILD_LOCK_PATH),
   ".test-junit.xml",
   "bunny-script.ts",
   "bunny-script.ts.map",
