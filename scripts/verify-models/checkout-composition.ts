@@ -2,12 +2,12 @@
  *  fact comes from the production pricing functions, so a slip in the
  *  composition rules makes the checker reject the derived facts. The
  *  largest-remainder split itself stays with LargestRemainderSplit.tla; the
- *  discount facts below consume its exactness. */
+ *  discount facts below consume its exactness. The negative controls live in
+ *  composition-corruptions.ts. */
 
 /* jscpd:ignore-start -- imports */
 import { sum } from "#fp";
 import {
-  corruptOneFact,
   type ModelDataSource,
   type TlaFact,
   tlaModule,
@@ -48,8 +48,10 @@ export const orderFields = {
 /** One modifier pass's facts. `scopedSubtotal` is the base production
  *  recorded on the application; `origSubtotal` is the pre-modifier base the
  *  generator derives itself, so the checker sees any compounding.
- *  `currentSubtotal` is the in-scope price sum the discount clamps against. */
+ *  `currentSubtotal` is the in-scope price sum the discount clamps against.
+ *  `added` is the extra charge an add pass contributes. */
 export const passFields = {
+  added: "Int",
   currentSubtotal: "Int",
   kind: "Str",
   orderTag: "Str",
@@ -116,8 +118,22 @@ const pass = (
   ...overrides,
 });
 
-/** The representative orders: every pass kind, a scoped pass, a discount
- *  that outruns its units, and a reservation. The generator test pins the
+/** The two-seat cart the whole-order scenarios share. */
+const twoSeats = [seat(1000, 2)] as const;
+
+/** The two-listing cart the scoped scenarios share. */
+const twoListings = [seat(1000, 2), seat(1000, 1, 2)] as const;
+
+/** The discounted two-seat order whose reservation variant keeps a balance. */
+const discountedTickets: Scenario = {
+  items: twoSeats,
+  modifiers: [pass("fixed", -200)],
+  sampleTag: "a discount reduces the tickets",
+};
+
+/** The representative orders: every pass kind and value shape, a scoped
+ *  discount and a scoped add-on, a discount that outruns its units, and
+ *  reservations with and without modifiers. The generator test pins the
  *  facts each order must produce. */
 export const SCENARIOS: readonly Scenario[] = [
   {
@@ -126,17 +142,13 @@ export const SCENARIOS: readonly Scenario[] = [
     sampleTag: "a single ticket",
   },
   {
-    items: [seat(1000, 2)],
+    items: twoSeats,
     modifiers: [pass("fixed", 500)],
     sampleTag: "an add-on raises the order",
   },
+  discountedTickets,
   {
-    items: [seat(1000, 2)],
-    modifiers: [pass("fixed", -200)],
-    sampleTag: "a discount reduces the tickets",
-  },
-  {
-    items: [seat(1000, 2)],
+    items: twoSeats,
     modifiers: [pass("fixed", -200), pass("fixed", -100)],
     sampleTag: "modifiers never compound",
   },
@@ -146,12 +158,12 @@ export const SCENARIOS: readonly Scenario[] = [
     sampleTag: "a discount that exceeds the units",
   },
   {
-    items: [seat(1000, 2), seat(1000, 1, 2)],
+    items: twoListings,
     modifiers: [pass("fixed", -100, { listingIds: [1] })],
     sampleTag: "a scoped discount leaves other listings alone",
   },
   {
-    items: [seat(1000, 2)],
+    items: twoSeats,
     modifiers: [],
     reservationAmount: "10%",
     sampleTag: "a reservation keeps a balance",
@@ -160,6 +172,31 @@ export const SCENARIOS: readonly Scenario[] = [
     items: [seat(1000, 1)],
     modifiers: [pass("percent", 0)],
     sampleTag: "a zero modifier changes nothing",
+  },
+  {
+    items: twoSeats,
+    modifiers: [pass("percent", -10)],
+    sampleTag: "a percent discount scales with the subtotal",
+  },
+  {
+    items: twoSeats,
+    modifiers: [pass("multiply", 0.8)],
+    sampleTag: "a multiplier reduces the tickets",
+  },
+  {
+    items: twoSeats,
+    modifiers: [pass("fixed", -200, { quantity: 2 })],
+    sampleTag: "a modifier quantity scales the discount",
+  },
+  {
+    ...discountedTickets,
+    reservationAmount: "10%",
+    sampleTag: "a reservation with a discount keeps a balance",
+  },
+  {
+    items: twoListings,
+    modifiers: [pass("fixed", 300, { listingIds: [1] })],
+    sampleTag: "a scoped add-on raises one listing",
   },
 ];
 
@@ -242,6 +279,7 @@ const applyPass = (
     return {
       addExtra: 0,
       passFact: {
+        added: 0,
         currentSubtotal,
         kind,
         orderTag,
@@ -257,9 +295,11 @@ const applyPass = (
       ),
     };
   }
+  const addExtra = kind === "add" ? delta * spec.quantity : 0;
   return {
-    addExtra: kind === "add" ? delta * spec.quantity : 0,
+    addExtra,
     passFact: {
+      added: addExtra,
       currentSubtotal,
       kind,
       orderTag,
@@ -362,109 +402,3 @@ export const checkoutCompositionModelData: ModelDataSource = async () => {
   const { orderFacts, passFacts, unitFacts } = compositionFacts();
   return checkoutCompositionData(orderFacts, passFacts, unitFacts);
 };
-
-/** The two-discount order whose second pass the compounding corruption
- *  rewrites to read the reduced subtotal. */
-const COMPOUND_TAG = "modifiers never compound";
-
-/** The single-unit order whose discount the overshoot corruption inflates
- *  past the units it reduces. */
-const OVERSHOOT_TAG = "a discount that exceeds the units";
-
-/** The failure modes the checker must reject. */
-export type Corruption = "compounding" | "overshooting discount" | "stale fee";
-
-const corruptions: Readonly<
-  Record<Corruption, (facts: CompositionFacts) => CompositionFacts>
-> = {
-  compounding: ({ orderFacts, passFacts, unitFacts }) => ({
-    orderFacts,
-    passFacts: corruptOneFact(
-      passFacts,
-      (fact) => fact.orderTag === COMPOUND_TAG && fact.passIndex === 2,
-      `The composition holds no second pass for "${COMPOUND_TAG}". There is no pass to corrupt.`,
-      (fact) => {
-        if (fact.currentSubtotal === fact.origSubtotal) {
-          throw new Error(
-            `The second "${COMPOUND_TAG}" pass reads no reduced subtotal. There is no compounding to corrupt.`,
-          );
-        }
-        return { ...fact, scopedSubtotal: fact.currentSubtotal };
-      },
-    ),
-    unitFacts,
-  }),
-  "overshooting discount": ({ orderFacts, passFacts, unitFacts }) => {
-    const victim = passFacts.find((fact) => fact.orderTag === OVERSHOOT_TAG);
-    if (!victim) {
-      throw new Error(
-        `The composition holds no pass for "${OVERSHOOT_TAG}". There is no discount to corrupt.`,
-      );
-    }
-    if (victim.requested <= victim.currentSubtotal) {
-      throw new Error(
-        `The "${OVERSHOOT_TAG}" discount does not exceed its units. There is no overshoot to corrupt.`,
-      );
-    }
-    return {
-      orderFacts,
-      passFacts: passFacts.map((fact) =>
-        fact.orderTag === OVERSHOOT_TAG
-          ? { ...fact, removed: fact.requested }
-          : fact,
-      ),
-      unitFacts,
-    };
-  },
-  "stale fee": ({ orderFacts, passFacts, unitFacts }) => {
-    const victim = orderFacts.find((fact) => fact.orderTag === COMPOUND_TAG);
-    if (!victim) {
-      throw new Error(
-        `The composition holds no "${COMPOUND_TAG}" order. There is no fee basis to corrupt.`,
-      );
-    }
-    if (victim.baseLineTotal === victim.subtotal) {
-      throw new Error(
-        `The "${COMPOUND_TAG}" fee basis equals the final subtotal. There is no stale basis to corrupt.`,
-      );
-    }
-    return {
-      orderFacts: orderFacts.map((fact) =>
-        fact.orderTag === COMPOUND_TAG
-          ? { ...fact, feeSubtotal: fact.baseLineTotal }
-          : fact,
-      ),
-      passFacts,
-      unitFacts,
-    };
-  },
-};
-
-/** One corrupted proof-data set. The checker must report a counterexample
- *  for it, or the clean verdicts prove nothing. The facts are injectable so
- *  the tests can reach the missing-fact throws. */
-export const corruptCompositionData = async (
-  corruption: Corruption,
-  facts: CompositionFacts = compositionFacts(),
-): Promise<string> => {
-  const { orderFacts, passFacts, unitFacts } = corruptions[corruption](facts);
-  return checkoutCompositionData(orderFacts, passFacts, unitFacts);
-};
-
-/** One negative-control data source for the given failure mode. */
-const corruptDataFor =
-  (corruption: Corruption): ModelDataSource =>
-  () =>
-    corruptCompositionData(corruption);
-
-/** The data module with the second discount compounding on the first. */
-export const compoundingDiscountData: ModelDataSource =
-  corruptDataFor("compounding");
-
-/** The data module with a discount that overshoots the units it reduces. */
-export const overshootDiscountData: ModelDataSource = corruptDataFor(
-  "overshooting discount",
-);
-
-/** The data module with a booking fee charged on a stale subtotal. */
-export const staleFeeData: ModelDataSource = corruptDataFor("stale fee");

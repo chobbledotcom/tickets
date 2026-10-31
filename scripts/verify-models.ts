@@ -10,7 +10,7 @@ import {
   compoundingDiscountData,
   overshootDiscountData,
   staleFeeData,
-} from "#scripts/verify-models/checkout-composition.ts";
+} from "#scripts/verify-models/composition-corruptions.ts";
 import { counterexampleData } from "#scripts/verify-models/counterexample.ts";
 import {
   corruptDoorScanData,

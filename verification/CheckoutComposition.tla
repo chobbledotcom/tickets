@@ -4,11 +4,19 @@ EXTENDS Integers, ModelRules, CheckoutCompositionData
 \* One order's checkout composition: work units per ticket, a sequence of
 \* modifier passes (each adds an extra line, reduces per-unit amounts, or
 \* changes nothing), then the booking fee and the breakdown. The machine
-\* walks one order's passes in order and then the fee step. Every pass fact
-\* and every order fact comes from the production pricing functions, so a
-\* slip in the composition rules makes the checker reject the derived facts.
-\* The largest-remainder split itself stays with LargestRemainderSplit.tla;
+\* walks one order's passes in order, and the fee step recomposes the
+\* order's price from its passes: the gross list total plus the add-on
+\* charges and minus the removed discounts. The fee step then checks the
+\* order's final facts against that composed price. Every pass fact and
+\* every order fact comes from the production pricing functions, so a slip
+\* in the composition rules makes the checker reject the derived facts. The
+\* largest-remainder split itself stays with LargestRemainderSplit.tla;
 \* this model consumes its exactness as the discount facts.
+
+\* The widest pass count the facts may carry. A pass index past this width
+\* contributes nothing to the composed price, so a wider order breaks the
+\* subtotal check until the width grows.
+MaxPasses == 6
 
 VARIABLES
   \* @type: Str;
@@ -37,6 +45,24 @@ CurrentOrderHolds ==
     /\ passIndex <= orderFact.numPasses + 1
     /\ feeApplied => passIndex = orderFact.numPasses + 1
 
+\* The net price change of one pass: the add charge minus the removed
+\* discount. The generator test pins one pass row per index of every order.
+\* @type: (Str, Int) => Int;
+PassChange(tag, index) ==
+  LET passFact == CHOOSE pf \in Passes :
+        pf.orderTag = tag /\ pf.passIndex = index
+  IN passFact.added - passFact.removed
+
+\* The net change every pass of an order makes to its gross total.
+\* @type: (Str, Int) => Int;
+ComposedChange(tag, numPasses) ==
+  (IF 1 <= numPasses THEN PassChange(tag, 1) ELSE 0)
+    + (IF 2 <= numPasses THEN PassChange(tag, 2) ELSE 0)
+    + (IF 3 <= numPasses THEN PassChange(tag, 3) ELSE 0)
+    + (IF 4 <= numPasses THEN PassChange(tag, 4) ELSE 0)
+    + (IF 5 <= numPasses THEN PassChange(tag, 5) ELSE 0)
+    + (IF 6 <= numPasses THEN PassChange(tag, 6) ELSE 0)
+
 \* One modifier pass is safe when it reads the pre-modifier base, its
 \* discount removes exactly the clamped amount, and no unit drops below
 \* zero.
@@ -57,11 +83,18 @@ SafePass(passFact) ==
               /\ unitFact.reduced <= unitFact.price
   /\ passFact.kind \in {"add", "zero"} => passFact.removed = 0
 
-\* One order's final facts are safe when the total is exactly the line
-\* charges plus the extra charges, the fee is added once on the final
-\* modified subtotal, and the reservation balance never goes below zero.
+\* One order's final facts are safe when they match the composition of its
+\* passes. The subtotal equals the gross list total plus the add-on charges
+\* and minus the removed discounts. The upfront charge plus the owed
+\* balance equals that subtotal. The total equals the line charges plus the
+\* extra charges. The fee runs once, on the final modified subtotal. The
+\* reservation balance never goes below zero.
 \* @type: ($ordersFact) => Bool;
 SafeOrder(orderFact) ==
+  /\ orderFact.subtotal =
+       orderFact.baseLineTotal
+       + ComposedChange(orderFact.orderTag, orderFact.numPasses)
+  /\ orderFact.total + orderFact.remainingBalance = orderFact.subtotal
   /\ orderFact.total = orderFact.lineTotal + orderFact.extraTotal
   /\ orderFact.feeCount <= 1
   /\ orderFact.feeSubtotal = orderFact.subtotal

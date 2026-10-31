@@ -141,15 +141,19 @@ These checks serve different purposes.
     reject an award past a part's cap and accounting that strands an owed
     unit.
   - `verification/CheckoutComposition.tla` checks one order's checkout
-    composition. The machine walks the work units, the modifier passes, and
-    then the booking fee and the breakdown. Each modifier pass reads the
+    composition. The machine walks the modifier passes, and the booking fee
+    step recomposes the order's price from its passes and checks the
+    order's final facts against it. Each modifier pass reads the
     pre-modifier base, so two modifiers never compound. A discount removes
-    exactly the clamped amount and never drives a unit below zero. The order
-    total equals the line charges plus the extra charges. The fee is added
-    once on the final modified subtotal. A reservation balance never goes
-    below zero. The checker must reject a modifier that compounds on an
-    earlier pass and a discount that overshoots the units it reduces. It
-    must also reject a fee charged on a stale subtotal.
+    exactly the clamped amount and never drives a unit below zero. The
+    composed price equals the gross list total plus the add-on charges and
+    minus the removed discounts. The upfront charge plus the reservation
+    balance equals that composed price. The order total equals the line
+    charges plus the extra charges. The fee is added once on the final
+    modified subtotal. A reservation balance never goes below zero. The
+    checker must reject a modifier that compounds on an earlier pass and a
+    discount that overshoots the units it reduces. It must also reject a
+    fee charged on a stale subtotal.
   - `verification/DoorScan.tla` checks the door scan admission machine. A
     scan never admits a listing past the places its rows still owe, never
     takes a place back, and never admits a refunded, no-check-in or
