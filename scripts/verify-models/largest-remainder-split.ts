@@ -1,10 +1,10 @@
 /* jscpd:ignore-start -- imports */
 import { sum } from "#fp";
 import {
+  corruptOneFact,
   type ModelDataSource,
   type TlaFact,
-  tlaModule,
-  tlaRecords,
+  tlaRecordModuleFor,
 } from "#scripts/verify-models/data.ts";
 
 /* jscpd:ignore-end */
@@ -225,14 +225,11 @@ export const splitFacts = (): SplitFacts => {
   return { caseFacts, partFacts };
 };
 
-export const largestRemainderSplitData = (
-  caseFacts: readonly SplitCaseFact[],
-  partFacts: readonly SplitPartFact[],
-): string =>
-  tlaModule("LargestRemainderSplitData", [
-    tlaRecords("SplitCases", splitCaseFields, caseFacts),
-    tlaRecords("SplitParts", splitPartFields, partFacts),
-  ]);
+export const largestRemainderSplitData = tlaRecordModuleFor(
+  "LargestRemainderSplitData",
+  ["SplitCases", splitCaseFields],
+  ["SplitParts", splitPartFields],
+);
 
 /** The generated checker data for the clean proof. */
 export const largestRemainderSplitModelData: ModelDataSource = async () => {
@@ -251,19 +248,6 @@ const accountingVictimTag = "a part at its cap receives no more";
 /** The part whose guard verdict the other corruption flips: a part that sits
  *  at its cap and must not receive the extra unit. */
 const capVictimTag = "a part at its cap receives no more";
-
-/** Change the one fact the predicate names, or throw when no fact does. */
-const corruptOneFact = <Fact>(
-  facts: readonly Fact[],
-  isVictim: (fact: Fact) => boolean,
-  missingMessage: string,
-  corrupt: (fact: Fact) => Fact,
-): readonly Fact[] => {
-  if (!facts.some((fact) => isVictim(fact))) {
-    throw new Error(missingMessage);
-  }
-  return facts.map((fact) => (isVictim(fact) ? corrupt(fact) : fact));
-};
 
 const corruptions: Readonly<
   Record<Corruption, (facts: SplitFacts) => SplitFacts>

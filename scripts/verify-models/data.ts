@@ -38,6 +38,21 @@ export const corruptedDataFor =
   (corrupt: (row: Row) => Row): ModelDataSource =>
     modelDataFor(() => moduleFor(rows.map(corrupt)));
 
+/** Change the one fact the predicate names, or throw when no fact does. A
+ *  negative control corrupts one fact of the clean proof data; a changed
+ *  shape fails here instead of corrupting nothing. */
+export const corruptOneFact = <Fact>(
+  facts: readonly Fact[],
+  isVictim: (fact: Fact) => boolean,
+  missingMessage: string,
+  corrupt: (fact: Fact) => Fact,
+): readonly Fact[] => {
+  if (!facts.some((fact) => isVictim(fact))) {
+    throw new Error(missingMessage);
+  }
+  return facts.map((fact) => (isVictim(fact) ? corrupt(fact) : fact));
+};
+
 const atom = (value: TlaAtom): string =>
   typeof value === "boolean"
     ? value
@@ -72,6 +87,30 @@ export const tlaModule = (
   name: string,
   definitions: readonly string[],
 ): string => `---- MODULE ${name} ----\n${definitions.join("\n")}\n====\n`;
+
+/** Binds one module's name and the name and field schema of every record
+ *  table in it. Each call supplies the rows and returns the module text. */
+export const tlaRecordModuleFor =
+  <const Schemas extends readonly TlaRecordSchema[]>(
+    name: string,
+    ...tables: {
+      readonly [Index in keyof Schemas]: readonly [
+        name: string,
+        schema: Schemas[Index],
+      ];
+    }
+  ) =>
+  (
+    ...rows: {
+      readonly [Index in keyof Schemas]: readonly TlaFact<Schemas[Index]>[];
+    }
+  ): string =>
+    tlaModule(
+      name,
+      tables.map(([table, schema], index) =>
+        tlaRecords(table, schema, rows[index]!),
+      ),
+    );
 
 /** The checker type note for one valibot field type. A field type outside the
  *  table has no checker note, so the generator stops instead of writing a
