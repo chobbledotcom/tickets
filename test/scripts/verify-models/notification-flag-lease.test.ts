@@ -73,10 +73,24 @@ describe("notification flag lease checker data", () => {
     }
   });
 
-  test("the restore returns each side's own captured colour", () => {
+  test("the restore facts name each side subset at its own captured colour", () => {
     expect(restoreFacts()).toEqual([
       {
         emailValue: PENDING_NOTIFICATION.admin,
+        returnsEmail: true,
+        returnsWebhooks: false,
+        webhooksValue: PENDING_NOTIFICATION.none,
+      },
+      {
+        emailValue: PENDING_NOTIFICATION.none,
+        returnsEmail: false,
+        returnsWebhooks: true,
+        webhooksValue: PENDING_NOTIFICATION.online,
+      },
+      {
+        emailValue: PENDING_NOTIFICATION.admin,
+        returnsEmail: true,
+        returnsWebhooks: true,
         webhooksValue: PENDING_NOTIFICATION.online,
       },
     ]);
@@ -147,13 +161,15 @@ describe("notification flag lease checker data", () => {
 
   test("the corrupted restore returns a colour the claim never captured", async () => {
     const invented = corruptRestoreColour().filter(
-      (fact) => fact.emailValue !== REPRESENTATIVE.email,
+      (fact) => fact.returnsEmail && fact.emailValue !== REPRESENTATIVE.email,
     );
     expect(invented).toHaveLength(1);
     expect(invented[0]?.emailValue).toBe(PENDING_NOTIFICATION.online);
     const data = await corruptRestoreColourData();
     expect(records(data, "RestoreFacts")).toContainEqual({
       emailValue: PENDING_NOTIFICATION.online,
+      returnsEmail: true,
+      returnsWebhooks: true,
       webhooksValue: REPRESENTATIVE.webhooks,
     });
   });

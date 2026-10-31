@@ -49,10 +49,13 @@ const ClaimFactSchema = v.object({
 });
 export type ClaimFact = v.InferOutput<typeof ClaimFactSchema>;
 
-/** One restore fact: the colours one restore returns for the two sides. */
+/** One restore fact: which sides one restore returns, and the colour it
+ *  writes back on each named side. An unnamed side carries no colour. */
 const RestoreFactSchema = v.object({
-  emailValue: v.picklist([1, 2] as const),
-  webhooksValue: v.picklist([1, 2] as const),
+  emailValue: v.picklist([0, 1, 2] as const),
+  returnsEmail: v.boolean(),
+  returnsWebhooks: v.boolean(),
+  webhooksValue: v.picklist([0, 1, 2] as const),
 });
 export type RestoreFact = v.InferOutput<typeof RestoreFactSchema>;
 
@@ -74,6 +77,8 @@ const claimFields = {
 /** The checker field types for one restore fact. */
 const restoreFields = {
   emailValue: "Int",
+  returnsEmail: "Bool",
+  returnsWebhooks: "Bool",
   webhooksValue: "Int",
 } as const;
 
@@ -128,12 +133,27 @@ const restoreValueFor = (side: PendingNotificationSide): RestoreColour =>
   restorePendingFlagStatement(side, [1], REPRESENTATIVE[side])
     .args[0] as RestoreColour;
 
-/** The restore facts: one restore returns the representative's own captured
- *  colours for both sides. */
+/** The restore facts: each subset of claimed sides one restore returns,
+ *  every named side at its own captured colour. An unnamed side carries no
+ *  colour. */
 export const restoreFacts = (): RestoreFact[] =>
   parsedFacts(RestoreFactSchema, [
     {
       emailValue: restoreValueFor("email"),
+      returnsEmail: true,
+      returnsWebhooks: false,
+      webhooksValue: PENDING_NOTIFICATION.none,
+    },
+    {
+      emailValue: PENDING_NOTIFICATION.none,
+      returnsEmail: false,
+      returnsWebhooks: true,
+      webhooksValue: restoreValueFor("webhooks"),
+    },
+    {
+      emailValue: restoreValueFor("email"),
+      returnsEmail: true,
+      returnsWebhooks: true,
       webhooksValue: restoreValueFor("webhooks"),
     },
   ]);
@@ -174,6 +194,8 @@ export const corruptRestoreColour = (): RestoreFact[] => [
   ...restoreFacts(),
   {
     emailValue: PENDING_NOTIFICATION.online,
+    returnsEmail: true,
+    returnsWebhooks: true,
     webhooksValue: REPRESENTATIVE.webhooks,
   },
 ];
