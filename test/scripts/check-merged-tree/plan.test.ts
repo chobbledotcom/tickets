@@ -80,6 +80,9 @@ describe("merged-tree check command plan", () => {
     expect(successLine("PR #2583", "main")).toBe(
       "MERGED-TREE CHECK PASSED: PR #2583 merges into main",
     );
+    expect(successLine("{base}", "main")).toBe(
+      "MERGED-TREE CHECK PASSED: {base} merges into main",
+    );
     expect(notMergeableHeader("feature", "main")).toBe(
       "MERGED-TREE CHECK FAILED: feature does not merge cleanly into main",
     );

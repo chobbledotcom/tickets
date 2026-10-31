@@ -54,13 +54,14 @@ export const labelFor = (head: Head): string =>
   head.kind === "pr" ? `PR #${head.number}` : head.name;
 
 /** One verdict line: the shared prefix plus the caller's wording. The wording
- * keeps `{label}` and `{base}` where the head and base names go. */
+ * keeps `{label}` and `{base}` where the head and base names go. One pass, so
+ * a name that itself contains a marker is inserted as it is. */
 const verdictLine =
   (wording: string) =>
   (label: string, base: string): string =>
-    `MERGED-TREE CHECK ${wording
-      .replaceAll("{label}", label)
-      .replaceAll("{base}", base)}`;
+    `MERGED-TREE CHECK ${wording.replace(/\{label\}|\{base\}/g, (marker) =>
+      marker === "{label}" ? label : base,
+    )}`;
 
 export const successLine = verdictLine("PASSED: {label} merges into {base}");
 
