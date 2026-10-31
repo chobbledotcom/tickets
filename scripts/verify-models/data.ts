@@ -1,3 +1,4 @@
+import type * as v from "valibot";
 import { unique } from "#fp";
 
 type TlaAtom = string | boolean | number;
@@ -71,3 +72,34 @@ export const tlaModule = (
   name: string,
   definitions: readonly string[],
 ): string => `---- MODULE ${name} ----\n${definitions.join("\n")}\n====\n`;
+
+/** The checker type note for one valibot field type. A field type outside the
+ *  table has no checker note, so the generator stops instead of writing a
+ *  wrong note. */
+const TLA_TYPE_OF: Record<string, "Int" | "Bool" | "Str"> = {
+  boolean: "Bool",
+  number: "Int",
+  picklist: "Str",
+  string: "Str",
+};
+
+/** The checker type note for one valibot object schema: each field becomes a
+ *  TLA primitive type, so one declaration drives both the TS record and the
+ *  checker set. */
+export const tlaSchemaOf = <T extends v.ObjectEntries>(
+  schema: v.ObjectSchema<T, undefined>,
+): Record<string, "Int" | "Bool" | "Str"> => {
+  const entries = Object.entries(schema.entries) as [
+    string,
+    { type: string },
+  ][];
+  return Object.fromEntries(
+    entries.map(([name, field]) => {
+      const tlaType = TLA_TYPE_OF[field.type];
+      if (tlaType === undefined) {
+        throw new Error(`No checker type note for field type ${field.type}.`);
+      }
+      return [name, tlaType];
+    }),
+  );
+};

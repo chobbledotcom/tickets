@@ -7,7 +7,8 @@ EXTENDS Integers, AttendeeCapacityData
 \* lines. Two lines on one slot book through two package paths. Production
 \* reads two same-path lines on a slot as one duplicate slot and refuses the
 \* edit before its batch. Every capacity decision comes from the production
-\* capacity condition, so a slip there shows up as a corrupted fact the
+\* statements run against a seeded copy of the slots, so a slip there shows up
+\* as a corrupted fact the
 \* checker rejects. The model does not prove the SQL text; it proves the
 \* decision the statements encode: one batch commits whole, a refused
 \* capacity write commits nothing, and a committed attendee holds at least

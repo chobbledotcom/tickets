@@ -3,6 +3,7 @@
  *  derived type note feeds the TLA checker set. */
 
 import * as v from "valibot";
+import { tlaSchemaOf } from "#scripts/verify-models/data.ts";
 
 /** One line's fact for the checker: which batch and slot it belongs to, its
  *  quantity, its edit kind, and the production capacity decision. A removed
@@ -27,37 +28,6 @@ export const batchFieldsSchema = v.object({
   slot2AfterTotal: v.number(),
 });
 export type BatchFact = v.InferOutput<typeof batchFieldsSchema>;
-
-/** The checker type note for one valibot field type. A field type outside the
- *  table has no checker note, so the generator stops instead of writing a
- *  wrong note. */
-const TLA_TYPE_OF: Record<string, "Int" | "Bool" | "Str"> = {
-  boolean: "Bool",
-  number: "Int",
-  picklist: "Str",
-  string: "Str",
-};
-
-/** The checker type note for one valibot object schema: each field becomes a
- *  TLA primitive type, so one declaration drives both the TS record and the
- *  checker set. */
-export const tlaSchemaOf = <T extends v.ObjectEntries>(
-  schema: v.ObjectSchema<T, undefined>,
-): Record<string, "Int" | "Bool" | "Str"> => {
-  const entries = Object.entries(schema.entries) as [
-    string,
-    { type: string },
-  ][];
-  return Object.fromEntries(
-    entries.map(([name, field]) => {
-      const tlaType = TLA_TYPE_OF[field.type];
-      if (tlaType === undefined) {
-        throw new Error(`No checker type note for field type ${field.type}.`);
-      }
-      return [name, tlaType];
-    }),
-  );
-};
 
 export const lineTlaSchema = tlaSchemaOf(lineFieldsSchema);
 export const batchTlaSchema = tlaSchemaOf(batchFieldsSchema);

@@ -7,7 +7,7 @@ import {
   overfillInsertData,
   partialCommitData,
 } from "#scripts/verify-models/attendee-capacity.ts";
-import { tlaSchemaOf } from "#scripts/verify-models/attendee-capacity-facts.ts";
+import { tlaSchemaOf } from "#scripts/verify-models/data.ts";
 import { records } from "#test-utils/tla-data.ts";
 
 /* jscpd:ignore-end */
@@ -73,6 +73,11 @@ describe("attendee capacity checker data", () => {
     expect(lines).toContainEqual(
       line("preserve-only", true, "preserve", "one", 1),
     );
+    // The same preserve on a deactivated listing: the unconditional update
+    // is not stranded, so it still fits.
+    expect(lines).toContainEqual(
+      line("preserve-inactive", true, "preserve", "one", 1),
+    );
     // An update that grows the line but still fits the cap.
     expect(lines).toContainEqual(
       line("edit-increase", true, "update", "one", 2),
@@ -114,6 +119,11 @@ describe("attendee capacity checker data", () => {
     expect(batches).toContainEqual(batch("create", true, 1, false, 2, 0));
     // A preserve-only batch never refuses.
     expect(batches).toContainEqual(batch("preserve-only", true, 1, true, 1, 0));
+    // A preserve on a deactivated listing still commits: the unconditional
+    // update is not stranded by the capacity condition's active check.
+    expect(batches).toContainEqual(
+      batch("preserve-inactive", true, 1, true, 1, 0),
+    );
     // A fitting update commits, and a refused update does not.
     expect(batches).toContainEqual(
       batch("edit-increase", true, 1, false, 2, 0),
