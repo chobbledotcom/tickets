@@ -8,11 +8,13 @@ survivor, when to run the gate — lives in "Mutation Testing" in AGENTS.md.
 It reports a mutation score and lists each survivor as
 `file:line:col  old → new`. Exit code is non-zero if any mutant survived, so it
 can gate CI on a chosen module. By default it runs the test files directly
-(fast, for pure-unit modules); pass `--harness` for tests that import the app /
+(fast, for pure-unit modules). Pass `--harness` for tests that import the app /
 Stripe and need built static assets + stripe-mock. Under `--harness`, mutating a
 client-bundle source (anything bundled into `src/ui/static/*.js` — for example
 `src/ui/client/admin.ts` or a module it imports) rebuilds just the affected
 bundle for each mutant, so the mutation reaches the built asset the tests load.
+The default run never rebuilds a bundle: the snapshot copies the built assets
+as they are, so a mutant in a client-bundle source needs `--harness`.
 Likewise, a mutant in any file that feeds the run-wide prebuilt test state (the
 golden schema DB and captured setup ceremony — the import graph of
 `test/test-utils/test-state.ts`, see `scripts/mutation/state-graph.ts`) runs
@@ -25,9 +27,12 @@ batches.
 Static gates apply mutants in isolated sibling copies. Mutants that pass are
 written over the run's source file, tested in a fresh `deno test` subprocess,
 then restored. The normal `deno task mutation` command first copies the current
-checkout (including dirty source/test edits, excluding `.git`, cache/report
-folders, local databases, secrets, and generated assets) to
-`.mutation-runs/<id>/work`. Test-stage writes and per-mutant bundle rebuilds
+checkout (including dirty source/test edits and its built browser assets,
+excluding `.git`, cache/report folders, local databases, secrets, and the
+browser-asset build's records) to
+`.mutation-runs/<id>/work`. The built assets come along so a suite that reads
+them at module load — `src/features/assets.ts` is one — does not die at import
+inside the copy. Test-stage writes and per-mutant bundle rebuilds
 happen inside that copy, not the live files. Static worker copies are deleted
 before tests start. A run deletes its main copy as soon as it ends — reporting
 the failure if it cannot — so `.mutation-runs/` does not fill up with checkout

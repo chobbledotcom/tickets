@@ -29,7 +29,7 @@ describe("mutation isolation paths", () => {
     });
   });
 
-  test("copies source-like files and skips git, reports, secrets, dbs, and generated assets", async () => {
+  test("copies source-like files and skips git, reports, secrets, and dbs", async () => {
     await withTempDir(async (dir) => {
       const source = join(dir, "source");
       const snapshot = join(dir, "snapshot");
@@ -68,12 +68,18 @@ describe("mutation isolation paths", () => {
       );
       expect(await pathExists(join(snapshot, ".env"))).toBe(false);
       expect(await pathExists(join(snapshot, "tickets.db"))).toBe(false);
+      // Built browser assets come along so suites that read them at module
+      // load (src/features/assets.ts) do not die at import in the snapshot.
       expect(
-        await pathExists(join(snapshot, "src", "ui", "static", "app.js")),
-      ).toBe(false);
+        await Deno.readTextFile(
+          join(snapshot, "src", "ui", "static", "app.js"),
+        ),
+      ).toBe("js");
       expect(
-        await pathExists(join(snapshot, "src", "ui", "static", "style.css")),
-      ).toBe(false);
+        await Deno.readTextFile(
+          join(snapshot, "src", "ui", "static", "style.css"),
+        ),
+      ).toBe("css");
     });
   });
 
@@ -119,7 +125,7 @@ describe("mutation isolation paths", () => {
     expect(shouldCopySnapshotPath(".diagnostics/trace.json")).toBe(false);
     expect(shouldCopySnapshotPath("coverage-test/lcov.info")).toBe(false);
     expect(shouldCopySnapshotPath("local.db-wal")).toBe(false);
-    expect(shouldCopySnapshotPath("src/ui/static/order.js")).toBe(false);
+    expect(shouldCopySnapshotPath("src/ui/static/order.js")).toBe(true);
     expect(shouldCopySnapshotPath(".static-assets-cache.json")).toBe(false);
     expect(shouldCopySnapshotPath(".static-assets-build.lock")).toBe(false);
   });
