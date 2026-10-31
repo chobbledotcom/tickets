@@ -137,6 +137,18 @@ These checks serve different purposes.
     group the pair shares. The fit ceiling never reports more whole orders
     than the remaining spots hold. A date-less surface never sells a pair
     whose shared static cap is below two spots.
+  - `verification/AttendeeCapacity.tla` checks one atomic attendee edit
+    batch over one attendee's lines. The batch inserts new capacity-checked
+    lines, updates changed lines with a pin on the old slot, and deletes
+    removed lines. The summed quantity on each slot never passes the
+    listing's quantity. A refused capacity write commits nothing, and a
+    committed attendee holds at least one line. An unchanged-preserved line
+    consumes no capacity headroom. The generator runs the production edit
+    statements against a seeded in-memory database: each line's fit verdict
+    is its own write landing, and each batch's commit is the real batch
+    surviving its guards. The check corrupts an insert past the slot's
+    quantity and a partial commit that leaves an earlier line when a later
+    line is refused. The checker must report a counterexample for each.
   - `verification/LargestRemainderSplit.tla` checks the largest-remainder
     allocation of a whole amount across weighted parts. The model runs the
     award loop itself: every part first holds its proportional floor, and the

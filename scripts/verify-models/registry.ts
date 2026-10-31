@@ -1,4 +1,5 @@
 /* jscpd:ignore-start -- imports */
+import { attendeeCapacityModelData } from "#scripts/verify-models/attendee-capacity.ts";
 import { bookingReplayModelData } from "#scripts/verify-models/booking.ts";
 import { doorScanModelData } from "#scripts/verify-models/door-scan.ts";
 import { largestRemainderSplitModelData } from "#scripts/verify-models/largest-remainder-split.ts";
@@ -27,4 +28,5 @@ export const MODELS = [
   { data: notificationFlagLeaseModelData, module: "NotificationFlagLease" },
   { data: doorScanModelData, module: "DoorScan" },
   { data: sharedGroupCapacityModelData, module: "SharedGroupCapacity" },
+  { data: attendeeCapacityModelData, module: "AttendeeCapacity" },
 ];
