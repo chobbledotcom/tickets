@@ -163,7 +163,7 @@ export const denoCliDeps = (): CliDeps => ({
       : collectGateScriptFiles(root),
   overLimit: () =>
     readJsonOrNull(OVER_LIMIT_PATH, v.record(v.string(), v.number())),
-  readSecret: () => readTextFileOrNull(SECRET_FILE),
+  readSecret: readTextFileOrNull.bind(null, SECRET_FILE),
   stat: denoStatKind,
   writeTextFile: (path, text) => Deno.writeTextFile(path, text),
 });

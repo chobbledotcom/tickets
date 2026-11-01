@@ -11,6 +11,9 @@ export type TlaSource = {
   readonly comments: readonly TlaComment[];
 };
 
+const matchesMarker = (token: TlaToken | undefined, marker: RegExp): boolean =>
+  token !== undefined && marker.test(token.text);
+
 /** Read lexical evidence, not the full TLA grammar. Apalache checks the grammar. */
 export const readTlaSource = (file: string, content: string): TlaSource => {
   const comments: TlaComment[] = [];
@@ -19,13 +22,11 @@ export const readTlaSource = (file: string, content: string): TlaSource => {
   );
   const [start, keyword, name, end] = tokens;
   if (
-    start === undefined ||
-    !/^-{4,}$/.test(start.text) ||
+    !matchesMarker(start, /^-{4,}$/) ||
     keyword?.text !== "MODULE" ||
     name?.kind !== "identifier" ||
-    end === undefined ||
-    !/^-{4,}$/.test(end.text) ||
-    !/^={4,}$/.test(tokens.at(-1)?.text ?? "")
+    !matchesMarker(end, /^-{4,}$/) ||
+    !matchesMarker(tokens.at(-1), /^={4,}$/)
   ) {
     throw new Error(`${file}: The TLA module header or end marker is invalid.`);
   }

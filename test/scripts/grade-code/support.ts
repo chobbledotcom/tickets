@@ -4,6 +4,7 @@ import { resolve } from "@std/path";
 import type { Alias } from "#scripts/check-imports/rules.ts";
 import type { CliDeps } from "#scripts/grade-code/cli.ts";
 import { JEV_QUESTIONS } from "#scripts/grade-code/questions.ts";
+import { verificationModuleFor } from "#scripts/verify-models/registry.ts";
 
 /** A file that passes every mechanical check. */
 export const CLEAN_CODE = [
@@ -84,9 +85,7 @@ export const depsOver = (dir: {
     },
     readFile: (path) => Promise.resolve(dir.files[path] ?? ""),
     sleep: () => Promise.resolve(),
-    verificationModule: (file) => {
-      throw new Error(`Unregistered verification module: ${file}`);
-    },
+    verificationModule: verificationModuleFor,
   },
   listFiles: (root) => {
     const wanted = `${resolve(root)}/`;

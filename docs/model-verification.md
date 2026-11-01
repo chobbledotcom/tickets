@@ -233,9 +233,13 @@ not detect all corrupt stored data and does not establish provider truth.
    Reading registry metadata must not execute a producer or load application IO.
 4. Add deterministic generator and fault-injection tests for the evidence
    boundary. Add real negative controls for the claimed laws.
+   Exercise each registered producer and control in direct tests.
+   Assert the affected business facts. Do not rely on a model subprocess for coverage.
+   Use isolated temporary directories for file fixtures. Keep fixtures outside maintained source roots.
 5. Use the pinned devenv environment and the repository's check-run procedure
    from `AGENTS.md`. Run the commands below. Inspect traces and artifacts, not
    only exit codes. Report the commands actually run and their results.
+   If the owner delegates checks to CI, inspect the results for the exact pushed commit.
 6. Review independent oracles, domain bounds, identity loss, non-vacuity, SQL
    boundaries, and model joins. State unresolved assumptions in the review.
 

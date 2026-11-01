@@ -12,6 +12,16 @@ import {
 } from "#scripts/verify-models/registry.ts";
 import { findModuleIssues, findRegistryIssues } from "./rules.ts";
 
+interface SourceFiles {
+  collect: typeof collectTlaSources;
+  stat: (path: string) => Promise<Pick<Deno.FileInfo, "isFile">>;
+}
+
+const sourceFiles: SourceFiles = {
+  collect: collectTlaSources,
+  stat: Deno.stat,
+};
+
 const report = (output: CheckOutput, found: string[]): number =>
   reportCheck({
     ...output,
@@ -25,8 +35,9 @@ const report = (output: CheckOutput, found: string[]): number =>
 /** Read declarations and sources without loading or running a fact producer. */
 export const checkVerification = async (
   output: CheckOutput = consoleOutput,
+  access: SourceFiles = sourceFiles,
 ): Promise<number> => {
-  const files = await collectTlaSources(["verification"]);
+  const files = await access.collect(["verification"]);
   const found = fileFindingLines(
     "scripts/verify-models/registry.ts",
     findRegistryIssues(VERIFICATION_MODULES, files),
@@ -50,7 +61,7 @@ export const checkVerification = async (
   );
   for (const path of context) {
     await assertNoSymlink(path);
-    if (!(await Deno.stat(path)).isFile)
+    if (!(await access.stat(path)).isFile)
       throw new Error(`The review context is not a source file: ${path}`);
   }
   return report(output, found);

@@ -1,3 +1,4 @@
+import { assertNotReached } from "@std/assert";
 import type { VerificationModule } from "#scripts/verify-models/spec.ts";
 import { depsOver } from "./support.ts";
 
@@ -27,16 +28,18 @@ export const declaration = (
         context,
         controls: [
           {
-            data: () => {
-              throw new Error("Grading must not execute a control");
-            },
+            data: assertNotReached.bind(
+              null,
+              "Grading must not execute a control",
+            ),
             name: "negative",
             phase: "initial",
           },
         ],
-        data: () => {
-          throw new Error("Grading must not execute a generator");
-        },
+        data: assertNotReached.bind(
+          null,
+          "Grading must not execute a generator",
+        ),
         kind,
         module: "Sample",
       };
@@ -47,10 +50,6 @@ export const tlaDeps = (
 ) => {
   const deps = depsOver({ files });
   deps.grade.verificationModule = () => entry;
-  deps.grade.readContext = (file) => {
-    if (!(file in files)) return Promise.reject(new Error(`Missing ${file}`));
-    return Promise.resolve(files[file]!);
-  };
   deps.grade.fetchText = (_url, init) => {
     const body = JSON.parse(String(init.body));
     return Promise.resolve({

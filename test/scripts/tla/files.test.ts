@@ -27,6 +27,16 @@ describe("maintained TLA source selection", () => {
     );
   });
 
+  test("refuses a linked descendant inside an otherwise valid source tree", async () => {
+    using dir = tempDir();
+    await Deno.mkdir(join(dir.path, "nested"));
+    await Deno.writeTextFile(join(dir.path, "Model.tla"), "source");
+    await Deno.symlink("../Model.tla", join(dir.path, "nested/linked.tla"));
+    await expect(collectTlaSources([dir.path])).rejects.toThrow(
+      /Symlink.*linked\.tla/,
+    );
+  });
+
   test("refuses both a linked source and a linked parent", async () => {
     using dir = tempDir();
     await Deno.mkdir(join(dir.path, "actual"));

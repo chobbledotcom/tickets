@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { assertSpyCalls, spy } from "@std/testing/mock";
 import { runGradeCodeCli } from "#scripts/grade-code/cli.ts";
 import { gradeCode } from "#scripts/grade-code/grade.ts";
 import { batchReportLines, csvLines } from "#scripts/grade-code/report.ts";
@@ -24,7 +25,15 @@ const mechanicalOnly = {
 
 describe("TLA grading", () => {
   test("grades a model mechanically without TypeScript checks or execution", async () => {
-    const deps = tlaDeps();
+    const entry = declaration();
+    if (entry.kind !== "model") throw new Error("Expected a model fixture");
+    const generator = spy(entry.data);
+    const control = spy(entry.controls[0].data);
+    const deps = tlaDeps({
+      ...entry,
+      controls: [{ ...entry.controls[0], data: control }],
+      data: generator,
+    });
     deps.grade.fetchText = () => {
       throw new Error("No network expected");
     };
@@ -33,6 +42,8 @@ describe("TLA grading", () => {
     expect(row.kind).toBe("tla-model");
     expect(row.checks).toEqual(mechanicalOnly);
     expect(row.jev).toBeNull();
+    assertSpyCalls(generator, 0);
+    assertSpyCalls(control, 0);
   });
 
   test("grades a helper without invented state-machine obligations", async () => {
@@ -92,12 +103,20 @@ describe("TLA grading", () => {
       "verification/Laws.tla": HELPER_SOURCE,
       "verification/Sample.tla": MODEL_SOURCE,
     };
+    const entry = declaration("model", [
+      "verification/Laws.tla",
+      "scripts/sample.ts",
+      "src/shared/sample.ts",
+    ]);
+    if (entry.kind !== "model") throw new Error("Expected a model fixture");
+    const generator = spy(entry.data);
+    const control = spy(entry.controls[0].data);
     const deps = tlaDeps(
-      declaration("model", [
-        "verification/Laws.tla",
-        "scripts/sample.ts",
-        "src/shared/sample.ts",
-      ]),
+      {
+        ...entry,
+        controls: [{ ...entry.controls[0], data: control }],
+        data: generator,
+      },
       files,
     );
     let body: Record<string, unknown> = {};
@@ -135,6 +154,8 @@ describe("TLA grading", () => {
         "tla_limits",
       ]),
     );
+    assertSpyCalls(generator, 0);
+    assertSpyCalls(control, 0);
   });
 
   test("missing and forbidden declared context never becomes an empty review", async () => {
@@ -157,6 +178,22 @@ describe("TLA grading", () => {
       expect(row.error).toContain(path);
       expect(requests).toBe(0);
     }
+  });
+
+  test("retains non-Error context failures as ungraded diagnostics without a paid request", async () => {
+    const path = "scripts/context.ts";
+    const deps = tlaDeps(declaration("model", [path]));
+    deps.grade.readContext = () => Promise.reject("source access revoked");
+    const requests = spy(deps.grade.fetchText);
+    deps.grade.fetchText = requests;
+    const row = await gradeCode(deps.grade, paid, "verification/Sample.tla");
+    expect(row.score).toBeNull();
+    expect(row.error).toBe(
+      `verification/Sample.tla: cannot read declared context ${path}: source access revoked`,
+    );
+    expect(row.checks).toEqual({});
+    expect(row.jev).toBeNull();
+    assertSpyCalls(requests, 0);
   });
 
   test("unavailable or missing Jev answers preserve explicit mechanical-only results", async () => {

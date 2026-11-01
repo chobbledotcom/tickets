@@ -7,7 +7,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { sum } from "#fp";
 import {
-  checkoutCompositionModelData,
   compositionFacts,
   type PassFact,
   SCENARIOS,
@@ -15,6 +14,8 @@ import {
 } from "#scripts/verify-models/checkout-composition.ts";
 import { feeSubtotalFor } from "#shared/booking-fee.ts";
 import { applyModifiers } from "#shared/checkout-pricing.ts";
+import { records } from "#test-utils/tla-data.ts";
+import { registeredModel } from "./registered-model.ts";
 
 /* jscpd:ignore-end */
 
@@ -298,11 +299,23 @@ describe("checkout composition proof data", () => {
     }
   });
 
-  test("the data module carries the fact tables under their own names", async () => {
-    const data = await checkoutCompositionModelData();
-    expect(data).toContain("MODULE CheckoutCompositionData");
-    expect(data).toContain("Orders ==");
-    expect(data).toContain("Passes ==");
-    expect(data).toContain("Units ==");
+  test("emitted pricing facts conserve totals and clamp reductions", async () => {
+    const data = await registeredModel("CheckoutComposition").data();
+    for (const order of records(data, "Orders")) {
+      expect(order.total).toBe(
+        Number(order.lineTotal) + Number(order.extraTotal),
+      );
+      expect(order.feeSubtotal).toBe(order.subtotal);
+    }
+    for (const pass of records(data, "Passes")) {
+      expect(pass.scopedSubtotal).toBe(pass.origSubtotal);
+      expect(Number(pass.removed)).toBeLessThanOrEqual(
+        Number(pass.currentSubtotal),
+      );
+    }
+    for (const unit of records(data, "Units")) {
+      expect(Number(unit.reduced)).toBeGreaterThanOrEqual(0);
+      expect(Number(unit.reduced)).toBeLessThanOrEqual(Number(unit.price));
+    }
   });
 });

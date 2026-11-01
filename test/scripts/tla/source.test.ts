@@ -21,6 +21,12 @@ describe("TLA source evidence", () => {
     for (const content of [
       "",
       "Value == 1\n====",
+      "----",
+      "---- HEADER Example ----\n====",
+      "---- MODULE",
+      "---- MODULE 42 ----\n====",
+      "---- MODULE Example",
+      "---- MODULE Example ==\n====",
       "---- MODULE Example ----\nValue == 1",
       '---- MODULE Example ----\nLabel == "unfinished\n====',
     ]) {

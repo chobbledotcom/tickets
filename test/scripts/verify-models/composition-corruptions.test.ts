@@ -9,15 +9,16 @@ import type {
   OrderFact,
   PassFact,
 } from "#scripts/verify-models/checkout-composition.ts";
-import {
-  compoundingDiscountData,
-  corruptCompositionData,
-  overshootDiscountData,
-  staleFeeData,
-} from "#scripts/verify-models/composition-corruptions.ts";
+import { corruptCompositionData } from "#scripts/verify-models/composition-corruptions.ts";
 import { records } from "#test-utils/tla-data.ts";
+import { registeredModel } from "./registered-model.ts";
 
 /* jscpd:ignore-end */
+
+const { controls } = registeredModel("CheckoutComposition");
+const compoundingDiscountData = controls[0].data;
+const overshootDiscountData = controls[1]!.data;
+const staleFeeData = controls[2]!.data;
 
 type DataRecord = Record<string, string | boolean | number>;
 
@@ -26,7 +27,7 @@ const recordsOf = (data: string, name: string): DataRecord[] =>
 
 describe("checkout composition negative controls", () => {
   test("corrupting the second pass compounds on the first", async () => {
-    const data = await corruptCompositionData("compounding");
+    const data = await compoundingDiscountData();
     const passes = recordsOf(data, "Passes");
     const second = passes.find(
       (passFact) =>
@@ -38,7 +39,7 @@ describe("checkout composition negative controls", () => {
   });
 
   test("corrupting the discount overshoots the units", async () => {
-    const data = await corruptCompositionData("overshooting discount");
+    const data = await overshootDiscountData();
     const passes = recordsOf(data, "Passes");
     const victim = passes.find(
       (passFact) => passFact.orderTag === "a discount that exceeds the units",
@@ -50,7 +51,7 @@ describe("checkout composition negative controls", () => {
   });
 
   test("corrupting the fee basis charges a stale subtotal", async () => {
-    const data = await corruptCompositionData("stale fee");
+    const data = await staleFeeData();
     const orders = recordsOf(data, "Orders");
     const victim = orders.find(
       (orderFact) => orderFact.orderTag === "modifiers never compound",
@@ -163,14 +164,5 @@ describe("checkout composition negative controls", () => {
     ).rejects.toThrow(
       'The "modifiers never compound" fee basis equals the final subtotal. There is no stale basis to corrupt.',
     );
-  });
-
-  test("the negative-control data sources build the corrupted modules", async () => {
-    const compounding = await compoundingDiscountData();
-    const overshoot = await overshootDiscountData();
-    const stale = await staleFeeData();
-    expect(compounding).toContain("MODULE CheckoutCompositionData");
-    expect(overshoot).toContain("MODULE CheckoutCompositionData");
-    expect(stale).toContain("MODULE CheckoutCompositionData");
   });
 });

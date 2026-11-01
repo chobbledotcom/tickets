@@ -1,7 +1,9 @@
 import { expect } from "@std/expect";
-import { resolve } from "@std/path";
+import { join, relative, resolve } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
+import { denoCliDeps } from "#scripts/grade-code/cli.ts";
 import { resolveTargets } from "#scripts/grade-code/targets.ts";
+import { tempDir } from "#test-utils/files.ts";
 import { CLEAN_CODE, depsOver } from "./support.ts";
 import { HELPER_SOURCE, MODEL_SOURCE } from "./tla-support.ts";
 
@@ -90,5 +92,44 @@ describe("mixed grading targets", () => {
     );
     expect(selected.targets).toEqual([]);
     expect(selected.error).toContain("symlink component");
+  });
+
+  test("discards earlier selections when a listed source disappears or becomes a directory", async () => {
+    for (const kind of ["missing", "dir"] as const) {
+      using dir = tempDir();
+      const disappearing = join(dir.path, "Sample.tla");
+      await Deno.writeTextFile(join(dir.path, "Laws.tla"), HELPER_SOURCE);
+      await Deno.writeTextFile(disappearing, MODEL_SOURCE);
+      const stat = denoCliDeps().stat;
+      const deps = {
+        listFiles: async () => {
+          const entries = await Array.fromAsync(Deno.readDir(dir.path));
+          await Deno.remove(disappearing);
+          if (kind === "dir") await Deno.mkdir(disappearing);
+          return entries.map((entry) => `verification/${entry.name}`).sort();
+        },
+        stat: (path: string) =>
+          stat(resolve(dir.path, relative("verification", path))),
+      };
+      const selected = await resolveTargets(
+        ["verification/Laws.tla", "verification"],
+        deps,
+      );
+      expect(selected).toEqual({
+        error: "cannot read source target verification/Sample.tla",
+        targets: [],
+      });
+    }
+  });
+
+  test("retains non-Error filesystem diagnostics without returning a partial selection", async () => {
+    const deps = depsOver({ files });
+    deps.listFiles = () => Promise.reject("verification inventory unavailable");
+    expect(
+      await resolveTargets(["src/shared/sample.ts", "verification"], deps),
+    ).toEqual({
+      error: "verification inventory unavailable",
+      targets: [],
+    });
   });
 });

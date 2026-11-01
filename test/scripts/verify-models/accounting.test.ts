@@ -1,9 +1,12 @@
 import { expect } from "@std/expect";
 import { corruptSplitData } from "#scripts/verify-models/largest-remainder-split.ts";
 import { records } from "#test-utils/tla-data.ts";
+import { registeredModel } from "./registered-model.ts";
 
 Deno.test("the accounting control retains negative outstanding money in the initial facts", async () => {
-  const data = await corruptSplitData("negative accounting");
+  const data = await registeredModel(
+    "LargestRemainderSplit",
+  ).controls[2]!.data();
   expect(
     records(data, "SplitCases").filter(
       (fact) => fact.caseTag === "zero amount",
