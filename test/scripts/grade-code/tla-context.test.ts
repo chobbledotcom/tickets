@@ -12,6 +12,28 @@ import {
 import { tempDir } from "#test-utils/files.ts";
 import { declaration, tlaDeps } from "./tla-support.ts";
 
+const assertContextRefusal = async (path: string) => {
+  using reads = spy(Deno, "readTextFile");
+  const deps = tlaDeps(declaration("model", [path]));
+  deps.grade.readContext = readContextSource;
+  const requests = spy(deps.grade.fetchText);
+  deps.grade.fetchText = requests;
+  const row = await gradeCode(
+    deps.grade,
+    {
+      ctx: { aliases: [], overLimit: {} },
+      jev: { apiKey: "test", model: "test" },
+    },
+    "verification/Sample.tla",
+  );
+  expect(row.score).toBeNull();
+  expect(row.error).toContain(path);
+  expect(row.checks).toEqual({});
+  expect(row.jev).toBeNull();
+  assertSpyCalls(reads, 0);
+  assertSpyCalls(requests, 0);
+};
+
 describe("declared TLA source context", () => {
   test("accepts declared TS, JS and TLA paths from the approved roots", () => {
     for (const path of [
@@ -79,26 +101,7 @@ describe("declared TLA source context", () => {
   });
 
   test("reports a missing real context source without making a paid request", async () => {
-    const path = "scripts/missing-grader-context.ts";
-    const deps = tlaDeps(declaration("model", [path]));
-    deps.grade.readContext = readContextSource;
-    const requests = spy(deps.grade.fetchText);
-    deps.grade.fetchText = requests;
-    const row = await gradeCode(
-      deps.grade,
-      {
-        ctx: { aliases: [], overLimit: {} },
-        jev: { apiKey: "test", model: "test" },
-      },
-      "verification/Sample.tla",
-    );
-    expect(row.score).toBeNull();
-    expect(row.error).toContain(
-      `verification/Sample.tla: cannot read declared context ${path}:`,
-    );
-    expect(row.checks).toEqual({});
-    expect(row.jev).toBeNull();
-    assertSpyCalls(requests, 0);
+    await assertContextRefusal("scripts/missing-grader-context.ts");
   });
 
   test("refuses context that has become a directory before reading or paying for it", async () => {
@@ -113,24 +116,6 @@ describe("declared TLA source context", () => {
           : candidate,
       ),
     );
-    using reads = spy(Deno, "readTextFile");
-    const deps = tlaDeps(declaration("model", [path]));
-    deps.grade.readContext = readContextSource;
-    const requests = spy(deps.grade.fetchText);
-    deps.grade.fetchText = requests;
-    const row = await gradeCode(
-      deps.grade,
-      {
-        ctx: { aliases: [], overLimit: {} },
-        jev: { apiKey: "test", model: "test" },
-      },
-      "verification/Sample.tla",
-    );
-    expect(row.score).toBeNull();
-    expect(row.error).toContain(path);
-    expect(row.checks).toEqual({});
-    expect(row.jev).toBeNull();
-    assertSpyCalls(reads, 0);
-    assertSpyCalls(requests, 0);
+    await assertContextRefusal(path);
   });
 });
