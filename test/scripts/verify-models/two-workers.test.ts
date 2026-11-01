@@ -13,10 +13,37 @@ import {
   grantClaim,
   settledRowState,
 } from "#payment/row-transitions.ts";
-import { twoWorkersModelData } from "#scripts/verify-models/two-workers.ts";
 import { members, records } from "#test-utils/tla-data.ts";
+import { registeredModel } from "./registered-model.ts";
 
 /* jscpd:ignore-end */
+
+const { data: twoWorkersModelData, controls } = registeredModel("TwoWorkers");
+
+test("the stale-worker control accepts a fence belonging to the replaced run", async () => {
+  const clean = records(await twoWorkersModelData(), "SettleFacts");
+  const corrupted = records(await controls[0].data(), "SettleFacts");
+  expect(
+    corrupted.find(
+      (fact) =>
+        fact.fenceCommandId === "refund-run-a" &&
+        fact.fencePhase === "checking" &&
+        fact.fenceWorker === "w1" &&
+        fact.fenceWrittenAt === W1_WRITTEN &&
+        fact.storedOwner === "w2",
+    ),
+  ).toMatchObject({
+    accepted: true,
+    fenceWorker: "w1",
+    storedCommandId: "refund-run-b",
+  });
+  expect(
+    corrupted.map((fact, index) => ({
+      ...fact,
+      accepted: clean[index]!.accepted,
+    })),
+  ).toEqual(clean);
+});
 
 const REQUEST: ClaimRequest = { attendeeIds: [7], scope: "attendee_set" };
 const W1_WRITTEN = "2026-01-01T00:00:00.000Z";

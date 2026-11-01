@@ -13,13 +13,15 @@ import {
 } from "#scripts/verify-models/attempt.ts";
 import {
   attemptFields,
-  type ModelDataSource,
+  corruptOneFact,
+  modelDataFor,
   type TlaFact,
   tlaModule,
   tlaRecords,
   tlaSet,
 } from "#scripts/verify-models/data.ts";
 import type { FetchResult } from "#shared/fetch.ts";
+import { bindFirst } from "#shared/fp-bind.ts";
 import { WEBHOOK_RETRY_WINDOW_DAYS } from "#shared/limits.ts";
 import { DAY_MS } from "#shared/now.ts";
 import { movesIn } from "#shared/schema-atlas/machine-spec.ts";
@@ -113,7 +115,7 @@ const replyWitnesses: readonly ReplyWitness[] = [
 ];
 const declared = movesIn(LINK_END_MOVES);
 
-export const squareModelData: ModelDataSource = async () => {
+const squareDataFor = (corrupt: boolean): string => {
   const facts = collectMachineFacts(
     LINK_END_NODES,
     LINK_END_EVENTS,
@@ -197,7 +199,20 @@ export const squareModelData: ModelDataSource = async () => {
       facts.representatives,
     ),
     tlaRecords("LinkEvents", eventFields, events),
-    tlaRecords("LinkAttempts", attemptFields, facts.attempts),
+    tlaRecords(
+      "LinkAttempts",
+      attemptFields,
+      corrupt
+        ? corruptOneFact(
+            facts.attempts,
+            (attempt) =>
+              attempt.sourceState === "pending" &&
+              attempt.eventId === "claim_due",
+            "No pending Square claim is available to corrupt.",
+            (attempt) => ({ ...attempt, accepted: true, targetState: "gone" }),
+          )
+        : facts.attempts,
+    ),
     tlaRecords("ReplyFacts", replyFields, replyFacts),
     `AgeStates == ${tlaSet(map((age: (typeof ages)[number]) => age.ageState)(ages))}`,
     'AgeStart == "zero"',
@@ -205,3 +220,8 @@ export const squareModelData: ModelDataSource = async () => {
     tlaRecords("AgeMoves", ageMoveFields, ageMoves),
   ]);
 };
+
+export const squareModelData = modelDataFor(bindFirst(squareDataFor)(false));
+
+/** A payable link loses its cancellation handle without conclusive evidence. */
+export const corruptSquareData = modelDataFor(bindFirst(squareDataFor)(true));

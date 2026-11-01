@@ -182,5 +182,4 @@ Next ==
              emailCaptured, webhooksCaptured, emailHolder, webhooksHolder,
              allFactsSafe>>
 
-InductionStart == Safety
 =============================================================================

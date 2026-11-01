@@ -559,15 +559,14 @@ automatic.
   Run `git fetch origin main` first for a current explicit base. Drift is a
   report, not a gate: paste it in the pull request
   description when the branch touches a machine spec
-- `deno task verify:models` — check safety models under `verification/`:
-  - payment row/refund
-  - SumUp recovery
-  - payment review
-  - Square link expiry
-  - largest remainder split
-
-  Devenv supplies pinned Apalache and its Java runtime. CI and precommit run the
-  same task
+- `deno task check:tla` — check maintained TLA registration, model/helper roles,
+  control declarations, and source-context boundaries without an ignore list
+- `deno task verify:models` — check each registered model's initial safety and
+  unrestricted inductive step, then require a counterexample and trace for each
+  declared negative control. Devenv supplies pinned Apalache and Java. CI and
+  precommit use the same task. See the
+  [model verification guide](docs/model-verification.md) before you add or review
+  a model. It defines the evidence boundaries and author procedure
 - `deno task check:effects` — hold the pure core to the effect table: a
   module the pure list names must hold no import path, static or dynamic,
   to a module that opens the database, the network, or the wall clock. The
@@ -578,10 +577,11 @@ automatic.
   smoke, the backup and restore drills, the concurrent-reservation race,
   webhook replay and idempotency, and a `deno audit --level=critical`
   security report (issue #2300).
-- `deno task grade:code [<file-or-dir>] [--csv <path>] [--no-jev]` — score
-  source files against these rules. With no target, it grades every module under
-  `src/`. `--no-jev` runs the mechanical checks only. A grade is advice, not a
-  gate
+- `deno task grade:code [<file-or-dir> ...] [--csv <path>] [--no-jev]` — score
+  source files against these rules. Targets can include TLA files under
+  `verification/`, that directory, or mixed source paths. With no target, it
+  grades `src/` only. `--no-jev` runs mechanical checks without a JEV request.
+  Grades and JEV are advisory, not proof or a gate
 - `deno task precommit` — all checks (typecheck, lint, tests)
 - `deno task precommit:mutation` — the branch mutation gate: every `src/` file
   this branch changed, 100% kill rate (see

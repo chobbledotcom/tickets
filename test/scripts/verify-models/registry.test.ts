@@ -1,31 +1,25 @@
-import { join } from "node:path";
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
-import { projectRoot } from "#scripts/project-root.ts";
-import { MODELS } from "#scripts/verify-models/registry.ts";
+import { it as test } from "@std/testing/bdd";
+import { checkVerification } from "#scripts/check-tla/run.ts";
+import { registeredModel } from "./registered-model.ts";
 
-/** The shared rules module the models extend. The checker loads it beside
- *  every model, so it is not a model of its own. */
-const RULES_MODULE = "ModelRules";
-
-/** The checker modules the verification directory declares. */
-const declaredModules = async (): Promise<string[]> => {
-  const modules: string[] = [];
-  for await (const entry of Deno.readDir(join(projectRoot, "verification"))) {
-    if (entry.isFile && entry.name.endsWith(".tla")) {
-      modules.push(entry.name.slice(0, -".tla".length));
-    }
-  }
-  return modules.sort();
-};
-
-describe("the model registry", () => {
-  test("registers exactly the model files in verification/", async () => {
-    const declared = (await declaredModules()).filter(
-      (name) => name !== RULES_MODULE,
-    );
-    expect(MODELS.map((model) => model.module).sort(), "model modules").toEqual(
-      declared,
-    );
+test("every maintained model and helper meets the source policy", async () => {
+  const errors: string[] = [];
+  const result = await checkVerification({
+    log: () => {},
+    logError: (line) => errors.push(line),
   });
+  expect({ errors, result }).toEqual({ errors: [], result: 0 });
+});
+
+test("data consumers refuse an undeclared model instead of producing unrelated facts", () => {
+  expect(() => registeredModel("UnregisteredCheckout").data()).toThrow(
+    /no declaration.*UnregisteredCheckout/,
+  );
+});
+
+test("a helper cannot be consumed as a model fact source", () => {
+  expect(() => registeredModel("ModelRules").data()).toThrow(
+    /declares no model facts/,
+  );
 });

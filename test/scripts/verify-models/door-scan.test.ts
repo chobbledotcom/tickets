@@ -5,20 +5,23 @@
 /* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import * as v from "valibot";
 import {
   admitFacts,
-  corruptDoorScanData,
   corruptOneAdmission,
   corruptOneFact,
-  doorScanModelData,
-  refundedAdmissionDoorScanData,
   representatives,
-  takeBackDoorScanData,
 } from "#scripts/verify-models/door-scan.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { records } from "#test-utils/tla-data.ts";
+import { registeredModel } from "./registered-model.ts";
 
 /* jscpd:ignore-end */
+
+const { data: doorScanModelData, controls } = registeredModel("DoorScan");
+const corruptDoorScanData = controls[0].data;
+const takeBackDoorScanData = controls[1]!.data;
+const refundedAdmissionDoorScanData = controls[2]!.data;
 
 /** The quantity each representative listing books. The derived facts and
  *  the checker's quantity constants must both respect these. */
@@ -83,22 +86,17 @@ describe("door scan checker data", () => {
     ]);
   });
 
-  test("names the data module and the quantity constants the proof reads", async () => {
-    const data = await doorScanModelData();
-    expect(data).toContain("MODULE DoorScanData");
-    expect(data).toContain("QuantityOne ==");
-    expect(data).toContain("QuantityTwo ==");
-  });
-
-  test("every derived admission stays at or under the listing's quantity", () => {
-    for (const fact of admitFacts()) {
+  test("every emitted admission stays at or under the listing's quantity", async () => {
+    const count = v.number();
+    for (const fact of records(await doorScanModelData(), "AdmitFacts")) {
+      const before = v.parse(count, fact.before);
       const quantity = requireValue(
-        quantityOf[fact.listing],
+        quantityOf[String(fact.listing)],
         `Missing representative quantity for ${fact.listing}`,
       );
       expect(fact.after).toBeLessThanOrEqual(quantity);
-      expect(fact.after).toBeGreaterThanOrEqual(fact.before);
-      expect(fact.before).toBeGreaterThanOrEqual(0);
+      expect(fact.after).toBeGreaterThanOrEqual(before);
+      expect(before).toBeGreaterThanOrEqual(0);
     }
   });
 

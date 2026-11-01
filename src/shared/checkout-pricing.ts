@@ -18,7 +18,10 @@ import type {
   CheckoutItem,
   ModifierSpec,
 } from "#shared/payments.ts";
-import { modifierDelta } from "#shared/price-modifier.ts";
+import {
+  modifierCoversListing,
+  modifierDelta,
+} from "#shared/price-modifier.ts";
 import {
   allocateReservationDeposit,
   computeReservationDeposit,
@@ -229,10 +232,6 @@ const toUnits = (lines: PricedLine[]): WorkUnit[] =>
     })),
   );
 
-/** Whether a modifier scoped to `listingIds` (null = whole order) covers a unit. */
-const inScope = (spec: ModifierSpec, unit: WorkUnit): boolean =>
-  spec.listingIds === null || spec.listingIds.includes(unit.item.listingId);
-
 /** Regroup work units back into priced lines: one line per (item, price), in
  * cart order with the highest price first, so a discounted item splits into a
  * full-price line and a discounted line. */
@@ -304,7 +303,9 @@ type ModifierPass = {
  * those units can absorb). A zero delta still records an application so the
  * ledger and stock consumption stay aligned with the chosen quantity. */
 const applyOne = (pass: ModifierPass, spec: ModifierSpec): ModifierPass => {
-  const scoped = pass.units.filter((u) => inScope(spec, u));
+  const scoped = pass.units.filter((u) =>
+    modifierCoversListing(spec.listingIds, u.item.listingId),
+  );
   const scopedSubtotal = sum(scoped.map((u) => u.orig));
   const delta = modifierDelta(scopedSubtotal, spec.kind, spec.value);
   const appliedDelta = delta * spec.quantity;
@@ -352,7 +353,9 @@ const applyOne = (pass: ModifierPass, spec: ModifierSpec): ModifierPass => {
   );
   let next = 0;
   const units = pass.units.map((u) =>
-    inScope(spec, u) ? { ...u, price: reduced[next++]! } : u,
+    modifierCoversListing(spec.listingIds, u.item.listingId)
+      ? { ...u, price: reduced[next++]! }
+      : u,
   );
   const applied = sum(scoped.map((u) => u.price)) - sum(reduced);
   return withApplication(

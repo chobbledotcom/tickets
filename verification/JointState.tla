@@ -110,5 +110,4 @@ Next ==
               allRequestsPreserved, allReplaysSafe, onlyMoneySends,
               rowDeleted>>
 
-InductionStart == Safety
 =============================================================================

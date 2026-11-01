@@ -1,16 +1,18 @@
 /* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  dateLessSoldOutPairData,
-  FACTS,
-  overfillCapacityData,
-  sharedGroupCapacityModelData,
-} from "#scripts/verify-models/shared-group-capacity.ts";
+import { FACTS } from "#scripts/verify-models/shared-group-capacity.ts";
 import { PARENT_CHILD_GROUP_UNITS } from "#shared/group-capacity.ts";
 import { records } from "#test-utils/tla-data.ts";
+import { registeredModel } from "./registered-model.ts";
 
 /* jscpd:ignore-end */
+
+const { data: sharedGroupCapacityModelData, controls } = registeredModel(
+  "SharedGroupCapacity",
+);
+const overfillCapacityData = controls[0].data;
+const dateLessSoldOutPairData = controls[1]!.data;
 
 type Fact = Record<string, string | boolean | number>;
 

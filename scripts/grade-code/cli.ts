@@ -6,9 +6,7 @@
  */
 
 import { parseArgs } from "@std/cli/parse-args";
-import { relative, resolve } from "@std/path";
 import * as v from "valibot";
-import { unique } from "#fp";
 import type { OverLimit } from "#scripts/check-file-lengths/rules.ts";
 import type { Alias } from "#scripts/check-imports/rules.ts";
 import { readAliases } from "#scripts/check-imports/run.ts";
@@ -16,6 +14,8 @@ import { fetchText } from "#scripts/fetch-text.ts";
 import { readTextFileOrNull, statOrNull } from "#scripts/not-found.ts";
 import { readJsonOrNull } from "#scripts/read-json.ts";
 import type { ScriptIo } from "#scripts/script-runner.ts";
+import { assertNoSymlink, collectTlaSources } from "#scripts/tla/files.ts";
+import { verificationModuleFor } from "#scripts/verify-models/registry.ts";
 import { collectGateScriptFiles } from "#scripts/walk-files.ts";
 import { CHECKS, type GradeContext } from "./checks.ts";
 import {
@@ -33,12 +33,17 @@ import {
   singleReportLines,
   worstFirst,
 } from "./report.ts";
+import { resolveTargets, type TargetDeps } from "./targets.ts";
+import { TLA_CHECKS } from "./tla.ts";
+import { readContextSource } from "./tla-context.ts";
 
 export const USAGE = `Usage: deno task grade:code [targets] [options]
 
 Targets (default: every module under src/):
   src/features/admin/attendee-page.ts   one file, full report
   src/ui/templates/admin                a directory
+  verification/TwoWorkers.tla           a TLA model
+  verification                         every maintained TLA model/helper
 
 Options:
   --limit <n>     grade at most n files (at least 1)
@@ -119,13 +124,11 @@ export const parseGradeArgs = (args: string[]): GradeArgs => {
 };
 
 /** Everything the run reads besides its arguments. */
-export interface CliDeps {
+export interface CliDeps extends TargetDeps {
   aliases: () => Promise<Alias[] | null>;
   grade: GradeDeps;
-  listFiles: (root: string) => Promise<string[]>;
   overLimit: () => Promise<OverLimit | null>;
   readSecret: () => Promise<string | null>;
-  stat: (path: string) => Promise<"file" | "dir" | "missing">;
   writeTextFile: (path: string, text: string) => Promise<void>;
 }
 
@@ -135,6 +138,7 @@ const denoStatKind = async (
 ): Promise<"file" | "dir" | "missing"> => {
   const info = await statOrNull(path);
   if (info === null) return "missing";
+  await assertNoSymlink(path);
   return info.isDirectory ? "dir" : "file";
 };
 
@@ -144,60 +148,25 @@ export const denoCliDeps = (): CliDeps => ({
   grade: {
     fetchText,
     now: Date.now,
+    readContext: readContextSource,
     readFile: (path) => Deno.readTextFile(path),
     sleep: (ms) => {
       const { promise, resolve } = Promise.withResolvers<void>();
       setTimeout(resolve, ms);
       return promise;
     },
+    verificationModule: verificationModuleFor,
   },
-  listFiles: (root) => collectGateScriptFiles(root),
+  listFiles: (root) =>
+    root === "verification" || root.startsWith("verification/")
+      ? collectTlaSources([root])
+      : collectGateScriptFiles(root),
   overLimit: () =>
     readJsonOrNull(OVER_LIMIT_PATH, v.record(v.string(), v.number())),
-  readSecret: () => readTextFileOrNull(SECRET_FILE),
+  readSecret: readTextFileOrNull.bind(null, SECRET_FILE),
   stat: denoStatKind,
   writeTextFile: (path, text) => Deno.writeTextFile(path, text),
 });
-
-export interface ResolvedTargets {
-  error: string | null;
-  targets: string[];
-}
-
-/** Turn command-line targets into module paths under `src/`. */
-export const resolveTargets = async (
-  args: string[],
-  deps: Pick<CliDeps, "listFiles" | "stat">,
-): Promise<ResolvedTargets> => {
-  const targets: string[] = [];
-  const srcRoot = resolve("src");
-  // With no target named, the run grades the whole of src/.
-  for (const arg of args.length === 0 ? ["src"] : args) {
-    // Resolve first, so a traversal such as `src/../scripts` cannot pass the
-    // boundary check under the `src/` prefix.
-    const target = resolve(arg);
-    if (target !== srcRoot && !target.startsWith(`${srcRoot}/`)) {
-      return { error: `${arg} is not under src/`, targets: [] };
-    }
-    const kind = await deps.stat(arg);
-    if (kind === "missing") {
-      return { error: `cannot read ${arg}`, targets: [] };
-    }
-    if (kind === "file") {
-      // Store the cwd-relative spelling the path-shape checks key on: an
-      // absolute or ./-prefixed argument would skip the i18n scan.
-      targets.push(relative(Deno.cwd(), target));
-      continue;
-    }
-    const inside = await deps.listFiles(arg);
-    if (inside.length === 0) {
-      return { error: `no source files under ${arg}`, targets: [] };
-    }
-    targets.push(...inside.map((file) => relative(Deno.cwd(), resolve(file))));
-  }
-  // Overlapping targets reach one module twice; it must be graded once.
-  return { error: null, targets: unique(targets) };
-};
 
 const criticalFailure = (result: CodeResult): boolean =>
   Object.values(result.checks).some(
@@ -252,7 +221,7 @@ const exitForInfoFlags = (io: ScriptIo, args: GradeArgs): number | null => {
     return 0;
   }
   if (!args.listChecks) return null;
-  for (const check of CHECKS) {
+  for (const check of [...CHECKS, ...TLA_CHECKS]) {
     const critical = check.critical ? " [CRITICAL]" : "";
     io.stdout(
       `${check.id.padEnd(26)} ${check.engine.padEnd(5)} w${String(

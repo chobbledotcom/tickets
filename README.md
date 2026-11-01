@@ -120,6 +120,10 @@ The arithmetic domain uses representative minor-unit amounts. These checks do
 not prove database atomicity or provider behaviour. They do not establish legal
 tax compliance.
 
+For model authors and reviewers, the
+[model verification guide](docs/model-verification.md) explains the commands,
+focused exemplars, evidence boundaries, and limits of advisory code grades.
+
 ### Check-in
 
 - Each ticket gets a unique URL (`/t/:token`) with a QR code

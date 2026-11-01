@@ -13,6 +13,7 @@ import {
   settledRowState,
 } from "#payment/row-transitions.ts";
 import {
+  corruptOneFact,
   type ModelDataSource,
   type TlaFact,
   tlaModule,
@@ -207,9 +208,7 @@ const settleFacts = (): SettleFact[] => {
   return facts;
 };
 
-/** The generated checker data. Every decision comes from the production claim
- *  and row transition functions; no stored copy supplies the proof. */
-export const twoWorkersModelData: ModelDataSource = async () =>
+const workerDataFor = (settles: readonly SettleFact[]): string =>
   tlaModule("TwoWorkersData", [
     `Workers == ${tlaSet(RUNS.map((run) => run.id))}`,
     `CommandIds == ${tlaSet(RUNS.map((run) => run.commandId))}`,
@@ -217,5 +216,20 @@ export const twoWorkersModelData: ModelDataSource = async () =>
     `Phases == ${tlaSet(["checking", "other"])}`,
     tlaRecords("WorkerFenceFacts", workerFenceFields, workerFences()),
     tlaRecords("TakeFacts", takeFields, takeFacts()),
-    tlaRecords("SettleFacts", settleFields, settleFacts()),
+    tlaRecords("SettleFacts", settleFields, settles),
   ]);
+
+/** Derive every decision from the real claim and row transitions. */
+export const twoWorkersModelData: ModelDataSource = async () =>
+  workerDataFor(settleFacts());
+
+/** A stale run is allowed to release the replacement run's claim. */
+export const corruptSettleData: ModelDataSource = async () =>
+  workerDataFor(
+    corruptOneFact(
+      settleFacts(),
+      (fact) => fact.storedOwner === "w2" && fact.fenceWorker === "w1",
+      "No stale worker fence is available to corrupt.",
+      (fact) => ({ ...fact, accepted: true }),
+    ),
+  );

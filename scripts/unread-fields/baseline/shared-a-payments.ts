@@ -69,7 +69,7 @@ export const SHARED_A_PAYMENTS_BASELINE: readonly FindingIdentity[] = [
   ])(["dayPrices", "price"]),
   ...identitiesAt([
     ["src/shared/checkout-pricing.ts", [{ name: "ModifierApplication" }]],
-  ])(["amountApplied", "quantity", "scopedSubtotal"]),
+  ])(["amountApplied", "quantity"]),
   ...identitiesAt([
     ["src/shared/email-renderer.ts", [{ name: "TemplateData" }]],
   ])([

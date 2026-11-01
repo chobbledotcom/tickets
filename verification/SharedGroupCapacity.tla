@@ -78,5 +78,4 @@ SellStep ==
 Next ==
   SellStep \/ UNCHANGED <<remaining, staticCap, dateLess, hasStaticCap, sold>>
 
-InductionStart == Safety
 =============================================================================

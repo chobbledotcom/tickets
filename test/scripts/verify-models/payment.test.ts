@@ -11,6 +11,7 @@ import { ROW_NODES } from "#payment/row-machine-spec.ts";
 import { modelData, paymentModel } from "#scripts/verify-models/model.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { members, records } from "#test-utils/tla-data.ts";
+import { registeredModel } from "./registered-model.ts";
 
 /* jscpd:ignore-end */
 
@@ -205,7 +206,7 @@ describe("payment proof data", () => {
   });
 
   test("not-sent evidence and owner decisions never re-arm a send", async () => {
-    const data = modelData(await paymentModel());
+    const data = await registeredModel("JointState").data();
     const distinct = records(data, "AuthMoves").filter((move) =>
       [
         "proved_not_sent",

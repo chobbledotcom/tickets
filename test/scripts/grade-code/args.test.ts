@@ -2,7 +2,8 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { resolve } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
-import { parseGradeArgs, resolveTargets } from "#scripts/grade-code/cli.ts";
+import { parseGradeArgs } from "#scripts/grade-code/cli.ts";
+import { resolveTargets } from "#scripts/grade-code/targets.ts";
 import { CLEAN_CODE, depsOver } from "./support.ts";
 
 describe("parseGradeArgs", () => {

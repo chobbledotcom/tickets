@@ -8,11 +8,33 @@ import {
   RECOVERY_NODES,
   recoveryRowAfter,
 } from "#payment/sumup-recovery-machine-spec.ts";
-import { sumupModelData } from "#scripts/verify-models/sumup.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { members, records } from "#test-utils/tla-data.ts";
+import { registeredModel } from "./registered-model.ts";
 
 /* jscpd:ignore-end */
+
+const { data: sumupModelData, controls } = registeredModel("SumupRecovery");
+
+test("the checkout-identity control retains an id but loses reader agreement", async () => {
+  const clean = records(await sumupModelData(), "RecoveryMoves");
+  const corrupted = records(await controls[0].data(), "RecoveryMoves");
+  expect(
+    corrupted.find(
+      (move) =>
+        move.sourceState === "staged" &&
+        move.eventId === "checkout_created" &&
+        move.sampleTag === "no_checkout_id",
+    ),
+  ).toMatchObject({
+    targetCheckoutIdAgrees: false,
+    targetHasCheckoutId: true,
+    targetState: "waiting",
+  });
+  expect(
+    corrupted.map((move) => ({ ...move, targetCheckoutIdAgrees: true })),
+  ).toEqual(clean);
+});
 
 describe("SumUp recovery checker data", () => {
   test("keeps paid evidence separate from money that can be pruned", async () => {

@@ -16,8 +16,16 @@ import {
   type Sleep,
 } from "./jev.ts";
 import { type CodeResult, type ReportRow, summarise } from "./report.ts";
+import {
+  activeTlaChecks,
+  buildTlaJevState,
+  extractTla,
+  runTlaMechanical,
+  type TlaDeps,
+  type TlaFacts,
+} from "./tla.ts";
 
-export interface GradeDeps {
+export interface GradeDeps extends TlaDeps {
   fetchText: JevFetch;
   now: () => number;
   readFile: (path: string) => Promise<string>;
@@ -48,8 +56,14 @@ export const gradeCode = async (
 ): Promise<CodeResult> => {
   const started = deps.now();
   try {
-    const facts = extractCode(file, await deps.readFile(file));
-    const results: Record<string, ReportRow> = runMechanical(facts, call.ctx);
+    const content = await deps.readFile(file);
+    const facts = file.endsWith(".tla")
+      ? await extractTla(deps, file, content)
+      : extractCode(file, content);
+    const results: Record<string, ReportRow> =
+      facts.language === "tla"
+        ? runTlaMechanical(facts)
+        : runMechanical(facts, call.ctx);
     const jevOutcome = await askJev(deps, call.jev, facts);
     Object.assign(results, jevOutcome.results);
     const { counts, letter, score } = summarise(results);
@@ -94,9 +108,11 @@ interface JevOutcome {
 const askJev = async (
   deps: GradeDeps,
   settings: JevSettings | null,
-  facts: CodeFacts,
+  facts: CodeFacts | TlaFacts,
 ): Promise<JevOutcome> => {
-  const jevChecks = activeChecks(facts).filter(
+  const checks =
+    facts.language === "tla" ? activeTlaChecks(facts) : activeChecks(facts);
+  const jevChecks = checks.filter(
     (check) => check.engine === "jev" && check.question !== undefined,
   );
   if (jevChecks.length === 0 || settings === null) {
@@ -111,7 +127,10 @@ const askJev = async (
         jevChecks.map((check) => [check.id, check.question]),
       ),
       session: sessionFor(facts.file),
-      state: buildJevState(facts),
+      state:
+        facts.language === "tla"
+          ? buildTlaJevState(facts)
+          : buildJevState(facts),
     },
     deps.fetchText,
     deps.sleep,

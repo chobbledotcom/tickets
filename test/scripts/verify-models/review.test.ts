@@ -10,11 +10,42 @@ import {
   REVIEW_EVENTS,
   type ReviewMachineEvent,
 } from "#payment/review-machine-spec.ts";
-import { reviewModelData } from "#scripts/verify-models/review.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { records } from "#test-utils/tla-data.ts";
+import { registeredModel } from "./registered-model.ts";
 
 /* jscpd:ignore-end */
+
+const { data: reviewModelData, controls } = registeredModel("PaymentReview");
+
+test("the review-case control replaces an acknowledged case's identity", async () => {
+  const clean = records(await reviewModelData(), "ReviewAttempts");
+  const corrupted = records(await controls[0].data(), "ReviewAttempts");
+  const changed = corrupted.filter(
+    (attempt, index) => attempt.sameCaseId !== clean[index]!.sameCaseId,
+  );
+  expect(
+    changed.find(
+      (attempt) =>
+        attempt.sampleTag === "shared_reference" &&
+        attempt.sourceState === "open(shared_reference)" &&
+        attempt.eventId === "acknowledge",
+    ),
+  ).toMatchObject({
+    accepted: true,
+    eventId: "acknowledge",
+    sameCaseId: false,
+    sameReason: true,
+    sourceState: "open(shared_reference)",
+    targetState: "seen(shared_reference)",
+  });
+  expect(
+    corrupted.map((attempt, index) => ({
+      ...attempt,
+      sameCaseId: clean[index]!.sameCaseId,
+    })),
+  ).toEqual(clean);
+});
 
 const acknowledgement = (): ReviewMachineEvent =>
   requireValue(

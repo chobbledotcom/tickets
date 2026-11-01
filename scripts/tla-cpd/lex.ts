@@ -6,6 +6,8 @@ export type TlaToken = {
   end: SourceLocation;
 };
 
+export type TlaComment = { line: number; column: number; text: string };
+
 const operators = [
   "-+->",
   "::=",
@@ -125,15 +127,31 @@ const skipBlockComment = (cursor: Cursor): void => {
   }
 };
 
-const skipIgnored = (cursor: Cursor, rest: string): boolean => {
+const skipIgnored = (
+  cursor: Cursor,
+  rest: string,
+  onComment: ((comment: TlaComment) => void) | undefined,
+): boolean => {
   const whitespace = /^\s+/.exec(rest)?.[0];
   if (whitespace) {
     advance(cursor, whitespace.length);
   } else if (rest.startsWith("\\*")) {
     const end = rest.search(/[\r\n]/);
-    advance(cursor, end < 0 ? rest.length : end);
+    const length = end < 0 ? rest.length : end;
+    onComment?.({
+      column: cursor.column,
+      line: cursor.line,
+      text: rest.slice(0, length),
+    });
+    advance(cursor, length);
   } else if (rest.startsWith("(*")) {
+    const { column, line, position } = cursor;
     skipBlockComment(cursor);
+    onComment?.({
+      column,
+      line,
+      text: cursor.source.slice(position, cursor.position),
+    });
   } else {
     return false;
   }
@@ -191,6 +209,7 @@ const readToken = (cursor: Cursor, rest: string): TlaToken => {
 export const tokenizeTla = (
   source: string,
   sourceName = "<input>",
+  onComment?: (comment: TlaComment) => void,
 ): TlaToken[] => {
   const cursor: Cursor = {
     column: 1,
@@ -202,7 +221,7 @@ export const tokenizeTla = (
   const tokens: TlaToken[] = [];
   while (cursor.position < source.length) {
     const rest = source.slice(cursor.position);
-    if (skipIgnored(cursor, rest)) continue;
+    if (skipIgnored(cursor, rest, onComment)) continue;
     tokens.push(readToken(cursor, rest));
   }
   return tokens;

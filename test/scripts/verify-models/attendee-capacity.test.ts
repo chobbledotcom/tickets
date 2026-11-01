@@ -2,15 +2,16 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
-import {
-  attendeeCapacityModelData,
-  overfillInsertData,
-  partialCommitData,
-} from "#scripts/verify-models/attendee-capacity.ts";
 import { tlaSchemaOf } from "#scripts/verify-models/data.ts";
 import { records } from "#test-utils/tla-data.ts";
+import { registeredModel } from "./registered-model.ts";
 
 /* jscpd:ignore-end */
+
+const { data: attendeeCapacityModelData, controls } =
+  registeredModel("AttendeeCapacity");
+const overfillInsertData = controls[0].data;
+const partialCommitData = controls[1]!.data;
 
 type Fact = Record<string, string | boolean | number>;
 

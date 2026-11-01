@@ -46,7 +46,9 @@ TypeOK ==
 \* Every awarded unit stays accounted: what the loop still owes plus what it
 \* has awarded is the case's leftover. When the loop finishes, the parts hold
 \* the whole amount.
-UnitsStayAccounted == remaining + Cardinality(bumped) = leftover
+UnitsStayAccounted ==
+  /\ remaining >= 0
+  /\ remaining + Cardinality(bumped) = leftover
 
 \* A capped case never awards a part past its cap. An uncapped case bounds
 \* the award by the guard's own verdicts.
@@ -103,5 +105,4 @@ Next ==
   AwardStep \/ StrandStep \/
   UNCHANGED <<current, capped, leftover, remaining, bumped, stranded>>
 
-InductionStart == Safety
 =============================================================================

@@ -6,11 +6,35 @@ import {
   LINK_END_EVENTS,
   LINK_END_NODES,
 } from "#payment/square-link-end-machine-spec.ts";
-import { squareModelData } from "#scripts/verify-models/square.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { members, records } from "#test-utils/tla-data.ts";
+import { registeredModel } from "./registered-model.ts";
 
 /* jscpd:ignore-end */
+
+const { data: squareModelData, controls } = registeredModel("SquareLinkEnd");
+
+test("the payable-link control removes a pending link's cancellation handle", async () => {
+  const clean = records(await squareModelData(), "LinkAttempts");
+  const corrupted = records(await controls[0].data(), "LinkAttempts");
+  const lost = corrupted.filter(
+    (attempt) =>
+      attempt.sourceState === "pending" &&
+      attempt.eventId === "claim_due" &&
+      attempt.targetState === "gone",
+  );
+  expect(lost).toEqual([
+    expect.objectContaining({ accepted: true, targetState: "gone" }),
+  ]);
+  const original = clean.find(
+    (attempt) =>
+      attempt.sourceState === "pending" && attempt.eventId === "claim_due",
+  )!;
+  expect(original.targetState).toBe("ending");
+  expect(
+    corrupted.map((attempt) => (attempt === lost[0] ? original : attempt)),
+  ).toEqual(clean);
+});
 
 const eventOf = (id: string) =>
   requireValue(

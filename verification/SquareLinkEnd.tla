@@ -228,5 +228,4 @@ Next == LocalStep \/ ReplyStep \/ Age \/ Prune \/
                     handleRemovalSeen, attemptHistorySafe, replyHistorySafe,
                     removalHistorySafe>>
 
-InductionStart == Safety
 =============================================================================

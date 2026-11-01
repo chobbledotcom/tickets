@@ -38,6 +38,12 @@ export type ModifierTrigger = v.InferOutput<typeof ModifierTriggerSchema>;
 export const ModifierScopeSchema = v.picklist(["all", "listings", "groups"]);
 export type ModifierScope = v.InferOutput<typeof ModifierScopeSchema>;
 
+/** A null scope covers every listing. An empty scope covers none. */
+export const modifierCoversListing = (
+  listingIds: readonly number[] | null,
+  listingId: number,
+): boolean => listingIds === null || listingIds.includes(listingId);
+
 export type CalcValueError =
   | "modifiers.error.amount_positive"
   | "modifiers.error.invalid_number"
