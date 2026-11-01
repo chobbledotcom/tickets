@@ -81,11 +81,6 @@ const ADMIN_API_EXAMPLE_ANSWER_RENAMED = {
   ),
 };
 
-/** The documented path of one answer write route: the parent's id param and
- *  the child segment both come from the resource table. */
-const questionAnswerBase = (): string =>
-  childDocBase(ADMIN_API_RESOURCES.questions, "answers");
-
 export const QUESTION_ENDPOINTS: EndpointDoc[] = [
   ...crudDocs({
     createBody: ADMIN_API_QUESTION_CREATE_BODY,
@@ -110,7 +105,7 @@ export const QUESTION_ENDPOINTS: EndpointDoc[] = [
     description:
       "Add an answer to a question (owner only). The answer joins the question's answer list, new answer last. A free-text question refuses answers, because it collects a typed value instead.",
     method: "POST",
-    path: questionAnswerBase(),
+    path: childDocBase(ADMIN_API_RESOURCES.questions, "answers"),
     request: json(ADMIN_API_QUESTION_ANSWER_CREATE_BODY),
     response: json({ question: ADMIN_API_EXAMPLE_QUESTION_WITH_MEDIUM }),
   },
@@ -118,7 +113,7 @@ export const QUESTION_ENDPOINTS: EndpointDoc[] = [
     description:
       "Rename a question answer (owner only). The answer shows in the question's answer list.",
     method: "PUT",
-    path: `${questionAnswerBase()}/:answerId`,
+    path: `${childDocBase(ADMIN_API_RESOURCES.questions, "answers")}/:answerId`,
     request: json(ADMIN_API_QUESTION_ANSWER_UPDATE_BODY),
     response: json({ question: ADMIN_API_EXAMPLE_ANSWER_RENAMED }),
   },
@@ -126,7 +121,7 @@ export const QUESTION_ENDPOINTS: EndpointDoc[] = [
     description:
       "Delete a question answer (owner only, requires the answer text as confirmation).",
     method: "DELETE",
-    path: `${questionAnswerBase()}/:answerId`,
+    path: `${childDocBase(ADMIN_API_RESOURCES.questions, "answers")}/:answerId`,
     request: json(ADMIN_API_QUESTION_ANSWER_DELETE_BODY),
     response: json({ status: "ok" }),
   },

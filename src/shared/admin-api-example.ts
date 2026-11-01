@@ -318,11 +318,6 @@ const ADMIN_API_EXAMPLE_ATTENDEE = {
 const LISTING_DEFAULT_DAYS_AFTER =
   listingCatalogFields.maximumDaysAfter[1].default!();
 
-/** The documented path of one attribute-option route: the parent's id param
- *  and the child segment both come from the resource table. */
-const attributeOptionBase = (): string =>
-  childDocBase(ADMIN_API_RESOURCES.attributes, "options");
-
 /** The documented path of one listing custom route. */
 const listingCustom = (
   customKey: keyof typeof ADMIN_API_RESOURCES.listings.custom,
@@ -355,7 +350,7 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
     description:
       "Add an option to an attribute (owner only). The answer shows the attribute with its full option list, new option last.",
     method: "POST",
-    path: attributeOptionBase(),
+    path: childDocBase(ADMIN_API_RESOURCES.attributes, "options"),
     request: json(ADMIN_API_ATTRIBUTE_OPTION_CREATE_BODY),
     response: json({
       attribute: ADMIN_API_EXAMPLE_ATTRIBUTE_WITH_MEDIUM,
@@ -365,7 +360,7 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
     description:
       "Rename an attribute option (owner only). The answer shows the attribute with its full option list.",
     method: "PUT",
-    path: `${attributeOptionBase()}/:optionId`,
+    path: `${childDocBase(ADMIN_API_RESOURCES.attributes, "options")}/:optionId`,
     request: json(ADMIN_API_ATTRIBUTE_OPTION_UPDATE_BODY),
     response: json({
       attribute: ADMIN_API_EXAMPLE_OPTION_RENAMED,
@@ -375,7 +370,7 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
     description:
       "Delete an attribute option (owner only, requires the option text as confirmation).",
     method: "DELETE",
-    path: `${attributeOptionBase()}/:optionId`,
+    path: `${childDocBase(ADMIN_API_RESOURCES.attributes, "options")}/:optionId`,
     request: json(ADMIN_API_ATTRIBUTE_OPTION_DELETE_BODY),
     response: json({ status: "ok" }),
   },

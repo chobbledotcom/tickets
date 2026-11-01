@@ -6,6 +6,7 @@ import type {
   RefundAuthorityState,
   RefundAuthorityStateName,
 } from "#payment/refund-authority-state.ts";
+import { constant } from "#shared/fp-bind.ts";
 
 type LifecycleExit =
   | {
@@ -102,11 +103,6 @@ const REFUND_RECOVERY = {
   },
 } as const satisfies Record<string, LifecycleRecovery>;
 
-const fixedRecovery =
-  (recovery: LifecycleRecovery) =>
-  (_state: RefundAuthorityState): LifecycleRecovery =>
-    recovery;
-
 /** A provider-check state always carries inconclusive ("wait") evidence. A
  * settled return, full or partial, is an owner decision instead, so its
  * recovery is always to check again until the evidence settles one way. */
@@ -123,7 +119,7 @@ const unfinished = {
   evidence: RUNNING_EVIDENCE_ACTIONS,
   operatorRoute: "/admin/privacy/refunds/:id",
   prunable: never,
-  recovery: fixedRecovery(REFUND_RECOVERY.continue),
+  recovery: constant(REFUND_RECOVERY.continue),
   saidFirst: 3,
   stops: refundWorkStops,
   storedWork: "all",
@@ -137,7 +133,7 @@ const REFUND_LIFECYCLE = {
     evidence: NO_EVIDENCE_ACTIONS,
     operatorRoute: "/admin/privacy/refunds/:id",
     prunable: completedIsRecorded,
-    recovery: fixedRecovery(REFUND_RECOVERY.record),
+    recovery: constant(REFUND_RECOVERY.record),
     saidFirst: 0,
     state: "completed",
     stops: {
@@ -150,7 +146,7 @@ const REFUND_LIFECYCLE = {
     evidence: OWNER_EVIDENCE_ACTIONS,
     operatorRoute: "/admin/privacy/refunds/:id",
     prunable: never,
-    recovery: fixedRecovery(REFUND_RECOVERY.choose),
+    recovery: constant(REFUND_RECOVERY.choose),
     saidFirst: 1,
     state: "needs_owner_choice",
     stops: refundWorkStops,

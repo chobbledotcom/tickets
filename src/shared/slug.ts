@@ -75,9 +75,14 @@ export const firstIssueMessage = <T>(
   return result.success ? null : result.issues[0].message;
 };
 
+/** The form validator for one schema: its first error message, or null. */
+export const validatorOf =
+  (schema: Parameters<typeof firstIssueMessage>[0]) =>
+  (value: string): string | null =>
+    firstIssueMessage(schema, value);
+
 /** Validate a normalized slug. Returns error message or null. */
-export const validateSlug = (slug: string): string | null =>
-  firstIssueMessage(SlugSchema, slug);
+export const validateSlug = validatorOf(SlugSchema);
 
 /** Slug-with-index pair. `Index` is the blind-index type `computeIndex`
  * produces (a `BlindIndex` for the real tables). */

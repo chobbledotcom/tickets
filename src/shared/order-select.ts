@@ -10,7 +10,8 @@
  * `order` exists so availability messages can honour the earlier choice.
  */
 
-import { listingOptionKey, packageOptionKey } from "#shared/order/options.ts";
+import { listingNodeKey } from "#booking/tree.ts";
+import { packageOptionKey } from "#shared/order/options.ts";
 import { isIsoDate } from "#shared/validation/date-string.ts";
 import { parsePositiveInt as parsePositiveIntId } from "#shared/validation/number.ts";
 
@@ -66,7 +67,7 @@ export const selectedStartDate = (params: URLSearchParams): string => {
  */
 export const orderedSelectionKeys = (params: URLSearchParams): string[] => {
   const selected = new Set([
-    ...parseSelectedListingIds(params).map(listingOptionKey),
+    ...parseSelectedListingIds(params).map(listingNodeKey),
     ...parseSelectedPackageIds(params).map(packageOptionKey),
   ]);
   const ordered: string[] = [];

@@ -30,7 +30,7 @@ import { runSpecs } from "#scripts/specs/run.ts";
 import { providerSecrets } from "./config.ts";
 import { failRun, runHarness } from "./entry.ts";
 import { log, step } from "./log.ts";
-import { reportCrash } from "./sentry.ts";
+import { crashReporter } from "./sentry.ts";
 import { artifactsRoot, buildStaticAssets } from "./server.ts";
 import {
   caseExpression,
@@ -129,6 +129,4 @@ const run = async (): Promise<void> => {
   step(`PASS — ${target}: ${cases.length} case(s) executed`);
 };
 
-runHarness(run, (error) =>
-  reportCrash("payment sandbox e2e", requestedTarget(), error),
-);
+runHarness(run, crashReporter("payment sandbox e2e", requestedTarget));

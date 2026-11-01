@@ -8,17 +8,17 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { listingNodeKey } from "#booking/tree.ts";
 import {
   listingOption,
-  listingOptionKey,
   packageOption,
   packageOptionKey,
 } from "#shared/order/options.ts";
 
 describe("order > options", () => {
   describe("key helpers", () => {
-    test("listingOptionKey namespaces a listing id", () => {
-      expect(listingOptionKey(5)).toBe("listing:5");
+    test("listingNodeKey namespaces a listing id", () => {
+      expect(listingNodeKey(5)).toBe("listing:5");
     });
 
     test("packageOptionKey namespaces a group id", () => {

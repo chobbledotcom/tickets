@@ -5,7 +5,7 @@ import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { config } from "#e2e/config.ts";
-import { reportCrash } from "#e2e/sentry.ts";
+import { crashReporter, reportCrash } from "#e2e/sentry.ts";
 import { sentrySdk } from "#shared/sentry-sdk.ts";
 
 const DSN = "https://key@bugs.example.test/2";
@@ -138,5 +138,22 @@ describe("reportCrash", () => {
     );
     const logLines = logs.calls.map((call) => String(call.args[0])).join("\n");
     assert(!logLines.includes("reported the crash to the bug catcher"));
+  });
+});
+
+describe("crashReporter", () => {
+  it("reports under the harness's name, against the live target", async () => {
+    using _url = withSentryUrl(DSN);
+    using sdk = withStubbedSdk();
+
+    const crash = new Error("the tunnel never came up");
+    await crashReporter("payment sandbox e2e", () => "stripe")(crash);
+
+    const report = sdk.capture.calls[0]?.args[0];
+    expect(report?.error).toBe(crash);
+    expect(report?.tags).toEqual({
+      harness: "payment sandbox e2e",
+      target: "stripe",
+    });
   });
 });

@@ -5,8 +5,8 @@
  */
 
 import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/hybrid.ts";
+import { countRows } from "#db/client.ts";
 import {
-  countEmailTemplates,
   deleteEmailTemplate,
   getRawEmailTemplate,
   insertEmailTemplate,
@@ -66,7 +66,7 @@ export const handleTemplateSavePost = validatedEmailPost(
       );
     }
 
-    const count = await countEmailTemplates();
+    const count = await countRows("email_templates");
     if (count >= MAX_EMAIL_TEMPLATES) {
       return errorRedirect(
         `${COMPOSE_PATH}${targetQuery(target)}`,

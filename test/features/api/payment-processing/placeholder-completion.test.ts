@@ -20,9 +20,9 @@ import {
   loadRefundAuthorityByReference,
 } from "#db/provider-refund-authority.ts";
 import { placeholderRefund } from "#payment/placeholder-refund.ts";
+import { taggedPaymentReference } from "#payment/provider-reference.ts";
 import { completedAtOf } from "#payment/refund-authority-state.ts";
 import { readRowState } from "#payment/row-state.ts";
-import { rejectedChargeReference } from "#payment/validated-session.ts";
 import { completePlaceholderMoney } from "#routes/api/payment-processing/placeholder-completion.ts";
 import { settleRejectedCharge } from "#routes/api/payment-processing/rejected-target.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -90,7 +90,7 @@ describeWithEnv("placeholder money completion", { db: true }, () => {
       ).rejects.toThrow("could not be recorded"),
     );
     const referenceIndex = await paymentReferenceIndex(
-      rejectedChargeReference(rejection),
+      taggedPaymentReference(rejection.provider, rejection.paymentReference),
     );
     const held = await queryOne<{
       attendee_id: number;
@@ -148,7 +148,7 @@ describeWithEnv("placeholder money completion", { db: true }, () => {
       `Provider reported session ${rejection.sessionId} in a form the site could not read`,
     );
     const referenceIndex = await paymentReferenceIndex(
-      rejectedChargeReference(rejection),
+      taggedPaymentReference(rejection.provider, rejection.paymentReference),
     );
 
     // The first delivery finished everything: one note, named, saying the
@@ -333,7 +333,7 @@ describeWithEnv("placeholder money completion", { db: true }, () => {
       "authority retirement unavailable",
     );
     const referenceIndex = await paymentReferenceIndex(
-      rejectedChargeReference(rejection),
+      taggedPaymentReference(rejection.provider, rejection.paymentReference),
     );
     const after = await loadRefundAuthorityByReference(referenceIndex);
     expect(after?.state.local.kind).toBe("recorded");
@@ -343,10 +343,15 @@ describeWithEnv("placeholder money completion", { db: true }, () => {
     // Ledger and retirement land, then the once-only latch refuses — the
     // note and activity line ride its transaction, so neither exists until
     // the redelivery writes them exactly once.
-    await crashesThenFinishes(
+    const rejection = await crashesThenFinishes(
       "pi_confirm_window",
       withRefundConfirmationFault,
       "refund confirmation unavailable",
     );
+    const referenceIndex = await paymentReferenceIndex(
+      taggedPaymentReference(rejection.provider, rejection.paymentReference),
+    );
+    const after = await loadRefundAuthorityByReference(referenceIndex);
+    expect(after?.state.local.kind).toBe("recorded");
   });
 });

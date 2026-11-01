@@ -15,7 +15,7 @@
 
 import { failRun, runHarness } from "#e2e/entry.ts";
 import { log, step, warn } from "#e2e/log.ts";
-import { reportCrash } from "#e2e/sentry.ts";
+import { crashReporter } from "#e2e/sentry.ts";
 import {
   appendStepSummary,
   publishExecutedResult,
@@ -63,9 +63,7 @@ const run = async (): Promise<void> => {
   );
 };
 
-runHarness(run, (error) =>
-  reportCrash("email sandbox e2e", requestedTarget(), error),
-).then(() =>
+runHarness(run, crashReporter("email sandbox e2e", requestedTarget)).then(() =>
   // A provider socket a timed-out leg left stalled must not hold the
   // finished process open, so leave explicitly once the report is out.
   process.exit(),

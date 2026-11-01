@@ -7,6 +7,7 @@ import {
   answerModifierQuantities,
   resolveModifiers,
 } from "#db/modifier-resolve.ts";
+import { normalizeEntityName } from "#db/name-registry.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
@@ -18,7 +19,6 @@ import type {
   CheckoutItem,
   ModifierSpec,
 } from "#shared/payments.ts";
-import { normalizeCode } from "#shared/price-modifier.ts";
 import { checkoutItem } from "#test-utils/checkout-items.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -193,7 +193,7 @@ const generateModifiers = async (
     if (trigger === "optional") addOns.set(inserted.id, rng.randInt(1, 3));
     if (trigger === "code") {
       code = "PROMO";
-      patch.code_index = await hmacHash(normalizeCode("PROMO"));
+      patch.code_index = await hmacHash(normalizeEntityName("PROMO"));
     }
     await patchModifier(inserted.id, patch);
   }
@@ -202,7 +202,7 @@ const generateModifiers = async (
 
 const parkingFixedSurchargeExpectConsistent = async (
   opts: { ctx?: { visits: number }; overrides?: Partial<CheckoutIntent> } = {},
-): Promise<void> => {
+) => {
   await insertModifier({
     calcKind: "fixed",
     calcValue: 5,
@@ -213,6 +213,7 @@ const parkingFixedSurchargeExpectConsistent = async (
   const specs = await resolveModifiers(items);
   expect(specs).toHaveLength(1);
   await expectConsistent(items, specs, opts);
+  return specs;
 };
 
 describeWithEnv(
@@ -224,7 +225,8 @@ describeWithEnv(
     useSetting({ booking_fee: "0" });
 
     test("a whole-order fixed surcharge re-prices identically", async () => {
-      await parkingFixedSurchargeExpectConsistent();
+      const specs = await parkingFixedSurchargeExpectConsistent();
+      expect(specs[0]?.name).toBe("Parking");
     });
 
     test("a percentage discount keeps its negative value through the round-trip", async () => {
@@ -306,7 +308,7 @@ describeWithEnv(
         name: "SUMMER",
       });
       await patchModifier(m.id, {
-        code_index: await hmacHash(normalizeCode("Summer25")),
+        code_index: await hmacHash(normalizeEntityName("Summer25")),
         trigger: "code",
       });
       const items = [checkoutItem()];
@@ -399,9 +401,10 @@ describeWithEnv(
     });
 
     test("a reservation deposit combined with a modifier re-prices identically", async () => {
-      await parkingFixedSurchargeExpectConsistent({
+      const specs = await parkingFixedSurchargeExpectConsistent({
         overrides: { reservationAmount: "10%" },
       });
+      expect(specs[0]?.name).toBe("Parking");
     });
 
     test("an answer-triggered modifier round-trips through metadata refs like an add-on", async () => {

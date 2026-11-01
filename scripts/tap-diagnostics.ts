@@ -75,16 +75,19 @@ type AtFieldAssign = (
   value: string,
 ) => void;
 
+/** One numeric at-field assigner: parses the value, writes it to the field. */
+const numericAssigner =
+  (field: "column" | "line"): AtFieldAssign =>
+  (at, value) => {
+    at[field] = Number(value);
+  };
+
 const AT_FIELD_ASSIGNERS: Record<string, AtFieldAssign | undefined> = {
-  column: (at, value) => {
-    at.column = Number(value);
-  },
+  column: numericAssigner("column"),
   file: (at, value) => {
     at.file = value;
   },
-  line: (at, value) => {
-    at.line = Number(value);
-  },
+  line: numericAssigner("line"),
 };
 
 const assignAtField = (

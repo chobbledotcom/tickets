@@ -11,12 +11,12 @@ import type { CartDateItem } from "#booking/cart-conflicts.ts";
 import { childSelectableForSpan } from "#booking/fold-tree.ts";
 import {
   type ChildDatesByDayCount,
-  childDateKey,
   fixedParentDays,
   keepOptionsSomeChildSupports,
   type TicketListing,
   updateForMembersWithChildren,
 } from "#booking/model.ts";
+import { pairKey } from "#booking/ticket-moves.ts";
 import { getActiveHolidays, type Holiday } from "#db/holidays.ts";
 import { hydrateListingLinks, listingChildren } from "#db/listing-parents.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
@@ -194,7 +194,7 @@ export const buildChildDatesById = (
     for (const child of children) {
       if (child.listing.listing_type !== "daily") continue;
       result.set(
-        childDateKey(parent.id, child.listing.id),
+        pairKey(parent.id, child.listing.id),
         childDatesForParentDayCounts(child, parent, holidays),
       );
     }

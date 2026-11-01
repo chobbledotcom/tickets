@@ -43,14 +43,19 @@ const PositiveMoneySchema = v.pipe(baseMoneySchema(false), v.minValue(1));
 const NonNegativeMoneySchema = v.pipe(baseMoneySchema(false), v.minValue(0));
 const SignedMoneySchema = baseMoneySchema(true);
 
+/** Parse one money schema from a raw string, or null when invalid. */
+const parseMinorUnits =
+  <TSchema extends v.GenericSchema>(schema: TSchema) =>
+  (raw: string): v.InferOutput<TSchema> | null =>
+    parseOrNull(schema, raw);
+
 /**
  * Parse a strictly positive money amount into positive minor units, or `null`
  * when `raw` is empty, non-numeric, carries more decimal places than the
  * currency allows, non-positive, non-finite, or rounds to a non-safe amount.
  * Use for amounts that must be non-zero (service costs, ledger entries).
  */
-export const parsePositiveMinorUnits = (raw: string): number | null =>
-  parseOrNull(PositiveMoneySchema, raw);
+export const parsePositiveMinorUnits = parseMinorUnits(PositiveMoneySchema);
 
 /**
  * Non-negative money parser whose result for a blank input is chosen by the
@@ -84,8 +89,7 @@ export const parseOptionalMinorUnits = nonNegativeMinorUnitsOr(null);
  * or `null` when empty or invalid. Use for owner-correction targets where the
  * figure can legitimately be negative (a modifier's net revenue).
  */
-export const parseSignedMinorUnits = (raw: string): number | null =>
-  parseOrNull(SignedMoneySchema, raw);
+export const parseSignedMinorUnits = parseMinorUnits(SignedMoneySchema);
 
 /**
  * True when a numeric amount in MAJOR units carries more decimal places than

@@ -22,13 +22,8 @@ const SAVED_FORM_SLOT: RequestSlot<SavedFormState> = {
   },
 };
 
-/** The stashed form for this request, allocated on first use. Undefined
- * outside a request. */
-const savedFormState = (): SavedFormState | undefined =>
-  requestSlot(SAVED_FORM_SLOT);
-
 const stashForm = (form: FormParams | null): void => {
-  const slot = savedFormState();
+  const slot = requestSlot(SAVED_FORM_SLOT);
   if (slot) slot.form = form;
 };
 

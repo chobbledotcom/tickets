@@ -445,6 +445,16 @@ const exactExemptions = exactFieldExemptions([
     ["amount", "payment_intent"],
     stripeReason,
   ),
+  exactFieldsFrom("src/shared/bulk-email-targets/types.ts")(
+    [{ name: "TargetSpec" }],
+    ["allowEmpty", "singleRecipient"],
+    dynamicReason("targetFlag reads the spec flag by key"),
+  ),
+  exactFieldsFrom("src/shared/request-context.ts")(
+    [{ name: "RequestStore" }],
+    ["clientIp", "csrfToken", "locale", "requestId"],
+    dynamicReason("requestStoreString reads the store field by key"),
+  ),
 ]);
 
 export const UNREAD_FIELD_EXEMPTIONS: readonly FindingExemption[] = [

@@ -152,7 +152,14 @@ export const withRequestStore = (use: (store: RequestStore) => void): void => {
   if (store) use(store);
 };
 
-/** The current request's locale, or "en" outside a request. */
+/** Read one string field from the live request's store, or the fallback
+ *  outside a request. */
+export const requestStoreString =
+  <K extends "clientIp" | "csrfToken" | "locale" | "requestId">(field: K) =>
+  (fallback: string): (() => string) =>
+  () =>
+    currentRequestStore()?.[field] ?? fallback;
+
 /** Generate a 4-char lowercase hex string */
 const generateRequestId = (): string => {
   const buf = crypto.getRandomValues(new Uint8Array(2));
@@ -160,15 +167,13 @@ const generateRequestId = (): string => {
 };
 
 /** The current request's locale, or "en" outside a request. */
-export const getLocale = (): string => currentRequestStore()?.locale ?? "en";
+export const getLocale = requestStoreString("locale")("en");
 
 /** The current request's client IP, or "direct" when not in a request scope. */
-export const getRequestClientIp = (): string =>
-  currentRequestStore()?.clientIp ?? "direct";
+export const getRequestClientIp = requestStoreString("clientIp")("direct");
 
 /** The current request's log-correlation id, or "" outside a request. */
-export const getRequestId = (): string =>
-  currentRequestStore()?.requestId ?? "";
+export const getRequestId = requestStoreString("requestId")("");
 
 /** The request being served, or null when nothing is being served. */
 export const getRequestTrace = (): RequestTrace | null =>

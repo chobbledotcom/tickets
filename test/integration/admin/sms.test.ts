@@ -15,13 +15,10 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
-import { getDb } from "#db/client.ts";
+import { countRows, getDb } from "#db/client.ts";
 import { hashPhone } from "#db/contact-preferences.ts";
 import { settings } from "#db/settings.ts";
-import {
-  countSmsMessages,
-  getSmsMessageByProviderId,
-} from "#db/sms-messages.ts";
+import { getSmsMessageByProviderId } from "#db/sms-messages.ts";
 import { SMS_MESSAGE_MAX_LENGTH } from "#shared/sms/message-limit.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -66,7 +63,7 @@ const queuedLog = async (attendeeId: number) =>
  * nothing in their log saying a text went. Either one alone would miss a
  * half-done send — a queued row with no log line, or a log line with no row. */
 const expectNothingSent = async (attendeeId: number): Promise<void> => {
-  expect(await countSmsMessages()).toBe(0);
+  expect(await countRows("sms_messages")).toBe(0);
   expect(await queuedLog(attendeeId)).toBe(false);
 };
 

@@ -246,8 +246,10 @@ export const loadBookableGroupIds = async (
 };
 
 /** Load non-hidden groups one member rule keeps: one buyer-visible member
- *  read backs the decision and the returned members. */
-const loadDecidedGroups = async (
+ *  read backs the decision and the returned members. With true, the parent
+ *  must itself be bookable. With false, a regular group can keep one visible
+ *  active member when every parent is projected sold out. */
+export const loadDecidedGroups = async (
   blockSoldOutParents: boolean,
 ): Promise<GroupWithMembers[]> => {
   const visibleGroups = (await groups.cache.getAll()).filter(
@@ -267,16 +269,6 @@ const loadDecidedGroups = async (
     }));
 };
 
-/** Load non-hidden groups whose Book link leads to a bookable page. */
-export const loadPublicGroups = (): Promise<GroupWithMembers[]> =>
-  loadDecidedGroups(true);
-
-/** Load non-hidden groups whose /ticket page serves. A package keeps its
- *  bookable-bundle gate. A regular group keeps one visible active non-child
- *  member even when every parent is projected sold out. */
-export const loadServedGroups = (): Promise<GroupWithMembers[]> =>
-  loadDecidedGroups(false);
-
 /** Packages a public surface can advertise as first-class products. */
 export const loadBookablePackages = async (): Promise<GroupWithMembers[]> =>
-  (await loadPublicGroups()).filter(({ group }) => group.is_package);
+  (await loadDecidedGroups(true)).filter(({ group }) => group.is_package);

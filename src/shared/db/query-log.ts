@@ -83,9 +83,6 @@ const QUERY_LOG_SLOT: RequestSlot<QueryLogState> = {
   },
 };
 
-const queryLogState = (): QueryLogState | undefined =>
-  requestSlot(QUERY_LOG_SLOT);
-
 /** Mutate this request's state, allocated on first use. */
 const withQueryLogState = (use: (state: QueryLogState) => void): void =>
   withRequestSlot(QUERY_LOG_SLOT, use);
@@ -198,7 +195,7 @@ export const countDatabaseRoundTrip = (
   enforceBudget = true,
 ): void => {
   countSubrequest("database", operation, enforceBudget);
-  const state = queryLogState();
+  const state = requestSlot(QUERY_LOG_SLOT);
   if (!state) return;
   state.databaseRoundTrips += 1;
   if (state.databaseRoundTrips <= BUNNY_SUBREQUEST_LIMIT) return;
@@ -291,7 +288,7 @@ export const enforceTransactionRoundTripGuard = (
   count: number,
   sql: string,
 ): void => {
-  if (!queryLogState()) return;
+  if (!requestSlot(QUERY_LOG_SLOT)) return;
   if (count !== TRANSACTION_ROUNDTRIP_THRESHOLD + 1) return;
   reportGuardViolation(
     `Interactive transaction too chatty: ${count} statements ` +
@@ -309,7 +306,7 @@ export const trackSql = async <T>(
   sql: string | string[],
   fn: PromiseTask<T>,
 ): Promise<T> => {
-  const state = queryLogState();
+  const state = requestSlot(QUERY_LOG_SLOT);
   if (state && typeof sql === "string") enforceN1Guard(state, sql);
   const sqls = typeof sql === "string" ? [sql] : sql;
   const start = performance.now();

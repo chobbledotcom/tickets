@@ -1,6 +1,7 @@
 /* jscpd:ignore-start */
 
 import type { TicketListing } from "#booking/model.ts";
+import { listingNodeKey } from "#booking/tree.ts";
 import type { ListingAttributesById } from "#db/attributes.ts";
 import { map, pipe } from "#fp";
 import { t } from "#i18n";
@@ -8,7 +9,7 @@ import { escapeHtml } from "#jsx/escape-html.ts";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { isReadOnly } from "#shared/env.ts";
-import { listingOptionKey, packageOptionKey } from "#shared/order/options.ts";
+import { packageOptionKey } from "#shared/order/options.ts";
 import {
   ORDER_FIELD,
   PACKAGE_SELECT_PREFIX,
@@ -151,7 +152,7 @@ const renderOrderCard =
       return unavailableCard(imageHtml, listing.name, status, attributesHtml);
     }
 
-    return renderSelectableCard(states, listingOptionKey, SELECT_PREFIX)(
+    return renderSelectableCard(states, listingNodeKey, SELECT_PREFIX)(
       listing.id,
       listing.name,
       `${priceHtml}${attributesHtml}`,

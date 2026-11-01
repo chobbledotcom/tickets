@@ -41,7 +41,7 @@ import {
 } from "#templates/public/homepage.tsx";
 import type { GroupWithMembers, ListingWithCount } from "#types";
 import { applyParentSoldOut, classifyForDiscovery } from "./discovery.ts";
-import { loadPublicGroups } from "./group-liveness.ts";
+import { loadDecidedGroups } from "./group-liveness.ts";
 import { loadDailyDateAvailability } from "./listing-date-availability.ts";
 import { publicNavProps } from "./site-nav.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
@@ -113,7 +113,7 @@ export const handlePublicListings: ResponseHandler<[request: Request]> = (
 ) =>
   requirePublicSite(async () => {
     const [publicGroups, { listings, holidays }, nav] = await Promise.all([
-      loadPublicGroups(),
+      loadDecidedGroups(true),
       loadSortedListings(isPublicListing),
       publicNavProps(null),
     ]);

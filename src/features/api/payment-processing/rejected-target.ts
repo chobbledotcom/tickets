@@ -27,13 +27,15 @@ import {
   type PlaceholderRefund,
   placeholderRefund,
 } from "#payment/placeholder-refund.ts";
-import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
+import {
+  type TaggedPaymentReference,
+  taggedPaymentReference,
+} from "#payment/provider-reference.ts";
 import { completedAtOf } from "#payment/refund-authority-state.ts";
 /* jscpd:ignore-end */
-import {
-  type MalformedRejection,
-  rejectedChargeReference,
-  type SessionRejection,
+import type {
+  MalformedRejection,
+  SessionRejection,
 } from "#payment/validated-session.ts";
 /* jscpd:ignore-start -- imports */
 import { attendeeBaseFields } from "#routes/api/payment-processing/create.ts";
@@ -148,7 +150,10 @@ const resumeRejectedTarget = async (
   existing: ProcessedPayment,
 ): Promise<void> => {
   if (existing.attendee_id !== null || existing.failure_data === "") return;
-  const reference = rejectedChargeReference(rejection);
+  const reference = taggedPaymentReference(
+    rejection.provider,
+    rejection.paymentReference,
+  );
   const search = await findHeldAnchor(reference, rejection.sessionId);
   if (search.held === null) return;
   const { claim, record } = search.held;
@@ -244,7 +249,10 @@ const storeRejectedTarget = async (
     `Provider reported session ${rejection.sessionId} in a form the site could not read`,
   );
   const listingId = intent.items[0]!.e;
-  const paymentReference = rejectedChargeReference(rejection);
+  const paymentReference = taggedPaymentReference(
+    rejection.provider,
+    rejection.paymentReference,
+  );
   const { attendeeId, claimedAnchor } = await storeClaimedPlaceholder({
     bookings: datelessGhostBookings(intent.items),
     fields: attendeeBaseFields(

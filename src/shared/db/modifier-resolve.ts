@@ -19,6 +19,7 @@ import {
   modifierIdsByAnswerId,
   modifierListings,
 } from "#db/modifiers.ts";
+import { normalizeEntityName } from "#db/name-registry.ts";
 import { byId, requiredMapValue, unique } from "#fp";
 import { t } from "#i18n";
 import { itemsSubtotal } from "#shared/booking-fee.ts";
@@ -30,7 +31,6 @@ import {
 import type { CheckoutItem, ModifierSpec } from "#shared/payments.ts";
 import {
   type ModifierTrigger,
-  normalizeCode,
   signedModifierValue,
 } from "#shared/price-modifier.ts";
 import type { Modifier } from "#types";
@@ -300,7 +300,7 @@ const eligibleCandidates = async (
   const answerQuantities = opts.answerQuantities ?? new Map<number, number>();
   const ctx = opts.ctx ?? NO_VISITS;
   const codeIndex = opts.code?.trim()
-    ? await hmacHash(normalizeCode(opts.code))
+    ? await hmacHash(normalizeEntityName(opts.code))
     : null;
   const activeModifiers = await getActiveModifiers();
   const scopes = await listingIdsByModifierId(activeModifiers);

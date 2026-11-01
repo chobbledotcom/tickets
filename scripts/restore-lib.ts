@@ -32,15 +32,19 @@ export interface RestoreCliDeps extends ScriptIo {
   ) => Promise<void>;
 }
 
+/** One stage's progress line: the verb plus how many statements it will run. */
+const statementProgress =
+  (verb: string) =>
+  ({ statementCount }: RestoreProgress): string =>
+    `${verb} ${statementCount} SQL statements...`;
+
 const progressMessages: Record<
   RestoreStage,
   (progress: RestoreProgress) => string
 > = {
-  checking: ({ statementCount }) =>
-    `Checking ${statementCount} SQL statements...`,
+  checking: statementProgress("Checking"),
   "clearing-caches": () => "Clearing cached database data...",
-  importing: ({ statementCount }) =>
-    `Importing ${statementCount} SQL statements...`,
+  importing: statementProgress("Importing"),
   rebuilding: () => "Recreating the database schema...",
   resetting: () => "Deleting current database data...",
 };

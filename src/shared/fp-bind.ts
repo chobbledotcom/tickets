@@ -8,3 +8,9 @@ export const bindFirst =
   (first) =>
   (...rest) =>
     fn(first, ...rest);
+
+/** A function that always returns the same value, whatever it is called with. */
+export const constant =
+  <T>(value: T) =>
+  (_unused: unknown): T =>
+    value;

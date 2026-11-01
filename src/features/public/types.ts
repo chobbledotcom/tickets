@@ -36,7 +36,7 @@ export type TicketSharedContext = {
    * {@link ChildrenByParentId}); empty map when the flag is off or none apply. */
   childrenByParentId: ChildrenByParentId;
   /** Each DAILY child's holiday-aware serveable start dates, keyed by the
-   * (parent, child) PAIR (`childDateKey`) so a child required by two parents
+   * (parent, child) PAIR (`pairKey`) so a child required by two parents
    * carries each parent's own dates; emitted as `data-child-dates` for
    * the client compatibility script; empty map when the page has no
    * daily children. Per selectable parent span ({@link ChildDatesByDayCount}). */

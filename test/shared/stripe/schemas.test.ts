@@ -2,16 +2,17 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
 import {
-  parseStripeErrorBody,
   StripeBalanceSchema,
   StripeCheckoutSessionSchema,
   StripeCreatedWebhookEndpointSchema,
   StripeDeletedWebhookEndpointSchema,
+  StripeErrorBodySchema,
   StripeExpandedPaymentIntentSchema,
   StripeRefundSchema,
   StripeWebhookEndpointListSchema,
   StripeWebhookEndpointSchema,
 } from "#shared/stripe/schemas.ts";
+import { parseJson } from "#shared/validation/parse.ts";
 
 const checkout = () => ({
   amount_total: 1200,
@@ -289,7 +290,8 @@ describe("Stripe schemas", () => {
 
   test("parses structured Stripe errors", () => {
     expect(
-      parseStripeErrorBody(
+      parseJson(
+        StripeErrorBodySchema,
         JSON.stringify({
           error: {
             code: "bad_key",
@@ -309,7 +311,10 @@ describe("Stripe schemas", () => {
 
   test("rejects an empty Stripe error message", () => {
     expect(() =>
-      parseStripeErrorBody(JSON.stringify({ error: { message: "" } })),
+      parseJson(
+        StripeErrorBodySchema,
+        JSON.stringify({ error: { message: "" } }),
+      ),
     ).toThrow();
   });
 });

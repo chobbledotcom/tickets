@@ -12,7 +12,10 @@ import { verifySignedValue } from "#crypto/signed-value.ts";
 import { base64ToBase64Url, generateSecureToken } from "#crypto/utils.ts";
 import { t } from "#i18n";
 import { nowSeconds } from "#shared/now.ts";
-import { currentRequestStore } from "#shared/request-context.ts";
+import {
+  currentRequestStore,
+  requestStoreString,
+} from "#shared/request-context.ts";
 
 const SIGNED_PREFIX = "s1.";
 const DEFAULT_MAX_AGE_S = 3600; // 1 hour
@@ -37,8 +40,7 @@ export const signCsrfToken = async (): Promise<string> => {
 };
 
 /** Get the most recently generated CSRF token (for synchronous JSX rendering) */
-export const getCurrentCsrfToken = (): string =>
-  currentRequestStore()?.csrfToken ?? "";
+export const getCurrentCsrfToken = requestStoreString("csrfToken")("");
 
 /** Check whether a token uses the signed format */
 export const isSignedCsrfToken = (token: string): boolean =>
