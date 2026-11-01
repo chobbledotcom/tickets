@@ -6,6 +6,7 @@ import {
   ModifierDirectionSchema,
   ModifierScopeSchema,
   ModifierTriggerSchema,
+  modifierCoversListing,
   modifierDelta,
   normalizeCode,
   validateCalcValue,
@@ -31,6 +32,15 @@ describe("modifier schemas", () => {
 
   test("lists every scope", () => {
     expect(ModifierScopeSchema.options).toEqual(["all", "listings", "groups"]);
+  });
+});
+
+describe("modifierCoversListing", () => {
+  test("covers all, selected, or no listings according to the scope", () => {
+    expect(modifierCoversListing(null, 2)).toBe(true);
+    expect(modifierCoversListing([1, 2], 2)).toBe(true);
+    expect(modifierCoversListing([1, 2], 3)).toBe(false);
+    expect(modifierCoversListing([], 2)).toBe(false);
   });
 });
 

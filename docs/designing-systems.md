@@ -173,6 +173,8 @@ These checks serve different purposes.
     checker must reject a modifier that compounds on an earlier pass and a
     discount that overshoots the units it reduces. It must also reject a
     fee charged on a stale subtotal.
+    The model and checkout pricing share `modifierCoversListing` from
+    `src/shared/price-modifier.ts`. The model derives its totals separately.
   - `verification/DoorScan.tla` checks the door scan admission machine. A
     scan never admits a listing past the places its rows still owe, never
     takes a place back, and never admits a refunded, no-check-in or

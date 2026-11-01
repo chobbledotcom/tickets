@@ -24,7 +24,10 @@ import type {
   CheckoutItem,
   ModifierSpec,
 } from "#shared/payments.ts";
-import { modifierDelta } from "#shared/price-modifier.ts";
+import {
+  modifierCoversListing,
+  modifierDelta,
+} from "#shared/price-modifier.ts";
 /* jscpd:ignore-end */
 
 /** One order's final facts for the checker: the composition totals and the
@@ -217,10 +220,6 @@ const toUnits = (items: readonly CheckoutItem[]): WorkUnit[] =>
     })),
   );
 
-/** Whether a modifier scoped to `listingIds` covers a unit. */
-const inScope = (spec: ModifierSpec, unit: WorkUnit): boolean =>
-  spec.listingIds === null || spec.listingIds.includes(unit.listingId);
-
 /** The pricing intent of one scenario. The contact fields are never read by
  *  the pricing functions; the type needs them. */
 const intentFor = (
@@ -252,7 +251,9 @@ const applyPass = (
   units: readonly UnitFact[];
   work: readonly WorkUnit[];
 } => {
-  const scoped = work.filter((unit) => inScope(spec, unit));
+  const scoped = work.filter((unit) =>
+    modifierCoversListing(spec.listingIds, unit.listingId),
+  );
   const baseSubtotal = sum(scoped.map((unit) => unit.orig));
   const delta = modifierDelta(baseSubtotal, spec.kind, spec.value);
   const kind = delta > 0 ? "add" : delta < 0 ? "reduce" : "zero";
@@ -290,7 +291,9 @@ const applyPass = (
       },
       units,
       work: work.map((unit) =>
-        inScope(spec, unit) ? { ...unit, price: reduced[next++]! } : unit,
+        modifierCoversListing(spec.listingIds, unit.listingId)
+          ? { ...unit, price: reduced[next++]! }
+          : unit,
       ),
     };
   }
