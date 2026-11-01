@@ -45,8 +45,8 @@ const SignedMoneySchema = baseMoneySchema(true);
 
 /** Parse one money schema from a raw string, or null when invalid. */
 const parseMinorUnits =
-  <TSchema extends v.GenericSchema>(schema: TSchema) =>
-  (raw: string): v.InferOutput<TSchema> | null =>
+  <TSchema extends v.GenericSchema<unknown, number>>(schema: TSchema) =>
+  (raw: string): number | null =>
     parseOrNull(schema, raw);
 
 /**

@@ -164,11 +164,11 @@ const family = (
   run: (state: RefundAuthorityState) => RefundAuthorityState,
 ): readonly RefundRepresentative[] =>
   armedStates.map(({ state, tag }) => rep(tag, run(state)));
-const providerConflictReps = (evidence: RefundConflictDecision) =>
-  family((state) => markRefundProviderConflict(state, NOW, evidence));
 const providerConflictRun =
   (evidence: RefundConflictDecision) => (state: RefundAuthorityState) =>
     markRefundProviderConflict(state, NOW, evidence);
+const providerConflictReps = (evidence: RefundConflictDecision) =>
+  family(providerConflictRun(evidence));
 const ownerChoiceNeededRun =
   (reason: Parameters<typeof markRefundOwnerChoiceNeeded>[2]) =>
   (state: RefundAuthorityState) =>

@@ -86,7 +86,7 @@ const publicPaths = async (): Promise<string[]> => {
     getAllListings(),
     getNewsPostSummaries(),
     sitePages.getAll(),
-    loadDecidedGroups(false),
+    loadDecidedGroups("served"),
   ]);
   const nonStandaloneChildIds = await getNonStandaloneChildIds(
     listings.map((listing) => listing.id),

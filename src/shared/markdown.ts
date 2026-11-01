@@ -163,20 +163,15 @@ const rewriteLexedSource = (
 
 /** Rewrite one token kind through the matcher. Keep every other byte. */
 const rewriteSourceKind =
-  <T>(kind: "link" | "image") =>
-  (markdown: string, matcher: T): string =>
-    rewriteLexedSource(
-      markdown,
-      (kind === "link"
-        ? { link: matcher }
-        : { image: matcher }) as TokenRewrites,
-    );
+  <K extends keyof TokenRewrites>(kind: K) =>
+  (markdown: string, matcher: NonNullable<TokenRewrites[K]>): string =>
+    rewriteLexedSource(markdown, { [kind]: matcher } as TokenRewrites);
 
 /** Replace each markdown link whose target matches `matcher` with its plain
  * text. Used to strip links the viewer isn't allowed to open (e.g. owner-only
  * admin pages) before rendering — a rendered link is a promise that it works,
  * so a viewer who can't follow it gets the words without the link. */
-export const withoutLinksTo = rewriteSourceKind<LinkMatcher>("link");
+export const withoutLinksTo = rewriteSourceKind("link");
 
 /** Rewrites each picture reference's address through `toUrl`, and keeps
  * every other byte of the source. A reference-style picture the table
@@ -185,8 +180,7 @@ export const withoutLinksTo = rewriteSourceKind<LinkMatcher>("link");
  * code, not as pictures. A reference inside them keeps the form the author
  * wrote, the way the HTML render shows it. A reference whose address
  * `toUrl` leaves undefined keeps its written form too. */
-export const rewriteImageDestinations =
-  rewriteSourceKind<ImageDestination>("image");
+export const rewriteImageDestinations = rewriteSourceKind("image");
 
 /** Replace child token source in order while preserving every byte between
  * children (markers, whitespace, table pipes, list bullets, and safe markdown). */

@@ -113,7 +113,7 @@ export const handlePublicListings: ResponseHandler<[request: Request]> = (
 ) =>
   requirePublicSite(async () => {
     const [publicGroups, { listings, holidays }, nav] = await Promise.all([
-      loadDecidedGroups(true),
+      loadDecidedGroups("bookable"),
       loadSortedListings(isPublicListing),
       publicNavProps(null),
     ]);

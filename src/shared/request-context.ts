@@ -152,10 +152,17 @@ export const withRequestStore = (use: (store: RequestStore) => void): void => {
   if (store) use(store);
 };
 
+/** The store fields that hold a string, so a reader can name one by key. */
+type StringStoreField = {
+  [P in keyof RequestStore]: NonNullable<RequestStore[P]> extends string
+    ? P
+    : never;
+}[keyof RequestStore];
+
 /** Read one string field from the live request's store, or the fallback
  *  outside a request. */
 export const requestStoreString =
-  <K extends "clientIp" | "csrfToken" | "locale" | "requestId">(field: K) =>
+  <K extends StringStoreField & keyof RequestStore>(field: K) =>
   (fallback: string): (() => string) =>
   () =>
     currentRequestStore()?.[field] ?? fallback;
