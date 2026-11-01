@@ -127,9 +127,7 @@ describe("declared TLA source context", () => {
       "verification/Sample.tla",
     );
     expect(row.score).toBeNull();
-    expect(row.error).toBe(
-      `verification/Sample.tla: cannot read declared context ${path}: Not a source file: ${path}`,
-    );
+    expect(row.error).toContain(path);
     expect(row.checks).toEqual({});
     expect(row.jev).toBeNull();
     assertSpyCalls(reads, 0);

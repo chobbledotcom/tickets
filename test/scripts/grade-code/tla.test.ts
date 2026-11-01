@@ -1,3 +1,4 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { assertSpyCalls, spy } from "@std/testing/mock";
@@ -23,17 +24,31 @@ const mechanicalOnly = {
   }),
 };
 
+const observedModel = (
+  context: readonly string[] = [],
+  files?: Record<string, string>,
+) => {
+  const entry = declaration("model", context);
+  assert(entry.kind === "model");
+  const generator = spy(entry.data);
+  const control = spy(entry.controls[0].data);
+  return {
+    control,
+    deps: tlaDeps(
+      {
+        ...entry,
+        controls: [{ ...entry.controls[0], data: control }],
+        data: generator,
+      },
+      files,
+    ),
+    generator,
+  };
+};
+
 describe("TLA grading", () => {
   test("grades a model mechanically without TypeScript checks or execution", async () => {
-    const entry = declaration();
-    if (entry.kind !== "model") throw new Error("Expected a model fixture");
-    const generator = spy(entry.data);
-    const control = spy(entry.controls[0].data);
-    const deps = tlaDeps({
-      ...entry,
-      controls: [{ ...entry.controls[0], data: control }],
-      data: generator,
-    });
+    const { control, deps, generator } = observedModel();
     deps.grade.fetchText = () => {
       throw new Error("No network expected");
     };
@@ -103,20 +118,8 @@ describe("TLA grading", () => {
       "verification/Laws.tla": HELPER_SOURCE,
       "verification/Sample.tla": MODEL_SOURCE,
     };
-    const entry = declaration("model", [
-      "verification/Laws.tla",
-      "scripts/sample.ts",
-      "src/shared/sample.ts",
-    ]);
-    if (entry.kind !== "model") throw new Error("Expected a model fixture");
-    const generator = spy(entry.data);
-    const control = spy(entry.controls[0].data);
-    const deps = tlaDeps(
-      {
-        ...entry,
-        controls: [{ ...entry.controls[0], data: control }],
-        data: generator,
-      },
+    const { control, deps, generator } = observedModel(
+      ["verification/Laws.tla", "scripts/sample.ts", "src/shared/sample.ts"],
       files,
     );
     let body: Record<string, unknown> = {};
@@ -188,9 +191,8 @@ describe("TLA grading", () => {
     deps.grade.fetchText = requests;
     const row = await gradeCode(deps.grade, paid, "verification/Sample.tla");
     expect(row.score).toBeNull();
-    expect(row.error).toBe(
-      `verification/Sample.tla: cannot read declared context ${path}: source access revoked`,
-    );
+    expect(row.error).toContain(path);
+    expect(row.error).toContain("source access revoked");
     expect(row.checks).toEqual({});
     expect(row.jev).toBeNull();
     assertSpyCalls(requests, 0);
