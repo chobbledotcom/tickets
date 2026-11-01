@@ -16,8 +16,7 @@ import {
 import {
   type ModelDataSource,
   modelDataFor,
-  tlaModule,
-  tlaRecords,
+  tlaRecordModuleFor,
 } from "#scripts/verify-models/data.ts";
 
 /* jscpd:ignore-end */
@@ -200,16 +199,12 @@ export const corruptRestoreColour = (): RestoreFact[] => [
   },
 ];
 
-const moduleFor = (
-  claims: readonly ClaimFact[],
-  restores: readonly RestoreFact[],
-  clears: readonly ClearFact[],
-): string =>
-  tlaModule("NotificationFlagLeaseData", [
-    tlaRecords("ClaimFacts", claimFields, claims),
-    tlaRecords("RestoreFacts", restoreFields, restores),
-    tlaRecords("ClearFacts", clearFields, clears),
-  ]);
+const moduleFor = tlaRecordModuleFor(
+  "NotificationFlagLeaseData",
+  ["ClaimFacts", claimFields],
+  ["RestoreFacts", restoreFields],
+  ["ClearFacts", clearFields],
+);
 
 /** The generated checker data. Every fact comes from the production flag
  *  functions; no stored move table supplies the proof. */

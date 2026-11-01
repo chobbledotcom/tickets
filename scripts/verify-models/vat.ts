@@ -1,4 +1,5 @@
 import {
+  corruptOneFact,
   moveFields,
   type TlaFact,
   tlaModule,
@@ -181,3 +182,19 @@ export const vatModelData = async (model = vatModel()): Promise<string> =>
       model.attempts.map(({ sampleTag: _sampleTag, ...proof }) => proof),
     ),
   ]);
+
+/** A settings change rewrites the recorded assessment of a past booking. */
+export const corruptVatData = async (): Promise<string> => {
+  const model = vatModel();
+  return vatModelData({
+    ...model,
+    attempts: [
+      ...corruptOneFact(
+        model.attempts,
+        (attempt) => attempt.accepted && attempt.eventId === "setting_add",
+        "No VAT setting change is available to corrupt.",
+        (attempt) => ({ ...attempt, assessmentCorrect: false, safe: false }),
+      ),
+    ],
+  });
+};

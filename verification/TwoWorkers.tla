@@ -132,5 +132,4 @@ Next ==
   UNCHANGED <<storedOwner, storedCommandId, storedWrittenAt, storedPhase,
               storedClaimStale, worker1Held, worker2Held>>
 
-InductionStart == Safety
 =============================================================================

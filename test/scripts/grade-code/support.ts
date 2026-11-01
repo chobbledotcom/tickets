@@ -4,6 +4,7 @@ import { resolve } from "@std/path";
 import type { Alias } from "#scripts/check-imports/rules.ts";
 import type { CliDeps } from "#scripts/grade-code/cli.ts";
 import { JEV_QUESTIONS } from "#scripts/grade-code/questions.ts";
+import { verificationModuleFor } from "#scripts/verify-models/registry.ts";
 
 /** A file that passes every mechanical check. */
 export const CLEAN_CODE = [
@@ -76,8 +77,15 @@ export const depsOver = (dir: {
       }),
     // A fixed clock, so a timing line reads the same on a loaded machine.
     now: () => 0,
+    readContext: (path) => {
+      const content = dir.files[path];
+      return content === undefined
+        ? Promise.reject(new Error(`Missing source ${path}`))
+        : Promise.resolve(content);
+    },
     readFile: (path) => Promise.resolve(dir.files[path] ?? ""),
     sleep: () => Promise.resolve(),
+    verificationModule: verificationModuleFor,
   },
   listFiles: (root) => {
     const wanted = `${resolve(root)}/`;

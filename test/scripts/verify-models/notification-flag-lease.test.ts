@@ -14,16 +14,20 @@ import {
   claimFacts,
   clearFacts,
   corruptClaimWithoutCapture,
-  corruptClaimWithoutCaptureData,
   corruptRestoreColour,
-  corruptRestoreColourData,
-  notificationFlagLeaseModelData,
   REPRESENTATIVE,
   restoreFacts,
 } from "#scripts/verify-models/notification-flag-lease.ts";
 import { records } from "#test-utils/tla-data.ts";
+import { registeredModel } from "./registered-model.ts";
 
 /* jscpd:ignore-end */
+
+const { data: notificationFlagLeaseModelData, controls } = registeredModel(
+  "NotificationFlagLease",
+);
+const corruptClaimWithoutCaptureData = controls[0].data;
+const corruptRestoreColourData = controls[1]!.data;
 
 type DataRecord = Record<string, string | boolean | number>;
 
@@ -119,12 +123,20 @@ describe("notification flag lease checker data", () => {
     }
   });
 
-  test("names the data module and the fact sets the proof reads", async () => {
+  test("emitted claims capture outstanding flags and restore only captured colours", async () => {
     const data = await notificationFlagLeaseModelData();
-    expect(data).toContain("MODULE NotificationFlagLeaseData");
-    expect(data).toContain("ClaimFacts ==");
-    expect(data).toContain("RestoreFacts ==");
-    expect(data).toContain("ClearFacts ==");
+    for (const fact of records(data, "ClaimFacts")) {
+      expect(fact.claimsEmail).toBe(Number(fact.beforeEmail) > 0);
+      expect(fact.claimsWebhooks).toBe(Number(fact.beforeWebhooks) > 0);
+    }
+    for (const fact of records(data, "RestoreFacts")) {
+      expect(fact.emailValue).toBe(
+        Number(fact.returnsEmail) * REPRESENTATIVE.email,
+      );
+      expect(fact.webhooksValue).toBe(
+        Number(fact.returnsWebhooks) * REPRESENTATIVE.webhooks,
+      );
+    }
   });
 
   test("the corrupted claim zeroes an up email flag without capturing it", async () => {

@@ -65,5 +65,4 @@ Next ==
   AdmitStep \/
   UNCHANGED <<listing1Admitted, listing2Admitted, allFactsSafe>>
 
-InductionStart == Safety
 =============================================================================

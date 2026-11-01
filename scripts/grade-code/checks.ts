@@ -311,7 +311,7 @@ const MECHANICAL_CHECKS: MechanicalCheck[] = [
   },
 ];
 
-const asCheckEntry = (question: JevQuestion): CheckEntry => ({
+export const asCheckEntry = (question: JevQuestion): CheckEntry => ({
   engine: "jev",
   id: question.id,
   label: question.label,

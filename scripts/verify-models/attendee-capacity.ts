@@ -17,6 +17,7 @@ import {
   lineKeyFromBooking,
   lineStatementFor,
 } from "#db/attendees/atomic-update.ts";
+import { notNullGuardFailure } from "#db/query.ts";
 import {
   type BatchFact,
   batchTlaSchema,
@@ -150,11 +151,10 @@ const batchFactFor = async (scenario: Scenario): Promise<BatchFact> => {
       ),
       "write",
     );
-  } catch {
-    // A guard on a refused write aborts the batch and rolls everything back,
-    // surfacing as a thrown error. That throw is the observed refusal, so the
-    // fact records it.
+  } catch (error) {
     client.close();
+    if (!notNullGuardFailure(error, "listing_attendees.listing_id"))
+      throw error;
     return { batch: scenario.tag, preserveOnly, ...refused };
   }
   const stored = await storedAfter(client);

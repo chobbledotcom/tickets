@@ -38,21 +38,38 @@ export const corruptedDataFor =
   (corrupt: (row: Row) => Row): ModelDataSource =>
     modelDataFor(() => moduleFor(rows.map(corrupt)));
 
-const atom = (value: TlaAtom): string =>
-  typeof value === "boolean"
-    ? value
-      ? "TRUE"
-      : "FALSE"
-    : typeof value === "number"
-      ? String(value)
-      : JSON.stringify(value);
+/** Change the one fact the predicate names, or throw when no fact does. A
+ *  negative control corrupts one fact of the clean proof data; a changed
+ *  shape fails here instead of corrupting nothing. */
+export const corruptOneFact = <Fact>(
+  facts: readonly Fact[],
+  isVictim: (fact: Fact) => boolean,
+  missingMessage: string,
+  corrupt: (fact: Fact) => Fact,
+): readonly Fact[] => {
+  if (!facts.some((fact) => isVictim(fact))) {
+    throw new Error(missingMessage);
+  }
+  return facts.map((fact) => (isVictim(fact) ? corrupt(fact) : fact));
+};
+
+const atom = (value: TlaAtom, field: string): string => {
+  if (typeof value === "boolean") return value ? "TRUE" : "FALSE";
+  if (typeof value === "number") {
+    if (!Number.isSafeInteger(value)) {
+      throw new Error(`The TLA integer at ${field} is not a safe integer.`);
+    }
+    return String(value);
+  }
+  return JSON.stringify(value);
+};
 
 export const tlaSet = (values: readonly string[]): string =>
-  `{${values.map(atom).join(", ")}}`;
+  `{${values.map((value) => atom(value, "set member")).join(", ")}}`;
 
-const record = (value: TlaRecord): string =>
+const record = (value: TlaRecord, name: string): string =>
   `[${Object.entries(value)
-    .map(([field, value]) => `${field} |-> ${atom(value)}`)
+    .map(([field, value]) => `${field} |-> ${atom(value, `${name}.${field}`)}`)
     .join(", ")}]`;
 
 /** One field declaration supplies both the fact type and the checker type. */
@@ -65,13 +82,38 @@ export const tlaRecords = <const Schema extends TlaRecordSchema>(
     .map(([field, type]) => `${field}: ${type}`)
     .join(", ");
   const alias = `${name.charAt(0).toLowerCase()}${name.slice(1)}Fact`;
-  return `\\* @typeAlias: ${alias} = { ${fields} };\n\\* @type: Set($${alias});\n${name} == {\n${unique(values.map(record)).join(",\n")}\n}`;
+  return `\\* @typeAlias: ${alias} = { ${fields} };\n\\* @type: Set($${alias});\n${name} == {\n${unique(values.map((value, index) => record(value, `${name}[${index}]`))).join(",\n")}\n}`;
 };
 
 export const tlaModule = (
   name: string,
   definitions: readonly string[],
-): string => `---- MODULE ${name} ----\n${definitions.join("\n")}\n====\n`;
+): string =>
+  `---- MODULE ${name} ----\nEXTENDS Integers\n${definitions.join("\n")}\n====\n`;
+
+/** Binds one module's name and the name and field schema of every record
+ *  table in it. Each call supplies the rows and returns the module text. */
+export const tlaRecordModuleFor =
+  <const Schemas extends readonly TlaRecordSchema[]>(
+    name: string,
+    ...tables: {
+      readonly [Index in keyof Schemas]: readonly [
+        name: string,
+        schema: Schemas[Index],
+      ];
+    }
+  ) =>
+  (
+    ...rows: {
+      readonly [Index in keyof Schemas]: readonly TlaFact<Schemas[Index]>[];
+    }
+  ): string =>
+    tlaModule(
+      name,
+      tables.map(([table, schema], index) =>
+        tlaRecords(table, schema, rows[index]!),
+      ),
+    );
 
 /** The checker type note for one valibot field type. A field type outside the
  *  table has no checker note, so the generator stops instead of writing a

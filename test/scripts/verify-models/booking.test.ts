@@ -1,15 +1,16 @@
 /* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  bookingReplayModelData,
-  deletedRowRefundData,
-  duplicateBookingData,
-} from "#scripts/verify-models/booking.ts";
 import { classifyBookingLedger } from "#shared/session-ledger.ts";
 import { members, records } from "#test-utils/tla-data.ts";
+import { registeredModel } from "./registered-model.ts";
 
 /* jscpd:ignore-end */
+
+const { data: bookingReplayModelData, controls } =
+  registeredModel("BookingReplay");
+const duplicateBookingData = controls[0].data;
+const deletedRowRefundData = controls[1]!.data;
 
 type Fact = Record<string, string | boolean>;
 

@@ -4,16 +4,17 @@
 /* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  doubleRecordData,
-  nonInverseLegData,
-  operatorMoneyReversalData,
-  refundReversalModelData,
-  unpairedLegData,
-} from "#scripts/verify-models/refund-reversal.ts";
 import { members, records } from "#test-utils/tla-data.ts";
+import { registeredModel } from "./registered-model.ts";
 
 /* jscpd:ignore-end */
+
+const { data: refundReversalModelData, controls } =
+  registeredModel("RefundReversal");
+const operatorMoneyReversalData = controls[0].data;
+const nonInverseLegData = controls[1]!.data;
+const unpairedLegData = controls[2]!.data;
+const doubleRecordData = controls[3]!.data;
 
 const OUTCOMES = ["recorded", "review", "unrecorded"];
 

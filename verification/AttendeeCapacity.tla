@@ -85,5 +85,4 @@ BatchStep ==
 Next ==
   BatchStep \/ UNCHANGED <<committed, slot1Total, slot2Total, lineCount>>
 
-InductionStart == Safety
 =============================================================================

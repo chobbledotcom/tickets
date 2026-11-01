@@ -80,5 +80,4 @@ ReviewStep ==
 
 Next == ReviewStep \/ UNCHANGED <<reviewState, allAttemptsSafe>>
 
-InductionStart == Safety
 =============================================================================

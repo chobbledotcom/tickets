@@ -16,6 +16,7 @@ import {
   representativeFields,
 } from "#scripts/verify-models/attempt.ts";
 import {
+  corruptOneFact,
   type ModelDataSource,
   moveFields,
   type TlaFact,
@@ -49,7 +50,7 @@ const recoveryMoveFields = {
 const declared = movesIn(RECOVERY_MOVES);
 
 // Checkout-id presence and the reader's agreement are independent observations.
-export const sumupModelData: ModelDataSource = async () => {
+const sumupDataFor = (corrupt: boolean): string => {
   const facts = collectMachineFacts(
     RECOVERY_NODES,
     RECOVERY_EVENTS,
@@ -96,6 +97,22 @@ export const sumupModelData: ModelDataSource = async () => {
       recoveryRepresentativeFields,
       facts.representatives,
     ),
-    tlaRecords("RecoveryMoves", recoveryMoveFields, facts.attempts),
+    tlaRecords(
+      "RecoveryMoves",
+      recoveryMoveFields,
+      corrupt
+        ? corruptOneFact(
+            facts.attempts,
+            (move) => move.targetHasCheckoutId,
+            "No recovery move carries a checkout identity.",
+            (move) => ({ ...move, targetCheckoutIdAgrees: false }),
+          )
+        : facts.attempts,
+    ),
   ]);
 };
+
+export const sumupModelData: ModelDataSource = async () => sumupDataFor(false);
+
+/** A recovery move loses the checkout identity that its row retains. */
+export const corruptSumupData: ModelDataSource = async () => sumupDataFor(true);

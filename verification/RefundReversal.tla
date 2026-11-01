@@ -106,6 +106,4 @@ ReplayPlan ==
 Next == FirstPlan \/ ReplayPlan \/
   UNCHANGED <<round, recorded, allPlansSafe, legsSafe>>
 
-\* Unrestricted induction: every safe abstract state, not a bounded path prefix.
-InductionStart == Safety
 =============================================================================

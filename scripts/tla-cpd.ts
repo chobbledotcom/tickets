@@ -1,5 +1,6 @@
 import { join, relative, resolve } from "node:path";
 import { makeScratchDir } from "#scripts/scratch.ts";
+import { collectTlaSources } from "#scripts/tla/files.ts";
 import { ensureJscpd } from "./jscpd/install.ts";
 import {
   type PreparedSource,
@@ -7,25 +8,8 @@ import {
   translateReport,
 } from "./tla-cpd/prepare.ts";
 
-const collectSources = async (inputs: readonly string[]): Promise<string[]> => {
-  const files = new Set<string>();
-  const visit = async (path: string): Promise<void> => {
-    const info = await Deno.lstat(path);
-    if (info.isSymlink) throw new Error(`Symlink is not a TLA source: ${path}`);
-    if (info.isDirectory) {
-      for await (const entry of Deno.readDir(path))
-        await visit(join(path, entry.name));
-    } else if (info.isFile && path.endsWith(".tla")) {
-      files.add(resolve(path));
-    }
-  };
-  for (const input of inputs) await visit(input);
-  if (files.size === 0) throw new Error("No TLA source inputs found");
-  return [...files].sort();
-};
-
 export const checkTla = async (inputs: readonly string[]): Promise<number> => {
-  const files = await collectSources(inputs);
+  const files = await collectTlaSources(inputs);
   const work = await makeScratchDir("tla-cpd-");
   try {
     const preparedDirectory = resolve(work, "tokens");

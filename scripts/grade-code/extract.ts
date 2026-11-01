@@ -15,7 +15,15 @@ import { blankSpans, stringSpanTexts } from "#scripts/typescript-lex.ts";
 import { walkNodes } from "#scripts/walk-nodes.ts";
 
 /** Which tree a file sits in, because the rules that apply differ. */
-export type CodeKind = "template" | "client" | "feature" | "shared" | "other";
+export type CodeKind =
+  | "template"
+  | "client"
+  | "feature"
+  | "shared"
+  | "other"
+  | "tla"
+  | "tla-model"
+  | "tla-helper";
 
 /** One thing the file does, at a line the reader can jump to. */
 export interface LineHit {
@@ -40,6 +48,7 @@ export interface CodeFacts {
   /** Computer-science words AGENTS.md asks plain language to replace. */
   jargonHits: { line: number; word: string }[];
   kind: CodeKind;
+  language: "typescript";
   lines: number;
   missingReturnTypes: LineHit[];
   nonNullAssertions: LineHit[];
@@ -59,7 +68,10 @@ const KIND_BY_PREFIX: [prefix: string, kind: CodeKind][] = [
 ];
 
 export const codeKind = (file: string): CodeKind =>
-  KIND_BY_PREFIX.find(([prefix]) => file.startsWith(prefix))?.[1] ?? "other";
+  file.endsWith(".tla")
+    ? "tla"
+    : (KIND_BY_PREFIX.find(([prefix]) => file.startsWith(prefix))?.[1] ??
+      "other");
 
 /** The trimmed source line around `index`, kept short enough to read. */
 const lineTextAt = (content: string, index: number): string => {
@@ -384,6 +396,7 @@ export const extractCode = (file: string, content: string): CodeFacts => {
     imports: topLevelImports(file, content).map((entry) => entry.specifier),
     jargonHits: jargonHits(content),
     kind: codeKind(file),
+    language: "typescript",
     lines: countLines(content),
     missingReturnTypes: missingReturnTypeHits(content, statements),
     nonNullAssertions: assertions,

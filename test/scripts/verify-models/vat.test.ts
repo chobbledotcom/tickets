@@ -9,6 +9,7 @@ import {
   type TaxMachineState,
 } from "#shared/tax/machine-spec.ts";
 import { records } from "#test-utils/tla-data.ts";
+import { registeredModel } from "./registered-model.ts";
 
 type Corruption = {
   name: string;
@@ -67,10 +68,12 @@ const corruptions: readonly Corruption[] = [
   },
 ];
 
+const { data: registeredVatData, controls } = registeredModel("VatLedger");
+
 describe("VAT production-derived proof data", () => {
   it("covers every attempted event, including stale refusals and independent settings", async () => {
     const model = vatModel();
-    const attempts = records(await vatModelData(model), "VatAttempts");
+    const attempts = records(await registeredVatData(), "VatAttempts");
     expect(
       attempts.some(
         (attempt) => attempt.eventId === "save_stale" && !attempt.accepted,
@@ -82,6 +85,28 @@ describe("VAT production-derived proof data", () => {
       expect(attempts.some((attempt) => attempt.eventId === event.id)).toBe(
         true,
       );
+  });
+
+  it("the historical assessment control violates assessment correctness on a settings change", async () => {
+    const clean = records(await registeredVatData(), "VatAttempts");
+    const corrupted = records(await controls[0].data(), "VatAttempts");
+    const unsafe = corrupted.filter((attempt) => !attempt.assessmentCorrect);
+    expect(
+      unsafe.find((attempt) => attempt.sourceState === "active"),
+    ).toMatchObject({
+      accepted: true,
+      assessmentCorrect: false,
+      eventId: "setting_add",
+      safe: false,
+      targetState: "active",
+    });
+    expect(
+      corrupted.map((attempt) =>
+        attempt.assessmentCorrect
+          ? attempt
+          : { ...attempt, assessmentCorrect: true, safe: true },
+      ),
+    ).toEqual(clean);
   });
 
   for (const corruption of corruptions) {

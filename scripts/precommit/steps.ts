@@ -134,6 +134,7 @@ const STEPS = [
     cmd: ["task", "check:required-checks"],
     name: "check:required-checks",
   },
+  { cmd: ["task", "check:tla"], name: "check:tla" },
   { cmd: ["task", "verify:models"], name: "verify:models" },
   { cmd: ["task", "build:edge"], name: "build:edge" },
   {

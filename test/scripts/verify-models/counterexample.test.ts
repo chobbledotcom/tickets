@@ -1,10 +1,7 @@
 /* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  corruptOneEdge,
-  counterexampleData,
-} from "#scripts/verify-models/counterexample.ts";
+import { corruptOneEdge } from "#scripts/verify-models/counterexample.ts";
 import {
   modelData,
   type PaymentModel,
@@ -12,8 +9,11 @@ import {
 } from "#scripts/verify-models/model.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { records } from "#test-utils/tla-data.ts";
+import { registeredModel } from "./registered-model.ts";
 
 /* jscpd:ignore-end */
+
+const counterexampleData = registeredModel("JointState").controls[0].data;
 
 describe("corrupted edge counterexample", () => {
   test("changes the request of one emitted money edge", async () => {

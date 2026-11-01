@@ -4,15 +4,19 @@ import { describe, it as test } from "@std/testing/bdd";
 import { sum } from "#fp";
 import {
   corruptSplitData,
-  largestRemainderSplitModelData,
   type SplitPartFact,
   splitCases,
   splitFacts,
 } from "#scripts/verify-models/largest-remainder-split.ts";
 import { largestRemainderAllocation } from "#shared/largest-remainder.ts";
 import { records } from "#test-utils/tla-data.ts";
+import { registeredModel } from "./registered-model.ts";
 
 /* jscpd:ignore-end */
+
+const { data: largestRemainderSplitModelData, controls } = registeredModel(
+  "LargestRemainderSplit",
+);
 
 type DataRecord = Record<string, string | boolean | number>;
 
@@ -212,7 +216,7 @@ describe("largest remainder split proof data", () => {
   });
 
   test("corrupting the guard awards past a cap", async () => {
-    const data = await corruptSplitData("cap guard");
+    const data = await controls[0].data();
     const parts = recordsOf(data, "SplitParts");
     const cases = recordsOf(data, "SplitCases");
     const flipped = parts.filter(
@@ -232,7 +236,7 @@ describe("largest remainder split proof data", () => {
   });
 
   test("corrupting the accounting strands an owed unit", async () => {
-    const data = await corruptSplitData("unconserved accounting");
+    const data = await controls[1]!.data();
     const cases = recordsOf(data, "SplitCases");
     const parts = recordsOf(data, "SplitParts");
     const victim = cases.find(
@@ -326,10 +330,18 @@ describe("largest remainder split proof data", () => {
     );
   });
 
-  test("the data module carries the fact tables under their own names", async () => {
+  test("emitted facts refuse a capped part and retain zero-amount accounting", async () => {
     const data = await largestRemainderSplitModelData();
-    expect(data).toContain("MODULE LargestRemainderSplitData");
-    expect(data).toContain("SplitCases ==");
-    expect(data).toContain("SplitParts ==");
+    const capped = records(data, "SplitParts").filter(
+      (part) =>
+        part.caseTag === "a part at its cap receives no more" &&
+        part.floor === part.cap,
+    );
+    expect(capped).toEqual([expect.objectContaining({ eligible: false })]);
+    expect(records(data, "SplitCases")).toContainEqual({
+      capped: false,
+      caseTag: "zero amount",
+      leftover: 0,
+    });
   });
 });
