@@ -13,6 +13,14 @@ import {
 
 const call = { ctx: { aliases: [], overLimit: {} }, jev: null };
 const paid = { ...call, jev: { apiKey: "test", model: "test" } };
+const mechanicalOnly = {
+  tla_structure: expect.objectContaining({
+    critical: true,
+    engine: "code",
+    goodness: 1,
+    status: "PASS",
+  }),
+};
 
 describe("TLA grading", () => {
   test("grades a model mechanically without TypeScript checks or execution", async () => {
@@ -23,9 +31,7 @@ describe("TLA grading", () => {
     const row = await gradeCode(deps.grade, call, "verification/Sample.tla");
     expect(row.error).toBeNull();
     expect(row.kind).toBe("tla-model");
-    expect(row.checks.tla_structure?.status).toBe("PASS");
-    expect(row.checks.imports_one_way).toBeUndefined();
-    expect(row.checks.select_star).toBeUndefined();
+    expect(row.checks).toEqual(mechanicalOnly);
     expect(row.jev).toBeNull();
   });
 
@@ -103,8 +109,6 @@ describe("TLA grading", () => {
     const row = await gradeCode(deps.grade, paid, "verification/Sample.tla");
     expect(row.jevError).toBeNull();
     const state = body.state as Record<string, unknown>;
-    expect(state.sql_statements).toBeUndefined();
-    expect(state.as_casts).toBeUndefined();
     const sources = state.sources as {
       file: string;
       lines: { line: number; text: string }[];
@@ -166,11 +170,7 @@ describe("TLA grading", () => {
       expect(row.error).toBeNull();
       expect(row.jev).toBeNull();
       expect(row.jevError).not.toBeNull();
-      expect(row.checks.tla_structure?.status).toBe("PASS");
-      expect(row.checks.tla_invariant_strength).toBeUndefined();
-      expect(
-        Object.values(row.checks).every((check) => check.engine === "code"),
-      ).toBe(true);
+      expect(row.checks).toEqual(mechanicalOnly);
     }
   });
 

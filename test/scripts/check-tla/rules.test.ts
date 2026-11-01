@@ -67,6 +67,38 @@ describe("maintained model inventory", () => {
     ).toEqual(["control-name"]);
   });
 
+  test("refuses duplicate context paths", () => {
+    const duplicateContext = {
+      ...helper,
+      context: ["scripts/verify-models/vat.ts", "scripts/verify-models/vat.ts"],
+    };
+    expect(
+      findRegistryIssues([duplicateContext], ["verification/Shared.tla"]).map(
+        (issue) => issue.rule,
+      ),
+    ).toEqual(["duplicate-context"]);
+  });
+
+  test("refuses a control phase outside initial and step", () => {
+    const invalidPhase = Object.assign({}, model, {
+      controls: [{ ...model.controls[0], phase: "reachable" }],
+    });
+    expect(
+      findRegistryIssues([invalidPhase], ["verification/Example.tla"]).map(
+        (issue) => issue.rule,
+      ),
+    ).toEqual(["control-phase"]);
+  });
+
+  test("refuses an invalid module identifier", () => {
+    const invalidName = { ...helper, module: "9Invalid" };
+    expect(
+      findRegistryIssues([invalidName], ["verification/9Invalid.tla"]).map(
+        (issue) => issue.rule,
+      ),
+    ).toEqual(["module-name"]);
+  });
+
   test("refuses context escapes and checks the same policy for grading", () => {
     for (const path of [
       "../.env",

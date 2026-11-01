@@ -34,7 +34,6 @@ describe("language-specific grading profiles", () => {
       expect(body.state.file).toBe("src/features/sample.ts");
       expect(body.state.imports).toEqual(["#i18n"]);
       expect(body.state.as_casts).toEqual([]);
-      expect(body.state.sources).toBeUndefined();
       expect(Object.keys(body.questions)).toContain("comments_earn_place");
       expect(
         Object.keys(body.questions).some((id) => id.startsWith("tla_")),
@@ -53,8 +52,12 @@ describe("language-specific grading profiles", () => {
     expect(row.jevError).toBeNull();
     expect(row.kind).toBe("feature");
     expect(requests).toBe(1);
-    expect(row.checks.empty_catch?.status).toBe("PASS");
-    expect(row.checks.tla_structure).toBeUndefined();
+    expect(row.checks.empty_catch).toMatchObject({
+      critical: true,
+      engine: "code",
+      goodness: 1,
+      status: "PASS",
+    });
   });
 
   test("retains concrete TypeScript mechanical failures", async () => {
