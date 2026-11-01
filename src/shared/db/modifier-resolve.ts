@@ -19,11 +19,11 @@ import {
   modifierIdsByAnswerId,
   modifierListings,
 } from "#db/modifiers.ts";
-import { normalizeEntityName } from "#db/name-registry.ts";
 import { byId, requiredMapValue, unique } from "#fp";
 import { t } from "#i18n";
 import { itemsSubtotal } from "#shared/booking-fee.ts";
 import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
+import { matchKey } from "#shared/keys.ts";
 import {
   scopeIsChildDeadEnd,
   scopeReachesPage,
@@ -300,7 +300,7 @@ const eligibleCandidates = async (
   const answerQuantities = opts.answerQuantities ?? new Map<number, number>();
   const ctx = opts.ctx ?? NO_VISITS;
   const codeIndex = opts.code?.trim()
-    ? await hmacHash(normalizeEntityName(opts.code))
+    ? await hmacHash(matchKey(opts.code))
     : null;
   const activeModifiers = await getActiveModifiers();
   const scopes = await listingIdsByModifierId(activeModifiers);

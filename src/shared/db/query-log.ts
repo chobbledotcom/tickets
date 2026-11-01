@@ -15,8 +15,8 @@ import { withLazyLogger } from "#shared/lazy-logger.ts";
 import { shouldSuppressDebugLogs } from "#shared/log-settings.ts";
 import {
   currentRequestStore,
-  type RequestSlot,
   requestSlot,
+  storeSlot,
   withRequestSlot,
 } from "#shared/request-context.ts";
 import type { PromiseTask } from "#shared/request-scoped.ts";
@@ -75,13 +75,7 @@ const getState = (): QueryLogState =>
 /** The query-log slot on the request store, allocated on the request's first
  * database call. Outside a request the guards stay silent and nothing is
  * recorded. */
-const QUERY_LOG_SLOT: RequestSlot<QueryLogState> = {
-  fresh: freshState,
-  read: (store) => store.queryLog,
-  write: (store, state) => {
-    store.queryLog = state;
-  },
-};
+const QUERY_LOG_SLOT = storeSlot("queryLog", freshState);
 
 /** Mutate this request's state, allocated on first use. */
 const withQueryLogState = (use: (state: QueryLogState) => void): void =>

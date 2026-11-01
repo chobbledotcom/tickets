@@ -6,14 +6,11 @@ import { getGroupPackagePrices } from "#db/groups.ts";
 import { listingParents } from "#db/listing-parents.ts";
 import { getGroupDayPrices } from "#db/listing-prices.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
-import {
-  loadCatalogNameIndex,
-  matchName,
-  normalizeEntityName,
-} from "#db/name-registry.ts";
+import { loadCatalogNameIndex, matchName } from "#db/name-registry.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import type { CatalogBundle } from "#routes/admin/catalog-transfer/schema.ts";
+import { matchKey } from "#shared/keys.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
@@ -36,7 +33,7 @@ const groupIdByName = async (name: string): Promise<number> => {
 /** The stored listing ids whose normalised name starts with `prefix`. */
 const listingIdsByNamePrefix = async (prefix: string): Promise<number[]> =>
   [...(await loadCatalogNameIndex()).listing]
-    .filter(([key]) => key.startsWith(normalizeEntityName(prefix)))
+    .filter(([key]) => key.startsWith(matchKey(prefix)))
     .flatMap(([, ids]) => ids);
 
 /** A bundle of `count` listings that all join the two groups the document

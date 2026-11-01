@@ -452,8 +452,8 @@ const exactExemptions = exactFieldExemptions([
   ),
   exactFieldsFrom("src/shared/request-context.ts")(
     [{ name: "RequestStore" }],
-    ["clientIp", "csrfToken", "locale", "requestId"],
-    dynamicReason("requestStoreString reads the store field by key"),
+    ["settingsAudit"],
+    dynamicReason("storeSlot reads and writes the slot field by key"),
   ),
 ]);
 

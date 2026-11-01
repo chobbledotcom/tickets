@@ -2,7 +2,7 @@
 import * as v from "valibot";
 import { settings } from "#db/settings.ts";
 import { getDecimalPlaces, toMinorUnits } from "#shared/currency.ts";
-import { parseOrNull } from "./parse.ts";
+import { parseOrNull, parserFor } from "./parse.ts";
 
 /* jscpd:ignore-end */
 
@@ -43,19 +43,13 @@ const PositiveMoneySchema = v.pipe(baseMoneySchema(false), v.minValue(1));
 const NonNegativeMoneySchema = v.pipe(baseMoneySchema(false), v.minValue(0));
 const SignedMoneySchema = baseMoneySchema(true);
 
-/** Parse one money schema from a raw string, or null when invalid. */
-const parseMinorUnits =
-  <TSchema extends v.GenericSchema<unknown, number>>(schema: TSchema) =>
-  (raw: string): number | null =>
-    parseOrNull(schema, raw);
-
 /**
  * Parse a strictly positive money amount into positive minor units, or `null`
  * when `raw` is empty, non-numeric, carries more decimal places than the
  * currency allows, non-positive, non-finite, or rounds to a non-safe amount.
  * Use for amounts that must be non-zero (service costs, ledger entries).
  */
-export const parsePositiveMinorUnits = parseMinorUnits(PositiveMoneySchema);
+export const parsePositiveMinorUnits = parserFor(PositiveMoneySchema);
 
 /**
  * Non-negative money parser whose result for a blank input is chosen by the
@@ -89,7 +83,7 @@ export const parseOptionalMinorUnits = nonNegativeMinorUnitsOr(null);
  * or `null` when empty or invalid. Use for owner-correction targets where the
  * figure can legitimately be negative (a modifier's net revenue).
  */
-export const parseSignedMinorUnits = parseMinorUnits(SignedMoneySchema);
+export const parseSignedMinorUnits = parserFor(SignedMoneySchema);
 
 /**
  * True when a numeric amount in MAJOR units carries more decimal places than

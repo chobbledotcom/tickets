@@ -1,4 +1,3 @@
-import { normalizeEntityName } from "#db/name-registry.ts";
 import {
   type AdminApiTransport,
   adminApiChildCreate,
@@ -10,6 +9,7 @@ import {
   type AdminApiAttribute,
   type AdminApiGroup,
 } from "#shared/admin-api-resources.ts";
+import { matchKey } from "#shared/keys.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { writeOut } from "./io.ts";
 import type { CatalogProduct } from "./product-catalog/parse.ts";
@@ -72,7 +72,7 @@ const uniqueByName = <T>(
   message: (count: number) => string,
 ): T | undefined => {
   const matches = items.filter(
-    (item) => normalizeEntityName(nameOf(item)) === normalizeEntityName(wanted),
+    (item) => matchKey(nameOf(item)) === matchKey(wanted),
   );
   if (matches.length > 1) throw new Error(message(matches.length));
   return matches[0];

@@ -1,4 +1,3 @@
-import { pairKey } from "#booking/ticket-moves.ts";
 import {
   PENDING_NOTIFICATION,
   type PendingNotificationFlag,
@@ -45,6 +44,7 @@ import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import { findByIdThen } from "#shared/find-by-id.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { pairKey } from "#shared/keys.ts";
 import { parseListingFields } from "#shared/listing-fields.ts";
 import type { ParamsRoute, ResponseHandler } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";

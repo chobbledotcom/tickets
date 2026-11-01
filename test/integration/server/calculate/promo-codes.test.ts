@@ -6,8 +6,8 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
 import { modifiersTable } from "#db/modifiers.ts";
-import { normalizeEntityName } from "#db/name-registry.ts";
 import { formatCurrency } from "#shared/currency.ts";
+import { matchKey } from "#shared/keys.ts";
 import { quoteTicketHtml } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -25,7 +25,7 @@ const setupPromoListing = async () => {
   await modifiersTable.insert({
     calcKind: "percent",
     calcValue: 10,
-    codeIndex: await hmacHash(normalizeEntityName("SAVE10")),
+    codeIndex: await hmacHash(matchKey("SAVE10")),
     direction: "discount",
     name: "10% off",
     trigger: "code",

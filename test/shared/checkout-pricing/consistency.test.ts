@@ -7,12 +7,12 @@ import {
   answerModifierQuantities,
   resolveModifiers,
 } from "#db/modifier-resolve.ts";
-import { normalizeEntityName } from "#db/name-registry.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
 import type { BookingIntent, ModifierRef } from "#shared/booking-intent.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
+import { matchKey } from "#shared/keys.ts";
 import { toModifierRefs } from "#shared/payment-helpers.ts";
 import type {
   CheckoutIntent,
@@ -193,7 +193,7 @@ const generateModifiers = async (
     if (trigger === "optional") addOns.set(inserted.id, rng.randInt(1, 3));
     if (trigger === "code") {
       code = "PROMO";
-      patch.code_index = await hmacHash(normalizeEntityName("PROMO"));
+      patch.code_index = await hmacHash(matchKey("PROMO"));
     }
     await patchModifier(inserted.id, patch);
   }
@@ -308,7 +308,7 @@ describeWithEnv(
         name: "SUMMER",
       });
       await patchModifier(m.id, {
-        code_index: await hmacHash(normalizeEntityName("Summer25")),
+        code_index: await hmacHash(matchKey("Summer25")),
         trigger: "code",
       });
       const items = [checkoutItem()];

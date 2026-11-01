@@ -8,8 +8,8 @@ import {
   modifierGroups,
   modifierListings,
 } from "#db/modifiers.ts";
-import { normalizeEntityName } from "#db/name-registry.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { matchKey } from "#shared/keys.ts";
 import {
   expectFlashRedirect,
   expectHtmlResponse,
@@ -290,9 +290,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       );
       const modifier = await lastModifier();
       expect(modifier.code).toBe("Summer25");
-      expect(modifier.code_index).toBe(
-        await hmacHash(normalizeEntityName("Summer25")),
-      );
+      expect(modifier.code_index).toBe(await hmacHash(matchKey("Summer25")));
     });
 
     test("ignores a code entered for a non-code trigger", async () => {

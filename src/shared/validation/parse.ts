@@ -14,6 +14,22 @@ export const parseOrNull = <TSchema extends v.GenericSchema>(
   return result.success ? result.output : null;
 };
 
+/** A null-on-invalid parser for one schema: give the schema now, the input
+ *  later. A form field and a stored value both read it. */
+export const parserFor =
+  <TSchema extends v.GenericSchema>(schema: TSchema) =>
+  (input: unknown): v.InferOutput<TSchema> | null =>
+    parseOrNull(schema, input);
+
+/** A form validator for one schema: the first error message it gives, or null.
+ *  The pipe stops at that first failing check. */
+export const validatorFor =
+  (schema: v.BaseSchema<unknown, unknown, v.BaseIssue<unknown>>) =>
+  (value: unknown): string | null => {
+    const result = v.safeParse(schema, value, { abortPipeEarly: true });
+    return result.success ? null : result.issues[0].message;
+  };
+
 /** Parse with a schema or throw the caller's domain-specific error. */
 export const parseOrThrow = <TSchema extends v.GenericSchema>(
   schema: TSchema,

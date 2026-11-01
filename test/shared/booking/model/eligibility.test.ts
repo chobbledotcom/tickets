@@ -11,7 +11,6 @@ import {
   childPassesAllChecks,
   childSupportsDays,
 } from "#booking/model.ts";
-import { pairKey } from "#booking/ticket-moves.ts";
 import {
   dailyOverrides,
   resolved,
@@ -22,17 +21,6 @@ import { useSetting } from "#test-utils/settings.ts";
 
 describe("booking model — child eligibility", () => {
   useSetting({ timezone: "UTC" });
-
-  describe("pairKey", () => {
-    test("joins two ids with a colon", () => {
-      expect(pairKey(3, 7)).toBe("3:7");
-    });
-
-    test("order matters — first then second", () => {
-      expect(pairKey(7, 3)).toBe("7:3");
-      expect(pairKey(7, 3)).not.toBe(pairKey(3, 7));
-    });
-  });
 
   describe("childActive", () => {
     test("true when the listing is active", () => {

@@ -3,8 +3,8 @@ import type { Field, FieldType } from "#shared/forms/field.ts";
 import { readSubmittedFieldValue } from "#shared/forms/submitted-value.ts";
 import {
   currentRequestStore,
-  type RequestSlot,
   requestSlot,
+  storeSlot,
 } from "#shared/request-context.ts";
 
 const SENSITIVE_FIELD_TYPES: ReadonlySet<FieldType> = new Set([
@@ -14,13 +14,7 @@ const SENSITIVE_FIELD_TYPES: ReadonlySet<FieldType> = new Set([
 
 export type SavedFormState = { form: FormParams | null };
 
-const SAVED_FORM_SLOT: RequestSlot<SavedFormState> = {
-  fresh: () => ({ form: null }),
-  read: (store) => store.savedForm,
-  write: (store, state) => {
-    store.savedForm = state;
-  },
-};
+const SAVED_FORM_SLOT = storeSlot("savedForm", () => ({ form: null }));
 
 const stashForm = (form: FormParams | null): void => {
   const slot = requestSlot(SAVED_FORM_SLOT);

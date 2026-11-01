@@ -121,6 +121,26 @@ export type RequestSlot<S> = {
   write: (store: RequestStore, value: S) => void;
 };
 
+/** The store fields a slot can own: the optional ones, unset until it writes. */
+type SlotField = {
+  [K in keyof RequestStore]-?: undefined extends RequestStore[K] ? K : never;
+}[keyof RequestStore];
+
+/** A slot that lives in one field of the store: allocate it fresh on first
+ *  use, read it back from that field. Each module names the field it owns. */
+export const storeSlot = <K extends SlotField>(
+  field: K,
+  fresh: () => NonNullable<RequestStore[K]>,
+): RequestSlot<NonNullable<RequestStore[K]>> => ({
+  fresh,
+  // A generic key makes the compiler read the field as the whole store union,
+  // so the field's own type is restored here.
+  read: (store) => store[field] as NonNullable<RequestStore[K]> | undefined,
+  write: (store, state) => {
+    store[field] = state;
+  },
+});
+
 /** Get or allocate one slot on the current request's store. Undefined
  * outside a request. */
 export const requestSlot = <S>(slot: RequestSlot<S>): S | undefined => {
@@ -152,20 +172,15 @@ export const withRequestStore = (use: (store: RequestStore) => void): void => {
   if (store) use(store);
 };
 
-/** The store fields that hold a string, so a reader can name one by key. */
-type StringStoreField = {
-  [P in keyof RequestStore]: NonNullable<RequestStore[P]> extends string
-    ? P
-    : never;
-}[keyof RequestStore];
-
-/** Read one string field from the live request's store, or the fallback
- *  outside a request. */
-export const requestStoreString =
-  <K extends StringStoreField & keyof RequestStore>(field: K) =>
-  (fallback: string): (() => string) =>
-  () =>
-    currentRequestStore()?.[field] ?? fallback;
+/** A reader for one field of the live request's store. Outside a request it
+ *  gives the fallback. The reader names the field, so the unread-field check
+ *  sees every read. */
+export const requestField =
+  <T>(read: (store: RequestStore) => T | undefined, fallback: T) =>
+  (): T => {
+    const store = currentRequestStore();
+    return store ? (read(store) ?? fallback) : fallback;
+  };
 
 /** Generate a 4-char lowercase hex string */
 const generateRequestId = (): string => {
@@ -174,21 +189,22 @@ const generateRequestId = (): string => {
 };
 
 /** The current request's locale, or "en" outside a request. */
-export const getLocale = requestStoreString("locale")("en");
+export const getLocale = requestField((store) => store.locale, "en");
 
 /** The current request's client IP, or "direct" when not in a request scope. */
-export const getRequestClientIp = requestStoreString("clientIp")("direct");
+export const getRequestClientIp = requestField(
+  (store) => store.clientIp,
+  "direct",
+);
 
 /** The current request's log-correlation id, or "" outside a request. */
-export const getRequestId = requestStoreString("requestId")("");
+export const getRequestId = requestField((store) => store.requestId, "");
 
 /** The request being served, or null when nothing is being served. */
-export const getRequestTrace = (): RequestTrace | null =>
-  currentRequestStore()?.trace ?? null;
+export const getRequestTrace = requestField((store) => store.trace, null);
 
 /** Get the current request's iframe mode */
-export const getIframeMode = (): boolean =>
-  currentRequestStore()?.iframe ?? false;
+export const getIframeMode = requestField((store) => store.iframe, false);
 
 /** The live request's effective domain, or undefined when no request is being
  *  served or the request has not seeded its domain yet. */

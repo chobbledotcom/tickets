@@ -12,11 +12,11 @@ import {
   type TicketListing,
 } from "#booking/model.ts";
 import { childTicketLimit, groupCapacityInfo } from "#booking/package-cap.ts";
-import { pairKey } from "#booking/ticket-moves.ts";
 import { childPriceFieldName, childQuantityFieldName } from "#booking/tree.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
+import { pairKey } from "#shared/keys.ts";
 import { renderListingAttributes } from "#templates/public/listing-attributes.ts";
 import type { ListingWithCount } from "#types";
 import {

@@ -8,6 +8,7 @@
 
 import * as v from "valibot";
 import { range } from "#fp";
+import { validatorFor } from "#shared/validation/parse.ts";
 
 const DIGITS = "0123456789";
 const LETTERS = "abcdefgh";
@@ -66,23 +67,8 @@ const SlugSchema = v.pipe(
   ),
 );
 
-/** Run a valibot schema with abortPipeEarly and return the first error message or null. */
-export const firstIssueMessage = <T>(
-  schema: v.BaseSchema<unknown, T, v.BaseIssue<unknown>>,
-  value: unknown,
-): string | null => {
-  const result = v.safeParse(schema, value, { abortPipeEarly: true });
-  return result.success ? null : result.issues[0].message;
-};
-
-/** The form validator for one schema: its first error message, or null. */
-export const validatorOf =
-  (schema: Parameters<typeof firstIssueMessage>[0]) =>
-  (value: string): string | null =>
-    firstIssueMessage(schema, value);
-
 /** Validate a normalized slug. Returns error message or null. */
-export const validateSlug = validatorOf(SlugSchema);
+export const validateSlug = validatorFor(SlugSchema);
 
 /** Slug-with-index pair. `Index` is the blind-index type `computeIndex`
  * produces (a `BlindIndex` for the real tables). */

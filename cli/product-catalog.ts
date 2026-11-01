@@ -7,7 +7,7 @@
  *  product-catalog/parse.ts. */
 
 import { isAbsolute, relative } from "@std/path";
-import { normalizeEntityName } from "#db/name-registry.ts";
+import { matchKey } from "#shared/keys.ts";
 import {
   type CatalogProduct,
   parseCategoryTitle,
@@ -164,7 +164,7 @@ const recordAttributeSpelling = (
   name: string,
   value: string,
 ): void => {
-  const nameKey = normalizeEntityName(name);
+  const nameKey = matchKey(name);
   let seenAttribute = seen.get(nameKey);
   if (seenAttribute === undefined) {
     seenAttribute = {
@@ -177,7 +177,7 @@ const recordAttributeSpelling = (
       `attribute '${seenAttribute.first.spelling}' and '${name}' are one attribute to the site (${seenAttribute.first.file} and ${product.filename}); use one spelling and rerun`,
     );
   }
-  const valueKey = normalizeEntityName(value);
+  const valueKey = matchKey(value);
   const firstValue = seenAttribute.values.get(valueKey);
   if (firstValue !== undefined && firstValue.spelling !== value) {
     throw new Error(
@@ -216,7 +216,7 @@ export const ensureUniqueTitles = (
   // API, so both files would fight over the same create.
   const filesByTitle = new Map<string, string>();
   for (const product of products) {
-    const key = normalizeEntityName(product.title);
+    const key = matchKey(product.title);
     const seen = filesByTitle.get(key);
     if (seen !== undefined) {
       throw new Error(

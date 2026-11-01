@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { pairKey } from "#booking/ticket-moves.ts";
 import {
   attendeeLineRow,
   groupAttendeeRows,
   withPairBookings,
 } from "#shared/attendee-table-rows.ts";
+import { pairKey } from "#shared/keys.ts";
 import { testAttendee } from "#test-utils/factories.ts";
 import type { AttendeeRowListing } from "#types";
 

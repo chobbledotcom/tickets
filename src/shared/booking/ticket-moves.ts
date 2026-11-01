@@ -5,6 +5,7 @@
 import { remainingTickets } from "#booking/remaining-tickets.ts";
 import type { ListingAttendeeRow } from "#db/attendee-types.ts";
 import { filter, requiredMapValue, sumOf } from "#fp";
+import { pairKey } from "#shared/keys.ts";
 
 /** Admitting fills lines up to their quantity, releasing empties them. */
 export type TicketDirection = "admit" | "release";
@@ -36,10 +37,6 @@ export type StoredTicketLine = Pick<
   ListingAttendeeRow,
   "checked_in" | "listing_id" | "quantity"
 > & { attendee_id: number; id: number };
-
-/** The key one (person, listing) pair goes by. */
-export const pairKey = (attendeeId: number, listingId: number): string =>
-  `${attendeeId}:${listingId}`;
 
 const linePairKey = (line: StoredTicketLine): string =>
   pairKey(line.attendee_id, line.listing_id);

@@ -13,18 +13,12 @@
 import { range } from "#fp";
 import {
   currentRequestStore,
-  type RequestSlot,
   requestSlot,
+  storeSlot,
 } from "#shared/request-context.ts";
 import type { ScopeRunner } from "#shared/request-scoped.ts";
 
-const PENDING_SLOT: RequestSlot<Promise<unknown>[]> = {
-  fresh: () => [],
-  read: (store) => store.pending,
-  write: (store, state) => {
-    store.pending = state;
-  },
-};
+const PENDING_SLOT = storeSlot("pending", () => []);
 
 /**
  * Run `fn`, then drain the queue once more on the way out: an error logged

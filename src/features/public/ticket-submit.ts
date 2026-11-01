@@ -4,12 +4,12 @@
  */
 
 import type { TicketListing } from "#booking/model.ts";
-import { normalizeEntityName } from "#db/name-registry.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { notFoundResponse } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { parseIsoDateParam } from "#shared/dates.ts";
+import { matchKey } from "#shared/keys.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
 import type {
   BookingPrefill,
@@ -107,7 +107,7 @@ export const parseQuantityPrefill = (
     }
   }
   const date = parseIsoDateParam(params.get("date"));
-  const promo = normalizeEntityName(params.get("promo") ?? "");
+  const promo = matchKey(params.get("promo") ?? "");
   if (map.size === 0 && date === null && promo === "") return;
   return {
     listings: map,

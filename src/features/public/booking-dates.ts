@@ -16,12 +16,12 @@ import {
   type TicketListing,
   updateForMembersWithChildren,
 } from "#booking/model.ts";
-import { pairKey } from "#booking/ticket-moves.ts";
 import { getActiveHolidays, type Holiday } from "#db/holidays.ts";
 import { hydrateListingLinks, listingChildren } from "#db/listing-parents.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
 /* jscpd:ignore-end */
 import type { FormParams } from "#shared/form-data.ts";
+import { pairKey } from "#shared/keys.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
 import { availableDayCounts, dayPriceFor, type ListingWithCount } from "#types";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";

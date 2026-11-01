@@ -4,11 +4,11 @@ import {
   linePair,
   movesThatMoved,
   pairBookingsOf,
-  pairKey,
   type StoredTicketLine,
   spreadTicketMoves,
   ticketCount,
 } from "#booking/ticket-moves.ts";
+import { pairKey } from "#shared/keys.ts";
 
 /** One stored line for person 1 on listing 10 unless the test says otherwise. */
 const line = (

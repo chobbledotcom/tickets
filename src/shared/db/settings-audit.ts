@@ -12,8 +12,8 @@
 
 import { lazyRef } from "#fp";
 import {
-  type RequestSlot,
   requestSlot,
+  storeSlot,
   withRequestSlot,
 } from "#shared/request-context.ts";
 
@@ -31,13 +31,10 @@ const [isAuditEnabled, setAuditEnabled] = lazyRef<boolean>(() => false);
 export const setSettingsAuditEnabled = (value: boolean | null): void =>
   setAuditEnabled(value);
 
-const AUDIT_SLOT: RequestSlot<AuditState> = {
-  fresh: () => ({ loaded: new Set(), read: new Set() }),
-  read: (store) => store.settingsAudit,
-  write: (store, state) => {
-    store.settingsAudit = state;
-  },
-};
+const AUDIT_SLOT = storeSlot("settingsAudit", () => ({
+  loaded: new Set<string>(),
+  read: new Set<string>(),
+}));
 
 /** The live audit state, allocated on first record while the audit is on.
  * Undefined in production and outside a request, so recording is a no-op. */

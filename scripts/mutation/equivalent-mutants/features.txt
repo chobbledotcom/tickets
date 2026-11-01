@@ -56,8 +56,8 @@ src/features/public/ticket-form.ts::listingsWithQuantity.withQty.qty~0q3jgeq  ??
 # attendee entity page: `?? → ||` where the operand's only falsy-non-null
 # value equals the "" fallback.
 src/features/admin/attendee-page.ts::attendeePage.tabs.sections.load~1e06wxq  ?? → || audited:017u8kr # ctx.query.get("token"): string|null; the only falsy-non-null value "" equals the "" fallback
-src/shared/db/name-registry.ts::matchName.ids~140086l  ?? → || audited:1xvsf3q # matchName index.get(): number[]|undefined — an array is always truthy
-src/shared/db/name-registry.ts::isNameTakenAnywhere.ownedByOther~1x88e07  ?? → || audited:1xvsf3q # isNameTakenAnywhere index.get(): number[]|undefined — an array is always truthy
+src/shared/db/name-registry.ts::matchName.ids~0awlhoy  ?? → || audited:1sl3bgs # matchName index.get(): number[]|undefined — an array is always truthy
+src/shared/db/name-registry.ts::isNameTakenAnywhere.ownedByOther~1x88e07  ?? → || audited:1sl3bgs # matchName index.get(): number[]|undefined — an array is always truthy
 src/features/admin/catalog-transfer/bundle-groups.ts::validateGroups~0bnxwrf  ?? → || audited:1m08ncr # isPackage is boolean|undefined, and false equals the false fallback
 src/features/admin/catalog-transfer/bundle-site.ts::groupViewOf.isPackage~1hwf5fo  ?? → || audited:0qsndgn # isPackage is boolean|undefined, and false equals the false fallback
 src/features/admin/catalog-transfer/bundle-site.ts::collectPairs~0bnxwrf  ?? → || audited:0qsndgn # isPackage is boolean|undefined, and false equals the false fallback

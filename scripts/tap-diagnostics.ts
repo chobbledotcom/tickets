@@ -1,5 +1,6 @@
 /** The TAP diagnostic block one failing test emits: pretty JSON or YAML,
  *  parsed into the message and location the compact summary shows. */
+import { identity } from "#fp";
 import { NO_TAP_DIAGNOSTIC } from "./tap-summary.ts";
 
 export type TapDiagnostic = {
@@ -75,19 +76,20 @@ type AtFieldAssign = (
   value: string,
 ) => void;
 
-/** One numeric at-field assigner: parses the value, writes it to the field. */
-const numericAssigner =
-  (field: "column" | "line"): AtFieldAssign =>
+/** One `at:` field's setter: read its YAML text through `parse` into the field. */
+const atField =
+  <K extends keyof NonNullable<TapDiagnostic["at"]>>(
+    key: K,
+    parse: (raw: string) => NonNullable<TapDiagnostic["at"]>[K],
+  ): AtFieldAssign =>
   (at, value) => {
-    at[field] = Number(value);
+    at[key] = parse(value);
   };
 
 const AT_FIELD_ASSIGNERS: Record<string, AtFieldAssign | undefined> = {
-  column: numericAssigner("column"),
-  file: (at, value) => {
-    at.file = value;
-  },
-  line: numericAssigner("line"),
+  column: atField("column", Number),
+  file: atField("file", identity),
+  line: atField("line", Number),
 };
 
 const assignAtField = (

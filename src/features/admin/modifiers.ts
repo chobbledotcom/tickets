@@ -20,7 +20,6 @@ import {
   modifierListings,
   modifiersTable,
 } from "#db/modifiers.ts";
-import { normalizeEntityName } from "#db/name-registry.ts";
 import { getAllQuestionsWithAnswers } from "#db/questions/queries.ts";
 import { once } from "#fp";
 import { t } from "#i18n";
@@ -45,6 +44,7 @@ import { notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 import { toMinorUnits } from "#shared/currency.ts";
+import { matchKey } from "#shared/keys.ts";
 import { validateCalcValue } from "#shared/price-modifier.ts";
 import { defineResource } from "#shared/rest/resource.ts";
 import { exceedsCurrencyPrecision } from "#shared/validation/money.ts";
@@ -88,7 +88,7 @@ const extractModifierInput = async (
     calcKind: values.calc_kind,
     calcValue: values.calc_value,
     code,
-    codeIndex: code ? await hmacHash(normalizeEntityName(code)) : null,
+    codeIndex: code ? await hmacHash(matchKey(code)) : null,
     direction: values.direction,
     maxPerOrder: values.trigger === "answer" ? values.max_per_order : null,
     minSubtotal: toMinorUnits(values.min_subtotal),

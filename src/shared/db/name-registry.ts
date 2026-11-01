@@ -11,6 +11,7 @@
 import { groups } from "#db/groups.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import { t } from "#i18n";
+import { matchKey } from "#shared/keys.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import type { Group, ListingWithCount, SitePageItemType } from "#types";
 
@@ -24,15 +25,6 @@ export type NamedEntityKind = Exclude<SitePageItemType, "page">;
  * own uniqueness check. */
 export type NameOwner = { kind: NamedEntityKind; id: number };
 
-/**
- * Normalise a display name for uniqueness comparison and name-keyed lookup:
- * trimmed and case-folded. Two names that differ only in surrounding whitespace
- * or letter case are treated as the same name, so an import that resolves a
- * parent/group by name is never ambiguous between "Weekend" and "weekend ".
- */
-export const normalizeEntityName = (name: string): string =>
-  name.trim().toLowerCase();
-
 /** Normalised-name → ids for one entity kind. A name maps to several ids only on
  * legacy data that predates the uniqueness rule (new writes can't create one). */
 export type NameIndex = Map<string, number[]>;
@@ -44,7 +36,7 @@ const buildIndex = (
 ): NameIndex => {
   const index: NameIndex = new Map();
   for (const entity of entities) {
-    const key = normalizeEntityName(entity.name);
+    const key = matchKey(entity.name);
     if (key === "") continue;
     const ids = index.get(key);
     if (ids) ids.push(entity.id);
@@ -80,7 +72,7 @@ export type NameMatch =
 
 /** Resolve one name to its unique owning id within a single entity kind. */
 export const matchName = (index: NameIndex, name: string): NameMatch => {
-  const ids = index.get(normalizeEntityName(name)) ?? [];
+  const ids = index.get(matchKey(name)) ?? [];
   if (ids.length === 0) return { ok: false, reason: "missing" };
   if (ids.length > 1) return { ok: false, reason: "ambiguous" };
   return { id: ids[0]!, ok: true };
@@ -96,7 +88,7 @@ export const isNameTakenAnywhere = async (
   name: string,
   exclude?: NameOwner,
 ): Promise<boolean> => {
-  const key = normalizeEntityName(name);
+  const key = matchKey(name);
   if (key === "") return false;
   const { group, listing } = await loadCatalogNameIndex();
   const ownedByOther = (index: NameIndex, kind: NamedEntityKind): boolean =>

@@ -11,8 +11,8 @@ import {
   reachablePageIds,
   resolveModifiers,
 } from "#db/modifier-resolve.ts";
-import { normalizeEntityName } from "#db/name-registry.ts";
 import { toMinorUnits } from "#shared/currency.ts";
+import { matchKey } from "#shared/keys.ts";
 import { checkoutItem } from "#test-utils/checkout-items.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -189,7 +189,7 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
     test("applies a code modifier only when the matching code is entered", async () => {
       const m = await insertModifier({ name: "SUMMER" });
       await patchModifier(m.id, {
-        code_index: await hmacHash(normalizeEntityName("Summer25")),
+        code_index: await hmacHash(matchKey("Summer25")),
         trigger: "code",
       });
 

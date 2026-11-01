@@ -6,8 +6,9 @@
  * These helpers only reshape them.
  */
 
-import { type PairBookings, pairKey } from "#booking/ticket-moves.ts";
+import type { PairBookings } from "#booking/ticket-moves.ts";
 import { sumOf } from "#fp";
+import { pairKey } from "#shared/keys.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type {
   AttendeeRowListing,
