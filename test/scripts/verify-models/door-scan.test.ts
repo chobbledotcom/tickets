@@ -5,6 +5,7 @@
 /* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import * as v from "valibot";
 import {
   admitFacts,
   corruptOneAdmission,
@@ -86,14 +87,16 @@ describe("door scan checker data", () => {
   });
 
   test("every emitted admission stays at or under the listing's quantity", async () => {
+    const count = v.number();
     for (const fact of records(await doorScanModelData(), "AdmitFacts")) {
+      const before = v.parse(count, fact.before);
       const quantity = requireValue(
         quantityOf[String(fact.listing)],
         `Missing representative quantity for ${fact.listing}`,
       );
       expect(fact.after).toBeLessThanOrEqual(quantity);
-      expect(fact.after).toBeGreaterThanOrEqual(fact.before);
-      expect(fact.before).toBeGreaterThanOrEqual(0);
+      expect(fact.after).toBeGreaterThanOrEqual(before);
+      expect(before).toBeGreaterThanOrEqual(0);
     }
   });
 

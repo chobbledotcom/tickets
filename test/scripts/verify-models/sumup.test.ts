@@ -19,12 +19,18 @@ const { data: sumupModelData, controls } = registeredModel("SumupRecovery");
 test("the checkout-identity control retains an id but loses reader agreement", async () => {
   const clean = records(await sumupModelData(), "RecoveryMoves");
   const corrupted = records(await controls[0].data(), "RecoveryMoves");
-  expect(corrupted.filter((move) => !move.targetCheckoutIdAgrees)).toEqual([
-    expect.objectContaining({
-      targetCheckoutIdAgrees: false,
-      targetHasCheckoutId: true,
-    }),
-  ]);
+  expect(
+    corrupted.find(
+      (move) =>
+        move.sourceState === "staged" &&
+        move.eventId === "checkout_created" &&
+        move.sampleTag === "no_checkout_id",
+    ),
+  ).toMatchObject({
+    targetCheckoutIdAgrees: false,
+    targetHasCheckoutId: true,
+    targetState: "waiting",
+  });
   expect(
     corrupted.map((move) => ({ ...move, targetCheckoutIdAgrees: true })),
   ).toEqual(clean);

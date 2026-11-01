@@ -1,4 +1,4 @@
-import { assertNotReached } from "@std/assert";
+import { unreachable } from "@std/assert";
 import { expect } from "@std/expect";
 import { dirname, join, resolve } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
@@ -73,9 +73,11 @@ describe("denoCliDeps", () => {
     using time = new FakeTime(start);
     const deps = denoCliDeps();
     let completed = false;
-    const pending = deps.grade.sleep(10).then(() => {
+    const finishDelay = async () => {
+      await deps.grade.sleep(10);
       completed = true;
-    });
+    };
+    const pending = finishDelay();
     await time.tickAsync(9);
     expect({ completed, now: deps.grade.now() }).toEqual({
       completed: false,
@@ -91,8 +93,8 @@ describe("denoCliDeps", () => {
 
   test("the real CLI grades a source without a secret or paid request", async () => {
     const deps = denoCliDeps();
-    deps.readSecret = assertNotReached;
-    deps.grade.fetchText = assertNotReached;
+    deps.readSecret = unreachable;
+    deps.grade.fetchText = unreachable;
     const file = "src/shared/price-modifier.ts";
     const { io, out } = ioWith([file, "--no-jev", "--json"]);
     expect(await runGradeCodeCli(io, deps)).toBe(0);

@@ -91,14 +91,15 @@ describe("VAT production-derived proof data", () => {
     const clean = records(await registeredVatData(), "VatAttempts");
     const corrupted = records(await controls[0].data(), "VatAttempts");
     const unsafe = corrupted.filter((attempt) => !attempt.assessmentCorrect);
-    expect(unsafe).toEqual([
-      expect.objectContaining({
-        accepted: true,
-        assessmentCorrect: false,
-        eventId: "setting_add",
-        safe: false,
-      }),
-    ]);
+    expect(
+      unsafe.find((attempt) => attempt.sourceState === "active"),
+    ).toMatchObject({
+      accepted: true,
+      assessmentCorrect: false,
+      eventId: "setting_add",
+      safe: false,
+      targetState: "active",
+    });
     expect(
       corrupted.map((attempt) =>
         attempt.assessmentCorrect

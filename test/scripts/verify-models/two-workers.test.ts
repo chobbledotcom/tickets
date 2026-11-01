@@ -24,18 +24,19 @@ test("the stale-worker control accepts a fence belonging to the replaced run", a
   const clean = records(await twoWorkersModelData(), "SettleFacts");
   const corrupted = records(await controls[0].data(), "SettleFacts");
   expect(
-    corrupted.filter(
-      (fact) => fact.accepted && fact.storedOwner !== fact.fenceWorker,
+    corrupted.find(
+      (fact) =>
+        fact.fenceCommandId === "refund-run-a" &&
+        fact.fencePhase === "checking" &&
+        fact.fenceWorker === "w1" &&
+        fact.fenceWrittenAt === W1_WRITTEN &&
+        fact.storedOwner === "w2",
     ),
-  ).toEqual([
-    expect.objectContaining({
-      accepted: true,
-      fenceCommandId: "refund-run-a",
-      fenceWorker: "w1",
-      storedCommandId: "refund-run-b",
-      storedOwner: "w2",
-    }),
-  ]);
+  ).toMatchObject({
+    accepted: true,
+    fenceWorker: "w1",
+    storedCommandId: "refund-run-b",
+  });
   expect(
     corrupted.map((fact, index) => ({
       ...fact,

@@ -1,4 +1,4 @@
-import { assertNotReached } from "@std/assert";
+import { unreachable } from "@std/assert";
 import type { VerificationModule } from "#scripts/verify-models/spec.ts";
 import { depsOver } from "./support.ts";
 
@@ -28,18 +28,12 @@ export const declaration = (
         context,
         controls: [
           {
-            data: assertNotReached.bind(
-              null,
-              "Grading must not execute a control",
-            ),
+            data: unreachable.bind(null, "Grading must not execute a control"),
             name: "negative",
             phase: "initial",
           },
         ],
-        data: assertNotReached.bind(
-          null,
-          "Grading must not execute a generator",
-        ),
+        data: unreachable.bind(null, "Grading must not execute a generator"),
         kind,
         module: "Sample",
       };

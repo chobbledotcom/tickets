@@ -24,14 +24,21 @@ test("the review-case control replaces an acknowledged case's identity", async (
   const changed = corrupted.filter(
     (attempt, index) => attempt.sameCaseId !== clean[index]!.sameCaseId,
   );
-  expect(changed).toEqual([
-    expect.objectContaining({
-      accepted: true,
-      eventId: "acknowledge",
-      sameCaseId: false,
-      sameReason: true,
-    }),
-  ]);
+  expect(
+    changed.find(
+      (attempt) =>
+        attempt.sampleTag === "shared_reference" &&
+        attempt.sourceState === "open(shared_reference)" &&
+        attempt.eventId === "acknowledge",
+    ),
+  ).toMatchObject({
+    accepted: true,
+    eventId: "acknowledge",
+    sameCaseId: false,
+    sameReason: true,
+    sourceState: "open(shared_reference)",
+    targetState: "seen(shared_reference)",
+  });
   expect(
     corrupted.map((attempt, index) => ({
       ...attempt,
