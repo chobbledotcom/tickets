@@ -39,6 +39,4 @@ VatStep ==
 
 Next == VatStep \/ UNCHANGED <<bookingState, allAttemptsSafe>>
 
-\* Unrestricted induction: every safe abstract state, not a bounded path prefix.
-InductionStart == Safety
 =============================================================================

@@ -76,8 +76,17 @@ export const depsOver = (dir: {
       }),
     // A fixed clock, so a timing line reads the same on a loaded machine.
     now: () => 0,
+    readContext: (path) => {
+      const content = dir.files[path];
+      return content === undefined
+        ? Promise.reject(new Error(`Missing source ${path}`))
+        : Promise.resolve(content);
+    },
     readFile: (path) => Promise.resolve(dir.files[path] ?? ""),
     sleep: () => Promise.resolve(),
+    verificationModule: (file) => {
+      throw new Error(`Unregistered verification module: ${file}`);
+    },
   },
   listFiles: (root) => {
     const wanted = `${resolve(root)}/`;

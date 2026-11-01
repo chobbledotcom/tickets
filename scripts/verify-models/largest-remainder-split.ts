@@ -239,7 +239,10 @@ export const largestRemainderSplitModelData: ModelDataSource = async () => {
 
 /** The failure modes the checker must reject. Each one corrupts one fact of
  *  the clean proof data. */
-type Corruption = "cap guard" | "unconserved accounting";
+type Corruption =
+  | "cap guard"
+  | "unconserved accounting"
+  | "negative accounting";
 
 /** The case whose owed units one corruption inflates: the guard covers
  *  exactly one award there, so one extra owed unit strands the loop. */
@@ -263,6 +266,15 @@ const corruptions: Readonly<
       `The split model holds no part at its cap for "${capVictimTag}". There is no part to corrupt.`,
       (partFact) => ({ ...partFact, eligible: true }),
     ),
+  }),
+  "negative accounting": ({ caseFacts, partFacts }) => ({
+    caseFacts: corruptOneFact(
+      caseFacts,
+      (fact) => fact.caseTag === "zero amount",
+      "No zero-amount split is available to corrupt.",
+      (fact) => ({ ...fact, leftover: -1 }),
+    ),
+    partFacts,
   }),
   "unconserved accounting": ({ caseFacts, partFacts }) => ({
     caseFacts: corruptOneFact(

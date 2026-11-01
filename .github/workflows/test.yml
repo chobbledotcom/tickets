@@ -146,6 +146,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: deno task check:required-checks
 
+      - name: Check TLA model standards
+        run: deno task check:tla
+
       - name: Check machine safety models
         run: deno task verify:models
 

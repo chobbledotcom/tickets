@@ -9,12 +9,14 @@ import {
 } from "#payment/review-machine-spec.ts";
 import {
   attemptFields,
-  type ModelDataSource,
+  corruptOneFact,
+  modelDataFor,
   type TlaFact,
   tlaModule,
   tlaRecords,
   tlaSet,
 } from "#scripts/verify-models/data.ts";
+import { bindFirst } from "#shared/fp-bind.ts";
 import { attemptTransition } from "#shared/schema-atlas/types.ts";
 
 /* jscpd:ignore-end */
@@ -73,7 +75,7 @@ const eventFact = (event: ReviewMachineEvent): EventFact => {
 };
 
 /** Compare actual case identity and reason before abstracting the slot. */
-export const reviewModelData: ModelDataSource = async () => {
+const reviewDataFor = (corrupt: boolean): string => {
   const nodes = new Map<string, NodeFact>();
   const attempts: Attempt[] = [];
   for (const node of REVIEW_NODES) {
@@ -107,6 +109,22 @@ export const reviewModelData: ModelDataSource = async () => {
     `ReviewStates == ${tlaSet(states)}`,
     tlaRecords("ReviewNodes", nodeFields, [...nodes.values()]),
     tlaRecords("ReviewEvents", eventFields, events),
-    tlaRecords("ReviewAttempts", reviewAttemptFields, attempts),
+    tlaRecords(
+      "ReviewAttempts",
+      reviewAttemptFields,
+      corrupt
+        ? corruptOneFact(
+            attempts,
+            (attempt) => attempt.accepted && attempt.eventId === "acknowledge",
+            "No review acknowledgement is available to corrupt.",
+            (attempt) => ({ ...attempt, sameCaseId: false }),
+          )
+        : attempts,
+    ),
   ]);
 };
+
+export const reviewModelData = modelDataFor(bindFirst(reviewDataFor)(false));
+
+/** An acknowledgement replaces the case that it must preserve. */
+export const corruptReviewData = modelDataFor(bindFirst(reviewDataFor)(true));

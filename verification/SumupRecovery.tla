@@ -147,5 +147,4 @@ Next == RecoveryStep \/ Age \/ Prune \/
                     pruningAgeReached, riskyDeletionSeen, checkHistorySafe,
                     owedStateSeen, firstTerminalState>>
 
-InductionStart == Safety
 =============================================================================

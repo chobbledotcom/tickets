@@ -139,5 +139,4 @@ Next ==
   PassStep \/ FeeStep \/
   UNCHANGED <<current, passIndex, feeApplied, allFactsSafe>>
 
-InductionStart == Safety
 =============================================================================

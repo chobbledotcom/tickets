@@ -102,5 +102,4 @@ Next ==
   DeliveryStep \/ ReserveStep \/ SettleReserved \/ StaleCleanup \/ DeleteRow \/
   UNCHANGED <<ledger, row, bookings, noRefundAfterHonoured>>
 
-InductionStart == Safety
 =============================================================================
