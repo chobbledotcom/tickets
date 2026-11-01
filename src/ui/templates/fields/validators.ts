@@ -19,17 +19,14 @@ import type {
   TextareaField,
 } from "#shared/forms/field.ts";
 import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
-import {
-  firstIssueMessage,
-  normalizeSlug,
-  validateSlug,
-} from "#shared/slug.ts";
+import { normalizeSlug, validateSlug } from "#shared/slug.ts";
 import { commaParts } from "#shared/split.ts";
 import { isValidDatetime } from "#shared/timezone.ts";
 import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";
 import { isIsoDate } from "#shared/validation/date-string.ts";
 import { EmailFormatSchema } from "#shared/validation/email.ts";
 import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
+import { validatorFor } from "#shared/validation/parse.ts";
 import { isContactField } from "#types";
 /* jscpd:ignore-end */
 
@@ -142,8 +139,7 @@ const UsernameSchema = v.pipe(
   ),
 );
 
-export const validateUsername = (value: string): string | null =>
-  firstIssueMessage(UsernameSchema, value);
+export const validateUsername = validatorFor(UsernameSchema);
 
 /** Base username field shared across login and invite forms */
 export const getUsernameFieldBase = (): InputField<"username"> & {

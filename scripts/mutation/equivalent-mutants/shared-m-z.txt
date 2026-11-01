@@ -122,16 +122,16 @@ src/shared/renewal-helpers.ts::formatDeadlineLabel~0giqb8e  < → <= audited:01t
 src/shared/renewal-helpers.ts::formatDeadlineLabel~0giqb8e  0 → 1 audited:01tjom7 # same reachability guarantee; diffMs is never in [0, 1)
 src/shared/renewal-helpers.ts::formatDeadlineLabel~0giqb8e  0 → -1 audited:01tjom7 # same reachability guarantee; diffMs is never in [-1, 0)
 
-# slug.ts's firstIssueMessage: `abortPipeEarly` only changes whether valibot
-# keeps validating later pipe steps after an earlier one fails — it never
-# changes which issue is reported *first*, since a pipe step only runs on a
-# value that already passed every prior step. Checked directly against the
-# only schema this helper is ever called with (SlugSchema = v.pipe(v.string(),
-# v.nonEmpty(...), v.slug(...))): every input that fails at any step —
-# non-string, empty, uppercase, spaces, symbols, leading/trailing separator,
-# consecutive separators — produces the identical issues[0].message under
-# both true and false.
-src/shared/slug.ts::firstIssueMessage.result.abortPipeEarly~0d98clm  true → false audited:1sukbqy # abortPipeEarly: SlugSchema's issues[0] message is identical either way for every input category the pipe can fail on
+# parse.ts's validatorFor: `abortPipeEarly` only changes whether valibot keeps
+# the later pipe steps running after an earlier step fails. It never changes
+# which issue comes first, because a pipe step only runs on a value that
+# already passed every prior step. So `issues[0].message` is the same either
+# way, for any pipe schema. The two schemas this helper serves (SlugSchema and
+# UsernameSchema) were checked directly: every input category that fails a
+# step — non-string, empty, too long, uppercase, spaces, symbols, a leading or
+# trailing separator, and two separators in a row — gives the same first
+# message under both true and false.
+src/shared/validation/parse.ts::validatorFor.result.abortPipeEarly~0d98clm  true → false audited:1hv7rrt # abortPipeEarly: issues[0] is the first failing step's message either way, for any pipe schema
 
 # url-safety.ts: isInternalHostname and isIpLiteral are private helpers only
 # ever called (via isSafeServerFetchUrl) with `url.hostname` from an already

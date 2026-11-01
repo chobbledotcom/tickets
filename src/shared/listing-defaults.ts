@@ -102,13 +102,15 @@ export const LISTING_DEFAULT_FIELDS: readonly ListingDefaultField[] = [
 export const listingDefaultInputName = (field: ListingDefaultField): string =>
   `default_${field.field}`;
 
-/** The i18n key for a field's label. */
-export const listingDefaultLabelKey = (field: ListingDefaultField): string =>
-  `listing_defaults.field.${field.field}.label`;
+/** The i18n key for one field's label or hint text. */
+const listingDefaultTextKey =
+  (suffix: "label" | "hint") =>
+  (field: ListingDefaultField): string =>
+    `listing_defaults.field.${field.field}.${suffix}`;
 
-/** The i18n key for a field's hint. */
-export const listingDefaultHintKey = (field: ListingDefaultField): string =>
-  `listing_defaults.field.${field.field}.hint`;
+export const listingDefaultLabelKey = listingDefaultTextKey("label");
+
+export const listingDefaultHintKey = listingDefaultTextKey("hint");
 
 /** A kebab-case CSS marker class per field (e.g. `uses_logistics` →
  * `listing-form--default-uses-logistics`). */

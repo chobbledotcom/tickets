@@ -9,7 +9,6 @@
  */
 
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
-import { countRows } from "#db/client.ts";
 import { defineIdTable } from "#db/define-id-table.ts";
 import { col } from "#db/table.ts";
 import { readById } from "#db/table-reader.ts";
@@ -40,9 +39,6 @@ export const getAllRawEmailTemplates = (): Promise<RawEmailTemplate[]> =>
     .many({}, { order: "id DESC" });
 
 export const getRawEmailTemplate = readById(emailTemplatesTable);
-
-export const countEmailTemplates = (): Promise<number> =>
-  countRows("email_templates");
 
 export const insertEmailTemplate = async (
   subject: OwnerKeyEncrypted,

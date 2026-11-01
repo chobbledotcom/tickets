@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { pairKey } from "#booking/ticket-moves.ts";
 import { getPairBookings } from "#db/attendees/ticket-lines.ts";
 import { executeUpdate } from "#db/client.ts";
+import { pairKey } from "#shared/keys.ts";
 import { bookRefundedSibling } from "#test-utils/attendees/refunded-sibling.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createMultiBookingAttendee } from "#test-utils/db-helpers/attendees.ts";

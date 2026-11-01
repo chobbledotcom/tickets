@@ -8,13 +8,7 @@
  * terminal status event and pruned by age as a backstop.
  */
 
-import {
-  countRows,
-  deleteByField,
-  execute,
-  insert,
-  queryOne,
-} from "#db/client.ts";
+import { deleteByField, execute, insert, queryOne } from "#db/client.ts";
 import { nowIso } from "#shared/now.ts";
 
 export interface SmsMessageRow {
@@ -52,10 +46,6 @@ export const getSmsMessageByProviderId = (
         `SELECT ${COLUMNS} FROM sms_messages WHERE provider_id = ? LIMIT 1`,
         [providerId],
       );
-
-/** Count messages still in flight (sent, awaiting a delivery/failure webhook). */
-export const countSmsMessages = (): Promise<number> =>
-  countRows("sms_messages");
 
 /** Delete a row once its message reaches a terminal state. */
 export const deleteSmsMessage = (id: number): Promise<void> =>

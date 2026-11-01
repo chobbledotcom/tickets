@@ -9,7 +9,7 @@ import { notFoundResponse } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { parseIsoDateParam } from "#shared/dates.ts";
-import { normalizeCode } from "#shared/price-modifier.ts";
+import { matchKey } from "#shared/keys.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
 import type {
   BookingPrefill,
@@ -107,7 +107,7 @@ export const parseQuantityPrefill = (
     }
   }
   const date = parseIsoDateParam(params.get("date"));
-  const promo = normalizeCode(params.get("promo") ?? "");
+  const promo = matchKey(params.get("promo") ?? "");
   if (map.size === 0 && date === null && promo === "") return;
   return {
     listings: map,

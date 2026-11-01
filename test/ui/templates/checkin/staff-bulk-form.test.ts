@@ -5,7 +5,7 @@
 
 import { assert, assertStringIncludes } from "@std/assert";
 import { it as bddTest, describe } from "@std/testing/bdd";
-import { pairKey } from "#booking/ticket-moves.ts";
+import { pairKey } from "#shared/keys.ts";
 import { checkinAdminPage } from "#templates/checkin.tsx";
 import { withCsrfRequest } from "#test-utils/csrf-request.ts";
 import { testTokenEntry } from "#test-utils/factories.ts";

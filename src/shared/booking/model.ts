@@ -26,10 +26,6 @@ export type TicketListing = {
 /** Each parent listing's children, keyed by the parent's listing id. */
 export type ChildrenByParent = ReadonlyMap<number, readonly TicketListing[]>;
 
-/** The key for one parent and one child. */
-export const childDateKey = (parentId: number, childId: number): string =>
-  `${parentId}:${childId}`;
-
 /** Start dates a daily child can offer for each parent day count. */
 export type ChildDatesByDayCount = ReadonlyMap<number, string[]>;
 

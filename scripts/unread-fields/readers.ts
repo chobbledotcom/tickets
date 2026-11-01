@@ -233,15 +233,6 @@ const climbingHolders = (symbol: ts.Symbol, classesOnly: boolean) => {
   return holders.filter(ts.isClassLike);
 };
 
-const heritageSymbols = (checker: ts.TypeChecker) =>
-  heritageSymbolsThrough(checker, false);
-
-const classHeritageSymbols = (checker: ts.TypeChecker) =>
-  heritageSymbolsThrough(checker, true);
-
-/** The symbols the class property a constructor parameter stands beside
- * answers for. The parameter is only one of them: a `this.` mention reaches
- * the property, so both symbols answer for the field. */
 const parameterPropertySymbols: SymbolsOfAName = (checker, name) => {
   const holder = name.parent;
   if (!ts.isParameterPropertyDeclaration(holder, holder.parent)) return [];
@@ -398,8 +389,8 @@ const ledgerOf = (
   root: string,
   fields: readonly OwnedField[],
 ): ReaderLedger => {
-  const classHeritageOf = classHeritageSymbols(checker);
-  const heritageOf = heritageSymbols(checker);
+  const classHeritageOf = heritageSymbolsThrough(checker, true);
+  const heritageOf = heritageSymbolsThrough(checker, false);
   const heritageOwners = new Map<ts.Symbol, OwnedField[]>();
   const ownersBySymbol = new Map<ts.Symbol, OwnedField[]>();
   const ownersByDeclaration = new Map<ts.Declaration, OwnedField[]>();

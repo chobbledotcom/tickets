@@ -15,8 +15,8 @@ import { withLazyLogger } from "#shared/lazy-logger.ts";
 import { shouldSuppressDebugLogs } from "#shared/log-settings.ts";
 import {
   currentRequestStore,
-  type RequestSlot,
   requestSlot,
+  storeSlot,
   withRequestSlot,
 } from "#shared/request-context.ts";
 import type { PromiseTask } from "#shared/request-scoped.ts";
@@ -75,16 +75,7 @@ const getState = (): QueryLogState =>
 /** The query-log slot on the request store, allocated on the request's first
  * database call. Outside a request the guards stay silent and nothing is
  * recorded. */
-const QUERY_LOG_SLOT: RequestSlot<QueryLogState> = {
-  fresh: freshState,
-  read: (store) => store.queryLog,
-  write: (store, state) => {
-    store.queryLog = state;
-  },
-};
-
-const queryLogState = (): QueryLogState | undefined =>
-  requestSlot(QUERY_LOG_SLOT);
+const QUERY_LOG_SLOT = storeSlot("queryLog", freshState);
 
 /** Mutate this request's state, allocated on first use. */
 const withQueryLogState = (use: (state: QueryLogState) => void): void =>
@@ -198,7 +189,7 @@ export const countDatabaseRoundTrip = (
   enforceBudget = true,
 ): void => {
   countSubrequest("database", operation, enforceBudget);
-  const state = queryLogState();
+  const state = requestSlot(QUERY_LOG_SLOT);
   if (!state) return;
   state.databaseRoundTrips += 1;
   if (state.databaseRoundTrips <= BUNNY_SUBREQUEST_LIMIT) return;
@@ -291,7 +282,7 @@ export const enforceTransactionRoundTripGuard = (
   count: number,
   sql: string,
 ): void => {
-  if (!queryLogState()) return;
+  if (!requestSlot(QUERY_LOG_SLOT)) return;
   if (count !== TRANSACTION_ROUNDTRIP_THRESHOLD + 1) return;
   reportGuardViolation(
     `Interactive transaction too chatty: ${count} statements ` +
@@ -309,7 +300,7 @@ export const trackSql = async <T>(
   sql: string | string[],
   fn: PromiseTask<T>,
 ): Promise<T> => {
-  const state = queryLogState();
+  const state = requestSlot(QUERY_LOG_SLOT);
   if (state && typeof sql === "string") enforceN1Guard(state, sql);
   const sqls = typeof sql === "string" ? [sql] : sql;
   const start = performance.now();

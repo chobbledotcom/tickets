@@ -7,7 +7,7 @@ import { hmacHash } from "#crypto/hashing.ts";
 import { getDb } from "#db/client.ts";
 import { modifiersTable } from "#db/modifiers.ts";
 import { ProviderCheckoutError } from "#payment/checkout-failure.ts";
-import { normalizeCode } from "#shared/price-modifier.ts";
+import { matchKey } from "#shared/keys.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { expectFlash, expectRedirect } from "#test-utils/assertions.ts";
 import {
@@ -232,7 +232,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
         sql: "UPDATE modifiers SET trigger = ? WHERE id = ?",
       });
       await getDb().execute({
-        args: ["code", await hmacHash(normalizeCode("SAVE10")), promo.id],
+        args: ["code", await hmacHash(matchKey("SAVE10")), promo.id],
         sql: "UPDATE modifiers SET trigger = ?, code_index = ? WHERE id = ?",
       });
 

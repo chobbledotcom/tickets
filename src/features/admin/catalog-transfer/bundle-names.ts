@@ -9,9 +9,9 @@ import {
   catalogNameLengthError,
   isNameTakenAnywhere,
   loadCatalogNameIndex,
-  normalizeEntityName as nameKey,
 } from "#db/name-registry.ts";
 import { t } from "#i18n";
+import { matchKey as nameKey } from "#shared/keys.ts";
 import type { BundleFailure } from "./bundle-plan.ts";
 import { nameTakenError } from "./import-listing.ts";
 import type { CatalogBundle } from "./schema.ts";

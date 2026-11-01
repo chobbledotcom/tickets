@@ -16,7 +16,7 @@ import { isMissingSettingsTableError } from "#db/migrations/errors.ts";
 import { getNewsPostSummaries } from "#db/news-posts.ts";
 import { settings } from "#db/settings.ts";
 import { sitePages } from "#db/site-pages.ts";
-import { loadServedGroups } from "#routes/public/group-liveness.ts";
+import { loadDecidedGroups } from "#routes/public/group-liveness.ts";
 import {
   loadPublicDomain,
   publicCacheResponse,
@@ -86,7 +86,7 @@ const publicPaths = async (): Promise<string[]> => {
     getAllListings(),
     getNewsPostSummaries(),
     sitePages.getAll(),
-    loadServedGroups(),
+    loadDecidedGroups("served"),
   ]);
   const nonStandaloneChildIds = await getNonStandaloneChildIds(
     listings.map((listing) => listing.id),

@@ -40,12 +40,6 @@ export type MalformedRejection = Extract<
   { reason: "malformed_charge" }
 >;
 
-/** The provider-tagged identity of the charge a malformed rejection names. */
-export const rejectedChargeReference = (
-  rejection: MalformedRejection,
-): TaggedPaymentReference =>
-  taggedPaymentReference(rejection.provider, rejection.paymentReference);
-
 /** The session fields that prove a charge identity: its own id, the provider
  * resource id, and the provider. Both charge-reference readers take this
  * slice, so the repeated `Pick` lives once. */

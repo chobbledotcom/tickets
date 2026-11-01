@@ -13,8 +13,9 @@ import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 
 import { getAttendeeActivityLog, logActivity } from "#db/activity-log.ts";
 import { setAttendeePhoneIndexIfEmpty } from "#db/attendee-phone-index.ts";
+import { countRows } from "#db/client.ts";
 import { hashPhone, recordContacts } from "#db/contact-preferences.ts";
-import { countSmsMessages, recordSmsMessage } from "#db/sms-messages.ts";
+import { recordSmsMessage } from "#db/sms-messages.ts";
 import { t } from "#i18n";
 import {
   type AuthSession,
@@ -60,7 +61,7 @@ const handleSmsGet = (request: Request): Promise<Response> =>
     const listingId = parsePositiveIntId(getSearchParam(request, "listing"));
     const attendeeId = parsePositiveIntId(getSearchParam(request, "attendee"));
     const flash = getFlash();
-    const queueCount = await countSmsMessages();
+    const queueCount = await countRows("sms_messages");
     const configured = getSmsGatewayConfig() !== null;
 
     if (listingId === null || attendeeId === null) {

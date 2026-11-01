@@ -40,7 +40,6 @@ import {
 import {
   catalogNameLengthError,
   isNameTakenAnywhere,
-  normalizeEntityName,
 } from "#db/name-registry.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
@@ -60,6 +59,7 @@ import {
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { xCount } from "#shared/count-text.ts";
 import { getFlash } from "#shared/flash-context.ts";
+import { matchKey } from "#shared/keys.ts";
 import { buildDuplicateListingInput } from "#shared/listings-actions.ts";
 import { sitePlanMemberError } from "#shared/package-membership.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -192,7 +192,7 @@ const firstDuplicateNameError = async (
     // One over-long clone name breaks Square checkouts like any other.
     const lengthError = catalogNameLengthError(name);
     if (lengthError) return lengthError;
-    const key = normalizeEntityName(name);
+    const key = matchKey(name);
     if (seen.has(key)) {
       return t("fields.validation.duplicate_clone_names", { name });
     }

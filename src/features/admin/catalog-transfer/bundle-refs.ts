@@ -8,11 +8,8 @@
  * a repeated parent.
  */
 
-import {
-  matchName,
-  type NameIndex,
-  normalizeEntityName as nameKey,
-} from "#db/name-registry.ts";
+import { matchName, type NameIndex } from "#db/name-registry.ts";
+import { matchKey as nameKey } from "#shared/keys.ts";
 import { seenBefore } from "#shared/seen-before.ts";
 import type { BundleRef } from "./bundle-plan.ts";
 

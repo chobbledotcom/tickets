@@ -2,7 +2,7 @@
 import * as v from "valibot";
 import { settings } from "#db/settings.ts";
 import { getDecimalPlaces, toMinorUnits } from "#shared/currency.ts";
-import { parseOrNull } from "./parse.ts";
+import { parseOrNull, parserFor } from "./parse.ts";
 
 /* jscpd:ignore-end */
 
@@ -49,8 +49,7 @@ const SignedMoneySchema = baseMoneySchema(true);
  * currency allows, non-positive, non-finite, or rounds to a non-safe amount.
  * Use for amounts that must be non-zero (service costs, ledger entries).
  */
-export const parsePositiveMinorUnits = (raw: string): number | null =>
-  parseOrNull(PositiveMoneySchema, raw);
+export const parsePositiveMinorUnits = parserFor(PositiveMoneySchema);
 
 /**
  * Non-negative money parser whose result for a blank input is chosen by the
@@ -84,8 +83,7 @@ export const parseOptionalMinorUnits = nonNegativeMinorUnitsOr(null);
  * or `null` when empty or invalid. Use for owner-correction targets where the
  * figure can legitimately be negative (a modifier's net revenue).
  */
-export const parseSignedMinorUnits = (raw: string): number | null =>
-  parseOrNull(SignedMoneySchema, raw);
+export const parseSignedMinorUnits = parserFor(SignedMoneySchema);
 
 /**
  * True when a numeric amount in MAJOR units carries more decimal places than

@@ -84,11 +84,6 @@ const validatePercent = (
   return value <= rule.max ? null : rule.tooLargeError;
 };
 
-/** Normalise a promo code for storage and matching: trimmed and lower-cased so
- * codes are case-insensitive. The blind index is the HMAC of this. */
-export const normalizeCode = (code: string): string =>
-  code.trim().toLowerCase();
-
 /**
  * The signed value the engine applies, from a modifier's stored magnitude and
  * direction. A multiplier ignores direction, because its factor already carries

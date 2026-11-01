@@ -6,18 +6,12 @@ import {
   isNameTakenAnywhere,
   loadCatalogNameIndex,
   matchName,
-  normalizeEntityName,
 } from "#db/name-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv("name-registry", { db: true }, () => {
-  test("normalizeEntityName trims and case-folds", () => {
-    expect(normalizeEntityName("  Weekend Pass  ")).toBe("weekend pass");
-    expect(normalizeEntityName("WEEKEND pass")).toBe("weekend pass");
-  });
-
   test("a name is free on an empty catalog", async () => {
     expect(await isNameTakenAnywhere("Anything")).toBe(false);
   });

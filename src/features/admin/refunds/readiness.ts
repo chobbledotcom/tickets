@@ -84,11 +84,6 @@ const uniqueReferences = (
     candidates.flatMap(({ references }) => references),
   );
 
-const providerIdentity = (
-  reference: TaggedRefundPaymentReference,
-): TaggedPaymentReference =>
-  taggedPaymentReference(reference.provider, reference.reference);
-
 type PreparedReference =
   | {
       charge: ChargeMoney;
@@ -114,7 +109,10 @@ const readinessObservations = (
 ): RefundReadinessObservation[] =>
   prepared.map((entry) => ({
     charge: entry.charge,
-    identity: providerIdentity(entry.original),
+    identity: taggedPaymentReference(
+      entry.original.provider,
+      entry.original.reference,
+    ),
     reference: entry.original,
   }));
 

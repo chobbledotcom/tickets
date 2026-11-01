@@ -194,15 +194,28 @@ const bookablePackageIds = async (
     .map((group) => group.id);
 };
 
+/** Which member rule keeps a group on a public surface. `bookable` needs a
+ *  member the visitor can book from, so a parent projected sold out blocks the
+ *  group. `served` keeps every group whose /ticket page serves. A package keeps
+ *  its bookable-bundle gate. A regular group keeps one visible active non-child
+ *  member even when every parent is projected sold out. */
+type GroupGate = "bookable" | "served";
+
+/** Whether the gate blocks the parents projected sold out. Bookability blocks
+ *  them, because a booking needs a member to start from. A page render keeps
+ *  them, sold out. */
+const GATE_BLOCKS_SOLD_OUT_PARENTS: Record<GroupGate, boolean> = {
+  bookable: true,
+  served: false,
+};
+
 /** Decide several groups from one shared member load and one classification of
- * all regular members. Package-specific trees share their database facts.
- * `blockSoldOutParents` picks the regular member rule. Bookability blocks the
- * parents projected sold out, because a booking needs a member to start from.
- * A page render keeps them, sold out. */
+ * all regular members. Package-specific trees share their database facts. The
+ * gate picks the regular member rule. */
 const decideGroupIds = async (
   groupList: readonly Group[],
   membersByGroup: MembersByGroup,
-  blockSoldOutParents: boolean,
+  gate: GroupGate,
 ): Promise<ReadonlySet<number>> => {
   const { packages, regular } = groupKinds(groupList);
   const regularMembers = uniqueMembersFor(regular, membersByGroup);
@@ -213,7 +226,7 @@ const decideGroupIds = async (
     bookablePackageIds(packages, membersByGroup),
   ]);
   if (classification === null) return new Set(packageIds);
-  const blockedIds = blockSoldOutParents
+  const blockedIds = GATE_BLOCKS_SOLD_OUT_PARENTS[gate]
     ? classification.soldOutParentIds
     : NO_BLOCKED_MEMBERS;
   const regularIds = regular
@@ -231,10 +244,14 @@ const decideGroupIds = async (
 export const groupBookable = async (
   group: Group,
   members: readonly ListingWithCount[],
-): Promise<boolean> =>
-  (await decideGroupIds([group], new Map([[group.id, members]]), true)).has(
-    group.id,
+): Promise<boolean> => {
+  const ids = await decideGroupIds(
+    [group],
+    new Map([[group.id, members]]),
+    "bookable",
   );
+  return ids.has(group.id);
+};
 
 /** The ids of non-hidden groups whose Book link leads to a bookable page, from
  *  one buyer-visible member read. */
@@ -242,23 +259,19 @@ export const loadBookableGroupIds = async (
   groupList: readonly Group[],
 ): Promise<ReadonlySet<number>> => {
   const membersByGroup = await publicMembersByGroup(groupList);
-  return decideGroupIds(groupList, membersByGroup, true);
+  return decideGroupIds(groupList, membersByGroup, "bookable");
 };
 
 /** Load non-hidden groups one member rule keeps: one buyer-visible member
  *  read backs the decision and the returned members. */
-const loadDecidedGroups = async (
-  blockSoldOutParents: boolean,
+export const loadDecidedGroups = async (
+  gate: GroupGate,
 ): Promise<GroupWithMembers[]> => {
   const visibleGroups = (await groups.cache.getAll()).filter(
     (group) => !group.hidden,
   );
   const membersByGroup = await publicMembersByGroup(visibleGroups);
-  const ids = await decideGroupIds(
-    visibleGroups,
-    membersByGroup,
-    blockSoldOutParents,
-  );
+  const ids = await decideGroupIds(visibleGroups, membersByGroup, gate);
   return visibleGroups
     .filter((group) => ids.has(group.id))
     .map((group) => ({
@@ -267,16 +280,6 @@ const loadDecidedGroups = async (
     }));
 };
 
-/** Load non-hidden groups whose Book link leads to a bookable page. */
-export const loadPublicGroups = (): Promise<GroupWithMembers[]> =>
-  loadDecidedGroups(true);
-
-/** Load non-hidden groups whose /ticket page serves. A package keeps its
- *  bookable-bundle gate. A regular group keeps one visible active non-child
- *  member even when every parent is projected sold out. */
-export const loadServedGroups = (): Promise<GroupWithMembers[]> =>
-  loadDecidedGroups(false);
-
 /** Packages a public surface can advertise as first-class products. */
 export const loadBookablePackages = async (): Promise<GroupWithMembers[]> =>
-  (await loadPublicGroups()).filter(({ group }) => group.is_package);
+  (await loadDecidedGroups("bookable")).filter(({ group }) => group.is_package);

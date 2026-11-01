@@ -8,7 +8,6 @@ import {
   ModifierTriggerSchema,
   modifierCoversListing,
   modifierDelta,
-  normalizeCode,
   validateCalcValue,
 } from "#shared/price-modifier.ts";
 
@@ -43,17 +42,6 @@ describe("modifierCoversListing", () => {
     expect(modifierCoversListing([], 2)).toBe(false);
   });
 });
-
-describe("normalizeCode", () => {
-  test("trims surrounding whitespace", () => {
-    expect(normalizeCode("  SAVE20  ")).toBe("save20");
-  });
-
-  test("lowercases the code", () => {
-    expect(normalizeCode("SaVe20")).toBe("save20");
-  });
-});
-
 describe("modifierDelta", () => {
   describe("fixed", () => {
     test("returns the flat value regardless of base", () => {

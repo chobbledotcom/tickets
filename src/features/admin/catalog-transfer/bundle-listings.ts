@@ -5,9 +5,9 @@
 
 /* jscpd:ignore-start -- imports */
 import { getListingsByGroupIds } from "#db/groups.ts";
-import { normalizeEntityName as nameKey } from "#db/name-registry.ts";
 import { requiredMapValue, unique } from "#fp";
 import { t } from "#i18n";
+import { matchKey as nameKey } from "#shared/keys.ts";
 import { dayPriceFieldsFromInput } from "#shared/listing-edge.ts";
 import {
   childAddOnError,

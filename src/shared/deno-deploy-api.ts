@@ -47,9 +47,6 @@ const denoClient = defineApiClient({
   headers: denoApiHeaders,
 });
 
-const parseDenoRevision = (text: string): DenoRevision =>
-  parseJson(DenoRevisionSchema, text);
-
 /** GET a Deno Deploy path and parse its body through `parse` (which throws
  * on an unreadable answer, the way `parseJson` does). */
 const getDenoApi = async <T>(
@@ -192,7 +189,7 @@ const fetchRevision = async (
   getDenoApi(
     `/revisions/${encodeURIComponent(revisionId)}`,
     "Get revision",
-    parseDenoRevision,
+    (text) => parseJson(DenoRevisionSchema, text),
   );
 
 const waitForRevision = async (
@@ -255,7 +252,7 @@ const deployCodeImpl: HostingProviderApi["publishSite"] = async (
     "Deploy code",
   );
   if (!res.ok) return res;
-  return waitForRevision(parseDenoRevision(res.value.text));
+  return waitForRevision(parseJson(DenoRevisionSchema, res.value.text));
 };
 
 /** Stubbable API for testing */

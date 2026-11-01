@@ -63,13 +63,17 @@ export const describeTarget = (
 ): TargetDescription | Promise<TargetDescription> =>
   specOf(target).describe(target, recipients);
 
+/** One boolean spec flag on a target, read for page wording and checks. */
+const targetFlag =
+  (flag: "allowEmpty" | "singleRecipient") =>
+  (target: BulkEmailTarget): boolean =>
+    specOf(target)[flag];
+
 /** Whether an empty recipient set is acceptable for a target (vs. a 404). */
-export const targetAllowsEmpty = (target: BulkEmailTarget): boolean =>
-  specOf(target).allowEmpty;
+export const targetAllowsEmpty = targetFlag("allowEmpty");
 
 /** Whether a target always resolves to a single person (tunes page wording). */
-export const targetIsSingleRecipient = (target: BulkEmailTarget): boolean =>
-  specOf(target).singleRecipient;
+export const targetIsSingleRecipient = targetFlag("singleRecipient");
 
 /** Listing id to attribute a send to in the activity log, or null. */
 export const targetLogListingId = (target: BulkEmailTarget): number | null =>

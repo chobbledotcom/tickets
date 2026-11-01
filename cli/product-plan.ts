@@ -1,5 +1,5 @@
 import { CliError } from "#cli/errors.ts";
-import { normalizeEntityName } from "#db/name-registry.ts";
+import { matchKey } from "#shared/keys.ts";
 import {
   type CatalogProduct,
   frontmatterBlock,
@@ -17,10 +17,7 @@ export const matchedIds = (
   existing: readonly ApiNamedLike[],
 ): number[] =>
   existing
-    .filter(
-      (listing) =>
-        normalizeEntityName(listing.name) === normalizeEntityName(title),
-    )
+    .filter((listing) => matchKey(listing.name) === matchKey(title))
     .map((listing) => listing.id);
 
 /** The server keeps one namespace for listings and groups, so a create that
@@ -40,14 +37,14 @@ export const ensureNamespaceFree = (
     rows: readonly ApiNamedLike[],
   ): Map<string, ApiNamedLike> => {
     const index = new Map<string, ApiNamedLike>();
-    for (const row of rows) index.set(normalizeEntityName(row.name), row);
+    for (const row of rows) index.set(matchKey(row.name), row);
     return index;
   };
   const groupsByName = byFoldedName(groups);
   const listingsByName = byFoldedName(listings);
   const categoryByName = new Map<string, CategoryEntry>();
   for (const entry of categoryEntries) {
-    const key = normalizeEntityName(entry.name);
+    const key = matchKey(entry.name);
     const seen = categoryByName.get(key);
     if (seen !== undefined) {
       throw new Error(
@@ -57,13 +54,13 @@ export const ensureNamespaceFree = (
     categoryByName.set(key, entry);
   }
   for (const product of products) {
-    const group = groupsByName.get(normalizeEntityName(product.title));
+    const group = groupsByName.get(matchKey(product.title));
     if (group !== undefined) {
       throw new Error(
         `a group named '${group.name}' already exists (id ${group.id}); a listing cannot take a group's name, so rename one and rerun`,
       );
     }
-    const category = categoryByName.get(normalizeEntityName(product.title));
+    const category = categoryByName.get(matchKey(product.title));
     if (category !== undefined) {
       throw new Error(
         `the product '${product.title}' and the category '${category.name}' share a name; rename one and rerun`,
@@ -71,7 +68,7 @@ export const ensureNamespaceFree = (
     }
   }
   for (const entry of categoryEntries) {
-    const listing = listingsByName.get(normalizeEntityName(entry.name));
+    const listing = listingsByName.get(matchKey(entry.name));
     if (listing !== undefined) {
       throw new Error(
         `a listing named '${listing.name}' already exists (id ${listing.id}); a group cannot take a listing's name, so rename one and rerun`,
@@ -297,9 +294,7 @@ export const resolveImportPlan = (
         `${stored.filename}: tickets_id ${stored.id} names no listing on the site; restore the listing or delete the stamp from the file`,
       );
     }
-    if (
-      normalizeEntityName(listing.name) !== normalizeEntityName(stored.title)
-    ) {
+    if (matchKey(listing.name) !== matchKey(stored.title)) {
       throw new Error(
         `${stored.filename}: tickets_id ${stored.id} names listing '${listing.name}', not '${stored.title}'; delete the stamp from the file or rename one and rerun`,
       );

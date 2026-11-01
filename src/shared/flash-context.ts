@@ -6,8 +6,8 @@
 
 import {
   currentRequestStore,
-  type RequestSlot,
   requestSlot,
+  storeSlot,
 } from "#shared/request-context.ts";
 
 /** Flash message shape — fields are only present when a message exists */
@@ -32,13 +32,7 @@ export type Flash = {
  */
 export type FlashStore = Flash & { formId?: string; consumed?: boolean };
 
-const FLASH_SLOT: RequestSlot<FlashStore> = {
-  fresh: () => ({}),
-  read: (store) => store.flash,
-  write: (store, state) => {
-    store.flash = state;
-  },
-};
+const FLASH_SLOT = storeSlot("flash", () => ({}));
 
 const flashStore = (): FlashStore | undefined => requestSlot(FLASH_SLOT);
 

@@ -164,6 +164,15 @@ const family = (
   run: (state: RefundAuthorityState) => RefundAuthorityState,
 ): readonly RefundRepresentative[] =>
   armedStates.map(({ state, tag }) => rep(tag, run(state)));
+const providerConflictRun =
+  (evidence: RefundConflictDecision) => (state: RefundAuthorityState) =>
+    markRefundProviderConflict(state, NOW, evidence);
+const providerConflictReps = (evidence: RefundConflictDecision) =>
+  family(providerConflictRun(evidence));
+const ownerChoiceNeededRun =
+  (reason: Parameters<typeof markRefundOwnerChoiceNeeded>[2]) =>
+  (state: RefundAuthorityState) =>
+    markRefundOwnerChoiceNeeded(state, NOW, reason);
 
 export type RefundNode = MachineNode<RefundAuthorityState, RefundNodeId>;
 
@@ -191,9 +200,7 @@ export const REFUND_NODES: readonly RefundNode[] = [
     // evidence can settle an inconclusive conflict, so it can wait.
     awaits: "provider",
     id: "check",
-    reps: family((state) =>
-      markRefundProviderConflict(state, NOW, WAIT_EVIDENCE),
-    ),
+    reps: providerConflictReps(WAIT_EVIDENCE),
   },
   {
     id: "choice_open",
@@ -222,15 +229,11 @@ export const REFUND_NODES: readonly RefundNode[] = [
   },
   {
     id: "choice_not_sent",
-    reps: family((state) =>
-      markRefundProviderConflict(state, NOW, NOT_SENT_EVIDENCE),
-    ),
+    reps: providerConflictReps(NOT_SENT_EVIDENCE),
   },
   {
     id: "choice_returned",
-    reps: family((state) =>
-      markRefundProviderConflict(state, NOW, RETURNED_EVIDENCE),
-    ),
+    reps: providerConflictReps(RETURNED_EVIDENCE),
   },
   {
     id: "returned",
@@ -358,52 +361,49 @@ export const REFUND_EVENTS: readonly RefundMachineEvent[] = [
     id: "unreadable",
     labelKey: "schema.refund.edge.unreadable",
     movesMoney: false,
-    run: (state) =>
-      markRefundOwnerChoiceNeeded(state, NOW, "provider_unreadable"),
+    run: ownerChoiceNeededRun("provider_unreadable"),
   },
   {
     actor: "provider",
     id: "rejected",
     labelKey: "schema.refund.edge.rejected",
     movesMoney: false,
-    run: (state) =>
-      markRefundOwnerChoiceNeeded(state, NOW, "provider_rejected"),
+    run: ownerChoiceNeededRun("provider_rejected"),
   },
   {
     actor: "system",
     id: "expired",
     labelKey: "schema.refund.edge.expired",
     movesMoney: false,
-    run: (state) =>
-      markRefundOwnerChoiceNeeded(state, NOW, "replay_window_expired"),
+    run: ownerChoiceNeededRun("replay_window_expired"),
   },
   {
     actor: "system",
     id: "possibly_sent",
     labelKey: "schema.refund.edge.possibly_sent",
     movesMoney: false,
-    run: (state) => markRefundOwnerChoiceNeeded(state, NOW, "possibly_sent"),
+    run: ownerChoiceNeededRun("possibly_sent"),
   },
   {
     actor: "provider",
     id: "conflict_returned",
     labelKey: "schema.refund.edge.conflict_returned",
     movesMoney: false,
-    run: (state) => markRefundProviderConflict(state, NOW, RETURNED_EVIDENCE),
+    run: providerConflictRun(RETURNED_EVIDENCE),
   },
   {
     actor: "provider",
     id: "conflict_not_sent",
     labelKey: "schema.refund.edge.conflict_not_sent",
     movesMoney: false,
-    run: (state) => markRefundProviderConflict(state, NOW, NOT_SENT_EVIDENCE),
+    run: providerConflictRun(NOT_SENT_EVIDENCE),
   },
   {
     actor: "provider",
     id: "conflict_wait",
     labelKey: "schema.refund.edge.conflict_wait",
     movesMoney: false,
-    run: (state) => markRefundProviderConflict(state, NOW, WAIT_EVIDENCE),
+    run: providerConflictRun(WAIT_EVIDENCE),
   },
   {
     actor: "owner",

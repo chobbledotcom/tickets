@@ -50,3 +50,10 @@ export const reportCrash = async (
     warn(`failed to report to the bug catcher: ${errorMessage(err)}`);
   }
 };
+
+/** The on-error callback one harness passes to `runHarness`: report the crash
+ * under the harness's name, against the live target. */
+export const crashReporter =
+  (harness: string, target: () => string) =>
+  (error: unknown): Promise<void> =>
+    reportCrash(harness, target(), error);

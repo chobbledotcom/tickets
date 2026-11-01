@@ -1,5 +1,6 @@
 import { isOneOf } from "#fp";
 import { readOnlyGetRoutePatterns } from "#shared/admin-pages.ts";
+import { constant } from "#shared/fp-bind.ts";
 import { routePathPatternToRegex } from "#shared/route-pattern.ts";
 
 /** The admin sign-in and sign-out. They are the only admin writes that stay
@@ -71,11 +72,6 @@ type ReadOnlyRule = {
   matches: (request: ReadOnlyRequest) => boolean;
 };
 
-const fixedDecision =
-  (decision: ReadOnlyDecision) =>
-  (_request: ReadOnlyRequest): ReadOnlyDecision =>
-    decision;
-
 /** Whether a path is one of a list. */
 const pathIn =
   (patterns: readonly RegExp[]): ((path: string) => boolean) =>
@@ -108,11 +104,11 @@ const isRetryingWebhook = pathIn(RETRYING_WEBHOOK_PATHS);
 /** Ordered from the most specific request to the default public-write rule. */
 const READ_ONLY_RULES: readonly ReadOnlyRule[] = [
   {
-    decide: fixedDecision("api"),
+    decide: constant("api"),
     matches: ({ mutating, path }) => mutating && path.startsWith("/api/"),
   },
   {
-    decide: fixedDecision("page"),
+    decide: constant("page"),
     matches: sentTo("GET", READ_ONLY_GET_PATTERNS),
   },
   {
@@ -125,13 +121,13 @@ const READ_ONLY_RULES: readonly ReadOnlyRule[] = [
       (!request.updating || isSignInOrOut(request)),
   },
   {
-    decide: fixedDecision(null),
+    decide: constant(null),
     matches: ({ mutating }) => !mutating,
   },
   {
     // A webhook delivery that lands mid-update gets the API answer its
     // sender redelivers, not the human redirect.
-    decide: fixedDecision("api"),
+    decide: constant("api"),
     matches: ({ path, updating }) => updating && isRetryingWebhook(path),
   },
   {

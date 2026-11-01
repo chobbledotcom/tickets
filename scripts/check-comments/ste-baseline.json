@@ -751,7 +751,7 @@
   },
   "src/shared/db/name-registry.ts": {
     "banned-modal": 2,
-    "long-sentence": 3,
+    "long-sentence": 2,
     "contraction": 1,
     "semicolon": 1
   },

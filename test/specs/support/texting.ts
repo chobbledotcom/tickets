@@ -6,9 +6,9 @@
 
 // jscpd:ignore-start
 
+import { countRows } from "#db/client.ts";
 import { getContactRecord, hashPhone } from "#db/contact-preferences.ts";
 import { settings } from "#db/settings.ts";
-import { countSmsMessages } from "#db/sms-messages.ts";
 import { somebodyBooksThroughTheSite } from "#test/specs/support/booking-setup.ts";
 import {
   adminPageHtmlAt,
@@ -153,7 +153,7 @@ export const historyShownTo = async (world: TicketsWorld, who: string) => {
 
 /** How many messages are waiting to go, read from the queue itself. The log
  * saying nothing went is not the same as nothing being queued. */
-export const messagesQueued = (): Promise<number> => countSmsMessages();
+export const messagesQueued = (): Promise<number> => countRows("sms_messages");
 
 /** What the site has kept against the number one named person booked with:
  * how many messages, and the last thing said. Read through the site's own

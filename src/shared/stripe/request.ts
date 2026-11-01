@@ -9,8 +9,9 @@ import {
   transportError,
 } from "#payment/transport-error.ts";
 import type { FetchResult } from "#shared/fetch.ts";
+import { parseJson } from "#shared/validation/parse.ts";
 import { encodeStripeForm, type StripeFormValue } from "./form.ts";
-import { parseStripeErrorBody } from "./schemas.ts";
+import { StripeErrorBodySchema, type StripeErrorFields } from "./schemas.ts";
 
 export const STRIPE_API_VERSION = "2026-04-22.dahlia";
 export const STRIPE_MAX_NETWORK_RETRIES = 2;
@@ -132,9 +133,9 @@ const unusableAnswer = (
  *  error body we cannot read is unusable instead, because there is no refusal
  *  to quote. */
 const refuseAnswer = (answer: FetchResult): never => {
-  let parsed: ReturnType<typeof parseStripeErrorBody>;
+  let parsed: StripeErrorFields;
   try {
-    parsed = parseStripeErrorBody(answer.text);
+    parsed = parseJson(StripeErrorBodySchema, answer.text);
   } catch (error) {
     throw unusableAnswer(
       answer.status,

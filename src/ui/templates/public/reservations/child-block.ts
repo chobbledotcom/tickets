@@ -7,7 +7,6 @@
 import {
   type ChildDatesByDayCount,
   childCanBeBooked,
-  childDateKey,
   dayCountsChildSupports,
   encodeChildDatesByDayCount,
   type TicketListing,
@@ -17,6 +16,7 @@ import { childPriceFieldName, childQuantityFieldName } from "#booking/tree.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
+import { pairKey } from "#shared/keys.ts";
 import { renderListingAttributes } from "#templates/public/listing-attributes.ts";
 import type { ListingWithCount } from "#types";
 import {
@@ -39,7 +39,7 @@ const childDateAttrs = (
   childDatesById: ReadonlyMap<string, ChildDatesByDayCount>,
 ): string => {
   const attrs: string[] = [];
-  const dates = childDatesById.get(childDateKey(parentId, child.listing.id));
+  const dates = childDatesById.get(pairKey(parentId, child.listing.id));
   if (dates !== undefined) {
     attrs.push(
       ` data-child-dates="${escapeHtml(encodeChildDatesByDayCount(dates))}"`,

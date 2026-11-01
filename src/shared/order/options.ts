@@ -1,3 +1,4 @@
+import { listingNodeKey } from "#booking/tree.ts";
 import type { GroupIdsByListingId } from "#shared/group-capacity.ts";
 
 /**
@@ -73,9 +74,6 @@ export type OrderOptionState =
    * named selected option would free the contested capacity. */
   | { kind: "blocked"; byKey: string; byName: string };
 
-export const listingOptionKey = (listingId: number): string =>
-  `listing:${listingId}`;
-
 export const packageOptionKey = (groupId: number): string =>
   `package:${groupId}`;
 
@@ -107,7 +105,7 @@ export const listingOption = (
   optionWithDemand(
     {
       bookableAlone,
-      key: listingOptionKey(listing.id),
+      key: listingNodeKey(listing.id),
       name: listing.name,
       needsDate: listing.listing_type === "daily",
     },

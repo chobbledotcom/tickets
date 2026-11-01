@@ -18,12 +18,14 @@ import {
   type PlaceholderRefund,
   placeholderRefund,
 } from "#payment/placeholder-refund.ts";
-import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
+import {
+  type TaggedPaymentReference,
+  taggedPaymentReference,
+} from "#payment/provider-reference.ts";
 import { refundCallbackReplayIndex } from "#payment/refund-request-identity.ts";
 /* jscpd:ignore-end */
 import {
   paidPaymentReferenceOf,
-  rejectedChargeReference,
   type SessionRejection,
 } from "#payment/validated-session.ts";
 import type {
@@ -103,7 +105,10 @@ export const refundRejectedCharge = async (
     callbackSessionId: rejection.sessionId,
     evidence: { kind: "read_provider" },
     mode: "send",
-    reference: rejectedChargeReference(rejection),
+    reference: taggedPaymentReference(
+      rejection.provider,
+      rejection.paymentReference,
+    ),
   });
   const refunded = providerRefundReturned(result);
   return {

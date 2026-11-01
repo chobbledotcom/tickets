@@ -1,7 +1,6 @@
 import type Stripe from "stripe";
 import * as v from "valibot";
 import { ResourceIdSchema } from "#payment/resource-id.ts";
-import { parseJson } from "#shared/validation/parse.ts";
 import {
   NonEmptyTextSchema,
   OptionalNullableStringSchema,
@@ -189,7 +188,7 @@ export type StripeWebhookEndpointList = v.InferOutput<
   typeof StripeWebhookEndpointListSchema
 >;
 
-type StripeErrorFields = {
+export type StripeErrorFields = {
   error: {
     code?: Stripe.StripeRawError["code"];
     message: NonNullable<Stripe.StripeRawError["message"]>;
@@ -197,22 +196,21 @@ type StripeErrorFields = {
   };
 };
 
-const StripeErrorBodySchema: v.GenericSchema<unknown, StripeErrorFields> =
-  v.object({
-    error: v.object({
-      code: v.optional(
-        v.custom<NonNullable<Stripe.StripeRawError["code"]>>(
-          (value) => typeof value === "string",
-        ),
+export const StripeErrorBodySchema: v.GenericSchema<
+  unknown,
+  StripeErrorFields
+> = v.object({
+  error: v.object({
+    code: v.optional(
+      v.custom<NonNullable<Stripe.StripeRawError["code"]>>(
+        (value) => typeof value === "string",
       ),
-      message: NonEmptyTextSchema,
-      type: v.optional(
-        v.custom<NonNullable<Stripe.StripeRawError["type"]>>(
-          (value) => typeof value === "string",
-        ),
+    ),
+    message: NonEmptyTextSchema,
+    type: v.optional(
+      v.custom<NonNullable<Stripe.StripeRawError["type"]>>(
+        (value) => typeof value === "string",
       ),
-    }),
-  });
-
-export const parseStripeErrorBody = (body: string): StripeErrorFields =>
-  parseJson(StripeErrorBodySchema, body);
+    ),
+  }),
+});

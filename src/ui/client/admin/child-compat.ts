@@ -161,9 +161,10 @@ const updateParent = (parentId: string): void => {
   }
 };
 
-/** Register the date/day-count change listeners that drive the compat toggle. */
-const onDateOrSpanChange = (update: () => void): void =>
-  onChangeOf('[name="date"], [name="day_count"]', update);
-
+/** Boot the compat toggle: date/day-count changes drive every parent's
+ * compat state. */
 export const initChildCompat = (): void =>
-  initParentSelectors(onDateOrSpanChange, updateParent);
+  initParentSelectors(
+    (update) => onChangeOf('[name="date"], [name="day_count"]', update),
+    updateParent,
+  );
