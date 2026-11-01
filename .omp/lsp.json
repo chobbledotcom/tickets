@@ -1,0 +1,10 @@
+{
+  "servers": {
+    "typescript-language-server": {
+      "disabled": true
+    },
+    "typescript-native": {
+      "disabled": true
+    }
+  }
+}
