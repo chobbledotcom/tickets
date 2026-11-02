@@ -19,7 +19,7 @@ import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
 import { MAX_EMAIL_TEMPLATE_LENGTH } from "#db/settings/constants.ts";
 import { ALL_SETTINGS_KEYS, CONFIG_KEYS, settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { resetEngine } from "#shared/email-renderer.ts";
+import { resetLiquidEngines } from "#shared/liquid-engine.ts";
 import {
   expectFlash,
   expectRedirectWithFlash,
@@ -56,8 +56,8 @@ const SAVING_EACH_EMAIL = [
 ] as const;
 
 describeWithEnv("admin email templates", { db: true }, () => {
-  beforeEach(resetEngine);
-  afterEach(resetEngine);
+  beforeEach(resetLiquidEngines);
+  afterEach(resetLiquidEngines);
 
   const postTemplateFormTo = async (
     path: string,

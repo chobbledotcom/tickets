@@ -6,10 +6,9 @@
  * or network. LiquidJS parses templates to an AST (no eval/new Function).
  */
 
-import type { Liquid } from "liquidjs";
 import { type PackageDisplay, packageDisplaysForRows } from "#db/groups.ts";
 import { settings } from "#db/settings.ts";
-import { lazyRef, map, mapNotNullish, requiredMapValue, sumOf } from "#fp";
+import { map, mapNotNullish, requiredMapValue, sumOf } from "#fp";
 import { bookedRangeLabel } from "#shared/date-labels.ts";
 import { widestDatedEntry } from "#shared/dates.ts";
 import {
@@ -19,8 +18,7 @@ import {
   type OrderAnswerLines,
 } from "#shared/email/answers.ts";
 import type { EmailEntry } from "#shared/email.ts";
-import { errorMessage } from "#shared/error-message.ts";
-import { createBaseLiquidEngine } from "#shared/liquid-engine.ts";
+import { htmlLiquidEngine, plainLiquidEngine } from "#shared/liquid-engine.ts";
 import { nameList } from "#shared/name-list.ts";
 import {
   groupPackageRows,
@@ -34,23 +32,6 @@ import {
   type EmailTemplateType,
   isPaidListing,
 } from "#types";
-
-/** Lazy-initialized singleton engine instances. The HTML body engine escapes
- * every interpolation, because booking fields hold whatever the attendee
- * typed. Subject and text stay plain: they are not HTML. */
-const [getPlainEngine, setPlainEngine] = lazyRef<Liquid>(() =>
-  createBaseLiquidEngine(),
-);
-const [getHtmlEngine, setHtmlEngine] = lazyRef<Liquid>(() =>
-  createBaseLiquidEngine({ outputEscape: "escape" }),
-);
-
-/** For testing: reset the engines (so filters can be re-registered after
- * currency changes) */
-export const resetEngine = (): void => {
-  setPlainEngine(null);
-  setHtmlEngine(null);
-};
 
 /** Template entry shape exposed to Liquid templates */
 type TemplateEntry = {
@@ -315,7 +296,7 @@ const renderTemplate = async (
   data: TemplateData,
   escapeHtml: boolean,
 ): Promise<string> => {
-  const engine = escapeHtml ? getHtmlEngine() : getPlainEngine();
+  const engine = escapeHtml ? htmlLiquidEngine() : plainLiquidEngine();
   const result = await engine.parseAndRender(template, data);
   return result.trim();
 };
@@ -374,18 +355,5 @@ const safeRender = async (
       error,
       value: await renderTemplate(fallbackTemplate, data, escapeHtml),
     };
-  }
-};
-
-/**
- * Validate a Liquid template by parsing it (no rendering).
- * Returns null if valid, or an error message string if invalid.
- */
-export const validateTemplate = (template: string): string | null => {
-  try {
-    getPlainEngine().parse(template);
-    return null;
-  } catch (error) {
-    return errorMessage(error);
   }
 };

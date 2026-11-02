@@ -25,6 +25,7 @@ const ROUTE_FORM_IDS = [
   "settings-email",
   "settings-google-wallet",
   "settings-host-subdomain",
+  "settings-logistics-run-sheet",
   "settings-sms-gateway",
   "settings-square",
   "settings-square-webhook",

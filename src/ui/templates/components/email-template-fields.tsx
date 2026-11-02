@@ -13,44 +13,10 @@ import {
   emailTemplateSettingsFields,
   settingsFieldAttributes,
 } from "#shared/settings/fields.ts";
+import { LiquidTemplateField } from "#templates/components/liquid-template-field.tsx";
 import { TextField } from "#templates/components/text-field.tsx";
 import type { EmailContent } from "#templates/email/shared.ts";
 import type { EmailTemplateType } from "#types";
-
-/** A textarea body field (html or text), with its "edit default" link. */
-const BodyField = ({
-  id,
-  bodyKind,
-  defaultValue,
-  value,
-  rows,
-}: {
-  id: string;
-  bodyKind: "html" | "text";
-  defaultValue: string;
-  value: string;
-  rows: number;
-}): JSX.Element => (
-  <>
-    <label>
-      {bodyKind === "html"
-        ? t("settings.advanced.html_body")
-        : t("settings.advanced.plain_text_body")}
-      <textarea
-        data-default-tpl={defaultValue}
-        id={id}
-        {...settingsFieldAttributes(emailTemplateSettingsFields(), bodyKind)}
-        placeholder={t("settings.advanced.leave_blank_default")}
-        rows={`${rows}`}
-      >
-        {value}
-      </textarea>
-    </label>
-    <a data-fill-default={id} href="#">
-      <small>{t("settings.advanced.edit_default_template")}</small>
-    </a>
-  </>
-);
 
 /**
  * Render the subject + html body + plain-text body fields for one template
@@ -67,17 +33,25 @@ export const emailTemplateFields =
         type="text"
         value={templates.subject}
       />
-      <BodyField
-        bodyKind="html"
+      <LiquidTemplateField
+        attributes={settingsFieldAttributes(
+          emailTemplateSettingsFields(),
+          "html",
+        )}
         defaultValue={defaults.html}
         id={`${kind}_html`}
+        label={t("settings.advanced.html_body")}
         rows={8}
         value={templates.html}
       />
-      <BodyField
-        bodyKind="text"
+      <LiquidTemplateField
+        attributes={settingsFieldAttributes(
+          emailTemplateSettingsFields(),
+          "text",
+        )}
         defaultValue={defaults.text}
         id={`${kind}_text`}
+        label={t("settings.advanced.plain_text_body")}
         rows={6}
         value={templates.text}
       />

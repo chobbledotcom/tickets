@@ -25,6 +25,22 @@ const secret = (
   type,
 });
 
+/** The run sheet's two templates: the day heading and the day body. */
+export const runSheetTemplateSettingsFields = (): readonly Field[] => [
+  {
+    label: t("settings.run_sheet.heading"),
+    maxlength: MAX_TEXTAREA_LENGTH,
+    name: "heading",
+    type: "textarea",
+  },
+  {
+    label: t("settings.run_sheet.body"),
+    maxlength: MAX_TEXTAREA_LENGTH,
+    name: "body",
+    type: "textarea",
+  },
+];
+
 /** Custom settings layouts use the same fields as their POST routes. */
 export const CUSTOM_SETTINGS_FIELDS: Record<string, () => readonly Field[]> = {
   "settings-apple-wallet": () => [
@@ -69,6 +85,7 @@ export const CUSTOM_SETTINGS_FIELDS: Record<string, () => readonly Field[]> = {
   "settings-host-subdomain": () => [
     text("subdomain", "settings.subdomain.subdomain_label"),
   ],
+  "settings-logistics-run-sheet": runSheetTemplateSettingsFields,
   "settings-sms-gateway": () => [
     text("sms_gateway_username", "sms.settings.username"),
     text("sms_gateway_base_url", "sms.settings.base_url", "url"),

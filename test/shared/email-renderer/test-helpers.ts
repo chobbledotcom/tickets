@@ -4,9 +4,9 @@ import { loadOrderAnswerLines } from "#shared/email/answers.ts";
 import {
   buildTemplateData,
   renderEmailContent,
-  resetEngine,
   type TemplateData,
 } from "#shared/email-renderer.ts";
+import { resetLiquidEngines } from "#shared/liquid-engine.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
 import { useSetting } from "#test-utils/settings.ts";
@@ -16,8 +16,8 @@ export const TICKET_URL = "https://example.com/t/ABC";
 export const describeEmailRenderer = (tests: () => void): void => {
   describeWithEnv("email-renderer", { db: true }, () => {
     useSetting({ currency: "GBP" });
-    beforeEach(resetEngine);
-    afterEach(resetEngine);
+    beforeEach(resetLiquidEngines);
+    afterEach(resetLiquidEngines);
     tests();
   });
 };

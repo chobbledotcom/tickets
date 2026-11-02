@@ -125,6 +125,18 @@ export const STRING_SETTING_DEFINITIONS = [
     key: CONFIG_KEYS.ATTENDEE_COLUMN_ORDER,
     storage: "plaintext",
   }),
+  // The run sheet's two Liquid templates. The text is the owner's own markup
+  // for a signed-in admin page, so it is stored unencrypted.
+  definition({
+    accessor: { name: "logisticsRunSheetBody" },
+    key: CONFIG_KEYS.LOGISTICS_RUN_SHEET_BODY,
+    storage: "plaintext",
+  }),
+  definition({
+    accessor: { name: "logisticsRunSheetHeading" },
+    key: CONFIG_KEYS.LOGISTICS_RUN_SHEET_HEADING,
+    storage: "plaintext",
+  }),
   definition({
     accessor: { name: "smsGatewayBaseUrl" },
     key: CONFIG_KEYS.SMS_GATEWAY_BASE_URL,

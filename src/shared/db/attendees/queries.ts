@@ -10,6 +10,7 @@ import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import { decryptAttendeeFields, decryptPiiBlob } from "#db/attendees/pii.ts";
 import {
   ATTENDEE_FIELDS,
+  type AttendeeKindFilter,
   type AttendeeRowFor,
   type GetAttendeesQuery,
   getAttendees,
@@ -345,16 +346,21 @@ export const getAttendeeRawByToken = async (
 /**
  * Get attendees by ID without decrypting PII, one row per (attendee, booking).
  * Used by the agent run sheet, which already knows the attendee ids it needs
- * and only reads each attendee's contact fields. Returns an empty array for no
- * ids. Decrypt with decryptAttendees before display.
+ * and only reads each attendee's contact fields. Pass `kind` when the run sheet
+ * must also include servicing attendees. The default is regular attendees only.
+ * Returns an empty array for no ids. Decrypt with decryptAttendees before
+ * display.
  */
-export const getAttendeesByIds = (ids: number[]): Promise<Attendee[]> =>
+export const getAttendeesByIds = (
+  ids: number[],
+  kind?: AttendeeKindFilter,
+): Promise<Attendee[]> =>
   ids.length === 0
     ? Promise.resolve([])
     : loadAttendeeRows({
         join: "left",
         owedScope: "booking",
-        where: { attendeeIds: ids },
+        where: { attendeeIds: ids, ...(kind === undefined ? {} : { kind }) },
       });
 
 /**
