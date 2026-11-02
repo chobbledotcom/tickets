@@ -118,6 +118,7 @@ export const generateSecureToken = (): string => {
 const toUpperHex = (bytes: Uint8Array): string => bytes.toHex().toUpperCase();
 
 /**
- * Generate a 5-byte uppercase hex ticket token for public ticket URLs
+ * Generate a 16-byte uppercase hex ticket token for public ticket URLs
+ * 128 bits keeps a door's digest list from being brute-forced back to tokens.
  */
-export const generateTicketToken = (): string => toUpperHex(getRandomBytes(5));
+export const generateTicketToken = (): string => toUpperHex(getRandomBytes(16));
