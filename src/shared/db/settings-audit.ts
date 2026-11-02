@@ -70,7 +70,9 @@ export const assertSettingsReadsDeclared = (routeLabel: string): void =>
       `Settings read but not declared for "${routeLabel}": ${missing.join(
         ", ",
       )}. ` +
-        "Add these keys to the route's prefix bundle in src/features/settings-bundles.ts " +
-        "(PREFIX_SETTINGS), or to INFRA_SETTINGS if they are read on every request.",
+        "Add these keys to the prefix's settings bundle in " +
+        "src/features/app/prefixes-a-l.ts or src/features/app/prefixes-m-z.ts, " +
+        "or to INFRA_SETTINGS in src/features/settings-bundles.ts if they are " +
+        "read on every request.",
     );
   });

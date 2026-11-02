@@ -47,6 +47,12 @@ describe("settings bundles", () => {
     );
   });
 
+  test("loads only the infra settings for the setup paths", () => {
+    const bundle = settingsForPath("/setup");
+    assert(bundle.includes(CONFIG_KEYS.PUBLIC_KEY));
+    assert(!bundle.includes(CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY));
+  });
+
   test("uses the full settings list for inherited object property names", () => {
     assertArrayIncludes(settingsForPath("/constructor"), [
       CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY,

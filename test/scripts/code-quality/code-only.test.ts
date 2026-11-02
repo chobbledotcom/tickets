@@ -80,6 +80,27 @@ describe("the matchers read code, not raw text", () => {
     );
   });
 
+  test("still detects a routeFromModule entry that shares a file with comments", () => {
+    const content = [
+      "// The declaration defers each prefix's module.",
+      'routeFromModule(() => import("#routes/foo.ts"), "routeFoo"),',
+    ].join("\n");
+    expect(isSymbolImported("routeFoo", content)).toBe(true);
+    expect(isUsedInSameFile("routeFoo", content)).toBe(false);
+  });
+
+  test("keeps a getPostRoute entry's handler names and not its path", () => {
+    const content = [
+      'getPostRoute(() => import("#routes/renewal.ts"), "handleRenewalGet", "handleRenewalPost", "renew"),',
+    ].join("\n");
+    expect(isSymbolImported("handleRenewalGet", content)).toBe(true);
+    expect(isSymbolImported("handleRenewalPost", content)).toBe(true);
+    // The clause is an import declaration, not a read of this file's names.
+    expect(isUsedInSameFile("handleRenewalGet", content)).toBe(false);
+    // The path argument names no export of the remote module.
+    expect(isSymbolImported("renew", content)).toBe(false);
+  });
+
   test("does not count a JSDoc link as a same-file usage", () => {
     const content = [
       "/** The reverse of {@link reverseOf}. */",

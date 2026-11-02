@@ -80,6 +80,10 @@ describeWithEnv("main app router", { db: true }, () => {
     expect((await route("/scheduled", "POST")).status).toBe(404);
   });
 
+  test("serves no app route for the setup prefix, which setup owns", async () => {
+    expect((await route("/setup")).status).toBe(404);
+  });
+
   test("turns a null result from a known prefix into not found", async () => {
     expect((await route("/custom.css/extra")).status).toBe(404);
   });
@@ -218,6 +222,7 @@ describe("servesBodyRequests", () => {
   test("admits a prefix that serves a body-bearing method", () => {
     expect(servesBodyRequests("/admin/login")).toBe(true);
     expect(servesBodyRequests("/contact")).toBe(true);
+    expect(servesBodyRequests("/checkin/a-token")).toBe(true);
     expect(servesBodyRequests("/payment/webhook")).toBe(true);
   });
 
