@@ -19,20 +19,16 @@ import {
   addAnswer,
   createAttendee,
   createQuestion,
+  seedChoiceAndTextQuestions,
 } from "#test/shared/db/questions/helpers.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /** A listing asking a choice question (Small or Large) and a free-text
  * question, with one attendee booked on it. */
 const seedBooking = async () => {
-  const listing = await createTestListing();
-  const size = await createQuestion("Size?");
-  const small = await addAnswer(size.id, 0, "Small");
-  const large = await addAnswer(size.id, 1, "Large");
-  const notes = await createQuestion("Notes?", { displayType: "free_text" });
-  await listingQuestions.setIds(listing.id, [size.id, notes.id]);
+  const { large, listing, notes, size, small } =
+    await seedChoiceAndTextQuestions();
   const attendee = await createAttendee(listing.id);
   // Book the answers the way the create batch does: the answer save and the
   // answers-at-booking record, keyed by the batch's own ticket token.

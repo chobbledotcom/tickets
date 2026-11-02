@@ -6,12 +6,13 @@
  * The `modifier_id` column links an answer to the price modifier it triggers.
  */
 
-import { execute, queryAll, queryOne, requireOne } from "#db/client.ts";
+import { execute, queryOne, requireOne } from "#db/client.ts";
 import {
   type AggregateRecalculation,
   type AggregateValues,
   aggregateRepairs,
 } from "#db/common-schema.ts";
+import { rowsByIds } from "#db/query.ts";
 import { map } from "#fp";
 
 /** The owner-editable, trigger-maintained aggregate columns on an answer. */
@@ -24,15 +25,19 @@ export type AnswerAggregateValues = AggregateValues<AnswerAggregateField>;
 export type AnswerAggregateRecalculation =
   AggregateRecalculation<AnswerAggregateField>;
 
-/** The stored selection total (times_selected) for every answer of a question,
- * keyed by answer id. Reads the trigger-maintained column directly rather than
- * scanning attendee_answers, so the question detail page is a single row read. */
+/** The stored selection total (times_selected) for every answer of the given
+ * questions, keyed by answer id. Reads the trigger-maintained column directly
+ * rather than scanning attendee_answers. One query covers a question list, so
+ * the admin API answers each answer's total without a read per question. */
 export const getAnswerSelectionTotals = async (
-  questionId: number,
+  questionIds: number[],
 ): Promise<Map<number, number>> => {
-  const rows = await queryAll<{ id: number; times_selected: number }>(
-    "SELECT id, times_selected FROM answers WHERE question_id = ?",
-    [questionId],
+  const rows = await rowsByIds<{ id: number; times_selected: number }>(
+    questionIds,
+    (placeholders) =>
+      `SELECT answer.id, answer.times_selected
+         FROM answers AS answer
+        WHERE answer.question_id IN (${placeholders})`,
   );
   return new Map(
     map(

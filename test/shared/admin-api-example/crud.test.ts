@@ -260,6 +260,7 @@ describe("documented admin CRUD endpoints", () => {
       ["holiday"],
       ["status"],
       ["question"],
+      ["bookings"],
       ["page"],
     ]);
   });

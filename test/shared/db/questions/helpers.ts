@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import type { Question, TextAnswer } from "#db/question-types.ts";
+import type { Answer, Question, TextAnswer } from "#db/question-types.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
 import {
@@ -101,6 +101,25 @@ export const seedQuestionWithAndWithoutAnswers = async (): Promise<{
   const listing = await createTestListing();
   await listingQuestions.setIds(listing.id, [qWithAnswers.id, qNoAnswers.id]);
   return { listing, qNoAnswers, qWithAnswers };
+};
+
+/** A listing that asks a choice question (Small or Large) and a free-text
+ *  question, so a booking can answer either kind — the shared seed behind the
+ *  answers-at-booking and booking-link tests. */
+export const seedChoiceAndTextQuestions = async (): Promise<{
+  large: Answer;
+  listing: Listing;
+  notes: Question;
+  size: Question;
+  small: Answer;
+}> => {
+  const listing = await createTestListing();
+  const size = await createQuestion("Size?");
+  const small = await addAnswer(size.id, 0, "Small");
+  const large = await addAnswer(size.id, 1, "Large");
+  const notes = await createQuestion("Notes?", { displayType: "free_text" });
+  await listingQuestions.setIds(listing.id, [size.id, notes.id]);
+  return { large, listing, notes, size, small };
 };
 
 /** Create a "radio" question with one answer and assign it to `listingId` —

@@ -182,11 +182,6 @@ export const SHARED_FIELD_BASELINE: readonly FindingIdentity[] = [
     inAdminApi("AdminApiCreateQuestionBody"),
     inAdminApi("AdminApiUpdateQuestionBody"),
   ])(["assign_all", "display_type", "text"]),
-  ...identitiesAt([inAdminApi("AdminApiQuestion")])([
-    "answers",
-    "assign_all",
-    "display_type",
-  ]),
   ...identitiesAt([inAdminApi("AdminApiDeleteBody")])(["confirm_identifier"]),
   ...identitiesAt([inAdminApi("AdminApiDeleteAnswer")])(["status"]),
 ];

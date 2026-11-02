@@ -33,7 +33,7 @@ const loadEditPanel: SlotLoader<QuestionWithAnswers> = (question) =>
 
 const loadAnswersPanel: SlotLoader<QuestionWithAnswers> = async (question) =>
   QuestionAnswersSection({
-    answerCounts: await getAnswerSelectionTotals(question.id),
+    answerCounts: await getAnswerSelectionTotals([question.id]),
     question,
   });
 

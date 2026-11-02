@@ -33,9 +33,16 @@ const IdTextRow = {
 };
 
 /** One choice option as the admin API answers with it: the server-owned id
- *  and its text. An attribute's options and a question's answers both read
- *  back in this shape. */
+ *  and its text. */
 const OptionRowSchema = v.looseObject({ ...IdTextRow });
+
+/** One answer as the admin API answers with it: its text and the stored
+ *  selection total the question page shows ("Times selected"). The server owns
+ *  the rest of the stored row. */
+const AnswerRowSchema = v.looseObject({
+  ...IdTextRow,
+  times_selected: v.number(),
+});
 
 export const AttributeRowSchema = v.looseObject({
   ...IdNameRow,
@@ -45,17 +52,15 @@ export const AttributeRowSchema = v.looseObject({
 export type AdminApiAttribute = v.InferOutput<typeof AttributeRowSchema>;
 
 /** One question as the admin API answers with it: the decrypted text, the
- *  display type, the assign-all switch, and its answers in display order.
- *  A question's display name is its text, so the row carries no separate
- *  name. */
+ *  display type, the assign-all switch, and its answers in display order. Each
+ *  answer carries its selection total. A question's display name is its text,
+ *  so the row carries no separate name. */
 export const QuestionRowSchema = v.looseObject({
-  answers: v.array(OptionRowSchema),
+  answers: v.array(AnswerRowSchema),
   assign_all: v.boolean(),
   display_type: QuestionDisplayTypeSchema,
   ...IdTextRow,
 });
-
-export type AdminApiQuestion = v.InferOutput<typeof QuestionRowSchema>;
 
 export const GroupRowSchema = v.looseObject({
   ...IdNameRow,
@@ -399,6 +404,11 @@ export const ADMIN_API_RESOURCES = {
       },
     },
     createBodySchema: CreateQuestionBodySchema,
+    custom: {
+      // The bookings that answered the question: the read side of the
+      // attendee-answers link, newest booking first.
+      bookings: { method: "GET", subpath: ":questionId/bookings" },
+    },
     label: "Question",
     listSchema: v.looseObject({ questions: v.array(QuestionRowSchema) }),
     path: "questions",

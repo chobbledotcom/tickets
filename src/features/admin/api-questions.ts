@@ -6,11 +6,14 @@ import {
   type QuestionWithAnswers,
   questionDisplayTypeError,
 } from "#db/question-types.ts";
+import { getAnswerSelectionTotals } from "#db/questions/aggregates.ts";
+import { getQuestionBookings } from "#db/questions/attendee-answers/bookings.ts";
 import { deleteQuestion } from "#db/questions/delete.ts";
 import {
   getAllQuestionsWithAnswers,
   getQuestionWithAnswers,
   getQuestionWithAnswersOnPrimary,
+  requireQuestionWithAnswersOnPrimary,
 } from "#db/questions/queries.ts";
 import {
   type QuestionInput,
@@ -18,23 +21,27 @@ import {
   questionsTable,
 } from "#db/questions/tables.ts";
 
+import { requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { OWNER_API } from "#routes/auth.ts";
-import { reReadResponse } from "#routes/response.ts";
+import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { apiChildSurface } from "#shared/rest/child-surface.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
+import type { HydratedRows } from "#shared/rest/crud-api-types.ts";
 import {
   optionalBoolean,
   type RequiredTextReader,
   requireEntityField,
+  withApiEntity,
   withRequiredText,
 } from "#shared/rest/crud-parsers.ts";
 import { appendOnCreate } from "#shared/rest/crud-side-effects.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
+import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
   addAnswerWithLog,
   deleteAnswerWithLog,
@@ -160,11 +167,50 @@ const answerTextCap = (text: string): Response | null =>
       )
     : null;
 
-/** The write response: the written question re-read from the primary. */
-const questionResponse = reReadResponse(
-  "question",
-  getQuestionWithAnswersOnPrimary,
-);
+/** Every answer row the API answers with carries its selection total, the
+ *  "Times selected" count the question page shows. One query covers the whole
+ *  question list, so a list response costs no extra read per question. */
+const hydrateAnswerStats = async (
+  questions: QuestionWithAnswers[],
+): Promise<HydratedRows> => {
+  const answered = questions.filter((question) => question.answers.length > 0);
+  const totals = await getAnswerSelectionTotals(
+    answered.map((question) => question.id),
+  );
+  return new Map(
+    answered.map((question) => [
+      question.id,
+      {
+        answers: question.answers.map((answer) => ({
+          ...answer,
+          times_selected: requiredMapValue(
+            totals,
+            answer.id,
+            `Missing selection total for answer ${answer.id}`,
+          ),
+        })),
+      },
+    ]),
+  );
+};
+
+/** The write response: the written question re-read from the primary, carrying
+ *  each answer's selection total exactly as the standard read routes do. */
+const questionResponse = async (
+  id: number,
+  status?: number,
+): Promise<Response> => {
+  const question = await requireQuestionWithAnswersOnPrimary(id);
+  return jsonResponse(
+    {
+      question: {
+        ...question,
+        ...(await hydrateAnswerStats([question])).get(question.id),
+      },
+    },
+    status,
+  );
+};
 
 /** POST /api/admin/questions/:questionId/answers */
 const handleAnswerCreate: RouteHandlerFn = (request, params) =>
@@ -196,6 +242,25 @@ const handleAnswerDelete = answerSurface.confirmedDelete(
   (question, answer) => deleteAnswerWithLog(question, answer),
 );
 
+/** GET /api/admin/questions/:questionId/bookings — the bookings that answered
+ *  the question, newest first. Owner-only, like the question pages. Free text
+ *  is decrypted with the owner's key, so the answer holds the buyer's words. */
+const handleQuestionBookings: RouteHandlerFn = (request, params) =>
+  withApiEntity(
+    request,
+    getQuestionWithAnswers,
+    params.questionId as number,
+    "Question",
+    async (question) =>
+      jsonResponse({
+        bookings: await getQuestionBookings(
+          question.id,
+          await requireRequestPrivateKey(),
+        ),
+      }),
+    OWNER_API,
+  );
+
 export const questionApiRoutes = defineCrudApi<
   typeof ADMIN_API_RESOURCES.questions,
   Question,
@@ -210,7 +275,9 @@ export const questionApiRoutes = defineCrudApi<
       update: handleAnswerUpdate,
     },
   },
+  customHandlers: { bookings: handleQuestionBookings },
   getAll: getAllQuestionsWithAnswers,
+  hydrate: hydrateAnswerStats,
   lookup: getQuestionWithAnswers,
   // Read-your-writes: the create/update response re-reads the row and its
   // answers from the primary. A lagging replica cannot answer without the
