@@ -11,7 +11,7 @@ import { t } from "#i18n";
 import { formPolicyFor, formPost, pageGuardFor } from "#routes/auth.ts";
 import { authFlashPage } from "#routes/auth-flash-page.ts";
 import { redirect } from "#routes/response.ts";
-import { adminDestinationAt } from "#shared/admin-surface.ts";
+import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 import { createSeeds } from "#shared/seeds.ts";
 import { adminSeedsPage } from "#templates/admin/seeds.tsx";
 import { seedsForm } from "#templates/fields/seeds.ts";
@@ -28,7 +28,9 @@ const handleSeedsPost: TypedRouteHandler<"POST /admin/seeds"> = formPost(
   formPolicyFor(adminDestinationAt("/admin/seeds")),
 )(async (form) => {
   const parsed = seedsForm.validate(form);
-  if (!parsed.valid) return redirect("/admin/seeds", parsed.error, false);
+  if (!parsed.valid) {
+    return redirect(adminPattern("seeds"), parsed.error, false);
+  }
   // The form schema bounds both counts (min/max on the fields), so the
   // parsed values are already inside the seeds limits.
   const { listing_count, attendees_per_listing } = parsed.values;
@@ -37,7 +39,7 @@ const handleSeedsPost: TypedRouteHandler<"POST /admin/seeds"> = formPost(
     attendees: result.attendeesCreated,
     listings: result.listingsCreated,
   });
-  return redirect("/admin/seeds", message, true);
+  return redirect(adminPattern("seeds"), message, true);
 });
 
 /** Seeds routes */

@@ -48,7 +48,7 @@ import {
   redirect,
 } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
-import { adminDestinationAt } from "#shared/admin-surface.ts";
+import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 import { formHandlerAt } from "#shared/app-forms.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 import {
@@ -69,7 +69,7 @@ import {
 import { adminPrivacyPage } from "#templates/admin/privacy.tsx";
 import { adminProviderRefundCasePage } from "#templates/admin/provider-refund-cases.tsx";
 
-const PRIVACY_PATH = "/admin/privacy";
+const PRIVACY_PATH = adminPattern("privacy");
 const refundCasePath = (id: number): string => `${PRIVACY_PATH}/refunds/${id}`;
 const refundCaseChanged = (id: number): Response =>
   errorRedirect(refundCasePath(id), t("privacy.refunds.changed"));

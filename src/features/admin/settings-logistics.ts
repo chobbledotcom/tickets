@@ -7,7 +7,7 @@ import {
   entityTabRoutes,
 } from "#routes/admin/route-tables.ts";
 import { entityFormById, type IdRouteHandler } from "#routes/entity.ts";
-import { adminPattern } from "#shared/admin-surface.ts";
+import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 /* jscpd:ignore-end */
 /**
  * Admin logistics settings + logistics-agent management — owner only.
@@ -31,6 +31,7 @@ import {
   operationResponse,
 } from "#routes/admin/crud-handlers.ts";
 import { redirect } from "#routes/response.ts";
+import { afterSavePath } from "#shared/admin-pages.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { FormValues } from "#shared/forms/definition.ts";
 import { defineResource } from "#shared/rest/resource.ts";
@@ -104,7 +105,11 @@ const handleAgentEditPost: IdRouteHandler = entityFormById(
       result,
       async ({ row }) => {
         await logActivity(`Logistics agent '${row.name}' updated`);
-        return redirect("/admin/logistics", t("logistics.agent_updated"), true);
+        return redirect(
+          afterSavePath(adminDestinationAt("/admin/logistics/:id/edit")),
+          t("logistics.agent_updated"),
+          true,
+        );
       },
       (error) => logisticsAgentPage.renderEditError(id, session, form, error),
     );

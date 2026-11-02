@@ -1,6 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { prefixRoutes } from "#routes/app/prefixes.ts";
 import { readOnlyBlock } from "#routes/app/read-only.ts";
+import { READ_ONLY_SAFE_ROUTES } from "#routes/app/read-only-safe-routes.ts";
 import { ADMIN_SURFACE, oneServedPath } from "#shared/admin-surface.ts";
 
 /** The ordinary expired-deadline mode: READ_ONLY_FROM in the past. */
@@ -97,6 +99,27 @@ describe("read-only request guard", () => {
     ];
     for (const [path, method] of cases) {
       expect(ordinary(path, method)).toBeNull();
+    }
+  });
+
+  test("keeps every declared safe route open under a served prefix", () => {
+    // The declaration names routes, so a route under a prefix the app does
+    // not serve would never be reached and could hide a typo.
+    for (const { pattern } of READ_ONLY_SAFE_ROUTES) {
+      const prefix = pattern.split("/")[1] ?? "";
+      expect(typeof prefixRoutes[prefix]?.handler, pattern).toBe("function");
+      expect(ordinary(oneServedPath(pattern), "POST"), pattern).toBeNull();
+    }
+  });
+
+  test("gives only the declared webhooks the retryable API answer", () => {
+    // Update mode refuses every safe route. A webhook sender redelivers a
+    // non-2xx answer, so those routes get the API answer instead of the human
+    // redirect.
+    for (const { pattern, retryingWebhook } of READ_ONLY_SAFE_ROUTES) {
+      expect(updating(oneServedPath(pattern), "POST"), pattern).toBe(
+        retryingWebhook === true ? "api" : "page",
+      );
     }
   });
 

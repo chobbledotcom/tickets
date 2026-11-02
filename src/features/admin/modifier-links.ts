@@ -8,6 +8,7 @@ import {
 import { formPolicyFor } from "#routes/auth.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
+import { afterSavePath } from "#shared/admin-pages.ts";
 import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -35,17 +36,19 @@ const saveModifierLinks = (
   save: (modifier: Modifier, form: FormParams) => Promise<unknown>,
   message: string,
   guard?: (modifier: Modifier, form: FormParams) => Promise<string | null>,
-): Promise<Response> =>
-  createAuthedHandler<{ id: number }, Modifier>({
-    auth: formPolicyFor(adminDestinationAt(pattern)),
+): Promise<Response> => {
+  const route = adminDestinationAt(pattern);
+  return createAuthedHandler<{ id: number }, Modifier>({
+    auth: formPolicyFor(route),
     handle: async ({ context: modifier, form }) => {
       const error = guard ? await guard(modifier, form) : null;
-      if (error) return errorRedirect(`/admin/modifiers/${id}/edit`, error);
+      if (error) return errorRedirect(afterSavePath(route, id), error);
       await save(modifier, form);
-      return redirect(`/admin/modifiers/${modifier.id}/edit`, message, true);
+      return redirect(afterSavePath(route, modifier.id), message, true);
     },
     loadContext: ({ id: modifierId }) => getModifier(modifierId),
   })(request, { id });
+};
 
 /** Write a scoped modifier's listing/group links from the submitted form. */
 const writeScopeLinks = (

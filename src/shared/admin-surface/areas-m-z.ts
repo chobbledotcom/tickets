@@ -33,10 +33,19 @@ export const AREAS_M_Z = {
       modifiers: "/admin/modifiers",
     },
     write: {
-      modifierAnswers: "/admin/modifiers/:id/answers",
+      modifierAnswers: {
+        afterSave: "modifierEdit",
+        pattern: "/admin/modifiers/:id/answers",
+      },
       modifierDelete: "/admin/modifiers/:id/delete",
-      modifierEdit: "/admin/modifiers/:id/edit",
-      modifierLinks: "/admin/modifiers/:id/links",
+      modifierEdit: {
+        afterSave: "modifiers",
+        pattern: "/admin/modifiers/:id/edit",
+      },
+      modifierLinks: {
+        afterSave: "modifierEdit",
+        pattern: "/admin/modifiers/:id/links",
+      },
       modifierNew: "/admin/modifiers/new",
       modifierRecalculate: "/admin/modifiers/recalculate/:modifierId",
       modifierRevenue: {
@@ -126,9 +135,18 @@ export const AREAS_M_Z = {
     write: {
       servicingCost: "/admin/servicing/:id/cost/:costId",
       servicingDelete: "/admin/servicing/:id/delete",
-      servicingDuplicate: "/admin/servicing/:id/duplicate",
-      servicingEdit: "/admin/servicing/:id",
-      servicingNew: "/admin/servicing/new",
+      servicingDuplicate: {
+        afterSave: "servicingEdit",
+        pattern: "/admin/servicing/:id/duplicate",
+      },
+      servicingEdit: {
+        afterSave: "servicingEdit",
+        pattern: "/admin/servicing/:id",
+      },
+      servicingNew: {
+        afterSave: "servicingEdit",
+        pattern: "/admin/servicing/new",
+      },
     },
   },
   sessions: {
@@ -196,7 +214,10 @@ export const AREAS_M_Z = {
     },
     write: {
       logisticsDelete: "/admin/logistics/:id/delete",
-      logisticsEdit: "/admin/logistics/:id/edit",
+      logisticsEdit: {
+        afterSave: "logistics",
+        pattern: "/admin/logistics/:id/edit",
+      },
       logisticsNew: "/admin/logistics/new",
     },
   },
@@ -208,7 +229,10 @@ export const AREAS_M_Z = {
     },
     write: {
       statusDelete: "/admin/settings/statuses/:id/delete",
-      statusEdit: "/admin/settings/statuses/:id/edit",
+      statusEdit: {
+        afterSave: "status",
+        pattern: "/admin/settings/statuses/:id/edit",
+      },
       statusMoveDown: "/admin/settings/statuses/:id/move-down",
       statusMoveUp: "/admin/settings/statuses/:id/move-up",
       statusNew: "/admin/settings/statuses/new",
@@ -278,7 +302,7 @@ export const AREAS_M_Z = {
       users: "/admin/users",
     },
     write: {
-      userAgents: "/admin/users/:id/agents",
+      userAgents: { afterSave: "users", pattern: "/admin/users/:id/agents" },
       userDelete: "/admin/users/:id/delete",
       userNew: "/admin/user/new",
     },

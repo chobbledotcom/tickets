@@ -7,13 +7,14 @@ import {
 } from "#shared/admin-features.ts";
 import {
   adminLandingPath,
+  afterSavePath,
   entityReturnPath,
   readOnlyGetRoutePatterns,
   visibleSections,
   visibleTopLevel,
 } from "#shared/admin-pages.ts";
 import type { AdminDestinationDef } from "#shared/admin-surface/definitions.ts";
-import { ADMIN_SURFACE } from "#shared/admin-surface.ts";
+import { ADMIN_SURFACE, adminDestination } from "#shared/admin-surface.ts";
 import { normalizePath } from "#shared/path.ts";
 import { type AdminLevel, ALL_ADMIN_LEVELS } from "#types";
 
@@ -125,6 +126,57 @@ describe("entityReturnPath", () => {
 
   test("falls back to the list when a section has no record page", () => {
     expect(entityReturnPath("/admin/settings", 1)).toBe("/admin/settings");
+  });
+});
+
+describe("afterSavePath", () => {
+  test("fills the saved record into the landing the route declares", () => {
+    expect(afterSavePath(adminDestination("groupEdit"), 7)).toBe(
+      "/admin/groups/7",
+    );
+    expect(afterSavePath(adminDestination("attendeeRefund"), 9)).toBe(
+      "/admin/attendees/9/actions",
+    );
+  });
+
+  test("lands a collection's edit on the list it declares", () => {
+    expect(afterSavePath(adminDestination("modifierEdit"), 3)).toBe(
+      "/admin/modifiers",
+    );
+    expect(afterSavePath(adminDestination("logisticsEdit"), 4)).toBe(
+      "/admin/logistics",
+    );
+  });
+
+  test("says which route declares no landing", () => {
+    expect(() => afterSavePath(adminDestination("groupDelete"), 7)).toThrow(
+      'Admin route "groupDelete" declares no after-save landing',
+    );
+  });
+
+  test("says when a landing needs the record it names", () => {
+    expect(() => afterSavePath(adminDestination("groupEdit"))).toThrow(
+      'Admin route "groupEdit" lands on "group", which names a record',
+    );
+  });
+
+  test("mints a filled path for every declared landing", () => {
+    // One walk over the whole surface: a landing is a route that exists, and
+    // every value it names is the saved record's id. A declaration that named
+    // another kind of parameter would mint a path no page serves.
+    for (const [id, destination] of Object.entries(
+      ADMIN_SURFACE.destinations,
+    )) {
+      const landing = destination.afterSave;
+      if (landing === undefined) continue;
+      expect(ADMIN_SURFACE.destinations[landing.id], id).toBe(landing);
+      for (const param of landing.pattern.match(/:\w+/g) ?? []) {
+        expect(param, `${id} ${param}`).toMatch(/^:(?:id|\w+Id)$/);
+      }
+      expect(afterSavePath(destination, 42), id).toBe(
+        landing.pattern.replace(/:(\w+)/g, "42"),
+      );
+    }
   });
 });
 

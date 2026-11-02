@@ -22,6 +22,7 @@ import {
   withAuth,
 } from "#routes/auth.ts";
 import { errorRedirect, jsonResponse, redirect } from "#routes/response.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { formFieldError } from "#shared/forms/constraints.ts";
 import { mapValidationError } from "#shared/optional-validate.ts";
@@ -51,8 +52,8 @@ type RedirectOpts = {
 
 // ── Route wrappers ──────────────────────────────────────────────────
 
-const SETTINGS_PATH = "/admin/settings";
-const ADVANCED_PATH = "/admin/settings-advanced";
+const SETTINGS_PATH = adminPattern("settings");
+const ADVANCED_PATH = adminPattern("settingsAdvanced");
 
 const pathFor = (opts: RedirectOpts): string => {
   if (typeof opts.redirectTo === "string") return opts.redirectTo;

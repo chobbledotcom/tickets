@@ -49,6 +49,7 @@ import {
   redirect,
   redirectToDetail,
 } from "#routes/response.ts";
+import { afterSavePath } from "#shared/admin-pages.ts";
 import { adminDestinationAt } from "#shared/admin-surface.ts";
 import {
   createAuthedFormRoute,
@@ -103,7 +104,7 @@ const handleAttributesPost = createAuthedFormRoute({
       appendWithCreationLog(attributesOrder, "Attribute", name),
     );
     return redirect(
-      `/admin/attributes/${attributeId}`,
+      afterSavePath(adminDestinationAt("/admin/attributes"), attributeId),
       t("attributes.created"),
       true,
     );

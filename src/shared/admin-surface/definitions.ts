@@ -33,11 +33,15 @@ export const featureVisible =
     ctx.enabledFeatures[feature];
 
 /** A route: its pattern alone, or an object that differs from its area. The
- * object names a role of its own, a GET read-only mode keeps serving, or
- * both. */
+ * object names a role of its own, a GET read-only mode keeps serving, the
+ * page a save lands on, or any of these. */
 export type AdminDestinationSpec =
   | string
   | {
+      /** The id of the page a save served at this route lands on, when that
+       * page is not this route's own. A save that returns to its own form
+       * needs no declaration. */
+      readonly afterSave?: string;
       readonly audience?: AdminAudience;
       readonly pattern: string;
       readonly readOnlyGet?: true;
@@ -60,6 +64,9 @@ export type AdminAreaSpec = AdminAreaWithRoutes | AdminAreaWithoutRoutes;
 export type AdminAreasSpec = Readonly<Record<string, AdminAreaSpec>>;
 
 export type AdminDestinationDef = {
+  /** The page a save served at this route lands on, when it is not this
+   * route's own page. */
+  readonly afterSave?: AdminDestinationDef;
   readonly area: string;
   readonly audience: AdminAudience;
   readonly id: string;
@@ -74,12 +81,19 @@ export type AdminDestinationDef = {
 export const adminPathSegment = (path: string): string =>
   path.split("/")[2] ?? "";
 
+/** What the fold builds for a route. The landing it names stays an id until
+ * every route is known. The route it resolves to is filled in after. */
+type DeclaredDestination = Omit<AdminDestinationDef, "afterSave"> & {
+  afterSave?: AdminDestinationDef;
+  readonly afterSaveId?: string;
+};
+
 const groupDestinations = (
   area: string,
   areaAudience: AdminAudience,
   intent: AdminRouteIntent,
   group: AdminRouteGroup | undefined,
-): AdminDestinationDef[] =>
+): DeclaredDestination[] =>
   Object.entries(group ?? {}).map(([id, spec]) => {
     // The string form is the bare pattern; the object form names the rest.
     const object = typeof spec === "string" ? { pattern: spec } : spec;
@@ -87,16 +101,85 @@ const groupDestinations = (
       area,
       audience: object.audience ?? areaAudience,
       id,
+      ...(object.afterSave === undefined
+        ? {}
+        : { afterSaveId: object.afterSave }),
       ...(object.readOnlyGet === true ? { readOnlyGet: true } : {}),
       intent,
       pattern: object.pattern,
     };
   });
 
+/** Name each declared landing route, now that every route is known. A landing
+ * that names nothing is a typo. The reader meets it as a redirect to a path
+ * no page serves. The fold refuses it here instead. */
+const resolveAfterSave = (
+  declared: ReadonlyMap<string, DeclaredDestination>,
+): Record<string, AdminDestinationDef> => {
+  const built: Record<string, DeclaredDestination> = {};
+  for (const [id, { afterSaveId: _landing, ...destination }] of declared) {
+    built[id] = destination;
+  }
+  for (const [id, destination] of Object.entries(built)) {
+    const afterSaveId = declared.get(id)?.afterSaveId;
+    if (afterSaveId === undefined) continue;
+    const landing = built[afterSaveId];
+    if (landing === undefined) {
+      throw new Error(
+        `Admin route "${id}" saves to "${afterSaveId}", which no route declares`,
+      );
+    }
+    destination.afterSave = landing;
+  }
+  return built;
+};
+
 export type FoldedAdminSurface = {
   readonly areas: Readonly<Record<string, readonly string[]>>;
   readonly byPattern: Readonly<Record<string, AdminDestinationDef>>;
   readonly destinations: Readonly<Record<string, AdminDestinationDef>>;
+};
+
+/** Declare one area's routes and return the segments it serves, refusing an
+ * id or a path another area already took. */
+const declareArea = (
+  areaId: string,
+  area: AdminAreaWithRoutes,
+  declared: Map<string, DeclaredDestination>,
+  patternOf: Map<string, string>,
+): readonly string[] => {
+  const areaDestinations = [
+    ...groupDestinations(areaId, area.audience, "view", area.view),
+    ...groupDestinations(areaId, area.audience, "write-form", area.write),
+  ];
+  for (const destination of areaDestinations) {
+    // Two areas claiming one id would leave the loser silently unreachable,
+    // and every link to it pointing at the winner.
+    const claimed = declared.get(destination.id);
+    if (claimed) {
+      throw new Error(
+        `Admin route "${destination.id}" is declared by both ` +
+          `"${claimed.area}" and "${destination.area}"`,
+      );
+    }
+    // Two ids at one path would give the page two audiences, and the gate
+    // looked up by path would take whichever was declared second.
+    const sharing = patternOf.get(destination.pattern);
+    if (sharing) {
+      throw new Error(
+        `Admin path "${destination.pattern}" is declared by both ` +
+          `"${sharing}" and "${destination.id}"`,
+      );
+    }
+    declared.set(destination.id, destination);
+    patternOf.set(destination.pattern, destination.id);
+  }
+  return [
+    ...new Set([
+      ...areaDestinations.map((one) => adminPathSegment(one.pattern)),
+      ...(area.segments ?? []),
+    ]),
+  ];
 };
 
 /**
@@ -105,49 +188,22 @@ export type FoldedAdminSurface = {
  */
 export const foldAdminAreas = (spec: AdminAreasSpec): FoldedAdminSurface => {
   const areas: Record<string, readonly string[]> = {};
-  const byPattern: Record<string, AdminDestinationDef> = {};
-  const destinations: Record<string, AdminDestinationDef> = {};
+  const declared = new Map<string, DeclaredDestination>();
+  const patternOf = new Map<string, string>();
 
   for (const [areaId, area] of Object.entries(spec)) {
-    const declaredSegments = area.segments ?? [];
-    if (!("audience" in area)) {
-      areas[areaId] = declaredSegments;
-      continue;
-    }
-    const areaDestinations = [
-      ...groupDestinations(areaId, area.audience, "view", area.view),
-      ...groupDestinations(areaId, area.audience, "write-form", area.write),
-    ];
-    for (const destination of areaDestinations) {
-      // Two areas claiming one id would leave the loser silently unreachable,
-      // and every link to it pointing at the winner.
-      const claimed = destinations[destination.id];
-      if (claimed) {
-        throw new Error(
-          `Admin route "${destination.id}" is declared by both ` +
-            `"${claimed.area}" and "${destination.area}"`,
-        );
-      }
-      // Two ids at one path would give the page two audiences, and the gate
-      // looked up by path would take whichever was declared second.
-      const sharing = byPattern[destination.pattern];
-      if (sharing) {
-        throw new Error(
-          `Admin path "${destination.pattern}" is declared by both ` +
-            `"${sharing.id}" and "${destination.id}"`,
-        );
-      }
-      destinations[destination.id] = destination;
-      byPattern[destination.pattern] = destination;
-    }
-    areas[areaId] = [
-      ...new Set([
-        ...areaDestinations.map((one) => adminPathSegment(one.pattern)),
-        ...declaredSegments,
-      ]),
-    ];
+    areas[areaId] =
+      "audience" in area
+        ? declareArea(areaId, area, declared, patternOf)
+        : (area.segments ?? []);
   }
 
+  const destinations = resolveAfterSave(declared);
+  const byPattern = Object.fromEntries(
+    Object.values(destinations).map(
+      (destination) => [destination.pattern, destination] as const,
+    ),
+  );
   return { areas, byPattern, destinations };
 };
 

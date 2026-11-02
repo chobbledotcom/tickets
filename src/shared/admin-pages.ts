@@ -1,4 +1,7 @@
-import type { AdminSurfaceContext } from "#shared/admin-surface/definitions.ts";
+import type {
+  AdminDestinationDef,
+  AdminSurfaceContext,
+} from "#shared/admin-surface/definitions.ts";
 import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
 import type { AdminSectionDef } from "#shared/admin-surface/sections.ts";
 import {
@@ -89,6 +92,26 @@ export const entityReturnPath = (sectionPath: string, id: number): string => {
     (candidate) => landingPattern(candidate) === sectionPath,
   );
   return section?.detail ? adminPath(section.detail, { id }) : sectionPath;
+};
+
+/** Where a save served at a route lands. The route's declaration names the
+ * landing. A landing addressed by a record takes that record's id. A list
+ * landing names no record and takes none. */
+export const afterSavePath = (
+  route: AdminDestinationDef,
+  record?: number,
+): string => {
+  const landing = route.afterSave;
+  if (landing === undefined) {
+    throw new Error(`Admin route "${route.id}" declares no after-save landing`);
+  }
+  if (!landing.pattern.includes(":")) return landing.pattern;
+  if (record === undefined) {
+    throw new Error(
+      `Admin route "${route.id}" lands on "${landing.id}", which names a record`,
+    );
+  }
+  return landing.pattern.replace(/:(\w+)/g, () => String(record));
 };
 
 export const readOnlyGetRoutePatterns = (): readonly string[] =>

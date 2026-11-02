@@ -45,6 +45,7 @@ import {
 import { entityFormById, idRouteFor } from "#routes/entity.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
+import { afterSavePath } from "#shared/admin-pages.ts";
 import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
@@ -338,7 +339,7 @@ const handleUsersPost = createAuthedFormRoute<InviteUserFormValues>({
     const inviteLink = `https://${getEffectiveDomain()}/join/${inviteCode}`;
     await logActivity(`User '${username}' invited as ${adminLevel}`);
     return redirect(
-      `/admin/users?invite=${encodeURIComponent(inviteLink)}`,
+      `${adminPattern("users")}?invite=${encodeURIComponent(inviteLink)}`,
       t("success.user_invited"),
       true,
     );
@@ -361,7 +362,11 @@ const handleUserAgentsPost: TypedRouteHandler<"POST /admin/users/:id/agents"> =
     }
     await saveAgentSelection(user.id, form);
     await logActivity(`Agents updated for user '${user.username}'`);
-    return redirect("/admin/users", t("success.agents_updated"), true);
+    return redirect(
+      afterSavePath(adminDestinationAt("/admin/users/:id/agents")),
+      t("success.agents_updated"),
+      true,
+    );
   });
 
 /** Confirmed-delete handlers for users */

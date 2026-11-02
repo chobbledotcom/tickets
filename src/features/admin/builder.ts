@@ -18,7 +18,7 @@ import { t } from "#i18n";
 import { authPage, formPolicyFor, pageGuardFor } from "#routes/auth.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 /* jscpd:ignore-end */
-import { adminDestinationAt } from "#shared/admin-surface.ts";
+import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { builderApi } from "#shared/builder.ts";
 import {
@@ -34,7 +34,7 @@ import {
 } from "#templates/admin/builder.tsx";
 import { builderForm } from "#templates/fields/builder.ts";
 
-const BUILDER_PATH = "/admin/builder";
+const BUILDER_PATH = adminPattern("builder");
 
 /** Convert built sites to display format */
 const toDisplay = (

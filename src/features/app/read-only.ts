@@ -2,6 +2,7 @@ import { isOneOf } from "#fp";
 import { readOnlyGetRoutePatterns } from "#shared/admin-pages.ts";
 import { constant } from "#shared/fp-bind.ts";
 import { routePathPatternToRegex } from "#shared/route-pattern.ts";
+import { READ_ONLY_SAFE_ROUTES } from "./read-only-safe-routes.ts";
 
 /** The admin sign-in and sign-out. They are the only admin writes that stay
  * open while an update runs. */
@@ -34,26 +35,18 @@ const READ_ONLY_GET_PATTERNS = readOnlyGetRoutePatterns()
   .filter((pattern) => !READ_ONLY_ADMIN_OPERATION_PATHS.includes(pattern))
   .map(routePathPatternToRegex);
 
-const READ_ONLY_SAFE_PATHS = [
-  /^\/renew$/,
-  /^\/pay\/[^/]+$/,
-  /^\/payment\/webhook$/,
-  /^\/v1\/devices\/[^/]+\/registrations\/[^/]+\/[^/]+$/,
-  /^\/v1\/log$/,
-  /^\/sms\/webhook$/,
-  /^\/join\/[^/]+$/,
-  /^\/unsubscribe$/,
-  /^\/contact$/,
-  /^\/instance\/site-credentials$/,
-  /^\/checkin\/[^/]+$/,
-];
+const READ_ONLY_SAFE_PATHS = READ_ONLY_SAFE_ROUTES.map(({ pattern }) =>
+  routePathPatternToRegex(pattern),
+);
 
 const isMutatingMethod = isOneOf(["DELETE", "PATCH", "POST", "PUT"]);
 
 /** The webhook paths whose senders redeliver after any non-2xx answer
  * (payment providers, the SMS gateway). Update mode blocks them with the API
  * response, so a delivery that lands mid-update comes back after it. */
-const RETRYING_WEBHOOK_PATHS = [/^\/payment\/webhook$/, /^\/sms\/webhook$/];
+const RETRYING_WEBHOOK_PATHS = READ_ONLY_SAFE_ROUTES.filter(
+  (route) => route.retryingWebhook === true,
+).map(({ pattern }) => routePathPatternToRegex(pattern));
 
 const isAdminMutation = (path: string, method: string): boolean =>
   isMutatingMethod(method) && path.startsWith("/admin/");

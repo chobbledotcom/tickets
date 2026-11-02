@@ -6,6 +6,8 @@ import { t } from "#i18n";
 import type { PaymentWorkStatus } from "#payment/admit-move.ts";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
+import { afterSavePath } from "#shared/admin-pages.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { adminPaymentReviewPage } from "#templates/admin/attendees.tsx";
 import {
   attendeeActions,
@@ -66,7 +68,10 @@ const handlePaymentReviewPost = attendeeActions[ACTION].verified(
       listingId,
       reviewIdentity: form.getString("review_identity"),
     });
-    const actionsUrl = `/admin/attendees/${attendee.id}/actions`;
+    const actionsUrl = afterSavePath(
+      adminDestinationAt("/admin/attendees/:attendeeId/payment-review"),
+      attendee.id,
+    );
     const returnUrl = form.getString("return_url");
     switch (result.kind) {
       case "acknowledged":

@@ -24,7 +24,7 @@ import {
   notFoundResponse,
   redirect,
 } from "#routes/response.ts";
-import { adminDestinationAt } from "#shared/admin-surface.ts";
+import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 /* jscpd:ignore-end */
 import { MESSAGE_SEND_FAILED } from "#shared/inbound-message.ts";
@@ -38,7 +38,7 @@ import {
 } from "#shared/support.ts";
 import { adminSupportPage } from "#templates/admin/support.tsx";
 
-const SUPPORT_PATH = "/admin/support";
+const SUPPORT_PATH = adminPattern("support");
 
 /** GET /admin/support — render the support page (404 when the feature is off). */
 const handleSupportGet = authResponsePage(

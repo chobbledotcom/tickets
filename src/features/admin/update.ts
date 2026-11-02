@@ -12,7 +12,7 @@ import { formPolicyAt, gatedPost, pageGuardFor } from "#routes/auth.ts";
 /* jscpd:ignore-start -- imports */
 import { authFlashPage } from "#routes/auth-flash-page.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
-import { adminDestinationAt } from "#shared/admin-surface.ts";
+import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#shared/build-info.ts";
 import {
   getBunnyScriptId,
@@ -37,7 +37,7 @@ import {
 
 /* jscpd:ignore-end */
 
-const UPDATE_PATH = "/admin/update";
+const UPDATE_PATH = adminPattern("update");
 
 /** The update-mode guard for this host's own script. The flag rides the
  * host's own Bunny script. The wait polls the host's own read-only page

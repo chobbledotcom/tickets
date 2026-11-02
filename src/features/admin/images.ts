@@ -37,6 +37,8 @@ import {
 import { applyFlash } from "#routes/csrf.ts";
 import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
 import { htmlResponse, jsonResponse, redirect } from "#routes/response.ts";
+import { afterSavePath } from "#shared/admin-pages.ts";
+import { adminDestinationAt, adminPath } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { sortByName } from "#shared/name-order.ts";
 import { featureGate } from "#shared/response-steps.ts";
@@ -61,7 +63,8 @@ import { imageMetadataFromForm, withUploadedImage } from "./image-upload.ts";
 
 // jscpd:ignore-end
 
-const imagePath = (id: number): string => `/admin/images/${id}/edit`;
+/** The image's edit page: where a create and a save both land. */
+const imagePath = (id: number): string => adminPath("imageEdit", { id });
 const withStorageEnabled = featureGate(isStorageEnabled, () =>
   redirect("/admin/images", t("images.storage_off"), false),
 );
@@ -274,7 +277,11 @@ const handleImageDeletePost: TypedRouteHandler<"POST /admin/images/:id/delete"> 
     }
     await deleteImageRecord(image.id);
     await logActivity(`Image '${image.name}' deleted`);
-    return redirect("/admin/images", t("images.deleted"), true);
+    return redirect(
+      afterSavePath(adminDestinationAt("/admin/images/:id/delete")),
+      t("images.deleted"),
+      true,
+    );
   });
 
 /** The image list the editor's image dropdown offers: every image's id and

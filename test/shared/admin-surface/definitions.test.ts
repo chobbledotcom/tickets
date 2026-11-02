@@ -77,7 +77,8 @@ describe("foldAdminAreas", () => {
 
   test("gives an area with no routes only the segments it declares", () => {
     expect(folded.areas.markdownPreview).toEqual(["markdown-preview"]);
-    expect(folded.destinations.markdownPreview).toBeUndefined();
+    // The area serves no page of its own, so it contributes no route.
+    expect(Object.keys(folded.destinations)).not.toContain("markdownPreview");
   });
 });
 
@@ -87,6 +88,61 @@ describe("adminPathSegment", () => {
     expect(adminPathSegment("/admin/")).toBe("");
     expect(adminPathSegment("/admin/settings")).toBe("settings");
     expect(adminPathSegment("/admin/listing/5/edit")).toBe("listing");
+  });
+});
+
+describe("a route that names its after-save landing", () => {
+  const WITH_LANDING: AdminAreasSpec = {
+    holidays: {
+      audience: ["owner"],
+      view: { holiday: "/admin/holidays/:id", holidays: "/admin/holidays" },
+      write: {
+        holidayEdit: {
+          afterSave: "holiday",
+          pattern: "/admin/holidays/:id/edit",
+        },
+        holidayNew: "/admin/holidays/new",
+      },
+    },
+  };
+
+  test("holds the declared landing route", () => {
+    const surface = foldAdminAreas(WITH_LANDING);
+    expect(surface.destinations.holidayEdit!.afterSave).toBe(
+      surface.destinations.holiday,
+    );
+    expect(surface.byPattern["/admin/holidays/:id/edit"]!.afterSave).toBe(
+      surface.destinations.holiday,
+    );
+  });
+
+  test("leaves a route with no landing declared without one", () => {
+    const surface = foldAdminAreas(WITH_LANDING);
+    expect(surface.destinations.holidayNew).toEqual({
+      area: "holidays",
+      audience: ["owner"],
+      id: "holidayNew",
+      intent: "write-form",
+      pattern: "/admin/holidays/new",
+    });
+  });
+
+  test("refuses a landing that no route declares", () => {
+    expect(() =>
+      foldAdminAreas({
+        holidays: {
+          audience: ["owner"],
+          write: {
+            holidayEdit: {
+              afterSave: "nowhere",
+              pattern: "/admin/holidays/:id/edit",
+            },
+          },
+        },
+      }),
+    ).toThrow(
+      'Admin route "holidayEdit" saves to "nowhere", which no route declares',
+    );
   });
 });
 

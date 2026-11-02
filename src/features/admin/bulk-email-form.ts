@@ -6,7 +6,7 @@
 import { t } from "#i18n";
 import { formPolicyFor, formPost } from "#routes/auth.ts";
 import { errorRedirect } from "#routes/response.ts";
-import { adminDestinationAt } from "#shared/admin-surface.ts";
+import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 import { validateDraftInput } from "#shared/bulk-email.ts";
 import {
   targetFromForm,
@@ -16,7 +16,7 @@ import type { BulkEmailTarget } from "#shared/bulk-email-targets/types.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { RequestRoute } from "#shared/response-steps.ts";
 
-export const COMPOSE_PATH = "/admin/emails";
+export const COMPOSE_PATH = adminPattern("emails");
 
 export type ValidatedEmailForm = {
   target: BulkEmailTarget;

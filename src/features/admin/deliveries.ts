@@ -37,6 +37,8 @@ import {
   withAuth,
 } from "#routes/auth.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
+import { afterSavePath } from "#shared/admin-pages.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { addDays } from "#shared/dates.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -250,28 +252,22 @@ const markDateAllowed = (session: AuthSession, date: string): boolean => {
  * agent's own logistics agents and to the run-sheet day it was shown on. */
 const handleDeliveriesMark = (request: Request): Promise<Response> =>
   withAuth(request, DELIVERY_FORM, async (session, form) => {
+    const deliveriesPath = afterSavePath(
+      adminDestinationAt("/admin/deliveries/mark"),
+    );
     const attendeeId = form.getOptionalInt("attendee_id");
     const listingId = form.getOptionalInt("listing_id");
     const kind = form.getString("kind");
     const date = form.getString("date");
     const done = form.getFlag("done");
     if (attendeeId === null || listingId === null) {
-      return errorRedirect(
-        "/admin/deliveries",
-        t("deliveries.invalid_request"),
-      );
+      return errorRedirect(deliveriesPath, t("deliveries.invalid_request"));
     }
     if (kind !== "start" && kind !== "end") {
-      return errorRedirect(
-        "/admin/deliveries",
-        t("deliveries.invalid_request"),
-      );
+      return errorRedirect(deliveriesPath, t("deliveries.invalid_request"));
     }
     if (!markDateAllowed(session, date)) {
-      return errorRedirect(
-        "/admin/deliveries",
-        t("deliveries.invalid_request"),
-      );
+      return errorRedirect(deliveriesPath, t("deliveries.invalid_request"));
     }
 
     const agentIds = await userAgents.getIds(session.userId);
@@ -284,10 +280,10 @@ const handleDeliveriesMark = (request: Request): Promise<Response> =>
       agentIds,
     );
     if (!updated) {
-      return errorRedirect("/admin/deliveries", t("deliveries.not_yours"));
+      return errorRedirect(deliveriesPath, t("deliveries.not_yours"));
     }
     return redirect(
-      "/admin/deliveries",
+      deliveriesPath,
       done ? t("deliveries.marked_done") : t("deliveries.marked_not_done"),
       true,
     );

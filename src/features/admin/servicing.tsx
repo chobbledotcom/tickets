@@ -43,6 +43,8 @@ import { applyFlash } from "#routes/csrf.ts";
 import { createEntityHandler, createIdEntityHandler } from "#routes/entity.ts";
 import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
+import { afterSavePath } from "#shared/admin-pages.ts";
+import type { AdminDestinationDef } from "#shared/admin-surface/definitions.ts";
 import { adminDestinationAt } from "#shared/admin-surface.ts";
 import {
   applyDemoOverrides,
@@ -200,7 +202,7 @@ const handleServicingNewPost: TypedRouteHandler<"POST /admin/servicing/new"> = (
         const input = await parseCreateInput(form);
         const event = await createServicingEvent(input);
         return redirect(
-          `/admin/servicing/${event.id}`,
+          afterSavePath(adminDestinationAt("/admin/servicing/new"), event.id),
           t("servicing.success.created", { name: event.name }),
           true,
         );
@@ -211,6 +213,7 @@ const handleServicingNewPost: TypedRouteHandler<"POST /admin/servicing/new"> = (
   );
 
 const redirectServicingResult = async <T extends { id: number; name: string }>(
+  route: AdminDestinationDef,
   id: number,
   action: () => Promise<T>,
   successMessage: (result: T) => string,
@@ -218,7 +221,7 @@ const redirectServicingResult = async <T extends { id: number; name: string }>(
   try {
     const result = await action();
     return redirect(
-      `/admin/servicing/${result.id}`,
+      afterSavePath(route, result.id),
       successMessage(result),
       true,
     );
@@ -236,6 +239,7 @@ const handleServicingPost: TypedRouteHandler<"POST /admin/servicing/:id"> =
     const costResponse = await handleCostPost(id, form, event);
     if (costResponse) return costResponse;
     return redirectServicingResult(
+      adminDestinationAt("/admin/servicing/:id"),
       id,
       async () => {
         const input = await parseCreateInput(form);
@@ -254,6 +258,7 @@ const handleServicingDeletePost: TypedRouteHandler<"POST /admin/servicing/:id/de
 const handleServicingDuplicatePost: TypedRouteHandler<"POST /admin/servicing/:id/duplicate"> =
   servicingFormHandler((_event, _session, _form, _request, { id }) =>
     redirectServicingResult(
+      adminDestinationAt("/admin/servicing/:id/duplicate"),
       id,
       async () => duplicateServicingEvent(id),
       (copy) => t("servicing.success.duplicated", { name: copy.name }),
