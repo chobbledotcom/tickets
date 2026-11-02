@@ -7,6 +7,9 @@ import { makeScratchDir } from "#scripts/scratch.ts";
 import {
   CHECK_PHASES,
   type CheckerResult,
+  QUINT_CLI,
+  QUINT_SAMPLES,
+  QUINT_SEED,
   requireCounterexample,
 } from "#scripts/verify-models/check.ts";
 import { VERIFICATION_MODULES } from "#scripts/verify-models/registry.ts";
@@ -16,12 +19,6 @@ import {
   type ModelLanguage,
   modelFileName,
 } from "#scripts/verify-models/spec.ts";
-
-/** The Quint release the lockfile pins. The CLI runs on the pinned Deno. */
-const QUINT_CLI = "npm:@informalsystems/quint@0.33.1/dist/src/cli.js";
-/** A fixed seed and a bounded sample count keep the Quint check repeatable. */
-const QUINT_SEED = "0";
-const QUINT_SAMPLES = 1000;
 
 if ((await checkVerification()) !== 0)
   throw new Error(

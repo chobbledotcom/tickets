@@ -1,6 +1,11 @@
 import { expect } from "@std/expect";
+import { join } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
-import { requireCounterexample } from "#scripts/verify-models/check.ts";
+import { projectRoot } from "#scripts/project-root.ts";
+import {
+  QUINT_VERSION,
+  requireCounterexample,
+} from "#scripts/verify-models/check.ts";
 
 describe("negative control evidence", () => {
   test("rejects an accepted corruption", () => {
@@ -57,5 +62,21 @@ describe("negative control evidence", () => {
         "quint",
       ),
     ).not.toThrow();
+  });
+});
+
+describe("Quint checker pin", () => {
+  test("the CLI names the release that deno.lock pins", async () => {
+    const lock: {
+      readonly npm: Record<string, unknown>;
+      readonly specifiers: Record<string, string>;
+    } = JSON.parse(await Deno.readTextFile(join(projectRoot, "deno.lock")));
+    const pinned = Object.keys(lock.specifiers).filter((key) =>
+      key.startsWith("npm:@informalsystems/quint@"),
+    );
+    expect(pinned).toEqual([`npm:@informalsystems/quint@${QUINT_VERSION}`]);
+    expect(Object.keys(lock.npm)).toContain(
+      `@informalsystems/quint@${QUINT_VERSION}`,
+    );
   });
 });

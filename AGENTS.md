@@ -565,8 +565,9 @@ automatic.
 - `deno task verify:models` — check each registered model's initial safety and
   a step from any safe state, then require a counterexample and trace for each
   declared negative control. A TLA+ model uses Apalache. A Quint model uses the
-  Quint type check and the Quint simulator with a fixed seed. Devenv supplies
-  pinned Apalache and Java. CI and precommit use the same task. See the
+  Quint type check and the Quint simulator with a fixed seed. The lockfile pins
+  the Quint release. Devenv supplies pinned Apalache and Java. CI and precommit
+  use the same task. See the
   [model verification guide](docs/model-verification.md) before you add or review
   a model. It defines the evidence boundaries and author procedure
 - `deno task check:effects` — hold the pure core to the effect table: a

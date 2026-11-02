@@ -1,5 +1,13 @@
 import type { CheckPhase, ModelLanguage } from "#scripts/verify-models/spec.ts";
 
+/** The Quint release that deno.lock pins. The CLI runs on the pinned Deno. */
+export const QUINT_VERSION = "0.33.1";
+/** The CLI entry point in that release. */
+export const QUINT_CLI = `npm:@informalsystems/quint@${QUINT_VERSION}/dist/src/cli.js`;
+/** A fixed seed and a bounded sample count keep the Quint check repeatable. */
+export const QUINT_SEED = "0";
+export const QUINT_SAMPLES = 1000;
+
 /** Each language names its own starting action for the same obligation. */
 export const CHECK_PHASES: Record<
   CheckPhase,

@@ -90,7 +90,8 @@ The Quint simulator explores a bounded random sample with a fixed seed. It does
 not enumerate the state space. A clean Quint result is weaker than an Apalache
 result, so state that limit in the review. Give a Quint model the smallest
 state space that the claim needs, and give each control an edge that the
-simulator reaches.
+simulator reaches. The Quint CLI comes from npm, and `deno.lock` pins its
+release.
 
 Check that the initial states and important actions exist. An empty fact set, an
 impossible guard, or an invariant that excludes the bad input can make a check
@@ -130,8 +131,9 @@ attempted edge must keep.
 `verify:models` type-checks the model and simulates it from `init` and from
 `safetyInit`. The simulator uses a fixed seed and 1000 samples, so one run
 repeats. The check is a bounded sample, not a proof. The TLA+ models keep their
-Apalache check. `corruptVatData` flips one accepted settings change, and that
-control must produce a violation and its trace.
+Apalache check. `corruptVatData` marks the recorded assessment wrong on every
+accepted `setting_add` attempt, and that control must produce a violation and its
+trace.
 
 The facts cover the selected tax bases, policies, revisions, and both booking
 states. They do not prove SQL atomicity, provider truth, or legal compliance.
@@ -204,12 +206,15 @@ writes need their own tests.
 `ChecksStillPass` keeps an earlier failure visible after later successful steps.
 The caller still owns the attempted edges and the meaning of each verdict.
 
-In `scripts/verify-models/data.ts`, use `tlaRecords`, `tlaRecordModuleFor`, and
-`tlaSchemaOf` to bind field schemas, type notes, and record output. Integer facts
-must reject fractions, unsafe integers, NaN, and infinities with field context.
-Negative safe integers must render as valid TLA values. Schema and renderer
-checks are not business oracles. Do not share a business calculation between the
-implementation and its only expectation.
+In `scripts/verify-models/data.ts`, `modelRecords` writes one record set in the
+language that you name. `tlaSet` and `quintSet` write the value sets. A Quint
+record type needs its own `typeName`, because a Quint type and a value cannot
+share one name. Use `tlaRecordModuleFor` and `tlaSchemaOf` for the TLA+ models.
+Integer facts must reject fractions, unsafe integers, NaN, and infinities with
+field context. A negative safe integer must render as a valid value in the
+module language. Schema and renderer checks are not business oracles. Do not
+share a business calculation between the implementation and its only
+expectation.
 
 ### Arithmetic and checkout: limits that must remain visible
 
@@ -306,8 +311,9 @@ TLA+ sources only, so it compares no Quint pair.
 `grade:code` accepts individual TLA files, `verification/`, and mixed source
 targets. With no target it still grades `src/`. `--no-jev` makes no JEV request.
 TLA uses its own mechanical criteria, not TypeScript or JSX criteria. The grader
-reads TLA+ sources only, and it refuses a Quint target. Existing JSON, CSV, and
-batch reporting remain available through the grader's options.
+reads TLA+ sources only. It refuses a Quint file, and it skips Quint sources in a
+directory target. Existing JSON, CSV, and batch reporting remain available
+through the grader's options.
 
 JEV reviews supplied source and declared context. It does not execute a producer
 or see generated facts. A missing key or unavailable request must remain visible

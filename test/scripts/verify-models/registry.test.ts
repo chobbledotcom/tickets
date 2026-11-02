@@ -16,7 +16,10 @@ test("every maintained model and helper meets the source policy", async () => {
 
 test("a source file with no declaration is refused", () => {
   expect(() => verificationModuleFor("verification/Unregistered.qnt")).toThrow(
-    /no declaration: verification\/Unregistered\.qnt/,
+    /no declaration: Unregistered/,
+  );
+  expect(() => verificationModuleFor("verification/VatLedger.tla")).toThrow(
+    /no declaration: verification\/VatLedger\.tla/,
   );
   expect(
     verificationModuleFor(sourceFileFor("VatLedger", "quint")),

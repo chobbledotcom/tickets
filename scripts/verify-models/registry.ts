@@ -1,3 +1,4 @@
+import { basename, extname } from "node:path";
 import type { corruptSplitData } from "#scripts/verify-models/largest-remainder-split.ts";
 import {
   type CheckPhase,
@@ -377,17 +378,6 @@ export const VERIFICATION_MODULES = [
   },
 ] as const satisfies readonly VerificationModule[];
 
-/** A maintained source must declare its role before the tools can assess it. */
-export const verificationModuleFor = (file: string): VerificationModule => {
-  const declaration = VERIFICATION_MODULES.find(
-    (entry) => file === sourceFileFor(entry.module, entry.language),
-  );
-  if (declaration === undefined) {
-    throw new Error(`The model source has no declaration: ${file}`);
-  }
-  return declaration;
-};
-
 /** A consumer that names a module, not a file, finds its declaration here. */
 export const declaredModule = (module: string): VerificationModule => {
   const declaration = VERIFICATION_MODULES.find(
@@ -395,6 +385,15 @@ export const declaredModule = (module: string): VerificationModule => {
   );
   if (declaration === undefined) {
     throw new Error(`The model has no declaration: ${module}`);
+  }
+  return declaration;
+};
+
+/** A maintained source must declare its role before the tools can assess it. */
+export const verificationModuleFor = (file: string): VerificationModule => {
+  const declaration = declaredModule(basename(file, extname(file)));
+  if (file !== sourceFileFor(declaration.module, declaration.language)) {
+    throw new Error(`The model source has no declaration: ${file}`);
   }
   return declaration;
 };
