@@ -66,9 +66,9 @@ export const getPostRoute = <Module extends Record<string, RouteHandlerFn>>(
 
 // The public page handlers load on first match. The custom prefix handlers
 // below call them directly.
-export const loadPublicPages = once(() => import("#routes/public/pages.ts"));
+const loadPublicPages = once(() => import("#routes/public/pages.ts"));
 
-export type PublicPagesModule = Awaited<ReturnType<typeof loadPublicPages>>;
+type PublicPagesModule = Awaited<ReturnType<typeof loadPublicPages>>;
 
 const loadAdminApiRoutes = routerFromModule(
   () => import("#routes/admin/api.ts"),

@@ -43,7 +43,7 @@ export type PrefixRoute = {
 };
 
 /** The maps every consumer reads, derived from the one declaration. */
-export type FoldedPrefixes = {
+type FoldedPrefixes = {
   routes: Record<string, PrefixRoute>;
   settings: Record<string, readonly string[]>;
 };
