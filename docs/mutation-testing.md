@@ -80,19 +80,29 @@ Before it runs the mapped tests, the runner puts every mutant through two cheap
 copies, with a CPU-aware limit capped at four (`MUTATION_STATIC_JOBS` can lower
 it). One- and two-mutant files stay serial to avoid copy overhead. Test batches
 keep their separate `--jobs` limit and still run only after static results are
-reported in mutant order. **No mutant is ever judged by a clock**: gates and
-tests run to completion, so a mutant is killed only when a gate rejects it or a
-test fails, and survives otherwise. A slow type-check or a long queue wait can
-no longer be mistaken for a mutant being caught. The one clock left is
-`--deadline`, a whole-run guard (default one hour) against a mutant that hangs
-the tests: when it fires the run fails with no score and no summary, printing
-only how far it got and where to look. It fires the same way during the
-baseline, where nothing has been tested yet — a run the guard stopped is a
-failure to report, never an operator's interrupt. Keep the Biome calls one-shot
-unless a new benchmark proves otherwise: with pinned Biome 2.4.16, 20 warm
-one-file runs measured a 17.3 ms standalone median and a 51.2 ms `--use-server`
-median. Either gate exiting non-zero kills the mutant without spending a full
-`deno test` on it — both a forbidden lint diagnostic and a type error are build
+reported in mutant order. **No mutant is ever judged by a clock**: a mutant is
+killed only when a gate rejects it or a test fails, and survives otherwise. A
+slow type-check or a long queue wait can never be mistaken for a mutant being
+caught. Two clocks exist, and neither one scores a mutant.
+
+The first clock limits each test batch. The runner measures the baseline
+(unmutated) test run, then allows every later batch 100 times that duration,
+with a floor of 60 seconds. The limit is never below the baseline and never
+above half the run deadline. A batch past the limit is a frozen loop, not a
+verdict: the runner stops, names the mutant, the batch, and the limit, and
+scores nothing. A loop whose step a mutant neutralises is the usual cause, so
+the fix is to bound that loop (see `src/shared/dates.ts`).
+
+The second clock is `--deadline`, a whole-run guard (default one hour) for a run
+that no per-batch limit stopped: when it fires the run fails with no score and
+no summary, printing only how far it got and where to look. It fires the same
+way during the baseline, where nothing is tested yet — a run the guard
+stopped is a failure to report, never an operator's interrupt. Keep the Biome
+calls one-shot unless a new benchmark proves otherwise: with pinned Biome
+2.4.16, 20 warm one-file runs measured a 17.3 ms standalone median and a 51.2 ms
+`--use-server` median. Either gate exiting non-zero kills the mutant without
+spending a full `deno test` on it — both a forbidden lint diagnostic and a type
+error are build
 failures, so the mutant can never ship, and static checks are far faster than
 the suite. The type-check gate catches the mutants that turn valid code into a
 type error — for example a `+ → *` swap on a string concatenation (`"a" * "b"`
@@ -101,8 +111,8 @@ type. Each gate is only trusted after the runner confirms the _unmutated_ target
 passes it (the baseline probe): a standalone `deno task mutation` does not run
 `lint:ci`/`typecheck` first, so if the target is not already clean the run
 aborts loudly rather than scoring a bogus 100%. This means a mutant recorded in
-`equivalent-mutants/` must be one that survives _both_ gates _and_ the tests; a
-mutation that produces a type error never reaches the ignore-list because the
+`equivalent-mutants/` must be one that survives _both_ gates _and_ the tests. A
+mutation that produces a type error never reaches the ignore-list, because the
 type-check gate kills it first.
 
 ## Known-equivalent survivors

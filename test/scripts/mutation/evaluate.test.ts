@@ -62,6 +62,7 @@ const setup = () => {
 const runConfig = {
   batchJobs: 1,
   env: { BASE: "yes", [TEST_STATE_DIR_ENV]: "/baseline-state" },
+  limitMs: 60_000,
   testFiles: [],
 };
 
@@ -311,6 +312,46 @@ describe("mutant evaluation", () => {
       detectedBy: "integration-tests",
       status: "killed",
     });
+  });
+
+  test("keeps a frozen test batch as a cause, not a verdict", async () => {
+    const state = setup();
+    const stages: string[][] = [];
+    state.deps.runTests = ({ testFiles }) => {
+      stages.push(testFiles);
+      return Promise.resolve({
+        durationMs: 90_000,
+        frozen: {
+          batch: ["test/shared/example.test.ts"],
+          durationMs: 90_000,
+          limitMs: 60_000,
+        },
+        outcome: "cancelled",
+      });
+    };
+
+    const result = await evaluateMutantTests(
+      plan({ rebuildTestState: false }),
+      mutant,
+      runConfig,
+      ["test/integration/example.test.ts"],
+      new AbortController().signal,
+      [],
+      state.deps,
+    );
+
+    expect(result).toEqual({
+      detectedBy: null,
+      frozen: {
+        batch: ["test/shared/example.test.ts"],
+        durationMs: 90_000,
+        limitMs: 60_000,
+      },
+      status: "cancelled",
+      timings: [{ durationMs: 90_000, phase: "direct-tests" }],
+    });
+    // A frozen direct stage gives no verdict, so integration tests never run.
+    expect(stages).toEqual([["test/shared/example.test.ts"]]);
   });
 
   test("classifies a test exception after cancellation as timed out", async () => {

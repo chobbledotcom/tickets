@@ -58,6 +58,21 @@ export interface ProgressSnapshot {
   total: number;
 }
 
+/** One test batch that outlived the per-batch limit. The limit is measured
+ *  against the run's baseline, so this says the batch froze rather than that
+ *  the tests gave an answer. */
+export interface FrozenTestRun {
+  batch: string[];
+  durationMs: number;
+  limitMs: number;
+}
+
+/** A frozen batch, named by the mutant whose text was under test. */
+export interface FrozenLoop extends FrozenTestRun {
+  file: string;
+  mutant: Mutant;
+}
+
 /** Fold raw results into the score and survivor list. Pure. */
 export const summarize = (results: MutantResult[]): Summary => {
   const byStatus = Object.groupBy(results, (result) => result.status);
@@ -93,10 +108,10 @@ export const summarize = (results: MutantResult[]): Summary => {
   };
 };
 
-const survivorLocation = (result: MutantResult): string =>
+const survivorLocation = (result: { file: string; mutant: Mutant }): string =>
   `${rel(result.file)}:${result.mutant.line}:${result.mutant.column}`;
 
-const mutationLabel = (result: MutantResult): string =>
+const mutationLabel = (result: { mutant: Mutant }): string =>
   `${result.mutant.operator} -> ${result.mutant.newOperator}`;
 
 /** Plain progress line suitable for terminals, CI logs, and log parsers. */
@@ -130,6 +145,28 @@ export const deadlineReport = (
   "Nothing is scored from a run that stopped early. The usual cause is a",
   "mutant that makes a test loop forever — the mutants after the last one",
   "reported are where to look. Raise --deadline if the run is merely long.",
+];
+
+/**
+ * What to say when a test batch outlived its limit. The limit comes from the
+ * run's baseline, so this names the mutant whose text froze the tests instead
+ * of waiting for the whole-run deadline. The run scores nothing: a clock never
+ * gives a mutant a verdict.
+ */
+export const frozenLoopReport = (
+  loop: FrozenLoop,
+  tested: number,
+  total: number,
+): string[] => [
+  red(
+    "\nMutation run stopped: a test batch outlived the baseline by orders of magnitude " +
+      `(${tested} of ${total} mutants tested).`,
+  ),
+  `  ${survivorLocation(loop)}  ${mutationLabel(loop)}`,
+  `  Batch: ${loop.batch.map(rel).join(" ")}`,
+  `  It ran for ${Math.round(loop.durationMs)}ms. The limit is ${loop.limitMs}ms.`,
+  "No mutant is judged by a clock, so this run has no score. The tests looped",
+  "forever. Make that loop bounded, as src/shared/dates.ts does, then run again.",
 ];
 
 /**

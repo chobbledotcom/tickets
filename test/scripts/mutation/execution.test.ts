@@ -8,6 +8,7 @@ import {
   runTests,
   type StaticGateDeps,
   testEnv,
+  testRunLimitMs,
   toStatus,
 } from "#scripts/mutation/execution.ts";
 import { projectRoot } from "#scripts/project-root.ts";
@@ -21,6 +22,7 @@ import { TEST_STATE_DIR_ENV } from "#test-utils/test-state-env.ts";
 const config = {
   batchJobs: 1,
   env: {},
+  limitMs: 60_000,
   testFiles: ["test/shared/example.test.ts"],
 };
 
@@ -307,8 +309,10 @@ describe("mutation test execution", () => {
         return Promise.resolve({ code: 1, output: "killed by SIGTERM" });
       },
     });
-    expect(result.outcome).toBe("cancelled");
-    expect(result.failure).toBeUndefined();
+    expect(result).toEqual({
+      durationMs: expect.any(Number),
+      outcome: "cancelled",
+    });
   });
 
   test("stops before another batch when the deadline expires", async () => {
@@ -378,5 +382,98 @@ describe("mutation test execution", () => {
       toStatus("failed"),
       toStatus("cancelled"),
     ]).toEqual(["survived", "killed", "cancelled"]);
+  });
+});
+
+describe("the per-batch limit", () => {
+  test("measures the limit two orders of magnitude above the baseline", () => {
+    expect(testRunLimitMs(2_000, 3_600_000)).toBe(200_000);
+  });
+
+  test("never sets the limit below the floor", () => {
+    // A 200ms baseline would give a 20s limit, too close to process start-up
+    // jitter on a busy machine.
+    expect(testRunLimitMs(200, 3_600_000)).toBe(60_000);
+  });
+
+  test("never rises above half the run deadline", () => {
+    // 100 x a 20-minute baseline would be 33 hours, far past the one-hour
+    // deadline this guard exists to precede.
+    expect(testRunLimitMs(1_200_000, 3_600_000)).toBe(1_800_000);
+  });
+
+  test("stays at least as long as the baseline", () => {
+    // A baseline longer than half the deadline is still a real unmutated run,
+    // so a mutant batch may take that long without being called frozen.
+    expect(testRunLimitMs(2_400_000, 3_600_000)).toBe(2_400_000);
+  });
+
+  test("stops a batch that outlives the limit and keeps the cause", async () => {
+    const result = await runTests(
+      { ...config, limitMs: 0 },
+      new AbortController().signal,
+      {
+        runBatch: (_batch, signal) =>
+          new Promise((_, reject) => {
+            signal.addEventListener(
+              "abort",
+              () => reject(new DOMException("Stopped", "AbortError")),
+              { once: true },
+            );
+          }),
+      },
+    );
+
+    expect(result).toEqual({
+      durationMs: expect.any(Number),
+      frozen: {
+        batch: ["test/shared/example.test.ts"],
+        durationMs: expect.any(Number),
+        limitMs: 0,
+      },
+      outcome: "cancelled",
+    });
+  });
+
+  test("does not record a kill from a batch the limit stopped", async () => {
+    // The limit kills the child, and a killed child exits non-zero. That code
+    // says nothing about the tests, so it must not read as a kill.
+    const result = await runTests(
+      { ...config, limitMs: 0 },
+      new AbortController().signal,
+      {
+        runBatch: (_batch, signal) =>
+          new Promise((resolve) => {
+            signal.addEventListener(
+              "abort",
+              () => resolve({ code: 1, output: "killed by SIGTERM" }),
+              { once: true },
+            );
+          }),
+      },
+    );
+
+    expect(result).toEqual({
+      durationMs: expect.any(Number),
+      frozen: {
+        batch: ["test/shared/example.test.ts"],
+        durationMs: expect.any(Number),
+        limitMs: 0,
+      },
+      outcome: "cancelled",
+    });
+  });
+
+  test("leaves a batch unbounded when the run has no baseline", async () => {
+    const result = await runTests(
+      { ...config, limitMs: null },
+      new AbortController().signal,
+      { runBatch: () => Promise.resolve(passingBatch()) },
+    );
+
+    expect(result).toEqual({
+      durationMs: expect.any(Number),
+      outcome: "passed",
+    });
   });
 });
