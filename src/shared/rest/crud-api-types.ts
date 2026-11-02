@@ -151,6 +151,10 @@ export interface CrudApiConfig<
   /** Optionally hydrate response rows in one batched call, keyed by row id. A
    *  single-row response passes an array of one through this same path. */
   hydrate?: (rows: FullRow[]) => Promise<HydratedRows>;
+  /** The hydration a create/update response uses. Such a response reads rows
+   *  the write just made, so this one must pin any read it makes to the
+   *  primary. Defaults to the read routes' `hydrate`. */
+  hydrateAfterWrite?: (rows: FullRow[]) => Promise<HydratedRows>;
   /** When true, activity log entries for create/update are linked to the row's id as listing_id */
   linkActivityToRow?: boolean;
   /** Extra keys added to the list response alongside the row array (e.g. admin_level) */

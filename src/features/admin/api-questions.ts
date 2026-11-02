@@ -6,7 +6,10 @@ import {
   type QuestionWithAnswers,
   questionDisplayTypeError,
 } from "#db/question-types.ts";
-import { getAnswerSelectionTotals } from "#db/questions/aggregates.ts";
+import {
+  getAnswerSelectionTotals,
+  getAnswerSelectionTotalsOnPrimary,
+} from "#db/questions/aggregates.ts";
 import { getQuestionBookings } from "#db/questions/attendee-answers/bookings.ts";
 import { deleteQuestion } from "#db/questions/delete.ts";
 import {
@@ -170,29 +173,39 @@ const answerTextCap = (text: string): Response | null =>
 /** Every answer row the API answers with carries its selection total, the
  *  "Times selected" count the question page shows. One query covers the whole
  *  question list, so a list response costs no extra read per question. */
-const hydrateAnswerStats = async (
-  questions: QuestionWithAnswers[],
-): Promise<HydratedRows> => {
-  const answered = questions.filter((question) => question.answers.length > 0);
-  const totals = await getAnswerSelectionTotals(
-    answered.map((question) => question.id),
-  );
-  return new Map(
-    answered.map((question) => [
-      question.id,
-      {
-        answers: question.answers.map((answer) => ({
-          ...answer,
-          times_selected: requiredMapValue(
-            totals,
-            answer.id,
-            `Missing selection total for answer ${answer.id}`,
-          ),
-        })),
-      },
-    ]),
-  );
-};
+const hydrateAnswerStatsWith =
+  (totals: (questionIds: number[]) => Promise<Map<number, number>>) =>
+  async (questions: QuestionWithAnswers[]): Promise<HydratedRows> => {
+    const answered = questions.filter(
+      (question) => question.answers.length > 0,
+    );
+    const byAnswer = await totals(answered.map((question) => question.id));
+    return new Map(
+      answered.map((question) => [
+        question.id,
+        {
+          answers: question.answers.map((answer) => ({
+            ...answer,
+            times_selected: requiredMapValue(
+              byAnswer,
+              answer.id,
+              `Missing selection total for answer ${answer.id}`,
+            ),
+          })),
+        },
+      ]),
+    );
+  };
+
+/** The read routes' totals: the question row came from the replica, so the
+ *  replica serves its answers' totals too. */
+const hydrateAnswerStats = hydrateAnswerStatsWith(getAnswerSelectionTotals);
+
+/** The write responses' totals, read from the primary: a replica can miss the
+ *  answer the write just made, and a missing total throws. */
+const hydrateAnswerStatsAfterWrite = hydrateAnswerStatsWith(
+  getAnswerSelectionTotalsOnPrimary,
+);
 
 /** The write response: the written question re-read from the primary, carrying
  *  each answer's selection total exactly as the standard read routes do. */
@@ -205,7 +218,7 @@ const questionResponse = async (
     {
       question: {
         ...question,
-        ...(await hydrateAnswerStats([question])).get(question.id),
+        ...(await hydrateAnswerStatsAfterWrite([question])).get(question.id),
       },
     },
     status,
@@ -278,6 +291,7 @@ export const questionApiRoutes = defineCrudApi<
   customHandlers: { bookings: handleQuestionBookings },
   getAll: getAllQuestionsWithAnswers,
   hydrate: hydrateAnswerStats,
+  hydrateAfterWrite: hydrateAnswerStatsAfterWrite,
   lookup: getQuestionWithAnswers,
   // Read-your-writes: the create/update response re-reads the row and its
   // answers from the primary. A lagging replica cannot answer without the

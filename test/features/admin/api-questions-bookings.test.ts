@@ -3,9 +3,11 @@
  * question, and the selection total each answer carries.
  */
 
+import type { InStatement } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute } from "#db/client.ts";
+import { stub } from "@std/testing/mock";
+import { execute, getDb } from "#db/client.ts";
 import { getAnswerSelectionTotals } from "#db/questions/aggregates.ts";
 import { handleRequest } from "#routes";
 import { seedChoiceAndTextQuestions } from "#test/shared/db/questions/helpers.ts";
@@ -13,6 +15,7 @@ import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createBooking } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import {
   apiRequest,
@@ -32,6 +35,12 @@ const bookAnswer = async (
       201,
     )
   ).attendee.id;
+
+/** Each answer's selection total, in the order the answers arrived. A write
+ *  response that leaves the total out reads back as `undefined` here. */
+const selectedTotals = (
+  answers: { times_selected?: number }[],
+): (number | undefined)[] => answers.map((answer) => answer.times_selected);
 
 describeWithEnv(
   "Admin API - question bookings and stats",
@@ -141,18 +150,115 @@ describeWithEnv(
           [large.id, 2],
         ]),
       );
-      const totals = (answers: { times_selected: number }[]) =>
-        answers.map((answer) => answer.times_selected);
       await assertJson(
         apiRequest(`/api/admin/questions/${size.id}`),
         200,
         (body) => {
-          expect(totals(body.question.answers)).toEqual([1, 2]);
+          expect(selectedTotals(body.question.answers)).toEqual([1, 2]);
         },
       );
       await assertJson(apiRequest("/api/admin/questions"), 200, (body) => {
-        expect(totals(body.questions[0].answers)).toEqual([1, 2]);
+        expect(selectedTotals(body.questions[0].answers)).toEqual([1, 2]);
       });
+    });
+
+    test("every write that answers with a question carries the selection totals", async () => {
+      // The question update, the answer create, and the answer update all
+      // answer with the whole question, so each one carries the totals its
+      // answer rows store.
+      const { listing, size, small } = await seedChoiceAndTextQuestions();
+      await bookAnswer(listing.id, {
+        answers: [{ answerId: small.id, questionId: size.id }],
+      });
+
+      await assertJson(
+        apiRequest(`/api/admin/questions/${size.id}`, {
+          body: { assign_all: true },
+          method: "PUT",
+        }),
+        200,
+        (body) => {
+          expect(selectedTotals(body.question.answers)).toEqual([1, 0]);
+        },
+      );
+      const created = await assertJson<{
+        question: { answers: { id: number; times_selected?: number }[] };
+      }>(
+        apiRequest(`/api/admin/questions/${size.id}/answers`, {
+          body: { text: "Medium" },
+          method: "POST",
+        }),
+        201,
+        (body) => {
+          expect(selectedTotals(body.question.answers)).toEqual([1, 0, 0]);
+        },
+      );
+      await assertJson(
+        apiRequest(
+          `/api/admin/questions/${size.id}/answers/${created.question.answers[2]!.id}`,
+          { body: { text: "Extra large" }, method: "PUT" },
+        ),
+        200,
+        (body) => {
+          expect(selectedTotals(body.question.answers)).toEqual([1, 0, 0]);
+        },
+      );
+    });
+
+    test("answers a new answer's total when a replica read misses the write", async () => {
+      // A plain read can be served by a replica that has not caught up with
+      // the answer the write just made. The write response reads totals from
+      // the primary, so the new answer still carries its total instead of
+      // failing on a missing row.
+      const { large, size, small } = await seedChoiceAndTextQuestions();
+      const database = getDb();
+      const liveExecute = database.execute.bind(database);
+      using _laggingReplica = stub(
+        database,
+        "execute",
+        (statement: InStatement) => {
+          const sql = typeof statement === "string" ? statement : statement.sql;
+          return sql.includes("answer.times_selected")
+            ? Promise.resolve(emptyResultSet())
+            : liveExecute(statement);
+        },
+      );
+
+      await assertJson(
+        apiRequest(`/api/admin/questions/${size.id}/answers`, {
+          body: { text: "Medium" },
+          method: "POST",
+        }),
+        201,
+        (body) => {
+          expect(body.question.answers).toEqual([
+            {
+              active: true,
+              id: small.id,
+              question_id: size.id,
+              sort_order: 0,
+              text: "Small",
+              times_selected: 0,
+            },
+            {
+              active: true,
+              id: large.id,
+              question_id: size.id,
+              sort_order: 1,
+              text: "Large",
+              times_selected: 0,
+            },
+            {
+              active: true,
+              id: expect.any(Number),
+              question_id: size.id,
+              sort_order: 2,
+              text: "Medium",
+              times_selected: 0,
+            },
+          ]);
+        },
+      );
     });
 
     test("names every listing the booking holds, in ascending order", async () => {

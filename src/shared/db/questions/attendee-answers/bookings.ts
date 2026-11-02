@@ -11,6 +11,7 @@ import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { queryAll } from "#db/client.ts";
 import { answersTable } from "#db/questions/tables.ts";
 import { mapParallel } from "#fp";
+import { ascending } from "#types";
 
 /** The fields a stored answer row and its API answer share: the booking, the
  *  chosen answer row, and the answer's stored text. */
@@ -29,8 +30,8 @@ type QuestionBookingRow = BookingAnswerFields & {
 
 /** One booking that answered a question, as the admin API answers with it.
  *  A choice answer fills `answer_id` and `answer_text`. A free-text answer
- *  fills `free_text`. This file keeps the type: the route serialises the rows,
- *  and only a caller outside `src` reads them. */
+ *  fills `free_text`. The route serialises this shape, so the type stays here
+ *  beside the read that makes it. */
 type QuestionBooking = BookingAnswerFields & {
   free_text: string | null;
   listing_ids: number[];
@@ -52,9 +53,9 @@ export const getQuestionBookings = async (
             answer.text AS answer_text,
             string.encrypted_text,
             attendee.created,
-            (SELECT GROUP_CONCAT(DISTINCT booking.listing_id)
-               FROM listing_attendees AS booking
-              WHERE booking.attendee_id = attendee_answer.attendee_id)
+            (SELECT GROUP_CONCAT(DISTINCT listingAttendee.listing_id)
+               FROM listing_attendees AS listingAttendee
+              WHERE listingAttendee.attendee_id = attendee_answer.attendee_id)
               AS listing_ids
        FROM attendee_answers AS attendee_answer
        JOIN attendees AS attendee
@@ -73,10 +74,7 @@ export const getQuestionBookings = async (
     const listingIds =
       row.listing_ids === null
         ? []
-        : row.listing_ids
-            .split(",")
-            .map(Number)
-            .sort((left, right) => left - right);
+        : row.listing_ids.split(",").map(Number).sort(ascending);
     return {
       answer_id: row.answer_id,
       answer_text:
