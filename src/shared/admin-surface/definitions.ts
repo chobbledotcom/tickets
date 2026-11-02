@@ -148,6 +148,7 @@ const declareArea = (
   declared: Map<string, DeclaredDestination>,
   patternOf: Map<string, string>,
 ): readonly string[] => {
+  const { segments = [] } = area;
   const areaDestinations = [
     ...groupDestinations(areaId, area.audience, "view", area.view),
     ...groupDestinations(areaId, area.audience, "write-form", area.write),
@@ -177,7 +178,7 @@ const declareArea = (
   return [
     ...new Set([
       ...areaDestinations.map((one) => adminPathSegment(one.pattern)),
-      ...(area.segments ?? []),
+      ...segments,
     ]),
   ];
 };
@@ -195,7 +196,7 @@ export const foldAdminAreas = (spec: AdminAreasSpec): FoldedAdminSurface => {
     areas[areaId] =
       "audience" in area
         ? declareArea(areaId, area, declared, patternOf)
-        : (area.segments ?? []);
+        : area.segments;
   }
 
   const destinations = resolveAfterSave(declared);
