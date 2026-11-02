@@ -156,6 +156,9 @@ const getAdvancedSettingsPageState = async (
       settings.googleWallet.hostConfig?.issuerId,
     ),
     listingColumnOrder: settings.listingColumnOrder,
+    logisticsEnabled: settings.features.logistics,
+    logisticsRunSheetBody: settings.logisticsRunSheetBody,
+    logisticsRunSheetHeading: settings.logisticsRunSheetHeading,
     paymentProviderRecoveryNeeded:
       existingPaymentProvider.recoveryChoices.length > 0,
     scheduledTaskKey: getEnv(SCHEDULED_TASK_KEY_ENV),

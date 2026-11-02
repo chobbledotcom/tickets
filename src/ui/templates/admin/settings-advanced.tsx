@@ -12,6 +12,7 @@ import { EmailNotificationsForm } from "#templates/admin/settings/email.tsx";
 import { AdminEmailTemplateForm } from "#templates/admin/settings/email-tpl-admin.tsx";
 import { ConfirmationEmailTemplateForm } from "#templates/admin/settings/email-tpl-confirmation.tsx";
 import { GoogleWalletForm } from "#templates/admin/settings/google-wallet.tsx";
+import { LogisticsRunSheetTemplateForm } from "#templates/admin/settings/logistics-run-sheet.tsx";
 import { settingsPage } from "#templates/admin/settings/page-shell.tsx";
 import { settingsForm } from "#templates/admin/settings/schema-form.tsx";
 import { SmsGatewayForm } from "#templates/admin/settings/sms-gateway.tsx";
@@ -52,6 +53,11 @@ export type AdvancedSettingsPageState = {
   theme: Theme;
   listingColumnOrder: string;
   attendeeColumnOrder: string;
+  /** The logistics feature decides whether the run-sheet template boxes show,
+   * because the run sheet is the only page that renders them. */
+  logisticsEnabled: boolean;
+  logisticsRunSheetBody: string;
+  logisticsRunSheetHeading: string;
   existingPaymentProvider: PaymentProviderType | null;
   paymentProviderRecoveryNeeded: boolean;
   smsGatewayUsername: string;
@@ -84,6 +90,7 @@ export const adminAdvancedSettingsPage = (
       {AdminEmailTemplateForm(s)}
       {settingsForm(SETTINGS_FORMS.listingColumnOrder, s)}
       {settingsForm(SETTINGS_FORMS.attendeeColumnOrder, s)}
+      {s.logisticsEnabled && LogisticsRunSheetTemplateForm(s)}
       {settingsForm(SETTINGS_FORMS.customCss, s)}
       {settingsForm(SETTINGS_FORMS.showPublicApi, s)}
       {settingsForm(SETTINGS_FORMS.externalOrder, s)}

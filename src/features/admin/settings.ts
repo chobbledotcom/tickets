@@ -44,6 +44,7 @@ import {
   handleListingDefaultsGet,
   handleListingDefaultsPost,
 } from "#routes/admin/settings-listing-defaults.ts";
+import { handleLogisticsRunSheetPost } from "#routes/admin/settings-logistics-run-sheet.ts";
 import {
   handleAdminSettingsAdvancedGet,
   handleAdminSettingsGet,
@@ -94,6 +95,7 @@ export const adminHandlers = defineAdminRoutes({
   "POST /admin/settings/header-image/delete": handleHeaderImageDeletePost,
   "POST /admin/settings/host-subdomain": handleHostSubdomainPost,
   "POST /admin/settings/listing-column-order": handleListingColumnOrderPost,
+  "POST /admin/settings/logistics-run-sheet": handleLogisticsRunSheetPost,
   "POST /admin/settings/payment-provider": handlePaymentProviderPost,
   "POST /admin/settings/payment-provider-recovery":
     handlePaymentProviderRecoveryPost,

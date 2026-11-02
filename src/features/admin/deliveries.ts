@@ -37,7 +37,6 @@ import {
   withAuth,
 } from "#routes/auth.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
-import { formatDateLabel } from "#shared/date-labels.ts";
 import { addDays } from "#shared/dates.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -47,10 +46,13 @@ import {
   parseDateStringOrThrow,
 } from "#shared/validation/date-string.ts";
 import {
-  agentDeliveriesPage,
-  type DeliveriesDateNav,
   type DeliveryBookingView,
   type DeliveryDayGroup,
+  renderRunSheetDays,
+} from "#templates/admin/deliveries/run-sheet.tsx";
+import {
+  agentDeliveriesPage,
+  type DeliveriesDateNav,
 } from "#templates/admin/deliveries.tsx";
 import {
   type DatePickerDate,
@@ -117,33 +119,22 @@ const bookingsForDate = (
   );
 };
 
-/** A day's heading relative to the real today. The opened day and its
- * following day read as "Today"/"Tomorrow" when they line up with the real
- * calendar. Otherwise they read as a full date label ("Monday 6 July 2026").
- * So a staff member who opens a future date sees which day each section is. */
-const dayHeading = (date: string, today: DateString): string =>
-  date === today
-    ? t("deliveries.today")
-    : date === addDays(today, 1)
-      ? t("deliveries.tomorrow")
-      : formatDateLabel(date);
-
 const buildGroups = (
   legs: AgentRunLeg[],
   baseDate: DateString,
   tomorrow: DateString,
-  today: DateString,
   lookups: LegLookups,
 ): DeliveryDayGroup[] => [
-  {
-    bookings: bookingsForDate(legs, baseDate, lookups),
-    heading: dayHeading(baseDate, today),
-  },
-  {
-    bookings: bookingsForDate(legs, tomorrow, lookups),
-    heading: dayHeading(tomorrow, today),
-  },
+  { bookings: bookingsForDate(legs, baseDate, lookups), date: baseDate },
+  { bookings: bookingsForDate(legs, tomorrow, lookups), date: tomorrow },
 ];
+
+/** Where the owner edits the run-sheet templates. Null for every viewer who
+ * cannot open advanced settings, so no forbidden link renders. */
+const editTemplateHref = (session: AuthSession): string | null =>
+  session.adminLevel === "owner" && settings.features.logistics
+    ? "/admin/settings-advanced#settings-logistics-run-sheet"
+    : null;
 
 const loadLegLookups = async (
   legs: AgentRunLeg[],
@@ -151,7 +142,7 @@ const loadLegLookups = async (
 ): Promise<LegLookups> => {
   const attendeeIds = unique(legs.map((leg) => leg.attendeeId));
   const [rawAttendees, listings, agents] = await Promise.all([
-    getAttendeesByIds(attendeeIds),
+    getAttendeesByIds(attendeeIds, "attendee-or-servicing"),
     getAllListings(),
     logisticsAgents.getAll(),
   ]);
@@ -190,8 +181,12 @@ const handleDeliveriesGet = deliveryPage(async (session, request) => {
   if (agentIds.length === 0) {
     return agentDeliveriesPage(
       [],
-      settings.phonePrefix,
-      { error: flash.error, noAgents: true, success: flash.success },
+      {
+        editTemplateHref: editTemplateHref(session),
+        error: flash.error,
+        noAgents: true,
+        success: flash.success,
+      },
       session,
       null,
     );
@@ -215,14 +210,24 @@ const handleDeliveriesGet = deliveryPage(async (session, request) => {
 
   const privateKey = await requireRequestPrivateKey();
   const lookups = await loadLegLookups(legs, privateKey);
-  const groups = buildGroups(legs, baseDate, tomorrow, today, lookups);
+  const groups = buildGroups(legs, baseDate, tomorrow, lookups);
+  const days = await renderRunSheetDays(groups, {
+    bodyTemplate: settings.logisticsRunSheetBody,
+    headingTemplate: settings.logisticsRunSheetHeading,
+    phonePrefix: settings.phonePrefix,
+    today,
+  });
   const dateNav = staff
     ? await buildDateNav(agentIds, today, selected, viewMonth)
     : null;
   return agentDeliveriesPage(
-    groups,
-    settings.phonePrefix,
-    { error: flash.error, noAgents: false, success: flash.success },
+    days,
+    {
+      editTemplateHref: editTemplateHref(session),
+      error: flash.error,
+      noAgents: false,
+      success: flash.success,
+    },
     session,
     dateNav,
   );

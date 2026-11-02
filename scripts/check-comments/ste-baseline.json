@@ -1688,7 +1688,7 @@
     "semicolon": 1
   },
   "src/ui/templates/admin/deliveries.tsx": {
-    "long-sentence": 3,
+    "long-sentence": 1,
     "semicolon": 3
   },
   "src/ui/templates/admin/detail-rows.tsx": {

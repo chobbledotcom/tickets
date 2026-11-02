@@ -1,4 +1,5 @@
 import { Liquid } from "liquidjs";
+import { lazyRef } from "#fp";
 import { formatCurrency } from "#shared/currency.ts";
 
 /** Create a Liquid engine with the application's shared filters. Pass
@@ -32,4 +33,27 @@ export const createBaseLiquidEngine = (
     delete engine.filters.raw;
   }
   return engine;
+};
+
+/** The one plain engine for a template that outputs text or trusted markup.
+ * A cold start builds it on first use. */
+const [getPlainEngine, setPlainEngine] = lazyRef<Liquid>(() =>
+  createBaseLiquidEngine(),
+);
+
+/** The one HTML engine for a template whose output is HTML built from values
+ * a person typed. Every interpolation is escaped. */
+const [getHtmlEngine, setHtmlEngine] = lazyRef<Liquid>(() =>
+  createBaseLiquidEngine({ outputEscape: "escape" }),
+);
+
+export const plainLiquidEngine = (): Liquid => getPlainEngine();
+
+export const htmlLiquidEngine = (): Liquid => getHtmlEngine();
+
+/** For testing: drop the cached engines, so a changed currency setting
+ * registers its filters afresh. */
+export const resetLiquidEngines = (): void => {
+  setPlainEngine(null);
+  setHtmlEngine(null);
 };

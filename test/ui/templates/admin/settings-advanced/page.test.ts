@@ -143,4 +143,38 @@ describe("adminAdvancedSettingsPage", () => {
     });
     assert(!html.includes("Changing your domain changes your payment webhook"));
   });
+
+  test("shows the run sheet template boxes only while logistics is on", () => {
+    const shown = adminAdvancedSettingsPage(OWNER_SESSION, {
+      ...advancedDefaultState,
+      logisticsEnabled: true,
+    });
+    assertStringIncludes(shown, 'id="settings-logistics-run-sheet"');
+    assertStringIncludes(shown, "Logistics run sheet template");
+    assertStringIncludes(shown, 'name="heading"');
+    assertStringIncludes(shown, 'name="body"');
+    // The built-in template sits behind each box, ready to fill in.
+    assertStringIncludes(shown, "Edit default template");
+    assertStringIncludes(shown, 'action="/admin/settings/logistics-run-sheet"');
+
+    const hidden = adminAdvancedSettingsPage(
+      OWNER_SESSION,
+      advancedDefaultState,
+    );
+    assert(!hidden.includes("settings-logistics-run-sheet"));
+    assert(!hidden.includes("Logistics run sheet template"));
+  });
+
+  test("shows the saved run sheet templates in the boxes", () => {
+    const html = adminAdvancedSettingsPage(OWNER_SESSION, {
+      ...advancedDefaultState,
+      logisticsEnabled: true,
+      logisticsRunSheetBody:
+        "{% for booking in day.bookings %}{{ booking.name }}{% endfor %}",
+      logisticsRunSheetHeading: "{{ relative }}",
+    });
+
+    assertStringIncludes(html, "{% for booking in day.bookings %}");
+    assertStringIncludes(html, "{{ relative }}");
+  });
 });

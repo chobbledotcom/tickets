@@ -3,11 +3,14 @@
  * Owner-only access enforced via settingsHandler / withAuth
  */
 
+/* jscpd:ignore-start -- imports */
 import { settings } from "#db/settings.ts";
 import { settingsHandler } from "#routes/admin/settings-helpers.ts";
-import { validateTemplate } from "#shared/email-renderer.ts";
+import { validateEditableTemplate } from "#shared/editable-template.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
 import type { EmailTemplateType } from "#types";
+
+/* jscpd:ignore-end */
 
 /** Handle POST /admin/settings/email-templates/:type - save custom email templates */
 const validateTemplateFields = ({
@@ -21,7 +24,7 @@ const validateTemplateFields = ({
     ["text", text],
   ] as const) {
     if (value) {
-      const error = validateTemplate(value);
+      const error = validateEditableTemplate(value);
       if (error) return `Invalid template syntax in ${name}: ${error}`;
     }
   }

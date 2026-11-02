@@ -125,7 +125,7 @@ export const ALLOWED_TEST_HOOKS: string[] = [
   "shared/demo/mode.ts:resetDemoMode",
   "shared/demo/mode.ts:setDemoModeForTest",
   // Reset cached Liquid engine between tests (currency changes need fresh filters)
-  "shared/email-renderer.ts:resetEngine",
+  "shared/liquid-engine.ts:resetLiquidEngines",
   // Skip login delay in tests without env var races
   "shared/test-overrides.ts:setSkipLoginDelayForTest",
   // Timezone validation utility (timezone now derived from country, but still useful for tests)
