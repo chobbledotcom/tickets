@@ -25,6 +25,7 @@ import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { DeactivationEffects } from "#templates/components/deactivation-effects.tsx";
 import { JsonScript } from "#templates/components/json-script.tsx";
+import { MessageParagraph } from "#templates/components/message-para.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { TextField } from "#templates/components/text-field.tsx";
@@ -51,11 +52,6 @@ const bulkActionsBackLink = (group: Group): JSX.Element => (
       &larr; {t("bulk_actions.page_title")}
     </a>
   </p>
-);
-
-/** A `<p>` wrapping a group-name-parameterized confirm prompt string. */
-const ConfirmPromptParagraph = (key: string, group: Group): JSX.Element => (
-  <p>{t(key, { groupName: group.name })}</p>
 );
 
 /** An i18n line that states a count then ends with the group's name in bold,
@@ -418,7 +414,10 @@ const activateConfirmPage =
             trail={impactTrail}
           />
           {body}
-          {ConfirmPromptParagraph(confirmPromptKey, g)}
+          <MessageParagraph
+            messageKey={confirmPromptKey}
+            values={{ groupName: g.name }}
+          />
         </>
       ),
     });

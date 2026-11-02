@@ -21,16 +21,14 @@ import {
   type PackagePricesByListingId,
   parseLines,
 } from "#routes/admin/attendee-form-lines.ts";
-import {
-  isValidAdjustmentAmount,
-  isValidPaymentAmount,
-} from "#shared/booking-inputs.ts";
+import { isValidAdjustmentAmount } from "#shared/booking-inputs.ts";
 import { countsPerDate } from "#shared/capacity-rules.ts";
 import type { CreateReceipts } from "#shared/checkout-complete.ts";
 import { listPriceOrder, type PricedOrder } from "#shared/checkout-pricing.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { START_DATE_FIELD } from "#shared/order-select.ts";
 import {
+  isPositiveSafeInteger,
   parseNonNegativeInt,
   parseSignedInt,
 } from "#shared/validation/number.ts";
@@ -310,7 +308,7 @@ export const receiptsOf = (parsed: ParsedAttendeeForm): CreateReceipts => ({
   payments: parsed.payments.flatMap((raw) => {
     if (raw === null) return [];
     const amount = parseNonNegativeInt(raw);
-    return amount !== null && isValidPaymentAmount(amount) ? [amount] : [];
+    return amount !== null && isPositiveSafeInteger(amount) ? [amount] : [];
   }),
 });
 

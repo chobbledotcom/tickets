@@ -14,9 +14,9 @@ import { parsePositiveInt as parsePositiveIntId } from "#shared/validation/numbe
 import {
   BULK_COMPOSE_COPY,
   fixedControl,
-  fromRawField,
   type ListingDayTarget,
   type ListingTarget,
+  rawFieldReaders,
   type TargetDescription,
   type TargetSpec,
 } from "./types.ts";
@@ -64,10 +64,10 @@ export const listingSpec: TargetSpec<ListingTarget> = {
     fixedControl("listing_id", String(target.listingId)),
   composeCopy: BULK_COMPOSE_COPY,
   describe: (target) => describeListingAttendees(target.listingId),
-  fromForm: (form) =>
-    fromRawField(listingTargetFromRaw)(form.getString("listing_id")),
-  fromQuery: (params) =>
-    fromRawField(listingTargetFromRaw)(params.get("listing")),
+  ...rawFieldReaders(listingTargetFromRaw, {
+    form: "listing_id",
+    query: "listing",
+  }),
   loadPiiBlobs: (target) => getAttendeePiiBlobsForListings([target.listingId]),
   toQuery: (target) => listingQuery(target.listingId),
 };

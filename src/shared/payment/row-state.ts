@@ -117,16 +117,10 @@ export const EMPTY_ROW_STATE: PaymentRowState = {};
 const rowStateJson = defineStoredJson(PaymentRowStateSchema);
 
 /** Read the one canonical record out of a decrypted slot. */
-export const readRowState = (
-  stored: string,
-  context: string,
-): PaymentRowState => rowStateJson.read(stored, context);
+export const readRowState = rowStateJson.read;
 
 /** Write the record back out. */
-export const writeRowState = (
-  state: PaymentRowState,
-  context: string,
-): string => rowStateJson.write(state, context);
+export const writeRowState = rowStateJson.write;
 
 /** Whether this record holds nothing at all, and so must be stored as the
  *  empty slot rather than as an empty JSON object. */

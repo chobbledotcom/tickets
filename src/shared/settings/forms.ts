@@ -6,6 +6,7 @@ import {
 } from "#shared/address-lookup/types.ts";
 import type { Field } from "#shared/forms/field.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
+import { definition } from "#shared/settings/definition.ts";
 import {
   CUSTOM_SETTINGS_FIELDS,
   emailTemplateSettingsFields,
@@ -14,10 +15,6 @@ import {
 import type { SettingsFormConfig } from "#shared/settings/form-schema.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 import { configurableTableLayouts } from "#shared/tables/configurable.ts";
-
-const form = <const Definition extends SettingsFormConfig>(
-  definition: Definition,
-): Definition => definition;
 
 /** The "Available tags: …" note under a column-order field, listing every
  *  Liquid tag the table understands. */
@@ -34,7 +31,7 @@ const addressProviderLabel = (provider: AddressLookupSetting): string =>
     : ADDRESS_LOOKUP_PROVIDERS[provider].label;
 
 export const SETTINGS_FORM_DEFINITIONS = [
-  form({
+  definition({
     action: "/admin/settings/tax",
     copy: {
       descriptionKey: "settings.tax_hint",
@@ -71,7 +68,7 @@ export const SETTINGS_FORM_DEFINITIONS = [
     page: "main",
     routeLabel: "Tax",
   }),
-  form({
+  definition({
     action: "/admin/settings/business-email",
     copy: {
       descriptionKey: "settings.business_email_hint",
@@ -90,7 +87,7 @@ export const SETTINGS_FORM_DEFINITIONS = [
     routeLabel: "Business email",
     stateField: "businessEmail",
   }),
-  form({
+  definition({
     action: "/admin/settings/theme",
     copy: {
       descriptionKey: "settings.theme_hint",
@@ -122,7 +119,7 @@ export const SETTINGS_FORM_DEFINITIONS = [
     page: "main",
     routeLabel: "Site theme",
   }),
-  form({
+  definition({
     action: "/admin/settings/calendar-feeds",
     copy: {
       descriptionHtml: true,
@@ -161,7 +158,7 @@ export const SETTINGS_FORM_DEFINITIONS = [
     page: "main",
     routeLabel: "Calendar feeds",
   }),
-  form({
+  definition({
     action: "/admin/settings/terms",
     copy: {
       descriptionKey: "settings.terms_hint",
@@ -181,7 +178,7 @@ export const SETTINGS_FORM_DEFINITIONS = [
     routeLabel: "Terms and conditions",
     stateField: "termsAndConditions",
   }),
-  form({
+  definition({
     action: "/admin/settings/site-footer",
     copy: {
       descriptionKey: "settings.site_footer_hint",
@@ -200,7 +197,7 @@ export const SETTINGS_FORM_DEFINITIONS = [
     routeLabel: "Site footer",
     stateField: "siteFooter",
   }),
-  form({
+  definition({
     action: "/admin/settings/embed-hosts",
     copy: {
       descriptionKey: "settings.embed_hosts_hint",
@@ -220,7 +217,7 @@ export const SETTINGS_FORM_DEFINITIONS = [
     routeLabel: "Embed host restrictions",
     stateField: "embedHosts",
   }),
-  form({
+  definition({
     action: "/admin/settings/booking-fee",
     copy: {
       descriptionKey: "settings.booking_fee_hint",
@@ -242,7 +239,7 @@ export const SETTINGS_FORM_DEFINITIONS = [
     stateField: "bookingFee",
     step: "0.1",
   }),
-  form({
+  definition({
     action: "/admin/settings/listing-column-order",
     copy: {
       descriptionHtml: true,
@@ -264,7 +261,7 @@ export const SETTINGS_FORM_DEFINITIONS = [
     stateField: "listingColumnOrder",
     valueFallback: "placeholder",
   }),
-  form({
+  definition({
     action: "/admin/settings/attendee-column-order",
     copy: {
       descriptionHtml: true,
@@ -286,7 +283,7 @@ export const SETTINGS_FORM_DEFINITIONS = [
     stateField: "attendeeColumnOrder",
     valueFallback: "placeholder",
   }),
-  form({
+  definition({
     action: "/admin/settings/custom-css",
     copy: {
       descriptionKey: "settings.advanced.custom_css_hint",
@@ -304,7 +301,7 @@ export const SETTINGS_FORM_DEFINITIONS = [
     routeLabel: "Custom CSS",
     stateField: "customCss",
   }),
-  form({
+  definition({
     action: "/admin/settings/show-public-api",
     copy: {
       descriptionHtml: true,
@@ -320,7 +317,7 @@ export const SETTINGS_FORM_DEFINITIONS = [
     routeLabel: "Public API",
     stateField: "showPublicApi",
   }),
-  form({
+  definition({
     action: "/admin/settings/address-lookup",
     copy: {
       descriptionHtml: "block",
@@ -355,7 +352,7 @@ export const SETTINGS_FORM_DEFINITIONS = [
     page: "advanced",
     routeLabel: "Address lookup",
   }),
-  form({
+  definition({
     action: "/admin/settings/external-order",
     copy: {
       descriptionKey: "settings.advanced.external_order_hint",
@@ -370,7 +367,7 @@ export const SETTINGS_FORM_DEFINITIONS = [
     routeLabel: "External order buttons",
     stateField: "externalOrderEnabled",
   }),
-] as const;
+] as const satisfies readonly SettingsFormConfig[];
 
 type SettingsFormDefinition = (typeof SETTINGS_FORM_DEFINITIONS)[number];
 type SettingsFormName = SettingsFormDefinition["name"];

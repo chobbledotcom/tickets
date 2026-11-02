@@ -69,6 +69,11 @@ const SignedIntSchema = v.pipe(
 /** Parse a strict signed decimal integer, or null when it is not one. */
 export const parseSignedInt = parseIntWith(SignedIntSchema);
 
+/** Whether a number is a safe whole number of at least `minimum`. */
+export const safeIntegerAtLeast =
+  (minimum: number) =>
+  (value: number): boolean =>
+    Number.isSafeInteger(value) && value >= minimum;
+
 /** Whether a number can be stored safely as a positive database id. */
-export const isPositiveSafeInteger = (value: number): boolean =>
-  Number.isSafeInteger(value) && value >= 1;
+export const isPositiveSafeInteger = safeIntegerAtLeast(1);

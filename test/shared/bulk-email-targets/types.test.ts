@@ -7,9 +7,10 @@ import {
   AUDIENCES,
   BULK_COMPOSE_COPY,
   fixedControl,
-  fromRawField,
   isBulkEmailTarget,
+  rawFieldReaders,
 } from "#shared/bulk-email-targets/types.ts";
+import { FormParams } from "#shared/form-data.ts";
 
 describe("the bulk-email target types module", () => {
   test("fixedControl round-trips one pre-chosen field value", () => {
@@ -19,17 +20,22 @@ describe("the bulk-email target types module", () => {
     });
   });
 
-  test("fromRawField skips a blank value and parses a claimed one", () => {
-    const fromRaw = fromRawField((raw: string) => ({
-      kind: "attendee",
-      token: raw,
-    }));
-    expect(fromRaw("")).toBeUndefined();
-    expect(fromRaw(null)).toBeUndefined();
-    expect(fromRaw("token-1")).toEqual({
-      kind: "attendee",
-      token: "token-1",
-    });
+  test("rawFieldReaders skips a blank value and parses a claimed one", () => {
+    const { fromForm, fromQuery } = rawFieldReaders(
+      (raw: string) => ({ kind: "attendee", token: raw }),
+      { form: "attendee", query: "attendee_id" },
+    );
+    const attendee = { kind: "attendee", token: "token-1" };
+    expect(fromForm(new FormParams([["attendee", ""]]))).toBe(undefined);
+    expect(fromQuery(new URLSearchParams([["attendee_id", ""]]))).toBe(
+      undefined,
+    );
+    expect(fromForm(new FormParams([["attendee", "token-1"]]))).toEqual(
+      attendee,
+    );
+    expect(
+      fromQuery(new URLSearchParams([["attendee_id", "token-1"]])),
+    ).toEqual(attendee);
   });
 
   test("the bulk compose copy carries a heading and an intro", () => {

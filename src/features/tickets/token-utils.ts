@@ -25,6 +25,7 @@ import { listingDetails } from "#shared/listing-details.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 import { getRequestClientIp } from "#shared/request-context.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
+import { splitParts } from "#shared/split.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";
 import {
   type Attendee,
@@ -125,7 +126,7 @@ export const extractTokenSegment = (
 
 /** Parse +-separated tokens from a combined string, removing duplicates */
 export const parseTokens = (tokensStr: string): string[] =>
-  unique(tokensStr.split("+").filter((s) => s.length > 0));
+  unique(splitParts("+")(tokensStr));
 
 /** Build an Attendee object from base attendee data + one booking's per-listing data.
  * The email badge asks about THIS booking's listing alone. The entry's row

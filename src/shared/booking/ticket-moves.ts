@@ -6,6 +6,7 @@ import { remainingTickets } from "#booking/remaining-tickets.ts";
 import type { ListingAttendeeRow } from "#db/attendee-types.ts";
 import { filter, requiredMapValue, sumOf } from "#fp";
 import { pairKey } from "#shared/keys.ts";
+import { safeIntegerAtLeast } from "#shared/validation/number.ts";
 
 /** Admitting fills lines up to their quantity, releasing empties them. */
 export type TicketDirection = "admit" | "release";
@@ -78,8 +79,7 @@ const STEP: Record<TicketDirection, number> = { admit: 1, release: -1 };
 
 /** A ticket count is a whole number of tickets, zero or more. A negative or
  * fractional count writes a torn booking, so the write refuses it. */
-const isWholeTicketCount = (count: number): boolean =>
-  Number.isSafeInteger(count) && count >= 0;
+const isWholeTicketCount = safeIntegerAtLeast(0);
 
 /** Move each count over the person's lines on that listing in the order
  * given, filling (or emptying) one line before the next. Answers the lines

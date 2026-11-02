@@ -110,16 +110,22 @@ export type AttendeeEditWork = {
   before: SqlStatement[];
   after: SqlStatement[];
 };
-/** Read all current listing_attendees rows for an attendee, with line keys. */
-export const loadExistingLines = async (
+/** Read all current listing_attendees rows for an attendee, in line order. */
+export const loadAttendeeBookingRows = (
   attendeeId: number,
-): Promise<ExistingLine[]> => {
-  const rows = await queryAll<ListingAttendeeRow>(
+): Promise<ListingAttendeeRow[]> =>
+  queryAll<ListingAttendeeRow>(
     `SELECT ${LISTING_ATTENDEE_ROW_COLS}
      FROM listing_attendees WHERE attendee_id = ?
      ORDER BY start_at, listing_id`,
     [attendeeId],
   );
+
+/** Read all current listing_attendees rows for an attendee, with line keys. */
+export const loadExistingLines = async (
+  attendeeId: number,
+): Promise<ExistingLine[]> => {
+  const rows = await loadAttendeeBookingRows(attendeeId);
   return rows.map((booking) => ({
     booking,
     key: lineKeyFromBooking(booking),

@@ -110,8 +110,7 @@ export const BulkEmailTargetSchema = v.variant("kind", [
 ]);
 
 /** Runtime guard for a deserialised target (drafts are stored as JSON). */
-export const isBulkEmailTarget = (val: unknown): val is BulkEmailTarget =>
-  v.is(BulkEmailTargetSchema, val);
+export const isBulkEmailTarget = guardFor(BulkEmailTargetSchema);
 
 /** Human label (+ optional description) for the compose/preview pages. */
 export type TargetDescription = {
@@ -202,10 +201,17 @@ export const fixedControl = (name: string, value: string): ComposeControl => ({
   mode: "fixed",
 });
 
-/** Turn a field's raw value into a target when it has one, else `undefined`
- * ("not this target's field — try the next spec"). The form and query parsers
- * both read one field, so they share this "present → build" step. */
-export const fromRawField =
-  <T extends BulkEmailTarget>(fromRaw: (raw: string) => Parsed<T>) =>
-  (raw: string | null | undefined): Parsed<T> =>
+/** The two request readers for a target that one raw field names. The compose
+ *  form and the query string carry that field under their own name. A blank
+ *  value means "not this target's field — try the next spec". */
+export const rawFieldReaders = <T extends BulkEmailTarget>(
+  fromRaw: (raw: string) => Parsed<T>,
+  keys: { readonly form: string; readonly query: string },
+): Pick<TargetSpec<T>, "fromForm" | "fromQuery"> => {
+  const read = (raw: string | null | undefined): Parsed<T> =>
     raw ? fromRaw(raw) : undefined;
+  return {
+    fromForm: (form) => read(form.getString(keys.form)),
+    fromQuery: (params) => read(params.get(keys.query)),
+  };
+};

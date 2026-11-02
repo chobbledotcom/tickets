@@ -1,5 +1,6 @@
 import * as v from "valibot";
 import { sameOn } from "#fp";
+import { guardFor } from "#shared/validation/guard.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 
 /**
@@ -22,8 +23,7 @@ export type Currency = v.InferOutput<typeof CurrencySchema>;
 /** Whether a value is a well-formed currency code. Lets an adapter keep a
  *  malformed provider code away from `Intl` (which throws on one) while still
  *  handing the raw code to {@link money} to be refused. */
-export const isCurrency = (value: unknown): value is Currency =>
-  v.is(CurrencySchema, value);
+export const isCurrency = guardFor(CurrencySchema);
 
 /** Money: a non-negative minor-unit amount paired with its currency. The
  *  amount is already in the smallest unit the currency uses. Two amounts in

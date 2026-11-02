@@ -5,7 +5,7 @@ import { getAttendeePiiBlobForToken } from "#db/attendees/pii.ts";
 import {
   type AttendeeTarget,
   fixedControl,
-  fromRawField,
+  rawFieldReaders,
   type TargetSpec,
 } from "./types.ts";
 
@@ -26,10 +26,10 @@ export const attendeeSpec: TargetSpec<AttendeeTarget> = {
   describe: (_target, recipients) => ({
     targetLabel: recipients[0] ?? "the selected attendee",
   }),
-  fromForm: (form) =>
-    fromRawField(attendeeTargetFromRaw)(form.getString("attendee")),
-  fromQuery: (params) =>
-    fromRawField(attendeeTargetFromRaw)(params.get("attendee")),
+  ...rawFieldReaders(attendeeTargetFromRaw, {
+    form: "attendee",
+    query: "attendee",
+  }),
   loadPiiBlobs: async (target) => {
     const blob = await getAttendeePiiBlobForToken(target.token);
     return blob ? [blob] : [];

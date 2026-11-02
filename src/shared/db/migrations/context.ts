@@ -6,14 +6,16 @@
 import { getDb } from "#db/client.ts";
 import { once } from "#fp";
 
+import {
+  backfillAnswerAggregates,
+  backfillModifierAggregates,
+} from "./aggregate-backfills.ts";
 import { MIGRATION_REGISTRY } from "./registry.ts";
 import { EVENT_TO_LISTING_RENAME_PLAN } from "./rename-plan.ts";
 import { repairLegacyRenames } from "./rename-utils.ts";
 import {
   applySchemaChanges,
-  backfillAnswerAggregates,
   backfillListingAggregates,
-  backfillModifierAggregates,
   recreateTable,
   syncCurrentSchema as syncCurrentSchemaBase,
   syncIndexes,

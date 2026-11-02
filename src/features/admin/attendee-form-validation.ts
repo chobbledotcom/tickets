@@ -16,13 +16,13 @@ import {
 import {
   ADJUSTMENT_DESCRIPTION_LIMIT,
   isValidAdjustmentAmount,
-  isValidPaymentAmount,
   quantityOverCap,
 } from "#shared/booking-inputs.ts";
 import { countsPerDate } from "#shared/capacity-rules.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { isIsoDate } from "#shared/validation/date-string.ts";
 import {
+  isPositiveSafeInteger,
   parseNonNegativeInt,
   parseSignedInt,
 } from "#shared/validation/number.ts";
@@ -130,7 +130,7 @@ const paymentRefusal = (parsed: ParsedAttendeeForm): string | null => {
   for (const raw of parsed.payments) {
     if (raw === null) continue;
     const amount = parseNonNegativeInt(raw);
-    if (amount === null || !isValidPaymentAmount(amount)) {
+    if (amount === null || !isPositiveSafeInteger(amount)) {
       return t("attendee_form.payment_invalid");
     }
   }

@@ -5,14 +5,12 @@
 import { pick } from "@std/collections";
 import { logActivity } from "#db/activity-log.ts";
 import type { ListingAttendeeRow } from "#db/attendee-types.ts";
+import { loadAttendeeBookingRows } from "#db/attendees/atomic-update.ts";
 import { decryptAttendeeOrNull, decryptPiiBlob } from "#db/attendees/pii.ts";
-import {
-  getAttendeeRaw,
-  LISTING_ATTENDEE_ROW_COLS,
-} from "#db/attendees/queries.ts";
+import { getAttendeeRaw } from "#db/attendees/queries.ts";
 import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
 import { updateAttendeePII } from "#db/attendees/update.ts";
-import { queryAll, type TxScope } from "#db/client.ts";
+import type { TxScope } from "#db/client.ts";
 import { syncAttendeeContactTokens } from "#db/contact-tokens.ts";
 import { loadPaymentMoveSnapshot, orRefusal } from "#db/payment-admit-move.ts";
 import { getQuestionsWithListingIds } from "#db/questions/queries.ts";
@@ -88,16 +86,6 @@ const loadMergeSource = async (
   };
 };
 
-/** Load all listing_attendees rows for an attendee */
-const loadAttendeeBookings = (
-  attendeeId: number,
-): Promise<ListingAttendeeRow[]> =>
-  queryAll<ListingAttendeeRow>(
-    `SELECT ${LISTING_ATTENDEE_ROW_COLS}
-     FROM listing_attendees WHERE attendee_id = ? ORDER BY start_at, listing_id`,
-    [attendeeId],
-  );
-
 /** Collect unique listing IDs from two sets of bookings */
 const collectListingIds = (
   targetBookings: ListingAttendeeRow[],
@@ -127,7 +115,7 @@ const buildMergeDiffFor = async (
   source: MergeSourceLookup,
   attendeeId: number,
 ): Promise<AttendeeMergeDiff> => {
-  const targetBookings = await loadAttendeeBookings(attendeeId);
+  const targetBookings = await loadAttendeeBookingRows(attendeeId);
   const allListingIds = collectListingIds(targetBookings, source.bookings);
   const { questions } = await getQuestionsWithListingIds(allListingIds);
 

@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { guardFor } from "#shared/validation/guard.ts";
 
 /**
  * A provider's id for a charge or a refund. Whitespace is refused rather than
@@ -13,5 +14,4 @@ export const ResourceIdSchema = v.pipe(
 export type ResourceId = v.InferOutput<typeof ResourceIdSchema>;
 
 /** Whether a string is a real provider resource id. */
-export const isResourceId = (value: string): value is ResourceId =>
-  v.is(ResourceIdSchema, value);
+export const isResourceId = guardFor(ResourceIdSchema);

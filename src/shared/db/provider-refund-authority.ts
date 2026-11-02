@@ -94,16 +94,21 @@ const loadRefundAuthority = async (
   return row === null ? null : authorityRow(row);
 };
 
+/** The value each payment-charge identity takes. */
+type AuthorityKey = { id: number; reference_index: string };
+
+/** Load one charge through one identity, with that identity fixed now. */
+const loadRefundAuthorityBy =
+  <Field extends keyof AuthorityKey>(field: Field) =>
+  (value: AuthorityKey[Field]): Promise<RefundAuthorityRow | null> =>
+    loadRefundAuthority(field, value);
+
 /** Load one charge through its globally unique blind identity. */
-export const loadRefundAuthorityByReference = (
-  referenceIndex: string,
-): Promise<RefundAuthorityRow | null> =>
-  loadRefundAuthority("reference_index", referenceIndex);
+export const loadRefundAuthorityByReference =
+  loadRefundAuthorityBy("reference_index");
 
 /** Load one charge through its local row id. */
-export const loadRefundAuthorityById = (
-  id: number,
-): Promise<RefundAuthorityRow | null> => loadRefundAuthority("id", id);
+export const loadRefundAuthorityById = loadRefundAuthorityBy("id");
 
 interface RefundCallbackBinding {
   readonly callbackReplayIndex: string;

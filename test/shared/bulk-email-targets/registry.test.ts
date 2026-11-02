@@ -41,7 +41,7 @@ describe("the bulk-email target registry", () => {
   });
 
   test("a blank attendee field falls through to the audience target", async () => {
-    // fromRawField treats an empty string as "not this spec's params".
+    // The reader treats an empty string as "not this spec's params".
     const query = new URLSearchParams([["attendee", ""]]);
     const target = await targetFromQuery(query);
     expect(target?.kind).toBe("audience");

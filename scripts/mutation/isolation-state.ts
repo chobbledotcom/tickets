@@ -18,6 +18,7 @@ import { projectRoot } from "#scripts/project-root.ts";
 import { BUILD_LOCK_PATH } from "#scripts/static-assets/build-lock.ts";
 import { STATIC_ASSET_MANIFEST_PATH } from "#scripts/static-assets/cache.ts";
 import { directoryEntries } from "#scripts/walk-files.ts";
+import { splitParts } from "#shared/split.ts";
 
 export const MUTATION_RUNS_DIR = ".mutation-runs";
 export const MUTATION_WORK_DIR = "work";
@@ -121,8 +122,7 @@ left behind is deleted when the next run starts.`;
 
 const nowIso = (): string => new Date().toISOString();
 
-const pathParts = (path: string): string[] =>
-  path.split(/[\\/]+/).filter((part) => part.length > 0);
+const pathParts = splitParts(/[\\/]+/);
 
 const isDatabaseFile = (name: string): boolean =>
   name.endsWith(".db") || name.endsWith(".db-shm") || name.endsWith(".db-wal");

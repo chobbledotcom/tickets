@@ -18,7 +18,7 @@ import {
 } from "#db/modifier-usage.ts";
 import { boundSlots, type NumberedSql } from "#db/numbered-statement.ts";
 import { batchFinalizeStatements } from "#db/payment-finalize.ts";
-import { notNullGuardFailure } from "#db/query.ts";
+import { notNullGuardFailureAt } from "#db/query.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { namedError } from "#shared/named-error.ts";
@@ -70,8 +70,9 @@ const bookingWriteGuard = (): SqlStatement => ({
         SELECT NULL, NULL, 1 WHERE changes() != ?`,
 });
 
-const isBookingWriteGuardFailure = (error: unknown): boolean =>
-  notNullGuardFailure(error, "listing_attendees.listing_id");
+const isBookingWriteGuardFailure = notNullGuardFailureAt(
+  "listing_attendees.listing_id",
+);
 
 const guardedBookings = (statements: SqlStatement[]): SqlStatement[] =>
   statements.flatMap((statement) => [statement, bookingWriteGuard()]);

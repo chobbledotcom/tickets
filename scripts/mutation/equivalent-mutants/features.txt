@@ -254,7 +254,6 @@ src/features/public/ticket-routes.ts::getFromEmailIfConfigured.config~15giq6g  ?
 src/features/public/ticket-routes.ts::getFromEmailIfConfigured~0uy8up8  ?? → || audited:0e3zqxa # a present config carries a parsed ValidEmail fromAddress, never empty, so fromAddress is truthy whenever it exists
 src/features/public/ticket-routes.ts::handleReservedGet.normalizedTokens~10w3ne2  ?? → || audited:0e3zqxa # replaceAll answers a string; "" is the only falsy one, and "" || "" equals "" ?? ""
 src/features/public/ticket-routes.ts::handleReservedGet.normalizedTokens~10w3ne2  → "mutated" audited:0e3zqxa # the fallback feeds only token splitting; "mutated" resolves to no verified token exactly like the empty string, and the page renders the same
-src/features/public/ticket-routes.ts::handleReservedGet.tokens~09d2xk9  0 → 1 audited:0e3zqxa # every real ticket token is far longer than one character, so length > 0 and length > 1 filter the same crafted residue
 src/features/admin/attendee-page-data.ts::loadPackagePaths.memberPrices~1xcdymp  ?? → || audited:1e4qpmi # the price loader answers an array or undefined, and arrays (including []) are truthy, so the [] fallback fires only on undefined
 src/features/admin/attendee-page-data.ts::packagesByListingIdFrom.groups~183l51m  ?? → || audited:1e4qpmi # byListing.get answers a Map or undefined, and Maps are truthy
 src/features/admin/attendee-page-data.ts::buildFormLines.standaloneBlanks~11c4q19  ?? → || audited:1e4qpmi # the fallback is 0 and the stored preselected quantities are non-negative counts, so 0 || 0 = 0 ?? 0
