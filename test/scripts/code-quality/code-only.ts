@@ -10,12 +10,15 @@ import {
 } from "#scripts/typescript-lex.ts";
 
 /**
- * One lazyExport clause, anchored where the walk stands. The pass copies a
- * match through whole by default, so the quoted route name — which lives
- * inside a string literal the pass blanks — still reaches the clause matcher.
+ * One loader clause, anchored where the walk stands. The pass copies a match
+ * through whole by default, so the quoted names — which live inside string
+ * literals the pass blanks — still reach the clause matcher. A
+ * `routeFromModule` entry names one export. A `getPostRoute` entry names its
+ * GET and POST handlers, and its path stays outside the match so it can never
+ * read as a symbol.
  */
-const LAZY_EXPORT_CLAUSE =
-  /lazyExport\(\s*\(\)\s*=>\s*import\([^)]+\),\s*"(\w+)"/y;
+const LOADER_CLAUSE =
+  /(?:lazyExport|routeFromModule)\(\s*\(\)\s*=>\s*import\([^)]+\),\s*"\w+"|getPostRoute\(\s*\(\)\s*=>\s*import\([^)]+\),\s*"\w+",\s*"\w+"/y;
 
 /** One span blanked to spaces, newlines kept so line offsets stay fixed. */
 const blankRange = (
@@ -76,12 +79,11 @@ const writeSpan = (
   return span.end;
 };
 
-/** The whole lazyExport clause at a code position, or null when none starts
- * there or the shape differs from the route table's. */
-const lazyExportClauseAt = (content: string, i: number): string | null => {
-  if (!content.startsWith("lazyExport(", i)) return null;
-  LAZY_EXPORT_CLAUSE.lastIndex = i;
-  const clause = LAZY_EXPORT_CLAUSE.exec(content);
+/** The whole loader clause at a code position, or null when none starts
+ * there or the shape differs from a declaration entry's. */
+const loaderClauseAt = (content: string, i: number): string | null => {
+  LOADER_CLAUSE.lastIndex = i;
+  const clause = LOADER_CLAUSE.exec(content);
   return clause === null ? null : clause[0];
 };
 
@@ -91,14 +93,13 @@ const lazyExportClauseAt = (content: string, i: number): string | null => {
  * offsets stay fixed. Clause-shaped text in a comment or a literal therefore
  * registers no import and no usage. The walk reuses the call-site scanner's
  * lexer spans and {@link interpolationEnd}, so it adds no second lexer. Two
- * stretches survive blanking: a lazyExport clause (see
- * {@link LAZY_EXPORT_CLAUSE}), and the executable code inside a template's
- * interpolations.
+ * stretches survive blanking: a loader clause (see {@link LOADER_CLAUSE}), and
+ * the executable code inside a template's interpolations.
  *
- * The lazyExport clause's quoted names name the remote module and its export.
- * The import matchers read them, so {@link codeOnly} keeps the clause; a
- * usage matcher reads the whole clause as an import declaration and must not
- * credit those names, so {@link usageOnly} blanks it.
+ * The loader clause's quoted names name the remote module and its export. The
+ * import matchers read them, so {@link codeOnly} keeps the clause; a usage
+ * matcher reads the whole clause as an import declaration and must not credit
+ * those names, so {@link usageOnly} blanks it.
  */
 const codeOnlyWalk = (content: string, keepClause: boolean): string => {
   const out: string[] = new Array(content.length);
@@ -112,7 +113,7 @@ const codeOnlyWalk = (content: string, keepClause: boolean): string => {
       i = writeSpan(content, out, span);
       continue;
     }
-    const clause = lazyExportClauseAt(content, i);
+    const clause = loaderClauseAt(content, i);
     if (clause) {
       if (keepClause) {
         out.splice(i, clause.length, ...clause.split(""));
@@ -132,14 +133,14 @@ const codeOnlyWalk = (content: string, keepClause: boolean): string => {
   return out.join("");
 };
 
-/** The code-only text the import matchers read: the lazyExport clause keeps
- * its quoted module path and export name. */
+/** The code-only text the import matchers read: a loader clause keeps its
+ * quoted module path and export names. */
 export const codeOnly = (content: string): string =>
   codeOnlyWalk(content, true);
 
-/** The code-only text a usage matcher reads: the lazyExport clause blanks,
- * because naming a remote module and export is no read of this file's own
- * same-named exports. */
+/** The code-only text a usage matcher reads: a loader clause blanks, because
+ * naming a remote module and export is no read of this file's own same-named
+ * exports. */
 export const usageOnly = (content: string): string =>
   codeOnlyWalk(content, false);
 

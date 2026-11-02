@@ -169,8 +169,9 @@ export const ALLOWED_TEST_HOOKS: string[] = [
   // storage.ts (uploadImageTargets) so the ~1MB codec wasm loads only on the
   // first upload, never at cold boot — invisible to the static import scanner.
   "shared/images/transcode.ts:transcodeToWebp",
-  // Reached in production through the lazy route table: features/app/routes.ts
-  // dynamically imports the pages module and picks the handler off the
-  // namespace object, which the named-clause scanner cannot see.
+  // Reached in production through a public page handler:
+  // features/app/prefix-handlers.ts dynamically imports the pages module and
+  // picks the handler off the namespace object, which the named-clause scanner
+  // cannot see.
   "features/public/pages.ts:handlePublicContactSubmit",
 ];

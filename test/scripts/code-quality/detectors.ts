@@ -238,24 +238,24 @@ export const isUsedInSameFile = (
  * The three clause shapes that pull a named symbol in from another module: a
  * static `import { … } from`, a destructured lazy load
  * `const { … } = await import(…)` (how cold-start-sensitive paths defer heavy
- * modules), and the route table's lazyExport entries, which name the export
- * they will read as a quoted string after the thunk. The clause matchers run
- * over the code-only text (see {@link codeOnly}), so a clause-shaped example
- * in a comment or a string registers nothing.
+ * modules), and a loader entry, which names the export it reads as a quoted
+ * string after the thunk (`routeFromModule(load, "routeFoo")` reads one,
+ * `getPostRoute(load, "handleGet", "handlePost", path)` reads two).
+ * The clause matchers read the code-only text, so a clause in a comment or a
+ * string registers nothing.
  */
 const IMPORT_CLAUSES =
-  /import\s*\{([^}]*)\}|(?:const|let|var)\s*\{([^{}]*)\}\s*=\s*await\s+import\(|lazyExport\(\s*\(\)\s*=>\s*import\([^)]+\),\s*"(\w+)"/g;
+  /import\s*\{([^}]*)\}|(?:const|let|var)\s*\{([^{}]*)\}\s*=\s*await\s+import\(|(?:lazyExport|routeFromModule|getPostRoute)\(\s*\(\)\s*=>\s*import\([^)]+\),\s*"(\w+)"(?:\s*,\s*"(\w+)")?/g;
 
 /**
  * The source-side names one IMPORT_CLAUSES match pulls in: the first word of
- * each comma-separated brace item (skipping an inline `type` keyword). Alias
- * targets deliberately don't count — `foo as bar` and `foo: bar` both name
- * the export `foo`, and counting the local alias would let an unrelated
- * export that happens to be called `bar` look used.
+ * each comma-separated brace item (skipping an inline `type` keyword), or the
+ * quoted loader names. Alias targets deliberately don't count — `foo as bar`
+ * and `foo: bar` both name the export `foo`, and counting the local alias
+ * would let an unrelated export that happens to be called `bar` look used.
  */
 const clauseNames = (clause: RegExpMatchArray): string[] => {
-  const lazyExportName = clause[3];
-  if (lazyExportName !== undefined) return [lazyExportName];
+  if (clause[3] !== undefined) return compact([clause[3], clause[4]]);
   // Exactly one alternative matches, so one brace group is always present.
   const braced = (clause[1] ?? clause[2])!;
   return compact(
