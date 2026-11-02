@@ -44,7 +44,7 @@ describeWithEnv("db > answer aggregates", { db: true }, () => {
   describe("getAnswerSelectionTotals", () => {
     test("keys every answer of the question by its stored total", async () => {
       const { question, small, large } = await questionWithADriftedTotal();
-      expect(await getAnswerSelectionTotals(question.id)).toEqual(
+      expect(await getAnswerSelectionTotals([question.id])).toEqual(
         new Map([
           [small.id, 42],
           [large.id, 0],
@@ -54,7 +54,23 @@ describeWithEnv("db > answer aggregates", { db: true }, () => {
 
     test("is empty for a question with no answers", async () => {
       const question = await createQuestion("Nothing?");
-      expect(await getAnswerSelectionTotals(question.id)).toEqual(new Map());
+      expect(await getAnswerSelectionTotals([question.id])).toEqual(new Map());
+    });
+
+    test("reads the answers of every question in one map", async () => {
+      const { large, question, small } = await questionWithADriftedTotal();
+      const other = await createQuestion("Colour?");
+      const red = await addAnswer(other.id, 0, "Red");
+      await answerAggregates.update(red.id, { times_selected: 7 });
+
+      // The answers of both questions answer in one map, keyed by answer id.
+      const totals = await getAnswerSelectionTotals([question.id, other.id]);
+      expect([...totals].sort(([left], [right]) => left - right)).toEqual([
+        [small.id, 42],
+        [large.id, 0],
+        [red.id, 7],
+      ]);
+      expect(await getAnswerSelectionTotals([])).toEqual(new Map());
     });
   });
 

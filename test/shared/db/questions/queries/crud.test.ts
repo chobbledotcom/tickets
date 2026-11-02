@@ -8,9 +8,11 @@ import { getAttendeeAnswersBatch } from "#db/questions/attendee-answers/reads.ts
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
 import { deleteAnswer, deleteQuestion } from "#db/questions/delete.ts";
 import {
+  getAllQuestionsWithAnswers,
   getQuestionsForListing,
   getQuestionWithAnswers,
   listingQuestions,
+  requireQuestionWithAnswersOnPrimary,
 } from "#db/questions/queries.ts";
 import { questionsTable } from "#db/questions/tables.ts";
 import {
@@ -42,6 +44,19 @@ describeWithEnv(
         expect(found!.text).toBe("Favourite colour?");
       });
 
+      test("reads a written question back from the primary with its answers", async () => {
+        const q = await createQuestionWithAnswers("Just written?", ["One"]);
+
+        const read = await requireQuestionWithAnswersOnPrimary(q.id);
+        expect(read.answers.map((answer) => answer.text)).toEqual(["One"]);
+      });
+
+      test("refuses the write read-back when the question is missing", async () => {
+        await expect(
+          requireQuestionWithAnswersOnPrimary(99999),
+        ).rejects.toThrow("Question 99999 is missing after its write");
+      });
+
       test("updates a question", async () => {
         const q = await createQuestion("Old text");
         await questionsTable.update(q.id, { text: "New text" });
@@ -61,12 +76,13 @@ describeWithEnv(
 
         await deleteQuestion(q.id);
 
-        expect(await questionsTable.read.one({ id: q.id })).toBeNull();
+        expect(await getAllQuestionsWithAnswers()).toEqual([]);
         expect(await getQuestionsForListing(listing.id)).toEqual([]);
         const answers = await getAttendeeAnswersBatch([attendee.id], {
           texts: false,
         });
-        expect(answers.get(attendee.id)).toBeUndefined();
+        // The delete removed the only answer row, so no attendee has answers.
+        expect(answers).toEqual(new Map());
       });
     });
     describe("answers CRUD", () => {
@@ -74,10 +90,10 @@ describeWithEnv(
         const q = await createQuestionWithAnswers("Size?", ["Small", "Large"]);
 
         const withAnswers = await getQuestionWithAnswers(q.id);
-        expect(withAnswers).not.toBeNull();
-        expect(withAnswers!.answers).toHaveLength(2);
-        expect(withAnswers!.answers[0]!.text).toBe("Small");
-        expect(withAnswers!.answers[1]!.text).toBe("Large");
+        expect(withAnswers!.answers.map((answer) => answer.text)).toEqual([
+          "Small",
+          "Large",
+        ]);
       });
 
       test("deletes a single answer", async () => {

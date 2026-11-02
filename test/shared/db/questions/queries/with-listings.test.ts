@@ -125,16 +125,16 @@ describeWithEnv("custom questions", { db: true }, () => {
     test("getAnswerSelectionTotals returns the stored times_selected", async () => {
       const { a, q } = await seedAnswer();
       await answerAggregates.update(a.id, { times_selected: 9 });
-      const totals = await getAnswerSelectionTotals(q.id);
+      const totals = await getAnswerSelectionTotals([q.id]);
       expect(totals.get(a.id)).toBe(9);
     });
 
     test("the attendee_answers trigger maintains times_selected", async () => {
       const { a, attendee, q } = await seedSelectedAnswer();
-      expect((await getAnswerSelectionTotals(q.id)).get(a.id)).toBe(1);
+      expect((await getAnswerSelectionTotals([q.id])).get(a.id)).toBe(1);
 
       await saveAttendeeAnswers(new Map([[attendee.id, []]]));
-      expect((await getAnswerSelectionTotals(q.id)).get(a.id)).toBe(0);
+      expect((await getAnswerSelectionTotals([q.id])).get(a.id)).toBe(0);
     });
 
     test("getAnswerAggregateRecalculation flags drift from attendee answers", async () => {

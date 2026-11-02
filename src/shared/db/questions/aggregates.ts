@@ -6,12 +6,13 @@
  * The `modifier_id` column links an answer to the price modifier it triggers.
  */
 
-import { execute, queryAll, queryOne, requireOne } from "#db/client.ts";
+import { execute, queryOne, requireOne } from "#db/client.ts";
 import {
   type AggregateRecalculation,
   type AggregateValues,
   aggregateRepairs,
 } from "#db/common-schema.ts";
+import { rowsByIds, rowsByIdsPrimary } from "#db/query.ts";
 import { map } from "#fp";
 
 /** The owner-editable, trigger-maintained aggregate columns on an answer. */
@@ -24,23 +25,35 @@ export type AnswerAggregateValues = AggregateValues<AnswerAggregateField>;
 export type AnswerAggregateRecalculation =
   AggregateRecalculation<AnswerAggregateField>;
 
-/** The stored selection total (times_selected) for every answer of a question,
- * keyed by answer id. Reads the trigger-maintained column directly rather than
- * scanning attendee_answers, so the question detail page is a single row read. */
-export const getAnswerSelectionTotals = async (
-  questionId: number,
-): Promise<Map<number, number>> => {
-  const rows = await queryAll<{ id: number; times_selected: number }>(
-    "SELECT id, times_selected FROM answers WHERE question_id = ?",
-    [questionId],
-  );
-  return new Map(
-    map(
-      ({ id, times_selected }: { id: number; times_selected: number }) =>
-        [id, times_selected] as const,
-    )(rows),
-  );
-};
+/** The stored selection total (times_selected) for every answer of the given
+ * questions, keyed by answer id. Reads the trigger-maintained column directly
+ * rather than scanning attendee_answers. One query covers a question list, so
+ * the admin API answers each answer's total without a read per question. */
+const answerSelectionTotalsWith =
+  (readRows: typeof rowsByIds) =>
+  async (questionIds: number[]): Promise<Map<number, number>> => {
+    const rows = await readRows<{ id: number; times_selected: number }>(
+      questionIds,
+      (placeholders) =>
+        `SELECT answer.id, answer.times_selected
+         FROM answers AS answer
+        WHERE answer.question_id IN (${placeholders})`,
+    );
+    return new Map(
+      map(
+        ({ id, times_selected }: { id: number; times_selected: number }) =>
+          [id, times_selected] as const,
+      )(rows),
+    );
+  };
+
+/** The totals for a page a replica read served. */
+export const getAnswerSelectionTotals = answerSelectionTotalsWith(rowsByIds);
+
+/** The same totals pinned to the primary, for the answer a write just made.
+ *  A lagging replica does not hold that row, so its total has no value. */
+export const getAnswerSelectionTotalsOnPrimary =
+  answerSelectionTotalsWith(rowsByIdsPrimary);
 
 /** The answer's stored times_selected together with the value it would hold if
  * rebuilt from attendee_answers, so the edit page can flag (and the recalculate

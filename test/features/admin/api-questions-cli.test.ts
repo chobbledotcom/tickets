@@ -53,6 +53,7 @@ describeWithEnv("CLI questions flow", { db: true }, () => {
           question_id: question.id,
           sort_order: 1,
           text: "Large",
+          times_selected: 0,
         },
       ],
       assign_all: false,

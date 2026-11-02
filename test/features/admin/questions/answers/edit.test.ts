@@ -245,7 +245,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const { getAnswerSelectionTotals } = await import(
         "#db/questions/aggregates.ts"
       );
-      expect((await getAnswerSelectionTotals(qId)).get(aId)).toBe(15);
+      expect((await getAnswerSelectionTotals([qId])).get(aId)).toBe(15);
     });
 
     test("rejects a negative selection total without saving the edit", async () => {
@@ -355,7 +355,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${qId}/answers/${aId}/edit`,
         "Selection total recalculated",
       )(response);
-      expect((await getAnswerSelectionTotals(qId)).get(aId)).toBe(1);
+      expect((await getAnswerSelectionTotals([qId])).get(aId)).toBe(1);
 
       const log = await getAllActivityLog(10);
       const entry = log.find((e) =>

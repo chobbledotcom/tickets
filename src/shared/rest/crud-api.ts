@@ -129,12 +129,15 @@ export const defineCrudApi = <
       : full;
   };
 
-  /** Clean one row for a JSON response, hydrating its join-table fields. */
+  /** Clean one row for a JSON response, hydrating its join-table fields. The
+   *  default is the read routes' hydration. A write response passes the
+   *  primary-pinned one. */
   const toResponse = async (
     row: FullRow,
     session: AdminSession,
+    hydrate = config.hydrate,
   ): Promise<Record<string, unknown>> => {
-    const extraById = await config.hydrate?.([row]);
+    const extraById = await hydrate?.([row]);
     return responseRow(row, session, extraById);
   };
 
@@ -167,7 +170,8 @@ export const defineCrudApi = <
       });
     });
 
-  /** Log a written full row and return its JSON. */
+  /** Log a written full row and return its JSON. A write response reads rows
+   *  the write just made, so its hydration is the primary-pinned one. */
   const respondWithRow = async (
     fullRow: FullRow,
     action: string,
@@ -176,7 +180,13 @@ export const defineCrudApi = <
   ): Promise<Response> => {
     await logAction(action, fullRow);
     return jsonResponse(
-      { [responseKey]: await toResponse(fullRow, session) },
+      {
+        [responseKey]: await toResponse(
+          fullRow,
+          session,
+          config.hydrateAfterWrite,
+        ),
+      },
       status,
     );
   };
