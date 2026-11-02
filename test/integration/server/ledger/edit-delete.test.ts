@@ -61,7 +61,7 @@ describeWithEnv("server (admin ledger edit and delete)", { db: true }, () => {
     const sale = (await allTransfers()).find(
       (transfer) => transfer.kind === "sale",
     );
-    expect(sale).toBeDefined();
+    expect(sale?.amount).toBe(2500);
 
     const edit = await adminGet(`/admin/ledger/entries/${sale!.id}/edit`);
     expect(edit.status).toBe(404);

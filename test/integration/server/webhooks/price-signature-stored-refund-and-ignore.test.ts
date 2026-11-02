@@ -58,7 +58,6 @@ describeWithEnv(
         { processed: false, refundCalls: 1 },
       );
       const [attendee] = await getAttendeesRaw(listing.id);
-      expect(attendee).toBeDefined();
       // Stored as a quantity-0 placeholder: it consumes no capacity and is not
       // a ticket, just a kept record of a refunded booking.
       expect(attendee!.quantity).toBe(0);

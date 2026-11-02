@@ -226,7 +226,6 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
       const decryptFailure = errorLines.find((line) =>
         line.includes("DECRYPT_FAILED"),
       );
-      expect(decryptFailure).toBeDefined();
       assertExists(decryptFailure);
       assertStringIncludes(decryptFailure, 'detail="contact history editor ');
       expect(html).toMatch(/name="visits"[^>]*value="9"/);

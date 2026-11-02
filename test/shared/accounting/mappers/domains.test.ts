@@ -44,7 +44,6 @@ describeWithEnv(
         modifiers: [{ delta: -250, modifierId: 7 }],
         occurredAt: "2026-06-21T00:00:00.000Z",
       });
-      expect(modifierLeg).toBeDefined();
       expect(modifierLeg!.reference).toBe(
         await legReference(["booking", "mod-pin", "mod", 7]),
       );

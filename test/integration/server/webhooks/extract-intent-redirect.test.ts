@@ -152,7 +152,6 @@ describeWithEnv(
         const readOnlyCall = secretStub.calls.find(
           (c) => (c.args[1] as string) === "READ_ONLY_FROM",
         );
-        expect(readOnlyCall).toBeDefined();
         expect(readOnlyCall!.args[0]).toBe(Number(seedSite.hostingId));
       } finally {
         mockRetrieve.restore();

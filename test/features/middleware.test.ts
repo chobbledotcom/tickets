@@ -130,10 +130,12 @@ describe("buildCspHeader", () => {
         const formAction = csp
           .split("; ")
           .find((directive) => directive.startsWith("form-action "));
-        expect(formAction).toBeDefined();
-        for (const origin of providerCheckoutFormOrigins(provider, sandbox)) {
-          assertStringIncludes(formAction!, origin);
-        }
+        expect(formAction).toBe(
+          [
+            "form-action 'self'",
+            ...providerCheckoutFormOrigins(provider, sandbox),
+          ].join(" "),
+        );
       });
     }
   }
@@ -309,7 +311,7 @@ describe("getSecurityHeaders", () => {
   test("allows indexing and framing on embeddable pages", () => {
     const headers = getSecurityHeaders("/ticket/example");
     expect(headers["x-robots-tag"]).toBe("index, follow");
-    expect(headers["x-frame-options"]).toBeUndefined();
+    expect(headers["x-frame-options"]).toBe(undefined);
   });
 
   describeWithEnv("x-robots-tag on a public site page", { db: true }, () => {
@@ -369,9 +371,9 @@ describe("getSecurityHeaders", () => {
     } finally {
       resetEffectiveDomain();
     }
-    expect(
-      getSecurityHeaders("/admin")["strict-transport-security"],
-    ).toBeUndefined();
+    expect(getSecurityHeaders("/admin")["strict-transport-security"]).toBe(
+      undefined,
+    );
   });
 });
 

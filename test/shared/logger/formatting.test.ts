@@ -14,7 +14,7 @@ import {
 describe("errorCodeLabel", () => {
   test("has a label for every error code", () => {
     for (const code of Object.values(ErrorCode)) {
-      expect(errorCodeLabel[code as ErrorCodeType]).toBeDefined();
+      expect(typeof errorCodeLabel[code as ErrorCodeType]).toBe("string");
     }
   });
 

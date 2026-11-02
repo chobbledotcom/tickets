@@ -75,7 +75,6 @@ describeWithEnv("listing detail group context", { db: true }, () => {
     const listing = await listingInCappedGroups("Tightest", [20, 3, 11]);
 
     const context = await loadGroupContext(listing, null);
-    expect(context).toBeDefined();
     expect(context?.group.max_attendees).toBe(3);
     expect(context?.attendeeCount).toBe(0);
   });
@@ -83,7 +82,7 @@ describeWithEnv("listing detail group context", { db: true }, () => {
   test("has no context when every group the listing joins is uncapped", async () => {
     const listing = await listingInCappedGroups("Uncapped", [0, 0]);
 
-    expect(await loadGroupContext(listing, null)).toBeUndefined();
+    expect(await loadGroupContext(listing, null)).toBe(undefined);
   });
 
   test("fails loudly when a capped group is missing from the remaining map", async () => {
@@ -223,6 +222,6 @@ describeWithEnv("listing detail question answers", { db: true }, () => {
 
     expect(
       await withTestSession(() => loadListingQuestionData(listing.id, [])),
-    ).toBeUndefined();
+    ).toBe(undefined);
   });
 });

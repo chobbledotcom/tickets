@@ -80,7 +80,6 @@ describeWithEnv("listing feed contracts", { db: true }, () => {
     const packageEntry = body
       .split("BEGIN:VLISTING\r\n")
       .find((entry) => entry.includes(`UID:package-${bundle.id}@`));
-    expect(packageEntry).toBeDefined();
     const listed = packageEntry!.split("\r\nEND:VLISTING")[0]!;
     assertStringIncludes(listed, "SUMMARY:Weekend bundle");
     assert(!listed.includes("LOCATION:"));

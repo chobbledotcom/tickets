@@ -45,7 +45,6 @@ describe("LISTING_AGGREGATE_WRITE_COLUMNS matches the trigger SQL", () => {
     const updateTrigger = TRIGGERS.find(
       (t) => t.name === "trg_listing_attendees_aggregates_update",
     );
-    expect(updateTrigger).toBeDefined();
     const expectedCols = [...LISTING_AGGREGATE_WRITE_COLUMNS].join(", ");
     assertStringIncludes(
       updateTrigger!.sql,

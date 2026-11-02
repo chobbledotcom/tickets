@@ -178,6 +178,7 @@ describe("requestCache", () => {
   test("invalidate is safe without request context", () => {
     const cache = requestCache(() => Promise.resolve([1, 2, 3]));
     cache.invalidate(); // should not throw
+    expect(cache.size()).toBe(0);
   });
 
   test("multiple caches are independent", async () => {
@@ -251,7 +252,6 @@ describeWithEnv("caching integration", { db: true }, () => {
         await cache.getAll();
         const stats = getAllCacheStats();
         const testStat = stats.find((s) => s.name === "test-integration");
-        expect(testStat).toBeDefined();
         expect(testStat!.entries).toBe(3);
       });
     } finally {
