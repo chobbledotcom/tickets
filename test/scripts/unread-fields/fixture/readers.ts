@@ -18,6 +18,7 @@ import {
   type DeletedInParens,
   type Described,
   type ExtendsFarBase,
+  type First,
   type FixedAroundNever,
   type FixedByNegativeZero,
   type FromAShorthand,
@@ -82,6 +83,11 @@ export const drop = (b: Borrowed): void => {
 };
 
 export const shown = String(sum.total) + report.headline;
+
+// Reads the field under the first namespace only. The second namespace holds
+// a field of the same name, and it must keep its own line.
+export const readTheFirstItem = (item: First.Item): number =>
+  item.sameNameInTwoNamespaces;
 
 export const unpack = (held: NamedItsParameter): string => {
   const { takenOutByADestructure } = held;

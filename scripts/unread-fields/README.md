@@ -90,6 +90,9 @@ A class that a module exports as its default without a name has no name. The
 report reaches it through that default export, so its fields sit under
 `default`, as `default.total`.
 
+A namespace is a module too. A shape inside one sits under the namespace's
+name, so `First.Item.value` and `Second.Item.value` are two fields.
+
 A class field that holds an object literal counts each key as a field. The
 literal gives the field its type, so a caller reaches the key the same way it
 reaches a declared member. `config = { dead: 1 }` reports `Holder.config` and

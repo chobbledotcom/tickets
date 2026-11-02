@@ -46,22 +46,32 @@ const declaredIn = (symbol: ts.Symbol, file: string): ts.Declaration[] =>
     (declaration) => declaration.getSourceFile().fileName === file,
   );
 
+/** A shape a file lets other files reach, and the namespaces whose names lead
+ * to it. Two namespaces can hold a shape of one name, and `A.Item.value` is a
+ * different field from `B.Item.value`, so the owner needs the whole route. */
+export interface ExportedShape {
+  namespaces: readonly string[];
+  shape: Shape;
+}
+
 /** Every shape a file lets other files reach. The checker answers this, not
  * the `export` keyword on the declaration. That also catches the seven
  * aliases of `settings-helpers.ts`. Those are declared plainly, and a list at
  * the foot of the file exports them. A namespace is a module too, so the walk
- * asks it in turn. */
+ * asks it in turn and keeps its name above every shape it holds. */
 export const exportedShapes = (
   checker: ts.TypeChecker,
   container: ts.Symbol,
   file: string,
+  namespaces: readonly string[] = [],
   seen: Set<ts.Symbol> = new Set(),
-): Shape[] => {
+): ExportedShape[] => {
   // `namespace Wrapped { export import Self = Wrapped }` exports itself, and
   // the walk would follow that round for ever.
   if (seen.has(container)) return [];
   seen.add(container);
   const shapes: Shape[] = [];
+  const nested: ExportedShape[] = [];
   for (const exported of checker.getExportsOfModule(container)) {
     const symbol = standsFor(checker, exported);
     for (const declaration of declaredIn(symbol, file)) {
@@ -75,13 +85,21 @@ export const exportedShapes = (
         unnamed.symbol = symbol;
         shapes.push(unnamed);
       } else if (ts.isModuleDeclaration(declaration)) {
-        shapes.push(...exportedShapes(checker, symbol, file, seen));
+        nested.push(
+          ...exportedShapes(
+            checker,
+            symbol,
+            file,
+            [...namespaces, declaration.name.text],
+            seen,
+          ),
+        );
       }
     }
   }
   // `export { Row, Row as PublicRow }` names one declaration twice, and a
   // second walk of it would count every field again.
-  return unique(shapes);
+  return [...unique(shapes).map((shape) => ({ namespaces, shape })), ...nested];
 };
 
 /** What a shape is made of. Its type parameters stay out. A constraint such

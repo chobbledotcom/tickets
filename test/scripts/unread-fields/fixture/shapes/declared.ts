@@ -44,6 +44,20 @@ export namespace Wrapped {
   }
 }
 
+// Two namespaces of one shape name, each shape holding a field of one name.
+// The owner must say which shape a line means.
+export namespace First {
+  export interface Item {
+    sameNameInTwoNamespaces: number;
+  }
+}
+
+export namespace Second {
+  export interface Item {
+    sameNameInTwoNamespaces: number;
+  }
+}
+
 export interface Passed {
   kept: number;
   carriedBySpread: number;
