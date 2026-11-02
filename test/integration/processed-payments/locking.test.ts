@@ -51,7 +51,9 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
       expect(result?.payment_session_id).toBe("cs_processed_123");
       expect(result?.attendee_id).toBe(ctx.attendeeId);
       assert(!result!.payment_reference.includes("pi_cs_processed_123"));
-      expect(result?.processed_at).toBeDefined();
+      expect(result?.processed_at).toMatch(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
+      );
     });
 
     test("returns record with null attendee_id for reserved-but-not-finalized session", async () => {

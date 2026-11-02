@@ -128,7 +128,6 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       const formMatch = html.match(
         /id="settings-business-email"[\s\S]*?<\/form>/,
       );
-      expect(formMatch).toBeDefined();
       assertStringIncludes(formMatch![0], "Business email updated");
     });
 

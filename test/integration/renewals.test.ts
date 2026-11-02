@@ -273,7 +273,6 @@ describeWithEnv("renewals", { db: true }, () => {
 
       const logs = await getAllActivityLog();
       const renewalLog = logs.find((l) => l.message.includes("Renewal of"));
-      expect(renewalLog).toBeDefined();
       assertStringIncludes(renewalLog!.message, "2 month(s)");
     }),
   );

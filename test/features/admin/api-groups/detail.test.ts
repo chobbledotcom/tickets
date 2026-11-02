@@ -28,8 +28,8 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         (body) => {
           expect(body.group.name).toBe("Detail Group");
           expect(body.group.id).toBe(group.id);
-          expect(body.group.slug).toBeDefined();
-          expect(body.group.slug_index).toBeUndefined();
+          expect(body.group.slug).toBe(group.slug);
+          expect(body.group).not.toHaveProperty("slug_index");
         },
       );
     });

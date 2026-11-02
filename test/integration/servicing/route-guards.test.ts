@@ -124,7 +124,6 @@ describeWithEnv(
       expect(copy).not.toBeNull();
       expect(copy!.name).toBe("Original");
       const firstBooking = copy!.bookings[0];
-      expect(firstBooking).toBeDefined();
       expect(firstBooking!.listingId).toBe(listing.id);
     });
 

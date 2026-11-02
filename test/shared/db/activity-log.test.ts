@@ -45,7 +45,9 @@ describeWithEnv("db > activity log", { db: true }, () => {
     expect(entry.id).toBe(1);
     expect(entry.message).toBe("Test action");
     expect(entry.listing_id).toBeNull();
-    expect(entry.created).toBeDefined();
+    expect(entry.created).toMatch(
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
+    );
   });
 
   test("logActivity creates log entry with listing ID", async () => {

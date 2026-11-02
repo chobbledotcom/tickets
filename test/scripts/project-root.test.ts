@@ -6,7 +6,9 @@ describe("projectRoot", () => {
   test("points at the folder holding the project's own config", async () => {
     const config = await Deno.readTextFile(`${projectRoot}/deno.json`);
 
-    expect(JSON.parse(config).tasks.precommit).toBeDefined();
+    expect(JSON.parse(config).tasks.precommit).toBe(
+      "deno run -A scripts/precommit.ts",
+    );
   });
 });
 

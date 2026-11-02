@@ -132,7 +132,6 @@ describeWithEnv(
       const kindCol = SCHEMA.find(
         ([name]) => name === "attendees",
       )![1].columns.find(([n]) => n === "kind")!;
-      expect(kindCol).toBeDefined();
       const [, type] = kindCol;
       expect(type).toMatch(/CHECK/i);
       assertStringIncludes(type, ATTENDEE_KIND);

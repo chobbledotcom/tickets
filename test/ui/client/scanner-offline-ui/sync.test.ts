@@ -100,7 +100,6 @@ describe("scanner offline sync", {
       const scanCall = fetchStub.calls.find(
         (call) => String(call.args[0]) === SCAN_PATH,
       );
-      expect(scanCall).toBeDefined();
       expect(JSON.parse(String(scanCall?.args[1]?.body))).toEqual({
         operation_id: queuedItem.operationId,
         quantity: 1,

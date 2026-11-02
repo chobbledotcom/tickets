@@ -139,7 +139,6 @@ describe("db > accounting > manual ledger entries", () => {
     // a cost, and an option reduction must all come back below zero.
     for (const entry of ENTRY_CASES) {
       const stored = rows.get(entry.type);
-      expect(stored).toBeDefined();
       expect(humanAmount(stored!)).toBe(
         GIVES_MONEY_BACK.has(entry.type) ? -entry.amount : entry.amount,
       );

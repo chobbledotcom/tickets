@@ -159,7 +159,6 @@ describeWithEnv(
       const realRow = (await getAttendeesRaw(listing.id)).find(
         (a) => a.id === real.id,
       );
-      expect(realRow).toBeDefined();
       expect(realRow!.quantity).toBe(1);
     });
   },

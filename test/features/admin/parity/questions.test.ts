@@ -88,7 +88,9 @@ describeWithEnv("Question parity pins", { db: true }, () => {
       text: "z".repeat(MAX_TEXTAREA_LENGTH),
     });
     expect(page.status).toBe(302);
-    expect(await storedQuestion("z".repeat(MAX_TEXTAREA_LENGTH))).toBeDefined();
+    expect((await storedQuestion("z".repeat(MAX_TEXTAREA_LENGTH))).text).toBe(
+      "z".repeat(MAX_TEXTAREA_LENGTH),
+    );
   });
 
   test("each surface answers a missing question text in its own words", async () => {
