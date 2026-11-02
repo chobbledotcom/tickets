@@ -1,28 +1,66 @@
 -------------------------- MODULE TwoWorkers --------------------------
+\* This module describes the possible states of one refund claim.
+\* EXTENDS imports integer arithmetic and generated example decisions.
 EXTENDS Integers, TwoWorkersData
 
-\* Two runs contend for one payment row. The row stores at most one claim,
-\* built from the owner run's command id, write time and phase. A run that
-\* fell behind must not release or overwrite the claim of the run that
-\* replaced it. Command identity, claim time and phase stay separate
-\* comparison facts, and the production claim and row transition functions
-\* supply every decision.
+\* A payment provider is the outside service that charges or refunds money.
+\* A refund run is one attempt by this application to return a payment.
+\* A worker is the code that performs that attempt, not a member of staff.
+\* A payment row is a stored record that the run must claim before its work.
+\* The claim records which refund command currently has permission to proceed.
+\* A command id identifies that refund attempt. A phase names its current task.
+\* Here "checking" is the phase whose row transition the producer exercises.
+\*
+\* A lease is the time for which the application treats the claim as live.
+\* An expired lease permits another run to take over the same attendee work.
+\* w1 and w2 name two example runs. They are not actual worker or customer ids.
+\* Both request attendee id 7, so each can resume the other's expired work.
+\* Different command ids and write times let the checker tell their claims apart.
+\*
+\* Example: w1 pauses after a provider request. Its lease expires and w2 takes over.
+\* When w1 returns, it must not clear or overwrite w2's claim.
+\* Expiry changes permission. It does not stop w1's code or outside request.
+\* The model does not represent the returned money or the provider request itself.
+\*
+\* scripts/verify-models/two-workers.ts generates TwoWorkersData.
+\* TakeFacts uses decideClaim and holdsTheRow in src/shared/payment/claim.ts.
+\* SettleFacts uses settledRowState and claimHeldBy in
+\* src/shared/payment/row-transitions.ts. Each test fence changes at most
+\* one claim field. A fence is the claim identity that a run must still hold.
+\* WorkerFenceFacts describes the claim that each run writes.
+\*
+\* The domain has two runs for the same attendee set and selected timestamps.
+\* storedOwner and the worker flags are model records, not database columns.
+\* The steps explore event order, not real SQL races or provider requests.
+\* The model assumes the selected cutoffs mean live or expired as stated.
+\* Safety does not establish that a run finishes or that a refund occurs once.
 VARIABLES
+  \* The run whose claim the row represents, or "none" for no claim.
   \* @type: Str;
   storedOwner,
+  \* The stored refund command identity. Empty when the row has no claim.
   \* @type: Str;
   storedCommandId,
+  \* The claim's write timestamp, treated as an identity string here.
   \* @type: Str;
   storedWrittenAt,
+  \* The stored claim phase. The producer writes "checking" for both runs.
   \* @type: Str;
   storedPhase,
+  \* Whether the abstract lease has expired. No clock runs in this model.
   \* @type: Bool;
   storedClaimStale,
+  \* w1 acquired a claim and has not released it through an accepted settle.
+  \* This flag can remain true after w2 replaces w1's expired claim.
   \* @type: Bool;
   worker1Held,
+  \* The same record for w2. Both flags can be true with only one stored owner.
   \* @type: Bool;
   worker2Held
 
+\* These are the allowed value shapes, not the complete business rules.
+\* Name == expression defines a condition, not an assignment or database write.
+\* \in means "is a member of". BOOLEAN contains TRUE and FALSE.
 TypeOK ==
   /\ storedOwner \in {"none"} \cup Workers
   /\ storedCommandId \in CommandIds \cup {""}
@@ -32,7 +70,9 @@ TypeOK ==
   /\ worker1Held \in BOOLEAN
   /\ worker2Held \in BOOLEAN
 
-\* The stored claim is exactly the owner run's written claim, or nothing.
+\* No owner requires empty claim fields. An owner requires that run's claim.
+\* \A checks every worker. \E requires at least one matching claim record.
+\* => means "if the left condition holds, the right condition must hold".
 ClaimFieldsConsistent ==
   /\ (storedOwner = "none" =>
         /\ storedCommandId = ""
@@ -46,15 +86,16 @@ ClaimFieldsConsistent ==
             /\ storedWrittenAt = fence.writtenAt
             /\ storedPhase = fence.phase)
 
-\* A claim on the row means its owner is still working under it. The run that
-\* lost the row can still be mid-flight: it is stale, but it holds no claim.
+\* The stored owner must have acquired a claim that it has not released.
+\* The converse is not required: a replaced run can still have its flag set.
+\* These flags do not establish which provider requests remain in flight.
 OwnerHolds ==
   /\ (storedOwner = "w1" => worker1Held)
   /\ (storedOwner = "w2" => worker2Held)
 
-\* A settle releases the row only when every claim component matches the fence.
-\* The facts change at most one component at a time, so a fence that omits any
-\* one of command, time or phase never clears the stored claim.
+\* Every accepted settle fact must match all fields of the stored claim.
+\* A settle means that a run records its result and releases its claim.
+\* This rule checks fact decisions, even before the model chooses a step.
 SettleFenceIsExact ==
   \A fact \in SettleFacts :
     fact.accepted =>
@@ -63,12 +104,17 @@ SettleFenceIsExact ==
       /\ fact.storedWrittenAt = fact.fenceWrittenAt
       /\ fact.storedPhase = fact.fencePhase
 
-\* A take replaces the stored claim only on an absent or expired claim, never
-\* on a live claim another run holds.
+\* Every accepted take must see no claim or an expired claim.
+\* A live claim must refuse another take, even from the same run.
 TakeAdmitsOnlyAbsentOrExpired ==
   \A fact \in TakeFacts :
     fact.admitted => (fact.existingOwner = "none" \/ fact.existingClaimStale)
 
+\* Safety names the conditions that must all remain true.
+\* The checker first checks Init. It then takes one Next step from any state
+\* that satisfies Safety. Together these checks cover every finite sequence
+\* of the supplied abstract steps. They do not execute the actual refund path.
+\* /\ joins conditions with "and".
 Safety ==
   /\ TypeOK
   /\ ClaimFieldsConsistent
@@ -76,6 +122,7 @@ Safety ==
   /\ SettleFenceIsExact
   /\ TakeAdmitsOnlyAbsentOrExpired
 
+\* Start before either run obtains a claim, not before payment creation.
 Init ==
   /\ storedOwner = "none"
   /\ storedCommandId = ""
@@ -85,8 +132,11 @@ Init ==
   /\ worker1Held = FALSE
   /\ worker2Held = FALSE
 
-\* A run takes the row. The claim decision comes from the production claim
-\* function, and the replacement claim is exactly the run's written claim.
+\* One run tries to take the row through a matching production decision.
+\* \E lets the checker choose any fact that matches the current conditions.
+\* An accepted take replaces the claim and sets that run's acquired flag.
+\* A refusal leaves all values unchanged.
+\* A prime means the value after this step: storedOwner' is the next owner.
 TakeStep ==
   \E fact \in TakeFacts :
     /\ fact.existingOwner = storedOwner
@@ -101,9 +151,10 @@ TakeStep ==
     /\ worker2Held' =
          IF fact.admitted /\ fact.worker = "w2" THEN TRUE ELSE worker2Held
 
-\* A run settles the row under one fence. Only an exact hold releases the
-\* claim; every other fence leaves the row unchanged, so a stale run cannot
-\* clear the replacement claim.
+\* One run tries to release the claim under its command, time, and phase.
+\* The stored fields select the relevant facts. Only an accepted fact clears
+\* the claim and the requesting run's flag. A refusal changes no value.
+\* An old run's acquired flag alone does not authorise a release.
 SettleStep ==
   \E fact \in SettleFacts :
     /\ fact.storedCommandId = storedCommandId
@@ -119,14 +170,18 @@ SettleStep ==
     /\ worker2Held' =
          IF fact.accepted /\ fact.fenceWorker = "w2" THEN FALSE ELSE worker2Held
 
-\* Enough time passes that the stored claim reads as expired. Lease expiry
-\* never cancels a provider request that is already in flight.
+\* The current lease becomes expired without a real clock or elapsed duration.
+\* ~ means "not". UNCHANGED keeps each value in the <<...>> tuple the same.
+\* Expiry does not clear ownership or cancel a provider request in flight.
 LeaseExpiry ==
   /\ ~storedClaimStale
   /\ storedClaimStale' = TRUE
   /\ UNCHANGED <<storedOwner, storedCommandId, storedWrittenAt, storedPhase,
                  worker1Held, worker2Held>>
 
+\* \/ offers alternative steps, rather than a fixed sequence of instructions.
+\* The checker considers any step whose conditions permit it.
+\* The final alternative permits no change. No rule requires a run to proceed.
 Next ==
   TakeStep \/ SettleStep \/ LeaseExpiry \/
   UNCHANGED <<storedOwner, storedCommandId, storedWrittenAt, storedPhase,

@@ -28,6 +28,63 @@ an observation. Explain how you derive an expectation. Record an assumption even
 when it is reasonable. A registry context entry makes source available for
 review. It does not prove that a model matches that source.
 
+## Explain the model beside its code
+
+A newcomer must understand a maintained model module without a separate guide.
+Put each explanation on or directly above the code that it explains.
+A Quint module carries the same explanation as a TLA module.
+Use Simplified Technical English. Explain domain words before formal notation.
+Define the application nouns before you use them in a rule.
+A simpler verb does not explain an unknown concept.
+Explain what an attendee, slot, payment row, or ledger leg represents in that file.
+Do not assume that a newcomer knows the data model.
+
+Explain example identities as well as their types.
+For example, slot one and slot two name separate listings in the capacity model.
+State their limits and explain why the model needs two listings.
+Distinguish people, places, line rows, and stored totals.
+Define each state label in application terms.
+Use a small numerical example when it makes a quantity or law clear.
+
+Each model must explain:
+
+| Location | Required explanation |
+| --- | --- |
+| Header | State the real operation, the bad outcome, and one concrete example. |
+| Imports and facts | Name the data producer and the production functions that supply its facts. Separate observed, derived, and assumed facts. |
+| Variables | Explain each value, its units, and whether it represents stored data or a model-only record. |
+| Helpers and laws | Explain the business meaning and the failure that each rule detects. |
+| `Init` | State where the model starts relative to the real operation. |
+| Actions | Explain the guards, the changes, and the result of a refusal. |
+| `Safety` | Explain the combined claim and the initial and inductive checks. |
+| `Next` | Explain the possible events, the choice between them, and steps that change no value. |
+| Limits | State the selected domain, assumptions, and boundaries that require separate tests. |
+
+A Quint model names the same entries `init`, `safetyInit`, and `step`.
+
+Explain notation near its first important use in each file.
+For example, explain that a prime names the value after a step.
+Explain that `==` defines a rule rather than an assignment.
+Explain that a model describes possible states, not a program that performs its steps in order.
+Put each variable explanation directly above its type annotation.
+Explain that an existential choice permits any matching fact, not only the first.
+Distinguish a rule over every generated fact from a rule over the current state.
+Identify a flag that retains a failed check as model evidence, not application data.
+
+Keep source paths and symbols as evidence, not substitutes for an explanation.
+Read the producer and relevant production code before you describe their relationship.
+Do not copy an existing diagnosis or claim without that check.
+Replace a misleading comment instead of an extra comment that contradicts it.
+Do not narrate each assignment or repeat the same explanation above every clause.
+Keep Apalache type annotations directly attached to their declarations.
+Use the words "type annotation" in prose, not a reserved annotation marker.
+The checker reads those markers even inside explanation comments.
+
+A helper module explains its operators and caller obligations instead of an invented lifecycle.
+A model must not claim that a safety check establishes eventual completion.
+A selected finite domain does not establish the claim for all production inputs.
+Generated decision facts do not establish database atomicity, provider truth, or race safety by themselves.
+
 ## Build facts that can expose a fault
 
 Execute the production decision or transition. Preserve refused outcomes as
@@ -114,6 +171,25 @@ These checks concern safety: something bad does not happen. They do not establis
 liveness: work eventually runs, retries eventually finish, or a provider replies.
 A liveness claim needs explicit scheduling and fairness assumptions and a
 separate suitable check. Lease expiry does not cancel a request in flight.
+
+## Execute checks within machine resources
+
+The runner prepares all clean and corrupted facts in registry order.
+It never overlaps data producers, because some producers replace shared database state.
+Each model's clean data and each negative control have separate directories.
+The initial and inductive checks share the same fixed clean input.
+No check overwrites another check's data.
+
+The runner starts at most two checks at once.
+When one check completes, the next queued check starts.
+This limit bounds the number of JVMs on the shared machine, and it bounds the
+concurrent Quint simulations.
+Each completed check reports its duration.
+The runner still executes both proof obligations and every declared negative control.
+
+If a check fails, the runner stops new work and awaits both active processes.
+It propagates the failure and retains the input and checker artifacts.
+A successful run removes its temporary directories.
 
 ## Focused exemplars
 
