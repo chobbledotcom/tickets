@@ -116,8 +116,7 @@ export const inheritedTypesOf = (shape: Shape): readonly ts.Node[] => {
 /** Whether a shape takes fields from somewhere else. An alias always does,
  * because anything it is made of can be a type it only names:
  * `StripeRefund = StripeRefundFields` names one, `Omit<Row, "id">` reshapes
- * one, and `PaymentSuccess | PaymentFailure` names two. */
+ * one, and `PaymentSuccess | PaymentFailure` names two. A class without a
+ * base is not one: the walk visits its own members itself. */
 export const inheritsFrom = (shape: Shape): boolean =>
-  ts.isTypeAliasDeclaration(shape) ||
-  ts.isClassDeclaration(shape) ||
-  shape.heritageClauses !== undefined;
+  ts.isTypeAliasDeclaration(shape) || shape.heritageClauses !== undefined;
