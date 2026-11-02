@@ -15,4 +15,4 @@ set -euo pipefail
 
 deno install \
   --frozen \
-  --allow-scripts=npm:@parcel/watcher,npm:esbuild,npm:fsevents,npm:sharp
+  --allow-scripts=npm:@parcel/watcher,npm:esbuild,npm:fsevents,npm:protobufjs,npm:sharp
