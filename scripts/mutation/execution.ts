@@ -246,7 +246,9 @@ const runOneBatch = async (
           controller.abort();
         }, limitMs);
   try {
-    const result = await deps.runBatch(batch, controller.signal, env);
+    const result = await deps
+      .runBatch(batch, controller.signal, env)
+      .finally(() => clearTimeout(timer));
     // An aborted run terminated this child, so its exit status says nothing
     // about the tests; report the cancellation, never a bogus failure.
     if (frozen.current !== null || signal.aborted) return "cancelled";
@@ -258,8 +260,6 @@ const runOneBatch = async (
     if (frozen.current !== null || signal.aborted) return "cancelled";
     if (controller.signal.aborted) return null;
     throw error;
-  } finally {
-    clearTimeout(timer);
   }
 };
 
