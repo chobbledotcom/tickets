@@ -92,7 +92,7 @@ describeWithEnv("owner CRUD handlers", { db: true }, () => {
     );
 
     expectRedirectWithFlash(
-      "/admin/holidays",
+      "/admin/holidays/1",
       "Holiday created",
       true,
     )(response);
@@ -113,7 +113,7 @@ describeWithEnv("owner CRUD handlers", { db: true }, () => {
     );
 
     expectRedirectWithFlash(
-      "/admin/holidays",
+      `/admin/holidays/${holiday.id}`,
       "Holiday updated",
       true,
     )(response);
