@@ -11,9 +11,9 @@ import {
   attemptFields,
   corruptOneFact,
   modelDataFor,
+  modelRecords,
   type TlaFact,
   tlaModule,
-  tlaRecords,
   tlaSet,
 } from "#scripts/verify-models/data.ts";
 import { bindFirst } from "#shared/fp-bind.ts";
@@ -107,9 +107,9 @@ const reviewDataFor = (corrupt: boolean): string => {
   const states = [...nodes.keys()];
   return tlaModule("PaymentReviewData", [
     `ReviewStates == ${tlaSet(states)}`,
-    tlaRecords("ReviewNodes", nodeFields, [...nodes.values()]),
-    tlaRecords("ReviewEvents", eventFields, events),
-    tlaRecords(
+    modelRecords("ReviewNodes", nodeFields, [...nodes.values()], "tla"),
+    modelRecords("ReviewEvents", eventFields, events, "tla"),
+    modelRecords(
       "ReviewAttempts",
       reviewAttemptFields,
       corrupt
@@ -120,6 +120,7 @@ const reviewDataFor = (corrupt: boolean): string => {
             (attempt) => ({ ...attempt, sameCaseId: false }),
           )
         : attempts,
+      "tla",
     ),
   ]);
 };

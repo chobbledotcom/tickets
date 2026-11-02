@@ -78,7 +78,7 @@ describe("declared TLA source context", () => {
   });
 
   test("preserves maintained model, helper and production context as complete one-based source evidence", async () => {
-    const file = "verification/VatLedger.tla";
+    const file = "verification/PaymentReview.tla";
     const deps = denoCliDeps().grade;
     const content = await deps.readFile(file);
     const facts = await extractTla(deps, file, content);
@@ -96,7 +96,7 @@ describe("declared TLA source context", () => {
       );
       expect(source.lines.map((line) => line.text).join("\n")).toBe(original);
     }
-    expect(facts.source.moduleName).toBe("VatLedger");
+    expect(facts.source.moduleName).toBe("PaymentReview");
     expect(facts.kind).toBe("tla-model");
   });
 

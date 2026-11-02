@@ -17,19 +17,24 @@ export const assertNoSymlink = async (path: string): Promise<void> => {
   }
 };
 
-/** Collect every selected TLA source. Empty input and skipped links are errors. */
-export const collectTlaSources = async (
+/** Collect every selected model source. Empty input and skipped links are
+ *  errors. A caller names the extensions it owns. */
+export const collectSources = async (
   inputs: readonly string[],
+  extensions: readonly string[],
 ): Promise<string[]> => {
   const files = new Set<string>();
   const visit = async (path: string): Promise<void> => {
     const info = await Deno.lstat(path);
-    if (info.isSymlink) throw new Error(`Symlink is not a TLA source: ${path}`);
+    if (info.isSymlink) throw new Error(`Symlink is not a source: ${path}`);
     if (info.isDirectory) {
       for await (const entry of Deno.readDir(path)) {
         await visit(join(path, entry.name));
       }
-    } else if (info.isFile && path.endsWith(".tla")) {
+    } else if (
+      info.isFile &&
+      extensions.some((extension) => path.endsWith(extension))
+    ) {
       files.add(resolve(path));
     }
   };
@@ -37,6 +42,14 @@ export const collectTlaSources = async (
     await assertNoSymlink(input);
     await visit(input);
   }
-  if (files.size === 0) throw new Error("No TLA source inputs found.");
+  if (files.size === 0) throw new Error("No model source inputs found.");
   return [...files].sort();
 };
+
+/** Every maintained model source, in TLA+ and in Quint. */
+export const collectModelSources = (inputs: readonly string[]) =>
+  collectSources(inputs, [".tla", ".qnt"]);
+
+/** Every TLA+ source. The clone detector and the grader own this subset. */
+export const collectTlaSources = (inputs: readonly string[]) =>
+  collectSources(inputs, [".tla"]);

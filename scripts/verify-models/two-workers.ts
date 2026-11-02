@@ -15,9 +15,9 @@ import {
 import {
   corruptOneFact,
   type ModelDataSource,
+  modelRecords,
   type TlaFact,
   tlaModule,
-  tlaRecords,
   tlaSet,
 } from "#scripts/verify-models/data.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -214,9 +214,9 @@ const workerDataFor = (settles: readonly SettleFact[]): string =>
     `CommandIds == ${tlaSet(RUNS.map((run) => run.commandId))}`,
     `WrittenAts == ${tlaSet(RUNS.map((run) => run.writtenAt))}`,
     `Phases == ${tlaSet(["checking", "other"])}`,
-    tlaRecords("WorkerFenceFacts", workerFenceFields, workerFences()),
-    tlaRecords("TakeFacts", takeFields, takeFacts()),
-    tlaRecords("SettleFacts", settleFields, settles),
+    modelRecords("WorkerFenceFacts", workerFenceFields, workerFences(), "tla"),
+    modelRecords("TakeFacts", takeFields, takeFacts(), "tla"),
+    modelRecords("SettleFacts", settleFields, settles, "tla"),
   ]);
 
 /** Derive every decision from the real claim and row transitions. */

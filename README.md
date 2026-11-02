@@ -114,11 +114,12 @@ for all optional variables.
 - Refunds reverse the original entries and every tax correction. The existing
   review rules still apply to unsettled payments and operator money.
 
-`deno task verify:models` checks the production-derived VAT machine with
-Apalache. It checks the initial state and an unrestricted inductive step.
-The arithmetic domain uses representative minor-unit amounts. These checks do
-not prove database atomicity or provider behaviour. They do not establish legal
-tax compliance.
+`deno task verify:models` checks the production-derived VAT machine, which is
+written in Quint. It type-checks the model and simulates the initial state and a
+step from any safe state. The other models are TLA+ and use Apalache. The
+arithmetic domain uses representative minor-unit amounts. These checks do not
+prove database atomicity or provider behaviour. They do not establish legal tax
+compliance.
 
 For model authors and reviewers, the
 [model verification guide](docs/model-verification.md) explains the commands,

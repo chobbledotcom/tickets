@@ -1,8 +1,11 @@
-import { basename, relative, resolve } from "node:path";
+import { basename, extname, relative, resolve } from "node:path";
 import type { PerFileFinding } from "#scripts/check-runner.ts";
+import { readQuintSource } from "#scripts/tla/quint.ts";
 import { readTlaSource } from "#scripts/tla/source.ts";
 import {
   isReviewSourcePath,
+  type ModelLanguage,
+  sourceFileFor,
   type VerificationModule,
 } from "#scripts/verify-models/spec.ts";
 
@@ -12,6 +15,43 @@ const issue = (
   fix: string,
   line = 1,
 ): PerFileFinding => ({ fix, line, problem, rule });
+
+/** The state keyword each language uses for a declared variable. */
+const STATE_KEYWORDS: Record<ModelLanguage, readonly string[]> = {
+  quint: ["var"],
+  tla: ["VARIABLE", "VARIABLES"],
+};
+
+const languageOf = (file: string): ModelLanguage =>
+  file.endsWith(".qnt") ? "quint" : "tla";
+
+type ModelSource = {
+  readonly moduleName: string;
+  readonly moduleLine: number;
+  readonly tokens: readonly {
+    readonly kind: string;
+    readonly text: string;
+    readonly line: number;
+  }[];
+  readonly comments: readonly {
+    readonly text: string;
+    readonly line: number;
+  }[];
+};
+
+/** Both readers report the same evidence: a header, tokens, and comments. */
+const modelSourceOf = (file: string, content: string): ModelSource => {
+  if (languageOf(file) === "quint") return readQuintSource(file, content);
+  const source = readTlaSource(file, content);
+  return {
+    ...source,
+    tokens: source.tokens.map(({ kind, text, start }) => ({
+      kind,
+      line: start.line,
+      text,
+    })),
+  };
+};
 
 const contextIssues = (declaration: VerificationModule): PerFileFinding[] => {
   const findings: PerFileFinding[] = [];
@@ -89,7 +129,7 @@ const declarationIssues = (
       issue(
         "module-name",
         `Invalid module name: ${declaration.module}.`,
-        "Use a TLA module identifier.",
+        "Use a model module identifier.",
       ),
     );
   }
@@ -119,19 +159,19 @@ export const findRegistryIssues = (
       );
     }
     declared.add(name);
-    if (!selected.has(`verification/${name}.tla`)) {
+    if (!selected.has(sourceFileFor(name, declaration.language))) {
       findings.push(
         issue(
           "missing-module",
-          `Module ${name} has no source file.`,
+          `Module ${name} has no ${declaration.language} source file.`,
           "Add its maintained source or remove the declaration.",
         ),
       );
     }
   }
   for (const file of selected) {
-    const name = basename(file, ".tla");
-    if (!declared.has(name) || file !== `verification/${name}.tla`) {
+    const name = basename(file, extname(file));
+    if (!declared.has(name) || file !== sourceFileFor(name, languageOf(file))) {
       findings.push(
         issue(
           "unregistered-module",
@@ -150,11 +190,12 @@ export const findModuleIssues = (
   content: string,
   declaration: VerificationModule,
 ): PerFileFinding[] => {
-  const source = readTlaSource(file, content);
+  const language = languageOf(file);
+  const source = modelSourceOf(file, content);
   const findings = declarationIssues(declaration);
   if (
     source.moduleName !== declaration.module ||
-    basename(file, ".tla") !== source.moduleName
+    basename(file, extname(file)) !== source.moduleName
   ) {
     findings.push(
       issue(
@@ -166,10 +207,9 @@ export const findModuleIssues = (
     );
   }
   if (declaration.kind === "helper") {
+    const keywords = STATE_KEYWORDS[language];
     const state = source.tokens.find(
-      (token) =>
-        token.kind === "identifier" &&
-        (token.text === "VARIABLE" || token.text === "VARIABLES"),
+      (token) => token.kind === "identifier" && keywords.includes(token.text),
     );
     if (state !== undefined) {
       findings.push(
@@ -177,7 +217,7 @@ export const findModuleIssues = (
           "stateful-helper",
           "A helper declares state variables.",
           "Register this module as a model with checks and controls.",
-          state.start.line,
+          state.line,
         ),
       );
     }
@@ -187,7 +227,7 @@ export const findModuleIssues = (
       findings.push(
         issue(
           "clone-ignore",
-          "A TLA comment requests a clone exclusion.",
+          "A model comment requests a clone exclusion.",
           "Extract a shared rule instead of an exclusion.",
           comment.line,
         ),

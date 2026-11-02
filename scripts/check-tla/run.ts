@@ -5,7 +5,7 @@ import {
   reportCheck,
 } from "#scripts/check-report.ts";
 import { fileFindingLines } from "#scripts/check-runner.ts";
-import { assertNoSymlink, collectTlaSources } from "#scripts/tla/files.ts";
+import { assertNoSymlink, collectModelSources } from "#scripts/tla/files.ts";
 import {
   VERIFICATION_MODULES,
   verificationModuleFor,
@@ -13,12 +13,12 @@ import {
 import { findModuleIssues, findRegistryIssues } from "./rules.ts";
 
 interface SourceFiles {
-  collect: typeof collectTlaSources;
+  collect: typeof collectModelSources;
   stat: (path: string) => Promise<Pick<Deno.FileInfo, "isFile">>;
 }
 
 const sourceFiles: SourceFiles = {
-  collect: collectTlaSources,
+  collect: collectModelSources,
   stat: Deno.stat,
 };
 
@@ -27,9 +27,9 @@ const report = (output: CheckOutput, found: string[]): number =>
     ...output,
     found,
     guide: "docs/model-verification.md",
-    noun: "TLA standard",
+    noun: "model standard",
     success:
-      "TLA standards: every maintained model and helper has a valid declaration.",
+      "Model standards: every maintained model and helper has a valid declaration.",
   });
 
 /** Read declarations and sources without loading or running a fact producer. */

@@ -6,9 +6,9 @@ import {
   corruptedDataFor,
   type ModelDataSource,
   modelDataFor,
+  modelRecords,
   type TlaFact,
   tlaModule,
-  tlaRecords,
 } from "#scripts/verify-models/data.ts";
 import {
   PARENT_CHILD_GROUP_UNITS,
@@ -112,7 +112,7 @@ const moduleFor = (facts: readonly GroupFact[]): string =>
     `MaxRemaining == ${Math.max(...facts.map((fact) => fact.remaining))}`,
     `MaxStaticCap == ${Math.max(...facts.map((fact) => fact.staticCap))}`,
     `MaxSold == ${Math.max(...facts.map((fact) => fact.fits))}`,
-    tlaRecords("GroupFacts", groupFields, facts),
+    modelRecords("GroupFacts", groupFields, facts, "tla"),
   ]);
 
 /** The clean proof data. The check must pass. */

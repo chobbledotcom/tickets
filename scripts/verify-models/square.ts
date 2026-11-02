@@ -15,9 +15,9 @@ import {
   attemptFields,
   corruptOneFact,
   modelDataFor,
+  modelRecords,
   type TlaFact,
   tlaModule,
-  tlaRecords,
   tlaSet,
 } from "#scripts/verify-models/data.ts";
 import type { FetchResult } from "#shared/fetch.ts";
@@ -193,13 +193,14 @@ const squareDataFor = (corrupt: boolean): string => {
     `LinkStates == ${tlaSet(map((node: (typeof LINK_END_NODES)[number]) => node.id)(LINK_END_NODES))}`,
     `HandleStates == ${tlaSet(SquareLinkEndStateSchema.options)}`,
     `CheckableStates == ${tlaSet(LINK_END_CHECKABLE_NODES)}`,
-    tlaRecords(
+    modelRecords(
       "LinkRepresentatives",
       linkRepresentativeFields,
       facts.representatives,
+      "tla",
     ),
-    tlaRecords("LinkEvents", eventFields, events),
-    tlaRecords(
+    modelRecords("LinkEvents", eventFields, events, "tla"),
+    modelRecords(
       "LinkAttempts",
       attemptFields,
       corrupt
@@ -212,12 +213,13 @@ const squareDataFor = (corrupt: boolean): string => {
             (attempt) => ({ ...attempt, accepted: true, targetState: "gone" }),
           )
         : facts.attempts,
+      "tla",
     ),
-    tlaRecords("ReplyFacts", replyFields, replyFacts),
+    modelRecords("ReplyFacts", replyFields, replyFacts, "tla"),
     `AgeStates == ${tlaSet(map((age: (typeof ages)[number]) => age.ageState)(ages))}`,
     'AgeStart == "zero"',
-    tlaRecords("AgeFacts", ageFields, ageFacts),
-    tlaRecords("AgeMoves", ageMoveFields, ageMoves),
+    modelRecords("AgeFacts", ageFields, ageFacts, "tla"),
+    modelRecords("AgeMoves", ageMoveFields, ageMoves, "tla"),
   ]);
 };
 

@@ -17,10 +17,10 @@ import {
   type DumpedMachine,
 } from "#scripts/contract-drift/dump.ts";
 import {
+  modelRecords,
   moveFields,
   type TlaFact,
   tlaModule,
-  tlaRecords,
   tlaSet,
 } from "#scripts/verify-models/data.ts";
 import { attemptTransition } from "#shared/schema-atlas/types.ts";
@@ -215,6 +215,6 @@ export const modelData = (model: PaymentModel): string =>
     `ClaimedRows == ${tlaSet(model.claimedRows)}`,
     `PrunableStates == ${tlaSet(model.prunableStates)}`,
     `RowStart == ${JSON.stringify(model.rowStart)}`,
-    tlaRecords("RowMoves", moveFields, model.rowMoves),
-    tlaRecords("AuthMoves", authorityMoveFields, model.authorityMoves),
+    modelRecords("RowMoves", moveFields, model.rowMoves, "tla"),
+    modelRecords("AuthMoves", authorityMoveFields, model.authorityMoves, "tla"),
   ]);

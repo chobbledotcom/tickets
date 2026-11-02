@@ -3,6 +3,7 @@ import {
   type CheckPhase,
   dataFrom,
   type ModelControl,
+  sourceFileFor,
   type VerificationModule,
 } from "#scripts/verify-models/spec.ts";
 
@@ -51,7 +52,12 @@ const splitControl = (
 
 /** The source inventory, review context, and checks share this declaration. */
 export const VERIFICATION_MODULES = [
-  { context: [], kind: "helper", module: "ModelRules" },
+  {
+    context: [],
+    kind: "helper",
+    language: "tla",
+    module: "ModelRules",
+  },
   {
     context: [
       "verification/ModelRules.tla",
@@ -68,6 +74,7 @@ export const VERIFICATION_MODULES = [
     ],
     data: vat((m) => m.vatModelData),
     kind: "model",
+    language: "quint",
     module: "VatLedger",
   },
   {
@@ -86,6 +93,7 @@ export const VERIFICATION_MODULES = [
     ],
     data: square((m) => m.squareModelData),
     kind: "model",
+    language: "tla",
     module: "SquareLinkEnd",
   },
   {
@@ -103,6 +111,7 @@ export const VERIFICATION_MODULES = [
     ],
     data: sumup((m) => m.sumupModelData),
     kind: "model",
+    language: "tla",
     module: "SumupRecovery",
   },
   {
@@ -120,6 +129,7 @@ export const VERIFICATION_MODULES = [
     ],
     data: review((m) => m.reviewModelData),
     kind: "model",
+    language: "tla",
     module: "PaymentReview",
   },
   {
@@ -139,6 +149,7 @@ export const VERIFICATION_MODULES = [
     ],
     data: split((m) => m.largestRemainderSplitModelData),
     kind: "model",
+    language: "tla",
     module: "LargestRemainderSplit",
   },
   {
@@ -169,6 +180,7 @@ export const VERIFICATION_MODULES = [
     ],
     data: composition((m) => m.checkoutCompositionModelData),
     kind: "model",
+    language: "tla",
     module: "CheckoutComposition",
   },
   {
@@ -187,6 +199,7 @@ export const VERIFICATION_MODULES = [
     ],
     data: payment((m) => async () => m.modelData(await m.paymentModel())),
     kind: "model",
+    language: "tla",
     module: "JointState",
   },
   {
@@ -209,6 +222,7 @@ export const VERIFICATION_MODULES = [
     ],
     data: booking((m) => m.bookingReplayModelData),
     kind: "model",
+    language: "tla",
     module: "BookingReplay",
   },
   {
@@ -226,6 +240,7 @@ export const VERIFICATION_MODULES = [
     ],
     data: workers((m) => m.twoWorkersModelData),
     kind: "model",
+    language: "tla",
     module: "TwoWorkers",
   },
   {
@@ -248,6 +263,7 @@ export const VERIFICATION_MODULES = [
     ],
     data: notification((m) => m.notificationFlagLeaseModelData),
     kind: "model",
+    language: "tla",
     module: "NotificationFlagLease",
   },
   {
@@ -275,6 +291,7 @@ export const VERIFICATION_MODULES = [
     ],
     data: door((m) => m.doorScanModelData),
     kind: "model",
+    language: "tla",
     module: "DoorScan",
   },
   {
@@ -297,6 +314,7 @@ export const VERIFICATION_MODULES = [
     ],
     data: group((m) => m.sharedGroupCapacityModelData),
     kind: "model",
+    language: "tla",
     module: "SharedGroupCapacity",
   },
   {
@@ -320,6 +338,7 @@ export const VERIFICATION_MODULES = [
     ],
     data: capacity((m) => m.attendeeCapacityModelData),
     kind: "model",
+    language: "tla",
     module: "AttendeeCapacity",
   },
   {
@@ -353,6 +372,7 @@ export const VERIFICATION_MODULES = [
     ],
     data: reversal((m) => m.refundReversalModelData),
     kind: "model",
+    language: "tla",
     module: "RefundReversal",
   },
 ] as const satisfies readonly VerificationModule[];
@@ -360,10 +380,21 @@ export const VERIFICATION_MODULES = [
 /** A maintained source must declare its role before the tools can assess it. */
 export const verificationModuleFor = (file: string): VerificationModule => {
   const declaration = VERIFICATION_MODULES.find(
-    (entry) => file === `verification/${entry.module}.tla`,
+    (entry) => file === sourceFileFor(entry.module, entry.language),
   );
   if (declaration === undefined) {
-    throw new Error(`The TLA source has no declaration: ${file}`);
+    throw new Error(`The model source has no declaration: ${file}`);
+  }
+  return declaration;
+};
+
+/** A consumer that names a module, not a file, finds its declaration here. */
+export const declaredModule = (module: string): VerificationModule => {
+  const declaration = VERIFICATION_MODULES.find(
+    (entry) => entry.module === module,
+  );
+  if (declaration === undefined) {
+    throw new Error(`The model has no declaration: ${module}`);
   }
   return declaration;
 };

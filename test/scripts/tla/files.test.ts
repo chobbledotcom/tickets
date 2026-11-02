@@ -1,7 +1,11 @@
 import { expect } from "@std/expect";
 import { join, resolve } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
-import { assertNoSymlink, collectTlaSources } from "#scripts/tla/files.ts";
+import {
+  assertNoSymlink,
+  collectModelSources,
+  collectTlaSources,
+} from "#scripts/tla/files.ts";
 import { tempDir } from "#test-utils/files.ts";
 
 describe("maintained TLA source selection", () => {
@@ -23,7 +27,7 @@ describe("maintained TLA source selection", () => {
     using dir = tempDir();
     await Deno.writeTextFile(join(dir.path, "notes.md"), "not a model");
     await expect(collectTlaSources([dir.path])).rejects.toThrow(
-      /No TLA source/,
+      /No model source/,
     );
   });
 
@@ -50,5 +54,29 @@ describe("maintained TLA source selection", () => {
       await expect(assertNoSymlink(path)).rejects.toThrow(/symlink/);
       await expect(collectTlaSources([path])).rejects.toThrow(/symlink/);
     }
+  });
+});
+
+describe("maintained model source selection", () => {
+  test("selects TLA+ and Quint sources and leaves other files alone", async () => {
+    using dir = tempDir();
+    for (const file of ["Model.tla", "Ledger.qnt", "notes.md"]) {
+      await Deno.writeTextFile(join(dir.path, file), "source");
+    }
+    expect(await collectModelSources([dir.path])).toEqual([
+      resolve(dir.path, "Ledger.qnt"),
+      resolve(dir.path, "Model.tla"),
+    ]);
+    expect(await collectTlaSources([dir.path])).toEqual([
+      resolve(dir.path, "Model.tla"),
+    ]);
+  });
+
+  test("refuses a selection that holds no model source", async () => {
+    using dir = tempDir();
+    await Deno.writeTextFile(join(dir.path, "notes.md"), "not a model");
+    await expect(collectModelSources([dir.path])).rejects.toThrow(
+      /No model source/,
+    );
   });
 });

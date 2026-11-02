@@ -23,7 +23,7 @@ export const declaration = (
   context: readonly string[] = [],
 ): VerificationModule =>
   kind === "helper"
-    ? { context, kind, module: "Laws" }
+    ? { context, kind, language: "tla", module: "Laws" }
     : {
         context,
         controls: [
@@ -35,6 +35,7 @@ export const declaration = (
         ],
         data: unreachable.bind(null, "Grading must not execute a generator"),
         kind,
+        language: "tla",
         module: "Sample",
       };
 

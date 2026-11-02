@@ -9,6 +9,7 @@ import type { VerificationModule } from "#scripts/verify-models/spec.ts";
 const helper: VerificationModule = {
   context: [],
   kind: "helper",
+  language: "tla",
   module: "Shared",
 };
 const model: VerificationModule = {
@@ -18,6 +19,7 @@ const model: VerificationModule = {
   ],
   data: async () => "clean",
   kind: "model",
+  language: "tla",
   module: "Example",
 };
 const source = (body: string, name = "Shared"): string =>
@@ -168,5 +170,81 @@ describe("TLA module policy", () => {
     expect(
       issues.map((issue) => ({ line: issue.line, rule: issue.rule })),
     ).toEqual([{ line: 3, rule: "clone-ignore" }]);
+  });
+});
+
+const quintSource = (body: string, name = "Shared"): string =>
+  `module ${name} {\n${body}\n}\n`;
+
+describe("Quint module policy", () => {
+  const quintHelper: VerificationModule = { ...helper, language: "quint" };
+  const quintModel: VerificationModule = { ...model, language: "quint" };
+
+  test("allows a Quint helper without state", () => {
+    expect(
+      findModuleIssues(
+        "verification/Shared.qnt",
+        quintSource(
+          "pure def double(n: int): int = n * 2\n/// var in a doc comment declares no state.",
+        ),
+        quintHelper,
+      ),
+    ).toEqual([]);
+  });
+
+  test("refuses a Quint module that declares state as a helper", () => {
+    const issues = findModuleIssues(
+      "verification/Shared.qnt",
+      quintSource("var held: bool\n\npure def holds: bool = held"),
+      quintHelper,
+    );
+    expect(
+      issues.map((issue) => ({ line: issue.line, rule: issue.rule })),
+    ).toEqual([{ line: 2, rule: "stateful-helper" }]);
+  });
+
+  test("reports a mismatched Quint module identity", () => {
+    const issues = findModuleIssues(
+      "verification/Example.qnt",
+      quintSource("pure val value: int = 1", "Shared"),
+      quintModel,
+    );
+    expect(
+      issues.map((issue) => ({ line: issue.line, rule: issue.rule })),
+    ).toEqual([{ line: 1, rule: "module-identity" }]);
+  });
+
+  test("refuses clone exclusions in Quint comments but not in strings", () => {
+    const issues = findModuleIssues(
+      "verification/Shared.qnt",
+      quintSource(
+        'pure val label: str = "jscpd:ignore-start"\n\n// jscpd:ignore-start\n/* jscpd:ignore-end */',
+      ),
+      quintHelper,
+    );
+    expect(
+      issues.map((issue) => ({ line: issue.line, rule: issue.rule })),
+    ).toEqual([
+      { line: 4, rule: "clone-ignore" },
+      { line: 5, rule: "clone-ignore" },
+    ]);
+  });
+
+  test("refuses a Quint source with no module header", () => {
+    expect(() =>
+      findModuleIssues(
+        "verification/Shared.qnt",
+        "pure val value: int = 1",
+        quintHelper,
+      ),
+    ).toThrow(/Quint module header/);
+  });
+
+  test("refuses a declared TLA source that arrives as Quint", () => {
+    expect(
+      findRegistryIssues([model], ["verification/Example.qnt"]).map(
+        (issue) => issue.rule,
+      ),
+    ).toEqual(["missing-module"]);
   });
 });

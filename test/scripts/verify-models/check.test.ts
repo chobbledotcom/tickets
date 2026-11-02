@@ -9,6 +9,7 @@ describe("negative control evidence", () => {
         { output: "NoError", success: true },
         "lost money",
         "/proof",
+        "tla",
       ),
     ).toThrow(/accepted lost money/);
   });
@@ -24,8 +25,37 @@ describe("negative control evidence", () => {
           { output, success: false },
           "lost money",
           "/proof",
+          "tla",
         ),
       ).toThrow(/no invariant violation and trace/);
     }
+  });
+
+  test("a Quint violation needs both the report and its example execution", () => {
+    for (const output of [
+      'An example execution:\n\n[State 0] { bookingState: "active" }\n\n[ok] No violation found',
+      "[violation] Found an issue (8ms at 250 traces/second).",
+    ]) {
+      expect(() =>
+        requireCounterexample(
+          { output, success: false },
+          "a changed historical assessment",
+          "/proof",
+          "quint",
+        ),
+      ).toThrow(/no invariant violation and trace/);
+    }
+    expect(() =>
+      requireCounterexample(
+        {
+          output:
+            "An example execution:\n\n[State 0] { allAttemptsSafe: true }\n\n[State 1] { allAttemptsSafe: false }\n\n[violation] Found an issue",
+          success: false,
+        },
+        "a changed historical assessment",
+        "/proof",
+        "quint",
+      ),
+    ).not.toThrow();
   });
 });

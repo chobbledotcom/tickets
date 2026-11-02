@@ -559,12 +559,14 @@ automatic.
   Run `git fetch origin main` first for a current explicit base. Drift is a
   report, not a gate: paste it in the pull request
   description when the branch touches a machine spec
-- `deno task check:tla` — check maintained TLA registration, model/helper roles,
-  control declarations, and source-context boundaries without an ignore list
+- `deno task check:tla` — check maintained model registration, model/helper
+  roles, control declarations, and source-context boundaries without an ignore
+  list. It reads TLA+ and Quint sources
 - `deno task verify:models` — check each registered model's initial safety and
-  unrestricted inductive step, then require a counterexample and trace for each
-  declared negative control. Devenv supplies pinned Apalache and Java. CI and
-  precommit use the same task. See the
+  a step from any safe state, then require a counterexample and trace for each
+  declared negative control. A TLA+ model uses Apalache. A Quint model uses the
+  Quint type check and the Quint simulator with a fixed seed. Devenv supplies
+  pinned Apalache and Java. CI and precommit use the same task. See the
   [model verification guide](docs/model-verification.md) before you add or review
   a model. It defines the evidence boundaries and author procedure
 - `deno task check:effects` — hold the pure core to the effect table: a

@@ -10,9 +10,9 @@ import { decideScan } from "#routes/admin/scan-decision.ts";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
 import {
   type ModelDataSource,
+  modelRecords,
   type TlaFact,
   tlaModule,
-  tlaRecords,
 } from "#scripts/verify-models/data.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type { Attendee, ListingWithCount } from "#types";
@@ -275,7 +275,7 @@ const moduleFor = (facts: readonly AdmitFact[]): string =>
       (representative) =>
         `Quantity${representative.name.charAt(0).toUpperCase()}${representative.name.slice(1)} == ${representative.quantity}`,
     ),
-    tlaRecords("AdmitFacts", admitFields, facts),
+    modelRecords("AdmitFacts", admitFields, facts, "tla"),
   ]);
 
 export const doorScanModelData: ModelDataSource = async () =>

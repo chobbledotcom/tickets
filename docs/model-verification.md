@@ -79,6 +79,19 @@ of the supplied abstract system, when the obligations succeed. A bounded run
 from `Init` alone establishes only the checked bound. Neither form expands the
 generated production domain or proves that production implements the model.
 
+A TLA+ model meets both obligations with the pinned Apalache check. A Quint
+model meets them with the Quint type check and the Quint simulator:
+
+- `init` must satisfy `safety` at zero steps.
+- `safetyInit` starts at a sampled state that satisfies `safety`, and one
+  `step` must keep `safety`.
+
+The Quint simulator explores a bounded random sample with a fixed seed. It does
+not enumerate the state space. A clean Quint result is weaker than an Apalache
+result, so state that limit in the review. Give a Quint model the smallest
+state space that the claim needs, and give each control an edge that the
+simulator reaches.
+
 Check that the initial states and important actions exist. An empty fact set, an
 impossible guard, or an invariant that excludes the bad input can make a check
 vacuous. Check source and target coverage, refused edges, and reachable examples
@@ -105,6 +118,23 @@ separate suitable check. Lease expiry does not cancel a request in flight.
 
 These examples show useful patterns. They are not endorsements of every claim
 or every possible input in their files.
+
+### VatLedger: a Quint model checked by the Quint simulator
+
+Read `verification/VatLedger.qnt` and `scripts/verify-models/vat.ts`.
+`vatModel` calls the production assess, reassess, and refund functions and
+keeps every result. `vatModelData` writes `VatLedgerData.qnt`, which declares
+the state set and the fact rows. `safeAttempt` states the laws that one
+attempted edge must keep.
+
+`verify:models` type-checks the model and simulates it from `init` and from
+`safetyInit`. The simulator uses a fixed seed and 1000 samples, so one run
+repeats. The check is a bounded sample, not a proof. The TLA+ models keep their
+Apalache check. `corruptVatData` flips one accepted settings change, and that
+control must produce a violation and its trace.
+
+The facts cover the selected tax bases, policies, revisions, and both booking
+states. They do not prove SQL atomicity, provider truth, or legal compliance.
 
 ### TwoWorkers: production decisions, abstract interleavings
 
@@ -223,12 +253,14 @@ not detect all corrupt stored data and does not establish provider truth.
 
 1. State the claim and limits. Read the relevant focused exemplar.
 2. Add the maintained module to `VERIFICATION_MODULES` in
-   `scripts/verify-models/registry.ts`. Declare it as a model or helper. A model
-   owns its lazy data producer and nonempty named controls with `initial` or
-   `step` phases. A helper has no invented machine or control obligations.
+   `scripts/verify-models/registry.ts`. Declare it as a model or helper, and
+   declare its `language`: `tla` for TLA+ and `quint` for Quint. The source file
+   takes the language extension. A model owns its lazy data producer and
+   nonempty named controls with `initial` or `step` phases. A helper has no
+   invented machine or control obligations.
 3. Declare the generator, local helper, and production source needed for review.
-   Context is limited to TS, JS, and TLA source under `src/`, `scripts/`, and
-   `verification/`. Do not use escaping paths, symlinks, environment files,
+   Context is limited to TS, JS, TLA+, and Quint source under `src/`, `scripts/`,
+   and `verification/`. Do not use escaping paths, symlinks, environment files,
    credentials, databases, customer records, or generated facts as context.
    Reading registry metadata must not execute a producer or load application IO.
 4. Add deterministic generator and fault-injection tests for the evidence
@@ -253,11 +285,14 @@ deno task grade:code verification --no-jev
 
 `check:tla` checks registration, module identity, model/helper classification,
 control declarations, and allowed context paths and files. It has no baseline or
-ignore list. It does not parse all TLA semantics or prove production fidelity.
+ignore list. It reads TLA+ and Quint sources. Its lexical rules read the Quint
+module header, the `var` keyword, and the comments, and the Quint checker reads
+the grammar. It does not parse all TLA semantics or prove production fidelity.
 
-`verify:models` runs the Apalache obligations and declared controls. A checker
-error must fail the run. Use the artifact paths in its output to inspect a
-failure. No successful run is claimed by this guide.
+`verify:models` runs each model's obligations and declared controls. A TLA+
+model uses Apalache. A Quint model uses the Quint type check and the Quint
+simulator. A checker error must fail the run. Use the artifact paths in its
+output to inspect a failure. No successful run is claimed by this guide.
 
 `cpd:tla` runs the existing jscpd adapter over all maintained TLA models and
 helpers at a zero-percent threshold. It preserves diagnostic source locations
@@ -265,12 +300,14 @@ and compares tokens without comments. It preserves identifiers, literals, and
 prime marks. Its configured minimum token size limits detection. Renamed or
 algebraically equivalent rules can escape clone detection. Extract a shared
 pure rule when its meaning is shared. Do not merge independent business oracles
-just to remove similar text. `deno task cpd` includes the TLA check.
+just to remove similar text. `deno task cpd` includes the TLA check. It reads
+TLA+ sources only, so it compares no Quint pair.
 
 `grade:code` accepts individual TLA files, `verification/`, and mixed source
 targets. With no target it still grades `src/`. `--no-jev` makes no JEV request.
-TLA uses its own mechanical criteria, not TypeScript or JSX criteria. Existing
-JSON, CSV, and batch reporting remain available through the grader's options.
+TLA uses its own mechanical criteria, not TypeScript or JSX criteria. The grader
+reads TLA+ sources only, and it refuses a Quint target. Existing JSON, CSV, and
+batch reporting remain available through the grader's options.
 
 JEV reviews supplied source and declared context. It does not execute a producer
 or see generated facts. A missing key or unavailable request must remain visible

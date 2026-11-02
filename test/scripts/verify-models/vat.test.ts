@@ -8,7 +8,7 @@ import {
   type TaxMachineEvent,
   type TaxMachineState,
 } from "#shared/tax/machine-spec.ts";
-import { records } from "#test-utils/tla-data.ts";
+import { quintRecords } from "#test-utils/quint-data.ts";
 import { registeredModel } from "./registered-model.ts";
 
 type Corruption = {
@@ -73,7 +73,7 @@ const { data: registeredVatData, controls } = registeredModel("VatLedger");
 describe("VAT production-derived proof data", () => {
   it("covers every attempted event, including stale refusals and independent settings", async () => {
     const model = vatModel();
-    const attempts = records(await registeredVatData(), "VatAttempts");
+    const attempts = quintRecords(await registeredVatData(), "VatAttempts");
     expect(
       attempts.some(
         (attempt) => attempt.eventId === "save_stale" && !attempt.accepted,
@@ -88,8 +88,8 @@ describe("VAT production-derived proof data", () => {
   });
 
   it("the historical assessment control violates assessment correctness on a settings change", async () => {
-    const clean = records(await registeredVatData(), "VatAttempts");
-    const corrupted = records(await controls[0].data(), "VatAttempts");
+    const clean = quintRecords(await registeredVatData(), "VatAttempts");
+    const corrupted = quintRecords(await controls[0].data(), "VatAttempts");
     const unsafe = corrupted.filter((attempt) => !attempt.assessmentCorrect);
     expect(
       unsafe.find((attempt) => attempt.sourceState === "active"),
@@ -120,7 +120,7 @@ describe("VAT production-derived proof data", () => {
       const model = vatModel();
       expect(model.attempts.some((attempt) => !attempt.safe)).toBe(true);
       expect(
-        records(await vatModelData(model), "VatAttempts").some(
+        quintRecords(await vatModelData(model), "VatAttempts").some(
           (attempt) => !attempt.safe,
         ),
       ).toBe(true);

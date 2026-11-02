@@ -5,6 +5,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import { denoCliDeps, runGradeCodeCli } from "#scripts/grade-code/cli.ts";
 import { VERIFICATION_MODULES } from "#scripts/verify-models/registry.ts";
+import { sourceFileFor } from "#scripts/verify-models/spec.ts";
 import { tempDir } from "#test-utils/files.ts";
 import { CLEAN_CODE, ioWith } from "./support.ts";
 
@@ -59,9 +60,11 @@ describe("denoCliDeps", () => {
   });
 
   test("selects every maintained model and pure helper with either root spelling", async () => {
-    const expected = VERIFICATION_MODULES.map((entry) =>
-      resolve("verification", `${entry.module}.tla`),
-    ).sort();
+    const expected = VERIFICATION_MODULES.filter(
+      (entry) => entry.language === "tla",
+    )
+      .map((entry) => resolve(sourceFileFor(entry.module, entry.language)))
+      .sort();
     const deps = denoCliDeps();
     for (const root of ["verification", "verification/"]) {
       expect(await deps.listFiles(root)).toEqual(expected);

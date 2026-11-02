@@ -13,8 +13,8 @@ import { rebuildWipedSchema } from "#db/migrations.ts";
 import { once, requiredMapValue, unique } from "#fp";
 import {
   type ModelDataSource,
+  modelRecords,
   tlaModule,
-  tlaRecords,
   tlaSet,
 } from "#scripts/verify-models/data.ts";
 import {
@@ -238,10 +238,15 @@ const deriveFacts = once(async (): Promise<Facts> => {
 
 const moduleFor = (facts: Facts): string =>
   tlaModule("RefundReversalData", [
-    tlaRecords("ExpectedReferences", expectedReferenceFields, facts.expected),
-    tlaRecords("LegFacts", legFields, facts.legs),
-    tlaRecords("ReferenceFacts", referenceFields, facts.references),
-    tlaRecords("ReversalFacts", reversalFields, facts.reversals),
+    modelRecords(
+      "ExpectedReferences",
+      expectedReferenceFields,
+      facts.expected,
+      "tla",
+    ),
+    modelRecords("LegFacts", legFields, facts.legs, "tla"),
+    modelRecords("ReferenceFacts", referenceFields, facts.references, "tla"),
+    modelRecords("ReversalFacts", reversalFields, facts.reversals, "tla"),
     `GroupLabels == ${tlaSet(unique(facts.reversals.map((fact) => fact.group)))}`,
     `OriginalLegs == ${tlaSet(facts.originals)}`,
     `ReferenceOutcomes == ${tlaSet(ReferenceOutcomesSchema.options)}`,

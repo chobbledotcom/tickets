@@ -37,8 +37,8 @@ import {
 } from "#scripts/verify-models/attendee-capacity-seed.ts";
 import {
   type ModelDataSource,
+  modelRecords,
   tlaModule,
-  tlaRecords,
 } from "#scripts/verify-models/data.ts";
 
 /* jscpd:ignore-end */
@@ -304,8 +304,8 @@ const moduleFor = (facts: {
   tlaModule("AttendeeCapacityData", [
     `QuantityOne == ${QuantityOne}`,
     `QuantityTwo == ${QuantityTwo}`,
-    tlaRecords("LineFacts", lineTlaSchema, facts.lines),
-    tlaRecords("BatchFacts", batchTlaSchema, facts.batches),
+    modelRecords("LineFacts", lineTlaSchema, facts.lines, "tla"),
+    modelRecords("BatchFacts", batchTlaSchema, facts.batches, "tla"),
   ]);
 
 /** The clean proof data. The check must pass. */

@@ -18,10 +18,10 @@ import {
 import {
   corruptOneFact,
   type ModelDataSource,
+  modelRecords,
   moveFields,
   type TlaFact,
   tlaModule,
-  tlaRecords,
   tlaSet,
 } from "#scripts/verify-models/data.ts";
 import { movesIn } from "#shared/schema-atlas/machine-spec.ts";
@@ -91,13 +91,14 @@ const sumupDataFor = (corrupt: boolean): string => {
     `CheckEvents == ${tlaSet(checkEvents)}`,
     `CheckableStates == ${tlaSet(RECOVERY_CHECKABLE_NODES)}`,
     `PrunableStates == ${tlaSet(RECOVERY_PRUNABLE_NODES)}`,
-    tlaRecords("RecoveryNodeFacts", nodeFields, nodeFacts),
-    tlaRecords(
+    modelRecords("RecoveryNodeFacts", nodeFields, nodeFacts, "tla"),
+    modelRecords(
       "RecoveryRepresentatives",
       recoveryRepresentativeFields,
       facts.representatives,
+      "tla",
     ),
-    tlaRecords(
+    modelRecords(
       "RecoveryMoves",
       recoveryMoveFields,
       corrupt
@@ -108,6 +109,7 @@ const sumupDataFor = (corrupt: boolean): string => {
             (move) => ({ ...move, targetCheckoutIdAgrees: false }),
           )
         : facts.attempts,
+      "tla",
     ),
   ]);
 };

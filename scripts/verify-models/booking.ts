@@ -3,8 +3,8 @@ import {
   corruptedDataFor,
   type ModelDataSource,
   modelDataFor,
+  modelRecords,
   tlaModule,
-  tlaRecords,
   tlaSet,
 } from "#scripts/verify-models/data.ts";
 import {
@@ -102,10 +102,11 @@ const moduleFor = (deliveries: readonly Delivery[]): string =>
   tlaModule("BookingReplayData", [
     `LedgerStates == ${tlaSet(LEDGER_STATES)}`,
     `RowStates == ${tlaSet(ROW_STATES)}`,
-    tlaRecords(
+    modelRecords(
       "DeliveryFacts",
       deliveryFields,
       deliveries.map((delivery) => delivery),
+      "tla",
     ),
   ]);
 

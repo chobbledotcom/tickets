@@ -1,5 +1,6 @@
 import type * as v from "valibot";
 import { unique } from "#fp";
+import type { ModelLanguage } from "#scripts/verify-models/spec.ts";
 
 type TlaAtom = string | boolean | number;
 
@@ -53,43 +54,119 @@ export const corruptOneFact = <Fact>(
   return facts.map((fact) => (isVictim(fact) ? corrupt(fact) : fact));
 };
 
-const atom = (value: TlaAtom, field: string): string => {
-  if (typeof value === "boolean") return value ? "TRUE" : "FALSE";
+const atom = (
+  value: TlaAtom,
+  field: string,
+  language: ModelLanguage,
+): string => {
+  if (typeof value === "boolean") {
+    if (language === "tla") return value ? "TRUE" : "FALSE";
+    return String(value);
+  }
   if (typeof value === "number") {
     if (!Number.isSafeInteger(value)) {
-      throw new Error(`The TLA integer at ${field} is not a safe integer.`);
+      throw new Error(`The model integer at ${field} is not a safe integer.`);
     }
     return String(value);
   }
   return JSON.stringify(value);
 };
 
-export const tlaSet = (values: readonly string[]): string =>
-  `{${values.map((value) => atom(value, "set member")).join(", ")}}`;
+const setOf = (values: readonly string[], language: ModelLanguage): string => {
+  const members = values
+    .map((value) => atom(value, "set member", language))
+    .join(", ");
+  return language === "tla" ? `{${members}}` : `Set(${members})`;
+};
 
-const record = (value: TlaRecord, name: string): string =>
-  `[${Object.entries(value)
-    .map(([field, value]) => `${field} |-> ${atom(value, `${name}.${field}`)}`)
-    .join(", ")}]`;
+const setWriter =
+  (language: ModelLanguage) =>
+  (values: readonly string[]): string =>
+    setOf(values, language);
 
-/** One field declaration supplies both the fact type and the checker type. */
-export const tlaRecords = <const Schema extends TlaRecordSchema>(
+export const tlaSet = setWriter("tla");
+
+export const quintSet = setWriter("quint");
+
+const recordOf = (
+  value: TlaRecord,
+  name: string,
+  language: ModelLanguage,
+): string => {
+  const fields = Object.entries(value)
+    .map(([field, value]) => {
+      const text = atom(value, `${name}.${field}`, language);
+      return language === "tla" ? `${field} |-> ${text}` : `${field}: ${text}`;
+    })
+    .join(", ");
+  return language === "tla" ? `[${fields}]` : `{ ${fields} }`;
+};
+
+const fieldText = <const Schema extends TlaRecordSchema>(
+  schema: Schema,
+  typeOf: (type: Schema[keyof Schema]) => string,
+): string =>
+  Object.entries(schema)
+    .map(([field, type]) => `${field}: ${typeOf(type as Schema[keyof Schema])}`)
+    .join(", ");
+
+const rowText = <const Schema extends TlaRecordSchema>(
+  name: string,
+  values: readonly TlaFact<Schema>[],
+  language: ModelLanguage,
+  indent = "",
+): string =>
+  unique(
+    values.map(
+      (value, index) =>
+        `${indent}${recordOf(value, `${name}[${index}]`, language)}`,
+    ),
+  ).join(",\n");
+
+/** The Quint primitive type of each checker type note. */
+const QUINT_TYPE_OF: Record<"Bool" | "Int" | "Str", string> = {
+  Bool: "bool",
+  Int: "int",
+  Str: "str",
+};
+
+/** One field declaration supplies both the fact type and the checker type.
+ *  `typeName` names the Quint record type, because a Quint type and a value
+ *  cannot share one name. */
+export const modelRecords = <const Schema extends TlaRecordSchema>(
   name: string,
   schema: Schema,
   values: readonly TlaFact<Schema>[],
+  language: ModelLanguage,
+  typeName = name,
 ): string => {
-  const fields = Object.entries(schema)
-    .map(([field, type]) => `${field}: ${type}`)
-    .join(", ");
-  const alias = `${name.charAt(0).toLowerCase()}${name.slice(1)}Fact`;
-  return `\\* @typeAlias: ${alias} = { ${fields} };\n\\* @type: Set($${alias});\n${name} == {\n${unique(values.map((value, index) => record(value, `${name}[${index}]`))).join(",\n")}\n}`;
+  const fields = fieldText(schema, (type) =>
+    language === "tla" ? type : QUINT_TYPE_OF[type],
+  );
+  const rows = rowText(name, values, language, language === "tla" ? "" : "  ");
+  if (language === "tla") {
+    const alias = `${name.charAt(0).toLowerCase()}${name.slice(1)}Fact`;
+    return `\\* @typeAlias: ${alias} = { ${fields} };\n\\* @type: Set($${alias});\n${name} == {\n${rows}\n}`;
+  }
+  return `type ${typeName} = { ${fields} }\n\npure val ${name}: Set[${typeName}] = Set(\n${rows}\n)`;
 };
 
-export const tlaModule = (
-  name: string,
-  definitions: readonly string[],
-): string =>
-  `---- MODULE ${name} ----\nEXTENDS Integers\n${definitions.join("\n")}\n====\n`;
+const moduleWriter =
+  (open: (name: string) => string, close: string, separator: string) =>
+  (name: string, definitions: readonly string[]): string =>
+    `${open(name)}\n${definitions.join(separator)}\n${close}\n`;
+
+export const tlaModule = moduleWriter(
+  (name) => `---- MODULE ${name} ----\nEXTENDS Integers`,
+  "====",
+  "\n",
+);
+
+export const quintModule = moduleWriter(
+  (name) => `module ${name} {`,
+  "}",
+  "\n\n",
+);
 
 /** Binds one module's name and the name and field schema of every record
  *  table in it. Each call supplies the rows and returns the module text. */
@@ -111,7 +188,7 @@ export const tlaRecordModuleFor =
     tlaModule(
       name,
       tables.map(([table, schema], index) =>
-        tlaRecords(table, schema, rows[index]!),
+        modelRecords(table, schema, rows[index]!, "tla"),
       ),
     );
 

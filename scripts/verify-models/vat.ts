@@ -1,10 +1,10 @@
 import {
   corruptOneFact,
+  modelRecords,
   moveFields,
+  quintModule,
+  quintSet,
   type TlaFact,
-  tlaModule,
-  tlaRecords,
-  tlaSet,
 } from "#scripts/verify-models/data.ts";
 import { assessTax } from "#shared/tax/assessment.ts";
 import {
@@ -169,17 +169,21 @@ export const vatModel = () => {
 
 /** Optional facts are a corruption-test seam; normal verification derives them live. */
 export const vatModelData = async (model = vatModel()): Promise<string> =>
-  tlaModule("VatLedgerData", [
-    `VatStates == ${tlaSet(TAX_NODES.map((node) => node.id))}`,
-    tlaRecords(
+  quintModule("VatLedgerData", [
+    `pure val VatStates: Set[str] = ${quintSet(TAX_NODES.map((node) => node.id))}`,
+    modelRecords(
       "VatInitial",
       { safe: "Bool", state: "Str" },
       model.initial.map(({ state, safe }) => ({ safe, state })),
+      "quint",
+      "VatInitialSample",
     ),
-    tlaRecords(
+    modelRecords(
       "VatAttempts",
       fields,
       model.attempts.map(({ sampleTag: _sampleTag, ...proof }) => proof),
+      "quint",
+      "VatAttempt",
     ),
   ]);
 
