@@ -7,6 +7,10 @@ import {
 } from "#db/client.ts";
 import { stringColumnSet } from "#db/query.ts";
 import { logDebug } from "#shared/logger.ts";
+import {
+  backfillAnswerAggregates,
+  backfillModifierAggregates,
+} from "./aggregate-backfills.ts";
 import { queryRowsWithArg } from "./master-query.ts";
 import { APP_SCHEMA, SCHEMA } from "./schema/index.ts";
 import {
@@ -559,34 +563,6 @@ export const backfillListingAggregates: () => Promise<void> =
       : BACKFILL_LISTING_AGGREGATES_SQL_BY_SCHEMA.legacy;
     await getDb().execute({ args: [], sql });
   });
-
-/**
- * Recompute the modifiers aggregate columns from modifier_usages. One-time on
- * migration; afterwards the triggers keep them current. Idempotent (absolute
- * recompute, not a delta), so it's safe to re-run.
- */
-export const backfillModifierAggregates = async (): Promise<void> => {
-  await getDb().execute(
-    `UPDATE modifiers SET
-       total_uses = COALESCE(
-         (SELECT SUM(quantity) FROM modifier_usages WHERE modifier_id = modifiers.id), 0),
-       usage_count = COALESCE(
-         (SELECT COUNT(*) FROM modifier_usages WHERE modifier_id = modifiers.id), 0)`,
-  );
-};
-
-/**
- * Recompute the answers.times_selected aggregate from attendee_answers.
- * One-time on migration; afterwards the triggers keep it current. Idempotent
- * (absolute recompute, not a delta), so it's safe to re-run.
- */
-export const backfillAnswerAggregates = async (): Promise<void> => {
-  await getDb().execute(
-    `UPDATE answers SET
-       times_selected = COALESCE(
-         (SELECT COUNT(*) FROM attendee_answers WHERE answer_id = answers.id), 0)`,
-  );
-};
 
 // One batched snapshot replaces the per-table tableExists/getExistingColumns
 // probes — dozens of subrequests that could alone exceed the edge cap.

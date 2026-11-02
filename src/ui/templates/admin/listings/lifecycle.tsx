@@ -5,6 +5,7 @@ import {
   type TCall,
 } from "#templates/admin/confirm-page.tsx";
 import { DeactivationEffects } from "#templates/components/deactivation-effects.tsx";
+import { MessageParagraph } from "#templates/components/message-para.tsx";
 import type { AdminSession, ListingWithCount } from "#types";
 
 /** The parts of the confirm page each lifecycle action words differently. */
@@ -67,11 +68,13 @@ const warningText = (children: Child): JSX.Element => (
 const listingTitle = (key: string, listing: ListingWithCount): string =>
   t(key, { name: listing.name });
 
-/** The "type the name to confirm" line, naming the listing being acted on. */
-const confirmParagraph = (
-  key: string,
-  listing: ListingWithCount,
-): JSX.Element => <p>{t(key, { name: listing.name })}</p>;
+/** The "type the name to confirm" line, naming the listing being acted on. The
+ *  caller supplies the message to show. */
+const confirmParagraph =
+  (listing: ListingWithCount) =>
+  (messageKey: string): JSX.Element => (
+    <MessageParagraph messageKey={messageKey} values={{ name: listing.name }} />
+  );
 
 export const adminListingDeletePage: ListingConfirmPage = listingVerbPage(
   "delete",
@@ -102,7 +105,7 @@ export const adminDeactivateListingPage: ListingConfirmPage = listingVerbPage(
           "listings_table.existing_attendees_not_affected",
         )}
       />
-      {confirmParagraph("listings_table.deactivate_confirmation_text", listing)}
+      {confirmParagraph(listing)("listings_table.deactivate_confirmation_text")}
     </>
   ),
   warning: warningText(t("listings_table.deactivate_warning")),
@@ -117,7 +120,7 @@ export const adminReactivateListingPage: ListingConfirmPage = listingVerbPage(
       <p>
         {t("listings_table.public_page_accessible_new_attendees_can_register")}
       </p>
-      {confirmParagraph("listings_table.reactivate_confirmation_text", listing)}
+      {confirmParagraph(listing)("listings_table.reactivate_confirmation_text")}
     </>
   ),
   danger: false,

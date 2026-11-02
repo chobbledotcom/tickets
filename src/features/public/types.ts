@@ -9,6 +9,7 @@ import type { ListingAttributesById } from "#db/attributes.ts";
 import type { AddOnOption } from "#db/modifier-resolve.ts";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
 import type { QuestionListingMap } from "#db/questions/queries.ts";
+import { splitParts } from "#shared/split.ts";
 import type {
   BookingPrefill,
   GroupAvailability,
@@ -108,8 +109,7 @@ export const REGISTRATION_CLOSED_SUBMIT_MESSAGE =
   "Sorry, registration closed while you were submitting.";
 
 /** Parse slugs from a slug string (may contain + separator for multiple listings) */
-export const parseSlugs = (slug: string): string[] =>
-  slug.split("+").filter((s) => s.length > 0);
+export const parseSlugs: (slug: string) => string[] = splitParts("+");
 
 /** Set noindex signal header on response; middleware converts it to X-Robots-Tag. */
 export const applyNoindex = (response: Response): Response => {

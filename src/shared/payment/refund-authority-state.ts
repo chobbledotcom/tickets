@@ -219,15 +219,9 @@ export const completedAtOf = (state: RefundAuthorityState): number | null =>
 
 const storedState = defineStoredJson(RefundAuthorityStateSchema);
 
-export const readRefundAuthorityState = (
-  value: unknown,
-  context: string,
-): RefundAuthorityState => storedState.read(value, context);
+export const readRefundAuthorityState = storedState.read;
 
-export const writeRefundAuthorityState = (
-  state: RefundAuthorityState,
-  context?: string,
-): string => storedState.write(state, context);
+export const writeRefundAuthorityState = storedState.write;
 
 export const validateRefundAuthorityState = (
   state: unknown,

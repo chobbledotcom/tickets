@@ -3,6 +3,7 @@
  */
 
 import { EMBED_JS_PATH } from "#shared/asset-paths.ts";
+import { splitParts } from "#shared/split.ts";
 
 const DEFAULT_IFRAME_HEIGHT = "600px";
 
@@ -13,10 +14,7 @@ const parseEmbedUrl = (url: string): URL => {
 
 const extractListingSlugs = (url: URL): string[] => {
   const slugPart = url.pathname.match(/\/ticket\/([^/]+)/)?.[1] ?? "";
-  return slugPart
-    .split("+")
-    .map((slug) => slug.trim())
-    .filter((slug) => slug.length > 0);
+  return splitParts("+", true)(slugPart);
 };
 
 const appendIframeParam = (url: URL): string => {

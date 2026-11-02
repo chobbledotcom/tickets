@@ -2,7 +2,7 @@
 import type { InValue } from "@libsql/client";
 import { eventGroup } from "#accounting/refs.ts";
 import type { SqlStatement, TxScope } from "#db/client.ts";
-import { notNullGuardFailure, rowsByIdsPrimary } from "#db/query.ts";
+import { notNullGuardFailureAt, rowsByIdsPrimary } from "#db/query.ts";
 import { col, defineTable } from "#db/table.ts";
 import { refundTax, type TaxState } from "#shared/tax/transitions.ts";
 import { type TaxAssessment, TaxAssessmentSchema } from "#shared/tax/types.ts";
@@ -183,5 +183,6 @@ export const taxRefundStatements = async (
   return statements;
 };
 
-export const isTaxAssessmentConflict = (error: unknown): boolean =>
-  notNullGuardFailure(error, "booking_tax_assessments.booking_group");
+export const isTaxAssessmentConflict = notNullGuardFailureAt(
+  "booking_tax_assessments.booking_group",
+);

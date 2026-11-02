@@ -85,6 +85,13 @@ export const notNullGuardFailure = (error: unknown, column: string): boolean =>
   error instanceof Error &&
   error.message.includes(`NOT NULL constraint failed: ${column}`);
 
+/** The same check with one constraint fixed now, for a caller that owns a
+ *  single deliberate guard column. */
+export const notNullGuardFailureAt =
+  (column: string) =>
+  (error: unknown): boolean =>
+    notNullGuardFailure(error, column);
+
 type NameRow<Raw> = { id: number; name: Raw };
 type Decryptor<Raw> = (raw: Raw) => Promise<string>;
 type NameMap = Promise<Map<number, string>>;

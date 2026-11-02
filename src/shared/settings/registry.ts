@@ -1,3 +1,4 @@
+import { definition } from "#shared/settings/definition.ts";
 import { CONFIG_KEYS, type ConfigKey } from "#shared/settings/keys.ts";
 
 export type { ConfigKey };
@@ -18,85 +19,84 @@ type StringSettingConfig<K extends ConfigKey = ConfigKey> = {
   accessor?: AccessorConfig;
 };
 
-const setting = <const Definition extends StringSettingConfig>(
-  definition: Definition,
-): Definition => definition;
-
 /** An email template/credential setting: encrypted and tagged so it is rebuilt
  * whenever the email body changes. Collapses the repeated shape of the email
  * settings below into one call. */
 const emailBodySetting = <const Key extends ConfigKey>(key: Key) =>
-  setting({
+  definition({
     key,
     storage: "encrypted",
     tags: ["emailBody"],
   });
 
 export const STRING_SETTING_DEFINITIONS = [
-  setting({
+  definition({
     accessor: { name: "terms" },
     key: CONFIG_KEYS.TERMS_AND_CONDITIONS,
     storage: "plaintext",
   }),
-  setting({
+  definition({
     accessor: { name: "bulkEmailDraft" },
     key: CONFIG_KEYS.BULK_EMAIL_DRAFT,
     storage: "plaintext",
   }),
-  setting({ key: CONFIG_KEYS.EMAIL_PROVIDER, storage: "plaintext" }),
-  setting({ key: CONFIG_KEYS.ADDRESS_LOOKUP_PROVIDER, storage: "plaintext" }),
-  setting({ key: CONFIG_KEYS.ADDRESS_LOOKUP_API_KEY, storage: "encrypted" }),
-  setting({ key: CONFIG_KEYS.ENABLED_FEATURES, storage: "plaintext" }),
-  setting({ key: CONFIG_KEYS.TAX, storage: "plaintext" }),
+  definition({ key: CONFIG_KEYS.EMAIL_PROVIDER, storage: "plaintext" }),
+  definition({
+    key: CONFIG_KEYS.ADDRESS_LOOKUP_PROVIDER,
+    storage: "plaintext",
+  }),
+  definition({ key: CONFIG_KEYS.ADDRESS_LOOKUP_API_KEY, storage: "encrypted" }),
+  definition({ key: CONFIG_KEYS.ENABLED_FEATURES, storage: "plaintext" }),
+  definition({ key: CONFIG_KEYS.TAX, storage: "plaintext" }),
   // Custom CSS is served verbatim as a public stylesheet at /custom.css, so it
   // is stored unencrypted. There is nothing secret about it.
-  setting({
+  definition({
     accessor: { name: "customCss" },
     key: CONFIG_KEYS.CUSTOM_CSS,
     storage: "plaintext",
   }),
-  setting({
+  definition({
     accessor: { name: "customDomain" },
     key: CONFIG_KEYS.CUSTOM_DOMAIN,
     storage: "plaintext",
   }),
-  setting({
+  definition({
     accessor: { name: "customDomainLastValidated", readOnly: true },
     key: CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED,
     storage: "plaintext",
   }),
-  setting({
+  definition({
     accessor: { name: "bunnySubdomain" },
     key: CONFIG_KEYS.BUNNY_SUBDOMAIN,
     storage: "plaintext",
   }),
-  setting({
+  definition({
     accessor: { name: "currentTask" },
     key: CONFIG_KEYS.CURRENT_TASK,
     storage: "plaintext",
   }),
-  setting({
+  definition({
     accessor: { name: "publicKey", readOnly: true },
     key: CONFIG_KEYS.PUBLIC_KEY,
     storage: "plaintext",
   }),
-  setting({
+  definition({
     accessor: { name: "wrappedPrivateKey", readOnly: true },
     key: CONFIG_KEYS.WRAPPED_PRIVATE_KEY,
     storage: "plaintext",
   }),
-  setting({ key: CONFIG_KEYS.SQUARE_LOCATION_ID, storage: "plaintext" }),
-  setting({
+  definition({ key: CONFIG_KEYS.SQUARE_LOCATION_ID, storage: "plaintext" }),
+  definition({
     key: CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID,
     storage: "plaintext",
   }),
-  setting({ key: CONFIG_KEYS.SUMUP_MERCHANT_CODE, storage: "plaintext" }),
-  setting({
+  definition({ key: CONFIG_KEYS.SUMUP_MERCHANT_CODE, storage: "plaintext" }),
+  definition({
     accessor: { name: "latestScriptVersion" },
     key: CONFIG_KEYS.LATEST_SCRIPT_VERSION,
     storage: "plaintext",
   }),
-  setting({
+  definition({
     accessor: { name: "latestScriptVersionName" },
     key: CONFIG_KEYS.LATEST_SCRIPT_VERSION_NAME,
     storage: "plaintext",
@@ -105,75 +105,75 @@ export const STRING_SETTING_DEFINITIONS = [
   // ("none"). Its credentials stay stored. Refunds, replayed callbacks, and
   // in-flight completions of payments that already exist keep running against
   // the provider that captured them. The money does not get stranded.
-  setting({
+  definition({
     key: CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER,
     storage: "plaintext",
   }),
-  setting({ key: CONFIG_KEYS.SUPERUSER_CHOICE, storage: "plaintext" }),
-  setting({
+  definition({ key: CONFIG_KEYS.SUPERUSER_CHOICE, storage: "plaintext" }),
+  definition({
     accessor: { name: "supportFormLastSubmitted", readOnly: true },
     key: CONFIG_KEYS.SUPPORT_FORM_LAST_SUBMITTED,
     storage: "plaintext",
   }),
-  setting({
+  definition({
     accessor: { name: "listingColumnOrder" },
     key: CONFIG_KEYS.LISTING_COLUMN_ORDER,
     storage: "plaintext",
   }),
-  setting({
+  definition({
     accessor: { name: "attendeeColumnOrder" },
     key: CONFIG_KEYS.ATTENDEE_COLUMN_ORDER,
     storage: "plaintext",
   }),
-  setting({
+  definition({
     accessor: { name: "smsGatewayBaseUrl" },
     key: CONFIG_KEYS.SMS_GATEWAY_BASE_URL,
     storage: "plaintext",
   }),
-  setting({
+  definition({
     accessor: { name: "businessEmail" },
     key: CONFIG_KEYS.BUSINESS_EMAIL,
     storage: "encrypted",
   }),
-  setting({
+  definition({
     accessor: { name: "headerImageUrl" },
     key: CONFIG_KEYS.HEADER_IMAGE_URL,
     storage: "encrypted",
   }),
-  setting({
+  definition({
     accessor: { name: "websiteTitle" },
     key: CONFIG_KEYS.WEBSITE_TITLE,
     storage: "encrypted",
   }),
-  setting({
+  definition({
     accessor: { name: "homepageText" },
     key: CONFIG_KEYS.HOMEPAGE_TEXT,
     storage: "encrypted",
   }),
-  setting({
+  definition({
     accessor: { name: "contactPageText" },
     key: CONFIG_KEYS.CONTACT_PAGE_TEXT,
     storage: "encrypted",
   }),
-  setting({
+  definition({
     accessor: { name: "orderIntroText" },
     key: CONFIG_KEYS.ORDER_INTRO_TEXT,
     storage: "encrypted",
   }),
-  setting({
+  definition({
     accessor: { name: "siteFooter" },
     key: CONFIG_KEYS.SITE_FOOTER,
     storage: "encrypted",
   }),
-  setting({ key: CONFIG_KEYS.STRIPE_SECRET_KEY, storage: "encrypted" }),
-  setting({ key: CONFIG_KEYS.STRIPE_WEBHOOK_SECRET, storage: "encrypted" }),
-  setting({ key: CONFIG_KEYS.SQUARE_ACCESS_TOKEN, storage: "encrypted" }),
-  setting({
+  definition({ key: CONFIG_KEYS.STRIPE_SECRET_KEY, storage: "encrypted" }),
+  definition({ key: CONFIG_KEYS.STRIPE_WEBHOOK_SECRET, storage: "encrypted" }),
+  definition({ key: CONFIG_KEYS.SQUARE_ACCESS_TOKEN, storage: "encrypted" }),
+  definition({
     key: CONFIG_KEYS.SQUARE_WEBHOOK_SIGNATURE_KEY,
     storage: "encrypted",
   }),
-  setting({ key: CONFIG_KEYS.SUMUP_API_KEY, storage: "encrypted" }),
-  setting({
+  definition({ key: CONFIG_KEYS.SUMUP_API_KEY, storage: "encrypted" }),
+  definition({
     accessor: { name: "embedHosts" },
     key: CONFIG_KEYS.EMBED_HOSTS,
     storage: "encrypted",
@@ -186,45 +186,48 @@ export const STRING_SETTING_DEFINITIONS = [
   emailBodySetting(CONFIG_KEYS.EMAIL_TPL_ADMIN_SUBJECT),
   emailBodySetting(CONFIG_KEYS.EMAIL_TPL_ADMIN_HTML),
   emailBodySetting(CONFIG_KEYS.EMAIL_TPL_ADMIN_TEXT),
-  setting({
+  definition({
     key: CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID,
     storage: "encrypted",
   }),
-  setting({ key: CONFIG_KEYS.APPLE_WALLET_TEAM_ID, storage: "encrypted" }),
-  setting({
+  definition({ key: CONFIG_KEYS.APPLE_WALLET_TEAM_ID, storage: "encrypted" }),
+  definition({
     key: CONFIG_KEYS.APPLE_WALLET_SIGNING_CERT,
     storage: "encrypted",
   }),
-  setting({
+  definition({
     key: CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY,
     storage: "encrypted",
   }),
-  setting({ key: CONFIG_KEYS.APPLE_WALLET_WWDR_CERT, storage: "encrypted" }),
-  setting({ key: CONFIG_KEYS.GOOGLE_WALLET_ISSUER_ID, storage: "encrypted" }),
-  setting({
+  definition({ key: CONFIG_KEYS.APPLE_WALLET_WWDR_CERT, storage: "encrypted" }),
+  definition({
+    key: CONFIG_KEYS.GOOGLE_WALLET_ISSUER_ID,
+    storage: "encrypted",
+  }),
+  definition({
     key: CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL,
     storage: "encrypted",
   }),
-  setting({
+  definition({
     key: CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_KEY,
     storage: "encrypted",
   }),
-  setting({
+  definition({
     accessor: { name: "smsGatewayPassphrase" },
     key: CONFIG_KEYS.SMS_GATEWAY_PASSPHRASE,
     storage: "encrypted",
   }),
-  setting({
+  definition({
     accessor: { name: "smsGatewayUsername" },
     key: CONFIG_KEYS.SMS_GATEWAY_USERNAME,
     storage: "encrypted",
   }),
-  setting({
+  definition({
     accessor: { name: "smsGatewayPassword" },
     key: CONFIG_KEYS.SMS_GATEWAY_PASSWORD,
     storage: "encrypted",
   }),
-  setting({
+  definition({
     accessor: { name: "smsGatewayWebhookSecret" },
     key: CONFIG_KEYS.SMS_GATEWAY_WEBHOOK_SECRET,
     storage: "encrypted",
@@ -232,8 +235,8 @@ export const STRING_SETTING_DEFINITIONS = [
   // The defaults blob can carry a webhook / thank-you URL, which commonly hold
   // bearer tokens or private endpoints. The same fields are encrypted on
   // listings, so the shared default is encrypted at rest too.
-  setting({ key: CONFIG_KEYS.LISTING_DEFAULTS, storage: "encrypted" }),
-] as const;
+  definition({ key: CONFIG_KEYS.LISTING_DEFAULTS, storage: "encrypted" }),
+] as const satisfies readonly StringSettingConfig[];
 
 export type StringSettingDefinition =
   (typeof STRING_SETTING_DEFINITIONS)[number];

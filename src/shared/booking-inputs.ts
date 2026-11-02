@@ -5,6 +5,7 @@
 import * as v from "valibot";
 import type { CreateAdjustment } from "#shared/checkout-complete.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
+import { isPositiveSafeInteger } from "#shared/validation/number.ts";
 
 /** The per-purchase cap a booking line's quantity must respect: one line never
  *  books more places than its listing allows in a single purchase. */
@@ -13,11 +14,6 @@ export const quantityOverCap = (quantity: number, cap: number): boolean =>
 
 /** The longest description a named one-off adjustment carries. */
 export const ADJUSTMENT_DESCRIPTION_LIMIT = 200;
-
-/** A payment records money the operator already received: a positive whole
- *  amount in minor units. */
-export const isValidPaymentAmount = (amount: number): boolean =>
-  Number.isSafeInteger(amount) && amount >= 1;
 
 /** A named adjustment's amount is signed minor units and never zero:
  *  positive bills the attendee, negative forgives part of the debt. */
@@ -42,7 +38,7 @@ export const parseLinePrice = (
 
 /** One payment a create records: a positive minor-unit amount received. */
 const PAYMENT_SCHEMA = v.object({
-  amount: v.pipe(v.number(), v.check(isValidPaymentAmount)),
+  amount: v.pipe(v.number(), v.check(isPositiveSafeInteger)),
 });
 
 /** One adjustment's refusal, or the validated entry. */
