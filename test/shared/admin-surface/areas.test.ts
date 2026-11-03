@@ -70,4 +70,21 @@ describe("the admin areas table", () => {
     // Its write route derives the segment it serves.
     expect(ADMIN_SURFACE.areas.markdownPreview).toEqual(["markdown-preview"]);
   });
+
+  test("lands every save on a page every role that saves can open", () => {
+    // A save that lands on a page its own actor cannot open bounces the
+    // reader to a forbidden page after the row has already changed.
+    const stranded = routes.flatMap((route) => {
+      const landing = route.afterSave;
+      if (landing === undefined) return [];
+      const shut = route.audience.filter(
+        (level) => !landing.audience.includes(level),
+      );
+      return shut.length === 0
+        ? []
+        : [`${route.id} to ${landing.id}: ${shut.join(", ")}`];
+    });
+
+    expect(stranded).toEqual([]);
+  });
 });
