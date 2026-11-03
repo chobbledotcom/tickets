@@ -1,25 +1,14 @@
 /** The unread-field exemptions for the attendee-status admin API wire types.
  *  They live apart from exemptions.ts, which stays under its length limit. */
 
-import { identitiesAt } from "#scripts/unread-fields/identity.ts";
-import type {
-  ExemptionReason,
-  FindingExemption,
-} from "#scripts/unread-fields/policy.ts";
+import type { FindingExemption } from "#scripts/unread-fields/policy.ts";
+import { exemptFieldsUnder } from "#scripts/unread-fields/policy.ts";
 
 /** The one source file every admin API wire type exports from. */
 const SOURCE = "src/shared/admin-api-resources.ts";
 
-/** Exempt one set of fields under a set of owners with one reason. */
-const exemptAt = (
-  owners: readonly [string, readonly { name: string }[]][],
-  fields: readonly string[],
-  reason: ExemptionReason,
-): FindingExemption[] =>
-  identitiesAt(owners)(fields).map((identity) => ({ identity, reason }));
-
 export const ATTENDEE_STATUS_EXEMPTIONS: readonly FindingExemption[] = [
-  ...exemptAt(
+  ...exemptFieldsUnder(
     [
       [SOURCE, [{ name: "AdminApiCreateAttendeeStatusBody" }]],
       [SOURCE, [{ name: "AdminApiUpdateAttendeeStatusBody" }]],
@@ -37,7 +26,7 @@ export const ATTENDEE_STATUS_EXEMPTIONS: readonly FindingExemption[] = [
       kind: "dynamic-read",
     },
   ),
-  ...exemptAt(
+  ...exemptFieldsUnder(
     [[SOURCE, [{ name: "AdminApiAttendeeStatus" }]]],
     [
       "id",
