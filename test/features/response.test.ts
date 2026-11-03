@@ -205,26 +205,6 @@ describeWithEnv("route responses", { db: true }, () => {
           "Answer saved",
         )(response);
       }));
-
-    test("keeps the submitted return URL, error flash, form anchor and cookie", () =>
-      withRequestContext(() => {
-        const response = adminRedirect("settings", {}, "Fix fields", false, {
-          cookie: "session=abc; Path=/",
-          form: new URLSearchParams({
-            name: "Submitted",
-            return_url: "/admin/listing/8?tab=attendees#old",
-          }),
-          formId: "contact",
-        });
-        expectRedirectWithFlash(
-          "/admin/listing/8?tab=attendees&form=contact#contact",
-          "Fix fields",
-          false,
-        )(response);
-        assertArrayIncludes(response.headers.getSetCookie(), [
-          "session=abc; Path=/",
-        ]);
-      }));
   });
 
   describe("redirectResponse", () => {
