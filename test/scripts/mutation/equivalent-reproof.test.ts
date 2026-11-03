@@ -81,6 +81,9 @@ const deps = (
       throw new Error("the harness env must reach the test run");
     }
     if (run.batchJobs !== 3) throw new Error("batch jobs must pass through");
+    if (run.limitMs !== null) {
+      throw new Error("the sweep has no baseline, so no batch carries a limit");
+    }
     void signal;
     return evaluate(plan.file);
   },

@@ -19,7 +19,7 @@ import {
   runTestStages,
   type TestStageResult,
 } from "./phases.ts";
-import type { EvaluationStatus } from "./summary.ts";
+import type { EvaluationStatus, FrozenTestRun } from "./summary.ts";
 import {
   createMutantTestState,
   type MutantTestStateResult,
@@ -41,6 +41,9 @@ export interface FileMutationPlan {
 
 export interface MutantEvaluation {
   detectedBy: MutationPhase | null;
+  /** Set when the per-batch limit stopped a batch while this mutant ran. The
+   *  status is then cancelled: the tests gave no verdict. */
+  frozen?: FrozenTestRun;
   status: EvaluationStatus;
   timings: PhaseTiming[];
 }
@@ -78,6 +81,7 @@ const testStatus = (
   const status = toStatus(result.outcome);
   return {
     detectedBy: detectedByKill(phase, status),
+    ...(result.frozen === undefined ? {} : { frozen: result.frozen }),
     status,
     timings: [{ durationMs: result.durationMs, phase }],
   };
@@ -154,11 +158,9 @@ const runIntegrationTestStage = async (
       testFiles,
       env,
     );
-    return {
-      detectedBy: tested.detectedBy,
-      status: tested.status,
-      timings: [...timings, ...tested.timings],
-    };
+    // Carry the batch's whole result: the timings are the only field this
+    // stage adds. A field copied by hand can go missing.
+    return { ...tested, timings: [...timings, ...tested.timings] };
   } finally {
     if (state?.status === "ready") await state.state.cleanup();
   }

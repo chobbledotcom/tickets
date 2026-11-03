@@ -700,6 +700,13 @@ distinguish it.
 `deno task precommit:mutation` is the branch gate. Run it before you merge a
 branch that changes `src/` files.
 
+The runner stops a test batch that outlives the baseline by two orders of
+magnitude. The limit is 100 times the measured baseline, with a floor of 60
+seconds. The limit never drops below the baseline. Otherwise half the run
+deadline caps it. A batch past the limit is a frozen loop, not a verdict: the
+run stops, names the mutant and the limit, and scores nothing. No mutant is
+judged by a clock. A clock can only stop a run that a loop freeze already broke.
+
 ### Fast Tests
 
 The suite prints each test slower than 500ms after every run. Treat entries as

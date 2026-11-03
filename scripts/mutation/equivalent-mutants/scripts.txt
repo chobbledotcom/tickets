@@ -114,7 +114,8 @@ scripts/unread-fields/writes.ts::nodeAt.descend~1bsvjf5  ?? → || audited:09bmx
 
 # Unread-fields host: a constant the compiler only ever compares against
 # itself.
-scripts/unread-fields/fields/shapes.ts::declaredIn~0hvqe62  ?? → || audited:0qejszj # ts.Symbol.declarations is a Declaration[] or undefined, and an array is always truthy, so nothing falsy-but-defined can reach the fallback
+scripts/unread-fields/fields/shapes.ts::declaredIn~0hvqe62  ?? → || audited:1xrafos # ts.Symbol.declarations is a Declaration[] or undefined, and an array is always truthy, so nothing falsy-but-defined can reach the fallback
+scripts/unread-fields/fields/shapes.ts::inheritedTypesOf~0me64jv  ?? → || audited:1xrafos # flatMap over a NodeArray answers an array, and an array is always truthy, so nothing falsy-but-defined can reach the fallback
 scripts/unread-fields/fields/declarations.ts::writtenNames~1o9qusl  ?? → || audited:1k4hokq # ts.Symbol.declarations is a Declaration[] or undefined, and an array is always truthy, so nothing falsy-but-defined can reach the fallback
 scripts/unread-fields/fields/declarations.ts::nameOf.written~0dvznn4  ?? → || audited:1k4hokq # quotedInBrackets answers a ts.Node or undefined, and a node is always a truthy object, so nothing falsy-but-defined can reach the fallback
 scripts/unread-fields/fields/borrowed.ts::writtenSignatures~1k1zicm  borrowed signature declaration → "" audited:1mqoxak # getSignaturesOfType returns signatures from one concrete union arm, and each such signature has its source declaration, so no valid scan reaches the error text

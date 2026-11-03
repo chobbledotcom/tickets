@@ -44,12 +44,16 @@ describe("what the scan counts as a shape", () => {
     );
   });
 
-  test("leaves out a plain constructor parameter", () => {
-    expect(verdictOf("Carrier", "plainParameter")).toBeUndefined();
-  });
-
-  test("leaves out a field the class keeps to itself", () => {
-    expect(verdictOf("Carrier", "notForOutside")).toBeUndefined();
+  test("reports the fields a class hands out, and no others", () => {
+    // A plain constructor parameter is a local, and a member the class keeps
+    // to itself is out of reach. Neither is a field of the shape.
+    const lines = scanned.all.filter((field) => field.owner === "Carrier");
+    expect(lines.map((field) => field.field).sort()).toEqual([
+      "heldByTheConstructor",
+      "keep",
+      "onlyOnAClass",
+      "readByThisInside",
+    ]);
   });
 
   test("sees a method an exported class hands out", () => {
@@ -99,7 +103,11 @@ describe("what the scan counts as a shape", () => {
   });
 
   test("leaves out a method the class keeps to itself", () => {
-    expect(verdictOf("Answerer", "keptInside")).toBeUndefined();
+    const lines = scanned.all.filter((field) => field.owner === "Answerer");
+    expect(lines.map((field) => field.field).sort()).toEqual([
+      "answersAQuestion",
+      "readsLikeAField",
+    ]);
   });
 
   test("sees a field an alias reads off a list of objects", () => {
@@ -170,7 +178,23 @@ describe("what the scan counts as a shape", () => {
   });
 
   test("finds a shape declared inside a namespace", () => {
-    expect(verdictOf("Inner", "onlyInsideNamespace")).toBe("never read");
+    expect(verdictOf("Wrapped.Inner", "onlyInsideNamespace")).toBe(
+      "never read",
+    );
+  });
+
+  test("names a shape by every namespace above it", () => {
+    expect(verdictOf("Outer.Inner.Deep", "onlyInsideNestedNamespace")).toBe(
+      "never read",
+    );
+  });
+
+  test("tells two shapes of one name in two namespaces apart", () => {
+    // One line for both would call the unread field of `Second.Item` read.
+    expect(verdictOf("First.Item", "sameNameInTwoNamespaces")).toBe("read");
+    expect(verdictOf("Second.Item", "sameNameInTwoNamespaces")).toBe(
+      "never read",
+    );
   });
 
   test("reports a field of an interface that nothing reads", () => {

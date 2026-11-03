@@ -10,6 +10,7 @@ import { type StaticGate, type TestRunConfig, testEnv } from "./execution.ts";
 import { type IgnoreList, suppresses } from "./ignore.ts";
 import { evaluateStaticMutants, type StaticEvaluation } from "./static.ts";
 import {
+  type FrozenLoop,
   formatProgressLine,
   type MutantResult,
   type Status,
@@ -55,7 +56,11 @@ export interface FileRunOptions {
 
 export interface MutantLoopContext {
   counts: Record<Status, number>;
+  /** The first frozen test batch this run found, named by its mutant. */
+  frozen: { current: FrozenLoop | null };
   gates: StaticGate[];
+  /** Longest a test batch may run, measured from the baseline. */
+  testLimitMs: number;
   totalMutants: number;
   /** Entries whose proof predates the file's current text: they suppress
    * nothing, so their mutants surface as the survivors they are. */
@@ -119,10 +124,11 @@ export const runFileMutants = async (
   ctx: MutantLoopContext,
   deps: FileRunDeps = realDeps,
 ): Promise<void> => {
-  const { counts, gates, totalMutants } = ctx;
+  const { counts, gates, frozen, testLimitMs, totalMutants } = ctx;
   const run: TestRunConfig = {
     batchJobs: opts.batchJobs,
     env: testEnv(),
+    limitMs: testLimitMs,
     testFiles: opts.testFiles,
   };
   const staticResults = await withTrackedOriginal(opts, plan, () =>
@@ -143,6 +149,9 @@ export const runFileMutants = async (
       opts,
       deps,
     );
+    if (evaluation.frozen !== undefined) {
+      frozen.current = { ...evaluation.frozen, file: plan.file, mutant };
+    }
     if (opts.isAborted() || evaluation.status === "cancelled") break;
     const status: Status =
       evaluation.status === "survived" &&
