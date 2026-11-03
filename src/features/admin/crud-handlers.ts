@@ -17,9 +17,12 @@ import {
 /* jscpd:ignore-start */
 import { type IdRouteHandler, idRouteFor } from "#routes/entity.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
-import { afterSavePath } from "#shared/admin-pages.ts";
 import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
-import { adminDestination, adminDestinationAt } from "#shared/admin-surface.ts";
+import {
+  adminDestination,
+  adminDestinationAt,
+  afterSavePath,
+} from "#shared/admin-surface.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type {
   DeleteResult,
@@ -65,9 +68,8 @@ export type CollectionRenderers<Model> = {
 
 type CrudConfig<Row, Display = Row> = CollectionRenderers<Display[]> & {
   singular: string;
-  /** The collection's own route. Its path gives the five routes beneath it,
-   * and each of those declares the roles that reach it and the page its save
-   * lands on. */
+  /** The collection route owns the create POST. Saves return here unless
+   * their POST route declares an afterSave override. */
   list: AdminDestinationId;
   getAll: () => Promise<Display[]>;
   /** The resource, or a factory that builds it. A factory keeps a resource
@@ -110,7 +112,7 @@ const pageGuardAt = (pattern: string): SessionGuard<AuthSession> =>
 const crudGates = (listPath: string): CrudGates => {
   const deletePath = `${listPath}/:id/delete`;
   return {
-    create: formGuardAt(`${listPath}/new`),
+    create: formGuardAt(listPath),
     delete: pageGuardAt(deletePath),
     deleteForm: formGuardAt(deletePath),
     edit: formGuardAt(`${listPath}/:id/edit`),
@@ -129,17 +131,7 @@ export const createCrudHandlers = <Row extends { id: number }, Display = Row>(
 ): CrudHandlers => {
   const listRoute = adminDestination(cfg.list);
   const listPath = listRoute.pattern;
-  // The create and edit forms each name the page their save lands on. A form
-  // that names none fails here, before a save writes a row.
-  const createRoute = adminDestinationAt(`${listPath}/new`);
   const editRoute = adminDestinationAt(`${listPath}/:id/edit`);
-  for (const route of [createRoute, editRoute]) {
-    if (route.afterSave === undefined) {
-      throw new Error(
-        `Admin route "${route.id}" declares no after-save landing`,
-      );
-    }
-  }
   const auth = crudGates(listPath);
   const operations = (): NamedOperations<Row> =>
     typeof cfg.operations === "function" ? cfg.operations() : cfg.operations;
@@ -176,7 +168,7 @@ export const createCrudHandlers = <Row extends { id: number }, Display = Row>(
     return logAndRedirect(
       "created",
       result.row,
-      afterSavePath(createRoute.id, result.row.id),
+      afterSavePath(listRoute, cfg.list, result.row.id),
     );
   });
 
@@ -186,7 +178,11 @@ export const createCrudHandlers = <Row extends { id: number }, Display = Row>(
       return operationResponse(
         result,
         ({ row }) =>
-          logAndRedirect("updated", row, afterSavePath(editRoute.id, row.id)),
+          logAndRedirect(
+            "updated",
+            row,
+            afterSavePath(editRoute, cfg.list, row.id),
+          ),
         (error) =>
           cfg.renderEditError
             ? cfg.renderEditError(id, session, form, error)

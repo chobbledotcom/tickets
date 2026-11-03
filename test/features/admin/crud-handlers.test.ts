@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { type Holiday, type HolidayInput, holidays } from "#db/holidays.ts";
 import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
+import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
 import type { FormValues } from "#shared/forms/definition.ts";
 import { defineResource, type NamedOperations } from "#shared/rest/resource.ts";
 import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
@@ -39,6 +40,7 @@ const crudFor = (
     activityName?: string;
     deleteGuard?: (row: Holiday, id: number) => Promise<string | null>;
     identifierLabel?: string;
+    list?: AdminDestinationId;
   } = {},
 ) =>
   createCrudHandlers({
@@ -120,6 +122,44 @@ describeWithEnv("owner CRUD handlers", { db: true }, () => {
     expect(await wasActivityLogged("Holiday 'Updated holiday' updated")).toBe(
       true,
     );
+  });
+
+  test("defaults a create without an override to the collection list", async () => {
+    const response = await crudFor(holidayResource, {
+      list: "modifiers",
+    }).createPost(
+      mockFormRequest(
+        "/admin/modifiers",
+        await validHolidayFields("Created holiday"),
+        await testCookie(),
+      ),
+    );
+
+    expectRedirectWithFlash(
+      "/admin/modifiers",
+      "Holiday created",
+      true,
+    )(response);
+  });
+
+  test("defaults an edit without an override to the collection list", async () => {
+    const holiday = await createTestHoliday();
+    const response = await crudFor(holidayResource, {
+      list: "modifiers",
+    }).editPost(
+      mockFormRequest(
+        `/admin/modifiers/${holiday.id}/edit`,
+        await validHolidayFields("Updated holiday"),
+        await testCookie(),
+      ),
+      { id: holiday.id },
+    );
+
+    expectRedirectWithFlash(
+      "/admin/modifiers",
+      "Holiday updated",
+      true,
+    )(response);
   });
 
   test("passes a rejected edit's submitted form to its error renderer", async () => {
@@ -262,24 +302,5 @@ describeWithEnv("owner CRUD handlers", { db: true }, () => {
       "Closure label does not match. Please type the exact closure label to confirm deletion.",
       false,
     )(response);
-  });
-
-  test("refuses a collection whose form routes name no landing", () => {
-    // An image's edit form saves on its own page, and its create form has
-    // no landing of its own. A collection must not guess one: the save
-    // would already have written its row before the redirect failed.
-    expect(() =>
-      createCrudHandlers({
-        getAll: async () => [],
-        getName: (row: Holiday) => row.name,
-        identifierLabel: "Name",
-        list: "images",
-        operations: holidayResource,
-        renderDelete: () => "delete",
-        renderList: () => "list",
-        renderNew: () => "new",
-        singular: "Image",
-      }),
-    ).toThrow('Admin route "imageNew" declares no after-save landing');
   });
 });

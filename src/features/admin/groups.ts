@@ -186,9 +186,7 @@ export const deleteGroup = async (id: InValue) => {
 
 /** Shared CRUD handler config. `renderEdit` is omitted because the edit page
  * needs the group's listings and package prices. The entity page's Edit tab
- * loads those (`loadGroupEditPanel`), and the edit POST stays generic. The
- * group's routes declare where their saves land: the list after a create, the
- * group's own page after an edit. */
+ * loads those (`loadGroupEditPanel`), and the edit POST stays generic. */
 const crudConfig = {
   deleteGuard: (_group: Group, id: number) => soldHiddenPackageError(id),
   getAll: () => groups.cache.getAll(),

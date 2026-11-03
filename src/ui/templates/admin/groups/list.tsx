@@ -11,7 +11,7 @@ import type { Group } from "#types";
 /* jscpd:ignore-end */
 
 const groupLink = (group: Group): JSX.Element => (
-  <a href={entityReturnPath("groups", group.id)}>{group.name}</a>
+  <a href={entityReturnPath(adminPattern("groups"), group.id)}>{group.name}</a>
 );
 
 const groupColumns: readonly TableColumn<Group>[] = [

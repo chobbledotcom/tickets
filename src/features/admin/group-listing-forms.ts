@@ -76,7 +76,7 @@ const refusedWriteTarget = (groupPath: string, error: string): string =>
     : groupPath;
 
 const groupPathOf = (groupId: number): string =>
-  entityReturnPath("groups", groupId);
+  entityReturnPath(adminPattern("groups"), groupId);
 
 /** Handle POST /admin/groups/:id/add-listings - assign ungrouped listings to group */
 export const handleAddListingsToGroup = groupFormPost(

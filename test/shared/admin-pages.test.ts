@@ -7,7 +7,6 @@ import {
 } from "#shared/admin-features.ts";
 import {
   adminLandingPath,
-  afterSavePath,
   entityReturnPath,
   readOnlyGetRoutePatterns,
   readOnlyWriteRoutePatterns,
@@ -15,8 +14,7 @@ import {
   visibleTopLevel,
 } from "#shared/admin-pages.ts";
 import type { AdminDestinationDef } from "#shared/admin-surface/definitions.ts";
-import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
-import { ADMIN_SURFACE, adminDestination } from "#shared/admin-surface.ts";
+import { ADMIN_SURFACE } from "#shared/admin-surface.ts";
 import { normalizePath } from "#shared/path.ts";
 import { type AdminLevel, ALL_ADMIN_LEVELS } from "#types";
 
@@ -138,57 +136,12 @@ describe("admin navigation", () => {
 
 describe("entityReturnPath", () => {
   test("sends a reader to the record's own page", () => {
-    expect(entityReturnPath("listings", 5)).toBe("/admin/listing/5");
-    expect(entityReturnPath("groups", 7)).toBe("/admin/groups/7");
+    expect(entityReturnPath("/admin/listings", 5)).toBe("/admin/listing/5");
+    expect(entityReturnPath("/admin/groups", 7)).toBe("/admin/groups/7");
   });
 
   test("falls back to the list when a section has no record page", () => {
-    expect(entityReturnPath("settings", 1)).toBe("/admin/settings");
-  });
-});
-
-describe("afterSavePath", () => {
-  test("fills the saved record into the landing the route declares", () => {
-    expect(afterSavePath("groupEdit", 7)).toBe("/admin/groups/7");
-    expect(afterSavePath("attendeeRefund", 9)).toBe(
-      "/admin/attendees/9/actions",
-    );
-  });
-
-  test("lands a collection's edit on the list it declares", () => {
-    expect(afterSavePath("modifierEdit", 3)).toBe("/admin/modifiers");
-    expect(afterSavePath("logisticsEdit", 4)).toBe("/admin/logistics");
-  });
-
-  test("names the route when it declares no landing", () => {
-    expect(() => afterSavePath("groupDelete", 7)).toThrow(
-      'Admin route "groupDelete" declares no after-save landing',
-    );
-  });
-
-  test("says when a landing needs the record it names", () => {
-    expect(() => afterSavePath("groupEdit")).toThrow(
-      'Admin route "groupEdit" lands on "group", which names a record',
-    );
-  });
-
-  test("mints a filled path for every declared landing", () => {
-    // One walk over the whole surface: a landing is a route that exists, and
-    // every value it names is the saved record's id. A declaration that named
-    // another kind of parameter would mint a path no page serves.
-    for (const [id, destination] of Object.entries(
-      ADMIN_SURFACE.destinations,
-    )) {
-      const landingId = destination.afterSave;
-      if (landingId === undefined) continue;
-      const landing = adminDestination(landingId);
-      for (const param of landing.pattern.match(/:\w+/g) ?? []) {
-        expect(param, `${id} ${param}`).toMatch(/^:(?:id|\w+Id)$/);
-      }
-      expect(afterSavePath(id as AdminDestinationId, 42), id).toBe(
-        landing.pattern.replace(/:(\w+)/g, "42"),
-      );
-    }
+    expect(entityReturnPath("/admin/settings", 1)).toBe("/admin/settings");
   });
 });
 

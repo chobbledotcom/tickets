@@ -71,12 +71,11 @@ describe("the admin areas table", () => {
     expect(ADMIN_SURFACE.areas.markdownPreview).toEqual(["markdown-preview"]);
   });
 
-  test("lands every save on a page every role that saves can open", () => {
-    // A save that lands on a page its own actor cannot open bounces the
-    // reader to a forbidden page after the row has already changed.
+  test("lands every generated save override on a page its actors can open", () => {
+    // A save must not send its actor to a forbidden page after the write.
     const stranded = routes.flatMap((route) => {
       if (route.afterSave === undefined) return [];
-      const landing = adminDestination(route.afterSave);
+      const landing = ADMIN_SURFACE.destinations[route.afterSave]!;
       const shut = route.audience.filter(
         (level) => !landing.audience.includes(level),
       );

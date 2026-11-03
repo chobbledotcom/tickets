@@ -37,7 +37,7 @@ import {
   withAuth,
 } from "#routes/auth.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
-import { afterSavePath } from "#shared/admin-pages.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 import { addDays } from "#shared/dates.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -247,8 +247,7 @@ const markDateAllowed = (session: AuthSession, date: string): boolean => {
   return date === today || date === addDays(today, 1);
 };
 
-/** The deliveries list. A mark lands here, whether it was accepted or not. */
-const DELIVERIES_PATH = afterSavePath("deliveriesMark");
+const DELIVERIES_PATH = adminPattern("deliveries");
 
 /** Handle POST /admin/deliveries/mark — toggle a leg done, scoped to the
  * agent's own logistics agents and to the run-sheet day it was shown on. */

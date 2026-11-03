@@ -1,8 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { prefixRoutes } from "#routes/app/prefixes.ts";
 import { readOnlyBlock } from "#routes/app/read-only.ts";
-import { READ_ONLY_SAFE_ROUTES } from "#routes/app/read-only-safe-routes.ts";
 import { ADMIN_SURFACE, oneServedPath } from "#shared/admin-surface.ts";
 
 /** The ordinary expired-deadline mode: READ_ONLY_FROM in the past. */
@@ -79,20 +77,6 @@ describe("read-only request guard", () => {
     expect(ordinary("/admin/logout", "PUT")).toBe("page");
   });
 
-  test("keeps exactly the admin writes their routes declare", () => {
-    // The whole surface at once: a write declaration says which modes keep
-    // it open, and the guard follows it. A new declaration joins this walk
-    // automatically.
-    for (const destination of Object.values(ADMIN_SURFACE.destinations)) {
-      if (destination.readOnlyWrite === undefined) continue;
-      const path = oneServedPath(destination.pattern);
-      expect(ordinary(path, "POST"), destination.id).toBeNull();
-      expect(updating(path, "POST"), destination.id).toBe(
-        destination.readOnlyWrite === "always" ? null : "page",
-      );
-    }
-  });
-
   test("blocks the group's every-listing door rule save in read-only mode", () => {
     // The scan at the door keeps working; changing the group's stored door
     // preference is a group write, so its edit form is blocked like the
@@ -105,35 +89,18 @@ describe("read-only request guard", () => {
       ["/renew", "POST"],
       ["/pay/token", "POST"],
       ["/payment/webhook", "POST"],
+      ["/v1/devices/device/registrations/pass/token", "POST"],
       ["/v1/devices/device/registrations/pass/token", "DELETE"],
+      ["/v1/log", "POST"],
       ["/sms/webhook", "POST"],
       ["/join/code", "POST"],
+      ["/unsubscribe", "POST"],
+      ["/contact", "POST"],
       ["/instance/site-credentials", "POST"],
       ["/checkin/one+two", "POST"],
     ];
     for (const [path, method] of cases) {
       expect(ordinary(path, method)).toBeNull();
-    }
-  });
-
-  test("keeps every declared safe route open under a served prefix", () => {
-    // The declaration names routes, so a route under a prefix the app does
-    // not serve would never be reached and could hide a typo.
-    for (const { pattern } of READ_ONLY_SAFE_ROUTES) {
-      const prefix = pattern.split("/")[1] ?? "";
-      expect(typeof prefixRoutes[prefix]?.handler, pattern).toBe("function");
-      expect(ordinary(oneServedPath(pattern), "POST"), pattern).toBeNull();
-    }
-  });
-
-  test("gives only the declared webhooks the retryable API answer", () => {
-    // Update mode refuses every safe route. A webhook sender redelivers a
-    // non-2xx answer, so those routes get the API answer instead of the human
-    // redirect.
-    for (const { pattern, retryingWebhook } of READ_ONLY_SAFE_ROUTES) {
-      expect(updating(oneServedPath(pattern), "POST"), pattern).toBe(
-        retryingWebhook === true ? "api" : "page",
-      );
     }
   });
 
@@ -173,7 +140,11 @@ describe("read-only request guard in update mode", () => {
       ["/renew", "POST"],
       ["/pay/token", "POST"],
       ["/v1/devices/device/registrations/pass/token", "DELETE"],
+      ["/v1/devices/device/registrations/pass/token", "POST"],
+      ["/v1/log", "POST"],
       ["/join/code", "POST"],
+      ["/unsubscribe", "POST"],
+      ["/contact", "POST"],
       ["/instance/site-credentials", "POST"],
       ["/checkin/one+two", "POST"],
       ["/ticket/listing", "POST"],
@@ -193,6 +164,10 @@ describe("read-only request guard in update mode", () => {
     // The migration must see a still database, so even the operations
     // ordinary read-only mode allows stop while an update runs.
     for (const path of [
+      "/admin/attendees/99/refresh-payment",
+      "/admin/debug/sentry",
+      "/admin/groups/42/scan",
+      "/admin/support",
       "/admin/listing/42/attendee/99/checkin",
       "/admin/listing/42/scan",
       "/admin/deliveries/mark",

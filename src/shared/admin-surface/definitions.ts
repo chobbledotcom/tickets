@@ -9,7 +9,6 @@
  */
 
 import type { EnabledFeatures } from "#shared/admin-features.ts";
-import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
 import type { AdminLevel } from "#types";
 
 export interface AdminSurfaceContext {
@@ -44,12 +43,8 @@ export const featureVisible =
 export type AdminDestinationSpec =
   | string
   | {
-      /** The id of the page a save served at this route lands on, when that
-       * page is not this route's own. A save that returns to its own form
-       * needs no declaration. It stays a plain string here.
-       * `AdminDestinationId` derives from this table, so naming it in this
-       * field makes the id union refer to itself. The fold checks it
-       * instead. */
+      /** Override the list landing for a generated CRUD save at this route.
+       * A landing can name at most one record parameter. */
       readonly afterSave?: string;
       readonly audience?: AdminAudience;
       readonly pattern: string;
@@ -74,16 +69,15 @@ export type AdminAreaSpec = AdminAreaWithRoutes | AdminAreaWithoutRoutes;
 export type AdminAreasSpec = Readonly<Record<string, AdminAreaSpec>>;
 
 export type AdminDestinationDef = {
-  /** The id of the page a save served at this route lands on, when it is not
-   * this route's own page. */
-  readonly afterSave?: AdminDestinationId;
+  /** Override the list landing for a generated CRUD save at this route. */
+  readonly afterSave?: string;
   readonly area: string;
   readonly audience: AdminAudience;
-  readonly id: AdminDestinationId;
+  readonly id: string;
   /** The GET this write route serves is not a form: read-only mode keeps
    * serving it instead of redirecting it. */
   readonly readOnlyGet?: true;
-  /** The write this route serves stays open in read-only mode. */
+  /** The POST stays open in read-only mode. Its GET page stays open too. */
   readonly readOnlyWrite?: ReadOnlyWrite;
   readonly intent: AdminRouteIntent;
   readonly pattern: string;
@@ -102,17 +96,13 @@ const groupDestinations = (
   Object.entries(group ?? {}).map(([id, spec]) => {
     // The string form is the bare pattern; the object form names the rest.
     const object = typeof spec === "string" ? { pattern: spec } : spec;
-    // A group's keys are the ids the table declares, and `declareArea` and
-    // `validateAfterSave` below prove each one, and each landing, exists. The
-    // fold works over plain data and cannot carry that through as a type, so
-    // the two ids are named here. `admin-surface.test.ts` reads every id back.
     return {
       area,
       audience: object.audience ?? areaAudience,
-      id: id as AdminDestinationId,
+      id,
       ...(object.afterSave === undefined
         ? {}
-        : { afterSave: object.afterSave as AdminDestinationId }),
+        : { afterSave: object.afterSave }),
       ...(object.readOnlyGet === true ? { readOnlyGet: true } : {}),
       ...(object.readOnlyWrite === undefined
         ? {}
@@ -122,28 +112,17 @@ const groupDestinations = (
     };
   });
 
-/** Refuse a landing that no route declares, a route that lands on itself, and
- * a landing that names more than the one saved record. Each sends the reader
- * to a path no page serves, or to a page the save cannot address. The fold
- * calls this after every area, because a landing can come from a later one. */
+/** Refuse a landing that no route declares or that needs more than the one
+ * saved record. A landing can come from an area declared later. */
 const validateAfterSave = (
-  declared: ReadonlyMap<string, AdminDestinationDef>,
+  destinations: Readonly<Record<string, AdminDestinationDef>>,
 ): void => {
-  for (const [id, { afterSave: landingId }] of declared) {
+  for (const { id, afterSave: landingId } of Object.values(destinations)) {
     if (landingId === undefined) continue;
-    const landing = declared.get(landingId);
+    const landing = destinations[landingId];
     if (landing === undefined) {
       throw new Error(
         `Admin route "${id}" saves to "${landingId}", which no route declares`,
-      );
-    }
-    // A save that returns to its own form names no landing. A route that
-    // names itself holds itself, and every reader of the landing then walks
-    // a loop.
-    if (landingId === id) {
-      throw new Error(
-        `Admin route "${id}" saves to itself. A save that returns to its own ` +
-          "form needs no afterSave",
       );
     }
     // One saved record fills one parameter. A landing that names two takes
@@ -163,72 +142,56 @@ export type FoldedAdminSurface = {
   readonly destinations: Readonly<Record<string, AdminDestinationDef>>;
 };
 
-/** Declare one area's routes and return the segments it serves, refusing an
- * id or a path another area already took. */
-const declareArea = (
-  areaId: string,
-  area: AdminAreaWithRoutes,
-  declared: Map<string, AdminDestinationDef>,
-  patternOf: Map<string, string>,
-): readonly string[] => {
-  const { segments = [] } = area;
-  const areaDestinations = [
-    ...groupDestinations(areaId, area.audience, "view", area.view),
-    ...groupDestinations(areaId, area.audience, "write-form", area.write),
-  ];
-  for (const destination of areaDestinations) {
-    // Two areas claiming one id would leave the loser silently unreachable,
-    // and every link to it pointing at the winner.
-    const claimed = declared.get(destination.id);
-    if (claimed) {
-      throw new Error(
-        `Admin route "${destination.id}" is declared by both ` +
-          `"${claimed.area}" and "${destination.area}"`,
-      );
-    }
-    // Two ids at one path would give the page two audiences, and the gate
-    // looked up by path would take whichever was declared second.
-    const sharing = patternOf.get(destination.pattern);
-    if (sharing) {
-      throw new Error(
-        `Admin path "${destination.pattern}" is declared by both ` +
-          `"${sharing}" and "${destination.id}"`,
-      );
-    }
-    declared.set(destination.id, destination);
-    patternOf.set(destination.pattern, destination.id);
-  }
-  return [
-    ...new Set([
-      ...areaDestinations.map((one) => adminPathSegment(one.pattern)),
-      ...segments,
-    ]),
-  ];
-};
-
 /**
  * Fold the declaration into the flat maps consumers read: every destination by
  * id, and every area's segments. Runs once at module load over pure data.
  */
 export const foldAdminAreas = (spec: AdminAreasSpec): FoldedAdminSurface => {
   const areas: Record<string, readonly string[]> = {};
-  const declared = new Map<string, AdminDestinationDef>();
-  const patternOf = new Map<string, string>();
+  const byPattern: Record<string, AdminDestinationDef> = {};
+  const destinations: Record<string, AdminDestinationDef> = {};
 
   for (const [areaId, area] of Object.entries(spec)) {
-    areas[areaId] =
-      "audience" in area
-        ? declareArea(areaId, area, declared, patternOf)
-        : area.segments;
+    const declaredSegments = area.segments ?? [];
+    if (!("audience" in area)) {
+      areas[areaId] = declaredSegments;
+      continue;
+    }
+    const areaDestinations = [
+      ...groupDestinations(areaId, area.audience, "view", area.view),
+      ...groupDestinations(areaId, area.audience, "write-form", area.write),
+    ];
+    for (const destination of areaDestinations) {
+      // Two areas claiming one id would leave the loser silently unreachable,
+      // and every link to it pointing at the winner.
+      const claimed = destinations[destination.id];
+      if (claimed) {
+        throw new Error(
+          `Admin route "${destination.id}" is declared by both ` +
+            `"${claimed.area}" and "${destination.area}"`,
+        );
+      }
+      // Two ids at one path would give the page two audiences, and the gate
+      // looked up by path would take whichever was declared second.
+      const sharing = byPattern[destination.pattern];
+      if (sharing) {
+        throw new Error(
+          `Admin path "${destination.pattern}" is declared by both ` +
+            `"${sharing.id}" and "${destination.id}"`,
+        );
+      }
+      destinations[destination.id] = destination;
+      byPattern[destination.pattern] = destination;
+    }
+    areas[areaId] = [
+      ...new Set([
+        ...areaDestinations.map((one) => adminPathSegment(one.pattern)),
+        ...declaredSegments,
+      ]),
+    ];
   }
 
-  validateAfterSave(declared);
-  const destinations = Object.fromEntries(declared);
-  const byPattern = Object.fromEntries(
-    Object.values(destinations).map(
-      (destination) => [destination.pattern, destination] as const,
-    ),
-  );
+  validateAfterSave(destinations);
   return { areas, byPattern, destinations };
 };
 

@@ -9,18 +9,18 @@ import {
   adminPath,
   adminPattern,
   adminRecordPath,
+  afterSavePath,
 } from "#shared/admin-surface.ts";
 
 describe("the pattern a route declares", () => {
   test("is the one the surface holds, for every route", () => {
     // adminPattern names the literal its declaration wrote, which the fold
-    // cannot carry through as a type. This reads every pattern and every id
-    // back, so the name and the value can never drift apart unnoticed.
+    // cannot carry through as a type. This reads all of them back, so the
+    // name and the value can never drift apart unnoticed.
     const wrong = Object.entries(ADMIN_SURFACE.destinations)
       .filter(
         ([id, destination]) =>
-          adminPattern(id as AdminDestinationId) !== destination.pattern ||
-          destination.id !== id,
+          adminPattern(id as AdminDestinationId) !== destination.pattern,
       )
       .map(([id]) => id);
     expect(wrong).toEqual([]);
@@ -99,5 +99,31 @@ describe("admin surface paths", () => {
     // audience — the same one the handler enforces.
     expect(adminDestination("holidayNew").audience).toEqual(["owner"]);
     expect(adminDestination("holidays").audience).toEqual(["owner"]);
+  });
+});
+
+describe("generated CRUD save paths", () => {
+  test("uses the collection list when the POST route has no override", () => {
+    expect(afterSavePath(adminDestination("modifiers"), "modifiers", 3)).toBe(
+      "/admin/modifiers",
+    );
+    expect(
+      afterSavePath(adminDestination("modifierEdit"), "modifiers", 3),
+    ).toBe("/admin/modifiers");
+    expect(afterSavePath(adminDestination("statuses"), "statuses", 3)).toBe(
+      "/admin/settings/statuses",
+    );
+  });
+
+  test("uses record overrides on the create and edit POST routes", () => {
+    expect(afterSavePath(adminDestination("groups"), "groups", 7)).toBe(
+      "/admin/groups/7",
+    );
+    expect(afterSavePath(adminDestination("groupEdit"), "groups", 7)).toBe(
+      "/admin/groups/7",
+    );
+    expect(afterSavePath(adminDestination("statusEdit"), "statuses", 9)).toBe(
+      "/admin/settings/statuses/9",
+    );
   });
 });

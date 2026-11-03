@@ -77,8 +77,6 @@ describe("foldAdminAreas", () => {
 
   test("gives an area with no routes only the segments it declares", () => {
     expect(folded.areas.markdownPreview).toEqual(["markdown-preview"]);
-    // The area serves no page of its own, so it contributes no route.
-    expect(Object.keys(folded.destinations)).not.toContain("markdownPreview");
   });
 });
 
@@ -91,65 +89,7 @@ describe("adminPathSegment", () => {
   });
 });
 
-describe("a route that declares a read-only write", () => {
-  test("carries the mode the guard keeps it open for", () => {
-    const surface = foldAdminAreas({
-      holidays: {
-        audience: ["owner"],
-        write: {
-          holidayHold: {
-            pattern: "/admin/holidays/:id/hold",
-            readOnlyWrite: "always",
-          },
-          holidayRelease: "/admin/holidays/:id/release",
-        },
-      },
-    });
-    expect(surface.destinations.holidayHold!.readOnlyWrite).toBe("always");
-    expect(surface.destinations.holidayRelease).toEqual({
-      area: "holidays",
-      audience: ["owner"],
-      id: "holidayRelease",
-      intent: "write-form",
-      pattern: "/admin/holidays/:id/release",
-    });
-  });
-});
-
 describe("a route that names its after-save landing", () => {
-  const WITH_LANDING: AdminAreasSpec = {
-    holidays: {
-      audience: ["owner"],
-      view: { holiday: "/admin/holidays/:id", holidays: "/admin/holidays" },
-      write: {
-        holidayEdit: {
-          afterSave: "holiday",
-          pattern: "/admin/holidays/:id/edit",
-        },
-        holidayNew: "/admin/holidays/new",
-      },
-    },
-  };
-
-  test("holds the landing id the route declares", () => {
-    const surface = foldAdminAreas(WITH_LANDING);
-    expect(surface.destinations.holidayEdit!.afterSave).toBe("holiday");
-    expect(surface.byPattern["/admin/holidays/:id/edit"]!.afterSave).toBe(
-      "holiday",
-    );
-  });
-
-  test("leaves a route with no landing declared without one", () => {
-    const surface = foldAdminAreas(WITH_LANDING);
-    expect(surface.destinations.holidayNew).toEqual({
-      area: "holidays",
-      audience: ["owner"],
-      id: "holidayNew",
-      intent: "write-form",
-      pattern: "/admin/holidays/new",
-    });
-  });
-
   test("refuses a landing that no route declares", () => {
     expect(() =>
       foldAdminAreas({
@@ -168,9 +108,7 @@ describe("a route that names its after-save landing", () => {
     );
   });
 
-  test("refuses a route that lands on itself", () => {
-    // A save that returns to its own form names no landing. A route that
-    // names itself would hold itself, and a reader would walk a loop.
+  test("accepts a landing on the route's own single-record form", () => {
     expect(() =>
       foldAdminAreas({
         holidays: {
@@ -183,10 +121,7 @@ describe("a route that names its after-save landing", () => {
           },
         },
       }),
-    ).toThrow(
-      'Admin route "holidayEdit" saves to itself. A save that returns to ' +
-        "its own form needs no afterSave",
-    );
+    ).not.toThrow();
   });
 
   test("refuses a landing that names two records", () => {

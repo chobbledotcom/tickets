@@ -35,10 +35,7 @@ export const AREAS_A_L = {
   attendeeRefunds: {
     audience: OWNER_AUDIENCE,
     write: {
-      attendeeRefund: {
-        afterSave: "attendeeActions",
-        pattern: "/admin/attendees/:attendeeId/refund",
-      },
+      attendeeRefund: "/admin/attendees/:attendeeId/refund",
       listingRefundAll: "/admin/listing/:id/refund-all",
     },
   },
@@ -59,7 +56,6 @@ export const AREAS_A_L = {
       attendeeMerge: "/admin/attendees/:attendeeId/merge",
       attendeeNew: "/admin/attendees/new",
       attendeePaymentReview: {
-        afterSave: "attendeeActions",
         audience: OWNER_AUDIENCE,
         pattern: "/admin/attendees/:attendeeId/payment-review",
       },
@@ -82,7 +78,7 @@ export const AREAS_A_L = {
     segments: ["listing"],
     view: {
       attribute: "/admin/attributes/:id",
-      attributes: { afterSave: "attribute", pattern: "/admin/attributes" },
+      attributes: "/admin/attributes",
     },
     write: {
       attributeDelete: "/admin/attributes/:id/delete",
@@ -126,7 +122,7 @@ export const AREAS_A_L = {
     audience: OWNER_AUDIENCE,
     view: {
       builtSite: "/admin/built-sites/:id",
-      builtSites: "/admin/built-sites",
+      builtSites: { afterSave: "builtSite", pattern: "/admin/built-sites" },
     },
     write: {
       builtSiteAddSecrets: "/admin/built-sites/:id/add-secrets",
@@ -137,10 +133,7 @@ export const AREAS_A_L = {
         afterSave: "builtSite",
         pattern: "/admin/built-sites/:id/edit",
       },
-      builtSiteNew: {
-        afterSave: "builtSite",
-        pattern: "/admin/built-sites/new",
-      },
+      builtSiteNew: "/admin/built-sites/new",
       builtSiteOverrideDeadline: "/admin/built-sites/:id/override-deadline",
       builtSiteProvisionRenewal: "/admin/built-sites/:id/provision-renewal",
       builtSiteProvisionScheduler: "/admin/built-sites/:id/provision-scheduler",
@@ -239,7 +232,6 @@ export const AREAS_A_L = {
     },
     write: {
       deliveriesMark: {
-        afterSave: "deliveries",
         pattern: "/admin/deliveries/mark",
         readOnlyWrite: "read-only",
       },
@@ -251,7 +243,7 @@ export const AREAS_A_L = {
       // A record page opens on the first tab its viewer can see, so an editor
       // reaches it and lands on Edit. The staff-only tabs stay shut.
       group: "/admin/groups/:id",
-      groups: "/admin/groups",
+      groups: { afterSave: "group", pattern: "/admin/groups" },
     },
     write: {
       groupAddListings: "/admin/groups/:id/add-listings",
@@ -262,7 +254,7 @@ export const AREAS_A_L = {
       groupEdit: { afterSave: "group", pattern: "/admin/groups/:id/edit" },
       groupImages: "/admin/groups/:id/images",
       groupImagesUpload: "/admin/groups/:id/images/upload",
-      groupNew: { afterSave: "group", pattern: "/admin/groups/new" },
+      groupNew: "/admin/groups/new",
       groupNote: {
         audience: STAFF_ADMIN_LEVELS,
         pattern: "/admin/groups/:id/note",
@@ -288,7 +280,7 @@ export const AREAS_A_L = {
     audience: OWNER_AUDIENCE,
     view: {
       holiday: "/admin/holidays/:id",
-      holidays: "/admin/holidays",
+      holidays: { afterSave: "holiday", pattern: "/admin/holidays" },
     },
     write: {
       holidayDelete: "/admin/holidays/:id/delete",
@@ -296,7 +288,7 @@ export const AREAS_A_L = {
         afterSave: "holiday",
         pattern: "/admin/holidays/:id/edit",
       },
-      holidayNew: { afterSave: "holiday", pattern: "/admin/holidays/new" },
+      holidayNew: "/admin/holidays/new",
     },
   },
   images: {
@@ -306,7 +298,7 @@ export const AREAS_A_L = {
       images: "/admin/images",
     },
     write: {
-      imageDelete: { afterSave: "images", pattern: "/admin/images/:id/delete" },
+      imageDelete: "/admin/images/:id/delete",
       imageEdit: "/admin/images/:id/edit",
       imageNew: "/admin/images/new",
     },

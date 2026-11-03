@@ -8,7 +8,7 @@ import {
   ADMIN_SURFACE,
   adminDestination,
   adminDestinationAllowed,
-  adminRecordPath,
+  adminPath,
 } from "#shared/admin-surface.ts";
 import { normalizePath } from "#shared/path.ts";
 import type { AdminLevel } from "#types";
@@ -65,16 +65,11 @@ export const visibleSections = (ctx: AdminSurfaceContext): NavSection[] =>
       topHref: landingPattern(section),
     }));
 
-/** The first section whose landing matches, when one exists. */
-const sectionWhere = (
-  keep: (section: AdminSectionDef) => boolean,
-): AdminSectionDef | undefined => ADMIN_SURFACE.sections.find(keep);
-
 /** Where a role lands after signing in: the page its section names, or the
  * first section whose landing route admits the role. The declaration writes
  * the dashboard as "/admin/". The app addresses it as "/admin". */
 export const adminLandingPath = (adminLevel: AdminLevel): string => {
-  const section = sectionWhere(
+  const section = ADMIN_SURFACE.sections.find(
     (candidate) =>
       candidate.landingFor?.[adminLevel] !== undefined ||
       adminDestination(candidate.landing).audience.includes(adminLevel),
@@ -88,40 +83,15 @@ export const adminLandingPath = (adminLevel: AdminLevel): string => {
   );
 };
 
-/** Where a reader lands after acting on one of a section's records. Pass the
- * id of the route the section lands on. The reader lands on the record's own
- * page, or on that route when the record has no page. The page opens on the
- * first tab its viewer can see, so every role that reaches this has somewhere
- * to land. */
-export const entityReturnPath = (
-  landing: AdminDestinationId,
-  id: number,
-): string => {
-  const section = sectionWhere((candidate) => candidate.landing === landing);
-  return section?.detail === undefined
-    ? adminDestination(landing).pattern
-    : adminRecordPath(section.detail, id);
-};
-
-/** Where a save served at a route lands. The route's declaration names the
- * landing by id. A landing addressed by a record takes that record's id. A
- * list landing names no record and takes none. */
-export const afterSavePath = (
-  id: AdminDestinationId,
-  record?: number,
-): string => {
-  const landingId = adminDestination(id).afterSave;
-  if (landingId === undefined) {
-    throw new Error(`Admin route "${id}" declares no after-save landing`);
-  }
-  const landing = adminDestination(landingId);
-  if (!landing.pattern.includes(":")) return landing.pattern;
-  if (record === undefined) {
-    throw new Error(
-      `Admin route "${id}" lands on "${landingId}", which names a record`,
-    );
-  }
-  return adminRecordPath(landingId, record);
+/** Where a reader lands after acting on one of a section's records. It lands
+ * on the record's own page, or on the section's list when the record has no
+ * page. The page opens on the first tab its viewer can see, so every role that
+ * reaches this has somewhere to land. */
+export const entityReturnPath = (sectionPath: string, id: number): string => {
+  const section = ADMIN_SURFACE.sections.find(
+    (candidate) => landingPattern(candidate) === sectionPath,
+  );
+  return section?.detail ? adminPath(section.detail, { id }) : sectionPath;
 };
 
 /** The patterns of the routes that match one predicate, in declaration order. */

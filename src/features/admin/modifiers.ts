@@ -42,7 +42,6 @@ import {
 import { formPolicyFor, withAuth } from "#routes/auth.ts";
 import { notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { afterSavePath } from "#shared/admin-pages.ts";
 import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { matchKey } from "#shared/keys.ts";
@@ -316,7 +315,7 @@ const handleEditPost: TypedRouteHandler<"POST /admin/modifiers/:id/edit"> = (
         }
         await logActivity(`Modifier '${result.row.name}' updated`);
         return redirect(
-          afterSavePath("modifierEdit"),
+          adminPattern("modifiers"),
           t("modifiers.updated"),
           true,
         );

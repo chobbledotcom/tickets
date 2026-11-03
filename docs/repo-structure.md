@@ -37,6 +37,24 @@ src/
   static.d.ts              # static module declarations
 ```
 
+## Admin routes and paths
+
+`src/shared/admin-surface/areas.ts` declares admin URL patterns, audiences, and
+read-only exceptions.
+
+- Use `adminPattern` for static destinations and route table keys.
+- Use `adminPath` for a known destination with named parameters.
+- Use an entity page's `.path` when its tab rules determine the destination.
+
+Generated CRUD handlers read optional `afterSave` overrides from their routes.
+The create override belongs on the collection route, because the form posts
+there, not to `/new`. Without an override, a save returns to the collection
+list. Bespoke handlers name their destinations through the existing path APIs.
+
+The read-only guard reads `readOnlyWrite` from admin routes. Its public
+exceptions live in `src/features/app/read-only-safe-routes.ts`. This table
+stays separate from the lazy public handlers.
+
 ## Import conventions
 
 - `#routes/*` resolves to `src/features/*`.

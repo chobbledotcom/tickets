@@ -45,7 +45,6 @@ import {
 import { entityFormById, idRouteFor } from "#routes/entity.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
-import { afterSavePath } from "#shared/admin-pages.ts";
 import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
@@ -362,11 +361,7 @@ const handleUserAgentsPost: TypedRouteHandler<"POST /admin/users/:id/agents"> =
     }
     await saveAgentSelection(user.id, form);
     await logActivity(`Agents updated for user '${user.username}'`);
-    return redirect(
-      afterSavePath("userAgents"),
-      t("success.agents_updated"),
-      true,
-    );
+    return redirect(adminPattern("users"), t("success.agents_updated"), true);
   });
 
 /** Confirmed-delete handlers for users */
