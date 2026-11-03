@@ -80,39 +80,71 @@ export const UPDATE_BEGIN_THIRD_WAIT_MS = 30_000;
  * only after the fetch settles. */
 const UPDATE_PAGE_FETCH_TIMEOUT_MS = 30_000;
 
+/** The status a page check retries. A 503 says the site answers, but it is
+ * not ready: the new build serves the migration page until its first
+ * migrations finish. */
+const RETRYABLE_PAGE_STATUS = 503;
+
+/** The error a page check raises for a non-OK answer. The wait keeps polling
+ * when the site answered a retryable status, because the update page follows
+ * the migration that status reports. `detail` names the URL when the caller
+ * has one. */
+export class UpdatePageCheckError extends Error {
+  readonly retryable: boolean;
+  readonly status: number;
+
+  constructor(status: number, detail = "") {
+    super(`The update page check failed (HTTP ${status})${detail}.`);
+    this.name = "UpdatePageCheckError";
+    this.retryable = status === RETRYABLE_PAGE_STATUS;
+    this.status = status;
+  }
+}
+
 /** One eagerly read page response: the part of a fetch result the wait reads. */
 type UpdatePageResult = { ok: boolean; status: number; text: string };
 
 /** Fetch one update page through `fetchText`, bounded so a stalled request
- * ends before the wait's deadline. */
-export const fetchBoundedUpdatePage = async (
+ * ends before the wait's deadline, and return its body. A non-OK answer
+ * raises an `UpdatePageCheckError`, so no caller reads a broken page as
+ * "unsupported" and the retry sees every status one way. `detail` names the
+ * URL when the caller has one. */
+export const fetchUpdatePageBody = async (
   fetchText: (url: string, init: RequestInit) => Promise<UpdatePageResult>,
   url: string,
-): Promise<UpdatePageResult> =>
-  fetchText(url, {
+  detail = "",
+): Promise<string> => {
+  const response = await fetchText(url, {
     method: "GET",
     signal: AbortSignal.timeout(UPDATE_PAGE_FETCH_TIMEOUT_MS),
   });
+  if (!response.ok) throw new UpdatePageCheckError(response.status, detail);
+  return response.text;
+};
 
-const waitTimedOut = (ms: number, buildMismatch: string | null): string =>
+const waitTimedOut = (ms: number, runOutNote: string | null): string =>
   `The site did not show its update page within ${Math.round(ms / 1000)} seconds. ` +
   "UPDATE_IN_PROGRESS is still set, so the site still refuses every write. " +
   "Fix the cause, then re-run the same update, or remove UPDATE_IN_PROGRESS " +
   "from the script's environment in the hosting dashboard." +
-  (buildMismatch === null ? "" : buildMismatch);
+  (runOutNote === null ? "" : runOutNote);
 
-/** Names the build that kept answering when the expected build never served,
- * so the operator can tell an unfinished publish from a wrong deploy. Return
- * null when the run-out does not name a mismatch. */
-const buildMismatchNote = (
+/** What a run-out adds: the retryable status the site kept answering, or
+ * the build that kept serving when the expected build never served. The
+ * second lets the operator tell an unfinished publish from a wrong deploy.
+ * The begin wait pins no build, so it adds only the status. Return null when
+ * the run-out has nothing to add. */
+const runOutNote = (
   expected: string | undefined,
-  state: UpdatePageState,
-  served: string | null,
+  poll: RunOutPoll,
 ): string | null => {
-  if (expected === undefined || state !== "active") return null;
-  return served === null
+  if (poll.kind === "notReady") {
+    return ` The site kept answering HTTP ${poll.status}, so it is not ready yet.`;
+  }
+  if (expected === undefined || poll.state !== "active") return null;
+  return poll.buildTag === null
     ? ` The site answered from a build that reports no build tag, but the deploy expected ${expected}.`
-    : ` The site answered from build ${served}, but the deploy expected ${expected}.`;
+    : ` The site answered from build ${poll.buildTag}, but the deploy expected ${expected}.`;
 };
 
 /** The clock, wait, and log that every update helper accepts, so tests step
@@ -124,10 +156,11 @@ export type UpdateIoOptions = {
   now?: (() => number) | undefined;
 };
 
-/** The page fetch the wait polls. The fetch answers a 2xx body or throws.
- * The caller's wrapper turns every other status into a throw. A throw ends
- * the wait immediately. The schedule is only for a 2xx page that does not
- * show the update message yet. */
+/** The page fetch the wait polls. `fetchUpdatePageBody` answers a 2xx body
+ * and raises an `UpdatePageCheckError` for every other status. A retryable
+ * status keeps the wait polling: the site answered, and it will answer
+ * again. Any other throw ends the wait immediately. The schedule is only for
+ * a 2xx page that does not show the update message yet. */
 export type FetchUpdatePage = () => Promise<string>;
 
 /** What the wait polls: the page fetch plus the shared clock and log. */
@@ -145,31 +178,30 @@ export type UpdateWaitOptions = UpdatePollIo & {
   expectedBuildTag?: string | undefined;
 };
 
-/** One poll: the page state, the build the page names, and the failure
- * that stood in for the state. */
-type UpdatePoll = {
-  buildTag: string | null;
-  lastError: string | null;
-  state: UpdatePageState;
-};
+/** What one check found: the page itself, a retryable status, or a failure.
+ * A retryable status says the site is not ready yet. A failure says nothing
+ * about the site's state. */
+type UpdatePoll =
+  | { kind: "failed"; detail: string }
+  | { kind: "notReady"; status: number }
+  | { kind: "page"; buildTag: string | null; state: UpdatePageState };
 
-/** One poll: the page state, the build the page names, and the failure
- * that stood in for the state. A failed fetch says nothing about the
- * site's state, so the wait ends on it instead of guessing. */
+/** One check. A failed fetch ends the wait instead of guessing: it says
+ * nothing about the site's state. A retryable status keeps the wait going,
+ * because the site answered and it will answer again. */
 const pollOnce = async (options: UpdateWaitOptions): Promise<UpdatePoll> => {
   try {
     const html = await options.fetchPage();
     return {
       buildTag: updatePageBuildTag(html),
-      lastError: null,
+      kind: "page",
       state: updatePageState(html),
     };
   } catch (error) {
-    return {
-      buildTag: null,
-      lastError: error instanceof Error ? error.message : String(error),
-      state: "unsupported",
-    };
+    if (error instanceof UpdatePageCheckError && error.retryable) {
+      return { kind: "notReady", status: error.status };
+    }
+    return { detail: errorMessage(error), kind: "failed" };
   }
 };
 
@@ -187,29 +219,41 @@ const pollIsReady = (
   (options.expectedBuildTag === undefined ||
     poll.buildTag === options.expectedBuildTag);
 
+/** What the run-out can see: every poll except the failed one. A failed
+ * check ends the wait through `failedCheck`, so it never reaches a plan's
+ * run-out. */
+type RunOutPoll = Exclude<UpdatePoll, { kind: "failed" }>;
+
 /** What one check found. "ready" ends the wait. "skip" ends it when the
  * caller asked to skip a build that predates update mode. "abort" ends it
  * now, because the check itself failed. "unchanged" keeps the wait going:
- * the schedule is only for a 2xx page that does not show the update
- * message yet. */
+ * the page answers without the update message, or a retryable status says
+ * the site is not ready yet. It carries the poll, so the plan's run-out can
+ * name what kept the site from ready. */
 type CheckDecision =
   | { kind: "abort"; lastError: string }
   | { kind: "ready" }
   | { kind: "skip" }
-  | { kind: "unchanged" };
+  | { kind: "unchanged"; poll: RunOutPoll };
 
 const checkDecision = (
   options: UpdateWaitOptions,
   poll: UpdatePoll,
 ): CheckDecision => {
-  if (pollIsReady(options, poll)) return { kind: "ready" };
-  if (poll.lastError !== null) {
-    return { kind: "abort", lastError: poll.lastError };
+  if (poll.kind === "failed") {
+    return { kind: "abort", lastError: poll.detail };
   }
-  if (options.skipWhenUnsupported && poll.state === "unsupported") {
+  if (poll.kind === "page" && pollIsReady(options, poll)) {
+    return { kind: "ready" };
+  }
+  if (
+    poll.kind === "page" &&
+    options.skipWhenUnsupported &&
+    poll.state === "unsupported"
+  ) {
     return { kind: "skip" };
   }
-  return { kind: "unchanged" };
+  return { kind: "unchanged", poll };
 };
 
 /** The clock and sleep one wait runs on, taken from the caller's io with
@@ -229,7 +273,7 @@ type UpdateWaitPlan = {
   gap: (checked: number) => number;
   /** One unchanged check's verdict: null keeps the wait going, and an
    * error ends it. */
-  giveUp: (checked: number, poll: UpdatePoll) => Promise<Error | null>;
+  giveUp: (checked: number, poll: RunOutPoll) => Promise<Error | null>;
   /** One failed check's error. The wait ends the moment a check fails,
    * with the failure's detail in the message. */
   failedCheck: (lastError: string) => Promise<Error>;
@@ -262,19 +306,20 @@ const loopChecks = async (
     if (decision.kind === "abort") {
       throw await plan.failedCheck(decision.lastError);
     }
-    runOut = await plan.giveUp(checked, poll);
+    runOut = await plan.giveUp(checked, decision.poll);
     checked += 1;
   }
   throw runOut;
 };
 
 /** Poll the site's read-only page until the update page shows. A failed
- * page fetch ends the wait immediately. A site the check cannot reach will
- * not answer better on a later check. The schedule is only for a 2xx page
- * that does not show the update message yet. With `expectedBuildTag`, the
- * page must also name that build. An active page from any other build
- * keeps the wait polling. The wait throws when it runs out, and the
- * caller keeps the update flag set. */
+ * page check ends the wait immediately. A retryable status keeps the wait
+ * going: the new build answers 503 while its first migrations run, and the
+ * update page follows. The schedule is only for a page that does not show
+ * the update message yet. With `expectedBuildTag`, the page must also name
+ * that build. An active page from any other build keeps the wait polling.
+ * The wait throws when it runs out, and the caller keeps the update flag
+ * set. */
 export const waitForUpdatePage = async (
   options: UpdateWaitOptions,
 ): Promise<void> => {
@@ -289,11 +334,7 @@ export const waitForUpdatePage = async (
       return new Error(
         waitTimedOut(
           UPDATE_WAIT_TIMEOUT_MS,
-          buildMismatchNote(
-            options.expectedBuildTag,
-            poll.state,
-            poll.buildTag,
-          ),
+          runOutNote(options.expectedBuildTag, poll),
         ),
       );
     },
@@ -353,7 +394,8 @@ const pageCheckDetail = (lastError: string): string =>
  * serves its normal page at the last mark reverts the flag through
  * `revert` and raises the error. A failed page check reverts the flag and
  * raises at once. The schedule is only for a page that answers but does
- * not show the update message. */
+ * not show the update message. A retryable status keeps the marks, and the
+ * run-out names that status. */
 export const waitForBeginPropagation = async (
   options: UpdateWaitOptions,
   revert: () => Promise<void>,
@@ -372,7 +414,7 @@ export const waitForBeginPropagation = async (
       ),
     // giveUp ends the loop at segments.length, so the index stays in range.
     gap: (checked) => segments[checked - 1]!,
-    giveUp: async (checked, _poll) => {
+    giveUp: async (checked, poll) => {
       // One line per check, naming the elapsed segment: a long propagation
       // window stays visible without noise.
       const elapsed = segments
@@ -385,7 +427,7 @@ export const waitForBeginPropagation = async (
       return await beginAbortError(
         revert,
         beginTimedOutBase(segments.reduce((sum, segment) => sum + segment, 0)),
-        "",
+        runOutNote(options.expectedBuildTag, poll) ?? "",
       );
     },
   });

@@ -22,6 +22,7 @@ import {
   withHeaders,
 } from "#routes/response.ts";
 import { detectIframeMode } from "#shared/request-context.ts";
+import { UpdatePageCheckError } from "#shared/update-guard.ts";
 import {
   expectHtmlResponse,
   expectRedirectWithFlash,
@@ -311,6 +312,13 @@ describeWithEnv("route responses", { db: true }, () => {
         'http-equiv="refresh"',
       );
       assert(!html.includes("Temporary error"));
+    });
+
+    test("answers the status the deploy wait retries", async () => {
+      // The wait lifts UPDATE_IN_PROGRESS only after the migration page stops.
+      // Keep the page's status and the wait's retry on one fact.
+      const { status } = await migrationInProgressResponse();
+      expect(new UpdatePageCheckError(status).retryable).toBe(true);
     });
 
     test("sets Retry-After to the page refresh interval on temporary errors", async () => {

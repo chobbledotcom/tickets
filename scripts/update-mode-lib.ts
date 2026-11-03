@@ -21,15 +21,17 @@
  *
  * `end` takes the release tag of the build the deploy just published and
  * waits until the served page names that build before it lifts the flag, so
- * an active page the old build still answers cannot lift it. The release
- * tag matches the build tag build-edge.ts bakes into the bundle.
+ * an active page the old build still answers cannot lift it. A 503 answer
+ * keeps the wait going: the new build serves the migration page until its
+ * first migrations finish. The release tag matches the build tag
+ * build-edge.ts bakes into the bundle.
  */
 
 import { BUNNY_API_BASE, formatBunnyError } from "#scripts/deploy-edge-lib.ts";
 import type { FetchText, FetchTextResult } from "#scripts/fetch-text.ts";
 import { siteBaseUrl } from "#shared/site-address.ts";
 import {
-  fetchBoundedUpdatePage,
+  fetchUpdatePageBody,
   UPDATE_FLAG_VALUE,
   UPDATE_IN_PROGRESS_VAR,
   type UpdateIoOptions,
@@ -128,20 +130,16 @@ const liftUpdateFlag = async (io: ScopedIo): Promise<void> => {
   if (secretId !== null) await deleteUpdateSecret(io, secretId);
 };
 
-/** Fetch the site's read-only page. A non-200 answer throws so the wait
- * ends instead of reading a broken page as "unsupported". */
+/** Fetch the site's read-only page. A non-200 answer makes
+ * `fetchUpdatePageBody` raise an `UpdatePageCheckError` that names the URL.
+ * The wait retries a 503 answer, the migration page, and ends on any other
+ * status. */
 const fetchReadOnlyPage = async (site: {
   fetchText: FetchText;
   siteUrl: string;
 }): Promise<string> => {
   const url = `${siteBaseUrl(site.siteUrl)}/read-only`;
-  const response = await fetchBoundedUpdatePage(site.fetchText, url);
-  if (!response.ok) {
-    throw new Error(
-      `The update page check failed (HTTP ${response.status}) for ${url}.`,
-    );
-  }
-  return response.text;
+  return await fetchUpdatePageBody(site.fetchText, url, ` for ${url}`);
 };
 
 export const runUpdateMode = async (
