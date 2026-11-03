@@ -1,14 +1,20 @@
+/* jscpd:ignore-start -- imports */
+import {
+  requiredTextKey,
+  text,
+  wholeNumber,
+} from "#db/migrations/schema/scalar-columns.ts";
 import type { Table } from "#db/migrations/schema/types.ts";
-import { keyWords, wholeNumber, words } from "./columns.ts";
+/* jscpd:ignore-end */
 
 /** One durable operator-visible completion for an exact returned payment set. */
 export const refundConfirmationTable: [name: string, table: Table] = [
   "refund_confirmations",
   {
     columns: [
-      ["identity", keyWords()],
-      ["attendee_id", wholeNumber()],
-      ["created", "TEXT NOT NULL"],
+      ["identity", requiredTextKey],
+      ["attendee_id", wholeNumber],
+      ["created", text],
     ],
     indexes: [
       {
@@ -24,8 +30,8 @@ export const refundConfirmationReferenceTable: [name: string, table: Table] = [
   "refund_confirmation_references",
   {
     columns: [
-      ["confirmation_identity", words()],
-      ["reference_index", words()],
+      ["confirmation_identity", text],
+      ["reference_index", text],
     ],
     indexes: [
       {

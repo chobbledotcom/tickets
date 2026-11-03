@@ -1,53 +1,30 @@
+/** The columns a payment record is built from. A flipped word here changes a
+ *  table that already holds real money, so pin every one exactly. */
+
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  alsoAbout,
-  keyWords,
   madeAndTouched,
-  ownerEncryptedPaymentColumn,
-  ownerEncryptedPaymentColumnOrNull,
+  ownerEncryptedColumn,
+  ownerEncryptedRuleOrNull,
   paymentRecord,
-  wholeNumber,
-  wholeNumberOrNull,
-  words,
-  wordsOrNull,
 } from "#db/migrations/schema/payments/columns.ts";
 
 describe("the kinds of column a payment record is built from", () => {
   // These say what a column is, and nothing about what a payment may say —
   // that is the record layer's job, in TypeScript, where a broken rule names
   // itself and can be changed without rebuilding a table full of real money.
-  test("says a column's type and whether it may be missing, and no more", () => {
-    expect(wholeNumber()).toBe("INTEGER NOT NULL");
-    expect(wholeNumberOrNull()).toBe("INTEGER");
-    expect(words()).toBe("TEXT NOT NULL");
-    expect(wordsOrNull()).toBe("TEXT");
-  });
-
-  test("carries a starting value where a column has one", () => {
-    expect(wholeNumber(1)).toBe("INTEGER NOT NULL DEFAULT 1");
-    expect(words("none")).toBe("TEXT NOT NULL DEFAULT 'none'");
-  });
-
-  test("the record's own name cannot be nothing", () => {
-    // A text primary key does not stop SQLite keeping NULL, so it is said
-    // here: a payment with no id could never be looked up again.
-    expect(keyWords()).toBe("TEXT PRIMARY KEY NOT NULL");
-  });
-
-  // The one rule the tables keep. It checks what actually landed in the
-  // column rather than what the code meant to put there — the one thing
-  // TypeScript cannot see, since a type says "string" while the value is
-  // bytes.
-  test("an owner-only value must really be text, and carry every part", () => {
-    expect(ownerEncryptedPaymentColumn("evidence")).toBe(
+  test("a hidden value is required text, and must carry every part", () => {
+    expect(ownerEncryptedColumn("evidence")).toEqual([
+      "evidence",
       "TEXT NOT NULL CHECK ((typeof(evidence) = 'text' AND evidence GLOB 'hyb:1:?*:?*:?*' AND evidence NOT GLOB 'hyb:1:*:*:*:*'))",
-    );
+    ]);
   });
 
-  test("an owner-only value that may be missing is checked only when it is there", () => {
-    expect(ownerEncryptedPaymentColumnOrNull("decision")).toBe(
-      "(decision IS NULL OR (typeof(decision) = 'text' AND decision GLOB 'hyb:1:?*:?*:?*' AND decision NOT GLOB 'hyb:1:*:*:*:*'))",
+  test("a hidden value a row can leave empty is checked only when it is there", () => {
+    // The rule goes inside a CHECK, which supplies the outer brackets.
+    expect(ownerEncryptedRuleOrNull("decision")).toBe(
+      "decision IS NULL OR (typeof(decision) = 'text' AND decision GLOB 'hyb:1:?*:?*:?*' AND decision NOT GLOB 'hyb:1:*:*:*:*')",
     );
   });
 
@@ -56,17 +33,6 @@ describe("the kinds of column a payment record is built from", () => {
       ["created_at", "INTEGER NOT NULL"],
       ["updated_at", "INTEGER NOT NULL"],
     ]);
-  });
-
-  test("rules about the whole row hang off its last column", () => {
-    // SQLite gives a table nowhere else to say them.
-    expect(alsoAbout(["a IS NULL", "b IS NULL"])("TEXT")).toBe(
-      "TEXT\n          CHECK (a IS NULL)\n          CHECK (b IS NULL)",
-    );
-  });
-
-  test("a row with nothing to say about it is left as it was", () => {
-    expect(alsoAbout([])("TEXT")).toBe("TEXT");
   });
 
   test("every record hanging off a payment opens the same way", () => {

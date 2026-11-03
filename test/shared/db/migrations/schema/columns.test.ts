@@ -4,12 +4,27 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  datedRowColumns,
   itemLinkColumns,
   slugNamedEntityColumns,
+  sortOrderColumn,
   statefulColumns,
 } from "#db/migrations/schema/columns.ts";
 
 describe("shared schema columns", () => {
+  test("the dated row header is its own id and when it was made", () => {
+    expect(datedRowColumns).toEqual([
+      ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+      ["created", "TEXT NOT NULL"],
+    ]);
+  });
+
+  test("the list position starts in the first place", () => {
+    expect(sortOrderColumn).toEqual([
+      "sort_order",
+      "INTEGER NOT NULL DEFAULT 0",
+    ]);
+  });
   test("the slug-named entity header is id, slug, its blind index, and name", () => {
     expect(slugNamedEntityColumns).toEqual([
       ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],

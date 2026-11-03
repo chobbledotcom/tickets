@@ -1,8 +1,23 @@
 /** Content, communications, ledger, and page tables. */
 
 /* jscpd:ignore-start */
-import { itemLinkColumns, slugNamedEntityColumns } from "./columns.ts";
-import { createdColumn, sortOrderColumn } from "./scalar-columns.ts";
+import {
+  datedRowColumns,
+  itemLinkColumns,
+  slugNamedEntityColumns,
+  sortOrderColumn,
+} from "./columns.ts";
+import {
+  checked,
+  defaulted,
+  rowId,
+  text,
+  textKey,
+  textStartingBlank,
+  wholeNumber,
+  wholeNumberStartingAtNull,
+  wholeNumberStartingAtZero,
+} from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
 /* jscpd:ignore-end */
 
@@ -15,14 +30,14 @@ export const contentTables: [name: string, table: Table][] = [
     "contact_preferences",
     {
       columns: [
-        ["contact_hash", "TEXT PRIMARY KEY"],
-        ["unsubscribed", "INTEGER NOT NULL DEFAULT 0"],
-        ["visits", "INTEGER NOT NULL DEFAULT 0"],
-        ["public_booking_count", "INTEGER NOT NULL DEFAULT 0"],
-        ["admin_booking_count", "INTEGER NOT NULL DEFAULT 0"],
-        ["stats_blob", "TEXT NOT NULL DEFAULT ''"],
-        ["attendee_tokens_blob", "TEXT NOT NULL DEFAULT ''"],
-        ["last_activity", "INTEGER NOT NULL DEFAULT 0"],
+        ["contact_hash", textKey],
+        ["unsubscribed", wholeNumberStartingAtZero],
+        ["visits", wholeNumberStartingAtZero],
+        ["public_booking_count", wholeNumberStartingAtZero],
+        ["admin_booking_count", wholeNumberStartingAtZero],
+        ["stats_blob", textStartingBlank],
+        ["attendee_tokens_blob", textStartingBlank],
+        ["last_activity", wholeNumberStartingAtZero],
       ],
       indexes: [
         {
@@ -45,9 +60,9 @@ export const contentTables: [name: string, table: Table][] = [
     "email_templates",
     {
       columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["subject", "TEXT NOT NULL"],
-        ["body", "TEXT NOT NULL"],
+        ["id", rowId],
+        ["subject", text],
+        ["body", text],
       ],
     },
   ],
@@ -61,11 +76,11 @@ export const contentTables: [name: string, table: Table][] = [
     "sms_messages",
     {
       columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["attendee_id", "INTEGER NOT NULL"],
-        ["listing_id", "INTEGER NOT NULL"],
-        ["provider_id", "TEXT NOT NULL"],
-        createdColumn,
+        ["id", rowId],
+        ["attendee_id", wholeNumber],
+        ["listing_id", wholeNumber],
+        ["provider_id", text],
+        ["created", text],
       ],
       indexes: [
         { columns: ["provider_id"], name: "idx_sms_messages_provider_id" },
@@ -79,7 +94,10 @@ export const contentTables: [name: string, table: Table][] = [
     // inbound id. Contains no SMS content or sender number.
     "processed_sms_inbound",
     {
-      columns: [["webhook_id", "TEXT PRIMARY KEY"], createdColumn],
+      columns: [
+        ["webhook_id", textKey],
+        ["created", text],
+      ],
       indexes: [
         { columns: ["created"], name: "idx_processed_sms_inbound_created" },
       ],
@@ -98,28 +116,28 @@ export const contentTables: [name: string, table: Table][] = [
     "transfers",
     {
       columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["source_type", "TEXT NOT NULL"],
-        ["source_id", "TEXT NOT NULL"],
-        ["dest_type", "TEXT NOT NULL"],
-        ["dest_id", "TEXT NOT NULL"],
-        ["amount", "INTEGER NOT NULL CHECK (amount > 0)"],
+        ["id", rowId],
+        ["source_type", text],
+        ["source_id", text],
+        ["dest_type", text],
+        ["dest_id", text],
+        ["amount", checked("amount > 0")(wholeNumber)],
         // Epoch-millis: the indexed time column then sorts/ranges chronologically
         // with integer comparisons at high row counts. The host stores any ISO
         // instant as its epoch-millis and reads it back canonical (see
         // shared/validation/timestamp.ts).
-        ["occurred_at", "INTEGER NOT NULL"],
-        ["recorded_at", "INTEGER NOT NULL"],
-        ["reference", "TEXT NOT NULL"],
-        ["event_group", "TEXT NOT NULL"],
-        ["kind", "TEXT NOT NULL DEFAULT ''"],
-        ["memo", "TEXT NOT NULL DEFAULT ''"],
-        ["reverses_id", "INTEGER DEFAULT NULL"],
+        ["occurred_at", wholeNumber],
+        ["recorded_at", wholeNumber],
+        ["reference", text],
+        ["event_group", text],
+        ["kind", textStartingBlank],
+        ["memo", textStartingBlank],
+        ["reverses_id", wholeNumberStartingAtNull],
         // The event group of the booking order a refund leg reverses — the
         // join a per-order read (the refunded status) uses to tell two orders
         // of one listing apart. Empty on every non-refund leg.
-        ["reverses_group", "TEXT NOT NULL DEFAULT ''"],
-        ["posted_by", "TEXT NOT NULL DEFAULT 'system'"],
+        ["reverses_group", textStartingBlank],
+        ["posted_by", defaulted(text, "system")],
       ],
       indexes: [
         // Idempotency: one row per opaque reference (the ON CONFLICT target).
@@ -159,13 +177,13 @@ export const contentTables: [name: string, table: Table][] = [
     "service_costs",
     {
       columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["servicing_attendee_id", "INTEGER NOT NULL"],
-        ["listing_id", "INTEGER NOT NULL"],
-        ["transfer_id", "INTEGER NOT NULL"],
-        ["occurred_at", "TEXT NOT NULL"],
-        ["memo", "TEXT NOT NULL DEFAULT ''"],
-        createdColumn,
+        ["id", rowId],
+        ["servicing_attendee_id", wholeNumber],
+        ["listing_id", wholeNumber],
+        ["transfer_id", wholeNumber],
+        ["occurred_at", text],
+        ["memo", textStartingBlank],
+        ["created", text],
       ],
       indexes: [
         {
@@ -189,11 +207,11 @@ export const contentTables: [name: string, table: Table][] = [
     {
       columns: [
         ...slugNamedEntityColumns,
-        ["meta_title", "TEXT NOT NULL DEFAULT ''"],
-        ["meta_description", "TEXT NOT NULL DEFAULT ''"],
-        ["content", "TEXT NOT NULL DEFAULT ''"],
+        ["meta_title", textStartingBlank],
+        ["meta_description", textStartingBlank],
+        ["content", textStartingBlank],
         sortOrderColumn,
-        ["hidden", "INTEGER NOT NULL DEFAULT 0"],
+        ["hidden", wholeNumberStartingAtZero],
       ],
       indexes: [
         {
@@ -214,15 +232,14 @@ export const contentTables: [name: string, table: Table][] = [
     "news_posts",
     {
       columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        createdColumn,
-        ["slug", "TEXT NOT NULL DEFAULT ''"],
-        ["slug_index", "TEXT NOT NULL DEFAULT ''"],
-        ["name", "TEXT NOT NULL"],
-        ["meta_title", "TEXT NOT NULL DEFAULT ''"],
-        ["meta_description", "TEXT NOT NULL DEFAULT ''"],
-        ["snippet", "TEXT NOT NULL DEFAULT ''"],
-        ["content", "TEXT NOT NULL DEFAULT ''"],
+        ...datedRowColumns,
+        ["slug", textStartingBlank],
+        ["slug_index", textStartingBlank],
+        ["name", text],
+        ["meta_title", textStartingBlank],
+        ["meta_description", textStartingBlank],
+        ["snippet", textStartingBlank],
+        ["content", textStartingBlank],
       ],
       indexes: [
         {
@@ -244,7 +261,7 @@ export const contentTables: [name: string, table: Table][] = [
     // (the schema can't express a partial-unique index).
     "site_page_items",
     {
-      columns: [["page_id", "INTEGER NOT NULL"], ...itemLinkColumns],
+      columns: [["page_id", wholeNumber], ...itemLinkColumns],
       indexes: [
         {
           columns: ["page_id", "sort_order"],
@@ -272,10 +289,10 @@ export const contentTables: [name: string, table: Table][] = [
     "address_cache",
     {
       columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["search_index", "TEXT NOT NULL"],
-        ["results", "TEXT NOT NULL"],
-        createdColumn,
+        ["id", rowId],
+        ["search_index", text],
+        ["results", text],
+        ["created", text],
       ],
       indexes: [
         {

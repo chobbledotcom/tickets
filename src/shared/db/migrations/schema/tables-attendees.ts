@@ -1,22 +1,43 @@
 /** Attendee, booking, payment, and activity tables. */
 
+/* jscpd:ignore-start -- imports */
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
-import { statefulColumns } from "./columns.ts";
-import { createdColumn } from "./scalar-columns.ts";
+import {
+  datedRowColumns,
+  sortOrderColumn,
+  statefulColumns,
+} from "./columns.ts";
+import {
+  checked,
+  defaulted,
+  requiredTextKey,
+  rowId,
+  text,
+  textKey,
+  textOrNull,
+  textStartingAtNull,
+  textStartingBlank,
+  wholeNumber,
+  wholeNumberOrNull,
+  wholeNumberStartingAtNull,
+  wholeNumberStartingAtOne,
+  wholeNumberStartingAtZero,
+} from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
+/* jscpd:ignore-end */
 
 export const attendeeTables: [name: string, table: Table][] = [
   [
     "attendee_statuses",
     {
       columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
-        ["name", "TEXT NOT NULL"],
-        ["is_public_default", "INTEGER NOT NULL DEFAULT 0"],
-        ["is_paid_default", "INTEGER NOT NULL DEFAULT 0"],
-        ["is_reservation", "INTEGER NOT NULL DEFAULT 0"],
-        ["reservation_amount", "TEXT NOT NULL DEFAULT '0'"],
+        ["id", rowId],
+        sortOrderColumn,
+        ["name", text],
+        ["is_public_default", wholeNumberStartingAtZero],
+        ["is_paid_default", wholeNumberStartingAtZero],
+        ["is_reservation", wholeNumberStartingAtZero],
+        ["reservation_amount", defaulted(text, "0")],
       ],
       indexes: [
         {
@@ -31,32 +52,33 @@ export const attendeeTables: [name: string, table: Table][] = [
     "attendees",
     {
       columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["created", "TEXT NOT NULL"],
+        ...datedRowColumns,
         [
           "kind",
-          `TEXT NOT NULL DEFAULT '${ATTENDEE_KIND}' CHECK (kind IN ('${ATTENDEE_KIND}', '${SERVICING_KIND}'))`,
+          checked(`kind IN ('${ATTENDEE_KIND}', '${SERVICING_KIND}')`)(
+            defaulted(text, ATTENDEE_KIND),
+          ),
         ],
-        ["checked_in", "TEXT NOT NULL DEFAULT ''"],
-        ["ticket_token_index", "TEXT"],
-        ["pii_blob", "TEXT NOT NULL DEFAULT ''"],
+        ["checked_in", textStartingBlank],
+        ["ticket_token_index", textOrNull],
+        ["pii_blob", textStartingBlank],
         // NULL means unqualified history and remains unavailable to bulk
         // refunds. Empty proves PII has no payment id. Otherwise this names
         // the canonical payment row that proves the PII payment id.
-        ["pii_payment_session_id", "TEXT"],
-        ["status_id", "INTEGER DEFAULT NULL"],
-        ["split_logistics_agents", "INTEGER NOT NULL DEFAULT 0"],
+        ["pii_payment_session_id", textOrNull],
+        ["status_id", wholeNumberStartingAtNull],
+        ["split_logistics_agents", wholeNumberStartingAtZero],
         // Whether a notification send is owed for this booking, and who the
         // booking came from: 0 none, 1 booked online, 2 added by an admin.
         // An owed send that never got through keeps the flag up, so the
         // admin sees it.
-        ["email_pending", "INTEGER NOT NULL DEFAULT 0"],
-        ["webhooks_pending", "INTEGER NOT NULL DEFAULT 0"],
+        ["email_pending", wholeNumberStartingAtZero],
+        ["webhooks_pending", wholeNumberStartingAtZero],
         // HMAC blind-index of the attendee's phone. The index is filled
         // lazily the first time an admin texts them, so inbound SMS replies
         // can be matched back to the attendee. The number is never stored
         // in the clear.
-        ["phone_index", "TEXT NOT NULL DEFAULT ''"],
+        ["phone_index", textStartingBlank],
       ],
       indexes: [
         {
@@ -89,42 +111,42 @@ export const attendeeTables: [name: string, table: Table][] = [
     "listing_attendees",
     {
       columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["listing_id", "INTEGER NOT NULL"],
-        ["attendee_id", "INTEGER NOT NULL"],
-        ["start_at", "TEXT DEFAULT NULL"],
-        ["end_at", "TEXT DEFAULT NULL"],
-        ["quantity", "INTEGER NOT NULL DEFAULT 1"],
+        ["id", rowId],
+        ["listing_id", wholeNumber],
+        ["attendee_id", wholeNumber],
+        ["start_at", textStartingAtNull],
+        ["end_at", textStartingAtNull],
+        ["quantity", wholeNumberStartingAtOne],
         // How many of this row's quantity the doors admitted: 0..quantity. A
         // quantity 0 ghost row always stores 0, and the admit write caps at
         // quantity so concurrent doors cannot pass it.
-        ["checked_in", "INTEGER NOT NULL DEFAULT 0"],
+        ["checked_in", wholeNumberStartingAtZero],
         // The ledger event group of the booking order this row belongs to, so a
         // per-row money projection (amount paid) can find exactly this booking's
         // legs even when an attendee holds several orders for one listing. Set on
         // booking creation and by the backfill; '' for rows with no ledger legs.
-        ["ledger_event_group", "TEXT NOT NULL DEFAULT ''"],
-        ["attachment_downloads", "INTEGER NOT NULL DEFAULT 0"],
-        ["start_agent_id", "INTEGER DEFAULT NULL"],
-        ["end_agent_id", "INTEGER DEFAULT NULL"],
-        ["start_time", "TEXT NOT NULL DEFAULT ''"],
-        ["end_time", "TEXT NOT NULL DEFAULT ''"],
-        ["start_done", "INTEGER NOT NULL DEFAULT 0"],
-        ["end_done", "INTEGER NOT NULL DEFAULT 0"],
+        ["ledger_event_group", textStartingBlank],
+        ["attachment_downloads", wholeNumberStartingAtZero],
+        ["start_agent_id", wholeNumberStartingAtNull],
+        ["end_agent_id", wholeNumberStartingAtNull],
+        ["start_time", textStartingBlank],
+        ["end_time", textStartingBlank],
+        ["start_done", wholeNumberStartingAtZero],
+        ["end_done", wholeNumberStartingAtZero],
         // A per-booking token shared by every attendee row created in one
         // checkout (a parent and its chosen children), so the admin can group an
         // order's rows. Empty for legacy rows and bookings with no parent.
-        ["order_token", "TEXT NOT NULL DEFAULT ''"],
+        ["order_token", textStartingBlank],
         // For a folded child row, the parent listing the buyer chose it under
         // (0 = not a folded child). A child summed across two parents records the
         // first — the common case is one parent → one child.
-        ["parent_listing_id", "INTEGER NOT NULL DEFAULT 0"],
+        ["parent_listing_id", wholeNumberStartingAtZero],
         // The package group this order belongs to (0 = not a package), stamped on
         // every booking row of one package checkout like order_token. Tickets and
         // confirmation emails group the order's lines under the package by this
         // persisted id, so a standalone order of the same listings is not
         // mistaken for the package by membership equality.
-        ["package_group_id", "INTEGER NOT NULL DEFAULT 0"],
+        ["package_group_id", wholeNumberStartingAtZero],
       ],
       // FKs omitted — libsql's FK enforcement causes issues during table
       // recreation migrations. Referential integrity is enforced by application
@@ -185,10 +207,10 @@ export const attendeeTables: [name: string, table: Table][] = [
     "checkout_stages",
     {
       columns: [
-        ["payment_session_id", "TEXT PRIMARY KEY NOT NULL"],
-        ["attendee_id", "INTEGER NOT NULL"],
-        ["provider", "TEXT NOT NULL"],
-        ["ticket_tokens", "TEXT NOT NULL"],
+        ["payment_session_id", requiredTextKey],
+        ["attendee_id", wholeNumber],
+        ["provider", text],
+        ["ticket_tokens", text],
         ...statefulColumns,
       ],
       indexes: [
@@ -209,13 +231,13 @@ export const attendeeTables: [name: string, table: Table][] = [
     "processed_payments",
     {
       columns: [
-        ["payment_session_id", "TEXT PRIMARY KEY"],
-        ["attendee_id", "INTEGER"],
-        ["processed_at", "TEXT NOT NULL"],
-        ["ticket_tokens", "TEXT NOT NULL DEFAULT ''"],
-        ["failure_data", "TEXT NOT NULL DEFAULT ''"],
-        ["payment_reference", "TEXT NOT NULL DEFAULT ''"],
-        ["provider_refunded_at", "TEXT NOT NULL DEFAULT ''"],
+        ["payment_session_id", textKey],
+        ["attendee_id", wholeNumberOrNull],
+        ["processed_at", text],
+        ["ticket_tokens", textStartingBlank],
+        ["failure_data", textStartingBlank],
+        ["payment_reference", textStartingBlank],
+        ["provider_refunded_at", textStartingBlank],
         // Two payment-state columns a claim depends on:
         // the plain-text mirror of live work that SQL-only consumers (pruning,
         // orphan selection) can see without decrypting, and a blind one-way
@@ -223,8 +245,8 @@ export const attendeeTables: [name: string, table: Table][] = [
         // holding the same provider money. Validated current writes store both
         // with the reference. Historical blank rows make refunds fail closed
         // until the bounded owner-authenticated M11 copy.
-        ["protected_state", "TEXT NOT NULL DEFAULT ''"],
-        ["payment_reference_index", "TEXT NOT NULL DEFAULT ''"],
+        ["protected_state", textStartingBlank],
+        ["payment_reference_index", textStartingBlank],
       ],
       // Admin rosters, exports, and refund-all candidate loading look up the
       // retained charge references for a listing's attendees
@@ -270,11 +292,11 @@ export const attendeeTables: [name: string, table: Table][] = [
     "processed_scan_operations",
     {
       columns: [
-        ["operation_id", "TEXT NOT NULL"],
-        ["token_hash", "TEXT NOT NULL"],
-        ["listing_ids", "TEXT NOT NULL"],
-        ["quantity", "INTEGER NOT NULL"],
-        createdColumn,
+        ["operation_id", text],
+        ["token_hash", text],
+        ["listing_ids", text],
+        ["quantity", wholeNumber],
+        ["created", text],
       ],
       indexes: [
         {
@@ -290,11 +312,10 @@ export const attendeeTables: [name: string, table: Table][] = [
     "activity_log",
     {
       columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["created", "TEXT NOT NULL"],
-        ["listing_id", "INTEGER"],
-        ["message", "TEXT NOT NULL"],
-        ["attendee_id", "INTEGER"],
+        ...datedRowColumns,
+        ["listing_id", wholeNumberOrNull],
+        ["message", text],
+        ["attendee_id", wholeNumberOrNull],
       ],
       indexes: [
         {
@@ -329,18 +350,18 @@ export const attendeeTables: [name: string, table: Table][] = [
     "sumup_checkouts",
     {
       columns: [
-        ["reference_index", "TEXT PRIMARY KEY"],
-        ["wrapped_key", "TEXT NOT NULL DEFAULT ''"],
-        ["metadata", "TEXT NOT NULL"],
-        ["sumup_id", "TEXT NOT NULL DEFAULT ''"],
-        ["created_at", "TEXT NOT NULL"],
+        ["reference_index", textKey],
+        ["wrapped_key", textStartingBlank],
+        ["metadata", text],
+        ["sumup_id", textStartingBlank],
+        ["created_at", text],
         // What happened to this checkout, and when to ask SumUp again. The
         // words and the moves between them are declared in
         // shared/payment/sumup-recovery-machine-spec.ts; a NULL check time
         // means nothing will ask again, which is true of a row that has no
         // checkout id yet and of one that reached a definitive answer.
-        ["recovery_state", "TEXT NOT NULL DEFAULT 'staged'"],
-        ["next_check_at", "TEXT"],
+        ["recovery_state", defaulted(text, "staged")],
+        ["next_check_at", textOrNull],
       ],
       indexes: [
         {
@@ -370,10 +391,10 @@ export const attendeeTables: [name: string, table: Table][] = [
     "checkout_pending_answers",
     {
       columns: [
-        ["session_index", "TEXT PRIMARY KEY"],
-        ["sealed", "TEXT NOT NULL"],
-        ["created_at", "TEXT NOT NULL"],
-        ["link_ends_at", "TEXT"],
+        ["session_index", textKey],
+        ["sealed", text],
+        ["created_at", text],
+        ["link_ends_at", textOrNull],
       ],
     },
   ],
@@ -390,10 +411,10 @@ export const attendeeTables: [name: string, table: Table][] = [
     "square_link_ends",
     {
       columns: [
-        ["session_index", "TEXT PRIMARY KEY"],
-        ["sealed_handle", "TEXT NOT NULL"],
-        ["link_ends_at", "TEXT NOT NULL"],
-        ["next_attempt_at", "TEXT NOT NULL"],
+        ["session_index", textKey],
+        ["sealed_handle", text],
+        ["link_ends_at", text],
+        ["next_attempt_at", text],
         ...statefulColumns,
       ],
       indexes: [

@@ -1,17 +1,20 @@
+/* jscpd:ignore-start -- imports */
+import { checked, text, wholeNumber } from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
+/* jscpd:ignore-end */
 
 export const taxTables: [string, Table][] = [
   [
     "booking_tax_assessments",
     {
       columns: [
-        ["booking_group", "TEXT NOT NULL"],
-        ["revision", "INTEGER NOT NULL CHECK (revision >= 0)"],
-        ["attendee_id", "INTEGER NOT NULL"],
-        ["event_group", "TEXT NOT NULL"],
-        ["state", "TEXT NOT NULL CHECK (state IN ('active', 'refunded'))"],
-        ["assessment", "TEXT NOT NULL CHECK (json_valid(assessment))"],
-        ["occurred_at", "TEXT NOT NULL"],
+        ["booking_group", text],
+        ["revision", checked("revision >= 0")(wholeNumber)],
+        ["attendee_id", wholeNumber],
+        ["event_group", text],
+        ["state", checked("state IN ('active', 'refunded')")(text)],
+        ["assessment", checked("json_valid(assessment)")(text)],
+        ["occurred_at", text],
       ],
       indexes: [
         {

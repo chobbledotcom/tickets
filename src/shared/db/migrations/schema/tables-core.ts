@@ -1,6 +1,19 @@
 /** Core schema tables: system config, auth, listings, assets, rate limits. */
 
-import { itemLinkColumns } from "./columns.ts";
+import { datedRowColumns, itemLinkColumns } from "./columns.ts";
+import {
+  checked,
+  defaulted,
+  rowId,
+  text,
+  textKey,
+  textOrNull,
+  textStartingBlank,
+  wholeNumber,
+  wholeNumberOrNull,
+  wholeNumberStartingAtOne,
+  wholeNumberStartingAtZero,
+} from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
 import { SCHEMA_MIGRATIONS_TABLE } from "./version.ts";
 
@@ -9,8 +22,8 @@ export const coreTables: [name: string, table: Table][] = [
     "settings",
     {
       columns: [
-        ["key", "TEXT PRIMARY KEY"],
-        ["value", "TEXT NOT NULL"],
+        ["key", textKey],
+        ["value", text],
       ],
     },
   ],
@@ -19,9 +32,9 @@ export const coreTables: [name: string, table: Table][] = [
     SCHEMA_MIGRATIONS_TABLE,
     {
       columns: [
-        ["id", "TEXT PRIMARY KEY"],
-        ["description", "TEXT NOT NULL"],
-        ["applied_at", "TEXT NOT NULL"],
+        ["id", textKey],
+        ["description", text],
+        ["applied_at", text],
       ],
     },
   ],
@@ -30,16 +43,18 @@ export const coreTables: [name: string, table: Table][] = [
     "maintenance_tasks",
     {
       columns: [
-        ["name", "TEXT PRIMARY KEY"],
-        ["checkpoint", "TEXT"],
-        ["completed_at", "INTEGER"],
-        ["next_run_at", "INTEGER NOT NULL"],
-        ["lease_token", "TEXT"],
-        ["lease_expires_at", "INTEGER"],
-        ["last_started_at", "INTEGER"],
+        ["name", textKey],
+        ["checkpoint", textOrNull],
+        ["completed_at", wholeNumberOrNull],
+        ["next_run_at", wholeNumber],
+        ["lease_token", textOrNull],
+        ["lease_expires_at", wholeNumberOrNull],
+        ["last_started_at", wholeNumberOrNull],
         [
           "last_finished_at",
-          "INTEGER CHECK ((lease_token IS NULL) = (lease_expires_at IS NULL))",
+          checked("(lease_token IS NULL) = (lease_expires_at IS NULL)")(
+            wholeNumberOrNull,
+          ),
         ],
       ],
       indexes: [
@@ -55,49 +70,51 @@ export const coreTables: [name: string, table: Table][] = [
     "listings",
     {
       columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["created", "TEXT NOT NULL"],
-        ["max_attendees", "INTEGER NOT NULL"],
-        ["thank_you_url", "TEXT"],
-        ["unit_price", "INTEGER"],
-        ["max_quantity", "INTEGER NOT NULL DEFAULT 1"],
-        ["min_quantity", "INTEGER NOT NULL DEFAULT 1"],
-        ["webhook_url", "TEXT"],
-        ["slug", "TEXT"],
-        ["slug_index", "TEXT"],
-        ["active", "INTEGER NOT NULL DEFAULT 1"],
-        ["fields", "TEXT NOT NULL DEFAULT 'email'"],
-        ["closes_at", "TEXT"],
-        ["name", "TEXT NOT NULL DEFAULT ''"],
-        ["description", "TEXT NOT NULL DEFAULT ''"],
-        ["listing_type", "TEXT NOT NULL DEFAULT 'standard'"],
+        ...datedRowColumns,
+        ["max_attendees", wholeNumber],
+        ["thank_you_url", textOrNull],
+        ["unit_price", wholeNumberOrNull],
+        ["max_quantity", wholeNumberStartingAtOne],
+        ["min_quantity", wholeNumberStartingAtOne],
+        ["webhook_url", textOrNull],
+        ["slug", textOrNull],
+        ["slug_index", textOrNull],
+        ["active", wholeNumberStartingAtOne],
+        ["fields", defaulted(text, "email")],
+        ["closes_at", textOrNull],
+        ["name", textStartingBlank],
+        ["description", textStartingBlank],
+        ["listing_type", defaulted(text, "standard")],
         [
           "bookable_days",
-          `TEXT NOT NULL DEFAULT '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]'`,
+          defaulted(
+            text,
+            '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
+          ),
         ],
-        ["minimum_days_before", "INTEGER NOT NULL DEFAULT 1"],
-        ["maximum_days_after", "INTEGER NOT NULL DEFAULT 90"],
-        ["date", "TEXT NOT NULL DEFAULT ''"],
-        ["location", "TEXT NOT NULL DEFAULT ''"],
-        ["attachment_url", "TEXT NOT NULL DEFAULT ''"],
-        ["attachment_name", "TEXT NOT NULL DEFAULT ''"],
-        ["non_transferable", "INTEGER NOT NULL DEFAULT 0"],
-        ["can_pay_more", "INTEGER NOT NULL DEFAULT 0"],
-        ["hidden", "INTEGER NOT NULL DEFAULT 0"],
-        ["purchase_only", "INTEGER NOT NULL DEFAULT 0"],
-        ["assign_built_site", "INTEGER NOT NULL DEFAULT 0"],
-        ["max_price", "INTEGER NOT NULL DEFAULT 0"],
-        ["months_per_unit", "INTEGER NOT NULL DEFAULT 0"],
-        ["initial_site_months", "INTEGER NOT NULL DEFAULT 0"],
-        ["duration_days", "INTEGER NOT NULL DEFAULT 1"],
-        ["customisable_days", "INTEGER NOT NULL DEFAULT 0"],
+        ["minimum_days_before", wholeNumberStartingAtOne],
+        ["maximum_days_after", defaulted(wholeNumber, 90)],
+        ["date", textStartingBlank],
+        ["location", textStartingBlank],
+        ["attachment_url", textStartingBlank],
+        ["attachment_name", textStartingBlank],
+        ["non_transferable", wholeNumberStartingAtZero],
+        ["can_pay_more", wholeNumberStartingAtZero],
+        ["hidden", wholeNumberStartingAtZero],
+        ["purchase_only", wholeNumberStartingAtZero],
+        ["assign_built_site", wholeNumberStartingAtZero],
+        ["max_price", wholeNumberStartingAtZero],
+        ["months_per_unit", wholeNumberStartingAtZero],
+        ["initial_site_months", wholeNumberStartingAtZero],
+        ["duration_days", wholeNumberStartingAtOne],
+        ["customisable_days", wholeNumberStartingAtZero],
         // day_prices is no longer a column: per-day-count prices live in the
         // listing_prices "day_count" dimension (migrated in and projected back on
         // read via a json_group_object subquery). unit_price stays as the hot-path
         // base price, mirrored by the listing_prices "base" row.
-        ["uses_logistics", "INTEGER NOT NULL DEFAULT 0"],
-        ["use_defaults", "INTEGER NOT NULL DEFAULT 0"],
-        ["bookable_alone", "INTEGER NOT NULL DEFAULT 0"],
+        ["uses_logistics", wholeNumberStartingAtZero],
+        ["use_defaults", wholeNumberStartingAtZero],
+        ["bookable_alone", wholeNumberStartingAtZero],
         // Precomputed counts over listing_attendees, maintained by the
         // LISTING_AGGREGATE_TRIGGERS so listing reads and the active-listing
         // stats never COUNT the listing_attendees table. booked_quantity is
@@ -106,8 +123,8 @@ export const coreTables: [name: string, table: Table][] = [
         // link but is not a ticket; see TICKET_COUNTS_PREDICATE), scoped to
         // this listing. Income is no longer stored: it is projected from the
         // transfers ledger (gross credits to revenue:<listingId>) at read time.
-        ["booked_quantity", "INTEGER NOT NULL DEFAULT 0"],
-        ["tickets_count", "INTEGER NOT NULL DEFAULT 0"],
+        ["booked_quantity", wholeNumberStartingAtZero],
+        ["tickets_count", wholeNumberStartingAtZero],
       ],
       indexes: [
         {
@@ -133,10 +150,10 @@ export const coreTables: [name: string, table: Table][] = [
     "listing_prices",
     {
       columns: [
-        ["listing_id", "INTEGER NOT NULL"],
-        ["price_type", "TEXT NOT NULL"],
-        ["price_id", "TEXT NOT NULL DEFAULT ''"],
-        ["unit_price", "INTEGER NOT NULL"],
+        ["listing_id", wholeNumber],
+        ["price_type", text],
+        ["price_id", textStartingBlank],
+        ["unit_price", wholeNumber],
       ],
       indexes: [
         {
@@ -156,8 +173,8 @@ export const coreTables: [name: string, table: Table][] = [
     "logistics_agents",
     {
       columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["name", "TEXT NOT NULL"],
+        ["id", rowId],
+        ["name", text],
       ],
     },
   ],
@@ -166,25 +183,25 @@ export const coreTables: [name: string, table: Table][] = [
     "users",
     {
       columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["username_hash", "TEXT NOT NULL"],
-        ["username_index", "TEXT NOT NULL"],
-        ["password_hash", "TEXT NOT NULL DEFAULT ''"],
-        ["wrapped_data_key", "TEXT"],
-        ["admin_level", "TEXT NOT NULL"],
-        ["invite_code_hash", "TEXT"],
-        ["invite_expiry", "TEXT"],
+        ["id", rowId],
+        ["username_hash", text],
+        ["username_index", text],
+        ["password_hash", textStartingBlank],
+        ["wrapped_data_key", textOrNull],
+        ["admin_level", text],
+        ["invite_code_hash", textOrNull],
+        ["invite_expiry", textOrNull],
         // KEK derivation scheme for wrapped_data_key: 1 = legacy (KEK derived
         // from the stored password hash, so a DB dump + DB_ENCRYPTION_KEY can
         // re-derive it), 2 = password-bound (KEK derived from the raw password,
         // never stored). New activated users are created at 2; legacy rows are
         // upgraded lazily on their owner's next login.
-        ["kek_version", "INTEGER NOT NULL DEFAULT 1"],
+        ["kek_version", wholeNumberStartingAtOne],
         // DATA_KEY wrapped under the single-use invite code, set when a user is
         // invited so they can self-activate at /join (unwrap with the code, then
         // re-wrap under their new password's KEK). NULL once activated. The code
         // is only ever stored hashed, so this is not unwrappable from a DB dump.
-        ["invite_wrapped_data_key", "TEXT"],
+        ["invite_wrapped_data_key", textOrNull],
       ],
       indexes: [
         {
@@ -200,11 +217,11 @@ export const coreTables: [name: string, table: Table][] = [
     "sessions",
     {
       columns: [
-        ["token", "TEXT PRIMARY KEY"],
-        ["csrf_token", "TEXT NOT NULL"],
-        ["expires", "INTEGER NOT NULL"],
-        ["wrapped_data_key", "TEXT"],
-        ["user_id", "INTEGER"],
+        ["token", textKey],
+        ["csrf_token", text],
+        ["expires", wholeNumber],
+        ["wrapped_data_key", textOrNull],
+        ["user_id", wholeNumberOrNull],
       ],
     },
   ],
@@ -216,11 +233,11 @@ export const coreTables: [name: string, table: Table][] = [
     "images",
     {
       columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["name", "TEXT NOT NULL DEFAULT ''"],
-        ["filename", "TEXT NOT NULL CHECK (filename <> '')"],
-        ["filename_thumb", "TEXT NOT NULL CHECK (filename_thumb <> '')"],
-        ["alt_text", "TEXT NOT NULL DEFAULT ''"],
+        ["id", rowId],
+        ["name", textStartingBlank],
+        ["filename", checked("filename <> ''")(text)],
+        ["filename_thumb", checked("filename_thumb <> ''")(text)],
+        ["alt_text", textStartingBlank],
       ],
     },
   ],
@@ -232,7 +249,7 @@ export const coreTables: [name: string, table: Table][] = [
     // one item.
     "image_uses",
     {
-      columns: [["image_id", "INTEGER NOT NULL"], ...itemLinkColumns],
+      columns: [["image_id", wholeNumber], ...itemLinkColumns],
       indexes: [
         {
           columns: ["item_type", "item_id", "sort_order"],
@@ -256,9 +273,9 @@ export const coreTables: [name: string, table: Table][] = [
     "user_logistics_agents",
     {
       columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["user_id", "INTEGER NOT NULL"],
-        ["agent_id", "INTEGER NOT NULL"],
+        ["id", rowId],
+        ["user_id", wholeNumber],
+        ["agent_id", wholeNumber],
       ],
       indexes: [
         {
@@ -278,10 +295,10 @@ export const coreTables: [name: string, table: Table][] = [
     "login_attempts",
     {
       columns: [
-        ["ip", "TEXT PRIMARY KEY"],
-        ["attempts", "INTEGER NOT NULL DEFAULT 0"],
-        ["locked_until", "INTEGER"],
-        ["last_attempt", "INTEGER NOT NULL DEFAULT 0"],
+        ["ip", textKey],
+        ["attempts", wholeNumberStartingAtZero],
+        ["locked_until", wholeNumberOrNull],
+        ["last_attempt", wholeNumberStartingAtZero],
       ],
       indexes: [
         {
@@ -300,11 +317,11 @@ export const coreTables: [name: string, table: Table][] = [
     "token_attempts",
     {
       columns: [
-        ["ip", "TEXT PRIMARY KEY"],
-        ["recent_tokens", "TEXT NOT NULL DEFAULT '[]'"],
-        ["locked_until", "INTEGER"],
-        ["window_start", "INTEGER NOT NULL DEFAULT 0"],
-        ["last_attempt", "INTEGER NOT NULL DEFAULT 0"],
+        ["ip", textKey],
+        ["recent_tokens", defaulted(text, "[]")],
+        ["locked_until", wholeNumberOrNull],
+        ["window_start", wholeNumberStartingAtZero],
+        ["last_attempt", wholeNumberStartingAtZero],
       ],
       indexes: [
         {

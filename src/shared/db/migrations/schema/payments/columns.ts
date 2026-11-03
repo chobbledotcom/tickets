@@ -1,5 +1,3 @@
-import type { Table } from "#db/migrations/schema/types.ts";
-
 /**
  * These say only what a column *is*. What a payment may say, and how it may
  * behave, belongs to the record layer in TypeScript, where a broken rule names
@@ -11,22 +9,16 @@ import type { Table } from "#db/migrations/schema/types.ts";
  * see: a type says `string` while the value is bytes.
  */
 
-/** Joins rules of which one must hold. */
-const withDefault = (type: string, fallback: string | number | undefined) =>
-  `${type}${fallback === undefined ? "" : ` DEFAULT ${fallback}`}`;
+/* jscpd:ignore-start -- imports */
+import {
+  checked,
+  rowId,
+  text,
+  wholeNumber,
+} from "#db/migrations/schema/scalar-columns.ts";
+import type { Column, Table } from "#db/migrations/schema/types.ts";
 
-export const wholeNumber = (fallback?: number): string =>
-  withDefault("INTEGER NOT NULL", fallback);
-
-export const wholeNumberOrNull = (): string => "INTEGER";
-
-export const words = (fallback?: string): string =>
-  withDefault("TEXT NOT NULL", fallback && `'${fallback}'`);
-
-export const wordsOrNull = (): string => "TEXT";
-
-/** The payment's own name, which SQLite would otherwise let hold nothing. */
-export const keyWords = (): string => "TEXT PRIMARY KEY NOT NULL";
+/* jscpd:ignore-end */
 
 /**
  * A value counts as hidden only if it is really text, says how it was hidden,
@@ -44,28 +36,22 @@ const sealed = (name: string, prefix: string, parts: number): string =>
     parts,
   )}' AND ${name} NOT GLOB '${prefix}${":*".repeat(parts + 1)}')`;
 
-/** Hidden for the owner with their public key, beyond the database key. */
-export const ownerEncryptedPaymentColumn = (name: string): string =>
-  `TEXT NOT NULL CHECK (${sealed(name, "hyb:1", 3)})`;
+/** The same rule, for a column a row can leave empty. It is written for a
+ *  CHECK, which supplies the outer brackets. */
+export const ownerEncryptedRuleOrNull = (name: string): string =>
+  `${name} IS NULL OR ${sealed(name, "hyb:1", 3)}`;
 
-/** The same shape, for a column a row can leave empty. */
-export const ownerEncryptedPaymentColumnOrNull = (name: string): string =>
-  `(${name} IS NULL OR ${sealed(name, "hyb:1", 3)})`;
-
-/** When a row was made and last touched. Every payment record carries both. */
-export const madeAndTouched: [string, string][] = [
-  ["created_at", wholeNumber()],
-  ["updated_at", wholeNumber()],
+/** A column that must hold a value hidden for the owner with their key. */
+export const ownerEncryptedColumn = (name: string): Column => [
+  name,
+  checked(sealed(name, "hyb:1", 3))(text),
 ];
 
-/**
- * Rules about the row as a whole, hung on its last column because that is the
- * only place SQLite lets a table say them.
- */
-export const alsoAbout =
-  (theRow: string[]): ((base: string) => string) =>
-  (base: string): string =>
-    [base, ...theRow.map((rule) => `CHECK (${rule})`)].join("\n          ");
+/** When a row was made and last touched. Every payment record carries both. */
+export const madeAndTouched: Column[] = [
+  ["created_at", wholeNumber],
+  ["updated_at", wholeNumber],
+];
 
 /**
  * Every record hanging off a payment opens the same way: its own row id, then
@@ -75,17 +61,13 @@ export const alsoAbout =
 export const paymentRecord = (
   name: string,
   parts: {
-    columns: [string, string][];
+    columns: Column[];
     indexes: NonNullable<Table["indexes"]>;
   },
 ): [name: string, table: Table] => [
   name,
   {
-    columns: [
-      ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-      ["payment_id", words()],
-      ...parts.columns,
-    ],
+    columns: [["id", rowId], ["payment_id", text], ...parts.columns],
     indexes: parts.indexes,
   },
 ];

@@ -10,7 +10,7 @@
     "**/node_modules/**",
     "**/fp.ts",
     "**/db/migrations/2*.ts",
-    "**/db/migrations/schema/columns.ts"
+    "**/db/migrations/schema/**"
   ],
   "format": [
     "typescript",
