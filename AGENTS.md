@@ -143,6 +143,12 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
   helpers and write comments in simple domain words, not CS jargon. A helper
   must explain itself like "Keeps only children that can still be booked for
   this ticket."
+- **Keep methods flat**: A row of three or more closing brackets is a sign that
+  one method holds three or more layers. Refactor that method. Move each layer
+  into a named helper. When one shape repeats at many sites, write one curried
+  helper for all of them (see "Curried helpers" in docs/designing-systems.md).
+  A row of brackets that closes data, for example `[[1, 2], [3, 4]]`, is not a
+  deep method.
 - **Name a thing the way the site names it**: A story, test, or comment calls a
   thing what its label, message, or column heading calls it. Copy the word a
   person reads in `src/locales/en/*.json`, never the identifier beside it in
