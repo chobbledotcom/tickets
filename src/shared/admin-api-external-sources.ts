@@ -34,10 +34,11 @@ export type AdminApiExternalSource = v.InferOutput<
 >;
 
 /** One record's external id at one source. The blind index stays in the
- *  database, so no row carries it. */
+ *  database, so no row carries it. A link made before the other system named
+ *  the record has no external id yet. */
 export const ExternalSourceLinkRowSchema = v.looseObject({
   created: v.string(),
-  external_id: v.string(),
+  external_id: v.nullable(v.string()),
   id: v.number(),
   link_id: v.number(),
   link_type: ExternalLinkKindSchema,
@@ -65,9 +66,10 @@ export type AdminApiUpdateExternalSourceBody = v.InferOutput<
 >;
 
 /** The body a link write carries: the kind of record, which one, and its id at
- *  the source. The same shape serves the link's create and its update. */
+ *  the source. The same shape serves the link's create and its update. Leave
+ *  external_id out when the other system has not named the record yet. */
 export const CreateExternalLinkBodySchema = v.object({
-  external_id: v.string(),
+  external_id: v.optional(v.string()),
   link_id: v.pipe(v.number(), v.safeInteger(), v.minValue(1)),
   link_type: ExternalLinkKindSchema,
 });

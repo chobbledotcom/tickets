@@ -60,6 +60,9 @@ const LINKS_BASE = childDocBase(
   "links",
 );
 
+/** Every source's links that name one record, with the source that holds each. */
+const SEARCH_BASE = `/api/admin/${ADMIN_API_RESOURCES["external-sources"].path}/links`;
+
 export const EXTERNAL_SOURCE_ENDPOINTS: EndpointDoc[] = [
   ...crudDocs({
     createBody: CREATE_SOURCE_BODY,
@@ -83,6 +86,20 @@ export const EXTERNAL_SOURCE_ENDPOINTS: EndpointDoc[] = [
   }),
   {
     description:
+      "List every source's links that name one record. Both link_type and link_id are required. Each link names the source that holds it.",
+    method: "GET",
+    path: SEARCH_BASE,
+    response: json({
+      links: [
+        {
+          ...ADMIN_API_EXAMPLE_EXTERNAL_SOURCE_LINK,
+          source_name: ADMIN_API_EXAMPLE_EXTERNAL_SOURCE.name,
+        },
+      ],
+    }),
+  },
+  {
+    description:
       "List one source's links. Add ?external_id= to find the link that holds that external id, or ?link_type= and ?link_id= to find the links of one record. The external id is found through its blind index, so nothing is decrypted to search.",
     method: "GET",
     path: LINKS_BASE,
@@ -90,7 +107,7 @@ export const EXTERNAL_SOURCE_ENDPOINTS: EndpointDoc[] = [
   },
   {
     description:
-      "Link one record to its id at a source. link_type is attendee, listing, or group. The record must exist and the source must not already hold that external id.",
+      "Link one record to its id at a source. link_type is attendee, listing, or group. Leave external_id out when the other system has not named the record yet. The record must exist and the source must not already hold that external id.",
     method: "POST",
     path: LINKS_BASE,
     request: json(CREATE_LINK_BODY),
@@ -110,7 +127,8 @@ export const EXTERNAL_SOURCE_ENDPOINTS: EndpointDoc[] = [
     }),
   },
   {
-    description: "Delete one link (requires the external id confirmation)",
+    description:
+      "Delete one link (requires the link reference confirmation: its external id, or the record it names when the id is absent)",
     method: "DELETE",
     path: `${LINKS_BASE}/:linkId`,
     request: json({

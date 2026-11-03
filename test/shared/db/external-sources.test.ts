@@ -119,6 +119,31 @@ describeWithEnv("db > external sources", { db: true }, () => {
     expect(found).toEqual([link]);
   });
 
+  test("stores a link the other system has not named yet with no index", async () => {
+    const source = await createSource("Diary");
+    const listing = await createTestListing({ name: "Watercolour day" });
+    const created = await createExternalSourceLink(source.id, {
+      externalId: null,
+      linkId: listing.id,
+      linkType: "listing",
+    });
+    if (!created.ok) throw new Error(created.error);
+
+    const stored = await queryOne<{
+      external_id: string | null;
+      external_id_index: string | null;
+    }>(
+      "SELECT external_id, external_id_index FROM external_source_links WHERE id = ?",
+      [created.value.id],
+    );
+    expect(stored).toEqual({ external_id: null, external_id_index: null });
+
+    const found = await withTestSession(() =>
+      listExternalSourceLinks(source.id, { kind: "all" }),
+    );
+    expect(found).toEqual([created.value]);
+  });
+
   test("keeps separate sources' external ids from matching each other", async () => {
     const invoices = await createSource("Invoices");
     const imports = await createSource("Imports");

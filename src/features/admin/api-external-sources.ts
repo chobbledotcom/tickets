@@ -21,11 +21,16 @@ import {
   getAllExternalSources,
   getExternalSource,
   getExternalSourceLink,
+  listExternalLinksForTarget,
   listExternalSourceLinks,
   requireExternalSourceLink,
   updateExternalSourceLink,
 } from "#db/external-sources/queries.ts";
 import { externalSourcesTable } from "#db/external-sources/tables.ts";
+import {
+  type ExternalLinkTarget,
+  externalLinkTargets,
+} from "#db/external-sources/target.ts";
 import {
   EXTERNAL_LINK_KINDS,
   type ExternalLinkFilter,
@@ -38,10 +43,11 @@ import {
   ExternalUrlPatternSchema,
 } from "#db/external-sources/types.ts";
 import { settings } from "#db/settings.ts";
+import { requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
-import { ADMIN_API } from "#routes/auth.ts";
+import { ADMIN_API, withAuth } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
@@ -112,13 +118,18 @@ const parseLinkKind = (value: unknown): Result<ExternalLinkKind> => {
     : errorResult(`link_type must be one of: ${LINK_KIND_VALUES}`);
 };
 
-/** One link write: the record's kind, which one, and its id at the source. */
+/** One link write: the record's kind, which one, and its id at the source. An
+ *  absent external id means the other system has not named the record yet. */
 const parseLinkWrite = (
   body: Record<string, unknown>,
 ): Result<ExternalLinkWrite> => {
-  const externalId = requireEntityField(body, "external_id", null);
+  const supplied = body.external_id;
+  const externalId: Result<string | null> =
+    supplied === undefined || supplied === null
+      ? okResult(null)
+      : requireEntityField(body, "external_id", null);
   if (!externalId.ok) return externalId;
-  if (externalId.value.length > MAX_INPUT_LENGTH) {
+  if (externalId.value !== null && externalId.value.length > MAX_INPUT_LENGTH) {
     return errorResult(
       `external_id must be ${MAX_INPUT_LENGTH} characters or fewer`,
     );
@@ -136,6 +147,24 @@ const parseLinkWrite = (
   });
 };
 
+/** The one record a links read asks for. Both parts are required. */
+const parseRecordSearch = (
+  params: URLSearchParams,
+): Result<ExternalLinkTarget> => {
+  const rawType = params.get("link_type");
+  const rawId = params.get("link_id");
+  if (rawType === null || rawId === null) {
+    return errorResult("link_type and link_id go together");
+  }
+  const linkType = parseLinkKind(rawType);
+  if (!linkType.ok) return linkType;
+  const linkId = parsePositiveInt(rawId);
+  if (linkId === null) {
+    return errorResult("link_id must be a whole number of 1 or more");
+  }
+  return okResult(externalLinkTargets.of(linkType.value)(linkId));
+};
+
 /** The filter a links read keeps: by external id, by the record a link points
  *  at, or no filter at all. */
 const parseLinkFilter = (
@@ -143,19 +172,17 @@ const parseLinkFilter = (
 ): Result<ExternalLinkFilter> => {
   const externalId = params.get("external_id");
   if (externalId !== null) return okResult({ externalId, kind: "external" });
-  const rawType = params.get("link_type");
-  const rawId = params.get("link_id");
-  if (rawType === null && rawId === null) return okResult({ kind: "all" });
-  if (rawType === null || rawId === null) {
-    return errorResult("link_type and link_id go together");
+  if (params.get("link_type") === null && params.get("link_id") === null) {
+    return okResult({ kind: "all" });
   }
-  const linkType = parseLinkKind(rawType);
-  if (!linkType.ok) return errorResult(linkType.error);
-  const linkId = parsePositiveInt(rawId);
-  if (linkId === null) {
-    return errorResult("link_id must be a whole number of 1 or more");
-  }
-  return okResult({ kind: "target", linkId, linkType: linkType.value });
+  const target = parseRecordSearch(params);
+  return target.ok
+    ? okResult({
+        kind: "target",
+        linkId: target.value.id,
+        linkType: target.value.kind,
+      })
+    : errorResult(target.error);
 };
 
 /** One link as a response carries it: its sealed index stays in the database. */
@@ -214,14 +241,40 @@ const handleLinkList = underSource(async ({ request, source }) => {
   return jsonResponse({ links: links.map(toLinkResponse) });
 });
 
+/** Every source's links that name one record, with the source that holds
+ *  each. This is the read an admin record page needs: one request answers
+ *  "where else does this appear?", whatever the number of sources. */
+const handleLinkSearch: RouteHandlerFn = (request) =>
+  withAuth(request, ADMIN_API, async () => {
+    const target = parseRecordSearch(new URL(request.url).searchParams);
+    if (!target.ok) return apiErrorResponse(target.error);
+    const [links, sources] = await Promise.all([
+      listExternalLinksForTarget(target.value),
+      getAllExternalSources(),
+    ]);
+    const names = new Map(sources.map((source) => [source.id, source.name]));
+    return jsonResponse({
+      links: links.map((link) => ({
+        ...toLinkResponse(link),
+        source_name: requiredMapValue(
+          names,
+          link.source_id,
+          "Every link names a source in the directory",
+        ),
+      })),
+    });
+  });
+
 /** The activity line one link write records, naming the record and the source
- *  it belongs to. */
+ *  it belongs to. A link with no external id yet names the record instead. */
 const logLink = (
   action: string,
-  link: { external_id: string },
+  link: { external_id: string | null; link_id: number; link_type: string },
   source: ExternalSource,
 ): Promise<unknown> =>
-  logActivity(`External link '${link.external_id}' ${action} '${source.name}'`);
+  logActivity(
+    `External link '${link.external_id ?? `${link.link_type} ${link.link_id}`}' ${action} '${source.name}'`,
+  );
 
 /** Run one link write with its parsed input, or answer the parse refusal. */
 const withLinkWrite = async (
@@ -251,11 +304,16 @@ const handleLinkUpdate = withExistingLink(({ body, link, source }) =>
   }),
 );
 
+/** The text an admin types to confirm one link's delete: its external id, or
+ *  the record it names before the other system named it. */
+const linkConfirmText = (link: ExternalSourceLink): string =>
+  link.external_id ?? `${link.link_type} ${link.link_id}`;
+
 const handleLinkDelete = withExistingLink(async ({ body, link, source }) => {
   const error = verifyIdentifierOrJsonError(
-    link.external_id,
+    linkConfirmText(link),
     body.confirm_identifier,
-    "External id",
+    "Link reference",
   );
   if (error) return apiErrorResponse(error);
   await deleteExternalSourceLink(link);
@@ -289,7 +347,7 @@ export const externalSourceApiRoutes = mapValues(
         update: handleLinkUpdate,
       },
     },
-    customHandlers: { links: handleLinkList },
+    customHandlers: { linkSearch: handleLinkSearch, links: handleLinkList },
     getAll: getAllExternalSources,
     lookup: getExternalSource,
     // Read-your-writes: the create and update answers re-read the row from the

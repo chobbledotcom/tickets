@@ -356,7 +356,7 @@ describeWithEnv("Admin API - External source links", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.error).toContain("External id does not match");
+          expect(body.error).toContain("Link reference does not match");
         },
       );
       await assertJson(
@@ -375,6 +375,80 @@ describeWithEnv("Admin API - External source links", { db: true }, () => {
           method: "DELETE",
         }),
         404,
+      );
+    });
+
+    test("deletes a link the other system has not named yet", async () => {
+      const created = await createSource();
+      const sourceId = Number(created.source.id);
+      const listing = await addListing();
+      const link = await createLink(sourceId, {
+        link_id: listing.id,
+        link_type: "listing",
+      });
+      expect(link.link.external_id).toBe(null);
+
+      await assertJson(
+        apiRequest(linkPath(sourceId, Number(link.link.id)), {
+          body: { confirm_identifier: `listing ${listing.id}` },
+          method: "DELETE",
+        }),
+        200,
+        (body) => {
+          expect(body).toEqual({ status: "ok" });
+        },
+      );
+    });
+  });
+
+  describe("GET /api/admin/external-sources/links", () => {
+    test("lists one record's links from every source", async () => {
+      const first = await createSource();
+      const second = await createSource({
+        name: "Imports",
+        url_pattern: "https://imports.example/{external_id}",
+      });
+      const listing = await addListing();
+      await createLink(Number(first.source.id), {
+        external_id: "INV-1",
+        link_id: listing.id,
+        link_type: "listing",
+      });
+      await createLink(Number(second.source.id), {
+        external_id: "IMP-1",
+        link_id: listing.id,
+        link_type: "listing",
+      });
+
+      await assertJson(
+        apiRequest(
+          `/api/admin/external-sources/links?link_type=listing&link_id=${listing.id}`,
+        ),
+        200,
+        (body) => {
+          expect(body.links).toEqual([
+            expect.objectContaining({
+              external_id: "INV-1",
+              source_id: Number(first.source.id),
+              source_name: first.source.name,
+            }),
+            expect.objectContaining({
+              external_id: "IMP-1",
+              source_id: Number(second.source.id),
+              source_name: "Imports",
+            }),
+          ]);
+        },
+      );
+    });
+
+    test("refuses a search without a record", async () => {
+      await assertJson(
+        apiRequest("/api/admin/external-sources/links?link_type=listing"),
+        400,
+        (body) => {
+          expect(body.error).toBe("link_type and link_id go together");
+        },
       );
     });
   });

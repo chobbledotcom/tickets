@@ -23,6 +23,7 @@ import type {
 } from "#db/external-sources/types.ts";
 import { deleteListing } from "#db/listings/delete.ts";
 import { deleteGroup } from "#routes/admin/groups.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -56,7 +57,12 @@ const externalIds = async (sourceId: number): Promise<string[]> =>
     await withTestSession(() =>
       listExternalSourceLinks(sourceId, { kind: "all" }),
     )
-  ).map((link) => link.external_id);
+  ).map((link) =>
+    requireValue(
+      link.external_id,
+      "A link in this test carries an external id",
+    ),
+  );
 
 describeWithEnv("db > external links follow their record", { db: true }, () => {
   test("removes an attendee's links and keeps the other attendee's", async () => {

@@ -67,28 +67,31 @@ export type ExternalSourceInput = {
 };
 
 /** A stored link, opened for an admin. `external_id_index` is the blind index
- *  that finds the row without decrypting, so it never reaches a response. */
+ *  that finds the row without decrypting, so it never reaches a response. A
+ *  link made before the other system named the record holds no id. */
 export type ExternalSourceLink = {
   created: string;
-  external_id: string;
-  external_id_index: BlindIndex;
+  external_id: string | null;
+  external_id_index: BlindIndex | null;
   id: number;
   link_id: number;
   link_type: ExternalLinkKind;
   source_id: number;
 };
 
-/** One link a caller asks to store. */
+/** One link a caller asks to store. An absent external id means the other
+ *  system has not named the record yet. */
 export type ExternalLinkWrite = {
-  externalId: string;
+  externalId: string | null;
   linkId: number;
   linkType: ExternalLinkKind;
 };
 
-/** The columns a link write stores, sealed and indexed. */
+/** The columns a link write stores, sealed and indexed. The index stays empty
+ *  while the external id does. */
 export type ExternalLinkInput = {
-  externalId: string;
-  externalIdIndex: BlindIndex;
+  externalId: string | null;
+  externalIdIndex: BlindIndex | null;
   linkId: number;
   linkType: ExternalLinkKind;
   sourceId: number;

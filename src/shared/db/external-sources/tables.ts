@@ -31,14 +31,15 @@ export const externalSourcesTable = defineIdTable<
 });
 
 /** One record's id at one source. `external_id_index` is the plain column that
- *  finds the row: a filter can compare it, and a ciphertext it cannot. */
+ *  finds the row: a filter can compare it, and a ciphertext it cannot. An id
+ *  the other system has not named yet leaves both columns empty. */
 export const externalSourceLinksTable = defineIdTable<
   ExternalSourceLink,
   ExternalLinkInput
 >("external_source_links", {
   ...idAndCreatedSchema(nowIso),
-  external_id: col.encrypted(sealForAdmin, openForAdmin),
-  external_id_index: col.simple<BlindIndex>(),
+  external_id: col.encryptedNullable(col.encrypted(sealForAdmin, openForAdmin)),
+  external_id_index: col.simple<BlindIndex | null>(),
   link_id: col.simple<number>(),
   link_type: col.simple<ExternalSourceLink["link_type"]>(),
   source_id: col.simple<number>(),

@@ -20,7 +20,7 @@ import type { RowFilter } from "#db/table-reader.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { externalSourceLinksTable, externalSourcesTable } from "./tables.ts";
-import { externalLinkTargets } from "./target.ts";
+import { type ExternalLinkTarget, externalLinkTargets } from "./target.ts";
 import type {
   ExternalLinkFilter,
   ExternalLinkInput,
@@ -76,7 +76,7 @@ const linkFilter = async (
   return { source_id: sourceId };
 };
 
-/** One source's links, opened for an admin. */
+/** One source's links, oldest first. */
 export const listExternalSourceLinks = async (
   sourceId: number,
   filter: ExternalLinkFilter,
@@ -84,6 +84,16 @@ export const listExternalSourceLinks = async (
   externalSourceLinksTable.read.many(await linkFilter(sourceId, filter), {
     order: "id ASC",
   });
+
+/** Every source's links that name one record, oldest first. The record page
+ *  reads this once instead of asking each source in turn. */
+export const listExternalLinksForTarget = (
+  target: ExternalLinkTarget,
+): Promise<ExternalSourceLink[]> =>
+  externalSourceLinksTable.read.many(
+    { link_id: target.id, link_type: target.kind },
+    { order: "id ASC" },
+  );
 
 export const getExternalSourceLink = (
   sourceId: number,
@@ -102,7 +112,8 @@ export const requireExternalSourceLink = async (
     `External source link ${linkId} is missing from source ${sourceId}`,
   );
 
-/** The two stored facts that refuse a link write, read in one round trip. */
+/** The two stored facts that refuse a link write, read in one round trip. A
+ *  write with no external id skips the duplicate check: the index is empty. */
 type LinkWriteFacts = { duplicate: number; target_missing: number };
 
 /** A create passes 0 for the row it does not replace. No stored id is 0. */
@@ -112,13 +123,17 @@ const linkWriteFactsStatement = (
 ) =>
   numberedStatement((bind) => {
     const target = externalLinkTargets.of(input.linkType)(input.linkId);
-    return `SELECT
-      EXISTS (
+    const duplicate =
+      input.externalIdIndex === null
+        ? "0"
+        : `EXISTS (
         SELECT 1 FROM external_source_links AS existingLink
          WHERE existingLink.source_id = ${bind(input.sourceId)}
            AND existingLink.external_id_index = ${bind(input.externalIdIndex)}
            AND existingLink.id != ${bind(excludingId)}
-      ) AS duplicate,
+      )`;
+    return `SELECT
+      ${duplicate} AS duplicate,
       NOT ${externalLinkTargets.existsSql(target.kind, bind(target.id))} AS target_missing`;
   });
 
@@ -134,7 +149,10 @@ const prepareLinkWrite = async (
 ): Promise<Result<ExternalLinkInput>> => {
   const input: ExternalLinkInput = {
     externalId: write.externalId,
-    externalIdIndex: await externalLinkIndex(sourceId, write.externalId),
+    externalIdIndex:
+      write.externalId === null
+        ? null
+        : await externalLinkIndex(sourceId, write.externalId),
     linkId: write.linkId,
     linkType: write.linkType,
     sourceId,

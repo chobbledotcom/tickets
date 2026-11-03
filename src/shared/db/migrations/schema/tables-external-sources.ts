@@ -32,8 +32,9 @@ export const externalSourceTables: [name: string, table: Table][] = [
   [
     // One record's id at one source. `external_id` holds owner-key ciphertext
     // and `external_id_index` its blind index, so a lookup finds the row
-    // without decrypting. No FKs (house style). Deleting a source deletes its
-    // links in the same batch.
+    // without decrypting. Neither is set for a link made before the other
+    // system named the record. No FKs (house style). Deleting a source deletes
+    // its links in the same batch.
     "external_source_links",
     {
       columns: [
@@ -41,8 +42,11 @@ export const externalSourceTables: [name: string, table: Table][] = [
         ["source_id", "INTEGER NOT NULL"],
         ["link_type", `TEXT NOT NULL CHECK (${linkKindCheck})`],
         ["link_id", "INTEGER NOT NULL"],
-        ["external_id", "TEXT NOT NULL"],
-        ["external_id_index", "TEXT NOT NULL"],
+        ["external_id", "TEXT"],
+        [
+          "external_id_index",
+          "TEXT CHECK ((external_id_index IS NULL) = (external_id IS NULL))",
+        ],
         createdColumn,
       ],
       indexes: [
