@@ -51,6 +51,25 @@ describe("admin image templates", () => {
     });
   });
 
+  test("lazy-loads library thumbnails from the tenth image on the page", () => {
+    withStorageEnabled(() => {
+      const images = Array.from({ length: 12 }, (_, index) =>
+        image(index + 1, `Image ${index + 1}`),
+      );
+      const html = adminImagesPage(images, OWNER_SESSION);
+
+      assertStringIncludes(
+        html,
+        '<img alt="Alt Image 9" class="image-library-thumb" src="/image/image 9-thumb.webp">',
+      );
+      assertStringIncludes(
+        html,
+        '<img alt="Alt Image 10" class="image-library-thumb" loading="lazy" src="/image/image 10-thumb.webp">',
+      );
+      expect(html.split('loading="lazy"').length - 1).toBe(3);
+    });
+  });
+
   test("renders the empty-library message when there are no images", () => {
     withStorageEnabled(() => {
       const html = adminImagesPage([], OWNER_SESSION);
@@ -274,5 +293,38 @@ describe("admin image templates", () => {
       expect(first).toBeGreaterThan(-1);
       expect(second).toBeGreaterThan(first);
       expect(library).toBeGreaterThan(second);
+    }));
+
+  test("continues the lazy thumbnail count from the linked table into the image picker", () =>
+    withStorageEnabled(() => {
+      const linked = Array.from({ length: 9 }, (_, index) =>
+        image(index + 1, `Image ${index + 1}`),
+      );
+      const html = String(
+        ItemImagesPanel({
+          action: "/admin/listing/1/images",
+          allImages: linked,
+          linkedImages: linked,
+          uploadAction: "/admin/listing/1/images/upload",
+        }),
+      );
+
+      const pickerStart = html.indexOf("image-picker-checkboxes");
+      assert(pickerStart > -1);
+      const linkedTable = html.slice(0, pickerStart);
+      const picker = html.slice(pickerStart);
+
+      assertStringIncludes(
+        linkedTable,
+        '<img alt="Alt Image 9" class="image-library-thumb" src="/image/image 9-thumb.webp">',
+      );
+      expect(linkedTable.split('loading="lazy"').length - 1).toBe(0);
+      // Nine linked rows above push the picker past the eager nine, so every
+      // picker thumbnail is the tenth image or later on the page.
+      expect(picker.split('loading="lazy"').length - 1).toBe(9);
+      assertStringIncludes(
+        picker,
+        '<img alt="Alt Image 1" class="image-library-thumb" loading="lazy" src="/image/image 1-thumb.webp">',
+      );
     }));
 });
