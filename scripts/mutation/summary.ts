@@ -159,14 +159,15 @@ export const frozenLoopReport = (
   total: number,
 ): string[] => [
   red(
-    "\nMutation run stopped: a test batch outlived the baseline by orders of magnitude " +
+    "\nMutation run stopped: a test batch passed the limit this run set " +
       `(${tested} of ${total} mutants tested).`,
   ),
   `  ${survivorLocation(loop)}  ${mutationLabel(loop)}`,
   `  Batch: ${loop.batch.map(rel).join(" ")}`,
   `  It ran for ${Math.round(loop.durationMs)}ms. The limit is ${loop.limitMs}ms.`,
-  "No mutant is judged by a clock, so this run has no score. The tests looped",
-  "forever. Make that loop bounded, as src/shared/dates.ts does, then run again.",
+  "No mutant is judged by a clock, so this run has no score. The usual cause is",
+  "a loop that never ends. Make that loop bounded, as src/shared/dates.ts does,",
+  "then run again.",
 ];
 
 /**

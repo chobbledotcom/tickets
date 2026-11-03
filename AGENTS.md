@@ -702,10 +702,10 @@ branch that changes `src/` files.
 
 The runner stops a test batch that outlives the baseline by two orders of
 magnitude. The limit is 100 times the measured baseline, with a floor of 60
-seconds. The limit never drops below the baseline and never rises above half the
-run deadline. A batch past the limit is a frozen loop, not a verdict: the run
-stops, names the mutant and the limit, and scores nothing. No mutant is judged
-by a clock. A clock can only stop a run that a loop freeze already broke.
+seconds. The limit never drops below the baseline. Otherwise half the run
+deadline caps it. A batch past the limit is a frozen loop, not a verdict: the
+run stops, names the mutant and the limit, and scores nothing. No mutant is
+judged by a clock. A clock can only stop a run that a loop freeze already broke.
 
 ### Fast Tests
 

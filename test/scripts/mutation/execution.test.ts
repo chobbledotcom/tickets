@@ -396,7 +396,7 @@ describe("the per-batch limit", () => {
     expect(testRunLimitMs(200, 3_600_000)).toBe(60_000);
   });
 
-  test("never rises above half the run deadline", () => {
+  test("caps the limit at half the run deadline", () => {
     // 100 x a 20-minute baseline would be 33 hours, far past the one-hour
     // deadline this guard exists to precede.
     expect(testRunLimitMs(1_200_000, 3_600_000)).toBe(1_800_000);

@@ -158,11 +158,9 @@ const runIntegrationTestStage = async (
       testFiles,
       env,
     );
-    return {
-      detectedBy: tested.detectedBy,
-      status: tested.status,
-      timings: [...timings, ...tested.timings],
-    };
+    // Carry the batch's whole result: the timings are the only field this
+    // stage adds. A field copied by hand can go missing.
+    return { ...tested, timings: [...timings, ...tested.timings] };
   } finally {
     if (state?.status === "ready") await state.state.cleanup();
   }

@@ -63,10 +63,11 @@ const FROZEN_RUN_FLOOR_MS = 60_000;
 
 /**
  * The limit for one test batch in a run whose unmutated tests took
- * `baselineMs`. It is two orders of magnitude above the baseline, so a mutant
- * that merely runs slower than the original still finishes. It is never below
- * the baseline, and never above half the run deadline, so a frozen loop is
- * named before the whole-run guard fires.
+ * `baselineMs`. The limit is two orders of magnitude above the baseline, so a
+ * mutant that merely runs slower than the original still finishes. Half the run
+ * deadline caps the limit, except when the baseline is already longer. The
+ * limit never drops below the baseline, so a frozen loop is usually named
+ * before the whole-run guard fires.
  */
 export const testRunLimitMs = (
   baselineMs: number,

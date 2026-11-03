@@ -40,10 +40,10 @@ describe("the frozen loop report", () => {
   });
 
   test("says how far the run got before it stopped", () => {
-    assertStringIncludes(
-      frozenLoopReport(loop, 1, 4)[0] ?? "",
-      "1 of 4 mutants tested",
-    );
+    const headline = frozenLoopReport(loop, 1, 4)[0] ?? "";
+
+    assertStringIncludes(headline, "passed the limit");
+    assertStringIncludes(headline, "1 of 4 mutants tested");
   });
 
   test("says a clock never gave the mutant a verdict", () => {

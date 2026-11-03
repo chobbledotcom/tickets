@@ -87,8 +87,8 @@ caught. Two clocks exist, and neither one scores a mutant.
 
 The first clock limits each test batch. The runner measures the baseline
 (unmutated) test run, then allows every later batch 100 times that duration,
-with a floor of 60 seconds. The limit is never below the baseline and never
-above half the run deadline. A batch past the limit is a frozen loop, not a
+with a floor of 60 seconds. The limit never drops below the baseline. Otherwise
+half the run deadline caps it. A batch past the limit is a frozen loop, not a
 verdict: the runner stops, names the mutant, the batch, and the limit, and
 scores nothing. A loop whose step a mutant neutralises is the usual cause, so
 the fix is to bound that loop (see `src/shared/dates.ts`).
