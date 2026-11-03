@@ -73,11 +73,6 @@ export const EXTERNAL_SOURCE_EXEMPTIONS: readonly FindingExemption[] = [
     inputFieldReason,
   ),
   ...exemptFieldsUnder(
-    [[DB_SOURCE, [{ name: "ExternalLinkInput" }]]],
-    ["externalId"],
-    inputFieldReason,
-  ),
-  ...exemptFieldsUnder(
     [[DB_SOURCE, [{ name: "ExternalSource" }]]],
     ["created"],
     responseRowReason,
