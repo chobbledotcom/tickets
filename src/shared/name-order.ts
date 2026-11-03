@@ -1,10 +1,11 @@
 /** Ordering for records that carry a name. */
 
-/** The named records, ordered by name in ascending locale order, without
- * changing the input. */
+/** The named records, in the order `compare` picks, without changing the
+ * input. Name order is the default. */
 export const sortByName = <T extends { name: string }>(
   rows: readonly T[],
-): T[] => rows.toSorted(compareByName);
+  compare: (first: T, second: T) => number = compareByName,
+): T[] => rows.toSorted(compare);
 
 /** Compare two named rows by name, ascending. One comparator for every sort
  * that falls back to the name. */

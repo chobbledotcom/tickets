@@ -4,6 +4,7 @@ import {
   runUnderUpdateGuard,
   UPDATE_FLAG_VALUE,
   type UpdateGuardIo,
+  UpdatePageCheckError,
   waitForBeginPropagation,
 } from "#shared/update-guard.ts";
 import {
@@ -164,6 +165,29 @@ describe("waitForBeginPropagation", () => {
       /The last page check failed: network down/,
     );
     expect((error as Error).message).not.toMatch(/within 60 seconds/);
+  });
+
+  test("keeps checking after a 503 instead of skipping the wait", async () => {
+    // A 503 says the site answered, not that its build predates update
+    // mode. The wait keeps its marks, then reverts the flag.
+    const { clock, error, marks, reverts, seen } = await failedBeginWait(() =>
+      Promise.reject(new UpdatePageCheckError(503)),
+    );
+    expect(marks).toEqual([10_000, 30_000, 60_000]);
+    expect(clock.now()).toBe(60_000);
+    expect(reverts).toBe(1);
+    expect(seen).toEqual([
+      "The site still does not show its update page 10 seconds after the flag was set.",
+      "The site still does not show its update page 30 seconds after the flag was set.",
+      "The site still does not show its update page 60 seconds after the flag was set.",
+    ]);
+    expect((error as Error).message).toMatch(/within 60 seconds/);
+    expect((error as Error).message).toMatch(
+      /The flag was removed, so the site accepts writes again/,
+    );
+    expect((error as Error).message).toMatch(
+      /The site kept answering HTTP 503, so it is not ready yet/,
+    );
   });
 
   test("skips a build that predates update mode", async () => {

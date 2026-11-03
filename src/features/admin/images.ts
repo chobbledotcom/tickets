@@ -38,7 +38,7 @@ import { applyFlash } from "#routes/csrf.ts";
 import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
 import { htmlResponse, jsonResponse, redirect } from "#routes/response.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { sortByName } from "#shared/name-order.ts";
+import { compareByName, sortByName } from "#shared/name-order.ts";
 import { featureGate } from "#shared/response-steps.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import { deleteImageStorageFilesStrict } from "#shared/storage-cleanup.ts";
@@ -62,6 +62,12 @@ import { imageMetadataFromForm, withUploadedImage } from "./image-upload.ts";
 // jscpd:ignore-end
 
 const imagePath = (id: number): string => `/admin/images/${id}/edit`;
+
+/** The image library's order: name ascending, then upload order. A row id
+ * grows as records are created, so the lower id is the older upload. */
+const byNameThenUpload = (first: Image, second: Image): number =>
+  compareByName(first, second) || first.id - second.id;
+
 const withStorageEnabled = featureGate(isStorageEnabled, () =>
   redirect("/admin/images", t("images.storage_off"), false),
 );
@@ -82,7 +88,12 @@ const imageHandlers = {
 
 const handleImagesListGet: TypedRouteHandler<"GET /admin/images"> = contentPage(
   async (session) =>
-    adminImagesPage(isStorageEnabled() ? await getAllImages() : [], session),
+    adminImagesPage(
+      isStorageEnabled()
+        ? sortByName(await getAllImages(), byNameThenUpload)
+        : [],
+      session,
+    ),
 );
 
 const handleImageNewGet: TypedRouteHandler<"GET /admin/images/new"> =
@@ -278,12 +289,14 @@ const handleImageDeletePost: TypedRouteHandler<"POST /admin/images/:id/delete"> 
   });
 
 /** The image list the editor's image dropdown offers: every image's id and
- * name, in name order. No URLs or thumbnails — the client needs nothing more
- * to insert the short-form reference. */
+ * name, in the library's name order. No URLs or thumbnails — the client needs
+ * nothing more to insert the short-form reference. */
 const handleImageOptionsGet: TypedRouteHandler<"GET /admin/images/options"> =
   contentResponsePage(async () => {
     const images = isStorageEnabled() ? await getAllImages() : [];
-    const options = sortByName(images).map(({ id, name }) => ({ id, name }));
+    const options = sortByName(images, byNameThenUpload).map(
+      ({ id, name }) => ({ id, name }),
+    );
     return jsonResponse({ images: options });
   });
 

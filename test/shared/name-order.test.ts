@@ -23,4 +23,15 @@ describe("sortByName", () => {
   test("orders no records into an empty array", () => {
     expect(sortByName([])).toEqual([]);
   });
+
+  test("orders by the comparator the caller gives", () => {
+    const rows = [{ name: "bb" }, { name: "aaa" }, { name: "c" }];
+
+    expect(
+      sortByName(
+        rows,
+        (first, second) => first.name.length - second.name.length,
+      ).map((row) => row.name),
+    ).toEqual(["c", "bb", "aaa"]);
+  });
 });
