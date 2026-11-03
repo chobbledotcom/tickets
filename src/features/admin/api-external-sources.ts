@@ -35,6 +35,7 @@ import {
   type ExternalSource,
   type ExternalSourceInput,
   type ExternalSourceLink,
+  ExternalUrlPatternSchema,
 } from "#db/external-sources/types.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
@@ -56,6 +57,7 @@ import {
   isPositiveSafeInteger,
   parsePositiveInt,
 } from "#shared/validation/number.ts";
+import { validatorFor } from "#shared/validation/parse.ts";
 
 /* jscpd:ignore-end */
 
@@ -95,6 +97,10 @@ const sourceInput = (
     existing === null ? null : existing.url_pattern,
   );
   if (!urlPattern.ok) return urlPattern;
+  const invalidPattern = validatorFor(ExternalUrlPatternSchema)(
+    urlPattern.value,
+  );
+  if (invalidPattern !== null) return errorResult(invalidPattern);
   return okResult({ name: name.value, urlPattern: urlPattern.value });
 };
 

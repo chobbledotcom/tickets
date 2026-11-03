@@ -127,7 +127,10 @@ describeWithEnv("Admin API - External sources", { db: true }, () => {
     test("refuses a name longer than a short input", async () => {
       await assertJson(
         apiRequest("/api/admin/external-sources", {
-          body: { name: "n".repeat(251), url_pattern: "https://example.com" },
+          body: {
+            name: "n".repeat(251),
+            url_pattern: "https://example.com/{external_id}",
+          },
           method: "POST",
         }),
         400,
@@ -146,6 +149,77 @@ describeWithEnv("Admin API - External sources", { db: true }, () => {
         400,
         (body) => {
           expect(body.error).toBe("url_pattern must be a string");
+        },
+      );
+    });
+
+    test("refuses a URL pattern that is not a web address", async () => {
+      await assertJson(
+        apiRequest("/api/admin/external-sources", {
+          body: {
+            name: "Invoices",
+            url_pattern: "dashboard.stripe.com/{external_id}",
+          },
+          method: "POST",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe(
+            "url_pattern must start with http:// or https://",
+          );
+        },
+      );
+    });
+
+    test("refuses a URL pattern with a placeholder it cannot fill", async () => {
+      await assertJson(
+        apiRequest("/api/admin/external-sources", {
+          body: {
+            name: "Diary",
+            url_pattern: "https://diary.example/events/{event_id}",
+          },
+          method: "POST",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe("url_pattern can fill only {external_id}");
+        },
+      );
+    });
+
+    test("refuses a URL pattern that holds a placeholder twice", async () => {
+      await assertJson(
+        apiRequest("/api/admin/external-sources", {
+          body: {
+            name: "Diary",
+            url_pattern:
+              "https://diary.example/{external_id}/copy/{external_id}",
+          },
+          method: "POST",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe(
+            "url_pattern must hold each placeholder once",
+          );
+        },
+      );
+    });
+
+    test("stores a destination address that needs no external id", async () => {
+      await assertJson(
+        apiRequest("/api/admin/external-sources", {
+          body: {
+            name: "Diary",
+            url_pattern: "https://diary.example/new-booking",
+          },
+          method: "POST",
+        }),
+        201,
+        (body) => {
+          expect(body.source.url_pattern).toBe(
+            "https://diary.example/new-booking",
+          );
         },
       );
     });

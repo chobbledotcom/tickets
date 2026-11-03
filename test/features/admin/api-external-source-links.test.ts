@@ -280,7 +280,7 @@ describeWithEnv("Admin API - External source links", { db: true }, () => {
       const first = await createSource();
       const second = await createSource({
         name: "Imports",
-        url_pattern: "https://imports.example",
+        url_pattern: "https://imports.example/{external_id}",
       });
       const listing = await addListing();
       const link = await createLink(Number(first.source.id), {

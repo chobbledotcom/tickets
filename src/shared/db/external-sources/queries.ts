@@ -9,7 +9,12 @@
 /* jscpd:ignore-start -- imports */
 import { blindIndexFor } from "#crypto/hashing.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
-import { deleteByFieldBatch, execute, requireOne } from "#db/client.ts";
+import {
+  deleteByFieldBatch,
+  resultRows,
+  type TxScope,
+  withTransaction,
+} from "#db/client.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
 import type { RowFilter } from "#db/table-reader.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -119,8 +124,10 @@ const linkWriteFactsStatement = (
 
 /** The columns to store for a link write, or the reason it cannot be stored.
  *  The reason names a missing target record, or an external id the source
- *  already holds. */
+ *  already holds. The facts read runs inside the write transaction, so a delete
+ *  cannot land between the check and the write. */
 const prepareLinkWrite = async (
+  tx: TxScope,
   sourceId: number,
   write: ExternalLinkWrite,
   excludingId: number,
@@ -133,7 +140,10 @@ const prepareLinkWrite = async (
     sourceId,
   };
   const facts = linkWriteFactsStatement(input, excludingId);
-  const stored = await requireOne<LinkWriteFacts>(facts.sql, facts.args);
+  const stored = requireValue(
+    resultRows<LinkWriteFacts>(await tx.execute(facts))[0],
+    "The external link write facts query returned no row",
+  );
   if (stored.target_missing === 1) {
     return errorResult(`No ${write.linkType} has id ${write.linkId}`);
   }
@@ -143,29 +153,70 @@ const prepareLinkWrite = async (
   return okResult(input);
 };
 
-export const createExternalSourceLink = async (
+/** The row one create stored: the sealed input, plus the keys SQLite made.
+ *  A write needs no session, so it must not open the value it just sealed. */
+const createdLink = (
+  input: ExternalLinkInput,
+  row: { created: string; id: number },
+): ExternalSourceLink => ({
+  created: row.created,
+  external_id: input.externalId,
+  external_id_index: input.externalIdIndex,
+  id: row.id,
+  link_id: input.linkId,
+  link_type: input.linkType,
+  source_id: input.sourceId,
+});
+
+/** Run one link write inside the transaction that checks it. The callback
+ *  stores the prepared columns and answers with the value to return. */
+const withPreparedLinkWrite = <T>(
   sourceId: number,
   write: ExternalLinkWrite,
-): Promise<Result<ExternalSourceLink>> => {
-  const prepared = await prepareLinkWrite(sourceId, write, 0);
-  if (!prepared.ok) return errorResult(prepared.error);
-  return okResult(await externalSourceLinksTable.insert(prepared.value));
-};
+  excludingId: number,
+  store: (tx: TxScope, input: ExternalLinkInput) => Promise<T>,
+): Promise<Result<T>> =>
+  withTransaction(async (tx) => {
+    const prepared = await prepareLinkWrite(tx, sourceId, write, excludingId);
+    if (!prepared.ok) return errorResult(prepared.error);
+    return okResult(await store(tx, prepared.value));
+  });
+
+export const createExternalSourceLink = (
+  sourceId: number,
+  write: ExternalLinkWrite,
+): Promise<Result<ExternalSourceLink>> =>
+  withPreparedLinkWrite(sourceId, write, 0, async (tx, input) => {
+    const statement = await externalSourceLinksTable.insertStatement(
+      input,
+      undefined,
+      "created, id",
+    );
+    const row = requireValue(
+      resultRows<{ created: string; id: number }>(
+        await tx.execute(statement),
+      )[0],
+      "The external source link insert returned no row",
+    );
+    return createdLink(input, row);
+  });
 
 /** Store a changed link. The caller re-reads the row it answers with. */
-export const updateExternalSourceLink = async (
+export const updateExternalSourceLink = (
   link: ExternalSourceLink,
   write: ExternalLinkWrite,
-): Promise<Result<true>> => {
-  const prepared = await prepareLinkWrite(link.source_id, write, link.id);
-  if (!prepared.ok) return errorResult(prepared.error);
-  const statement = await externalSourceLinksTable.updateStatement(
+): Promise<Result<true>> =>
+  withPreparedLinkWrite<true>(
+    link.source_id,
+    write,
     link.id,
-    prepared.value,
+    async (tx, input) => {
+      await tx.execute(
+        await externalSourceLinksTable.updateStatement(link.id, input),
+      );
+      return true;
+    },
   );
-  await execute(statement.sql, statement.args);
-  return okResult(true);
-};
 
 export const deleteExternalSourceLink = (
   link: ExternalSourceLink,

@@ -21,6 +21,36 @@ export type ExternalLinkKind = v.InferOutput<typeof ExternalLinkKindSchema>;
 
 export const EXTERNAL_LINK_KINDS = ExternalLinkKindSchema.options;
 
+/** The values a source's URL pattern can hold. A pattern with no placeholder
+ *  is a plain destination address, such as a hand-off that creates the record
+ *  there before it has an id. */
+export const URL_PATTERN_PLACEHOLDERS = ["external_id"] as const;
+
+const KNOWN_PLACEHOLDERS: readonly string[] = URL_PATTERN_PLACEHOLDERS;
+
+const PLACEHOLDER = /\{([^{}]+)\}/g;
+
+/** The placeholder names one pattern holds, in the order they appear. */
+const placeholdersIn = (value: string): string[] =>
+  [...value.matchAll(PLACEHOLDER)].map((match) => match[1] as string);
+
+/** The address format one source uses for its records: http or https, with
+ *  placeholders this directory can fill, each once, and none required. */
+export const ExternalUrlPatternSchema = v.pipe(
+  v.string(),
+  v.regex(/^https?:\/\//i, "url_pattern must start with http:// or https://"),
+  v.check(
+    (value) =>
+      placeholdersIn(value).every((name) => KNOWN_PLACEHOLDERS.includes(name)),
+    `url_pattern can fill only ${URL_PATTERN_PLACEHOLDERS.map((name) => `{${name}}`).join(", ")}`,
+  ),
+  v.check(
+    (value) =>
+      new Set(placeholdersIn(value)).size === placeholdersIn(value).length,
+    "url_pattern must hold each placeholder once",
+  ),
+);
+
 /** A stored source, opened for an admin. `url_pattern` is the source's own
  *  address format for one external id. */
 export type ExternalSource = {

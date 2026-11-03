@@ -49,7 +49,7 @@ describe("attendee dependent data", () => {
     expect(classified).toEqual(paymentTableNames);
   });
 
-  test("points every deletion rule at real schema columns", () => {
+  test("points every single-column and joined rule at real schema columns", () => {
     for (const rule of ATTENDEE_DATA_RULES) {
       const columns = requireColumns(rule.table);
       if (rule.kind === "direct") {
@@ -59,9 +59,23 @@ describe("attendee dependent data", () => {
         const joinedColumns = requireColumns(rule.joinedTable);
         expect(joinedColumns.has(rule.joinedField)).toBe(true);
         expect(joinedColumns.has(rule.attendeeField)).toBe(true);
-      } else if (rule.kind === "notes") {
-        expect(columns.has("entity_type")).toBe(true);
-        expect(columns.has("entity_id")).toBe(true);
+      }
+    }
+  });
+
+  /** The columns each record-naming rule shape stores its target in. */
+  const TARGET_COLUMNS: Record<string, readonly [string, string]> = {
+    "external-links": ["link_type", "link_id"],
+    notes: ["entity_type", "entity_id"],
+  };
+
+  test("points every record-naming rule at the columns its shape needs", () => {
+    for (const rule of ATTENDEE_DATA_RULES) {
+      const targetColumns = TARGET_COLUMNS[rule.kind];
+      if (targetColumns === undefined) continue;
+      const columns = requireColumns(rule.table);
+      for (const column of targetColumns) {
+        expect(columns.has(column)).toBe(true);
       }
     }
   });
@@ -87,9 +101,18 @@ describe("attendee dependent data", () => {
 
     expect(statements).toHaveLength(removalRules.length);
     for (const [index, rule] of removalRules.entries()) {
-      expect(statements[index]!.args).toEqual(
-        rule.kind === "notes" ? ["attendee", ...attendeeIds.args] : [12, 13],
-      );
+      // A rule that stores its record kind names that kind first; a plain
+      // attendee-id rule passes only the ids.
+      const leading =
+        rule.kind === "notes"
+          ? ["attendee"]
+          : rule.kind === "external-links"
+            ? [rule.target]
+            : [];
+      expect(statements[index]!.args).toEqual([
+        ...leading,
+        ...attendeeIds.args,
+      ]);
       assertStringIncludes(statements[index]!.sql, rule.table);
     }
   });

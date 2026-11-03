@@ -9,13 +9,16 @@
  */
 
 import * as v from "valibot";
-import { ExternalLinkKindSchema } from "#db/external-sources/types.ts";
+import {
+  ExternalLinkKindSchema,
+  ExternalUrlPatternSchema,
+} from "#db/external-sources/types.ts";
 
 /** The writable fields of one source: the name an admin reads, and the URL
  *  pattern the source uses for one external id. */
 const ExternalSourceWriteFields = {
   name: v.string(),
-  url_pattern: v.string(),
+  url_pattern: ExternalUrlPatternSchema,
 };
 
 /** One source as the admin API answers with it. The row schema stays open —

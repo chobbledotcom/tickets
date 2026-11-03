@@ -1,6 +1,10 @@
 /** Listing deletion and owned-row cleanup. */
 
 import { executeBatch, type SqlStatement, type TxScope } from "#db/client.ts";
+import {
+  clearExternalLinksStatement,
+  externalLinkTargets,
+} from "#db/external-sources/target.ts";
 import { clearImageUsesForItemStatement, imageUseTargets } from "#db/images.ts";
 import { noteDeleteStatement } from "#db/notes/queries.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
@@ -39,6 +43,7 @@ export const deleteListing = async (
     },
     clearItemEdgesStatement(sitePageItemTargets.of("listing")(listingId)),
     clearImageUsesForItemStatement(imageUseTargets.of("listing")(listingId)),
+    clearExternalLinksStatement(externalLinkTargets.of("listing")(listingId)),
     { args: [listingId], sql: "DELETE FROM activity_log WHERE listing_id = ?" },
     {
       args: [listingId],
