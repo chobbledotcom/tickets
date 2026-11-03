@@ -89,9 +89,13 @@ describe("read-only request guard", () => {
       ["/renew", "POST"],
       ["/pay/token", "POST"],
       ["/payment/webhook", "POST"],
+      ["/v1/devices/device/registrations/pass/token", "POST"],
       ["/v1/devices/device/registrations/pass/token", "DELETE"],
+      ["/v1/log", "POST"],
       ["/sms/webhook", "POST"],
       ["/join/code", "POST"],
+      ["/unsubscribe", "POST"],
+      ["/contact", "POST"],
       ["/instance/site-credentials", "POST"],
       ["/checkin/one+two", "POST"],
     ];
@@ -136,7 +140,11 @@ describe("read-only request guard in update mode", () => {
       ["/renew", "POST"],
       ["/pay/token", "POST"],
       ["/v1/devices/device/registrations/pass/token", "DELETE"],
+      ["/v1/devices/device/registrations/pass/token", "POST"],
+      ["/v1/log", "POST"],
       ["/join/code", "POST"],
+      ["/unsubscribe", "POST"],
+      ["/contact", "POST"],
       ["/instance/site-credentials", "POST"],
       ["/checkin/one+two", "POST"],
       ["/ticket/listing", "POST"],
@@ -156,6 +164,10 @@ describe("read-only request guard in update mode", () => {
     // The migration must see a still database, so even the operations
     // ordinary read-only mode allows stop while an update runs.
     for (const path of [
+      "/admin/attendees/99/refresh-payment",
+      "/admin/debug/sentry",
+      "/admin/groups/42/scan",
+      "/admin/support",
       "/admin/listing/42/attendee/99/checkin",
       "/admin/listing/42/scan",
       "/admin/deliveries/mark",

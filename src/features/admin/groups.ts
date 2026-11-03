@@ -42,7 +42,6 @@ import {
   handleRemoveListingsGet,
   handleRemoveListingsPost,
 } from "#routes/admin/group-listing-forms.ts";
-import { entityReturnPath } from "#shared/admin-pages.ts";
 import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
 import {
   type GroupInput,
@@ -187,15 +186,11 @@ export const deleteGroup = async (id: InValue) => {
 
 /** Shared CRUD handler config. `renderEdit` is omitted because the edit page
  * needs the group's listings and package prices. The entity page's Edit tab
- * loads those (`loadGroupEditPanel`), and the edit POST stays generic. After
- * create/edit, staff land on the group detail page. Editors cannot open it (it
- * decrypts attendee PII), so they return to the group edit form instead. A
- * successful save never bounces them to a forbidden page. */
+ * loads those (`loadGroupEditPanel`), and the edit POST stays generic. */
 const crudConfig = {
   deleteGuard: (_group: Group, id: number) => soldHiddenPackageError(id),
   getAll: () => groups.cache.getAll(),
   getName: (g: Group) => g.name,
-  getRowPath: (g: Group) => entityReturnPath(adminPattern("groups"), g.id),
   identifierLabel: t("groups.name_label"),
   list: "groups",
   renderDelete: adminGroupDeletePage,

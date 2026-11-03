@@ -9,6 +9,7 @@ import {
   adminPath,
   adminPattern,
   adminRecordPath,
+  afterSavePath,
 } from "#shared/admin-surface.ts";
 
 describe("the pattern a route declares", () => {
@@ -98,5 +99,31 @@ describe("admin surface paths", () => {
     // audience — the same one the handler enforces.
     expect(adminDestination("holidayNew").audience).toEqual(["owner"]);
     expect(adminDestination("holidays").audience).toEqual(["owner"]);
+  });
+});
+
+describe("generated CRUD save paths", () => {
+  test("uses the collection list when the POST route has no override", () => {
+    expect(afterSavePath(adminDestination("modifiers"), "modifiers", 3)).toBe(
+      "/admin/modifiers",
+    );
+    expect(
+      afterSavePath(adminDestination("modifierEdit"), "modifiers", 3),
+    ).toBe("/admin/modifiers");
+    expect(afterSavePath(adminDestination("statuses"), "statuses", 3)).toBe(
+      "/admin/settings/statuses",
+    );
+  });
+
+  test("uses record overrides on the create and edit POST routes", () => {
+    expect(afterSavePath(adminDestination("groups"), "groups", 7)).toBe(
+      "/admin/groups/7",
+    );
+    expect(afterSavePath(adminDestination("groupEdit"), "groups", 7)).toBe(
+      "/admin/groups/7",
+    );
+    expect(afterSavePath(adminDestination("statusEdit"), "statuses", 9)).toBe(
+      "/admin/settings/statuses/9",
+    );
   });
 });

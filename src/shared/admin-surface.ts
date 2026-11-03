@@ -21,19 +21,16 @@ export type { AdminDestinationId, AdminPathParams, AdminPatternFor };
 
 const folded = foldAdminAreas(ADMIN_AREAS);
 
-/**
- * The route declared under an id. The id type comes from the same table, so a
- * miss means the caller reached past the types — a page definition or a test
- * naming a route that was never declared. It says so, rather than handing back
- * `undefined` for the next line to trip over.
- */
-export const adminDestination = (
-  id: AdminDestinationId,
-): AdminDestinationDef => {
+/** Look up a declared id, including ids read from the validated table. */
+const destinationFor = (id: string): AdminDestinationDef => {
   const destination = folded.destinations[id];
   if (!destination) throw new Error(`No admin route is declared as "${id}"`);
   return destination;
 };
+
+/** The route declared under a typed destination id. */
+export const adminDestination = (id: AdminDestinationId): AdminDestinationDef =>
+  destinationFor(id);
 
 /**
  * The path a route declares, keeping the literal type the table wrote. This is
@@ -91,21 +88,33 @@ export const adminPageAudience = (
   return [...reached];
 };
 
-/**
- * The path to one record, for a route addressed by a single parameter. Entity
- * pages use it because each names its record differently — `:id`, `:apiKeyId`,
- * `:attendeeId` — and the page itself does not care which.
- */
-export const adminRecordPath = (
-  id: AdminDestinationId,
+const recordPath = (
+  { id, pattern }: AdminDestinationDef,
   record: string | number,
 ): string => {
-  const { pattern } = adminDestination(id);
   const [only, ...rest] = pattern.match(/:\w+/g) ?? [];
   if (only === undefined || rest.length > 0) {
     throw new Error(`Admin route "${id}" does not address one record`);
   }
   return pattern.replace(only, String(record));
+};
+
+/** The path to one record, whatever the route calls its parameter. */
+export const adminRecordPath = (
+  id: AdminDestinationId,
+  record: string | number,
+): string => recordPath(adminDestination(id), record);
+
+/** A generated CRUD save uses its route's override, or its collection list. */
+export const afterSavePath = (
+  route: AdminDestinationDef,
+  list: AdminDestinationId,
+  record: number,
+): string => {
+  const landing = destinationFor(route.afterSave ?? list);
+  return landing.pattern.includes(":")
+    ? recordPath(landing, record)
+    : landing.pattern;
 };
 
 /** One path a pattern can serve. Numeric parameters take a plausible id and

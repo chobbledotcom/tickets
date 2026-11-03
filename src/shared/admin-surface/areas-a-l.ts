@@ -59,11 +59,16 @@ export const AREAS_A_L = {
         audience: OWNER_AUDIENCE,
         pattern: "/admin/attendees/:attendeeId/payment-review",
       },
-      attendeeRefreshPayment: "/admin/attendees/:attendeeId/refresh-payment",
+      attendeeRefreshPayment: {
+        pattern: "/admin/attendees/:attendeeId/refresh-payment",
+        readOnlyWrite: "read-only",
+      },
       attendeeResend: "/admin/attendees/:attendeeId/resend-notification",
       listingAttendeeAdd: "/admin/listing/:listingId/attendee",
-      listingAttendeeCheckin:
-        "/admin/listing/:listingId/attendee/:attendeeId/checkin",
+      listingAttendeeCheckin: {
+        pattern: "/admin/listing/:listingId/attendee/:attendeeId/checkin",
+        readOnlyWrite: "read-only",
+      },
       listingAttendeeDeleteIncomplete:
         "/admin/listing/:listingId/attendee/:attendeeId/delete-incomplete",
     },
@@ -92,8 +97,8 @@ export const AREAS_A_L = {
     // Signing in and out is how every role reaches, or leaves, the rest.
     audience: ALL_ADMIN_LEVELS,
     view: {
-      login: "/admin/login",
-      logout: "/admin/logout",
+      login: { pattern: "/admin/login", readOnlyWrite: "always" },
+      logout: { pattern: "/admin/logout", readOnlyWrite: "always" },
     },
   },
   backup: {
@@ -103,7 +108,10 @@ export const AREAS_A_L = {
       backupDownload: "/admin/backup/download/:filename",
     },
     write: {
-      backupCreate: "/admin/backup/create",
+      backupCreate: {
+        pattern: "/admin/backup/create",
+        readOnlyWrite: "read-only",
+      },
     },
   },
   builder: {
@@ -114,14 +122,17 @@ export const AREAS_A_L = {
     audience: OWNER_AUDIENCE,
     view: {
       builtSite: "/admin/built-sites/:id",
-      builtSites: "/admin/built-sites",
+      builtSites: { afterSave: "builtSite", pattern: "/admin/built-sites" },
     },
     write: {
       builtSiteAddSecrets: "/admin/built-sites/:id/add-secrets",
       builtSiteAddUptimeMonitor: "/admin/built-sites/:id/add-uptime-monitor",
       builtSiteBumpDeadline: "/admin/built-sites/:id/bump-deadline",
       builtSiteDelete: "/admin/built-sites/:id/delete",
-      builtSiteEdit: "/admin/built-sites/:id/edit",
+      builtSiteEdit: {
+        afterSave: "builtSite",
+        pattern: "/admin/built-sites/:id/edit",
+      },
       builtSiteNew: "/admin/built-sites/new",
       builtSiteOverrideDeadline: "/admin/built-sites/:id/override-deadline",
       builtSiteProvisionRenewal: "/admin/built-sites/:id/provision-renewal",
@@ -206,7 +217,10 @@ export const AREAS_A_L = {
       debug: "/admin/debug",
     },
     write: {
-      debugSentry: "/admin/debug/sentry",
+      debugSentry: {
+        pattern: "/admin/debug/sentry",
+        readOnlyWrite: "read-only",
+      },
     },
   },
   deliveries: {
@@ -217,7 +231,10 @@ export const AREAS_A_L = {
       deliveries: "/admin/deliveries",
     },
     write: {
-      deliveriesMark: "/admin/deliveries/mark",
+      deliveriesMark: {
+        pattern: "/admin/deliveries/mark",
+        readOnlyWrite: "read-only",
+      },
     },
   },
   groups: {
@@ -226,7 +243,7 @@ export const AREAS_A_L = {
       // A record page opens on the first tab its viewer can see, so an editor
       // reaches it and lands on Edit. The staff-only tabs stay shut.
       group: "/admin/groups/:id",
-      groups: "/admin/groups",
+      groups: { afterSave: "group", pattern: "/admin/groups" },
     },
     write: {
       groupAddListings: "/admin/groups/:id/add-listings",
@@ -234,7 +251,7 @@ export const AREAS_A_L = {
         audience: STAFF_ADMIN_LEVELS,
         pattern: "/admin/groups/:id/delete",
       },
-      groupEdit: "/admin/groups/:id/edit",
+      groupEdit: { afterSave: "group", pattern: "/admin/groups/:id/edit" },
       groupImages: "/admin/groups/:id/images",
       groupImagesUpload: "/admin/groups/:id/images/upload",
       groupNew: "/admin/groups/new",
@@ -263,11 +280,14 @@ export const AREAS_A_L = {
     audience: OWNER_AUDIENCE,
     view: {
       holiday: "/admin/holidays/:id",
-      holidays: "/admin/holidays",
+      holidays: { afterSave: "holiday", pattern: "/admin/holidays" },
     },
     write: {
       holidayDelete: "/admin/holidays/:id/delete",
-      holidayEdit: "/admin/holidays/:id/edit",
+      holidayEdit: {
+        afterSave: "holiday",
+        pattern: "/admin/holidays/:id/edit",
+      },
       holidayNew: "/admin/holidays/new",
     },
   },

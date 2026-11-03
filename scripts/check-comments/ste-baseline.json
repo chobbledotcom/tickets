@@ -218,8 +218,8 @@
     "wordy": 1
   },
   "src/shared/admin-surface.ts": {
-    "long-sentence": 3,
     "participle": 1,
+    "long-sentence": 2,
     "semicolon": 1
   },
   "src/shared/admin-surface/definitions.ts": {

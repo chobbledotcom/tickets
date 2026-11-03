@@ -25,6 +25,11 @@ export type AdminAudience = readonly AdminLevel[];
 export type AdminRouteIntent = "view" | "write-form";
 export type AdminNavKind = "landing" | "link" | "create" | "import";
 
+/** How long read-only mode keeps a write open. `"always"` covers sign-in and
+ * sign-out, which stay open while an update runs. `"read-only"` covers the
+ * operations a working site cannot pause: they close in update mode. */
+export type ReadOnlyWrite = "always" | "read-only";
+
 export const OWNER_AUDIENCE = ["owner"] as const;
 
 export const featureVisible =
@@ -33,14 +38,18 @@ export const featureVisible =
     ctx.enabledFeatures[feature];
 
 /** A route: its pattern alone, or an object that differs from its area. The
- * object names a role of its own, a GET read-only mode keeps serving, or
- * both. */
+ * object names a role of its own, the page a save lands on, or a GET or write
+ * that read-only mode keeps serving. */
 export type AdminDestinationSpec =
   | string
   | {
+      /** Override the list landing for a generated CRUD save at this route.
+       * A landing can name at most one record parameter. */
+      readonly afterSave?: string;
       readonly audience?: AdminAudience;
       readonly pattern: string;
       readonly readOnlyGet?: true;
+      readonly readOnlyWrite?: ReadOnlyWrite;
     };
 
 type AdminRouteGroup = Readonly<Record<string, AdminDestinationSpec>>;
@@ -60,12 +69,16 @@ export type AdminAreaSpec = AdminAreaWithRoutes | AdminAreaWithoutRoutes;
 export type AdminAreasSpec = Readonly<Record<string, AdminAreaSpec>>;
 
 export type AdminDestinationDef = {
+  /** Override the list landing for a generated CRUD save at this route. */
+  readonly afterSave?: string;
   readonly area: string;
   readonly audience: AdminAudience;
   readonly id: string;
   /** The GET this write route serves is not a form: read-only mode keeps
    * serving it instead of redirecting it. */
   readonly readOnlyGet?: true;
+  /** The POST stays open in read-only mode. Its GET page stays open too. */
+  readonly readOnlyWrite?: ReadOnlyWrite;
   readonly intent: AdminRouteIntent;
   readonly pattern: string;
 };
@@ -87,11 +100,41 @@ const groupDestinations = (
       area,
       audience: object.audience ?? areaAudience,
       id,
+      ...(object.afterSave === undefined
+        ? {}
+        : { afterSave: object.afterSave }),
       ...(object.readOnlyGet === true ? { readOnlyGet: true } : {}),
+      ...(object.readOnlyWrite === undefined
+        ? {}
+        : { readOnlyWrite: object.readOnlyWrite }),
       intent,
       pattern: object.pattern,
     };
   });
+
+/** Refuse a landing that no route declares or that needs more than the one
+ * saved record. A landing can come from an area declared later. */
+const validateAfterSave = (
+  destinations: Readonly<Record<string, AdminDestinationDef>>,
+): void => {
+  for (const { id, afterSave: landingId } of Object.values(destinations)) {
+    if (landingId === undefined) continue;
+    const landing = destinations[landingId];
+    if (landing === undefined) {
+      throw new Error(
+        `Admin route "${id}" saves to "${landingId}", which no route declares`,
+      );
+    }
+    // One saved record fills one parameter. A landing that names two takes
+    // the same id twice, and that path serves no page.
+    if ((landing.pattern.match(/:\w+/g) ?? []).length > 1) {
+      throw new Error(
+        `Admin route "${id}" saves to "${landingId}", which names more ` +
+          "than one record",
+      );
+    }
+  }
+};
 
 export type FoldedAdminSurface = {
   readonly areas: Readonly<Record<string, readonly string[]>>;
@@ -148,6 +191,7 @@ export const foldAdminAreas = (spec: AdminAreasSpec): FoldedAdminSurface => {
     ];
   }
 
+  validateAfterSave(destinations);
   return { areas, byPattern, destinations };
 };
 

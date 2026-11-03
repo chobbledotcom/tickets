@@ -102,8 +102,14 @@ export const AREAS_M_Z = {
       listingScanner: "/admin/listing/:id/scanner",
     },
     write: {
-      groupScan: "/admin/groups/:id/scan",
-      listingScan: "/admin/listing/:id/scan",
+      groupScan: {
+        pattern: "/admin/groups/:id/scan",
+        readOnlyWrite: "read-only",
+      },
+      listingScan: {
+        pattern: "/admin/listing/:id/scan",
+        readOnlyWrite: "read-only",
+      },
     },
   },
   schemaAtlas: {
@@ -208,7 +214,10 @@ export const AREAS_M_Z = {
     },
     write: {
       statusDelete: "/admin/settings/statuses/:id/delete",
-      statusEdit: "/admin/settings/statuses/:id/edit",
+      statusEdit: {
+        afterSave: "status",
+        pattern: "/admin/settings/statuses/:id/edit",
+      },
       statusMoveDown: "/admin/settings/statuses/:id/move-down",
       statusMoveUp: "/admin/settings/statuses/:id/move-up",
       statusNew: "/admin/settings/statuses/new",
@@ -259,7 +268,7 @@ export const AREAS_M_Z = {
   support: {
     audience: OWNER_AUDIENCE,
     view: {
-      support: "/admin/support",
+      support: { pattern: "/admin/support", readOnlyWrite: "read-only" },
     },
   },
   update: {
