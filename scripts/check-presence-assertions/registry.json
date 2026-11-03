@@ -27,7 +27,6 @@
   "test/integration/server/wallet-webservice.test.ts": 2,
   "test/integration/server/webhooks/refund-logging.test.ts": 2,
   "test/integration/servicing/migration.test.ts": 2,
-  "test/integration/tooling/cli-commands.test.ts": 4,
   "test/scripts/mutation/generate.test.ts": 1,
   "test/scripts/mutation/isolation/interrupts.test.ts": 1,
   "test/shared/api-example.test.ts": 5,
