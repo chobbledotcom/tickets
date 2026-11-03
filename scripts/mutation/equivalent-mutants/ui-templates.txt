@@ -150,7 +150,7 @@ src/ui/templates/admin/attendee-form/listing-editor.tsx::listingNoticesCell~0s46
 src/features/admin/servicing/page.tsx::servicingListingsTable~0nw80un  listing → "" audited:03esa6u # the servicing listings table renders without columnKeys, hiddenKeys, or filters, so no code path reads its column keys
 src/features/admin/servicing/page.tsx::servicingListingsTable~0yujpzb  quantity → "" audited:03esa6u # same as the listing key — the servicing listings table renders without columnKeys, hiddenKeys, or filters
 src/features/admin/servicing/page.tsx::servicingCostsTable~0odr3ie  listing → "" audited:03esa6u # the costs table renders without columnKeys, hiddenKeys, or filters, so no code path reads its column keys
-src/features/admin/servicing/page.tsx::servicingCostsTable~0ddbrbs  date → "" audited:03esa6u # same as the listing key — the costs table renders without columnKeys, hiddenKeys, or filters
+src/features/admin/servicing/page.tsx::servicingCostsTable~1an2t00  date → "" audited:1mik3q3 # same as the listing key — the costs table renders without columnKeys, hiddenKeys, or filters
 src/features/admin/servicing/page.tsx::servicingCostsTable~1di7dor  amount → "" audited:03esa6u # same as the listing key — the costs table renders without columnKeys, hiddenKeys, or filters
 src/features/admin/servicing/page.tsx::servicingCostsTable~0727n96  note → "" audited:03esa6u # same as the listing key — the costs table renders without columnKeys, hiddenKeys, or filters
 src/features/admin/servicing/page.tsx::servicingCostsTable~0g8rkej  actions → "" audited:03esa6u # same as the listing key — the costs table renders without columnKeys, hiddenKeys, or filters

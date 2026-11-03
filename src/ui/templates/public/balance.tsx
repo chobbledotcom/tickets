@@ -4,10 +4,10 @@
  * personal details.
  */
 
-/* jscpd:ignore-start -- imports */
-import type { OrderLine, OrderSummary } from "#db/attendees/balance.ts";
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
+/* jscpd:ignore-start */
+import type { LineItem } from "#shared/line-item.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 /* jscpd:ignore-end */
 import { SaveForm } from "#templates/components/save-form.tsx";
@@ -15,7 +15,14 @@ import { renderTable } from "#templates/components/table.tsx";
 import { messagePublicPage, prosePage } from "./prose-page.tsx";
 import { AmountLine } from "./shared.tsx";
 
-const orderSummaryTable = defineTable<OrderLine>([
+/** What the recap shows: the buyer's lines beside the order's money. */
+type BalanceRecap = {
+  depositPaid: number;
+  fullPrice: number;
+  lines: LineItem[];
+};
+
+const orderSummaryTable = defineTable<LineItem>([
   {
     cell: (line) => line.name,
     header: () => t("public_balance.item"),
@@ -33,7 +40,7 @@ const orderSummaryTable = defineTable<OrderLine>([
 export const balancePaymentPage = (
   token: string,
   amount: number,
-  summary: OrderSummary,
+  recap: BalanceRecap,
 ): string =>
   prosePage(
     t("public_balance.pay_your_balance"),
@@ -41,13 +48,13 @@ export const balancePaymentPage = (
   )(
     <p>{t("public_balance.booking_summary")}</p>,
     <>
-      {renderTable(orderSummaryTable, summary.lines)}
+      {renderTable(orderSummaryTable, recap.lines)}
       <AmountLine
-        amount={summary.fullPrice}
+        amount={recap.fullPrice}
         label={`${t("public_balance.full_order_price")}:`}
       />
       <AmountLine
-        amount={summary.depositPaid}
+        amount={recap.depositPaid}
         label={`${t("public_balance.already_paid")}:`}
       />
       <AmountLine

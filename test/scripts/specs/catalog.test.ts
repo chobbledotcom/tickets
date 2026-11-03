@@ -94,6 +94,7 @@ describe("Cucumber story catalog", () => {
       "payments.refunding-from-two-windows",
       "payments.repeated-money-actions",
       "payments.resolving-uncertain-refunds",
+      "payments.sending-a-booking-an-invoice",
       "payments.unreadable-payment-kept",
       "payments.vat-added-to-prices",
       "payments.vat-included-in-prices",

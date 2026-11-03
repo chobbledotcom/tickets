@@ -5,6 +5,7 @@ import { attendeeTables } from "./tables-attendees.ts";
 import { catalogTables } from "./tables-catalog.ts";
 import { contentTables } from "./tables-content.ts";
 import { coreTables } from "./tables-core.ts";
+import { invoiceTables } from "./tables-invoices.ts";
 import { questionTables } from "./tables-questions.ts";
 import { taxTables } from "./tables-tax.ts";
 import { TRIGGERS } from "./triggers.ts";
@@ -21,6 +22,7 @@ export const SCHEMA: [name: string, table: Table][] = [
   ...questionTables,
   ...contentTables,
   ...paymentTables,
+  ...invoiceTables,
   ...taxTables,
 ];
 

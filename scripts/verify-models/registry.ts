@@ -38,6 +38,9 @@ const capacity = dataFrom(
 const reversal = dataFrom(
   () => import("#scripts/verify-models/refund-reversal.ts"),
 );
+const invoiceFlow = dataFrom(
+  () => import("#scripts/verify-models/invoice-flow.ts"),
+);
 
 const splitControl = (
   corruption: Parameters<typeof corruptSplitData>[0],
@@ -303,6 +306,7 @@ export const VERIFICATION_MODULES = [
     context: [
       "scripts/verify-models/attendee-capacity.ts",
       "scripts/verify-models/attendee-capacity-seed.ts",
+      "scripts/verify-models/schema-client.ts",
       "src/shared/db/attendees/atomic-update.ts",
       "src/shared/db/capacity.ts",
     ],
@@ -354,6 +358,30 @@ export const VERIFICATION_MODULES = [
     data: reversal((m) => m.refundReversalModelData),
     kind: "model",
     module: "RefundReversal",
+  },
+  {
+    context: [
+      "verification/ModelRules.tla",
+      "scripts/verify-models/invoice-flow.ts",
+      "scripts/verify-models/schema-client.ts",
+      "src/shared/db/invoices.ts",
+      "src/shared/db/migrations/schema/tables-invoices.ts",
+    ],
+    controls: [
+      {
+        data: invoiceFlow((m) => m.secondOpenInvoiceData),
+        name: "a second open invoice",
+        phase: "step",
+      },
+      {
+        data: invoiceFlow((m) => m.reopenedInvoiceData),
+        name: "a reopened invoice",
+        phase: "step",
+      },
+    ],
+    data: invoiceFlow((m) => m.invoiceFlowModelData),
+    kind: "model",
+    module: "InvoiceFlow",
   },
 ] as const satisfies readonly VerificationModule[];
 

@@ -18,6 +18,12 @@ import {
   settleAttendeeBalance,
 } from "#db/attendees/balance.ts";
 import { getDb } from "#db/client.ts";
+import {
+  cancelInvoice,
+  createInvoice,
+  getInvoice,
+  nextInvoiceNumber,
+} from "#db/invoices.ts";
 import { balanceFinalizeStatements } from "#db/payment-finalize.ts";
 import { reserveSession } from "#db/processed-payments.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
@@ -408,5 +414,38 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     ]);
     expect(one.queryCount).toBe(2);
     expect(multiple.queryCount).toBe(one.queryCount);
+  });
+
+  test("marks the attendee's open invoice paid", async () => {
+    const { attendeeId } = await createReservedAttendee(1500);
+    const number = await nextInvoiceNumber();
+    await createInvoice({
+      attendeeId,
+      bodyHtml: "<p>Invoice</p>",
+      created: "2026-11-03T09:00:00.000Z",
+      id: number,
+    });
+
+    const result = await settleAttendeeBalance(attendeeId, 1500, settle());
+
+    expect(result.settled).toBe(true);
+    expect((await getInvoice(number))?.status).toBe("paid");
+  });
+
+  test("leaves a cancelled invoice cancelled when the balance settles", async () => {
+    const { attendeeId } = await createReservedAttendee(1500);
+    const number = await nextInvoiceNumber();
+    await createInvoice({
+      attendeeId,
+      bodyHtml: "<p>Invoice</p>",
+      created: "2026-11-03T09:00:00.000Z",
+      id: number,
+    });
+    await cancelInvoice(number);
+
+    const result = await settleAttendeeBalance(attendeeId, 1500, settle());
+
+    expect(result.settled).toBe(true);
+    expect((await getInvoice(number))?.status).toBe("cancelled");
   });
 });

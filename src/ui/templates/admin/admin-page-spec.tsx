@@ -8,7 +8,7 @@
 import type { Child } from "#jsx/jsx-runtime.ts";
 import type { FlashFields } from "#shared/flash-fields.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
-import { Flash } from "#shared/forms/flash.tsx";
+import { Flash, flashNotice } from "#shared/forms/flash.tsx";
 import type {
   ReorderColumnOptions,
   TableColumn,
@@ -164,15 +164,6 @@ export type AdminPageSpec<TItem = never, TContext = undefined> = {
   staff?: { heading?: Child };
 };
 
-/** The Flash element a spec's notice bag renders as: null when the bag holds
- *  no message, so the page shows no notice at all. */
-const specFlash = (flash: FlashFields): Child =>
-  flash.error === undefined &&
-  flash.success === undefined &&
-  flash.info === undefined ? null : (
-    <Flash {...flashProps(flash.error, flash.success, flash.info)} />
-  );
-
 /** The standard list body: intro, table-or-empty, guide footer. */
 const listBody = <TItem, TContext>(
   list: AdminPageListPart<TItem, TContext>,
@@ -255,7 +246,7 @@ export const renderAdminPageSpec = <TItem, TContext = undefined>(
         ? { contentClassName: spec.contentClassName }
         : {})}
       {...(spec.bodyClass !== undefined ? { bodyClass: spec.bodyClass } : {})}
-      flash={spec.flash === undefined ? null : specFlash(spec.flash)}
+      flash={spec.flash === undefined ? null : flashNotice(spec.flash)}
       {...(spec.actions !== undefined ? { actions: spec.actions } : {})}
     >
       {body}

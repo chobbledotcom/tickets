@@ -404,3 +404,7 @@ src/shared/schema-atlas/machine-spec.ts::moveOrRefuse.to~0qwc62v  →"mutated" a
 # All three expressions below produce ten links. The module takes no input.
 src/shared/square/limits.ts::SQUARE_LINK_EXPIRY_BATCH~1mbbncc  - → / audited:1njegg8 # floor((31 - 1) / 3) = floor((31 / 1) / 3) = 10.
 src/shared/square/limits.ts::SQUARE_LINK_EXPIRY_BATCH~1mbbncc  1 → 0 audited:1njegg8 # floor((31 - 1) / 3) = floor((31 - 0) / 3) = 10.
+
+# order-line-items.ts: a package display name comes from the groups table, and
+# every writer there rejects an empty name, so the ?? never sees "".
+src/shared/order-line-items.ts::orderLineItems.name~0am8pen  ??→|| audited:04chtsp # a package display name comes from the groups table, where every writer rejects an empty name

@@ -2,7 +2,7 @@
 
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
 import { statefulColumns } from "./columns.ts";
-import { createdColumn } from "./scalar-columns.ts";
+import { attendeeIdColumn, createdColumn } from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
 
 export const attendeeTables: [name: string, table: Table][] = [
@@ -91,7 +91,7 @@ export const attendeeTables: [name: string, table: Table][] = [
       columns: [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
         ["listing_id", "INTEGER NOT NULL"],
-        ["attendee_id", "INTEGER NOT NULL"],
+        attendeeIdColumn,
         ["start_at", "TEXT DEFAULT NULL"],
         ["end_at", "TEXT DEFAULT NULL"],
         ["quantity", "INTEGER NOT NULL DEFAULT 1"],
@@ -186,7 +186,7 @@ export const attendeeTables: [name: string, table: Table][] = [
     {
       columns: [
         ["payment_session_id", "TEXT PRIMARY KEY NOT NULL"],
-        ["attendee_id", "INTEGER NOT NULL"],
+        attendeeIdColumn,
         ["provider", "TEXT NOT NULL"],
         ["ticket_tokens", "TEXT NOT NULL"],
         ...statefulColumns,

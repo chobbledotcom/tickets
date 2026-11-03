@@ -10,7 +10,6 @@ import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
-import { formatDateLabel } from "#shared/date-labels.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { type Field, requireChoiceOptions } from "#shared/forms/field.ts";
 import { renderFields } from "#shared/forms/rendering.tsx";
@@ -26,7 +25,10 @@ import { SectionFieldset } from "#templates/components/aggregate-sections.tsx";
 import { PriceInput } from "#templates/components/price-input.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
-import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
+import {
+  dateLabelColumn,
+  translatedTableColumn,
+} from "#templates/components/translated-table-column.ts";
 import { isOwnerRole, type ListingWithCount } from "#types";
 import { buildServicingFieldSchema } from "./form-model.ts";
 
@@ -177,9 +179,7 @@ const servicingCostsTable = defineTable<
       );
     },
   ),
-  translatedTableColumn("date", "servicing.column.date", (cost) =>
-    formatDateLabel(cost.date.slice(0, 10)),
-  ),
+  dateLabelColumn("date", "servicing.column.date", (cost) => cost.date),
   translatedTableColumn(
     "amount",
     "servicing.column.amount",
