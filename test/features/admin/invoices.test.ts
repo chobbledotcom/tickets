@@ -264,6 +264,10 @@ describeWithEnv("server (admin invoices)", { db: true }, () => {
     });
 
     expect((await adminGet(`/admin/invoices/${invoice.id}`)).status).toBe(404);
+
+    const list = await pageText(await adminGet("/admin/invoices"));
+    assertStringIncludes(list, `href="/admin/invoices/${invoice.id}"`);
+    expect(list).not.toContain("Guest");
   });
 
   describe("email", () => {
