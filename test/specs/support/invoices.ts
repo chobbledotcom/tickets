@@ -1,4 +1,4 @@
-/** The bills an organiser issues for what a booking still owes, and the link
+/** The invoices an organiser sends for what a booking still owes, and the link
  *  the buyer is sent to read one. */
 
 // jscpd:ignore-start
@@ -22,27 +22,28 @@ import type { TestBrowser } from "#test-utils/test-browser.ts";
 /** What the site says about invoices. */
 export const invoiceCopy = copyFrom("invoices");
 
-/** Where a bill is issued from, and where the list of them lives. */
-const NEW_BILL = "/admin/invoices/new";
-const BILL_LIST = "/admin/invoices";
+/** Where an invoice is made from, and where the list of them lives. */
+const NEW_INVOICE = "/admin/invoices/new";
+const INVOICE_LIST = "/admin/invoices";
 
-/** The bill the story last issued, as an address. */
-export const billPath = (world: TicketsWorld): string =>
-  requiredWorldValue(world.invoicePath, "the bill's address");
+/** The invoice the story last sent, as an address. */
+export const invoiceAddress = (world: TicketsWorld): string =>
+  requiredWorldValue(world.invoicePath, "the invoice's address");
 
-/** The number the site filed the last bill under, read from its own address. */
-export const billNumber = (world: TicketsWorld): number => {
-  const matched = billPath(world).match(/\/admin\/invoices\/(\d+)$/);
+/** The number the site filed the last invoice under, read from its own
+ *  address. */
+export const invoiceNumber = (world: TicketsWorld): number => {
+  const matched = invoiceAddress(world).match(/\/admin\/invoices\/(\d+)$/);
   const number = matched?.[1];
   if (number === undefined) {
-    throw new Error(`No bill number in ${billPath(world)}`);
+    throw new Error(`No invoice number in ${invoiceAddress(world)}`);
   }
   return Number(number);
 };
 
-/** Send one bill's form and keep what the organiser saw, handing the window
+/** Send one invoice form and keep what the organiser saw, handing the window
  *  back for a caller that needs where it landed. */
-const sendBillForm = async (
+const sendInvoiceForm = async (
   world: TicketsWorld,
   path: string,
   button: string,
@@ -53,58 +54,62 @@ const sendBillForm = async (
   return browser;
 };
 
-/** Issue a bill for the booking the story is working on, through the form the
- *  site served, and keep where the organiser landed. */
-export const sendBill = async (world: TicketsWorld): Promise<void> => {
-  const browser = await sendBillForm(
+/** Make an invoice for the booking the story is working on, through the form
+ *  the site served, and keep where the organiser landed. */
+export const sendInvoice = async (world: TicketsWorld): Promise<void> => {
+  const browser = await sendInvoiceForm(
     world,
-    NEW_BILL,
+    NEW_INVOICE,
     await invoiceCopy("invoices.action.create"),
     { attendee_id: String(theBooking(world)) },
   );
   world.invoicePath = browser.currentUrl;
 };
 
-/** Cancel the last bill from its own page. */
-export const cancelBill = async (world: TicketsWorld): Promise<void> => {
-  await sendBillForm(
+/** Cancel the last invoice from its own page. */
+export const cancelInvoice = async (world: TicketsWorld): Promise<void> => {
+  await sendInvoiceForm(
     world,
-    billPath(world),
+    invoiceAddress(world),
     await invoiceCopy("invoices.action.cancel"),
   );
 };
 
-/** What the bill page says now, read fresh. */
-export const billSays = (world: TicketsWorld): Promise<string> =>
-  adminPageHtmlAt(world, billPath(world));
+/** What the invoice page says now, read fresh. */
+export const invoiceSays = (world: TicketsWorld): Promise<string> =>
+  adminPageHtmlAt(world, invoiceAddress(world));
 
-/** Just the summary rows of a bill page, so a status cannot answer for some
- *  other word further down the page. */
-export const billDetailsIn = (page: string): string => {
+/** Just the summary rows of an invoice page, so a status cannot answer for
+ *  some other word further down the page. */
+export const invoiceDetailsIn = (page: string): string => {
   const opened = page.indexOf('<table class="listing-details-table">');
-  if (opened === -1) throw new Error("The bill page showed no summary rows");
+  if (opened === -1) throw new Error("The invoice page showed no summary rows");
   const closed = page.indexOf("</table>", opened);
-  if (closed === -1) throw new Error("The bill page's summary never closed");
+  if (closed === -1) {
+    throw new Error("The invoice page's summary never closed");
+  }
   return page.slice(opened, closed);
 };
 
 /** The last message the site sent, which is the one the story just caused. */
-export const billEmail = (world: TicketsWorld): SentMessage => {
+export const invoiceEmail = (world: TicketsWorld): SentMessage => {
   const sent = messagesSent(world).at(-1);
   if (sent === undefined) throw new Error("The site sent no email to read");
   return sent;
 };
 
-/** The bill link out of the message the site sent the buyer. */
-export const buyerLinkFromEmail = (world: TicketsWorld): string => {
-  const link = billEmail(world).html?.match(/\/invoice\/[A-Za-z0-9_-]+/)?.[0];
-  if (link === undefined) throw new Error("The bill email carried no link");
+/** The link to the invoice out of the message the site sent the buyer. */
+export const invoiceLinkFromEmail = (world: TicketsWorld): string => {
+  const link = invoiceEmail(world).html?.match(
+    /\/invoice\/[A-Za-z0-9_-]+/,
+  )?.[0];
+  if (link === undefined) throw new Error("The email carried no invoice link");
   return link;
 };
 
-/** How many bills the list page names. */
-export const billsListed = async (world: TicketsWorld): Promise<number> => {
-  const links = (await adminPageHtmlAt(world, BILL_LIST)).match(
+/** How many invoices the list page names. */
+export const invoicesListed = async (world: TicketsWorld): Promise<number> => {
+  const links = (await adminPageHtmlAt(world, INVOICE_LIST)).match(
     /href="\/admin\/invoices\/\d+"/g,
   );
   return links === null ? 0 : links.length;

@@ -1,4 +1,4 @@
-/** The stories about the bills an organiser issues for what a booking owes. */
+/** The stories about the invoices an organiser sends for what a booking owes. */
 
 // jscpd:ignore-start
 
@@ -8,15 +8,15 @@ import { expect } from "@std/expect";
 import { formatCurrency } from "#shared/currency.ts";
 import { newcomerReading, ORGANISER } from "#test/specs/support/browser.ts";
 import {
-  billDetailsIn,
-  billEmail,
-  billNumber,
-  billSays,
-  billsListed,
-  buyerLinkFromEmail,
-  cancelBill,
+  cancelInvoice,
   invoiceCopy,
-  sendBill,
+  invoiceDetailsIn,
+  invoiceEmail,
+  invoiceLinkFromEmail,
+  invoiceNumber,
+  invoiceSays,
+  invoicesListed,
+  sendInvoice,
 } from "#test/specs/support/invoices.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import {
@@ -28,58 +28,59 @@ import {
 // jscpd:ignore-end
 
 /** One action, told as the state before a scenario and as the act within it. */
-const sendTheBill = function (this: TicketsWorld): Promise<void> {
-  return sendBill(this);
+const sendTheInvoice = function (this: TicketsWorld): Promise<void> {
+  return sendInvoice(this);
 };
 
-Given("the organiser has sent that booking a bill", sendTheBill);
-When("the organiser sends that booking a bill", sendTheBill);
+Given("the organiser has sent that booking an invoice", sendTheInvoice);
+When("the organiser sends that booking an invoice", sendTheInvoice);
+When("the organiser sends that booking another invoice", sendTheInvoice);
 
-When("the organiser sends that booking another bill", sendTheBill);
-
-/** Cancel the bill the story last issued. */
-const cancelTheBill = function (this: TicketsWorld): Promise<void> {
-  return cancelBill(this);
+/** Cancel the invoice the story last sent. */
+const cancelTheInvoice = function (this: TicketsWorld): Promise<void> {
+  return cancelInvoice(this);
 };
 
-When("the organiser cancels the bill", cancelTheBill);
+When("the organiser cancels the invoice", cancelTheInvoice);
 
 When(
   "the buyer opens the link from their email",
   async function (this: TicketsWorld): Promise<void> {
-    const read = await newcomerReading(buyerLinkFromEmail(this));
+    const read = await newcomerReading(invoiceLinkFromEmail(this));
     expect(read.answered).toBe(200);
     this.buyerSaw = read.said;
   },
 );
 
 Then(
-  "the bill says {word} is due",
+  "the invoice says {word} is due",
   async function (this: TicketsWorld, amount: string): Promise<void> {
     const due = await invoiceCopy("invoices.body.due");
     assertStringIncludes(
-      await billSays(this),
+      await invoiceSays(this),
       `${due}: ${formatCurrency(minorUnits(amount))}`,
     );
   },
 );
 
 Then(
-  "the buyer's email carries a link to the bill",
+  "the buyer's email carries a link to the invoice",
   async function (this: TicketsWorld): Promise<void> {
-    const sent = billEmail(this);
+    const sent = invoiceEmail(this);
     expect(sent.to).toEqual([
       requiredWorldValue(this.attendeeEmail, "the buyer's address"),
     ]);
     expect(sent.subject).toBe(
-      await invoiceCopy("invoices.email.subject", { number: billNumber(this) }),
+      await invoiceCopy("invoices.email.subject", {
+        number: invoiceNumber(this),
+      }),
     );
-    expect(buyerLinkFromEmail(this)).toContain("/invoice/");
+    expect(invoiceLinkFromEmail(this)).toContain("/invoice/");
   },
 );
 
 Then(
-  "the site refuses it because the booking already has a new bill",
+  "the site refuses it because the booking already has a new invoice",
   async function (this: TicketsWorld): Promise<void> {
     assertStringIncludes(
       whatTheyWereTold(this, ORGANISER),
@@ -89,26 +90,26 @@ Then(
 );
 
 Then(
-  "the booking still has one bill",
+  "the booking still has one invoice",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await billsListed(this)).toBe(1);
+    expect(await invoicesListed(this)).toBe(1);
   },
 );
 
 Then(
-  "the site takes the second bill as a new one",
+  "the site takes the second invoice as a new one",
   async function (this: TicketsWorld): Promise<void> {
     assertStringIncludes(
-      billDetailsIn(await billSays(this)),
+      invoiceDetailsIn(await invoiceSays(this)),
       await invoiceCopy("invoices.status.new"),
     );
   },
 );
 
 Then(
-  "the bill says it is paid",
+  "the invoice says it is paid",
   async function (this: TicketsWorld): Promise<void> {
-    const details = billDetailsIn(await billSays(this));
+    const details = invoiceDetailsIn(await invoiceSays(this));
     assertStringIncludes(details, await invoiceCopy("invoices.column.status"));
     assertStringIncludes(details, await invoiceCopy("invoices.status.paid"));
     expect(details).not.toContain(await invoiceCopy("invoices.status.new"));
@@ -116,7 +117,7 @@ Then(
 );
 
 Then(
-  "the bill says it is cancelled",
+  "the invoice says it is cancelled",
   async function (this: TicketsWorld): Promise<void> {
     assertStringIncludes(
       requiredWorldValue(this.buyerSaw, "the buyer's page"),
