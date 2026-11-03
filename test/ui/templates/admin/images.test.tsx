@@ -25,6 +25,39 @@ const image = (id: number, name: string): Image => ({
   name,
 });
 
+/** Images named Image 1 ... Image `count`, so a test can name the thumbnail
+ *  that changes over to a late load. */
+const images = (count: number): Image[] =>
+  Array.from({ length: count }, (_, index) =>
+    image(index + 1, `Image ${index + 1}`),
+  );
+
+/** The admin page rule: the first nine image thumbnails of a page load with
+ *  it. From the tenth thumbnail, the browser waits until the reader scrolls
+ *  near it. */
+const EAGER_THUMBNAILS_PER_PAGE = 9;
+
+/** How each image thumbnail of the page loads, in the order the page shows it:
+ *  true when the browser waits to load the thumbnail. */
+const lazyThumbnails = (html: string): boolean[] =>
+  html
+    .split("<img ")
+    .slice(1)
+    .map((rest) => rest.slice(0, rest.indexOf(">")))
+    .filter((tag) => tag.includes('class="image-library-thumb"'))
+    .map((tag) => tag.includes('loading="lazy"'));
+
+/** Check the page rule over every thumbnail the page shows: the page renders
+ *  `count` thumbnails, the first nine load with it, and each later thumbnail
+ *  waits for the scroll. */
+const expectThumbnailRule = (html: string, count: number): void =>
+  expect(lazyThumbnails(html)).toEqual(
+    Array.from(
+      { length: count },
+      (_, position) => position >= EAGER_THUMBNAILS_PER_PAGE,
+    ),
+  );
+
 describe("admin image templates", () => {
   beforeAll(setupAdminPageTest);
 
@@ -48,6 +81,29 @@ describe("admin image templates", () => {
       );
       assert(!html.includes("/image/poster.webp"));
       assertStringIncludes(html, '<a class="active" href="/admin/images">');
+      assertStringIncludes(html, 'href="/admin/guide#images"');
+    });
+  });
+
+  test("lazy-loads library thumbnails from the tenth image on the page", () => {
+    withStorageEnabled(() => {
+      const html = adminImagesPage(images(12), OWNER_SESSION);
+
+      expectThumbnailRule(html, 12);
+      assertStringIncludes(
+        html,
+        '<img alt="Alt Image 9" class="image-library-thumb" src="/image/image 9-thumb.webp">',
+      );
+      assertStringIncludes(
+        html,
+        '<img alt="Alt Image 10" class="image-library-thumb" loading="lazy" src="/image/image 10-thumb.webp">',
+      );
+    });
+  });
+
+  test("loads every library thumbnail with the page at nine images", () => {
+    withStorageEnabled(() => {
+      expectThumbnailRule(adminImagesPage(images(9), OWNER_SESSION), 9);
     });
   });
 
@@ -119,6 +175,8 @@ describe("admin image templates", () => {
 
     assertStringIncludes(html, "Edit Poster");
     assertStringIncludes(html, '<div class="image-library-preview">');
+    // One preview thumbnail loads with the page.
+    expect(lazyThumbnails(html)).toEqual([false]);
     assertStringIncludes(html, 'value="Poster"');
     assertStringIncludes(html, "<strong>Linked items (1):</strong>");
     assertStringIncludes(
@@ -274,5 +332,69 @@ describe("admin image templates", () => {
       expect(first).toBeGreaterThan(-1);
       expect(second).toBeGreaterThan(first);
       expect(library).toBeGreaterThan(second);
+    }));
+
+  test("continues the lazy thumbnail count from the linked table into the image picker", () =>
+    withStorageEnabled(() => {
+      const linked = images(9);
+      const html = String(
+        ItemImagesPanel({
+          action: "/admin/listing/1/images",
+          allImages: linked,
+          linkedImages: linked,
+          uploadAction: "/admin/listing/1/images/upload",
+        }),
+      );
+
+      // Nine linked rows above push the picker past the eager nine, so every
+      // picker thumbnail is the tenth image of the page or later.
+      expectThumbnailRule(html, 18);
+      assertStringIncludes(
+        html,
+        '<img alt="Alt Image 1" class="image-library-thumb" loading="lazy" src="/image/image 1-thumb.webp">',
+      );
+    }));
+
+  test("counts picker thumbnails from the linked rows, not from the library size", () =>
+    withStorageEnabled(() => {
+      const library = images(12);
+      const html = String(
+        ItemImagesPanel({
+          action: "/admin/listing/1/images",
+          allImages: library,
+          linkedImages: library.slice(0, 2),
+          uploadAction: "/admin/listing/1/images/upload",
+        }),
+      );
+
+      // Two linked rows above put the picker entry for Image 8 at position 9.
+      expectThumbnailRule(html, 14);
+      assertStringIncludes(
+        html,
+        '<img alt="Alt Image 7" class="image-library-thumb" src="/image/image 7-thumb.webp">',
+      );
+      assertStringIncludes(
+        html,
+        '<img alt="Alt Image 8" class="image-library-thumb" loading="lazy" src="/image/image 8-thumb.webp">',
+      );
+    }));
+
+  test("starts the picker thumbnail count at the page top with nothing linked", () =>
+    withStorageEnabled(() => {
+      const html = String(
+        ItemImagesPanel({
+          action: "/admin/listing/1/images",
+          allImages: images(12),
+          linkedImages: [],
+          uploadAction: "/admin/listing/1/images/upload",
+        }),
+      );
+
+      assertStringIncludes(html, "No images linked.");
+      expectThumbnailRule(html, 12);
+      assertStringIncludes(
+        html,
+        '<img alt="Alt Image 10" class="image-library-thumb" loading="lazy" src="/image/image 10-thumb.webp">',
+      );
     }));
 });
