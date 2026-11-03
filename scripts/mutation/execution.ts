@@ -11,7 +11,7 @@ import { TEST_STATE_DIR_ENV } from "#test-utils/test-state-env.ts";
 import { batchTestFiles } from "./batch.ts";
 import { denoExitCode, denoExitDetail, envWith } from "./child-process.ts";
 import { planIsolateEntries } from "./isolate-entry.ts";
-import type { EvaluationStatus } from "./summary.ts";
+import type { EvaluationStatus, FrozenTestRun } from "./summary.ts";
 
 export type Outcome = "cancelled" | "failed" | "passed";
 
@@ -25,6 +25,9 @@ export interface StaticGate {
 export interface TestRunConfig {
   batchJobs: number;
   env: Record<string, string>;
+  /** Longest one test batch may run, or null to leave it unbounded. A caller
+   *  that has a baseline passes {@link testRunLimitMs}. */
+  limitMs: number | null;
   testFiles: string[];
 }
 
@@ -44,8 +47,36 @@ export interface BatchFailure {
 export interface TestRunResult {
   durationMs: number;
   failure?: BatchFailure;
+  /** Set when a batch outlived `limitMs`. The outcome is then cancelled: the
+   *  tests gave no verdict, so nothing is scored. */
+  frozen?: FrozenTestRun;
   outcome: Outcome;
 }
+
+/** How far above its baseline a test batch must run before it counts as
+ *  frozen: two orders of magnitude, which no loop that ends normally reaches. */
+const FROZEN_RUN_FACTOR = 100;
+
+/** The shortest limit. Process start-up and machine load vary by seconds, and
+ *  a limit below this could stop a healthy batch on a busy machine. */
+const FROZEN_RUN_FLOOR_MS = 60_000;
+
+/**
+ * The limit for one test batch in a run whose unmutated tests took
+ * `baselineMs`. The limit is two orders of magnitude above the baseline, so a
+ * mutant that merely runs slower than the original still finishes. Half the run
+ * deadline caps the limit, except when the baseline is already longer. The
+ * limit never drops below the baseline, so a frozen loop is usually named
+ * before the whole-run guard fires.
+ */
+export const testRunLimitMs = (
+  baselineMs: number,
+  deadlineMs: number,
+): number =>
+  Math.min(
+    Math.max(FROZEN_RUN_FLOOR_MS, baselineMs * FROZEN_RUN_FACTOR),
+    Math.max(baselineMs, deadlineMs / 2),
+  );
 
 export type TestBatchRunner = (
   batch: string[],
@@ -191,24 +222,43 @@ interface BatchRunContext {
   env: Record<string, string>;
   /** First failing batch, kept for the run's report. */
   failure: { current: BatchFailure | null };
+  /** First batch that outlived the limit, kept so the run can name the cause. */
+  frozen: { current: FrozenTestRun | null };
+  limitMs: number | null;
   signal: AbortSignal;
 }
 
 const runOneBatch = async (
   batch: string[],
-  { controller, deps, env, failure, signal }: BatchRunContext,
+  { controller, deps, env, failure, frozen, limitMs, signal }: BatchRunContext,
 ): Promise<Outcome | null> => {
+  const startedAt = performance.now();
+  // The batch clock compares this batch with the run's baseline. It can only
+  // stop the run and name the cause; it never gives a mutant a verdict.
+  const timer =
+    limitMs === null
+      ? undefined
+      : setTimeout(() => {
+          frozen.current = {
+            batch,
+            durationMs: performance.now() - startedAt,
+            limitMs,
+          };
+          controller.abort();
+        }, limitMs);
   try {
-    const result = await deps.runBatch(batch, controller.signal, env);
+    const result = await deps
+      .runBatch(batch, controller.signal, env)
+      .finally(() => clearTimeout(timer));
     // An aborted run terminated this child, so its exit status says nothing
     // about the tests; report the cancellation, never a bogus failure.
-    if (signal.aborted) return "cancelled";
+    if (frozen.current !== null || signal.aborted) return "cancelled";
     if (result.code === 0) return null;
     failure.current ??= { batch, output: result.output };
     controller.abort();
     return "failed";
   } catch (error) {
-    if (signal.aborted) return "cancelled";
+    if (frozen.current !== null || signal.aborted) return "cancelled";
     if (controller.signal.aborted) return null;
     throw error;
   }
@@ -229,8 +279,23 @@ const runBatchWorker = async (
   return null;
 };
 
+/** What the run's batches add up to. A frozen batch outranks any exit status:
+ *  the batches stopped beside it were killed by the limit, so their codes say
+ *  nothing about the tests. */
+const batchOutcome = (
+  outcomes: readonly (Outcome | null)[],
+  frozen: FrozenTestRun | null,
+): Outcome =>
+  frozen !== null
+    ? "cancelled"
+    : outcomes.includes("failed")
+      ? "failed"
+      : outcomes.includes("cancelled")
+        ? "cancelled"
+        : "passed";
+
 export const runTests = async (
-  { batchJobs, env, testFiles }: TestRunConfig,
+  { batchJobs, env, limitMs, testFiles }: TestRunConfig,
   signal: AbortSignal,
   deps: TestExecutionDeps = realTestDeps,
 ): Promise<TestRunResult> => {
@@ -243,7 +308,8 @@ export const runTests = async (
     const [features, direct] = partition(isFeaturePath)(testFiles);
     const cursor = { batches: batchTestFiles(direct), next: 0 };
     const failure = { current: null as BatchFailure | null };
-    const context = { controller, deps, env, failure, signal };
+    const frozen = { current: null as FrozenTestRun | null };
+    const context = { controller, deps, env, failure, frozen, limitMs, signal };
     const jobs = Math.min(
       Math.max(1, batchJobs),
       Math.max(1, cursor.batches.length),
@@ -251,18 +317,17 @@ export const runTests = async (
     const outcomes = await Promise.all(
       Array.from({ length: jobs }, () => runBatchWorker(cursor, context)),
     );
-    let outcome: Outcome = outcomes.includes("failed")
-      ? "failed"
-      : outcomes.includes("cancelled")
-        ? "cancelled"
-        : "passed";
+    let outcome = batchOutcome(outcomes, frozen.current);
     if (outcome === "passed" && features.length > 0) {
       outcome = (await runOneBatch(features, context)) ?? "passed";
     }
     const durationMs = performance.now() - startedAt;
-    return failure.current === null
-      ? { durationMs, outcome }
-      : { durationMs, failure: failure.current, outcome };
+    return {
+      durationMs,
+      ...(failure.current === null ? {} : { failure: failure.current }),
+      ...(frozen.current === null ? {} : { frozen: frozen.current }),
+      outcome,
+    };
   } finally {
     signal.removeEventListener("abort", forwardAbort);
   }

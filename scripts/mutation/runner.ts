@@ -9,7 +9,9 @@
  * A mutant is "killed" when a static gate rejects it or the tests fail, and
  * "survived" when it clears every gate and the tests still pass (a gap in the
  * tests). There is no third answer: every mutant is decided by what a gate or a
- * test actually said, never by how long it took to say it.
+ * test actually said, never by how long it took to say it. A test batch that
+ * outlives the baseline by orders of magnitude stops the run with the cause
+ * named. That clock never decides the mutant it stopped beside.
  */
 
 import { shortHash } from "#scripts/checksum.ts";
@@ -28,6 +30,7 @@ import {
   runTests,
   type StaticGate,
   testEnv,
+  testRunLimitMs,
 } from "./execution.ts";
 import { generateMutants } from "./generate.ts";
 import {
@@ -46,6 +49,7 @@ import { collectStateBuilderFiles } from "./state-graph.ts";
 import { defaultStaticJobs, staticWorkerParent } from "./static.ts";
 import {
   formatSummaryLines,
+  frozenLoopReport,
   type MutantResult,
   type Status,
   summarize,
@@ -130,28 +134,35 @@ const unfinishedRunExit = (
   return ended.code;
 };
 
+/** How the baseline ended: a run it stopped, or the limit its measurements set
+ *  for every later test batch. */
+type BaselineOutcome =
+  | { code: number; status: "stopped" }
+  | { status: "passed"; testLimitMs: number };
+
 /**
- * Run the baseline (unmutated) tests. Returns `{ code }` when the run should
- * stop early (the guard stopped it, an interrupt, or a non-green baseline), or
- * `null` when the baseline passed and mutation can proceed.
+ * Run the baseline (unmutated) tests. Returns a stop code when the run must end
+ * here (the guard stopped it, an interrupt, or a non-green baseline), or the
+ * per-batch limit measured from its duration when mutation can proceed.
  */
 const establishBaseline = async (
   opts: RunMutantsOptions,
   plans: readonly FileMutationPlan[],
-): Promise<{ code: number } | null> => {
-  const { abortSignal, batchJobs, testFiles } = opts;
+): Promise<BaselineOutcome> => {
+  const { abortSignal, batchJobs, deadline, testFiles } = opts;
   console.log(dim("Running baseline (unmutated) tests…"));
   // The baseline runs unmutated code, so the prebuilt state snapshot is valid
-  // for it even when some target feeds that state.
+  // for it even when some target feeds that state. It has no limit of its own:
+  // its duration is what measures every later batch.
   const baseline = await runTests(
-    { batchJobs, env: testEnv(), testFiles },
+    { batchJobs, env: testEnv(), limitMs: null, testFiles },
     abortSignal,
   );
   // The guard can fire here too, and a run it stopped is a failure to report
   // rather than an operator changing their mind. Nothing else can cancel a
   // baseline, so the message below only ever reports tests that really failed.
   const stopped = unfinishedRunExit(opts, 0, plans);
-  if (stopped !== null) return { code: stopped };
+  if (stopped !== null) return { code: stopped, status: "stopped" };
   if (baseline.outcome !== "passed") {
     if (baseline.failure) {
       console.error(
@@ -168,13 +179,19 @@ const establishBaseline = async (
     console.error(
       "if these tests import the app / Stripe and need stripe-mock + built assets.",
     );
-    return { code: 1 };
+    return { code: 1, status: "stopped" };
   }
+  // Every later batch gets this limit. A batch past it is a frozen loop, not a
+  // verdict: the run stops and names the mutant instead of scoring it.
+  const testLimitMs = testRunLimitMs(baseline.durationMs, deadline);
   console.log(
     dim(`Baseline passed in ${Math.round(baseline.durationMs)}ms.\n`),
   );
+  console.log(
+    dim(`Batch limit: ${testLimitMs}ms. A frozen loop stops the run.`),
+  );
   console.log(dim(`Using up to ${batchJobs} concurrent test batch(es).`));
-  return null;
+  return { status: "passed", testLimitMs };
 };
 
 /**
@@ -275,7 +292,11 @@ const runOnePlan = async (
   if (stopped !== null) return stopped;
   if (dirty) return 1;
   await runFileMutants(plan, opts, ctx);
-  return null;
+  const frozen = ctx.frozen.current;
+  if (frozen === null) return null;
+  const lines = frozenLoopReport(frozen, opts.results.length, ctx.totalMutants);
+  for (const line of lines) console.error(line);
+  return 1;
 };
 
 /** Baseline check, then the per-file/per-mutant loop, then the report. */
@@ -317,7 +338,7 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
   }
 
   const baseline = await establishBaseline(opts, plans);
-  if (baseline !== null) return baseline.code;
+  if (baseline.status === "stopped") return baseline.code;
   // The stamps are judged against the same file text the run mutates, so a
   // proof recorded before the current text is unconfirmed for this run.
   const unconfirmedKeys = unconfirmedEntries(
@@ -339,15 +360,18 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
       killed: 0,
       survived: 0,
     };
+    const context: MutantLoopContext = {
+      counts,
+      frozen: { current: null },
+      gates,
+      testLimitMs: baseline.testLimitMs,
+      totalMutants,
+      unconfirmedKeys,
+    };
 
     for (const plan of plans) {
       if (isAborted()) break;
-      const stop = await runOnePlan(
-        opts,
-        plan,
-        { counts, gates, totalMutants, unconfirmedKeys },
-        plans,
-      );
+      const stop = await runOnePlan(opts, plan, context, plans);
       if (stop !== null) return stop;
     }
   } finally {
@@ -403,9 +427,9 @@ const mutate = async (
     abortController.abort();
   };
   onTerminationSignals(onSignal);
-  // The only clock left in the run, and it never judges a mutant: it exists so
-  // a mutant that hangs the tests cannot wedge the run forever. When it fires
-  // the run fails with no score and no summary, printing only how far it got.
+  // The run's last-resort clock. It never judges a mutant: it exists so a run
+  // that somehow outlives its per-batch limits cannot wedge forever. When it
+  // fires the run fails with no score and no summary, printing how far it got.
   const deadlineTimer = setTimeout(() => {
     hitDeadline = true;
     aborted = true;

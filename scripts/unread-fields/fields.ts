@@ -12,6 +12,7 @@ import {
 } from "./fields/names.ts";
 import {
   DEFAULT_REACH,
+  type ExportedShape,
   exportedShapes,
   inheritedTypesOf,
   isShape,
@@ -106,7 +107,9 @@ const createExportedTargetLookup = (
     const container = checker.getSymbolAtLocation(file);
     const targets = new Set(
       container
-        ? exportedShapes(checker, container, file.fileName).map(targetOfShape)
+        ? exportedShapes(checker, container, file.fileName).map((exported) =>
+            targetOfShape(exported.shape),
+          )
         : [],
     );
     targetsByFile.set(file, targets);
@@ -226,8 +229,10 @@ const visitBorrowedSignatures = (
   }
 };
 
-const visitShape = (walk: ExportWalk, shape: Shape): void => {
+const visitShape = (walk: ExportWalk, exported: ExportedShape): void => {
+  const { namespaces, shape } = exported;
   const owner: Step[] = [
+    ...namespaces.map((namespace) => ({ name: namespace })),
     shape.name ? { name: shape.name.text } : { way: DEFAULT_REACH },
   ];
   const target = walk.targetOfShape(shape);
@@ -282,8 +287,12 @@ export const exportedFields = (
       targetOfShape,
       visitor,
     };
-    for (const shape of exportedShapes(checker, container, source.fileName)) {
-      visitShape(walk, shape);
+    for (const exported of exportedShapes(
+      checker,
+      container,
+      source.fileName,
+    )) {
+      visitShape(walk, exported);
     }
     return store.values();
   };
