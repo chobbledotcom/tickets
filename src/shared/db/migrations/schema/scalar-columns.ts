@@ -8,7 +8,8 @@ stores the value. What the value means belongs to the code that reads the
 column.
 
 These spellings are SQLite's, the only database this schema runs on. A second
-database changes the values below and nothing else. */
+database changes the values below. It also changes the rules a table adds with
+`checked` and `aboutTheRow`, and the statements that `schema-sync.ts` builds. */
 
 /** Text that the column always holds. */
 export const text = "TEXT NOT NULL";

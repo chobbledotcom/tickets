@@ -36,7 +36,7 @@ export const datedRowColumns: Column[] = [
   ["created", text],
 ];
 
-/** The position of a row within its list, starting in the first place. */
+/** The position of a row within its list. A new row starts at zero. */
 export const sortOrderColumn: Column = [
   "sort_order",
   wholeNumberStartingAtZero,

@@ -19,12 +19,13 @@ describe("shared schema columns", () => {
     ]);
   });
 
-  test("the list position starts in the first place", () => {
+  test("the list position starts at zero", () => {
     expect(sortOrderColumn).toEqual([
       "sort_order",
       "INTEGER NOT NULL DEFAULT 0",
     ]);
   });
+
   test("the slug-named entity header is id, slug, its blind index, and name", () => {
     expect(slugNamedEntityColumns).toEqual([
       ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
