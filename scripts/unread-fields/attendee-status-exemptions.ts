@@ -1,8 +1,10 @@
 /** The unread-field exemptions for the attendee-status admin API wire types.
  *  They live apart from exemptions.ts, which stays under its length limit. */
 
-import type { FindingExemption } from "#scripts/unread-fields/policy.ts";
-import { exemptFieldsUnder } from "#scripts/unread-fields/policy.ts";
+import {
+  exemptFieldsUnder,
+  type FindingExemption,
+} from "#scripts/unread-fields/policy.ts";
 
 /** The one source file every admin API wire type exports from. */
 const SOURCE = "src/shared/admin-api-resources.ts";
