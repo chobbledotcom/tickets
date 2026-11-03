@@ -184,8 +184,12 @@ src/shared/url-safety.ts::isIpLiteral.h~05rrw2z  1 → 2 audited:17s6jj1 # slice
 src/shared/url-safety.ts::isIpLiteral.h~05rrw2z  1 → -1 audited:17s6jj1 # slice(1,1) empties h; same isDomainHostname fallback as above
 src/shared/url-safety.ts::isIpLiteral~1l2lep3  : → ": mutated" audited:17s6jj1 # h never contains this literal, so the colon-detection branch is skipped — falls to the regex, but the dotless-host isDomainHostname fallback still catches it
 src/shared/url-safety.ts::isIpLiteral~1d8tf9e  true → false audited:17s6jj1 # isIpLiteral wrongly says "not an IP literal", but the dotless-host isDomainHostname fallback still rejects it
-src/ui/templates/admin/images.tsx::imageValue.alt_text~17v2zve  ?? → || audited:0dg2iqg # alt_text ?? "" vs || "": identical for every string — "" falls through to "" either way
-src/ui/templates/admin/images.tsx::imageValue.name~0pg0nzi  ?? → || audited:0dg2iqg # name ?? "" vs || "": identical for every string — "" falls through to "" either way
+src/ui/templates/admin/images.tsx::imageValue.alt_text~17v2zve  ?? → || audited:0bs4xwa # alt_text ?? "" vs || "": identical for every string — "" falls through to "" either way
+src/ui/templates/admin/images.tsx::imageValue.name~0pg0nzi  ?? → || audited:0bs4xwa # name ?? "" vs || "": identical for every string — "" falls through to "" either way
+src/ui/templates/admin/images.tsx::imageColumns~0lssgxj  thumbnail → "" audited:0bs4xwa # renderTable reads a column key only for its columnKeys lookup, its hiddenKeys lookup, and a saved filter. The images library page and the item image pickers pass none of these, and the guide reference table covers the listing and attendee tables only, so this key reaches no output
+src/ui/templates/admin/images.tsx::imageColumns~1gvyre8  name → "" audited:0bs4xwa # same as the thumbnail key above — the images table supplies no columnKeys, no hiddenKeys, and no filter
+src/ui/templates/admin/images.tsx::imageColumns~1t8w3ff  alt_text → "" audited:0bs4xwa # same as the thumbnail key above — the images table supplies no columnKeys, no hiddenKeys, and no filter
+src/ui/templates/admin/images.tsx::adminImageEditPage~0yyu6ex  0 → 1 audited:0bs4xwa # the edit page renders one thumbnail, and LAZY_THUMBNAIL_FROM is 9, so every position below 9 gives the same eager tag
 src/features/admin/images.ts::parseImageTargets.itemType~01dj453   → "mutated" audited:1f06tx7 # itemType destructure default: split(":") always yields ≥1 part, so the default is unreachable
 src/features/admin/images.ts::parseImageTargets.itemId~1gk0kbs   → "mutated" audited:1f06tx7 # itemId destructure default: Number("") is 0 and Number("mutated") is NaN — both rejected by the id guard
 

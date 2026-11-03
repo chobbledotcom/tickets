@@ -86,9 +86,8 @@ const imageValue = (image?: Image): Record<string, string | number | null> => ({
   name: image?.name ?? "",
 });
 
-/** The first nine thumbnails on an admin page load with the page, because they
- *  sit near its top. From the tenth, the browser waits until the reader
- *  scrolls near the thumbnail. */
+/** The first nine thumbnails of an admin page load with the page. From the
+ *  tenth thumbnail, the browser waits until the reader scrolls near it. */
 const LAZY_THUMBNAIL_FROM = 9;
 
 /** One image thumbnail. `position` is its zero-based place among the page's
