@@ -8,6 +8,7 @@ import { CliError, EXIT_CODES } from "#cli/errors.ts";
 import {
   ADMIN_API_RESOURCES,
   type AdminApiResource,
+  DeleteBodySchema,
 } from "#shared/admin-api-resources.ts";
 import { gadgetEntry, testTable } from "#test-utils/cli-table.ts";
 
@@ -64,6 +65,7 @@ describe("CLI describe", () => {
       "attendee-statuses",
       "attendees",
       "attributes",
+      "external-sources",
       "groups",
       "holidays",
       "listings",
@@ -160,7 +162,13 @@ describe("CLI describe", () => {
   test("answers the resources of the table it is handed", () => {
     const doc = describeEntries(Object.entries(testTable));
     assertArrayIncludes(Object.keys(doc.resources), ["gadgets"]);
-    expect(doc.resources.gadgets!.children.parts).toBeDefined();
+    expect(doc.resources.gadgets!.children!.parts!.idParam).toBe("partId");
+    expect(doc.resources.gadgets!.children!.parts!.verbs.create).toEqual({
+      body: {
+        fields: [{ name: "label", required: true, type: "string" }],
+        kind: "fields",
+      },
+    });
     expect(doc.resources.gadgets!.customRoutes.recalibrate).toEqual({
       method: "POST",
       subpath: ":gadgetId/recalibrate",
@@ -451,22 +459,22 @@ describe("CLI body schemas", () => {
   test("take the schema the table declares for the verb", () => {
     expect(
       bodySchemaFor(gadgetEntry, writeCommand(["create", "gadgets", "{}"])),
-    ).toBeDefined();
+    ).toBe(gadgetEntry.createBodySchema);
     expect(
       bodySchemaFor(
         gadgetEntry,
         writeCommand(["create", "gadgets", "3/parts", "{}"]),
       ),
-    ).toBeDefined();
+    ).toBe(gadgetEntry.children!.parts!.bodySchema);
     expect(
       bodySchemaFor(gadgetEntry, writeCommand(["delete", "gadgets", "5"])),
-    ).toBeDefined();
+    ).toBe(DeleteBodySchema);
     // The listing bodies the server validates carry no schema.
     expect(
       bodySchemaFor(
         ADMIN_API_RESOURCES.listings,
         writeCommand(["update", "listings", "5", "{}"]),
       ),
-    ).toBeUndefined();
+    ).toBe(undefined);
   });
 });
