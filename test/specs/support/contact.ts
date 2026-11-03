@@ -173,7 +173,21 @@ export const messageSent = (world: TicketsWorld): SentMessage => {
 
 /** The parts of a sent message a story reads: who it went to, where a reply
  * would go, and the words the owner reads. */
-type SentMessage = { html?: string; reply_to?: string; to?: string[] };
+export type SentMessage = {
+  html?: string;
+  reply_to?: string;
+  subject?: string;
+  to?: string[];
+};
+
+/** Every message the site sent, in the order it sent them. A story that causes
+ *  a send after an earlier one reads the last here rather than the first. */
+export const messagesSent = (world: TicketsWorld): SentMessage[] =>
+  outgoingWatch(world)
+    .calls.filter(
+      ({ body, url }) => body !== null && url.includes("api.resend.com"),
+    )
+    .map(({ body }) => body as SentMessage);
 
 /** An address on the owner's very own host. A sender claiming one of these is
  * the case the site treats as a possible spoof. */

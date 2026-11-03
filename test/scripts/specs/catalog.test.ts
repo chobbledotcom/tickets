@@ -74,6 +74,7 @@ describe("Cucumber story catalog", () => {
       "pages.the-site-footer",
       "pages.writing-the-pages-people-read",
       "payments.a-payment-with-no-callback",
+      "payments.billing-what-a-booking-still-owes",
       "payments.booking-with-a-discount-code",
       "payments.capacity-after-payment",
       "payments.checking-before-a-refund",
