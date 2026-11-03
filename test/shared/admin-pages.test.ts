@@ -15,7 +15,8 @@ import {
   visibleTopLevel,
 } from "#shared/admin-pages.ts";
 import type { AdminDestinationDef } from "#shared/admin-surface/definitions.ts";
-import { ADMIN_SURFACE } from "#shared/admin-surface.ts";
+import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
+import { ADMIN_SURFACE, adminDestination } from "#shared/admin-surface.ts";
 import { normalizePath } from "#shared/path.ts";
 import { type AdminLevel, ALL_ADMIN_LEVELS } from "#types";
 
@@ -178,13 +179,13 @@ describe("afterSavePath", () => {
     for (const [id, destination] of Object.entries(
       ADMIN_SURFACE.destinations,
     )) {
-      const landing = destination.afterSave;
-      if (landing === undefined) continue;
-      expect(ADMIN_SURFACE.destinations[landing.id], id).toBe(landing);
+      const landingId = destination.afterSave;
+      if (landingId === undefined) continue;
+      const landing = adminDestination(landingId);
       for (const param of landing.pattern.match(/:\w+/g) ?? []) {
         expect(param, `${id} ${param}`).toMatch(/^:(?:id|\w+Id)$/);
       }
-      expect(afterSavePath(destination, 42), id).toBe(
+      expect(afterSavePath(id as AdminDestinationId, 42), id).toBe(
         landing.pattern.replace(/:(\w+)/g, "42"),
       );
     }

@@ -131,13 +131,11 @@ describe("a route that names its after-save landing", () => {
     },
   };
 
-  test("holds the declared landing route", () => {
+  test("holds the landing id the route declares", () => {
     const surface = foldAdminAreas(WITH_LANDING);
-    expect(surface.destinations.holidayEdit!.afterSave).toBe(
-      surface.destinations.holiday,
-    );
+    expect(surface.destinations.holidayEdit!.afterSave).toBe("holiday");
     expect(surface.byPattern["/admin/holidays/:id/edit"]!.afterSave).toBe(
-      surface.destinations.holiday,
+      "holiday",
     );
   });
 

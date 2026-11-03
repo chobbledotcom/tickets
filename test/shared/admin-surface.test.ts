@@ -14,12 +14,13 @@ import {
 describe("the pattern a route declares", () => {
   test("is the one the surface holds, for every route", () => {
     // adminPattern names the literal its declaration wrote, which the fold
-    // cannot carry through as a type. This reads all of them back, so the
-    // name and the value can never drift apart unnoticed.
+    // cannot carry through as a type. This reads every pattern and every id
+    // back, so the name and the value can never drift apart unnoticed.
     const wrong = Object.entries(ADMIN_SURFACE.destinations)
       .filter(
         ([id, destination]) =>
-          adminPattern(id as AdminDestinationId) !== destination.pattern,
+          adminPattern(id as AdminDestinationId) !== destination.pattern ||
+          destination.id !== id,
       )
       .map(([id]) => id);
     expect(wrong).toEqual([]);

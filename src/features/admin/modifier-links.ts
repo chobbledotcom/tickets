@@ -42,9 +42,9 @@ const saveModifierLinks = (
     auth: formPolicyFor(route),
     handle: async ({ context: modifier, form }) => {
       const error = guard ? await guard(modifier, form) : null;
-      if (error) return errorRedirect(afterSavePath(route, id), error);
+      if (error) return errorRedirect(afterSavePath(route.id, id), error);
       await save(modifier, form);
-      return redirect(afterSavePath(route, modifier.id), message, true);
+      return redirect(afterSavePath(route.id, modifier.id), message, true);
     },
     loadContext: ({ id: modifierId }) => getModifier(modifierId),
   })(request, { id });

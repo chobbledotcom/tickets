@@ -8,8 +8,7 @@ import {
   ADMIN_SURFACE,
   adminDestination,
   adminDestinationAllowed,
-  adminPath,
-  oneRecordPath,
+  adminRecordPath,
 } from "#shared/admin-surface.ts";
 import { normalizePath } from "#shared/path.ts";
 import type { AdminLevel } from "#types";
@@ -101,29 +100,28 @@ export const entityReturnPath = (
   const section = sectionWhere((candidate) => candidate.landing === landing);
   return section?.detail === undefined
     ? adminDestination(landing).pattern
-    : adminPath(section.detail, { id });
+    : adminRecordPath(section.detail, id);
 };
 
-/** Where a save served at a route lands. Ask by the route's id, or pass the
- * route the caller already holds. The route's declaration names the landing.
- * A landing addressed by a record takes that record's id. A list landing names
- * no record and takes none. */
+/** Where a save served at a route lands. The route's declaration names the
+ * landing by id. A landing addressed by a record takes that record's id. A
+ * list landing names no record and takes none. */
 export const afterSavePath = (
-  route: AdminDestinationId | AdminDestinationDef,
+  id: AdminDestinationId,
   record?: number,
 ): string => {
-  const own = typeof route === "string" ? adminDestination(route) : route;
-  const landing = own.afterSave;
-  if (landing === undefined) {
-    throw new Error(`Admin route "${own.id}" declares no after-save landing`);
+  const landingId = adminDestination(id).afterSave;
+  if (landingId === undefined) {
+    throw new Error(`Admin route "${id}" declares no after-save landing`);
   }
+  const landing = adminDestination(landingId);
   if (!landing.pattern.includes(":")) return landing.pattern;
   if (record === undefined) {
     throw new Error(
-      `Admin route "${own.id}" lands on "${landing.id}", which names a record`,
+      `Admin route "${id}" lands on "${landingId}", which names a record`,
     );
   }
-  return oneRecordPath(landing.pattern, record);
+  return adminRecordPath(landingId, record);
 };
 
 /** The patterns of the routes that match one predicate, in declaration order. */

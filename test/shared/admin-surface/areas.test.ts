@@ -75,8 +75,8 @@ describe("the admin areas table", () => {
     // A save that lands on a page its own actor cannot open bounces the
     // reader to a forbidden page after the row has already changed.
     const stranded = routes.flatMap((route) => {
-      const landing = route.afterSave;
-      if (landing === undefined) return [];
+      if (route.afterSave === undefined) return [];
+      const landing = adminDestination(route.afterSave);
       const shut = route.audience.filter(
         (level) => !landing.audience.includes(level),
       );

@@ -91,12 +91,6 @@ export const adminPageAudience = (
   return [...reached];
 };
 
-/** Fill a pattern's record parameters with one id. */
-export const oneRecordPath = (
-  pattern: string,
-  record: string | number,
-): string => pattern.replace(/:(\w+)/g, () => String(record));
-
 /**
  * The path to one record, for a route addressed by a single parameter. Entity
  * pages use it because each names its record differently — `:id`, `:apiKeyId`,
@@ -111,7 +105,7 @@ export const adminRecordPath = (
   if (only === undefined || rest.length > 0) {
     throw new Error(`Admin route "${id}" does not address one record`);
   }
-  return oneRecordPath(pattern, record);
+  return pattern.replace(only, String(record));
 };
 
 /** One path a pattern can serve. Numeric parameters take a plausible id and

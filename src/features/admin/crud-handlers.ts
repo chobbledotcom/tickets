@@ -176,7 +176,7 @@ export const createCrudHandlers = <Row extends { id: number }, Display = Row>(
     return logAndRedirect(
       "created",
       result.row,
-      afterSavePath(createRoute, result.row.id),
+      afterSavePath(createRoute.id, result.row.id),
     );
   });
 
@@ -186,7 +186,7 @@ export const createCrudHandlers = <Row extends { id: number }, Display = Row>(
       return operationResponse(
         result,
         ({ row }) =>
-          logAndRedirect("updated", row, afterSavePath(editRoute, row.id)),
+          logAndRedirect("updated", row, afterSavePath(editRoute.id, row.id)),
         (error) =>
           cfg.renderEditError
             ? cfg.renderEditError(id, session, form, error)

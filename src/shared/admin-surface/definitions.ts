@@ -9,6 +9,7 @@
  */
 
 import type { EnabledFeatures } from "#shared/admin-features.ts";
+import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
 import type { AdminLevel } from "#types";
 
 export interface AdminSurfaceContext {
@@ -45,7 +46,10 @@ export type AdminDestinationSpec =
   | {
       /** The id of the page a save served at this route lands on, when that
        * page is not this route's own. A save that returns to its own form
-       * needs no declaration. */
+       * needs no declaration. It stays a plain string here.
+       * `AdminDestinationId` derives from this table, so naming it in this
+       * field makes the id union refer to itself. The fold checks it
+       * instead. */
       readonly afterSave?: string;
       readonly audience?: AdminAudience;
       readonly pattern: string;
@@ -70,12 +74,12 @@ export type AdminAreaSpec = AdminAreaWithRoutes | AdminAreaWithoutRoutes;
 export type AdminAreasSpec = Readonly<Record<string, AdminAreaSpec>>;
 
 export type AdminDestinationDef = {
-  /** The page a save served at this route lands on, when it is not this
-   * route's own page. */
-  readonly afterSave?: AdminDestinationDef;
+  /** The id of the page a save served at this route lands on, when it is not
+   * this route's own page. */
+  readonly afterSave?: AdminDestinationId;
   readonly area: string;
   readonly audience: AdminAudience;
-  readonly id: string;
+  readonly id: AdminDestinationId;
   /** The GET this write route serves is not a form: read-only mode keeps
    * serving it instead of redirecting it. */
   readonly readOnlyGet?: true;
@@ -89,29 +93,26 @@ export type AdminDestinationDef = {
 export const adminPathSegment = (path: string): string =>
   path.split("/")[2] ?? "";
 
-/** What the fold builds for a route. The landing it names stays an id until
- * every route is known. The route it resolves to is filled in after. */
-type DeclaredDestination = Omit<AdminDestinationDef, "afterSave"> & {
-  afterSave?: AdminDestinationDef;
-  readonly afterSaveId?: string;
-};
-
 const groupDestinations = (
   area: string,
   areaAudience: AdminAudience,
   intent: AdminRouteIntent,
   group: AdminRouteGroup | undefined,
-): DeclaredDestination[] =>
+): AdminDestinationDef[] =>
   Object.entries(group ?? {}).map(([id, spec]) => {
     // The string form is the bare pattern; the object form names the rest.
     const object = typeof spec === "string" ? { pattern: spec } : spec;
+    // A group's keys are the ids the table declares, and `declareArea` and
+    // `validateAfterSave` below prove each one, and each landing, exists. The
+    // fold works over plain data and cannot carry that through as a type, so
+    // the two ids are named here. `admin-surface.test.ts` reads every id back.
     return {
       area,
       audience: object.audience ?? areaAudience,
-      id,
+      id: id as AdminDestinationId,
       ...(object.afterSave === undefined
         ? {}
-        : { afterSaveId: object.afterSave }),
+        : { afterSave: object.afterSave as AdminDestinationId }),
       ...(object.readOnlyGet === true ? { readOnlyGet: true } : {}),
       ...(object.readOnlyWrite === undefined
         ? {}
@@ -121,31 +122,25 @@ const groupDestinations = (
     };
   });
 
-/** Name each declared landing route, now that every route is known. A landing
- * that names nothing is a typo. The reader meets it as a redirect to a path
- * no page serves. The fold refuses it here instead. It also refuses a route
- * that names itself. A saved record fills one parameter, so it refuses a
- * landing that names two. */
-const resolveAfterSave = (
-  declared: ReadonlyMap<string, DeclaredDestination>,
-): Record<string, AdminDestinationDef> => {
-  const built: Record<string, DeclaredDestination> = {};
-  for (const [id, { afterSaveId: _landing, ...destination }] of declared) {
-    built[id] = destination;
-  }
-  for (const [id, destination] of Object.entries(built)) {
-    const afterSaveId = declared.get(id)?.afterSaveId;
-    if (afterSaveId === undefined) continue;
-    const landing = built[afterSaveId];
+/** Refuse a landing that no route declares, a route that lands on itself, and
+ * a landing that names more than the one saved record. Each sends the reader
+ * to a path no page serves, or to a page the save cannot address. The fold
+ * calls this after every area, because a landing can come from a later one. */
+const validateAfterSave = (
+  declared: ReadonlyMap<string, AdminDestinationDef>,
+): void => {
+  for (const [id, { afterSave: landingId }] of declared) {
+    if (landingId === undefined) continue;
+    const landing = declared.get(landingId);
     if (landing === undefined) {
       throw new Error(
-        `Admin route "${id}" saves to "${afterSaveId}", which no route declares`,
+        `Admin route "${id}" saves to "${landingId}", which no route declares`,
       );
     }
     // A save that returns to its own form names no landing. A route that
     // names itself holds itself, and every reader of the landing then walks
     // a loop.
-    if (afterSaveId === id) {
+    if (landingId === id) {
       throw new Error(
         `Admin route "${id}" saves to itself. A save that returns to its own ` +
           "form needs no afterSave",
@@ -155,13 +150,11 @@ const resolveAfterSave = (
     // the same id twice, and that path serves no page.
     if ((landing.pattern.match(/:\w+/g) ?? []).length > 1) {
       throw new Error(
-        `Admin route "${id}" saves to "${afterSaveId}", which names more ` +
+        `Admin route "${id}" saves to "${landingId}", which names more ` +
           "than one record",
       );
     }
-    destination.afterSave = landing;
   }
-  return built;
 };
 
 export type FoldedAdminSurface = {
@@ -175,7 +168,7 @@ export type FoldedAdminSurface = {
 const declareArea = (
   areaId: string,
   area: AdminAreaWithRoutes,
-  declared: Map<string, DeclaredDestination>,
+  declared: Map<string, AdminDestinationDef>,
   patternOf: Map<string, string>,
 ): readonly string[] => {
   const { segments = [] } = area;
@@ -219,7 +212,7 @@ const declareArea = (
  */
 export const foldAdminAreas = (spec: AdminAreasSpec): FoldedAdminSurface => {
   const areas: Record<string, readonly string[]> = {};
-  const declared = new Map<string, DeclaredDestination>();
+  const declared = new Map<string, AdminDestinationDef>();
   const patternOf = new Map<string, string>();
 
   for (const [areaId, area] of Object.entries(spec)) {
@@ -229,7 +222,8 @@ export const foldAdminAreas = (spec: AdminAreasSpec): FoldedAdminSurface => {
         : area.segments;
   }
 
-  const destinations = resolveAfterSave(declared);
+  validateAfterSave(declared);
+  const destinations = Object.fromEntries(declared);
   const byPattern = Object.fromEntries(
     Object.values(destinations).map(
       (destination) => [destination.pattern, destination] as const,

@@ -20,7 +20,7 @@ const READ_ONLY_GET_PATTERNS = readOnlyGetRoutePatterns().map(
   routePathPatternToRegex,
 );
 
-const READ_ONLY_SAFE_PATHS = READ_ONLY_SAFE_ROUTES.map(({ pattern }) =>
+const READ_ONLY_SAFE_PATTERNS = READ_ONLY_SAFE_ROUTES.map(({ pattern }) =>
   routePathPatternToRegex(pattern),
 );
 
@@ -69,7 +69,7 @@ const isReadOnlyWrite = sentTo("POST", READ_ONLY_WRITE_PATTERNS);
 
 const isUpdateWrite = sentTo("POST", UPDATE_WRITE_PATTERNS);
 
-const isSafePath = pathIn(READ_ONLY_SAFE_PATHS);
+const isSafePath = pathIn(READ_ONLY_SAFE_PATTERNS);
 
 const isRetryingWebhook = pathIn(RETRYING_WEBHOOK_PATHS);
 
