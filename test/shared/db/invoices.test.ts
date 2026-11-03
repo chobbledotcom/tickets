@@ -1,10 +1,10 @@
-/** Storage rules for invoices: the two seals, the number, and the status. */
+/** Storage rules for invoices: the seal, the number, and the status. */
 
 import { assertRejects } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { decrypt } from "#crypto/encryption.ts";
 import { decryptWithOwnerKey } from "#crypto/hybrid.ts";
+import { generateSecureToken } from "#crypto/utils.ts";
 import {
   cancelInvoice,
   createInvoice,
@@ -15,6 +15,7 @@ import {
   getOpenInvoice,
   nextInvoiceNumber,
 } from "#db/invoices.ts";
+import { openInvoiceBody } from "#shared/invoices/share.ts";
 import { createReservedAttendee } from "#test-utils/balance.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -28,7 +29,7 @@ const storeInvoice = (
 ) => createInvoice({ attendeeId, bodyHtml, created: CREATED, id });
 
 describeWithEnv("db > invoices", { db: true }, () => {
-  test("stores both seals and finds the row by its share token", async () => {
+  test("seals the body under its share token and finds the row", async () => {
     const privateKey = await getTestPrivateKey();
     const { attendeeId } = await createReservedAttendee(1500);
     const { invoice, shareToken } = await storeInvoice(attendeeId, 1);
@@ -37,18 +38,25 @@ describeWithEnv("db > invoices", { db: true }, () => {
     expect(invoice.attendee_id).toBe(attendeeId);
     expect(invoice.status).toBe("new");
     expect(invoice.created).toBe(CREATED);
-    expect(invoice.body.startsWith("hyb:1:")).toBe(true);
-    expect(invoice.shared_body.startsWith("enc:1:")).toBe(true);
+    expect(invoice.body.startsWith("enc:1:")).toBe(true);
     expect(invoice.share_token.startsWith("hyb:1:")).toBe(true);
 
-    expect(await decryptWithOwnerKey(invoice.body, privateKey)).toBe(
+    expect(await openInvoiceBody(invoice.body, shareToken)).toBe(
       "<p>Frozen invoice</p>",
     );
     expect(await decryptWithOwnerKey(invoice.share_token, privateKey)).toBe(
       shareToken,
     );
-    expect(await decrypt(invoice.shared_body)).toBe("<p>Frozen invoice</p>");
     expect((await getInvoiceByShareToken(shareToken))?.id).toBe(1);
+  });
+
+  test("a different token cannot open the body", async () => {
+    const { attendeeId } = await createReservedAttendee(1500);
+    const { invoice } = await storeInvoice(attendeeId, 1);
+
+    await assertRejects(() =>
+      openInvoiceBody(invoice.body, generateSecureToken()),
+    );
   });
 
   test("a token that never sealed a row matches no invoice", async () => {

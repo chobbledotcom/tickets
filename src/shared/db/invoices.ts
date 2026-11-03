@@ -2,12 +2,12 @@
 
 /* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
-import { encrypt } from "#crypto/encryption.ts";
+import { encryptWithKey } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import { encryptWithOwnerKey } from "#crypto/hybrid.ts";
 import type {
   BlindIndex,
-  EnvKeyEncrypted,
+  KeyEncrypted,
   OwnerKeyEncrypted,
 } from "#crypto/sealed.ts";
 import { generateSecureToken } from "#crypto/utils.ts";
@@ -15,18 +15,17 @@ import { execute, type SqlStatement } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
 import { col, defineTable } from "#db/table.ts";
 import { readById } from "#db/table-reader.ts";
+import { invoiceBodyKey } from "#shared/invoices/share.ts";
 import type { InvoiceStatus } from "#shared/invoices/status.ts";
 /* jscpd:ignore-end */
 
 /** A stored invoice row. The keys are the table's own column names. */
 export type InvoiceRow = {
   attendee_id: number;
-  /** The rendered body, sealed under the owner public key. */
-  body: OwnerKeyEncrypted;
+  /** The rendered body, sealed under the share token's own key. */
+  body: KeyEncrypted;
   created: string;
   id: number;
-  /** The same body, sealed under the site key for the share page. */
-  shared_body: EnvKeyEncrypted;
   /** The capability in the share link, sealed under the owner public key. */
   share_token: OwnerKeyEncrypted;
   share_token_index: BlindIndex;
@@ -49,10 +48,9 @@ export type NewInvoice = {
 
 type InvoiceInput = {
   attendeeId: number;
-  body: OwnerKeyEncrypted;
+  body: KeyEncrypted;
   created: string;
   id: number;
-  sharedBody: EnvKeyEncrypted;
   shareToken: OwnerKeyEncrypted;
   shareTokenIndex: BlindIndex;
   status: InvoiceStatus;
@@ -63,12 +61,11 @@ const invoicesTable = defineTable<InvoiceRow, InvoiceInput>({
   primaryKey: "id",
   schema: {
     attendee_id: col.simple<number>(),
-    body: col.simple<OwnerKeyEncrypted>(),
+    body: col.simple<KeyEncrypted>(),
     created: col.simple<string>(),
     id: col.simple<number>(),
     share_token: col.simple<OwnerKeyEncrypted>(),
     share_token_index: col.simple<BlindIndex>(),
-    shared_body: col.simple<EnvKeyEncrypted>(),
     status: col.simple<InvoiceStatus>(),
   },
 });
@@ -104,8 +101,8 @@ export const nextInvoiceNumber = async (): Promise<number> => {
 
 export type CreatedInvoice = { invoice: InvoiceRow; shareToken: string };
 
-/** Seal the rendered body under both keys, mint the share token, and store the
- *  row. `body` serves an owner session. `sharedBody` serves the share link. */
+/** Seal the rendered body under the share token's key, and store the row with
+ *  that token sealed under the owner key. */
 export const createInvoice = async ({
   attendeeId,
   bodyHtml,
@@ -113,9 +110,9 @@ export const createInvoice = async ({
   id,
 }: NewInvoice): Promise<CreatedInvoice> => {
   const shareToken = generateSecureToken();
-  const [body, sharedBody, sealedToken, shareTokenIndex] = await Promise.all([
-    encryptWithOwnerKey(bodyHtml, settings.publicKey),
-    encrypt(bodyHtml),
+  const bodyKey = await invoiceBodyKey(shareToken);
+  const [body, sealedToken, shareTokenIndex] = await Promise.all([
+    encryptWithKey(bodyHtml, bodyKey),
     encryptWithOwnerKey(shareToken, settings.publicKey),
     hmacHash(shareToken),
   ]);
@@ -124,7 +121,6 @@ export const createInvoice = async ({
     body,
     created,
     id,
-    sharedBody,
     shareToken: sealedToken,
     shareTokenIndex,
     status: "new",

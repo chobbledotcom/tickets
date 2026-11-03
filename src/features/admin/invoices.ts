@@ -45,7 +45,7 @@ import {
   renderInvoiceBody,
 } from "#shared/invoices/body.ts";
 import { invoiceLines } from "#shared/invoices/lines.ts";
-import { invoiceShareUrl } from "#shared/invoices/share.ts";
+import { invoiceShareUrl, openInvoiceBody } from "#shared/invoices/share.ts";
 import { nowIso } from "#shared/now.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -221,12 +221,15 @@ const handleInvoiceGet: TypedRouteHandler<"GET /admin/invoices/:id"> = (
     async (session) =>
       orNotFound(getInvoice(id), async (invoice) => {
         const privateKey = await requireRequestPrivateKey();
-        const [bodyHtml, shareToken] = await Promise.all([
-          decryptWithOwnerKey(invoice.body, privateKey),
-          decryptWithOwnerKey(invoice.share_token, privateKey),
-        ]);
+        const shareToken = await decryptWithOwnerKey(
+          invoice.share_token,
+          privateKey,
+        );
         return orNotFound(getAttendeeRaw(invoice.attendee_id), async (raw) => {
-          const attendee = await decryptAttendeeFields(raw, privateKey);
+          const [attendee, bodyHtml] = await Promise.all([
+            decryptAttendeeFields(raw, privateKey),
+            openInvoiceBody(invoice.body, shareToken),
+          ]);
           return htmlResponse(
             adminInvoicePage({
               attendeeEmail: attendee.email,

@@ -105,7 +105,7 @@ export const aesGcmDecryptRaw = (
 /** Curried by usage, then by key bytes, so each entry point below already has
  * the key source it would otherwise have to spell out. */
 const importsAesKey =
-  (usage: "encrypt" | "decrypt") =>
+  (usages: KeyUsage[]) =>
   (keyBytes: Uint8Array): WebKeySource =>
   () =>
     crypto.subtle.importKey(
@@ -113,11 +113,16 @@ const importsAesKey =
       keyBytes as BufferSource,
       { name: "AES-GCM" },
       false,
-      [usage],
+      usages,
     );
 
-const importsEncryptKey = importsAesKey("encrypt");
-const importsDecryptKey = importsAesKey("decrypt");
+const importsEncryptKey = importsAesKey(["encrypt"]);
+const importsDecryptKey = importsAesKey(["decrypt"]);
+
+/** Import raw AES-256 key bytes for a caller that holds the key itself. The
+ *  key seals and opens values. */
+export const importAesKeyBytes = (keyBytes: Uint8Array): Promise<CryptoKey> =>
+  importsAesKey(["encrypt", "decrypt"])(keyBytes)();
 
 /**
  * AES-GCM encrypt with raw key bytes, using whichever implementation is faster
