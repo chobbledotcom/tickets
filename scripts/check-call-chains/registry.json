@@ -1,0 +1,10 @@
+{
+  "actionHandler(formGuard(formPolicyFor(": 2,
+  "formGuard(formPolicyFor(adminDestinationAt(": 5,
+  "unique(compact(entries.map(": 2,
+  "authPage(pageGuardFor(adminDestinationAt(": 6,
+  "lazyRoute(once(createRouter(": 3,
+  "once(createRouter(routes(": 2,
+  "columns.map(escapeValue(stopFormula(": 3,
+  "joinStrings(gs.map(renderGroupCard(": 2
+}

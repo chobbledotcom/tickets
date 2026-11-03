@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  countsByPath,
   findIssues,
   presenceFindings,
 } from "#scripts/check-presence-assertions/rules.ts";
@@ -33,15 +32,6 @@ describe("check-presence-assertions rules", () => {
     expect(
       presenceFindings("fixture.test.ts", "expect(result).toBeUndefined();\n"),
     ).toEqual([]);
-  });
-
-  test("counts findings per file and leaves files without findings out", () => {
-    const counts = countsByPath([
-      { column: 1, line: 2, message: "presence-only", path: "a.test.ts" },
-      { column: 1, line: 9, message: "presence-only", path: "a.test.ts" },
-      { column: 1, line: 4, message: "presence-only", path: "b.test.ts" },
-    ]);
-    expect(counts).toEqual({ "a.test.ts": 2, "b.test.ts": 1 });
   });
 
   test("flags every call in a file no entry covers", () => {

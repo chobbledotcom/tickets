@@ -41,6 +41,7 @@
     "check:empty-catch": "deno run --allow-read=src,test,scripts,cli,e2e-payments --allow-env --allow-sys --allow-ffi scripts/check-empty-catch.ts",
     "check:double-casts": "deno run --allow-read=src,test,scripts,cli,e2e-payments --allow-env --allow-sys --allow-ffi --allow-write=scripts/check-double-casts/baseline.json scripts/check-double-casts.ts",
     "check:file-lengths": "deno run --allow-read=src,test,scripts,cli,e2e-payments --allow-write=scripts/check-file-lengths/over-limit.json scripts/counts-check.ts file-lengths",
+    "check:call-chains": "deno run --allow-read=src,scripts/check-call-chains/registry.json --allow-env --allow-sys --allow-ffi --allow-write=scripts/check-call-chains/registry.json scripts/check-call-chains.ts",
     "check:merged-tree": "deno run --allow-run --allow-read --allow-write --allow-env scripts/check-merged-tree.ts",
     "check:required-checks":
       "env -u LD_LIBRARY_PATH deno run --allow-read=scripts/required-checks --allow-run=gh scripts/required-checks/check.ts",

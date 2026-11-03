@@ -78,6 +78,12 @@ const STEPS = [
     cmd: ["task", "check:file-lengths"],
     name: "check:file-lengths",
   },
+  // Hold every chain of three or more methods that repeats to a site count
+  // that only falls (see "Keep methods flat" in AGENTS.md).
+  {
+    cmd: ["task", "check:call-chains"],
+    name: "check:call-chains",
+  },
   // The coverage exclusion list only shrinks: fail on an entry the branch
   // adds against the merge base on origin/main (see "Never add a coverage
   // exclusion" in AGENTS.md).
