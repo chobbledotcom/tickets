@@ -61,7 +61,9 @@ const context = (
   changes: Partial<MutantLoopContext> = {},
 ): MutantLoopContext => ({
   counts: emptyCounts(),
+  frozen: { current: null },
   gates: [],
+  testLimitMs: 60_000,
   totalMutants: plan.mutants.length,
   unconfirmedKeys: new Set(),
   ...changes,
@@ -135,6 +137,7 @@ describe("mutation file coordinator", () => {
       ) => {
         tested.push(mutant.anchor);
         expect(run.batchJobs).toBe(2);
+        expect(run.limitMs).toBe(60_000);
         expect(run.testFiles).toEqual(opts.testFiles);
         expect(integrationFiles).toEqual(opts.integrationTestFiles);
         expect(signal.aborted).toBe(false);
@@ -165,9 +168,9 @@ describe("mutation file coordinator", () => {
     expect(opts.originals.size).toBe(0);
   });
 
-  test("gives every static survivor to the tests, however long they take", async () => {
-    // The tests are the only thing that can answer for a mutant that cleared
-    // the gates, so none may be skipped over on account of elapsed time.
+  test("gives every static survivor to the tests, however long the gates took", async () => {
+    // A gate's duration never decides a mutant: every mutant that cleared the
+    // gates reaches the tests, whatever the gates' timings say.
     const opts = options();
     const tested: string[] = [];
     const deps = dependencies({
@@ -245,6 +248,36 @@ describe("mutation file coordinator", () => {
     });
 
     await expectNoResult(opts, deps);
+  });
+
+  test("keeps a frozen test batch as the run's named cause", async () => {
+    const opts = options();
+    const ctx = context();
+    const deps = withStaticSurvivor({
+      evaluateTests: () =>
+        Promise.resolve({
+          detectedBy: null,
+          frozen: {
+            batch: ["test/source.test.ts"],
+            durationMs: 90_000,
+            limitMs: 60_000,
+          },
+          status: "cancelled",
+          timings: [],
+        }),
+    });
+
+    await runFileMutants(plan, opts, ctx, deps);
+
+    expect(ctx.frozen.current).toEqual({
+      batch: ["test/source.test.ts"],
+      durationMs: 90_000,
+      file: "/work/source.ts",
+      limitMs: 60_000,
+      mutant: mutants[0],
+    });
+    // A frozen batch gives no verdict, so it never becomes a scored result.
+    expect(opts.results).toEqual([]);
   });
 
   test("cleans source tracking when static evaluation fails", async () => {

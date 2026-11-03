@@ -1,4 +1,4 @@
-import type { EvaluationStatus } from "./summary.ts";
+import type { EvaluationStatus, FrozenTestRun } from "./summary.ts";
 
 export type MutationPhase =
   | "lint"
@@ -35,6 +35,8 @@ export type TestDetectionPhase =
 
 export interface TestStageResult {
   detectedBy: TestDetectionPhase | null;
+  /** Set when the per-batch limit stopped a batch during this stage. */
+  frozen?: FrozenTestRun;
   status: EvaluationStatus;
   timings: PhaseTiming[];
 }

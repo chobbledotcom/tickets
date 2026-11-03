@@ -62,6 +62,7 @@ const setup = () => {
 const runConfig = {
   batchJobs: 1,
   env: { BASE: "yes", [TEST_STATE_DIR_ENV]: "/baseline-state" },
+  limitMs: 60_000,
   testFiles: [],
 };
 
@@ -310,6 +311,92 @@ describe("mutant evaluation", () => {
     expect(result).toMatchObject({
       detectedBy: "integration-tests",
       status: "killed",
+    });
+  });
+
+  test("keeps a frozen test batch as a cause, not a verdict", async () => {
+    const state = setup();
+    const stages: string[][] = [];
+    state.deps.runTests = ({ testFiles }) => {
+      stages.push(testFiles);
+      return Promise.resolve({
+        durationMs: 90_000,
+        frozen: {
+          batch: ["test/shared/example.test.ts"],
+          durationMs: 90_000,
+          limitMs: 60_000,
+        },
+        outcome: "cancelled",
+      });
+    };
+
+    const result = await evaluateMutantTests(
+      plan({ rebuildTestState: false }),
+      mutant,
+      runConfig,
+      ["test/integration/example.test.ts"],
+      new AbortController().signal,
+      [],
+      state.deps,
+    );
+
+    expect(result).toEqual({
+      detectedBy: null,
+      frozen: {
+        batch: ["test/shared/example.test.ts"],
+        durationMs: 90_000,
+        limitMs: 60_000,
+      },
+      status: "cancelled",
+      timings: [{ durationMs: 90_000, phase: "direct-tests" }],
+    });
+    // A frozen direct stage gives no verdict, so integration tests never run.
+    expect(stages).toEqual([["test/shared/example.test.ts"]]);
+  });
+
+  test("keeps a frozen integration batch as a cause, not a verdict", async () => {
+    // The integration stage builds its result from the batch result, so a
+    // freeze there is easy to drop. A dropped cause lets the runner carry on
+    // and print a score for a run whose tests gave no verdict.
+    const state = setup();
+    let runs = 0;
+    state.deps.runTests = () =>
+      Promise.resolve(
+        runs++ === 0
+          ? { durationMs: 1, outcome: "passed" }
+          : {
+              durationMs: 90_000,
+              frozen: {
+                batch: ["test/integration/example.test.ts"],
+                durationMs: 90_000,
+                limitMs: 60_000,
+              },
+              outcome: "cancelled",
+            },
+      );
+
+    const result = await evaluateMutantTests(
+      plan({ rebuildTestState: false }),
+      mutant,
+      runConfig,
+      ["test/integration/example.test.ts"],
+      new AbortController().signal,
+      [],
+      state.deps,
+    );
+
+    expect(result).toEqual({
+      detectedBy: null,
+      frozen: {
+        batch: ["test/integration/example.test.ts"],
+        durationMs: 90_000,
+        limitMs: 60_000,
+      },
+      status: "cancelled",
+      timings: [
+        { durationMs: 1, phase: "direct-tests" },
+        { durationMs: 90_000, phase: "integration-tests" },
+      ],
     });
   });
 
