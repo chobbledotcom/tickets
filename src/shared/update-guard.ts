@@ -94,10 +94,10 @@ export const fetchBoundedUpdatePage = async (
     signal: AbortSignal.timeout(UPDATE_PAGE_FETCH_TIMEOUT_MS),
   });
 
-/** The statuses a page check retries. A 503 says the site answers, but it is
+/** The status a page check retries. A 503 says the site answers, but it is
  * not ready: the new build serves the migration page until its first
  * migrations finish. */
-const RETRYABLE_PAGE_STATUSES = new Set([503]);
+const RETRYABLE_PAGE_STATUS = 503;
 
 /** The error a page check raises for a non-OK answer. The wait keeps polling
  * when the site answered a retryable status, because the update page follows
@@ -110,7 +110,7 @@ export class UpdatePageCheckError extends Error {
   constructor(status: number, detail = "") {
     super(`The update page check failed (HTTP ${status})${detail}.`);
     this.name = "UpdatePageCheckError";
-    this.retryable = RETRYABLE_PAGE_STATUSES.has(status);
+    this.retryable = status === RETRYABLE_PAGE_STATUS;
     this.status = status;
   }
 }

@@ -145,8 +145,8 @@ describe("runUpdateMode", () => {
     // The page fetch must end on its own before the wait's deadline, or a
     // stalled connection keeps the command pending forever.
     expect(pageCall?.init.signal).toBeInstanceOf(AbortSignal);
-    // Only the page fetch is bounded; the Bunny API calls keep no signal.
-    expect(setCall?.init.signal).toBeUndefined();
+    // Only the page fetch is bounded; the Bunny API calls carry no signal.
+    expect(Object.hasOwn(setCall?.init ?? {}, "signal")).toBe(false);
   });
 
   test("begin skips the wait for a build that predates update mode", async () => {

@@ -418,6 +418,6 @@ describeWithEnv("recordScriptVersion", { db: true }, () => {
     const { getDb } = await import("#db/client.ts");
     await getDb().execute("DROP TABLE settings");
     // Reading/writing the missing table throws inside; the call must still resolve.
-    await recordScriptVersion();
+    await expect(recordScriptVersion()).resolves.toBeUndefined();
   });
 });
