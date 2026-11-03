@@ -6,7 +6,6 @@ import { getInvoiceByShareToken } from "#db/invoices.ts";
 import { notFoundResponse, publicPageResponse } from "#routes/response.ts";
 import type { PathMethodRoute } from "#routes/types.ts";
 import { signBalanceToken } from "#shared/balance-link.ts";
-import { requireValue } from "#shared/required-value.ts";
 import { invoiceSharePage } from "#templates/public/invoice.tsx";
 import { applyNoindex } from "./types.ts";
 
@@ -19,12 +18,12 @@ const handleInvoiceGet = async (token: string): Promise<Response> => {
     decrypt(invoice.shared_body),
     getAttendeeBalanceState(invoice.attendee_id),
   ]);
-  const outstanding = requireValue(
-    state,
-    "An invoiced attendee has no balance state",
-  );
+  // An attendee delete removes its invoices, so a row without its attendee can
+  // only come from a hand-edited database. The admin page answers not found for
+  // that row, so the share link answers the same.
+  if (!state) return notFoundResponse();
   const payToken =
-    invoice.status === "new" && outstanding.remainingBalance > 0
+    invoice.status === "new" && state.remainingBalance > 0
       ? await signBalanceToken(invoice.attendee_id)
       : null;
   return applyNoindex(

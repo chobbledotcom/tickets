@@ -92,4 +92,10 @@ describeWithEnv("server (public invoice page)", { db: true }, () => {
   test("an empty token is not found", async () => {
     expect((await handleRequest(mockRequest("/invoice/"))).status).toBe(404);
   });
+
+  test("an invoice whose attendee is gone is not found", async () => {
+    const { shareToken } = await shareInvoice(999_999);
+
+    expect((await getShare(shareToken)).status).toBe(404);
+  });
 });
