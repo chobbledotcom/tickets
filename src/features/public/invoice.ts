@@ -5,7 +5,7 @@ import { getInvoiceByShareToken } from "#db/invoices.ts";
 import { notFoundResponse, publicPageResponse } from "#routes/response.ts";
 import type { PathMethodRoute } from "#routes/types.ts";
 import { signBalanceToken } from "#shared/balance-link.ts";
-import { openInvoiceBody } from "#shared/invoices/share.ts";
+import { openInvoiceBody } from "#shared/invoices/seal.ts";
 import { invoiceSharePage } from "#templates/public/invoice.tsx";
 import { applyNoindex } from "./types.ts";
 

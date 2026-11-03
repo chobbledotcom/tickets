@@ -15,7 +15,7 @@ import { execute, type SqlStatement } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
 import { col, defineTable } from "#db/table.ts";
 import { readById } from "#db/table-reader.ts";
-import { invoiceBodyKey } from "#shared/invoices/share.ts";
+import { invoiceBodyKey } from "#shared/invoices/seal.ts";
 import type { InvoiceStatus } from "#shared/invoices/status.ts";
 /* jscpd:ignore-end */
 

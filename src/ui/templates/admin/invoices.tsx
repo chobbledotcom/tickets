@@ -3,23 +3,21 @@
 /* jscpd:ignore-start */
 import type { InvoiceRow, InvoiceSummary } from "#db/invoices.ts";
 import { t } from "#i18n";
-import { type Child, Raw } from "#jsx/jsx-runtime.ts";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import type { AuthSession } from "#routes/auth.ts";
+import { adminPath } from "#shared/admin-surface.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
 import type { FlashFields } from "#shared/flash-fields.ts";
-import { flashNotice } from "#shared/forms/flash.tsx";
 import {
   INVOICE_STATUS_LABEL_KEYS,
   type InvoiceStatus,
 } from "#shared/invoices/status.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import { AdminPage } from "#templates/admin/admin-page-spec.tsx";
-import type { NavActive } from "#templates/admin/nav.tsx";
-import { ActionButton } from "#templates/components/actions.tsx";
+import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
+import { ActionButton, SubmitButton } from "#templates/components/actions.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { LabelledRow } from "#templates/components/labelled-row.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
-import { renderTable } from "#templates/components/table.tsx";
 import {
   dateLabelColumn,
   translatedTableColumn,
@@ -37,7 +35,7 @@ type InvoiceListRow = {
 
 const invoiceListTable = defineTable<InvoiceListRow>([
   translatedTableColumn("number", "invoices.column.number", (row) => (
-    <a href={`/admin/invoices/${row.id}`}>{row.id}</a>
+    <a href={adminPath("invoice", { id: row.id })}>{row.id}</a>
   )),
   translatedTableColumn(
     "attendee",
@@ -50,34 +48,6 @@ const invoiceListTable = defineTable<InvoiceListRow>([
   ),
 ]);
 
-/** One invoice page: its nav entry, its own notice, and its heading. */
-const invoicePage = ({
-  actions,
-  active,
-  children,
-  flash,
-  session,
-  title,
-}: {
-  actions?: Child;
-  active: NavActive;
-  children: Child;
-  flash: FlashFields;
-  session: AuthSession;
-  title: string;
-}): string =>
-  String(
-    <AdminPage
-      {...(actions === undefined ? {} : { actions })}
-      active={active}
-      flash={flashNotice(flash)}
-      session={session}
-      title={title}
-    >
-      {children}
-    </AdminPage>,
-  );
-
 /** The invoices list. `attendeeNames` holds each row's decrypted name. */
 export const adminInvoicesPage = ({
   attendeeNames,
@@ -89,57 +59,60 @@ export const adminInvoicesPage = ({
   flash: FlashFields;
   invoices: InvoiceSummary[];
   session: AuthSession;
-}): string => {
-  const rows = invoices.map((invoice) => ({
-    attendeeName: attendeeNames.get(invoice.attendee_id) ?? "",
-    created: invoice.created,
-    id: invoice.id,
-    status: invoice.status,
-  }));
-  return invoicePage({
+}): string =>
+  renderAdminPageSpec({
     actions: (
-      <ActionButton href="/admin/invoices/new">
+      <ActionButton href={adminPath("invoiceNew", {})}>
         {t("invoices.action.create")}
       </ActionButton>
     ),
     active: "/admin/invoices",
-    children: renderTable(invoiceListTable, rows, {
-      empty: t("invoices.empty"),
-    }),
     flash,
+    list: {
+      columns: invoiceListTable.columns,
+      empty: t("invoices.empty"),
+      items: invoices.map((invoice) => ({
+        // An invoice whose attendee row is gone (hand-edited data only) still
+        // lists, without a name, so an operator can find and delete it.
+        attendeeName: attendeeNames.get(invoice.attendee_id) ?? "",
+        created: invoice.created,
+        id: invoice.id,
+        status: invoice.status,
+      })),
+    },
     session,
     title: t("invoices.title"),
   });
-};
 
 /** The create form, with the next free invoice number prefilled. */
 export const adminInvoiceNewPage = ({
+  attendeeId,
   flash,
   nextNumber,
   session,
-  attendeeId,
 }: {
   attendeeId: number | null;
   flash: FlashFields;
   nextNumber: number;
   session: AuthSession;
 }): string =>
-  invoicePage({
+  renderAdminPageSpec({
     active: "/admin/invoices/new",
-    children: (
-      <SaveForm
-        action="/admin/invoices/new"
-        submitLabel={t("invoices.action.create")}
-      >
-        <Raw
-          html={getInvoiceForm().render({
-            attendee_id: attendeeId ?? "",
-            number: nextNumber,
-          })}
-        />
-      </SaveForm>
-    ),
-    flash,
+    form: {
+      action: adminPath("invoiceNew", {}),
+      fields: (
+        <>
+          <Raw
+            html={getInvoiceForm().render({
+              attendee_id: attendeeId === null ? "" : attendeeId,
+              number: nextNumber,
+            })}
+          />
+          <SubmitButton icon="save">{t("invoices.action.create")}</SubmitButton>
+        </>
+      ),
+      flash,
+    },
     session,
     title: t("invoices.new_title"),
   });
@@ -162,9 +135,9 @@ export const adminInvoicePage = ({
   session: AuthSession;
   shareUrl: string;
 }): string =>
-  invoicePage({
+  renderAdminPageSpec({
     active: "/admin/invoices",
-    children: (
+    body: (
       <>
         <DetailTable
           rows={[
@@ -191,13 +164,13 @@ export const adminInvoicePage = ({
         <p class="actions">
           {invoice.status === "new" ? (
             <SaveForm
-              action={`/admin/invoices/${invoice.id}/cancel`}
+              action={adminPath("invoiceCancel", { id: invoice.id })}
               submitIcon="x"
               submitLabel={t("invoices.action.cancel")}
             />
           ) : null}
           <SaveForm
-            action={`/admin/invoices/${invoice.id}/delete`}
+            action={adminPath("invoiceDelete", { id: invoice.id })}
             submitClass="danger"
             submitIcon="trash-2"
             submitLabel={t("invoices.action.delete")}
@@ -209,5 +182,5 @@ export const adminInvoicePage = ({
     ),
     flash,
     session,
-    title: t("invoices.share.title", { number: invoice.id }),
+    title: t("invoices.detail.title", { number: invoice.id }),
   });

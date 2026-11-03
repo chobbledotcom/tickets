@@ -14,6 +14,7 @@
   "invoices.column.status": "Status",
   "invoices.detail.body_heading": "Invoice body",
   "invoices.detail.share_hint": "Anyone with this link can view the invoice. The link does not expire.",
+  "invoices.detail.title": "Invoice {number}",
   "invoices.email.subject": "Invoice {number}",
   "invoices.email.text": "Invoice {number} is ready.\n\nView it here: {url}",
   "invoices.email.view": "View the invoice",

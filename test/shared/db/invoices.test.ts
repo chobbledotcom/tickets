@@ -17,7 +17,7 @@ import {
   getOpenInvoice,
   nextInvoiceNumber,
 } from "#db/invoices.ts";
-import { openInvoiceBody } from "#shared/invoices/share.ts";
+import { openInvoiceBody } from "#shared/invoices/seal.ts";
 import { createReservedAttendee } from "#test-utils/balance.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
