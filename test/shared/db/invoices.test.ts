@@ -3,8 +3,10 @@
 import { assertRejects } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { importAesKeyBytes } from "#crypto/aes-gcm.ts";
+import { decryptWithKey } from "#crypto/encryption.ts";
 import { decryptWithOwnerKey } from "#crypto/hybrid.ts";
-import { generateSecureToken } from "#crypto/utils.ts";
+import { fromBase64Url, generateSecureToken } from "#crypto/utils.ts";
 import {
   cancelInvoice,
   createInvoice,
@@ -57,6 +59,14 @@ describeWithEnv("db > invoices", { db: true }, () => {
     await assertRejects(() =>
       openInvoiceBody(invoice.body, generateSecureToken()),
     );
+  });
+
+  test("the raw token bytes cannot open the body", async () => {
+    const { attendeeId } = await createReservedAttendee(1500);
+    const { invoice, shareToken } = await storeInvoice(attendeeId, 1);
+    const rawTokenKey = await importAesKeyBytes(fromBase64Url(shareToken));
+
+    await assertRejects(() => decryptWithKey(invoice.body, rawTokenKey));
   });
 
   test("a token that never sealed a row matches no invoice", async () => {

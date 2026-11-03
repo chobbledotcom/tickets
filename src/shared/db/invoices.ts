@@ -22,7 +22,7 @@ import type { InvoiceStatus } from "#shared/invoices/status.ts";
 /** A stored invoice row. The keys are the table's own column names. */
 export type InvoiceRow = {
   attendee_id: number;
-  /** The rendered body, sealed under the share token's own key. */
+  /** The rendered body, sealed under the share token's derived key. */
   body: KeyEncrypted;
   created: string;
   id: number;

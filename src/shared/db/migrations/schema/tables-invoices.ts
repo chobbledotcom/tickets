@@ -15,10 +15,10 @@ export const invoiceTables: [name: string, table: Table][] = [
   [
     // An invoice belongs to one attendee. The body is the rendered Liquid
     // output, frozen when an operator creates the invoice. It is sealed under
-    // the share token's own bytes, so the token holder reads the body and
-    // nobody else can. `share_token` holds that capability, sealed under the
-    // owner key for an owner session. `share_token_index` finds the row
-    // without opening it.
+    // a key that the share token and the site key derive. The token holder
+    // reads the body, and a dump of the database alone opens nothing.
+    // `share_token` holds that capability, sealed under the owner key for an
+    // owner session. `share_token_index` finds the row without opening it.
     // No FK: the attendee delete path removes these rows explicitly, like
     // system_notes.
     "invoices",
