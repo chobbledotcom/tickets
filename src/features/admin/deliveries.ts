@@ -36,8 +36,7 @@ import {
   deliveryPage,
   withAuth,
 } from "#routes/auth.ts";
-import { errorRedirect, redirect } from "#routes/response.ts";
-import { adminPattern } from "#shared/admin-surface.ts";
+import { adminRedirect } from "#routes/response.ts";
 import { addDays } from "#shared/dates.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -247,8 +246,6 @@ const markDateAllowed = (session: AuthSession, date: string): boolean => {
   return date === today || date === addDays(today, 1);
 };
 
-const DELIVERIES_PATH = adminPattern("deliveries");
-
 /** Handle POST /admin/deliveries/mark — toggle a leg done, scoped to the
  * agent's own logistics agents and to the run-sheet day it was shown on. */
 const handleDeliveriesMark = (request: Request): Promise<Response> =>
@@ -264,7 +261,12 @@ const handleDeliveriesMark = (request: Request): Promise<Response> =>
       (kind !== "start" && kind !== "end") ||
       !markDateAllowed(session, date)
     ) {
-      return errorRedirect(DELIVERIES_PATH, t("deliveries.invalid_request"));
+      return adminRedirect(
+        "deliveries",
+        {},
+        t("deliveries.invalid_request"),
+        false,
+      );
     }
 
     const agentIds = await userAgents.getIds(session.userId);
@@ -277,10 +279,11 @@ const handleDeliveriesMark = (request: Request): Promise<Response> =>
       agentIds,
     );
     if (!updated) {
-      return errorRedirect(DELIVERIES_PATH, t("deliveries.not_yours"));
+      return adminRedirect("deliveries", {}, t("deliveries.not_yours"), false);
     }
-    return redirect(
-      DELIVERIES_PATH,
+    return adminRedirect(
+      "deliveries",
+      {},
       done ? t("deliveries.marked_done") : t("deliveries.marked_not_done"),
       true,
     );

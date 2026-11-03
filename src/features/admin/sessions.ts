@@ -16,8 +16,8 @@ import {
   gatedPost,
   pageGuardFor,
 } from "#routes/auth.ts";
-import { redirect } from "#routes/response.ts";
-import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
+import { adminRedirect } from "#routes/response.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { adminSessionsPage } from "#templates/admin/sessions.tsx";
 
 /* jscpd:ignore-end */
@@ -41,8 +41,9 @@ const handleAdminSessionsPost = gatedPost(
   formPolicyFor(adminDestinationAt("/admin/sessions")),
 )(async (session) => {
   await deleteOtherSessions(session.token);
-  return redirect(
-    adminPattern("sessions"),
+  return adminRedirect(
+    "sessions",
+    {},
     t("success.logged_out_everywhere"),
     true,
   );

@@ -36,8 +36,13 @@ import {
 } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
-import { htmlResponse, jsonResponse, redirect } from "#routes/response.ts";
-import { adminPath, adminPattern } from "#shared/admin-surface.ts";
+import {
+  adminRedirect,
+  htmlResponse,
+  jsonResponse,
+  redirect,
+} from "#routes/response.ts";
+import { adminPath } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { compareByName, sortByName } from "#shared/name-order.ts";
 import { featureGate } from "#shared/response-steps.ts";
@@ -71,7 +76,7 @@ const byNameThenUpload = (first: Image, second: Image): number =>
   compareByName(first, second) || first.id - second.id;
 
 const withStorageEnabled = featureGate(isStorageEnabled, () =>
-  redirect("/admin/images", t("images.storage_off"), false),
+  adminRedirect("images", {}, t("images.storage_off"), false),
 );
 const imageHandler = createIdEntityHandler<Image>(getImageById);
 type ImagePost = (
@@ -110,7 +115,12 @@ const handleImageCreatePost: TypedRouteHandler<"POST /admin/images"> = (
     withStorageEnabled(() =>
       withUploadedImage(formData, "/admin/images/new", async (image) => {
         await logActivity(`Image '${image.name}' uploaded`);
-        return redirect(imagePath(image.id), t("images.created"), true);
+        return adminRedirect(
+          "imageEdit",
+          { id: image.id },
+          t("images.created"),
+          true,
+        );
       }),
     ),
   );
@@ -240,7 +250,12 @@ const handleImageEditPost: TypedRouteHandler<"POST /admin/images/:id/edit"> =
     if (blocked) return blocked;
     const metadata = imageMetadataFromForm(form);
     if (!metadata.ok) {
-      return redirect(imagePath(image.id), metadata.error, false);
+      return adminRedirect(
+        "imageEdit",
+        { id: image.id },
+        metadata.error,
+        false,
+      );
     }
     await updateImageRecord(image.id, metadata.value);
     await setItemsForImage(
@@ -248,7 +263,12 @@ const handleImageEditPost: TypedRouteHandler<"POST /admin/images/:id/edit"> =
       allowedImageTargets(adminLevel, parseImageTargets(form)),
     );
     await logActivity(`Image '${metadata.value.name}' updated`);
-    return redirect(imagePath(image.id), t("images.updated"), true);
+    return adminRedirect(
+      "imageEdit",
+      { id: image.id },
+      t("images.updated"),
+      true,
+    );
   });
 
 const handleImageDeleteGet: TypedRouteHandler<"GET /admin/images/:id/delete"> =
@@ -266,7 +286,7 @@ const confirmDelete = (form: FormParams, image: Image): string | null =>
 
 const handleImageDeletePost: TypedRouteHandler<"POST /admin/images/:id/delete"> =
   imageHandlers.post(async (image, form, adminLevel) => {
-    const deletePath = `/admin/images/${image.id}/delete`;
+    const deletePath = adminPath("imageDelete", { id: image.id });
     // deleteImageRecord prunes every use, including a news one, so a non-Site
     // role cannot delete an image a news post uses (public Site content).
     const blocked = await siteContentImageGate(
@@ -276,18 +296,25 @@ const handleImageDeletePost: TypedRouteHandler<"POST /admin/images/:id/delete"> 
     );
     if (blocked) return blocked;
     const mismatch = confirmDelete(form, image);
-    if (mismatch) return redirect(deletePath, mismatch, false);
+    if (mismatch) {
+      return adminRedirect("imageDelete", { id: image.id }, mismatch, false);
+    }
     // Delete the stored files first. If storage cleanup fails, keep the DB
     // record so the admin can retry. Otherwise the files sit orphaned under
     // a deleted record, with no library entry to delete them from.
     try {
       await deleteImageStorageFilesStrict(image);
     } catch {
-      return redirect(deletePath, t("images.delete.storage_failed"), false);
+      return adminRedirect(
+        "imageDelete",
+        { id: image.id },
+        t("images.delete.storage_failed"),
+        false,
+      );
     }
     await deleteImageRecord(image.id);
     await logActivity(`Image '${image.name}' deleted`);
-    return redirect(adminPattern("images"), t("images.deleted"), true);
+    return adminRedirect("images", {}, t("images.deleted"), true);
   });
 
 /** The image list the editor's image dropdown offers: every image's id and

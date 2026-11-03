@@ -43,7 +43,7 @@ import {
   pageGuardFor,
 } from "#routes/auth.ts";
 import { entityFormById, idRouteFor } from "#routes/entity.ts";
-import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
+import { adminRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
@@ -88,7 +88,7 @@ const wrapInviteDataKey = async (
   inviteCode: string,
 ): Promise<WrappedKey | Response> => {
   if (!session.wrappedDataKey) {
-    return errorRedirect("/admin/user/new", t("error.session_lacks_key"));
+    return adminRedirect("userNew", {}, t("error.session_lacks_key"), false);
   }
   const dataKey = await unwrapKeyWithToken(
     session.wrappedDataKey,
@@ -297,12 +297,12 @@ const handleUsersPost = createAuthedFormRoute<InviteUserFormValues>({
   form: {
     validate: (form) => getInviteUserForm().validate(form),
   },
-  onInvalid: ({ error }) => errorRedirect("/admin/user/new", error),
+  onInvalid: ({ error }) => adminRedirect("userNew", {}, error, false),
   onValid: async ({ values, form, session }) => {
     const { username, admin_level: adminLevel } = values;
 
     if (await isUsernameTaken(username)) {
-      return errorRedirect("/admin/user/new", t("error.username_taken"));
+      return adminRedirect("userNew", {}, t("error.username_taken"), false);
     }
 
     const inviteCode = generateSecureToken();
@@ -361,7 +361,7 @@ const handleUserAgentsPost: TypedRouteHandler<"POST /admin/users/:id/agents"> =
     }
     await saveAgentSelection(user.id, form);
     await logActivity(`Agents updated for user '${user.username}'`);
-    return redirect(adminPattern("users"), t("success.agents_updated"), true);
+    return adminRedirect("users", {}, t("success.agents_updated"), true);
   });
 
 /** Confirmed-delete handlers for users */

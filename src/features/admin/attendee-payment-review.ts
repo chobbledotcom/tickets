@@ -5,8 +5,7 @@ import { acknowledgeCurrentPaymentReview } from "#db/payment-review.ts";
 import { t } from "#i18n";
 import type { PaymentWorkStatus } from "#payment/admit-move.ts";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
-import { errorRedirect, redirect } from "#routes/response.ts";
-import { adminPath } from "#shared/admin-surface.ts";
+import { adminRedirect, errorRedirect } from "#routes/response.ts";
 import { adminPaymentReviewPage } from "#templates/admin/attendees.tsx";
 import {
   attendeeActions,
@@ -67,18 +66,20 @@ const handlePaymentReviewPost = attendeeActions[ACTION].verified(
       listingId,
       reviewIdentity: form.getString("review_identity"),
     });
-    const actionsUrl = adminPath("attendeeActions", {
-      attendeeId: attendee.id,
-    });
     const returnUrl = form.getString("return_url");
     switch (result.kind) {
       case "acknowledged":
-        return redirect(actionsUrl, t("success.payment_reviewed"), true, {
-          form,
-        });
+        return adminRedirect(
+          "attendeeActions",
+          { attendeeId: attendee.id },
+          t("success.payment_reviewed"),
+          true,
+          { form },
+        );
       case "already_acknowledged":
-        return redirect(
-          actionsUrl,
+        return adminRedirect(
+          "attendeeActions",
+          { attendeeId: attendee.id },
           t("admin.attendees.payment_review_already_acknowledged"),
           true,
           { form, level: "info" },
@@ -90,8 +91,9 @@ const handlePaymentReviewPost = attendeeActions[ACTION].verified(
           "admin.attendees.payment_review_changed",
         );
       case "nothing_to_review":
-        return redirect(
-          actionsUrl,
+        return adminRedirect(
+          "attendeeActions",
+          { attendeeId: attendee.id },
           t("admin.attendees.payment_review_none"),
           true,
           { form, level: "info" },

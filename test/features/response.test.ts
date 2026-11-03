@@ -3,6 +3,7 @@ import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  adminRedirect,
   databaseBusyResponse,
   downloadResponse,
   errorRedirect,
@@ -187,6 +188,42 @@ describeWithEnv("route responses", { db: true }, () => {
           "session=abc; Path=/",
         ]);
         expectRedirectWithFlash("/admin", "Done")(response);
+      }));
+  });
+
+  describe("adminRedirect", () => {
+    test("fills distinct endpoint parameters and stores the success flash", () =>
+      withRequestContext(() => {
+        const response = adminRedirect(
+          "answerEdit",
+          { answerId: 9, id: 42 },
+          "Answer saved",
+          true,
+        );
+        expectRedirectWithFlash(
+          "/admin/questions/42/answers/9/edit",
+          "Answer saved",
+        )(response);
+      }));
+
+    test("keeps the submitted return URL, error flash, form anchor and cookie", () =>
+      withRequestContext(() => {
+        const response = adminRedirect("settings", {}, "Fix fields", false, {
+          cookie: "session=abc; Path=/",
+          form: new URLSearchParams({
+            name: "Submitted",
+            return_url: "/admin/listing/8?tab=attendees#old",
+          }),
+          formId: "contact",
+        });
+        expectRedirectWithFlash(
+          "/admin/listing/8?tab=attendees&form=contact#contact",
+          "Fix fields",
+          false,
+        )(response);
+        assertArrayIncludes(response.headers.getSetCookie(), [
+          "session=abc; Path=/",
+        ]);
       }));
   });
 

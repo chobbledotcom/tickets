@@ -41,9 +41,13 @@ import {
 } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { createEntityHandler, createIdEntityHandler } from "#routes/entity.ts";
-import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
+import {
+  adminRedirect,
+  htmlResponse,
+  notFoundResponse,
+} from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { adminDestinationAt, adminPath } from "#shared/admin-surface.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import {
   applyDemoOverrides,
   SERVICING_DEMO_FIELDS,
@@ -144,7 +148,7 @@ const parseCreateInput = async (form: FormParams) => {
 };
 
 const servicingErrorRedirect = (id: number, error: unknown): Response =>
-  redirect(`/admin/servicing/${id}`, (error as Error).message, false);
+  adminRedirect("servicingEdit", { id }, (error as Error).message, false);
 
 const handleCostPost = async (
   id: number,
@@ -155,15 +159,17 @@ const handleCostPost = async (
   const amount = parsePositiveMinorUnits(form.getString("amount"));
   const listingId = parsePositiveIntId(form.getString("target_listing_id"));
   if (amount === null || listingId === null) {
-    return redirect(
-      `/admin/servicing/${id}`,
+    return adminRedirect(
+      "servicingEdit",
+      { id },
       t("servicing.error.invalid_cost"),
       false,
     );
   }
   if (!(await servicingHoldsListing(id, listingId))) {
-    return redirect(
-      `/admin/servicing/${id}`,
+    return adminRedirect(
+      "servicingEdit",
+      { id },
       t("servicing.error.listing_not_held"),
       false,
     );
@@ -182,8 +188,9 @@ const handleCostPost = async (
   } catch (err) {
     return servicingErrorRedirect(id, err);
   }
-  return redirect(
-    `/admin/servicing/${id}`,
+  return adminRedirect(
+    "servicingEdit",
+    { id },
     t("servicing.success.cost_recorded", { amount: form.getString("amount") }),
     true,
   );
@@ -199,13 +206,14 @@ const handleServicingNewPost: TypedRouteHandler<"POST /admin/servicing/new"> = (
       try {
         const input = await parseCreateInput(form);
         const event = await createServicingEvent(input);
-        return redirect(
-          adminPath("servicingEdit", { id: event.id }),
+        return adminRedirect(
+          "servicingEdit",
+          { id: event.id },
           t("servicing.success.created", { name: event.name }),
           true,
         );
       } catch (err) {
-        return redirect("/admin/servicing/new", (err as Error).message, false);
+        return adminRedirect("servicingNew", {}, (err as Error).message, false);
       }
     },
   );
@@ -217,8 +225,9 @@ const redirectServicingResult = async <T extends { id: number; name: string }>(
 ): Promise<Response> => {
   try {
     const result = await action();
-    return redirect(
-      adminPath("servicingEdit", { id: result.id }),
+    return adminRedirect(
+      "servicingEdit",
+      { id: result.id },
       successMessage(result),
       true,
     );
@@ -248,7 +257,7 @@ const handleServicingPost: TypedRouteHandler<"POST /admin/servicing/:id"> =
 const handleServicingDeletePost: TypedRouteHandler<"POST /admin/servicing/:id/delete"> =
   servicingFormHandler(async (_event, _session, _form, _request, { id }) => {
     await deleteServicingEvent(id);
-    return redirect("/admin/", t("servicing.success.deleted"), true);
+    return adminRedirect("home", {}, t("servicing.success.deleted"), true);
   });
 
 const handleServicingDuplicatePost: TypedRouteHandler<"POST /admin/servicing/:id/duplicate"> =
@@ -270,8 +279,9 @@ const handleServicingCostPost: TypedRouteHandler<"POST /admin/servicing/:id/cost
   )(async (_event, _session, form, _request, { costId, id }) => {
     const amount = parsePositiveMinorUnits(form.getString("amount"));
     if (amount === null) {
-      return redirect(
-        `/admin/servicing/${id}`,
+      return adminRedirect(
+        "servicingEdit",
+        { id },
         t("servicing.error.invalid_cost_amount"),
         false,
       );
@@ -280,8 +290,9 @@ const handleServicingCostPost: TypedRouteHandler<"POST /admin/servicing/:id/cost
       return notFoundResponse();
     }
     await editServiceCost(costId, { amount }, id);
-    return redirect(
-      `/admin/servicing/${id}`,
+    return adminRedirect(
+      "servicingEdit",
+      { id },
       t("servicing.success.cost_updated"),
       true,
     );

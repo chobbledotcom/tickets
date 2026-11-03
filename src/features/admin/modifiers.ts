@@ -40,7 +40,7 @@ import {
   entityTabRoutes,
 } from "#routes/admin/route-tables.ts";
 import { formPolicyFor, withAuth } from "#routes/auth.ts";
-import { notFoundResponse, redirect } from "#routes/response.ts";
+import { adminRedirect, notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 import { toMinorUnits } from "#shared/currency.ts";
@@ -314,11 +314,7 @@ const handleEditPost: TypedRouteHandler<"POST /admin/modifiers/:id/edit"> = (
           await modifierAggregates.update(id, aggregates.input);
         }
         await logActivity(`Modifier '${result.row.name}' updated`);
-        return redirect(
-          adminPattern("modifiers"),
-          t("modifiers.updated"),
-          true,
-        );
+        return adminRedirect("modifiers", {}, t("modifiers.updated"), true);
       }
       if ("notFound" in result) return notFoundResponse();
       return modifierPage.renderEditError(id, _session, form, result.error);

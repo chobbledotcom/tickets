@@ -6,9 +6,9 @@ import {
   setModifierAnswers,
 } from "#db/modifiers.ts";
 import { formPolicyFor } from "#routes/auth.ts";
-import { errorRedirect, redirect } from "#routes/response.ts";
+import { adminRedirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { adminDestinationAt, adminPath } from "#shared/admin-surface.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { Modifier } from "#types";
@@ -41,13 +41,9 @@ const saveModifierLinks = (
     auth: formPolicyFor(route),
     handle: async ({ context: modifier, form }) => {
       const error = guard ? await guard(modifier, form) : null;
-      if (error) return errorRedirect(adminPath("modifierEdit", { id }), error);
+      if (error) return adminRedirect("modifierEdit", { id }, error, false);
       await save(modifier, form);
-      return redirect(
-        adminPath("modifierEdit", { id: modifier.id }),
-        message,
-        true,
-      );
+      return adminRedirect("modifierEdit", { id: modifier.id }, message, true);
     },
     loadContext: ({ id: modifierId }) => getModifier(modifierId),
   })(request, { id });

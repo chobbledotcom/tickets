@@ -41,6 +41,7 @@ import {
 } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import {
+  adminRedirect,
   errorRedirect,
   htmlResponse,
   infoRedirect,
@@ -272,7 +273,7 @@ const handleRefundCasePost: RefundCaseRoute = (request, { id }) =>
       if (result === "changed") {
         return refundCaseChanged(id);
       }
-      return redirect(PRIVACY_PATH, t("privacy.refunds.resolved"), true);
+      return adminRedirect("privacy", {}, t("privacy.refunds.resolved"), true);
     },
   );
 
@@ -285,7 +286,12 @@ const handleOrphansPost = formHandlerAt("/admin/privacy/orphans")(
   async ({ form }) => {
     const retention = form.getString("retention");
     if (!isOrphanRetentionValue(retention)) {
-      return errorRedirect(PRIVACY_PATH, t("privacy.orphans.error_retention"));
+      return adminRedirect(
+        "privacy",
+        {},
+        t("privacy.orphans.error_retention"),
+        false,
+      );
     }
     await settings.update.orphanPurgeRetention(retention);
     await settings.update.autoPurgeOrphans(form.has("auto_purge"));
@@ -295,13 +301,14 @@ const handleOrphansPost = formHandlerAt("/admin/privacy/orphans")(
         orphanRetentionCutoffIso(retention, nowMs()),
       );
       await logActivity(t("privacy.orphans.log_purged", { count: deleted }));
-      return redirect(
-        PRIVACY_PATH,
+      return adminRedirect(
+        "privacy",
+        {},
         t("privacy.orphans.flash_purged", { count: deleted }),
         true,
       );
     }
-    return redirect(PRIVACY_PATH, t("privacy.orphans.flash_saved"), true);
+    return adminRedirect("privacy", {}, t("privacy.orphans.flash_saved"), true);
   },
 );
 
@@ -314,17 +321,22 @@ const handleErasePost = formHandlerAt("/admin/privacy/erase")(
     const channel = form.getString("contact_type");
     const identifier = form.getString("identifier").trim();
     if (!identifier) {
-      return errorRedirect(PRIVACY_PATH, t("privacy.erase.error_identifier"));
+      return adminRedirect(
+        "privacy",
+        {},
+        t("privacy.erase.error_identifier"),
+        false,
+      );
     }
     if (!isContactChannel(channel)) {
-      return errorRedirect(PRIVACY_PATH, t("privacy.erase.error_type"));
+      return adminRedirect("privacy", {}, t("privacy.erase.error_type"), false);
     }
     const deleted = await forgetContact(await contactHash(channel, identifier));
     if (deleted === 0) {
       return infoRedirect(PRIVACY_PATH, t("privacy.erase.flash_none"));
     }
     await logActivity(t("privacy.erase.log_done"));
-    return redirect(PRIVACY_PATH, t("privacy.erase.flash_done"), true);
+    return adminRedirect("privacy", {}, t("privacy.erase.flash_done"), true);
   },
 );
 

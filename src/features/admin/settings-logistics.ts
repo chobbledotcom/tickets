@@ -29,7 +29,7 @@ import {
   createCrudHandlers,
   operationResponse,
 } from "#routes/admin/crud-handlers.ts";
-import { redirect } from "#routes/response.ts";
+import { adminRedirect } from "#routes/response.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { FormValues } from "#shared/forms/definition.ts";
@@ -104,8 +104,9 @@ const handleAgentEditPost: IdRouteHandler = entityFormById(
       result,
       async ({ row }) => {
         await logActivity(`Logistics agent '${row.name}' updated`);
-        return redirect(
-          adminPattern("logistics"),
+        return adminRedirect(
+          "logistics",
+          {},
           t("logistics.agent_updated"),
           true,
         );
