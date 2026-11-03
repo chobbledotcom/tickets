@@ -76,6 +76,18 @@ describeWithEnv("db > invoices", { db: true }, () => {
     expect(await nextInvoiceNumber()).toBe(8);
   });
 
+  test("stores a free number lower than the highest", async () => {
+    const first = await createReservedAttendee(1500);
+    const second = await createReservedAttendee(1500);
+    await storeInvoice(first.attendeeId, 7);
+
+    const { invoice } = await storeInvoice(second.attendeeId, 2);
+
+    expect(invoice.id).toBe(2);
+    expect((await getInvoice(2))?.id).toBe(2);
+    expect((await getInvoices()).map((row) => row.id)).toEqual([7, 2]);
+  });
+
   test("the open invoice is the new one, and cancelling closes it", async () => {
     const { attendeeId } = await createReservedAttendee(1500);
     await storeInvoice(attendeeId, 1);
