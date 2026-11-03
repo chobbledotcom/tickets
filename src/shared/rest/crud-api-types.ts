@@ -14,6 +14,9 @@ import type {
 import type { Result } from "#shared/result.ts";
 import type { AdminSession } from "#types";
 
+/** Extra response fields a resource's batched hydration adds, keyed by row id. */
+export type HydratedRows = ReadonlyMap<number, Record<string, unknown>>;
+
 /** An atomic body-only side effect (for example relationship edges) for a
  *  create or update. Two-phase, so the whole write is all-or-nothing:
  *  `validate` runs BEFORE the write and either rejects (400, nothing written)
@@ -147,9 +150,11 @@ export interface CrudApiConfig<
   getAll: () => Promise<FullRow[]>;
   /** Optionally hydrate response rows in one batched call, keyed by row id. A
    *  single-row response passes an array of one through this same path. */
-  hydrate?: (
-    rows: FullRow[],
-  ) => Promise<ReadonlyMap<number, Record<string, unknown>>>;
+  hydrate?: (rows: FullRow[]) => Promise<HydratedRows>;
+  /** The hydration a create/update response uses. Such a response reads rows
+   *  the write just made, so this one must pin any read it makes to the
+   *  primary. Defaults to the read routes' `hydrate`. */
+  hydrateAfterWrite?: (rows: FullRow[]) => Promise<HydratedRows>;
   /** When true, activity log entries for create/update are linked to the row's id as listing_id */
   linkActivityToRow?: boolean;
   /** Extra keys added to the list response alongside the row array (e.g. admin_level) */

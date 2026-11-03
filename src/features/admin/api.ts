@@ -40,7 +40,10 @@ import {
   validateListingInput,
 } from "#shared/listings-actions.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
-import type { CrudSideEffectValidate } from "#shared/rest/crud-api-types.ts";
+import type {
+  CrudSideEffectValidate,
+  HydratedRows,
+} from "#shared/rest/crud-api-types.ts";
 import { apiEntityGate, withApiEntity } from "#shared/rest/crud-parsers.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { AdminListing, Listing, ListingWithCount } from "#types";
@@ -110,7 +113,7 @@ export const toAdminListing = ({
  * The single-row `hydrate` reuses it with a one-element list. */
 const hydrateListingJoins = async (
   rows: { id: number }[],
-): Promise<ReadonlyMap<number, Record<string, unknown>>> => {
+): Promise<HydratedRows> => {
   const ids = rows.map((row) => row.id);
   const [groupIdsByListing, optionIdsByListing] = await Promise.all([
     listingGroups.getIdsByKeys(ids),

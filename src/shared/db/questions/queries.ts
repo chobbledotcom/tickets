@@ -249,3 +249,16 @@ export const getQuestionWithAnswers = questionWithAnswers(false);
  *  question and then its first answer cannot miss the row the create just
  *  made. */
 export const getQuestionWithAnswersOnPrimary = questionWithAnswers(true);
+
+/** The question a write just made, read from the primary. A write that
+ *  committed leaves the row, so a missing row is a broken invariant and throws
+ *  instead of answering null. */
+export const requireQuestionWithAnswersOnPrimary = async (
+  id: number,
+): Promise<QuestionWithAnswers> => {
+  const question = await getQuestionWithAnswersOnPrimary(id);
+  if (question === null) {
+    throw new Error(`Question ${id} is missing after its write`);
+  }
+  return question;
+};
