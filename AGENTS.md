@@ -144,11 +144,13 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
   must explain itself like "Keeps only children that can still be booked for
   this ticket."
 - **Keep methods flat**: A row of three or more closing brackets is a sign that
-  one method holds three or more layers. Refactor that method. Move each layer
-  into a named helper. When one shape repeats at many sites, write one curried
-  helper for all of them (see "Curried helpers" in docs/designing-systems.md).
-  A row of brackets that closes data, for example `[[1, 2], [3, 4]]`, is not a
-  deep method.
+  one method nests three or more levels deep. Refactor that method. Move each
+  level into a named helper. When one shape repeats at many sites, write one
+  curried helper for all of them (see
+  [Curried helpers](docs/designing-systems.md#curried-helpers)). A row that
+  closes call arguments or data does not count, for example
+  `columns.map((column) => escapeValue(stopFormula(column)))` or
+  `new Map([[attendeeId, answers]])`.
 - **Name a thing the way the site names it**: A story, test, or comment calls a
   thing what its label, message, or column heading calls it. Copy the word a
   person reads in `src/locales/en/*.json`, never the identifier beside it in
