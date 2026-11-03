@@ -266,18 +266,11 @@ const stripeReason: ExemptionReason = {
 /** A field a handler reads by key off a raw record. */
 const dynamicReason = reasonFor("dynamic-read");
 
-/** The invoice body is the data that its Liquid template renders. */
-const liquidInvoiceReason = dynamicReason(
-  "renderInvoiceBody renders each invoice body field by its Liquid template name",
-);
-
 const settingsSnapshotFields = exactFieldsFrom(
   "src/shared/db/settings/snapshot.ts",
 );
 
 const attendeeFields = exactFieldsFrom("src/shared/db/attendees/pii.ts");
-const invoiceBodyFields = exactFieldsFrom("src/shared/invoices/body.ts");
-const invoiceRowFields = exactFieldsFrom("src/shared/db/invoices.ts");
 const liquidFields = exactFieldsFrom("src/shared/email-renderer.ts");
 const resourceFields = exactFieldsFrom("src/shared/rest/resource.ts");
 const adminApiRowFields = exactFieldsFrom("src/shared/admin-api-resources.ts");
@@ -461,38 +454,6 @@ const exactExemptions = exactFieldExemptions([
     [{ name: "RequestStore" }],
     ["settingsAudit"],
     dynamicReason("storeSlot reads and writes the slot field by key"),
-  ),
-  invoiceBodyFields(
-    [{ name: "InvoiceBodyData" }],
-    ["customer", "invoice", "labels", "lines", "totals"],
-    liquidInvoiceReason,
-  ),
-  invoiceBodyFields(
-    [{ name: "InvoiceBodyData" }, { name: "customer" }],
-    ["email", "name"],
-    liquidInvoiceReason,
-  ),
-  invoiceBodyFields(
-    [{ name: "InvoiceBodyData" }, { name: "invoice" }],
-    ["date", "number"],
-    liquidInvoiceReason,
-  ),
-  invoiceBodyFields(
-    [{ name: "InvoiceBodyData" }, { name: "labels" }],
-    ["due", "heading", "item", "paid", "quantity", "total"],
-    liquidInvoiceReason,
-  ),
-  invoiceBodyFields(
-    [{ name: "InvoiceBodyData" }, { name: "totals" }],
-    ["due", "paid", "total"],
-    liquidInvoiceReason,
-  ),
-  invoiceRowFields(
-    [{ name: "InvoiceRow" }],
-    ["share_token_index"],
-    schemaReason(
-      "getInvoiceByShareToken passes the blind index as the table reader's query key, which becomes the lookup WHERE clause",
-    ),
   ),
 ]);
 
