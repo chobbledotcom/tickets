@@ -252,11 +252,17 @@ const LOG_DISPLAY_LIMIT = 200;
  * tables to label a few rows. An attendee deleted since then has no entry
  * here. Its log rows keep the id but render without a link.
  */
+/** The distinct ids one field of the entries carries, missing ones left out. */
+const idsOf = (
+  entries: readonly ActivityLogEntry[],
+  field: (entry: ActivityLogEntry) => number | null,
+): number[] => unique(compact(entries.map(field)));
+
 const loadActivityLogRefs = async (
   entries: ActivityLogEntry[],
 ): Promise<ActivityLogRefs> => {
-  const attendeeIds = unique(compact(entries.map((e) => e.attendee_id)));
-  const listingIds = unique(compact(entries.map((e) => e.listing_id)));
+  const attendeeIds = idsOf(entries, (entry) => entry.attendee_id);
+  const listingIds = idsOf(entries, (entry) => entry.listing_id);
   const [attendees, listings] = await Promise.all([
     loadAttendeeLinkRefs(attendeeIds),
     listingNames.byIds(listingIds),

@@ -60,6 +60,13 @@ describe("check-call-chains rules", () => {
     expect(chainSitesOf("fixture.ts", content)).toHaveLength(1);
   });
 
+  test("keeps the longest chain a row holds, not its prefixes", () => {
+    const content = "a(b(c(d(1))))\n";
+    expect(
+      chainSitesOf("fixture.ts", content).map((site) => site.names),
+    ).toEqual([["a", "b", "c", "d"]]);
+  });
+
   test("reads each row as its own site", () => {
     const content = "a(b(c(1)))\na(b(c(2)))\n";
     expect(

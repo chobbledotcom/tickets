@@ -77,8 +77,31 @@ const chainRound = (call: ts.CallExpression, row: Row): string[] => {
   return names;
 };
 
-/** Every distinct chain of three or more named calls in one file. A row
- * records each chain once, and a file holds one site per row. */
+/** The chains one row closes, with a shorter chain that a longer chain in the
+ * same row already holds left out, so one row counts once. */
+const rowChains = (
+  calls: readonly ts.CallExpression[],
+  row: Row,
+): string[][] => {
+  const held = calls
+    .filter((call) => closesInRow(call, row))
+    .map((call) => chainRound(call, row))
+    .filter((names) => names.length >= CHAIN_LENGTH);
+  const unique = [
+    ...new Map(held.map((names) => [names.join("("), names])).values(),
+  ];
+  return unique.filter(
+    (names) =>
+      !unique.some(
+        (other) =>
+          other.length > names.length &&
+          names.every((name, index) => other[index] === name),
+      ),
+  );
+};
+
+/** Every chain of three or more named calls in one file, one site per chain
+ * per row. */
 export const chainSitesOf = (file: string, content: string): ChainSite[] => {
   const rows = rowsOf(content);
   if (rows.length === 0) return [];
@@ -96,13 +119,7 @@ export const chainSitesOf = (file: string, content: string): ChainSite[] => {
   visit(source);
   const sites: ChainSite[] = [];
   for (const row of rows) {
-    const seen = new Set<string>();
-    for (const call of calls) {
-      if (!closesInRow(call, row)) continue;
-      const names = chainRound(call, row);
-      const key = names.join("(");
-      if (names.length < CHAIN_LENGTH || seen.has(key)) continue;
-      seen.add(key);
+    for (const names of rowChains(calls, row)) {
       sites.push({
         file,
         line: lineColumnAt(content, row.start).line,

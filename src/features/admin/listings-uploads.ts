@@ -7,12 +7,11 @@
  */
 
 import { logActivity } from "#db/activity-log.ts";
-import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { listingsTable } from "#db/listings/records.ts";
 /* jscpd:ignore-start */
 import { compact } from "#fp";
 import { t } from "#i18n";
 import { CONTENT_FORM, formGuard } from "#routes/auth.ts";
-import { createIdEntityHandler } from "#routes/entity.ts";
 import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { entityReturnPath } from "#shared/admin-pages.ts";
@@ -27,8 +26,8 @@ import {
   validateAttachment,
 } from "#shared/storage.ts";
 import { tryDeleteFile } from "#shared/storage-cleanup.ts";
-
 import type { ListingWithCount } from "#types";
+import { listingWithCountHandler } from "./listing-entity.ts";
 
 /* jscpd:ignore-end */
 
@@ -138,9 +137,7 @@ export const processUploadsAndRedirect = async (
   return redirect(redirectUrl, successMessage, true);
 };
 
-const listingUploadHandler = createIdEntityHandler<ListingWithCount>(
-  getListingWithCount,
-)(formGuard(CONTENT_FORM));
+const listingUploadHandler = listingWithCountHandler(formGuard(CONTENT_FORM));
 
 /** Generic handler for deleting a listing's uploaded file. */
 const handleFileDelete = (
