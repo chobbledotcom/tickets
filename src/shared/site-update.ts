@@ -30,12 +30,11 @@ import {
   isNewerVersion,
 } from "#shared/update.ts";
 import {
-  fetchBoundedUpdatePage,
+  fetchUpdatePageBody,
   runUnderUpdateGuard,
   UPDATE_FLAG_LIFTED_VALUE,
   UPDATE_IN_PROGRESS_VAR,
   type UpdateGuardIo,
-  UpdatePageCheckError,
 } from "#shared/update-guard.ts";
 
 /**
@@ -115,13 +114,7 @@ export const hostedSiteUpdateGuardIo = (site: {
   const pageUrl = `${siteBaseUrl(site.siteUrl)}/read-only`;
   return {
     clearFlag: () => setFlag(UPDATE_FLAG_LIFTED_VALUE),
-    fetchPage: async () => {
-      const response = await fetchBoundedUpdatePage(fetchText, pageUrl);
-      if (!response.ok) {
-        throw new UpdatePageCheckError(response.status);
-      }
-      return response.text;
-    },
+    fetchPage: () => fetchUpdatePageBody(fetchText, pageUrl),
     setFlag,
   };
 };

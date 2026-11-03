@@ -185,6 +185,9 @@ describe("waitForBeginPropagation", () => {
     expect((error as Error).message).toMatch(
       /The flag was removed, so the site accepts writes again/,
     );
+    expect((error as Error).message).toMatch(
+      /The site kept answering HTTP 503, so it is not ready yet/,
+    );
   });
 
   test("skips a build that predates update mode", async () => {

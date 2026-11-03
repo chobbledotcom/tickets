@@ -31,11 +31,10 @@ import { BUNNY_API_BASE, formatBunnyError } from "#scripts/deploy-edge-lib.ts";
 import type { FetchText, FetchTextResult } from "#scripts/fetch-text.ts";
 import { siteBaseUrl } from "#shared/site-address.ts";
 import {
-  fetchBoundedUpdatePage,
+  fetchUpdatePageBody,
   UPDATE_FLAG_VALUE,
   UPDATE_IN_PROGRESS_VAR,
   type UpdateIoOptions,
-  UpdatePageCheckError,
   type UpdatePollIo,
   waitForBeginPropagation,
   waitForUpdatePage,
@@ -131,20 +130,16 @@ const liftUpdateFlag = async (io: ScopedIo): Promise<void> => {
   if (secretId !== null) await deleteUpdateSecret(io, secretId);
 };
 
-/** Fetch the site's read-only page. A non-200 answer throws an
- * `UpdatePageCheckError`, so the wait never reads a broken page as
- * "unsupported". A 503 keeps the wait polling instead: that status is the
- * migration page, and the update page follows the migration. */
+/** Fetch the site's read-only page. A non-200 answer makes
+ * `fetchUpdatePageBody` raise an `UpdatePageCheckError` that names the URL.
+ * The wait retries a 503 answer, the migration page, and ends on any other
+ * status. */
 const fetchReadOnlyPage = async (site: {
   fetchText: FetchText;
   siteUrl: string;
 }): Promise<string> => {
   const url = `${siteBaseUrl(site.siteUrl)}/read-only`;
-  const response = await fetchBoundedUpdatePage(site.fetchText, url);
-  if (!response.ok) {
-    throw new UpdatePageCheckError(response.status, ` for ${url}`);
-  }
-  return response.text;
+  return await fetchUpdatePageBody(site.fetchText, url, ` for ${url}`);
 };
 
 export const runUpdateMode = async (

@@ -80,20 +80,6 @@ export const UPDATE_BEGIN_THIRD_WAIT_MS = 30_000;
  * only after the fetch settles. */
 const UPDATE_PAGE_FETCH_TIMEOUT_MS = 30_000;
 
-/** One eagerly read page response: the part of a fetch result the wait reads. */
-type UpdatePageResult = { ok: boolean; status: number; text: string };
-
-/** Fetch one update page through `fetchText`, bounded so a stalled request
- * ends before the wait's deadline. */
-export const fetchBoundedUpdatePage = async (
-  fetchText: (url: string, init: RequestInit) => Promise<UpdatePageResult>,
-  url: string,
-): Promise<UpdatePageResult> =>
-  fetchText(url, {
-    method: "GET",
-    signal: AbortSignal.timeout(UPDATE_PAGE_FETCH_TIMEOUT_MS),
-  });
-
 /** The status a page check retries. A 503 says the site answers, but it is
  * not ready: the new build serves the migration page until its first
  * migrations finish. */
@@ -115,6 +101,27 @@ export class UpdatePageCheckError extends Error {
   }
 }
 
+/** One eagerly read page response: the part of a fetch result the wait reads. */
+type UpdatePageResult = { ok: boolean; status: number; text: string };
+
+/** Fetch one update page through `fetchText`, bounded so a stalled request
+ * ends before the wait's deadline, and return its body. A non-OK answer
+ * raises an `UpdatePageCheckError`, so no caller reads a broken page as
+ * "unsupported" and the retry sees every status one way. `detail` names the
+ * URL when the caller has one. */
+export const fetchUpdatePageBody = async (
+  fetchText: (url: string, init: RequestInit) => Promise<UpdatePageResult>,
+  url: string,
+  detail = "",
+): Promise<string> => {
+  const response = await fetchText(url, {
+    method: "GET",
+    signal: AbortSignal.timeout(UPDATE_PAGE_FETCH_TIMEOUT_MS),
+  });
+  if (!response.ok) throw new UpdatePageCheckError(response.status, detail);
+  return response.text;
+};
+
 const waitTimedOut = (ms: number, runOutNote: string | null): string =>
   `The site did not show its update page within ${Math.round(ms / 1000)} seconds. ` +
   "UPDATE_IN_PROGRESS is still set, so the site still refuses every write. " +
@@ -122,10 +129,11 @@ const waitTimedOut = (ms: number, runOutNote: string | null): string =>
   "from the script's environment in the hosting dashboard." +
   (runOutNote === null ? "" : runOutNote);
 
-/** What the run-out adds: the retryable status the site kept answering, or
+/** What a run-out adds: the retryable status the site kept answering, or
  * the build that kept serving when the expected build never served. The
  * second lets the operator tell an unfinished publish from a wrong deploy.
- * Return null when the run-out has nothing to add. */
+ * The begin wait pins no build, so it adds only the status. Return null when
+ * the run-out has nothing to add. */
 const runOutNote = (
   expected: string | undefined,
   poll: RunOutPoll,
@@ -148,12 +156,11 @@ export type UpdateIoOptions = {
   now?: (() => number) | undefined;
 };
 
-/** The page fetch the wait polls. The fetch answers a 2xx body or throws.
- * The caller's wrapper turns every other status into an
- * `UpdatePageCheckError`. A retryable status keeps the wait polling: the
- * site answered, and it will answer again. Any other throw ends the wait
- * immediately. The schedule is only for a 2xx page that does not show the
- * update message yet. */
+/** The page fetch the wait polls. `fetchUpdatePageBody` answers a 2xx body
+ * and raises an `UpdatePageCheckError` for every other status. A retryable
+ * status keeps the wait polling: the site answered, and it will answer
+ * again. Any other throw ends the wait immediately. The schedule is only for
+ * a 2xx page that does not show the update message yet. */
 export type FetchUpdatePage = () => Promise<string>;
 
 /** What the wait polls: the page fetch plus the shared clock and log. */
@@ -387,7 +394,8 @@ const pageCheckDetail = (lastError: string): string =>
  * serves its normal page at the last mark reverts the flag through
  * `revert` and raises the error. A failed page check reverts the flag and
  * raises at once. The schedule is only for a page that answers but does
- * not show the update message. */
+ * not show the update message. A retryable status keeps the marks, and the
+ * run-out names that status. */
 export const waitForBeginPropagation = async (
   options: UpdateWaitOptions,
   revert: () => Promise<void>,
@@ -406,7 +414,7 @@ export const waitForBeginPropagation = async (
       ),
     // giveUp ends the loop at segments.length, so the index stays in range.
     gap: (checked) => segments[checked - 1]!,
-    giveUp: async (checked, _poll) => {
+    giveUp: async (checked, poll) => {
       // One line per check, naming the elapsed segment: a long propagation
       // window stays visible without noise.
       const elapsed = segments
@@ -419,7 +427,7 @@ export const waitForBeginPropagation = async (
       return await beginAbortError(
         revert,
         beginTimedOutBase(segments.reduce((sum, segment) => sum + segment, 0)),
-        "",
+        runOutNote(options.expectedBuildTag, poll) ?? "",
       );
     },
   });
