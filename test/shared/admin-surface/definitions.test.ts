@@ -6,6 +6,7 @@ import {
   foldAdminAreas,
   ownerOnlyAudience,
 } from "#shared/admin-surface/definitions.ts";
+import { afterSavePath } from "#shared/admin-surface.ts";
 
 const SPEC: AdminAreasSpec = {
   // An area whose routes mostly share one role, and one route that does not.
@@ -108,20 +109,27 @@ describe("a route that names its after-save landing", () => {
     );
   });
 
-  test("accepts a landing on the route's own single-record form", () => {
-    expect(() =>
-      foldAdminAreas({
-        holidays: {
-          audience: ["owner"],
-          write: {
-            holidayEdit: {
-              afterSave: "holidayEdit",
-              pattern: "/admin/holidays/:id/edit",
-            },
+  test("resolves self-landings for record forms and collection lists", () => {
+    const { destinations } = foldAdminAreas({
+      holidays: {
+        audience: ["owner"],
+        view: {
+          holidays: { afterSave: "holidays", pattern: "/admin/holidays" },
+        },
+        write: {
+          holidayEdit: {
+            afterSave: "holidayEdit",
+            pattern: "/admin/holidays/:id/edit",
           },
         },
-      }),
-    ).not.toThrow();
+      },
+    });
+    expect(afterSavePath(destinations.holidays!, "groups", 7)).toBe(
+      "/admin/holidays",
+    );
+    expect(afterSavePath(destinations.holidayEdit!, "holidays", 7)).toBe(
+      "/admin/holidays/7/edit",
+    );
   });
 
   test("refuses a landing that names two records", () => {
