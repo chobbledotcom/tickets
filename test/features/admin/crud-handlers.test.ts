@@ -263,4 +263,23 @@ describeWithEnv("owner CRUD handlers", { db: true }, () => {
       false,
     )(response);
   });
+
+  test("refuses a collection whose edit route names no landing", () => {
+    // An image's edit form saves on its own page, so its route declares no
+    // landing. A collection must not guess one: the save would already have
+    // written its row before the redirect failed.
+    expect(() =>
+      createCrudHandlers({
+        getAll: async () => [],
+        getName: (row: Holiday) => row.name,
+        identifierLabel: "Name",
+        list: "images",
+        operations: holidayResource,
+        renderDelete: () => "delete",
+        renderList: () => "list",
+        renderNew: () => "new",
+        singular: "Image",
+      }),
+    ).toThrow('Admin route "imageEdit" declares no after-save landing');
+  });
 });

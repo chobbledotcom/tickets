@@ -44,8 +44,7 @@ import { createEntityHandler, createIdEntityHandler } from "#routes/entity.ts";
 import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { afterSavePath } from "#shared/admin-pages.ts";
-import type { AdminDestinationDef } from "#shared/admin-surface/definitions.ts";
-import { adminDestinationAt } from "#shared/admin-surface.ts";
+import { adminDestinationAt, adminPath } from "#shared/admin-surface.ts";
 import {
   applyDemoOverrides,
   SERVICING_DEMO_FIELDS,
@@ -213,18 +212,14 @@ const handleServicingNewPost: TypedRouteHandler<"POST /admin/servicing/new"> = (
   );
 
 const redirectServicingResult = async <T extends { id: number; name: string }>(
-  route: AdminDestinationDef,
   id: number,
+  landing: (result: T) => string,
   action: () => Promise<T>,
   successMessage: (result: T) => string,
 ): Promise<Response> => {
   try {
     const result = await action();
-    return redirect(
-      afterSavePath(route, result.id),
-      successMessage(result),
-      true,
-    );
+    return redirect(landing(result), successMessage(result), true);
   } catch (err) {
     return servicingErrorRedirect(id, err);
   }
@@ -239,8 +234,9 @@ const handleServicingPost: TypedRouteHandler<"POST /admin/servicing/:id"> =
     const costResponse = await handleCostPost(id, form, event);
     if (costResponse) return costResponse;
     return redirectServicingResult(
-      adminDestinationAt("/admin/servicing/:id"),
       id,
+      // An update lands on the event's own page, which is the form it saved.
+      (updated) => adminPath("servicingEdit", { id: updated.id }),
       async () => {
         const input = await parseCreateInput(form);
         return updateServicingEvent(id, input);
@@ -258,8 +254,12 @@ const handleServicingDeletePost: TypedRouteHandler<"POST /admin/servicing/:id/de
 const handleServicingDuplicatePost: TypedRouteHandler<"POST /admin/servicing/:id/duplicate"> =
   servicingFormHandler((_event, _session, _form, _request, { id }) =>
     redirectServicingResult(
-      adminDestinationAt("/admin/servicing/:id/duplicate"),
       id,
+      (copy) =>
+        afterSavePath(
+          adminDestinationAt("/admin/servicing/:id/duplicate"),
+          copy.id,
+        ),
       async () => duplicateServicingEvent(id),
       (copy) => t("servicing.success.duplicated", { name: copy.name }),
     ),

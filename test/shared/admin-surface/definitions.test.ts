@@ -144,6 +144,48 @@ describe("a route that names its after-save landing", () => {
       'Admin route "holidayEdit" saves to "nowhere", which no route declares',
     );
   });
+
+  test("refuses a route that lands on itself", () => {
+    // A save that returns to its own form names no landing. A route that
+    // names itself would hold itself, and a reader would walk a loop.
+    expect(() =>
+      foldAdminAreas({
+        holidays: {
+          audience: ["owner"],
+          write: {
+            holidayEdit: {
+              afterSave: "holidayEdit",
+              pattern: "/admin/holidays/:id/edit",
+            },
+          },
+        },
+      }),
+    ).toThrow(
+      'Admin route "holidayEdit" saves to itself. A save that returns to ' +
+        "its own form needs no afterSave",
+    );
+  });
+
+  test("refuses a landing that names two records", () => {
+    // A saved record fills one parameter. Two would take the same id twice.
+    expect(() =>
+      foldAdminAreas({
+        holidays: {
+          audience: ["owner"],
+          view: { holidayReport: "/admin/holidays/:id/report/:kind" },
+          write: {
+            holidayEdit: {
+              afterSave: "holidayReport",
+              pattern: "/admin/holidays/:id/edit",
+            },
+          },
+        },
+      }),
+    ).toThrow(
+      'Admin route "holidayEdit" saves to "holidayReport", which names more ' +
+        "than one record",
+    );
+  });
 });
 
 describe("a table that declares one route twice", () => {

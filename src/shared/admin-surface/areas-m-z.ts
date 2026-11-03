@@ -139,10 +139,7 @@ export const AREAS_M_Z = {
         afterSave: "servicingEdit",
         pattern: "/admin/servicing/:id/duplicate",
       },
-      servicingEdit: {
-        afterSave: "servicingEdit",
-        pattern: "/admin/servicing/:id",
-      },
+      servicingEdit: "/admin/servicing/:id",
       servicingNew: {
         afterSave: "servicingEdit",
         pattern: "/admin/servicing/new",

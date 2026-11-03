@@ -132,6 +132,13 @@ export const createCrudHandlers = <Row extends { id: number }, Display = Row>(
   // The edit form's own route names the page a save lands on. A collection
   // whose edits return to its list declares it there, beside the route.
   const editRoute = adminDestinationAt(`${listPath}/:id/edit`);
+  // Resolve the landing at setup, so a collection that declares none fails
+  // here rather than one save after it already wrote the row.
+  if (editRoute.afterSave === undefined) {
+    throw new Error(
+      `Admin route "${editRoute.id}" declares no after-save landing`,
+    );
+  }
   const auth = crudGates(listPath);
   const operations = (): NamedOperations<Row> =>
     typeof cfg.operations === "function" ? cfg.operations() : cfg.operations;

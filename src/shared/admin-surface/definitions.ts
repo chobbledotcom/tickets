@@ -112,7 +112,9 @@ const groupDestinations = (
 
 /** Name each declared landing route, now that every route is known. A landing
  * that names nothing is a typo. The reader meets it as a redirect to a path
- * no page serves. The fold refuses it here instead. */
+ * no page serves. The fold refuses it here instead. It also refuses a route
+ * that names itself. A saved record fills one parameter, so it refuses a
+ * landing that names two. */
 const resolveAfterSave = (
   declared: ReadonlyMap<string, DeclaredDestination>,
 ): Record<string, AdminDestinationDef> => {
@@ -127,6 +129,23 @@ const resolveAfterSave = (
     if (landing === undefined) {
       throw new Error(
         `Admin route "${id}" saves to "${afterSaveId}", which no route declares`,
+      );
+    }
+    // A save that returns to its own form names no landing. A route that
+    // names itself holds itself, and every reader of the landing then walks
+    // a loop.
+    if (afterSaveId === id) {
+      throw new Error(
+        `Admin route "${id}" saves to itself. A save that returns to its own ` +
+          "form needs no afterSave",
+      );
+    }
+    // One saved record fills one parameter. A landing that names two takes
+    // the same id twice, and that path serves no page.
+    if ((landing.pattern.match(/:\w+/g) ?? []).length > 1) {
+      throw new Error(
+        `Admin route "${id}" saves to "${afterSaveId}", which names more ` +
+          "than one record",
       );
     }
     destination.afterSave = landing;
