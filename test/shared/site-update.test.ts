@@ -21,6 +21,7 @@ import {
 } from "#shared/update.ts";
 import {
   type UpdateGuardIo,
+  UpdatePageCheckError,
   updatePageMeta,
   updatePageState,
 } from "#shared/update-guard.ts";
@@ -114,14 +115,18 @@ describeWithEnv(
   "hostedSiteUpdateGuardIo",
   { env: { BUNNY_API_KEY: "host-key" } },
   () => {
-    test("fetchPage throws with the status when the page check fails", async () => {
+    test("fetchPage marks a 503 as retryable for the update wait", async () => {
       using _fetch = stubFetch(() => new Response("busy", { status: 503 }));
       const io = hostedSiteUpdateGuardIo({
         hostingId: "8500",
         hostingProvider: "bunny",
         siteUrl: "https://site.example",
       });
-      await expect(io.fetchPage()).rejects.toThrow(
+      const error = await io.fetchPage().catch((caught: unknown) => caught);
+      expect(error).toBeInstanceOf(UpdatePageCheckError);
+      expect((error as UpdatePageCheckError).status).toBe(503);
+      expect((error as UpdatePageCheckError).retryable).toBe(true);
+      expect((error as Error).message).toMatch(
         /update page check failed \(HTTP 503\)/,
       );
     });

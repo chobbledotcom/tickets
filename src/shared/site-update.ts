@@ -35,6 +35,7 @@ import {
   UPDATE_FLAG_LIFTED_VALUE,
   UPDATE_IN_PROGRESS_VAR,
   type UpdateGuardIo,
+  UpdatePageCheckError,
 } from "#shared/update-guard.ts";
 
 /**
@@ -117,9 +118,7 @@ export const hostedSiteUpdateGuardIo = (site: {
     fetchPage: async () => {
       const response = await fetchBoundedUpdatePage(fetchText, pageUrl);
       if (!response.ok) {
-        throw new Error(
-          `The update page check failed (HTTP ${response.status}).`,
-        );
+        throw new UpdatePageCheckError(response.status);
       }
       return response.text;
     },

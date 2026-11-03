@@ -1,6 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { waitForUpdatePage } from "#shared/update-guard.ts";
+import {
+  UPDATE_WAIT_INTERVAL_MS,
+  UPDATE_WAIT_TIMEOUT_MS,
+  UpdatePageCheckError,
+  waitForUpdatePage,
+} from "#shared/update-guard.ts";
 import { fakeClock, page } from "#test-utils/_shared-site-update.ts";
 import { MOCK_RELEASE } from "#test-utils/mocks.ts";
 
@@ -125,6 +130,53 @@ describe("waitForUpdatePage", () => {
     );
     expect((error as Error).message).toMatch(/UPDATE_IN_PROGRESS is still set/);
     expect((error as Error).message).not.toMatch(/within 180 seconds/);
+  });
+
+  test("keeps polling while the site answers the migration status", async () => {
+    // The new build answers 503 while its first migrations run. The wait
+    // retries instead of failing, and the update page follows.
+    const clock = fakeClock();
+    let fetches = 0;
+    await waitForUpdatePage({
+      expectedBuildTag: MOCK_RELEASE.tag_name,
+      fetchPage: () => {
+        fetches += 1;
+        return fetches < 3
+          ? Promise.reject(
+              new UpdatePageCheckError(
+                503,
+                " for https://site.example/read-only",
+              ),
+            )
+          : Promise.resolve(page("active", MOCK_RELEASE.tag_name));
+      },
+      now: clock.now,
+      sleep: clock.sleep,
+    });
+    expect(fetches).toBe(3);
+    expect(clock.now()).toBe(UPDATE_WAIT_INTERVAL_MS * 2);
+  });
+
+  test("a run-out after the migration status names it", async () => {
+    const clock = fakeClock();
+    let fetches = 0;
+    const error = await waitForUpdatePage({
+      fetchPage: () => {
+        fetches += 1;
+        return Promise.reject(
+          new UpdatePageCheckError(503, " for https://site.example/read-only"),
+        );
+      },
+      now: clock.now,
+      sleep: clock.sleep,
+    }).catch((caught: unknown) => caught);
+    // The status did not end the wait: every check ran to the deadline.
+    expect(fetches).toBe(37);
+    expect(clock.now()).toBe(UPDATE_WAIT_TIMEOUT_MS);
+    expect((error as Error).message).toMatch(/within 180 seconds/);
+    expect((error as Error).message).toMatch(
+      /The site kept answering HTTP 503, so it is not ready yet/,
+    );
   });
 
   test("an abort names a failure that is not an Error", async () => {

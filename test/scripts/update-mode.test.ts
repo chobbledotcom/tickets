@@ -22,11 +22,13 @@ const response = (
 });
 
 /** A fetch stub that answers Bunny API calls from `apiResponses` in order and
- * page fetches from `pages`, recording every call. An exhausted page list
- * repeats its last entry, so a wait that polls "forever" never advances. */
+ * page fetches from `pages`, recording every call. A page entry is either a
+ * body the site serves with 200 or the full answer, so a test can hand back a
+ * failure status. An exhausted page list repeats its last entry, so a wait
+ * that polls "forever" never advances. */
 const stubFetch = (
   apiResponses: FetchTextResult[],
-  pages: string[],
+  pages: (FetchTextResult | string)[],
 ): { calls: { init: RequestInit; url: string }[]; fetchText: FetchText } => {
   const calls: { init: RequestInit; url: string }[] = [];
   let apiCalls = 0;
@@ -35,7 +37,9 @@ const stubFetch = (
     calls.push({ init, url });
     if (url === READ_ONLY_URL) {
       const next = pages[pageCalls++] ?? pages[pages.length - 1] ?? activePage;
-      return Promise.resolve(response(true, 200, next));
+      return Promise.resolve(
+        typeof next === "string" ? response(true, 200, next) : next,
+      );
     }
     return Promise.resolve(apiResponses[apiCalls++] ?? response(true, 204, ""));
   };
@@ -335,12 +339,44 @@ describe("runUpdateMode", () => {
     ).rejects.toThrow(/Delete UPDATE_IN_PROGRESS failed \(400\)/);
   });
 
+  test("end keeps waiting through the migration page, then lifts the flag", async () => {
+    // The new build answers 503 while its first request runs the migrations.
+    // The wait retries, and the update page follows.
+    const { calls, fetchText } = stubFetch(
+      [
+        response(
+          true,
+          200,
+          '{"Secrets":[{"Id":7,"Name":"UPDATE_IN_PROGRESS"}]}',
+        ),
+      ],
+      [
+        response(false, 503, "migrating"),
+        response(false, 503, "migrating"),
+        activePage,
+      ],
+    );
+    const code = await runUpdateMode(
+      ["end", "42", "https://site.example", END_BUILD_TAG],
+      io(fetchText),
+    );
+    expect(code).toBe(0);
+    expect(calls.map((call) => call.url)).toEqual([
+      READ_ONLY_URL,
+      READ_ONLY_URL,
+      READ_ONLY_URL,
+      UPDATE_SECRET_URL,
+      `${UPDATE_SECRET_URL}/7`,
+    ]);
+    expect(calls[4]?.init.method).toBe("DELETE");
+  });
+
   test("a failed page check aborts the end wait with the flag still set", async () => {
     const calls: { init: RequestInit; url: string }[] = [];
     const fetchText: FetchText = (url, init) => {
       calls.push({ init, url });
       if (url === READ_ONLY_URL) {
-        return Promise.resolve(response(false, 503, "busy"));
+        return Promise.resolve(response(false, 404, "missing"));
       }
       return Promise.resolve(
         response(
@@ -357,7 +393,7 @@ describe("runUpdateMode", () => {
     // One page check, then the abort: no secret list, no delete, so the
     // flag stays set for the re-run.
     expect((error as Error).message).toMatch(
-      /The last page check failed: The update page check failed \(HTTP 503\)/,
+      /The last page check failed: The update page check failed \(HTTP 404\)/,
     );
     expect((error as Error).message).toMatch(/UPDATE_IN_PROGRESS is still set/);
     expect(calls.length).toBe(1);
