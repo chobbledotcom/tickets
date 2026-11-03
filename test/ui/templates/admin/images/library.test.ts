@@ -57,6 +57,26 @@ describeWithEnv(
         );
       });
 
+      test("orders the table by name, then by upload date", async () => {
+        const sunset = await makeImage("Sunset");
+        const firstAlpine = await makeImage("Alpine");
+        const secondAlpine = await makeImage("Alpine");
+        const meadow = await makeImage("Meadow");
+
+        const html = await (await adminGet("/admin/images")).text();
+        // Each image name links to that image's edit page, in table order.
+        const shown = [
+          ...html.matchAll(/href="\/admin\/images\/(\d+)\/edit"/g),
+        ].map((match) => Number(match[1]));
+
+        expect(shown).toEqual([
+          firstAlpine.id,
+          secondAlpine.id,
+          meadow.id,
+          sunset.id,
+        ]);
+      });
+
       test("renders the red-pixel marker for an image whose filenames are broken", async () => {
         await insertBrokenImage({ name: "Broken library image" });
 
