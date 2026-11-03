@@ -121,7 +121,6 @@
     "semicolon \";\" in % - Optional diagnostic key. % returns a plain % by default; a request with a matching % header instead returns JSON build diagnostics (commit, build timestamp, server time) — non-private but useful to operators. Unset ⇒ verbose health disabled. The running build also records its commit into % on boot, so a backup carries the commit the site was on and a restore can surface which commit to redeploy (via %).": 1,
     "semicolon \";\" in % - Optional Botpoison public key (sent to the browser). The contact form works without it; setting it together with % adds proof-of-work spam protection as a progressive enhancement. The owner still enables the form under Site → Contact and sets a business email.": 1
   },
-  "docs/model-verification.md": {},
   "docs/mutation-testing.md": {
     "semicolon \";\" in In-place mutation inside the copied checkout is what makes mutations bind through % import-map aliases. The operator tables and AST walk are vendored from Mutasaurus (MIT); its own execution model writes a temp copy but runs the original tests, so every mutant falsely \"survives\" on an alias-based project — see %.": 1
   },
