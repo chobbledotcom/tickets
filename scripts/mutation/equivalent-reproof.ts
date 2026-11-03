@@ -49,13 +49,16 @@ export interface ReproveDeps {
   ): Promise<MutantEvaluation>;
 }
 
-/** The test-run configuration one file's direct stage uses. */
+/** The test-run configuration one file's direct stage uses. The reproof sweep
+ *  has no measured baseline, so its batches carry no limit: only the run's own
+ *  signal stops them. */
 const runConfigFor = (
   plan: FileMutationPlan,
   deps: ReproveDeps,
 ): TestRunConfig => ({
   batchJobs: deps.batchJobs,
   env: deps.env,
+  limitMs: null,
   testFiles: plan.directTestFiles,
 });
 
