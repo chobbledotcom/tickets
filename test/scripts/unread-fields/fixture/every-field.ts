@@ -189,6 +189,7 @@ export const EVERY_FIELD: readonly string[] = [
   "OneShape.namedTwiceOverAllTheSame",
   "OnlyWhenItFits.answeredByTheBranch",
   'OpenByNumber["[]"].readThroughANegativeIndex',
+  "Outer.Inner.Deep.onlyInsideNestedNamespace",
   'Pair["0"].sharedByTupleParts',
   'Pair["1"].sharedByTupleParts',
   "ParenOnly.slot",

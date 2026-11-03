@@ -58,6 +58,16 @@ export namespace Second {
   }
 }
 
+// The owner carries every namespace above the shape, not only the one that
+// holds it.
+export namespace Outer {
+  export namespace Inner {
+    export interface Deep {
+      onlyInsideNestedNamespace: number;
+    }
+  }
+}
+
 export interface Passed {
   kept: number;
   carriedBySpread: number;

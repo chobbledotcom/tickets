@@ -183,6 +183,12 @@ describe("what the scan counts as a shape", () => {
     );
   });
 
+  test("names a shape by every namespace above it", () => {
+    expect(verdictOf("Outer.Inner.Deep", "onlyInsideNestedNamespace")).toBe(
+      "never read",
+    );
+  });
+
   test("tells two shapes of one name in two namespaces apart", () => {
     // One line for both would call the unread field of `Second.Item` read.
     expect(verdictOf("First.Item", "sameNameInTwoNamespaces")).toBe("read");
