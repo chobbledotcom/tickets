@@ -195,6 +195,10 @@ export const ADMIN_AREA_LOADERS: Record<AdminAreaId, AdminAreaLoader> = {
     () => import("#routes/admin/images.ts"),
     ["entity-pages", "images", "validation"],
   ),
+  invoices: area(
+    () => import("#routes/admin/invoices.ts"),
+    ["invoices", "validation"],
+  ),
   ledger: area(
     () => import("#routes/admin/ledger.ts"),
     [

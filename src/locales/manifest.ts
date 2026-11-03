@@ -44,6 +44,7 @@ export const MESSAGE_GROUPS = [
   "guide-tickets",
   "holidays",
   "images",
+  "invoices",
   "ledger",
   "listing-defaults",
   "listing-qr",
@@ -215,6 +216,9 @@ export const ENGLISH_MESSAGE_LOADERS: Record<MessageGroup, MessageLoader> = {
   ),
   images: messagesFrom(
     () => import("./en/images.json", { with: { type: "json" } }),
+  ),
+  invoices: messagesFrom(
+    () => import("./en/invoices.json", { with: { type: "json" } }),
   ),
   ledger: messagesFrom(
     () => import("./en/ledger.json", { with: { type: "json" } }),

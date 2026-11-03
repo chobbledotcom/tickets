@@ -283,6 +283,19 @@ export const AREAS_A_L = {
       imageNew: "/admin/images/new",
     },
   },
+  // Staff only: an invoice can be created only by an owner or a manager.
+  invoices: {
+    audience: STAFF_ADMIN_LEVELS,
+    view: {
+      invoice: "/admin/invoices/:id",
+      invoices: "/admin/invoices",
+    },
+    write: {
+      invoiceCancel: "/admin/invoices/:id/cancel",
+      invoiceDelete: "/admin/invoices/:id/delete",
+      invoiceNew: "/admin/invoices/new",
+    },
+  },
   ledger: {
     audience: OWNER_AUDIENCE,
     view: {

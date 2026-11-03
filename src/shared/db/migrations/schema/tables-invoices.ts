@@ -1,0 +1,61 @@
+/** The invoice table: one frozen rendered invoice per row. */
+
+/* jscpd:ignore-start */
+import { INVOICE_STATUSES } from "#shared/invoices/status.ts";
+import { attendeeIdColumn, createdColumn } from "./scalar-columns.ts";
+import type { Table } from "./types.ts";
+
+/* jscpd:ignore-end */
+
+const statusCheck = `status IN (${INVOICE_STATUSES.map(
+  (status) => `'${status}'`,
+).join(", ")})`;
+
+export const invoiceTables: [name: string, table: Table][] = [
+  [
+    // An invoice belongs to one attendee. The body is the rendered Liquid
+    // output, frozen when an operator creates the invoice. It is sealed twice.
+    // `body` is sealed under the owner public key for an owner session.
+    // `shared_body` is sealed under the site key, so the non-expiring share
+    // link can render it without a session. `share_token` is the capability,
+    // sealed under the owner key. `share_token_index` finds it without
+    // opening it.
+    // No FK: the attendee delete path removes these rows explicitly, like
+    // system_notes.
+    "invoices",
+    {
+      columns: [
+        // The operator-visible invoice number. A create form prefills the next
+        // free number, and the database keeps it unique.
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        attendeeIdColumn,
+        ["body", "TEXT NOT NULL CHECK (body GLOB 'hyb:1:?*')"],
+        ["shared_body", "TEXT NOT NULL CHECK (shared_body GLOB 'enc:1:?*')"],
+        ["status", `TEXT NOT NULL DEFAULT 'new' CHECK (${statusCheck})`],
+        ["share_token", "TEXT NOT NULL CHECK (share_token GLOB 'hyb:1:?*')"],
+        ["share_token_index", "TEXT NOT NULL"],
+        createdColumn,
+      ],
+      indexes: [
+        {
+          columns: ["attendee_id", "status"],
+          name: "idx_invoices_attendee_status",
+        },
+        {
+          columns: ["share_token_index"],
+          name: "idx_invoices_share_token",
+          unique: true,
+        },
+        // At most one new invoice per attendee. A new invoice must wait for
+        // the open one to be cancelled, and the database holds that rule even
+        // when two requests race.
+        {
+          columns: ["attendee_id"],
+          name: "idx_invoices_open_attendee",
+          unique: true,
+          where: "status = 'new'",
+        },
+      ],
+    },
+  ],
+];

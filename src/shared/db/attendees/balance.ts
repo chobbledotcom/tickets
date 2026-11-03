@@ -33,6 +33,7 @@ import {
   resultRows,
   type SqlStatement,
 } from "#db/client.ts";
+import { markOpenInvoicesPaidStatement } from "#db/invoices.ts";
 import { compact, mapParallel, sumOf } from "#fp";
 import { formatCurrency } from "#shared/currency.ts";
 import { nowIso } from "#shared/now.ts";
@@ -227,6 +228,9 @@ export const settleAttendeeBalance = async (
                AND ${owed} = ?`,
     },
     ...extraStatements,
+    // An invoice bills this attendee's outstanding balance. Clearing that
+    // balance closes the open invoice in the same transaction.
+    markOpenInvoicesPaidStatement(attendeeId, owed, expectedAmount),
     // The balance payment: world funds the attendee, zeroing what they owed.
     // INSERT OR IGNORE on a settle-stable reference plus the same owed guard
     // makes a retried/raced webhook a no-op. Runs after the status move so its

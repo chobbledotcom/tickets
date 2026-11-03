@@ -40,3 +40,15 @@ export const groupPackageRows = <Row>(
   }
   return groups;
 };
+
+/** Walk one order's rows, gathering each package that a row carries. The pay
+ *  page and the invoice both group an order the same way, so a standalone row
+ *  and an unknown package stay single rows. */
+export const orderPackageRows = <Row extends { packageGroupId: number }>(
+  rows: readonly Row[],
+): PackageRowGroup<Row>[] =>
+  groupPackageRows(
+    rows,
+    (row) => row.packageGroupId,
+    (groupId) => groupId !== 0,
+  );

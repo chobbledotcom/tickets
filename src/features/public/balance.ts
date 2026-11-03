@@ -13,7 +13,7 @@ import {
   type OrderSummary,
 } from "#db/attendees/balance.ts";
 import { getPackageDisplaysByIds } from "#db/groups.ts";
-import { map, sumOf, unique } from "#fp";
+import { map, sumOf } from "#fp";
 import { t } from "#i18n";
 import { withCsrfForm } from "#routes/csrf.ts";
 import { checkoutResponse } from "#routes/payment-response.ts";
@@ -23,7 +23,7 @@ import { getBaseUrl } from "#routes/url.ts";
 import { verifyBalanceToken } from "#shared/balance-link.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import {
-  groupPackageRows,
+  orderPackageRows,
   type PackageRowGroup,
 } from "#shared/package-rows.ts";
 import {
@@ -83,12 +83,9 @@ const withOutstanding = async (
 const publicRecapLines = async (
   lines: readonly OrderLine[],
 ): Promise<OrderLine[]> => {
-  const groupIds = unique(
-    lines.flatMap((line) =>
-      line.packageGroupId === 0 ? [] : [line.packageGroupId],
-    ),
+  const displays = await getPackageDisplaysByIds(
+    lines.map((line) => line.packageGroupId),
   );
-  const displays = await getPackageDisplaysByIds(groupIds);
   return map((group: PackageRowGroup<OrderLine>) => {
     if (group.groupId === undefined) return group.rows;
     return [
@@ -99,13 +96,7 @@ const publicRecapLines = async (
         quantity: sumOf((line: OrderLine) => line.quantity)(group.rows),
       },
     ];
-  })(
-    groupPackageRows(
-      lines,
-      (line) => line.packageGroupId,
-      (groupId) => groupId !== 0,
-    ),
-  ).flat();
+  })(orderPackageRows(lines)).flat();
 };
 
 /** GET /pay/:token — render the recap + pay button. */

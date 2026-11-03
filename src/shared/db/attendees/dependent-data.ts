@@ -79,6 +79,7 @@ export const ATTENDEE_DATA_RULES: readonly AttendeeDataRule[] = [
   direct("delete")("booking_tax_assessments"),
   direct("delete")("answers_at_booking"),
   direct("delete")("listing_attendees"),
+  direct("delete")("invoices"),
   direct("delete")("service_costs", "servicing_attendee_id"),
   { action: "delete", kind: "notes", table: "system_notes" },
 

@@ -105,6 +105,12 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
     ],
   },
   {
+    id: "invoices",
+    labelKey: "nav.invoices",
+    landing: "invoices",
+    nav: [{ id: "invoices", kind: "landing", labelKey: "nav.invoices" }],
+  },
+  {
     id: "users",
     labelKey: "terms.users",
     landing: "users",

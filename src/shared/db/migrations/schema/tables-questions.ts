@@ -1,7 +1,11 @@
 /** Form tables: questions, answers, attributes, built sites, notes. */
 
 import { NOTE_ENTITIES } from "#db/notes/target.ts";
-import { createdColumn, sortOrderColumn } from "./scalar-columns.ts";
+import {
+  attendeeIdColumn,
+  createdColumn,
+  sortOrderColumn,
+} from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
 
 /** The record kinds a note may be about, as a CHECK the database enforces. */
@@ -192,7 +196,7 @@ export const questionTables: [name: string, table: Table][] = [
     "answers_at_booking",
     {
       columns: [
-        ["attendee_id", "INTEGER NOT NULL"],
+        attendeeIdColumn,
         ["question_id", "INTEGER NOT NULL"],
         ["question_text", "TEXT NOT NULL"],
         ["answer_id", "INTEGER"],
@@ -221,7 +225,7 @@ export const questionTables: [name: string, table: Table][] = [
     {
       columns: [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["attendee_id", "INTEGER NOT NULL"],
+        attendeeIdColumn,
         ["answer_id", "INTEGER"],
         ["question_id", "INTEGER"],
         ["string_id", "INTEGER"],
