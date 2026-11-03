@@ -44,9 +44,8 @@ import {
   throughParent,
 } from "#routes/entity.ts";
 import {
-  errorRedirect,
+  adminRedirect,
   htmlResponse,
-  redirect,
   redirectToDetail,
 } from "#routes/response.ts";
 import { adminDestinationAt } from "#shared/admin-surface.ts";
@@ -93,7 +92,7 @@ const handleAttributesGet = authPage(
 const handleAttributesPost = createAuthedFormRoute({
   auth: formPolicyFor(adminDestinationAt("/admin/attributes")),
   form: attributeNameForm,
-  onInvalid: ({ error }) => errorRedirect("/admin/attributes", error),
+  onInvalid: ({ error }) => adminRedirect("attributes", {}, error, false),
   onValid: async ({ values: { name } }) => {
     // One transaction: an attribute must never exist without its order entry
     // or its log line.
@@ -102,8 +101,9 @@ const handleAttributesPost = createAuthedFormRoute({
       null,
       appendWithCreationLog(attributesOrder, "Attribute", name),
     );
-    return redirect(
-      `/admin/attributes/${attributeId}`,
+    return adminRedirect(
+      "attribute",
+      { id: attributeId },
       t("attributes.created"),
       true,
     );
@@ -147,7 +147,7 @@ type AttributeOptionContext = {
   option: AttributeOption;
 };
 
-const redirectToAttribute = redirectToDetail("/admin/attributes");
+const redirectToAttribute = redirectToDetail("attribute");
 
 const logAttributeOptionActivity = (
   optionText: string,
@@ -216,8 +216,9 @@ const handleAttributeEdit = createAuthedFormRoute<
     orNotFound(getAttributeWithOptions(params.id), async () => {
       await attributesTable.update(params.id, { name });
       await logActivity(`Attribute '${name}' updated`);
-      return redirect(
-        `/admin/attributes/${params.id}`,
+      return adminRedirect(
+        "attribute",
+        { id: params.id },
         t("attributes.updated"),
         true,
       );
@@ -236,8 +237,9 @@ const handleAddOption = createAuthedFormRoute<
       // One transaction: an option must never exist without its place in the
       // order or its log line.
       await addAttributeOptionWithLog(attribute, text);
-      return redirect(
-        `/admin/attributes/${params.id}`,
+      return adminRedirect(
+        "attribute",
+        { id: params.id },
         t("attributes.option_added"),
         true,
       );
@@ -338,8 +340,6 @@ const handleDeleteOptionPost = createVerifiedFormRoute<
   ),
 });
 
-const editOptionPath = optionPath("edit");
-
 const handleEditOptionPost = createAuthedFormRoute<
   { text: string },
   AttributeOptionParams,
@@ -351,11 +351,12 @@ const handleEditOptionPost = createAuthedFormRoute<
   form: attributeOptionForm,
   loadContext: loadAttributeOption,
   onInvalid: ({ error, params }) =>
-    errorRedirect(editOptionPath(params), error),
+    adminRedirect("attributeOptionEdit", params, error, false),
   onValid: async ({ context: { attribute, option }, values: { text } }) => {
     await renameAttributeOptionWithLog(attribute, option, text);
-    return redirect(
-      `/admin/attributes/${attribute.id}`,
+    return adminRedirect(
+      "attribute",
+      { id: attribute.id },
       t("attributes.option_updated"),
       true,
     );

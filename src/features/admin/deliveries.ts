@@ -36,7 +36,7 @@ import {
   deliveryPage,
   withAuth,
 } from "#routes/auth.ts";
-import { errorRedirect, redirect } from "#routes/response.ts";
+import { adminRedirect } from "#routes/response.ts";
 import { addDays } from "#shared/dates.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -255,22 +255,17 @@ const handleDeliveriesMark = (request: Request): Promise<Response> =>
     const kind = form.getString("kind");
     const date = form.getString("date");
     const done = form.getFlag("done");
-    if (attendeeId === null || listingId === null) {
-      return errorRedirect(
-        "/admin/deliveries",
+    if (
+      attendeeId === null ||
+      listingId === null ||
+      (kind !== "start" && kind !== "end") ||
+      !markDateAllowed(session, date)
+    ) {
+      return adminRedirect(
+        "deliveries",
+        {},
         t("deliveries.invalid_request"),
-      );
-    }
-    if (kind !== "start" && kind !== "end") {
-      return errorRedirect(
-        "/admin/deliveries",
-        t("deliveries.invalid_request"),
-      );
-    }
-    if (!markDateAllowed(session, date)) {
-      return errorRedirect(
-        "/admin/deliveries",
-        t("deliveries.invalid_request"),
+        false,
       );
     }
 
@@ -284,10 +279,11 @@ const handleDeliveriesMark = (request: Request): Promise<Response> =>
       agentIds,
     );
     if (!updated) {
-      return errorRedirect("/admin/deliveries", t("deliveries.not_yours"));
+      return adminRedirect("deliveries", {}, t("deliveries.not_yours"), false);
     }
-    return redirect(
-      "/admin/deliveries",
+    return adminRedirect(
+      "deliveries",
+      {},
       done ? t("deliveries.marked_done") : t("deliveries.marked_not_done"),
       true,
     );

@@ -18,7 +18,11 @@ import {
 import { type IdRouteHandler, idRouteFor } from "#routes/entity.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
-import { adminDestination, adminDestinationAt } from "#shared/admin-surface.ts";
+import {
+  adminDestination,
+  adminDestinationAt,
+  afterSavePath,
+} from "#shared/admin-surface.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type {
   DeleteResult,
@@ -64,17 +68,9 @@ export type CollectionRenderers<Model> = {
 
 type CrudConfig<Row, Display = Row> = CollectionRenderers<Display[]> & {
   singular: string;
-  /** The collection's own route. Its path gives the five routes beneath it,
-   * and each of those declares the roles that reach it. */
+  /** The collection route owns the create POST. Saves return here unless
+   * their POST route declares an afterSave override. */
   list: AdminDestinationId;
-  /** Redirect path after create/edit. Falls back to the list page when not
-   * provided.
-   * Receives the acting session, so the target can be role-aware. Editors,
-   * who cannot open the staff detail page, return to the edit form instead. */
-  getRowPath?: (row: Row, session: AdminSession) => string;
-  /** Optional create-only target. This supports resources whose new records
-   * return to the collection while edits open the canonical entity page. */
-  getCreatePath?: (row: Row, session: AdminSession) => string;
   getAll: () => Promise<Display[]>;
   /** The resource, or a factory that builds it. A factory keeps a resource
    * whose fields are a per-request builder off the module-load path. Modifiers
@@ -116,7 +112,7 @@ const pageGuardAt = (pattern: string): SessionGuard<AuthSession> =>
 const crudGates = (listPath: string): CrudGates => {
   const deletePath = `${listPath}/:id/delete`;
   return {
-    create: formGuardAt(`${listPath}/new`),
+    create: formGuardAt(listPath),
     delete: pageGuardAt(deletePath),
     deleteForm: formGuardAt(deletePath),
     edit: formGuardAt(`${listPath}/:id/edit`),
@@ -130,10 +126,12 @@ const crudGates = (listPath: string): CrudGates => {
  * from the route it guards, so the roles are written once, in the admin
  * surface declaration, and never again beside the handlers.
  */
-export const createCrudHandlers = <Row, Display = Row>(
+export const createCrudHandlers = <Row extends { id: number }, Display = Row>(
   cfg: CrudConfig<Row, Display>,
 ): CrudHandlers => {
-  const listPath = adminDestination(cfg.list).pattern;
+  const listRoute = adminDestination(cfg.list);
+  const listPath = listRoute.pattern;
+  const editRoute = adminDestinationAt(`${listPath}/:id/edit`);
   const auth = crudGates(listPath);
   const operations = (): NamedOperations<Row> =>
     typeof cfg.operations === "function" ? cfg.operations() : cfg.operations;
@@ -142,15 +140,10 @@ export const createCrudHandlers = <Row, Display = Row>(
   const logAndRedirect = async (
     verb: string,
     row: Row,
-    session: AuthSession,
-    getPath = cfg.getRowPath,
+    landing: string,
   ): Promise<Response> => {
     await logActivity(`${activityName} '${cfg.getName(row)}' ${verb}`);
-    return redirect(
-      getPath === undefined ? listPath : getPath(row, session),
-      `${cfg.singular} ${verb}`,
-      true,
-    );
+    return redirect(landing, `${cfg.singular} ${verb}`, true);
   };
 
   const listGet = authPage(auth.list)(async (session) =>
@@ -169,10 +162,14 @@ export const createCrudHandlers = <Row, Display = Row>(
     (handle: Parameters<FormGuard<AuthSession>>[1]) =>
     (request: Request): Promise<Response> =>
       guard(request, handle);
-  const createPost = formPost(auth.create)(async (session, form) => {
+  const createPost = formPost(auth.create)(async (_session, form) => {
     const result = await operations().create(form);
     if (!result.ok) return errorRedirect(`${listPath}/new`, result.error);
-    return logAndRedirect("created", result.row, session, cfg.getCreatePath);
+    return logAndRedirect(
+      "created",
+      result.row,
+      afterSavePath(listRoute, cfg.list, result.row.id),
+    );
   });
 
   const editPost: IdRouteHandler = (request, { id }) =>
@@ -180,7 +177,12 @@ export const createCrudHandlers = <Row, Display = Row>(
       const result = await operations().update(id, form);
       return operationResponse(
         result,
-        ({ row }) => logAndRedirect("updated", row, session),
+        ({ row }) =>
+          logAndRedirect(
+            "updated",
+            row,
+            afterSavePath(editRoute, cfg.list, row.id),
+          ),
         (error) =>
           cfg.renderEditError
             ? cfg.renderEditError(id, session, form, error)

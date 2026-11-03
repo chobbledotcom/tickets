@@ -62,7 +62,7 @@ import { answerTextForm } from "./forms.ts";
 
 export type QuestionIdParams = { id: number };
 
-export const redirectToQuestion = redirectToDetail("/admin/questions");
+export const redirectToQuestion = redirectToDetail("question");
 
 /** Insert an answer and place it in its question's order, atomically. */
 const addAnswerRow = insertScopedOrderedRow(answersTable, answersOrder);
