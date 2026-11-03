@@ -2,9 +2,9 @@
 
 import { t } from "#i18n";
 import { formatDateLabel } from "#shared/date-labels.ts";
+import type { LineItem } from "#shared/line-item.ts";
 import { htmlLiquidEngine } from "#shared/liquid-engine.ts";
 import { INVOICE_BODY_TEMPLATE } from "#templates/invoice/defaults.ts";
-import type { InvoiceLine } from "./lines.ts";
 
 export type InvoiceBodyData = {
   customer: { email: string; name: string };
@@ -17,14 +17,14 @@ export type InvoiceBodyData = {
     quantity: string;
     total: string;
   };
-  lines: InvoiceLine[];
+  lines: LineItem[];
   totals: { due: number; paid: number; total: number };
 };
 
 export type InvoiceBodyFacts = {
   created: string;
   customer: InvoiceBodyData["customer"];
-  lines: InvoiceLine[];
+  lines: LineItem[];
   number: number;
   totals: InvoiceBodyData["totals"];
 };

@@ -5,11 +5,9 @@ import type { OrderLine, OrderSummary } from "#db/attendees/balance.ts";
 import { getPackageDisplaysByIds } from "#db/groups.ts";
 import { map, sumOf } from "#fp";
 import { t } from "#i18n";
+import type { LineItem } from "#shared/line-item.ts";
 import { orderPackageRows } from "#shared/package-rows.ts";
 /* jscpd:ignore-end */
-
-/** One invoice line: what the buyer booked, and how many. */
-export type InvoiceLine = { name: string; quantity: number };
 
 /**
  * The lines one invoice shows. Rows booked through a package collapse into one
@@ -20,7 +18,7 @@ export type InvoiceLine = { name: string; quantity: number };
  */
 export const invoiceLines = async (
   summary: OrderSummary,
-): Promise<InvoiceLine[]> => {
+): Promise<LineItem[]> => {
   const displays = await getPackageDisplaysByIds(
     summary.lines.map((line) => line.packageGroupId),
   );
