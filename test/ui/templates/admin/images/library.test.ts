@@ -57,6 +57,28 @@ describeWithEnv(
         );
       });
 
+      test("orders the table and the editor dropdown by name, then by upload date", async () => {
+        const sunset = await makeImage("Sunset");
+        const firstAlpine = await makeImage("Alpine");
+        const secondAlpine = await makeImage("Alpine");
+        const meadow = await makeImage("Meadow");
+        // The library order: name A to Z, and the older upload first on a tie.
+        const libraryOrder = [firstAlpine, secondAlpine, meadow, sunset];
+
+        const html = await (await adminGet("/admin/images")).text();
+        // Each image name links to that image's edit page, in table order.
+        const shown = [
+          ...html.matchAll(/href="\/admin\/images\/(\d+)\/edit"/g),
+        ].map((match) => Number(match[1]));
+        expect(shown).toEqual(libraryOrder.map((image) => image.id));
+
+        // The editor's image dropdown offers the same order.
+        const options = await (await adminGet("/admin/images/options")).json();
+        expect(options).toEqual({
+          images: libraryOrder.map(({ id, name }) => ({ id, name })),
+        });
+      });
+
       test("renders the red-pixel marker for an image whose filenames are broken", async () => {
         await insertBrokenImage({ name: "Broken library image" });
 
