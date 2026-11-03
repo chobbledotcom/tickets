@@ -142,43 +142,57 @@ const listingUploadHandler = createIdEntityHandler<ListingWithCount>(
   getListingWithCount,
 )(formGuard(CONTENT_FORM));
 
-/** Generic handler for deleting a listing's uploaded file. */
-const handleFileDelete = (
-  label: string,
-  getUrl: (e: ListingWithCount) => string,
-  clearFields: Partial<ListingInput>,
-): TypedRouteHandler<`POST /admin/listing/:id/${string}/delete`> =>
-  listingUploadHandler(async (listing, _session, _form, _request, { id }) => {
-    const returnPath = entityReturnPath("/admin/listings", id);
-    const url = getUrl(listing);
-    if (url) {
-      const [deleteResult] = await Promise.allSettled([deleteFile(url)]);
-      if (deleteResult.status !== "fulfilled") {
-        const detail = `${label} removal failed: ${String(deleteResult.reason)}`;
-        logError({
-          code: ErrorCode.STORAGE_DELETE,
-          detail,
-          listingId: listing.id,
-        });
-        return redirect(
-          returnPath,
-          t("listings_table.file_removal_failed", { label }),
-          false,
-        );
-      }
-      await listingsTable.update(id, clearFields);
-      await logActivity(`${label} removed for '${listing.name}'`, listing);
+/** One uploaded file field of a listing. */
+type UploadedFile = {
+  readonly clearFields: Partial<ListingInput>;
+  readonly getUrl: (listing: ListingWithCount) => string;
+  readonly label: string;
+};
+
+/** Remove one uploaded file from a listing, then return to the listing page. */
+const removeUploadedFile = async (
+  { clearFields, getUrl, label }: UploadedFile,
+  listing: ListingWithCount,
+  id: number,
+): Promise<Response> => {
+  const returnPath = entityReturnPath("listings", id);
+  const url = getUrl(listing);
+  if (url) {
+    const [deleteResult] = await Promise.allSettled([deleteFile(url)]);
+    if (deleteResult.status !== "fulfilled") {
+      const detail = `${label} removal failed: ${String(deleteResult.reason)}`;
+      logError({
+        code: ErrorCode.STORAGE_DELETE,
+        detail,
+        listingId: listing.id,
+      });
+      return redirect(
+        returnPath,
+        t("listings_table.file_removal_failed", { label }),
+        false,
+      );
     }
-    return redirect(
-      returnPath,
-      t("listings_table.file_removed", { label }),
-      true,
-    );
-  });
+    await listingsTable.update(id, clearFields);
+    await logActivity(`${label} removed for '${listing.name}'`, listing);
+  }
+  return redirect(
+    returnPath,
+    t("listings_table.file_removed", { label }),
+    true,
+  );
+};
+
+/** Handler for deleting one uploaded file field of a listing. */
+const handleFileDelete = (
+  file: UploadedFile,
+): TypedRouteHandler<`POST /admin/listing/:id/${string}/delete`> =>
+  listingUploadHandler((listing, _session, _form, _request, { id }) =>
+    removeUploadedFile(file, listing, id),
+  );
 
 /** Handle POST /admin/listing/:id/attachment/delete (delete listing attachment) */
-export const handleAttachmentDelete = handleFileDelete(
-  "Attachment",
-  (e) => e.attachment_url,
-  { attachmentName: "", attachmentUrl: "" },
-);
+export const handleAttachmentDelete = handleFileDelete({
+  clearFields: { attachmentName: "", attachmentUrl: "" },
+  getUrl: (e) => e.attachment_url,
+  label: "Attachment",
+});

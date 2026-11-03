@@ -1,39 +1,24 @@
 import { isOneOf } from "#fp";
-import { readOnlyGetRoutePatterns } from "#shared/admin-pages.ts";
+import {
+  readOnlyGetRoutePatterns,
+  readOnlyWriteRoutePatterns,
+} from "#shared/admin-pages.ts";
 import { constant } from "#shared/fp-bind.ts";
 import { routePathPatternToRegex } from "#shared/route-pattern.ts";
 import { READ_ONLY_SAFE_ROUTES } from "./read-only-safe-routes.ts";
 
-/** The admin sign-in and sign-out. They are the only admin writes that stay
- * open while an update runs. */
-const READ_ONLY_SIGN_IN_OUT_PATHS = ["/admin/login", "/admin/logout"];
-
-/** The admin writes read-only mode keeps open, by their declared paths.
- * Check-ins and payments still happen while the site is read-only, so the
- * operations a working site cannot pause stay open. */
-const READ_ONLY_ADMIN_OPERATION_PATHS = [
-  "/admin/attendees/:attendeeId/refresh-payment",
-  "/admin/backup/create",
-  "/admin/debug/sentry",
-  "/admin/deliveries/mark",
-  "/admin/listing/:id/scan",
-  "/admin/listing/:listingId/attendee/:attendeeId/checkin",
-  "/admin/groups/:id/scan",
-  ...READ_ONLY_SIGN_IN_OUT_PATHS,
-  "/admin/support",
-];
-
-const READ_ONLY_ADMIN_OPERATION_PATTERNS = READ_ONLY_ADMIN_OPERATION_PATHS.map(
+/** The admin writes read-only mode keeps open, and the narrower set that also
+ * stays open while an update runs. Both come from the route declarations. */
+const READ_ONLY_WRITE_PATTERNS = readOnlyWriteRoutePatterns(false).map(
+  routePathPatternToRegex,
+);
+const UPDATE_WRITE_PATTERNS = readOnlyWriteRoutePatterns(true).map(
   routePathPatternToRegex,
 );
 
-const READ_ONLY_GET_PATTERNS = readOnlyGetRoutePatterns()
-  // A write this mode keeps open keeps the page its GET serves too. The
-  // check-in POST is the operation, and the check-in page is the only form
-  // the operator submits a multi-ticket check-in from. A write whose GET no
-  // route serves loses nothing. The request meets the same 404 either way.
-  .filter((pattern) => !READ_ONLY_ADMIN_OPERATION_PATHS.includes(pattern))
-  .map(routePathPatternToRegex);
+const READ_ONLY_GET_PATTERNS = readOnlyGetRoutePatterns().map(
+  routePathPatternToRegex,
+);
 
 const READ_ONLY_SAFE_PATHS = READ_ONLY_SAFE_ROUTES.map(({ pattern }) =>
   routePathPatternToRegex(pattern),
@@ -80,15 +65,9 @@ const sentTo = (
   return (request) => request.method === method && listed(request.path);
 };
 
-const isAllowedAdminOperation = sentTo(
-  "POST",
-  READ_ONLY_ADMIN_OPERATION_PATTERNS,
-);
+const isReadOnlyWrite = sentTo("POST", READ_ONLY_WRITE_PATTERNS);
 
-const isSignInOrOut = sentTo(
-  "POST",
-  READ_ONLY_SIGN_IN_OUT_PATHS.map(routePathPatternToRegex),
-);
+const isUpdateWrite = sentTo("POST", UPDATE_WRITE_PATTERNS);
 
 const isSafePath = pathIn(READ_ONLY_SAFE_PATHS);
 
@@ -105,13 +84,14 @@ const READ_ONLY_RULES: readonly ReadOnlyRule[] = [
     matches: sentTo("GET", READ_ONLY_GET_PATTERNS),
   },
   {
-    // Ordinary read-only mode keeps every allowed admin operation. Update
-    // mode refuses admin writes too, and keeps only the sign-in and
+    // Read-only mode keeps the admin writes their routes declare. Update
+    // mode keeps only the ones declared `"always"`, the sign-in and
     // sign-out, because the migration must see a still database.
-    decide: (request) => (isAllowedAdminOperation(request) ? null : "page"),
-    matches: (request) =>
-      isAdminMutation(request.path, request.method) &&
-      (!request.updating || isSignInOrOut(request)),
+    decide: (request) =>
+      (request.updating ? isUpdateWrite : isReadOnlyWrite)(request)
+        ? null
+        : "page",
+    matches: ({ path, method }) => isAdminMutation(path, method),
   },
   {
     decide: constant(null),

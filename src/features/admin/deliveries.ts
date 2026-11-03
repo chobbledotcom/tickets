@@ -38,7 +38,6 @@ import {
 } from "#routes/auth.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
 import { afterSavePath } from "#shared/admin-pages.ts";
-import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { addDays } from "#shared/dates.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -248,26 +247,25 @@ const markDateAllowed = (session: AuthSession, date: string): boolean => {
   return date === today || date === addDays(today, 1);
 };
 
+/** The deliveries list. A mark lands here, whether it was accepted or not. */
+const DELIVERIES_PATH = afterSavePath("deliveriesMark");
+
 /** Handle POST /admin/deliveries/mark — toggle a leg done, scoped to the
  * agent's own logistics agents and to the run-sheet day it was shown on. */
 const handleDeliveriesMark = (request: Request): Promise<Response> =>
   withAuth(request, DELIVERY_FORM, async (session, form) => {
-    const deliveriesPath = afterSavePath(
-      adminDestinationAt("/admin/deliveries/mark"),
-    );
     const attendeeId = form.getOptionalInt("attendee_id");
     const listingId = form.getOptionalInt("listing_id");
     const kind = form.getString("kind");
     const date = form.getString("date");
     const done = form.getFlag("done");
-    if (attendeeId === null || listingId === null) {
-      return errorRedirect(deliveriesPath, t("deliveries.invalid_request"));
-    }
-    if (kind !== "start" && kind !== "end") {
-      return errorRedirect(deliveriesPath, t("deliveries.invalid_request"));
-    }
-    if (!markDateAllowed(session, date)) {
-      return errorRedirect(deliveriesPath, t("deliveries.invalid_request"));
+    if (
+      attendeeId === null ||
+      listingId === null ||
+      (kind !== "start" && kind !== "end") ||
+      !markDateAllowed(session, date)
+    ) {
+      return errorRedirect(DELIVERIES_PATH, t("deliveries.invalid_request"));
     }
 
     const agentIds = await userAgents.getIds(session.userId);
@@ -280,10 +278,10 @@ const handleDeliveriesMark = (request: Request): Promise<Response> =>
       agentIds,
     );
     if (!updated) {
-      return errorRedirect(deliveriesPath, t("deliveries.not_yours"));
+      return errorRedirect(DELIVERIES_PATH, t("deliveries.not_yours"));
     }
     return redirect(
-      deliveriesPath,
+      DELIVERIES_PATH,
       done ? t("deliveries.marked_done") : t("deliveries.marked_not_done"),
       true,
     );

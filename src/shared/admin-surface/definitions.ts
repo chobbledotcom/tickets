@@ -25,6 +25,11 @@ export type AdminAudience = readonly AdminLevel[];
 export type AdminRouteIntent = "view" | "write-form";
 export type AdminNavKind = "landing" | "link" | "create" | "import";
 
+/** How long read-only mode keeps a write open. `"always"` covers sign-in and
+ * sign-out, which stay open while an update runs. `"read-only"` covers the
+ * operations a working site cannot pause: they close in update mode. */
+export type ReadOnlyWrite = "always" | "read-only";
+
 export const OWNER_AUDIENCE = ["owner"] as const;
 
 export const featureVisible =
@@ -33,8 +38,8 @@ export const featureVisible =
     ctx.enabledFeatures[feature];
 
 /** A route: its pattern alone, or an object that differs from its area. The
- * object names a role of its own, a GET read-only mode keeps serving, the
- * page a save lands on, or any of these. */
+ * object names a role of its own, the page a save lands on, or a GET or write
+ * that read-only mode keeps serving. */
 export type AdminDestinationSpec =
   | string
   | {
@@ -45,6 +50,7 @@ export type AdminDestinationSpec =
       readonly audience?: AdminAudience;
       readonly pattern: string;
       readonly readOnlyGet?: true;
+      readonly readOnlyWrite?: ReadOnlyWrite;
     };
 
 type AdminRouteGroup = Readonly<Record<string, AdminDestinationSpec>>;
@@ -73,6 +79,8 @@ export type AdminDestinationDef = {
   /** The GET this write route serves is not a form: read-only mode keeps
    * serving it instead of redirecting it. */
   readonly readOnlyGet?: true;
+  /** The write this route serves stays open in read-only mode. */
+  readonly readOnlyWrite?: ReadOnlyWrite;
   readonly intent: AdminRouteIntent;
   readonly pattern: string;
 };
@@ -105,6 +113,9 @@ const groupDestinations = (
         ? {}
         : { afterSaveId: object.afterSave }),
       ...(object.readOnlyGet === true ? { readOnlyGet: true } : {}),
+      ...(object.readOnlyWrite === undefined
+        ? {}
+        : { readOnlyWrite: object.readOnlyWrite }),
       intent,
       pattern: object.pattern,
     };

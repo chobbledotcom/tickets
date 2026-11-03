@@ -251,7 +251,7 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> =
     // renders Flash too. The success message and any upload caveats show.
     const createdRedirect =
       session.adminLevel === "editor"
-        ? entityReturnPath("/admin/listings", result.row.id)
+        ? entityReturnPath("listings", result.row.id)
         : adminLandingPath(session.adminLevel);
     return processUploadsAndRedirect(
       formData,

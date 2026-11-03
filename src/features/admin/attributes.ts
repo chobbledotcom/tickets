@@ -104,7 +104,7 @@ const handleAttributesPost = createAuthedFormRoute({
       appendWithCreationLog(attributesOrder, "Attribute", name),
     );
     return redirect(
-      afterSavePath(adminDestinationAt("/admin/attributes"), attributeId),
+      afterSavePath("attributes", attributeId),
       t("attributes.created"),
       true,
     );

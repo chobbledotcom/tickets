@@ -91,6 +91,31 @@ describe("adminPathSegment", () => {
   });
 });
 
+describe("a route that declares a read-only write", () => {
+  test("carries the mode the guard keeps it open for", () => {
+    const surface = foldAdminAreas({
+      holidays: {
+        audience: ["owner"],
+        write: {
+          holidayHold: {
+            pattern: "/admin/holidays/:id/hold",
+            readOnlyWrite: "always",
+          },
+          holidayRelease: "/admin/holidays/:id/release",
+        },
+      },
+    });
+    expect(surface.destinations.holidayHold!.readOnlyWrite).toBe("always");
+    expect(surface.destinations.holidayRelease).toEqual({
+      area: "holidays",
+      audience: ["owner"],
+      id: "holidayRelease",
+      intent: "write-form",
+      pattern: "/admin/holidays/:id/release",
+    });
+  });
+});
+
 describe("a route that names its after-save landing", () => {
   const WITH_LANDING: AdminAreasSpec = {
     holidays: {

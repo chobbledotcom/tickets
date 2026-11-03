@@ -122,7 +122,7 @@ export const handleListingEditSuccess = async (
   return processUploadsAndRedirect(
     formData,
     id,
-    entityReturnPath("/admin/listings", row.id),
+    entityReturnPath("listings", row.id),
     t("listings_table.listing_updated", {
       warning: durationWarning + movedNotice,
     }),

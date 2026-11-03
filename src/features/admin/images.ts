@@ -38,7 +38,7 @@ import { applyFlash } from "#routes/csrf.ts";
 import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
 import { htmlResponse, jsonResponse, redirect } from "#routes/response.ts";
 import { afterSavePath } from "#shared/admin-pages.ts";
-import { adminDestinationAt, adminPath } from "#shared/admin-surface.ts";
+import { adminPath } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { sortByName } from "#shared/name-order.ts";
 import { featureGate } from "#shared/response-steps.ts";
@@ -277,11 +277,7 @@ const handleImageDeletePost: TypedRouteHandler<"POST /admin/images/:id/delete"> 
     }
     await deleteImageRecord(image.id);
     await logActivity(`Image '${image.name}' deleted`);
-    return redirect(
-      afterSavePath(adminDestinationAt("/admin/images/:id/delete")),
-      t("images.deleted"),
-      true,
-    );
+    return redirect(afterSavePath("imageDelete"), t("images.deleted"), true);
   });
 
 /** The image list the editor's image dropdown offers: every image's id and

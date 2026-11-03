@@ -316,7 +316,7 @@ const handleEditPost: TypedRouteHandler<"POST /admin/modifiers/:id/edit"> = (
         }
         await logActivity(`Modifier '${result.row.name}' updated`);
         return redirect(
-          afterSavePath(adminDestinationAt("/admin/modifiers/:id/edit")),
+          afterSavePath("modifierEdit"),
           t("modifiers.updated"),
           true,
         );

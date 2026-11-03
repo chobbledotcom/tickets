@@ -46,7 +46,10 @@ export const AREAS_M_Z = {
         afterSave: "modifierEdit",
         pattern: "/admin/modifiers/:id/links",
       },
-      modifierNew: "/admin/modifiers/new",
+      modifierNew: {
+        afterSave: "modifiers",
+        pattern: "/admin/modifiers/new",
+      },
       modifierRecalculate: "/admin/modifiers/recalculate/:modifierId",
       modifierRevenue: {
         audience: OWNER_AUDIENCE,
@@ -111,8 +114,14 @@ export const AREAS_M_Z = {
       listingScanner: "/admin/listing/:id/scanner",
     },
     write: {
-      groupScan: "/admin/groups/:id/scan",
-      listingScan: "/admin/listing/:id/scan",
+      groupScan: {
+        pattern: "/admin/groups/:id/scan",
+        readOnlyWrite: "read-only",
+      },
+      listingScan: {
+        pattern: "/admin/listing/:id/scan",
+        readOnlyWrite: "read-only",
+      },
     },
   },
   schemaAtlas: {
@@ -215,7 +224,7 @@ export const AREAS_M_Z = {
         afterSave: "logistics",
         pattern: "/admin/logistics/:id/edit",
       },
-      logisticsNew: "/admin/logistics/new",
+      logisticsNew: { afterSave: "logistics", pattern: "/admin/logistics/new" },
     },
   },
   settingsStatuses: {
@@ -232,7 +241,10 @@ export const AREAS_M_Z = {
       },
       statusMoveDown: "/admin/settings/statuses/:id/move-down",
       statusMoveUp: "/admin/settings/statuses/:id/move-up",
-      statusNew: "/admin/settings/statuses/new",
+      statusNew: {
+        afterSave: "statuses",
+        pattern: "/admin/settings/statuses/new",
+      },
     },
   },
   site: {
@@ -280,7 +292,7 @@ export const AREAS_M_Z = {
   support: {
     audience: OWNER_AUDIENCE,
     view: {
-      support: "/admin/support",
+      support: { pattern: "/admin/support", readOnlyWrite: "read-only" },
     },
   },
   update: {

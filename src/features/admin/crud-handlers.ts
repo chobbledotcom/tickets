@@ -129,15 +129,16 @@ export const createCrudHandlers = <Row extends { id: number }, Display = Row>(
 ): CrudHandlers => {
   const listRoute = adminDestination(cfg.list);
   const listPath = listRoute.pattern;
-  // The edit form's own route names the page a save lands on. A collection
-  // whose edits return to its list declares it there, beside the route.
+  // The create and edit forms each name the page their save lands on. A form
+  // that names none fails here, before a save writes a row.
+  const createRoute = adminDestinationAt(`${listPath}/new`);
   const editRoute = adminDestinationAt(`${listPath}/:id/edit`);
-  // Resolve the landing at setup, so a collection that declares none fails
-  // here rather than one save after it already wrote the row.
-  if (editRoute.afterSave === undefined) {
-    throw new Error(
-      `Admin route "${editRoute.id}" declares no after-save landing`,
-    );
+  for (const route of [createRoute, editRoute]) {
+    if (route.afterSave === undefined) {
+      throw new Error(
+        `Admin route "${route.id}" declares no after-save landing`,
+      );
+    }
   }
   const auth = crudGates(listPath);
   const operations = (): NamedOperations<Row> =>
@@ -172,14 +173,10 @@ export const createCrudHandlers = <Row extends { id: number }, Display = Row>(
   const createPost = formPost(auth.create)(async (_session, form) => {
     const result = await operations().create(form);
     if (!result.ok) return errorRedirect(`${listPath}/new`, result.error);
-    // The create form saves on the list page, so it returns there unless that
-    // page's declaration names the new record's page instead.
     return logAndRedirect(
       "created",
       result.row,
-      listRoute.afterSave === undefined
-        ? listPath
-        : afterSavePath(listRoute, result.row.id),
+      afterSavePath(createRoute, result.row.id),
     );
   });
 

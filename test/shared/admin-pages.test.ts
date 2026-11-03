@@ -10,11 +10,12 @@ import {
   afterSavePath,
   entityReturnPath,
   readOnlyGetRoutePatterns,
+  readOnlyWriteRoutePatterns,
   visibleSections,
   visibleTopLevel,
 } from "#shared/admin-pages.ts";
 import type { AdminDestinationDef } from "#shared/admin-surface/definitions.ts";
-import { ADMIN_SURFACE, adminDestination } from "#shared/admin-surface.ts";
+import { ADMIN_SURFACE } from "#shared/admin-surface.ts";
 import { normalizePath } from "#shared/path.ts";
 import { type AdminLevel, ALL_ADMIN_LEVELS } from "#types";
 
@@ -116,46 +117,56 @@ describe("admin navigation", () => {
     assertArrayIncludes(readOnlyGetRoutePatterns(), ["/admin/listing/new"]);
     assert(!readOnlyGetRoutePatterns().includes("/admin/listings"));
   });
+
+  test("keeps only the declared writes open, by mode", () => {
+    // Update mode keeps sign-in and sign-out, and nothing else.
+    expect(readOnlyWriteRoutePatterns(true)).toEqual([
+      "/admin/login",
+      "/admin/logout",
+    ]);
+    // Ordinary read-only mode also keeps the operations a working site
+    // cannot pause.
+    assertArrayIncludes(readOnlyWriteRoutePatterns(false), [
+      "/admin/login",
+      "/admin/support",
+      "/admin/listing/:id/scan",
+      "/admin/listing/:listingId/attendee/:attendeeId/checkin",
+    ]);
+  });
 });
 
 describe("entityReturnPath", () => {
   test("sends a reader to the record's own page", () => {
-    expect(entityReturnPath("/admin/listings", 5)).toBe("/admin/listing/5");
-    expect(entityReturnPath("/admin/groups", 7)).toBe("/admin/groups/7");
+    expect(entityReturnPath("listings", 5)).toBe("/admin/listing/5");
+    expect(entityReturnPath("groups", 7)).toBe("/admin/groups/7");
   });
 
   test("falls back to the list when a section has no record page", () => {
-    expect(entityReturnPath("/admin/settings", 1)).toBe("/admin/settings");
+    expect(entityReturnPath("settings", 1)).toBe("/admin/settings");
   });
 });
 
 describe("afterSavePath", () => {
   test("fills the saved record into the landing the route declares", () => {
-    expect(afterSavePath(adminDestination("groupEdit"), 7)).toBe(
-      "/admin/groups/7",
-    );
-    expect(afterSavePath(adminDestination("attendeeRefund"), 9)).toBe(
+    expect(afterSavePath("groupEdit", 7)).toBe("/admin/groups/7");
+    expect(afterSavePath("attendeeRefund", 9)).toBe(
       "/admin/attendees/9/actions",
     );
   });
 
   test("lands a collection's edit on the list it declares", () => {
-    expect(afterSavePath(adminDestination("modifierEdit"), 3)).toBe(
-      "/admin/modifiers",
-    );
-    expect(afterSavePath(adminDestination("logisticsEdit"), 4)).toBe(
-      "/admin/logistics",
-    );
+    expect(afterSavePath("modifierEdit", 3)).toBe("/admin/modifiers");
+    expect(afterSavePath("logisticsEdit", 4)).toBe("/admin/logistics");
   });
 
-  test("says which route declares no landing", () => {
-    expect(() => afterSavePath(adminDestination("groupDelete"), 7)).toThrow(
+  test("names the route when it declares no landing", () => {
+    expect(() => afterSavePath("groupDelete", 7)).toThrow(
       'Admin route "groupDelete" declares no after-save landing',
     );
   });
 
   test("says when a landing needs the record it names", () => {
-    expect(() => afterSavePath(adminDestination("groupEdit"))).toThrow(
+    expect(() => afterSavePath("groupEdit")).toThrow(
       'Admin route "groupEdit" lands on "group", which names a record',
     );
   });

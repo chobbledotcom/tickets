@@ -79,6 +79,20 @@ describe("read-only request guard", () => {
     expect(ordinary("/admin/logout", "PUT")).toBe("page");
   });
 
+  test("keeps exactly the admin writes their routes declare", () => {
+    // The whole surface at once: a write declaration says which modes keep
+    // it open, and the guard follows it. A new declaration joins this walk
+    // automatically.
+    for (const destination of Object.values(ADMIN_SURFACE.destinations)) {
+      if (destination.readOnlyWrite === undefined) continue;
+      const path = oneServedPath(destination.pattern);
+      expect(ordinary(path, "POST"), destination.id).toBeNull();
+      expect(updating(path, "POST"), destination.id).toBe(
+        destination.readOnlyWrite === "always" ? null : "page",
+      );
+    }
+  });
+
   test("blocks the group's every-listing door rule save in read-only mode", () => {
     // The scan at the door keeps working; changing the group's stored door
     // preference is a group write, so its edit form is blocked like the

@@ -7,7 +7,7 @@ import {
   entityTabRoutes,
 } from "#routes/admin/route-tables.ts";
 import { entityFormById, type IdRouteHandler } from "#routes/entity.ts";
-import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 /* jscpd:ignore-end */
 /**
  * Admin logistics settings + logistics-agent management — owner only.
@@ -106,7 +106,7 @@ const handleAgentEditPost: IdRouteHandler = entityFormById(
       async ({ row }) => {
         await logActivity(`Logistics agent '${row.name}' updated`);
         return redirect(
-          afterSavePath(adminDestinationAt("/admin/logistics/:id/edit")),
+          afterSavePath("logisticsEdit"),
           t("logistics.agent_updated"),
           true,
         );

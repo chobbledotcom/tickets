@@ -363,7 +363,7 @@ const handleUserAgentsPost: TypedRouteHandler<"POST /admin/users/:id/agents"> =
     await saveAgentSelection(user.id, form);
     await logActivity(`Agents updated for user '${user.username}'`);
     return redirect(
-      afterSavePath(adminDestinationAt("/admin/users/:id/agents")),
+      afterSavePath("userAgents"),
       t("success.agents_updated"),
       true,
     );

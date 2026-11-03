@@ -201,7 +201,7 @@ const handleServicingNewPost: TypedRouteHandler<"POST /admin/servicing/new"> = (
         const input = await parseCreateInput(form);
         const event = await createServicingEvent(input);
         return redirect(
-          afterSavePath(adminDestinationAt("/admin/servicing/new"), event.id),
+          afterSavePath("servicingNew", event.id),
           t("servicing.success.created", { name: event.name }),
           true,
         );
@@ -255,11 +255,7 @@ const handleServicingDuplicatePost: TypedRouteHandler<"POST /admin/servicing/:id
   servicingFormHandler((_event, _session, _form, _request, { id }) =>
     redirectServicingResult(
       id,
-      (copy) =>
-        afterSavePath(
-          adminDestinationAt("/admin/servicing/:id/duplicate"),
-          copy.id,
-        ),
+      (copy) => afterSavePath("servicingDuplicate", copy.id),
       async () => duplicateServicingEvent(id),
       (copy) => t("servicing.success.duplicated", { name: copy.name }),
     ),

@@ -20,7 +20,6 @@ import { refundReferenceProblemMessage } from "#routes/admin/refunds/readiness-p
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import { redirect } from "#routes/response.ts";
 import { afterSavePath } from "#shared/admin-pages.ts";
-import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
   adminBlockedRefundAttendeePage,
@@ -143,10 +142,7 @@ const handleAttendeeRefund = attendeeActions.refund.verified(
     if (resultError) return resultError;
     await logActivity("Refund issued", listingId, attendeeId);
     return redirect(
-      afterSavePath(
-        adminDestinationAt("/admin/attendees/:attendeeId/refund"),
-        attendeeId,
-      ),
+      afterSavePath("attendeeRefund", attendeeId),
       t("success.refund_issued"),
       true,
       { form },
