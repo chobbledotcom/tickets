@@ -34,6 +34,18 @@ export type ClosedFieldSnapshot<Shape> = string extends keyof Shape
       }
     : never;
 
+/** Exempt one set of fields under one owner with one reason. */
+export const exemptionsAt = (
+  exportedFrom: string,
+  path: readonly Step[],
+  fields: readonly string[],
+  reason: ExemptionReason,
+): FindingExemption[] =>
+  identitiesAt([[exportedFrom, path]])(fields).map((identity) => ({
+    identity,
+    reason,
+  }));
+
 /** Classify every field of one finite exported type. New fields stop the type
  * check until their policy is explicit. */
 export const exemptFieldsAt =
@@ -43,8 +55,11 @@ export const exemptFieldsAt =
     reason: ExemptionReason,
   ): ((snapshot: ClosedFieldSnapshot<Shape>) => FindingExemption[]) =>
   (snapshot) =>
-    identitiesAt([[exportedFrom, path]])(
+    exemptionsAt(
+      exportedFrom,
+      path,
       Object.entries(snapshot)
         .filter(([, choice]) => choice === "exempt")
         .map(([field]) => field),
-    ).map((identity) => ({ identity, reason }));
+      reason,
+    );

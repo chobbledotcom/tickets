@@ -3,6 +3,7 @@
 /* jscpd:ignore-start -- imports */
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
 import {
+  attendeeIdColumn,
   datedRowColumns,
   sortOrderColumn,
   statefulColumns,
@@ -113,7 +114,7 @@ export const attendeeTables: [name: string, table: Table][] = [
       columns: [
         ["id", rowId],
         ["listing_id", wholeNumber],
-        ["attendee_id", wholeNumber],
+        attendeeIdColumn,
         ["start_at", textStartingAtNull],
         ["end_at", textStartingAtNull],
         ["quantity", wholeNumberStartingAtOne],
@@ -208,7 +209,7 @@ export const attendeeTables: [name: string, table: Table][] = [
     {
       columns: [
         ["payment_session_id", requiredTextKey],
-        ["attendee_id", wholeNumber],
+        attendeeIdColumn,
         ["provider", text],
         ["ticket_tokens", text],
         ...statefulColumns,

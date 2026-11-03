@@ -178,6 +178,16 @@ export const PREFIXES_A_L = {
     ),
     settings: [],
   },
+  // The non-expiring invoice share link. It renders the frozen body and a
+  // pay link, and reads no site setting of its own.
+  invoice: {
+    handler: routeFromModule(
+      () => import("#routes/public/invoice.ts"),
+      "routeInvoice",
+    ),
+    messageGroups: publicMessageGroups("invoices"),
+    settings: [],
+  },
   join: {
     handler: routeFromModule(() => import("#routes/join.ts"), "routeJoin"),
     messageGroups: JOIN_MESSAGE_GROUPS,

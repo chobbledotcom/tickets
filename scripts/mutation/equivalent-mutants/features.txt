@@ -291,7 +291,6 @@ src/features/api/payment-processing/cancel.ts::retryHrefFor.disclosureGroupIds~1
 src/features/api/payment-processing/package-pricing.ts::orderEdgeDriftedFromFacts.hasOwnUnits~1sr8ybw  ?? → || audited:1cn80jx # intent.allocations is an array or undefined, and every array is truthy
 src/features/api/payment-processing/package-pricing.ts::hasStaleStandaloneChildFromFacts.allocations~1sr8ybw  ?? → || audited:1cn80jx # allocationsByParent.get answers an array or undefined, and every array is truthy
 src/features/api/payment-success.ts::processSessionAndRedirect.bookingGroupIds~1sr8ybw  ?? → || audited:1pu8a2r # intent.allocations is an array or undefined, and every array is truthy
-src/features/public/balance.ts::publicRecapLines.name~041ha1p  ?? → || audited:14q0zhb # a package display name comes from the groups table, where every writer rejects an empty name
 src/features/public/ticket-submit/prepare.ts::prepareOrder.selectedStandIns~0ikwcj1  ?? → || audited:0hs8c8i # intent.allocations is an array or undefined, and every array is truthy
 src/features/public/ticket-submit/prepare.ts::singleListingThankYouUrl~0eqzp6w  ?? → || audited:0hs8c8i # packageGroupId is a group id (an integer at least 1) or absent, and the absent case takes the same fallback under both operators
 src/features/api/payment-processing/items.ts::buyerLineName.allocations~1sr8ybw  ?? → || audited:0enexhe # intent.allocations is an array or undefined, and every array is truthy

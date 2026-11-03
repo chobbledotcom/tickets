@@ -143,6 +143,7 @@ export interface TicketsWorld extends World, EvidencePages {
   bundleOutcome?: string;
   bundleParts?: ThingForSale[];
   buyerQuestion?: { id: number; text: string };
+  buyerSaw?: string;
   cashBefore?: number;
   cleanup: PutsThingsBack;
   closedDayOn?: string;
@@ -163,6 +164,7 @@ export interface TicketsWorld extends World, EvidencePages {
   gatewayReply?: () => Response;
   groupSlug?: string;
   holdListingId?: number;
+  invoicePath?: string;
   lengthChangeMessage?: string;
   listingDetail?: { id: number; name: string };
   listingId?: number;

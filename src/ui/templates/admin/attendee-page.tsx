@@ -15,6 +15,7 @@ import { Raw } from "#jsx/jsx-runtime.ts";
 import { targetQuery } from "#shared/bulk-email-targets/registry.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
+import type { LineItem } from "#shared/line-item.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import {
@@ -47,16 +48,13 @@ export type ContactRecordsByChannel = {
   phone: ContactChannelData | null;
 };
 
-/** One booked listing on a previous booking (name + how many were taken). */
-export type PreviousBookingItem = { name: string; quantity: number };
-
 /** One row of the Previous bookings table: another booking made by the same
  * contact (email or phone), resolved from the contact's encrypted token list. */
 export type PreviousBooking = {
   attendeeId: number;
   created: string;
   statusName: string | null;
-  items: PreviousBookingItem[];
+  items: LineItem[];
   totalValue: number;
 };
 

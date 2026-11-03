@@ -22,7 +22,7 @@ describe("db > migrations > schema version", () => {
     // The sentence is what an upgrading site reads as its last applied
     // update, so the label is the migration's identity, not a comment.
     expect(LATEST_UPDATE).toBe(
-      "Store every listing's contact fields as trimmed, comma-joined tokens.",
+      "Store invoices with a frozen rendered body, a status, and a share token.",
     );
   });
 });

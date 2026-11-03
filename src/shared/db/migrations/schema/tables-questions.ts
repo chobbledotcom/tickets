@@ -2,7 +2,7 @@
 
 /* jscpd:ignore-start -- imports */
 import { NOTE_ENTITIES } from "#db/notes/target.ts";
-import { sortOrderColumn } from "./columns.ts";
+import { attendeeIdColumn, sortOrderColumn } from "./columns.ts";
 import {
   checked,
   defaulted,
@@ -209,7 +209,7 @@ export const questionTables: [name: string, table: Table][] = [
     "answers_at_booking",
     {
       columns: [
-        ["attendee_id", wholeNumber],
+        attendeeIdColumn,
         ["question_id", wholeNumber],
         ["question_text", text],
         ["answer_id", wholeNumberOrNull],
@@ -243,7 +243,7 @@ export const questionTables: [name: string, table: Table][] = [
     {
       columns: [
         ["id", rowId],
-        ["attendee_id", wholeNumber],
+        attendeeIdColumn,
         ["answer_id", wholeNumberOrNull],
         ["question_id", wholeNumberOrNull],
         ["string_id", wholeNumberOrNull],

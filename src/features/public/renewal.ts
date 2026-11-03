@@ -11,13 +11,13 @@ import { getBuiltSiteByRenewalTokenIndex } from "#db/built-sites.ts";
 import { notFoundResponse, publicPageResponse } from "#routes/response.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
 import { listingDateToCalendarDate } from "#shared/dates.ts";
+import { encodedAfter } from "#shared/encoded-after.ts";
 import { getQualifyingTierListings } from "#shared/renewal-tier.ts";
 import { renewalErrorPage } from "#templates/public/renewal.tsx";
 import { renderTicketFlow } from "./ticket-submit.ts";
 import { applyNoindex } from "./types.ts";
 
-const renewalActionUrl = (token: string): string =>
-  `/renew/?t=${encodeURIComponent(token)}`;
+const renewalActionUrl = encodedAfter("/renew/?t=");
 
 /** Resolve site by token. A null result becomes 404. */
 const resolveRenewalSite = async (token: string | null) => {

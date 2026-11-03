@@ -2,6 +2,7 @@
 
 /* jscpd:ignore-start */
 import {
+  attendeeIdColumn,
   datedRowColumns,
   itemLinkColumns,
   slugNamedEntityColumns,
@@ -77,7 +78,7 @@ export const contentTables: [name: string, table: Table][] = [
     {
       columns: [
         ["id", rowId],
-        ["attendee_id", wholeNumber],
+        attendeeIdColumn,
         ["listing_id", wholeNumber],
         ["provider_id", text],
         ["created", text],

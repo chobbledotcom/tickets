@@ -1,4 +1,5 @@
 /* jscpd:ignore-start -- imports */
+import { attendeeIdColumn } from "./columns.ts";
 import { checked, text, wholeNumber } from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
 /* jscpd:ignore-end */
@@ -10,7 +11,7 @@ export const taxTables: [string, Table][] = [
       columns: [
         ["booking_group", text],
         ["revision", checked("revision >= 0")(wholeNumber)],
-        ["attendee_id", wholeNumber],
+        attendeeIdColumn,
         ["event_group", text],
         ["state", checked("state IN ('active', 'refunded')")(text)],
         ["assessment", checked("json_valid(assessment)")(text)],

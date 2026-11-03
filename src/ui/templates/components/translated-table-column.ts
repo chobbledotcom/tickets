@@ -1,4 +1,5 @@
 import { t } from "#i18n";
+import { formatDateLabel } from "#shared/date-labels.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 
 /** Read one translated table heading in the active request. */
@@ -29,3 +30,13 @@ export const translatedTableColumn = <
   header: translatedTableHeader(headerKey),
   key,
 });
+
+/** A keyed table column that shows one ISO date as the label a person reads. */
+export const dateLabelColumn = <Row, TContext = undefined>(
+  key: string,
+  headerKey: string,
+  date: (row: Row) => string,
+): TableColumn<Row, TContext> =>
+  translatedTableColumn<Row, string, TContext>(key, headerKey, (row) =>
+    formatDateLabel(date(row).slice(0, 10)),
+  );

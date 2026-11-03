@@ -1,7 +1,7 @@
 /** Catalog tables: groups, modifiers, listing hierarchy, holidays, api keys. */
 
 /* jscpd:ignore-start -- imports */
-import { slugNamedEntityColumns } from "./columns.ts";
+import { attendeeIdColumn, slugNamedEntityColumns } from "./columns.ts";
 import {
   defaulted,
   real,
@@ -168,7 +168,7 @@ export const catalogTables: [name: string, table: Table][] = [
       columns: [
         ["id", rowId],
         ["modifier_id", wholeNumber],
-        ["attendee_id", wholeNumber],
+        attendeeIdColumn,
         ["quantity", wholeNumber],
         ["amount_applied", wholeNumber],
         ["created", text],

@@ -27,6 +27,10 @@ export const slugNamedEntityColumns: Column[] = [
   ["name", text],
 ];
 
+/** The attendee an owned row belongs to. Every attendee-owned table declares
+ *  it the same way. */
+export const attendeeIdColumn: Column = ["attendee_id", wholeNumber];
+
 /**
  * The header a dated table carries: its own id, and when its row was made.
  * Callers spread this first, then append their own columns.

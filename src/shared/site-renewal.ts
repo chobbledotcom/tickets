@@ -12,13 +12,13 @@ import {
   updateBuiltSiteRenewalState,
 } from "#db/built-sites.ts";
 import { range } from "#fp";
-import { getEffectiveDomain } from "#shared/config.ts";
 import { addMonthsIso } from "#shared/dates.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso, nowMs, parseDateMs } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { generateRenewalToken } from "#shared/renewal-token.ts";
 import { resolveHostingProvider } from "#shared/site-hosting.ts";
+import { tokenUrl } from "#shared/token-url.ts";
 
 /* jscpd:ignore-end */
 
@@ -41,8 +41,7 @@ export const addMonthsToRenewalDeadline = (
   addMonthsIso(new Date(renewalDeadlineBaseMs(site)).toISOString(), months);
 
 /** Build the renewal URL for a given token. */
-export const renewalUrlFor = (token: string): string =>
-  `https://${getEffectiveDomain()}/renew/?t=${encodeURIComponent(token)}`;
+export const renewalUrlFor = tokenUrl("/renew/?t=");
 
 const logRenewalCdnError = (errorContext: string, error: string): void => {
   logError({

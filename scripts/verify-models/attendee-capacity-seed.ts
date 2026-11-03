@@ -4,14 +4,14 @@
  *  a fact is the real write's outcome and never a stored copy of a verdict. */
 
 /* jscpd:ignore-start -- imports */
-import { type Client, createClient } from "@libsql/client";
+import type { Client } from "@libsql/client";
 import type {
   DesiredListingLine,
   ListingAttendeeRow,
 } from "#db/attendee-types.ts";
 import { lineKeyFromBooking } from "#db/attendees/atomic-update.ts";
 import { TRIGGERS } from "#db/migrations/schema/triggers.ts";
-import { fullSchemaCreateStatements } from "#db/migrations/schema-sync.ts";
+import { schemaClientWith } from "#scripts/verify-models/schema-client.ts";
 /* jscpd:ignore-end */
 
 /** The two representative slots and their fixed listing ids. */
@@ -75,9 +75,7 @@ export const existingKeyMap = (
  *  seeded without the attendee's own hold, and the aggregates trigger raises
  *  it as the existing rows land. */
 export const seededClient = async (scenario: Scenario): Promise<Client> => {
-  const client = createClient({ url: ":memory:" });
-  for (const sql of fullSchemaCreateStatements()) await client.execute(sql);
-  for (const trigger of TRIGGERS) await client.execute(trigger.sql);
+  const client = await schemaClientWith(TRIGGERS.map((trigger) => trigger.sql));
   for (const slot of ["one", "two"] as const) {
     await client.execute({
       args: [
