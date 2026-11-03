@@ -7,6 +7,7 @@ import type {
   MigrationContext,
   SchemaRequirement,
 } from "#db/migrations/types.ts";
+import { invalidateInitDbCache, LATEST_UPDATE } from "#db/migrations.ts";
 
 /**
  * Stub used for every migration-context member a particular migration's `up()`
@@ -56,6 +57,27 @@ export const appliedMigrationIds = async (): Promise<string[]> => {
     "SELECT id FROM schema_migrations ORDER BY id",
   );
   return result.rows.map((row) => String(row.id));
+};
+
+/**
+ * A database last migrated at the previous release, with one migration still
+ * pending. Without a LATEST_UPDATE bump beside a data migration, a site reads
+ * up_to_date and baselines the migration id WITHOUT running its up().
+ */
+export const simulateUpgradeFromRelease = async (
+  previousMarker: string,
+  migrationId: string,
+): Promise<void> => {
+  expect(previousMarker).not.toBe(LATEST_UPDATE);
+  await getDb().execute({
+    args: [previousMarker],
+    sql: "UPDATE settings SET value = ? WHERE key = 'latest_db_update'",
+  });
+  await getDb().execute({
+    args: [migrationId],
+    sql: "DELETE FROM schema_migrations WHERE id = ?",
+  });
+  invalidateInitDbCache();
 };
 
 /**

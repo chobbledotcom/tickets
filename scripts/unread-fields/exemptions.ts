@@ -2,13 +2,11 @@ import type { SiteDataBlob } from "#db/built-sites/blob.ts";
 import type { TicketCacheEntry } from "#routes/admin/scan-cache.ts";
 import type { PublicListing } from "#routes/api/public-listing.ts";
 import type { Step } from "#scripts/unread-fields/fields/steps.ts";
-import {
-  compareFindingIdentities,
-  identitiesAt,
-} from "#scripts/unread-fields/identity.ts";
+import { compareFindingIdentities } from "#scripts/unread-fields/identity.ts";
 import {
   type ExemptionReason,
   exemptFieldsAt,
+  exemptFieldsUnder,
   type FindingExemption,
 } from "#scripts/unread-fields/policy.ts";
 import type {
@@ -245,10 +243,7 @@ const exactFieldExemptions = (
   groups: readonly ExactFieldGroup[],
 ): FindingExemption[] =>
   groups.flatMap(({ fields, path, reason, source }) =>
-    identitiesAt([[source, path]])(fields).map((identity) => ({
-      identity,
-      reason,
-    })),
+    exemptFieldsUnder([[source, path]], fields, reason),
   );
 
 /** One exemption reason carrying the evidence for its kind. */

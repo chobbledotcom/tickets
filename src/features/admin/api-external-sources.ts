@@ -11,6 +11,7 @@
  */
 
 /* jscpd:ignore-start -- imports */
+import { mapValues } from "@std/collections";
 import * as v from "valibot";
 import { logActivity } from "#db/activity-log.ts";
 import {
@@ -44,6 +45,7 @@ import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
+import { featureGate } from "#shared/response-steps.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
 import {
   apiEntityGate,
@@ -255,22 +257,20 @@ const handleLinkDelete = withExistingLink(async ({ body, link, source }) => {
   return jsonResponse({ status: "ok" });
 });
 
-/** The routes the feature gate wraps: while the feature is off, every one
- *  answers the same refusal instead of running. */
-const withExternalSourcesFeature = (
-  routes: Record<string, RouteHandlerFn>,
-): Record<string, RouteHandlerFn> =>
-  Object.fromEntries(
-    Object.entries(routes).map(([route, handler]) => [
-      route,
-      (request, params) =>
-        settings.features.externalSources
-          ? handler(request, params)
-          : apiErrorResponse(t("features.external_sources.disabled"), 403),
-    ]),
-  );
+/** While the External sources feature is off, every route answers the same
+ *  refusal. Wrapping the route map keeps that gate in one place, the way the
+ *  built-sites section gates its own routes. */
+const externalSourcesGate = featureGate(
+  () => settings.features.externalSources,
+  () => apiErrorResponse(t("features.external_sources.disabled"), 403),
+);
 
-export const externalSourceApiRoutes = withExternalSourcesFeature(
+const externalSourcesOnly =
+  (handler: RouteHandlerFn): RouteHandlerFn =>
+  (request, params) =>
+    externalSourcesGate(() => handler(request, params));
+
+export const externalSourceApiRoutes = mapValues(
   defineCrudApi<
     (typeof ADMIN_API_RESOURCES)["external-sources"],
     ExternalSource,
@@ -296,4 +296,5 @@ export const externalSourceApiRoutes = withExternalSourcesFeature(
     toCreateInput: (body) => sourceInput(body, null),
     toUpdateInput: sourceInput,
   }),
+  externalSourcesOnly,
 );
