@@ -22,6 +22,7 @@ import {
   resetDatabase,
   SCHEMA_HASH,
 } from "#db/migrations.ts";
+import { parseEnabledFeatures } from "#shared/admin-features.ts";
 import { insertBrokenImage } from "#test-utils/admin-images.ts";
 import {
   markCurrentSchemaMigrationPending,
@@ -90,10 +91,9 @@ describeWithEnv("db > migrations", { db: true }, () => {
       setDb(client);
       try {
         await body();
-        const ntfyCall = fetchStub.calls.find(
-          (c) => c.args[0] === "https://ntfy.sh/test-topic",
+        expect(fetchStub.calls.map((c) => c.args[0])).not.toContain(
+          "https://ntfy.sh/test-topic",
         );
-        expect(ntfyCall).toBeUndefined();
       } finally {
         setDb(null);
       }
@@ -310,13 +310,9 @@ describeWithEnv("db > migrations", { db: true }, () => {
       const stored = await settingsValueOrNull("enabled_features");
       if (!stored) throw new Error("enabled_features was not migrated");
       expect(JSON.parse(stored)).toEqual({
-        apiKeys: false,
-        attributes: false,
+        ...parseEnabledFeatures(""),
         logistics: true,
         modifiers: true,
-        money: false,
-        questions: false,
-        servicing: false,
         site: true,
       });
       expect(await settingsValueOrNull("has_logistics")).toBeNull();
@@ -512,6 +508,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
 
     test("initDb bootstraps a missing settings table when explicitly allowed", async () => {
       await bootstrapSettingsTable();
+      expect(await settingsTableExists()).toBe(true);
     });
 
     test("initDb bootstraps an empty settings table when explicitly allowed", async () => {

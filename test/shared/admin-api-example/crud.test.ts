@@ -262,6 +262,8 @@ describe("documented admin CRUD endpoints", () => {
       ["question"],
       ["bookings"],
       ["page"],
+      ["source"],
+      ["links"],
     ]);
   });
 
@@ -270,13 +272,13 @@ describe("documented admin CRUD endpoints", () => {
       (e: EndpointDoc) => e.method === "DELETE",
     );
 
-    // The nine confirmed content deletes answer with a plain ok. The three
+    // The eleven confirmed content deletes answer with a plain ok. The three
     // fixed-page deletes are refusals, because a fixed page cannot be
     // deleted.
     const okDeletes = deletes.filter(
       (endpoint) => "status" in JSON.parse(endpoint.response),
     );
-    expect(okDeletes.length).toBe(9);
+    expect(okDeletes.length).toBe(11);
     for (const endpoint of okDeletes) {
       expect(JSON.parse(endpoint.response)).toEqual({ status: "ok" });
     }

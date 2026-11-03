@@ -120,5 +120,11 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
     "2026-10-28_dormant_payment_owner_key",
     () => import("./2026-10-28_dormant_payment_owner_key.ts"),
   ),
+  // The admin-only directory of places records are also kept, the links from
+  // one record to its id there, and the feature that shows the directory.
+  entry(
+    "2026-11-03_external_sources",
+    () => import("./2026-11-03_external_sources.ts"),
+  ),
 ];
 /* jscpd:ignore-end */

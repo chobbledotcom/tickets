@@ -65,6 +65,13 @@ export const ADMIN_FEATURES = [
     labelKey: "features.money.name",
     slug: "money",
   },
+  {
+    descriptionKey: "features.external_sources.description",
+    inUseSql: null,
+    key: "externalSources",
+    labelKey: "features.external_sources.name",
+    slug: "external-sources",
+  },
 ] as const;
 
 export type AdminFeatureDefinition = (typeof ADMIN_FEATURES)[number];

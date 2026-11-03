@@ -1,5 +1,6 @@
 import * as v from "valibot";
 import {
+  ADMIN_FEATURES,
   type EnabledFeatures,
   parseEnabledFeatures,
   serializeEnabledFeatures,
@@ -18,6 +19,21 @@ const ExistingFeatureUsageSchema = v.object({
   questions: StoredBooleanSchema,
   servicing: StoredBooleanSchema,
   site: StoredBooleanSchema,
+});
+
+/** A stored feature setting from any release. A feature added since the row
+ *  was written has no stored value, so it reads as off. The strict reader
+ *  refuses such a row, and this migration can run after a later release. */
+const StoredFeatureFlagsSchema = v.record(
+  v.picklist(ADMIN_FEATURES.map((feature) => feature.key)),
+  v.boolean(),
+);
+
+const configuredFeatures = (stored: string): EnabledFeatures => ({
+  ...parseEnabledFeatures(""),
+  ...(stored === ""
+    ? {}
+    : v.parse(StoredFeatureFlagsSchema, JSON.parse(stored))),
 });
 
 const asBoolean = (value: 0 | 1): boolean => value === 1;
@@ -70,10 +86,11 @@ export default schemaMigration(
         ) AS site
     `);
     const row = v.parse(ExistingFeatureUsageSchema, result.rows[0]);
-    const configured = parseEnabledFeatures(row.configured);
+    const configured = configuredFeatures(row.configured);
     const features: EnabledFeatures = {
       apiKeys: configured.apiKeys || asBoolean(row.apiKeys),
       attributes: configured.attributes || asBoolean(row.attributes),
+      externalSources: configured.externalSources,
       logistics: configured.logistics || asBoolean(row.logistics),
       modifiers: configured.modifiers || asBoolean(row.modifiers),
       money: configured.money,

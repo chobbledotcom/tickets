@@ -30,6 +30,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
     expect(await getAdminFeatureUsage()).toEqual({
       apiKeys: false,
       attributes: false,
+      externalSources: false,
       logistics: false,
       modifiers: false,
       money: false,
@@ -45,6 +46,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
     expect(await getAdminFeatureUsage()).toEqual({
       apiKeys: true,
       attributes: true,
+      externalSources: false,
       logistics: false,
       modifiers: true,
       money: false,
@@ -88,6 +90,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
     expect(await storedFeatures()).toEqual({
       apiKeys: false,
       attributes: true,
+      externalSources: false,
       logistics: true,
       modifiers: true,
       money: false,
@@ -149,6 +152,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
     expect(settings.features).toEqual({
       apiKeys: false,
       attributes: false,
+      externalSources: false,
       logistics: false,
       modifiers: true,
       money: false,
@@ -169,6 +173,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
     expect(settings.features).toEqual({
       apiKeys: false,
       attributes: false,
+      externalSources: false,
       logistics: false,
       modifiers: true,
       money: true,
@@ -208,6 +213,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
     expect(settings.features).toEqual({
       apiKeys: false,
       attributes: false,
+      externalSources: false,
       logistics: false,
       modifiers: false,
       money: true,

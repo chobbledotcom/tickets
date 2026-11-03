@@ -72,6 +72,13 @@ describe("admin features", () => {
         labelKey: "features.money.name",
         slug: "money",
       },
+      {
+        descriptionKey: "features.external_sources.description",
+        inUseSql: null,
+        key: "externalSources",
+        labelKey: "features.external_sources.name",
+        slug: "external-sources",
+      },
     ]);
   });
 
@@ -79,6 +86,7 @@ describe("admin features", () => {
     expect(DEFAULT_ENABLED_FEATURES).toEqual({
       apiKeys: false,
       attributes: false,
+      externalSources: false,
       logistics: false,
       modifiers: false,
       money: false,
@@ -152,7 +160,7 @@ describe("admin features", () => {
       message:
         "Invalid stored JSON in settings.enabled_features: Stored value does not match its schema",
     });
-    expect((thrown as Error).cause).toBeUndefined();
+    expect((thrown as Error).cause).toBe(undefined);
   });
 
   test("names the setting when serialization rejects invalid features", () => {

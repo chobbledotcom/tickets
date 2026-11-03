@@ -1,0 +1,299 @@
+/**
+ * Admin JSON API for the external sources directory.
+ *
+ * A source is a place records are also kept. A link points one attendee,
+ * listing, or group at its id there. The source name, its URL pattern, and
+ * every external id are sealed with the owner key, so only an admin session
+ * reads them.
+ *
+ * Every route answers 403 while the External sources feature is off, so the
+ * setting decides whether the API is there at all.
+ */
+
+/* jscpd:ignore-start -- imports */
+import * as v from "valibot";
+import { logActivity } from "#db/activity-log.ts";
+import {
+  createExternalSourceLink,
+  deleteExternalSource,
+  deleteExternalSourceLink,
+  getAllExternalSources,
+  getExternalSource,
+  getExternalSourceLink,
+  listExternalSourceLinks,
+  requireExternalSourceLink,
+  updateExternalSourceLink,
+} from "#db/external-sources/queries.ts";
+import { externalSourcesTable } from "#db/external-sources/tables.ts";
+import {
+  EXTERNAL_LINK_KINDS,
+  type ExternalLinkFilter,
+  type ExternalLinkKind,
+  ExternalLinkKindSchema,
+  type ExternalLinkWrite,
+  type ExternalSource,
+  type ExternalSourceInput,
+  type ExternalSourceLink,
+} from "#db/external-sources/types.ts";
+import { settings } from "#db/settings.ts";
+import { t } from "#i18n";
+import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
+import { apiErrorResponse } from "#routes/api/cors.ts";
+import { ADMIN_API } from "#routes/auth.ts";
+import { jsonResponse } from "#routes/response.ts";
+import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
+import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
+import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
+import { defineCrudApi } from "#shared/rest/crud-api.ts";
+import {
+  apiEntityGate,
+  requireEntityField,
+} from "#shared/rest/crud-parsers.ts";
+import { errorResult, okResult, type Result } from "#shared/result.ts";
+import {
+  isPositiveSafeInteger,
+  parsePositiveInt,
+} from "#shared/validation/number.ts";
+
+/* jscpd:ignore-end */
+
+/** The refused link kind message names the values the picklist accepts, so the
+ *  two cannot drift apart. */
+const LINK_KIND_VALUES = EXTERNAL_LINK_KINDS.join(", ");
+
+/** One source's own fields: the name and the URL pattern, each trimmed, not
+ *  empty, and no longer than a short input. */
+const sourceField = (
+  body: Record<string, unknown>,
+  field: "name" | "url_pattern",
+  existing: string | null,
+): Result<string> => {
+  const parsed = requireEntityField(body, field, existing);
+  if (!parsed.ok) return parsed;
+  return parsed.value.length > MAX_INPUT_LENGTH
+    ? errorResult(`${field} must be ${MAX_INPUT_LENGTH} characters or fewer`)
+    : okResult(parsed.value);
+};
+
+/** The source input a create or an update stores. A silent field keeps the
+ *  stored value on an update. */
+const sourceInput = (
+  body: Record<string, unknown>,
+  existing: ExternalSource | null,
+): Result<ExternalSourceInput> => {
+  const name = sourceField(
+    body,
+    "name",
+    existing === null ? null : existing.name,
+  );
+  if (!name.ok) return name;
+  const urlPattern = sourceField(
+    body,
+    "url_pattern",
+    existing === null ? null : existing.url_pattern,
+  );
+  if (!urlPattern.ok) return urlPattern;
+  return okResult({ name: name.value, urlPattern: urlPattern.value });
+};
+
+/** One link kind, from a body field or a query value. */
+const parseLinkKind = (value: unknown): Result<ExternalLinkKind> => {
+  const parsed = v.safeParse(ExternalLinkKindSchema, value);
+  return parsed.success
+    ? okResult(parsed.output)
+    : errorResult(`link_type must be one of: ${LINK_KIND_VALUES}`);
+};
+
+/** One link write: the record's kind, which one, and its id at the source. */
+const parseLinkWrite = (
+  body: Record<string, unknown>,
+): Result<ExternalLinkWrite> => {
+  const externalId = requireEntityField(body, "external_id", null);
+  if (!externalId.ok) return externalId;
+  if (externalId.value.length > MAX_INPUT_LENGTH) {
+    return errorResult(
+      `external_id must be ${MAX_INPUT_LENGTH} characters or fewer`,
+    );
+  }
+  const linkType = parseLinkKind(body.link_type);
+  if (!linkType.ok) return linkType;
+  const { link_id: linkId } = body;
+  if (typeof linkId !== "number" || !isPositiveSafeInteger(linkId)) {
+    return errorResult("link_id must be a whole number of 1 or more");
+  }
+  return okResult({
+    externalId: externalId.value,
+    linkId,
+    linkType: linkType.value,
+  });
+};
+
+/** The filter a links read keeps: by external id, by the record a link points
+ *  at, or no filter at all. */
+const parseLinkFilter = (
+  params: URLSearchParams,
+): Result<ExternalLinkFilter> => {
+  const externalId = params.get("external_id");
+  if (externalId !== null) return okResult({ externalId, kind: "external" });
+  const rawType = params.get("link_type");
+  const rawId = params.get("link_id");
+  if (rawType === null && rawId === null) return okResult({ kind: "all" });
+  if (rawType === null || rawId === null) {
+    return errorResult("link_type and link_id go together");
+  }
+  const linkType = parseLinkKind(rawType);
+  if (!linkType.ok) return errorResult(linkType.error);
+  const linkId = parsePositiveInt(rawId);
+  if (linkId === null) {
+    return errorResult("link_id must be a whole number of 1 or more");
+  }
+  return okResult({ kind: "target", linkId, linkType: linkType.value });
+};
+
+/** One link as a response carries it: its sealed index stays in the database. */
+const toLinkResponse = ({
+  external_id_index: _index,
+  ...link
+}: ExternalSourceLink): Omit<ExternalSourceLink, "external_id_index"> => link;
+
+/** The parent gate every link route runs. The read pins to the primary, so a
+ *  link created right after its source can always see the source. */
+const sourceGate = apiEntityGate(
+  externalSourcesTable.findByIdPrimary,
+  "Source",
+  ADMIN_API,
+);
+
+/** Everything one link route receives: its request, the route parameters, the
+ *  source the route names, and the raw body. */
+type LinkRouteInputs = {
+  body: Record<string, unknown>;
+  params: RouteParams;
+  request: Request;
+  source: ExternalSource;
+};
+
+/** One link route under the source it names. The source read pins to the
+ *  primary, so a link created right after its source can see the source. */
+const underSource =
+  (run: (inputs: LinkRouteInputs) => Promise<Response>): RouteHandlerFn =>
+  (request, params) =>
+    sourceGate(request, Number(params.sourceId), (source, body) =>
+      run({ body, params, request, source }),
+    );
+
+/** One route that changes or deletes the link it names under the source. */
+const withExistingLink = (
+  run: (
+    inputs: LinkRouteInputs & { link: ExternalSourceLink },
+  ) => Promise<Response>,
+): RouteHandlerFn =>
+  underSource(async (inputs) => {
+    const link = await getExternalSourceLink(
+      inputs.source.id,
+      Number(inputs.params.linkId),
+    );
+    if (link === null) return apiErrorResponse("Link not found", 404);
+    return run({ ...inputs, link });
+  });
+
+/** One source's links, oldest first. A query narrows them to one external id
+ *  or to the links of one record. */
+const handleLinkList = underSource(async ({ request, source }) => {
+  const filter = parseLinkFilter(new URL(request.url).searchParams);
+  if (!filter.ok) return apiErrorResponse(filter.error);
+  const links = await listExternalSourceLinks(source.id, filter.value);
+  return jsonResponse({ links: links.map(toLinkResponse) });
+});
+
+/** The activity line one link write records, naming the record and the source
+ *  it belongs to. */
+const logLink = (
+  action: string,
+  link: { external_id: string },
+  source: ExternalSource,
+): Promise<unknown> =>
+  logActivity(`External link '${link.external_id}' ${action} '${source.name}'`);
+
+/** Run one link write with its parsed input, or answer the parse refusal. */
+const withLinkWrite = async (
+  body: Record<string, unknown>,
+  run: (write: ExternalLinkWrite) => Promise<Response>,
+): Promise<Response> => {
+  const write = parseLinkWrite(body);
+  return write.ok ? run(write.value) : apiErrorResponse(write.error);
+};
+
+const handleLinkCreate = underSource(({ body, source }) =>
+  withLinkWrite(body, async (write) => {
+    const created = await createExternalSourceLink(source.id, write);
+    if (!created.ok) return apiErrorResponse(created.error);
+    await logLink("added to", created.value, source);
+    return jsonResponse({ link: toLinkResponse(created.value) }, 201);
+  }),
+);
+
+const handleLinkUpdate = withExistingLink(({ body, link, source }) =>
+  withLinkWrite(body, async (write) => {
+    const updated = await updateExternalSourceLink(link, write);
+    if (!updated.ok) return apiErrorResponse(updated.error);
+    const stored = await requireExternalSourceLink(source.id, link.id);
+    await logLink("updated in", stored, source);
+    return jsonResponse({ link: toLinkResponse(stored) });
+  }),
+);
+
+const handleLinkDelete = withExistingLink(async ({ body, link, source }) => {
+  const error = verifyIdentifierOrJsonError(
+    link.external_id,
+    body.confirm_identifier,
+    "External id",
+  );
+  if (error) return apiErrorResponse(error);
+  await deleteExternalSourceLink(link);
+  await logLink("deleted from", link, source);
+  return jsonResponse({ status: "ok" });
+});
+
+/** The routes the feature gate wraps: while the feature is off, every one
+ *  answers the same refusal instead of running. */
+const withExternalSourcesFeature = (
+  routes: Record<string, RouteHandlerFn>,
+): Record<string, RouteHandlerFn> =>
+  Object.fromEntries(
+    Object.entries(routes).map(([route, handler]) => [
+      route,
+      (request, params) =>
+        settings.features.externalSources
+          ? handler(request, params)
+          : apiErrorResponse(t("features.external_sources.disabled"), 403),
+    ]),
+  );
+
+export const externalSourceApiRoutes = withExternalSourcesFeature(
+  defineCrudApi<
+    (typeof ADMIN_API_RESOURCES)["external-sources"],
+    ExternalSource,
+    ExternalSourceInput
+  >(ADMIN_API_RESOURCES["external-sources"], {
+    childHandlers: {
+      links: {
+        create: handleLinkCreate,
+        delete: handleLinkDelete,
+        update: handleLinkUpdate,
+      },
+    },
+    customHandlers: { links: handleLinkList },
+    getAll: getAllExternalSources,
+    lookup: getExternalSource,
+    // Read-your-writes: the create and update answers re-read the row from the
+    // primary, so a lagging replica cannot miss the row the write just made.
+    lookupAfterWrite: externalSourcesTable.findByIdPrimary,
+    nameField: "name",
+    onDelete: (id) => deleteExternalSource(Number(id)),
+    policy: ADMIN_API,
+    table: externalSourcesTable,
+    toCreateInput: (body) => sourceInput(body, null),
+    toUpdateInput: sourceInput,
+  }),
+);
