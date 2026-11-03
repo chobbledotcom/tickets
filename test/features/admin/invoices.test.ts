@@ -309,11 +309,14 @@ describeWithEnv("server (admin invoices)", { db: true }, () => {
       );
       const attendeeId = await createOwing(1500);
 
-      await createInvoiceAndLand(
+      const path = await createInvoiceAndLand(
         attendeeId,
         1,
         `Invoice 1 created. ${CREATED_FLASH}`,
       );
+
+      // The note tells the operator to share the link, so the page carries it.
+      assertStringIncludes(await pageText(await adminGet(path)), "/invoice/");
     });
   });
 });
