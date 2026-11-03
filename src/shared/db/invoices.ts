@@ -128,12 +128,14 @@ export const createInvoice = async ({
   return { invoice, shareToken };
 };
 
+/** The statement text that moves one new invoice to cancelled, and no other
+ *  row. */
+export const CANCEL_INVOICE_SQL =
+  "UPDATE invoices SET status = 'cancelled' WHERE id = ? AND status = 'new'";
+
 /** Move one new invoice to cancelled. False when it was not new. */
 export const cancelInvoice = async (id: number): Promise<boolean> => {
-  const result = await execute(
-    "UPDATE invoices SET status = 'cancelled' WHERE id = ? AND status = 'new'",
-    [id],
-  );
+  const result = await execute(CANCEL_INVOICE_SQL, [id]);
   return result.rowsAffected > 0;
 };
 
