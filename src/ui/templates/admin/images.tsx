@@ -86,10 +86,17 @@ const imageValue = (image?: Image): Record<string, string | number | null> => ({
   name: image?.name ?? "",
 });
 
-const thumbnail = (image: Image): JSX.Element => (
+/** The first nine thumbnails of an admin page load with the page. From the
+ *  tenth thumbnail, the browser waits until the reader scrolls near it. */
+const LAZY_THUMBNAIL_FROM = 9;
+
+/** One image thumbnail. `position` is its zero-based place among the page's
+ *  thumbnails, so the count carries across the collections one page renders. */
+const thumbnail = (image: Image, position: number): JSX.Element => (
   <img
     alt={image.alt_text || image.name}
     class="image-library-thumb"
+    loading={position >= LAZY_THUMBNAIL_FROM ? "lazy" : undefined}
     src={getImageProxyUrl(image.filename_thumb)}
   />
 );
@@ -126,8 +133,10 @@ const imageLinkedItemGroups = (
 };
 
 const imageColumns: readonly TableColumn<Image>[] = [
-  translatedTableColumn("thumbnail", "images.column.thumbnail", (image) =>
-    thumbnail(image),
+  translatedTableColumn(
+    "thumbnail",
+    "images.column.thumbnail",
+    (image, _context, position) => thumbnail(image, position),
   ),
   translatedTableColumn("name", "common.name", (image) =>
     isReadOnly() ? (
@@ -221,7 +230,7 @@ export const adminImageEditPage = ({
     error,
   )(
     <>
-      <div class="image-library-preview">{thumbnail(image)}</div>
+      <div class="image-library-preview">{thumbnail(image, 0)}</div>
       <CsrfForm action={`/admin/images/${image.id}/edit`}>
         <Raw html={renderFields(imageFields(), imageValue(image))} />
         {options.length === 0 ? (
@@ -263,9 +272,10 @@ export const adminImageDeletePage = entityDeletePage((image: Image) => ({
 const itemImageCheckboxes = (
   images: readonly Image[],
   selectedIds: ReadonlySet<number>,
+  startPosition: number,
 ): JSX.Element => (
   <fieldset class="checkboxes image-picker-checkboxes">
-    {images.map((image) => (
+    {images.map((image, index) => (
       <label>
         <input
           checked={selectedIds.has(image.id)}
@@ -273,7 +283,7 @@ const itemImageCheckboxes = (
           type="checkbox"
           value={String(image.id)}
         />
-        {thumbnail(image)}
+        {thumbnail(image, startPosition + index)}
         <span>{image.name}</span>
       </label>
     ))}
@@ -327,6 +337,7 @@ export const ItemImagesPanel = ({
           itemImageCheckboxes(
             itemImageOptions(allImages, linkedImages),
             selectedIds,
+            linkedImages.length,
           ),
         )}
         {SaveChangesButton()}
