@@ -13,7 +13,7 @@ import {
 } from "#db/listings/catalog.ts";
 import { getAllPageItems } from "#db/site-page-items.ts";
 import { sitePages } from "#db/site-pages.ts";
-import { fieldById } from "#fp";
+import { fieldById, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 // jscpd:ignore-start
 import { isQualifyingTierListing } from "#shared/renewal-tier.ts";
@@ -47,13 +47,23 @@ export const offerableListing = (
  * with their parent, edited through the item manager). */
 export const buildListModel = async (): Promise<ListModel> => {
   const { forest, navRows } = await loadPageForest();
-  const roots = forest.rootIds.map((id) => forest.byId.get(id)!);
+  const roots = forest.rootIds.map((id) =>
+    requiredMapValue(forest.byId, id, `Site page ${id} missing`),
+  );
   const nested = navRows
     .filter((p) => forest.parentByChild.has(p.id))
     .map((p) => ({
       page: p,
       // parentByChild only maps children whose parent is a real page in byId.
-      parentName: forest.byId.get(forest.parentByChild.get(p.id)!)!.name,
+      parentName: requiredMapValue(
+        forest.byId,
+        requiredMapValue(
+          forest.parentByChild,
+          p.id,
+          `Site page ${p.id} parent missing`,
+        ),
+        `Site page ${p.id} parent page missing`,
+      ).name,
     }));
   return { nested, roots };
 };

@@ -8,7 +8,6 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { Raw } from "#jsx/jsx-runtime.ts";
 import {
   newsPostEditForm,
   newsPostForm,
@@ -16,23 +15,20 @@ import {
 } from "#routes/admin/news-form.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import { prefixedDeletePage } from "#templates/admin/confirm-page.tsx";
 import { rowDeleteLink } from "#templates/admin/delete-link.tsx";
 import {
   collectionPage,
   contentEntityEditPanel,
+  contentNewPage,
 } from "#templates/admin/site-content.tsx";
 import { WritableLink } from "#templates/admin/writable-only.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import type { AdminSession, NewsPost, NewsPostSummary } from "#types";
 
 /* jscpd:ignore-end */
 
 const LIST = "/admin/site/news";
-const ACTIVE = LIST;
-
 const DeleteLink = rowDeleteLink(LIST);
 
 const newsTable = defineTable<NewsPostSummary>([
@@ -72,25 +68,7 @@ export const adminNewsListPage = (
     ),
   );
 
-export const adminNewsNewPage = (
-  session: AdminSession,
-  error?: string,
-): string =>
-  renderAdminPageSpec({
-    active: ACTIVE,
-    form: {
-      action: LIST,
-      fields: (
-        <>
-          <Raw html={newsPostForm.render()} />
-          <SubmitButton icon="plus">{t("news.create_submit")}</SubmitButton>
-        </>
-      ),
-      flash: { error },
-    },
-    session,
-    title: t("news.new_title"),
-  });
+export const adminNewsNewPage = contentNewPage(LIST, "news", newsPostForm);
 
 /** The Edit tab's panel: the pre-filled fields form (name, the editable slug
  * with its public link, SEO meta, snippet, markdown body) posting to the update

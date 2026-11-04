@@ -15,7 +15,7 @@ import {
 import { logisticsAgents } from "#db/logistics-agents.ts";
 import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
-import { uniqueBy } from "#fp";
+import { requiredMapValue, uniqueBy } from "#fp";
 import {
   type AttendeeFormLine,
   isBookedLine,
@@ -176,7 +176,11 @@ export const withSubmittedPlan = (
     ...line,
     // The plan is parsed over the same delivered lines these selectors
     // render, so every rendered line has a submitted assignment.
-    assignment: plan.perListing.get(line.listingId)!,
+    assignment: requiredMapValue(
+      plan.perListing,
+      line.listingId,
+      `Listing ${line.listingId} assignment missing`,
+    ),
   }));
   return { ...data, lines, single: lines[0]!.assignment, split: plan.split };
 };

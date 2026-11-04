@@ -12,7 +12,7 @@ import { isMemberNodeOf } from "#booking/tree.ts";
 import type { ChildAllocation } from "#db/attendee-types.ts";
 import { answerModifierQuantities } from "#db/modifier-resolve.ts";
 import { parseQuestionAnswers } from "#db/questions/parsing.ts";
-import { sum } from "#fp";
+import { requiredMapValue, sum } from "#fp";
 import { resolveDayCount } from "#routes/public/booking-dates.ts";
 import {
   type AnswerInfo,
@@ -104,7 +104,12 @@ export const prepareOrder = async (
   // concealed member — resolved per listing, since a page can carry several
   // packages with different hide flags.
   const selectedNodes = tree.nodes.filter(
-    (node) => nodeQuantities.get(node.nodeKey)! > 0,
+    (node) =>
+      requiredMapValue(
+        nodeQuantities,
+        node.nodeKey,
+        `Booking node ${node.nodeKey} missing`,
+      ) > 0,
   );
   const selectedPackages = ctx.packages.filter((pkg) =>
     selectedNodes.some(isMemberNodeOf(pkg.groupId)),

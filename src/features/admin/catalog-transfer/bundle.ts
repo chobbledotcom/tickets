@@ -35,10 +35,9 @@ import { requireCurrentRelationshipRules } from "#db/listing-relationship-valida
 import { listingsTable } from "#db/listings/records.ts";
 import { takenSlugIndexes } from "#db/slug-registry.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
-import { unique } from "#fp";
+import { requiredMapValue, unique } from "#fp";
 import { t } from "#i18n";
 import { matchKey as nameKey } from "#shared/keys.ts";
-import { requireValue } from "#shared/required-value.ts";
 import { generateSlug } from "#shared/slug.ts";
 import type { AdminLevel } from "#types";
 import {
@@ -189,7 +188,7 @@ const writeBundle = async (
       missing: string,
     ): number =>
       "bundleKey" in ref
-        ? requireValue(idsByKey.get(ref.bundleKey), missing)
+        ? requiredMapValue(idsByKey, ref.bundleKey, missing)
         : ref.siteId;
     const listingIdOf = (ref: BundleRef): number =>
       idOf(ref, listingIdByKey, "Planned listing id missing");

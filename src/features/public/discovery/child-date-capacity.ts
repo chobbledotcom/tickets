@@ -5,9 +5,10 @@
  *  without the site, and the coverage merger sees them exercised from one
  *  isolate. */
 
-/* jscpd:ignore-start */
 import { buildTicketListing, childActive, childOpen } from "#booking/model.ts";
 import type { Holiday } from "#db/holidays.ts";
+/* jscpd:ignore-start */
+import { requiredMapValue } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
 import {
   type ChildCapacityPart,
@@ -43,7 +44,7 @@ export const childDateCapacity = (
   const info = buildTicketListing(
     child,
     isRegistrationClosed(child),
-    ctx.remaining.get(child.id)!,
+    requiredMapValue(ctx.remaining, child.id, `Listing ${child.id} missing`),
   );
   if (!childActive(info) || !childOpen(info)) return 0;
   const offered = childOfferedOnDate(

@@ -14,7 +14,7 @@ import {
 } from "#db/attendees/capacity/snapshot.ts";
 import type { Holiday } from "#db/holidays.ts";
 import { loadParentAndChildLinks } from "#db/listing-parents.ts";
-import { uniqueBy } from "#fp";
+import { requiredMapValue, uniqueBy } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
 import { minimumUnservable } from "#shared/capacity-fit.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
@@ -83,9 +83,17 @@ export const loadDailyDateAvailability = async (
       compatibleCounts.length === 0 ||
       compatibleCounts.every((count) =>
         minimumUnservable(
-          remaining.get(listing.id)!,
+          requiredMapValue(
+            remaining,
+            listing.id,
+            `Listing ${listing.id} remaining missing`,
+          ),
           listing.min_quantity,
-          memberships.get(listing.id)!,
+          requiredMapValue(
+            memberships,
+            listing.id,
+            `Listing ${listing.id} membership missing`,
+          ),
           childDateCapacityParts(children, memberships, {
             date,
             dayCounts,

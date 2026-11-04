@@ -12,7 +12,7 @@
 
 import type { ChildAllocation, ListingBooking } from "#db/attendee-types.ts";
 import { listingParents } from "#db/listing-parents.ts";
-import { reduce } from "#fp";
+import { reduce, requiredMapValue } from "#fp";
 
 /** The first parent of each child that is itself booked in this order, keyed by
  * child listing id. Children with no in-order parent are omitted. */
@@ -64,7 +64,13 @@ export const annotateOrderParents = async (
     ...booking,
     orderToken,
     ...(parentByChild.has(booking.listingId)
-      ? { parentListingId: parentByChild.get(booking.listingId)! }
+      ? {
+          parentListingId: requiredMapValue(
+            parentByChild,
+            booking.listingId,
+            `Listing ${booking.listingId} missing`,
+          ),
+        }
       : {}),
   }));
 };

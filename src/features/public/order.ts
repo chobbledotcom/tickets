@@ -21,7 +21,7 @@ import { listingGroups } from "#db/groups/table.ts";
 import { getActiveHolidays } from "#db/holidays.ts";
 import { addPageImageUrls } from "#db/image-urls.ts";
 import { settings } from "#db/settings.ts";
-import { compact, uniqueBy } from "#fp";
+import { compact, requiredMapValue, uniqueBy } from "#fp";
 import { t } from "#i18n";
 import {
   htmlResponse,
@@ -256,7 +256,14 @@ const handleOrder = withEvaluatedOrder(async (catalog, evaluation) => {
       {
         anyNeedsDate: evaluation.anyNeedsDate,
         // The evaluator judges every option, and cards render only options.
-        labelFor: (key) => stateLabel(evaluation.states.get(key)!),
+        labelFor: (key) =>
+          stateLabel(
+            requiredMapValue(
+              evaluation.states,
+              key,
+              `Order option ${key} missing`,
+            ),
+          ),
       },
       await publicNavProps(null),
       settings.websiteTitle,

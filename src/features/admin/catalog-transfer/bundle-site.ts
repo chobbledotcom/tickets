@@ -13,7 +13,7 @@ import { getGroupsById } from "#db/groups.ts";
 import { listingParents } from "#db/listing-parents.ts";
 import { requireListingsWithCountsByIds } from "#db/listings/records.ts";
 import { modifiersTable } from "#db/modifiers.ts";
-import { unique } from "#fp";
+import { requiredMapValue, unique } from "#fp";
 import { matchKey as nameKey } from "#shared/keys.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type { Group, ListingWithCount } from "#types";
@@ -28,6 +28,7 @@ import {
   firstReferenceError,
   type ListingRefs,
   type Resolved,
+  refsOf,
   resolvedReference,
   resolveReferences,
   siteIdsOf,
@@ -76,7 +77,7 @@ export const groupOptIns = (
   addOnsByGroup: ReadonlyMap<number, GroupOptIns>,
   groupId: number,
 ): GroupOptIns =>
-  requireValue(addOnsByGroup.get(groupId), "Group add-ons missing");
+  requiredMapValue(addOnsByGroup, groupId, "Group add-ons missing");
 
 /** The group-scoped opt-in add-ons covering `groupIds`, one query, names
  * decrypted for the refusal message. These are the only opt-ins that can
@@ -226,8 +227,9 @@ export const siteListingOf = (
   ref: BundleRef & { siteId: number },
   context: ValidationContext,
 ): ListingWithCount =>
-  requireValue(
-    context.siteListingById.get(ref.siteId),
+  requiredMapValue(
+    context.siteListingById,
+    ref.siteId,
     "Referenced listing missing",
   );
 
@@ -237,8 +239,9 @@ export const bundleGroupOf = (
   context: ValidationContext,
 ): GroupBody =>
   context.bundle.groups[
-    requireValue(
-      context.groupIndexByName.get(ref.bundleKey),
+    requiredMapValue(
+      context.groupIndexByName,
+      ref.bundleKey,
       "Bundle group missing",
     )
   ]!;
@@ -250,8 +253,9 @@ export const groupViewOf = (
   context: ValidationContext,
 ): { isPackage: boolean; hidePackageListings: boolean } => {
   if ("siteId" in ref) {
-    const row = requireValue(
-      context.siteGroupById.get(ref.siteId),
+    const row = requiredMapValue(
+      context.siteGroupById,
+      ref.siteId,
       "Referenced group missing",
     );
     return {
@@ -318,7 +322,11 @@ export const collectPairs = (
 ): MembershipPairs => {
   const pairs: MembershipPairs = { byGroup: new Map(), byListing: new Map() };
   for (const body of context.bundle.listings) {
-    const refs = context.listingRefs.get(body)!.groups;
+    const refs = refsOf(
+      context.listingRefs,
+      body,
+      `Listing ${body.listing.name}`,
+    ).groups;
     for (const { entry, resolved } of resolvable(
       body.groups,
       refs,
@@ -342,7 +350,7 @@ export const collectPairs = (
     }
   }
   for (const body of context.bundle.groups) {
-    const refs = context.memberRefs.get(body)!;
+    const refs = refsOf(context.memberRefs, body, `Group ${body.group.name}`);
     for (const { entry: member, resolved } of resolvable(
       body.members,
       refs,

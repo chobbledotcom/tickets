@@ -22,7 +22,7 @@ import { listingGroups } from "#db/groups/table.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { type NumberedSql, numberedStatement } from "#db/numbered-statement.ts";
 import { runWithPrimaryReads } from "#db/primary-reads.ts";
-import { identity, map, mapById, unique } from "#fp";
+import { identity, map, mapById, requiredMapValue, unique } from "#fp";
 import { capacityDateFor } from "#shared/capacity-rules.ts";
 import { dateToStartEnd } from "./range.ts";
 import type { ListingCapacityRow } from "./types.ts";
@@ -158,7 +158,11 @@ const aggregateDemand = (
   const { items, listingsById, date } = context;
   const buckets = new Map<number, CapacityBucket>();
   for (const item of items) {
-    const listing = listingsById.get(item.listingId)!;
+    const listing = requiredMapValue(
+      listingsById,
+      item.listingId,
+      `Listing ${item.listingId} missing`,
+    );
     for (const key of keysFor(listing, item)) {
       addDemandToBucket(getOrCreateBucket(buckets, key), listing, item, date);
     }

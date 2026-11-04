@@ -149,13 +149,6 @@ const parseBookableDays = (
     : undefined;
 };
 
-/** Ids of the groups ticked on the listing form's group checkboxes. */
-export const parseGroupIds = (form: FormParams): number[] =>
-  form
-    .getAll("group_ids")
-    .map(Number)
-    .filter((n) => Number.isSafeInteger(n) && n > 0);
-
 /**
  * Read the per-day-count price inputs (`day_price_1`, `day_price_2`, …) from
  * the raw form into a {@link DayPrices} map. Only days 1..maxDays are read,
@@ -233,7 +226,7 @@ const extractCommonFields = (
     closesAt: closesAt === "" ? null : closesAt,
     date: normalizeOptionalDatetime(values.date, "date"),
     dayPrices: parseDayPricesFromForm(form, durationDays),
-    groupIds: parseGroupIds(form),
+    groupIds: form.getNumberArray("group_ids"),
     listingType,
     maxPrice: toMinorUnits(Number.parseFloat(values.max_price)),
     unitPrice,

@@ -18,15 +18,9 @@ export const isValidMemberPrice = (value: unknown): value is number | null =>
 export const isValidMemberQuantity = (value: unknown): value is number =>
   isWholeAmount(value) && value >= 1;
 
+/** A day-count key in a day-price map is plain digits. `1e1`, `0x10`, and
+ *  `1.5e1` are not day counts the member rules accept. */
 const WHOLE_DIGITS = /^\d+$/;
-
-/** A whole-number form value is plain digits. `1e1`, `0x10`, and `1.5e1` are
- *  not numbers the member rules accept. The day-count keys in a day-price map
- *  share the rule. */
-export const wholeNumberValue = (raw: string): number | null => {
-  if (!WHOLE_DIGITS.test(raw)) return null;
-  return Number(raw);
-};
 
 /** Day-count keys are whole numbers of at least one day. Values are
  *  non-negative whole minor-unit amounts. */

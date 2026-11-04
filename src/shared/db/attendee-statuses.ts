@@ -8,10 +8,9 @@
  * encrypted at rest.
  */
 
-/* jscpd:ignore-start -- import block */
+/* jscpd:ignore-start -- imports */
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
-/* jscpd:ignore-end */
 import { logActivity } from "#db/activity-log.ts";
 import {
   execute,
@@ -25,9 +24,11 @@ import type { NamedSortOrderInput } from "#db/common-schema.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
 import { col, defineCachedListTable, writeTableRow } from "#db/table.ts";
+import { requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import { requireValue } from "#shared/required-value.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
+/* jscpd:ignore-end */
 
 /** Name of the status seeded on first run so there is always at least one. */
 export const DEFAULT_ATTENDEE_STATUS_NAME = "Confirmed";
@@ -330,7 +331,14 @@ const reassignNameRows = async (
       rows.map(async (row) => [row.id, await decrypt(row.name)] as const),
     ),
   );
-  return { fromName: named.get(fromId)!, toName: named.get(toId)! };
+  return {
+    fromName: requiredMapValue(
+      named,
+      fromId,
+      `Attendee status ${fromId} missing`,
+    ),
+    toName: requiredMapValue(named, toId, `Attendee status ${toId} missing`),
+  };
 };
 
 /** The one occupancy query, read two ways: through a write transaction (the

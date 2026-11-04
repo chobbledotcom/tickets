@@ -17,7 +17,7 @@ import {
   entityTabRoutes,
 } from "#routes/admin/route-tables.ts";
 import { authPage, pageGuardFor } from "#routes/auth.ts";
-import { notFoundResponse } from "#routes/response.ts";
+import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 import {
@@ -50,21 +50,17 @@ import {
   adminBuiltSitesPage,
 } from "#templates/admin/built-sites.tsx";
 import { getBuiltSiteForm } from "#templates/fields/admin.ts";
-import {
-  builtSiteAction,
-  builtSiteTabError,
-  builtSiteTabResult,
-  builtSiteTabSuccess,
-} from "./built-site-action.ts";
+import { builtSiteFormPost } from "./built-site-form.ts";
 import { builtSitePage } from "./built-site-page.tsx";
+import { answerRenewalPush } from "./built-site-push.ts";
 import {
-  editPushOk,
   handleBumpDeadline,
   handleOverrideDeadline,
   handleProvisionRenewal,
   handleReSyncDeadline,
 } from "./built-site-renewal-actions.ts";
 import { handleSaveSiteSupportMessage } from "./built-site-support-message.ts";
+import { answerTab, builtSiteTabPath, refuseTab } from "./built-site-tab.ts";
 
 /**
  * `updates` is carried only when the form submitted a recognised channel. An
@@ -116,30 +112,28 @@ const crud = createCrudHandlers({
   singular: "Built site",
 });
 
-const handleProvisionSiteScheduler = builtSiteAction(
-  "/admin/built-sites/:id/provision-scheduler",
-  async (_site, _form, id) =>
-    builtSiteTabResult("maintenance")(t("built_sites.maintenance_provisioned"))(
-      id,
-      await provisionSiteScheduler(id),
+const handleProvisionSiteScheduler = builtSiteFormPost(
+  async (site, _session, _form, _request) =>
+    answerTab(
+      "maintenance",
+      site.id,
+      await provisionSiteScheduler(site.id),
+      t("built_sites.maintenance_provisioned"),
     ),
 );
 
-const handleAddUptimeMonitor = builtSiteAction(
-  "/admin/built-sites/:id/add-uptime-monitor",
-  async (site, _form, id) => {
+const handleAddUptimeMonitor = builtSiteFormPost(
+  async (site, _session, _form, _request) => {
     const result = await uptimeKumaMonitorService.add(site);
-    if (!result.ok) {
-      return builtSiteTabError(id, "maintenance", result.error);
-    }
-    if (result.value.created) {
+    if (result.ok && result.value.created) {
       await logActivity(`Added Uptime Kuma monitor for '${site.name}'`);
     }
-    return builtSiteTabSuccess(
-      id,
+    return answerTab(
       "maintenance",
+      site.id,
+      result,
       t(
-        result.value.created
+        result.ok && result.value.created
           ? "built_sites.kuma_added"
           : "built_sites.kuma_already_exists",
       ),
@@ -147,21 +141,19 @@ const handleAddUptimeMonitor = builtSiteAction(
   },
 );
 
-type EditResult = Awaited<ReturnType<typeof builtSiteTabError>>;
-
 const runSiteUpdate = async (
   site: BuiltSite,
-  id: number,
   deploy: () => Promise<{ tagName: string; name: string }>,
-): Promise<EditResult> => {
+): Promise<Response> => {
+  const tabPath = builtSiteTabPath(site.id, "update");
   if (!(await hasRecentBackup(undefined, dbName(site.dbUrl)))) {
-    return builtSiteTabError(id, "update", t("built_sites.backup_required"));
+    return refuseTab("update", site.id, t("built_sites.backup_required"));
   }
   return deployAndReport({
     deploy,
     guard: hostedSiteUpdateGuardIo(site),
-    onError: (message) => builtSiteTabError(id, "update", message),
-    onSuccess: (message) => builtSiteTabSuccess(id, "update", message),
+    onError: (message) => errorRedirect(tabPath, message),
+    onSuccess: (message) => redirect(tabPath, message, true),
     subject: { kind: "built_site", siteName: site.name },
   });
 };
@@ -171,12 +163,13 @@ const runSiteUpdate = async (
  * *this site's* database, taken to our storage by the upgrade workflow, must
  * exist before the push.
  */
-const handleUpdateSite = builtSiteAction(
-  "/admin/built-sites/:id/update",
-  async (site, _form, id) => {
+const handleUpdateSite = builtSiteFormPost(
+  (site, _session, _form, _request) => {
     const access = siteHostingAccess(site, "it can't be updated");
-    if (!access.ok) return builtSiteTabError(id, "update", access.error);
-    return runSiteUpdate(site, id, () =>
+    if (!access.ok) {
+      return refuseTab("update", site.id, access.error);
+    }
+    return runSiteUpdate(site, () =>
       site.hostingProvider === "deno"
         ? deployLatestReleaseToDeno(site.hostingId)
         : deployLatestReleaseToScript(site.hostingId),
@@ -184,33 +177,28 @@ const handleUpdateSite = builtSiteAction(
   },
 );
 
-const handleRotateToken = builtSiteAction(
-  "/admin/built-sites/:id/rotate-renewal-token",
-  async (site, _form, id) => {
+const handleRotateToken = builtSiteFormPost(
+  async (site, _session, _form, _request) => {
     // Rotation runs only on a fully confirmed provisioning. An empty
     // read-only deadline marks a reserved-but-unconfirmed token. The
     // assignment recovery can be re-pushing such a token, and rotating then
     // races it.
     if (!isProvisioned(site) || isReservedRenewal(site)) {
-      return builtSiteTabError(
-        id,
+      return refuseTab(
         "renewal",
+        site.id,
         t("built_sites.renewal_not_provisioned"),
       );
     }
     const pushed = await rotateRenewalToken(
       site,
-      `Rotate token push failed for site ${id}`,
+      "Rotate token push failed for site ",
     );
-    if (pushed) {
-      await logActivity(`Rotated renewal token for '${site.name}'`);
-    }
-    return editPushOk(
-      id,
-      pushed,
-      t("built_sites.token_rotated"),
-      t("built_sites.token_push_failed"),
-    );
+    return answerRenewalPush(site, pushed, {
+      activity: `Rotated renewal token for '${site.name}'`,
+      failure: t("built_sites.token_push_failed"),
+      success: t("built_sites.token_rotated"),
+    });
   },
 );
 
@@ -220,24 +208,24 @@ const handleRotateToken = builtSiteAction(
  * still missing. An existing secret is never overwritten: someone changed it
  * for a reason.
  */
-const handleAddSecrets = builtSiteAction(
-  "/admin/built-sites/:id/add-secrets",
-  async (site, form, id) => {
+const handleAddSecrets = builtSiteFormPost(
+  async (site, _session, form, _request) => {
     const result = await addMissingSiteSecrets(
       site,
       form.getFlag("confirm_pair_secrets"),
     );
     if (!result.ok) {
-      return builtSiteTabError(
-        id,
+      return refuseTab(
         "secrets",
+        site.id,
         t("built_sites.secrets_failed", { error: result.error }),
       );
     }
     if (result.added.length === 0) {
-      return builtSiteTabSuccess(
-        id,
+      return answerTab(
         "secrets",
+        site.id,
+        result,
         t("built_sites.no_missing_secrets"),
       );
     }
@@ -245,9 +233,10 @@ const handleAddSecrets = builtSiteAction(
       ", ",
     )}`;
     await logActivity(`Set ${summary} on '${site.name}'`);
-    return builtSiteTabSuccess(
-      id,
+    return answerTab(
       "secrets",
+      site.id,
+      result,
       t("built_sites.secrets_set", { summary }),
     );
   },

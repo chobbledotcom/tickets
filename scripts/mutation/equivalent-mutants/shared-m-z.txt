@@ -312,7 +312,6 @@ src/shared/db/modifier-resolve.ts::answerModifierQuantities~1ju3gsl  ?? → || a
 src/shared/db/modifier-resolve.ts::eligibleCandidates.addOns~0b50snz  ?? → || audited:1jzxter # the option is a Map or absent, and every Map is truthy
 src/shared/db/modifier-resolve.ts::eligibleCandidates.answerQuantities~1uu272f  ?? → || audited:1jzxter # the option is a Map or absent, and every Map is truthy
 src/shared/db/modifier-resolve.ts::eligibleCandidates.ctx~0kgxcim  ?? → || audited:1jzxter # the option is a pricing-context object or absent, and every object is truthy
-src/shared/db/modifier-resolve.ts::oversubscribedAnswerTiers~0f5w5hu  ?? → || audited:1jzxter # the used-stock map holds whole counts, so its only falsy value is the 0 the fallback supplies
 src/shared/db/modifier-resolve.ts::childOnlyAddOnNameWithScopes~0vgtyif  ?? → || audited:1jzxter # a modifier name is a required non-empty field, so the only falsy result is the missing one the fallback is for
 
 # db/modifier-resolve.ts — the early drop of an untriggered modifier. It saves

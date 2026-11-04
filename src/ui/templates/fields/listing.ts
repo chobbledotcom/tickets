@@ -25,6 +25,7 @@ import {
   requireChoiceOptions,
 } from "#shared/forms/field.ts";
 import { MAX_ATTACHMENT_SIZE } from "#shared/limits.ts";
+import { parseSignedInt } from "#shared/validation/number.ts";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
 import { moneyPattern } from "#templates/components/price-input.tsx";
 import { checkboxField } from "#templates/fields/checkbox-field.ts";
@@ -39,6 +40,7 @@ import {
   validateListingFields,
   validateNonNegativePrice,
   validateWholeNumber,
+  wholeNumberCheck,
 } from "#templates/fields/validators.ts";
 import {
   ContactFieldSchema,
@@ -57,7 +59,10 @@ export interface ListingFormView {
 }
 
 type ListingNumberFieldOptions = Partial<
-  Pick<InputField, "max" | "min" | "required" | "validate" | "visible">
+  Pick<
+    InputField,
+    "max" | "min" | "parse" | "required" | "validate" | "visible"
+  >
 >;
 
 const LISTING_NUMBER_COPY = {
@@ -104,14 +109,18 @@ const listingNumberField = <
     label,
     ...options,
     // A whole-number kind refuses a fraction on the form, the same rule the
-    // API check enforces on the body value. The field's declared min stays
-    // responsible for the range.
+    // API check enforces on the body value. The field's declared bounds stay
+    // responsible for the range, and its message.
     ...(catalogField !== undefined &&
     isWholeNumberKind(catalogField) &&
     options.validate === undefined
       ? { validate: validateWholeNumber(label) }
       : {}),
     name,
+    // Every listing number column is an integer, so the parser refuses a
+    // malformed value (`1e3`, `5abc`, a fraction). The shape helper is not
+    // spread here because the caller's own options decide the value type.
+    parse: options.parse ?? parseSignedInt,
     section,
     type: "number",
   };
@@ -188,15 +197,10 @@ const listingFields = (view: ListingFormView = {}) =>
     listingNumberField("duration_days", "duration", {
       max: MAX_DURATION_DAYS,
       min: 1,
-      validate: (value: string): string | null => {
-        // validateSingleField only calls this when the value is non-empty, so
-        // the empty-string case never reaches here. The declared min/max
-        // enforce the range. This check refuses a fraction.
-        const parsed = Number(value);
-        return Number.isInteger(parsed)
-          ? null
-          : t("fields.validation.duration_whole");
-      },
+      // The declared min/max enforce the range, and a negative whole number
+      // reaches them, so this check refuses only a non-integer shape.
+      parse: parseSignedInt,
+      validate: wholeNumberCheck(() => t("fields.validation.duration_whole")),
     }),
     {
       exclusive: {

@@ -108,36 +108,41 @@ const bookingColumns: readonly TableColumn<
   AttendeeBooking,
   BookingTableContext
 >[] = [
-  translatedTableColumn("listing", "terms.listing", (booking, context) => (
-    <>
-      <a href={`/admin/listing/${booking.listingId}`}>{booking.listingName}</a>
-      <InactiveNote active={booking.listingActive} leadingSpace />
-      {booking.parentListingId > 0 ? (
-        <div class="muted small">
-          {t("attendee_detail.addon_under", {
-            parent:
-              context.nameByListingId.get(booking.parentListingId) ??
-              `#${booking.parentListingId}`,
-          })}
-        </div>
-      ) : null}
-      {booking.assignBuiltSite &&
-      booking.quantity >= 1 &&
-      !booking.refunded &&
-      context.planSaleMissingSite ? (
-        <div class="muted small">{t("attendee_detail.no_site_assigned")}</div>
-      ) : null}
-      {context.childNamesByParentId.has(booking.listingId) ? (
-        <div class="muted small">
-          {t("attendee_detail.includes_addon", {
-            children: context.childNamesByParentId
-              .get(booking.listingId)!
-              .join(", "),
-          })}
-        </div>
-      ) : null}
-    </>
-  )),
+  translatedTableColumn("listing", "terms.listing", (booking, context) => {
+    // The add-on names hang off this row's own listing id, and the map holds
+    // an entry only for a parent that has children.
+    const childNames = context.childNamesByParentId.get(booking.listingId);
+    return (
+      <>
+        <a href={`/admin/listing/${booking.listingId}`}>
+          {booking.listingName}
+        </a>
+        <InactiveNote active={booking.listingActive} leadingSpace />
+        {booking.parentListingId > 0 ? (
+          <div class="muted small">
+            {t("attendee_detail.addon_under", {
+              parent:
+                context.nameByListingId.get(booking.parentListingId) ??
+                `#${booking.parentListingId}`,
+            })}
+          </div>
+        ) : null}
+        {booking.assignBuiltSite &&
+        booking.quantity >= 1 &&
+        !booking.refunded &&
+        context.planSaleMissingSite ? (
+          <div class="muted small">{t("attendee_detail.no_site_assigned")}</div>
+        ) : null}
+        {childNames ? (
+          <div class="muted small">
+            {t("attendee_detail.includes_addon", {
+              children: childNames.join(", "),
+            })}
+          </div>
+        ) : null}
+      </>
+    );
+  }),
   translatedTableColumn("date", "common.date", (booking) =>
     booking.startAt
       ? formatDateRangeLabel(booking.startAt, booking.endAt)
@@ -190,9 +195,8 @@ export const AttendeeBookingsTable = ({
   const childNamesByParentId = new Map<number, string[]>();
   for (const b of bookings) {
     if (b.parentListingId > 0) {
-      const names =
-        childNamesByParentId.get(b.parentListingId) ??
-        childNamesByParentId.set(b.parentListingId, []).get(b.parentListingId)!;
+      const names = childNamesByParentId.get(b.parentListingId) ?? [];
+      childNamesByParentId.set(b.parentListingId, names);
       names.push(b.listingName);
     }
   }

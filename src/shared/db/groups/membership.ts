@@ -9,7 +9,7 @@ import {
 } from "#db/groups/homogeneity.ts";
 import { groupListings } from "#db/groups/table.ts";
 import { TransactionValidationError, txIdSetInTable } from "#db/transaction.ts";
-import { byId, mapNotNullish } from "#fp";
+import { byId, mapNotNullish, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import type { PackageMemberInput } from "#shared/catalog-fields/fields.ts";
 import {
@@ -19,7 +19,6 @@ import {
   packageMemberQuantityError,
   sitePlanMemberError,
 } from "#shared/package-membership.ts";
-import { requireValue } from "#shared/required-value.ts";
 import type { ListingType } from "#types";
 
 type GroupStateRow = {
@@ -238,7 +237,7 @@ export const submittedMembersCapErrorTx = async (
   const stateById = byId(states);
   for (const [listingId, quantity] of quantities) {
     const capError = await memberCapErrorTx(
-      requireValue(stateById.get(listingId), `Listing ${listingId} missing`),
+      requiredMapValue(stateById, listingId, `Listing ${listingId} missing`),
       quantity,
     );
     if (capError) return capError;
@@ -337,8 +336,9 @@ const validateMembershipPairsWithChildStateTx = async (
   if (loaded.refusal) return { error: loaded.refusal, listingMissing: false };
   const listingById = byId(loaded.listings);
   for (const pair of pairs) {
-    const listing = requireValue(
-      listingById.get(pair.listingId),
+    const listing = requiredMapValue(
+      listingById,
+      pair.listingId,
       `Listing ${pair.listingId} missing`,
     );
     const hasChildren = hasChildrenByListingId.get(listing.id);

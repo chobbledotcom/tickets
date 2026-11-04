@@ -101,7 +101,7 @@ describeWithEnv("admin seeds handler", { db: true }, () => {
 
     await expectFlashRedirect(
       "/admin/seeds",
-      "Number of listings is invalid.",
+      "Number of listings must be a whole number",
       false,
     )(response);
   });
@@ -114,7 +114,7 @@ describeWithEnv("admin seeds handler", { db: true }, () => {
 
     await expectFlashRedirect(
       "/admin/seeds",
-      "Attendees per listing is invalid.",
+      "Attendees per listing must be a whole number",
       false,
     )(response);
   });

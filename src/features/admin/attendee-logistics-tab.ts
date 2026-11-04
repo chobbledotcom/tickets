@@ -16,7 +16,7 @@ import {
 import { getAttendeeNamesByIds } from "#db/attendees/queries.ts";
 import type { DayRange } from "#db/capacity.ts";
 import { listingNames } from "#db/listings/records.ts";
-import { unique } from "#fp";
+import { requiredMapValue, unique } from "#fp";
 import {
   type AttendeeLogisticsTabData,
   buildAttendeeLogisticsData,
@@ -94,8 +94,16 @@ const loadOtherAttendees = async (
     attendeeId: row.attendee_id,
     endAt: row.end_at,
     endTime: row.end_time,
-    listingName: namesByListing.get(row.listing_id)!,
-    name: names.get(row.attendee_id)!,
+    listingName: requiredMapValue(
+      namesByListing,
+      row.listing_id,
+      `Listing ${row.listing_id} missing`,
+    ),
+    name: requiredMapValue(
+      names,
+      row.attendee_id,
+      `Attendee ${row.attendee_id} missing`,
+    ),
     quantity: row.quantity,
     startAt: row.start_at,
     startTime: row.start_time,

@@ -16,7 +16,7 @@ import {
   type ListingPlan,
   packageMemberRefusals,
 } from "./bundle-plan.ts";
-import { resolvedReference } from "./bundle-refs.ts";
+import { refsOf, resolvedReference } from "./bundle-refs.ts";
 import {
   type MembershipPairs,
   siteListingOf,
@@ -43,7 +43,10 @@ const memberFactsOf = (
     // An unresolved member already failed the group item, so the checks never
     // reach this loop for it.
     const found = requireValue(
-      resolvedReference(context.memberRefs.get(body)!, member.listing),
+      resolvedReference(
+        refsOf(context.memberRefs, body, `Group ${body.group.name}`),
+        member.listing,
+      ),
       "Referenced member missing",
     );
     if ("siteId" in found) {

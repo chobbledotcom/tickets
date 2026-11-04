@@ -12,7 +12,7 @@ import {
   lineGroupId,
   standaloneLineListingIds,
 } from "#booking/signed-metadata.ts";
-import { sumByKey } from "#fp";
+import { requiredMapValue, sumByKey } from "#fp";
 import { t } from "#i18n";
 /* jscpd:ignore-start -- import block */
 import {
@@ -182,9 +182,18 @@ const aboveMaximumRefusal = (
 ): { error: string; status: number } | null => {
   // Both maps cover the judged line: the sum map carries every intent line's
   // listing, and the allocated map carries every folded child.
-  const summedQuantity = quantities.get(listing.id)!;
+  const summedQuantity = requiredMapValue(
+    quantities,
+    listing.id,
+    `Listing ${listing.id} missing`,
+  );
   const judgedQuantity = foldedDailyChildIds.has(listing.id)
-    ? summedQuantity - allocatedByChildId.get(listing.id)!
+    ? summedQuantity -
+      requiredMapValue(
+        allocatedByChildId,
+        listing.id,
+        `Listing ${listing.id} missing`,
+      )
     : summedQuantity;
   if (judgedQuantity <= listing.max_quantity) return null;
   return {

@@ -18,7 +18,14 @@ import { guardEdgeWriteTx } from "#db/listing-edge-write.ts";
 import { requireCurrentRelationshipRules } from "#db/listing-relationship-validation.ts";
 import { requireListingsWithCountsByIds } from "#db/listings/records.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
-import { firstProblem, identity, mapById, mapNotNullish, unique } from "#fp";
+import {
+  firstProblem,
+  identity,
+  mapById,
+  mapNotNullish,
+  requiredMapValue,
+  unique,
+} from "#fp";
 import { t } from "#i18n";
 import {
   type EdgeListing,
@@ -282,7 +289,11 @@ export const edgeIncompatibilityAfterChange = async (
     children.map((listing) => listing.id),
     parents.map((listing) => listing.id),
     ({ self, otherId }) => {
-      const other = byId.get(otherId)!;
+      const other = requiredMapValue(
+        byId,
+        otherId,
+        `Listing ${otherId} missing`,
+      );
       // `updated` stays on its fixed side: parent of each child, child under each parent.
       return self === "parent"
         ? edgeFieldError(updated, other)

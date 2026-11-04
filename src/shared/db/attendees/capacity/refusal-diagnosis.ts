@@ -168,8 +168,12 @@ const listingFactsChanged = (
       facts.listing_type +
       JSON.stringify([...facts.groupIds].sort((left, right) => left - right));
     return (
-      groupsThatMattered(withDemand.get(id)!) !==
-      groupsThatMattered(atSnapshot.get(id)!)
+      groupsThatMattered(
+        requiredMapValue(withDemand, id, `Listing ${id} missing`),
+      ) !==
+      groupsThatMattered(
+        requiredMapValue(atSnapshot, id, `Listing ${id} missing`),
+      )
     );
   });
 

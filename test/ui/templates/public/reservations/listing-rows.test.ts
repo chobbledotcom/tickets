@@ -63,7 +63,7 @@ type RowOptions = {
   isSingleListing?: boolean;
   packages?: PagePackage[];
   /** Each package's remaining bundle count; defaults to 5 for every package. */
-  packageLimits?: ReadonlyMap<number, number>;
+  limitsByGroupId?: ReadonlyMap<number, number>;
   prefill?: BookingPrefill;
   /** A renewal page prices its counts by months per unit. */
   renewal?: boolean;
@@ -76,14 +76,14 @@ type RowOptions = {
 const renderRows = ({
   hideQuantity = false,
   isSingleListing = false,
-  packageLimits,
+  limitsByGroupId,
   packages = [],
   prefill,
   renewal,
   singlePackagePage = false,
   ...rest
 }: RowOptions): string => {
-  const { nodeByListingId, standaloneRowIds } = buildPageTree(
+  const { rows, standaloneRowIds } = buildPageTree(
     {
       listings: rest.listings,
       packages,
@@ -99,14 +99,13 @@ const renderRows = ({
     childCtx: rest.childCtx,
     hideQuantity,
     isSingleListing,
-    listings: rest.listings,
-    nodeByListingId,
-    packageLimits:
-      packageLimits ??
-      new Map(packages.map((pkg) => [pkg.groupId, 5] as const)),
-    packages,
+    packageLimits: packages.map((pkg) => ({
+      limit: limitsByGroupId?.get(pkg.groupId) ?? 5,
+      pkg,
+    })),
     prefill,
     renewal,
+    rows,
     singlePackagePage,
     standaloneRowIds,
   });
@@ -422,8 +421,8 @@ describe("buildPageListingRows", () => {
 
   test("a bundle with no room left renders a sold-out card without controls", () => {
     const html = renderRows({
+      limitsByGroupId: new Map([[3, 0]]),
       listings: [rowListing(7, "Listing A", "ab12c")],
-      packageLimits: new Map([[3, 0]]),
       packages: [pagePackage(3, [7], { description: "Two together" })],
     });
     assertStringIncludes(html, 'class="ticket-package sold-out"');

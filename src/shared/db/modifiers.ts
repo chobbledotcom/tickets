@@ -43,7 +43,7 @@ import {
   type WhereClause,
   whereSql,
 } from "#db/where-clauses.ts";
-import { emptyListsFor, mapParallel } from "#fp";
+import { emptyListsFor, mapParallel, requiredMapValue } from "#fp";
 import type {
   CalcKind,
   ModifierDirection,
@@ -260,7 +260,11 @@ const appendModifierListingLinks = (
   rows: ModifierListingLinkRow[],
 ): Map<number, number[]> => {
   for (const row of rows) {
-    links.get(row.modifier_id)!.push(row.listing_id);
+    requiredMapValue(
+      links,
+      row.modifier_id,
+      `Modifier ${row.modifier_id} missing`,
+    ).push(row.listing_id);
   }
   return links;
 };

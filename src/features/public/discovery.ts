@@ -22,7 +22,13 @@ import {
   listingIdsWithLinks,
   loadParentAndChildLinks,
 } from "#db/listing-parents.ts";
-import { identity, mapById, mapNotNullish, unique } from "#fp";
+import {
+  identity,
+  mapById,
+  mapNotNullish,
+  requiredMapValue,
+  unique,
+} from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
 import { childIdsMatching } from "#shared/child-parents.ts";
 import type { ListingWithCount } from "#types";
@@ -149,7 +155,11 @@ export const classifyForDiscovery = async (
     // to "addon" before it could read as a normal standalone card.
     if (!nonStandaloneChildIds.has(childId)) return false;
     // childId comes from the displayed `ids`, so it is always present in `listingById`.
-    const child = listingById.get(childId)!;
+    const child = requiredMapValue(
+      listingById,
+      childId,
+      `Listing ${childId} missing`,
+    );
     return parents.some(
       (p) =>
         parentBookable(p, parentGroupRemaining.get(p.id)) &&

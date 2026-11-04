@@ -4,7 +4,10 @@
  * packages. */
 
 import type { TicketListing } from "#booking/model.ts";
-import { packageBundleMinimum } from "#booking/package-cap.ts";
+import {
+  type PackageBundleLimit,
+  packageBundleMinimum,
+} from "#booking/package-cap.ts";
 import type { PagePackage } from "#booking/page-packages.ts";
 import {
   type BookingNode,
@@ -22,6 +25,7 @@ import { escapeHtml } from "#jsx/escape-html.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { renderListingAttributes } from "#templates/public/listing-attributes.ts";
 import { renderListingImage } from "#templates/public/shared.tsx";
+import type { PageListingRow } from "./availability.ts";
 import { renderChildBlock } from "./child-block.ts";
 import { childLimitedMax } from "./child-pricing.ts";
 import { renderPayMoreInput } from "./controls.ts";
@@ -47,7 +51,7 @@ export const soldOutLabel = (text: string = t("public.sold_out")): string =>
 
 /** Render each ticket entry to its HTML row and join the rows into one string. */
 const joinRenderedRows = <T>(
-  entries: T[],
+  entries: readonly T[],
   renderRow: (entry: T) => string,
 ): string => entries.map(renderRow).join("");
 
@@ -302,8 +306,7 @@ const renderSingleListingControls: RenderListingControls = (
  * `childCtxFor` suppresses the child block on a row whose listing also has a
  * package member row on the page (that row carries the one child selector). */
 const buildListingRows = (
-  listings: TicketListing[],
-  nodeByListingId: ReadonlyMap<number, BookingNode>,
+  rows: readonly PageListingRow[],
   isSingleListing: boolean,
   hideQuantity: boolean,
   prefill: BookingPrefill | undefined,
@@ -313,22 +316,22 @@ const buildListingRows = (
 ): string =>
   isSingleListing
     ? renderSingleListingControls(
-        listings[0]!,
-        nodeByListingId.get(listings[0]!.listing.id)!,
+        rows[0]!.info,
+        rows[0]!.node,
         hideQuantity,
-        prefill?.listings.get(listings[0]!.listing.id),
-        childCtxFor(listings[0]!),
+        prefill?.listings.get(rows[0]!.info.listing.id),
+        childCtxFor(rows[0]!.info),
         undefined,
         renewal,
       )
-    : joinRenderedRows(listings, (e) =>
+    : joinRenderedRows(rows, ({ info, node }) =>
         renderListingRow(
-          e,
-          nodeByListingId.get(e.listing.id)!,
+          info,
+          node,
           hideQuantity,
-          prefill?.listings.get(e.listing.id),
-          childCtxFor(e),
-          attributesByListing.get(e.listing.id),
+          prefill?.listings.get(info.listing.id),
+          childCtxFor(info),
+          attributesByListing.get(info.listing.id),
           renewal,
         ),
       );
@@ -340,23 +343,25 @@ const buildListingRows = (
  * standalone row — including a member the cart ALSO added on its own, whose
  * child selector stays on its member row so it renders exactly once. */
 export const buildPageListingRows = (opts: {
-  singlePackagePage: boolean;
-  listings: TicketListing[];
-  packages: PagePackage[];
-  packageLimits: ReadonlyMap<number, number>;
-  standaloneRowIds: ReadonlySet<number>;
-  nodeByListingId: ReadonlyMap<number, BookingNode>;
-  isSingleListing: boolean;
-  hideQuantity: boolean;
-  prefill?: BookingPrefill | undefined;
-  childCtx?: ChildRenderCtx | undefined;
   attributesByListing: ListingAttributesById;
+  childCtx?: ChildRenderCtx | undefined;
+  hideQuantity: boolean;
+  isSingleListing: boolean;
+  /** Every page package with its bundle limit, in page order. */
+  packageLimits: readonly PackageBundleLimit<PagePackage>[];
+  prefill?: BookingPrefill | undefined;
   renewal?: boolean | undefined;
+  /** Every page listing with its booking node, in page order. */
+  rows: readonly PageListingRow[];
+  singlePackagePage: boolean;
+  standaloneRowIds: ReadonlySet<number>;
 }): string => {
   const { attributesByListing } = opts;
   const membersOf = (pkg: PagePackage): TicketListing[] => {
     const memberIds = new Set(pkg.memberListingIds);
-    return opts.listings.filter((info) => memberIds.has(info.listing.id));
+    return opts.rows
+      .map(({ info }) => info)
+      .filter((info) => memberIds.has(info.listing.id));
   };
   // One child selector per parent across ALL package sections: the first
   // section selling a parent claims its child block, and an overlapping
@@ -373,7 +378,10 @@ export const buildPageListingRows = (opts: {
   // Bundle one package's render inputs in one place so the single-package and
   // multi-package layouts share the same assembly (a duplicate would silently
   // drift one path's limit or child-ctx wiring from the other's).
-  const packageInput = (pkg: PagePackage): PackageRenderInput => {
+  const packageInput = ({
+    limit,
+    pkg,
+  }: PackageBundleLimit<PagePackage>): PackageRenderInput => {
     const members = membersOf(pkg);
     return {
       attributesByListing,
@@ -382,19 +390,18 @@ export const buildPageListingRows = (opts: {
         new Map(members.map((e) => [e.listing.id, e.listing.min_quantity])),
       ),
       childCtxFor: claimChildCtx,
-      limit: opts.packageLimits.get(pkg.groupId)!,
+      limit,
       members,
       pkg,
     };
   };
   if (opts.singlePackagePage) {
-    // packageLimits carries every page package by construction.
-    return renderPackageControls(packageInput(opts.packages[0]!));
+    return renderPackageControls(packageInput(opts.packageLimits[0]!));
   }
-  const packageSections = opts.packages
-    .map((pkg) => renderPackageSection(packageInput(pkg)))
+  const packageSections = opts.packageLimits
+    .map((entry) => renderPackageSection(packageInput(entry)))
     .join("");
-  const standalone = opts.listings.filter((info) =>
+  const standalone = opts.rows.filter(({ info }) =>
     opts.standaloneRowIds.has(info.listing.id),
   );
   // A cart of overlapping bundles may have NO standalone rows at all (every
@@ -404,12 +411,11 @@ export const buildPageListingRows = (opts: {
     packageSections +
     buildListingRows(
       standalone,
-      opts.nodeByListingId,
       // The bare single-listing controls (no name row — details live in the
       // header) only fit a page with nothing else on it. Beside a package
       // section, even a lone standalone row needs its named row, or the buyer
       // sees an unlabelled quantity selector under the bundle.
-      opts.isSingleListing && opts.packages.length === 0,
+      opts.isSingleListing && opts.packageLimits.length === 0,
       opts.hideQuantity,
       opts.prefill,
       // Suppress the child block only on rows whose child selector a package

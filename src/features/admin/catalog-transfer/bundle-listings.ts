@@ -18,7 +18,6 @@ import {
   packageChildEdgeError,
   sitePlanMemberError,
 } from "#shared/package-membership.ts";
-import { requireValue } from "#shared/required-value.ts";
 import type { ListingWithCount } from "#types";
 import type { FailureCollector } from "./bundle-names.ts";
 import {
@@ -30,7 +29,7 @@ import {
   packageMemberRefusals,
   siteGroupIdsOfPairs,
 } from "./bundle-plan.ts";
-import { resolvedReference, siteIdsOf } from "./bundle-refs.ts";
+import { refsOf, resolvedReference, siteIdsOf } from "./bundle-refs.ts";
 import {
   groupOptIns,
   groupViewOf,
@@ -107,8 +106,9 @@ const checkSitePackageJoins = (
     if (!("siteId" in pair.group)) continue;
     // The group a resolved reference names was loaded with the context, so
     // the row is present.
-    const group = requireValue(
-      context.siteGroupById.get(pair.group.siteId),
+    const group = requiredMapValue(
+      context.siteGroupById,
+      pair.group.siteId,
       "Referenced group missing",
     );
     if (!group.is_package) continue;
@@ -132,8 +132,9 @@ export const bundleListingOf = (
   listingPlans: readonly ListingPlan[],
 ): ListingPlan =>
   listingPlans[
-    requireValue(
-      context.listingIndexByName.get(ref.bundleKey),
+    requiredMapValue(
+      context.listingIndexByName,
+      ref.bundleKey,
       "Bundle listing missing",
     )
   ]!;
@@ -165,13 +166,15 @@ export const parentIsHiddenPackageMember = (
   if ("siteId" in ref) {
     // Every stored parent the document names was loaded into the map, so an
     // absent key is a vanished row.
-    const groupIds = requireValue(
-      context.groupsByParentId.get(ref.siteId),
+    const groupIds = requiredMapValue(
+      context.groupsByParentId,
+      ref.siteId,
       "Parent groups missing",
     );
     for (const groupId of groupIds) {
-      const group = requireValue(
-        context.siteGroupById.get(groupId),
+      const group = requiredMapValue(
+        context.siteGroupById,
+        groupId,
         "Referenced group missing",
       );
       if (group.is_package && group.hide_package_listings) return true;
@@ -237,8 +240,9 @@ const addOnReachesParent = (
 ): boolean => {
   let parentGroupIds: readonly number[] = [];
   if ("siteId" in parent) {
-    parentGroupIds = requireValue(
-      context.groupsByParentId.get(parent.siteId),
+    parentGroupIds = requiredMapValue(
+      context.groupsByParentId,
+      parent.siteId,
       "Parent groups missing",
     );
   } else {
@@ -322,7 +326,7 @@ const validateItemEdges = (
   const edges: PlannedEdge[] = [];
   for (const parentName of body.parents) {
     const resolved = resolvedReference(
-      context.listingRefs.get(body)!.parents,
+      refsOf(context.listingRefs, body, `Listing ${body.listing.name}`).parents,
       parentName,
     );
     if (resolved === undefined) continue;

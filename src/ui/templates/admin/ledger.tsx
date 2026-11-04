@@ -21,7 +21,6 @@ import {
 } from "#accounting/manual-entries.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import type { Child } from "#jsx/jsx-runtime.ts";
 import { formatCurrency, formatSignedCurrency } from "#shared/currency.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import { isReadOnly } from "#shared/env.ts";
@@ -32,7 +31,7 @@ import {
 } from "#shared/ledger-links.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
+import { renderAdminPage } from "#templates/admin/admin-page.tsx";
 import type { DetailRow } from "#templates/admin/detail-rows.tsx";
 import {
   LedgerDateRange,
@@ -325,18 +324,6 @@ export type LedgerPageData = LedgerFilterData & {
   returnUrl: string;
 };
 
-export const adminLedgerShell = (
-  titleKey: string,
-  session: AdminSession,
-  children: Child,
-): string =>
-  renderAdminPageSpec({
-    active: "/admin/ledger",
-    body: children,
-    session,
-    title: t(titleKey),
-  });
-
 /** The range-scoped stats table: a key/value figure table, headed by the
  *  listing name when scoped to one listing (the whole-business view needs no
  *  heading — the page title already says "Ledger"). */
@@ -357,9 +344,10 @@ export const adminLedgerPage = (
   data: LedgerPageData,
   session: AdminSession,
 ): string =>
-  adminLedgerShell(
-    "admin.ledger.heading",
+  renderAdminPage(
+    "/admin/ledger",
     session,
+    t("admin.ledger.heading"),
     <>
       <LedgerStats data={data} />
       <PageBlock>

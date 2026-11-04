@@ -17,12 +17,11 @@ import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso, nowMs, parseDateMs } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { generateRenewalToken } from "#shared/renewal-token.ts";
+import type { Outcome } from "#shared/result.ts";
 import { resolveHostingProvider } from "#shared/site-hosting.ts";
 import { tokenUrl } from "#shared/token-url.ts";
 
 /* jscpd:ignore-end */
-
-export type CdnPushResult = { ok: true } | { ok: false; error: string };
 
 /** Parse a site's stored read-only deadline as milliseconds, or null when empty/invalid. */
 export const parseReadOnlyFromMs = (
@@ -58,7 +57,7 @@ type RenewalSecrets = { readOnlyFrom?: string; renewalUrl?: string };
 const pushSiteSecrets = async (
   site: BuiltSite,
   secrets: RenewalSecrets,
-): Promise<CdnPushResult> => {
+): Promise<Outcome> => {
   if (!site.hostingId) return { error: "No hostingId", ok: false };
   const pairs: [string, string][] = [];
   if (secrets.renewalUrl !== undefined) {
@@ -81,7 +80,7 @@ export const syncReadOnlyFrom = async (
   site: BuiltSite,
   cutoffIso: string,
   renewalUrl?: string,
-): Promise<CdnPushResult> => {
+): Promise<Outcome> => {
   const pushResult = await pushSiteSecrets(site, {
     readOnlyFrom: cutoffIso,
     ...(renewalUrl !== undefined ? { renewalUrl } : {}),

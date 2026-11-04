@@ -3,6 +3,10 @@ export type Result<T, E = string> =
   | { ok: true; value: T }
   | { ok: false; error: E };
 
+/** The success/error contract for an operation that returns no value: it
+ * worked, or it failed with the message a person reads. */
+export type Outcome = { ok: true } | { ok: false; error: string };
+
 export const okResult = <T>(value: T): Result<T, never> => ({
   ok: true,
   value,

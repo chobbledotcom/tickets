@@ -18,6 +18,7 @@ import {
 import { FormParams } from "#shared/form-data.ts";
 import type { Field } from "#shared/forms/field.ts";
 import { isIsoDate } from "#shared/validation/date-string.ts";
+import { wholeNumberFieldShape } from "#templates/fields/validators.ts";
 import type { ListingWithCount } from "#types";
 
 export type ServicingCreateInput = {
@@ -51,7 +52,7 @@ export const buildServicingFieldSchema = (): Field[] => [
     label: t("servicing.field.days"),
     min: 1,
     name: DAY_COUNT_FIELD,
-    type: "number",
+    ...wholeNumberFieldShape(t("servicing.field.days")),
   },
 ];
 

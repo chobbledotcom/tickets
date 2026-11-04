@@ -74,15 +74,6 @@ const apiKeyColumns: readonly TableColumn<ApiKeyDisplay>[] = [
 
 const apiKeyTable = defineTable(apiKeyColumns);
 
-// Every API-keys screen sits in the same admin shell. This wrapper keeps the
-// active tab and page frame identical across the list, manage, and docs pages —
-// only the title and body change.
-const apiKeysShell = (
-  session: AdminSession,
-  title: string,
-  children: Child,
-): string => renderAdminPage("/admin/api-keys", session, title, children);
-
 /**
  * Admin API keys page
  */
@@ -95,7 +86,8 @@ export const adminApiKeysPage = (
     newKey?: string | undefined;
   },
 ): string =>
-  apiKeysShell(
+  renderAdminPage(
+    "/admin/api-keys",
     adminSession,
     t("api_keys.title"),
     <>
@@ -231,7 +223,8 @@ export const adminApiDocsPage = (
   publicEndpoints: EndpointDoc[],
   adminEndpoints: EndpointDoc[],
 ): string =>
-  apiKeysShell(
+  renderAdminPage(
+    "/admin/api-keys",
     session,
     t("api_keys.docs_title"),
     <>

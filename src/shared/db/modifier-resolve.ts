@@ -59,6 +59,10 @@ const liveGroupScopeResolver: GroupScopeResolver =
 /** Per-modifier in-scope listing ids: null = whole order, an array = scoped. */
 type ListingScopes = Map<number, number[] | null>;
 
+/** The resolved scope of a modifier whose id the scope map always holds. */
+const scopeOf = (scopes: ListingScopes, modifier: Modifier): number[] | null =>
+  requiredMapValue(scopes, modifier.id, `Modifier ${modifier.id} missing`);
+
 /** The active opt-in add-on modifiers plus each one's resolved listing scopes —
  * the shared starting point for the add-on and child-reachability checks. */
 export type OptionalAddOns = { optional: Modifier[]; scopes: ListingScopes };
@@ -308,7 +312,7 @@ const eligibleCandidates = async (
     await Promise.all(
       activeModifiers.map(async (modifier): Promise<Candidate | null> => {
         if (modifier.min_visits > ctx.visits) return null;
-        const listingIds = scopes.get(modifier.id)!;
+        const listingIds = scopeOf(scopes, modifier);
         const base = inScopeSubtotal(items, listingIds);
         // A scoped modifier only applies alongside its listings/groups.
         if (listingIds !== null && base === 0) return null;
@@ -392,12 +396,7 @@ export const oversubscribedAnswerTiers: CartRead<string[]> = stockAwareCartRead(
   (c) => c.modifier.trigger === "answer" && c.modifier.stock !== null,
   (limited, used) =>
     limited
-      .filter(
-        // stock is non-null here (only stock-limited answer tiers are kept).
-        (c) =>
-          c.quantity >
-          Math.max(0, c.modifier.stock! - (used.get(c.modifier.id) ?? 0)),
-      )
+      .filter((c) => stockedQuantity(c.modifier, c.quantity, used) < c.quantity)
       .map((c) => c.modifier.name),
 );
 
@@ -465,7 +464,7 @@ export const getOptionalAddOns = async (
   const { optional, scopes } = await optionalAddOnsWithScopes();
   const pageIds = new Set(pageListingIds);
   const scoped = optional.filter((modifier) =>
-    scopeReachesPage(scopes.get(modifier.id)!, pageIds),
+    scopeReachesPage(scopeOf(scopes, modifier), pageIds),
   );
   const used = await modifierUsedQuantities(
     scoped.filter((m) => m.stock !== null).map((m) => m.id),
@@ -519,7 +518,7 @@ export const childOnlyAddOnNameWithScopes = (
   const suppressed = new Set([childId]);
   const reachable = new Set(parentPageListingIds);
   const blocking = optional.find((modifier) =>
-    scopeIsChildDeadEnd(scopes.get(modifier.id)!, suppressed, reachable),
+    scopeIsChildDeadEnd(scopeOf(scopes, modifier), suppressed, reachable),
   );
   return blocking?.name ?? null;
 };

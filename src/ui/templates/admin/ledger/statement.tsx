@@ -4,6 +4,7 @@ import { sameAccount } from "#shared/ledger/account.ts";
 import type { StatementLine } from "#shared/ledger/project.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
 import { ledgerEntryAddHref } from "#shared/ledger-links.ts";
+import { renderAdminPage } from "#templates/admin/admin-page.tsx";
 import {
   type AccountCell,
   humanDescription,
@@ -14,7 +15,6 @@ import {
 import {
   accountCellFor,
   accountLabelText,
-  adminLedgerShell,
   amountCell,
   amountColumn,
   canAddLedgerEntry,
@@ -179,9 +179,10 @@ export const adminAccountStatementPage = (
   names: LedgerNames,
   session: AdminSession,
 ): string =>
-  adminLedgerShell(
-    "admin.ledger.statement_heading",
+  renderAdminPage(
+    "/admin/ledger",
     session,
+    t("admin.ledger.statement_heading"),
     <AccountStatementSection
       ledger={{ account, lines, names }}
       returnUrl={`/admin/ledger/${account.type}/${account.id}`}

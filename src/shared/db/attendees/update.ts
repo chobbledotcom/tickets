@@ -22,7 +22,15 @@ import {
   type TxScope,
   useTransaction,
 } from "#db/client.ts";
-import { filter, map, pipe, reduce, sumOf, unique } from "#fp";
+import {
+  filter,
+  map,
+  pipe,
+  reduce,
+  requiredMapValue,
+  sumOf,
+  unique,
+} from "#fp";
 import { countsPerDate } from "#shared/capacity-rules.ts";
 import { clampDurationDays, type ListingType } from "#types";
 
@@ -134,7 +142,7 @@ const loadsAtBoundaries = (intervals: DayInterval[]): Map<string, number> => {
   const loads = new Map<string, number>();
   let running = 0;
   for (const day of [...deltas.keys()].sort()) {
-    running += deltas.get(day)!;
+    running += requiredMapValue(deltas, day, `Day ${day} missing`);
     loads.set(day, running);
   }
   return loads;
@@ -170,7 +178,12 @@ const firstOverCapacityDay = (
       rangeIdx++;
     }
     if (day >= maxEnd) continue;
-    if (base + loads.get(day)! > groupLimit) return day;
+    if (
+      base + requiredMapValue(loads, day, `Day ${day} missing`) >
+      groupLimit
+    ) {
+      return day;
+    }
   }
   return null;
 };

@@ -190,8 +190,10 @@ export const ticketPage = ({
       slugs,
     ),
   };
-  const { tree, standaloneRowIds, nodeByListingId, singlePackagePage } =
-    buildPageTree(treeInput, packages.length);
+  const { rows, standaloneRowIds, singlePackagePage, tree } = buildPageTree(
+    treeInput,
+    packages.length,
+  );
   const inIframe = getIframeMode();
   const { packageLimits, soldOut: allUnavailable } = packagePageAvailability(
     packages,
@@ -257,13 +259,11 @@ export const ticketPage = ({
     childCtx,
     hideQuantity,
     isSingleListing,
-    listings,
-    nodeByListingId,
     packageLimits,
-    packages,
     prefill,
     // A renewal page prices its tiers by months per unit, not tickets.
     renewal: renewal === true,
+    rows,
     singlePackagePage,
     standaloneRowIds,
   });

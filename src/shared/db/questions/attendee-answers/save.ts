@@ -19,6 +19,7 @@ import {
   type PreparedStringRow,
   prepareStringRows,
 } from "#db/questions/strings.ts";
+import { requiredMapValue } from "#fp";
 
 export type AttendeeAnswerSet = {
   answerIds: number[];
@@ -183,7 +184,14 @@ const answerSaveStatements = (
       set.textAnswerIds.map((answer) => [answer.questionId, answer.stringId]),
     );
     for (const answer of set.textAnswers) {
-      valueByQuestion.set(answer.questionId, textIndexByText.get(answer.text)!);
+      valueByQuestion.set(
+        answer.questionId,
+        requiredMapValue(
+          textIndexByText,
+          answer.text,
+          `Text answer for question ${answer.questionId} missing`,
+        ),
+      );
     }
     return [...valueByQuestion].map(([questionId, value]) => ({
       questionId,

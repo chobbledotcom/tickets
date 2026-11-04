@@ -9,6 +9,7 @@
  */
 
 import { matchName, type NameIndex } from "#db/name-registry.ts";
+import { requiredMapValue } from "#fp";
 import { matchKey as nameKey } from "#shared/keys.ts";
 import { seenBefore } from "#shared/seen-before.ts";
 import type { BundleRef } from "./bundle-plan.ts";
@@ -75,6 +76,15 @@ export const resolvedReference = (
     ? resolved
     : undefined;
 };
+
+/** The references one item of the bundle resolved to. An item missing from the
+ * map means its own validation never ran, which is a bug. */
+export const refsOf = <Body, Refs>(
+  refsByBody: ReadonlyMap<Body, Refs>,
+  body: Body,
+  description: string,
+): Refs =>
+  requiredMapValue(refsByBody, body, `${description} references missing`);
 
 /** The first failed reference in a resolved list, for the item's report. */
 export const firstReferenceError = (

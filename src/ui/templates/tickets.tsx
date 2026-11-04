@@ -85,10 +85,10 @@ const renderModifiers = (
   );
 };
 
-/** The "Booking Date" label for one booking: its stored range via the shared
- * {@link bookedRangeLabel} (the listing's fixed duration covers legacy rows
- * without a stored end), so the ticket card and the confirmation email always
- * describe the same stay. */
+/** The "Booking Date" label for one booking, from its stored range through
+ * {@link bookedRangeLabel}. That reader covers a legacy row with no stored end
+ * by the listing's fixed duration. The ticket card and the confirmation email
+ * then describe the same stay. */
 const computeBookingDateLabel = (entry: TokenEntry): string =>
   bookedRangeLabel(
     entry.attendee.date,
@@ -285,26 +285,50 @@ const renderTicketCard = (
 const packageCardKey = (card: TicketCard): string =>
   `${card.token} ${card.entry.attendee.package_group_id}`;
 
-/** Package rows bucketed by (token, package) for one-card-per-bucket rendering,
- * plus the set of tokens carrying any package booking. The direct wallet
- * endpoints 404 any token whose entries include a package row
- * (lookupSingleTokenPassData), so a standalone card merged under such a token
- * must not advertise wallet links it can't honour — hence `packageTokens`. */
-const collectPackageBuckets = (
+/** One thing the card list renders: a package's whole bucket, in the slot of
+ *  its first card, or one normal card. */
+type CardUnit =
+  | { bucket: TicketCard[]; display: PackageDisplay; kind: "package" }
+  | { card: TicketCard; kind: "card"; tokenHasPackage: boolean };
+
+/** Group the cards into the units the page renders: package rows collapse into
+ *  one bucket per (token, package), and every other row stays its own card.
+ *  The direct wallet endpoints 404 any token whose entries include a package
+ *  row (lookupSingleTokenPassData), so a standalone card under such a token
+ *  carries `tokenHasPackage`, and it advertises no wallet links. */
+const cardUnits = (
   cards: TicketCard[],
   displayFor: (card: TicketCard) => PackageDisplay | undefined,
-): { buckets: Map<string, TicketCard[]>; packageTokens: Set<string> } => {
-  const buckets = new Map<string, TicketCard[]>();
-  const packageTokens = new Set<string>();
+): CardUnit[] => {
+  const packageTokens = new Set(
+    cards.filter((card) => displayFor(card)).map((card) => card.token),
+  );
+  const units: CardUnit[] = [];
+  const openBuckets = new Map<
+    string,
+    { bucket: TicketCard[]; display: PackageDisplay; kind: "package" }
+  >();
   for (const card of cards) {
-    if (!displayFor(card)) continue;
-    packageTokens.add(card.token);
+    const display = displayFor(card);
+    if (!display) {
+      units.push({
+        card,
+        kind: "card",
+        tokenHasPackage: packageTokens.has(card.token),
+      });
+      continue;
+    }
     const key = packageCardKey(card);
-    const bucket = buckets.get(key);
-    if (bucket) bucket.push(card);
-    else buckets.set(key, [card]);
+    const open = openBuckets.get(key);
+    if (open) {
+      open.bucket.push(card);
+      continue;
+    }
+    const unit = { bucket: [card], display, kind: "package" as const };
+    openBuckets.set(key, unit);
+    units.push(unit);
   }
-  return { buckets, packageTokens };
+  return units;
 };
 
 /** Render each card to HTML: a package row collapses into one package card per
@@ -322,28 +346,15 @@ const renderCardsHtml = (
   // members) while still showing the standalone ticket.
   const displayFor = (card: TicketCard): PackageDisplay | undefined =>
     packageDisplays.get(card.entry.attendee.package_group_id);
-  const { buckets, packageTokens } = collectPackageBuckets(cards, displayFor);
-  const rendered = new Set<string>();
-  const htmlParts: string[] = [];
-  for (const card of cards) {
-    const display = displayFor(card);
-    if (display) {
-      const key = packageCardKey(card);
-      if (rendered.has(key)) continue;
-      rendered.add(key);
-      htmlParts.push(renderPackageCard(buckets.get(key)!, display));
-    } else {
-      const tokenHasPackage = packageTokens.has(card.token);
-      htmlParts.push(
-        renderTicketCard(
-          card,
-          appleWalletEnabled && !tokenHasPackage,
-          googleWalletEnabled && !tokenHasPackage,
+  return cardUnits(cards, displayFor).map((unit) =>
+    unit.kind === "package"
+      ? renderPackageCard(unit.bucket, unit.display)
+      : renderTicketCard(
+          unit.card,
+          appleWalletEnabled && !unit.tokenHasPackage,
+          googleWalletEnabled && !unit.tokenHasPackage,
         ),
-      );
-    }
-  }
-  return htmlParts;
+  );
 };
 
 export const ticketViewPage = (

@@ -7,7 +7,7 @@
 import { checkLinesCapacity } from "#db/attendees/capacity/checks.ts";
 /* jscpd:ignore-start */
 import { hydrateListingLinks, listingChildren } from "#db/listing-parents.ts";
-import { compact } from "#fp";
+import { compact, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 /* jscpd:ignore-end */
 import {
@@ -79,7 +79,15 @@ const overbookedListingIds = async (
   const perListing = [...firstLineByListing.values()];
   const fits = await checkLinesCapacity(
     perListing.map((line) =>
-      listingBookingFor(line, totalByListing.get(line.listingId)!, parsed),
+      listingBookingFor(
+        line,
+        requiredMapValue(
+          totalByListing,
+          line.listingId,
+          `Listing ${line.listingId} missing`,
+        ),
+        parsed,
+      ),
     ),
     excludeAttendeeId,
   );

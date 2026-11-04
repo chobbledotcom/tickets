@@ -13,7 +13,6 @@ import { t } from "#i18n";
 import {
   buildCreateListingResource,
   buildUpdateListingResource,
-  parseGroupIds,
 } from "#routes/admin/listings-form.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
@@ -65,19 +64,6 @@ const updateListing = async (
 };
 
 describeWithEnv("listings form", { db: true }, () => {
-  describe("parseGroupIds", () => {
-    test("keeps only positive whole group ids", () => {
-      const form = testFormParams({
-        group_ids: ["3", "0", "-2", "abc", "3.5", "Infinity", "7"],
-      });
-      expect(parseGroupIds(form)).toEqual([3, 7]);
-    });
-
-    test("is empty when no group is ticked", () => {
-      expect(parseGroupIds(testFormParams({}))).toEqual([]);
-    });
-  });
-
   describe("create", () => {
     test("a minimal form makes a free standard listing open on every day", () =>
       (async () => {

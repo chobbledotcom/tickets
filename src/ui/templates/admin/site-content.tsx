@@ -8,7 +8,11 @@ import { t } from "#i18n";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
-import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
+import {
+  ActionButton,
+  GuideFooter,
+  SubmitButton,
+} from "#templates/components/actions.tsx";
 import {
   type RenderedFieldsSaveForm,
   renderedFieldsSaveForm,
@@ -42,6 +46,34 @@ export const collectionPage =
       flash: { success: successMessage },
       session,
       title: t(`${messages}.title`),
+    });
+
+/** The "add one" page of a Site-tab collection: the collection's fields form
+ * and its create button, on the collection's declared list path. `messages`
+ * is the i18n prefix carrying `.new_title` and `.create_submit`. */
+export const contentNewPage =
+  (
+    base: string,
+    messages: string,
+    form: { render: () => string },
+  ): ((session: AdminSession, error?: string) => string) =>
+  (session, error) =>
+    renderAdminPageSpec({
+      active: base,
+      form: {
+        action: base,
+        fields: (
+          <>
+            <Raw html={form.render()} />
+            <SubmitButton icon="plus">
+              {t(`${messages}.create_submit`)}
+            </SubmitButton>
+          </>
+        ),
+        flash: { error },
+      },
+      session,
+      title: t(`${messages}.new_title`),
     });
 
 /** The Edit-tab panel for a Site content editor (Pages, News): a CsrfForm

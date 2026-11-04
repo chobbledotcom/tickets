@@ -229,6 +229,16 @@ describe("foldBookingTree — walking the tree", () => {
     );
   });
 
+  test("ignores a child key that names no child id", () => {
+    const fold = foldOneChild(
+      { max_quantity: 9 },
+      { child_qty_1_9: "1", child_qty_1_abc: "1" },
+      1,
+    );
+    expectFoldOk(fold);
+    expect(fold.allocations).toEqual([{ childId: 9, parentId: 1, qty: 1 }]);
+  });
+
   test("propagates a folded customisable child's shared duration", () => {
     const fold = foldOneChild(
       { customisable_days: true, day_prices: { 1: 500 }, max_quantity: 9 },
