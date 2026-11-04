@@ -92,7 +92,7 @@ Feature: An organiser sends a booking an invoice
       And a customer owes 50.00 for a Reunion place
       And the organiser previews an invoice for that booking
       Then the invoice text still says "# Thanks for booking"
-      And the preview shows the new booking owes 50.00
+      And the preview shows the booking owes 50.00
 
     @case:invoice.clearing-the-text-restores-the-built-in-text
     Scenario: The organiser clears the invoice text
@@ -108,6 +108,27 @@ Feature: An organiser sends a booking an invoice
       And the organiser previews an invoice for that booking
       Then the invoice text still says "{{ labels.heading }}"
       And the invoice text no longer says "# Thanks for booking"
+
+  @rule:payments.the-organiser-updates-the-invoice-preview
+  @surface:admin
+  Rule: The organiser updates the preview before creating the invoice
+    The preview page shows the invoice the text makes. A button shows the new
+    invoice after the organiser changes the text. The site stores nothing
+    until the organiser creates the invoice.
+
+    @case:invoice.updating-the-preview
+    Scenario: The organiser changes the invoice text and updates the preview
+      Given a customer owes 80.00 for a Retreat place
+      And the organiser previews an invoice for that booking
+      When the organiser changes the invoice text and updates the preview:
+        """
+        # Thanks for booking
+
+        {{ customer.name }} owes {{ totals.due | currency }}.
+        """
+      Then the preview shows the heading "Thanks for booking"
+      And the preview shows the booking owes 80.00
+      And the booking has no invoice
 
   @rule:payments.a-booking-page-names-its-invoice
   @surface:admin
