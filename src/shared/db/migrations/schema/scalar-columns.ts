@@ -64,6 +64,16 @@ export const checked =
   (type: string): string =>
     `${type} CHECK (${rule})`;
 
+/** A type that must hold one of a fixed set of words, in SQL. Read the words
+ *  from the one module that names them, so the column and the form or API that
+ *  sends them cannot drift apart. */
+export const oneOf =
+  (column: string, words: readonly string[]) =>
+  (type: string): string =>
+    checked(`${column} IN (${words.map((word) => `'${word}'`).join(", ")})`)(
+      type,
+    );
+
 /** Rules about the whole row. SQLite lets a table say them only on a column.
  *  They hang on the row's last column, one per line, aligned to read inside the
  *  generated statement. */

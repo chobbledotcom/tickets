@@ -720,7 +720,7 @@
     "banned-modal": 2
   },
   "src/shared/db/migrations/schema/tables-questions.ts": {
-    "banned-modal": 2,
+    "banned-modal": 1,
     "semicolon": 3,
     "long-sentence": 4,
     "wordy": 1

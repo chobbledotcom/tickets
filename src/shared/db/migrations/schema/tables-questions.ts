@@ -1,11 +1,15 @@
 /** Form tables: questions, answers, attributes, built sites, notes. */
 
 /* jscpd:ignore-start -- imports */
+import { UPDATE_TIERS } from "#db/built-sites/types.ts";
 import { NOTE_ENTITIES } from "#db/notes/target.ts";
+import { SYSTEM_NOTE_TYPES } from "#db/notes/types.ts";
+import { QUESTION_DISPLAY_TYPES } from "#db/question-types.ts";
 import { attendeeIdColumn, sortOrderColumn } from "./columns.ts";
 import {
   checked,
   defaulted,
+  oneOf,
   rowId,
   text,
   textOrNull,
@@ -21,11 +25,6 @@ import type { Table } from "./types.ts";
 
 /* jscpd:ignore-end */
 
-/** The record kinds a note may be about, as a CHECK the database enforces. */
-const noteEntityCheck = `entity_type IN (${NOTE_ENTITIES.map(
-  (entity) => `'${entity}'`,
-).join(", ")})`;
-
 export const questionTables: [name: string, table: Table][] = [
   [
     "questions",
@@ -36,9 +35,10 @@ export const questionTables: [name: string, table: Table][] = [
         sortOrderColumn,
         [
           "display_type",
-          checked("display_type IN ('radio', 'select', 'free_text')")(
-            defaulted(text, "radio"),
-          ),
+          oneOf(
+            "display_type",
+            QUESTION_DISPLAY_TYPES,
+          )(defaulted(text, "radio")),
         ],
         ["assign_all", wholeNumberStartingAtZero],
       ],
@@ -184,12 +184,7 @@ export const questionTables: [name: string, table: Table][] = [
         // returns only the sites at that tier or more eager (see UPDATE_TIERS
         // in built-sites.ts). Operational metadata, not PII, so it lives outside
         // the encrypted site_data blob and stays SQL-filterable.
-        [
-          "updates",
-          checked("updates IN ('alpha', 'beta', 'release')")(
-            defaulted(text, "release"),
-          ),
-        ],
+        ["updates", oneOf("updates", UPDATE_TIERS)(defaulted(text, "release"))],
       ],
       indexes: [
         {
@@ -285,12 +280,9 @@ export const questionTables: [name: string, table: Table][] = [
         ["id", rowId],
         // The kinds come from NOTE_ENTITIES, so the stored values and the ones
         // the code accepts cannot drift apart.
-        ["entity_type", checked(noteEntityCheck)(text)],
+        ["entity_type", oneOf("entity_type", NOTE_ENTITIES)(text)],
         ["entity_id", wholeNumber],
-        [
-          "type",
-          checked("type IN ('system', 'owner')")(defaulted(text, "system")),
-        ],
+        ["type", oneOf("type", SYSTEM_NOTE_TYPES)(defaulted(text, "system"))],
         ["note", text],
         [
           "system_name",

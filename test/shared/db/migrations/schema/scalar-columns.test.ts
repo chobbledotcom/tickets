@@ -7,6 +7,7 @@ import {
   aboutTheRow,
   checked,
   defaulted,
+  oneOf,
   real,
   requiredTextKey,
   rowId,
@@ -69,6 +70,20 @@ describe("schema column types", () => {
       checked("type IN ('system', 'owner')")(defaulted(text, "system")),
     ).toBe(
       "TEXT NOT NULL DEFAULT 'system' CHECK (type IN ('system', 'owner'))",
+    );
+  });
+
+  test("holds one of a fixed set of words", () => {
+    expect(oneOf("state", ["active", "refunded"])(text)).toBe(
+      "TEXT NOT NULL CHECK (state IN ('active', 'refunded'))",
+    );
+    // The rule comes after the column's starting value, as any other rule does.
+    expect(
+      oneOf("updates", ["alpha", "beta", "release"])(
+        defaulted(text, "release"),
+      ),
+    ).toBe(
+      "TEXT NOT NULL DEFAULT 'release' CHECK (updates IN ('alpha', 'beta', 'release'))",
     );
   });
 

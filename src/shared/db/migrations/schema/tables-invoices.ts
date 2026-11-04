@@ -3,14 +3,10 @@
 /* jscpd:ignore-start */
 import { INVOICE_STATUSES } from "#shared/invoices/status.ts";
 import { attendeeIdColumn } from "./columns.ts";
-import { checked, defaulted, rowId, text } from "./scalar-columns.ts";
+import { checked, defaulted, oneOf, rowId, text } from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
 
 /* jscpd:ignore-end */
-
-const statusCheck = `status IN (${INVOICE_STATUSES.map(
-  (status) => `'${status}'`,
-).join(", ")})`;
 
 export const invoiceTables: [name: string, table: Table][] = [
   [
@@ -30,7 +26,7 @@ export const invoiceTables: [name: string, table: Table][] = [
         ["id", rowId],
         attendeeIdColumn,
         ["body", checked("body GLOB 'enc:1:?*'")(text)],
-        ["status", checked(statusCheck)(defaulted(text, "new"))],
+        ["status", oneOf("status", INVOICE_STATUSES)(defaulted(text, "new"))],
         ["share_token", checked("share_token GLOB 'hyb:1:?*'")(text)],
         ["share_token_index", text],
         ["created", text],
