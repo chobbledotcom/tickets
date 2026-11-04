@@ -30,6 +30,15 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { indexExists } from "#test-utils/migrations.ts";
 
 const MIGRATIONS = await loadMigrations();
+/** The one of `listings` and `events` SQLite holds, so a rename is asserted by
+ *  the name present rather than by an absent one alone. */
+const tableNames = async (): Promise<string[]> => {
+  const result = await getDb().execute(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('events', 'listings') ORDER BY name",
+  );
+  return result.rows.map((row) => String(row.name));
+};
+
 const RESTORE_TRIGGER: Trigger = {
   name: "trg_restore_source_log",
   sql: `CREATE TRIGGER IF NOT EXISTS trg_restore_source_log
@@ -138,9 +147,12 @@ describeWithEnv(
     });
 
     test("a fully-migrated database satisfies every migration's verify()", async () => {
+      let verified = 0;
       for (const migration of MIGRATIONS) {
         await migration.verify();
+        verified += 1;
       }
+      expect(verified).toBe(MIGRATIONS.length);
     });
 
     test("narrowed verify fails only for the owning migration", async () => {
@@ -280,6 +292,7 @@ describeWithEnv(
         await downgradeListingDomainToLegacyNames();
         await rename().up();
         await rename().verify();
+        expect(await tableNames()).toEqual(["listings"]);
       });
     });
 
@@ -291,12 +304,13 @@ describeWithEnv(
         await downgradeListingDomainToLegacyNames();
         // Must not throw (would fail with "no such table: main.listings" before fix)
         await overlapIdx().up();
+        expect(await tableNames()).toEqual(["events"]);
       });
 
       test("verify() passes when legacy 'events' table exists", async () => {
         await downgradeListingDomainToLegacyNames();
         // Defers to rename migration — nothing to verify yet
-        await overlapIdx().verify();
+        await expect(overlapIdx().verify()).resolves.toBe(undefined);
       });
     });
   },
