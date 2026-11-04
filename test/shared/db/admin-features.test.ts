@@ -367,7 +367,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
   test("rejects malformed stored feature JSON after a field write", async () => {
     await execute(
       "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-      [CONFIG_KEYS.ENABLED_FEATURES, '{"money":false}'],
+      [CONFIG_KEYS.ENABLED_FEATURES, '{"money":false,"attributes":"false"}'],
     );
 
     await expect(setAdminFeatureEnabled("money", true)).rejects.toThrow(
@@ -375,10 +375,10 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
     );
   });
 
-  test("rolls back a feature record when the stored feature setting is incomplete", async () => {
+  test("rolls back a feature record when the stored feature setting is invalid", async () => {
     await execute(
       "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-      [CONFIG_KEYS.ENABLED_FEATURES, '{"attributes":false}'],
+      [CONFIG_KEYS.ENABLED_FEATURES, '{"attributes":"false"}'],
     );
 
     await expect(
@@ -389,13 +389,13 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
     ).toBeNull();
   });
 
-  test("rolls back Logistics cleanup when the stored feature setting is incomplete", async () => {
+  test("rolls back Logistics cleanup when the stored feature setting is invalid", async () => {
     await settings.update.listingDefaults({
       hidden: true,
       usesLogistics: true,
     });
     const defaultsBefore = await settingValue(CONFIG_KEYS.LISTING_DEFAULTS);
-    const featuresBefore = '{"logistics":true}';
+    const featuresBefore = '{"logistics":"true"}';
     await execute(
       "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
       [CONFIG_KEYS.ENABLED_FEATURES, featuresBefore],
