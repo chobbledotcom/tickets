@@ -75,6 +75,39 @@ describe("model fact preparation", () => {
       ]);
     }));
 
+  test("writes a separate input copy for each proof phase", () =>
+    withTempDir(async (root) => {
+      let reads = 0;
+      const modules = [
+        modelWith(
+          "First",
+          () => {
+            reads += 1;
+            return Promise.resolve("clean data");
+          },
+          () => Promise.resolve("corrupted data"),
+        ),
+      ];
+      await writeSources(modules, root);
+      const work = join(root, "checks");
+      const checks = await prepareChecks(modules, root, work);
+      expect(checks.map((check) => check.directory)).toEqual([
+        join(work, "First", "initial"),
+        join(work, "First", "step"),
+        join(work, "First", "control-1"),
+      ]);
+      for (const phase of ["initial", "step"] as const) {
+        const directory = join(work, "First", phase);
+        expect(await Deno.readTextFile(join(directory, "First.tla"))).toBe(
+          "---- MODULE First ----\n====\n",
+        );
+        expect(await Deno.readTextFile(join(directory, "FirstData.tla"))).toBe(
+          "clean data",
+        );
+      }
+      expect(reads).toBe(1);
+    }));
+
   test("propagates an extraction failure before any later producer runs", () =>
     withTempDir(async (root) => {
       const failure = new Error("The stored refund leg is absent.");
