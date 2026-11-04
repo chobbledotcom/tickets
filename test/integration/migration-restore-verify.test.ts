@@ -89,9 +89,8 @@ describeWithEnv(
       // padding migration is data-only and covered by its own migration test.
       // The custom CSS Bunny fonts backfill is data-only and covered by its
       // own migration test. The listing-fields trim backfill is data-only and
-      // covered by its own migration test. The Invoices feature switch writes
-      // one stored setting and is covered by its own migration test.
-      expect(additiveMigrations.length).toBe(MIGRATIONS.length - 29);
+      // covered by its own migration test.
+      expect(additiveMigrations.length).toBe(MIGRATIONS.length - 28);
     });
 
     test("restores triggers attached to a dropped table", async () => {

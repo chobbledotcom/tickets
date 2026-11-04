@@ -6,22 +6,30 @@ import { Given, Then, When } from "@cucumber/cucumber";
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { formatCurrency } from "#shared/currency.ts";
-import { newcomerReading, ORGANISER } from "#test/specs/support/browser.ts";
+import {
+  adminPageHtmlAt,
+  newcomerReading,
+  ORGANISER,
+  openAdminPage,
+} from "#test/specs/support/browser.ts";
 import {
   cancelInvoice,
+  detailsOnPage,
   invoiceCopy,
-  invoiceDetailsIn,
   invoiceEmail,
   invoiceLinkFromEmail,
   invoiceNumber,
   invoiceSays,
   invoicesListed,
+  previewInvoiceFor,
   sendInvoice,
+  sendInvoiceWithText,
 } from "#test/specs/support/invoices.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
+  theBooking,
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
 
@@ -100,7 +108,7 @@ Then(
   "the site takes the second invoice as a new one",
   async function (this: TicketsWorld): Promise<void> {
     assertStringIncludes(
-      invoiceDetailsIn(await invoiceSays(this)),
+      detailsOnPage(await invoiceSays(this), "The invoice page"),
       await invoiceCopy("invoices.status.new"),
     );
   },
@@ -109,7 +117,7 @@ Then(
 Then(
   "the invoice says it is paid",
   async function (this: TicketsWorld): Promise<void> {
-    const details = invoiceDetailsIn(await invoiceSays(this));
+    const details = detailsOnPage(await invoiceSays(this), "The invoice page");
     assertStringIncludes(details, await invoiceCopy("invoices.column.status"));
     assertStringIncludes(details, await invoiceCopy("invoices.status.paid"));
     expect(details).not.toContain(await invoiceCopy("invoices.status.new"));
@@ -135,5 +143,74 @@ Then(
     // The pay button is a form that starts a checkout, so the address it posts
     // to is the whole affordance — a page without it offers no way to pay.
     expect(said).not.toContain("/pay/");
+  },
+);
+
+/** Send the story's booking an invoice whose text the organiser changed on the
+ *  preview page. */
+When(
+  "the organiser sends that booking an invoice with the text:",
+  function (this: TicketsWorld, text: string): Promise<void> {
+    return sendInvoiceWithText(this, text);
+  },
+);
+
+When(
+  "the organiser sends that booking an invoice with no text",
+  function (this: TicketsWorld): Promise<void> {
+    return sendInvoiceWithText(this, "");
+  },
+);
+
+When(
+  "the organiser previews an invoice for that booking",
+  function (this: TicketsWorld): Promise<void> {
+    return previewInvoiceFor(this);
+  },
+);
+
+Then(
+  "the invoice text still says {string}",
+  function (this: TicketsWorld, text: string): void {
+    assertStringIncludes(whatTheyWereTold(this, ORGANISER), text);
+  },
+);
+
+Then(
+  "the invoice text no longer says {string}",
+  function (this: TicketsWorld, text: string): void {
+    expect(whatTheyWereTold(this, ORGANISER)).not.toContain(text);
+  },
+);
+
+Then(
+  "the preview shows the new booking owes {word}",
+  function (this: TicketsWorld, amount: string): void {
+    assertStringIncludes(
+      whatTheyWereTold(this, ORGANISER),
+      `owes ${formatCurrency(minorUnits(amount))}`,
+    );
+  },
+);
+
+When(
+  "the organiser opens the booking's own page",
+  async function (this: TicketsWorld): Promise<void> {
+    await openAdminPage(this, `/admin/attendees/${theBooking(this)}`);
+  },
+);
+
+Then(
+  "the booking's details name the invoice and its status",
+  async function (this: TicketsWorld): Promise<void> {
+    const details = detailsOnPage(
+      await adminPageHtmlAt(this, `/admin/attendees/${theBooking(this)}`),
+      "The booking's page",
+    );
+    assertStringIncludes(
+      details,
+      `href="/admin/invoices/${invoiceNumber(this)}"`,
+    );
+    assertStringIncludes(details, await invoiceCopy("invoices.status.new"));
   },
 );

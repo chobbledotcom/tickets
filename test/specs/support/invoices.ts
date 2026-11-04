@@ -10,6 +10,7 @@ import {
 } from "#test/specs/support/browser.ts";
 import { messagesSent, type SentMessage } from "#test/specs/support/contact.ts";
 import { copyFrom } from "#test/specs/support/copy.ts";
+import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -54,24 +55,70 @@ const sendInvoiceForm = async (
   return browser;
 };
 
-/** Make an invoice for the booking the story is working on, through the form
- *  the site served. The first form shows the invoice text for review, and the
- *  second one makes it. A booking the site refuses stays on the create page,
- *  where the story reads what it said. Where the organiser landed is kept. */
-export const sendInvoice = async (world: TicketsWorld): Promise<void> => {
-  const browser = await sendInvoiceForm(
+/** Open the preview page for the booking the story is working on. A booking
+ *  the site refuses stays on the create page, where the story reads what it
+ *  said. */
+const openInvoicePreview = async (world: TicketsWorld): Promise<TestBrowser> =>
+  sendInvoiceForm(
     world,
     NEW_INVOICE,
     await invoiceCopy("invoices.action.preview"),
     { attendee_id: String(theBooking(world)) },
   );
-  if (browser.currentUrl !== "/admin/invoices/preview") {
-    world.invoicePath = browser.currentUrl;
-    return;
+
+/** The preview page for the story's booking, or null when the site refused the
+ *  booking and stayed on the create page. Where the organiser landed is kept
+ *  either way. */
+const openPreviewOrRefusal = async (
+  world: TicketsWorld,
+): Promise<TestBrowser | null> => {
+  const browser = await openInvoicePreview(world);
+  if (browser.currentUrl === "/admin/invoices/preview") return browser;
+  world.invoicePath = browser.currentUrl;
+  return null;
+};
+
+/** Confirm the preview page, with the text the organiser kept when the story
+ *  changed it. Where the organiser landed is kept. */
+const confirmThePreview = async (
+  world: TicketsWorld,
+  text: string | null,
+): Promise<void> => {
+  const browser = await openPreviewOrRefusal(world);
+  if (browser === null) return;
+  const button = await invoiceCopy("invoices.action.create");
+  if (text === null) {
+    await browser.submitForm({}, button);
+  } else {
+    await fillInAndSend(browser, { body: text }, button);
   }
-  await browser.submitForm({}, await invoiceCopy("invoices.action.create"));
   keepsWhatTheOrganiserSaw(world, browser);
   world.invoicePath = browser.currentUrl;
+};
+
+/** Make an invoice for the booking the story is working on, through the form
+ *  the site served. The first form shows the invoice text for review, and the
+ *  second one makes it. */
+export const sendInvoice = async (world: TicketsWorld): Promise<void> => {
+  await confirmThePreview(world, null);
+};
+
+/** Make an invoice whose text the organiser changed on the preview page. */
+export const sendInvoiceWithText = async (
+  world: TicketsWorld,
+  text: string,
+): Promise<void> => {
+  await confirmThePreview(world, text);
+};
+
+/** Show the preview page for the story's booking without making the invoice.
+ *  What the page offers is kept for the story to read. */
+export const previewInvoiceFor = async (world: TicketsWorld): Promise<void> => {
+  if ((await openPreviewOrRefusal(world)) === null) {
+    throw new Error(
+      `The site did not show the preview page: ${world.invoicePath}`,
+    );
+  }
 };
 
 /** Cancel the last invoice from its own page. */
@@ -87,15 +134,13 @@ export const cancelInvoice = async (world: TicketsWorld): Promise<void> => {
 export const invoiceSays = (world: TicketsWorld): Promise<string> =>
   adminPageHtmlAt(world, invoiceAddress(world));
 
-/** Just the summary rows of an invoice page, so a status cannot answer for
- *  some other word further down the page. */
-export const invoiceDetailsIn = (page: string): string => {
+/** Just the summary rows of one page, so a status cannot answer for some other
+ *  word further down the page. */
+export const detailsOnPage = (page: string, what: string): string => {
   const opened = page.indexOf('<table class="listing-details-table">');
-  if (opened === -1) throw new Error("The invoice page showed no summary rows");
+  if (opened === -1) throw new Error(`${what} showed no summary rows`);
   const closed = page.indexOf("</table>", opened);
-  if (closed === -1) {
-    throw new Error("The invoice page's summary never closed");
-  }
+  if (closed === -1) throw new Error(`${what}'s summary never closed`);
   return page.slice(opened, closed);
 };
 

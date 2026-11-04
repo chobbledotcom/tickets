@@ -24,6 +24,7 @@ import {
   type InvoiceSummary,
   nextInvoiceNumber,
 } from "#db/invoices.ts";
+import { settings } from "#db/settings.ts";
 import { map, unique } from "#fp";
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
@@ -50,6 +51,7 @@ import { sendEmailOk } from "#shared/email-ok.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
   buildInvoiceBodyData,
+  type InvoiceBodyData,
   renderInvoiceBody,
   renderInvoiceText,
 } from "#shared/invoices/body.ts";
@@ -69,6 +71,7 @@ import {
   adminInvoicesPage,
 } from "#templates/admin/invoices.tsx";
 import { getInvoiceForm } from "#templates/fields/invoice.ts";
+import { INVOICE_BODY_TEMPLATE } from "#templates/invoice/defaults.ts";
 
 /* jscpd:ignore-end */
 
@@ -176,22 +179,19 @@ const loadInvoiceDraft = async (
   };
 };
 
-/** The built-in invoice text for a draft: the booking's facts in the Markdown
- *  template the operator then edits. */
-const draftBodyText = async (draft: InvoiceDraft): Promise<string> =>
-  renderInvoiceText(
-    buildInvoiceBodyData({
-      created: nowIso(),
-      customer: draft.attendee,
-      lines: await orderLineItems(draft.summary.lines, t("invoices.package")),
-      number: draft.number,
-      totals: {
-        due: draft.amountDue,
-        paid: draft.summary.depositPaid,
-        total: draft.summary.fullPrice,
-      },
-    }),
-  );
+/** The facts an invoice for a draft states, ready for the site's template. */
+const draftBodyData = async (draft: InvoiceDraft): Promise<InvoiceBodyData> =>
+  buildInvoiceBodyData({
+    created: nowIso(),
+    customer: draft.attendee,
+    lines: await orderLineItems(draft.summary.lines, t("invoices.package")),
+    number: draft.number,
+    totals: {
+      due: draft.amountDue,
+      paid: draft.summary.depositPaid,
+      total: draft.summary.fullPrice,
+    },
+  });
 
 /** Read the create form and continue with the draft it holds, or answer with
  *  the redirect that refused it. */
@@ -203,8 +203,8 @@ const withInvoiceDraft = async (
   return draft instanceof Response ? draft : use(draft);
 };
 
-/** The preview step: validate the form, then show the text the operator edits
- *  and says whether the site will email it. */
+/** The preview step: validate the form, then show the invoice template the
+ *  operator edits and the invoice it makes for this booking. */
 const handleInvoicePreviewPost: TypedRouteHandler<
   "POST /admin/invoices/preview"
 > = (request) =>
@@ -212,22 +212,30 @@ const handleInvoicePreviewPost: TypedRouteHandler<
     request,
     formPolicyAt(adminPattern("invoicePreview")),
     async (session, form) =>
-      withInvoiceDraft(form, async (draft) =>
-        htmlResponse(
+      withInvoiceDraft(form, async (draft) => {
+        const data = await draftBodyData(draft);
+        const template =
+          settings.invoiceBodyTemplate === ""
+            ? INVOICE_BODY_TEMPLATE
+            : settings.invoiceBodyTemplate;
+        return htmlResponse(
           adminInvoicePreviewPage({
             attendeeEmail: draft.attendee.email,
             attendeeId: draft.attendeeId,
             attendeeName: draft.attendee.name,
-            body: await draftBodyText(draft),
             // Only a configured provider with a usable address sends.
             delivered:
               getActiveEmailConfig() !== null &&
               parseEmail(draft.attendee.email) !== null,
             number: draft.number,
+            previewHtml: renderInvoiceBody(
+              await renderInvoiceText(data, template),
+            ),
             session,
+            template,
           }),
-        ),
-      ),
+        );
+      }),
   );
 
 /** Store the edited invoice, email it, and redirect to its page. */
@@ -239,15 +247,21 @@ const handleInvoiceNewPost: TypedRouteHandler<"POST /admin/invoices/new"> = (
     formPolicyAt(adminPattern("invoiceNew")),
     async (_session, form) => {
       const newInvoicePath = adminPath("invoiceNew", {});
-      const bodyText = (form.get("body") ?? "").trim();
-      if (bodyText === "") {
-        return errorRedirect(newInvoicePath, t("invoices.error.body_required"));
-      }
-      if (bodyText.length > MAX_TEXTAREA_LENGTH) {
+      const submitted = (form.get("body") ?? "").trim();
+      if (submitted.length > MAX_TEXTAREA_LENGTH) {
         return errorRedirect(newInvoicePath, t("invoices.error.body_too_long"));
       }
+      // Clearing the text returns to the built-in template, and so does a
+      // template identical to it. The site keeps anything else for the next
+      // invoice.
+      const template = submitted === "" ? INVOICE_BODY_TEMPLATE : submitted;
       return withInvoiceDraft(form, async (draft) => {
-        const bodyHtml = renderInvoiceBody(bodyText);
+        await settings.update.invoiceBodyTemplate(
+          template === INVOICE_BODY_TEMPLATE ? "" : template,
+        );
+        const bodyHtml = renderInvoiceBody(
+          await renderInvoiceText(await draftBodyData(draft), template),
+        );
         const { invoice, shareToken } = await createInvoice({
           attendeeId: draft.attendeeId,
           bodyHtml,

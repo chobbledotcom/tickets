@@ -63,7 +63,6 @@ import {
   AttendeeBookingsTable,
 } from "#templates/admin/attendee-detail.tsx";
 import { AttendeeFormPanel } from "#templates/admin/attendee-form.tsx";
-import { AttendeeInvoicesList } from "#templates/admin/attendee-invoices.tsx";
 import {
   attendeeBanner,
   attendeeSummaryRows,
@@ -84,6 +83,8 @@ type AttendeePageEntity = LoadedAttendee & {
   /** Whether the site offers to invoice this booking — one fact, read by the
    *  Actions tab's link. */
   readonly canCreateInvoice: boolean;
+  /** The attendee's invoices, newest first. The Overview table shows the
+   *  newest one. The create link reads whether one is still new. */
   readonly invoices: InvoiceSummary[];
   readonly paymentMove: PaymentMoveSnapshot | "not_loaded";
 };
@@ -106,9 +107,9 @@ const paymentRefreshControl = (
     : { kind: "available", url: refreshPaymentAction.url(attendeeId) };
 };
 
-/** Payment move state is loaded only for the Actions tab. The Invoice tab and
- *  the create-invoice links read the attendee's invoices, its balance, and the
- *  rule that decides the link. */
+/** Payment move state is loaded only for the Actions tab. The Overview table
+ *  and the create-invoice links read the attendee's invoices, its balance, and
+ *  the rule that decides the link. */
 const loadAttendeePageEntity = async (
   id: number,
 ): Promise<AttendeePageEntity | null> => {
@@ -263,12 +264,13 @@ const loadEditPanel = async (
 
 /** The Overview tab's sections. */
 const overview: TabDef<AttendeePageEntity> = overviewTab([
-  summarySection(({ attendee, existing }) =>
+  summarySection(({ attendee, existing, invoices }) =>
     Promise.resolve(
       attendeeSummaryRows({
         allowedDomain: getEffectiveDomain(),
         attendee,
         hasRealLine: existing.some((line) => line.booking.quantity > 0),
+        invoices,
         phonePrefix: settings.phonePrefix,
       }),
     ),
@@ -391,17 +393,6 @@ export const attendeePage: EntityPage<AttendeePageEntity> = defineEntityPage({
       // The ledger exposes money movements and the customer pay link, so it is
       // owner-only — matching the standalone /admin/ledger* routes.
       visible: (_entity, session) => session.adminLevel === "owner",
-    },
-    {
-      labelKey: "entity.tab.invoice",
-      sections: [
-        customSection(({ invoices }) =>
-          Promise.resolve(AttendeeInvoicesList({ invoices })),
-        ),
-      ],
-      slug: "invoice",
-      // An attendee with no invoice has nothing to show here.
-      visible: ({ invoices }) => invoices.length > 0,
     },
     {
       labelKey: "entity.tab.activity",

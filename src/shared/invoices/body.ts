@@ -55,14 +55,14 @@ export const buildInvoiceBodyData = ({
   totals,
 });
 
-/** Fill the built-in Markdown template with the buyer's facts. The create page
- *  hands this text to the operator, who edits it before the invoice is made. */
+/** Fill an invoice template with the buyer's facts. The preview page offers the
+ *  site's saved template, or the built-in one, and the create step fills the
+ *  same text. */
 export const renderInvoiceText = async (
   data: InvoiceBodyData,
+  template: string = INVOICE_BODY_TEMPLATE,
 ): Promise<string> =>
-  (
-    await plainLiquidEngine().parseAndRender(INVOICE_BODY_TEMPLATE, data)
-  ).trim();
+  (await plainLiquidEngine().parseAndRender(template, data)).trim();
 
 /** Render the frozen HTML body from the operator's Markdown text. */
 export const renderInvoiceBody = (text: string): string =>

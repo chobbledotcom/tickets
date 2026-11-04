@@ -149,24 +149,26 @@ export const adminInvoiceNewPage = ({
     flash,
   );
 
-/** The preview step: the invoice text the operator edits, and whether the site
- *  will email it. */
+/** The preview step: the template the operator edits, the invoice it makes for
+ *  this booking, and whether the site will email it. */
 export const adminInvoicePreviewPage = ({
   attendeeEmail,
   attendeeId,
   attendeeName,
-  body,
   delivered,
   number,
+  previewHtml,
   session,
+  template,
 }: {
   attendeeEmail: string;
   attendeeId: number;
   attendeeName: string;
-  body: string;
   delivered: boolean;
   number: number;
+  previewHtml: string;
   session: AuthSession;
+  template: string;
 }): string =>
   invoiceFormPage(
     adminPath("invoiceNew", {}),
@@ -177,17 +179,16 @@ export const adminInvoicePreviewPage = ({
           ? t("invoices.preview.will_email", { email: attendeeEmail })
           : t("invoices.preview.no_email")}
       </p>
+      <h2>{t("invoices.preview.rendered_heading")}</h2>
+      <div class="prose">
+        <Raw html={previewHtml} />
+      </div>
       <input name="attendee_id" type="hidden" value={attendeeId} />
       <input name="number" type="hidden" value={number} />
       <label>
         {t("invoices.preview.body_label")}
-        <textarea
-          data-markdown-preview
-          maxlength={MAX_TEXTAREA_LENGTH}
-          name="body"
-          required
-        >
-          {textareaBody(body)}
+        <textarea maxlength={MAX_TEXTAREA_LENGTH} name="body">
+          {textareaBody(template)}
         </textarea>
       </label>
       <p class="small">{t("invoices.preview.body_hint")}</p>

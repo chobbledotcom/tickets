@@ -1,4 +1,4 @@
-/** The attendee page's Invoice tab, and the links that start an invoice. */
+/** The attendee page's invoice row, and the links that start an invoice. */
 
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -15,7 +15,7 @@ import { isReadOnly } from "#shared/env.ts";
 import { createReservedAttendee } from "#test-utils/balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
-import { bookAttendee, renderTab, tabHtml } from "./helpers.ts";
+import { bookAttendee, tabHtml } from "./helpers.ts";
 
 const CREATED = "2026-11-04T09:00:00.000Z";
 
@@ -44,29 +44,21 @@ const createLink = (attendeeId: number): string =>
   `/admin/invoices/new?attendee=${attendeeId}`;
 
 describeWithEnv("the attendee page's invoices", { db: true }, () => {
-  test("offers no Invoice tab to an attendee with none", async () => {
-    const id = await bookAttendee();
-    assert(!(await tabHtml(id, "")).includes(`/admin/attendees/${id}/invoice`));
+  test("shows no invoice row for an attendee with none", async () => {
+    const html = await tabHtml(await bookAttendee(), "");
+    assert(!html.includes("/admin/invoices/"));
   });
 
-  test("an Invoice tab named directly for an attendee with none is not found", async () => {
-    const response = await renderTab(await bookAttendee(), "invoice");
-    expect(response.status).toBe(404);
-  });
-
-  test("offers the Invoice tab, naming the status, once one exists", async () => {
+  test("shows the invoice row with its status and date once one exists", async () => {
     setInvoicesSwitch(true);
     const id = await bookAttendee();
     const invoiceId = await addInvoice(id);
 
-    assertStringIncludes(
-      await tabHtml(id, ""),
-      `/admin/attendees/${id}/invoice`,
-    );
+    const html = await tabHtml(id, "");
 
-    const tab = await tabHtml(id, "invoice");
-    assertStringIncludes(tab, `href="/admin/invoices/${invoiceId}"`);
-    assertStringIncludes(tab, "New");
+    assertStringIncludes(html, `<a href="/admin/invoices/${invoiceId}">`);
+    assertStringIncludes(html, "New");
+    assertStringIncludes(html, "Wednesday 4 November 2026");
   });
 
   /** Every fact the create links read, both ways. The two tabs offer the link

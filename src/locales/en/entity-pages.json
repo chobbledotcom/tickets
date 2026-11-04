@@ -10,9 +10,9 @@
   "entity.tab.attributes": "Attributes",
   "entity.tab.questions": "Questions",
   "entity.tab.qr": "Booking QR",
-  "entity.tab.invoice": "Invoice",
   "entity.tab.activity": "Activity",
   "entity.tab.actions": "Actions",
+  "entity.invoice": "Invoice",
   "entity.view_all_activity": "View all activity",
   "entity.danger_zone": "Danger zone"
 }

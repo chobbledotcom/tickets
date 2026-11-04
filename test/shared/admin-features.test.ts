@@ -137,11 +137,10 @@ describe("admin features", () => {
     });
   });
 
-  test("rejects malformed, partial, extra, and non-boolean settings", () => {
+  test("rejects malformed, extra, and non-boolean settings", () => {
     const invalidValues = [
       "not json",
       JSON.stringify({ ...DEFAULT_ENABLED_FEATURES, money: "true" }),
-      JSON.stringify({ money: false }),
       JSON.stringify({ ...DEFAULT_ENABLED_FEATURES, unknown: false }),
     ];
     for (const value of invalidValues) {
@@ -149,10 +148,19 @@ describe("admin features", () => {
     }
   });
 
-  test("identifies an incomplete setting without retaining its value", () => {
+  test("reads a feature the stored setting lacks as off", () => {
+    expect(parseEnabledFeatures(JSON.stringify({ money: true }))).toEqual({
+      ...DEFAULT_ENABLED_FEATURES,
+      money: true,
+    });
+  });
+
+  test("identifies an invalid setting without retaining its value", () => {
     let thrown: unknown;
     try {
-      parseEnabledFeatures(JSON.stringify({ money: false }));
+      parseEnabledFeatures(
+        JSON.stringify({ ...DEFAULT_ENABLED_FEATURES, money: "true" }),
+      );
     } catch (error) {
       thrown = error;
     }

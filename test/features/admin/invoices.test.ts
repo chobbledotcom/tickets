@@ -6,6 +6,7 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { settleAttendeeBalance } from "#db/attendees/balance.ts";
 import { getDb } from "#db/client.ts";
 import { createInvoice, nextInvoiceNumber } from "#db/invoices.ts";
+import { settings } from "#db/settings.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
@@ -24,6 +25,7 @@ import {
   createTestManagerSession,
   postFormAs,
 } from "#test-utils/session.ts";
+import { settingsAsStored } from "#test-utils/settings.ts";
 import { decodeEntities } from "#test-utils/test-browser/parsing.ts";
 
 const CREATED = "2026-11-03T09:00:00.000Z";
@@ -116,16 +118,18 @@ describeWithEnv("server (admin invoices)", { db: true }, () => {
     assertStringIncludes(html, 'action="/admin/invoices/preview"');
   });
 
-  test("the preview shows the invoice text before anything is stored", async () => {
+  test("the preview shows the rendered invoice and the template it uses", async () => {
     const attendeeId = await createOwing(1500);
     const response = await previewInvoice(attendeeId, 1);
     const html = await pageText(response);
 
     expect(response.status).toBe(200);
-    assertStringIncludes(html, "# Invoice 1");
+    assertStringIncludes(html, "Invoice preview");
+    assertStringIncludes(html, "<h1>Invoice 1</h1>");
     assertStringIncludes(html, "Guest");
     assertStringIncludes(html, "guest@example.com");
-    assertStringIncludes(html, `**Amount due: ${formatCurrency(1500)}**`);
+    assertStringIncludes(html, `Amount due: ${formatCurrency(1500)}`);
+    assertStringIncludes(html, "{{ customer.name }}");
     assertStringIncludes(
       html,
       "The site will not email this invoice. After you create it, share the link with your customer.",
@@ -171,14 +175,52 @@ describeWithEnv("server (admin invoices)", { db: true }, () => {
     assertStringIncludes(html, "Pay us.");
   });
 
-  test("refuses an empty invoice text", async () => {
+  test("an empty text creates the invoice from the built-in text", async () => {
+    await settings.update.invoiceBodyTemplate("# Kept\n\n{{ customer.name }}");
     const attendeeId = await createOwing(1500);
-    const response = await createInvoicePost(attendeeId, 1, "   ");
-    await expectFlashRedirect(
-      "/admin/invoices/new",
-      "Enter the invoice text.",
-      false,
-    )(response);
+    expectRedirect(
+      await createInvoicePost(attendeeId, 1, "   "),
+      /^\/admin\/invoices\/1(\?|$)/,
+    );
+
+    const html = await pageText(await adminGet("/admin/invoices/1"));
+    assertStringIncludes(html, "<h1>Invoice 1</h1>");
+    await settingsAsStored();
+    expect(settings.invoiceBodyTemplate).toBe("");
+  });
+
+  test("keeps a changed text for the next invoice", async () => {
+    const template =
+      "# Thanks\n\n{{ customer.name }} owes {{ totals.due | currency }}.";
+    const attendeeId = await createOwing(1500);
+    expectRedirect(
+      await createInvoicePost(attendeeId, 1, template),
+      /^\/admin\/invoices\/1(\?|$)/,
+    );
+
+    await settingsAsStored();
+    expect(settings.invoiceBodyTemplate).toBe(template);
+
+    const next = await createOwing(700);
+    const html = await pageText(await previewInvoice(next, 2));
+    assertStringIncludes(html, "{{ customer.name }} owes");
+    assertStringIncludes(html, `owes ${formatCurrency(700)}`);
+  });
+
+  test("does not keep the built-in text", async () => {
+    const attendeeId = await createOwing(1500);
+    const preview = await previewInvoice(attendeeId, 1);
+    expectRedirect(
+      await createInvoicePost(
+        attendeeId,
+        1,
+        previewedBody(await preview.text()),
+      ),
+      /^\/admin\/invoices\/1(\?|$)/,
+    );
+
+    await settingsAsStored();
+    expect(settings.invoiceBodyTemplate).toBe("");
   });
 
   test("refuses invoice text that is too long", async () => {
@@ -319,7 +361,7 @@ describeWithEnv("server (admin invoices)", { db: true }, () => {
       number: "1",
     });
     expect(preview.status).toBe(200);
-    assertStringIncludes(await preview.text(), "# Invoice 1");
+    assertStringIncludes(await preview.text(), "<h1>Invoice 1</h1>");
 
     const response = await postFormAs("/admin/invoices/new", cookie, {
       attendee_id: String(attendeeId),

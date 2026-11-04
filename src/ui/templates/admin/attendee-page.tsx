@@ -8,13 +8,17 @@
 
 import type { AttendeeStatus } from "#db/attendee-statuses.ts";
 import type { ContactRecord } from "#db/contact-preferences.ts";
+import type { InvoiceSummary } from "#db/invoices.ts";
 /* jscpd:ignore-start */
 import { compact } from "#fp";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
+import { adminPath } from "#shared/admin-surface.ts";
 import { targetQuery } from "#shared/bulk-email-targets/registry.ts";
 import { formatCurrency } from "#shared/currency.ts";
+import { formatDateLabel } from "#shared/date-labels.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
+import { INVOICE_STATUS_LABEL_KEYS } from "#shared/invoices/status.ts";
 import type { LineItem } from "#shared/line-item.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { defineTable } from "#shared/tables/definition.ts";
@@ -73,6 +77,21 @@ export const ContactNotes = ({ notes }: { notes: string }): JSX.Element => (
   </div>
 );
 
+/** The attendee's newest invoice as one row: its number links to the invoice,
+ *  and the row names the status and the date it was made. A booking holds at
+ *  most one open invoice, so the table needs no list. */
+const invoiceSummaryRow = (
+  invoices: readonly InvoiceSummary[],
+): SummaryRow | null => {
+  const [invoice] = invoices;
+  if (invoice === undefined) return null;
+  return {
+    href: adminPath("invoice", { id: invoice.id }),
+    labelKey: "entity.invoice",
+    value: `${invoice.id} — ${t(INVOICE_STATUS_LABEL_KEYS[invoice.status])} — ${formatDateLabel(invoice.created.slice(0, 10))}`,
+  };
+};
+
 /**
  * The Overview summary rows — the single-attendee key/value table. Optional
  * contact fields are omitted when blank so the table only spells out what's
@@ -85,11 +104,14 @@ export const attendeeSummaryRows = ({
   allowedDomain,
   phonePrefix,
   hasRealLine,
+  invoices,
 }: {
   attendee: Attendee;
   allowedDomain: string;
   phonePrefix: string;
   hasRealLine: boolean;
+  /** The attendee's invoices, newest first. */
+  invoices: readonly InvoiceSummary[];
 }): SummaryRow[] =>
   compact([
     {
@@ -151,6 +173,7 @@ export const attendeeSummaryRows = ({
       labelKey: "common.registered",
       value: formatDatetimeShort(attendee.created),
     },
+    invoiceSummaryRow(invoices),
   ]);
 
 /** Render one channel's outreach detail: the last-contact recap, the
