@@ -23,12 +23,11 @@ import {
   pageTypeRefHtml,
 } from "#routes/admin/ledger/route-helpers.ts";
 import { accountFromRoute } from "#routes/admin/ledger/statements.ts";
-import { type AuthSession, formPolicyFor, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import type { IdParam } from "#routes/entity.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
+import { formGuardAt } from "#routes/route-gates.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
@@ -103,17 +102,6 @@ const loadAddableAccount = async (
     : null;
 };
 
-type OwnerLedgerFormHandler = ResponseHandler<
-  [session: AuthSession, form: FormParams]
->;
-
-const ownerLedgerForm = (
-  pattern: string,
-  request: Request,
-  handler: OwnerLedgerFormHandler,
-): Promise<Response> =>
-  withAuth(request, formPolicyFor(adminDestinationAt(pattern)), handler);
-
 const accountStatementPath = (account: AccountRef): string =>
   `/admin/ledger/${account.type}/${account.id}`;
 
@@ -175,7 +163,7 @@ const loadedEntryPage = async <Loaded>(
 const postedTransferRoute =
   (pattern: string, handler: PostedTransferHandler) =>
   (request: Request, params: IdParam): Promise<Response> =>
-    ownerLedgerForm(pattern, request, async (_session, form) => {
+    formGuardAt(pattern)(request, async (_session, form) => {
       const posted = await editPostedTransfer(params.id, form);
       return posted ? handler(posted, form) : notFoundResponse();
     });
@@ -201,8 +189,7 @@ export const handleLedgerEntryAddGet: TypedRouteHandler<"GET /admin/ledger/:type
 export const handleLedgerEntryAddPost: TypedRouteHandler<
   "POST /admin/ledger/:type/:ref/add"
 > = (request, { type, ref }) =>
-  ownerLedgerForm(
-    "/admin/ledger/:type/:ref/add",
+  formGuardAt("/admin/ledger/:type/:ref/add")(
     request,
     async (session, form) => {
       const loaded = await loadAddableAccount(type, ref);

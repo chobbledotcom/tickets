@@ -17,7 +17,7 @@ import {
   PRICE_TYPE_GROUP,
   PRICE_TYPE_GROUP_DAY,
 } from "#db/price-types.ts";
-import { compact, mapNotNullish } from "#fp";
+import { compact, mapNotNullish, requiredMapValue } from "#fp";
 import { type DayPrices, parseDayPrices } from "#types";
 
 /** The `price_id` composition for one (package group, day count) override. The
@@ -197,7 +197,11 @@ const foldGroupDayRows = (
 export const getGroupDayPrices = async (
   groupId: number,
 ): Promise<Map<number, Map<number, number>>> =>
-  (await getGroupDayPricesByGroupIds([groupId])).get(groupId)!;
+  requiredMapValue(
+    await getGroupDayPricesByGroupIds([groupId]),
+    groupId,
+    `Group ${groupId} missing`,
+  );
 
 /** Per-day member overrides for several groups in one query (the API list
  * endpoint's bulk hydration), keyed by group id. Every requested group is

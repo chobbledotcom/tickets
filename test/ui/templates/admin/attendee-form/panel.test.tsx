@@ -1,11 +1,9 @@
 // jscpd:ignore-start -- fixtures mirror the sibling editor tests
 import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { Raw } from "#jsx/jsx-runtime.ts";
 import type { AttendeeFormTemplateData } from "#templates/admin/attendee-form/types.ts";
 import {
   AttendeeFormPanel,
-  AttendeesPage,
   attendeeFormPage,
 } from "#templates/admin/attendee-form.tsx";
 import {
@@ -393,16 +391,6 @@ describe("attendee form panel", () => {
 
 describe("attendee form page shells", () => {
   beforeAll(setupAdminPageTest);
-
-  test("the attendees page shell defaults its active section to the list", () => {
-    const html = AttendeesPage({
-      children: Raw({ html: "<p>Body</p>" }),
-      session: OWNER_SESSION,
-      title: "Attendees",
-    });
-    assertStringIncludes(html, '<a class="active" href="/admin/attendees">');
-    assertStringIncludes(html, "<h1>Attendees</h1>");
-  });
 
   test("the create page carries the new-attendee section and tab title", () => {
     const html = attendeeFormPage(data(), OWNER_SESSION);

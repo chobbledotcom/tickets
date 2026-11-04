@@ -31,7 +31,7 @@ import { ASSIGN_UNDATED_FIELD } from "#templates/admin/listings/assign-day-card.
 import type { ListingWithCount } from "#types";
 import { listingPage } from "./listing-page.ts";
 import { loadListingEditPanel } from "./listing-page-management-panels.ts";
-import { buildUpdateListingResource, parseGroupIds } from "./listings-form.ts";
+import { buildUpdateListingResource } from "./listings-form.ts";
 /* jscpd:ignore-end */
 
 /** What the assign card shows: the warning's count, the dates offered, and
@@ -246,6 +246,12 @@ export const renderListingSwitchAssignPage = async (
 ): Promise<Response> =>
   listingPage.renderPage(session, stored.id, "edit", {
     panel: (entity, ctx) =>
-      loadListingEditPanel(entity, ctx, error, parseGroupIds(form), page),
+      loadListingEditPanel(
+        entity,
+        ctx,
+        error,
+        form.getNumberArray("group_ids"),
+        page,
+      ),
     status,
   });

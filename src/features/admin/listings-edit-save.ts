@@ -30,7 +30,6 @@ import { getListingAggregateFields } from "#templates/fields/aggregate.ts";
 import type { AdminSession, Listing, ListingWithCount } from "#types";
 import { listingPage } from "./listing-page.ts";
 import { loadListingEditPanel } from "./listing-page-management-panels.ts";
-import { parseGroupIds } from "./listings-form.ts";
 import { processUploadsAndRedirect } from "./listings-uploads.ts";
 
 /** The earliest over-capacity day across every group the listing belongs to,
@@ -92,7 +91,7 @@ export const renderListingEditError: EditErrorRenderer = editErrorRenderer(
       entity,
       ctx,
       rejected.error,
-      parseGroupIds(rejected.form),
+      rejected.form.getNumberArray("group_ids"),
     ),
 );
 

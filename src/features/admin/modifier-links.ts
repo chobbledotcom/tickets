@@ -16,12 +16,10 @@ import { childAddOnSaveError } from "./modifier-add-on-reachability.ts";
 
 /* jscpd:ignore-end */
 
-/** Selected ids from a checkbox group, positive integers only. */
+/** Selected ids from a checkbox group, positive integers only. A value that is
+ *  not a plain whole number is dropped. */
 const selectedIds = (form: FormParams, field: string): number[] =>
-  form
-    .getAll(field)
-    .map(Number)
-    .filter((n) => Number.isInteger(n) && n > 0);
+  form.getNumberArray(field);
 
 /** Run a modifier-link save (scope or answer) for the loaded modifier, then
  * redirect back to its edit page with a flash. Shared by the scope and answer

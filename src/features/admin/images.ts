@@ -48,6 +48,7 @@ import { compareByName, sortByName } from "#shared/name-order.ts";
 import { featureGate } from "#shared/response-steps.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import { deleteImageStorageFilesStrict } from "#shared/storage-cleanup.ts";
+import { parsePositiveInt } from "#shared/validation/number.ts";
 
 import {
   adminImageDeletePage,
@@ -193,8 +194,8 @@ const parseImageTargets = (form: FormParams): ImageUseTarget[] =>
     .getAll("image_items")
     .map((raw) => {
       const [itemType = "", itemId = ""] = raw.split(":");
-      const id = Number(itemId);
-      return isImageUseItemType(itemType) && Number.isSafeInteger(id) && id > 0
+      const id = parsePositiveInt(itemId);
+      return isImageUseItemType(itemType) && id !== null
         ? imageUseTargets.of(itemType)(id)
         : null;
     })

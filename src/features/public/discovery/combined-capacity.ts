@@ -7,7 +7,6 @@
  *  {@link #shared/capacity-fit.ts}. This module folds the children's own
  *  gates and dates into it, once per offered (date, day count) pair. */
 
-/* jscpd:ignore-start */
 import {
   buildTicketListing,
   childActive,
@@ -18,6 +17,8 @@ import {
 import type { getSharedGroupCapacities } from "#db/attendees/capacity/groups.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import type { Holiday } from "#db/holidays.ts";
+/* jscpd:ignore-start */
+import { requiredMapValue } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
 import {
   type ChildCapacityPart,
@@ -256,7 +257,12 @@ const reserveLineInPools = (
   groupIds: readonly number[],
 ): void => {
   for (const groupId of groupIds) {
-    if (charged.has(groupId)) charged.set(groupId, charged.get(groupId)! - 1);
+    if (charged.has(groupId)) {
+      charged.set(
+        groupId,
+        requiredMapValue(charged, groupId, `Group ${groupId} missing`) - 1,
+      );
+    }
   }
 };
 

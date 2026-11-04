@@ -28,7 +28,7 @@ import {
   standaloneListingIds,
 } from "#booking/tree.ts";
 import { getOrCreateStringIds } from "#db/questions/strings.ts";
-import { byId } from "#fp";
+import { byId, requiredMapValue } from "#fp";
 import {
   type AnswerInfo,
   listingAnswerMaps,
@@ -254,7 +254,11 @@ export const computeListingTextAnswerIdMap = async (
       // drop from the signed metadata.
       answers.map((answer) => ({
         q: answer.questionId,
-        s: stringIds.get(answer.text)!,
+        s: requiredMapValue(
+          stringIds,
+          answer.text,
+          `Question ${answer.questionId} answer text missing`,
+        ),
       })),
     ]),
   );

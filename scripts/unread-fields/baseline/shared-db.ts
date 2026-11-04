@@ -95,16 +95,6 @@ export const SHARED_DB_BASELINE: readonly FindingIdentity[] = [
     ["src/shared/db/listing-parents.ts", [{ name: "ParentAndChildLinkMaps" }]],
   ])(["childIdsByParent"]),
   ...identitiesAt([
-    ["src/shared/db/modifiers.ts", [{ name: "ModifierInput" }]],
-  ])([
-    "calcKind",
-    "calcValue",
-    "codeIndex",
-    "direction",
-    "minSubtotal",
-    "stock",
-  ]),
-  ...identitiesAt([
     ["src/shared/db/news-posts.ts", [{ name: "NewsPostInput" }]],
   ])(["created"]),
   ...identitiesAt([

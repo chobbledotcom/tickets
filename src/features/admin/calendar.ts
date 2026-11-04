@@ -33,6 +33,7 @@ import {
   map,
   pipe,
   reduce,
+  requiredMapValue,
   sortStrings,
   unique,
 } from "#fp";
@@ -125,8 +126,11 @@ const compileDateOptions = (
       filter((d: string) =>
         standardListings.some(
           (e) =>
-            standardListingDateMap.get(d)!.includes(e.id) &&
-            e.attendee_count > 0,
+            requiredMapValue(
+              standardListingDateMap,
+              d,
+              `Calendar date ${d} missing`,
+            ).includes(e.id) && e.attendee_count > 0,
         ),
       ),
     )(standardDates),
@@ -290,7 +294,7 @@ const buildAvailabilityRows = async (
       id: l.id,
       name: l.name,
       // getListingRemainingForRange returns an entry for every listing passed.
-      remaining: remaining.get(l.id)!,
+      remaining: requiredMapValue(remaining, l.id, `Listing ${l.id} missing`),
       total: l.max_attendees,
       unitPrice: l.unit_price,
     }),

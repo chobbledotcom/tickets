@@ -6,11 +6,9 @@
 import { t } from "#i18n";
 import type { PackageMemberInput } from "#shared/catalog-fields/fields.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import {
-  isValidMemberQuantity,
-  wholeNumberValue,
-} from "#shared/groups/package-member-values.ts";
+import { isValidMemberQuantity } from "#shared/groups/package-member-values.ts";
 import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
+import { parsePositiveInt } from "#shared/validation/number.ts";
 import { type DayPrices, MAX_DURATION_DAYS } from "#types";
 
 /** Parse one package-price input to minor units. The form-level validation
@@ -24,13 +22,17 @@ import { type DayPrices, MAX_DURATION_DAYS } from "#types";
 const parsePackagePrice = (raw: string): number | null =>
   parseOptionalMinorUnits(raw);
 
-/** Parse one package-quantity input. The form-level validation
- *  ({@link validatePackageMemberForm}) has already refused a non-digit or
- *  sub-1 value. A blank input is the one legal "no override" form, and a
- *  package always includes at least one of each member. */
+/** Parse one package-quantity input. A blank input is the one legal "no
+ *  override" form, and a package always includes at least one of each member.
+ *  The form-level validation ({@link validatePackageMemberForm}) refuses a
+ *  malformed value first, so a malformed value here throws. */
 const parsePackageQuantity = (raw: string): number => {
-  const quantity = wholeNumberValue(raw.trim());
-  return quantity ?? 1;
+  if (raw.trim() === "") return 1;
+  const quantity = parsePositiveInt(raw);
+  if (quantity === null) {
+    throw new Error(`Package quantity is not a whole number: ${raw}`);
+  }
+  return quantity;
 };
 
 /** The per-listing `package_day_price_<listingId>_<n>` inputs folded into
@@ -72,13 +74,9 @@ const PACKAGE_DAY_PRICE_KEY = /^package_day_price_(\d+)_(\d+)$/;
  *  override is dead data. The API day-price map applies the same rule to its
  *  keys. */
 const validMemberDayPrice = (raw: string, key: string): boolean => {
-  const day = wholeNumberValue(key.slice(key.lastIndexOf("_") + 1));
+  const day = parsePositiveInt(key.slice(key.lastIndexOf("_") + 1));
   return (
-    day !== null &&
-    Number.isSafeInteger(day) &&
-    day >= 1 &&
-    day <= MAX_DURATION_DAYS &&
-    parsePackagePrice(raw) !== null
+    day !== null && day <= MAX_DURATION_DAYS && parsePackagePrice(raw) !== null
   );
 };
 
@@ -94,10 +92,7 @@ const MEMBER_FORM_FIELDS: readonly {
   {
     key: PACKAGE_QTY_KEY,
     message: "error.package_member_quantity",
-    valid: (raw) => {
-      const quantity = wholeNumberValue(raw);
-      return quantity !== null && isValidMemberQuantity(quantity);
-    },
+    valid: (raw) => isValidMemberQuantity(parsePositiveInt(raw)),
   },
   {
     key: PACKAGE_PRICE_KEY,

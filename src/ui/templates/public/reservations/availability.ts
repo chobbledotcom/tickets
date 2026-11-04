@@ -2,9 +2,11 @@
  * booking tree plus which listings get their own standalone row, the overall
  * sold-out check, and the lone header listing whose details head the page. */
 
+/* jscpd:ignore-start -- imports */
 import { type BuildTreeInput, buildBookingTree } from "#booking/build-tree.ts";
 import type { TicketListing } from "#booking/model.ts";
 import {
+  type PackageBundleLimit,
   type PackageLimitInfo,
   pageBundleLimits,
   rowTicketLimit,
@@ -15,8 +17,7 @@ import {
   type BookingTree,
   standaloneListingIds,
 } from "#booking/tree.ts";
-/* jscpd:ignore-start */
-import { reduce } from "#fp";
+import { reduce, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import { isReadOnly } from "#shared/env.ts";
 import type { ListingWithCount } from "#types";
@@ -53,20 +54,18 @@ const standaloneRowUnavailable = (
 
 /** Each page package's bundle limit, plus whether the whole page should show as
  * sold out (nothing standalone left AND no package bookable). */
-export const packagePageAvailability = (
-  packages: PagePackage[],
+export const packagePageAvailability = <P extends PagePackage>(
+  packages: P[],
   tree: BookingTree,
   listings: TicketListing[],
   standaloneRowIds: ReadonlySet<number>,
   page: PackageLimitInfo,
-): { packageLimits: Map<number, number>; soldOut: boolean } => {
+): { packageLimits: PackageBundleLimit<P>[]; soldOut: boolean } => {
   const packageLimits = pageBundleLimits(tree, packages, page);
   const standaloneUnavailable = listings
     .filter((info) => standaloneRowIds.has(info.listing.id))
     .every((e) => standaloneRowUnavailable(e, page));
-  const packagesUnavailable = [...packageLimits.values()].every(
-    (limit) => limit === 0,
-  );
+  const packagesUnavailable = packageLimits.every(({ limit }) => limit === 0);
   return {
     packageLimits,
     // Sold out only when every standalone row AND every bundle is dead (a
@@ -87,20 +86,22 @@ export const headerListing = (
     ? listings[0]!.listing
     : null;
 
-/** Build the page's booking tree and the row-shaping facts read off it: which
- * listings get their own quantity row (those with a standalone BUYER_CHOICE
- * node), which node each row reads its field names from (a dual-path listing
- * resolves to its standalone node, not its member node), and whether the page
- * IS one package (every listing a member, nothing sold beside it — the classic
+/** One page listing with the booking node its row reads. */
+export type PageListingRow = { info: TicketListing; node: BookingNode };
+
+/** Build the page's booking tree and the row-shaping facts read off it: each
+ * listing with its row's node, which listings get their own quantity row
+ * (those with a standalone BUYER_CHOICE node), and whether the page IS one
+ * package (every listing a member, nothing sold beside it — the classic
  * package-page layout). */
 export const buildPageTree = (
   input: BuildTreeInput,
   packageCount: number,
 ): {
-  tree: BookingTree;
+  rows: PageListingRow[];
   standaloneRowIds: Set<number>;
-  nodeByListingId: Map<number, BookingNode>;
   singlePackagePage: boolean;
+  tree: BookingTree;
 } => {
   const tree = buildBookingTree(input);
   const standaloneRowIds = standaloneListingIds(tree);
@@ -113,8 +114,18 @@ export const buildPageTree = (
     }
     return acc;
   }, new Map<number, BookingNode>())([...tree.nodes]);
+  // The tree is built from this page's listings, so every listing has a node.
+  // Pair them here, once, so no renderer carries a lookup or a message.
+  const rows = input.listings.map((info) => ({
+    info,
+    node: requiredMapValue(
+      nodeByListingId,
+      info.listing.id,
+      `Listing ${info.listing.id} has no booking node`,
+    ),
+  }));
   return {
-    nodeByListingId,
+    rows,
     singlePackagePage: packageCount === 1 && standaloneRowIds.size === 0,
     standaloneRowIds,
     tree,

@@ -7,13 +7,15 @@
 
 import type { SchemaAnomaly } from "#db/schema-anomaly-scan.ts";
 import type { UnansweredSumupMoney } from "#db/sumup-recovery.ts";
+import { requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import { formatTimeAgo } from "#shared/dates.ts";
 import { nowMs } from "#shared/now.ts";
 import { SCHEMA_ATLAS_MACHINES } from "#shared/schema-atlas/index.ts";
 import type { AtlasActor } from "#shared/schema-atlas/types.ts";
-import { settingsArticlePage } from "#templates/admin/settings/page-shell.tsx";
+import { settingsPage } from "#templates/admin/settings/page-shell.tsx";
 import { JsonScript } from "#templates/components/json-script.tsx";
+import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import type { AdminSession, Theme } from "#types";
 
 const ACTOR_CLASS: Record<AtlasActor, string> = {
@@ -46,9 +48,15 @@ type ViewMachine = {
   readonly title: string;
 };
 
+/** The label an atlas edge shows for the state it names. The atlas spec is
+ *  checked by its own test, so a throw here names a spec defect. */
+const atlasStateLabel = (
+  id: string,
+  labels: ReadonlyMap<string, string>,
+): string => requiredMapValue(labels, id, `Schema atlas has no state ${id}`);
+
 /** Resolve every catalog key once, server-side: the client script receives
- * finished words and does no translation work. Label lookups are guaranteed
- * by construction — the map is built from the same states the edges name. */
+ * finished words and does no translation work. */
 const viewMachine = (
   machine: (typeof SCHEMA_ATLAS_MACHINES)[number],
 ): ViewMachine => {
@@ -64,14 +72,14 @@ const viewMachine = (
         actor: edge.actor,
         label: t(edge.labelKey),
         to: edge.to,
-        toLabel: labels.get(edge.to)!,
+        toLabel: atlasStateLabel(edge.to, labels),
       })),
       facts: state.facts.map((fact) => ({
         label: t(fact.labelKey),
         value: fact.value,
       })),
       id: state.id,
-      label: labels.get(state.id)!,
+      label: t(state.labelKey),
       layout: state.layout,
       start: state.start === true,
     })),
@@ -226,16 +234,11 @@ export const adminSchemaAtlasPage = (
   unanswered: UnansweredSumupMoney,
 ): string => {
   const machines = SCHEMA_ATLAS_MACHINES.map(viewMachine);
-  return settingsArticlePage(
-    "schema.title",
-    "schema.title",
-    "schema.intro",
-    "/admin/schema",
-  )(
-    session,
-    theme,
-  )(
+  return settingsPage(t("schema.title"), "/admin/schema")(session, theme)(
     <>
+      <ProseHeading heading={t("schema.title")}>
+        <p>{t("schema.intro")}</p>
+      </ProseHeading>
       <div class="prose">
         <p class="schema-legend">
           <strong>{t("schema.legend.heading")}</strong>{" "}

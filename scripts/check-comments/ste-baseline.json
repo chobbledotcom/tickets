@@ -249,7 +249,7 @@
     "semicolon": 7
   },
   "src/shared/booking/fold-tree.ts": {
-    "long-sentence": 13,
+    "long-sentence": 12,
     "contraction": 1,
     "semicolon": 3
   },
@@ -499,10 +499,10 @@
   },
   "src/shared/db/attendees/servicing.ts": {
     "banned-modal": 8,
-    "long-sentence": 28,
+    "long-sentence": 27,
     "semicolon": 8,
-    "contraction": 7,
-    "participle": 2
+    "contraction": 6,
+    "participle": 1
   },
   "src/shared/db/attendees/update.ts": {
     "long-sentence": 2,
@@ -1616,7 +1616,7 @@
   "src/ui/templates/admin/attendee-form.tsx": {
     "long-sentence": 5,
     "contraction": 2,
-    "semicolon": 4
+    "semicolon": 3
   },
   "src/ui/templates/admin/attendee-ledger-panel.tsx": {
     "long-sentence": 5,
@@ -1897,7 +1897,7 @@
   "src/ui/templates/fields/modifier.ts": {
     "long-sentence": 2,
     "participle": 1,
-    "semicolon": 2,
+    "semicolon": 1,
     "banned-modal": 1
   },
   "src/ui/templates/fields/picklist-options.ts": {
@@ -2011,9 +2011,9 @@
     "contraction": 2
   },
   "src/ui/templates/tickets.tsx": {
-    "long-sentence": 7,
-    "contraction": 4,
+    "contraction": 3,
     "banned-modal": 3,
+    "long-sentence": 7,
     "semicolon": 2
   }
 }

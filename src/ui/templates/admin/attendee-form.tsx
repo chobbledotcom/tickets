@@ -42,7 +42,6 @@ import {
   FormSections,
 } from "#templates/components/aggregate-sections.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
-import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import {
   idOptions,
   SelectField,
@@ -411,39 +410,6 @@ export const AttendeeFormPanel = ({ data }: AttendeeFormProps): JSX.Element => (
     <AttendeeEditForm data={data} />
   </>
 );
-
-/**
- * The standard admin-attendees page shell: the {@link AdminPage} scaffold and
- * a `prose` heading whose `<h1>` reuses the page title. Extra prose
- * (below the heading) goes in `prose`; the page body (below the prose block)
- * goes in `children`. Shared by the create form and the contact-history editor.
- */
-export const AttendeesPage = (props: {
-  active?: string;
-  children: JSX.Element;
-  prose?: JSX.Element;
-  session: AdminSession;
-  title: string;
-}): string => {
-  const {
-    active = "/admin/attendees",
-    children,
-    prose,
-    session,
-    title,
-  } = props;
-  return renderAdminPageSpec({
-    active,
-    body: (
-      <>
-        <ProseHeading heading={title}>{prose}</ProseHeading>
-        {children}
-      </>
-    ),
-    session,
-    title,
-  });
-};
 
 /** Render the standalone create page (/admin/attendees/new). Edit renders
  * through the attendee entity page instead. */

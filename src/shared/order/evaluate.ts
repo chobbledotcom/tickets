@@ -1,3 +1,4 @@
+import { requiredMapValue } from "#fp";
 import type {
   OrderOption,
   OrderOptionState,
@@ -142,7 +143,12 @@ const firstShortPool = (ledger: Ledger, demand: Demand): ShortPool | null => {
 const commit = (ledger: Ledger, demand: Demand): void => {
   for (const { day, pool, units } of demandEntries(demand)) {
     const remaining = remainingOn(ledger, pool, day);
-    if (remaining !== undefined) ledger.get(pool)!.set(day, remaining - units);
+    if (remaining !== undefined) {
+      requiredMapValue(ledger, pool, `Pool ${pool} missing`).set(
+        day,
+        remaining - units,
+      );
+    }
   }
 };
 

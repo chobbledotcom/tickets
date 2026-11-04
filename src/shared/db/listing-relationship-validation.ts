@@ -4,7 +4,7 @@ import { rawListingsTable } from "#db/listings/table.ts";
 import { modifiersTable } from "#db/modifiers.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
 import { refusingTheWriteOn } from "#db/transaction.ts";
-import { unique } from "#fp";
+import { requiredMapValue, unique } from "#fp";
 import {
   childAddOnError,
   type EdgeListing,
@@ -82,8 +82,16 @@ const relationshipError = (
   listings: Map<number, CurrentEdgeListing>,
   scopes: Map<number, AddOnScopeRow[]>,
 ): string | null => {
-  const parent = listings.get(edge.parentId)!;
-  const child = listings.get(edge.childId)!;
+  const parent = requiredMapValue(
+    listings,
+    edge.parentId,
+    `Listing ${edge.parentId} missing`,
+  );
+  const child = requiredMapValue(
+    listings,
+    edge.childId,
+    `Listing ${edge.childId} missing`,
+  );
   const fieldError = edgeFieldError(parent, child);
   if (fieldError || child.bookableAlone) return fieldError;
   const blocked = [...scopes.values()].find((scope) =>

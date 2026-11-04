@@ -18,7 +18,7 @@ import { bunnyDbProvider } from "#shared/bunny-db.ts";
 import { getDefaultDbProvider } from "#shared/config.ts";
 import { getEnv } from "#shared/env.ts";
 import { errorMessage } from "#shared/error-message.ts";
-import { errorResult } from "#shared/result.ts";
+import { errorResult, type Outcome } from "#shared/result.ts";
 import { generateScheduledTaskKey } from "#shared/scheduled-keys.ts";
 import { withSiteDb } from "#shared/site-db.ts";
 import { resolveHostingProvider } from "#shared/site-hosting.ts";
@@ -145,7 +145,7 @@ export const generateEncryptionKey = (): string => {
 export const testDbConnection = async (
   dbUrl: string,
   dbToken: string,
-): Promise<{ ok: true } | { ok: false; error: string }> => {
+): Promise<Outcome> => {
   const result = await withSiteDb({ dbToken, dbUrl }, (client) =>
     client.execute("SELECT 1"),
   );

@@ -32,7 +32,9 @@ import type { FormParams } from "#shared/form-data.ts";
 import { validateForm } from "#shared/forms/validation.ts";
 import { isIncompletePayment } from "#shared/incomplete-payment.ts";
 import { bestEffort } from "#shared/logger.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
+import { parsePositiveInt } from "#shared/validation/number.ts";
 import {
   logAndNotifyRegistration,
   queueManualAddWebhooks,
@@ -130,12 +132,14 @@ const buildCreateAttendeeInput = (
   const { name, email, phone, address, special_instructions, quantity, date } =
     values;
   const isDaily = listing.listing_type === "daily";
-  // Customisable daily bookings span the admin's chosen day count. The shared
-  // boundary clamps whole numbers outside its range and rejects malformed
-  // numbers. Other daily bookings use the fixed duration.
-  const durationDays = listing.customisable_days
-    ? Number(values.day_count)
-    : listing.duration_days;
+  // Customisable daily bookings span the admin's chosen day count. Only a
+  // whole number reaches the booking, so a forged select value never books a
+  // span the form did not offer. Other bookings use the fixed duration: the
+  // form offers a day count for a daily listing only.
+  const durationDays =
+    isDaily && listing.customisable_days
+      ? requireValue(parsePositiveInt(values.day_count), "Day count missing")
+      : listing.duration_days;
   return {
     address: address || "",
     bookings: [

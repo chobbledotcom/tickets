@@ -5,7 +5,7 @@ import {
   type BookingTree,
   nodeFixedQuantity,
 } from "#booking/tree.ts";
-import { sumByKey } from "#fp";
+import { requiredMapValue, sumByKey } from "#fp";
 /* jscpd:ignore-end */
 
 /**
@@ -24,7 +24,11 @@ export const packageQuantityLimit = (
 ): number => {
   const perPackageQty = nodeFixedQuantity;
   const ownLimit = (node: BookingNode): number => {
-    const own = listingById.get(node.listingId)!.maxPurchasable;
+    const own = requiredMapValue(
+      listingById,
+      node.listingId,
+      `Listing ${node.listingId} missing`,
+    ).maxPurchasable;
     const childLimit = childLimitByListingId.get(node.listingId);
     const tickets = childLimit === undefined ? own : Math.min(own, childLimit);
     return Math.floor(tickets / perPackageQty(node));
@@ -50,7 +54,11 @@ export const packageQuantityLimit = (
     limit = Math.min(
       limit,
       ticketsThatFitInPool(
-        groupRemainingByGroupId.get(groupId)!,
+        requiredMapValue(
+          groupRemainingByGroupId,
+          groupId,
+          `Group ${groupId} missing`,
+        ),
         ticketsNeeded,
       ),
     );

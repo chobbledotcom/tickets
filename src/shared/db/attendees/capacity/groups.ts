@@ -4,7 +4,7 @@ import { dateToRange } from "#db/capacity.ts";
 import { inPlaceholders, queryAll } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { columnMapByIds } from "#db/query.ts";
-import { mapBy, mapById, unique } from "#fp";
+import { mapBy, mapById, requiredMapValue, unique } from "#fp";
 import { capacityRuleTypeSql, countsPerDate } from "#shared/capacity-rules.ts";
 import type { BatchLookup } from "#shared/request-cache.ts";
 import type { ListingType } from "#types";
@@ -130,7 +130,12 @@ export const getGroupPerDayRemaining: PerIdDayLoader<
   return mapById(({ id, max_attendees, base }: (typeof caps)[number]) => {
     const loads = perDayLoads(rowsByGroup.get(id) ?? [], days);
     return new Map(
-      days.map((day) => [day, max_attendees - base - loads.get(day)!]),
+      days.map((day) => [
+        day,
+        max_attendees -
+          base -
+          requiredMapValue(loads, day, `Day ${day} missing`),
+      ]),
     );
   })(caps);
 };

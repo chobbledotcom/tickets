@@ -5,7 +5,14 @@ import type {
   ServicingEvent,
   ServicingEventSummary,
 } from "#db/attendees/servicing.ts";
-import { fieldById, filter, identity, map, mapById } from "#fp";
+import {
+  fieldById,
+  filter,
+  identity,
+  map,
+  mapById,
+  requiredMapValue,
+} from "#fp";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import type { AuthSession } from "#routes/auth.ts";
@@ -117,7 +124,13 @@ const servicingListingsTable = defineTable<
         min="0"
         name={`quantity_${listing.id}`}
         type="number"
-        value={String(quantities.get(listing.id)!)}
+        value={String(
+          requiredMapValue(
+            quantities,
+            listing.id,
+            `Listing ${listing.id} missing`,
+          ),
+        )}
       />
     ),
   ),

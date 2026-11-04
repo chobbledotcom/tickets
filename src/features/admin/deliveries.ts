@@ -27,7 +27,7 @@ import { settings } from "#db/settings.ts";
 import { userAgents } from "#db/user-agents.ts";
 /* jscpd:ignore-end */
 /* jscpd:ignore-start */
-import { fieldById, unique } from "#fp";
+import { fieldById, requiredMapValue, unique } from "#fp";
 import { t } from "#i18n";
 import { getDateFilter, getMonthFilter } from "#routes/admin/actions.ts";
 import {
@@ -88,21 +88,33 @@ const bookingsForDate = (
     const key = `${leg.attendeeId}|${leg.listingId}`;
     let booking = byBooking.get(key);
     if (!booking) {
-      const attendee = lookups.attendeeById.get(leg.attendeeId)!;
+      const attendee = requiredMapValue(
+        lookups.attendeeById,
+        leg.attendeeId,
+        `Attendee ${leg.attendeeId} missing`,
+      );
       booking = {
         address: attendee.address,
         attendeeId: leg.attendeeId,
         attendeeName: attendee.name,
         legs: [],
         listingId: leg.listingId,
-        listingName: lookups.listingNameById.get(leg.listingId)!,
+        listingName: requiredMapValue(
+          lookups.listingNameById,
+          leg.listingId,
+          `Listing ${leg.listingId} missing`,
+        ),
         phone: attendee.phone,
         ticketToken: attendee.ticket_token,
       };
       byBooking.set(key, booking);
     }
     booking.legs.push({
-      agentName: lookups.agentNameById.get(leg.agentId)!,
+      agentName: requiredMapValue(
+        lookups.agentNameById,
+        leg.agentId,
+        `Agent ${leg.agentId} missing`,
+      ),
       date: leg.date,
       done: leg.done,
       kind: leg.kind,

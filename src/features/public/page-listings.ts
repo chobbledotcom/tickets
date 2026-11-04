@@ -12,7 +12,7 @@ import {
   listingParents,
 } from "#db/listing-parents.ts";
 import { getListingsBySlugs } from "#db/listings/records.ts";
-import { compact } from "#fp";
+import { compact, requiredMapValue } from "#fp";
 import { notFoundResponse } from "#routes/response.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 /* jscpd:ignore-end */
@@ -65,7 +65,12 @@ export const dropChildListings = async (
     listings.map((listing) => listing.id),
   );
   return listings.filter(
-    (listing) => parentsByChild.get(listing.id)!.length === 0,
+    (listing) =>
+      requiredMapValue(
+        parentsByChild,
+        listing.id,
+        `Listing ${listing.id} missing`,
+      ).length === 0,
   );
 };
 

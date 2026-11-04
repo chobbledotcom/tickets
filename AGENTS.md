@@ -178,6 +178,15 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
   needs.
 - **Unify systems — the answer is yes**: When two systems do almost the same
   job, find the single abstraction that does both.
+- **Copy the shared shape, not the nearest one**: When a helper already does
+  the job, use it and delete the local copy in the same change. A record form
+  POST uses `createIdEntityHandler` with `formGuard`. A lookup the boundary
+  cannot prove uses `requiredMapValue`. A whole-number form field parses with
+  `parseSignedInt` and names its rule with `validateWholeNumber`. A page opens
+  through `renderAdminPage` or `renderAdminPageSpec` at its own call site, not
+  through a local wrapper. `src/features/admin/built-site-form.ts`,
+  `src/features/admin/images.ts` and `src/ui/templates/fields/modifier.ts` are
+  the shapes to copy.
 - **No alias exports**: Never export a name that only renames an imported
   method. Expose the underlying helper and let callers use it. A thin wrapper
   that adds a default, a transformation, or a guard is fine.
@@ -367,6 +376,11 @@ error.
   `null`, `""`, `0`, or `[]` as a "not found" stand-in. When "not found" is a
   genuine documented outcome, name it with the `*OrNull` suffix and a `| null`
   return type, and comment why the absence is expected.
+- **Validate once at the boundary, then trust it.** Check the facts a record
+  must satisfy where the record enters: a load, a parse, or a join. Give a
+  renderer complete rows, not a map and a key. A lookup with a hand-written
+  message in render code shows a missing boundary. Pair the data there, or give
+  the shape the guarantee.
 
 ## Simple Language — How We Talk To Users
 
@@ -449,17 +463,20 @@ SQL, decrypted-late PII.
 ## FP Imports
 
 ```typescript
-import { compact, filter, map, pipe, reduce, unique } from "#fp";
+import { filter, map, pipe } from "#fp";
 ```
 
-The helpers `#fp` exports are documented on each definition in `src/fp.ts`. Read
-those before you hand-roll a collection step. For an operation `#fp` does not
-cover, use `@std/collections` directly, and wrap it in a curried `#fp` adapter
-once more than one caller needs it. `@std/collections` has no `groupBy` export.
-Use native `Object.groupBy` / `Map.groupBy`, or `#fp`'s `groupToMap`. Use
-`for...of` instead of `forEach`, and `reduce` with a mutable accumulator instead
-of an array spread. Currying in domain files uses `#shared/fp-bind.ts`'s
-`bindFirst` over a flat named function - see
+The example above names three of the helpers. The full list is the export list
+in [src/fp.ts](src/fp.ts) — `flatMap`, `compact`, `reduce`, `unique`, and the
+rest. Read each definition before you use it or hand-roll a collection step.
+
+For an operation that `#fp` does not cover, use `@std/collections` directly,
+and wrap it in a curried `#fp` adapter once more than one caller needs it.
+`@std/collections` has no `groupBy` export. Use native `Object.groupBy` /
+`Map.groupBy`, or `#fp`'s `groupToMap`. Use `for...of` instead of `forEach`,
+and `reduce` with a mutable accumulator instead of an array spread. Currying in
+domain files uses `#shared/fp-bind.ts`'s `bindFirst` over a flat named function
+- see
 [Readable by the coverage merge](docs/designing-systems.md#readable-by-the-coverage-merge)
 for why.
 

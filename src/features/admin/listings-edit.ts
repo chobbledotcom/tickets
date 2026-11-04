@@ -62,7 +62,6 @@ import {
 import {
   buildCreateListingResource,
   buildUpdateListingResource,
-  parseGroupIds,
   parseListingForm,
 } from "./listings-form.ts";
 import { copyDuplicatedChildEdges } from "./listings-parents.ts";
@@ -197,7 +196,7 @@ const renderCreateListingError = async (
       error,
       // The group checkboxes the operator submitted, so a rejected create
       // re-renders their selection rather than dropping every group.
-      selectedGroupIds: parseGroupIds(form),
+      selectedGroupIds: form.getNumberArray("group_ids"),
       templateId,
       values: form.toRenderValues(),
     },
