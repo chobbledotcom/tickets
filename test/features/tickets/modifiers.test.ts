@@ -14,7 +14,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { decryptFirstAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { singleModifierMeta } from "#test-utils/factories.ts";
+import { signedMeta, singleModifierMeta } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
@@ -132,6 +132,66 @@ describeWithEnv("ticket view > modifiers", { db: true }, () => {
     assertStringIncludes(
       html,
       `ticket-card-modifier-amount">${formatSignedCurrency(100)}</span>`,
+    );
+  });
+
+  test("puts each card's share of a charge on its own price", async () => {
+    await setupStripe();
+    const costly = await createTestListing({
+      maxAttendees: 50,
+      unitPrice: 10_000,
+    });
+    const cheap = await createTestListing({
+      maxAttendees: 50,
+      unitPrice: 1000,
+    });
+    const modifier = await modifiersTable.insert({
+      calcKind: "percent",
+      calcValue: 10,
+      direction: "charge",
+      name: "Service charge",
+      trigger: "automatic",
+    });
+    // £100 + £10 of tickets, plus the 10% charge on both.
+    const amountTotal = 12_100;
+    await expectWebhookProcessed(
+      checkoutSessionEvent({
+        amountTotal,
+        eventId: "evt_ticket_two_prices",
+        metadata: signedMeta(
+          {
+            email: "priced@example.com",
+            items: JSON.stringify([
+              { e: costly.id, p: 10_000, q: 1 },
+              { e: cheap.id, p: 1000, q: 1 },
+            ]),
+            modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
+            name: "Two Price Buyer",
+          },
+          amountTotal,
+        ),
+        paymentIntent: "pi_evt_ticket_two_prices",
+        sessionId: "cs_evt_ticket_two_prices",
+      }),
+    );
+    const html = await ticketPageHtml(await decryptFirstAttendee(costly.id));
+    // The charge is a tenth of each card's own price: £10 on the first card
+    // and £1 on the second.
+    assertStringIncludes(
+      html,
+      `ticket-card-modifier-amount">${formatSignedCurrency(1000)}</span>`,
+    );
+    assertStringIncludes(
+      html,
+      `ticket-card-total"><strong>Total:</strong> ${formatCurrency(11_000)}</div>`,
+    );
+    assertStringIncludes(
+      html,
+      `ticket-card-modifier-amount">${formatSignedCurrency(100)}</span>`,
+    );
+    assertStringIncludes(
+      html,
+      `ticket-card-total"><strong>Total:</strong> ${formatCurrency(1100)}</div>`,
     );
   });
 });

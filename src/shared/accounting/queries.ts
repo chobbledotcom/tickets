@@ -27,6 +27,7 @@ import {
   attendeeOwedSubquery,
   creditsLessWriteoffDebits,
   LEG_COLUMNS,
+  modifierLeg,
   signedSumCase,
 } from "#accounting/projection-sql.ts";
 import { type LedgerRange, occurredAtRange } from "#accounting/range.ts";
@@ -139,21 +140,18 @@ type OrderModifierRow = {
 };
 
 /** The modifiers that changed the price of each booking order, keyed by the
- *  order's event group. Reads the `modifier` legs only, so the figures are the
- *  sale's own. A modifier leg leaves the attendee for the modifier's account
- *  when it adds, and the modifier's account for the attendee when it reduces. */
+ *  order's event group. It reads the order's `modifier` legs, so each figure is
+ *  the one the sale posted, and a discount keeps its minus sign. */
 export const orderModifierLines = async (
   eventGroups: readonly string[],
 ): Promise<Map<string, OrderModifierLine[]>> => {
   const groups = unique([...eventGroups]);
   if (groups.length === 0) return new Map();
   const rows = await queryAll<OrderModifierRow>(
-    `SELECT event_group, CAST(CASE WHEN dest_type = '${MODIFIER}'
-        THEN dest_id ELSE source_id END AS INTEGER) AS modifier_id,
-       SUM(CASE WHEN dest_type = '${MODIFIER}' THEN amount ELSE -amount END)
-         AS amount
+    `SELECT event_group, CAST(${modifierLeg.accountId} AS INTEGER) AS modifier_id,
+       ${modifierLeg.signedAmount} AS amount
      FROM transfers
-     WHERE kind = '${KIND.modifier}' AND event_group IN (${inPlaceholders(groups)})
+     WHERE ${modifierLeg.filter} AND event_group IN (${inPlaceholders(groups)})
      GROUP BY event_group, modifier_id
      ORDER BY event_group, modifier_id`,
     [...groups],

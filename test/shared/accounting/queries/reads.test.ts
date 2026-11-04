@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { type BookingFacts, mapBooking } from "#accounting/mappers.ts";
 import {
   eventGroupHasLegs,
   orderModifierLines,
@@ -139,6 +140,37 @@ describe("db > accounting > transfer reads", () => {
     ]);
     expect(await orderModifierLines(["evt-sum"])).toEqual(
       new Map([["evt-sum", [{ amount: 150, modifierId: 7 }]]]),
+    );
+  });
+
+  test("orderModifierLines reads back what a booking posted", async () => {
+    // Round trip through the writer: the leg directions the booking mapper
+    // chooses are the ones this read must decode, surcharge and discount both.
+    const facts: BookingFacts = {
+      amountPaid: 10_250,
+      attendeeId: 1,
+      bookingFee: 0,
+      eventId: "evt-round-trip",
+      lines: [{ gross: 10_000, listingId: 1 }],
+      modifiers: [
+        { delta: 1000, modifierId: 21 },
+        { delta: -750, modifierId: 22 },
+      ],
+      occurredAt: "2026-06-01T10:00:00.000Z",
+    };
+    const legs = await mapBooking(facts);
+    await postTransfers(legs);
+    const group = legs[0]!.eventGroup;
+    expect(await orderModifierLines([group])).toEqual(
+      new Map([
+        [
+          group,
+          [
+            { amount: 1000, modifierId: 21 },
+            { amount: -750, modifierId: 22 },
+          ],
+        ],
+      ]),
     );
   });
 });
