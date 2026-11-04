@@ -39,7 +39,7 @@ export const previewedBody = (html: string): string => {
     html,
     "<textarea",
     "</textarea>",
-    "the invoice text field",
+    "invoice text field",
   );
   const shown = decodeEntities(field.slice(field.indexOf(">") + 1));
   const spare = textareaBody("");
