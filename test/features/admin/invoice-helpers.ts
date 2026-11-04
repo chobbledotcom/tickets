@@ -34,8 +34,5 @@ export const previewedBody = (html: string): string => {
   const opened = html.indexOf("<textarea");
   const start = html.indexOf(">", opened) + 1;
   const closed = html.indexOf("</textarea>", start);
-  if (opened < 0 || closed < 0) {
-    throw new Error("The preview page offered no invoice text");
-  }
   return decodeEntities(html.slice(start, closed)).slice(1);
 };

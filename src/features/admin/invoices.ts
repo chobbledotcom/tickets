@@ -203,7 +203,7 @@ const withInvoiceForm = async (
   use: (draft: InvoiceDraft, template: string) => Response | Promise<Response>,
 ): Promise<Response> => {
   const hasText = form.has("body");
-  const submitted = hasText ? (form.get("body") ?? "").trim() : "";
+  const submitted = (form.get("body") ?? "").trim();
   if (submitted.length > MAX_TEXTAREA_LENGTH) {
     return errorRedirect(
       adminPath("invoiceNew", {}),
