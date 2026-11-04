@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { type DataTable, Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { t } from "#i18n";
@@ -28,8 +26,6 @@ import {
 } from "#test/specs/support/tickets.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { TEST_ADMIN_PASSWORD } from "#test-utils/internal.ts";
-
-// jscpd:ignore-end
 
 /** The words on the ticket the person is holding, for every Then that reads
  * one. Each read opens the link again, so every assertion is made against a

@@ -8,7 +8,6 @@
 import { logActivity } from "#db/activity-log.ts";
 import { getAttendeeIdsWithPaymentReference } from "#db/payment-references.ts";
 import { settings } from "#db/settings.ts";
-/* jscpd:ignore-start */
 import { csvResponse, listingAttendeesLoader } from "#routes/admin/actions.ts";
 import { generateAttendeesCsv } from "#routes/admin/attendees-csv.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
@@ -21,8 +20,6 @@ import {
   filteredAttendeesHandler,
   loadListingQuestionData,
 } from "./listings-view.ts";
-
-/* jscpd:ignore-end */
 
 export const handleAdminListingExport: TypedRouteHandler<
   "GET /admin/listing/:id/export"

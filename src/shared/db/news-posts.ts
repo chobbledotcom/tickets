@@ -9,12 +9,10 @@
  * attach through the shared `image_uses` table with item_type 'news'.
  */
 
-/* jscpd:ignore-start -- imports */
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import type { BlindIndex, EnvKeyEncrypted } from "#crypto/sealed.ts";
 import type { StoredRowOf } from "#db/chosen-columns.ts";
-/* jscpd:ignore-end */
 import {
   executeBatch,
   insertedRowId,

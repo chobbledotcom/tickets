@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { type ClaimRequest, decideClaim, holdsTheRow } from "#payment/claim.ts";
 import {
   EMPTY_ROW_STATE,
@@ -21,8 +20,6 @@ import {
   tlaSet,
 } from "#scripts/verify-models/data.ts";
 import { requireValue } from "#shared/required-value.ts";
-
-/* jscpd:ignore-end */
 
 /** One worker run. Two runs on the same refund work contend for one row. */
 type Run = {

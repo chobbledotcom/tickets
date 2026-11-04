@@ -1,5 +1,3 @@
-/* jscpd:ignore-start */
-
 import type { AttributeOption, AttributeWithOptions } from "#db/attributes.ts";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
@@ -34,7 +32,6 @@ import {
   listingChoicePanel,
 } from "./listing-panel-frame.tsx";
 import { WritableDangerLink, WritableOnly } from "./writable-only.tsx";
-/* jscpd:ignore-end */
 
 export const attributeNameFlat = (name: string): string =>
   name.replace(/\r?\n/g, " / ");

@@ -6,7 +6,6 @@
  * and a paid default is never a reservation.
  */
 
-/* jscpd:ignore-start */
 import { attendeeStatusApiTable } from "#db/attendee-status-api-table.ts";
 import {
   type AttendeeStatus,
@@ -27,8 +26,6 @@ import {
   requireEntityName,
 } from "#shared/rest/crud-parsers.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
-
-/* jscpd:ignore-end */
 
 const ENTRY = ADMIN_API_RESOURCES["attendee-statuses"];
 

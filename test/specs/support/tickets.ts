@@ -7,7 +7,6 @@
  * fail the story here.
  */
 
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import * as v from "valibot";
 import { execute } from "#db/client.ts";
@@ -48,7 +47,6 @@ import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments
 import { TEST_ADMIN_USERNAME } from "#test-utils/internal.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 import type { Listing } from "#types";
-// jscpd:ignore-end
 
 /** The code the site gave somebody, read off the link on the page their
  * booking landed on. A booking whose page offers no way back to a ticket is a

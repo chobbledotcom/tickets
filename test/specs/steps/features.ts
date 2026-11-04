@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -33,8 +31,6 @@ import {
 } from "#test/specs/support/world.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { saveAModifier } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 /** The field the two radios send under. It never reaches a story — the owner
  * reads Yes and No, so that is what the story says. */

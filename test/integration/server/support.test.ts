@@ -12,7 +12,6 @@
  * not count towards coverage and these routes have no other direct cover.
  */
 
-/* jscpd:ignore-start -- imports */
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -34,8 +33,6 @@ import {
   createTestManagerSession,
   testCookie,
 } from "#test-utils/session.ts";
-
-/* jscpd:ignore-end */
 
 const ADMIN_ENV = { ADMIN_EMAIL_ADDRESS: "host@support.test" };
 

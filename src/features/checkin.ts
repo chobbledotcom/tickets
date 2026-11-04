@@ -8,15 +8,12 @@ import { type TicketMove, ticketCount } from "#booking/ticket-moves.ts";
 import { moveTicketsAndLog, ticketsWord } from "#db/attendees/door-moves.ts";
 import { getPairBookings } from "#db/attendees/ticket-lines.ts";
 import type { DeliveryBookingRef } from "#db/logistics.ts";
-/* jscpd:ignore-start -- imports */
 import {
   getAgentRunSheetBookings,
   runSheetBookingKey,
 } from "#db/logistics-run-sheet.ts";
 import { settings } from "#db/settings.ts";
 import { userAgents } from "#db/user-agents.ts";
-/* jscpd:ignore-end */
-/* jscpd:ignore-start */
 import { filter, map, requiredMapValue } from "#fp";
 import {
   type AuthSession,
@@ -48,8 +45,6 @@ import { todayInTz } from "#shared/timezone.ts";
 import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import { checkinAdminPage, checkinPublicPage } from "#templates/checkin.tsx";
 import { type Attendee, isDoorRole, isStaffRole } from "#types";
-
-/* jscpd:ignore-end */
 
 const checkinPath = (tokens: string[]): string =>
   `/checkin/${tokens.join("+")}`;

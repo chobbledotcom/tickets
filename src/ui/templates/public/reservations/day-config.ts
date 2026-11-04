@@ -4,7 +4,6 @@
  * splits the page's questions into the page-level set (rendered required) and the
  * per-parent child render context (child-only questions rendered non-required). */
 
-/* jscpd:ignore-start */
 import {
   type ChildDatesByDayCount,
   pageDayCounts,
@@ -18,8 +17,6 @@ import type { QuestionListingMap } from "#db/questions/queries.ts";
 import { dayPriceFor, type ListingWithCount } from "#types";
 import { foldReserveByChildId } from "./child-pricing.ts";
 import type { ChildRenderCtx } from "./types.ts";
-
-/* jscpd:ignore-end */
 
 /** On a customisable PACKAGE page, one whole bundle's price for a given day
  * count: each member node's effective per-unit price for that span (its flat

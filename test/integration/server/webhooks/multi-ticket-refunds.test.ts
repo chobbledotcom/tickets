@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -19,8 +18,6 @@ import {
   expectMergedMultiListingAttendee,
   postWebhookAndAssert,
 } from "#test-utils/webhooks.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "server webhooks > multi-ticket price-mismatch refunds",

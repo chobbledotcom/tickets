@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { corruptOneEdge } from "#scripts/verify-models/counterexample.ts";
@@ -10,8 +9,6 @@ import {
 import { requireValue } from "#shared/required-value.ts";
 import { records } from "#test-utils/tla-data.ts";
 import { registeredModel } from "./registered-model.ts";
-
-/* jscpd:ignore-end */
 
 const counterexampleData = registeredModel("JointState").controls[0].data;
 

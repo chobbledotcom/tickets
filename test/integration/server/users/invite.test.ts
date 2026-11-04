@@ -11,7 +11,6 @@
  * rule would never let through.
  */
 
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAllUsers } from "#db/users.ts";
@@ -27,8 +26,6 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { TEST_ADMIN_USERNAME } from "#test-utils/internal.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("who may reach the invite pages", () => {

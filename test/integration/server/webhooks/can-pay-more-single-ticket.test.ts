@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -11,8 +10,6 @@ import {
   expectKeptAsQuantityZeroAndRefunded,
   expectWebhookProcessed,
 } from "#test-utils/webhooks.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "server webhooks > can_pay_more (single-ticket)",

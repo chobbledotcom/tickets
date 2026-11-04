@@ -2,12 +2,10 @@
  * Entity loading patterns for admin route handlers
  */
 
-/* jscpd:ignore-start -- imports */
 import { withEntity } from "#routes/entity.ts";
 import { notFoundResponse } from "#routes/response.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
-/* jscpd:ignore-end */
 
 /** Wraps a loader so a route can pass its params first, then its handler. */
 export const withEntityLoader =

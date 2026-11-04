@@ -2,7 +2,6 @@
  * Admin guide — Listings sections.
  */
 
-/* jscpd:ignore-start -- imports */
 import { formatCurrency } from "#shared/currency.ts";
 import { formatBytes } from "#shared/format-units.ts";
 import { MAX_ATTACHMENT_SIZE } from "#shared/limits.ts";
@@ -11,7 +10,6 @@ import {
   faq,
   type GuideSection,
 } from "#templates/admin/guide/components.tsx";
-/* jscpd:ignore-end */
 
 /** The markdown text-formatting help section. Exported so the standalone
  * `/admin/formatting` help page renders the same content as the guide's Text

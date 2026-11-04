@@ -1,12 +1,9 @@
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
 import { tlaSchemaOf } from "#scripts/verify-models/data.ts";
 import { records } from "#test-utils/tla-data.ts";
 import { registeredModel } from "./registered-model.ts";
-
-/* jscpd:ignore-end */
 
 const { data: attendeeCapacityModelData, controls } =
   registeredModel("AttendeeCapacity");

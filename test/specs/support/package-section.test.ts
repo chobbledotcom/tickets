@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -7,8 +6,6 @@ import {
   packageSectionHtml,
 } from "#test/specs/support/package-section.ts";
 import type { Group } from "#types";
-
-// jscpd:ignore-end
 
 describe("the package section helpers", () => {
   const group = { id: 7, name: "Camp Kit" } as Group;

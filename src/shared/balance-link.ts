@@ -10,11 +10,9 @@
  */
 
 import * as v from "valibot";
-/* jscpd:ignore-start -- imports */
 import { defineSignedToken } from "#crypto/define-signed-token.ts";
 import { expiresIn } from "#shared/now.ts";
 import { parseOrNull } from "#shared/validation/parse.ts";
-/* jscpd:ignore-end */
 
 /** Balance links last 90 days — long enough to be a "pay when you can" link. */
 export const BALANCE_LINK_MAX_AGE_S = 90 * 24 * 60 * 60;

@@ -20,11 +20,8 @@ import {
   createTestGroup,
   getTestPackagePrices,
 } from "#test-utils/db-helpers/groups.ts";
-// jscpd:ignore-start
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import { editFields, member } from "./helpers.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "server (admin group packages) — prices and quantities",

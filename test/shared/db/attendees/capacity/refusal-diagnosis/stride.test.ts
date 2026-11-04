@@ -1,4 +1,3 @@
-// jscpd:ignore-start -- imports
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -22,8 +21,6 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 import { line } from "./helpers.ts";
-
-// jscpd:ignore-end
 
 /** The stride-batch tests for a refused order too long for one probe batch:
  * the bracket narrows over a bounded sample of prefixes, and every batch

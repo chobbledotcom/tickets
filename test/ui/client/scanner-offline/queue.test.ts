@@ -13,7 +13,6 @@
  * reads.
  */
 
-// jscpd:ignore-start -- imports
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { HTMLSelectElement as HappyHTMLSelectElement } from "happy-dom";
@@ -39,8 +38,6 @@ import {
   expectOneStoredCheckIn,
 } from "#test/ui/client/scanner/offline-door.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
-
-// jscpd:ignore-end
 
 describe("scanner offline queue", {
   sanitizeOps: false,

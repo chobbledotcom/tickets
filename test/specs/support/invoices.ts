@@ -1,8 +1,6 @@
 /** The invoices an organiser sends for what a booking still owes, and the link
  *  the buyer is sent to read one. */
 
-// jscpd:ignore-start
-
 import {
   adminPageHtmlAt,
   keepsWhatTheOrganiserSaw,
@@ -20,8 +18,6 @@ import {
 } from "#test/specs/support/world.ts";
 import { regionOutOf } from "#test-utils/test-browser/parsing.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
-
-// jscpd:ignore-end
 
 /** What the site says about invoices. */
 export const invoiceCopy = copyFrom("invoices");

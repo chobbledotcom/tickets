@@ -1,7 +1,5 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-// jscpd:ignore-end
 import { adminListingPage } from "#test-utils/admin-fixture.ts";
 import {
   expectHtmlResponse,

@@ -2,7 +2,6 @@
  * nothing. Served from the static table, so the handler reads its own
  * settings, exactly like /robots.txt. */
 
-/* jscpd:ignore-start -- imports */
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -28,8 +27,6 @@ import { testListingInput } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { soldOutParentInGroup } from "#test-utils/parents.ts";
 import { disablePublicSite, enablePublicSite } from "#test-utils/settings.ts";
-
-/* jscpd:ignore-end */
 
 describeWithEnv("server public > sitemap.xml", { db: true }, () => {
   test("answers 404 from a site before setup", async () => {

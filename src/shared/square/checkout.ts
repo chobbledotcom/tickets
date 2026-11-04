@@ -1,5 +1,3 @@
-/* jscpd:ignore-start */
-
 import { settings } from "#db/settings.ts";
 import { stageSquareLinkEnd } from "#db/square-link-ends.ts";
 import { closedCheckoutErrorFor } from "#payment/checkout-failure.ts";
@@ -27,8 +25,6 @@ import {
   epochMsToIso,
   instantToEpochMs,
 } from "#shared/validation/timestamp.ts";
-
-/* jscpd:ignore-end */
 
 type SquareLineItem = CreatePaymentLinkInput["order"]["lineItems"][number];
 

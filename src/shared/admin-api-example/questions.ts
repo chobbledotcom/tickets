@@ -4,7 +4,6 @@
  * resource table, so the docs cannot disagree with the server about them.
  */
 
-// jscpd:ignore-start
 import {
   ADMIN_API_RESOURCES,
   type AdminApiCreateQuestionBody,
@@ -19,8 +18,6 @@ import {
   json,
   renameOneText,
 } from "./endpoint-doc.ts";
-
-// jscpd:ignore-end
 
 /** Example question response: the question and its answers in display order,
  *  each answer with its stored selection total. */

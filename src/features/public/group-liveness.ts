@@ -19,14 +19,11 @@ import {
   packageMemberMaps,
 } from "#db/groups.ts";
 import { hydrateListingLinks, listingChildren } from "#db/listing-parents.ts";
-/* jscpd:ignore-start */
 import { requiredMapValue, uniqueBy } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
 import type { Group, GroupWithMembers, ListingWithCount } from "#types";
 import { mappedChildrenByParentId } from "./child-listings.ts";
 import { classifyForDiscovery } from "./discovery.ts";
-
-/* jscpd:ignore-end */
 
 type MembersByGroup = ReadonlyMap<number, readonly ListingWithCount[]>;
 

@@ -2,7 +2,6 @@
  * worker at a time, moved on by what Square's answer proved, and taken away
  * by the completion when a payment lands. */
 
-/* jscpd:ignore-start -- imports */
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -26,8 +25,6 @@ import {
   WINDOW_END,
 } from "#test/shared/square/link-end-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-
-/* jscpd:ignore-end */
 
 describeWithEnv("square link ends", { db: true }, () => {
   test("stages the handle sealed, keyed by the session hash, first due at the window", async () => {

@@ -8,7 +8,6 @@
  */
 
 import type { Holiday } from "#db/holidays.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
 import { Raw } from "#jsx/jsx-runtime.ts";
@@ -27,8 +26,6 @@ import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { getHolidayForm } from "#templates/fields/admin.ts";
 import type { AdminSession } from "#types";
-
-/* jscpd:ignore-end */
 
 /** Columns for the holidays table — declared once so the header order and
  *  cell order cannot drift apart. */

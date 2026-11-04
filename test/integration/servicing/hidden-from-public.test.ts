@@ -14,7 +14,6 @@
  *     predicate on the existing token readers, not a parallel set).
  *   - `#test-utils/servicing.ts` exposes the servicing event's `ticketToken`.
  */
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeePiiBlobForToken } from "#db/attendees/pii.ts";
@@ -22,8 +21,6 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { createServicingHold } from "#test-utils/servicing.ts";
-
-// jscpd:ignore-end
 
 /** Assert both `/t/:token` and `/t/:token/svg` return the given status. */
 const assertTokenRoutes = async (

@@ -27,5 +27,9 @@
     "src",
     "e2e-payments",
     "scripts"
+  ],
+  "ignorePattern": [
+    "(?m)^import\\s[^;]*;",
+    "(?m)^export\\s+(type\\s+)?(\\*|\\{[^}]*\\})(\\s+as\\s+\\w+)?\\s+from\\s[^;]*;"
   ]
 }

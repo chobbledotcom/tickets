@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -46,8 +44,6 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
 
 /** The page at one address shows the story's picture, and no reference. */
 const visitorSeesPictureAt = async (

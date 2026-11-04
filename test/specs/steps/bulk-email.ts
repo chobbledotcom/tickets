@@ -1,7 +1,5 @@
 /** An owner writes to the people who booked, checks it over, and sends it. */
 
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -32,8 +30,6 @@ import {
   type TicketsWorld,
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
 
 /** Book people onto a listing, with the watch on the outside world standing by
  * first. Even a story with no provider set up needs it: a send that should have

@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
@@ -15,8 +14,6 @@ import {
 } from "#templates/admin/built-sites/action-forms.tsx";
 import { ErrorNote } from "#templates/components/error.tsx";
 import { ProsePanel } from "#templates/components/prose-panel.tsx";
-
-/* jscpd:ignore-end */
 
 const MonthsInput = ({ id }: { id?: string | undefined }): JSX.Element => (
   <input id={id} max="120" min="1" name="months" type="number" value="1" />

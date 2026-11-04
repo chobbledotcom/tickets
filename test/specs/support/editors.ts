@@ -7,7 +7,6 @@
  */
 
 import { getAllListings, getListingWithCount } from "#db/listings/records.ts";
-// jscpd:ignore-start
 import { t } from "#i18n";
 import { toMinorUnits } from "#shared/currency.ts";
 import {
@@ -40,7 +39,6 @@ import { createAttendeeOn } from "#test-utils/db-helpers/attendees.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 import type { ListingWithCount } from "#types";
-// jscpd:ignore-end
 
 /** Where a listing forwards each booking, names and all. */
 export const OWNERS_ADDRESS = "https://owner.example/bookings";

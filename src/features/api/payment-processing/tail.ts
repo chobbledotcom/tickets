@@ -11,7 +11,6 @@
  * sends run only after that batch commits.
  */
 
-/* jscpd:ignore-start -- imports */
 import * as v from "valibot";
 import { hmacHash } from "#crypto/hashing.ts";
 import {
@@ -47,8 +46,6 @@ import { ErrorCode, logError } from "#shared/logger.ts";
 import type { ModifierSpec } from "#shared/payments.ts";
 import { registeredActivityMessage } from "#shared/webhook/delivery.ts";
 import type { ListingWithCount } from "#types";
-
-/* jscpd:ignore-end */
 
 /** The one attendee a paid booking creates, as the answer sets key it: a
  * placeholder the batch resolves from the booking's own ticket token. */

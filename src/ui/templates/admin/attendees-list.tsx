@@ -5,7 +5,6 @@
  * from the page's {@link AttendeeListSetup}.
  */
 
-/* jscpd:ignore-start */
 import type { SystemNote } from "#db/notes/types.ts";
 import { t } from "#i18n";
 import type {
@@ -19,8 +18,6 @@ import { FilteredAttendeeTable } from "#templates/attendee-table/controls.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
 import { type AdminSession, type AttendeeTableRow, isOwnerRole } from "#types";
-
-/* jscpd:ignore-end */
 
 const NAV_ACTIVE = "/admin/attendees";
 

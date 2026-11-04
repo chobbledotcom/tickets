@@ -1,8 +1,6 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-// jscpd:ignore-end
 import { moveTickets } from "#db/attendees/update.ts";
 import { hashEmail, saveContactRecord } from "#db/contact-preferences.ts";
 import { invalidateListingsCache } from "#db/listings/records.ts";

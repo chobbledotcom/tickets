@@ -3,7 +3,6 @@
  * group. The production predicates that read a group are rebuilt here from
  * the fixture legs on every run, never stored. */
 
-/* jscpd:ignore-start -- imports */
 import {
   attendeeAccount,
   revenueAccount,
@@ -20,8 +19,6 @@ import { requireValue } from "#shared/required-value.ts";
 import { assessTax } from "#shared/tax/assessment.ts";
 import type { StoredTaxAssessment } from "#shared/tax/store.ts";
 import { NO_TAX } from "#shared/tax/types.ts";
-
-/* jscpd:ignore-end */
 
 const BOOKING_AT = "2026-06-21T00:00:00.000Z";
 

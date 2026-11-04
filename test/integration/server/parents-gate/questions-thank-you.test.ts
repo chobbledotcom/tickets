@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
@@ -13,8 +12,6 @@ import {
   parentField,
 } from "#test-utils/parents.ts";
 import { stubCheckoutIntent } from "#test-utils/parents-gate/helpers.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "server > parents gate > questions & thank-you URL",

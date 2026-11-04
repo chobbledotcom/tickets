@@ -1,5 +1,3 @@
-/* jscpd:ignore-start -- imports */
-
 import type {
   ObservedRefundAdmission,
   WithheldRefund,
@@ -26,8 +24,6 @@ import type {
 import { readyRefundAdmission } from "./ready-admission.ts";
 import { reportRefundProblem } from "./report.ts";
 import { combineRefundOutcomes, type RefundOutcome } from "./waves.ts";
-
-/* jscpd:ignore-end */
 
 type TaggedRefundReference = ReadyRefundReference["reference"];
 type ObservedWithheldRefund = WithheldRefund;

@@ -1,5 +1,3 @@
-/* jscpd:ignore-start */
-
 import type { ListingMoneyTotals } from "#accounting/listing-money-totals.ts";
 import { compact } from "#fp";
 import { t } from "#i18n";
@@ -9,8 +7,6 @@ import {
 } from "#templates/admin/money-summary.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
 import type { ListingWithCount } from "#types";
-
-/* jscpd:ignore-end */
 
 const whenNonZero = (
   value: number,

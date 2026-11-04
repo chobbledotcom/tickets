@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import * as v from "valibot";
 import { type Money, money, sameMoney } from "#payment/money.ts";
 import type {
@@ -11,8 +10,6 @@ import {
   uncertainRefund,
 } from "#payment/refund-attempt.ts";
 import { transportFactsOf } from "#payment/transport-error.ts";
-
-/* jscpd:ignore-end */
 
 type UnavailableReason = Exclude<
   ProviderUnavailableReason,

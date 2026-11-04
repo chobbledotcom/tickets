@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -35,8 +33,6 @@ import {
   expectWebhookProcessed,
   findKeptPlaceholder,
 } from "#test-utils/webhooks.ts";
-
-// jscpd:ignore-end
 
 const availableSession = {
   eventId: "evt_spec_available",

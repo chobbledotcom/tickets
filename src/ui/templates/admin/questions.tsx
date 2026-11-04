@@ -7,7 +7,6 @@ import type {
   AnswerAggregateField,
   AnswerAggregateRecalculation,
 } from "#db/questions/aggregates.ts";
-/* jscpd:ignore-start -- imports */
 import { map } from "#fp";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
@@ -15,7 +14,6 @@ import {
   answerTextForm,
   questionTextForm,
 } from "#routes/admin/questions/forms.ts";
-/* jscpd:ignore-end */
 import { adminPath, adminPattern } from "#shared/admin-surface.ts";
 import { renderFields } from "#shared/forms/rendering.tsx";
 import { childEditPage } from "#templates/admin/child-edit-page.tsx";

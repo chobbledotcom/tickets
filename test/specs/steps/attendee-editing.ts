@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { adminBrowser, scenarioBrowser } from "#test/specs/support/browser.ts";
@@ -24,8 +22,6 @@ import {
   openAttendeeEditor,
 } from "#test-utils/e2e.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
-
-// jscpd:ignore-end
 
 const ART_CLASS = "Art Class";
 const MORNING = "Morning Workshop";

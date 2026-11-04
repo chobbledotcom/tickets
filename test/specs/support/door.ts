@@ -9,7 +9,6 @@
 
 import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
 import { handleRequest } from "#routes";
-// jscpd:ignore-start
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { personBookedOnListing } from "#test/specs/support/booked-person.ts";
 import {
@@ -38,7 +37,6 @@ import {
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postAttendeeRefund } from "#test-utils/ledger.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
-// jscpd:ignore-end
 
 /** What the site says about one person at the door. */
 export interface DoorAnswer {

@@ -13,7 +13,6 @@ import { logActivity } from "#db/activity-log.ts";
 import { isMaskSentinel } from "#db/settings/mask.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
-/* jscpd:ignore-start */
 import {
   type AuthPolicy,
   type AuthSession,
@@ -28,8 +27,6 @@ import { formFieldError } from "#shared/forms/constraints.ts";
 import { mapValidationError } from "#shared/optional-validate.ts";
 import type { RequestRoute, ResponseHandler } from "#shared/response-steps.ts";
 import { settingsFormFields } from "#shared/settings/forms.ts";
-
-/* jscpd:ignore-end */
 
 // ── Types ───────────────────────────────────────────────────────────
 

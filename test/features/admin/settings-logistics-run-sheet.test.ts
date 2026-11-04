@@ -7,7 +7,6 @@
  * cleared box goes back to the built-in wording.
  */
 
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -23,8 +22,6 @@ import {
   describeAdminSettings,
   settingsAsStored,
 } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 const PATH = "/admin/settings/logistics-run-sheet";
 const FORM_ID = "settings-logistics-run-sheet";

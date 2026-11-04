@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -21,8 +20,6 @@ import {
   adminGet,
   setupListingAndLogin,
 } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "server listings > audit log and daily admin view",

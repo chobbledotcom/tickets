@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -15,8 +14,6 @@ import {
   parsedBase,
 } from "#test/features/admin/attendee-form-model/fixtures.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
-
-/* jscpd:ignore-end */
 
 describe("isBookedLine", () => {
   test("true only when quantity ≥ 1 and the listing resolves", () => {

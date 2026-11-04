@@ -9,7 +9,6 @@
  * test runs the real built bundle, so the words asserted are the words the
  * door reads. */
 
-// jscpd:ignore-start -- imports
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -36,8 +35,6 @@ import {
   expectOfflineRefusal,
 } from "#test/ui/client/scanner/offline-door.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
-
-// jscpd:ignore-end
 
 describe("scanner offline door", {
   sanitizeOps: false,

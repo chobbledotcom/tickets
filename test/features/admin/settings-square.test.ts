@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
@@ -19,8 +18,6 @@ import {
 import { mockFormRequest, withMocks } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
 import { describeAdminSettings } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 describeAdminSettings(() => {
   describe("POST /admin/settings/square", () => {

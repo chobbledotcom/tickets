@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -14,8 +13,6 @@ import { mockRequest } from "#test-utils/mocks.ts";
 import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks/stripe.ts";
-
-// jscpd:ignore-end
 
 const successRequest = (query: string): Request =>
   mockRequest(`/payment/success?${query}`);

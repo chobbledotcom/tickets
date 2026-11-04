@@ -11,7 +11,6 @@
  * together. A caller-chosen `ticketToken` makes a retried create a no-op.
  */
 
-/* jscpd:ignore-start */
 import { logActivity } from "#db/activity-log.ts";
 import type {
   CreateAttendeeResult,
@@ -45,7 +44,6 @@ import { listPriceOrder, type PricedOrder } from "#shared/checkout-pricing.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { queueManualAddWebhooks } from "#shared/webhook/delivery.ts";
 import type { Attendee } from "#types";
-/* jscpd:ignore-end */
 import {
   type ApiAnswer,
   type ApiLine,

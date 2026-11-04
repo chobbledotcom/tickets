@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -50,8 +48,6 @@ import {
   type TicketsWorld,
   theBooking,
 } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
 
 const LISTING_TOLD = "Listing income corrected.";
 const GOODWILL = "manual_attendee_writeoff";

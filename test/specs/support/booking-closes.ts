@@ -4,12 +4,9 @@
  * meets it: on the page, in an order, and at the moment of sending.
  */
 
-// jscpd:ignore-start
 import { organiserSavesFields } from "#test/specs/support/listings.ts";
 import { dayFromToday } from "#test/specs/support/stays.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
 
 /** Noon on a day counted from the Scenario's own first day, split the way
  * the edit form asks for it — a date box and a time box. Noon yesterday is

@@ -17,7 +17,6 @@ import {
 import type { getSharedGroupCapacities } from "#db/attendees/capacity/groups.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import type { Holiday } from "#db/holidays.ts";
-/* jscpd:ignore-start */
 import { requiredMapValue } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
 import {
@@ -33,7 +32,6 @@ import {
   childStartDates,
   parentOfferedDayCounts,
 } from "./child-offered.ts";
-/* jscpd:ignore-end */
 
 /** Group facts needed to decide whether a parent can offer a child. */
 export type ChildCapacityInfo = {

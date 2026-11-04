@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -17,8 +16,6 @@ import {
 import { DAY_MS, nowMs } from "#shared/now.ts";
 import { SQUARE_NATIVE_LIFETIME_MS } from "#shared/square/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-
-// jscpd:ignore-end
 
 const requiredSquareRetentionMs =
   SQUARE_NATIVE_LIFETIME_MS + WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS;

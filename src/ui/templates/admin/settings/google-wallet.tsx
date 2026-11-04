@@ -2,14 +2,12 @@
  * Google Wallet form for advanced settings
  */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import {
   hostOverrideHint,
   WalletSettingsForm,
 } from "#templates/admin/settings/wallet-settings.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
-/* jscpd:ignore-end */
 
 export const GoogleWalletForm = (s: AdvancedSettingsPageState): JSX.Element =>
   WalletSettingsForm({

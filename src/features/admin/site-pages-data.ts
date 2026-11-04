@@ -15,7 +15,6 @@ import { getAllPageItems } from "#db/site-page-items.ts";
 import { sitePages } from "#db/site-pages.ts";
 import { fieldById, requiredMapValue } from "#fp";
 import { t } from "#i18n";
-// jscpd:ignore-start
 import { isQualifyingTierListing } from "#shared/renewal-tier.ts";
 import { buildForest, eligibleChildPages } from "#shared/site-pages/core.ts";
 import { loadPageForest } from "#shared/site-pages/load.ts";
@@ -29,7 +28,6 @@ import type {
   PickerOption,
   ResolvedItem,
 } from "#templates/admin/site-pages.tsx";
-// jscpd:ignore-end
 import type { SitePage, SitePageItemType } from "#types";
 
 /** Can this listing be placed on a page? Active (its public page must not

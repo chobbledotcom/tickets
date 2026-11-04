@@ -12,7 +12,6 @@ import {
   getUserAuthFieldsById,
   type UserAuthFields,
 } from "#db/users.ts";
-/* jscpd:ignore-start */
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import type { JsonBodyReader } from "#routes/api/json-body.ts";
 import { type AuthChannel, authFailure } from "#routes/auth-failures.ts";
@@ -50,8 +49,6 @@ import {
   type NagItem,
   SITE_ADMIN_LEVELS,
 } from "#types";
-
-/* jscpd:ignore-end */
 
 /** Session with wrapped data key for private key derivation, and user role */
 export type AuthSession = {

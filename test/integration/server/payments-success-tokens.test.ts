@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -15,8 +14,6 @@ import { signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubCheckoutSession } from "#test-utils/stripe/responses.ts";
-
-/* jscpd:ignore-end */
 
 describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
   describe("payment success token verification", () => {

@@ -9,7 +9,6 @@
  * package id the public free checkout must stamp.
  */
 
-// jscpd:ignore-start
 import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -25,8 +24,6 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { submitPackageBooking } from "#test-utils/packages.ts";
-
-// jscpd:ignore-end
 
 /** Fetch a ticket page and return the response body text. */
 const fetchTicketBody = async (tokenPath: string): Promise<string> => {

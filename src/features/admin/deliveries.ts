@@ -16,7 +16,6 @@ import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeesByIds } from "#db/attendees/queries.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import { logisticsAgents } from "#db/logistics-agents.ts";
-/* jscpd:ignore-start -- imports */
 import {
   type AgentRunLeg,
   getAgentRunSheet,
@@ -25,8 +24,6 @@ import {
 } from "#db/logistics-run-sheet.ts";
 import { settings } from "#db/settings.ts";
 import { userAgents } from "#db/user-agents.ts";
-/* jscpd:ignore-end */
-/* jscpd:ignore-start */
 import { fieldById, requiredMapValue, unique } from "#fp";
 import { t } from "#i18n";
 import { getDateFilter, getMonthFilter } from "#routes/admin/actions.ts";
@@ -59,8 +56,6 @@ import {
   selectableDates,
 } from "#templates/date-picker.tsx";
 import { type Attendee, isStaffRole } from "#types";
-
-/* jscpd:ignore-end */
 
 /** Lookups used to flesh out a bare run-sheet leg into a display row. */
 type LegLookups = {

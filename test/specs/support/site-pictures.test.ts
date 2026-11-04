@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -15,8 +14,6 @@ import {
 } from "#test/specs/support/site-pictures.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { TestBrowser } from "#test-utils/test-browser.ts";
-
-// jscpd:ignore-end
 
 describe("the site picture helpers", () => {
   /** A world holding the one picture a story has put in the site's words. */

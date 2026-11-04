@@ -6,7 +6,6 @@
  */
 
 import * as v from "valibot";
-/* jscpd:ignore-start -- imports */
 import { hmacHash } from "#crypto/hashing.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import { logActivity } from "#db/activity-log.ts";
@@ -59,7 +58,6 @@ import {
   type Listing,
   type ListingWithCount,
 } from "#types";
-/* jscpd:ignore-end */
 
 /** Generate a unique listing slug, retrying on collision */
 export const generateUniqueListingSlug = (excludeListingId?: number) =>

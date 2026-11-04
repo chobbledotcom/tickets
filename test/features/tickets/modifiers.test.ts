@@ -1,6 +1,5 @@
 /** The ticket view shows the modifiers that changed a booking's price. */
 
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -22,8 +21,6 @@ import {
   expectWebhookProcessed,
 } from "#test-utils/webhooks.ts";
 import type { Attendee } from "#types";
-
-// jscpd:ignore-end
 
 /** A paid checkout of one £10 ticket that applies one fixed modifier. The
  *  modifier's value is in major units, the way the admin form takes it.

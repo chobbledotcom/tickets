@@ -6,8 +6,6 @@
  * what is under test.
  */
 
-// jscpd:ignore-start
-
 import { settings } from "#db/settings.ts";
 import {
   openAdminPage,
@@ -18,8 +16,6 @@ import { copyFrom } from "#test/specs/support/copy.ts";
 import type { ActOnTheStory, TicketsWorld } from "#test/specs/support/world.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { settingsAsStored } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 const ADVANCED_PATH = "/admin/settings-advanced";
 

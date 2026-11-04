@@ -4,7 +4,6 @@
  */
 
 import { Given, Then, When } from "@cucumber/cucumber";
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
@@ -39,8 +38,6 @@ import {
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
 import type { RecordedFetchCall } from "#test-utils/mocks.ts";
-
-// jscpd:ignore-end
 
 /** The site's own words, read from production rather than written out here:
  * what it says when a support message went. The wording lives in the route

@@ -1,6 +1,5 @@
 /** Turso platform API client used by site provisioning and database migration. */
 
-/* jscpd:ignore-start */
 import * as v from "valibot";
 import { type ApiRequestInit, defineApiClient } from "#shared/api-client.ts";
 import {
@@ -18,8 +17,6 @@ import type {
 } from "#shared/provider-types.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { NonEmptyTextSchema } from "#shared/validation/string.ts";
-
-/* jscpd:ignore-end */
 
 const TURSO_API_BASE = "https://api.turso.tech";
 

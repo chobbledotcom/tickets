@@ -1,10 +1,7 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { sessionCookie } from "#test/specs/support/evidence.ts";
-
-// jscpd:ignore-end
 
 const browserWithCookies = (cookies: ReadonlyMap<string, string>) => ({
   debugCookies: () => new Map(cookies),

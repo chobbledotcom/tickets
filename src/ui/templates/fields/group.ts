@@ -3,7 +3,6 @@
  * (slug appended between name and description).
  */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { defineFieldsForm, type FormValues } from "#shared/forms/definition.ts";
 import type { ChoiceField, Field, InputField } from "#shared/forms/field.ts";
@@ -15,8 +14,6 @@ import {
   getSlugField,
   wholeNumberFieldShape,
 } from "#templates/fields/validators.ts";
-
-/* jscpd:ignore-end */
 
 /** Max attendees field for group forms */
 const getGroupMaxAttendeesField = () => {

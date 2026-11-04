@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { logActivity } from "#db/activity-log.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
@@ -9,8 +8,6 @@ import type { AdminFeatureKey } from "#shared/admin-features.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { countLabel } from "#shared/format-units.ts";
 import { listingWithCountHandler } from "./listing-entity.ts";
-
-/* jscpd:ignore-end */
 
 type ListingChoicePostConfig = {
   feature: AdminFeatureKey;

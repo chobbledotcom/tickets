@@ -13,15 +13,12 @@ import {
   type RecoveryNodeId,
   recoveryNodeOf,
 } from "#payment/sumup-recovery-machine-spec.ts";
-/* jscpd:ignore-start -- imports */
 import {
   atlasMachineFrom,
   factsFromNode,
   type MachineLayouts,
 } from "#shared/schema-atlas/machine-spec.ts";
 import type { AtlasMachine } from "#shared/schema-atlas/types.ts";
-
-/* jscpd:ignore-end */
 
 /** Where each node sits on the map: creation on the left, the two closed
  * answers on the right, and the state that still owes somebody below. */

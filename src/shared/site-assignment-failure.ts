@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { settings } from "#db/settings.ts";
 import { unique } from "#fp";
 import { escapeHtml } from "#jsx/escape-html.ts";
@@ -7,7 +6,6 @@ import { getEmailConfig, hostEmail, sendEmail } from "#shared/email.ts";
 import { ErrorCode, type ErrorCodeType, logError } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { parseEmail } from "#shared/validation/email.ts";
-/* jscpd:ignore-end */
 
 export type SiteAssignmentConfigValidation =
   | { ok: true }

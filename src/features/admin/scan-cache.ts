@@ -7,7 +7,6 @@
  * the tokens of tickets it has not scanned, and never holds any guest
  * detail from this endpoint. */
 
-/* jscpd:ignore-start -- imports */
 import { remainingTickets } from "#booking/remaining-tickets.ts";
 import { deriveDoorCacheKey } from "#crypto/hashing.ts";
 import { toBase64Url } from "#crypto/utils.ts";
@@ -27,7 +26,6 @@ import {
   scopeAttendees,
 } from "./scan-answer.ts";
 import { owingListings, scanAdmits } from "./scan-decision.ts";
-/* jscpd:ignore-end */
 
 /** The name a door's cache key derives from: the door's kind and id. The
  * cache endpoint and the scanner page derive the same key from the same

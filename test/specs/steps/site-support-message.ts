@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert } from "@std/assert";
 import { pageShowsPicture } from "#test/specs/support/attendee-images.ts";
@@ -10,8 +8,6 @@ import {
   supportMessageTab,
 } from "#test/specs/support/site-support-message.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
 
 Given(
   "a built site carries a support message with a picture called {string} in it",

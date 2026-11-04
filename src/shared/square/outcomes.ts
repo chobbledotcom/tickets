@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import {
   type ProviderFailure,
   providerFailureOf,
@@ -9,8 +8,6 @@ import {
   type ResourceReader,
 } from "#payment/provider-resource-read.ts";
 import type { RefundProof } from "#payment/refund-attempt.ts";
-
-/* jscpd:ignore-end */
 
 /** Translate a known Square read failure, leaving internal bugs unclaimed. */
 const squareReadFailure = (error: unknown): ProviderRead<never> | undefined =>

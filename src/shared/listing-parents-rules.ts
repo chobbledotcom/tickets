@@ -10,10 +10,8 @@
  * live with the editor, since a field edit can't create them.)
  */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { firstReason, type Reason, reason } from "#shared/reasons.ts";
-/* jscpd:ignore-end */
 import {
   availableDayCounts,
   clampDurationDays,

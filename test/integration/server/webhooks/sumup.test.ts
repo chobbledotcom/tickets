@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -22,8 +21,6 @@ import {
   expectBookedExactlyOnce,
   stageSignedSumupCheckout,
 } from "#test-utils/sumup.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("server webhooks > SumUp", { db: true }, () => {
   // The waiting page speaks through debug output, and a normal provider

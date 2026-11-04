@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Then, When } from "@cucumber/cucumber";
 import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -28,7 +26,6 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { requireCompleteRefundReferences } from "#test-utils/payment-references.ts";
 import { chargeMoney } from "#test-utils/payment-state.ts";
 import type { PaymentProviderType } from "#types";
-// jscpd:ignore-end
 
 /** The provider boundary shared by one safety scenario. */
 export const refundProviderFor = (

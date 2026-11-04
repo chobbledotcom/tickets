@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
@@ -21,8 +20,6 @@ import {
   checkoutSessionEvent,
   expectWebhookProcessed,
 } from "#test-utils/webhooks.ts";
-
-// jscpd:ignore-end
 
 /** Two listings (£10 / £25) for the in-scope-vs-out-of-scope modifier tests
  *  below — identical for both the listing-scoped and group-scoped variants,

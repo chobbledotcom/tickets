@@ -7,7 +7,6 @@
  * batched SQL stays the atomic per-date enforcement.
  */
 
-/* jscpd:ignore-start -- imports */
 import type { FoldBase } from "#booking/fold-tree.ts";
 import type { TicketListing } from "#booking/model.ts";
 import {
@@ -20,7 +19,6 @@ import { t } from "#i18n";
 import type { FormParams } from "#shared/form-data.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type { Outcome } from "#shared/result.ts";
-/* jscpd:ignore-end */
 import type { TicketCtx } from "./types.ts";
 
 /** What the gate reads from one submitted cart: the page context, the

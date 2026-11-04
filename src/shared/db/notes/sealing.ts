@@ -5,13 +5,11 @@
  * is named once here and everything else works in terms of a sealed note.
  */
 
-/* jscpd:ignore-start -- imports */
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/hybrid.ts";
 
 import { openEach } from "#crypto/open-each.ts";
 import type { EnvKeyEncrypted, OwnerKeyEncrypted } from "#crypto/sealed.ts";
-/* jscpd:ignore-end */
 import { settings } from "#db/settings.ts";
 import type { SystemNote, SystemNoteRow, SystemNoteType } from "./types.ts";
 

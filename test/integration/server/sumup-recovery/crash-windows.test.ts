@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { runSumupRecovery } from "#shared/sumup/recovery-run.ts";
@@ -12,8 +11,6 @@ import {
   sumupRecoveryRow,
   withSumupCheckoutStatus,
 } from "#test-utils/sumup.ts";
-
-// jscpd:ignore-end
 
 const CHECKOUT_ID = "co_crash";
 const STATE_FAULT = "test_sumup_recovery_state_fault";

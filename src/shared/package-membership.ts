@@ -9,10 +9,7 @@
  *    selector, and that selector names the very listings the package hides. A
  *    VISIBLE package renders that selector fine.
  */
-/* jscpd:ignore-start */
 import { t } from "#i18n";
-
-/* jscpd:ignore-end */
 
 /** The listing fields the member rules read; the name is for the message. */
 type MemberListing = { name: string; can_pay_more: boolean };

@@ -1,7 +1,6 @@
 /** The Square link-end machine: every declared move lands where the table
  * says, every absent cell refuses, and the laws over the declaration hold. */
 
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -17,8 +16,6 @@ import {
   registerConformanceSweep,
   registerTableChecks,
 } from "#test-utils/machine-spec.ts";
-
-/* jscpd:ignore-end */
 
 const spec = {
   events: LINK_END_EVENTS,

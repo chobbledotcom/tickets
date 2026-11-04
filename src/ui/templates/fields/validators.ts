@@ -7,7 +7,6 @@
  * field, and a builder keeps them from drifting.
  */
 
-/* jscpd:ignore-start */
 import * as v from "valibot";
 import { isUpdateTier } from "#db/built-sites/types.ts";
 import { t } from "#i18n";
@@ -29,7 +28,6 @@ import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
 import { parseSignedInt } from "#shared/validation/number.ts";
 import { validatorFor } from "#shared/validation/parse.ts";
 import { isContactField } from "#types";
-/* jscpd:ignore-end */
 
 /**
  * Validate a user-saved URL that must point at a public https:// domain.

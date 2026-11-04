@@ -6,7 +6,6 @@
  * than being stepped around.
  */
 
-// jscpd:ignore-start
 import { fromBase64Url } from "#crypto/utils.ts";
 import { hmacHex } from "#shared/sha256.ts";
 import {
@@ -30,8 +29,6 @@ import type {
   TicketsWorld,
 } from "#test/specs/support/world.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
-
-// jscpd:ignore-end
 
 /** The scanner's account journey, shared with every other invited role: the
  * owner invites them, they follow their link and choose a password, they sign

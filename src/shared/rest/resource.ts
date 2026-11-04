@@ -3,7 +3,6 @@
  * surface.
  */
 
-/* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import type { TransactionStateReader, TxScope } from "#db/client.ts";
 import type { Table } from "#db/table.ts";
@@ -20,8 +19,6 @@ import type {
 import { refusingCheckTx, writeEntity } from "#shared/rest/write-entity.ts";
 import { transactionValidationMessageOrRethrow } from "#shared/rest/write-error.ts";
 import { okResult, type Result } from "#shared/result.ts";
-
-/* jscpd:ignore-end */
 
 /** Success result with data */
 type SuccessResult<T> = { ok: true } & T;

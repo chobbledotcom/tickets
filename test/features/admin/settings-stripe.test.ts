@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -23,8 +22,6 @@ import {
   describeAdminSettings,
   withSuccessfulStripeWebhook,
 } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 describeAdminSettings(() => {
   const stubWebhookAndPostStripe = async (

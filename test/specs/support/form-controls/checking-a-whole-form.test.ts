@@ -2,15 +2,12 @@
  * Checking a whole form's worth of values at once, before any of it is sent.
  */
 
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   expectCanReallySend,
   expectNothingInsistedIsEmpty,
 } from "#test/specs/support/form-controls/rules.ts";
-
-// jscpd:ignore-end
 
 describe("checking a whole form's worth of values at once", () => {
   const form =

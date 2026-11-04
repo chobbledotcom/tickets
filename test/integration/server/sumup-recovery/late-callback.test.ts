@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -13,8 +12,6 @@ import {
   sumupRecoveryRow,
   withSumupCheckoutStatus,
 } from "#test-utils/sumup.ts";
-
-// jscpd:ignore-end
 
 const CHECKOUT_ID = "co_late";
 

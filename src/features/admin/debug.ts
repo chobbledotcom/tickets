@@ -1,9 +1,6 @@
-/* jscpd:ignore-start */
-
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 
-/* jscpd:ignore-end */
 /**
  * Admin debug route - shows configuration status for troubleshooting
  * Owner-only access
@@ -13,7 +10,6 @@ import { isValidRsaPrivateKey } from "#crypto/rsa-private-key.ts";
 import { databaseHostFor } from "#db/host.ts";
 import { SCHEMA_HASH } from "#db/migrations.ts";
 import { settings } from "#db/settings.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import {
   authPage,
@@ -65,8 +61,6 @@ import {
 } from "#templates/admin/debug.tsx";
 import type { DebugPageState } from "#templates/admin/debug-state.ts";
 import type { PaymentProviderType } from "#types";
-
-/* jscpd:ignore-end */
 
 type CertValidation = {
   signingCert: string;

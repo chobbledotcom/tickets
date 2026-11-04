@@ -5,7 +5,6 @@
  * always using a code the site itself would hand out.
  */
 
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { handleRequest } from "#routes";
@@ -20,8 +19,6 @@ import type { ActOnOneThing, TicketsWorld } from "#test/specs/support/world.ts";
 import { STUB_CHECKOUT_URL } from "#test-utils/checkout.ts";
 import { deactivateTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
-
-// jscpd:ignore-end
 
 /** What the organiser types on the page that makes the code. A box left out is
  * left as the page had it, the way it would be for a person who fills in one

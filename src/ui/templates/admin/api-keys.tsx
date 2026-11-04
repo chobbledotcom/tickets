@@ -2,7 +2,6 @@
  * Admin API keys page template
  */
 
-/* jscpd:ignore-start */
 import { joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
@@ -26,8 +25,6 @@ import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import type { AdminSession } from "#types";
-
-/* jscpd:ignore-end */
 
 export type ApiKeyDisplay = {
   id: number;

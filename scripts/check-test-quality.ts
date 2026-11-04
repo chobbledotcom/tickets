@@ -8,11 +8,8 @@
  * precommit`, or on its own with `deno task check:test-quality`.
  */
 
-/* jscpd:ignore-start -- imports */
 import { consoleOutput } from "#scripts/check-report.ts";
 import { runCommand } from "#scripts/precommit/git.ts";
 import { gateExit } from "./check-test-quality/run.ts";
-
-/* jscpd:ignore-end */
 
 Deno.exit(await gateExit(runCommand, consoleOutput, Deno.readTextFile));

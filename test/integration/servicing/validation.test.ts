@@ -11,7 +11,6 @@
  *     `createAttendeeAtomic` (`NO_LINES_ERROR`, negative-quantity guard,
  *     duplicate-slot guard) plus the shared name-required check.
  */
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -32,8 +31,6 @@ import {
   type ServicingEvent,
 } from "#test-utils/servicing.ts";
 import { adminFormPost } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "servicing §14 — validation & negative paths",

@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -20,8 +18,6 @@ import {
 import { linePlacesOnPage, openAttendeeEditor } from "#test-utils/e2e.ts";
 import { ALL_CHECKBOXES } from "#test-utils/test-browser/pressing.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
-
-// jscpd:ignore-end
 
 const LISTING = "Summer Concert";
 const GROUP = "Summer Festival";

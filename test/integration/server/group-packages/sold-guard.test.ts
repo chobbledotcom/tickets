@@ -17,7 +17,6 @@ import { t } from "#i18n";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-// jscpd:ignore-start
 import { adminFormPost, apiRequest } from "#test-utils/session.ts";
 import {
   editFields,
@@ -26,8 +25,6 @@ import {
   member,
   sellPackageTicket,
 } from "./helpers.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "server (admin group packages) — pulling apart a package people have bought",

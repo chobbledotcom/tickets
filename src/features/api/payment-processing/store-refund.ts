@@ -27,7 +27,6 @@ import {
 } from "#payment/placeholder-refund.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import { paidPaymentReferenceOf } from "#payment/validated-session.ts";
-/* jscpd:ignore-start -- imports */
 import {
   type AttendeeBaseFields,
   attendeeBaseFields,
@@ -56,8 +55,6 @@ import { sendNtfyError } from "#shared/ntfy.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 import { requireValue } from "#shared/required-value.ts";
-
-/* jscpd:ignore-end */
 
 /** User-facing message when the outstanding balance changed mid-payment. */
 const BALANCE_CHANGED_MESSAGE =

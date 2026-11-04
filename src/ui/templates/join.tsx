@@ -2,13 +2,11 @@
  * Join (invite) page templates
  */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { Flash } from "#shared/forms/flash.tsx";
 import { SuccessCompletePage } from "#templates/components/success-complete-page.tsx";
 import { simplePublicPage } from "#templates/public/prose-page.tsx";
 import { AuthFormPage } from "#templates/setup.tsx";
-/* jscpd:ignore-end */
 
 /**
  * Join page - set password for invited user

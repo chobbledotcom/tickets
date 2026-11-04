@@ -2,7 +2,6 @@
  * Public pages - home, listings, terms, contact
  */
 
-/* jscpd:ignore-start */
 import { getSelectedAttributesForListings } from "#db/attributes.ts";
 import { addPageImageUrls } from "#db/image-urls.ts";
 import { settings } from "#db/settings.ts";
@@ -45,8 +44,6 @@ import { loadDecidedGroups } from "./group-liveness.ts";
 import { loadDailyDateAvailability } from "./listing-date-availability.ts";
 import { publicNavProps } from "./site-nav.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
-
-/* jscpd:ignore-end */
 
 /** Render a public site page with website title and content */
 const renderPublicPage: ResponseHandler<

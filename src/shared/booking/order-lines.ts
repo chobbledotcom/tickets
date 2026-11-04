@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { effectivePrice } from "#booking/price-tree.ts";
 import {
   type BookingNode,
@@ -6,7 +5,6 @@ import {
   nodeFixedQuantity,
 } from "#booking/tree.ts";
 import { requiredMapValue, sumByKey } from "#fp";
-/* jscpd:ignore-end */
 import { type CheckoutItem, checkoutItem } from "#shared/payments.ts";
 import type { PurchaseContext } from "#shared/purchase-unit.ts";
 

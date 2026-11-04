@@ -5,7 +5,6 @@
  * names — that is what is pinned here.
  */
 
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -19,8 +18,6 @@ import {
   worldWith,
 } from "#test/specs/support/world.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-
-// jscpd:ignore-end
 
 /** The Feature whose actor the journey acts out. */
 const FEATURE = "specs/pages/previewing-formatted-text.feature";

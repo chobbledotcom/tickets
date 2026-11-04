@@ -5,7 +5,6 @@
  * than being reached around.
  */
 
-// jscpd:ignore-start
 import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { getGroupPackagePrices, groups } from "#db/groups.ts";
@@ -51,7 +50,6 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 import type { Group, GroupListing } from "#types";
-// jscpd:ignore-end
 
 /** One thing inside a bundle, and what the bundle charges for it. */
 export interface PartOfBundle {

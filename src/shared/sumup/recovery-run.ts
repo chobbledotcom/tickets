@@ -7,7 +7,6 @@
  * answer from one to the next.
  */
 
-/* jscpd:ignore-start -- imports */
 import {
   applySumupRecoveryEvent,
   type DueSumupCheckout,
@@ -22,8 +21,6 @@ import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import { dueBatchRunner } from "#shared/maintenance/definition.ts";
 import { resolveSumupCheckoutById } from "#shared/sumup/checkout-resolution.ts";
 import { sumupRecoveryOutcome } from "#shared/sumup/recovery.ts";
-
-/* jscpd:ignore-end */
 
 /** Ask about one checkout and record what the answer amounted to.
  *

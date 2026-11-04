@@ -1,10 +1,8 @@
-/* jscpd:ignore-start -- imports */
 import {
   modelData,
   type PaymentModel,
   paymentModel,
 } from "#scripts/verify-models/model.ts";
-/* jscpd:ignore-end */
 
 /** One emitted money edge with its refund request changed. The checker must
  *  report a counterexample for this data, or its clean verdicts prove

@@ -10,7 +10,6 @@
  * picker in `groups.ts` do.
  */
 
-/* jscpd:ignore-start */
 import {
   accountBalanceSubquery,
   creditsLessWriteoffDebits,
@@ -19,8 +18,6 @@ import { imageFilenameSubqueries } from "#db/images.ts";
 import { defineReader } from "#db/read.ts";
 import { inList, type WhereClause } from "#db/where-clauses.ts";
 import type { ListingWithCount } from "#types";
-
-/* jscpd:ignore-end */
 
 /** A listing's recognised income and servicing cost, worked out from the ledger
  * rather than stored columns. */

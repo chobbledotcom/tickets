@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -19,8 +17,6 @@ import {
 import { emailFor } from "#test/specs/support/emails.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
-
-// jscpd:ignore-end
 
 /** Bookings the organiser took by hand, seeded on the record that cannot be
  * read. Repairing the note must leave this count alone too. */

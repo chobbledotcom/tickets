@@ -4,7 +4,6 @@
  * alone.
  */
 
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { applyQrTokenOverride } from "#routes/public/ticket-submit/parse.ts";
@@ -14,8 +13,6 @@ import { buildQrBookPayload, signQrBookToken } from "#shared/qr-token.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { ticketContext } from "#test-utils/ticket-ctx.ts";
-
-/* jscpd:ignore-end */
 
 /** A QR token signed for `slug`, carrying one fixed override price. */
 const signedTokenFor = (slug: string): Promise<string> =>

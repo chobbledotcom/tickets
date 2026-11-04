@@ -3,7 +3,6 @@
  */
 
 import { type HolidayInput, holidays } from "#db/holidays.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
 import {
@@ -25,8 +24,6 @@ import {
 } from "#templates/admin/holidays.tsx";
 import { getHolidayForm } from "#templates/fields/admin.ts";
 import { holidayPage } from "./holiday-page.ts";
-
-/* jscpd:ignore-end */
 
 /** Extract holiday input from validated form values */
 type HolidayFormValues = FormValues<ReturnType<typeof getHolidayForm>>;

@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import * as v from "valibot";
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
@@ -15,8 +14,6 @@ import type {
   CatalogFieldSet,
   OptionalCatalogFieldValues,
 } from "./definition.ts";
-
-/* jscpd:ignore-end */
 
 const [CATALOG_API, CATALOG_FORM, CATALOG_API_FORM] = [1, 2, 3] as const;
 const encryptedTextColumn = col.encryptedText(encrypt, decrypt);

@@ -11,7 +11,6 @@
  *     as orphaned history — the transfers ledger is append-only, so the purge
  *     never reverses them.
  */
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -32,8 +31,6 @@ import {
   orphanServicingEvent,
   recordServiceCost,
 } from "#test-utils/servicing.ts";
-
-// jscpd:ignore-end
 
 /** How many notes this attendee has — a dependent row the purge clears. */
 const noteCount = async (attendeeId: number): Promise<number> =>

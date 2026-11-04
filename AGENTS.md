@@ -482,8 +482,10 @@ for why.
 
 ## Code Duplication
 
-`deno task cpd` runs jscpd at a 0% threshold, and the threshold is
-non-negotiable. A flagged pair is one merge:
+`deno task cpd` runs jscpd, and every scan fails on a clone that its committed
+baseline does not carry. The strict scans ignore names, literals, and
+annotations, so a renamed copy is a clone. The baselines only shrink. A flagged
+pair is one merge:
 
 - Write the helper, or give the shared tail its parameter. Two functions that
   differ only in a value, a path, a field name, a message, or a callback are one
@@ -495,8 +497,15 @@ non-negotiable. A flagged pair is one merge:
   shared call at all. Give that signature a named type instead.
 - The renamed scan holds accepted matches in `.jscpd.renamed-baseline.json`. Add
   a pair only after you try the curry, with `deno task cpd:renamed --update`.
-- Import blocks are the one sanctioned repeat. Wrap them in `jscpd:ignore-start`
-  / `jscpd:ignore-end` markers.
+- The strict scans hold the clones that existed when they started to count
+  renamed copies, in `.jscpd.baseline.json`, `.jscpd.test-baseline.json`,
+  `.jscpd.helpers-baseline.json`, and `.jscpd.support-baseline.json`. After a
+  merge, remove the fixed clones with
+  `deno run -A scripts/cpd.ts --config <config> --baseline <baseline> --update`.
+  Never add a clone to these baselines.
+- Import and re-export statements are the one sanctioned repeat. The
+  `ignorePattern` list in each config skips them, so do not add ignore markers
+  around imports.
 
 `docs/test-duplication.md` measures the remaining steps. Read its counts as work
 to do.

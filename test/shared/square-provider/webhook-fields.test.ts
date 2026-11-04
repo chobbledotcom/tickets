@@ -1,10 +1,7 @@
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
 import { setupSquareProviderSuite } from "#test-utils/square/fixtures.ts";
-
-/* jscpd:ignore-end */
 
 describe("square-provider payment webhook fields", () => {
   setupSquareProviderSuite();

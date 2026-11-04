@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -10,6 +9,7 @@ import {
 import { johnCheckoutSession } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { logLogged, useErrorLogSpy } from "#test-utils/debug-log.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest, withMocks } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
@@ -18,10 +18,6 @@ import {
   stubRefundPayment,
   stubRetrieveCheckoutSession,
 } from "#test-utils/webhooks/stripe.ts";
-
-// jscpd:ignore-end
-
-import { logLogged, useErrorLogSpy } from "#test-utils/debug-log.ts";
 
 /** A cancelled (unpaid) checkout session for the given id and items metadata —
  *  the shape every /payment/cancel test stubs, differing only in the id and

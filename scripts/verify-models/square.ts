@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { map } from "#fp";
 import {
   LINK_END_CHECKABLE_NODES,
@@ -30,8 +29,6 @@ import {
   SQUARE_NATIVE_LIFETIME_MS,
 } from "#shared/square/limits.ts";
 import { squareLinkEndEventOf } from "#shared/square/link-end.ts";
-
-/* jscpd:ignore-end */
 
 const linkRepresentativeFields = {
   ...representativeFields,

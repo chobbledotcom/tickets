@@ -16,7 +16,6 @@ import { queryAll, type TxScope } from "#db/client.ts";
 import { syncAttendeeContactTokens } from "#db/contact-tokens.ts";
 import { loadPaymentMoveSnapshot, orRefusal } from "#db/payment-admit-move.ts";
 import { getQuestionsWithListingIds } from "#db/questions/queries.ts";
-/* jscpd:ignore-start */
 import { filter, map, pipe, unique } from "#fp";
 import { t } from "#i18n";
 import { formGuard, formPolicyFor } from "#routes/auth.ts";
@@ -43,8 +42,6 @@ import type { ParamsRoute } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { AttendeeMergePanel } from "#templates/admin/attendees/merge-panel.tsx";
 import type { Attendee, ContactInfo } from "#types";
-
-/* jscpd:ignore-end */
 
 /** Load and decrypt a target attendee by ID for merge operations */
 const loadMergeTarget = async (

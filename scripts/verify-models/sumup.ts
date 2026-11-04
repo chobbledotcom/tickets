@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { filter, map, pipe } from "#fp";
 import {
   RECOVERY_CHECKABLE_NODES,
@@ -25,8 +24,6 @@ import {
   tlaSet,
 } from "#scripts/verify-models/data.ts";
 import { movesIn } from "#shared/schema-atlas/machine-spec.ts";
-
-/* jscpd:ignore-end */
 
 const nodeFields = {
   moneyOwed: "Str",

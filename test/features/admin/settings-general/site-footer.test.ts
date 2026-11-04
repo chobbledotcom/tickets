@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -16,8 +15,6 @@ import {
   describeAdminSettings,
   settingsAsStored,
 } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 describeAdminSettings(() => {
   describe("POST /admin/settings/site-footer", () => {

@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -23,8 +22,6 @@ import {
   squareOrderRead,
   squarePaymentRead,
 } from "#test-utils/square/outcomes.ts";
-
-// jscpd:ignore-end
 
 const expectWebhookResponse = async (
   event: WebhookEvent,

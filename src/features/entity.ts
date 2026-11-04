@@ -2,7 +2,6 @@
  * Entity loading patterns for route handlers
  */
 
-/* jscpd:ignore-start */
 import {
   type AuthSession,
   formPolicyFor,
@@ -13,7 +12,6 @@ import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ParamsRoute, ResponseHandler } from "#shared/response-steps.ts";
-/* jscpd:ignore-end */
 
 /**
  * Resolve a nullable promise, calling handler if found or returning 404.

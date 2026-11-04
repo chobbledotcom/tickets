@@ -1,6 +1,5 @@
 /** The buyer-facing lines of one order: a package stays whole and concealed. */
 
-/* jscpd:ignore-start */
 import type { OrderLine } from "#db/attendees/balance.ts";
 import { getPackageDisplaysByIds } from "#db/groups.ts";
 import { flatMap, map, sumOf } from "#fp";
@@ -9,7 +8,6 @@ import {
   orderPackageRows,
   type PackageRowGroup,
 } from "#shared/package-rows.ts";
-/* jscpd:ignore-end */
 
 /**
  * One order's lines as the buyer reads them. Rows booked through a package

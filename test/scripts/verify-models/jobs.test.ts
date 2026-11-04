@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -9,8 +8,6 @@ import type {
   VerificationModule,
 } from "#scripts/verify-models/spec.ts";
 import { withTempDir } from "#test-utils/files.ts";
-
-/* jscpd:ignore-end */
 
 const writeSources = async (
   modules: readonly VerificationModule[],

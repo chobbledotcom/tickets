@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -8,8 +7,6 @@ import {
 } from "#payment/square-link-end-machine-spec.ts";
 import { derivedNodeIds, movesIn } from "#shared/schema-atlas/machine-spec.ts";
 import { machineGraph } from "#test-utils/machine-graph.ts";
-
-/* jscpd:ignore-end */
 
 const graph = machineGraph({
   events: LINK_END_EVENTS,

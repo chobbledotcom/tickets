@@ -4,7 +4,6 @@
  * the door reads lives in `scan-reply.ts`. A queued delivery's identity,
  * digest match, and ledger row live in `scan-delivery.ts`. */
 
-/* jscpd:ignore-start -- imports */
 import { remainingTickets } from "#booking/remaining-tickets.ts";
 import { type TicketMoveAnswer, ticketCount } from "#booking/ticket-moves.ts";
 import type { AttendeeWithBookings } from "#db/attendee-types.ts";
@@ -61,7 +60,6 @@ import {
   scanBody,
   wrongListingResponse,
 } from "./scan-reply.ts";
-/* jscpd:ignore-end */
 
 /** What one door's scan resolves against: the listings it admits, and its
  * group's stored choice between one listing per scan and all of them. */

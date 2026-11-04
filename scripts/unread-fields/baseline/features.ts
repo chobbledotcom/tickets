@@ -1,11 +1,8 @@
-// jscpd:ignore-start
 import {
   type FindingIdentity,
   identitiesAt,
   ownerAt,
 } from "#scripts/unread-fields/identity.ts";
-
-// jscpd:ignore-end
 
 const inCatalogTransfer = ownerAt(
   "src/features/admin/catalog-transfer/schema.ts",

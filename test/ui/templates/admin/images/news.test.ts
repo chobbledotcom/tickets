@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -28,8 +27,6 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
-
-/* jscpd:ignore-end */
 
 describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
   describe("POST /admin/site/news/:id/images", () => {

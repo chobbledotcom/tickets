@@ -5,7 +5,6 @@
  *  discount facts below consume its exactness. The negative controls live in
  *  composition-corruptions.ts. */
 
-/* jscpd:ignore-start -- imports */
 import { sum } from "#fp";
 import {
   type ModelDataSource,
@@ -28,7 +27,6 @@ import {
   modifierCoversListing,
   modifierDelta,
 } from "#shared/price-modifier.ts";
-/* jscpd:ignore-end */
 
 /** One order's final facts for the checker: the composition totals and the
  *  fee basis. `subtotal` is the generator's own composition result;

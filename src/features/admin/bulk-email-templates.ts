@@ -23,11 +23,9 @@ import { errorRedirect } from "#routes/response.ts";
 import { targetQuery } from "#shared/bulk-email-targets/registry.ts";
 import type { BulkEmailTarget } from "#shared/bulk-email-targets/types.ts";
 import { MAX_EMAIL_TEMPLATES } from "#shared/limits.ts";
-/* jscpd:ignore-start */
 import { ok } from "#shared/response.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { parsePositiveInt as parsePositiveIntId } from "#shared/validation/number.ts";
-/* jscpd:ignore-end */
 import { bulkEmailTemplateDeletePage } from "#templates/admin/bulk-email.tsx";
 
 /** Flash back to the compose page with the saved template selected. */

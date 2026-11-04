@@ -3,14 +3,12 @@
  *  resource clients (pull zone, DNS, edge script) all read this module. It
  *  reads none of them. */
 
-/* jscpd:ignore-start -- import block */
 import type { GenericSchema } from "valibot";
 import { type ApiClientFetch, defineApiClient } from "#shared/api-client.ts";
 import { dryRunOrFetchText } from "#shared/builder-dry-run.ts";
 import { getBunnyApiKey } from "#shared/config.ts";
 import { type FetchResult, parseApiError } from "#shared/fetch.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-/* jscpd:ignore-end */
 
 export const BUNNY_API_BASE = "https://api.bunny.net";
 

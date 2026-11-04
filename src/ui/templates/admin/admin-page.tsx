@@ -4,7 +4,6 @@
  * listing-link helpers the page modules share also live here.
  */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { Child } from "#jsx/jsx-runtime.ts";
 import type {
@@ -22,7 +21,6 @@ import type { NavActive } from "#templates/admin/nav.tsx";
 import { linkCell } from "#templates/components/link-cell.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import type { AdminSession } from "#types";
-/* jscpd:ignore-end */
 
 /** A link to a listing's admin page showing its name. Owned here so the same
  *  admin listing link is not re-authored across the attendee form and the

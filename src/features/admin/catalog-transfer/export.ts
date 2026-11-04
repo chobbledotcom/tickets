@@ -7,7 +7,6 @@
  * are not exported separately.
  */
 
-/* jscpd:ignore-start -- imports */
 import * as v from "valibot";
 import { getAllGroupNames, getGroupPackagePrices } from "#db/groups.ts";
 import { listingParents } from "#db/listing-parents.ts";
@@ -39,7 +38,6 @@ import {
   type ListingMembership,
   type ListingTransfer,
 } from "./schema.ts";
-/* jscpd:ignore-end */
 
 /** Returned (not thrown) when a stored row holds a value the transfer format
  * cannot represent. An example is a bookable-day name or contact field the

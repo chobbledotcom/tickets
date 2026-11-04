@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -17,8 +15,6 @@ import {
   expectStoredOrder,
   openEditorFromRoster,
 } from "#test-utils/order-journey.ts";
-
-// jscpd:ignore-end
 
 const BUYER = "Journey Buyer";
 

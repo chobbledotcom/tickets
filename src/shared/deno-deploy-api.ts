@@ -6,7 +6,6 @@
  * Auth: Authorization: Bearer {DENO_DEPLOY_TOKEN}
  */
 
-/* jscpd:ignore-start */
 import { defineApiClient } from "#shared/api-client.ts";
 import {
   denoDeployAppSlug,
@@ -29,8 +28,6 @@ import type {
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { retryWithBackoff } from "#shared/retry.ts";
 import { parseJson } from "#shared/validation/parse.ts";
-
-/* jscpd:ignore-end */
 
 const DENO_API_BASE = "https://api.deno.com/v2";
 

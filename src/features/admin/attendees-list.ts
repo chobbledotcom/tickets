@@ -4,7 +4,6 @@
  * listing detail and attendee edit pages.
  */
 
-/* jscpd:ignore-start -- imports */
 import { logActivity } from "#db/activity-log.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeesPage } from "#db/attendees/queries.ts";
@@ -20,11 +19,9 @@ import {
 } from "#routes/admin/calendar-csv.ts";
 import { withPageData } from "#routes/admin/page-route.ts";
 import type { AuthSession } from "#routes/auth.ts";
-/* jscpd:ignore-start */
 import { htmlResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
-/* jscpd:ignore-end */
 import {
   type AttendeeListSetup,
   type AttendeeListState,
@@ -51,8 +48,6 @@ import {
 } from "#shared/sort-listings.ts";
 import { adminAttendeesListPage } from "#templates/admin/attendees-list.tsx";
 import type { Attendee, ListingWithCount } from "#types";
-
-/* jscpd:ignore-end */
 
 /** The browser's controls: every listing, every group, the type filter, sort
  *  (newest first unless the address says otherwise), and paging. */

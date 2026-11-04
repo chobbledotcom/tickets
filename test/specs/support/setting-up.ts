@@ -1,6 +1,5 @@
 /** The one-off ceremony that turns a bare site into somebody's. */
 
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { openAsNewcomer } from "#test/specs/support/browser.ts";
@@ -14,8 +13,6 @@ import {
 } from "#test/specs/support/world.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
-
-// jscpd:ignore-end
 
 const SETUP_PAGE = "/setup/";
 

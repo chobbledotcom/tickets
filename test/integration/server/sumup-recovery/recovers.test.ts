@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -14,8 +13,6 @@ import {
   sumupRecoveryRow,
   withSumupCheckoutStatus,
 } from "#test-utils/sumup.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("server > SumUp recovery", { db: true }, () => {
   /** Stage a real checkout the way production does, then make it due. */

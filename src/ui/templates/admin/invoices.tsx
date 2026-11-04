@@ -1,6 +1,5 @@
 /** Admin invoice pages: the list, the create form, and one invoice. */
 
-/* jscpd:ignore-start */
 import type { InvoiceRow, InvoiceSummary } from "#db/invoices.ts";
 import { t } from "#i18n";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
@@ -26,8 +25,6 @@ import {
   translatedTableColumn,
 } from "#templates/components/translated-table-column.ts";
 import { getInvoiceForm } from "#templates/fields/invoice.ts";
-
-/* jscpd:ignore-end */
 
 type InvoiceListRow = {
   attendeeName: string;

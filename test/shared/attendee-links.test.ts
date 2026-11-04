@@ -7,10 +7,8 @@
  * `/admin/attendees/:id`. No second copy of this dispatch may exist
  * (§20 "activity log and calendar share one kind-aware link builder").
  */
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-// jscpd:ignore-end
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
 import { attendeeAdminPath } from "#shared/attendee-links.ts";
 

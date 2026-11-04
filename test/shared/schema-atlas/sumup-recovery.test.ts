@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -8,8 +7,6 @@ import {
 } from "#payment/sumup-recovery-machine-spec.ts";
 import { SCHEMA_ATLAS_MACHINES } from "#shared/schema-atlas/index.ts";
 import { sumupRecoveryAtlas as atlas } from "#shared/schema-atlas/sumup-recovery.ts";
-
-/* jscpd:ignore-end */
 
 const stateById = (id: RecoveryNodeId) => {
   const state = atlas.states.find((one) => one.id === id);

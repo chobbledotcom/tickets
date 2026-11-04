@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -23,8 +21,6 @@ import {
 } from "#test/specs/support/contact.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { CONTACT_OWNER_EMAIL } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 Given("the owner takes messages", function (this: TicketsWorld): Promise<void> {
   return messagesAreWorking(this);

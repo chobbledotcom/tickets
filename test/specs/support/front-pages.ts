@@ -4,7 +4,6 @@
  * because these pages exist for exactly that person.
  */
 
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import {
   newcomerReading,
@@ -16,8 +15,6 @@ import { requireCheckboxOffered } from "#test/specs/support/form-controls/readin
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import type { ActOnOneThing, TicketsWorld } from "#test/specs/support/world.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 /** One front-page editor, driven the same way for each page: the public site
  * on, the form filled in from the page the site serves, and what the owner

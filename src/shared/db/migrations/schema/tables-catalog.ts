@@ -1,6 +1,5 @@
 /** Catalog tables: groups, modifiers, listing hierarchy, holidays, api keys. */
 
-/* jscpd:ignore-start -- imports */
 import { attendeeIdColumn, slugNamedEntityColumns } from "./columns.ts";
 import {
   defaulted,
@@ -15,7 +14,6 @@ import {
   wholeNumberStartingAtZero,
 } from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
-/* jscpd:ignore-end */
 
 export const catalogTables: [name: string, table: Table][] = [
   [

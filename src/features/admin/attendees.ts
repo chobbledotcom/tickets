@@ -1,5 +1,3 @@
-/* jscpd:ignore-start */
-
 import { logActivity } from "#db/activity-log.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import {
@@ -82,8 +80,6 @@ import {
   attendeeFormAction,
   attendeeListingEntries,
 } from "./attendees-route-helpers.ts";
-
-/* jscpd:ignore-end */
 
 /**
  * Deletes an attendee with an incomplete payment. The name confirmation does

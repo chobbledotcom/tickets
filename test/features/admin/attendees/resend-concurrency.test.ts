@@ -6,7 +6,6 @@
  * anyway, so two presses that both choose an owed side can both send it.
  */
 
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { claimOutstandingNotificationFlags } from "#db/attendees/notification-flags.ts";
@@ -29,8 +28,6 @@ import {
   recoverAllSides,
   resend,
 } from "./resend-press.ts";
-
-/* jscpd:ignore-end */
 
 describeWithEnv(
   "concurrent presses and the recovery claim",

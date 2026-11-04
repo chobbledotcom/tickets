@@ -4,7 +4,6 @@
  * offering the form or the download fails the story.
  */
 
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { openAdminPage, withAdminPage } from "#test/specs/support/browser.ts";
@@ -18,8 +17,6 @@ import type {
   ReadAboutOneThing,
   TicketsWorld,
 } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
 
 /** The listing's roster — where the add form, the download, and the check-in
  * controls all live. */

@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -11,8 +10,6 @@ import {
   makeSumupCheckoutDue,
   stageSignedSumupCheckout,
 } from "#test-utils/sumup.ts";
-
-// jscpd:ignore-end
 
 /** More checkouts than one run can take, so the queue order decides who is
  * seen. All of them are due, oldest first. */

@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 
 /**
@@ -40,8 +39,6 @@ import { computePhoneIndex } from "#shared/sms/phone-index.ts";
 import { parsePositiveInt as parsePositiveIntId } from "#shared/validation/number.ts";
 import { type SmsHistoryItem, smsPage } from "#templates/admin/sms.tsx";
 import { withAttendee } from "./attendees-route-helpers.ts";
-
-/* jscpd:ignore-end */
 
 /** SMS-related activity-log entries all start with this. */
 const SMS_LOG_PREFIX = "SMS";

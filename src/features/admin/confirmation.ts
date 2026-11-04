@@ -2,7 +2,6 @@
  * Confirmation and verification utilities for admin actions
  */
 
-/* jscpd:ignore-start */
 import { asString } from "#fp";
 import { t } from "#i18n";
 import {
@@ -29,7 +28,6 @@ import {
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ParamsRoute, ResponseHandler } from "#shared/response-steps.ts";
-/* jscpd:ignore-end */
 
 /** Form guard: require auth + CSRF, call handler with session and form */
 export type FormGuard<TSession> = Guard<[TSession, FormParams]>;

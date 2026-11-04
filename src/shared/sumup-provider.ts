@@ -19,9 +19,7 @@ import {
   requireProviderRefundAuthorization,
 } from "#payment/refund-provider-authorization.ts";
 import { ErrorCode } from "#shared/logger.ts";
-/* jscpd:ignore-start -- imports */
 import { parseWebhookPayload } from "#shared/payment-helpers.ts";
-/* jscpd:ignore-end */
 import type {
   PaymentProvider,
   RetrieveSessionResult,

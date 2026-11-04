@@ -1,5 +1,3 @@
-/* jscpd:ignore-start */
-
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
@@ -19,7 +17,6 @@ import {
 } from "#templates/components/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 import type { Group, Image, ItemImageColumns } from "#types";
-/* jscpd:ignore-end */
 
 /** Everything {@link PublicNav} renders: the settings-driven page flags, the
  * news flag (any post exists), plus the site-pages tree (built per request by

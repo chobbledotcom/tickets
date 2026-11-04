@@ -9,7 +9,6 @@ import { resetDatabase } from "#db/migrations.ts";
 import { t } from "#i18n";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
-/* jscpd:ignore-start */
 import { createFormRoute, publicFormPage } from "#shared/app-forms.ts";
 import { clearSessionCookie } from "#shared/cookies.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
@@ -26,8 +25,6 @@ import {
   RESET_DATABASE_PHRASE,
   RESET_PHRASE_MISMATCH_ERROR,
 } from "#templates/admin/database-reset.tsx";
-
-/* jscpd:ignore-end */
 
 /** Guard: require demo mode, else 404 */
 const withDemoResetAccess = featureGate(isDemoMode, notFoundResponse);

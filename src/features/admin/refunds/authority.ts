@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { uniqueBy } from "#fp";
 import { nowMs } from "#shared/now.ts";
 import type {
@@ -8,7 +7,6 @@ import type {
 } from "#shared/provider-refunds.ts";
 import type { RefundLedgerResult } from "#shared/refund-ledger/result.ts";
 import type { ReadyRefundReference } from "./readiness.ts";
-/* jscpd:ignore-end */
 
 /** Ask the sole refund authority using evidence readiness already proved. */
 export const requestReadyRefund = (

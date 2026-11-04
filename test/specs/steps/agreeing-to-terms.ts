@@ -7,7 +7,6 @@
  */
 
 import { Given, Then, When } from "@cucumber/cucumber";
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { settings } from "#db/settings.ts";
@@ -27,8 +26,6 @@ import {
 import { sentOrder, THE_CUSTOMER } from "#test/specs/support/refused-orders.ts";
 import { combinedPath } from "#test/specs/support/sales-pages.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
 
 /** The box a customer ticks to agree, read from the page by its own label
  * when the story needs it (the catalog is not loaded at import time). */

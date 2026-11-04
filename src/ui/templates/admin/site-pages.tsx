@@ -3,7 +3,6 @@
  * page carrying the item manager), and the delete confirmation.
  */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import {
   sitePageEditForm,
@@ -33,8 +32,6 @@ import type {
   SitePageItemType,
   SitePageNavRow,
 } from "#types";
-
-/* jscpd:ignore-end */
 
 const LIST = "/admin/site/pages";
 export type PickerOption = { value: string; label: string };

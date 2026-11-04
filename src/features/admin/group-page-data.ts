@@ -7,12 +7,10 @@
  * separate pages used to.
  */
 
-// jscpd:ignore-start
 import { listingMoneyTotals } from "#accounting/listing-money-totals.ts";
 import { emptyRange } from "#accounting/range.ts";
 import { linePair } from "#booking/ticket-moves.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
-// jscpd:ignore-end
 import { getPairBookings } from "#db/attendees/ticket-lines.ts";
 import { getListingsNotInGroup } from "#db/groups/candidates.ts";
 import {

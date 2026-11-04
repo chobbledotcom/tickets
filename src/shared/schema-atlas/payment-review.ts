@@ -12,15 +12,12 @@ import {
   type ReviewNodeId,
   reviewNodeOf,
 } from "#payment/review-machine-spec.ts";
-/* jscpd:ignore-start -- imports */
 import {
   atlasMachineFrom,
   factsFromNode,
   type MachineLayouts,
 } from "#shared/schema-atlas/machine-spec.ts";
 import type { AtlasMachine } from "#shared/schema-atlas/types.ts";
-
-/* jscpd:ignore-end */
 
 /** Where each node sits on the map. */
 const LAYOUTS: MachineLayouts<ReviewNodeId> = {

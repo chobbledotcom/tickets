@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -12,8 +11,6 @@ import {
   expectStaticFile,
 } from "#test-utils/public/static-route-checks.ts";
 import { disablePublicSite, enablePublicSite } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 /** The compiled stylesheet is one media query per topic, compressed, with flat
  * rules. Read it the way a print stylesheet resolves: take the `@media print`

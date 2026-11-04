@@ -33,7 +33,6 @@ import {
 } from "#routes/admin/confirmation.ts";
 import { formGuard, formPolicyFor, pageGuardFor } from "#routes/auth.ts";
 import { createEntityHandler, throughParent } from "#routes/entity.ts";
-/* jscpd:ignore-start */
 import {
   errorRedirect,
   htmlResponse,
@@ -58,8 +57,6 @@ import {
 import { getAnswerAggregateFields } from "#templates/fields/aggregate.ts";
 import type { AdminSession } from "#types";
 import { answerTextForm } from "./forms.ts";
-
-/* jscpd:ignore-end */
 
 export type QuestionIdParams = { id: number };
 

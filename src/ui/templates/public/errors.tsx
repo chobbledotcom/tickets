@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
@@ -12,8 +11,6 @@ import {
 } from "#templates/components/prose-heading.tsx";
 import { Layout } from "#templates/layout.tsx";
 import { messagePublicPage, simplePublicPage } from "./prose-page.tsx";
-
-/* jscpd:ignore-end */
 
 /**
  * Curried error-page factory. The temporary/database-busy/migration/

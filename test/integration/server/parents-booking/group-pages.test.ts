@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -6,8 +5,6 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { makeParent, ticketGet } from "#test-utils/parents.ts";
-
-/* jscpd:ignore-end */
 
 describeWithEnv(
   "server > parents booking — group pages",

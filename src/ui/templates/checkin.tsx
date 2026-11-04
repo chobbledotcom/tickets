@@ -13,12 +13,10 @@ import {
   attendeeLineRow,
   withPairBookings,
 } from "#shared/attendee-table-rows.ts";
-// jscpd:ignore-start
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
 import type { AttendeeColumnKey } from "#shared/tables/configurable.ts";
 import type { TableLayout } from "#shared/tables/layout.ts";
-// jscpd:ignore-end
 import { AttendeeTableBlock } from "#templates/admin/attendee-table-block.tsx";
 import { Layout } from "#templates/layout.tsx";
 import type { AttendeeTableRow } from "#types";

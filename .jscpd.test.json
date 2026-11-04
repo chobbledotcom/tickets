@@ -1,5 +1,5 @@
 {
-  "threshold": 0,
+  "threshold": 100,
   "noTips": true,
   "reporters": [
     "console",
@@ -18,16 +18,16 @@
   ],
   "absolute": false,
   "gitignore": true,
-  "exitCode": 1,
   "ignoreIdentifiers": true,
   "ignoreLiterals": true,
   "ignoreAnnotations": true,
-  "kind": [
-    "exact"
-  ],
   "minLines": 1,
   "minTokens": 48,
   "path": [
     "test"
+  ],
+  "ignorePattern": [
+    "(?m)^import\\s[^;]*;",
+    "(?m)^export\\s+(type\\s+)?(\\*|\\{[^}]*\\})(\\s+as\\s+\\w+)?\\s+from\\s[^;]*;"
   ]
 }

@@ -9,7 +9,6 @@
  * the form refuses.
  */
 
-/* jscpd:ignore-start -- imports */
 import {
   datelessRemainingFromSnapshot,
   judgedByDay,
@@ -49,8 +48,6 @@ import {
   type OrderCatalog,
 } from "./order-catalog.ts";
 import { publicNavProps } from "./site-nav.ts";
-
-/* jscpd:ignore-end */
 
 /**
  * Guard: the order page is available only when the public site is on and the

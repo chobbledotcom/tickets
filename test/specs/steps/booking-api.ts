@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import {
@@ -16,8 +14,6 @@ import {
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
-
-// jscpd:ignore-end
 
 /** What the API last answered. */
 const lastAnswer = (world: TicketsWorld): ApiAnswer =>

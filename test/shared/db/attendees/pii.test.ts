@@ -11,7 +11,6 @@
  *     `parsePiiBlob`, `PII_BLOB_VERSION`. No new code — this test reuses
  *     the existing builder with name-only input.
  */
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -30,8 +29,6 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { testAttendee } from "#test-utils/factories.ts";
 import type { Attendee, PiiBlob } from "#types";
-
-// jscpd:ignore-end
 
 describe("servicing §0 — buildPiiBlob with name only produces an all-empty-but-name blob", () => {
   const input = {

@@ -2,7 +2,6 @@
  * Setup page templates - initial configuration
  */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { COUNTRIES, DEFAULT_COUNTRY } from "#shared/countries.ts";
@@ -12,8 +11,6 @@ import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import { SuccessCompletePage } from "#templates/components/success-complete-page.tsx";
 import { getSetupForm } from "#templates/fields/admin.ts";
 import { Layout } from "#templates/layout.tsx";
-
-/* jscpd:ignore-end */
 
 /**
  * Data Controller Agreement - displayed during setup

@@ -9,7 +9,6 @@
  * is a note of its own, which is what the forgetting rule is about.
  */
 
-// jscpd:ignore-start
 import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import {
@@ -37,7 +36,6 @@ import type {
   TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { extractFormEntries } from "#test-utils/test-browser/forms.ts";
-// jscpd:ignore-end
 
 /** The listing every scenario here buys a place on. */
 export const POTTERY = "Pottery Class";

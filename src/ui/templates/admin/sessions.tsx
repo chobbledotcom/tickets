@@ -2,7 +2,6 @@
  * Admin sessions page template
  */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
@@ -14,8 +13,6 @@ import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import type { AdminSession, Session } from "#types";
-
-/* jscpd:ignore-end */
 
 const sessionColumns: readonly TableColumn<Session, string>[] = [
   translatedTableColumn(

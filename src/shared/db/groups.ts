@@ -2,7 +2,6 @@
  * Groups table operations
  */
 
-/* jscpd:ignore-start */
 import * as v from "valibot";
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
@@ -58,8 +57,6 @@ import { packageMemberError } from "#shared/package-membership.ts";
 import { generateUniqueSlug, type SlugWithIndex } from "#shared/slug.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 import type { Group, GroupListing, ListingWithCount } from "#types";
-
-/* jscpd:ignore-end */
 
 /** Groups are few, so the cache loads the whole set and answers by-id / by-slug
  * reads from it — same isolate-level TTL as the listings cache. */

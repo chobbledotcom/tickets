@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -16,8 +15,6 @@ import {
   makeTwoDefaultChildren,
   parentField,
 } from "#test-utils/parents.ts";
-
-// jscpd:ignore-end
 
 const assignQuestionId = async (
   listingId: number,

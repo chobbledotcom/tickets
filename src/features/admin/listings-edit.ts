@@ -20,7 +20,6 @@ import {
   requireListingWithCount,
 } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import {
   type AuthSession,
@@ -71,7 +70,6 @@ import {
 } from "./listings-switch.ts";
 import { processUploadsAndRedirect } from "./listings-uploads.ts";
 import { makeMoneyAdjustHandler } from "./money-adjust.ts";
-/* jscpd:ignore-end */
 
 /**
  * No ?template param → show the type-picker card page.

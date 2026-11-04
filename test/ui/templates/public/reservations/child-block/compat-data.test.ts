@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -15,8 +14,6 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { bookingPageHtml, makeParent } from "#test-utils/parents.ts";
 import { firstBookableDate } from "#test-utils/parents-gate/helpers.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "public reservations > child block > compatibility data",

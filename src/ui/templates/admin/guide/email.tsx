@@ -2,7 +2,6 @@
  * Admin guide — Email sections.
  */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import {
   custom,
@@ -15,7 +14,6 @@ import {
   LOOP_EXAMPLE,
   TEMPLATE_VARIABLES,
 } from "#templates/components/email-template-reference.tsx";
-/* jscpd:ignore-end */
 
 export const emailSections = (hostConfig?: GuideHostConfig): GuideSection[] => [
   {

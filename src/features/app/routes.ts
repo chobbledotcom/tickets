@@ -3,8 +3,6 @@
  * for a body-bearing request. The prefixes are declared in `prefixes.ts`.
  */
 
-/* jscpd:ignore-start -- imports */
-
 import { t, withMessageGroups } from "#i18n";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { notFoundResponse, redirectResponse } from "#routes/response.ts";
@@ -15,8 +13,6 @@ import type { PrefixRoute } from "./prefix-fold.ts";
 import { prefixRoutes } from "./prefixes.ts";
 import { readOnlyBlock } from "./read-only.ts";
 import { isSetupPath } from "./rules.ts";
-
-/* jscpd:ignore-end */
 
 type CompletePathMethodRoute = (
   ...args: Parameters<PathMethodRoute>

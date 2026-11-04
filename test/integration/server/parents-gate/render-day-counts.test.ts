@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -11,8 +10,6 @@ import {
   type ContainsCase,
   runContainsCases,
 } from "#test-utils/parents-gate/helpers.ts";
-
-// jscpd:ignore-end
 
 /** A customisable parent priced 1 day £10 / 2 days £18 — the shared `parent`
  *  spec behind several price-label and every day-count-union case (declared

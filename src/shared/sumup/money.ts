@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { compact } from "#fp";
 import { isCurrency, money, sameMoney } from "#payment/money.ts";
 import {
@@ -25,8 +24,6 @@ import type { SumupTransactionMoney } from "#shared/sumup/transaction.ts";
 import type { SumupEventStatus } from "#shared/sumup/wire.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import { exceedsCurrencyPrecision } from "#shared/validation/money.ts";
-
-/* jscpd:ignore-end */
 
 const REFUND_STATUS_MEANING = {
   FAILED: "failed",

@@ -12,7 +12,6 @@ import {
   listingAggregates,
 } from "#db/listings/aggregates.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import {
   createRecalculateHandlers,
@@ -21,8 +20,6 @@ import {
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { adminListingRecalculatePage } from "#templates/admin/listings/aggregates.tsx";
 import { withEntityFromParam } from "./entity-handlers.ts";
-
-/* jscpd:ignore-end */
 
 const renderListingRecalculatePage = createRecalculatePageRenderer(
   getListingAggregateRecalculation,

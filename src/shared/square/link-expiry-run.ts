@@ -8,7 +8,6 @@
  * payment that arrives on a link we ended is processed exactly as today.
  */
 
-/* jscpd:ignore-start -- imports */
 import { decrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import {
@@ -24,8 +23,6 @@ import { dueBatchRunner } from "#shared/maintenance/definition.ts";
 import { squareApi } from "#shared/square/api.ts";
 import { SQUARE_LINK_EXPIRY_BATCH } from "#shared/square/limits.ts";
 import { squareLinkEndEventOf } from "#shared/square/link-end.ts";
-
-/* jscpd:ignore-end */
 
 /** End one link and record what the answer amounted to.
  *

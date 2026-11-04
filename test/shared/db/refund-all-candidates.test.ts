@@ -1,5 +1,3 @@
-// jscpd:ignore-start -- imports
-
 import type { Client, ResultSet } from "@libsql/client";
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
@@ -42,8 +40,6 @@ import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
 import { addProviderRefundTestCase } from "#test-utils/provider-refund-cases.ts";
 import { getCompleteRefundCandidatesForListing } from "#test-utils/refund-candidates.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
-
-// jscpd:ignore-end
 
 const candidateFor = async (listingId: number, attendeeId: number) => {
   const candidate = (

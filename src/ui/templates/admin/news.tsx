@@ -6,7 +6,6 @@
  * only supplies the Edit tab's form.
  */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import {
   newsPostEditForm,
@@ -25,8 +24,6 @@ import {
 import { WritableLink } from "#templates/admin/writable-only.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import type { AdminSession, NewsPost, NewsPostSummary } from "#types";
-
-/* jscpd:ignore-end */
 
 const LIST = "/admin/site/news";
 const DeleteLink = rowDeleteLink(LIST);

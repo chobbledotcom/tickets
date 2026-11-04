@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -22,8 +20,6 @@ import {
   sumOfAllBalances,
 } from "#test/specs/support/money-reads.ts";
 import { type TicketsWorld, theBooking } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
 
 const CONCERT = "Concert";
 

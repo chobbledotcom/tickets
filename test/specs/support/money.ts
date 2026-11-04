@@ -6,7 +6,6 @@
 
 import { expect } from "@std/expect";
 import { WORLD } from "#accounting/accounts.ts";
-// jscpd:ignore-start
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { scenarioBrowser } from "#test/specs/support/browser.ts";
 import { correctOnPage } from "#test/specs/support/corrections.ts";
@@ -33,7 +32,6 @@ import {
 } from "#test-utils/refund-routes.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import type { Listing } from "#types";
-// jscpd:ignore-end
 
 /** Pounds as the minor units the ledger stores, so a story can say "45.00". */
 export const minorUnits = (pounds: string): number =>

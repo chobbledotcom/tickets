@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -12,8 +11,6 @@ import { modelData, paymentModel } from "#scripts/verify-models/model.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { members, records } from "#test-utils/tla-data.ts";
 import { registeredModel } from "./registered-model.ts";
-
-/* jscpd:ignore-end */
 
 type ArmChange = (
   before: RefundAuthorityState,

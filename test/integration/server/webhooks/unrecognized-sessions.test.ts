@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -14,8 +13,6 @@ import {
   checkoutSessionEvent,
   expectWebhookIgnored,
 } from "#test-utils/webhooks.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("server webhooks > unrecognized sessions", { db: true }, () => {
   test("webhook ignores session with no _origin marker", async () => {

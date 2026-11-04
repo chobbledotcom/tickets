@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -23,8 +22,6 @@ import {
   renderAdminPage,
   updateServicingEvent,
 } from "#test-utils/servicing.ts";
-
-// jscpd:ignore-end
 
 const testSession = (adminLevel: "owner" | "editor" = "owner") => ({
   adminLevel,

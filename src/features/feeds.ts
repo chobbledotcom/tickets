@@ -4,7 +4,6 @@
  */
 
 import { decryptAttendees } from "#db/attendees/pii.ts";
-/* jscpd:ignore-start -- imports */
 import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import {
@@ -12,20 +11,17 @@ import {
   getLogisticsAssignmentsForAttendees,
 } from "#db/logistics.ts";
 import { getNewsPostSummaries } from "#db/news-posts.ts";
-/* jscpd:ignore-end */
 import { settings } from "#db/settings.ts";
 import { userAgents } from "#db/user-agents.ts";
 import { identity, map, mapById, pipe } from "#fp";
 import type { CoreListingFields } from "#routes/api/public-listing.ts";
 import { withAuth } from "#routes/auth.ts";
-/* jscpd:ignore-start */
 import { isRegistrationClosed } from "#routes/format.ts";
 import { classifyForDiscovery } from "#routes/public/discovery.ts";
 import {
   loadBookablePackages,
   publicGroupSummary,
 } from "#routes/public/group-liveness.ts";
-/* jscpd:ignore-end */
 import { icsResponse, rssResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { getEffectiveDomain } from "#shared/config.ts";

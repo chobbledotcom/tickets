@@ -6,7 +6,6 @@
  */
 
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
-// jscpd:ignore-start
 import { addDays } from "#shared/dates.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
 import {
@@ -20,7 +19,6 @@ import type {
 } from "#test/specs/support/world.ts";
 import { testDate } from "#test-utils/dates.ts";
 import type { Attendee, Listing } from "#types";
-// jscpd:ignore-end
 
 /** Somebody new each time, so two stays are never taken for one person. */
 export const guest = (order: number): { email: string; who: string } => ({

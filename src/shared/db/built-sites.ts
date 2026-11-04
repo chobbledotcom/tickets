@@ -4,7 +4,6 @@
  */
 
 import type { InValue } from "@libsql/client";
-/* jscpd:ignore-start */
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { queryAll, queryOne } from "#db/client.ts";
 import { retryWrite } from "#db/retry-write.ts";
@@ -48,8 +47,6 @@ import {
   type HostingProvider,
   type UpdateTier,
 } from "./built-sites/types.ts";
-
-/* jscpd:ignore-end */
 
 const rawBuiltSiteSchema = {
   ...builtSitePlainSchema,

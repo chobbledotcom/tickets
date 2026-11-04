@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -22,8 +21,6 @@ import {
   stubRefundPayment,
   stubRetrieveCheckoutSession,
 } from "#test-utils/webhooks/stripe.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
   // A handled post-payment failure reserves the session, then refunds/returns.

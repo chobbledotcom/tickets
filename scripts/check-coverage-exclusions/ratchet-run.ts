@@ -5,7 +5,6 @@
  * ./exclusion-ratchet.ts and the entry stays a one-liner.
  */
 
-/* jscpd:ignore-start -- imports */
 import { type CheckOutput, reportCheck } from "#scripts/check-report.ts";
 import { fileAtRevision } from "#scripts/file-at-revision.ts";
 import {
@@ -20,8 +19,6 @@ import {
   parseExclusionEntries,
   RATCHET_GUIDE,
 } from "./exclusion-ratchet.ts";
-
-/* jscpd:ignore-end */
 
 /**
  * The entries the gate actually enforces, `COVERAGE_EXCLUSIONS`, are the

@@ -1,7 +1,6 @@
 // JSON CRUD coverage for the group resource behind the migrated group entity
 // page (groups.ts). Kept in the mutation gate's changed set so groups.ts's
 // whole-file mutants meet their real covering tests.
-// jscpd:ignore-start -- imports
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -14,8 +13,6 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("Admin API - Groups", { db: true }, () => {
   describe("GET /api/admin/groups/:groupId", () => {

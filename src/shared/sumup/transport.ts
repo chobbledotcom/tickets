@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import {
   type ProviderRequest,
   providerCaller,
@@ -6,8 +5,6 @@ import {
 } from "#payment/provider-fetch.ts";
 import { providerDetail } from "#payment/transport-error.ts";
 import { encodedAfter } from "#shared/encoded-after.ts";
-
-/* jscpd:ignore-end */
 
 /** SumUp names no rejected field in its answers, so its detail never reads a
  * body. */

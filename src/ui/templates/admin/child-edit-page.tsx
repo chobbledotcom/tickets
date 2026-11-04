@@ -7,12 +7,10 @@
  */
 
 import type { Child } from "#jsx/jsx-runtime.ts";
-/* jscpd:ignore-start */
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { BackButton } from "#templates/components/actions.tsx";
 import type { AdminSession } from "#types";
-/* jscpd:ignore-end */
 
 export type ChildEditFrame = {
   /** The nav item to mark active, for example "/admin/questions". */

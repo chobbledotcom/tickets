@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
@@ -19,8 +18,6 @@ import type { ChildProps } from "#templates/components/child-props.ts";
 import { ErrorNote } from "#templates/components/error.tsx";
 import { Prose } from "#templates/components/prose-heading.tsx";
 import { ProsePanel } from "#templates/components/prose-panel.tsx";
-
-/* jscpd:ignore-end */
 
 const CodeNameList = ({ names }: { names: string[] }): JSX.Element => (
   <ul>

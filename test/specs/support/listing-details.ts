@@ -4,7 +4,6 @@
  * because that is where a detail earns its keep.
  */
 
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { getAllAttributesWithOptions } from "#db/attributes.ts";
 import {
@@ -23,8 +22,6 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
 
 /** The detail this story keeps, or a loud failure when it never kept one. */
 const keptDetail = (world: TicketsWorld): { id: number; name: string } =>

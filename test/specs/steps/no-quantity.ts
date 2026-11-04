@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -21,8 +19,6 @@ import {
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { testCookie } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 const WORKSHOP = "Workshop";
 const REAL_SHOW = "RealShow";

@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -25,8 +23,6 @@ import {
 } from "#test/specs/support/refund-safety/state.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { chargeMoney } from "#test-utils/payment-state.ts";
-
-// jscpd:ignore-end
 
 const REFERENCE = "sumup-owner-recovery-reference";
 const OBSERVATION_DELAY = 5 * 60 * 1000;

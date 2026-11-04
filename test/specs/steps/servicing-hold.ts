@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -21,8 +19,6 @@ import {
   renderAdminPage,
 } from "#test-utils/servicing.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 const ROOM_A = "Room A";
 const ANNUAL_ROOM = "Annual Room";

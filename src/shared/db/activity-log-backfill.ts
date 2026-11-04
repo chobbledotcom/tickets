@@ -8,7 +8,6 @@
  * `enc:` prefix, so each batch shrinks the remaining set.
  */
 
-/* jscpd:ignore-start */
 import { decrypt, ENCRYPTION_PREFIX } from "#crypto/encryption.ts";
 import { encryptWithOwnerKey } from "#crypto/hybrid.ts";
 
@@ -16,8 +15,6 @@ import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { executeBatch, queryAll, update } from "#db/client.ts";
 import { ACTIVITY_LOG_BACKFILL_BATCH } from "#shared/limits.ts";
 import { logDebug } from "#shared/logger.ts";
-
-/* jscpd:ignore-end */
 
 /** Legacy env-key row awaiting re-encryption. */
 // The batch query filters on the env-key prefix, so every fetched message is

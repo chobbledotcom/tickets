@@ -12,7 +12,6 @@
 import { compact, map } from "#fp";
 import { t } from "#i18n";
 import type { SafeHtml } from "#jsx/jsx-runtime.ts";
-/* jscpd:ignore-start -- imports */
 import {
   calendarGridDates,
   formatDateLabel,
@@ -20,7 +19,6 @@ import {
   monthsAround,
   shiftMonth,
 } from "#shared/date-labels.ts";
-/* jscpd:ignore-end */
 
 /** A single date offered by the picker. */
 export type DatePickerDate = {

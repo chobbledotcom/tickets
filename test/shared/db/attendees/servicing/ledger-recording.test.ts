@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -31,8 +30,6 @@ import {
   transfersOfKind,
 } from "#test-utils/servicing-ledger.ts";
 import { adminFormPost } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "servicing §22 - cost recording and listing profit",

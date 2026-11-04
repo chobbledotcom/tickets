@@ -1,7 +1,5 @@
 /** The stories about the invoices an organiser sends for what a booking owes. */
 
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -34,8 +32,6 @@ import {
   theBooking,
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
 
 /** One action, told as the state before a scenario and as the act within it. */
 const sendTheInvoice = function (this: TicketsWorld): Promise<void> {

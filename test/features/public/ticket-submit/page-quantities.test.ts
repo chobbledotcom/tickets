@@ -4,7 +4,6 @@
  * members.
  */
 
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { packageQuantityFieldName } from "#booking/tree.ts";
@@ -19,8 +18,6 @@ import {
   quantityForm,
   ticketContext,
 } from "#test-utils/ticket-ctx.ts";
-
-/* jscpd:ignore-end */
 
 describeWithEnv("ticket-submit parse", { db: true }, () => {
   describe("resolvePageQuantities", () => {

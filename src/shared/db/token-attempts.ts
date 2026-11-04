@@ -11,7 +11,6 @@
  * clicks off disk.
  */
 
-/* jscpd:ignore-start */
 import { hmacHash } from "#crypto/hashing.ts";
 import {
   clearAttemptsFor,
@@ -25,8 +24,6 @@ import {
   TOKEN_WINDOW_MS,
 } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
-
-/* jscpd:ignore-end */
 
 /** The values one recorded failure carries. */
 interface TokenFailureValues {

@@ -4,7 +4,6 @@
  * share these guards.
  */
 
-/* jscpd:ignore-start -- imports */
 import type { TicketListing } from "#booking/model.ts";
 import {
   anyNonStandaloneChild,
@@ -15,7 +14,6 @@ import { getListingsBySlugs } from "#db/listings/records.ts";
 import { compact, requiredMapValue } from "#fp";
 import { notFoundResponse } from "#routes/response.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
-/* jscpd:ignore-end */
 import type { ListingWithCount } from "#types";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 

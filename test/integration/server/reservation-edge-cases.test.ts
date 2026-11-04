@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -30,8 +29,6 @@ import {
   stubPaidSession,
 } from "#test-utils/reservation/helpers.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "server (reservation deposit at checkout)",

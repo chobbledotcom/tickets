@@ -6,7 +6,6 @@
  * cases — each a real production scenario (a migration that crashed and
  * re-runs, a partial backfill, a backup taken before the migration).
  */
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -21,7 +20,6 @@ import { indexExists } from "#test-utils/migrations.ts";
 import { createServicingHold, kindOf } from "#test-utils/servicing.ts";
 
 const MIGRATIONS = await loadMigrations();
-// jscpd:ignore-end
 
 const MIGRATION_ID = "2026-06-24_attendees_kind";
 

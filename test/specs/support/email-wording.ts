@@ -6,8 +6,6 @@
  * the owner writes something in them.
  */
 
-// jscpd:ignore-start
-
 import { settings } from "#db/settings.ts";
 import { loadOrderAnswerLines } from "#shared/email/answers.ts";
 import {
@@ -24,8 +22,6 @@ import { makeTestEntry } from "#test-utils/factories.ts";
 import { settingsAsStored } from "#test-utils/settings.ts";
 import { decodeEntities } from "#test-utils/test-browser/parsing.ts";
 import type { EmailTemplateType } from "#types";
-
-// jscpd:ignore-end
 
 const ADVANCED_PATH = "/admin/settings-advanced";
 

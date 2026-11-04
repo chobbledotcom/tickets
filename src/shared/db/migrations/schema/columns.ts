@@ -4,7 +4,6 @@ These are pure data — slices of a table's `columns` array that two or more
 tables declare identically. Keeping them here means one definition instead of
 duplicated column lists that can drift. */
 
-/* jscpd:ignore-start -- imports */
 import {
   rowId,
   text,
@@ -12,7 +11,6 @@ import {
   wholeNumberStartingAtZero,
 } from "./scalar-columns.ts";
 import type { Column } from "./types.ts";
-/* jscpd:ignore-end */
 
 /**
  * Columns shared by slug-addressed named entities (groups, site_pages): an

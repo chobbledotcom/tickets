@@ -2,7 +2,6 @@
  * First-class uploaded images and their ordered item links.
  */
 
-/* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import type { StoredRowOf } from "#db/chosen-columns.ts";
@@ -35,7 +34,6 @@ import {
   ImageUseItemTypeSchema,
   type ItemImageColumns,
 } from "#types";
-/* jscpd:ignore-end */
 
 export type ImageInput = {
   name: string;

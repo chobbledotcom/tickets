@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import {
   type MachineEvent,
   type MachineNode,
@@ -12,7 +11,6 @@ import {
   type TaxState,
 } from "#shared/tax/transitions.ts";
 import { NO_TAX, type TaxBasis, type TaxPolicy } from "#shared/tax/types.ts";
-/* jscpd:ignore-end */
 
 /** Settings are not booking state: changing them never rewrites an assessment. */
 export type TaxMachineState = { booking: TaxState; setting: TaxPolicy };

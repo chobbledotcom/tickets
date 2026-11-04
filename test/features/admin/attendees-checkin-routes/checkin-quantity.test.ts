@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -6,7 +5,6 @@ import { getDb } from "#db/client.ts";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlash, expectHtmlResponse } from "#test-utils/assertions.ts";
 import { bookRefundedSibling } from "#test-utils/attendees/refunded-sibling.ts";
-// jscpd:ignore-end
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createMultiBookingAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";

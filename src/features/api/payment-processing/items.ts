@@ -14,7 +14,6 @@ import {
 } from "#booking/signed-metadata.ts";
 import { requiredMapValue, sumByKey } from "#fp";
 import { t } from "#i18n";
-/* jscpd:ignore-start -- import block */
 import {
   anyPackageBundleMismatch,
   expectedItemPrice,
@@ -37,8 +36,6 @@ import {
 import { hasNamedBookingPath } from "#shared/package-privacy.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import type { ListingWithCount } from "#types";
-
-/* jscpd:ignore-end */
 
 /** Judge one already-loaded line against the current listing: gone, closed,
  * below a minimum the owner raised after checkout started, or good to

@@ -10,7 +10,6 @@
 
 import { queryOne } from "#db/client.ts";
 import { hashEmail, isHashUnsubscribed } from "#db/contact-preferences.ts";
-// jscpd:ignore-start
 import { t } from "#i18n";
 import {
   browserSeenBy,
@@ -27,8 +26,6 @@ import {
 } from "#test/specs/support/world.ts";
 import { findForms, pressableOn } from "#test-utils/test-browser/pressing.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
-
-// jscpd:ignore-end
 
 /** Whose browser the choices journey keeps: the person reading the email. */
 export const READER = "the reader";

@@ -37,7 +37,6 @@ import {
   memberDayPricesFault,
 } from "#shared/groups/package-member-values.ts";
 import { packageGroups } from "#shared/package-membership.ts";
-/* jscpd:ignore-start -- imports */
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
 import {
   parseOptionalArray,
@@ -53,7 +52,6 @@ import {
 } from "#shared/result.ts";
 import { normalizeSlug } from "#shared/slug.ts";
 import type { DayPrices, Group, GroupListing } from "#types";
-/* jscpd:ignore-end */
 
 /** A package member override in a JSON request body. `price` is minor units:
  * `null` means no override (use the listing's own price), `0` means free in the

@@ -29,7 +29,6 @@ import {
   sitePageOrder,
   updateSitePage,
 } from "#db/site-pages.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { formGuard, SITE_FORM } from "#routes/auth.ts";
 import {
@@ -48,7 +47,6 @@ import {
   targetOfPageItem,
 } from "#shared/site-pages/target.ts";
 import { normalizeSlug } from "#shared/slug.ts";
-/* jscpd:ignore-end */
 import {
   adminSitePageDeletePage,
   adminSitePageNewPage,

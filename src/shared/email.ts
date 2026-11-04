@@ -4,10 +4,8 @@
 
 import * as v from "valibot";
 import { settings } from "#db/settings.ts";
-/* jscpd:ignore-start -- imports */
 import { t } from "#i18n";
 import { getEnv } from "#shared/env.ts";
-/* jscpd:ignore-end */
 import { errorMessage } from "#shared/error-message.ts";
 import { apiErrorMessage, type FetchResult, fetchText } from "#shared/fetch.ts";
 import { createHostConfigOverride } from "#shared/host-config.ts";

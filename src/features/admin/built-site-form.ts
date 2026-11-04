@@ -2,7 +2,6 @@
  * by its route id, and answers 404 when the site is gone. Then it runs the form
  * policy that the route declares, CSRF check included. */
 
-/* jscpd:ignore-start -- imports */
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { builtSitesCrudTable } from "#db/built-sites.ts";
 import type { AuthSession } from "#routes/auth.ts";
@@ -11,7 +10,6 @@ import { formGuardAt } from "#routes/route-gates.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
-/* jscpd:ignore-end */
 
 /** What a gated built-site form POST hands its handler: the loaded site, the
  * session, the parsed form, the request, and the route params. */

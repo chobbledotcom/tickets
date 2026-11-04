@@ -10,7 +10,6 @@
  * active holidays.
  */
 
-/* jscpd:ignore-start -- imports */
 import * as v from "valibot";
 import type { Holiday } from "#db/holidays.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
@@ -20,7 +19,6 @@ import {
   type DayPricedListing,
   type Listing,
 } from "#types";
-/* jscpd:ignore-end */
 
 /** The three kinds of listing span rules. A standard listing has no span of
  * days, and its stock is a running total. A fixed daily listing books its

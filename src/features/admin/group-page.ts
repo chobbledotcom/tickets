@@ -6,8 +6,6 @@
  * groups.ts, so this file owns only the GET surface.
  */
 
-/* jscpd:ignore-end */
-/* jscpd:ignore-start */
 import {
   type ActionDef,
   defineEntityPage,
@@ -17,7 +15,6 @@ import {
 import { panelTab, writeFormTab } from "#routes/admin/entity-write-tab.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
-/* jscpd:ignore-end */
 import { isStorageEnabled } from "#shared/storage.ts";
 import {
   CONTENT_ADMIN_LEVELS,

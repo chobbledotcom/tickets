@@ -1,4 +1,3 @@
-// jscpd:ignore-start -- fixtures mirror the sibling editor tests
 import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { AttendeeFormTemplateData } from "#templates/admin/attendee-form/types.ts";
@@ -12,8 +11,6 @@ import {
 } from "#test-utils/admin-page-test.ts";
 import { attendeeFormLine } from "#test-utils/attendee-form-factories.ts";
 import { data, parsed, question, statuses } from "./fixtures.ts";
-
-// jscpd:ignore-end
 
 const render = (overrides: Partial<AttendeeFormTemplateData> = {}): string =>
   String(AttendeeFormPanel({ data: data(overrides) }));

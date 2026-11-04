@@ -1,5 +1,3 @@
-/* jscpd:ignore-start */
-
 import { isRowAccountType } from "#accounting/accounts.ts";
 import {
   deleteManualLedgerEntry,
@@ -48,8 +46,6 @@ import {
   adminLedgerEntryNewPage,
 } from "#templates/admin/ledger/entry-pages.tsx";
 import type { LedgerNames } from "#templates/admin/ledger.tsx";
-
-/* jscpd:ignore-end */
 
 const pathFromUrlValue = (value: string | null, fallback: string): string => {
   if (!value || !URL.canParse(value, "http://localhost")) return fallback;

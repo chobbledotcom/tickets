@@ -9,7 +9,6 @@
  * leg exists, and would otherwise read as a bare sale.
  */
 
-/* jscpd:ignore-start */
 import { ATTENDEE, REVENUE } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import {
@@ -25,8 +24,6 @@ import {
 } from "#db/attendees/select.ts";
 import { requireOne } from "#db/client.ts";
 import { isPaidListing, type Listing } from "#types";
-
-/* jscpd:ignore-end */
 
 /**
  * The collated attendee numbers the Overview tab renders. All figures cover the

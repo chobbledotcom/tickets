@@ -12,15 +12,12 @@ import {
   LINK_END_NODES,
   type SquareLinkEndRow,
 } from "#payment/square-link-end-machine-spec.ts";
-/* jscpd:ignore-start -- imports */
 import {
   atlasMachineFrom,
   factsFromNode,
   type MachineLayouts,
 } from "#shared/schema-atlas/machine-spec.ts";
 import type { AtlasMachine } from "#shared/schema-atlas/types.ts";
-
-/* jscpd:ignore-end */
 
 /** Where each node sits on the map. The row's life runs from left to right,
  * with the lease in the middle. Both ways a row leaves on the right. */

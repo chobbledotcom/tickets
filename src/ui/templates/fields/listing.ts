@@ -4,7 +4,6 @@
  */
 
 import { settings } from "#db/settings.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import {
   type CatalogField,
@@ -47,8 +46,6 @@ import {
   ListingTypeSchema,
   MAX_DURATION_DAYS,
 } from "#types";
-
-/* jscpd:ignore-end */
 
 export interface ListingFormView {
   builder?: boolean;

@@ -9,7 +9,6 @@ import { siteBaseUrl } from "#shared/site-address.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import { BuiltSitesGuideFooter } from "#templates/admin/built-sites/list-parts.tsx";
-/* jscpd:ignore-start */
 import { NewTabUrl } from "#templates/components/new-tab-link.tsx";
 import { ProseSection } from "#templates/components/prose-section.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
@@ -17,7 +16,6 @@ import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import { builderForm } from "#templates/fields/builder.ts";
 import type { AdminSession } from "#types";
-/* jscpd:ignore-end */
 
 export type BuiltSiteDisplay = {
   name: string;

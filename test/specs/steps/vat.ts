@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -34,8 +32,6 @@ import { type TicketsWorld, theBooking } from "#test/specs/support/world.ts";
 import { hasCheckedInput, inputTagWithValue } from "#test-utils/csrf.ts";
 import { openAttendeeEditor } from "#test-utils/e2e.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 /** A rate typed as "20" or "17.51" into the site's tax-rate box, in basis
  *  points the same way the site's own form parser reads it. */

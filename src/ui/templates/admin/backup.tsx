@@ -2,7 +2,6 @@
  * Admin backup/restore page template
  */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { defineTable } from "#shared/tables/definition.ts";
@@ -11,7 +10,6 @@ import { GuideFooter } from "#templates/components/actions.tsx";
 import { ProseSection } from "#templates/components/prose-section.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
-/* jscpd:ignore-end */
 
 export type BackupEntry = {
   filename: string;

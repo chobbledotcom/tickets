@@ -8,7 +8,6 @@
  */
 
 import type { AttendeeStatus } from "#db/attendee-statuses.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { adminPath, adminPattern } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -32,8 +31,6 @@ import {
   translatedTableHeader,
 } from "#templates/components/translated-table-column.ts";
 import type { AdminSession } from "#types";
-
-/* jscpd:ignore-end */
 
 const LIST_PATH = adminPattern("statuses");
 

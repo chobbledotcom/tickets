@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -13,8 +12,6 @@ import {
   expectWebhookProcessed,
   expectWebhookRejected,
 } from "#test-utils/webhooks.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("server webhooks > session resolution", { db: true }, () => {
   test("webhook with checkout listing type but no extractable session acknowledges without processing", async () => {

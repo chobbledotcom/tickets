@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -19,8 +18,6 @@ import { signMeta } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubCheckoutSession } from "#test-utils/stripe/responses.ts";
-
-// jscpd:ignore-end
 
 /** Assert every package member's most recent booking landed on `date` and
  *  carries the package's group id — the shared check for a dated package

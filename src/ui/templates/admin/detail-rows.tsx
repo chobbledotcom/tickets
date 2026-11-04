@@ -2,7 +2,6 @@
  * Shared detail table rows for admin pages (listing, group, calendar)
  */
 
-/* jscpd:ignore-start */
 import { map, reduce, sumOf } from "#fp";
 import { t } from "#i18n";
 import type { Child } from "#jsx/jsx-runtime.ts";
@@ -15,7 +14,6 @@ import {
   capacityMeterText,
 } from "#templates/components/capacity.tsx";
 import { type Attendee, hasTicketQuantity } from "#types";
-/* jscpd:ignore-end */
 
 /** A key/value row for the listing-details-table */
 export type DetailRow = {

@@ -11,7 +11,6 @@
  * a dump plus the environment key could unwrap the SumUp staging rows.
  */
 
-/* jscpd:ignore-start -- imports */
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
@@ -19,8 +18,6 @@ import { execute, queryOne, type SqlStatement } from "#db/client.ts";
 import type { FreeTextAnswers } from "#shared/email/answers.ts";
 import { nowIso } from "#shared/now.ts";
 import { stringRecordJson } from "#shared/validation/stored-json.ts";
-
-/* jscpd:ignore-end */
 
 /** The sealed column, and nothing else: the lookup key is the index the
  * statement binds. */

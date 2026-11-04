@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
@@ -26,8 +25,6 @@ import {
   enablePublicSite,
 } from "#test-utils/settings.ts";
 import type { ListingWithCount } from "#types";
-
-/* jscpd:ignore-end */
 
 /** Submit a purchase-only order and return the reserved page's redirect. */
 const reservedOrder = async (slug: string): Promise<string> => {

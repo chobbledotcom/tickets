@@ -9,7 +9,6 @@ import { hasRecentBackup } from "#db/backup-storage.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { gatedPost } from "#routes/auth.ts";
-/* jscpd:ignore-start -- imports */
 import { authFlashPage } from "#routes/auth-flash-page.ts";
 import { adminRedirect } from "#routes/response.ts";
 import { formPolicyAt, pageGuardAt } from "#routes/route-gates.ts";
@@ -35,8 +34,6 @@ import {
   adminUpdatePage,
   type UpdatePageState,
 } from "#templates/admin/update.tsx";
-
-/* jscpd:ignore-end */
 
 const UPDATE_PATH = adminPattern("update");
 

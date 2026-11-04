@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { initChildCompat } from "#src/ui/client/admin/child-compat.ts";
 import { initChildRequired } from "#src/ui/client/admin/child-required.ts";
-// jscpd:ignore-start
 import {
   byName,
   childPriceSpec as childPrice,
@@ -17,8 +16,6 @@ import {
   restoreDocument,
   soleChildSpec as soleChild,
 } from "#test-utils/fake-dom.ts";
-
-// jscpd:ignore-end
 
 const twoChildDateSetup = () =>
   installFakeDom([

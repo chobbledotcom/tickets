@@ -3,7 +3,6 @@
  *  the form's installed validator and the API's kind check read the same
  *  kinds, so one surface cannot accept what the other refuses. */
 
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { beforeAll, it as test } from "@std/testing/bdd";
 import { ensureMessageGroups } from "#i18n";
@@ -17,8 +16,6 @@ import {
   type TestFormValues,
   testFormParams,
 } from "#test-utils/form-values.ts";
-
-// jscpd:ignore-end
 
 const listingForm = (extra: TestFormValues = {}) =>
   testFormParams({

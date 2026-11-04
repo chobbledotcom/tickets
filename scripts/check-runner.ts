@@ -6,7 +6,6 @@
  */
 
 import { fromFileUrl } from "@std/path";
-/* jscpd:ignore-start -- imports */
 import * as v from "valibot";
 import { notCoveredBy } from "#fp";
 import { integerAtLeast } from "#shared/validation/number.ts";
@@ -18,7 +17,6 @@ import {
 } from "./check-report.ts";
 import { readJsonOrThrow, writeJsonFile } from "./read-json.ts";
 import { collectFromFiles } from "./walk-files.ts";
-/* jscpd:ignore-end */
 
 /** A registry of `{ path: count }`. */
 export type Counts = Record<string, number>;

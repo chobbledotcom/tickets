@@ -1,6 +1,5 @@
 /** Shared types for the reservations (ticket page) rendering pipeline. */
 
-/* jscpd:ignore-start */
 import type { CartDateItem } from "#booking/cart-conflicts.ts";
 import type { ChildDatesByDayCount, TicketListing } from "#booking/model.ts";
 import type { PagePackage } from "#booking/page-packages.ts";
@@ -11,7 +10,6 @@ import type { QuestionListingMap } from "#db/questions/queries.ts";
 import type { GroupIdsByListingId } from "#shared/group-capacity.ts";
 import type { PublicNavProps } from "#templates/public/shared.tsx";
 import type { Image, ItemImageColumns } from "#types";
-/* jscpd:ignore-end */
 
 /** Quantity values parsed from ticket form */
 export type TicketQuantities = Map<number, number>;

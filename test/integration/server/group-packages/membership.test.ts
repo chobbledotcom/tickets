@@ -18,7 +18,6 @@ import { assertJson, expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-// jscpd:ignore-start
 import { adminFormPost, apiRequest } from "#test-utils/session.ts";
 import {
   editFields,
@@ -28,8 +27,6 @@ import {
   expectPackageRejected,
   member,
 } from "./helpers.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "server (admin group packages) — what may join a package",

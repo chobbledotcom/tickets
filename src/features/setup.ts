@@ -4,7 +4,6 @@
 
 import { logActivity } from "#db/activity-log.ts";
 import { SetupAlreadyCompleteError, settings } from "#db/settings.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { applyFlash, parseFormWithCsrf } from "#routes/csrf.ts";
 import {
@@ -19,8 +18,6 @@ import type { FormParams } from "#shared/form-data.ts";
 import { ErrorCode, logDbError, logDebug, logError } from "#shared/logger.ts";
 import { getSetupForm } from "#templates/fields/admin.ts";
 import { setupCompletePage, setupPage } from "#templates/setup.tsx";
-
-/* jscpd:ignore-end */
 
 /** Response helper - renders setup page with current stored CSRF token */
 const setupResponse = (error?: string) => htmlResponse(setupPage(error));

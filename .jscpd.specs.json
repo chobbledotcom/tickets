@@ -23,5 +23,9 @@
   "path": [
     "src",
     "test/specs/support"
+  ],
+  "ignorePattern": [
+    "(?m)^import\\s[^;]*;",
+    "(?m)^export\\s+(type\\s+)?(\\*|\\{[^}]*\\})(\\s+as\\s+\\w+)?\\s+from\\s[^;]*;"
   ]
 }

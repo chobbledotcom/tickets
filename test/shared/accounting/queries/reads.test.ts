@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { type BookingFacts, mapBooking } from "#accounting/mappers.ts";
@@ -11,8 +10,6 @@ import {
 import { postTransfers } from "#accounting/store.ts";
 import { account } from "#shared/ledger/account.ts";
 import { tx, useTransactionalDb } from "#test-utils/ledger.ts";
-
-// jscpd:ignore-end
 
 const world = account("external", "world");
 

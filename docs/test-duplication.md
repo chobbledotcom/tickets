@@ -197,17 +197,29 @@ the merge history carries it.
 
 Since jscpd 5.4.2 the strict scans (`.jscpd.json`, `.jscpd.test.json`,
 `.jscpd.helpers.json`, `.jscpd.support.json`) enable the Type-2 clone options
-`ignoreIdentifiers`, `ignoreLiterals` and `ignoreAnnotations`, and each reports
-only kind `exact`. jscpd classifies each matched window. A window whose raw
-tokens differ only in names, literal values or annotations is a `renamed`
-clone. A window with identical raw tokens is an `exact` clone. jscpd splits a
-longer match at the tokens that differ. A renamed copy can still leave a
-raw-identical stretch. When that stretch reaches the scan's `minTokens`, the
-strict gate reports it and demands the merge. The `kind` filter removes the
-renamed windows, so the gates still count only token-identical code. The
-renamed-clone gate still tracks renamed functions in the trees it scans. A run
-that asks for every kind, or a report without the `kind` filter, shows the
-renamed clones too.
+`ignoreIdentifiers`, `ignoreLiterals` and `ignoreAnnotations`. jscpd classifies
+each matched window. A window whose raw tokens differ only in names, literal
+values or annotations is a `renamed` clone. A window with identical raw tokens
+is an `exact` clone. The strict scans report both kinds. An earlier
+`kind: ["exact"]` filter removed every `renamed` window, so the strict scans
+reported zero and did not check renamed copies at their `minTokens`.
+
+When the filter was removed, the strict scans found these clones:
+
+| Scan                  | Clones |
+| --------------------- | -----: |
+| `.jscpd.json`         | 24,773 |
+| `.jscpd.test.json`    | 13,111 |
+| `.jscpd.helpers.json` |  1,382 |
+| `.jscpd.support.json` |  2,187 |
+
+Each scan holds these clones in its committed baseline and runs with
+`--fail-on-new-clones`. A new renamed copy fails the gate. The fingerprints do
+not change when lines move, so an edit near a recorded clone does not fail the
+gate. After a merge, run the scan with `--update` to remove the fixed clones.
+
+Each TypeScript scan skips import and re-export statements through its
+`ignorePattern` list. Source files carry no ignore markers around imports.
 
 A pair changes status one way: merge it (extract a helper, or curry the parts
 that differ), then refresh the baseline. A new renamed copy anywhere in the

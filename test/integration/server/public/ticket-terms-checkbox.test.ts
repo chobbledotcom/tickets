@@ -12,7 +12,6 @@
  * these — only a crafted POST can.
  */
 
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
@@ -24,8 +23,6 @@ import {
 } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "server public > ticket terms checkbox",

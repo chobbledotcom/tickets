@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { assertThrows } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -10,8 +9,6 @@ import {
   sumupRefundFailure,
 } from "#shared/sumup/failures.ts";
 import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
-
-/* jscpd:ignore-end */
 
 type FailedRead = ProviderRead<never>;
 type FailedRefund = Extract<
