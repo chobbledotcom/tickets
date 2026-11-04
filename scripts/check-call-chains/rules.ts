@@ -3,8 +3,8 @@
  * at two or more sites in one tree (see "Keep methods flat" in AGENTS.md).
  *
  * A chain that repeats hides one helper. The sites all call `a(b(c(...)))`
- * where one helper says the same thing. The check holds every repeated chain
- * to its recorded site count in `registry.json`, and the count only falls.
+ * where one helper says the same thing, so the check fails every chain that
+ * repeats.
  */
 
 import ts from "typescript";
@@ -34,10 +34,6 @@ const BRACKET_ROW = /[)\]}]{3,}/g;
 
 const RULE = "repeated-chain";
 const FIX = "write one helper for the chain, and call it from each site";
-
-const UPDATE_COMMAND = "deno task check:call-chains --update";
-
-const REGISTRY = "scripts/check-call-chains/registry.json";
 
 /** Every row of three or more adjacent closing brackets in one file. */
 const rowsOf = (content: string): Row[] =>
@@ -162,8 +158,7 @@ export const countBySignature = (sites: readonly ChainSite[]): Counts => {
   );
 };
 
-/** One finding, and where a reader meets it: a site, or the chain itself when
- * no site holds it any more. */
+/** One finding, at the site a reader meets it. */
 interface ChainFinding {
   fix: string;
   problem: string;
@@ -171,69 +166,21 @@ interface ChainFinding {
   where: string;
 }
 
-/** Every site past its chain's recorded count, in reading order. */
-const excessSiteFindings = (
-  sites: readonly ChainSite[],
-  counts: Counts,
-  accepted: Counts,
-): ChainFinding[] => {
-  const seen = new Map<string, number>();
-  const findings: ChainFinding[] = [];
-  for (const { signature, site } of occurrencesOf(sites)) {
-    const repeatCount = counts[signature];
-    if (repeatCount === undefined) continue;
-    const held = (seen.get(signature) ?? 0) + 1;
-    seen.set(signature, held);
-    if (held <= (accepted[signature] ?? 0)) continue;
-    findings.push({
-      fix: FIX,
-      problem: `${signature} repeats at ${repeatCount} sites`,
-      rule: RULE,
-      where: `${site.file}:${site.line}`,
-    });
-  }
-  return findings;
-};
-
-/** Every recorded chain the tree no longer repeats as often, or no longer
- * repeats at all. */
-const recordedStateFindings = (
-  counts: Counts,
-  accepted: Counts,
-): ChainFinding[] =>
-  Object.entries(accepted).flatMap(([signature, recorded]) => {
-    const now = counts[signature] ?? 0;
-    if (now >= recorded) return [];
-    if (now === 0) {
-      return [
-        {
-          fix: `delete the entry in ${REGISTRY}`,
-          problem: `${signature} repeats no more`,
-          rule: "stale-entry",
-          where: signature,
-        },
-      ];
-    }
-    return [
-      {
-        fix: `run \`${UPDATE_COMMAND}\` to record the count`,
-        problem: `${signature} repeats at ${now} sites, fewer than the recorded ${recorded}`,
-        rule: "improved",
-        where: signature,
-      },
-    ];
-  });
-
-/** One tree's chains against the recorded counts: a site past its chain's
- * count fails, a fallen count asks for its record, and a chain no site holds
- * any more asks for its entry's deletion. */
-export const findIssues = (
-  sites: readonly ChainSite[],
-  accepted: Counts,
-): ChainFinding[] => {
+/** Every site whose chain repeats at `REPEAT_LIMIT` sites or more, in reading
+ * order. A chain that only one site holds is not a duplication. */
+export const findIssues = (sites: readonly ChainSite[]): ChainFinding[] => {
   const counts = countBySignature(sites);
-  return [
-    ...excessSiteFindings(sites, counts, accepted),
-    ...recordedStateFindings(counts, accepted),
-  ];
+  return occurrencesOf(sites).flatMap(({ signature, site }) => {
+    const repeatCount = counts[signature];
+    return repeatCount === undefined
+      ? []
+      : [
+          {
+            fix: FIX,
+            problem: `${signature} repeats at ${repeatCount} sites`,
+            rule: RULE,
+            where: `${site.file}:${site.line}`,
+          },
+        ];
+  });
 };

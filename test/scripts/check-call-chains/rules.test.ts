@@ -97,59 +97,22 @@ describe("check-call-chains rules", () => {
     expect(countBySignature(sites)).toEqual({ "a(b(c(": 2 });
   });
 
-  test("passes the sites a chain's recorded count allows", () => {
+  test("flags every site of a chain that repeats", () => {
     const sites = [
       ...chainSitesOf("a.ts", "a(b(c(1)))\n"),
       ...chainSitesOf("b.ts", "a(b(c(2)))\n"),
     ];
-    expect(findIssues(sites, { "a(b(c(": 2 })).toEqual([]);
-  });
-
-  test("flags each site past a chain's recorded count", () => {
-    const sites = [
-      ...chainSitesOf("a.ts", "a(b(c(1)))\n"),
-      ...chainSitesOf("b.ts", "a(b(c(2)))\n"),
-    ];
-    expect(findIssues(sites, {})).toEqual([
+    expect(findIssues(sites)).toEqual([
       { ...FLAG, problem: "a(b(c( repeats at 2 sites", where: "a.ts:1" },
       { ...FLAG, problem: "a(b(c( repeats at 2 sites", where: "b.ts:1" },
     ]);
   });
 
-  test("flags only the site past a recorded count of one", () => {
+  test("leaves a chain that only one site holds alone", () => {
     const sites = [
       ...chainSitesOf("a.ts", "a(b(c(1)))\n"),
-      ...chainSitesOf("b.ts", "a(b(c(2)))\n"),
+      ...chainSitesOf("b.ts", "d(e(f(2)))\n"),
     ];
-    expect(findIssues(sites, { "a(b(c(": 1 })).toEqual([
-      { ...FLAG, problem: "a(b(c( repeats at 2 sites", where: "b.ts:1" },
-    ]);
-  });
-
-  test("asks for a fallen count to be recorded", () => {
-    const sites = [
-      ...chainSitesOf("a.ts", "a(b(c(1)))\n"),
-      ...chainSitesOf("b.ts", "a(b(c(2)))\n"),
-    ];
-    expect(findIssues(sites, { "a(b(c(": 3 })).toEqual([
-      {
-        fix: "run `deno task check:call-chains --update` to record the count",
-        problem: "a(b(c( repeats at 2 sites, fewer than the recorded 3",
-        rule: "improved",
-        where: "a(b(c(",
-      },
-    ]);
-  });
-
-  test("asks for the entry of a chain that no longer repeats to be deleted", () => {
-    const sites = chainSitesOf("a.ts", "a(b(c(1)))\n");
-    expect(findIssues(sites, { "a(b(c(": 2 })).toEqual([
-      {
-        fix: "delete the entry in scripts/check-call-chains/registry.json",
-        problem: "a(b(c( repeats no more",
-        rule: "stale-entry",
-        where: "a(b(c(",
-      },
-    ]);
+    expect(findIssues(sites)).toEqual([]);
   });
 });

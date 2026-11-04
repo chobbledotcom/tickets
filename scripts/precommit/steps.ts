@@ -78,8 +78,8 @@ const STEPS = [
     cmd: ["task", "check:file-lengths"],
     name: "check:file-lengths",
   },
-  // Hold every chain of three or more methods that repeats to a site count
-  // that only falls (see "Keep methods flat" in AGENTS.md).
+  // Fail every chain of three or more methods that repeats at another site
+  // (see "Keep methods flat" in AGENTS.md).
   {
     cmd: ["task", "check:call-chains"],
     name: "check:call-chains",
