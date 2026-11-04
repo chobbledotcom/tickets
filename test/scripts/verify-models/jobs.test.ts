@@ -4,7 +4,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { ModelDataSource } from "#scripts/verify-models/data.ts";
 import { prepareChecks } from "#scripts/verify-models/jobs.ts";
-import type { VerificationModule } from "#scripts/verify-models/spec.ts";
+import {
+  type ModelControl,
+  PROOF_PHASES,
+  type VerificationModule,
+} from "#scripts/verify-models/spec.ts";
 import { withTempDir } from "#test-utils/files.ts";
 
 /* jscpd:ignore-end */
@@ -24,14 +28,25 @@ const writeSources = async (
 const modelWith = (
   module: string,
   data: ModelDataSource,
-  controlData: ModelDataSource,
-): VerificationModule => ({
-  context: [],
-  controls: [{ data: controlData, name: "corrupt state", phase: "initial" }],
-  data,
-  kind: "model",
-  module,
-});
+  controls: readonly [ModelDataSource, ...ModelDataSource[]],
+): VerificationModule => {
+  const control = (source: ModelDataSource, index: number): ModelControl => ({
+    data: source,
+    name: `corrupt state ${index + 1}`,
+    phase: "initial",
+  });
+  const [first, ...rest] = controls;
+  return {
+    context: [],
+    controls: [
+      control(first, 0),
+      ...rest.map((source, index) => control(source, index + 1)),
+    ],
+    data,
+    kind: "model",
+    module,
+  };
+};
 
 describe("model fact preparation", () => {
   test("finishes each database fixture before the next producer starts", () =>
@@ -40,20 +55,18 @@ describe("model fact preparation", () => {
       const release = Promise.withResolvers<void>();
       const events: string[] = [];
       const model = (module: string): VerificationModule =>
-        modelWith(
-          module,
-          async () => {
-            events.push(`${module}:seed`);
-            seeded.resolve();
-            await release.promise;
-            events.push(`${module}:read`);
-            return "clean data";
-          },
+        modelWith(module, async () => {
+          events.push(`${module}:seed`);
+          seeded.resolve();
+          await release.promise;
+          events.push(`${module}:read`);
+          return "clean data";
+        }, [
           () => {
             events.push(`${module}:corrupt`);
             return Promise.resolve("corrupted data");
           },
-        );
+        ]);
       const modules: VerificationModule[] = [
         { context: [], kind: "helper", module: "SharedRules" },
         model("First"),
@@ -75,37 +88,51 @@ describe("model fact preparation", () => {
       ]);
     }));
 
-  test("writes a separate input copy for each proof phase", () =>
+  test("gives every check a work directory of its own", () =>
     withTempDir(async (root) => {
-      let reads = 0;
+      const reads = new Map<string, number>();
+      const readClean =
+        (module: string): ModelDataSource =>
+        async () => {
+          reads.set(module, (reads.get(module) ?? 0) + 1);
+          return "clean data";
+        };
       const modules = [
-        modelWith(
-          "First",
-          () => {
-            reads += 1;
-            return Promise.resolve("clean data");
-          },
-          () => Promise.resolve("corrupted data"),
-        ),
+        modelWith("First", readClean("First"), [
+          () => Promise.resolve("corrupted data one"),
+          () => Promise.resolve("corrupted data two"),
+        ]),
+        modelWith("Second", readClean("Second"), [
+          () => Promise.resolve("corrupted data three"),
+        ]),
       ];
       await writeSources(modules, root);
       const work = join(root, "checks");
       const checks = await prepareChecks(modules, root, work);
-      expect(checks.map((check) => check.directory)).toEqual([
-        join(work, "First", "initial"),
-        join(work, "First", "step"),
-        join(work, "First", "control-1"),
+      expect([...reads]).toEqual([
+        ["First", 1],
+        ["Second", 1],
       ]);
-      for (const phase of ["initial", "step"] as const) {
+      const directories = checks.map((check) => check.directory);
+      expect(directories).toEqual([
+        ...PROOF_PHASES.map((phase) => join(work, "First", phase)),
+        join(work, "First", "control-1"),
+        join(work, "First", "control-2"),
+        ...PROOF_PHASES.map((phase) => join(work, "Second", phase)),
+        join(work, "Second", "control-1"),
+      ]);
+      expect(new Set(directories).size).toBe(checks.length);
+      const proofInputs: string[] = [];
+      for (const phase of PROOF_PHASES) {
         const directory = join(work, "First", phase);
         expect(await Deno.readTextFile(join(directory, "First.tla"))).toBe(
           "---- MODULE First ----\n====\n",
         );
-        expect(await Deno.readTextFile(join(directory, "FirstData.tla"))).toBe(
-          "clean data",
+        proofInputs.push(
+          await Deno.readTextFile(join(directory, "FirstData.tla")),
         );
       }
-      expect(reads).toBe(1);
+      expect(proofInputs).toEqual(PROOF_PHASES.map(() => "clean data"));
     }));
 
   test("propagates an extraction failure before any later producer runs", () =>
@@ -113,17 +140,15 @@ describe("model fact preparation", () => {
       const failure = new Error("The stored refund leg is absent.");
       const events: string[] = [];
       const model = (module: string): VerificationModule =>
-        modelWith(
-          module,
-          () => {
-            events.push(`${module}:read`);
-            return Promise.resolve("clean data");
-          },
+        modelWith(module, () => {
+          events.push(`${module}:read`);
+          return Promise.resolve("clean data");
+        }, [
           () => {
             events.push(`${module}:corrupt`);
             return Promise.reject(failure);
           },
-        );
+        ]);
       const modules = [model("First"), model("Second")];
       await writeSources(modules, root);
       await expect(

@@ -1,8 +1,9 @@
 import { join } from "node:path";
 import { filter, map } from "#fp";
-import type {
-  CheckPhase,
-  VerificationModule,
+import {
+  type CheckPhase,
+  PROOF_PHASES,
+  type VerificationModule,
 } from "#scripts/verify-models/spec.ts";
 
 type CheckInput = {
@@ -64,7 +65,7 @@ export const prepareChecks = async (
         source.kind === "helper" || source.module === model.module,
     )(sources);
     const data = await model.data();
-    for (const phase of ["initial", "step"] as const) {
+    for (const phase of PROOF_PHASES) {
       const directory = join(work, model.module, phase);
       await writeVariant(modelSources, directory, model.module, data);
       checks.push({ directory, kind: "proof", module: model.module, phase });

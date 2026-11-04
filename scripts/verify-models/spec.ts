@@ -1,6 +1,9 @@
 import type { ModelDataSource } from "#scripts/verify-models/data.ts";
 
-export type CheckPhase = "initial" | "step";
+/** The proof phases, in the order the runner queues them. */
+export const PROOF_PHASES = ["initial", "step"] as const;
+
+export type CheckPhase = (typeof PROOF_PHASES)[number];
 
 export type ModelControl = {
   readonly name: string;
