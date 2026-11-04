@@ -1,33 +1,36 @@
-import type { Table } from "#db/migrations/schema/types.ts";
+/* jscpd:ignore-start -- imports */
 import {
-  ownerEncryptedPaymentColumn,
-  ownerEncryptedPaymentColumnOrNull,
+  aboutTheRow,
+  checked,
+  rowId,
+  text,
+  textOrNull,
   wholeNumber,
   wholeNumberOrNull,
-  words,
-} from "./columns.ts";
+  wholeNumberStartingAtZero,
+} from "#db/migrations/schema/scalar-columns.ts";
+import type { Table } from "#db/migrations/schema/types.ts";
+import { ownerEncryptedColumn, ownerEncryptedRuleOrNull } from "./columns.ts";
+/* jscpd:ignore-end */
 
 /** What a decision can never be, whatever else is true of it. */
 export const paymentCaseDecisionTable: [name: string, table: Table] = [
   "payment_case_decisions",
   {
     columns: [
-      ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-      ["case_id", wholeNumber()],
-      ["case_revision", wholeNumber()],
-      ["claim", ownerEncryptedPaymentColumn("claim")],
-      [
-        "decision",
-        `TEXT CHECK ${ownerEncryptedPaymentColumnOrNull("decision")}`,
-      ],
-      ["state", words()],
-      ["attempt_count", wholeNumber(0)],
-      ["created_at", wholeNumber()],
-      ["last_attempt_at", wholeNumberOrNull()],
-      ["next_retry_at", wholeNumberOrNull()],
+      ["id", rowId],
+      ["case_id", wholeNumber],
+      ["case_revision", wholeNumber],
+      ownerEncryptedColumn("claim"),
+      ["decision", checked(ownerEncryptedRuleOrNull("decision"))(textOrNull)],
+      ["state", text],
+      ["attempt_count", wholeNumberStartingAtZero],
+      ["created_at", wholeNumber],
+      ["last_attempt_at", wholeNumberOrNull],
+      ["next_retry_at", wholeNumberOrNull],
       [
         "last_error",
-        `TEXT\n          CHECK ${ownerEncryptedPaymentColumnOrNull("last_error")}`,
+        aboutTheRow([ownerEncryptedRuleOrNull("last_error")])(textOrNull),
       ],
     ],
     indexes: [

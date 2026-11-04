@@ -4,8 +4,15 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeTables } from "#db/migrations/schema/tables-attendees.ts";
 import { RECOVERY_NODES } from "#payment/sumup-recovery-machine-spec.ts";
+import { jsonHash } from "#test-utils/hash.ts";
 
 /* jscpd:ignore-end */
+
+test("keeps the complete attendee schema declaration exact", async () => {
+  expect(await jsonHash(attendeeTables)).toBe(
+    "7cf8a6c93eccf79b5a9ec47f1079ec805150ec9d86a683a0aa2878b0af159767",
+  );
+});
 
 const tableNamed = (name: string) => {
   const found = attendeeTables.find(([tableName]) => tableName === name);

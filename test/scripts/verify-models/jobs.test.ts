@@ -4,10 +4,9 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { ModelDataSource } from "#scripts/verify-models/data.ts";
 import { prepareChecks } from "#scripts/verify-models/jobs.ts";
-import {
-  type ModelControl,
-  PROOF_PHASES,
-  type VerificationModule,
+import type {
+  ModelControl,
+  VerificationModule,
 } from "#scripts/verify-models/spec.ts";
 import { withTempDir } from "#test-utils/files.ts";
 
@@ -115,15 +114,17 @@ describe("model fact preparation", () => {
       ]);
       const directories = checks.map((check) => check.directory);
       expect(directories).toEqual([
-        ...PROOF_PHASES.map((phase) => join(work, "First", phase)),
+        join(work, "First", "initial"),
+        join(work, "First", "step"),
         join(work, "First", "control-1"),
         join(work, "First", "control-2"),
-        ...PROOF_PHASES.map((phase) => join(work, "Second", phase)),
+        join(work, "Second", "initial"),
+        join(work, "Second", "step"),
         join(work, "Second", "control-1"),
       ]);
       expect(new Set(directories).size).toBe(checks.length);
       const proofInputs: string[] = [];
-      for (const phase of PROOF_PHASES) {
+      for (const phase of ["initial", "step"]) {
         const directory = join(work, "First", phase);
         expect(await Deno.readTextFile(join(directory, "First.tla"))).toBe(
           "---- MODULE First ----\n====\n",
@@ -132,7 +133,7 @@ describe("model fact preparation", () => {
           await Deno.readTextFile(join(directory, "FirstData.tla")),
         );
       }
-      expect(proofInputs).toEqual(PROOF_PHASES.map(() => "clean data"));
+      expect(proofInputs).toEqual(["clean data", "clean data"]);
     }));
 
   test("propagates an extraction failure before any later producer runs", () =>

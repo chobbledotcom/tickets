@@ -1,31 +1,46 @@
 /** Form tables: questions, answers, attributes, built sites, notes. */
 
+/* jscpd:ignore-start -- imports */
+import { UPDATE_TIERS } from "#db/built-sites/types.ts";
 import { NOTE_ENTITIES } from "#db/notes/target.ts";
+import { SYSTEM_NOTE_TYPES } from "#db/notes/types.ts";
+import { QUESTION_DISPLAY_TYPES } from "#db/question-types.ts";
+import { attendeeIdColumn, sortOrderColumn } from "./columns.ts";
 import {
-  attendeeIdColumn,
-  createdColumn,
-  sortOrderColumn,
+  checked,
+  defaulted,
+  oneOf,
+  rowId,
+  text,
+  textOrNull,
+  textStartingAtNull,
+  textStartingBlank,
+  wholeNumber,
+  wholeNumberOrNull,
+  wholeNumberStartingAtNull,
+  wholeNumberStartingAtOne,
+  wholeNumberStartingAtZero,
 } from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
 
-/** The record kinds a note may be about, as a CHECK the database enforces. */
-const noteEntityCheck = `entity_type IN (${NOTE_ENTITIES.map(
-  (entity) => `'${entity}'`,
-).join(", ")})`;
+/* jscpd:ignore-end */
 
 export const questionTables: [name: string, table: Table][] = [
   [
     "questions",
     {
       columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["text", "TEXT NOT NULL"],
+        ["id", rowId],
+        ["text", text],
         sortOrderColumn,
         [
           "display_type",
-          "TEXT NOT NULL DEFAULT 'radio' CHECK (display_type IN ('radio', 'select', 'free_text'))",
+          oneOf(
+            "display_type",
+            QUESTION_DISPLAY_TYPES,
+          )(defaulted(text, "radio")),
         ],
-        ["assign_all", "INTEGER NOT NULL DEFAULT 0"],
+        ["assign_all", wholeNumberStartingAtZero],
       ],
     },
   ],
@@ -34,11 +49,11 @@ export const questionTables: [name: string, table: Table][] = [
     "strings",
     {
       columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["text_index", "TEXT NOT NULL"],
-        ["encrypted_text", "TEXT NOT NULL"],
-        ["used_count", "INTEGER NOT NULL DEFAULT 0"],
-        ["created", "TEXT NOT NULL DEFAULT ''"],
+        ["id", rowId],
+        ["text_index", text],
+        ["encrypted_text", text],
+        ["used_count", wholeNumberStartingAtZero],
+        ["created", textStartingBlank],
       ],
       indexes: [
         {
@@ -54,24 +69,24 @@ export const questionTables: [name: string, table: Table][] = [
     "answers",
     {
       columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["question_id", "INTEGER NOT NULL"],
-        ["text", "TEXT NOT NULL"],
+        ["id", rowId],
+        ["question_id", wholeNumber],
+        ["text", text],
         sortOrderColumn,
         // The price modifier this answer triggers (an "answer"-trigger
         // modifier), or NULL for an answer with no price effect. Many answers
         // may point at one "pricing tier" modifier; an answer has at most one.
-        ["modifier_id", "INTEGER"],
+        ["modifier_id", wholeNumberOrNull],
         // Precomputed COUNT of attendee_answers rows for this answer,
         // maintained by the ANSWER_AGGREGATE_TRIGGERS so the question/answer
         // admin pages report how many times the answer was chosen without
         // scanning attendee_answers. Owner-editable on the answer edit page;
         // the recalculate flow rebuilds it from attendee_answers when it drifts.
-        ["times_selected", "INTEGER NOT NULL DEFAULT 0"],
+        ["times_selected", wholeNumberStartingAtZero],
         // Deactivated answers (active = 0) are hidden on the public booking
         // form but still shown on the admin edit form for an attendee who
         // already selected them, so historic answers are never silently lost.
-        ["active", "INTEGER NOT NULL DEFAULT 1"],
+        ["active", wholeNumberStartingAtOne],
       ],
       indexes: [
         { columns: ["question_id"], name: "idx_answers_question_id" },
@@ -84,9 +99,9 @@ export const questionTables: [name: string, table: Table][] = [
     "listing_questions",
     {
       columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["listing_id", "INTEGER NOT NULL"],
-        ["question_id", "INTEGER NOT NULL"],
+        ["id", rowId],
+        ["listing_id", wholeNumber],
+        ["question_id", wholeNumber],
         sortOrderColumn,
       ],
       indexes: [
@@ -106,11 +121,7 @@ export const questionTables: [name: string, table: Table][] = [
     // option ids, so no plaintext index is needed.
     "attributes",
     {
-      columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["name", "TEXT NOT NULL"],
-        sortOrderColumn,
-      ],
+      columns: [["id", rowId], ["name", text], sortOrderColumn],
       indexes: [{ columns: ["sort_order"], name: "idx_attributes_sort_order" }],
     },
   ],
@@ -119,9 +130,9 @@ export const questionTables: [name: string, table: Table][] = [
     "attribute_options",
     {
       columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["attribute_id", "INTEGER NOT NULL"],
-        ["text", "TEXT NOT NULL"],
+        ["id", rowId],
+        ["attribute_id", wholeNumber],
+        ["text", text],
         sortOrderColumn,
       ],
       indexes: [
@@ -137,8 +148,8 @@ export const questionTables: [name: string, table: Table][] = [
     "listing_attribute_options",
     {
       columns: [
-        ["listing_id", "INTEGER NOT NULL"],
-        ["option_id", "INTEGER NOT NULL"],
+        ["listing_id", wholeNumber],
+        ["option_id", wholeNumber],
       ],
       indexes: [
         {
@@ -158,25 +169,22 @@ export const questionTables: [name: string, table: Table][] = [
     "built_sites",
     {
       columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["site_data", "TEXT NOT NULL"],
-        ["assignable", "INTEGER NOT NULL DEFAULT 0"],
-        ["assigned_attendee_id", "INTEGER DEFAULT NULL"],
-        ["assigned_listing_id", "INTEGER DEFAULT NULL"],
-        createdColumn,
-        ["renewal_token_index", "TEXT DEFAULT NULL"],
-        ["read_only_from", "TEXT NOT NULL DEFAULT ''"],
-        ["site_data_revision", "INTEGER NOT NULL DEFAULT 0"],
+        ["id", rowId],
+        ["site_data", text],
+        ["assignable", wholeNumberStartingAtZero],
+        ["assigned_attendee_id", wholeNumberStartingAtNull],
+        ["assigned_listing_id", wholeNumberStartingAtNull],
+        ["created", text],
+        ["renewal_token_index", textStartingAtNull],
+        ["read_only_from", textStartingBlank],
+        ["site_data_revision", wholeNumberStartingAtZero],
         // Release channel this site opts into: 'alpha' takes every deploy,
         // 'beta' takes beta + release, 'release' only stable releases. The
         // upgrade workflow passes the tier it is publishing and the master
         // returns only the sites at that tier or more eager (see UPDATE_TIERS
         // in built-sites.ts). Operational metadata, not PII, so it lives outside
         // the encrypted site_data blob and stays SQL-filterable.
-        [
-          "updates",
-          "TEXT NOT NULL DEFAULT 'release' CHECK (updates IN ('alpha', 'beta', 'release'))",
-        ],
+        ["updates", oneOf("updates", UPDATE_TIERS)(defaulted(text, "release"))],
       ],
       indexes: [
         {
@@ -197,17 +205,22 @@ export const questionTables: [name: string, table: Table][] = [
     {
       columns: [
         attendeeIdColumn,
-        ["question_id", "INTEGER NOT NULL"],
-        ["question_text", "TEXT NOT NULL"],
-        ["answer_id", "INTEGER"],
+        ["question_id", wholeNumber],
+        ["question_text", text],
+        ["answer_id", wholeNumberOrNull],
         [
           "answer_text",
-          "TEXT CHECK ((answer_text IS NULL) = (answer_id IS NULL))",
+          checked("(answer_text IS NULL) = (answer_id IS NULL)")(textOrNull),
         ],
-        ["free_text", "TEXT CHECK (free_text IS NULL OR answer_id IS NULL)"],
+        [
+          "free_text",
+          checked("free_text IS NULL OR answer_id IS NULL")(textOrNull),
+        ],
         [
           "free_text_index",
-          "TEXT CHECK ((free_text_index IS NULL) = (free_text IS NULL))",
+          checked("(free_text_index IS NULL) = (free_text IS NULL)")(
+            textOrNull,
+          ),
         ],
       ],
       indexes: [
@@ -224,11 +237,11 @@ export const questionTables: [name: string, table: Table][] = [
     "attendee_answers",
     {
       columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["id", rowId],
         attendeeIdColumn,
-        ["answer_id", "INTEGER"],
-        ["question_id", "INTEGER"],
-        ["string_id", "INTEGER"],
+        ["answer_id", wholeNumberOrNull],
+        ["question_id", wholeNumberOrNull],
+        ["string_id", wholeNumberOrNull],
       ],
       indexes: [
         {
@@ -264,21 +277,20 @@ export const questionTables: [name: string, table: Table][] = [
     "system_notes",
     {
       columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["id", rowId],
         // The kinds come from NOTE_ENTITIES, so the stored values and the ones
         // the code accepts cannot drift apart.
-        ["entity_type", `TEXT NOT NULL CHECK (${noteEntityCheck})`],
-        ["entity_id", "INTEGER NOT NULL"],
-        [
-          "type",
-          "TEXT NOT NULL DEFAULT 'system' CHECK (type IN ('system', 'owner'))",
-        ],
-        ["note", "TEXT NOT NULL"],
+        ["entity_type", oneOf("entity_type", NOTE_ENTITIES)(text)],
+        ["entity_id", wholeNumber],
+        ["type", oneOf("type", SYSTEM_NOTE_TYPES)(defaulted(text, "system"))],
+        ["note", text],
         [
           "system_name",
-          "TEXT CHECK (system_name IS NULL OR (type = 'system' AND system_name GLOB 'system-note:1:?*'))",
+          checked(
+            "system_name IS NULL OR (type = 'system' AND system_name GLOB 'system-note:1:?*')",
+          )(textOrNull),
         ],
-        createdColumn,
+        ["created", text],
       ],
       indexes: [
         {

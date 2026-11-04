@@ -143,6 +143,13 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
   helpers and write comments in simple domain words, not CS jargon. A helper
   must explain itself like "Keeps only children that can still be booked for
   this ticket."
+- **Keep methods flat**: A row of three or more adjacent closing brackets shows
+  three or more levels of nesting in one place. Refactor it, and move each level
+  into a named helper. When the same three methods nest the same way at two or
+  more sites, write one helper for the chain, in the style of
+  [Curried helpers](docs/designing-systems.md#curried-helpers).
+  `deno task check:call-chains` fails every chain of three methods that repeats
+  at two or more sites in `src/`.
 - **Name a thing the way the site names it**: A story, test, or comment calls a
   thing what its label, message, or column heading calls it. Copy the word a
   person reads in `src/locales/en/*.json`, never the identifier beside it in
@@ -306,6 +313,7 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
   - `deno task lint:ci`
   - `deno task cpd`
   - `deno task check:file-lengths`
+  - `deno task check:call-chains`
   - `deno task check:imports`
   - `deno task check:comment-ste`
   - `deno task typecheck`
@@ -533,6 +541,9 @@ automatic.
   against the accepted list that only shrinks. Pass `--update` after a split.
   The update refuses a rise. The 400-line aim is policy, not a gate: a file
   slightly over it owes a splitting issue
+- `deno task check:call-chains` — fail every chain of three or more methods
+  that repeats at two or more sites in `src/`. A finding asks for one helper in
+  place of the chain. Nothing is accepted
 - `deno task check:test-quality` — the weak-assertion gate: fails when a
   test file the change touches carries a weak assertion, added or
   pre-existing, against the merge base on `origin/main`

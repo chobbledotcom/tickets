@@ -7,7 +7,7 @@
 
 /* jscpd:ignore-start -- imports */
 import { getGroupById } from "#db/groups.ts";
-import { formPolicyAt } from "#routes/auth.ts";
+import { formPolicyAt } from "#routes/route-gates.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import type { FormParams } from "#shared/form-data.ts";

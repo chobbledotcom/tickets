@@ -25,13 +25,7 @@ import {
 /* jscpd:ignore-start */
 import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
 import { withEntityLoader } from "#routes/admin/entity-handlers.ts";
-import {
-  type AuthSession,
-  formGuard,
-  formPolicyAt,
-  formPolicyFor,
-  pageGuardFor,
-} from "#routes/auth.ts";
+import type { AuthSession } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import {
   createEntityHandler,
@@ -39,8 +33,8 @@ import {
   type IdFormHandler,
 } from "#routes/entity.ts";
 import { htmlResponse } from "#routes/response.ts";
+import { formGuardAt, formPolicyAt, pageGuardAt } from "#routes/route-gates.ts";
 import { getSearchParam } from "#routes/url.ts";
-import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import { findByIdThen } from "#shared/find-by-id.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -299,41 +293,37 @@ const scopedAction =
       isAvailable: (hasBooking) => scope === "attendee" || hasBooking,
       load,
       page: (pattern, prepare) =>
-        actionHandler(pageGuardFor(adminDestinationAt(pattern)))(
-          async (data, session, request) => {
-            const returnUrl = getReturnUrl(request);
-            const page = await prepare(data);
-            if (page.reason !== null) {
-              return htmlResponse(
-                await page.render(data, session, returnUrl, page.reason),
-                400,
-              );
-            }
-            const flash = applyFlash(request);
+        actionHandler(pageGuardAt(pattern))(async (data, session, request) => {
+          const returnUrl = getReturnUrl(request);
+          const page = await prepare(data);
+          if (page.reason !== null) {
             return htmlResponse(
-              await page.render(data, session, returnUrl, flash.error),
+              await page.render(data, session, returnUrl, page.reason),
+              400,
             );
-          },
-        ),
+          }
+          const flash = applyFlash(request);
+          return htmlResponse(
+            await page.render(data, session, returnUrl, flash.error),
+          );
+        }),
       url: (attendeeId) => attendeeActionUrl(attendeeId, action),
       verified: (pattern, actionLabel, handler) =>
-        actionHandler(formGuard(formPolicyFor(adminDestinationAt(pattern))))(
-          (data, _session, form) => {
-            const error = verifyOrRedirect(
-              form,
-              data.attendee.name,
-              attendeeActionUrlWithReturn(
-                data.attendee.id,
-                action,
-                form.getString("return_url"),
-              ),
-              t("attendees.name_label"),
-              actionLabel,
-            );
-            if (error) return error;
-            return handler(data, form);
-          },
-        ),
+        actionHandler(formGuardAt(pattern))((data, _session, form) => {
+          const error = verifyOrRedirect(
+            form,
+            data.attendee.name,
+            attendeeActionUrlWithReturn(
+              data.attendee.id,
+              action,
+              form.getString("return_url"),
+            ),
+            t("attendees.name_label"),
+            actionLabel,
+          );
+          if (error) return error;
+          return handler(data, form);
+        }),
     };
   };
 

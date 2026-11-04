@@ -1,10 +1,8 @@
 import { basename, relative, resolve } from "node:path";
 import type { PerFileFinding } from "#scripts/check-runner.ts";
 import { readTlaSource } from "#scripts/tla/source.ts";
-import { CHECK_PHASES } from "#scripts/verify-models/check.ts";
 import {
   isReviewSourcePath,
-  PROOF_PHASES,
   type VerificationModule,
 } from "#scripts/verify-models/spec.ts";
 
@@ -65,12 +63,12 @@ const controlIssues = (declaration: VerificationModule): PerFileFinding[] => {
         ),
       );
     }
-    if (!Object.hasOwn(CHECK_PHASES, control.phase)) {
+    if (control.phase !== "initial" && control.phase !== "step") {
       findings.push(
         issue(
           "control-phase",
           `${declaration.module} has an invalid control phase.`,
-          `Use ${PROOF_PHASES.join(" or ")}.`,
+          "Use initial or step.",
         ),
       );
     }

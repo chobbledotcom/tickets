@@ -42,14 +42,10 @@ import {
   emptySelectedQuestionAnswers,
   loadQuestionsForExisting,
 } from "#routes/admin/attendee-questions.ts";
-import {
-  type AuthSession,
-  formPolicyAt,
-  pageGuardRun,
-  withAuth,
-} from "#routes/auth.ts";
+import { type AuthSession, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
+import { formPolicyAt, pageGuardRun } from "#routes/route-gates.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 
