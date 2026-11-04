@@ -1,7 +1,8 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { mergePageImageUrls } from "#db/image-urls.ts";
-import { formatCurrency } from "#shared/currency.ts";
+import type { ModifierLine } from "#routes/tickets/modifier-shares.ts";
+import { formatCurrency, formatSignedCurrency } from "#shared/currency.ts";
 import { ticketViewPage } from "#templates/tickets.tsx";
 import { registerPublicTemplateHooks } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
@@ -201,7 +202,7 @@ describe("ticketViewPage ticket cards", () => {
    * the booking, on the thing booked, and on the card itself. */
   const oneCardPage = (
     entry: Parameters<typeof testTokenEntry>[0],
-    onTheCard: { attachmentUrl?: string } = {},
+    onTheCard: { attachmentUrl?: string; modifiers?: ModifierLine[] } = {},
   ): string =>
     ticketViewPage([{ entry: testTokenEntry(entry), token, ...onTheCard }]);
 
@@ -231,6 +232,49 @@ describe("ticketViewPage ticket cards", () => {
         "ticket-card-price",
       ),
     );
+  });
+
+  test("lists the modifiers that changed the price, then the total", () => {
+    const html = oneCardPage(
+      { attendee: { price_paid: "1500" } },
+      {
+        modifiers: [
+          { amount: 200, name: "Service charge" },
+          { amount: -500, name: "Early bird" },
+        ],
+      },
+    );
+    assertStringIncludes(html, "ticket-card-modifiers");
+    assertStringIncludes(
+      html,
+      `Service charge <span class="ticket-card-modifier-amount">${formatSignedCurrency(200)}</span>`,
+    );
+    assertStringIncludes(
+      html,
+      `Early bird <span class="ticket-card-modifier-amount">${formatSignedCurrency(-500)}</span>`,
+    );
+    assertStringIncludes(
+      html,
+      `ticket-card-total"><strong>Total:</strong> ${formatCurrency(1200)}`,
+    );
+  });
+
+  test("shows the modifier total when a free ticket carries a charge", () => {
+    const html = oneCardPage(
+      { attendee: { price_paid: "0" } },
+      { modifiers: [{ amount: 500, name: "Service charge" }] },
+    );
+    assert(!html.includes("ticket-card-price"));
+    assertStringIncludes(
+      html,
+      `ticket-card-total"><strong>Total:</strong> ${formatCurrency(500)}`,
+    );
+  });
+
+  test("adds no modifier rows or total when no modifier changed the price", () => {
+    const html = oneCardPage({ attendee: { price_paid: "1500" } });
+    assert(!html.includes("ticket-card-modifiers"));
+    assert(!html.includes("ticket-card-total"));
   });
 
   test("warns that a non-transferable ticket needs ID at the door", () => {

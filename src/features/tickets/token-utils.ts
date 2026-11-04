@@ -38,6 +38,9 @@ export type { WalletPassData };
 /** Attendee paired with its listing */
 export type TokenEntry = {
   attendee: Attendee;
+  /** The booking order's ledger event group, or "" for a legacy row whose
+   * money records nothing. A modifier leg posts under it. */
+  ledgerEventGroup: string;
   listing: ListingWithCount;
   /** The booking row's `parent_listing_id` — the parent this row was folded
    * under (0 for standalone bookings and parent rows themselves). Carries the
@@ -199,6 +202,7 @@ export const resolveEntries = async (
       if (listing && hasTicketQuantity(booking)) {
         entries.push({
           attendee: buildAttendeeView(awb, booking),
+          ledgerEventGroup: booking.ledger_event_group,
           listing,
           parentListingId: booking.parent_listing_id,
         });
