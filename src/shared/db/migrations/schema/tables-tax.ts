@@ -1,3 +1,4 @@
+import { attendeeIdColumn } from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
 
 export const taxTables: [string, Table][] = [
@@ -7,7 +8,7 @@ export const taxTables: [string, Table][] = [
       columns: [
         ["booking_group", "TEXT NOT NULL"],
         ["revision", "INTEGER NOT NULL CHECK (revision >= 0)"],
-        ["attendee_id", "INTEGER NOT NULL"],
+        attendeeIdColumn,
         ["event_group", "TEXT NOT NULL"],
         ["state", "TEXT NOT NULL CHECK (state IN ('active', 'refunded'))"],
         ["assessment", "TEXT NOT NULL CHECK (json_valid(assessment))"],

@@ -32,6 +32,16 @@ export type CountsCheck = (
   output: CheckOutput,
 ) => Promise<number>;
 
+/** One count per path of the findings a whole-tree rule reports, so a file the
+ * fix cleared drops its registry entry. */
+export const countsByPath = (findings: readonly { path: string }[]): Counts => {
+  const counts: Counts = {};
+  for (const finding of findings) {
+    counts[finding.path] = (counts[finding.path] ?? 0) + 1;
+  }
+  return counts;
+};
+
 /** Whether any count in `fresh` rose above the number `recorded` holds for
  * the same key — a count that was never recorded starts at zero, so a new
  * entry above zero is a rise too. */

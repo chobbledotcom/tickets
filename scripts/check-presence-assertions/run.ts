@@ -4,9 +4,13 @@
  * Standards" in AGENTS.md). Kept thin so the logic stays testable.
  */
 
-import { type Counts, registryCheck } from "#scripts/check-runner.ts";
+import {
+  type Counts,
+  countsByPath,
+  registryCheck,
+} from "#scripts/check-runner.ts";
 import { collectFiles } from "#scripts/walk-files.ts";
-import { countsByPath, findIssues, presenceFindings } from "./rules.ts";
+import { findIssues, presenceFindings } from "./rules.ts";
 
 const TEST_FILE_PATTERN = /\.(?:test|spec)\.tsx?$/;
 const REGISTRY = "scripts/check-presence-assertions/registry.json";

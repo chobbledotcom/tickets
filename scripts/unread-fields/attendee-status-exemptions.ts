@@ -10,23 +10,25 @@ import {
 const SOURCE = "src/shared/admin-api-resources.ts";
 
 export const ATTENDEE_STATUS_EXEMPTIONS: readonly FindingExemption[] = [
-  ...exemptFieldsUnder(
-    [
-      [SOURCE, [{ name: "AdminApiCreateAttendeeStatusBody" }]],
-      [SOURCE, [{ name: "AdminApiUpdateAttendeeStatusBody" }]],
-    ],
-    [
-      "is_paid_default",
-      "is_public_default",
-      "is_reservation",
-      "name",
-      "reservation_amount",
-    ],
-    {
-      evidence:
-        "statusInputFrom reads the field by key off the raw JSON body record",
-      kind: "dynamic-read",
-    },
+  ...[
+    { name: "AdminApiCreateAttendeeStatusBody" },
+    { name: "AdminApiUpdateAttendeeStatusBody" },
+  ].flatMap((path) =>
+    exemptFieldsUnder(
+      [[SOURCE, [path]]],
+      [
+        "is_paid_default",
+        "is_public_default",
+        "is_reservation",
+        "name",
+        "reservation_amount",
+      ],
+      {
+        evidence:
+          "statusInputFrom reads the field by key off the raw JSON body record",
+        kind: "dynamic-read",
+      },
+    ),
   ),
   ...exemptFieldsUnder(
     [[SOURCE, [{ name: "AdminApiAttendeeStatus" }]]],

@@ -1,6 +1,7 @@
 /** Catalog tables: groups, modifiers, listing hierarchy, holidays, api keys. */
 
 import { slugNamedEntityColumns } from "./columns.ts";
+import { attendeeIdColumn } from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
 
 export const catalogTables: [name: string, table: Table][] = [
@@ -154,7 +155,7 @@ export const catalogTables: [name: string, table: Table][] = [
       columns: [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
         ["modifier_id", "INTEGER NOT NULL"],
-        ["attendee_id", "INTEGER NOT NULL"],
+        attendeeIdColumn,
         ["quantity", "INTEGER NOT NULL"],
         ["amount_applied", "INTEGER NOT NULL"],
         ["created", "TEXT NOT NULL"],

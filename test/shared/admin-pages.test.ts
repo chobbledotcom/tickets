@@ -9,6 +9,7 @@ import {
   adminLandingPath,
   entityReturnPath,
   readOnlyGetRoutePatterns,
+  readOnlyWriteRoutePatterns,
   visibleSections,
   visibleTopLevel,
 } from "#shared/admin-pages.ts";
@@ -114,6 +115,22 @@ describe("admin navigation", () => {
   test("derives read-only blocks from destination intent", () => {
     assertArrayIncludes(readOnlyGetRoutePatterns(), ["/admin/listing/new"]);
     assert(!readOnlyGetRoutePatterns().includes("/admin/listings"));
+  });
+
+  test("keeps only the declared writes open, by mode", () => {
+    // Update mode keeps sign-in and sign-out, and nothing else.
+    expect(readOnlyWriteRoutePatterns(true)).toEqual([
+      "/admin/login",
+      "/admin/logout",
+    ]);
+    // Ordinary read-only mode also keeps the operations a working site
+    // cannot pause.
+    assertArrayIncludes(readOnlyWriteRoutePatterns(false), [
+      "/admin/login",
+      "/admin/support",
+      "/admin/listing/:id/scan",
+      "/admin/listing/:listingId/attendee/:attendeeId/checkin",
+    ]);
   });
 });
 

@@ -13,9 +13,8 @@ import { invalidateListingsCache } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { settingsHandler } from "#routes/admin/settings-helpers.ts";
-import { authPage, pageGuardFor } from "#routes/auth.ts";
+import { authPageAt } from "#routes/route-gates.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -144,15 +143,14 @@ export const parseListingDefaultsForm = (
 
 /** GET /admin/listing-defaults — owner only. */
 export const handleListingDefaultsGet: TypedRouteHandler<"GET /admin/listing-defaults"> =
-  authPage(pageGuardFor(adminDestinationAt("/admin/listing-defaults")))(
-    (session, _request, flash) =>
-      adminListingDefaultsPage(
-        session,
-        settings.listingDefaults,
-        settings.features.logistics,
-        flash.error,
-        flash.success,
-      ),
+  authPageAt("/admin/listing-defaults")((session, _request, flash) =>
+    adminListingDefaultsPage(
+      session,
+      settings.listingDefaults,
+      settings.features.logistics,
+      flash.error,
+      flash.success,
+    ),
   );
 
 /** POST /admin/listing-defaults — owner only. */

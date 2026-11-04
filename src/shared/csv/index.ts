@@ -44,6 +44,14 @@ const joinRows = (header: string, rows: readonly string[]): string =>
  * columns are given — duplicate headers are allowed (e.g. two custom
  * questions sharing a name), matching what spreadsheets accept.
  */
+/** One line of CSV cells for the columns, each cell read through `read` and
+ * made inert before it is escaped. */
+const cellLine = <T>(
+  columns: readonly Column<T>[],
+  read: (column: Column<T>) => string,
+): string =>
+  columns.map((column) => escapeValue(stopFormula(read(column)))).join(",");
+
 const generate = <T>(
   items: readonly T[],
   columns: readonly Column<T>[],
@@ -52,10 +60,8 @@ const generate = <T>(
     throw new Error("CSV.generate: at least one column is required");
   }
   return joinRows(
-    columns.map((c) => escapeValue(stopFormula(c.header))).join(","),
-    items.map((item) =>
-      columns.map((c) => escapeValue(stopFormula(c.value(item)))).join(","),
-    ),
+    cellLine(columns, (column) => column.header),
+    items.map((item) => cellLine(columns, (column) => column.value(item))),
   );
 };
 

@@ -21,10 +21,20 @@ export const Flash = ({ error, success, info }: FlashFields): JSX.Element => {
   );
 };
 
-export const requestFlash = (): JSX.Element | null => {
-  const { error, info, success } = getFlash();
+/** The Flash notice for a page's own message bag: null when the bag holds no
+ *  message, so the page shows no notice at all. */
+export const flashNotice = ({
+  error,
+  info,
+  success,
+}: FlashFields): JSX.Element | null => {
+  if (error === undefined && info === undefined && success === undefined) {
+    return null;
+  }
   return <Flash error={error} info={info} success={success} />;
 };
+
+export const requestFlash = (): JSX.Element | null => flashNotice(getFlash());
 
 /** Render one flash field as text, empty when there is no message. */
 const renderFlash = (fields: FlashFields, message?: string): string =>

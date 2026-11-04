@@ -4,24 +4,29 @@
 
 /* jscpd:ignore-start -- imports */
 import type { PackageDisplay } from "#db/groups.ts";
+import { sumOf } from "#fp";
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
 import { Raw } from "#jsx/jsx-runtime.ts";
+import type { ModifierLine } from "#routes/tickets/modifier-shares.ts";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
-import { formatCurrency } from "#shared/currency.ts";
-/* jscpd:ignore-end */
+import { formatCurrency, formatSignedCurrency } from "#shared/currency.ts";
 import { bookedRangeLabel } from "#shared/date-labels.ts";
 import { formatDatetimeLabel, widestDatedEntry } from "#shared/dates.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { headingLayoutPage } from "#templates/components/heading-layout.tsx";
 import { renderListingImage } from "#templates/public/shared.tsx";
 import { clampDurationDays } from "#types";
+/* jscpd:ignore-end */
 
 /** Ticket card data for rendering */
 export type TicketCard = {
   entry: TokenEntry;
   token: string;
   attachmentUrl?: string;
+  /** The card's share of its order's modifiers. Absent when none changed the
+   *  order's price. */
+  modifiers?: readonly ModifierLine[];
 };
 
 /** True when every card is a purchase-only listing (no admission ticket). */
@@ -60,6 +65,25 @@ const optionalHtml = <T,>(
   value: T | null | undefined | "" | 0 | false,
   render: (v: T) => string,
 ): string => (value ? render(value) : "");
+
+/** One row per modifier that changed this card's price, with its signed amount,
+ *  then the total those rows reach. The card shows neither when no modifier
+ *  changed the price. */
+const renderModifiers = (
+  modifiers: readonly ModifierLine[],
+  pricePaid: number,
+): string => {
+  if (modifiers.length === 0) return "";
+  const rows = modifiers.map(
+    (modifier) =>
+      `<li>${escapeHtml(modifier.name)} <span class="ticket-card-modifier-amount">${escapeHtml(formatSignedCurrency(modifier.amount))}</span></li>`,
+  );
+  const total = pricePaid + sumOf((m: ModifierLine) => m.amount)(modifiers);
+  return (
+    `<ul class="ticket-card-modifiers">${rows.join("")}</ul>` +
+    `<div class="ticket-card-total"><strong>${t("tickets.total")}</strong> ${escapeHtml(formatCurrency(total))}</div>`
+  );
+};
 
 /** The "Booking Date" label for one booking: its stored range via the shared
  * {@link bookedRangeLabel} (the listing's fixed duration covers legacy rows
@@ -208,6 +232,9 @@ const renderTicketCard = (
       `<div class="ticket-card-price">${t("tickets.price")} ${escapeHtml(formatCurrency(p))}</div>`,
   );
 
+  const modifiers = card.modifiers ?? [];
+  const modifiersHtml = renderModifiers(modifiers, pricePaid);
+
   const nonTransferableHtml =
     listing.non_transferable && !listing.purchase_only
       ? `<div class="ticket-card-notice">${t("tickets.non_transferable")}</div>`
@@ -239,6 +266,7 @@ const renderTicketCard = (
       ${attendeeDateHtml}
       <div class="ticket-card-quantity">${t("tickets.quantity")} ${attendee.quantity}</div>
       ${priceHtml}
+      ${modifiersHtml}
       ${attachmentHtml}
       ${renderQrBlock(token, listing.purchase_only)}
       ${walletHtml}

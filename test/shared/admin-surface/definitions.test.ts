@@ -6,6 +6,7 @@ import {
   foldAdminAreas,
   ownerOnlyAudience,
 } from "#shared/admin-surface/definitions.ts";
+import { afterSavePath } from "#shared/admin-surface.ts";
 
 const SPEC: AdminAreasSpec = {
   // An area whose routes mostly share one role, and one route that does not.
@@ -77,7 +78,6 @@ describe("foldAdminAreas", () => {
 
   test("gives an area with no routes only the segments it declares", () => {
     expect(folded.areas.markdownPreview).toEqual(["markdown-preview"]);
-    expect(folded.destinations.markdownPreview).toBeUndefined();
   });
 });
 
@@ -87,6 +87,70 @@ describe("adminPathSegment", () => {
     expect(adminPathSegment("/admin/")).toBe("");
     expect(adminPathSegment("/admin/settings")).toBe("settings");
     expect(adminPathSegment("/admin/listing/5/edit")).toBe("listing");
+  });
+});
+
+describe("a route that names its after-save landing", () => {
+  test("refuses a landing that no route declares", () => {
+    expect(() =>
+      foldAdminAreas({
+        holidays: {
+          audience: ["owner"],
+          write: {
+            holidayEdit: {
+              afterSave: "nowhere",
+              pattern: "/admin/holidays/:id/edit",
+            },
+          },
+        },
+      }),
+    ).toThrow(
+      'Admin route "holidayEdit" saves to "nowhere", which no route declares',
+    );
+  });
+
+  test("resolves self-landings for record forms and collection lists", () => {
+    const { destinations } = foldAdminAreas({
+      holidays: {
+        audience: ["owner"],
+        view: {
+          holidays: { afterSave: "holidays", pattern: "/admin/holidays" },
+        },
+        write: {
+          holidayEdit: {
+            afterSave: "holidayEdit",
+            pattern: "/admin/holidays/:id/edit",
+          },
+        },
+      },
+    });
+    expect(afterSavePath(destinations.holidays!, "groups", 7)).toBe(
+      "/admin/holidays",
+    );
+    expect(afterSavePath(destinations.holidayEdit!, "holidays", 7)).toBe(
+      "/admin/holidays/7/edit",
+    );
+  });
+
+  test("refuses a landing that names two records", () => {
+    // A saved record fills one parameter. Two would take the same id twice.
+    expect(() =>
+      foldAdminAreas({
+        holidays: {
+          audience: ["owner"],
+          view: { holidayReport: "/admin/holidays/:id/report/:kind" },
+          write: {
+            holidayEdit: {
+              afterSave: "holidayReport",
+              pattern: "/admin/holidays/:id/edit",
+            },
+          },
+        },
+      }),
+    ).toThrow(
+      'Admin route "holidayEdit" saves to "holidayReport", which names more ' +
+        "than one record",
+    );
   });
 });
 

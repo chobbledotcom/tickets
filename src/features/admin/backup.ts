@@ -17,7 +17,7 @@ import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import { authPage, pageGuardFor } from "#routes/auth.ts";
 import { downloadResponse, htmlResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { adminDestinationAt } from "#shared/admin-surface.ts";
+import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 import { formatDatetimeLabel } from "#shared/dates.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { formatBytes } from "#shared/format-units.ts";
@@ -116,7 +116,7 @@ const handleBackupCreate: TypedRouteHandler<"POST /admin/backup/create"> =
     },
     message: "Database backup created",
     pattern: "/admin/backup/create",
-    successRedirect: "/admin/backup",
+    successRedirect: adminPattern("backup"),
   });
 
 const handleBackupDownload: TypedRouteHandler<

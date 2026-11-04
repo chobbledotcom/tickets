@@ -126,5 +126,8 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
     "2026-11-03_external_sources",
     () => import("./2026-11-03_external_sources.ts"),
   ),
+  // Invoices: a frozen rendered body, a status, and a non-expiring share
+  // token.
+  entry("2026-11-03_invoices", () => import("./2026-11-03_invoices.ts")),
 ];
 /* jscpd:ignore-end */

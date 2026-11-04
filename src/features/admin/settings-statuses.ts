@@ -111,9 +111,7 @@ const statusOperations: NamedOperations<AttendeeStatus> = {
 const crud = createCrudHandlers({
   activityName: "Attendee status",
   getAll: attendeeStatuses.getAll,
-  getCreatePath: () => LIST_PATH,
   getName: (status) => status.name,
-  getRowPath: (status) => attendeeStatusPage.path(status.id),
   identifierLabel: t("statuses.name_label"),
   list: "statuses",
   operations: statusOperations,

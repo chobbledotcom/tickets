@@ -16,7 +16,7 @@ import { settings } from "#db/settings.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { authPage, formPolicyFor, pageGuardFor } from "#routes/auth.ts";
-import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
+import { adminRedirect, notFoundResponse } from "#routes/response.ts";
 /* jscpd:ignore-end */
 import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
@@ -33,8 +33,6 @@ import {
   type BuiltSiteDisplay,
 } from "#templates/admin/builder.tsx";
 import { builderForm } from "#templates/fields/builder.ts";
-
-const BUILDER_PATH = "/admin/builder";
 
 /** Convert built sites to display format */
 const toDisplay = (
@@ -83,7 +81,7 @@ const dbProviderConfigError = (
 const builderPost = createAuthedFormRoute({
   auth: formPolicyFor(adminDestinationAt("/admin/builder")),
   form: builderForm,
-  onInvalid: ({ error }) => errorRedirect(BUILDER_PATH, error),
+  onInvalid: ({ error }) => adminRedirect("builder", {}, error, false),
   onValid: async ({ form, values }) => {
     if (values.db_url) {
       const dbTest = await builderApi.testDbConnection(
@@ -91,9 +89,11 @@ const builderPost = createAuthedFormRoute({
         values.db_token,
       );
       if (!dbTest.ok) {
-        return errorRedirect(
-          BUILDER_PATH,
+        return adminRedirect(
+          "builder",
+          {},
           t("builder.db_connection_failed", { error: dbTest.error }),
+          false,
         );
       }
     }
@@ -101,9 +101,11 @@ const builderPost = createAuthedFormRoute({
     const hostingProvider = providerOrBunny(values.hosting_provider, "deno");
 
     if (hostingProvider === "deno" && !isDenoDeployEnabled()) {
-      return errorRedirect(
-        BUILDER_PATH,
+      return adminRedirect(
+        "builder",
+        {},
         t("builder.deno_deploy_not_configured"),
+        false,
       );
     }
 
@@ -111,7 +113,7 @@ const builderPost = createAuthedFormRoute({
     const dbProvider = providerOrBunny(dbProviderVal, "turso");
 
     const dbError = dbProviderConfigError(dbProviderVal, values.db_url);
-    if (dbError) return errorRedirect(BUILDER_PATH, dbError);
+    if (dbError) return adminRedirect("builder", {}, dbError, false);
 
     let retainedSiteId: number | null = null;
     const assignable = form.getFlag("assignable");
@@ -143,10 +145,11 @@ const builderPost = createAuthedFormRoute({
       ),
     );
 
-    if (!result.ok) return errorRedirect(BUILDER_PATH, result.error);
+    if (!result.ok) return adminRedirect("builder", {}, result.error, false);
 
     const buildResult = result.value;
-    if (!buildResult.ok) return errorRedirect(BUILDER_PATH, buildResult.error);
+    if (!buildResult.ok)
+      return adminRedirect("builder", {}, buildResult.error, false);
 
     if (retainedSiteId === null) {
       throw new Error("Built site was published before it was retained");
@@ -156,8 +159,9 @@ const builderPost = createAuthedFormRoute({
     }
     await logActivity(`Built new site: ${values.site_name}`);
 
-    return redirect(
-      BUILDER_PATH,
+    return adminRedirect(
+      "builder",
+      {},
       t("builder.site_created", {
         name: values.site_name,
         url: siteBaseUrl(buildResult.defaultHostname),

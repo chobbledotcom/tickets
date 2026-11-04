@@ -19,12 +19,11 @@ import {
 } from "#routes/auth.ts";
 import { requireMessageField } from "#routes/csrf.ts";
 import {
-  errorRedirect,
+  adminRedirect,
   htmlResponse,
   notFoundResponse,
-  redirect,
 } from "#routes/response.ts";
-import { adminDestinationAt } from "#shared/admin-surface.ts";
+import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 /* jscpd:ignore-end */
 import { MESSAGE_SEND_FAILED } from "#shared/inbound-message.ts";
@@ -38,7 +37,7 @@ import {
 } from "#shared/support.ts";
 import { adminSupportPage } from "#templates/admin/support.tsx";
 
-const SUPPORT_PATH = "/admin/support";
+const SUPPORT_PATH = adminPattern("support");
 
 /** GET /admin/support — render the support page (404 when the feature is off). */
 const handleSupportGet = authResponsePage(
@@ -68,9 +67,9 @@ const submitSupportMessage = async (form: FormParams): Promise<Response> => {
   const message = requireMessageField(form, SUPPORT_PATH);
   if (message instanceof Response) return message;
   const sent = await sendSupportMessage(message);
-  if (!sent) return errorRedirect(SUPPORT_PATH, MESSAGE_SEND_FAILED);
+  if (!sent) return adminRedirect("support", {}, MESSAGE_SEND_FAILED, false);
   await recordSupportSubmission();
-  return redirect(SUPPORT_PATH, t("support.message_sent"), true);
+  return adminRedirect("support", {}, t("support.message_sent"), true);
 };
 
 /** POST /admin/support — owner-only, CSRF-checked support message. */

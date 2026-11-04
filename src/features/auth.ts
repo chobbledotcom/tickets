@@ -25,10 +25,7 @@ import {
   type AdminDestinationDef,
   ownerOnlyAudience,
 } from "#shared/admin-surface/definitions.ts";
-import {
-  adminDestinationAt,
-  adminPageAudience,
-} from "#shared/admin-surface.ts";
+import { adminPageAudience } from "#shared/admin-surface.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { signCsrfToken, verifySignedCsrfToken } from "#shared/csrf.ts";
 import type { Flash } from "#shared/flash-context.ts";
@@ -444,19 +441,6 @@ export const recordPageGuardFor = (
 export const formPolicyFor = (
   route: AdminDestinationDef,
 ): AuthPolicy<"form"> => ({ body: "form", roles: route.audience });
-
-/** A form POST's policy at a declared route pattern. */
-export const formPolicyAt = (pattern: string): AuthPolicy<"form"> =>
-  formPolicyFor(adminDestinationAt(pattern));
-
-/** Run a session handler under a page's guard, the audience from the route's
- * declaration. The shared tail of the "gate a request then handle" helpers,
- * so the guard application is written once. */
-export const pageGuardRun = (
-  pattern: string,
-  request: Request,
-  run: (session: AuthSession) => Promise<Response>,
-): Promise<Response> => pageGuardFor(adminDestinationAt(pattern))(request, run);
 
 /** A gate a route runs before its handler: it authenticates/loads whatever
  * the handler needs, then calls it with that data — or answers the request

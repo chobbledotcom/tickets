@@ -8,11 +8,12 @@ import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import { hasRecentBackup } from "#db/backup-storage.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
-import { formPolicyAt, gatedPost, pageGuardFor } from "#routes/auth.ts";
+import { gatedPost } from "#routes/auth.ts";
 /* jscpd:ignore-start -- imports */
 import { authFlashPage } from "#routes/auth-flash-page.ts";
-import { errorRedirect, redirect } from "#routes/response.ts";
-import { adminDestinationAt } from "#shared/admin-surface.ts";
+import { adminRedirect } from "#routes/response.ts";
+import { formPolicyAt, pageGuardAt } from "#routes/route-gates.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#shared/build-info.ts";
 import {
   getBunnyScriptId,
@@ -37,7 +38,7 @@ import {
 
 /* jscpd:ignore-end */
 
-const UPDATE_PATH = "/admin/update";
+const UPDATE_PATH = adminPattern("update");
 
 /** The update-mode guard for this host's own script. The flag rides the
  * host's own Bunny script. The wait polls the host's own read-only page
@@ -67,7 +68,7 @@ const getUpdatePageState = (): UpdatePageState => {
 
 /** GET /admin/update — show current version and update status */
 const handleUpdateGet = authFlashPage(
-  pageGuardFor(adminDestinationAt("/admin/update")),
+  pageGuardAt("/admin/update"),
   (session, error, success) =>
     adminUpdatePage(session, getUpdatePageState(), error, success),
 );
@@ -82,11 +83,13 @@ const checkForUpdate = async (): Promise<Response> => {
     const message = isNewerVersion(release.tagName)
       ? t("update.update_available_flash", { version: release.name })
       : t("update.running_latest_flash");
-    return redirect(UPDATE_PATH, message, true);
+    return adminRedirect("update", {}, message, true);
   } catch (e) {
-    return errorRedirect(
-      UPDATE_PATH,
+    return adminRedirect(
+      "update",
+      {},
       t("update.check_failed", { error: errorMsg(e) }),
+      false,
     );
   }
 };
@@ -95,19 +98,19 @@ const checkForUpdate = async (): Promise<Response> => {
 const deployUpdate = async (): Promise<Response> => {
   const latestVersion = settings.latestScriptVersion;
   if (!latestVersion || !isNewerVersion(latestVersion)) {
-    return errorRedirect(UPDATE_PATH, t("update.no_update_to_install"));
+    return adminRedirect("update", {}, t("update.no_update_to_install"), false);
   }
   // Migrations no longer back up inline, so refuse to deploy a new version
   // (which migrates on first request) unless a fresh backup already exists.
   if (!(await hasRecentBackup())) {
-    return errorRedirect(UPDATE_PATH, t("update.backup_required"));
+    return adminRedirect("update", {}, t("update.backup_required"), false);
   }
 
   return deployAndReport({
     deploy: () => deployLatestReleaseToScript(),
     guard: selfUpdateGuardIo(),
-    onError: (message) => errorRedirect(UPDATE_PATH, message),
-    onSuccess: (message) => redirect(UPDATE_PATH, message, true),
+    onError: (message) => adminRedirect("update", {}, message, false),
+    onSuccess: (message) => adminRedirect("update", {}, message, true),
     subject: { kind: "self" },
   });
 };

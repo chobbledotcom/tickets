@@ -12,6 +12,7 @@ import { catalogTables } from "#db/migrations/schema/tables-catalog.ts";
 import { contentTables } from "#db/migrations/schema/tables-content.ts";
 import { coreTables } from "#db/migrations/schema/tables-core.ts";
 import { externalSourceTables } from "#db/migrations/schema/tables-external-sources.ts";
+import { invoiceTables } from "#db/migrations/schema/tables-invoices.ts";
 import { questionTables } from "#db/migrations/schema/tables-questions.ts";
 import { taxTables } from "#db/migrations/schema/tables-tax.ts";
 import { SCHEMA_MIGRATIONS_TABLE } from "#db/migrations/schema/version.ts";
@@ -27,6 +28,7 @@ describe("db > migrations > schema assembly", () => {
       ...questionTables,
       ...contentTables,
       ...paymentTables,
+      ...invoiceTables,
       ...taxTables,
       ...externalSourceTables,
     ]);

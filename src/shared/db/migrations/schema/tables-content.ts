@@ -2,7 +2,11 @@
 
 /* jscpd:ignore-start */
 import { itemLinkColumns, slugNamedEntityColumns } from "./columns.ts";
-import { createdColumn, sortOrderColumn } from "./scalar-columns.ts";
+import {
+  attendeeIdColumn,
+  createdColumn,
+  sortOrderColumn,
+} from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
 /* jscpd:ignore-end */
 
@@ -62,7 +66,7 @@ export const contentTables: [name: string, table: Table][] = [
     {
       columns: [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["attendee_id", "INTEGER NOT NULL"],
+        attendeeIdColumn,
         ["listing_id", "INTEGER NOT NULL"],
         ["provider_id", "TEXT NOT NULL"],
         createdColumn,

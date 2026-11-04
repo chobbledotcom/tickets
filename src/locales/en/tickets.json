@@ -3,6 +3,8 @@
   "tickets.count": "{count, plural, one {1 Ticket} other {{count} Tickets}}",
   "tickets.booking_date": "Booking Date:",
   "tickets.price": "Price:",
+  "tickets.total": "Total:",
+  "tickets.modifier_fallback": "Price change",
   "tickets.quantity": "Quantity:",
   "tickets.non_transferable": "Non-transferable \u2014 ID required at entry",
   "tickets.add_to": "Add to:",

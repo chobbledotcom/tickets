@@ -70,4 +70,20 @@ describe("the admin areas table", () => {
     // Its write route derives the segment it serves.
     expect(ADMIN_SURFACE.areas.markdownPreview).toEqual(["markdown-preview"]);
   });
+
+  test("lands every generated save override on a page its actors can open", () => {
+    // A save must not send its actor to a forbidden page after the write.
+    const stranded = routes.flatMap((route) => {
+      if (route.afterSave === undefined) return [];
+      const landing = ADMIN_SURFACE.destinations[route.afterSave]!;
+      const shut = route.audience.filter(
+        (level) => !landing.audience.includes(level),
+      );
+      return shut.length === 0
+        ? []
+        : [`${route.id} to ${landing.id}: ${shut.join(", ")}`];
+    });
+
+    expect(stranded).toEqual([]);
+  });
 });

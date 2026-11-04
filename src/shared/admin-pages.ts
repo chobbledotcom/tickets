@@ -1,4 +1,7 @@
-import type { AdminSurfaceContext } from "#shared/admin-surface/definitions.ts";
+import type {
+  AdminDestinationDef,
+  AdminSurfaceContext,
+} from "#shared/admin-surface/definitions.ts";
 import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
 import type { AdminSectionDef } from "#shared/admin-surface/sections.ts";
 import {
@@ -91,14 +94,34 @@ export const entityReturnPath = (sectionPath: string, id: number): string => {
   return section?.detail ? adminPath(section.detail, { id }) : sectionPath;
 };
 
-export const readOnlyGetRoutePatterns = (): readonly string[] =>
+/** The patterns of the routes that match one predicate, in declaration order. */
+const routePatterns = (
+  keep: (route: AdminDestinationDef) => boolean,
+): readonly string[] =>
   Object.values(ADMIN_SURFACE.destinations)
-    // A write whose declaration carries `readOnlyGet` serves a page on its
-    // GET (the built-site support message), so read-only mode keeps serving
-    // it instead of redirecting it. The writes read-only mode keeps open
-    // keep their GET pages through the allowed operations list in the
-    // read-only guard, not here.
-    .filter(
-      (route) => route.intent === "write-form" && route.readOnlyGet !== true,
-    )
+    .filter(keep)
     .map((route) => route.pattern);
+
+/** The admin writes read-only mode keeps open. In update mode it keeps only
+ * the ones declared `"always"`, because the migration must see a still
+ * database. */
+export const readOnlyWriteRoutePatterns = (
+  updating: boolean,
+): readonly string[] =>
+  routePatterns(
+    (route) =>
+      route.readOnlyWrite !== undefined &&
+      (!updating || route.readOnlyWrite === "always"),
+  );
+
+/** A write whose declaration carries `readOnlyGet` serves a page on its GET
+ * (the built-site support message), so read-only mode keeps serving it instead
+ * of redirecting it. A write declared `readOnlyWrite` keeps its GET through
+ * the same declaration. */
+export const readOnlyGetRoutePatterns = (): readonly string[] =>
+  routePatterns(
+    (route) =>
+      route.intent === "write-form" &&
+      route.readOnlyGet !== true &&
+      route.readOnlyWrite === undefined,
+  );

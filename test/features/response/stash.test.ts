@@ -1,6 +1,7 @@
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { infoRedirect, redirect } from "#routes/response.ts";
+import { adminRedirect, infoRedirect, redirect } from "#routes/response.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { clearFormStash, takeForm } from "#shared/form-stash.ts";
 import {
@@ -30,6 +31,29 @@ describe("redirect form re-fill stash", () => {
     return takeForm(formToken);
   };
 
+  test("keeps the submitted return URL, error flash, form anchor and cookie", () =>
+    withRequestContext(() => {
+      const response = adminRedirect("settings", {}, "Fix fields", false, {
+        cookie: "session=abc; Path=/",
+        form: new URLSearchParams({
+          name: "Submitted",
+          return_url: "/admin/listing/8?tab=attendees#old",
+        }),
+        formId: "contact",
+      });
+      expectRedirectWithFlash(
+        "/admin/listing/8?tab=attendees&form=contact#contact",
+        "Fix fields",
+        false,
+      )(response);
+      assertArrayIncludes(response.headers.getSetCookie(), [
+        "session=abc; Path=/",
+      ]);
+      expect(stashedForm(response)).toBe(
+        "name=Submitted&return_url=%2Fadmin%2Flisting%2F8%3Ftab%3Dattendees%23old",
+      );
+    }));
+
   test("stashes captured values without the CSRF token after an error", async () => {
     await withRequestContext(() => {
       setSavedFormData(new FormParams("name=Alice&csrf_token=secret"));
@@ -46,13 +70,15 @@ describe("redirect form re-fill stash", () => {
     await withRequestContext(() => {
       setSavedFormData(new FormParams("name=Bob"));
       const response = redirect("/admin/groups", "Group created", true);
-      expect(parseFlashCookie(response).formToken).toBeUndefined();
+      expect(parseFlashCookie(response)).toEqual({ success: "Group created" });
     });
   });
 
   test("does not stash when nothing was captured", () => {
     const response = redirect("/admin", "Something went wrong", false);
-    expect(parseFlashCookie(response).formToken).toBeUndefined();
+    expect(parseFlashCookie(response)).toEqual({
+      error: "Something went wrong",
+    });
   });
 
   test("does not stash a submission that is only a CSRF token", async () => {
@@ -63,7 +89,9 @@ describe("redirect form re-fill stash", () => {
         "Group Name is required",
         false,
       );
-      expect(parseFlashCookie(response).formToken).toBeUndefined();
+      expect(parseFlashCookie(response)).toEqual({
+        error: "Group Name is required",
+      });
     });
   });
 
@@ -87,7 +115,7 @@ describe("redirect form re-fill stash", () => {
         new FormParams(`bio=${"x".repeat(FORM_STASH_MAX_BYTES)}`),
       );
       const response = redirect("/admin/groups/new", "Too big", false);
-      expect(parseFlashCookie(response).formToken).toBeUndefined();
+      expect(parseFlashCookie(response)).toEqual({ error: "Too big" });
     });
   });
 
@@ -126,10 +154,6 @@ describe("redirect form re-fill stash", () => {
   test("does not carry submitted values into an informational redirect", () => {
     setSavedFormData(new FormParams("name=Bob"));
     const response = infoRedirect("/admin", "No change needed");
-    const flash = parseFlashCookie(response);
-    expect(flash.info).toBe("No change needed");
-    expect(flash.success).toBeUndefined();
-    expect(flash.error).toBeUndefined();
-    expect(flash.formToken).toBeUndefined();
+    expect(parseFlashCookie(response)).toEqual({ info: "No change needed" });
   });
 });

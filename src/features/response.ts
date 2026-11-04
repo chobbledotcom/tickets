@@ -4,6 +4,11 @@
 
 import { addPageImageUrls } from "#db/image-urls.ts";
 import { settings } from "#db/settings.ts";
+import type {
+  AdminDestinationId,
+  AdminPathParams,
+} from "#shared/admin-surface/ids.ts";
+import { adminPath } from "#shared/admin-surface.ts";
 import { buildFlashCookie, type FlashLevel } from "#shared/cookies.ts";
 import { stashForm } from "#shared/form-stash.ts";
 import { getSavedFormData } from "#shared/forms/saved-data.ts";
@@ -160,6 +165,20 @@ type RedirectOpts = {
   level?: FlashLevel;
 };
 
+type RedirectFeedback = [
+  message: string,
+  succeeded: boolean,
+  opts?: RedirectOpts,
+];
+
+type UrlRedirect = (url: string, ...feedback: RedirectFeedback) => Response;
+
+type AdminRedirect = <Id extends AdminDestinationId>(
+  endpoint: Id,
+  params: AdminPathParams<Id>,
+  ...feedback: RedirectFeedback
+) => Response;
+
 /**
  * Field-name segments whose values must never be written to the re-fill stash,
  * even briefly: secrets the user should re-enter rather than have persisted in
@@ -196,12 +215,7 @@ const maybeStashForm = (explicit?: URLSearchParams): string | null => {
  * When formId is provided, adds a `form` param and `#formId` anchor so the
  * browser scrolls to the form that was just submitted.
  */
-export const redirect = (
-  url: string,
-  message: string,
-  succeeded: boolean,
-  opts?: RedirectOpts,
-): Response => {
+export const redirect: UrlRedirect = (url, message, succeeded, opts) => {
   const target = opts?.form?.get("return_url") || url;
   if (!URL.canParse(target, "http://localhost")) {
     throw new TypeError("Invalid redirect URL");
@@ -227,6 +241,15 @@ export const redirect = (
   return response;
 };
 
+/** Redirect to a declared admin destination with the existing flash and form rules. */
+export const adminRedirect: AdminRedirect = (
+  endpoint,
+  params,
+  message,
+  succeeded,
+  opts,
+) => redirect(adminPath(endpoint, params), message, succeeded, opts);
+
 /**
  * Redirect with an error message (PRG pattern).
  * Shorthand for `redirect(url, message, false, { formId })`.
@@ -239,9 +262,9 @@ export const errorRedirect = (
 
 /** The `onInvalid` handler that returns to one row's own detail page. */
 export const redirectToDetail =
-  (detailPath: string) =>
-  (args: { error: string; params: { id: number } }): Response =>
-    errorRedirect(`${detailPath}/${args.params.id}`, args.error);
+  <Id extends AdminDestinationId>(endpoint: Id) =>
+  (args: { error: string; params: AdminPathParams<Id> }): Response =>
+    adminRedirect(endpoint, args.params, args.error, false);
 
 /**
  * Redirect with a neutral informational message (PRG pattern), e.g. confirming

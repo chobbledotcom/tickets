@@ -26,6 +26,7 @@ describe("the admin sections table", () => {
       "calendar",
       "servicing",
       "attendees",
+      "invoices",
       "users",
       "groups",
       "images",
