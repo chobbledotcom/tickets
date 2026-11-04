@@ -55,14 +55,22 @@ const sendInvoiceForm = async (
 };
 
 /** Make an invoice for the booking the story is working on, through the form
- *  the site served, and keep where the organiser landed. */
+ *  the site served. The first form shows the invoice text for review, and the
+ *  second one makes it. A booking the site refuses stays on the create page,
+ *  where the story reads what it said. Where the organiser landed is kept. */
 export const sendInvoice = async (world: TicketsWorld): Promise<void> => {
   const browser = await sendInvoiceForm(
     world,
     NEW_INVOICE,
-    await invoiceCopy("invoices.action.create"),
+    await invoiceCopy("invoices.action.preview"),
     { attendee_id: String(theBooking(world)) },
   );
+  if (browser.currentUrl !== "/admin/invoices/preview") {
+    world.invoicePath = browser.currentUrl;
+    return;
+  }
+  await browser.submitForm({}, await invoiceCopy("invoices.action.create"));
+  keepsWhatTheOrganiserSaw(world, browser);
   world.invoicePath = browser.currentUrl;
 };
 

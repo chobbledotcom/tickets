@@ -13,7 +13,9 @@ import {
   getAttendeeBalanceState,
   getAttendeeOrderSummary,
 } from "#db/attendees/balance.ts";
+import { getOpenInvoice } from "#db/invoices.ts";
 import { loadAccountLedger } from "#routes/admin/ledger/statements.ts";
+import { adminPath } from "#shared/admin-surface.ts";
 import { signBalanceToken } from "#shared/balance-link.ts";
 import { isPaymentsEnabled } from "#shared/config.ts";
 import { computeReservationDeposit } from "#shared/reservation-amount.ts";
@@ -30,11 +32,12 @@ export const loadAttendeeLedgerPanel = async (
   // The entity page already loaded this attendee, so its balance state exists.
   const state = (await getAttendeeBalanceState(attendeeId))!;
 
-  const [status, summary, token, ledger] = await Promise.all([
+  const [status, summary, token, ledger, openInvoice] = await Promise.all([
     state.statusId ? getAttendeeStatus(state.statusId) : Promise.resolve(null),
     getAttendeeOrderSummary(attendeeId),
     signBalanceToken(attendeeId),
     loadAccountLedger(account),
+    getOpenInvoice(attendeeId),
   ]);
 
   const deposit = status?.is_reservation
@@ -49,6 +52,12 @@ export const loadAttendeeLedgerPanel = async (
     activityHref,
     deposit,
     fullLedgerHref: `/admin/ledger/${account.type}/${account.id}`,
+    // An invoice bills what the booking still owes, so the link shows only for
+    // an outstanding balance that no open invoice already covers.
+    invoiceHref:
+      state.remainingBalance > 0 && openInvoice === null
+        ? `${adminPath("invoiceNew", {})}?attendee=${attendeeId}`
+        : null,
     ledger,
     link: `${baseUrl}/pay/${token}`,
     // The customer pay link only works when a provider can take the payment.

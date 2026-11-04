@@ -42,7 +42,7 @@ import {
 } from "#test-utils/migrations.ts";
 import { stubNtfyFetch } from "#test-utils/mocks.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
-import { saveAModifier } from "#test-utils/settings.ts";
+import { saveAModifier, settingValue } from "#test-utils/settings.ts";
 import { invalidateTestDbCache } from "#test-utils/test-state.ts";
 
 const MIGRATIONS = await loadMigrations();
@@ -307,11 +307,11 @@ describeWithEnv("db > migrations", { db: true }, () => {
 
       await initDb();
 
-      const stored = await settingsValueOrNull("enabled_features");
-      if (!stored) throw new Error("enabled_features was not migrated");
+      const stored = await settingValue("enabled_features");
       expect(JSON.parse(stored)).toEqual({
         apiKeys: false,
         attributes: false,
+        invoices: false,
         logistics: true,
         modifiers: true,
         money: false,

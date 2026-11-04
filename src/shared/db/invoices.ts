@@ -38,6 +38,9 @@ export type InvoiceSummary = Pick<
   "attendee_id" | "created" | "id" | "status"
 >;
 
+/** The columns every invoice summary read asks for. */
+const SUMMARY_COLUMNS = ["attendee_id", "created", "id", "status"] as const;
+
 /** A new invoice to store, in the domain's own words. */
 export type NewInvoice = {
   attendeeId: number;
@@ -75,15 +78,22 @@ export const getInvoice = readById(invoicesTable);
 
 /** Every invoice, newest first, without its sealed body. */
 export const getInvoices = (): Promise<InvoiceSummary[]> =>
-  invoicesTable.read
-    .pick(["attendee_id", "created", "id", "status"])
-    .many({}, { order: "id DESC" });
+  invoicesTable.read.pick(SUMMARY_COLUMNS).many({}, { order: "id DESC" });
 
 /** The open (new) invoice for one attendee, or null. */
 export const getOpenInvoice = (
   attendeeId: number,
 ): Promise<InvoiceRow | null> =>
   invoicesTable.read.one({ attendee_id: attendeeId, status: "new" });
+
+/** The attendee's newest invoice, whatever its status, or null when the
+ *  attendee has none. The attendee page's Invoice tab reads it. */
+export const getAttendeeInvoice = (
+  attendeeId: number,
+): Promise<InvoiceSummary | null> =>
+  invoicesTable.read
+    .pick(SUMMARY_COLUMNS)
+    .one({ attendee_id: attendeeId }, { order: "id DESC" });
 
 /** The invoice a share link names, or null when the token matches none. */
 export const getInvoiceByShareToken = async (

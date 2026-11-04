@@ -7,6 +7,7 @@
 
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { hasAssignedBuiltSite } from "#db/built-sites/claims.ts";
+import { getAttendeeInvoice, type InvoiceSummary } from "#db/invoices.ts";
 import {
   loadPaymentMoveSnapshot,
   type PaymentMoveSnapshot,
@@ -52,9 +53,15 @@ import { writeFormTab } from "#routes/admin/entity-write-tab.ts";
 import { loadPreviousBookings } from "#routes/admin/previous-bookings.ts";
 import { refundReferenceProblemMessage } from "#routes/admin/refunds/readiness-problem.ts";
 import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
-import { adminPattern, adminRecordPath } from "#shared/admin-surface.ts";
+import {
+  adminPath,
+  adminPattern,
+  adminRecordPath,
+} from "#shared/admin-surface.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
+import { formatDateLabel } from "#shared/date-labels.ts";
 import { isIncompletePayment } from "#shared/incomplete-payment.ts";
+import { INVOICE_STATUS_LABEL_KEYS } from "#shared/invoices/status.ts";
 import { withReturnUrl } from "#shared/return-url-field.tsx";
 import {
   AttendeeAnswersTable,
@@ -74,6 +81,7 @@ import { isOwnerRole } from "#types";
 import { attendeeNoteFeature } from "./attendee-notes.ts";
 
 type AttendeePageEntity = LoadedAttendee & {
+  readonly invoice: InvoiceSummary | null;
   readonly paymentMove: PaymentMoveSnapshot | "not_loaded";
 };
 
@@ -95,12 +103,19 @@ const paymentRefreshControl = (
     : { kind: "available", url: refreshPaymentAction.url(attendeeId) };
 };
 
-/** Payment move state is loaded only for the Actions tab. */
+/** Payment move state is loaded only for the Actions tab. The Invoice tab and
+ *  the create-invoice links read the attendee's newest invoice. */
 const loadAttendeePageEntity = async (
   id: number,
 ): Promise<AttendeePageEntity | null> => {
   const entity = await loadAttendeeForEdit(id);
-  return entity === null ? null : { ...entity, paymentMove: "not_loaded" };
+  return entity === null
+    ? null
+    : {
+        ...entity,
+        invoice: await getAttendeeInvoice(id),
+        paymentMove: "not_loaded",
+      };
 };
 
 type AttendeeActionName = keyof typeof attendeeActions;
@@ -179,6 +194,16 @@ const ATTENDEE_ACTIONS: readonly ActionDef<AttendeePageEntity>[] = [
     labelKey: "attendee_form.action_resend",
     visible: actionWhen("resend-notification"),
   }),
+  {
+    destination: "invoiceNew",
+    href: ({ attendee }) =>
+      `${adminPath("invoiceNew", {})}?attendee=${attendee.id}`,
+    icon: "plus",
+    labelKey: "invoices.action.create",
+    // A booking has one new invoice at a time, so the link waits until the
+    // open one is cancelled or paid.
+    visible: ({ invoice }) => invoice === null || invoice.status !== "new",
+  },
   {
     destination: "sms",
     href: ({ attendee }) =>
@@ -355,6 +380,35 @@ export const attendeePage: EntityPage<AttendeePageEntity> = defineEntityPage({
       // The ledger exposes money movements and the customer pay link, so it is
       // owner-only — matching the standalone /admin/ledger* routes.
       visible: (_entity, session) => session.adminLevel === "owner",
+    },
+    {
+      labelKey: "entity.tab.invoice",
+      sections: [
+        summarySection(({ invoice }) =>
+          Promise.resolve(
+            invoice === null
+              ? []
+              : [
+                  {
+                    href: adminPath("invoice", { id: invoice.id }),
+                    labelKey: "invoices.column.number",
+                    value: String(invoice.id),
+                  },
+                  {
+                    labelKey: "invoices.column.status",
+                    value: t(INVOICE_STATUS_LABEL_KEYS[invoice.status]),
+                  },
+                  {
+                    labelKey: "invoices.column.created",
+                    value: formatDateLabel(invoice.created.slice(0, 10)),
+                  },
+                ],
+          ),
+        ),
+      ],
+      slug: "invoice",
+      // An attendee with no invoice has nothing to show here.
+      visible: ({ invoice }) => invoice !== null,
     },
     {
       labelKey: "entity.tab.activity",

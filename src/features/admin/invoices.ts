@@ -5,6 +5,7 @@ import { decryptWithOwnerKey } from "#crypto/hybrid.ts";
 import {
   getAttendeeBalanceState,
   getAttendeeOrderSummary,
+  type OrderSummary,
 } from "#db/attendees/balance.ts";
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import { decryptAttendeeFields } from "#db/attendees/pii.ts";
@@ -49,12 +50,15 @@ import {
 } from "#shared/admin-surface.ts";
 import { getActiveEmailConfig } from "#shared/email.ts";
 import { sendEmailOk } from "#shared/email-ok.ts";
+import type { FormParams } from "#shared/form-data.ts";
 import {
   buildInvoiceBodyData,
   renderInvoiceBody,
+  renderInvoiceText,
 } from "#shared/invoices/body.ts";
 import { openInvoiceBody } from "#shared/invoices/seal.ts";
 import { invoiceShareUrl } from "#shared/invoices/share.ts";
+import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { nowIso } from "#shared/now.ts";
 import { orderLineItems } from "#shared/order-line-items.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -64,6 +68,7 @@ import { parsePositiveInt } from "#shared/validation/number.ts";
 import {
   adminInvoiceNewPage,
   adminInvoicePage,
+  adminInvoicePreviewPage,
   adminInvoicesPage,
 } from "#templates/admin/invoices.tsx";
 import { getInvoiceForm } from "#templates/fields/invoice.ts";
@@ -124,47 +129,113 @@ const handleInvoiceNewGet: TypedRouteHandler<"GET /admin/invoices/new"> =
     },
   );
 
-/** Render the body, store the invoice, email it, and redirect to its page. */
-const createInvoiceResponse = async (input: {
+/** What a validated create form loaded: the booking, its money, and the
+ *  number the invoice will take. */
+type InvoiceDraft = {
   amountDue: number;
   attendee: { email: string; name: string };
   attendeeId: number;
   number: number;
-}): Promise<Response> => {
-  const summary = await getAttendeeOrderSummary(input.attendeeId);
-  const created = nowIso();
-  const bodyHtml = await renderInvoiceBody(
+  summary: OrderSummary;
+};
+
+/** Read the create form and load what an invoice needs, or the redirect that
+ *  explains why the site refused it. */
+const loadInvoiceDraft = async (
+  form: FormParams,
+): Promise<Response | InvoiceDraft> => {
+  const newInvoicePath = adminPath("invoiceNew", {});
+  const checked = getInvoiceForm().validate(form);
+  if (!checked.valid) return errorRedirect(newInvoicePath, checked.error);
+  const { attendee_id: attendeeId, number } = checked.values;
+  const raw = await getAttendeeRaw(attendeeId);
+  if (!raw || raw.kind !== ATTENDEE_KIND) {
+    return errorRedirect(newInvoicePath, t("invoices.error.attendee_missing"));
+  }
+  const attendee = await decryptAttendeeFields(
+    raw,
+    await requireRequestPrivateKey(),
+  );
+  const state = requireValue(
+    await getAttendeeBalanceState(attendeeId),
+    "An invoice attendee has no balance state",
+  );
+  if (state.remainingBalance <= 0) {
+    return errorRedirect(newInvoicePath, t("invoices.error.nothing_due"));
+  }
+  if ((await getOpenInvoice(attendeeId)) !== null) {
+    return errorRedirect(
+      newInvoicePath,
+      t("invoices.error.open_invoice_exists"),
+    );
+  }
+  if ((await getInvoice(number)) !== null) {
+    return errorRedirect(newInvoicePath, t("invoices.error.number_taken"));
+  }
+  return {
+    amountDue: state.remainingBalance,
+    attendee,
+    attendeeId,
+    number,
+    summary: await getAttendeeOrderSummary(attendeeId),
+  };
+};
+
+/** The built-in invoice text for a draft: the booking's facts in the Markdown
+ *  template the operator then edits. */
+const draftBodyText = async (draft: InvoiceDraft): Promise<string> =>
+  renderInvoiceText(
     buildInvoiceBodyData({
-      created,
-      customer: input.attendee,
-      lines: await orderLineItems(summary.lines, t("invoices.package")),
-      number: input.number,
+      created: nowIso(),
+      customer: draft.attendee,
+      lines: await orderLineItems(draft.summary.lines, t("invoices.package")),
+      number: draft.number,
       totals: {
-        due: input.amountDue,
-        paid: summary.depositPaid,
-        total: summary.fullPrice,
+        due: draft.amountDue,
+        paid: draft.summary.depositPaid,
+        total: draft.summary.fullPrice,
       },
     }),
   );
-  const { invoice, shareToken } = await createInvoice({
-    attendeeId: input.attendeeId,
-    bodyHtml,
-    created,
-    id: input.number,
-  });
-  const shareUrl = invoiceShareUrl(shareToken);
-  const email = parseEmail(input.attendee.email);
-  const delivered =
-    email !== null &&
-    (await sendInvoiceEmail(invoice, bodyHtml, shareUrl, email));
-  return adminRedirect(
-    "invoice",
-    { id: invoice.id },
-    createdMessage(input.number, delivered),
-    true,
-  );
+
+/** Read the create form and continue with the draft it holds, or answer with
+ *  the redirect that refused it. */
+const withInvoiceDraft = async (
+  form: FormParams,
+  use: (draft: InvoiceDraft) => Response | Promise<Response>,
+): Promise<Response> => {
+  const draft = await loadInvoiceDraft(form);
+  return draft instanceof Response ? draft : use(draft);
 };
 
+/** The preview step: validate the form, then show the text the operator edits
+ *  and says whether the site will email it. */
+const handleInvoicePreviewPost: TypedRouteHandler<
+  "POST /admin/invoices/preview"
+> = (request) =>
+  withAuth(
+    request,
+    formPolicyAt(adminPattern("invoicePreview")),
+    async (session, form) =>
+      withInvoiceDraft(form, async (draft) =>
+        htmlResponse(
+          adminInvoicePreviewPage({
+            attendeeEmail: draft.attendee.email,
+            attendeeId: draft.attendeeId,
+            attendeeName: draft.attendee.name,
+            body: await draftBodyText(draft),
+            // Only a configured provider with a usable address sends.
+            delivered:
+              getActiveEmailConfig() !== null &&
+              parseEmail(draft.attendee.email) !== null,
+            number: draft.number,
+            session,
+          }),
+        ),
+      ),
+  );
+
+/** Store the edited invoice, email it, and redirect to its page. */
 const handleInvoiceNewPost: TypedRouteHandler<"POST /admin/invoices/new"> = (
   request,
 ) =>
@@ -173,41 +244,32 @@ const handleInvoiceNewPost: TypedRouteHandler<"POST /admin/invoices/new"> = (
     formPolicyAt(adminPattern("invoiceNew")),
     async (_session, form) => {
       const newInvoicePath = adminPath("invoiceNew", {});
-      const checked = getInvoiceForm().validate(form);
-      if (!checked.valid) return errorRedirect(newInvoicePath, checked.error);
-      const { attendee_id: attendeeId, number } = checked.values;
-      const raw = await getAttendeeRaw(attendeeId);
-      if (!raw || raw.kind !== ATTENDEE_KIND) {
-        return errorRedirect(
-          newInvoicePath,
-          t("invoices.error.attendee_missing"),
+      const bodyText = (form.get("body") ?? "").trim();
+      if (bodyText === "") {
+        return errorRedirect(newInvoicePath, t("invoices.error.body_required"));
+      }
+      if (bodyText.length > MAX_TEXTAREA_LENGTH) {
+        return errorRedirect(newInvoicePath, t("invoices.error.body_too_long"));
+      }
+      return withInvoiceDraft(form, async (draft) => {
+        const bodyHtml = renderInvoiceBody(bodyText);
+        const { invoice, shareToken } = await createInvoice({
+          attendeeId: draft.attendeeId,
+          bodyHtml,
+          created: nowIso(),
+          id: draft.number,
+        });
+        const shareUrl = invoiceShareUrl(shareToken);
+        const email = parseEmail(draft.attendee.email);
+        const delivered =
+          email !== null &&
+          (await sendInvoiceEmail(invoice, bodyHtml, shareUrl, email));
+        return adminRedirect(
+          "invoice",
+          { id: invoice.id },
+          createdMessage(draft.number, delivered),
+          true,
         );
-      }
-      const attendee = await decryptAttendeeFields(
-        raw,
-        await requireRequestPrivateKey(),
-      );
-      const state = requireValue(
-        await getAttendeeBalanceState(attendeeId),
-        "An invoice attendee has no balance state",
-      );
-      if (state.remainingBalance <= 0) {
-        return errorRedirect(newInvoicePath, t("invoices.error.nothing_due"));
-      }
-      if ((await getOpenInvoice(attendeeId)) !== null) {
-        return errorRedirect(
-          newInvoicePath,
-          t("invoices.error.open_invoice_exists"),
-        );
-      }
-      if ((await getInvoice(number)) !== null) {
-        return errorRedirect(newInvoicePath, t("invoices.error.number_taken"));
-      }
-      return createInvoiceResponse({
-        amountDue: state.remainingBalance,
-        attendee,
-        attendeeId,
-        number,
       });
     },
   );
@@ -282,4 +344,5 @@ export const adminHandlers = defineAdminRoutes({
   "POST /admin/invoices/:id/cancel": handleInvoiceCancelPost,
   "POST /admin/invoices/:id/delete": handleInvoiceDeletePost,
   "POST /admin/invoices/new": handleInvoiceNewPost,
+  "POST /admin/invoices/preview": handleInvoicePreviewPost,
 });

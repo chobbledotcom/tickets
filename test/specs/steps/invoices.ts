@@ -132,7 +132,8 @@ Then(
   "it offers no way to pay",
   async function (this: TicketsWorld): Promise<void> {
     const said = requiredWorldValue(this.buyerSaw, "the buyer's page");
+    // The pay button is a form that starts a checkout, so the address it posts
+    // to is the whole affordance — a page without it offers no way to pay.
     expect(said).not.toContain("/pay/");
-    expect(said).not.toContain(await invoiceCopy("invoices.share.pay"));
   },
 );

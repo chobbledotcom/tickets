@@ -72,6 +72,13 @@ describe("admin features", () => {
         labelKey: "features.money.name",
         slug: "money",
       },
+      {
+        descriptionKey: "features.invoices.description",
+        inUseSql: "EXISTS (SELECT 1 FROM invoices AS invoice)",
+        key: "invoices",
+        labelKey: "features.invoices.name",
+        slug: "invoices",
+      },
     ]);
   });
 
@@ -79,6 +86,7 @@ describe("admin features", () => {
     expect(DEFAULT_ENABLED_FEATURES).toEqual({
       apiKeys: false,
       attributes: false,
+      invoices: false,
       logistics: false,
       modifiers: false,
       money: false,

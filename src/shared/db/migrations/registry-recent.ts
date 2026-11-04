@@ -123,5 +123,10 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
   // Invoices: a frozen rendered body, a status, and a non-expiring share
   // token.
   entry("2026-11-03_invoices", () => import("./2026-11-03_invoices.ts")),
+  // The Invoices feature switch, added to the stored enabled-feature setting.
+  entry(
+    "2026-11-04_invoices_feature",
+    () => import("./2026-11-04_invoices_feature.ts"),
+  ),
 ];
 /* jscpd:ignore-end */

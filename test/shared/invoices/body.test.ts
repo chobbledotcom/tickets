@@ -6,6 +6,7 @@ import { formatCurrency } from "#shared/currency.ts";
 import {
   buildInvoiceBodyData,
   renderInvoiceBody,
+  renderInvoiceText,
 } from "#shared/invoices/body.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
@@ -36,22 +37,43 @@ describeWithEnv("shared > invoice body", { db: true }, () => {
     });
   });
 
-  test("renders the lines, the totals, and escaped buyer details", async () => {
-    const html = await renderInvoiceBody(
-      buildInvoiceBodyData({
-        ...FACTS,
-        customer: { email: "buyer@example.com", name: "Ada & Bob" },
-      }),
+  test("fills the Markdown text with the lines and the totals", async () => {
+    const text = await renderInvoiceText(buildInvoiceBodyData(FACTS));
+
+    expect(text).toContain("# Invoice 12");
+    expect(text).toContain("Tuesday 3 November 2026");
+    expect(text).toContain("Ada Lovelace");
+    expect(text).toContain("buyer@example.com");
+    expect(text).toContain("| Workshop | 2 |");
+    expect(text).toContain(`Total: ${formatCurrency(2000)}`);
+    expect(text).toContain(`Paid: ${formatCurrency(500)}`);
+    expect(text).toContain(`**Amount due: ${formatCurrency(1500)}**`);
+  });
+
+  test("renders the operator's text as safe HTML", () => {
+    const html = renderInvoiceBody(
+      [
+        "# Invoice 12",
+        "",
+        "| Item | Quantity |",
+        "| --- | --- |",
+        "| Workshop | 2 |",
+        "",
+        "**Amount due: £15.00**",
+      ].join("\n"),
     );
 
-    expect(html).toContain("<h2>Invoice 12</h2>");
-    expect(html).toContain("Tuesday 3 November 2026");
+    expect(html).toContain("<h1>Invoice 12</h1>");
+    expect(html).toContain("<td>Workshop</td>");
+    expect(html).toContain("<strong>Amount due: £15.00</strong>");
+  });
+
+  test("escapes HTML a person typed into the text", () => {
+    const html = renderInvoiceBody(
+      "# Invoice 12\n\nAda & Bob <script>x</script>",
+    );
+
     expect(html).toContain("Ada &amp; Bob");
-    expect(html).not.toContain("Ada & Bob");
-    expect(html).toContain('<td style="padding:8px">Workshop</td>');
-    expect(html).toContain('<td style="text-align:center;padding:8px">2</td>');
-    expect(html).toContain(`Total: ${formatCurrency(2000)}`);
-    expect(html).toContain(`Paid: ${formatCurrency(500)}`);
-    expect(html).toContain(`Amount due: ${formatCurrency(1500)}`);
+    expect(html).not.toContain("<script>");
   });
 });

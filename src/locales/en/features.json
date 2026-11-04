@@ -28,5 +28,7 @@
   "features.servicing.name": "Servicing",
   "features.servicing.description": "Show tools for reserving listing capacity for your own work.",
   "features.money.name": "Money",
-  "features.money.description": "Show the Money page in the admin menu."
+  "features.money.description": "Show the Money page in the admin menu.",
+  "features.invoices.name": "Invoices",
+  "features.invoices.description": "Show the invoices menu and the tools that invoice a booking."
 }

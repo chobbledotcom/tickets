@@ -3,7 +3,8 @@
 import { t } from "#i18n";
 import { formatDateLabel } from "#shared/date-labels.ts";
 import type { LineItem } from "#shared/line-item.ts";
-import { htmlLiquidEngine } from "#shared/liquid-engine.ts";
+import { plainLiquidEngine } from "#shared/liquid-engine.ts";
+import { renderMarkdown } from "#shared/markdown.ts";
 import { INVOICE_BODY_TEMPLATE } from "#templates/invoice/defaults.ts";
 
 export type InvoiceBodyData = {
@@ -54,8 +55,15 @@ export const buildInvoiceBodyData = ({
   totals,
 });
 
-/** Render the frozen HTML body. Every value is HTML-escaped. */
-export const renderInvoiceBody = async (
+/** Fill the built-in Markdown template with the buyer's facts. The create page
+ *  hands this text to the operator, who edits it before the invoice is made. */
+export const renderInvoiceText = async (
   data: InvoiceBodyData,
 ): Promise<string> =>
-  (await htmlLiquidEngine().parseAndRender(INVOICE_BODY_TEMPLATE, data)).trim();
+  (
+    await plainLiquidEngine().parseAndRender(INVOICE_BODY_TEMPLATE, data)
+  ).trim();
+
+/** Render the frozen HTML body from the operator's Markdown text. */
+export const renderInvoiceBody = (text: string): string =>
+  renderMarkdown(text).trim();

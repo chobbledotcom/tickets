@@ -65,6 +65,13 @@ export const ADMIN_FEATURES = [
     labelKey: "features.money.name",
     slug: "money",
   },
+  {
+    descriptionKey: "features.invoices.description",
+    inUseSql: "EXISTS (SELECT 1 FROM invoices AS invoice)",
+    key: "invoices",
+    labelKey: "features.invoices.name",
+    slug: "invoices",
+  },
 ] as const;
 
 export type AdminFeatureDefinition = (typeof ADMIN_FEATURES)[number];

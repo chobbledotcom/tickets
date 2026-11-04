@@ -97,6 +97,34 @@ describe("admin navigation", () => {
     );
   });
 
+  test("shows the Invoices section only when Invoices is enabled", () => {
+    const context = {
+      active: "/admin",
+      adminLevel: "owner" as const,
+      builder: false,
+      enabledFeatures: DEFAULT_ENABLED_FEATURES,
+      isReadOnly: false,
+      storage: false,
+      support: false,
+    };
+    assert(
+      !visibleTopLevel(context)
+        .map((link) => link.href)
+        .includes("/admin/invoices"),
+    );
+    assertArrayIncludes(
+      visibleTopLevel({
+        ...context,
+        enabledFeatures: setFeatureEnabled(
+          DEFAULT_ENABLED_FEATURES,
+          "invoices",
+          true,
+        ),
+      }).map((link) => link.href),
+      ["/admin/invoices"],
+    );
+  });
+
   test("omits sections with no sub-navigation", () => {
     const sections = visibleSections({
       active: "/admin/ledger",

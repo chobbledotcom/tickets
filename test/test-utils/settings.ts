@@ -135,6 +135,7 @@ export const seedFeatureRecords = async (
 export const SEEDED_FEATURE_RECORDS: EnabledFeatures = {
   apiKeys: true,
   attributes: true,
+  invoices: false,
   logistics: true,
   modifiers: true,
   money: false,
