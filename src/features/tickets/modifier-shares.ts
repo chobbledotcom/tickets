@@ -61,9 +61,13 @@ export const splitModifiersAcrossCards = (
     (entry: TokenEntry) => entry.ledgerEventGroup,
     (entry: TokenEntry) => entry,
   )(entries);
-  return new Map(
-    [...byOrder].flatMap(([order, orderEntries]) => [
-      ...splitOrder(orderEntries, modifiersByOrder.get(order) ?? []),
-    ]),
-  );
+  const shares = new Map<TokenEntry, ModifierLine[]>();
+  for (const [order, orderEntries] of byOrder) {
+    const orderShares = splitOrder(
+      orderEntries,
+      modifiersByOrder.get(order) ?? [],
+    );
+    for (const [entry, lines] of orderShares) shares.set(entry, lines);
+  }
+  return shares;
 };

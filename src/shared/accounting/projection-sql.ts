@@ -119,13 +119,13 @@ export const signedSumCase = (plus: string, minus: string): string =>
  *  positive for a surcharge and negative for a discount. Both use
  *  {@link LEG_COLUMNS} and {@link signedSumCase}, so a read cannot disagree
  *  with the legs the booking mapper posts. */
+const surchargeSide = `${LEG_COLUMNS.dest.type} = '${MODIFIER}'`;
+const discountSide = `${LEG_COLUMNS.source.type} = '${MODIFIER}'`;
+
 export const modifierLeg = {
-  accountId: `CASE WHEN ${LEG_COLUMNS.dest.type} = '${MODIFIER}' THEN ${LEG_COLUMNS.dest.id} ELSE ${LEG_COLUMNS.source.id} END`,
+  accountId: `CASE WHEN ${surchargeSide} THEN ${LEG_COLUMNS.dest.id} ELSE ${LEG_COLUMNS.source.id} END`,
   filter: `kind = '${KIND.modifier}'`,
-  signedAmount: signedSumCase(
-    `${LEG_COLUMNS.dest.type} = '${MODIFIER}'`,
-    `${LEG_COLUMNS.source.type} = '${MODIFIER}'`,
-  ),
+  signedAmount: signedSumCase(surchargeSide, discountSide),
 } as const;
 
 /**

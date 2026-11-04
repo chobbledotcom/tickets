@@ -15,6 +15,10 @@ import { requiredMapValue, unique } from "#fp";
 import { t } from "#i18n";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import {
+  type ModifierLine,
+  splitModifiersAcrossCards,
+} from "#routes/tickets/modifier-shares.ts";
+import {
   createTokenRoute,
   lookupAttendees,
   resolveEntries,
@@ -27,10 +31,6 @@ import { signAttachmentUrl } from "#shared/attachment-url.ts";
 import { generateQrSvg } from "#shared/qr.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";
 import { type TicketCard, ticketViewPage } from "#templates/tickets.tsx";
-import {
-  type ModifierLine,
-  splitModifiersAcrossCards,
-} from "./modifier-shares.ts";
 
 /** Build a ticket card for one entry, keyed by that entry's OWN token. Keying on
  * the row's real token (not the URL's first token) keeps a multi-token page's

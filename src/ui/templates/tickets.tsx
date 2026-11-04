@@ -66,17 +66,24 @@ const optionalHtml = <T,>(
   render: (v: T) => string,
 ): string => (value ? render(value) : "");
 
-/** One row per modifier that changed this card's price, with its signed
- *  amount, so the buyer can see how the total was reached. */
-const renderModifierRows = (modifiers: readonly ModifierLine[]): string =>
-  modifiers.length === 0
-    ? ""
-    : `<ul class="ticket-card-modifiers">${modifiers
-        .map(
-          (modifier) =>
-            `<li>${escapeHtml(modifier.name)} <span class="ticket-card-modifier-amount">${escapeHtml(formatSignedCurrency(modifier.amount))}</span></li>`,
-        )
-        .join("")}</ul>`;
+/** One row per modifier that changed this card's price, with its signed amount,
+ *  then the total those rows reach. The card shows neither when no modifier
+ *  changed the price. */
+const renderModifiers = (
+  modifiers: readonly ModifierLine[],
+  pricePaid: number,
+): string => {
+  if (modifiers.length === 0) return "";
+  const rows = modifiers.map(
+    (modifier) =>
+      `<li>${escapeHtml(modifier.name)} <span class="ticket-card-modifier-amount">${escapeHtml(formatSignedCurrency(modifier.amount))}</span></li>`,
+  );
+  const total = pricePaid + sumOf((m: ModifierLine) => m.amount)(modifiers);
+  return (
+    `<ul class="ticket-card-modifiers">${rows.join("")}</ul>` +
+    `<div class="ticket-card-total"><strong>${t("tickets.total")}</strong> ${escapeHtml(formatCurrency(total))}</div>`
+  );
+};
 
 /** The "Booking Date" label for one booking: its stored range via the shared
  * {@link bookedRangeLabel} (the listing's fixed duration covers legacy rows
@@ -226,13 +233,7 @@ const renderTicketCard = (
   );
 
   const modifiers = card.modifiers ?? [];
-  const modifierTotal = sumOf((modifier: ModifierLine) => modifier.amount)(
-    modifiers,
-  );
-  const totalHtml =
-    modifiers.length === 0
-      ? ""
-      : `<div class="ticket-card-total"><strong>${t("tickets.total")}</strong> ${escapeHtml(formatCurrency(pricePaid + modifierTotal))}</div>`;
+  const modifiersHtml = renderModifiers(modifiers, pricePaid);
 
   const nonTransferableHtml =
     listing.non_transferable && !listing.purchase_only
@@ -265,8 +266,7 @@ const renderTicketCard = (
       ${attendeeDateHtml}
       <div class="ticket-card-quantity">${t("tickets.quantity")} ${attendee.quantity}</div>
       ${priceHtml}
-      ${renderModifierRows(modifiers)}
-      ${totalHtml}
+      ${modifiersHtml}
       ${attachmentHtml}
       ${renderQrBlock(token, listing.purchase_only)}
       ${walletHtml}
