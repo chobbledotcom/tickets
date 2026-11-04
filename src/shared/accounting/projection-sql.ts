@@ -13,6 +13,7 @@
 
 import {
   ATTENDEE,
+  MODIFIER,
   REVENUE,
   WORLD,
   WRITEOFF_TYPE,
@@ -110,6 +111,22 @@ export const creditsLessWriteoffDebits = (
 export const signedSumCase = (plus: string, minus: string): string =>
   `COALESCE(SUM(CASE WHEN ${plus} THEN amount` +
   ` WHEN ${minus} THEN -amount ELSE 0 END), 0)`;
+
+/** A booking order's `modifier` legs, as fragments over one `transfers` row.
+ *  A surcharge credits the modifier's account, which is the destination side.
+ *  A discount debits it, which is the source side. `accountId` reads whichever
+ *  side holds the modifier, and `signedAmount` reads the effect on the price:
+ *  positive for a surcharge and negative for a discount. Both use
+ *  {@link LEG_COLUMNS} and {@link signedSumCase}, so a read cannot disagree
+ *  with the legs the booking mapper posts. */
+const surchargeSide = `${LEG_COLUMNS.dest.type} = '${MODIFIER}'`;
+const discountSide = `${LEG_COLUMNS.source.type} = '${MODIFIER}'`;
+
+export const modifierLeg = {
+  accountId: `CASE WHEN ${surchargeSide} THEN ${LEG_COLUMNS.dest.id} ELSE ${LEG_COLUMNS.source.id} END`,
+  filter: `kind = '${KIND.modifier}'`,
+  signedAmount: signedSumCase(surchargeSide, discountSide),
+} as const;
 
 /**
  * A *bare* scalar subquery (no alias) for an account's net ledger balance: money

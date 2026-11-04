@@ -27,6 +27,7 @@ import {
   attendeeOwedSubquery,
   creditsLessWriteoffDebits,
   LEG_COLUMNS,
+  modifierLeg,
   signedSumCase,
 } from "#accounting/projection-sql.ts";
 import { type LedgerRange, occurredAtRange } from "#accounting/range.ts";
@@ -50,7 +51,7 @@ import {
   type SqlParameter,
 } from "#db/numbered-statement.ts";
 import { clauseArgs, type WhereClause, whereSql } from "#db/where-clauses.ts";
-import { requiredMapValue, uniqueBy } from "#fp";
+import { groupToMap, requiredMapValue, unique, uniqueBy } from "#fp";
 import { accountKey } from "#shared/ledger/account.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 
@@ -127,6 +128,42 @@ export const transfersByAccount = async (
 export const transfersByEventGroup = (
   eventGroup: string,
 ): Promise<Transfer[]> => selectByEventGroup(queryBatch, eventGroup);
+
+/** One modifier's signed effect on one booking order: a surcharge adds, and a
+ *  discount reduces. */
+export type OrderModifierLine = { amount: number; modifierId: number };
+
+type OrderModifierRow = {
+  amount: number | bigint;
+  event_group: string;
+  modifier_id: number | bigint;
+};
+
+/** The modifiers that changed the price of each booking order, keyed by the
+ *  order's event group. It reads the order's `modifier` legs, so each figure is
+ *  the one the sale posted, and a discount keeps its minus sign. */
+export const orderModifierLines = async (
+  eventGroups: readonly string[],
+): Promise<Map<string, OrderModifierLine[]>> => {
+  const groups = unique([...eventGroups]);
+  if (groups.length === 0) return new Map();
+  const rows = await queryAll<OrderModifierRow>(
+    `SELECT event_group, CAST(${modifierLeg.accountId} AS INTEGER) AS modifier_id,
+       ${modifierLeg.signedAmount} AS amount
+     FROM transfers
+     WHERE ${modifierLeg.filter} AND event_group IN (${inPlaceholders(groups)})
+     GROUP BY event_group, modifier_id
+     ORDER BY event_group, modifier_id`,
+    [...groups],
+  );
+  return groupToMap(
+    (row: OrderModifierRow) => row.event_group,
+    (row: OrderModifierRow): OrderModifierLine => ({
+      amount: Number(row.amount),
+      modifierId: Number(row.modifier_id),
+    }),
+  )(rows);
+};
 
 /**
  * True when the ledger already holds at least one leg for this business event.
