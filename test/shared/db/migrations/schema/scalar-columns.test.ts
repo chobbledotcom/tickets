@@ -92,4 +92,8 @@ describe("schema column types", () => {
       "INTEGER\n          CHECK (a IS NULL)\n          CHECK (b IS NULL)",
     );
   });
+
+  test("leaves a row with no rules as it is", () => {
+    expect(aboutTheRow([])(wholeNumberOrNull)).toBe("INTEGER");
+  });
 });
