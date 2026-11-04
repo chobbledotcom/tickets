@@ -51,6 +51,7 @@ const rowOf = (row: ScanRow): TokenEntry => ({
     quantity: row.quantity,
     refunded: row.refunded,
   } as Attendee,
+  ledgerEventGroup: "",
   listing: {
     id: row.listingId,
     name: `Listing ${row.listingId}`,

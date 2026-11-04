@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   eventGroupHasLegs,
+  orderModifierLines,
   recentTransfers,
   transfersByEventGroup,
 } from "#accounting/queries.ts";
@@ -66,5 +67,78 @@ describe("db > accounting > transfer reads", () => {
 
     expect(await eventGroupHasLegs("evt-stored")).toBe(true);
     expect(await eventGroupHasLegs("evt-missing")).toBe(false);
+  });
+
+  test("orderModifierLines returns nothing for no event groups", async () => {
+    expect(await orderModifierLines([])).toEqual(new Map());
+  });
+
+  test("orderModifierLines signs each order's modifier legs", async () => {
+    await postTransfers([
+      tx({
+        amount: 100,
+        destination: account("modifier", 7),
+        eventGroup: "evt-mod",
+        kind: "modifier",
+        reference: "mod-charge",
+      }),
+      tx({
+        amount: 40,
+        destination: account("attendee", 1),
+        eventGroup: "evt-mod",
+        kind: "modifier",
+        reference: "mod-discount",
+        source: account("modifier", 8),
+      }),
+      // A sale leg must not join this order's modifier lines.
+      tx({
+        amount: 900,
+        eventGroup: "evt-mod",
+        kind: "sale",
+        reference: "mod-sale",
+      }),
+    ]);
+    await postTransfers([
+      tx({
+        amount: 55,
+        destination: account("modifier", 9),
+        eventGroup: "evt-other",
+        kind: "modifier",
+        reference: "other-charge",
+      }),
+    ]);
+    expect(await orderModifierLines(["evt-mod", "evt-mod"])).toEqual(
+      new Map([
+        [
+          "evt-mod",
+          [
+            { amount: 100, modifierId: 7 },
+            { amount: -40, modifierId: 8 },
+          ],
+        ],
+      ]),
+    );
+  });
+
+  test("orderModifierLines adds up several legs of one modifier", async () => {
+    await postTransfers([
+      tx({
+        amount: 100,
+        destination: account("modifier", 7),
+        eventGroup: "evt-sum",
+        kind: "modifier",
+        reference: "sum-one",
+      }),
+      tx({
+        amount: 50,
+        destination: account("modifier", 7),
+        eventGroup: "evt-sum",
+        kind: "modifier",
+        reference: "sum-two",
+      }),
+    ]);
+    expect(await orderModifierLines(["evt-sum"])).toEqual(
+      new Map([["evt-sum", [{ amount: 150, modifierId: 7 }]]]),
+    );
   });
 });

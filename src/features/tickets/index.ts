@@ -4,11 +4,15 @@
  * The SVG endpoint serves individual QR codes for CDN caching.
  */
 
+import { orderModifierLines } from "#accounting/queries.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 /* jscpd:ignore-start -- imports */
 import { packageDisplaysForRows } from "#db/groups.ts";
 import { addPageImageUrls } from "#db/image-urls.ts";
+import { getModifierNamesByIds } from "#db/modifiers.ts";
 import { settings } from "#db/settings.ts";
+import { requiredMapValue, unique } from "#fp";
+import { t } from "#i18n";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import {
   createTokenRoute,
@@ -23,6 +27,10 @@ import { signAttachmentUrl } from "#shared/attachment-url.ts";
 import { generateQrSvg } from "#shared/qr.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";
 import { type TicketCard, ticketViewPage } from "#templates/tickets.tsx";
+import {
+  type ModifierLine,
+  splitModifiersAcrossCards,
+} from "./modifier-shares.ts";
 
 /** Build a ticket card for one entry, keyed by that entry's OWN token. Keying on
  * the row's real token (not the URL's first token) keeps a multi-token page's
@@ -33,6 +41,7 @@ import { type TicketCard, ticketViewPage } from "#templates/tickets.tsx";
 const buildTicketCard = async (
   entry: TokenEntry,
   token: string,
+  modifiers: readonly ModifierLine[],
 ): Promise<TicketCard> => {
   const attachmentUrl = entry.listing.attachment_url
     ? await signAttachmentUrl(entry.listing.id, entry.attendee.id)
@@ -40,8 +49,34 @@ const buildTicketCard = async (
   return {
     ...(attachmentUrl !== undefined ? { attachmentUrl } : {}),
     entry,
+    ...(modifiers.length > 0 ? { modifiers } : {}),
     token,
   };
+};
+
+/** The modifier lines each card shows. A modifier that an owner deleted has
+ *  no name left, so its card names it with the plain price-change label. */
+const modifierSharesFor = async (
+  entries: readonly TokenEntry[],
+): Promise<Map<TokenEntry, ModifierLine[]>> => {
+  const lines = await orderModifierLines(
+    entries.map((entry) => entry.ledgerEventGroup),
+  );
+  const names = await getModifierNamesByIds(
+    unique([...lines.values()].flat().map((line) => line.modifierId)),
+  );
+  const named = new Map(
+    [...lines].map(([order, orderLines]) => [
+      order,
+      orderLines.map(
+        (line): ModifierLine => ({
+          amount: line.amount,
+          name: names.get(line.modifierId) ?? t("tickets.modifier_fallback"),
+        }),
+      ),
+    ]),
+  );
+  return splitModifiersAcrossCards(entries, named);
 };
 
 /** Curry a ticket handler over the shared preamble: look the tokens up, drop
@@ -66,11 +101,13 @@ const handleTicketView = withResolvedEntries(async (entries, tokens) => {
   const tokenByIndex = new Map(
     await Promise.all(tokens.map(async (t) => [await hmacHash(t), t] as const)),
   );
+  const shares = await modifierSharesFor(entries);
   const cards = await Promise.all(
     entries.map((entry) =>
       buildTicketCard(
         entry,
         tokenByIndex.get(entry.attendee.ticket_token_index)!,
+        requiredMapValue(shares, entry, "Ticket modifier split omitted a card"),
       ),
     ),
   );

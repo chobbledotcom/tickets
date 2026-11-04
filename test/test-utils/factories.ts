@@ -141,8 +141,7 @@ export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
 });
 
 /** A {@link TokenEntry} fixture: pairs {@link testAttendee} with
- * {@link testListingWithCount} and a standalone-row `parentListingId: 0`.
- * Nested fields accept partials merged onto the defaults. */
+ * {@link testListingWithCount} on a standalone row that holds no ledger order. */
 export const testTokenEntry = (
   overrides: {
     attendee?: Partial<Attendee>;
@@ -151,6 +150,7 @@ export const testTokenEntry = (
   } = {},
 ): TokenEntry => ({
   attendee: testAttendee(overrides.attendee),
+  ledgerEventGroup: "",
   listing: testListingWithCount(overrides.listing),
   parentListingId: overrides.parentListingId ?? 0,
 });
