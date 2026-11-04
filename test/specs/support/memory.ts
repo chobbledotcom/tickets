@@ -27,10 +27,13 @@ export interface ThingsByKind {
   /** Things sold together under one name. */
   bundle: Group;
   /** A calendar day a story pinned down by name — the day a booking holds,
-   * or the day a move gave some bookings. */
+   *  or the day a move gave some bookings. */
   day: string;
   /** The days a listing's own page offered, the last time it was looked at. */
   daysOffered: string[];
+  /** One system the organiser notes records in, by the row the site filed it
+   *  under, so a later step can ask it what it holds. */
+  diary: number;
   /** One group door the story opened, kept by the name it calls the group. */
   group_door: number;
   /** A key the owner made for another system, as it was handed to them once. */
