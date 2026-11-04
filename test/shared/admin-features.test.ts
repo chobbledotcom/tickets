@@ -156,11 +156,12 @@ describe("admin features", () => {
     } catch (error) {
       thrown = error;
     }
-    expect(thrown).toMatchObject({
-      message:
-        "Invalid stored JSON in settings.enabled_features: Stored value does not match its schema",
-    });
-    expect((thrown as Error).cause).toBeUndefined();
+    const error = thrown as Error;
+    expect(error.message).toBe(
+      "Invalid stored JSON in settings.enabled_features: Stored value does not match its schema",
+    );
+    // The error carries no cause, so the stored value does not travel with it.
+    expect(error.cause).toBe(undefined);
   });
 
   test("names the setting when serialization rejects invalid features", () => {

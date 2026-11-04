@@ -90,10 +90,9 @@ describeWithEnv("db > migrations", { db: true }, () => {
       setDb(client);
       try {
         await body();
-        const ntfyCall = fetchStub.calls.find(
-          (c) => c.args[0] === "https://ntfy.sh/test-topic",
+        expect(fetchStub.calls.map((call) => call.args[0])).not.toContain(
+          "https://ntfy.sh/test-topic",
         );
-        expect(ntfyCall).toBeUndefined();
       } finally {
         setDb(null);
       }
@@ -512,6 +511,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
 
     test("initDb bootstraps a missing settings table when explicitly allowed", async () => {
       await bootstrapSettingsTable();
+      expect(await settingsTableExists()).toBe(true);
     });
 
     test("initDb bootstraps an empty settings table when explicitly allowed", async () => {
