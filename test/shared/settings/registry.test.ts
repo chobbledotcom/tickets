@@ -65,6 +65,7 @@ const EXPECTED_CONFIG_KEY_NAMES = lines(`
   GOOGLE_WALLET_SERVICE_ACCOUNT_KEY
   HEADER_IMAGE_URL
   HOMEPAGE_TEXT
+  INVOICE_BODY_TEMPLATE
   LAST_ACTIVE_PAYMENT_PROVIDER
   LATEST_SCRIPT_VERSION
   LATEST_SCRIPT_VERSION_NAME
@@ -143,6 +144,7 @@ const EXPECTED_SETTING_ROWS = [
   ["ATTENDEE_COLUMN_ORDER", "plaintext", "attendeeColumnOrder"],
   ["LOGISTICS_RUN_SHEET_BODY", "plaintext", "logisticsRunSheetBody"],
   ["LOGISTICS_RUN_SHEET_HEADING", "plaintext", "logisticsRunSheetHeading"],
+  ["INVOICE_BODY_TEMPLATE", "plaintext", "invoiceBodyTemplate"],
   ["SMS_GATEWAY_BASE_URL", "plaintext", "smsGatewayBaseUrl"],
   ["BUSINESS_EMAIL", "encrypted", "businessEmail"],
   ["HEADER_IMAGE_URL", "encrypted", "headerImageUrl"],

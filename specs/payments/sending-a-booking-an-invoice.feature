@@ -72,3 +72,52 @@ Feature: An organiser sends a booking an invoice
       And the buyer opens the link from their email
       Then the invoice says it is cancelled
       And it offers no way to pay
+
+  @rule:payments.the-organiser-keeps-the-invoice-text
+  @surface:admin
+  Rule: The organiser keeps the invoice text for the next invoice
+    The text the organiser keeps on the preview page starts the next invoice.
+    The site fills in each booking's facts. Clearing all the text returns to
+    the built-in text.
+
+    @case:invoice.keeps-the-edited-text
+    Scenario: The organiser changes the invoice text and previews another invoice
+      Given a customer owes 80.00 for a Retreat place
+      When the organiser sends that booking an invoice with the text:
+        """
+        # Thanks for booking
+
+        {{ customer.name }} owes {{ totals.due | currency }}.
+        """
+      And a customer owes 50.00 for a Reunion place
+      And the organiser previews an invoice for that booking
+      Then the invoice text still says "# Thanks for booking"
+      And the preview shows the new booking owes 50.00
+
+    @case:invoice.clearing-the-text-restores-the-built-in-text
+    Scenario: The organiser clears the invoice text
+      Given a customer owes 80.00 for a Retreat place
+      When the organiser sends that booking an invoice with the text:
+        """
+        # Thanks for booking
+        """
+      And a customer owes 50.00 for a Reunion place
+      And the organiser sends that booking an invoice with no text
+      Then the invoice says 50.00 is due
+      And a customer owes 25.00 for a Rehearsal place
+      And the organiser previews an invoice for that booking
+      Then the invoice text still says "{{ labels.heading }}"
+      And the invoice text no longer says "# Thanks for booking"
+
+  @rule:payments.a-booking-page-names-its-invoice
+  @surface:admin
+  Rule: The booking's own page names its invoice
+    The booking's details show the invoice and its status, so the organiser can
+    open the invoice from the booking.
+
+    @case:invoice.booking-page-names-the-invoice
+    Scenario: The organiser opens the booking after sending an invoice
+      Given a customer owes 80.00 for a Retreat place
+      And the organiser has sent that booking an invoice
+      When the organiser opens the booking's own page
+      Then the booking's details name the invoice and its status

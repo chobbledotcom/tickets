@@ -36,6 +36,25 @@ const orderSummaryTable = defineTable<LineItem>([
   },
 ]);
 
+/** The one "pay the balance" button. It starts a checkout for the amount
+ *  outstanding. The balance page and the invoice page both render it, so the
+ *  label and the address cannot disagree. */
+export const PayBalanceForm = ({
+  amount,
+  token,
+}: {
+  amount: number;
+  token: string;
+}): JSX.Element => (
+  <SaveForm
+    action={`/pay/${token}`}
+    class="inline"
+    submitLabel={t("public_balance.pay_amount_now", {
+      amount: formatCurrency(amount),
+    })}
+  />
+);
+
 /** Recap + pay form for an outstanding balance. */
 export const balancePaymentPage = (
   token: string,
@@ -61,12 +80,7 @@ export const balancePaymentPage = (
         amount={amount}
         label={`${t("public_balance.balance_due")}:`}
       />
-      <SaveForm
-        action={`/pay/${token}`}
-        submitLabel={t("public_balance.pay_amount_now", {
-          amount: formatCurrency(amount),
-        })}
-      />
+      <PayBalanceForm amount={amount} token={token} />
     </>,
   );
 

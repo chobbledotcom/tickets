@@ -137,6 +137,13 @@ export const STRING_SETTING_DEFINITIONS = [
     key: CONFIG_KEYS.LOGISTICS_RUN_SHEET_HEADING,
     storage: "plaintext",
   }),
+  // The invoice text the operator kept on the last invoice they made. It holds
+  // no customer facts, so it is stored unencrypted.
+  definition({
+    accessor: { name: "invoiceBodyTemplate" },
+    key: CONFIG_KEYS.INVOICE_BODY_TEMPLATE,
+    storage: "plaintext",
+  }),
   definition({
     accessor: { name: "smsGatewayBaseUrl" },
     key: CONFIG_KEYS.SMS_GATEWAY_BASE_URL,

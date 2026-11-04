@@ -10,6 +10,7 @@ import {
   nextInvoiceNumber,
 } from "#db/invoices.ts";
 import { handleRequest } from "#routes";
+import { formatCurrency } from "#shared/currency.ts";
 import { insertBareAttendee } from "#test/integration/balance-helpers.ts";
 import { createReservedAttendee } from "#test-utils/balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -35,7 +36,7 @@ const getShare = (token: string): Promise<Response> =>
   handleRequest(mockRequest(`/invoice/${token}`));
 
 describeWithEnv("server (public invoice page)", { db: true }, () => {
-  test("shows the frozen body, the status, and a pay link", async () => {
+  test("shows the frozen body, the status, and a pay form", async () => {
     const { attendeeId } = await createReservedAttendee(1500);
     const { shareToken } = await shareInvoice(attendeeId);
 
@@ -46,8 +47,12 @@ describeWithEnv("server (public invoice page)", { db: true }, () => {
     const html = await response.text();
     assertStringIncludes(html, "Frozen body");
     assertStringIncludes(html, "Status: New");
-    assertStringIncludes(html, "Pay the balance");
-    assertStringIncludes(html, "/pay/bal1.");
+    // The same pay button the balance page renders, with the amount it charges.
+    assertStringIncludes(html, `Pay ${formatCurrency(1500)} now`);
+    assertStringIncludes(html, 'action="/pay/bal1.');
+    assertStringIncludes(html, 'class="inline"');
+    // The frozen body owns the page's headings, so the page adds none.
+    expect(html).not.toContain("<h1>");
   });
 
   test("stops offering payment once the balance is paid", async () => {
@@ -61,10 +66,10 @@ describeWithEnv("server (public invoice page)", { db: true }, () => {
     const html = await (await getShare(shareToken)).text();
 
     assertStringIncludes(html, "Status: Paid");
-    expect(html).not.toContain("Pay the balance");
+    expect(html).not.toContain("Pay ");
   });
 
-  test("shows a cancelled invoice without a pay link", async () => {
+  test("shows a cancelled invoice without a pay form", async () => {
     const { attendeeId } = await createReservedAttendee(1500);
     const { id, shareToken } = await shareInvoice(attendeeId);
     await cancelInvoice(id);
@@ -72,7 +77,7 @@ describeWithEnv("server (public invoice page)", { db: true }, () => {
     const html = await (await getShare(shareToken)).text();
 
     assertStringIncludes(html, "Status: Cancelled");
-    expect(html).not.toContain("Pay the balance");
+    expect(html).not.toContain(`action="/pay/`);
   });
 
   test("a new invoice with nothing owing offers no payment", async () => {
@@ -82,7 +87,7 @@ describeWithEnv("server (public invoice page)", { db: true }, () => {
     const html = await (await getShare(shareToken)).text();
 
     assertStringIncludes(html, "Status: New");
-    expect(html).not.toContain("Pay the balance");
+    expect(html).not.toContain(`action="/pay/`);
   });
 
   test("an unknown token is not found", async () => {

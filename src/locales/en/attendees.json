@@ -16,6 +16,8 @@
   "attendee_balance.collect_offline_reminder": "Take the {amount} from the customer another way (cash, bank transfer or card machine). It's kept here only as a reminder of what's owed.",
   "attendee_balance.quantity_note": "Only items with a quantity of 1 or more are paid for — any no-quantity lines on this booking are not charged.",
   "attendee_balance.fully_paid_message": "This booking is fully paid.",
+  "attendee_balance.invoice_heading": "Invoice this balance",
+  "attendee_balance.invoice_intro": "Make a document that states what the booking still owes, and email it to the customer.",
   "attendee_balance.history_heading": "History",
   "attendee_balance.history_intro": "The statement above is the complete, authoritative record of money owed and paid. No card details are stored here — only a reference to each payment the provider processed.",
   "attendee_balance.history_activity_link": "See the full plain-English log on the Activity tab",

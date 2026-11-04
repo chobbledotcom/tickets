@@ -16,7 +16,7 @@ import {
 import { testGroup, testListingWithCount } from "#test-utils/factories.ts";
 import { assertPageMatchesSnapshot } from "#test-utils/page-snapshot.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
-import { useSetting } from "#test-utils/settings.ts";
+import { featureSetting, useSetting } from "#test-utils/settings.ts";
 
 const GROUP = testGroup({ id: 17, name: "Summer <Crew>" });
 const ACTIVE = testListingWithCount({ active: true, id: 4 });
@@ -35,7 +35,9 @@ const embeddedListingsJson = (html: string): string => {
 
 describe("admin bulk action templates", () => {
   beforeAll(setupAdminPageTest);
-  useSetting({ timezone: "UTC" });
+  // The parent build always showed the Invoices link. The switch now controls
+  // it, so name it as an input of these frozen pages.
+  useSetting({ ...featureSetting("invoices"), timezone: "UTC" });
 
   test("offers deactivation when the group has an active listing", () => {
     const html = adminBulkActionsPage(GROUP, [ACTIVE, INACTIVE], OWNER_SESSION);

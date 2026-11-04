@@ -8,10 +8,14 @@ import {
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
 import { assertPageMatchesSnapshot } from "#test-utils/page-snapshot.ts";
+import { featureSetting, useSetting } from "#test-utils/settings.ts";
 import { data } from "./fixtures.ts";
 
 describe("attendee form page shells", () => {
   beforeAll(setupAdminPageTest);
+  // The parent build always showed the Invoices link. The switch now controls
+  // it, so name it as an input of these frozen pages.
+  useSetting(featureSetting("invoices"));
 
   test("renders the create page identically to the parent build", () => {
     const html = attendeeFormPage(data(), OWNER_SESSION);

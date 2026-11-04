@@ -74,6 +74,7 @@ export default schemaMigration(
     const features: EnabledFeatures = {
       apiKeys: configured.apiKeys || asBoolean(row.apiKeys),
       attributes: configured.attributes || asBoolean(row.attributes),
+      invoices: configured.invoices,
       logistics: configured.logistics || asBoolean(row.logistics),
       modifiers: configured.modifiers || asBoolean(row.modifiers),
       money: configured.money,

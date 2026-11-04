@@ -1,4 +1,4 @@
-/** Admin invoice routes: creating, viewing, cancelling, and deleting. */
+/** Admin invoice routes: previewing, creating, viewing, cancelling, deleting. */
 
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -6,6 +6,9 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { settleAttendeeBalance } from "#db/attendees/balance.ts";
 import { getDb } from "#db/client.ts";
 import { createInvoice, nextInvoiceNumber } from "#db/invoices.ts";
+import { settings } from "#db/settings.ts";
+import { formatCurrency } from "#shared/currency.ts";
+import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   expectFlashRedirect,
   expectRedirect,
@@ -22,30 +25,65 @@ import {
   createTestManagerSession,
   postFormAs,
 } from "#test-utils/session.ts";
+import { settingsAsStored } from "#test-utils/settings.ts";
+import { decodeEntities } from "#test-utils/test-browser/parsing.ts";
 
 const CREATED = "2026-11-03T09:00:00.000Z";
 
 const CREATED_FLASH = "The email did not send. Share the link instead.";
 
-const postNewInvoice = async (
+/** The first form step: check the booking and show the invoice text. */
+const previewInvoice = async (
   attendeeId: number,
   number: number,
 ): Promise<Response> =>
   (
-    await adminFormPost("/admin/invoices/new", {
+    await adminFormPost("/admin/invoices/preview", {
       attendee_id: String(attendeeId),
       number: String(number),
     })
   ).response;
 
-/** Create one invoice through the form, land on the page it shows, and check
- *  the note the run expects. Returns the page path. */
+/** The invoice text the preview page offers, as its form posts it back. The
+ *  field carries one spare newline for the HTML parser to eat. */
+const previewedBody = (html: string): string => {
+  const opened = html.indexOf("<textarea");
+  const start = html.indexOf(">", opened) + 1;
+  const closed = html.indexOf("</textarea>", start);
+  if (opened < 0 || closed < 0) {
+    throw new Error("The preview page offered no invoice text");
+  }
+  return decodeEntities(html.slice(start, closed)).slice(1);
+};
+
+/** The second form step: store the invoice text the operator kept. */
+const createInvoicePost = async (
+  attendeeId: number,
+  number: number,
+  body: string,
+): Promise<Response> =>
+  (
+    await adminFormPost("/admin/invoices/new", {
+      attendee_id: String(attendeeId),
+      body,
+      number: String(number),
+    })
+  ).response;
+
+/** Create one invoice through both form steps, land on the page it shows, and
+ *  check the note the run expects. Returns the page path. */
 const createInvoiceAndLand = async (
   attendeeId: number,
   number: number,
   note: string,
 ): Promise<string> => {
-  const response = await postNewInvoice(attendeeId, number);
+  const preview = await previewInvoice(attendeeId, number);
+  expect(preview.status).toBe(200);
+  const response = await createInvoicePost(
+    attendeeId,
+    number,
+    previewedBody(await preview.text()),
+  );
   const location = expectRedirect(
     response,
     new RegExp(`^/admin/invoices/${number}(\\?|$)`),
@@ -74,6 +112,33 @@ describeWithEnv("server (admin invoices)", { db: true }, () => {
     );
     expect(inputNamed(html, "number")).toContain('value="1"');
     expect(inputNamed(html, "attendee_id")).toContain('value="42"');
+    assertStringIncludes(html, "Preview invoice");
+    // The first form only checks the booking; the preview page makes the
+    // invoice.
+    assertStringIncludes(html, 'action="/admin/invoices/preview"');
+  });
+
+  test("the preview shows the rendered invoice and the template it uses", async () => {
+    const attendeeId = await createOwing(1500);
+    const response = await previewInvoice(attendeeId, 1);
+    const html = await pageText(response);
+
+    expect(response.status).toBe(200);
+    assertStringIncludes(html, "Invoice preview");
+    assertStringIncludes(html, "<h1>Invoice 1</h1>");
+    assertStringIncludes(html, "Guest");
+    assertStringIncludes(html, "guest@example.com");
+    assertStringIncludes(html, `Amount due: ${formatCurrency(1500)}`);
+    assertStringIncludes(html, "{{ customer.name }}");
+    assertStringIncludes(
+      html,
+      "The site will not email this invoice. After you create it, share the link with your customer.",
+    );
+    // The preview stores nothing.
+    assertStringIncludes(
+      await pageText(await adminGet("/admin/invoices")),
+      "No invoices yet.",
+    );
   });
 
   test("a create stores the invoice and shows its frozen body", async () => {
@@ -98,8 +163,82 @@ describeWithEnv("server (admin invoices)", { db: true }, () => {
     assertStringIncludes(list, 'href="/admin/invoices/1"');
   });
 
+  test("stores the invoice text the operator edited", async () => {
+    const attendeeId = await createOwing(1500);
+    expectRedirect(
+      await createInvoicePost(attendeeId, 1, "# Thanks for booking\n\nPay us."),
+      /^\/admin\/invoices\/1(\?|$)/,
+    );
+
+    const html = await pageText(await adminGet("/admin/invoices/1"));
+    assertStringIncludes(html, "<h1>Thanks for booking</h1>");
+    assertStringIncludes(html, "Pay us.");
+  });
+
+  test("an empty text creates the invoice from the built-in text", async () => {
+    await settings.update.invoiceBodyTemplate("# Kept\n\n{{ customer.name }}");
+    const attendeeId = await createOwing(1500);
+    expectRedirect(
+      await createInvoicePost(attendeeId, 1, "   "),
+      /^\/admin\/invoices\/1(\?|$)/,
+    );
+
+    const html = await pageText(await adminGet("/admin/invoices/1"));
+    assertStringIncludes(html, "<h1>Invoice 1</h1>");
+    await settingsAsStored();
+    expect(settings.invoiceBodyTemplate).toBe("");
+  });
+
+  test("keeps a changed text for the next invoice", async () => {
+    const template =
+      "# Thanks\n\n{{ customer.name }} owes {{ totals.due | currency }}.";
+    const attendeeId = await createOwing(1500);
+    expectRedirect(
+      await createInvoicePost(attendeeId, 1, template),
+      /^\/admin\/invoices\/1(\?|$)/,
+    );
+
+    await settingsAsStored();
+    expect(settings.invoiceBodyTemplate).toBe(template);
+
+    const next = await createOwing(700);
+    const html = await pageText(await previewInvoice(next, 2));
+    assertStringIncludes(html, "{{ customer.name }} owes");
+    assertStringIncludes(html, `owes ${formatCurrency(700)}`);
+  });
+
+  test("does not keep the built-in text", async () => {
+    const attendeeId = await createOwing(1500);
+    const preview = await previewInvoice(attendeeId, 1);
+    expectRedirect(
+      await createInvoicePost(
+        attendeeId,
+        1,
+        previewedBody(await preview.text()),
+      ),
+      /^\/admin\/invoices\/1(\?|$)/,
+    );
+
+    await settingsAsStored();
+    expect(settings.invoiceBodyTemplate).toBe("");
+  });
+
+  test("refuses invoice text that is too long", async () => {
+    const attendeeId = await createOwing(1500);
+    const response = await createInvoicePost(
+      attendeeId,
+      1,
+      "x".repeat(MAX_TEXTAREA_LENGTH + 1),
+    );
+    await expectFlashRedirect(
+      "/admin/invoices/new",
+      "The invoice text is too long. Shorten it and try again.",
+      false,
+    )(response);
+  });
+
   test("refuses an attendee that does not exist", async () => {
-    const response = await postNewInvoice(999_999, 1);
+    const response = await previewInvoice(999_999, 1);
     await expectFlashRedirect(
       "/admin/invoices/new",
       "That attendee does not exist.",
@@ -112,7 +251,7 @@ describeWithEnv("server (admin invoices)", { db: true }, () => {
       args: [new Date().toISOString()],
       sql: "INSERT INTO attendees (created, pii_blob, status_id, kind) VALUES (?, '', NULL, 'servicing')",
     });
-    const response = await postNewInvoice(Number(inserted.lastInsertRowid), 1);
+    const response = await previewInvoice(Number(inserted.lastInsertRowid), 1);
     await expectFlashRedirect(
       "/admin/invoices/new",
       "That attendee does not exist.",
@@ -126,7 +265,7 @@ describeWithEnv("server (admin invoices)", { db: true }, () => {
       id: "invoice-nothing-due",
       occurredAt: "2026-11-03T00:00:00.000Z",
     });
-    const response = await postNewInvoice(attendeeId, 1);
+    const response = await previewInvoice(attendeeId, 1);
     await expectFlashRedirect(
       "/admin/invoices/new",
       "This booking has no outstanding balance to invoice.",
@@ -137,11 +276,11 @@ describeWithEnv("server (admin invoices)", { db: true }, () => {
   test("refuses a second new invoice until the first is cancelled", async () => {
     const attendeeId = await createOwing(1500);
     expectRedirect(
-      await postNewInvoice(attendeeId, 1),
+      await createInvoicePost(attendeeId, 1, "Invoice one."),
       /^\/admin\/invoices\/1(\?|$)/,
     );
 
-    const refused = await postNewInvoice(attendeeId, 2);
+    const refused = await previewInvoice(attendeeId, 2);
     await expectFlashRedirect(
       "/admin/invoices/new",
       "This attendee has a new invoice. Cancel that invoice before you create another one.",
@@ -155,7 +294,7 @@ describeWithEnv("server (admin invoices)", { db: true }, () => {
       true,
     )(cancelled.response);
 
-    const created = await postNewInvoice(attendeeId, 2);
+    const created = await createInvoicePost(attendeeId, 2, "Invoice two.");
     expectRedirect(created, /^\/admin\/invoices\/2(\?|$)/);
   });
 
@@ -163,11 +302,11 @@ describeWithEnv("server (admin invoices)", { db: true }, () => {
     const first = await createOwing(1500);
     const second = await createOwing(1500);
     expectRedirect(
-      await postNewInvoice(first, 1),
+      await createInvoicePost(first, 1, "Invoice one."),
       /^\/admin\/invoices\/1(\?|$)/,
     );
 
-    const response = await postNewInvoice(second, 1);
+    const response = await previewInvoice(second, 1);
     await expectFlashRedirect(
       "/admin/invoices/new",
       "That invoice number is already used. Choose another one.",
@@ -178,7 +317,7 @@ describeWithEnv("server (admin invoices)", { db: true }, () => {
   test("cancelling shows the cancelled status and refuses a second cancel", async () => {
     const attendeeId = await createOwing(1500);
     expectRedirect(
-      await postNewInvoice(attendeeId, 1),
+      await createInvoicePost(attendeeId, 1, "Invoice one."),
       /^\/admin\/invoices\/1(\?|$)/,
     );
     await adminFormPost("/admin/invoices/1/cancel", {});
@@ -198,7 +337,7 @@ describeWithEnv("server (admin invoices)", { db: true }, () => {
   test("deleting an invoice returns to an empty list", async () => {
     const attendeeId = await createOwing(1500);
     expectRedirect(
-      await postNewInvoice(attendeeId, 1),
+      await createInvoicePost(attendeeId, 1, "Invoice one."),
       /^\/admin\/invoices\/1(\?|$)/,
     );
 
@@ -214,11 +353,19 @@ describeWithEnv("server (admin invoices)", { db: true }, () => {
     );
   });
 
-  test("a manager can create and view an invoice", async () => {
+  test("a manager can preview, create, and view an invoice", async () => {
     const cookie = await createTestManagerSession();
     const attendeeId = await createOwing(1500);
+    const preview = await postFormAs("/admin/invoices/preview", cookie, {
+      attendee_id: String(attendeeId),
+      number: "1",
+    });
+    expect(preview.status).toBe(200);
+    assertStringIncludes(await preview.text(), "<h1>Invoice 1</h1>");
+
     const response = await postFormAs("/admin/invoices/new", cookie, {
       attendee_id: String(attendeeId),
+      body: "Invoice one.",
       number: "1",
     });
     expectRedirect(response, /^\/admin\/invoices\/1(\?|$)/);
@@ -237,7 +384,7 @@ describeWithEnv("server (admin invoices)", { db: true }, () => {
   });
 
   test("refuses a blank form", async () => {
-    const response = await adminFormPost("/admin/invoices/new", {});
+    const response = await adminFormPost("/admin/invoices/preview", {});
     await expectFlashRedirect(
       "/admin/invoices/new",
       "Enter the attendee number.",
@@ -275,6 +422,18 @@ describeWithEnv("server (admin invoices)", { db: true }, () => {
 
     afterEach(() => {
       sandbox.teardown();
+    });
+
+    test("the preview says the invoice will be emailed", async () => {
+      await configureTestEmail();
+      const attendeeId = await createOwing(1500);
+
+      const html = await pageText(await previewInvoice(attendeeId, 1));
+
+      assertStringIncludes(
+        html,
+        "This invoice will be emailed to guest@example.com when you create it.",
+      );
     });
 
     test("sends the invoice to the buyer with its share link", async () => {

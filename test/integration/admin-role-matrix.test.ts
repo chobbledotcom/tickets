@@ -314,11 +314,11 @@ describeWithEnv("admin role matrix", { db: true }, () => {
   });
 
   test("covers the write routes the surface declares", () => {
-    expect(writableRoutes().length).toBe(203);
-    expect(insiderWritableRoutes().length).toBe(200);
+    expect(writableRoutes().length).toBe(204);
+    expect(insiderWritableRoutes().length).toBe(201);
     // The DELETE beside the confirmed POST deletes: each method's gate is
     // its own, so the walks above must ask both.
-    expect(writeMethodPairs()).toBe(205);
+    expect(writeMethodPairs()).toBe(206);
     // The writable routes whose GET serves a page at the same path — a
     // write's own form page, or a view page whose POST the walks ask too.
     // The refusal walk asks those GETs like the writes, so this pins their
