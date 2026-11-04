@@ -14,13 +14,13 @@
     "typescript",
     "tsx"
   ],
-  "absolute": false,
+  "absolute": true,
   "gitignore": true,
   "ignoreIdentifiers": true,
   "ignoreLiterals": true,
   "ignoreAnnotations": true,
   "minLines": 1,
-  "minTokens": 15,
+  "minTokens": 30,
   "path": [
     "test/specs/support"
   ],

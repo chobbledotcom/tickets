@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -15,8 +14,6 @@ import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 import { checkoutSessionEvent } from "#test-utils/webhooks.ts";
-
-// jscpd:ignore-end
 
 /** Find the "Automatic refund" activity log entry for `listingId` and assert
  *  it's tagged to that listing — the shared lookup both refund-logging tests

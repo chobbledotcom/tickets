@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingWithCount } from "#db/listings/records.ts";
@@ -7,7 +6,6 @@ import {
   expectFlashRedirect,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
-// jscpd:ignore-end
 import { submitDeleteIncomplete } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";

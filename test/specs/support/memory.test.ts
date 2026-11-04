@@ -4,7 +4,6 @@
  * a puzzling failure somewhere else — these check them directly.
  */
 
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -13,8 +12,6 @@ import {
   putsThingsBack,
 } from "#test/specs/support/memory.ts";
 import { TestBrowser } from "#test-utils/test-browser.ts";
-
-// jscpd:ignore-end
 
 describe("what a story remembers", () => {
   test("hands back the thing it was given, so setting up and keeping is one step", () => {

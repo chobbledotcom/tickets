@@ -16,7 +16,7 @@
     "typescript",
     "tsx"
   ],
-  "absolute": false,
+  "absolute": true,
   "gitignore": true,
   "minLines": 1,
   "minTokens": 18,

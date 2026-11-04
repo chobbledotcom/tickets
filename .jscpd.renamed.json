@@ -19,7 +19,7 @@
     "tsx",
     "javascript"
   ],
-  "absolute": false,
+  "absolute": true,
   "minLines": 1,
   "minTokens": 20,
   "similarity": 0.99,

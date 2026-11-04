@@ -3,7 +3,6 @@
  * file under the listing the question sits on, and empty answers give no map.
  */
 
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { questionListings } from "#db/questions/queries.ts";
@@ -18,8 +17,6 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createQuestionWithAnswer } from "#test-utils/db-helpers/questions.ts";
 import { ticketContext } from "#test-utils/ticket-ctx.ts";
-
-/* jscpd:ignore-end */
 
 /** The submitted answers of a one-listing order: no answers at all unless
  * `chosen` or `typed` says otherwise. */

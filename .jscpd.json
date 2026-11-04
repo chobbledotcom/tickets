@@ -22,13 +22,13 @@
     "typescript",
     "tsx"
   ],
-  "absolute": false,
+  "absolute": true,
   "gitignore": true,
   "ignoreIdentifiers": true,
   "ignoreLiterals": true,
   "ignoreAnnotations": true,
   "minLines": 1,
-  "minTokens": 19,
+  "minTokens": 30,
   "path": [
     "src",
     "e2e-payments",

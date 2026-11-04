@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -22,8 +21,6 @@ import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 /** Merge a paid source into a target on the same listing with its booking
  *  skipped, choosing `money` ("credit"/"writeoff") for the discarded charge,

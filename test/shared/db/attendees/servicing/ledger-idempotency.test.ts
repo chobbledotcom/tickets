@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { KIND } from "#accounting/kinds.ts";
@@ -20,8 +19,6 @@ import {
 } from "#test-utils/servicing.ts";
 import { SERVICE_DATE, transfersOfKind } from "#test-utils/servicing-ledger.ts";
 import { adminFormPost } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("servicing §22 - cost idempotency", { db: true }, () => {
   test("posting a cost is idempotent (same deterministic reference adds no second leg)", async () => {

@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
@@ -30,8 +29,6 @@ import {
 } from "#test-utils/session.ts";
 import { featureSetting } from "#test-utils/settings.ts";
 import { expectTemporaryError } from "#test-utils/temporary-error.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("server listings > create", { db: true }, () => {
   afterEach(() => {

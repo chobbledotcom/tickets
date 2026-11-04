@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -21,7 +20,6 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
-// jscpd:ignore-end
 import { setupStripe } from "#test-utils/settings.ts";
 import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
 import {

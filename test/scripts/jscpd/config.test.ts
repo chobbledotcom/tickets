@@ -73,3 +73,13 @@ describe("typescript jscpd scans", () => {
     for (const pattern of rest) expect(pattern).toEqual(first);
   });
 });
+
+describe("every jscpd scan", () => {
+  test("names files by absolute path, so the worst-duplication alert can shorten them", async () => {
+    const scans = [...typescriptScans, ".jscpd.css.json"];
+    const absolute = await Promise.all(
+      scans.map(async (name) => (await readConfig(name)).absolute),
+    );
+    expect(absolute).toEqual(scans.map(() => true));
+  });
+});

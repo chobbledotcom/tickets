@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { TicketListing } from "#booking/model.ts";
@@ -13,8 +12,6 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import { disablePublicSite, enablePublicSite } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 /** A one-listing booking context with no packages, questions, or children:
  * the plain page the tests below vary. */

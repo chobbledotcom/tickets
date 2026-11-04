@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -11,8 +10,6 @@ import {
   expectWebhookIgnored,
   postWebhookAndAssert,
 } from "#test-utils/webhooks.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "server webhooks > item metadata validation",

@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -25,8 +24,6 @@ import {
   expectRendersSoldOut,
   expectSelectOffers,
 } from "#test-utils/parents-gate/helpers.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "server > parents gate > capacity & sold-out projection",

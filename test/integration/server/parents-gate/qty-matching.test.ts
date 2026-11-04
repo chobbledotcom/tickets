@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
@@ -17,8 +16,6 @@ import {
   parentField,
 } from "#test-utils/parents.ts";
 import type { Listing } from "#types";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "server > parents gate > quantity matching",

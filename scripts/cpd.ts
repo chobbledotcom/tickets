@@ -9,10 +9,21 @@
  * no-new-duplication policy: extract a helper, or curry, and reserve
  * `jscpd:ignore` for unavoidable boilerplate. The configs skip imports.
  *
+ * After every scan it also names the worst duplication in the report: the
+ * code that appears in the most places, then the one with the most tokens.
+ *
  * Usage: deno run -A scripts/cpd.ts <jscpd args...>
  */
 
+import { join } from "node:path";
+import * as v from "valibot";
+import { projectRoot } from "#scripts/project-root.ts";
 import { ensureJscpd } from "./jscpd/install.ts";
+import {
+  describeWorstFamily,
+  rankCloneFamilies,
+  readClonePairs,
+} from "./jscpd/worst.ts";
 import { bold, red, yellow } from "./precommit/colors.ts";
 
 // `--update` records the current clones into the committed baseline instead
@@ -26,9 +37,36 @@ const args = Deno.args.includes("--update")
     ]
   : Deno.args;
 
+/** The report that this scan writes, read from the config that `--config`
+ * names. Every cpd task passes `--config`. */
+const reportPath = async (): Promise<{ config: string; report: string }> => {
+  const config = args[args.indexOf("--config") + 1];
+  if (!args.includes("--config") || config === undefined) {
+    throw new Error("scripts/cpd.ts needs --config <file>");
+  }
+  const { output } = v.parse(
+    v.object({ output: v.string() }),
+    JSON.parse(await Deno.readTextFile(config)),
+  );
+  return { config, report: join(projectRoot, output, "jscpd-report.json") };
+};
+
+const { config, report } = await reportPath();
+// A crash before jscpd writes its report must not show the last run's report.
+await Deno.remove(report).catch((error) => {
+  if (!(error instanceof Deno.errors.NotFound)) throw error;
+});
+
 const { code } = await new Deno.Command(await ensureJscpd(), {
   args,
 }).spawn().status;
+
+const families = rankCloneFamilies(
+  readClonePairs(JSON.parse(await Deno.readTextFile(report))),
+);
+console.error(
+  yellow(describeWorstFamily(config, families, projectRoot).join("\n")),
+);
 
 if (code !== 0) {
   console.error(`

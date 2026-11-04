@@ -1,11 +1,9 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { handleRequest } from "#routes";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
-// jscpd:ignore-end
 import {
   adminAttendeeAction,
   adminListingPage,

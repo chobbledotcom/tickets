@@ -7,7 +7,6 @@
  * the note row, the picture, and the addresses they hand the story.
  */
 
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getNoteRows } from "#db/notes/queries.ts";
@@ -22,8 +21,6 @@ import {
 import { namedThings } from "#test/specs/support/memory.ts";
 import { type TicketsWorld, worldWith } from "#test/specs/support/world.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-
-// jscpd:ignore-end
 
 const poster = { alt: "Poster", filename: "poster.png", id: 12 };
 const worldWithPicture = (): TicketsWorld =>

@@ -4,7 +4,6 @@
  * looking at this row does not have, so it must not count.
  */
 
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { OpensAtOneRow } from "#test/specs/support/browser.ts";
@@ -15,8 +14,6 @@ import {
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { recordingBrowser } from "#test-utils/test-browser/helpers.ts";
 import { TestBrowser } from "#test-utils/test-browser.ts";
-
-// jscpd:ignore-end
 
 describe("finding a row's own arrow", () => {
   const LIST = "/admin/settings/statuses";

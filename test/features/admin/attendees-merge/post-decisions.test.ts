@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeeAnswersByQuestion } from "#db/questions/attendee-answers/reads.ts";
@@ -9,8 +8,6 @@ import {
   submitBookingDecision,
 } from "#test-utils/attendees/merge.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-
-// jscpd:ignore-end
 
 /** The merge record on the target's listing activity log. */
 const mergeLog = async (listingId: number): Promise<string> => {

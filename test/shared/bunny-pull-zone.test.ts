@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -6,7 +5,6 @@ import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { withMocks } from "#test-utils/mocks.ts";
-/* jscpd:ignore-end */
 import { expectErrorResult } from "./bunny/fixtures.ts";
 
 /** Build an edge script API response */

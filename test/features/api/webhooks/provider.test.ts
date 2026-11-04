@@ -1,10 +1,10 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import * as v from "valibot";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { providerDetail, transportError } from "#payment/transport-error.ts";
 import { handleRequest } from "#routes";
 import { stripeApi } from "#shared/stripe.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
@@ -13,20 +13,16 @@ import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
-import { signedMeta, singleItem } from "#test-utils/factories.ts";
-import { mockWebhookRequest, withExpectedError } from "#test-utils/mocks.ts";
-import { getProcessedPayment } from "#test-utils/processed-payments.ts";
-import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
-import { stripeClient } from "#test-utils/stripe/fixtures.ts";
-
-// jscpd:ignore-end
-
-import { providerDetail, transportError } from "#payment/transport-error.ts";
 import {
   logLogged,
   useDebugLogSpy,
   useErrorLogSpy,
 } from "#test-utils/debug-log.ts";
+import { signedMeta, singleItem } from "#test-utils/factories.ts";
+import { mockWebhookRequest, withExpectedError } from "#test-utils/mocks.ts";
+import { getProcessedPayment } from "#test-utils/processed-payments.ts";
+import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
+import { stripeClient } from "#test-utils/stripe/fixtures.ts";
 import {
   webhookEvent,
   withWebhookVerify,
