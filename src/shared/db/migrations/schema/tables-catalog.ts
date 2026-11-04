@@ -1,8 +1,21 @@
 /** Catalog tables: groups, modifiers, listing hierarchy, holidays, api keys. */
 
-import { slugNamedEntityColumns } from "./columns.ts";
-import { attendeeIdColumn } from "./scalar-columns.ts";
+/* jscpd:ignore-start -- imports */
+import { attendeeIdColumn, slugNamedEntityColumns } from "./columns.ts";
+import {
+  defaulted,
+  real,
+  rowId,
+  text,
+  textOrNull,
+  textStartingBlank,
+  wholeNumber,
+  wholeNumberOrNull,
+  wholeNumberStartingAtOne,
+  wholeNumberStartingAtZero,
+} from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
+/* jscpd:ignore-end */
 
 export const catalogTables: [name: string, table: Table][] = [
   [
@@ -10,14 +23,14 @@ export const catalogTables: [name: string, table: Table][] = [
     {
       columns: [
         ...slugNamedEntityColumns,
-        ["description", "TEXT NOT NULL DEFAULT ''"],
-        ["terms_and_conditions", "TEXT NOT NULL DEFAULT ''"],
-        ["max_attendees", "INTEGER NOT NULL DEFAULT 0"],
-        ["hidden", "INTEGER NOT NULL DEFAULT 0"],
-        ["is_package", "INTEGER NOT NULL DEFAULT 0"],
-        ["hide_package_listings", "INTEGER NOT NULL DEFAULT 0"],
-        ["scan_checks_in_all_listings", "INTEGER NOT NULL DEFAULT 0"],
-        ["show_hidden_listings", "INTEGER NOT NULL DEFAULT 1"],
+        ["description", textStartingBlank],
+        ["terms_and_conditions", textStartingBlank],
+        ["max_attendees", wholeNumberStartingAtZero],
+        ["hidden", wholeNumberStartingAtZero],
+        ["is_package", wholeNumberStartingAtZero],
+        ["hide_package_listings", wholeNumberStartingAtZero],
+        ["scan_checks_in_all_listings", wholeNumberStartingAtZero],
+        ["show_hidden_listings", wholeNumberStartingAtOne],
       ],
       indexes: [
         {
@@ -42,9 +55,9 @@ export const catalogTables: [name: string, table: Table][] = [
     "group_listings",
     {
       columns: [
-        ["group_id", "INTEGER NOT NULL"],
-        ["listing_id", "INTEGER NOT NULL"],
-        ["quantity", "INTEGER NOT NULL DEFAULT 1"],
+        ["group_id", wholeNumber],
+        ["listing_id", wholeNumber],
+        ["quantity", wholeNumberStartingAtOne],
       ],
       indexes: [
         {
@@ -61,20 +74,20 @@ export const catalogTables: [name: string, table: Table][] = [
     "modifiers",
     {
       columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["name", "TEXT NOT NULL"],
-        ["calc_kind", "TEXT NOT NULL"],
-        ["calc_value", "REAL NOT NULL"],
-        ["direction", "TEXT NOT NULL"],
-        ["active", "INTEGER NOT NULL DEFAULT 1"],
-        ["trigger", "TEXT NOT NULL DEFAULT 'automatic'"],
-        ["code", "TEXT NOT NULL DEFAULT ''"],
-        ["code_index", "TEXT"],
-        ["scope", "TEXT NOT NULL DEFAULT 'all'"],
-        ["stock", "INTEGER"],
-        ["max_per_order", "INTEGER"],
-        ["min_subtotal", "INTEGER NOT NULL DEFAULT 0"],
-        ["min_visits", "INTEGER NOT NULL DEFAULT 0"],
+        ["id", rowId],
+        ["name", text],
+        ["calc_kind", text],
+        ["calc_value", real],
+        ["direction", text],
+        ["active", wholeNumberStartingAtOne],
+        ["trigger", defaulted(text, "automatic")],
+        ["code", textStartingBlank],
+        ["code_index", textOrNull],
+        ["scope", defaulted(text, "all")],
+        ["stock", wholeNumberOrNull],
+        ["max_per_order", wholeNumberOrNull],
+        ["min_subtotal", wholeNumberStartingAtZero],
+        ["min_visits", wholeNumberStartingAtZero],
         // Precomputed count aggregates over modifier_usages, maintained by the
         // MODIFIER_AGGREGATE_TRIGGERS so admin reads never SUM/COUNT the
         // modifier_usages table. total_uses is SUM(quantity) and usage_count is
@@ -83,8 +96,8 @@ export const catalogTables: [name: string, table: Table][] = [
         // cumulative totals like any modifier. The money figure (total_revenue)
         // is not a column: it is projected from the transfers ledger as
         // balanceOf(modifier:M) at read time (see modifierRevenueSubquery).
-        ["total_uses", "INTEGER NOT NULL DEFAULT 0"],
-        ["usage_count", "INTEGER NOT NULL DEFAULT 0"],
+        ["total_uses", wholeNumberStartingAtZero],
+        ["usage_count", wholeNumberStartingAtZero],
       ],
       indexes: [{ columns: ["code_index"], name: "idx_modifiers_code_index" }],
     },
@@ -94,8 +107,8 @@ export const catalogTables: [name: string, table: Table][] = [
     "modifier_listings",
     {
       columns: [
-        ["modifier_id", "INTEGER NOT NULL"],
-        ["listing_id", "INTEGER NOT NULL"],
+        ["modifier_id", wholeNumber],
+        ["listing_id", wholeNumber],
       ],
       indexes: [
         {
@@ -117,8 +130,8 @@ export const catalogTables: [name: string, table: Table][] = [
     "listing_parents",
     {
       columns: [
-        ["parent_listing_id", "INTEGER NOT NULL"],
-        ["child_listing_id", "INTEGER NOT NULL"],
+        ["parent_listing_id", wholeNumber],
+        ["child_listing_id", wholeNumber],
       ],
       indexes: [
         {
@@ -135,8 +148,8 @@ export const catalogTables: [name: string, table: Table][] = [
     "modifier_groups",
     {
       columns: [
-        ["modifier_id", "INTEGER NOT NULL"],
-        ["group_id", "INTEGER NOT NULL"],
+        ["modifier_id", wholeNumber],
+        ["group_id", wholeNumber],
       ],
       indexes: [
         {
@@ -153,12 +166,12 @@ export const catalogTables: [name: string, table: Table][] = [
     "modifier_usages",
     {
       columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["modifier_id", "INTEGER NOT NULL"],
+        ["id", rowId],
+        ["modifier_id", wholeNumber],
         attendeeIdColumn,
-        ["quantity", "INTEGER NOT NULL"],
-        ["amount_applied", "INTEGER NOT NULL"],
-        ["created", "TEXT NOT NULL"],
+        ["quantity", wholeNumber],
+        ["amount_applied", wholeNumber],
+        ["created", text],
       ],
       indexes: [
         { columns: ["modifier_id"], name: "idx_modifier_usages_modifier" },
@@ -171,10 +184,10 @@ export const catalogTables: [name: string, table: Table][] = [
     "holidays",
     {
       columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["name", "TEXT NOT NULL"],
-        ["start_date", "TEXT NOT NULL"],
-        ["end_date", "TEXT NOT NULL"],
+        ["id", rowId],
+        ["name", text],
+        ["start_date", text],
+        ["end_date", text],
       ],
     },
   ],
@@ -183,13 +196,13 @@ export const catalogTables: [name: string, table: Table][] = [
     "api_keys",
     {
       columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["user_id", "INTEGER NOT NULL"],
-        ["key_index", "TEXT NOT NULL"],
-        ["wrapped_data_key", "TEXT NOT NULL"],
-        ["name", "TEXT NOT NULL"],
-        ["created", "TEXT NOT NULL"],
-        ["last_used", "TEXT NOT NULL DEFAULT ''"],
+        ["id", rowId],
+        ["user_id", wholeNumber],
+        ["key_index", text],
+        ["wrapped_data_key", text],
+        ["name", text],
+        ["created", text],
+        ["last_used", textStartingBlank],
       ],
       indexes: [
         {

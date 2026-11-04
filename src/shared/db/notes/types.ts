@@ -13,7 +13,10 @@
 import type { EnvKeyEncrypted, OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import type { NoteEntity } from "./target.ts";
 
-export type SystemNoteType = "system" | "owner";
+/** Which key seals a note: the app's key, or the owner's. */
+export const SYSTEM_NOTE_TYPES = ["system", "owner"] as const;
+
+export type SystemNoteType = (typeof SYSTEM_NOTE_TYPES)[number];
 
 /** App-written note purposes whose lifecycle is decided from stored facts,
  * never by opening the note text. */
