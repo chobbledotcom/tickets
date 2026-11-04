@@ -42,7 +42,7 @@ import {
 } from "#test-utils/migrations.ts";
 import { stubNtfyFetch } from "#test-utils/mocks.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
-import { saveAModifier } from "#test-utils/settings.ts";
+import { saveAModifier, settingValue } from "#test-utils/settings.ts";
 import { invalidateTestDbCache } from "#test-utils/test-state.ts";
 
 const MIGRATIONS = await loadMigrations();
@@ -90,10 +90,9 @@ describeWithEnv("db > migrations", { db: true }, () => {
       setDb(client);
       try {
         await body();
-        const ntfyCall = fetchStub.calls.find(
-          (c) => c.args[0] === "https://ntfy.sh/test-topic",
+        expect(fetchStub.calls.map((call) => call.args[0])).not.toContain(
+          "https://ntfy.sh/test-topic",
         );
-        expect(ntfyCall).toBeUndefined();
       } finally {
         setDb(null);
       }
@@ -307,11 +306,11 @@ describeWithEnv("db > migrations", { db: true }, () => {
 
       await initDb();
 
-      const stored = await settingsValueOrNull("enabled_features");
-      if (!stored) throw new Error("enabled_features was not migrated");
+      const stored = await settingValue("enabled_features");
       expect(JSON.parse(stored)).toEqual({
         apiKeys: false,
         attributes: false,
+        invoices: false,
         logistics: true,
         modifiers: true,
         money: false,
@@ -512,6 +511,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
 
     test("initDb bootstraps a missing settings table when explicitly allowed", async () => {
       await bootstrapSettingsTable();
+      expect(await settingsTableExists()).toBe(true);
     });
 
     test("initDb bootstraps an empty settings table when explicitly allowed", async () => {

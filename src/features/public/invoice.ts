@@ -5,6 +5,7 @@ import { getInvoiceByShareToken } from "#db/invoices.ts";
 import { notFoundResponse, publicPageResponse } from "#routes/response.ts";
 import type { PathMethodRoute } from "#routes/types.ts";
 import { signBalanceToken } from "#shared/balance-link.ts";
+import { signCsrfToken } from "#shared/csrf.ts";
 import { openInvoiceBody } from "#shared/invoices/seal.ts";
 import { invoiceSharePage } from "#templates/public/invoice.tsx";
 import { applyNoindex } from "./types.ts";
@@ -22,13 +23,17 @@ const handleInvoiceGet = async (token: string): Promise<Response> => {
   // only come from a hand-edited database. The admin page answers not found for
   // that row, so the share link answers the same.
   if (!state) return notFoundResponse();
-  const payToken =
-    invoice.status === "new" && state.remainingBalance > 0
-      ? await signBalanceToken(invoice.attendee_id)
-      : null;
+  const payable = invoice.status === "new" && state.remainingBalance > 0;
+  const payToken = payable ? await signBalanceToken(invoice.attendee_id) : null;
+  if (payToken !== null) await signCsrfToken();
   return applyNoindex(
     await publicPageResponse(() =>
-      invoiceSharePage({ body, invoice, payToken }),
+      invoiceSharePage({
+        amount: state.remainingBalance,
+        body,
+        invoice,
+        payToken,
+      }),
     ),
   );
 };

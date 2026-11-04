@@ -11,6 +11,7 @@ import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 import { withCsrfRequest } from "#test-utils/csrf-request.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { assertPageMatchesSnapshot } from "#test-utils/page-snapshot.ts";
+import { featureSetting, useSetting } from "#test-utils/settings.ts";
 
 const test = (name: string, body: () => void | Promise<void>): void => {
   bddTest(name, () => withCsrfRequest(body));
@@ -48,6 +49,10 @@ const logEntry = (
 });
 
 describe("activity log templates", () => {
+  // The parent build always showed the Invoices link. The switch now controls
+  // it, so name it as an input of these frozen pages.
+  useSetting(featureSetting("invoices"));
+
   describe("adminListingActivityLogPage", () => {
     test("renders activity log entries", () => {
       const listing = testListingWithCount();

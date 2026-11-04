@@ -39,6 +39,9 @@ export type AttendeeLedgerView = {
   returnUrl: string;
   /** The standalone full-ledger statement for this account. */
   fullLedgerHref: string;
+  /** Where to create an invoice for the outstanding balance, or null when no
+   *  invoice can be made (nothing owing, or an open invoice exists). */
+  invoiceHref: string | null;
   /** The attendee's Activity tab — where the full plain-English log lives. */
   activityHref: string;
 };
@@ -199,6 +202,16 @@ export const AttendeeLedgerPanel = (view: AttendeeLedgerView): JSX.Element => (
     />
 
     <CollectBalance view={view} />
+
+    {view.invoiceHref === null ? null : (
+      <div class="prose">
+        <h3>{t("attendee_balance.invoice_heading")}</h3>
+        <p>{t("attendee_balance.invoice_intro")}</p>
+        <p>
+          <a href={view.invoiceHref}>{t("invoices.action.create")}</a>
+        </p>
+      </div>
+    )}
 
     <LedgerHistory activityHref={view.activityHref} />
   </PageRegions>

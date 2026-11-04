@@ -72,6 +72,13 @@ describe("admin features", () => {
         labelKey: "features.money.name",
         slug: "money",
       },
+      {
+        descriptionKey: "features.invoices.description",
+        inUseSql: "EXISTS (SELECT 1 FROM invoices AS invoice)",
+        key: "invoices",
+        labelKey: "features.invoices.name",
+        slug: "invoices",
+      },
     ]);
   });
 
@@ -79,6 +86,7 @@ describe("admin features", () => {
     expect(DEFAULT_ENABLED_FEATURES).toEqual({
       apiKeys: false,
       attributes: false,
+      invoices: false,
       logistics: false,
       modifiers: false,
       money: false,
@@ -129,11 +137,10 @@ describe("admin features", () => {
     });
   });
 
-  test("rejects malformed, partial, extra, and non-boolean settings", () => {
+  test("rejects malformed, extra, and non-boolean settings", () => {
     const invalidValues = [
       "not json",
       JSON.stringify({ ...DEFAULT_ENABLED_FEATURES, money: "true" }),
-      JSON.stringify({ money: false }),
       JSON.stringify({ ...DEFAULT_ENABLED_FEATURES, unknown: false }),
     ];
     for (const value of invalidValues) {
@@ -141,18 +148,28 @@ describe("admin features", () => {
     }
   });
 
-  test("identifies an incomplete setting without retaining its value", () => {
+  test("reads a feature the stored setting lacks as off", () => {
+    expect(parseEnabledFeatures(JSON.stringify({ money: true }))).toEqual({
+      ...DEFAULT_ENABLED_FEATURES,
+      money: true,
+    });
+  });
+
+  test("identifies an invalid setting without retaining its value", () => {
     let thrown: unknown;
     try {
-      parseEnabledFeatures(JSON.stringify({ money: false }));
+      parseEnabledFeatures(
+        JSON.stringify({ ...DEFAULT_ENABLED_FEATURES, money: "true" }),
+      );
     } catch (error) {
       thrown = error;
     }
-    expect(thrown).toMatchObject({
-      message:
-        "Invalid stored JSON in settings.enabled_features: Stored value does not match its schema",
-    });
-    expect((thrown as Error).cause).toBeUndefined();
+    const error = thrown as Error;
+    expect(error.message).toBe(
+      "Invalid stored JSON in settings.enabled_features: Stored value does not match its schema",
+    );
+    // The error carries no cause, so the stored value does not travel with it.
+    expect(error.cause).toBe(undefined);
   });
 
   test("names the setting when serialization rejects invalid features", () => {

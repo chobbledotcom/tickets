@@ -14,7 +14,7 @@ import { generateSecureToken } from "#crypto/utils.ts";
 import { execute, type SqlStatement } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
 import { col, defineTable } from "#db/table.ts";
-import { readById } from "#db/table-reader.ts";
+import { type RowFilter, readById } from "#db/table-reader.ts";
 import { invoiceBodyKey } from "#shared/invoices/seal.ts";
 import type { InvoiceStatus } from "#shared/invoices/status.ts";
 /* jscpd:ignore-end */
@@ -37,6 +37,9 @@ export type InvoiceSummary = Pick<
   InvoiceRow,
   "attendee_id" | "created" | "id" | "status"
 >;
+
+/** The columns every invoice summary read asks for. */
+const SUMMARY_COLUMNS = ["attendee_id", "created", "id", "status"] as const;
 
 /** A new invoice to store, in the domain's own words. */
 export type NewInvoice = {
@@ -73,17 +76,28 @@ const invoicesTable = defineTable<InvoiceRow, InvoiceInput>({
 /** One row by its invoice number, or null. */
 export const getInvoice = readById(invoicesTable);
 
+/** Every invoice the filter keeps, newest first, without its sealed body. */
+const summariesNewestFirst = (
+  filter: RowFilter<InvoiceSummary>,
+): Promise<InvoiceSummary[]> =>
+  invoicesTable.read.pick(SUMMARY_COLUMNS).many(filter, { order: "id DESC" });
+
 /** Every invoice, newest first, without its sealed body. */
 export const getInvoices = (): Promise<InvoiceSummary[]> =>
-  invoicesTable.read
-    .pick(["attendee_id", "created", "id", "status"])
-    .many({}, { order: "id DESC" });
+  summariesNewestFirst({});
 
 /** The open (new) invoice for one attendee, or null. */
 export const getOpenInvoice = (
   attendeeId: number,
 ): Promise<InvoiceRow | null> =>
   invoicesTable.read.one({ attendee_id: attendeeId, status: "new" });
+
+/** The attendee's invoices, newest first, without their sealed bodies. The
+ *  booking's info table reads the newest one. */
+export const getAttendeeInvoices = (
+  attendeeId: number,
+): Promise<InvoiceSummary[]> =>
+  summariesNewestFirst({ attendee_id: attendeeId });
 
 /** The invoice a share link names, or null when the token matches none. */
 export const getInvoiceByShareToken = async (

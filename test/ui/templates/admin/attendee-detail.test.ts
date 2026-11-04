@@ -2,6 +2,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { ActivityLogEntry } from "#db/activity-log.ts";
+import type { InvoiceSummary } from "#db/invoices.ts";
 import {
   BookingStatusBadges,
   InactiveNote,
@@ -13,10 +14,18 @@ import { testAttendee } from "#test-utils/factories.ts";
 
 const ALLOWED_DOMAIN = "tickets.example.com";
 
+const presentInvoice: InvoiceSummary = {
+  attendee_id: 1,
+  created: "2026-11-04T09:00:00.000Z",
+  id: 12,
+  status: "new",
+};
+
 const renderDetail = (
   attendee = testAttendee(),
   phonePrefix = "44",
   hasRealLine = true,
+  invoices: readonly InvoiceSummary[] = [],
 ): string =>
   String(
     renderSection({
@@ -25,6 +34,7 @@ const renderDetail = (
         allowedDomain: ALLOWED_DOMAIN,
         attendee,
         hasRealLine,
+        invoices,
         phonePrefix,
       }),
     }),
@@ -97,6 +107,18 @@ describe("attendee summary section", () => {
     assertStringIncludes(html, "white-space:pre-wrap");
     assertStringIncludes(html, "1 High St\nTownsville");
     assertStringIncludes(html, "Step free\nNut allergy");
+  });
+
+  test("links the attendee's invoice and names its status and date", () => {
+    const html = renderDetail(testAttendee(), "44", true, [presentInvoice]);
+    assertStringIncludes(html, '<th scope="row">Invoice</th>');
+    assertStringIncludes(html, 'href="/admin/invoices/12"');
+    assertStringIncludes(html, "12 — New — Wednesday 4 November 2026");
+  });
+
+  test("omits the invoice row when the attendee has no invoice", () => {
+    const html = renderDetail(testAttendee());
+    assert(!html.includes('<th scope="row">Invoice</th>'));
   });
 });
 
