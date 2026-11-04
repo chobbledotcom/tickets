@@ -1,4 +1,4 @@
-import { assertStringIncludes } from "@std/assert";
+import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { KIND } from "#accounting/kinds.ts";
@@ -7,12 +7,14 @@ import { adjustListingIncome } from "#db/listings/aggregates.ts";
 import { account } from "#shared/ledger/account.ts";
 import {
   ledgerPageHtml,
+  postAttendeePayment,
   seededSale,
 } from "#test/integration/server/ledger/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postAttendeeRefund, postModifierLeg, tx } from "#test-utils/ledger.ts";
+import { createServicingHold } from "#test-utils/servicing.ts";
 import { adminGet } from "#test-utils/session.ts";
 
 describeWithEnv(
@@ -20,7 +22,7 @@ describeWithEnv(
   { db: true },
   () => {
     test("renders an account statement with a running balance", async () => {
-      const { attendeeId } = await seededSale("Gala", 2500);
+      const { attendeeId, listingId } = await seededSale("Gala", 2500);
       const html = await ledgerPageHtml(`/admin/ledger/attendee/${attendeeId}`);
       // The attendee's own label heads the page; a fully-paid sale nets to zero.
       assertStringIncludes(html, "Ada Lovelace");
@@ -28,16 +30,41 @@ describeWithEnv(
       assertStringIncludes(html, '<th class="col-amount">Running total</th>');
       // The sale's counterparty is the listing revenue account, linked by name.
       assertStringIncludes(html, "Gala");
+      // Each item links to the record it names, never back to the ledger.
+      assertStringIncludes(
+        html,
+        `<a href="/admin/attendees/${attendeeId}">Ada Lovelace</a>`,
+      );
+      assertStringIncludes(
+        html,
+        `<a href="/admin/listing/${listingId}">Gala</a>`,
+      );
+      assert(!html.includes(`/admin/ledger?listing=${listingId}`));
     });
 
     test("renders a revenue listing's statement", async () => {
-      const { listingId } = await seededSale("Workshop", 4000);
+      const { attendeeId, listingId } = await seededSale("Workshop", 4000);
       const response = await adminGet(`/admin/ledger/revenue/${listingId}`);
       expect(response.status).toBe(200);
       const html = await response.text();
       assertStringIncludes(html, "Workshop");
       // The counterparty of the sale leg is the paying attendee.
       assertStringIncludes(html, "Ada Lovelace");
+      assertStringIncludes(
+        html,
+        `<a href="/admin/attendees/${attendeeId}">Ada Lovelace</a>`,
+      );
+    });
+
+    test("links a service event's money change to the service event page", async () => {
+      const hold = await createServicingHold({ name: "Boiler Service" });
+      await postAttendeePayment(hold.id, "9.00");
+      const html = await ledgerPageHtml(`/admin/ledger/attendee/${hold.id}`);
+      assertStringIncludes(
+        html,
+        `<a href="/admin/servicing/${hold.id}">Boiler Service</a>`,
+      );
+      assert(!html.includes(`/admin/attendees/${hold.id}`));
     });
 
     test("renders a listing's servicing-cost statement", async () => {

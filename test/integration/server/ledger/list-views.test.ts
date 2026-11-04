@@ -29,12 +29,14 @@ describeWithEnv("server (admin ledger list views)", { db: true }, () => {
   test("renders recent transfers with the listing name resolved as a link", async () => {
     await seededSale("Summer Concert", 2500);
     const html = await ledgerPageHtml("/admin/ledger?view=dual");
-    // The sale leg credits the listing's revenue account, linked by its name.
+    // The sale leg credits the listing's revenue account, linked by its name to
+    // the listing itself, not to a filtered ledger.
     assertStringIncludes(html, "Summer Concert");
-    assertStringIncludes(html, "/admin/ledger?listing=");
+    assertStringIncludes(html, '<a href="/admin/listing/1">Summer Concert</a>');
     // The attendee leg resolves to a link too (name decrypted with the key).
     assertStringIncludes(html, "Ada Lovelace");
-    assertStringIncludes(html, "/admin/ledger/attendee/");
+    assertStringIncludes(html, '<a href="/admin/attendees/1">Ada Lovelace</a>');
+    assert(!html.includes("/admin/ledger/attendee/"));
     assertStringIncludes(html, "<td>Booking made</td>");
     assert(!html.includes("<td>sale</td>"));
   });
@@ -68,9 +70,9 @@ describeWithEnv("server (admin ledger list views)", { db: true }, () => {
     assert(!html.includes("<td>sale</td>"));
   });
 
-  test("resolves a real modifier's name and links its leg to its Money page", async () => {
+  test("resolves a real modifier's name and links its leg to the modifier", async () => {
     // A real modifier row exists, so the historical list resolves its name and
-    // links the modifier leg to /admin/modifiers/<id>/edit.
+    // links the modifier leg to /admin/modifiers/<id>.
     const modifier = await modifiersTable.insert({
       calcKind: "fixed",
       calcValue: 500,
@@ -82,7 +84,8 @@ describeWithEnv("server (admin ledger list views)", { db: true }, () => {
     expect(response.status).toBe(200);
     const html = await response.text();
     assertStringIncludes(html, "Booking surcharge");
-    assertStringIncludes(html, `/admin/ledger/modifier/${modifier.id}`);
+    assertStringIncludes(html, `<a href="/admin/modifiers/${modifier.id}">`);
+    assert(!html.includes("/admin/ledger/modifier/"));
   });
 
   /** The event label every bulk leg renders, used to count visible rows. */

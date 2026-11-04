@@ -27,7 +27,7 @@ import {
 import { withEnv } from "#test-utils/env.ts";
 import { featureSetting, useSetting } from "#test-utils/settings.ts";
 
-import { names, transfer } from "./helpers.ts";
+import { attendeeLinkRefs, names, transfer } from "./helpers.ts";
 
 describe("statementBalanceKey", () => {
   beforeAll(setupAdminPageTest);
@@ -94,7 +94,7 @@ describe("AccountStatementSection", () => {
     );
     assertStringIncludes(html, "<th>Other side</th>");
     // Leg 1: counterparty is the revenue listing (this account is the source).
-    assertStringIncludes(html, '<a href="/admin/ledger?listing=1">Concert</a>');
+    assertStringIncludes(html, '<a href="/admin/listing/1">Concert</a>');
     // Leg 2: counterparty is the card/bank singleton (this account received).
     assertStringIncludes(html, "Card / bank");
     // The ledger stores the sale as a -5000 debit and the payment as a +5000
@@ -185,7 +185,7 @@ describe("AccountStatementSection", () => {
               source: account("attendee", 1),
             }),
           ]),
-          names: names({ attendees: new Map([[1, "Ada"]]) }),
+          names: names({ attendees: attendeeLinkRefs([[1, "Ada"]]) }),
         },
         returnUrl: "/admin/ledger/attendee/1",
       }),
@@ -253,7 +253,7 @@ describe("adminAccountStatementPage", () => {
   const acct = account("attendee", 7);
 
   test("shows the account label, its reversed balance, a back link, and the statement", () => {
-    const refs = names({ attendees: new Map([[7, "Ada Lovelace"]]) });
+    const refs = names({ attendees: attendeeLinkRefs([[7, "Ada Lovelace"]]) });
     // A single sale debits the attendee account, so the ledger holds -5000; the
     // attendee view flips it, showing the heading balance as the +5000 they owe.
     const lines = statementFor(acct)([
@@ -290,7 +290,7 @@ describe("adminAccountStatementPage", () => {
     using _env = withEnv({
       READ_ONLY_FROM: "2020-01-01T00:00:00.000Z",
     });
-    const refs = names({ attendees: new Map([[7, "Ada Lovelace"]]) });
+    const refs = names({ attendees: attendeeLinkRefs([[7, "Ada Lovelace"]]) });
     const html = adminAccountStatementPage(
       acct,
       statementFor(acct)([

@@ -1704,7 +1704,7 @@
   },
   "src/ui/templates/admin/ledger.tsx": {
     "long-sentence": 6,
-    "semicolon": 2,
+    "semicolon": 1,
     "banned-modal": 1
   },
   "src/ui/templates/admin/listing-defaults.tsx": {

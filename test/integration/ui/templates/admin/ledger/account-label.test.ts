@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { account } from "#shared/ledger/account.ts";
 import {
+  attendeeLinkRefs,
   names,
   renderLedger,
   transfer,
@@ -33,9 +34,9 @@ describe("money account labels", () => {
     assert(!html.includes("/admin/ledger/writeoff/"));
   });
 
-  test("links each existing row-backed account by name", () => {
+  test("links each existing row-backed account to its own record", () => {
     const refs = names({
-      attendees: new Map([[7, "Ada Lovelace"]]),
+      attendees: attendeeLinkRefs([[7, "Ada Lovelace"]]),
       listings: new Map([[3, "Summer Concert"]]),
       modifiers: new Map([[5, "Early bird"]]),
     });
@@ -53,18 +54,34 @@ describe("money account labels", () => {
       refs,
       "dual",
     );
-    assertStringIncludes(
-      html,
-      '<a href="/admin/ledger/attendee/7">Ada Lovelace</a>',
+    assertStringIncludes(html, '<a href="/admin/attendees/7">Ada Lovelace</a>');
+    assertStringIncludes(html, '<a href="/admin/listing/3">Summer Concert</a>');
+    assertStringIncludes(html, '<a href="/admin/modifiers/5">Early bird</a>');
+    // No account leg points back at the ledger or at a filtered ledger.
+    assert(!html.includes("/admin/ledger/attendee/"));
+    assert(!html.includes("/admin/ledger/modifier/"));
+    assert(!html.includes("/admin/ledger?listing="));
+  });
+
+  test("links a service event account to the service event page", () => {
+    const html = renderLedger(
+      [
+        transfer({
+          destination: account("revenue", 3),
+          source: account("attendee", 4),
+        }),
+      ],
+      names({
+        attendees: attendeeLinkRefs([[4, "Boiler Service", "servicing"]]),
+        listings: new Map([[3, "Summer Concert"]]),
+      }),
+      "dual",
     );
     assertStringIncludes(
       html,
-      '<a href="/admin/ledger?listing=3">Summer Concert</a>',
+      '<a href="/admin/servicing/4">Boiler Service</a>',
     );
-    assertStringIncludes(
-      html,
-      '<a href="/admin/ledger/modifier/5">Early bird</a>',
-    );
+    assert(!html.includes("/admin/attendees/4"));
   });
 
   test("throws when an account type has no presentation", () => {
@@ -95,7 +112,7 @@ describe("money account labels", () => {
     assertStringIncludes(html, "Attendee #42");
     assertStringIncludes(html, "Listing #9");
     assertStringIncludes(html, "Modifier #8");
-    assert(!html.includes("/admin/ledger/attendee/42"));
-    assert(!html.includes("/admin/ledger/modifier/8"));
+    assert(!html.includes("/admin/attendees/42"));
+    assert(!html.includes("/admin/modifiers/8"));
   });
 });

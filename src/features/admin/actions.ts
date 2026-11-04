@@ -9,6 +9,7 @@ import {
   getAttendeeNamesByIds,
 } from "#db/attendees/queries.ts";
 import { getListingWithAttendeesRaw } from "#db/listings/attendees.ts";
+import { listingNames } from "#db/listings/records.ts";
 /* jscpd:ignore-start */
 import {
   type AuthPolicy,
@@ -24,6 +25,7 @@ import {
   redirect,
 } from "#routes/response.ts";
 import { adminDestinationAt } from "#shared/admin-surface.ts";
+import type { AttendeeLinkRefs } from "#shared/attendee-links.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
@@ -57,24 +59,12 @@ export const csvResponse = (csv: string, filename: string): Response =>
   downloadResponse(encodeBody(csv), filename, "text/csv; charset=utf-8");
 
 /**
- * Bounded attendee id-to-name lookup for link labels (activity log, ledger). The
- * current request's private key is unwrapped only when at least one attendee is
- * actually referenced, so a system-only page never forces a key derivation. A
- * deleted attendee's id has no entry — it renders as plain text, no link.
+ * Bounded attendee id-to-name-and-kind lookup for link labels (activity log,
+ * ledger). The current request's private key is unwrapped only when at least
+ * one attendee is actually referenced, so a system-only page never forces a key
+ * derivation. A deleted attendee's id has no entry — it renders as plain text,
+ * no link.
  */
-export const loadAttendeeNames = async (
-  attendeeIds: number[],
-): Promise<Map<number, string>> => {
-  if (attendeeIds.length === 0) return new Map();
-  const key = await requireRequestPrivateKey();
-  return getAttendeeNamesByIds(attendeeIds, key);
-};
-
-export type AttendeeLinkRefs = {
-  kinds: Map<number, string>;
-  names: Map<number, string>;
-};
-
 export const loadAttendeeLinkRefs = async (
   attendeeIds: number[],
 ): Promise<AttendeeLinkRefs> => {
@@ -87,6 +77,22 @@ export const loadAttendeeLinkRefs = async (
     getAttendeeKindsByIds(attendeeIds),
   ]);
   return { kinds, names };
+};
+
+/** The attendee and listing names one page shows for the ids it references —
+ *  the two lookups the activity log and the ledger both link from. */
+export const loadAttendeeAndListingRefs = async (
+  attendeeIds: number[],
+  listingIds: number[],
+): Promise<{
+  attendees: AttendeeLinkRefs;
+  listings: Map<number, string>;
+}> => {
+  const [attendees, listings] = await Promise.all([
+    loadAttendeeLinkRefs(attendeeIds),
+    listingNames.byIds(listingIds),
+  ]);
+  return { attendees, listings };
 };
 
 /** Handler that receives a decrypted listing with its attendees */

@@ -5,8 +5,10 @@
  *
  * Render-only: the feature layer builds the {@link LedgerNames} lookup, and
  * decrypts attendee names with the session key, so this module never touches
- * the database. An id absent from that map is a deleted entity that still keeps
- * its ledger rows, so it renders as plain text with no link.
+ * the database. An id absent from that lookup is a deleted entity that still
+ * keeps its ledger rows, so it renders as plain text with no link. A linked
+ * account points at the record it belongs to: the attendee or service event,
+ * the listing, or the modifier.
  */
 
 import {
@@ -21,14 +23,15 @@ import {
 } from "#accounting/manual-entries.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import {
+  type AttendeeLinkRefs,
+  attendeeAdminPath,
+} from "#shared/attendee-links.ts";
 import { formatCurrency, formatSignedCurrency } from "#shared/currency.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import { isReadOnly } from "#shared/env.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
-import {
-  ledgerEntryEditHref,
-  listingLedgerHref,
-} from "#shared/ledger-links.ts";
+import { ledgerEntryEditHref } from "#shared/ledger-links.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { renderAdminPage } from "#templates/admin/admin-page.tsx";
@@ -53,59 +56,65 @@ import type { AdminSession } from "#types";
 /* jscpd:ignore-end */
 
 /**
- * Display names for the row-backed account legs the ledger renders, each a
- * bounded id→name lookup the feature layer builds (attendee names decrypted with
- * the session key, listing/modifier names from their loaders). Mirrors the
- * activity log's `ActivityLogRefs`; an id missing from a map is a deleted entity
- * whose ledger rows survive, so its leg renders as plain text with no link.
+ * Display names for the row-backed account legs the ledger renders. Each entry
+ * is a bounded id→name lookup that the feature layer builds. It decrypts
+ * attendee names with the session key, and it reads listing and modifier names
+ * from their loaders. An id missing from a lookup is a deleted entity whose
+ * ledger rows survive, so its leg renders as plain text with no link.
  */
 export interface LedgerNames {
-  attendees: Map<number, string>;
+  attendees: AttendeeLinkRefs;
   listings: Map<number, string>;
   modifiers: Map<number, string>;
 }
 
-/** The resolved presentation of one account leg: the text to show, and its
- * filtered ledger href (absent for singletons and deleted entities). */
+/** The resolved presentation of one account leg: the text to show, and its link
+ * to the record that owns the account (absent for singletons and deleted
+ * entities). */
 type AccountLabel = { text: string; href?: string };
 
 /** One row-backed account type's resolver config: which names map to read, the
- * ledger path, and the i18n key for the "#<id>" deleted-entity
- * fallback. Currying over this keeps the three row-backed types identical. */
+ * detail page for the record the account belongs to, and the i18n key for the
+ * "#<id>" deleted-entity fallback. Currying over this keeps the three
+ * row-backed types identical. */
 type RowAccountKind = {
   names: (refs: LedgerNames) => Map<number, string>;
-  href: (id: number) => string;
+  href: (id: number, refs: LedgerNames) => string;
   fallbackKey: string;
 };
 
 /** Row-backed account resolvers keyed by ledger account type — exhaustive over
  * {@link RowAccountType}, so a new row-backed type cannot render without
- * deciding its label source and link target here. */
+ * deciding its label source and link target here. Every target is the record's
+ * own admin page, never the ledger again. */
 /** Both `cost` and `revenue` legs are backed by a listing, so they read the
- * same names, link to the same ledger path, and share one fallback key. */
+ * same names, link to the same listing page, and share one fallback key. */
 const listingBackedKind: RowAccountKind = {
   fallbackKey: "admin.ledger.fallback.revenue",
-  href: listingLedgerHref,
+  href: (id) => `/admin/listing/${id}`,
   names: (refs) => refs.listings,
 };
 
 const ROW_ACCOUNT_KINDS: Record<RowAccountType, RowAccountKind> = {
   attendee: {
     fallbackKey: "admin.ledger.fallback.attendee",
-    href: (id) => `/admin/ledger/attendee/${id}`,
-    names: (refs) => refs.attendees,
+    // A service event is an attendee row of its own kind, so the kind picks
+    // between the attendee page and the service event page.
+    href: (id, refs) =>
+      attendeeAdminPath({ id, kind: refs.attendees.kinds.get(id) }),
+    names: (refs) => refs.attendees.names,
   },
   cost: listingBackedKind,
   modifier: {
     fallbackKey: "admin.ledger.fallback.modifier",
-    href: (id) => `/admin/ledger/modifier/${id}`,
+    href: (id) => `/admin/modifiers/${id}`,
     names: (refs) => refs.modifiers,
   },
   revenue: listingBackedKind,
 };
 
-/** The bounded id→name lookup for one row-backed account type — the single
- * accessor the label resolver and the route layer's existence checks share. */
+/** The bounded id→name lookup for one row-backed account type — the accessor
+ * the route layer's existence checks read. */
 export const ledgerNamesForAccountType = (
   type: RowAccountType,
   names: LedgerNames,
@@ -140,10 +149,10 @@ const resolveAccountLabel = (
   }
   const kind = ROW_ACCOUNT_KINDS[account.type];
   const id = Number(account.id);
-  const name = ledgerNamesForAccountType(account.type, names).get(id);
+  const name = kind.names(names).get(id);
   return name === undefined
     ? { text: t(kind.fallbackKey, { id }) }
-    : { href: kind.href(id), text: name };
+    : { href: kind.href(id, names), text: name };
 };
 
 /** The plain display text for an account (no link), for headings/captions. */
