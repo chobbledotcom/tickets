@@ -159,9 +159,9 @@ separate suitable check. Lease expiry does not cancel a request in flight.
 
 The runner prepares all clean and corrupted facts in registry order.
 It never overlaps data producers, because some producers replace shared database state.
-Each model's clean data and each negative control have separate directories.
-The initial and inductive checks share the same fixed clean input.
-No check overwrites another check's data.
+Each proof phase and each negative control has a separate work directory.
+The two proof phases read equal copies of the clean input.
+No check shares a work directory with another check.
 
 The runner starts at most two Apalache processes at once.
 When one process completes, the next queued check starts.
