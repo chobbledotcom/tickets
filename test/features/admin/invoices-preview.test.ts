@@ -67,7 +67,7 @@ describeWithEnv("server (admin invoice preview)", { db: true }, () => {
     const attendeeId = await createOwing(1500);
     await previewInvoice(attendeeId, 1);
     const body =
-      "# Thanks for booking\n\n{{ customer.name }} owes {{ totals.due | currency }}.";
+      '# Thanks for booking\n\n{{ customer.name }} owes {{ totals.due | currency }}.\n\nTom & Jerry\'s "quote" <tag>';
 
     const response = await previewInvoice(attendeeId, 1, body);
     const html = await pageText(response);
@@ -93,6 +93,19 @@ describeWithEnv("server (admin invoice preview)", { db: true }, () => {
     assertStringIncludes(html, "<h1>Invoice 1</h1>");
     expect(html).not.toContain("<h1>Kept</h1>");
     expect(previewedBody(html)).toBe(INVOICE_BODY_TEMPLATE);
+    await settingsAsStored();
+    expect(settings.invoiceBodyTemplate).toBe("# Kept\n\n{{ customer.name }}");
+  });
+
+  test("Update preview takes the longest text the field can carry", async () => {
+    const attendeeId = await createOwing(1500);
+    const body = "x".repeat(MAX_TEXTAREA_LENGTH);
+
+    const response = await previewInvoice(attendeeId, 1, body);
+    const html = await pageText(response);
+
+    expect(response.status).toBe(200);
+    expect(previewedBody(html)).toBe(body);
   });
 
   test("Update preview refuses invoice text that is too long", async () => {
