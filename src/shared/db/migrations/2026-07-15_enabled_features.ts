@@ -91,6 +91,7 @@ export default schemaMigration(
       apiKeys: configured.apiKeys || asBoolean(row.apiKeys),
       attributes: configured.attributes || asBoolean(row.attributes),
       externalSources: configured.externalSources,
+      invoices: configured.invoices,
       logistics: configured.logistics || asBoolean(row.logistics),
       modifiers: configured.modifiers || asBoolean(row.modifiers),
       money: configured.money,

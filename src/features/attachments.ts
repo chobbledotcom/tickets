@@ -19,6 +19,7 @@ import {
   isStorageEnabled,
   sanitizeBasename,
 } from "#shared/storage.ts";
+import { parsePositiveInt } from "#shared/validation/number.ts";
 
 /** Return a 403 forbidden response */
 const forbiddenResponse = (): Response =>
@@ -74,8 +75,8 @@ const handleAttachmentDownload: TypedRouteHandler<
   const sig = url.searchParams.get("sig");
   if (!attendeeIdStr || !exp || !sig) return forbiddenResponse();
 
-  const attendeeId = Number.parseInt(attendeeIdStr, 10);
-  if (Number.isNaN(attendeeId)) return forbiddenResponse();
+  const attendeeId = parsePositiveInt(attendeeIdStr);
+  if (attendeeId === null) return forbiddenResponse();
 
   // Verify signature and expiry
   const valid = await verifyAttachmentUrl(id, attendeeId, exp, sig);

@@ -63,14 +63,10 @@ export const prepareChecks = async (
       (source: ModuleSource) =>
         source.kind === "helper" || source.module === model.module,
     )(sources);
-    const directory = join(work, model.module, "clean");
-    await writeVariant(
-      modelSources,
-      directory,
-      model.module,
-      await model.data(),
-    );
+    const data = await model.data();
     for (const phase of ["initial", "step"] as const) {
+      const directory = join(work, model.module, phase);
+      await writeVariant(modelSources, directory, model.module, data);
       checks.push({ directory, kind: "proof", module: model.module, phase });
     }
     for (const [index, control] of model.controls.entries()) {

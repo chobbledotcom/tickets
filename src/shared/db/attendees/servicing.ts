@@ -37,7 +37,7 @@ import {
   type AttendeeAnswerSet,
   saveAttendeeAnswers,
 } from "#db/questions/attendee-answers/save.ts";
-import { sumByKey, sumOf, unique } from "#fp";
+import { requiredMapValue, sumByKey, sumOf, unique } from "#fp";
 import {
   type AttendeeUpdateFailureReason,
   attendeeFailureFormatter,
@@ -301,12 +301,9 @@ const servicingEventRowsToSummaries = async (
 ): Promise<ServicingEventSummary[]> => {
   // Group booking lines by their parent service event (attendee id), so a
   // multi-listing hold renders as ONE summary (its listings collected inside)
-  // instead of one row per booking line. Rows are ordered by date then attendee
-  // id, so the first row of each group is that event's earliest booking line,
-  // keeping the summaries in upcoming order.
-  // Map.groupBy keeps first-seen key order, and rows arrive date-then-id
-  // ordered, so each group's first row is its earliest booking line and the
-  // summaries stay in upcoming order.
+  // instead of one row per booking line. Map.groupBy keeps first-seen key
+  // order, and rows arrive date-then-id ordered, so each group's first row is
+  // its earliest booking line and the summaries stay in upcoming order.
   const byAttendee = Map.groupBy(rows, (row) => row.id);
   return Promise.all(
     [...byAttendee.values()].map(async (group) => {
@@ -885,16 +882,16 @@ export const getServicingCosts = async (
   );
   const adjustmentsByOriginal = sumAdjustmentsByOriginal(legs);
   const baseAmountById = new Map(legs.map((leg) => [leg.id, leg.amount]));
-  // Build the result as a pure map over `records`, which is already ordered by
-  // (occurred_at, transfer_id): Promise.all preserves that input order
-  // regardless of which decrypt() resolves first, so the cost list can't
-  // shuffle under concurrent decryption.
+  const costAmount = (id: number): number =>
+    requiredMapValue(baseAmountById, id, `Transfer ${id} missing`) +
+    (adjustmentsByOriginal.get(id) ?? 0);
+  // Build the result as a pure map over `records`, already ordered by
+  // (occurred_at, transfer_id): Promise.all keeps that order, so the cost
+  // list cannot shuffle under concurrent decryption.
   return Promise.all(
     records.map(
       async (r): Promise<ServicingCostRecord> => ({
-        amount:
-          baseAmountById.get(r.transfer_id)! +
-          (adjustmentsByOriginal.get(r.transfer_id) ?? 0),
+        amount: costAmount(r.transfer_id),
         date: r.occurred_at,
         id: r.transfer_id,
         listingId: r.listing_id,

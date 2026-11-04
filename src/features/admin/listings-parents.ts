@@ -23,7 +23,7 @@ import {
   type ListingGroupMembership,
   toListingGroupMembership,
 } from "#db/modifier-resolve.ts";
-import { groupToMap, mapNotNullish, unique } from "#fp";
+import { groupToMap, mapNotNullish, requiredMapValue, unique } from "#fp";
 import { t } from "#i18n";
 import { CONTENT_FORM, formGuard } from "#routes/auth.ts";
 import { createIdEntityHandler } from "#routes/entity.ts";
@@ -106,7 +106,11 @@ export const loadListingParentsSection = async (
       listing,
       candidate,
       parentIsChild,
-      childrenOf.get(candidate.id)!.length > 0,
+      requiredMapValue(
+        childrenOf,
+        candidate.id,
+        `Listing ${candidate.id} missing`,
+      ).length > 0,
     ),
     listing: candidate,
   }));
@@ -242,8 +246,10 @@ export const validateChildEdges = async (
       listingChildren.getIdsByKeys(childIds),
     ]);
   const children = childIds.map((childId) => ({
-    isParent: childrenByParent.get(childId)!.length > 0,
-    listing: byId.get(childId)!,
+    isParent:
+      requiredMapValue(childrenByParent, childId, `Listing ${childId} missing`)
+        .length > 0,
+    listing: requiredMapValue(byId, childId, `Listing ${childId} missing`),
   }));
   const error = await childEdgeError(
     parent,
@@ -298,7 +304,11 @@ const groupRemappedEdges = (
   groupChildEdges(
     [...idMap].flatMap(([sourceId, cloneId]) =>
       mapNotNullish((relatedId: number) => toEdge(cloneId, relatedId))(
-        relatedIdsBySource.get(sourceId)!,
+        requiredMapValue(
+          relatedIdsBySource,
+          sourceId,
+          `Listing ${sourceId} missing`,
+        ),
       ),
     ),
   );

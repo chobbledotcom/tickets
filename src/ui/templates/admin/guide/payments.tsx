@@ -102,6 +102,15 @@ export const paymentsSections = (): GuideSection[] => [
   },
   {
     entries: [
+      faq("invoices_how_they_work"),
+      faq("invoices_turning_on"),
+      faq("invoices_without_email"),
+    ],
+    id: "invoices",
+    titleKey: "invoices",
+  },
+  {
+    entries: [
       faq("how_daily_listings_work"),
       faq("what_are_bookable_days"),
       custom(

@@ -11,7 +11,12 @@ import {
   ModifierTriggerSchema,
 } from "#shared/price-modifier.ts";
 import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
+import { parseSignedInt } from "#shared/validation/number.ts";
 import { picklistOptions } from "#templates/fields/picklist-options.ts";
+import {
+  validateWholeNumber,
+  wholeNumberFieldShape,
+} from "#templates/fields/validators.ts";
 
 /* jscpd:ignore-end */
 
@@ -61,7 +66,7 @@ const getModifierFields = () =>
       label: "Value",
       name: "calc_value",
       // Required, so `validateSingleField` rejects empty input before `parse`
-      // runs; `parse` therefore only ever sees a value the validator accepted.
+      // runs. Thus `parse` only ever sees a value the validator accepted.
       parse: (value: string) => Number(value),
       required: true,
       type: "text",
@@ -115,22 +120,26 @@ const getModifierFields = () =>
       label: t("modifiers.min_visits.label"),
       min: 0,
       name: "min_visits",
-      parse: (value: string) => (value ? Number(value) : 0),
+      // Blank means 0 (no visit gate). Any other value must be a whole
+      // number, so `1e3` and `5abc` are refused. A negative one passes this
+      // shape check and the declared minimum reports it.
+      parse: (value: string) => parseSignedInt(value) ?? 0,
       type: "number",
+      validate: validateWholeNumber(t("modifiers.min_visits.label")),
     },
     {
       hint: "Total number available across all orders. Leave blank for unlimited.",
       label: "Stock (optional)",
       min: 0,
       name: "stock",
-      type: "number",
+      ...wholeNumberFieldShape("Stock (optional)"),
     },
     {
       hint: t("modifiers.max_per_order.hint"),
       label: t("modifiers.max_per_order.label"),
       min: 1,
       name: "max_per_order",
-      type: "number",
+      ...wholeNumberFieldShape(t("modifiers.max_per_order.label")),
     },
     {
       label: "Status",

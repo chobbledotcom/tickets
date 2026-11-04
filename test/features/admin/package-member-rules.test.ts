@@ -172,6 +172,18 @@ describe("parsePackageMembers", () => {
     ).toEqual([{ dayPrices: {}, listingId: 3, price: null, quantity: 1 }]);
   });
 
+  test("refuses a malformed quantity instead of defaulting it", () => {
+    expect(() =>
+      parsePackageMembers(
+        formOf([
+          ["is_package", "1"],
+          ["package_price_3", "9.00"],
+          ["package_qty_3", "2abc"],
+        ]),
+      ),
+    ).toThrow("Package quantity is not a whole number: 2abc");
+  });
+
   test("keeps an empty day-price map for a member with none", () => {
     expect(
       parsePackageMembers(

@@ -9,11 +9,12 @@ import type { Child, SafeHtml } from "#jsx/jsx-runtime.ts";
 import { attendeeAdminPath } from "#shared/attendee-links.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import { ErrorCode, errorCodeLabel } from "#shared/logger.ts";
-import { requireValue } from "#shared/required-value.ts";
+import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { renderTable } from "#templates/components/table.tsx";
+import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import type { AdminSession, ListingWithCount } from "#types";
 
 /* jscpd:ignore-end */
@@ -132,17 +133,21 @@ const attendeeRefLink = (
     ),
   );
 
-const activityLogTable = defineTable<
+/** The columns every activity table carries. Each reads only its row, so a
+ *  table with no references shows them too. */
+const rowOnlyColumns = <TContext,>(): readonly TableColumn<
   ActivityLogEntry,
-  ActivityLogRefs | undefined
->([
-  {
-    cell: (entry) => formatDatetimeShort(entry.created),
-    header: () => t("admin.log.col.time"),
-    key: "time",
-  },
-  {
-    cell: (entry) => (
+  TContext
+>[] => [
+  translatedTableColumn<ActivityLogEntry, "time", TContext>(
+    "time",
+    "admin.log.col.time",
+    (entry) => formatDatetimeShort(entry.created),
+  ),
+  translatedTableColumn<ActivityLogEntry, "activity", TContext>(
+    "activity",
+    "admin.log.col.activity",
+    (entry) => (
       <>
         {entry.message.includes(SQUARE_SIGNATURE_LABEL) ? (
           <SquareSignatureHint />
@@ -150,33 +155,27 @@ const activityLogTable = defineTable<
         {entry.message}
       </>
     ),
-    header: () => t("admin.log.col.activity"),
-    key: "activity",
-  },
-  {
-    cell: (entry, refs) =>
-      attendeeRefLink(
-        entry.attendee_id,
-        requireValue(refs, "Activity attendee column requires references")
-          .attendees,
-      ),
-    header: () => t("terms.attendee"),
-    key: "attendee",
-  },
-  {
-    cell: (entry, refs) =>
-      refLink(
-        entry.listing_id,
-        requireValue(refs, "Activity listing column requires references")
-          .listings,
-        "/admin/listing",
-      ),
-    header: () => t("terms.listing"),
-    key: "listing",
-  },
+  ),
+];
+
+/** The global log's table: every column, with the references it links by. */
+const activityLogTable = defineTable<ActivityLogEntry, ActivityLogRefs>([
+  ...rowOnlyColumns(),
+  translatedTableColumn<ActivityLogEntry, "attendee", ActivityLogRefs>(
+    "attendee",
+    "terms.attendee",
+    (entry, refs) => attendeeRefLink(entry.attendee_id, refs.attendees),
+  ),
+  translatedTableColumn<ActivityLogEntry, "listing", ActivityLogRefs>(
+    "listing",
+    "terms.listing",
+    (entry, refs) => refLink(entry.listing_id, refs.listings, "/admin/listing"),
+  ),
 ]);
 
-const ACTIVITY_COLUMNS = ["time", "activity"] as const;
+/** The table for one listing or one attendee: no reference columns, because
+ *  every row already shares that record. */
+const activityLogRowsTable = defineTable<ActivityLogEntry>(rowOnlyColumns());
 
 /**
  * The Time/Activity log table, scrollable on narrow screens. Shared by the
@@ -192,11 +191,14 @@ export const ActivityLogTable = ({
   entries: ActivityLogEntry[];
   refs?: ActivityLogRefs;
 }): JSX.Element =>
-  renderTable(activityLogTable, entries, {
-    columnKeys: refs === undefined ? ACTIVITY_COLUMNS : undefined,
-    context: refs,
-    empty: t("admin.log.no_activity"),
-  });
+  refs === undefined
+    ? renderTable(activityLogRowsTable, entries, {
+        empty: t("admin.log.no_activity"),
+      })
+    : renderTable(activityLogTable, entries, {
+        context: refs,
+        empty: t("admin.log.no_activity"),
+      });
 
 /**
  * Admin activity log page for a specific listing

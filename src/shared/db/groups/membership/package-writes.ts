@@ -36,7 +36,6 @@ import { byId, compact, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import { groupLeavingOrphanedAddOnError } from "#shared/add-on-reachability.ts";
 import type { PackageMemberInput } from "#shared/catalog-fields/fields.ts";
-import { requireValue } from "#shared/required-value.ts";
 
 /* jscpd:ignore-end */
 
@@ -63,8 +62,9 @@ const packageGroupMembersErrorTx = async (
     const listingById = byId(listings);
     for (const member of state.members) {
       const quantityError = await memberCapErrorTx(
-        requireValue(
-          listingById.get(member.id),
+        requiredMapValue(
+          listingById,
+          member.id,
           `Listing ${member.id} missing`,
         ),
         member.quantity,

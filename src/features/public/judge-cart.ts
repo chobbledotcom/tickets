@@ -19,11 +19,9 @@ import type { Holiday } from "#db/holidays.ts";
 import { t } from "#i18n";
 import type { FormParams } from "#shared/form-data.ts";
 import { requireValue } from "#shared/required-value.ts";
+import type { Outcome } from "#shared/result.ts";
 /* jscpd:ignore-end */
 import type { TicketCtx } from "./types.ts";
-
-/** The gate's verdict: ok, or the error message the buyer sees. */
-export type CartVerdict = { ok: true } | { ok: false; error: string };
 
 /** What the gate reads from one submitted cart: the page context, the
  * submitted form, the fold's base, and the active holidays. */
@@ -74,7 +72,7 @@ export const judgeSubmittedCart = ({
   ctx,
   form,
   holidays,
-}: CartJudgement): CartVerdict => {
+}: CartJudgement): Outcome => {
   const members = packageMemberIds(ctx.packages);
   const inCart = (info: TicketListing): boolean =>
     (base.quantities.get(info.listing.id) ?? 0) > 0;

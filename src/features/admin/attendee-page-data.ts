@@ -29,7 +29,7 @@ import {
 } from "#db/payment-references.ts";
 import type { BookedAnswer, QuestionWithAnswers } from "#db/question-types.ts";
 /* jscpd:ignore-start */
-import { filter, identity, mapById } from "#fp";
+import { filter, identity, mapById, requiredMapValue } from "#fp";
 import { resolveSharedDates } from "#routes/admin/attendee-form-dates.ts";
 import type {
   AttendeeFormLine,
@@ -148,9 +148,11 @@ export const loadPackagePaths = async (): Promise<PackagePath[]> => {
     // The members loader seeds every requested group id, so that lookup
     // always hits. The price loader returns only groups with membership
     // rows, so a memberless package prices from an empty row set.
-    memberListingIds: membersByGroupId
-      .get(group.id)!
-      .map((listing) => listing.id),
+    memberListingIds: requiredMapValue(
+      membersByGroupId,
+      group.id,
+      `Group ${group.id} missing`,
+    ).map((listing) => listing.id),
     memberPrices: packageMemberMaps(priceRowsByGroupId.get(group.id) ?? [])
       .prices,
     packageName: group.name,
@@ -186,7 +188,11 @@ const lineForExistingRow = (
   key: existing.key,
   // A stored row's listing always renders: booked inactive listings are in the
   // render set, and deleting a listing deletes its rows.
-  listing: listingsById.get(existing.booking.listing_id)!,
+  listing: requiredMapValue(
+    listingsById,
+    existing.booking.listing_id,
+    `Listing ${existing.booking.listing_id} missing`,
+  ),
   listingId: existing.booking.listing_id,
   // A stored quantity-0 line renders with the "no quantity" box ticked.
   noQuantity: existing.booking.quantity === 0,

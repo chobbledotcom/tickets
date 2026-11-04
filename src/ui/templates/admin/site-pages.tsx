@@ -5,7 +5,6 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { Raw } from "#jsx/jsx-runtime.ts";
 import {
   sitePageEditForm,
   sitePageForm,
@@ -13,15 +12,14 @@ import {
 } from "#routes/admin/site-pages-form.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import { prefixedDeletePage } from "#templates/admin/confirm-page.tsx";
 import { rowDeleteLink } from "#templates/admin/delete-link.tsx";
 import {
   collectionPage,
   contentEntityEditPanel,
+  contentNewPage,
 } from "#templates/admin/site-content.tsx";
 import { WritableLink } from "#templates/admin/writable-only.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
 import { InlineFormButton } from "#templates/components/inline-form-button.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
@@ -39,8 +37,6 @@ import type {
 /* jscpd:ignore-end */
 
 const LIST = "/admin/site/pages";
-const ACTIVE = LIST;
-
 export type PickerOption = { value: string; label: string };
 export type ResolvedItem = {
   type: SitePageItemType;
@@ -162,42 +158,11 @@ export const adminSitePagesListPage = (
     ),
   );
 
-const sitePageFormShell = (
-  title: string,
-  action: string,
-  session: AdminSession,
-  fieldsHtml: string,
-  error?: string,
-  children?: JSX.Element,
-): string =>
-  renderAdminPageSpec({
-    active: ACTIVE,
-    form: {
-      action,
-      fields: (
-        <>
-          <Raw html={fieldsHtml} />
-          {children}
-        </>
-      ),
-      flash: { error },
-    },
-    session,
-    title,
-  });
-
-export const adminSitePageNewPage = (
-  session: AdminSession,
-  error?: string,
-): string =>
-  sitePageFormShell(
-    t("site.pages.new_title"),
-    LIST,
-    session,
-    sitePageForm.render(),
-    error,
-    <SubmitButton icon="plus">{t("site.pages.create_submit")}</SubmitButton>,
-  );
+export const adminSitePageNewPage = contentNewPage(
+  LIST,
+  "site.pages",
+  sitePageForm,
+);
 
 /** A single "add <type>" picker: a select of eligible targets + an Add button.
  * Renders nothing when there is nothing to add (an empty picker only shows a

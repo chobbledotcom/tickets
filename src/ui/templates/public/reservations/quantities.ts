@@ -13,6 +13,7 @@ import {
 import { t } from "#i18n";
 import { savedFormValue } from "#shared/forms/saved-data.ts";
 import { monthsPerUnitOf, resolvePurchaseUnit } from "#shared/purchase-unit.ts";
+import { parseNonNegativeInt } from "#shared/validation/number.ts";
 import type { ListingWithCount } from "#types";
 import type { TicketPrefill } from "./types.ts";
 
@@ -81,8 +82,10 @@ const resolveQuantity = (
 };
 
 /** Clamp a just-submitted numeric form value to `[0, max]`, falling back to
- * `fallback` when the field was absent (`""`). Shared by the per-listing and
- * package-count restores so the two can't drift. */
+ * `fallback` when the field was absent (`""`). Any other value that is not a
+ * plain whole number means none chosen, which restores to 0, the option every
+ * quantity select offers. Shared by the per-listing and package-count restores
+ * so the two can't drift. */
 const clampSavedQuantity = (
   saved: string,
   max: number,
@@ -90,7 +93,7 @@ const clampSavedQuantity = (
 ): number =>
   saved === ""
     ? fallback
-    : Math.max(0, Math.min(Number.parseInt(saved, 10) || 0, max));
+    : Math.max(0, Math.min(parseNonNegativeInt(saved) ?? 0, max));
 
 /** The quantity to pre-select for a row: the value the visitor just submitted
  * (restored when a validation error re-renders the page), else the QR/order

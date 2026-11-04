@@ -5,7 +5,7 @@ import {
   type BookingTree,
   nodeFixedQuantity,
 } from "#booking/tree.ts";
-import { sumByKey } from "#fp";
+import { requiredMapValue, sumByKey } from "#fp";
 /* jscpd:ignore-end */
 import { type CheckoutItem, checkoutItem } from "#shared/payments.ts";
 import type { PurchaseContext } from "#shared/purchase-unit.ts";
@@ -131,7 +131,11 @@ export const buildOrderLines = (
       if (quantity <= 0) return [];
       // Every folded listing beyond the emitted lines is some parent's
       // child, so its node is always present here.
-      const child = childById.get(listingId)!;
+      const child = requiredMapValue(
+        childById,
+        listingId,
+        `Listing ${listingId} missing`,
+      );
       return [
         checkoutItem(
           child.listing,

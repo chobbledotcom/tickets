@@ -9,6 +9,7 @@
 import { planBookingPayment } from "#booking/payment-plan.ts";
 import { requirePublicStatusId } from "#db/attendee-statuses.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
+import { requiredMapValue } from "#fp";
 import { apiCreateLedgerPoster } from "#shared/checkout-complete.ts";
 import { listPriceOrder } from "#shared/checkout-pricing.ts";
 import { isPaymentsEnabled } from "#shared/config.ts";
@@ -29,7 +30,11 @@ export const createdBookingEntries = (
     .filter((attendee) => attendee.quantity > 0)
     .map((attendee) => ({
       attendee,
-      listing: listingById.get(attendee.listing_id)!,
+      listing: requiredMapValue(
+        listingById,
+        attendee.listing_id,
+        `Listing ${attendee.listing_id} missing`,
+      ),
     }));
 
 /** True when the listing still has spots for this quantity on this date (no

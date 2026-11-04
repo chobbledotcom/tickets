@@ -10,7 +10,7 @@ import {
 import { hashEmail, hashPhone } from "#db/contact-preferences.ts";
 import { getRecentBookingTokens } from "#db/contact-tokens.ts";
 import { listingNames } from "#db/listings/records.ts";
-import { compact, unique } from "#fp";
+import { compact, requiredMapValue, unique } from "#fp";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { PreviousBooking } from "#templates/admin/attendee-page.tsx";
 import type { Attendee } from "#types";
@@ -63,7 +63,11 @@ const previousBookingRow = (
   attendeeId: booked.id,
   created: booked.created,
   items: booked.bookings.map((line) => ({
-    name: listingNameById.get(line.listing_id)!,
+    name: requiredMapValue(
+      listingNameById,
+      line.listing_id,
+      `Listing ${line.listing_id} missing`,
+    ),
     quantity: line.quantity,
   })),
   statusName: statusNameById.get(booked.status_id ?? -1) ?? null,

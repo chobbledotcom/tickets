@@ -10,7 +10,7 @@ import {
   type LogisticsAssignment,
 } from "#db/logistics.ts";
 /* jscpd:ignore-start */
-import { identity, isNullish, mapById } from "#fp";
+import { identity, isNullish, mapById, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import {
   csvDateRange,
@@ -60,7 +60,11 @@ export const toCalendarAttendees = <
 ): CalendarAttendee[] => {
   const listingById = mapById(identity<L>)(listings);
   return attendees.map((a) => {
-    const listing = listingById.get(a.listing_id)!;
+    const listing = requiredMapValue(
+      listingById,
+      a.listing_id,
+      `Listing ${a.listing_id} missing`,
+    );
     return { ...a, ...listingDetails(listing) };
   });
 };

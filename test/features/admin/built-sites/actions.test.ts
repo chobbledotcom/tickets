@@ -10,7 +10,11 @@ import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 import { withEnv } from "#test-utils/env.ts";
-import { adminFormPost, testCookie } from "#test-utils/session.ts";
+import {
+  adminFormPost,
+  getTestSession,
+  testCookie,
+} from "#test-utils/session.ts";
 
 describeWithEnv(
   "admin built-sites actions",
@@ -32,13 +36,16 @@ describeWithEnv(
     });
 
     describe("CSRF validation", () => {
-      const postWithoutCsrf = async (siteId: number): Promise<Response> => {
+      const postDeadlineBump = async (
+        siteId: number,
+        data: Record<string, string>,
+      ): Promise<Response> => {
         const cookie = await testCookie();
         return handleRequest(
           new Request(
             `http://localhost/admin/built-sites/${siteId}/bump-deadline`,
             {
-              body: new URLSearchParams({ months: "1" }).toString(),
+              body: new URLSearchParams({ months: "1", ...data }).toString(),
               headers: {
                 "content-type": "application/x-www-form-urlencoded",
                 cookie,
@@ -51,12 +58,15 @@ describeWithEnv(
 
       test("POST without CSRF token returns 403", async () => {
         const site = await createTestBuiltSite({ name: "CSRF Test Site" });
-        const response = await postWithoutCsrf(site.id);
+        const response = await postDeadlineBump(site.id, {});
         expect(response.status).toBe(403);
       });
 
-      test("POST for a missing site returns 404 before CSRF validation", async () => {
-        const response = await postWithoutCsrf(999999);
+      test("POST for a missing site returns 404 once the form passes the gate", async () => {
+        const { csrfToken } = await getTestSession();
+        const response = await postDeadlineBump(999999, {
+          csrf_token: csrfToken,
+        });
         expect(response.status).toBe(404);
       });
     });

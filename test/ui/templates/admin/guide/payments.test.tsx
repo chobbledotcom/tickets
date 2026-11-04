@@ -25,6 +25,7 @@ describe("payments guide schema", () => {
       { id: "payment-setup", titleKey: "payment_setup" },
       { id: "refunds", titleKey: "refunds" },
       { id: "ledger", titleKey: "ledger" },
+      { id: "invoices", titleKey: "invoices" },
       { id: "holidays", titleKey: "daily_listings_and_holidays" },
     ]);
   });

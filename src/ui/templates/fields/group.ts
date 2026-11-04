@@ -13,7 +13,7 @@ import {
   buildDescriptionField,
   buildHiddenField,
   getSlugField,
-  validateWholeNumber,
+  wholeNumberFieldShape,
 } from "#templates/fields/validators.ts";
 
 /* jscpd:ignore-end */
@@ -26,10 +26,9 @@ const getGroupMaxAttendeesField = () => {
     label,
     min: 0,
     name: "max_attendees",
-    type: "number",
     // The catalog kind (nonNegativeInt) is the declaration the group JSON
     // API enforces. The form refuses the same fraction.
-    validate: validateWholeNumber(label),
+    ...wholeNumberFieldShape(label),
   } satisfies InputField<"max_attendees">;
 };
 

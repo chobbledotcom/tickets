@@ -314,6 +314,7 @@ export const AREAS_A_L = {
       invoiceCancel: "/admin/invoices/:id/cancel",
       invoiceDelete: "/admin/invoices/:id/delete",
       invoiceNew: "/admin/invoices/new",
+      invoicePreview: "/admin/invoices/preview",
     },
   },
   ledger: {

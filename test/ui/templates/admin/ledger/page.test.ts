@@ -12,6 +12,7 @@ import {
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
 import { assertPageMatchesSnapshot } from "#test-utils/page-snapshot.ts";
+import { featureSetting, useSetting } from "#test-utils/settings.ts";
 import { transfer } from "./helpers.ts";
 
 const POPULATED: LedgerPageData = {
@@ -46,6 +47,9 @@ const POPULATED: LedgerPageData = {
 
 describe("the ledger page shell", () => {
   beforeAll(setupAdminPageTest);
+  // The parent build always showed the Invoices link. The switch now controls
+  // it, so name it as an input of these frozen pages.
+  useSetting(featureSetting("invoices"));
 
   test("renders the plain ledger page identically to the parent build", () => {
     const html = adminLedgerPage(

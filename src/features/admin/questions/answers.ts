@@ -48,6 +48,7 @@ import {
 } from "#shared/app-forms.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { ParamsRoute, ResponseHandler } from "#shared/response-steps.ts";
+import { parsePositiveInt } from "#shared/validation/number.ts";
 import {
   type AnswerModifierOption,
   adminAnswerDeletePage,
@@ -259,12 +260,15 @@ export const handleEditAnswerPost: ParamsRoute<AnswerRouteParams> =
       params,
       values: { text },
     }) => {
-      const raw = form.getString("modifier_id");
-      const modifierId = raw ? Number.parseInt(raw, 10) : null;
-      if (
-        modifierId !== null &&
-        !(await answerTriggerModifiers()).some((m) => m.id === modifierId)
-      ) {
+      const rawModifierId = form.getString("modifier_id");
+      const modifierId = rawModifierId ? parsePositiveInt(rawModifierId) : null;
+      // A blank field clears the link. A value that is not an id, or an id
+      // that cannot trigger this answer, is refused, never cleared.
+      const modifierRefused =
+        (rawModifierId !== "" && modifierId === null) ||
+        (modifierId !== null &&
+          !(await answerTriggerModifiers()).some((m) => m.id === modifierId));
+      if (modifierRefused) {
         return errorRedirect(
           editAnswerPath(params),
           t("questions.invalid_modifier"),

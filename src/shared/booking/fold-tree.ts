@@ -19,7 +19,7 @@ import {
 } from "#booking/tree.ts";
 import type { ChildAllocation } from "#db/attendee-types.ts";
 import type { Holiday } from "#db/holidays.ts";
-import { compact, uniqueBy } from "#fp";
+import { compact, requiredMapValue, uniqueBy } from "#fp";
 import { t } from "#i18n";
 import type { FormParams } from "#shared/form-data.ts";
 import type { StandInName } from "#shared/package-privacy.ts";
@@ -151,9 +151,7 @@ const childQtyField = (
   childId: number,
   form: FormParams,
 ): number =>
-  // Strict parse: only a non-negative decimal integer counts. A tampered value
-  // like "2.9", "1abc" or "01" is "none chosen" (0), never a truncated quantity
-  // — matching every other quantity field, which uses the same strict helper.
+  // Only plain digits count. Any other spelling is "none chosen".
   parseNonNegativeInt(
     form.getString(childQuantityFieldName(parentId, childId)),
   ) ?? 0;
@@ -168,9 +166,11 @@ const hasUnavailableChildSelection = (
   const prefix = `child_qty_${parentId}_`;
   return [...form.keys()].some((key) => {
     if (!key.startsWith(prefix)) return false;
-    const childId = Number.parseInt(key.slice(prefix.length), 10);
+    const childId = parseNonNegativeInt(key.slice(prefix.length));
     return (
-      childQtyField(parentId, childId, form) > 0 && !bookableIds.has(childId)
+      childId !== null &&
+      childQtyField(parentId, childId, form) > 0 &&
+      !bookableIds.has(childId)
     );
   });
 };
@@ -322,6 +322,18 @@ export const foldChild = (
   return null;
 };
 
+/** The listing a tree node resolved to. Every node comes from the same
+ * resolved context, so a missing key is a bug. */
+const resolvedNode = (
+  resolved: ReadonlyMap<string, TicketListing>,
+  node: BookingNode,
+): TicketListing =>
+  requiredMapValue(
+    resolved,
+    node.nodeKey,
+    `Booking node ${node.nodeKey} missing`,
+  );
+
 /** Fold one in-cart parent NODE's selected children into `state`: filter its child
  * nodes to those bookable for the resolved date/duration (availability read from
  * `resolved`, keyed by nodeKey), resolve the per-unit selection (children totalling
@@ -343,7 +355,7 @@ const foldParentNode = (
   // Every child node was built from the same resolved context, so its key is
   // always present in `resolved` (non-null by construction).
   const bookable = node.children
-    .map((childNode) => resolved.get(childNode.nodeKey)!)
+    .map((childNode) => resolvedNode(resolved, childNode))
     .filter((child) => childIsBookable(child, { date, duration, holidays }));
   const selections = resolveChildSelections(
     parent,
@@ -402,8 +414,20 @@ export const resolvedByNodeKey = (
     resolved.set(
       node.nodeKey,
       node.edgeRef.kind === "parent_child"
-        ? childByParent.get(node.edgeRef.parentId)!.get(node.listingId)!
-        : topById.get(node.listingId)!,
+        ? requiredMapValue(
+            requiredMapValue(
+              childByParent,
+              node.edgeRef.parentId,
+              `Listing ${node.edgeRef.parentId} missing`,
+            ),
+            node.listingId,
+            `Listing ${node.listingId} missing`,
+          )
+        : requiredMapValue(
+            topById,
+            node.listingId,
+            `Listing ${node.listingId} missing`,
+          ),
     );
   }
   return resolved;
@@ -438,7 +462,7 @@ export const foldBookingTree = (
     // always present in `resolved` (non-null by construction). A listing booked
     // through several paths has one node per path — keep it once here.
     listings: uniqueBy((info: TicketListing) => info.listing.id)(
-      tree.nodes.map((node) => resolved.get(node.nodeKey)!),
+      tree.nodes.map((node) => resolvedNode(resolved, node)),
     ),
     quantities: new Map(base.quantities),
   };
@@ -450,7 +474,7 @@ export const foldBookingTree = (
     const error = foldParentNode(
       state,
       node,
-      resolved.get(node.nodeKey)!,
+      resolvedNode(resolved, node),
       parentQty,
       resolved,
       form,

@@ -8,7 +8,7 @@ import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
 import type { FieldValues } from "#shared/forms/values.ts";
 import { inferTemplate, LISTING_TEMPLATES } from "#shared/listing-templates.ts";
-import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
+import { renderAdminPage } from "#templates/admin/admin-page.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import type { ChildProps } from "#templates/components/child-props.ts";
 import type { AdminSession, Group, ListingWithCount } from "#types";
@@ -34,20 +34,6 @@ const CreateListingFormBody = ({ children }: ChildProps): JSX.Element => (
   </>
 );
 
-/** The admin shell every "new listing" screen shares: the type picker and the
- * create form both sit on the `/admin/listing/new` tab under one title. */
-const listingNewAdminPage = (
-  session: AdminSession,
-  title: string,
-  body: Child,
-): string =>
-  renderAdminPageSpec({
-    active: "/admin/listing/new",
-    body,
-    session,
-    title,
-  });
-
 const createListingFormPage = ({
   beforeForm,
   children,
@@ -63,7 +49,8 @@ const createListingFormPage = ({
   template: ReturnType<typeof inferTemplate>;
   title: string;
 }): string =>
-  listingNewAdminPage(
+  renderAdminPage(
+    "/admin/listing/new",
     session,
     title,
     <>
@@ -96,7 +83,8 @@ const createListingPageFromForm = (
   });
 
 export const adminListingPickerPage = (session: AdminSession): string =>
-  listingNewAdminPage(
+  renderAdminPage(
+    "/admin/listing/new",
     session,
     t("listings_table.add_listing"),
     <>

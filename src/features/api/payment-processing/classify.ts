@@ -28,6 +28,7 @@ import {
   getPaymentProviderForExistingPayments,
   type ValidatedPaymentSession,
 } from "#shared/payments.ts";
+import { parseNonNegativeInt } from "#shared/validation/number.ts";
 import {
   paymentWaitingPage,
   WAITING_PAGE_RELOAD_LIMIT,
@@ -87,9 +88,9 @@ const returnAgainHref = encodedAfter("/payment/success?session_id=");
  * the limit, so a forged `wait` value changes no other page fact. */
 const reloadsSoFarOn = (request: Request | undefined): number => {
   if (request === undefined) return 0;
-  const count = Number(getSearchParam(request, "wait"));
-  if (!Number.isInteger(count)) return 0;
-  return Math.max(0, Math.min(count, WAITING_PAGE_RELOAD_LIMIT));
+  const count = parseNonNegativeInt(getSearchParam(request, "wait"));
+  if (count === null) return 0;
+  return Math.min(count, WAITING_PAGE_RELOAD_LIMIT);
 };
 
 /**

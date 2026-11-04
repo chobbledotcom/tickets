@@ -9,7 +9,7 @@ import {
 } from "#db/groups/membership/package-writes.ts";
 import { getGroupById, packageMembersError } from "#db/groups.ts";
 import { getListingsWithCountsByIds } from "#db/listings/records.ts";
-import { compact } from "#fp";
+import { compact, mapNotNullish, unique } from "#fp";
 import { t } from "#i18n";
 import { createVerifiedFormRoute } from "#routes/admin/confirmation.ts";
 import { contentRecordPage } from "#routes/admin/content-record.ts";
@@ -24,6 +24,8 @@ import {
 import { entityReturnPath } from "#shared/admin-pages.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 import { xCount } from "#shared/count-text.ts";
+import { commaParts } from "#shared/split.ts";
+import { parsePositiveInt } from "#shared/validation/number.ts";
 import { adminGroupRemoveListingsPage } from "#templates/admin/groups/remove-listings.tsx";
 import type { Group, ListingWithCount } from "#types";
 
@@ -55,12 +57,10 @@ const packageListingError = async (
   return null;
 };
 
-/** The chosen listing ids: checkbox values, or one comma-joined hidden field. */
+/** The chosen listing ids: checkbox values, or one comma-joined hidden field.
+ *  A value that is not a plain whole number is dropped. */
 const listingIdsFrom = (values: readonly string[]): number[] =>
-  [...new Set(values)]
-    .flatMap((value) => value.split(","))
-    .map(Number)
-    .filter((n) => n > 0);
+  unique(mapNotNullish(parsePositiveInt)(values.flatMap(commaParts)));
 
 /** The members the selection names, or an empty list when it names none. */
 const selectedMembers = async (

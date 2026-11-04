@@ -25,12 +25,19 @@ const storeDisabledFeatures = async (): Promise<void> => {
   await setAdminFeatureEnabled("site", false);
 };
 
+/** One saved invoice, which is what puts the Invoices feature in use. */
+const saveAnInvoice = (): Promise<unknown> =>
+  execute(
+    "INSERT INTO invoices (attendee_id, body, created, share_token, share_token_index) VALUES (1, 'enc:1:a', '2026-11-04T09:00:00.000Z', 'hyb:1:a', 'index-a')",
+  );
+
 describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
   test("reports every feature unused in an empty database", async () => {
     expect(await getAdminFeatureUsage()).toEqual({
       apiKeys: false,
       attributes: false,
       externalSources: false,
+      invoices: false,
       logistics: false,
       modifiers: false,
       money: false,
@@ -47,6 +54,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
       apiKeys: true,
       attributes: true,
       externalSources: false,
+      invoices: false,
       logistics: false,
       modifiers: true,
       money: false,
@@ -91,6 +99,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
       apiKeys: false,
       attributes: true,
       externalSources: false,
+      invoices: false,
       logistics: true,
       modifiers: true,
       money: false,
@@ -153,6 +162,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
       apiKeys: false,
       attributes: false,
       externalSources: false,
+      invoices: false,
       logistics: false,
       modifiers: true,
       money: false,
@@ -174,6 +184,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
       apiKeys: false,
       attributes: false,
       externalSources: false,
+      invoices: false,
       logistics: false,
       modifiers: true,
       money: true,
@@ -214,6 +225,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
       apiKeys: false,
       attributes: false,
       externalSources: false,
+      invoices: false,
       logistics: false,
       modifiers: false,
       money: true,
@@ -241,6 +253,20 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
 
     expect(await setAdminFeatureEnabled("modifiers", false)).toBe(false);
     expect((await storedFeatures()).modifiers).toBe(true);
+  });
+
+  test("an invoice puts the Invoices feature in use", async () => {
+    await saveAnInvoice();
+
+    expect((await getAdminFeatureUsage()).invoices).toBe(true);
+  });
+
+  test("does not disable Invoices while one is saved", async () => {
+    await setAdminFeatureEnabled("invoices", true);
+    await saveAnInvoice();
+
+    expect(await setAdminFeatureEnabled("invoices", false)).toBe(false);
+    expect((await storedFeatures()).invoices).toBe(true);
   });
 
   test("re-enables a feature when its first record arrives after disable", async () => {
@@ -347,7 +373,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
   test("rejects malformed stored feature JSON after a field write", async () => {
     await execute(
       "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-      [CONFIG_KEYS.ENABLED_FEATURES, '{"money":false}'],
+      [CONFIG_KEYS.ENABLED_FEATURES, '{"money":false,"attributes":"false"}'],
     );
 
     await expect(setAdminFeatureEnabled("money", true)).rejects.toThrow(
@@ -355,10 +381,10 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
     );
   });
 
-  test("rolls back a feature record when the stored feature setting is incomplete", async () => {
+  test("rolls back a feature record when the stored feature setting is invalid", async () => {
     await execute(
       "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-      [CONFIG_KEYS.ENABLED_FEATURES, '{"attributes":false}'],
+      [CONFIG_KEYS.ENABLED_FEATURES, '{"attributes":"false"}'],
     );
 
     await expect(
@@ -369,13 +395,13 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
     ).toBeNull();
   });
 
-  test("rolls back Logistics cleanup when the stored feature setting is incomplete", async () => {
+  test("rolls back Logistics cleanup when the stored feature setting is invalid", async () => {
     await settings.update.listingDefaults({
       hidden: true,
       usesLogistics: true,
     });
     const defaultsBefore = await settingValue(CONFIG_KEYS.LISTING_DEFAULTS);
-    const featuresBefore = '{"logistics":true}';
+    const featuresBefore = '{"logistics":"true"}';
     await execute(
       "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
       [CONFIG_KEYS.ENABLED_FEATURES, featuresBefore],

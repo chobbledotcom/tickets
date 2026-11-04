@@ -30,7 +30,16 @@ import { defineOrderedCollection } from "#db/ordered-collection.ts";
 import { col, defineTable } from "#db/table.ts";
 import { txIdSetInTable } from "#db/transaction.ts";
 /* jscpd:ignore-start */
-import { filter, groupToMap, map, reduce, sort, unique, uniqueBy } from "#fp";
+import {
+  filter,
+  groupToMap,
+  map,
+  reduce,
+  requiredMapValue,
+  sort,
+  unique,
+  uniqueBy,
+} from "#fp";
 import type { Listing } from "#types";
 /* jscpd:ignore-end */
 
@@ -189,8 +198,6 @@ const decryptAttributeRows = async (
   };
 };
 
-const known = <T>(items: Map<number, T>, id: number): T => items.get(id)!;
-
 const buildAttributeGroups = (
   rows: JoinedAttributeRow[],
   decrypted: DecryptedAttributeRows,
@@ -198,11 +205,21 @@ const buildAttributeGroups = (
   ...reduce(
     (acc: Map<number, AttributeWithOptions>, row: JoinedAttributeRow) => {
       const group = acc.get(row.attribute_id) ?? {
-        ...known(decrypted.attributes, row.attribute_id),
+        ...requiredMapValue(
+          decrypted.attributes,
+          row.attribute_id,
+          `Attribute ${row.attribute_id} missing`,
+        ),
         options: [],
       };
       if (row.option_id !== null) {
-        group.options.push(known(decrypted.options, row.option_id));
+        group.options.push(
+          requiredMapValue(
+            decrypted.options,
+            row.option_id,
+            `Option ${row.option_id} missing`,
+          ),
+        );
       }
       return acc.set(row.attribute_id, group);
     },

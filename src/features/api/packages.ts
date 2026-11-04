@@ -16,7 +16,7 @@ import {
 import { packageBundleTotal } from "#booking/price-tree.ts";
 import { type BookingTree, fixedQuantitiesByListingId } from "#booking/tree.ts";
 import { getActiveHolidays } from "#db/holidays.ts";
-import { byId } from "#fp";
+import { byId, requiredMapValue } from "#fp";
 import { apiError, apiResponse } from "#routes/api/cors.ts";
 import {
   applyChildSelectionsToForm,
@@ -180,7 +180,11 @@ export const handleGetPackage = withPackageContext(
             );
           return {
             name: e.listing.name,
-            quantity: memberQuantities.get(e.listing.id)!,
+            quantity: requiredMapValue(
+              memberQuantities,
+              e.listing.id,
+              `Listing ${e.listing.id} missing`,
+            ),
             slug: e.listing.slug,
             ...(children.length > 0 ? { children } : {}),
           };

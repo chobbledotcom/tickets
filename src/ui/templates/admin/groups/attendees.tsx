@@ -1,4 +1,5 @@
 import type { PairBookings } from "#booking/ticket-moves.ts";
+import { requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import {
   attendeeLineRow,
@@ -28,7 +29,14 @@ const buildAttendeeRows = (
   // These attendees are scoped to this group's loaded listings.
   return withPairBookings(pairBookings)(
     attendees.map((attendee) =>
-      attendeeLineRow(attendee, listingMap.get(attendee.listing_id)!),
+      attendeeLineRow(
+        attendee,
+        requiredMapValue(
+          listingMap,
+          attendee.listing_id,
+          `Listing ${attendee.listing_id} missing`,
+        ),
+      ),
     ),
   );
 };

@@ -4,6 +4,7 @@
  * removal. They refuse the change when it orphans a child-scoped add-on.
  */
 
+/* jscpd:ignore-start -- imports */
 import { resultRows, type TxScope } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import {
@@ -25,10 +26,12 @@ import {
   toListingGroupMembership,
 } from "#db/modifier-resolve.ts";
 import { modifierGroups } from "#db/modifiers.ts";
-import { once } from "#fp";
+import { once, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { requireValue } from "#shared/required-value.ts";
+
+/* jscpd:ignore-end */
 
 /** The user-facing refusal a reachability guard returns, or null when the
  * change it judged is safe. */
@@ -202,7 +205,11 @@ const firstChildUnreachableAddOnForListings = (
       {
         active: modifier.active,
         name: modifier.name,
-        scope: scopes.get(modifier.id)!,
+        scope: requiredMapValue(
+          scopes,
+          modifier.id,
+          `Modifier ${modifier.id} missing`,
+        ),
         trigger: modifier.trigger,
       },
       childListingIds,

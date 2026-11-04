@@ -6,6 +6,7 @@
 
 import { isServicing } from "#db/attendees/kind.ts";
 import type { AttendeeQuestionData } from "#db/questions/attendee-answers/reads.ts";
+import { requiredMapValue } from "#fp";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { getEffectiveDomain } from "#shared/config.ts";
@@ -119,7 +120,13 @@ const questionColumns = (data?: AttendeeQuestionData): Column<Attendee>[] => {
       }
       const ids = answerMap.get(a.id) ?? [];
       const matched = ids.find((id) => q.answers.some((ans) => ans.id === id));
-      return matched ? answerText.get(matched)! : "";
+      return matched
+        ? requiredMapValue(
+            answerText,
+            matched,
+            `Question ${q.id} answer ${matched} missing`,
+          )
+        : "";
     },
   }));
 };

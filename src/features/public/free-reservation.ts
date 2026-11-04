@@ -18,6 +18,7 @@ import {
   groupListingAnswerSets,
   prepareAttendeeAnswerSave,
 } from "#db/questions/attendee-answers/save.ts";
+import { requiredMapValue } from "#fp";
 import type { ListingAnswerMaps } from "#routes/public/ticket-form.ts";
 import { refusedOrderItem } from "#shared/attendee-failures.ts";
 import { createdBookingEntries } from "#shared/booking.ts";
@@ -135,7 +136,11 @@ export const createFreeReservation = async ({
   // its attendee from the batch's own ticket token.
   const sealedActivities = await sealBookedActivities(
     finalBookings.map((booking) => {
-      const listing = listingById.get(booking.listingId)!;
+      const listing = requiredMapValue(
+        listingById,
+        booking.listingId,
+        `Listing ${booking.listingId} missing`,
+      );
       return {
         listing,
         message: registeredActivityMessage(listing.name),

@@ -10,7 +10,10 @@ import {
   getTicketFields,
   type TicketFormValues,
 } from "#templates/fields/ticket.ts";
-import { validateDate } from "#templates/fields/validators.ts";
+import {
+  validateDate,
+  wholeNumberFieldShape,
+} from "#templates/fields/validators.ts";
 import type { ListingFields } from "#types";
 
 /** Typed values from the admin add-attendee form. */
@@ -26,7 +29,7 @@ const addAttendeeQuantityField: Field = {
   min: 1,
   name: "quantity",
   required: true,
-  type: "number",
+  ...wholeNumberFieldShape("Quantity"),
 };
 
 /** Date field for admin add-attendee form (daily listings only) */

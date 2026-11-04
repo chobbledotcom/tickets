@@ -1,3 +1,4 @@
+import { requiredMapValue } from "#fp";
 /** The exact combined capacity of one parent's required children.
  *
  *  Every parent ticket takes one place in each capped group the parent
@@ -5,8 +6,6 @@
  *  group that child belongs to. The answer is how many whole parent tickets
  *  the children can serve together on one date. Pure data-in, data-out, so
  *  every rule is testable without the site. */
-
-import { requireValue } from "#shared/required-value.ts";
 
 /** One child's part in a parent's combined capacity: the child's group ids
  *  and the child's own per-listing ceiling. */
@@ -35,7 +34,11 @@ export const minOver = (
 ): number | undefined =>
   groupIds.length === 0
     ? undefined
-    : Math.min(...groupIds.map((groupId) => byGroup.get(groupId)!));
+    : Math.min(
+        ...groupIds.map((groupId) =>
+          requiredMapValue(byGroup, groupId, `Group ${groupId} missing`),
+        ),
+      );
 
 /** The capacity parts of one parent's required children: each child's groups
  *  read from one listing-to-groups lookup, each child's units from its own
@@ -104,11 +107,15 @@ const childFlowBound = (
   for (const [index, child] of children.entries()) {
     capacity[0]![index + 1] = child.ownMax;
     for (const groupId of child.pools) {
-      capacity[index + 1]![poolNode.get(groupId)!] = need;
+      capacity[index + 1]![
+        requiredMapValue(poolNode, groupId, `Group ${groupId} missing`)
+      ] = need;
     }
   }
   for (const groupId of poolIds) {
-    capacity[poolNode.get(groupId)!]![sink] = residual.get(groupId)!;
+    capacity[requiredMapValue(poolNode, groupId, `Group ${groupId} missing`)]![
+      sink
+    ] = requiredMapValue(residual, groupId, `Group ${groupId} missing`);
   }
   let flow = 0;
   // Edmonds-Karp: augment along breadth-first paths until the sink is cut
@@ -175,7 +182,10 @@ const roomForChild = (
 ): number => {
   let room = Math.min(child.ownMax, left);
   for (const groupId of child.pools) {
-    room = Math.min(room, remaining.get(groupId)!);
+    room = Math.min(
+      room,
+      requiredMapValue(remaining, groupId, `Group ${groupId} missing`),
+    );
   }
   return room;
 };
@@ -230,7 +240,10 @@ const spendAcrossPool = (
   groupId: number,
   units: number,
 ): void => {
-  remaining.set(groupId, remaining.get(groupId)! + units);
+  remaining.set(
+    groupId,
+    requiredMapValue(remaining, groupId, `Group ${groupId} missing`) + units,
+  );
 };
 
 /** Move `units` of one child's lines across every pool the child draws
@@ -326,8 +339,9 @@ export const combinedChildCapacityForParent = (
   }
   if (capped.length === 0) return free;
   const remainingOf = (groupId: number): number =>
-    requireValue(
-      remainingByGroupId.get(groupId),
+    requiredMapValue(
+      remainingByGroupId,
+      groupId,
       `Group ${groupId} missing from the remaining map`,
     );
   const ownTotal = free + capped.reduce((sum, child) => sum + child.ownMax, 0);

@@ -19,7 +19,7 @@ import {
   getStoredListingWithCount,
   listingNames,
 } from "#db/listings/records.ts";
-import { mapNotNullish } from "#fp";
+import { mapNotNullish, requiredMapValue } from "#fp";
 import { withGroupOrNull } from "#routes/admin/find-group.ts";
 import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
 import {
@@ -127,7 +127,11 @@ export const exportListing = async (
   // Every membership row references an existing group (FK), and `groupNames`
   // covers all groups, so the name lookup always resolves.
   const groupMemberships: ListingMembership[] = memberships.map((m) => ({
-    group: groupNames.get(m.group_id)!,
+    group: requiredMapValue(
+      groupNames,
+      m.group_id,
+      `Group ${m.group_id} missing`,
+    ),
     ...overrideFields(
       m.package_price,
       m.quantity,
@@ -174,7 +178,11 @@ export const exportGroup = (
     // Every package row references an existing listing (FK), and `namesByListing`
     // covers exactly those ids, so the name lookup always resolves.
     const members: GroupMember[] = rows.map((row) => ({
-      listing: namesByListing.get(row.listing_id)!,
+      listing: requiredMapValue(
+        namesByListing,
+        row.listing_id,
+        `Listing ${row.listing_id} missing`,
+      ),
       ...overrideFields(
         row.package_price,
         row.quantity,

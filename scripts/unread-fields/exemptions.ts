@@ -452,11 +452,32 @@ const exactExemptions = exactFieldExemptions([
   ),
 ]);
 
+/** The modifier resource hands its input to the table, which reads one input
+ * key per column at run time. */
+const modifierInputFields = exemptFieldsUnder(
+  [["src/shared/db/modifiers.ts", [{ name: "ModifierInput" }]]],
+  [
+    "calcKind",
+    "calcValue",
+    "codeIndex",
+    "direction",
+    "maxPerOrder",
+    "minSubtotal",
+    "stock",
+  ],
+  {
+    evidence:
+      "table.insert and table.update read the input by each column's key at run time",
+    kind: "schema-driven",
+  },
+);
+
 export const UNREAD_FIELD_EXEMPTIONS: readonly FindingExemption[] = [
   ...adminApiResources,
   ...adminApiServes,
   ...bodyExemptions,
   ...exactExemptions,
+  ...modifierInputFields,
   ...publicListings,
   ...settingsPageStates,
   ...siteDataBlobs,

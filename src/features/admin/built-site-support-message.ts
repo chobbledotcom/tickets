@@ -6,35 +6,29 @@ import {
   saveSiteSupportMessage,
   supportMessageTooLong,
 } from "#shared/site-support-message.ts";
-import {
-  builtSiteAction,
-  builtSiteTabError,
-  builtSiteTabResult,
-} from "./built-site-action.ts";
-
-const saveSupportMessageResult = builtSiteTabResult(
-  "support-message",
-  (error) => t("built_sites.support_message_save_failed", { error }),
-);
+import { builtSiteFormPost } from "./built-site-form.ts";
+import { answerTab, refuseTab } from "./built-site-tab.ts";
 
 /** POST /admin/built-sites/:id/support-message — persistence is one variable
  * upsert, so an exact replay saves the same text again. */
-export const handleSaveSiteSupportMessage = builtSiteAction(
-  "/admin/built-sites/:id/support-message",
-  async (site, form, id) => {
+export const handleSaveSiteSupportMessage = builtSiteFormPost(
+  async (site, _session, form, _request) => {
     // Raw, not getString: markdown's own meaning (an indented code block,
     // the blank line before a list) lives in the whitespace.
     const value = form.getRaw("support_message");
     if (supportMessageTooLong(value)) {
-      return builtSiteTabError(
-        id,
+      return refuseTab(
         "support-message",
+        site.id,
         t("built_sites.support_message_too_long"),
       );
     }
-    return saveSupportMessageResult(t("built_sites.support_message_saved"))(
-      id,
+    return answerTab(
+      "support-message",
+      site.id,
       await saveSiteSupportMessage(site, value),
+      t("built_sites.support_message_saved"),
+      (error) => t("built_sites.support_message_save_failed", { error }),
     );
   },
 );

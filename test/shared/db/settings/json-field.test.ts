@@ -87,7 +87,7 @@ describeWithEnv("db > settings JSON fields", { db: true }, () => {
   test("validates an unchanged stored object", async () => {
     await execute(
       "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-      [CONFIG_KEYS.ENABLED_FEATURES, '{"money":true}'],
+      [CONFIG_KEYS.ENABLED_FEATURES, '{"money":true,"site":"false"}'],
     );
 
     await expect(

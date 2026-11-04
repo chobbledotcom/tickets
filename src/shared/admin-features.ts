@@ -72,6 +72,13 @@ export const ADMIN_FEATURES = [
     labelKey: "features.external_sources.name",
     slug: "external-sources",
   },
+  {
+    descriptionKey: "features.invoices.description",
+    inUseSql: "EXISTS (SELECT 1 FROM invoices AS invoice)",
+    key: "invoices",
+    labelKey: "features.invoices.name",
+    slug: "invoices",
+  },
 ] as const;
 
 export type AdminFeatureDefinition = (typeof ADMIN_FEATURES)[number];
@@ -82,13 +89,7 @@ const FEATURE_KEYS = ADMIN_FEATURES.map(
   (feature) => feature.key,
 ) as AdminFeatureKey[];
 
-const EnabledFeaturesSchema = v.pipe(
-  v.record(v.picklist(FEATURE_KEYS), v.boolean()),
-  v.check(
-    (features) => FEATURE_KEYS.every((key) => Object.hasOwn(features, key)),
-    "Every admin feature must have an enabled value",
-  ),
-);
+const EnabledFeaturesSchema = v.record(v.picklist(FEATURE_KEYS), v.boolean());
 const enabledFeaturesJson = defineStoredJson(EnabledFeaturesSchema);
 
 const DEFAULT_ENABLED_FEATURES = Object.freeze(
@@ -96,14 +97,16 @@ const DEFAULT_ENABLED_FEATURES = Object.freeze(
 ) as EnabledFeatures;
 
 /** Parse the plain JSON setting. An absent row is the expected all-hidden
- * default. Malformed or incomplete stored JSON is an error. */
-export const parseEnabledFeatures = (value: string): EnabledFeatures =>
-  value === ""
-    ? DEFAULT_ENABLED_FEATURES
-    : (enabledFeaturesJson.read(
-        value,
-        "settings.enabled_features",
-      ) as EnabledFeatures);
+ * default. A key the stored JSON lacks reads as off, so a new feature needs no
+ * migration. An unknown or non-boolean key is malformed and throws. */
+export const parseEnabledFeatures = (value: string): EnabledFeatures => {
+  if (value === "") return DEFAULT_ENABLED_FEATURES;
+  const stored = enabledFeaturesJson.read(
+    value,
+    "settings.enabled_features",
+  ) as Partial<EnabledFeatures>;
+  return { ...DEFAULT_ENABLED_FEATURES, ...stored };
+};
 
 export const serializeEnabledFeatures = (features: EnabledFeatures): string =>
   enabledFeaturesJson.write(features, "settings.enabled_features");

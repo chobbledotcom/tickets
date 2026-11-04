@@ -26,6 +26,7 @@ import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";
 import { isIsoDate } from "#shared/validation/date-string.ts";
 import { EmailFormatSchema } from "#shared/validation/email.ts";
 import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
+import { parseSignedInt } from "#shared/validation/number.ts";
 import { validatorFor } from "#shared/validation/parse.ts";
 import { isContactField } from "#types";
 /* jscpd:ignore-end */
@@ -37,28 +38,42 @@ export const validateHttpsDomainUrl = (value: string): string | null =>
   validateSafeServerFetchUrl(value, t("fields.validation.url_https"));
 
 /**
- * Validate a required non-negative price. Currency-aware: rejects a blank, a
- * negative, a non-numeric value, AND an amount carrying more decimal places than
- * the active currency allows (so `1.005` in GBP is a validation error rather
- * than a value that later rounds to 101 pence).
+ * Validate a required non-negative price for the active currency. A blank, a
+ * negative, or a non-numeric value is refused. So is an amount with more
+ * decimal places than the currency allows. `1.005` in GBP is a validation
+ * error, not a value that later rounds to 101 pence.
  */
 export const validateNonNegativePrice = (value: string): string | null =>
   parseOptionalMinorUnits(value) === null
     ? t("fields.validation.price_min")
     : null;
 
-/** Refuses a fraction. The field's declared min covers the range. */
-export const validateWholeNumber =
-  (label: string) =>
-  (value: string): string | null => {
-    const n = Number(value);
-    return Number.isSafeInteger(n)
-      ? null
-      : t("fields.validation.whole_number", { label });
-  };
-
 /** One field's answer to a submitted value: why it was refused, or null. */
 type ValueCheck = (value: string) => string | null;
+
+/** Refuse anything but a plain whole number, so a fraction and an exponent
+ *  fail. The field supplies its own copy, for a rule the shared wording does
+ *  not fit. The message is a function so the copy is read inside the request,
+ *  not when the field is built. */
+export const wholeNumberCheck =
+  (message: () => string): ValueCheck =>
+  (value) =>
+    parseSignedInt(value) === null ? message() : null;
+
+/** Refuse anything but a plain whole number, naming the field. */
+export const validateWholeNumber = (label: string): ValueCheck =>
+  wholeNumberCheck(() => t("fields.validation.whole_number", { label }));
+
+/** The one way to declare a whole-number form field: the parser that refuses
+ *  a malformed value, the check that names the field, and the number input.
+ *  The field declares its own label, bounds, and whether it is required, and
+ *  its bounds refuse the range and speak for it. */
+export const wholeNumberFieldShape = (label: string) =>
+  ({
+    parse: parseSignedInt,
+    type: "number",
+    validate: validateWholeNumber(label),
+  }) as const;
 
 /** Refuses a value the schema turns down, with the message that says why. */
 const checkedBy =

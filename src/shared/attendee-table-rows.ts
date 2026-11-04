@@ -7,9 +7,8 @@
  */
 
 import type { PairBookings } from "#booking/ticket-moves.ts";
-import { sumOf } from "#fp";
+import { requiredMapValue, sumOf } from "#fp";
 import { pairKey } from "#shared/keys.ts";
-import { requireValue } from "#shared/required-value.ts";
 import type {
   AttendeeRowListing,
   AttendeeTableRow,
@@ -37,7 +36,7 @@ export const withPairBookings =
       const key = pairKey(row.attendee.id, row.listings[0]!.id);
       return {
         ...row,
-        booking: requireValue(bookings.get(key), `No booking read for ${key}`),
+        booking: requiredMapValue(bookings, key, `No booking read for ${key}`),
       };
     });
 

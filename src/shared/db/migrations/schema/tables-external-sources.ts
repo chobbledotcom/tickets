@@ -1,17 +1,22 @@
 /** The external sources directory: places records are also kept, and the
  *  records' ids there. */
 
+/* jscpd:ignore-start */
 import { EXTERNAL_LINK_KINDS } from "#db/external-sources/types.ts";
-import { createdColumn } from "./scalar-columns.ts";
-import type { Column, Table } from "./types.ts";
+import { datedRowColumns } from "./columns.ts";
+import {
+  checked,
+  oneOf,
+  text,
+  textOrNull,
+  wholeNumber,
+} from "./scalar-columns.ts";
+import type { Table } from "./types.ts";
 
-/** The generated key both directory tables carry. */
-const idColumn: Column = ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"];
+/* jscpd:ignore-end */
 
 /** The record kinds a link can point at, as a CHECK the database enforces. */
-const linkKindCheck = `link_type IN (${EXTERNAL_LINK_KINDS.map(
-  (kind) => `'${kind}'`,
-).join(", ")})`;
+const linkKind = oneOf("link_type", EXTERNAL_LINK_KINDS)(text);
 
 export const externalSourceTables: [name: string, table: Table][] = [
   [
@@ -20,12 +25,7 @@ export const externalSourceTables: [name: string, table: Table][] = [
     // so only an admin session reads them.
     "external_sources",
     {
-      columns: [
-        idColumn,
-        ["name", "TEXT NOT NULL"],
-        ["url_pattern", "TEXT NOT NULL"],
-        createdColumn,
-      ],
+      columns: [...datedRowColumns, ["name", text], ["url_pattern", text]],
     },
   ],
 
@@ -38,16 +38,17 @@ export const externalSourceTables: [name: string, table: Table][] = [
     "external_source_links",
     {
       columns: [
-        idColumn,
-        ["source_id", "INTEGER NOT NULL"],
-        ["link_type", `TEXT NOT NULL CHECK (${linkKindCheck})`],
-        ["link_id", "INTEGER NOT NULL"],
-        ["external_id", "TEXT"],
+        ...datedRowColumns,
+        ["source_id", wholeNumber],
+        ["link_type", linkKind],
+        ["link_id", wholeNumber],
+        ["external_id", textOrNull],
         [
           "external_id_index",
-          "TEXT CHECK ((external_id_index IS NULL) = (external_id IS NULL))",
+          checked("(external_id_index IS NULL) = (external_id IS NULL)")(
+            textOrNull,
+          ),
         ],
-        createdColumn,
       ],
       indexes: [
         {

@@ -13,7 +13,7 @@ import {
   fixedQuantitiesByListingId,
   packageSubTree,
 } from "#booking/tree.ts";
-import { sumByKey, sumOf } from "#fp";
+import { requiredMapValue, sumByKey, sumOf } from "#fp";
 import {
   childCapacityPartsFor,
   combinedChildCapacityForParent,
@@ -59,17 +59,23 @@ export const packageLimitInfo = (
  * page-level {@link PackageLimitInfo} once and maps each package over
  * {@link pagePackageBundleLimit}, so callers stop re-stating the four
  * limit-info arguments per call site. */
-export const pageBundleLimits = (
+/** One page package with the bundle limit computed for it. */
+export type PackageBundleLimit<P extends TreePackage = TreePackage> = {
+  limit: number;
+  pkg: P;
+};
+
+/** Each page package with its bundle limit, in page order. A caller that walks
+ *  packages for rendering takes these pairs, so it never looks a limit up. */
+export const pageBundleLimits = <P extends TreePackage>(
   tree: BookingTree,
-  packages: readonly TreePackage[],
+  packages: readonly P[],
   page: PackageLimitInfo,
-): Map<number, number> =>
-  new Map(
-    packages.map((pkg) => [
-      pkg.groupId,
-      pagePackageBundleLimit(tree, pkg, page),
-    ]),
-  );
+): PackageBundleLimit<P>[] =>
+  packages.map((pkg) => ({
+    limit: pagePackageBundleLimit(tree, pkg, page),
+    pkg,
+  }));
 
 /** A child without the `dateLessCap` rule has no date-less stock ceiling of
  * its own, so only the parent's limit clamps the pair before a date is
@@ -159,7 +165,11 @@ const limitedGroupsFor = (
     .filter((groupId) => ctx.groupRemainingByGroupId.has(groupId))
     .map((groupId) => ({
       groupId,
-      remaining: ctx.groupRemainingByGroupId.get(groupId)!,
+      remaining: requiredMapValue(
+        ctx.groupRemainingByGroupId,
+        groupId,
+        `Group ${groupId} missing`,
+      ),
     }));
 
 const smallestLimitedGroupFor = (
@@ -203,7 +213,14 @@ const childGroupLimit = (
   parts: readonly ChildLimitPart[],
 ): number =>
   sumOf(([groupId, ownLimit]: [number, number]) =>
-    sharedGroupTicketLimit(ctx.groupRemainingByGroupId.get(groupId)!, ownLimit),
+    sharedGroupTicketLimit(
+      requiredMapValue(
+        ctx.groupRemainingByGroupId,
+        groupId,
+        `Group ${groupId} missing`,
+      ),
+      ownLimit,
+    ),
   )([
     ...sumByKey(
       (part: Extract<ChildLimitPart, { kind: "childGroup" }>) => part.groupId,
@@ -304,7 +321,11 @@ const packageChildrenToBook = (
   return membersWithBookableChildren(ctx)
     .map(({ member, children }) => ({
       children,
-      packageQty: memberQty.get(member.listing.id)!,
+      packageQty: requiredMapValue(
+        memberQty,
+        member.listing.id,
+        `Listing ${member.listing.id} missing`,
+      ),
     }))
     .filter(({ children }) => children.length > 0);
 };
@@ -354,7 +375,8 @@ const singleChildLimits = (needs: readonly OneChildNeed[]): number[] => {
   );
   return limitsFromPooledNeeds<OneChildNeed>(
     (need) => need.childId,
-    (childId) => limitByChildId.get(childId)!,
+    (childId) =>
+      requiredMapValue(limitByChildId, childId, `Listing ${childId} missing`),
   )(needs);
 };
 
@@ -366,7 +388,12 @@ const sharedChildGroupLimits = (
     (need) => need.groupId,
     // Every groupId here came from `groupNeedsFor(ctx)`, which only emits ids it
     // already found in `ctx.groupRemainingByGroupId`, so the lookup always hits.
-    (groupId) => ctx.groupRemainingByGroupId.get(groupId)!,
+    (groupId) =>
+      requiredMapValue(
+        ctx.groupRemainingByGroupId,
+        groupId,
+        `Group ${groupId} missing`,
+      ),
   )(needs);
 
 const sharedChildrenAcrossMembersLimit = (
