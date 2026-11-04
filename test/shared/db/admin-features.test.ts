@@ -25,6 +25,12 @@ const storeDisabledFeatures = async (): Promise<void> => {
   await setAdminFeatureEnabled("site", false);
 };
 
+/** One saved invoice, which is what puts the Invoices feature in use. */
+const saveAnInvoice = (): Promise<unknown> =>
+  execute(
+    "INSERT INTO invoices (attendee_id, body, created, share_token, share_token_index) VALUES (1, 'enc:1:a', '2026-11-04T09:00:00.000Z', 'hyb:1:a', 'index-a')",
+  );
+
 describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
   test("reports every feature unused in an empty database", async () => {
     expect(await getAdminFeatureUsage()).toEqual({
@@ -241,6 +247,20 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
 
     expect(await setAdminFeatureEnabled("modifiers", false)).toBe(false);
     expect((await storedFeatures()).modifiers).toBe(true);
+  });
+
+  test("an invoice puts the Invoices feature in use", async () => {
+    await saveAnInvoice();
+
+    expect((await getAdminFeatureUsage()).invoices).toBe(true);
+  });
+
+  test("does not disable Invoices while one is saved", async () => {
+    await setAdminFeatureEnabled("invoices", true);
+    await saveAnInvoice();
+
+    expect(await setAdminFeatureEnabled("invoices", false)).toBe(false);
+    expect((await storedFeatures()).invoices).toBe(true);
   });
 
   test("re-enables a feature when its first record arrives after disable", async () => {

@@ -6,6 +6,7 @@
  */
 
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
+import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
 import { hasAssignedBuiltSite } from "#db/built-sites/claims.ts";
 import { getAttendeeInvoices, type InvoiceSummary } from "#db/invoices.ts";
 import {
@@ -53,11 +54,7 @@ import { writeFormTab } from "#routes/admin/entity-write-tab.ts";
 import { loadPreviousBookings } from "#routes/admin/previous-bookings.ts";
 import { refundReferenceProblemMessage } from "#routes/admin/refunds/readiness-problem.ts";
 import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
-import {
-  adminPath,
-  adminPattern,
-  adminRecordPath,
-} from "#shared/admin-surface.ts";
+import { adminPattern, adminRecordPath } from "#shared/admin-surface.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { isIncompletePayment } from "#shared/incomplete-payment.ts";
 import { withReturnUrl } from "#shared/return-url-field.tsx";
@@ -77,9 +74,16 @@ import {
   type PaymentRefreshControl,
 } from "#templates/admin/attendees.tsx";
 import { isOwnerRole } from "#types";
+import {
+  canCreateInvoice,
+  invoiceCreatePath,
+} from "./attendee-invoice-link.ts";
 import { attendeeNoteFeature } from "./attendee-notes.ts";
 
 type AttendeePageEntity = LoadedAttendee & {
+  /** Whether the site offers to invoice this booking — one fact, read by the
+   *  Actions tab's link. */
+  readonly canCreateInvoice: boolean;
   readonly invoices: InvoiceSummary[];
   readonly paymentMove: PaymentMoveSnapshot | "not_loaded";
 };
@@ -103,18 +107,26 @@ const paymentRefreshControl = (
 };
 
 /** Payment move state is loaded only for the Actions tab. The Invoice tab and
- *  the create-invoice links read the attendee's invoices. */
+ *  the create-invoice links read the attendee's invoices, its balance, and the
+ *  rule that decides the link. */
 const loadAttendeePageEntity = async (
   id: number,
 ): Promise<AttendeePageEntity | null> => {
   const entity = await loadAttendeeForEdit(id);
-  return entity === null
-    ? null
-    : {
-        ...entity,
-        invoices: await getAttendeeInvoices(id),
-        paymentMove: "not_loaded",
-      };
+  if (entity === null) return null;
+  const [invoices, balance] = await Promise.all([
+    getAttendeeInvoices(id),
+    getAttendeeBalanceState(id),
+  ]);
+  return {
+    ...entity,
+    canCreateInvoice: canCreateInvoice({
+      balance,
+      hasNewInvoice: invoices.some((invoice) => invoice.status === "new"),
+    }),
+    invoices,
+    paymentMove: "not_loaded",
+  };
 };
 
 type AttendeeActionName = keyof typeof attendeeActions;
@@ -195,14 +207,13 @@ const ATTENDEE_ACTIONS: readonly ActionDef<AttendeePageEntity>[] = [
   }),
   {
     destination: "invoiceNew",
-    href: ({ attendee }) =>
-      `${adminPath("invoiceNew", {})}?attendee=${attendee.id}`,
+    href: ({ attendee }) => invoiceCreatePath(attendee.id),
     icon: "plus",
     labelKey: "invoices.action.create",
-    // A booking has one new invoice at a time, so the link waits until the
-    // open one is cancelled or paid.
-    visible: ({ invoices }) =>
-      !invoices.some((invoice) => invoice.status === "new"),
+    // The Invoices switch, read-only mode, an outstanding balance, and an
+    // existing new invoice all decide this, and the Money tab reads the same
+    // rule.
+    visible: ({ canCreateInvoice }) => canCreateInvoice,
   },
   {
     destination: "sms",

@@ -15,11 +15,14 @@ import {
 } from "#db/attendees/balance.ts";
 import { getOpenInvoice } from "#db/invoices.ts";
 import { loadAccountLedger } from "#routes/admin/ledger/statements.ts";
-import { adminPath } from "#shared/admin-surface.ts";
 import { signBalanceToken } from "#shared/balance-link.ts";
 import { isPaymentsEnabled } from "#shared/config.ts";
 import { computeReservationDeposit } from "#shared/reservation-amount.ts";
 import { AttendeeLedgerPanel } from "#templates/admin/attendee-ledger-panel.tsx";
+import {
+  canCreateInvoice,
+  invoiceCreatePath,
+} from "./attendee-invoice-link.ts";
 
 /** Build the Ledger tab's merged panel for an already-loaded attendee. */
 export const loadAttendeeLedgerPanel = async (
@@ -52,12 +55,15 @@ export const loadAttendeeLedgerPanel = async (
     activityHref,
     deposit,
     fullLedgerHref: `/admin/ledger/${account.type}/${account.id}`,
-    // An invoice bills what the booking still owes, so the link shows only for
-    // an outstanding balance that no open invoice already covers.
-    invoiceHref:
-      state.remainingBalance > 0 && openInvoice === null
-        ? `${adminPath("invoiceNew", {})}?attendee=${attendeeId}`
-        : null,
+    // An invoice bills what the booking still owes. The link shows only under
+    // the rule the Actions tab reads: Invoices on, money owing, and no new
+    // invoice.
+    invoiceHref: canCreateInvoice({
+      balance: state,
+      hasNewInvoice: openInvoice !== null,
+    })
+      ? invoiceCreatePath(attendeeId)
+      : null,
     ledger,
     link: `${baseUrl}/pay/${token}`,
     // The customer pay link only works when a provider can take the payment.
