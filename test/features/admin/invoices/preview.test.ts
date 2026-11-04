@@ -19,7 +19,7 @@ import {
   pageText,
   previewedBody,
   previewInvoice,
-} from "./invoice-helpers.ts";
+} from "../invoice-helpers.ts";
 
 describeWithEnv("server (admin invoice preview)", { db: true }, () => {
   test("the preview shows the rendered invoice and the template it uses", async () => {
