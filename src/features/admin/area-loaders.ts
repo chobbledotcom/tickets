@@ -86,6 +86,7 @@ export const ADMIN_AREA_LOADERS: Record<AdminAreaId, AdminAreaLoader> = {
       "date-picker",
       "detail-rows",
       "entity-pages",
+      "invoices",
       "ledger",
       "listing-qr",
       "listings-table",
