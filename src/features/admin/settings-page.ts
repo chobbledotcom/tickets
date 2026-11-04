@@ -8,10 +8,10 @@ import { getAdminFeatureUsage } from "#db/admin-features.ts";
 /* jscpd:ignore-start */
 import { serializeTaxPolicy } from "#db/settings/tax.ts";
 import { settings } from "#db/settings.ts";
-import { type AuthSession, authPage, pageGuardFor } from "#routes/auth.ts";
+import type { AuthSession } from "#routes/auth.ts";
+import { authPageAt } from "#routes/route-gates.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { enabledFeaturesWithUsage } from "#shared/admin-features.ts";
-import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { getCdnHostname } from "#shared/bunny-cdn.ts";
 import {
   getBunnyDnsSubdomainSuffix,
@@ -191,23 +191,19 @@ const renderAdvancedSettingsPage = async (
  * Handle GET /admin/settings - owner only
  */
 export const handleAdminSettingsGet: TypedRouteHandler<"GET /admin/settings"> =
-  authPage(pageGuardFor(adminDestinationAt("/admin/settings")))((session) =>
-    renderSettingsPage(session),
-  );
+  authPageAt("/admin/settings")((session) => renderSettingsPage(session));
 
 /**
  * Handle GET /admin/settings-advanced - owner only
  */
 export const handleAdminSettingsAdvancedGet: TypedRouteHandler<"GET /admin/settings-advanced"> =
-  authPage(pageGuardFor(adminDestinationAt("/admin/settings-advanced")))(
-    async (session) => {
-      const flash = getFlash();
-      const [subdomainPreview = "", subdomainPreviewFullDomain = ""] =
-        flash.result ? flash.result.split("\n") : [];
-      return await renderAdvancedSettingsPage(
-        session,
-        subdomainPreview,
-        subdomainPreviewFullDomain,
-      );
-    },
-  );
+  authPageAt("/admin/settings-advanced")(async (session) => {
+    const flash = getFlash();
+    const [subdomainPreview = "", subdomainPreviewFullDomain = ""] =
+      flash.result ? flash.result.split("\n") : [];
+    return await renderAdvancedSettingsPage(
+      session,
+      subdomainPreview,
+      subdomainPreviewFullDomain,
+    );
+  });

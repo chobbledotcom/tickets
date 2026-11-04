@@ -1,5 +1,6 @@
-import { type AuthSession, pageGuardRun } from "#routes/auth.ts";
+import type { AuthSession } from "#routes/auth.ts";
 import { notFoundResponse } from "#routes/response.ts";
+import { pageGuardRun } from "#routes/route-gates.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 
 /** Gate a request by its route's declaration and load the data its handler

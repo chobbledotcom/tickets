@@ -10,30 +10,20 @@
  * no longer be recorded anew.
  */
 
-import { consoleOutput } from "#scripts/check-report.ts";
-import {
-  countsRose,
-  readCounts,
-  recordedState,
-  updateMode,
-} from "#scripts/check-runner.ts";
+import { countsCheckExit } from "#scripts/check-runner.ts";
 import { SOURCE_DIRS } from "#scripts/source-dirs.ts";
 import {
   filesWithDoubleCasts,
   runDoubleCastsCheck,
 } from "./check-double-casts/run.ts";
 
-const BASELINE_PATH = new URL(
-  "./check-double-casts/baseline.json",
-  import.meta.url,
-).pathname;
-
-const accepted = await recordedState(
-  BASELINE_PATH,
-  updateMode(Deno.args),
-  await readCounts(BASELINE_PATH),
-  () => filesWithDoubleCasts(SOURCE_DIRS),
-  countsRose,
+Deno.exit(
+  await countsCheckExit(
+    import.meta.url,
+    "./check-double-casts/baseline.json",
+    Deno.args,
+    SOURCE_DIRS,
+    filesWithDoubleCasts,
+    runDoubleCastsCheck,
+  ),
 );
-
-Deno.exit(await runDoubleCastsCheck(SOURCE_DIRS, accepted, consoleOutput));

@@ -4,7 +4,15 @@ These are pure data — slices of a table's `columns` array that two or more
 tables declare identically. Keeping them here means one definition instead of
 duplicated column lists that can drift. */
 
+/* jscpd:ignore-start -- imports */
+import {
+  rowId,
+  text,
+  wholeNumber,
+  wholeNumberStartingAtZero,
+} from "./scalar-columns.ts";
 import type { Column } from "./types.ts";
+/* jscpd:ignore-end */
 
 /**
  * Columns shared by slug-addressed named entities (groups, site_pages): an
@@ -13,10 +21,29 @@ import type { Column } from "./types.ts";
  * etc.) — the four columns above are the shared header.
  */
 export const slugNamedEntityColumns: Column[] = [
-  ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-  ["slug", "TEXT NOT NULL"],
-  ["slug_index", "TEXT NOT NULL"],
-  ["name", "TEXT NOT NULL"],
+  ["id", rowId],
+  ["slug", text],
+  ["slug_index", text],
+  ["name", text],
+];
+
+/** The attendee an owned row belongs to. Every attendee-owned table declares
+ *  it the same way. */
+export const attendeeIdColumn: Column = ["attendee_id", wholeNumber];
+
+/**
+ * The header a dated table carries: its own id, and when its row was made.
+ * Callers spread this first, then append their own columns.
+ */
+export const datedRowColumns: Column[] = [
+  ["id", rowId],
+  ["created", text],
+];
+
+/** The position of a row within its list. A new row starts at zero. */
+export const sortOrderColumn: Column = [
+  "sort_order",
+  wholeNumberStartingAtZero,
 ];
 
 /**
@@ -26,9 +53,9 @@ export const slugNamedEntityColumns: Column[] = [
  * spreading these.
  */
 export const itemLinkColumns: Column[] = [
-  ["item_type", "TEXT NOT NULL"],
-  ["item_id", "INTEGER NOT NULL"],
-  ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
+  ["item_type", text],
+  ["item_id", wholeNumber],
+  sortOrderColumn,
 ];
 
 /**
@@ -36,6 +63,6 @@ export const itemLinkColumns: Column[] = [
  * made. Callers spread this last, after their own columns.
  */
 export const statefulColumns: Column[] = [
-  ["state", "TEXT NOT NULL"],
-  ["created_at", "TEXT NOT NULL"],
+  ["state", text],
+  ["created_at", text],
 ];

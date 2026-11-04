@@ -6,17 +6,11 @@ import {
 } from "#routes/admin/confirmation.ts";
 import type { EditErrorRenderer } from "#routes/admin/entity-write-tab.ts";
 import type { CrudHandlers } from "#routes/admin/route-tables.ts";
-import {
-  type AuthSession,
-  authPage,
-  formPolicyFor,
-  pageGuardFor,
-  type SessionGuard,
-  withAuth,
-} from "#routes/auth.ts";
+import { type AuthSession, authPage, type SessionGuard } from "#routes/auth.ts";
 /* jscpd:ignore-start */
 import { type IdRouteHandler, idRouteFor } from "#routes/entity.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
+import { formGuardAt, pageGuardAt } from "#routes/route-gates.ts";
 import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
 import {
   adminDestination,
@@ -100,14 +94,6 @@ type CrudGates = {
   list: SessionGuard<AuthSession>;
   new: SessionGuard<AuthSession>;
 };
-
-const formGuardAt = (pattern: string): FormGuard<AuthSession> => {
-  const policy = formPolicyFor(adminDestinationAt(pattern));
-  return (request, handle) => withAuth(request, policy, handle);
-};
-
-const pageGuardAt = (pattern: string): SessionGuard<AuthSession> =>
-  pageGuardFor(adminDestinationAt(pattern));
 
 const crudGates = (listPath: string): CrudGates => {
   const deletePath = `${listPath}/:id/delete`;

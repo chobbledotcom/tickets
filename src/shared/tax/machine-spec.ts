@@ -8,6 +8,7 @@ import { assessTax } from "#shared/tax/assessment.ts";
 import {
   reassessTax,
   refundTax,
+  TAX_STATE_KINDS,
   type TaxState,
 } from "#shared/tax/transitions.ts";
 import { NO_TAX, type TaxBasis, type TaxPolicy } from "#shared/tax/types.ts";
@@ -124,24 +125,23 @@ export const TAX_EVENTS: readonly TaxMachineEvent[] = [
   ]),
 ];
 
-export const TAX_NODES: readonly MachineNode<TaxMachineState, TaxNodeId>[] = (
-  ["active", "refunded"] as const
-).map((kind) => ({
-  id: kind,
-  reps: TAX_BASES.flatMap(({ id, basis }) =>
-    TAX_POLICIES.flatMap((held) =>
-      TAX_POLICIES.flatMap((setting) =>
-        [0, 2].map((revision) =>
-          machineRep(`${id}/${held.id}/${setting.id}/${revision}`, {
-            booking: {
-              assessment: assessTax(basis, held.policy),
-              kind,
-              revision,
-            },
-            setting: setting.policy,
-          }),
+export const TAX_NODES: readonly MachineNode<TaxMachineState, TaxNodeId>[] =
+  TAX_STATE_KINDS.map((kind) => ({
+    id: kind,
+    reps: TAX_BASES.flatMap(({ id, basis }) =>
+      TAX_POLICIES.flatMap((held) =>
+        TAX_POLICIES.flatMap((setting) =>
+          [0, 2].map((revision) =>
+            machineRep(`${id}/${held.id}/${setting.id}/${revision}`, {
+              booking: {
+                assessment: assessTax(basis, held.policy),
+                kind,
+                revision,
+              },
+              setting: setting.policy,
+            }),
+          ),
         ),
       ),
     ),
-  ),
-}));
+  }));

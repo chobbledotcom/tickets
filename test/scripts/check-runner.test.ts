@@ -10,6 +10,7 @@ import {
 import {
   type Counts,
   compareCounts,
+  countsByPath,
   countsCheckExit,
   countsRose,
   ratchetedState,
@@ -55,6 +56,15 @@ describe("reading the counts a check ratchets on", () => {
     await expect(readCounts(negative)).rejects.toThrow();
     const fractional = writeCounts('{ "a.md": 1.5 }');
     await expect(readCounts(fractional)).rejects.toThrow();
+  });
+
+  test("counts findings per path and leaves paths without findings out", () => {
+    const counts = countsByPath([
+      { path: "a.test.ts" },
+      { path: "a.test.ts" },
+      { path: "b.test.ts" },
+    ]);
+    expect(counts).toEqual({ "a.test.ts": 2, "b.test.ts": 1 });
   });
 });
 

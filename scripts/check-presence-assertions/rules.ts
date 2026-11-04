@@ -31,18 +31,6 @@ export const presenceFindings = (
 ): TestQualityFinding[] =>
   findWeakPattern(path, content, { message: RULE, pattern: PRESENCE_PATTERN });
 
-/** One count per file that holds at least one finding, so a file the fix
- * cleared drops its registry entry. */
-export const countsByPath = (
-  findings: readonly TestQualityFinding[],
-): Counts => {
-  const counts: Counts = {};
-  for (const finding of findings) {
-    counts[finding.path] = (counts[finding.path] ?? 0) + 1;
-  }
-  return counts;
-};
-
 /** One file's findings against its recorded count: the calls past the count
  * fail, a fallen count asks for its record, and a file with no call left but
  * an entry asks for the entry's deletion. */
