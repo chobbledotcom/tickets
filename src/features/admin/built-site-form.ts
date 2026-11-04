@@ -5,9 +5,10 @@
 /* jscpd:ignore-start -- imports */
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { builtSitesCrudTable } from "#db/built-sites.ts";
-import { type AuthSession, formGuard, formPolicyFor } from "#routes/auth.ts";
+import type { AuthSession } from "#routes/auth.ts";
 import { createIdEntityHandler, type IdParam } from "#routes/entity.ts";
-import { adminDestination } from "#shared/admin-surface.ts";
+import { formGuardAt } from "#routes/route-gates.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 /* jscpd:ignore-end */
@@ -25,7 +26,7 @@ export type BuiltSitePost = ResponseHandler<
 >;
 
 /** Every built-sites route declares the same audience, so the record page's
- * form policy is the one gate they share. */
+ * gate is the one they share. */
 export const builtSiteFormPost = createIdEntityHandler<BuiltSite>((id) =>
   builtSitesCrudTable.read.one({ id }),
-)(formGuard(formPolicyFor(adminDestination("builtSite"))));
+)(formGuardAt(adminPattern("builtSite")));
