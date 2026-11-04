@@ -7,12 +7,11 @@
  */
 
 import { logActivity } from "#db/activity-log.ts";
-import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { listingsTable } from "#db/listings/records.ts";
 /* jscpd:ignore-start */
 import { compact } from "#fp";
 import { t } from "#i18n";
 import { CONTENT_FORM, formGuard } from "#routes/auth.ts";
-import { createIdEntityHandler } from "#routes/entity.ts";
 import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { entityReturnPath } from "#shared/admin-pages.ts";
@@ -27,8 +26,8 @@ import {
   validateAttachment,
 } from "#shared/storage.ts";
 import { tryDeleteFile } from "#shared/storage-cleanup.ts";
-
 import type { ListingWithCount } from "#types";
+import { type ListingCommand, listingFormRoute } from "./listing-entity.ts";
 
 /* jscpd:ignore-end */
 
@@ -138,17 +137,13 @@ export const processUploadsAndRedirect = async (
   return redirect(redirectUrl, successMessage, true);
 };
 
-const listingUploadHandler = createIdEntityHandler<ListingWithCount>(
-  getListingWithCount,
-)(formGuard(CONTENT_FORM));
-
 /** Generic handler for deleting a listing's uploaded file. */
 const handleFileDelete = (
   label: string,
   getUrl: (e: ListingWithCount) => string,
   clearFields: Partial<ListingInput>,
-): TypedRouteHandler<`POST /admin/listing/:id/${string}/delete`> =>
-  listingUploadHandler(async (listing, _session, _form, _request, { id }) => {
+): TypedRouteHandler<`POST /admin/listing/:id/${string}/delete`> => {
+  const removeFile: ListingCommand = async (listing, id) => {
     const returnPath = entityReturnPath("/admin/listings", id);
     const url = getUrl(listing);
     if (url) {
@@ -174,7 +169,9 @@ const handleFileDelete = (
       t("listings_table.file_removed", { label }),
       true,
     );
-  });
+  };
+  return listingFormRoute(formGuard(CONTENT_FORM), removeFile);
+};
 
 /** Handle POST /admin/listing/:id/attachment/delete (delete listing attachment) */
 export const handleAttachmentDelete = handleFileDelete(

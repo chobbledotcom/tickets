@@ -8,11 +8,12 @@ import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import { hasRecentBackup } from "#db/backup-storage.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
-import { formPolicyAt, gatedPost, pageGuardFor } from "#routes/auth.ts";
+import { gatedPost } from "#routes/auth.ts";
 /* jscpd:ignore-start -- imports */
 import { authFlashPage } from "#routes/auth-flash-page.ts";
 import { adminRedirect } from "#routes/response.ts";
-import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
+import { formPolicyAt, pageGuardAt } from "#routes/route-gates.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#shared/build-info.ts";
 import {
   getBunnyScriptId,
@@ -67,7 +68,7 @@ const getUpdatePageState = (): UpdatePageState => {
 
 /** GET /admin/update — show current version and update status */
 const handleUpdateGet = authFlashPage(
-  pageGuardFor(adminDestinationAt("/admin/update")),
+  pageGuardAt("/admin/update"),
   (session, error, success) =>
     adminUpdatePage(session, getUpdatePageState(), error, success),
 );
