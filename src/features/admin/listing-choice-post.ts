@@ -1,16 +1,16 @@
+/* jscpd:ignore-start -- imports */
 import { logActivity } from "#db/activity-log.ts";
-/* jscpd:ignore-start */
-import { getListingWithCount } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
-import { formGuard, formPolicyFor } from "#routes/auth.ts";
-import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
+import type { IdRouteHandler } from "#routes/entity.ts";
 import { notFoundResponse, redirect } from "#routes/response.ts";
-/* jscpd:ignore-end */
+import { formGuardAt } from "#routes/route-gates.ts";
 import type { AdminFeatureKey } from "#shared/admin-features.ts";
-import { adminDestinationAt } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { countLabel } from "#shared/format-units.ts";
+import { listingWithCountHandler } from "./listing-entity.ts";
+
+/* jscpd:ignore-end */
 
 type ListingChoicePostConfig = {
   feature: AdminFeatureKey;
@@ -37,9 +37,7 @@ export const createListingChoicePost = ({
   saveIds,
   tab,
 }: ListingChoicePostConfig): IdRouteHandler =>
-  createIdEntityHandler<
-    NonNullable<Awaited<ReturnType<typeof getListingWithCount>>>
-  >(getListingWithCount)(formGuard(formPolicyFor(adminDestinationAt(pattern))))(
+  listingWithCountHandler(formGuardAt(pattern))(
     async (listing, _session, form, _request, { id }) => {
       if (!settings.features[feature]) return notFoundResponse();
       const ids = readIds

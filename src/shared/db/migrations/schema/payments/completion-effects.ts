@@ -1,17 +1,19 @@
+/* jscpd:ignore-start -- imports */
 import {
-  paymentRecord,
+  text,
   wholeNumber,
   wholeNumberOrNull,
-  words,
-} from "./columns.ts";
+} from "#db/migrations/schema/scalar-columns.ts";
+import { paymentRecord } from "./columns.ts";
+/* jscpd:ignore-end */
 
 export const paymentCompletionEffectsTable = paymentRecord(
   "payment_completion_effects",
   {
     columns: [
-      ["effect", words()],
-      ["record_id", wholeNumberOrNull()],
-      ["completed_at", wholeNumber()],
+      ["effect", text],
+      ["record_id", wholeNumberOrNull],
+      ["completed_at", wholeNumber],
     ],
     indexes: [
       {

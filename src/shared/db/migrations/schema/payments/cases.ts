@@ -1,34 +1,36 @@
+/* jscpd:ignore-start -- imports */
 import {
-  ownerEncryptedPaymentColumn,
-  paymentRecord,
+  text,
+  textOrNull,
   wholeNumber,
   wholeNumberOrNull,
-  words,
-  wordsOrNull,
-} from "./columns.ts";
+  wholeNumberStartingAtOne,
+} from "#db/migrations/schema/scalar-columns.ts";
+import { ownerEncryptedColumn, paymentRecord } from "./columns.ts";
+/* jscpd:ignore-end */
 
 export const paymentCaseTable = paymentRecord("payment_cases", {
   columns: [
-    ["resource", ownerEncryptedPaymentColumn("resource")],
-    ["resource_index", words()],
-    ["reason", words()],
-    ["state", words()],
-    ["first_observed_at", wholeNumber()],
-    ["last_observed_at", wholeNumber()],
-    ["next_reconcile_at", wholeNumberOrNull()],
-    ["consecutive_count", wholeNumber()],
-    ["alerted_at", wholeNumberOrNull()],
-    ["alerted_revision", wholeNumberOrNull()],
-    ["alert_sent_at", wholeNumberOrNull()],
-    ["alert_sent_revision", wholeNumberOrNull()],
+    ownerEncryptedColumn("resource"),
+    ["resource_index", text],
+    ["reason", text],
+    ["state", text],
+    ["first_observed_at", wholeNumber],
+    ["last_observed_at", wholeNumber],
+    ["next_reconcile_at", wholeNumberOrNull],
+    ["consecutive_count", wholeNumber],
+    ["alerted_at", wholeNumberOrNull],
+    ["alerted_revision", wholeNumberOrNull],
+    ["alert_sent_at", wholeNumberOrNull],
+    ["alert_sent_revision", wholeNumberOrNull],
     // An empty claim matches another empty one, so two workers can both
     // send the owner the same alert.
-    ["alert_lease_token", wordsOrNull()],
-    ["alert_lease_expires_at", wholeNumberOrNull()],
-    ["evidence", ownerEncryptedPaymentColumn("evidence")],
-    ["evidence_redacted_at", wholeNumberOrNull()],
-    ["revision", wholeNumber(1)],
-    ["resolved_at", wholeNumberOrNull()],
+    ["alert_lease_token", textOrNull],
+    ["alert_lease_expires_at", wholeNumberOrNull],
+    ownerEncryptedColumn("evidence"),
+    ["evidence_redacted_at", wholeNumberOrNull],
+    ["revision", wholeNumberStartingAtOne],
+    ["resolved_at", wholeNumberOrNull],
   ],
   indexes: [
     {

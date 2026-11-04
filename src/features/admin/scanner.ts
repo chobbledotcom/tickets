@@ -3,7 +3,6 @@ import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getAllGroupNames, getGroupById } from "#db/groups.ts";
 import { getListingPickerNames } from "#db/listings/catalog.ts";
-import { getListingWithCount } from "#db/listings/records.ts";
 import { PRUNE_SCAN_OPERATIONS_RETENTION_DAYS } from "#db/processed-scan-operations.ts";
 import { filter, groupToMap, sumOf } from "#fp";
 import { sortedByString } from "#fp-strings";
@@ -26,6 +25,7 @@ import {
   type TicketOption,
 } from "#templates/admin/scanner.tsx";
 import { type Attendee, type Group, hasTicketQuantity } from "#types";
+import { listingWithCountHandler } from "./listing-entity.ts";
 import {
   groupScope,
   listingScope,
@@ -81,31 +81,29 @@ const manualCheckinOptions = (
   }));
 
 /** Handle GET /admin/listing/:id/scanner - render scanner page */
-const handleScannerGet: IdRouteHandler = createIdEntityHandler<
-  NonNullable<Awaited<ReturnType<typeof getListingWithCount>>>
->(getListingWithCount)(pageGuardFor(adminDestination("listingScanner")))(
-  async (listing, session) => {
-    // A "No check-in" listing has no door: the doors list hides it, and a
-    // guessed URL meets the same answer as an unknown listing.
-    if (listing.purchase_only) return notFoundResponse();
-    const privateKey = await requireRequestPrivateKey();
-    const attendees = await decryptAttendees(
-      await getAttendeesRaw(listing.id),
-      privateKey,
-    );
-    return htmlResponse(
-      adminScannerPage(
-        listing,
-        `/admin/listing/${listing.id}/scan`,
-        session,
-        manualCheckinOptions(attendees, null),
-        false,
-        pageDoorCacheKey(doorCacheName("listing", listing.id)),
-        PRUNE_SCAN_OPERATIONS_RETENTION_DAYS,
-      ),
-    );
-  },
-);
+const handleScannerGet: IdRouteHandler = listingWithCountHandler(
+  pageGuardFor(adminDestination("listingScanner")),
+)(async (listing, session) => {
+  // A "No check-in" listing has no door: the doors list hides it, and a
+  // guessed URL meets the same answer as an unknown listing.
+  if (listing.purchase_only) return notFoundResponse();
+  const privateKey = await requireRequestPrivateKey();
+  const attendees = await decryptAttendees(
+    await getAttendeesRaw(listing.id),
+    privateKey,
+  );
+  return htmlResponse(
+    adminScannerPage(
+      listing,
+      `/admin/listing/${listing.id}/scan`,
+      session,
+      manualCheckinOptions(attendees, null),
+      false,
+      pageDoorCacheKey(doorCacheName("listing", listing.id)),
+      PRUNE_SCAN_OPERATIONS_RETENTION_DAYS,
+    ),
+  );
+});
 
 /** Handle GET /admin/groups/:id/scanner - render the group scanner page */
 const handleGroupScannerGet: IdRouteHandler = createIdEntityHandler<Group>(

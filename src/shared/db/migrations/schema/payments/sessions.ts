@@ -1,15 +1,15 @@
 /* jscpd:ignore-start -- imports */
-import type { Table } from "#db/migrations/schema/types.ts";
 import {
-  alsoAbout,
-  keyWords,
-  madeAndTouched,
-  ownerEncryptedPaymentColumnOrNull,
-  wholeNumber,
+  aboutTheRow,
+  defaulted,
+  requiredTextKey,
+  text,
+  textOrNull,
   wholeNumberOrNull,
-  words,
-  wordsOrNull,
-} from "./columns.ts";
+  wholeNumberStartingAtOne,
+} from "#db/migrations/schema/scalar-columns.ts";
+import type { Table } from "#db/migrations/schema/types.ts";
+import { madeAndTouched, ownerEncryptedRuleOrNull } from "./columns.ts";
 
 /* jscpd:ignore-end */
 
@@ -23,9 +23,11 @@ const HIDDEN_COLUMNS = [
   "legacy_runtime",
 ];
 
-/** The only rule the table keeps: the buyer's details really are hidden. */
-const aboutThePayment = alsoAbout(
-  HIDDEN_COLUMNS.map(ownerEncryptedPaymentColumnOrNull),
+/** The only rule the table keeps: the buyer's details really are hidden. The
+ *  rule carries its own brackets because it hangs on a whole row, not on the
+ *  column it rides on. */
+const ABOUT_THE_PAYMENT = HIDDEN_COLUMNS.map(
+  (name) => `(${ownerEncryptedRuleOrNull(name)})`,
 );
 
 export const paymentSessionTable: [name: string, table: Table] = [
@@ -34,32 +36,32 @@ export const paymentSessionTable: [name: string, table: Table] = [
     columns: [
       // SQLite lets a text primary key hold NULL, so the key says NOT NULL
       // outright rather than relying on being the key.
-      ["id", keyWords()],
-      ["origin", words()],
-      ["provider", wordsOrNull()],
-      ["mode", wordsOrNull()],
-      ["account_id", wordsOrNull()],
-      ["session_resource", wordsOrNull()],
-      ["session_reference_index", wordsOrNull()],
-      ["expected_amount", wholeNumberOrNull()],
-      ["expected_currency", wordsOrNull()],
-      ["booking_intent", wordsOrNull()],
-      ["checkout_create", wordsOrNull()],
-      ["state", words()],
-      ["revision", wholeNumber(1)],
+      ["id", requiredTextKey],
+      ["origin", text],
+      ["provider", textOrNull],
+      ["mode", textOrNull],
+      ["account_id", textOrNull],
+      ["session_resource", textOrNull],
+      ["session_reference_index", textOrNull],
+      ["expected_amount", wholeNumberOrNull],
+      ["expected_currency", textOrNull],
+      ["booking_intent", textOrNull],
+      ["checkout_create", textOrNull],
+      ["state", text],
+      ["revision", wholeNumberStartingAtOne],
       ...madeAndTouched,
-      ["lease_token", wordsOrNull()],
-      ["lease_expires_at", wholeNumberOrNull()],
-      ["next_reconcile_at", wholeNumberOrNull()],
-      ["attendee_id", wholeNumberOrNull()],
-      ["result_state", words("none")],
-      ["result", wordsOrNull()],
-      ["ticket_state", words("none")],
-      ["ticket_tokens", wordsOrNull()],
-      ["completion_state", words("none")],
-      ["completion", wordsOrNull()],
-      ["redacted_at", wholeNumberOrNull()],
-      ["legacy_runtime", aboutThePayment(wordsOrNull())],
+      ["lease_token", textOrNull],
+      ["lease_expires_at", wholeNumberOrNull],
+      ["next_reconcile_at", wholeNumberOrNull],
+      ["attendee_id", wholeNumberOrNull],
+      ["result_state", defaulted(text, "none")],
+      ["result", textOrNull],
+      ["ticket_state", defaulted(text, "none")],
+      ["ticket_tokens", textOrNull],
+      ["completion_state", defaulted(text, "none")],
+      ["completion", textOrNull],
+      ["redacted_at", wholeNumberOrNull],
+      ["legacy_runtime", aboutTheRow(ABOUT_THE_PAYMENT)(textOrNull)],
     ],
     indexes: [
       {

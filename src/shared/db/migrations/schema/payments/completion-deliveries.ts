@@ -1,19 +1,20 @@
+/* jscpd:ignore-start -- imports */
 import {
-  ownerEncryptedPaymentColumn,
-  paymentRecord,
+  text,
   wholeNumberOrNull,
-  words,
-} from "./columns.ts";
+} from "#db/migrations/schema/scalar-columns.ts";
+import { ownerEncryptedColumn, paymentRecord } from "./columns.ts";
+/* jscpd:ignore-end */
 
 export const paymentCompletionDeliveriesTable = paymentRecord(
   "payment_completion_deliveries",
   {
     columns: [
-      ["delivery_key", words()],
+      ["delivery_key", text],
       // The message carries the buyer's name, email, phone and address, so the
       // table demands it be hidden rather than trusting every writer to.
-      ["data", ownerEncryptedPaymentColumn("data")],
-      ["completed_at", wholeNumberOrNull()],
+      ownerEncryptedColumn("data"),
+      ["completed_at", wholeNumberOrNull],
     ],
     indexes: [
       {

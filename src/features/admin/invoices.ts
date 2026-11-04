@@ -28,13 +28,7 @@ import { map, unique } from "#fp";
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
-import {
-  authPage,
-  formGuard,
-  formPolicyAt,
-  pageGuardFor,
-  withAuth,
-} from "#routes/auth.ts";
+import { withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { createIdEntityHandler, orNotFound } from "#routes/entity.ts";
 import {
@@ -42,12 +36,15 @@ import {
   errorRedirect,
   htmlResponse,
 } from "#routes/response.ts";
-import type { TypedRouteHandler } from "#routes/router.ts";
 import {
-  adminDestinationAt,
-  adminPath,
-  adminPattern,
-} from "#shared/admin-surface.ts";
+  authPageAt,
+  formGuardAt,
+  formPolicyAt,
+  pageGuardAt,
+} from "#routes/route-gates.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
+import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
+import { adminPath, adminPattern } from "#shared/admin-surface.ts";
 import { getActiveEmailConfig } from "#shared/email.ts";
 import { sendEmailOk } from "#shared/email-ok.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -104,30 +101,28 @@ const createdMessage = (number: number, delivered: boolean): string =>
     { number },
   );
 
-const handleInvoicesGet = authPage(
-  pageGuardFor(adminDestinationAt(adminPattern("invoices"))),
-)(async (session, _request, flash) => {
-  const privateKey = await requireRequestPrivateKey();
-  const invoices = await getInvoices();
-  const attendeeNames = await getAttendeeNamesByIds(
-    unique(map((invoice: InvoiceSummary) => invoice.attendee_id)(invoices)),
-    privateKey,
-  );
-  return adminInvoicesPage({ attendeeNames, flash, invoices, session });
-});
+const handleInvoicesGet = authPageAt(adminPattern("invoices"))(
+  async (session, _request, flash) => {
+    const privateKey = await requireRequestPrivateKey();
+    const invoices = await getInvoices();
+    const attendeeNames = await getAttendeeNamesByIds(
+      unique(map((invoice: InvoiceSummary) => invoice.attendee_id)(invoices)),
+      privateKey,
+    );
+    return adminInvoicesPage({ attendeeNames, flash, invoices, session });
+  },
+);
 
 const handleInvoiceNewGet: TypedRouteHandler<"GET /admin/invoices/new"> =
-  authPage(pageGuardFor(adminDestinationAt(adminPattern("invoiceNew"))))(
-    async (session, request, flash) => {
-      const attendee = new URL(request.url).searchParams.get("attendee");
-      return adminInvoiceNewPage({
-        attendeeId: attendee === null ? null : parsePositiveInt(attendee),
-        flash,
-        nextNumber: await nextInvoiceNumber(),
-        session,
-      });
-    },
-  );
+  authPageAt(adminPattern("invoiceNew"))(async (session, request, flash) => {
+    const attendee = new URL(request.url).searchParams.get("attendee");
+    return adminInvoiceNewPage({
+      attendeeId: attendee === null ? null : parsePositiveInt(attendee),
+      flash,
+      nextNumber: await nextInvoiceNumber(),
+      session,
+    });
+  });
 
 /** What a validated create form loaded: the booking, its money, and the
  *  number the invoice will take. */
@@ -276,7 +271,7 @@ const handleInvoiceNewPost: TypedRouteHandler<"POST /admin/invoices/new"> = (
 
 /** One invoice page, loaded and gated by the shared record-page factory. */
 const invoicePageFor = createIdEntityHandler(getInvoice)(
-  pageGuardFor(adminDestinationAt(adminPattern("invoice"))),
+  pageGuardAt(adminPattern("invoice")),
 );
 
 const handleInvoiceGet: TypedRouteHandler<"GET /admin/invoices/:id"> =
@@ -305,11 +300,13 @@ const handleInvoiceGet: TypedRouteHandler<"GET /admin/invoices/:id"> =
     });
   });
 
+/** A command route on one stored invoice, gated by its route declaration. */
+const invoiceCommand = (pattern: AdminDestinationId) =>
+  createIdEntityHandler(getInvoice)(formGuardAt(adminPattern(pattern)));
+
 /** A command on one stored invoice answers 404 when its row is gone. */
 const handleInvoiceCancelPost: TypedRouteHandler<"POST /admin/invoices/:id/cancel"> =
-  createIdEntityHandler(getInvoice)(
-    formGuard(formPolicyAt(adminPattern("invoiceCancel"))),
-  )(async (invoice) => {
+  invoiceCommand("invoiceCancel")(async (invoice) => {
     if (!(await cancelInvoice(invoice.id))) {
       return errorRedirect(
         adminPath("invoice", { id: invoice.id }),
@@ -325,9 +322,7 @@ const handleInvoiceCancelPost: TypedRouteHandler<"POST /admin/invoices/:id/cance
   });
 
 const handleInvoiceDeletePost: TypedRouteHandler<"POST /admin/invoices/:id/delete"> =
-  createIdEntityHandler(getInvoice)(
-    formGuard(formPolicyAt(adminPattern("invoiceDelete"))),
-  )(async (invoice) => {
+  invoiceCommand("invoiceDelete")(async (invoice) => {
     await deleteInvoice(invoice.id);
     return adminRedirect(
       "invoices",

@@ -31,14 +31,7 @@ import {
   renderServicingPage,
   type ServicingPrefill,
 } from "#routes/admin/servicing/page.tsx";
-import {
-  type AuthSession,
-  authPage,
-  formGuard,
-  formPolicyFor,
-  pageGuardFor,
-  withAuth,
-} from "#routes/auth.ts";
+import { type AuthSession, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { createEntityHandler, createIdEntityHandler } from "#routes/entity.ts";
 import {
@@ -46,8 +39,13 @@ import {
   htmlResponse,
   notFoundResponse,
 } from "#routes/response.ts";
+import {
+  authPageAt,
+  formGuardAt,
+  formPolicyAt,
+  pageGuardAt,
+} from "#routes/route-gates.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { adminDestinationAt } from "#shared/admin-surface.ts";
 import {
   applyDemoOverrides,
   SERVICING_DEMO_FIELDS,
@@ -107,33 +105,28 @@ const loadEditPage = async (
 };
 
 const handleServicingNewGet: TypedRouteHandler<"GET /admin/servicing/new"> =
-  authPage(pageGuardFor(adminDestinationAt("/admin/servicing/new")))(
-    (session, request) => renderCreate(request, session),
+  authPageAt("/admin/servicing/new")((session, request) =>
+    renderCreate(request, session),
   );
 
 const handleServicingListGet: TypedRouteHandler<"GET /admin/servicing"> =
-  authPage(pageGuardFor(adminDestinationAt("/admin/servicing")))(
-    async (session) => {
-      const [listings, events] = await Promise.all([
-        getAllListings(),
-        getAllServicingEvents(await requireRequestPrivateKey()),
-      ]);
-      return renderServicingList(session, events, listings);
-    },
-  );
+  authPageAt("/admin/servicing")(async (session) => {
+    const [listings, events] = await Promise.all([
+      getAllListings(),
+      getAllServicingEvents(await requireRequestPrivateKey()),
+    ]);
+    return renderServicingList(session, events, listings);
+  });
 
 const handleServicingGet: TypedRouteHandler<"GET /admin/servicing/:id"> = (
   request,
   { id },
 ) =>
-  pageGuardFor(adminDestinationAt("/admin/servicing/:id"))(
-    request,
-    async (session) => {
-      applyFlash(request);
-      const page = await loadEditPage(id, session);
-      return page ? htmlResponse(page) : notFoundResponse();
-    },
-  );
+  pageGuardAt("/admin/servicing/:id")(request, async (session) => {
+    applyFlash(request);
+    const page = await loadEditPage(id, session);
+    return page ? htmlResponse(page) : notFoundResponse();
+  });
 
 const parseCreateInput = async (form: FormParams) => {
   applyDemoOverrides(form, SERVICING_DEMO_FIELDS);
@@ -201,7 +194,7 @@ const handleServicingNewPost: TypedRouteHandler<"POST /admin/servicing/new"> = (
 ) =>
   withAuth(
     request,
-    formPolicyFor(adminDestinationAt("/admin/servicing/new")),
+    formPolicyAt("/admin/servicing/new"),
     async (_session, form) => {
       try {
         const input = await parseCreateInput(form);
@@ -238,7 +231,7 @@ const redirectServicingResult = async <T extends { id: number; name: string }>(
 
 const servicingFormHandler = createIdEntityHandler<ServicingEvent>(
   getServicingEvent,
-)(formGuard(formPolicyFor(adminDestinationAt("/admin/servicing/:id"))));
+)(formGuardAt("/admin/servicing/:id"));
 
 const handleServicingPost: TypedRouteHandler<"POST /admin/servicing/:id"> =
   servicingFormHandler(async (event, _session, form, _request, { id }) => {
@@ -272,31 +265,29 @@ const handleServicingDuplicatePost: TypedRouteHandler<"POST /admin/servicing/:id
 const handleServicingCostPost: TypedRouteHandler<"POST /admin/servicing/:id/cost/:costId"> =
   createEntityHandler<{ costId: number; id: number }, ServicingEvent>(
     ({ id }) => getServicingEvent(id),
-  )(
-    formGuard(
-      formPolicyFor(adminDestinationAt("/admin/servicing/:id/cost/:costId")),
-    ),
-  )(async (_event, _session, form, _request, { costId, id }) => {
-    const amount = parsePositiveMinorUnits(form.getString("amount"));
-    if (amount === null) {
+  )(formGuardAt("/admin/servicing/:id/cost/:costId"))(
+    async (_event, _session, form, _request, { costId, id }) => {
+      const amount = parsePositiveMinorUnits(form.getString("amount"));
+      if (amount === null) {
+        return adminRedirect(
+          "servicingEdit",
+          { id },
+          t("servicing.error.invalid_cost_amount"),
+          false,
+        );
+      }
+      if (!(await costBelongsToServicing(costId, id))) {
+        return notFoundResponse();
+      }
+      await editServiceCost(costId, { amount }, id);
       return adminRedirect(
         "servicingEdit",
         { id },
-        t("servicing.error.invalid_cost_amount"),
-        false,
+        t("servicing.success.cost_updated"),
+        true,
       );
-    }
-    if (!(await costBelongsToServicing(costId, id))) {
-      return notFoundResponse();
-    }
-    await editServiceCost(costId, { amount }, id);
-    return adminRedirect(
-      "servicingEdit",
-      { id },
-      t("servicing.success.cost_updated"),
-      true,
-    );
-  });
+    },
+  );
 
 export const adminHandlers = defineAdminRoutes({
   "GET /admin/servicing": handleServicingListGet,
