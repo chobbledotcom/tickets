@@ -7,7 +7,7 @@
 
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { hasAssignedBuiltSite } from "#db/built-sites/claims.ts";
-import { getAttendeeInvoice, type InvoiceSummary } from "#db/invoices.ts";
+import { getAttendeeInvoices, type InvoiceSummary } from "#db/invoices.ts";
 import {
   loadPaymentMoveSnapshot,
   type PaymentMoveSnapshot,
@@ -59,15 +59,14 @@ import {
   adminRecordPath,
 } from "#shared/admin-surface.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import { formatDateLabel } from "#shared/date-labels.ts";
 import { isIncompletePayment } from "#shared/incomplete-payment.ts";
-import { INVOICE_STATUS_LABEL_KEYS } from "#shared/invoices/status.ts";
 import { withReturnUrl } from "#shared/return-url-field.tsx";
 import {
   AttendeeAnswersTable,
   AttendeeBookingsTable,
 } from "#templates/admin/attendee-detail.tsx";
 import { AttendeeFormPanel } from "#templates/admin/attendee-form.tsx";
+import { AttendeeInvoicesList } from "#templates/admin/attendee-invoices.tsx";
 import {
   attendeeBanner,
   attendeeSummaryRows,
@@ -81,7 +80,7 @@ import { isOwnerRole } from "#types";
 import { attendeeNoteFeature } from "./attendee-notes.ts";
 
 type AttendeePageEntity = LoadedAttendee & {
-  readonly invoice: InvoiceSummary | null;
+  readonly invoices: InvoiceSummary[];
   readonly paymentMove: PaymentMoveSnapshot | "not_loaded";
 };
 
@@ -104,7 +103,7 @@ const paymentRefreshControl = (
 };
 
 /** Payment move state is loaded only for the Actions tab. The Invoice tab and
- *  the create-invoice links read the attendee's newest invoice. */
+ *  the create-invoice links read the attendee's invoices. */
 const loadAttendeePageEntity = async (
   id: number,
 ): Promise<AttendeePageEntity | null> => {
@@ -113,7 +112,7 @@ const loadAttendeePageEntity = async (
     ? null
     : {
         ...entity,
-        invoice: await getAttendeeInvoice(id),
+        invoices: await getAttendeeInvoices(id),
         paymentMove: "not_loaded",
       };
 };
@@ -202,7 +201,8 @@ const ATTENDEE_ACTIONS: readonly ActionDef<AttendeePageEntity>[] = [
     labelKey: "invoices.action.create",
     // A booking has one new invoice at a time, so the link waits until the
     // open one is cancelled or paid.
-    visible: ({ invoice }) => invoice === null || invoice.status !== "new",
+    visible: ({ invoices }) =>
+      !invoices.some((invoice) => invoice.status === "new"),
   },
   {
     destination: "sms",
@@ -384,31 +384,13 @@ export const attendeePage: EntityPage<AttendeePageEntity> = defineEntityPage({
     {
       labelKey: "entity.tab.invoice",
       sections: [
-        summarySection(({ invoice }) =>
-          Promise.resolve(
-            invoice === null
-              ? []
-              : [
-                  {
-                    href: adminPath("invoice", { id: invoice.id }),
-                    labelKey: "invoices.column.number",
-                    value: String(invoice.id),
-                  },
-                  {
-                    labelKey: "invoices.column.status",
-                    value: t(INVOICE_STATUS_LABEL_KEYS[invoice.status]),
-                  },
-                  {
-                    labelKey: "invoices.column.created",
-                    value: formatDateLabel(invoice.created.slice(0, 10)),
-                  },
-                ],
-          ),
+        customSection(({ invoices }) =>
+          Promise.resolve(AttendeeInvoicesList({ invoices })),
         ),
       ],
       slug: "invoice",
       // An attendee with no invoice has nothing to show here.
-      visible: ({ invoice }) => invoice !== null,
+      visible: ({ invoices }) => invoices.length > 0,
     },
     {
       labelKey: "entity.tab.activity",

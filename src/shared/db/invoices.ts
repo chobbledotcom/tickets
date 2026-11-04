@@ -14,7 +14,7 @@ import { generateSecureToken } from "#crypto/utils.ts";
 import { execute, type SqlStatement } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
 import { col, defineTable } from "#db/table.ts";
-import { readById } from "#db/table-reader.ts";
+import { type RowFilter, readById } from "#db/table-reader.ts";
 import { invoiceBodyKey } from "#shared/invoices/seal.ts";
 import type { InvoiceStatus } from "#shared/invoices/status.ts";
 /* jscpd:ignore-end */
@@ -76,9 +76,15 @@ const invoicesTable = defineTable<InvoiceRow, InvoiceInput>({
 /** One row by its invoice number, or null. */
 export const getInvoice = readById(invoicesTable);
 
+/** Every invoice the filter keeps, newest first, without its sealed body. */
+const summariesNewestFirst = (
+  filter: RowFilter<InvoiceSummary>,
+): Promise<InvoiceSummary[]> =>
+  invoicesTable.read.pick(SUMMARY_COLUMNS).many(filter, { order: "id DESC" });
+
 /** Every invoice, newest first, without its sealed body. */
 export const getInvoices = (): Promise<InvoiceSummary[]> =>
-  invoicesTable.read.pick(SUMMARY_COLUMNS).many({}, { order: "id DESC" });
+  summariesNewestFirst({});
 
 /** The open (new) invoice for one attendee, or null. */
 export const getOpenInvoice = (
@@ -86,14 +92,12 @@ export const getOpenInvoice = (
 ): Promise<InvoiceRow | null> =>
   invoicesTable.read.one({ attendee_id: attendeeId, status: "new" });
 
-/** The attendee's newest invoice, whatever its status, or null when the
- *  attendee has none. The attendee page's Invoice tab reads it. */
-export const getAttendeeInvoice = (
+/** The attendee's invoices, newest first, without their sealed bodies. The
+ *  attendee page's Invoice tab reads them. */
+export const getAttendeeInvoices = (
   attendeeId: number,
-): Promise<InvoiceSummary | null> =>
-  invoicesTable.read
-    .pick(SUMMARY_COLUMNS)
-    .one({ attendee_id: attendeeId }, { order: "id DESC" });
+): Promise<InvoiceSummary[]> =>
+  summariesNewestFirst({ attendee_id: attendeeId });
 
 /** The invoice a share link names, or null when the token matches none. */
 export const getInvoiceByShareToken = async (
