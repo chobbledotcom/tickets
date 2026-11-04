@@ -26,7 +26,7 @@ import {
   adminReactivateListingPage,
 } from "#templates/admin/listings/lifecycle.tsx";
 import type { AdminSession, ListingWithCount } from "#types";
-import { listingWithCountHandler } from "./listing-entity.ts";
+import { type ListingCommand, listingFormRoute } from "./listing-entity.ts";
 
 /* jscpd:ignore-end */
 
@@ -107,6 +107,19 @@ export const listingReactivate = listingToggleHandlers({
   renderPage: adminReactivateListingPage,
 });
 
+/** Remove the listing inside the write transaction, so a concurrent change
+ * cannot orphan an add-on. Answer through `removed` when the row is gone, or
+ * through `refused` when the add-on guard says no. */
+const deleteListingThen = async <T>(
+  listing: ListingWithCount,
+  _id: number,
+  removed: () => T,
+  refused: (refusal: string) => T,
+): Promise<T> => {
+  const refusal = await performListingDelete(listing);
+  return refusal === null ? removed() : refused(refusal);
+};
+
 /** Confirmed-delete handlers for listings. The deactivate path's add-on
  * reachability guard also blocks a delete that orphans a child-scoped add-on.
  * The GET renders the delete confirmation page with the error (200). The POST
@@ -117,14 +130,13 @@ export const listingDelete = createConfirmedHandlers<ListingWithCount>({
   // performListingDelete re-runs the guard inside the write transaction, so
   // the framework skips its own POST-time check.
   guardInTx: true,
-  onConfirm: async (listing, id) => {
-    // performListingDelete re-runs the guard inside the write transaction, so
-    // a concurrent change since the confirmation page cannot orphan an add-on.
-    const refusal = await performListingDelete(listing);
-    return refusal === null
-      ? undefined
-      : errorRedirect(`/admin/listing/${id}/delete`, refusal);
-  },
+  onConfirm: (listing, id) =>
+    deleteListingThen(
+      listing,
+      id,
+      () => undefined,
+      (refusal) => errorRedirect(`/admin/listing/${id}/delete`, refusal),
+    ),
   path: "/admin/listing/:id/delete",
   render: (listing, session, error) =>
     adminListingDeletePage(listing, session, error),
@@ -132,17 +144,19 @@ export const listingDelete = createConfirmedHandlers<ListingWithCount>({
   successRedirect: "/admin",
 });
 
-const unverifiedListingDelete = listingWithCountHandler(
+/** The delete route an operator reaches by skipping the confirmation form. */
+const deleteListing: ListingCommand = (listing, id) =>
+  deleteListingThen(
+    listing,
+    id,
+    () => redirect("/admin", t("success.listing_deleted"), true),
+    (refusal) => redirect(`/admin/listing/${id}`, refusal, false),
+  );
+
+const unverifiedListingDelete = listingFormRoute(
   formGuardAt("/admin/listing/:id/delete"),
-)(async (listing, _session, _form, _request, { id }) => {
-  // performListingDelete runs the orphaned-add-on guard inside the write
-  // transaction and returns its refusal. A change since the load cannot
-  // orphan an add-on, and a refusal cannot be reported as success.
-  const refusal = await performListingDelete(listing);
-  return refusal === null
-    ? redirect("/admin", t("success.listing_deleted"), true)
-    : redirect(`/admin/listing/${id}`, refusal, false);
-});
+  deleteListing,
+);
 
 export const handleAdminListingDelete: TypedRouteHandler<
   "POST /admin/listing/:id/delete"
