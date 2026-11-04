@@ -93,7 +93,7 @@ export const getOpenInvoice = (
   invoicesTable.read.one({ attendee_id: attendeeId, status: "new" });
 
 /** The attendee's invoices, newest first, without their sealed bodies. The
- *  attendee page's Invoice tab reads them. */
+ *  booking's info table reads the newest one. */
 export const getAttendeeInvoices = (
   attendeeId: number,
 ): Promise<InvoiceSummary[]> =>
