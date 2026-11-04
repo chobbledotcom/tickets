@@ -23,6 +23,7 @@ import {
 } from "#accounting/manual-entries.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import { adminRecordPath } from "#shared/admin-surface.ts";
 import {
   type AttendeeLinkRefs,
   attendeeAdminPath,
@@ -86,12 +87,13 @@ type RowAccountKind = {
 /** Row-backed account resolvers keyed by ledger account type — exhaustive over
  * {@link RowAccountType}, so a new row-backed type cannot render without
  * deciding its label source and link target here. Every target is the record's
- * own admin page, never the ledger again. */
+ * own admin page, never the ledger again. Each target comes from the one route
+ * declaration, not a path written here. */
 /** Both `cost` and `revenue` legs are backed by a listing, so they read the
  * same names, link to the same listing page, and share one fallback key. */
 const listingBackedKind: RowAccountKind = {
   fallbackKey: "admin.ledger.fallback.revenue",
-  href: (id) => `/admin/listing/${id}`,
+  href: (id) => adminRecordPath("listing", id),
   names: (refs) => refs.listings,
 };
 
@@ -107,7 +109,7 @@ const ROW_ACCOUNT_KINDS: Record<RowAccountType, RowAccountKind> = {
   cost: listingBackedKind,
   modifier: {
     fallbackKey: "admin.ledger.fallback.modifier",
-    href: (id) => `/admin/modifiers/${id}`,
+    href: (id) => adminRecordPath("modifier", id),
     names: (refs) => refs.modifiers,
   },
   revenue: listingBackedKind,

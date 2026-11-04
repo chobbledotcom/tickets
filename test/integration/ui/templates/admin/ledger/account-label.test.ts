@@ -1,6 +1,15 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import {
+  type RowAccountType,
+  RowAccountTypeSchema,
+} from "#accounting/accounts.ts";
+import { SERVICING_KIND } from "#db/attendees/kind.ts";
+import {
+  type AdminDestinationId,
+  adminRecordPath,
+} from "#shared/admin-surface.ts";
 import { account } from "#shared/ledger/account.ts";
 import {
   attendeeLinkRefs,
@@ -9,6 +18,27 @@ import {
   transfer,
 } from "#test/ui/templates/admin/ledger/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+
+/** The admin page each row-backed money account opens, keyed by the picklist
+ *  the account types come from, so a new type must decide its page here. */
+const ROW_ACCOUNT_PAGE: Record<RowAccountType, AdminDestinationId> = {
+  attendee: "attendee",
+  cost: "listing",
+  modifier: "modifier",
+  revenue: "listing",
+};
+
+/** One named row per account type, each with a name of its own so a rendered
+ *  link is identified by the record it shows. */
+const ROW_ACCOUNT_ROWS: Record<
+  RowAccountType,
+  { name: string; rowId: number }
+> = {
+  attendee: { name: "Ada Lovelace", rowId: 7 },
+  cost: { name: "Boiler Hire", rowId: 4 },
+  modifier: { name: "Early bird", rowId: 5 },
+  revenue: { name: "Summer Concert", rowId: 3 },
+};
 
 describe("money account labels", () => {
   beforeAll(setupAdminPageTest);
@@ -34,29 +64,35 @@ describe("money account labels", () => {
     assert(!html.includes("/admin/ledger/writeoff/"));
   });
 
-  test("links each existing row-backed account to its own record", () => {
+  test("links each row-backed account to the record page the routes declare", () => {
+    const { attendee, cost, modifier, revenue } = ROW_ACCOUNT_ROWS;
     const refs = names({
-      attendees: attendeeLinkRefs([[7, "Ada Lovelace"]]),
-      listings: new Map([[3, "Summer Concert"]]),
-      modifiers: new Map([[5, "Early bird"]]),
+      attendees: attendeeLinkRefs([[attendee.rowId, attendee.name]]),
+      listings: new Map([
+        [revenue.rowId, revenue.name],
+        [cost.rowId, cost.name],
+      ]),
+      modifiers: new Map([[modifier.rowId, modifier.name]]),
     });
     const html = renderLedger(
-      [
+      RowAccountTypeSchema.options.map((type) =>
         transfer({
-          destination: account("revenue", 3),
-          source: account("attendee", 7),
+          destination: account("external", "world"),
+          source: account(type, ROW_ACCOUNT_ROWS[type].rowId),
         }),
-        transfer({
-          destination: account("cost", 3),
-          source: account("modifier", 5),
-        }),
-      ],
+      ),
       refs,
       "dual",
     );
-    assertStringIncludes(html, '<a href="/admin/attendees/7">Ada Lovelace</a>');
-    assertStringIncludes(html, '<a href="/admin/listing/3">Summer Concert</a>');
-    assertStringIncludes(html, '<a href="/admin/modifiers/5">Early bird</a>');
+    for (const type of RowAccountTypeSchema.options) {
+      const { name, rowId } = ROW_ACCOUNT_ROWS[type];
+      // The target is the record's own declared page, not a URL this test
+      // copies from the template.
+      assertStringIncludes(
+        html,
+        `<a href="${adminRecordPath(ROW_ACCOUNT_PAGE[type], rowId)}">${name}</a>`,
+      );
+    }
     // No account leg points back at the ledger or at a filtered ledger.
     assert(!html.includes("/admin/ledger/attendee/"));
     assert(!html.includes("/admin/ledger/modifier/"));
@@ -72,14 +108,16 @@ describe("money account labels", () => {
         }),
       ],
       names({
-        attendees: attendeeLinkRefs([[4, "Boiler Service", "servicing"]]),
+        attendees: attendeeLinkRefs([[4, "Boiler Service", SERVICING_KIND]]),
         listings: new Map([[3, "Summer Concert"]]),
       }),
       "dual",
     );
+    // A service event's own page is the route the surface declares as
+    // `servicingEdit`.
     assertStringIncludes(
       html,
-      '<a href="/admin/servicing/4">Boiler Service</a>',
+      `<a href="${adminRecordPath("servicingEdit", 4)}">Boiler Service</a>`,
     );
     assert(!html.includes("/admin/attendees/4"));
   });
