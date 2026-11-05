@@ -5,7 +5,8 @@
 
 // jscpd:ignore-start
 import { Given, Then, When } from "@cucumber/cucumber";
-import { assert } from "@std/assert";
+import { assert, assertStringIncludes } from "@std/assert";
+import { ORGANISER } from "#test/specs/support/browser.ts";
 import {
   answerNames,
   diaryNotesListing,
@@ -14,11 +15,15 @@ import {
   type Note,
   noteListing,
   ownerHasDiary,
+  ownerOpensDirectory,
   toolAsksWhereListingAppears,
   toolNotesListing,
 } from "#test/specs/support/external-sources.ts";
 import { organiserDeletesListing } from "#test/specs/support/privacy.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import {
+  type TicketsWorld,
+  whatTheyWereTold,
+} from "#test/specs/support/world.ts";
 
 // jscpd:ignore-end
 
@@ -114,5 +119,21 @@ Then(
   "the answer names {string} in {string}",
   function (this: TicketsWorld, externalId: string, diary: string): void {
     assert(answerNames(this, externalId, diary));
+  },
+);
+
+When(
+  "the owner opens the external sources page",
+  function (this: TicketsWorld): Promise<void> {
+    return ownerOpensDirectory(this);
+  },
+);
+
+Then(
+  "{string} is shown with {string}",
+  function (this: TicketsWorld, name: string, externalId: string): void {
+    const page = whatTheyWereTold(this, ORGANISER);
+    assertStringIncludes(page, name);
+    assertStringIncludes(page, externalId);
   },
 );

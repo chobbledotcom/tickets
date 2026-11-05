@@ -96,7 +96,7 @@ describeWithEnv("Admin API - External source links", { db: true }, () => {
       );
     });
 
-    test("refuses an external id the source already holds", async () => {
+    test("refuses the same record twice with one external id", async () => {
       const created = await createSource();
       const sourceId = Number(created.source.id);
       const listing = await addListing();
@@ -117,8 +117,35 @@ describeWithEnv("Admin API - External source links", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.error).toBe("This source already links that external id");
+          expect(body.error).toBe(
+            "This source already links that record to that external id",
+          );
         },
+      );
+    });
+
+    test("links one external id to a second record", async () => {
+      const created = await createSource();
+      const sourceId = Number(created.source.id);
+      const first = await addListing("Watercolour day");
+      const second = await addListing("Pottery day");
+      await createLink(sourceId, {
+        external_id: "INV-1001",
+        link_id: first.id,
+        link_type: "listing",
+      });
+
+      const linked = await createLink(sourceId, {
+        external_id: "INV-1001",
+        link_id: second.id,
+        link_type: "listing",
+      });
+
+      expect(linked.link).toEqual(
+        expect.objectContaining({
+          external_id: "INV-1001",
+          link_id: second.id,
+        }),
       );
     });
 
@@ -305,7 +332,7 @@ describeWithEnv("Admin API - External source links", { db: true }, () => {
       );
     });
 
-    test("refuses an external id another link of the source already holds", async () => {
+    test("refuses the record it already links under that external id", async () => {
       const created = await createSource();
       const sourceId = Number(created.source.id);
       const listing = await addListing();
@@ -331,7 +358,9 @@ describeWithEnv("Admin API - External source links", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.error).toBe("This source already links that external id");
+          expect(body.error).toBe(
+            "This source already links that record to that external id",
+          );
         },
       );
     });
@@ -396,58 +425,6 @@ describeWithEnv("Admin API - External source links", { db: true }, () => {
         200,
         (body) => {
           expect(body).toEqual({ status: "ok" });
-        },
-      );
-    });
-  });
-
-  describe("GET /api/admin/external-sources/links", () => {
-    test("lists one record's links from every source", async () => {
-      const first = await createSource();
-      const second = await createSource({
-        name: "Imports",
-        url_pattern: "https://imports.example/{external_id}",
-      });
-      const listing = await addListing();
-      await createLink(Number(first.source.id), {
-        external_id: "INV-1",
-        link_id: listing.id,
-        link_type: "listing",
-      });
-      await createLink(Number(second.source.id), {
-        external_id: "IMP-1",
-        link_id: listing.id,
-        link_type: "listing",
-      });
-
-      await assertJson(
-        apiRequest(
-          `/api/admin/external-sources/links?link_type=listing&link_id=${listing.id}`,
-        ),
-        200,
-        (body) => {
-          expect(body.links).toEqual([
-            expect.objectContaining({
-              external_id: "INV-1",
-              source_id: Number(first.source.id),
-              source_name: first.source.name,
-            }),
-            expect.objectContaining({
-              external_id: "IMP-1",
-              source_id: Number(second.source.id),
-              source_name: "Imports",
-            }),
-          ]);
-        },
-      );
-    });
-
-    test("refuses a search without a record", async () => {
-      await assertJson(
-        apiRequest("/api/admin/external-sources/links?link_type=listing"),
-        400,
-        (body) => {
-          expect(body.error).toBe("link_type and link_id go together");
         },
       );
     });

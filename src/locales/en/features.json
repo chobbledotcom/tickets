@@ -32,6 +32,14 @@
   "features.external_sources.name": "External sources",
   "features.external_sources.description": "Show a private list of where your records appear in other systems. Admins use it only for their own reference.",
   "features.external_sources.disabled": "The external sources feature is disabled. Turn it on in Settings, then try again.",
+  "features.external_sources.url_pattern": "URL pattern",
+  "features.external_sources.record": "Record",
+  "features.external_sources.external_id": "External ID",
+  "features.external_sources.address": "Address",
+  "features.external_sources.created": "Added",
+  "features.external_sources.empty": "No sources yet.",
+  "features.external_sources.no_links": "No links yet.",
+  "features.external_sources.not_named": "Not named yet",
   "features.invoices.name": "Invoices",
   "features.invoices.description": "Show the invoices menu and the tools that invoice a booking."
 }

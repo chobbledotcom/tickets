@@ -58,3 +58,18 @@ Feature: Noting where a record appears in another system
       When the tool asks where "Watercolour day" also appears
       Then the answer names "EVT-1" in "Village diary"
       And the answer names "INV-9" in "Invoices"
+
+  @rule:records.the-directory-shows-what-is-stored
+  @surface:admin
+  Rule: The owner reads the directory from the settings menu
+    The page shows every source, the pattern it stores, and each link it
+    holds. The admin API writes the directory. The page only shows it.
+
+    @case:records.owner-reads-the-directory
+    Scenario: The owner opens the external sources page
+      Given the owner enables "External sources"
+      And a diary called "Village diary"
+      And a listing called "Watercolour day"
+      And the owner has noted that "Watercolour day" is "EVT-1" in "Village diary"
+      When the owner opens the external sources page
+      Then "Village diary" is shown with "EVT-1"

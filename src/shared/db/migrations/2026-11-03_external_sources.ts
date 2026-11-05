@@ -9,6 +9,7 @@ export default schemaMigration(
   "Add the external sources directory, its links to records, and the feature that shows it",
   {
     indexes: [
+      "idx_external_source_links_lookup",
       "idx_external_source_links_external",
       "idx_external_source_links_target",
     ],

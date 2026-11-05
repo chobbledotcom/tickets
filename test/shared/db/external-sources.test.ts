@@ -24,6 +24,7 @@ import type {
   ExternalSource,
   ExternalSourceLink,
 } from "#db/external-sources/types.ts";
+import { externalLinkUrl } from "#db/external-sources/url.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -232,19 +233,36 @@ describeWithEnv("db > external sources", { db: true }, () => {
     });
   });
 
-  test("refuses a second link with the same external id in one source", async () => {
+  test("lets one external id name several records", async () => {
     const source = await createSource("Invoices");
-    await addListingLink(source.id, "INV-1001");
+    const first = await addListingLink(
+      source.id,
+      "INV-1001",
+      "Watercolour day",
+    );
+    const second = await addListingLink(source.id, "INV-1001", "Pottery day");
 
-    const listing = await createTestListing({ name: "Pottery day" });
+    const found = await withTestSession(() =>
+      listExternalSourceLinks(source.id, {
+        externalId: "INV-1001",
+        kind: "external",
+      }),
+    );
+    expect(found.map((link) => link.id)).toEqual([first.id, second.id]);
+  });
+
+  test("refuses the same record twice with one external id", async () => {
+    const source = await createSource("Invoices");
+    const first = await addListingLink(source.id, "INV-1001");
+
     const refused = await createExternalSourceLink(source.id, {
       externalId: "INV-1001",
-      linkId: listing.id,
+      linkId: first.link_id,
       linkType: "listing",
     });
 
     expect(refused).toEqual({
-      error: "This source already links that external id",
+      error: "This source already links that record to that external id",
       ok: false,
     });
   });
@@ -298,6 +316,33 @@ describeWithEnv("db > external sources", { db: true }, () => {
 
     await expect(requireExternalSourceLink(source.id, 999_999)).rejects.toThrow(
       "External source link 999999 is missing from source",
+    );
+  });
+
+  test("fills a source's pattern with the external id", async () => {
+    expect(
+      externalLinkUrl(
+        "https://dashboard.stripe.com/invoices/{external_id}",
+        "in_3Nx8Yz",
+      ),
+    ).toBe("https://dashboard.stripe.com/invoices/in_3Nx8Yz");
+  });
+
+  test("encodes an external id that would change the address's shape", () => {
+    expect(
+      externalLinkUrl("https://diary.example/events/{external_id}", "a/b c"),
+    ).toBe("https://diary.example/events/a%2Fb%20c");
+  });
+
+  test("gives a link with no external id no address", () => {
+    expect(
+      externalLinkUrl("https://diary.example/new-booking", null),
+    ).toBeNull();
+  });
+
+  test("keeps a destination pattern's own address when it holds no id", () => {
+    expect(externalLinkUrl("https://diary.example/new-booking", "EVT-1")).toBe(
+      "https://diary.example/new-booking",
     );
   });
 });

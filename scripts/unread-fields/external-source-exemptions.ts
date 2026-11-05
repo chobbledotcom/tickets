@@ -41,6 +41,7 @@ const LINK_FIELDS = [
   "link_id",
   "link_type",
   "source_id",
+  "url",
 ] as const;
 
 export const EXTERNAL_SOURCE_EXEMPTIONS: readonly FindingExemption[] = [
@@ -71,15 +72,5 @@ export const EXTERNAL_SOURCE_EXEMPTIONS: readonly FindingExemption[] = [
     [[DB_SOURCE, [{ name: "ExternalSourceInput" }]]],
     ["name", "urlPattern"],
     inputFieldReason,
-  ),
-  ...exemptFieldsUnder(
-    [[DB_SOURCE, [{ name: "ExternalSource" }]]],
-    ["created"],
-    responseRowReason,
-  ),
-  ...exemptFieldsUnder(
-    [[DB_SOURCE, [{ name: "ExternalSourceLink" }]]],
-    ["created"],
-    responseRowReason,
   ),
 ];

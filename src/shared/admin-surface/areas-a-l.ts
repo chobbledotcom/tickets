@@ -237,6 +237,14 @@ export const AREAS_A_L = {
       },
     },
   },
+  // The owner's read-only view of where their records also appear. The admin
+  // API writes this directory. The page only shows what the database holds.
+  externalSources: {
+    audience: OWNER_AUDIENCE,
+    view: {
+      externalSources: "/admin/external-sources",
+    },
+  },
   groups: {
     audience: CONTENT_ADMIN_LEVELS,
     view: {

@@ -7,12 +7,15 @@
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { askedAsKey, jsonWrite } from "#test/specs/support/api-request.ts";
+import { ORGANISER, openAdminPage } from "#test/specs/support/browser.ts";
 import {
   listingIdNamed,
   putsPlainThingOnSale,
 } from "#test/specs/support/listings.ts";
 import {
   type ActOnOneThing,
+  type ActOnTheStory,
+  keepWhatTheyWereTold,
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
@@ -171,6 +174,12 @@ export const answerNames = (
   keptAnswer<LinksAnswer>(world).links.some(
     (link) => link.source_name === diary && link.external_id === externalId,
   );
+
+/** The owner opens the page that shows the whole directory. */
+export const ownerOpensDirectory: ActOnTheStory = async (world) => {
+  const page = await openAdminPage(world, "/admin/external-sources");
+  keepWhatTheyWereTold(world, ORGANISER, page.pageText);
+};
 
 /** The tool was refused because External sources is off, in the site's words. */
 export const expectToldToTurnItOn = (world: TicketsWorld): void => {

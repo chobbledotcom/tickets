@@ -377,7 +377,8 @@ export const ADMIN_API_RESOURCES = {
     // or by the record they point at.
     custom: {
       // The read of every source's links for one record, then the read of one
-      // source's links. The literal path wins over the id segment.
+      // source's links. The literal paths win over the id segment.
+      linkLookup: { method: "GET", subpath: "lookup" },
       linkSearch: { method: "GET", subpath: "links" },
       links: { method: "GET", subpath: ":sourceId/links" },
     },

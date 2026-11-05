@@ -23,7 +23,8 @@ export const ADMIN_API_EXAMPLE_EXTERNAL_SOURCE = {
   url_pattern: "https://dashboard.stripe.com/invoices/{external_id}",
 } satisfies AdminApiExternalSource;
 
-/** One link as every answer shows it. */
+/** One link as every answer shows it. The address is filled from the source's
+ *  pattern. */
 export const ADMIN_API_EXAMPLE_EXTERNAL_SOURCE_LINK = {
   created: "2026-11-03T09:05:00.000Z",
   external_id: "in_3Nx8Yz",
@@ -31,6 +32,7 @@ export const ADMIN_API_EXAMPLE_EXTERNAL_SOURCE_LINK = {
   link_id: 7,
   link_type: "attendee",
   source_id: 1,
+  url: "https://dashboard.stripe.com/invoices/in_3Nx8Yz",
 } satisfies AdminApiExternalSourceLink;
 
 const CREATE_SOURCE_BODY = {
@@ -63,6 +65,19 @@ const LINKS_BASE = childDocBase(
 /** Every source's links that name one record, with the source that holds each. */
 const SEARCH_BASE = `/api/admin/${ADMIN_API_RESOURCES["external-sources"].path}/links`;
 
+/** The record one external id names, in every source that holds it. */
+const LOOKUP_PATH = `/api/admin/${ADMIN_API_RESOURCES["external-sources"].path}/lookup`;
+
+/** One link as a cross-source answer shows it: the row and its source's name. */
+const SOURCE_LINK_ANSWER = json({
+  links: [
+    {
+      ...ADMIN_API_EXAMPLE_EXTERNAL_SOURCE_LINK,
+      source_name: ADMIN_API_EXAMPLE_EXTERNAL_SOURCE.name,
+    },
+  ],
+});
+
 export const EXTERNAL_SOURCE_ENDPOINTS: EndpointDoc[] = [
   ...crudDocs({
     createBody: CREATE_SOURCE_BODY,
@@ -86,28 +101,28 @@ export const EXTERNAL_SOURCE_ENDPOINTS: EndpointDoc[] = [
   }),
   {
     description:
-      "List every source's links that name one record. Both link_type and link_id are required. Each link names the source that holds it.",
+      "Find the record one external id names, in every source that holds it. Nothing is decrypted to search: the id is hashed once per source and matched by index.",
     method: "GET",
-    path: SEARCH_BASE,
-    response: json({
-      links: [
-        {
-          ...ADMIN_API_EXAMPLE_EXTERNAL_SOURCE_LINK,
-          source_name: ADMIN_API_EXAMPLE_EXTERNAL_SOURCE.name,
-        },
-      ],
-    }),
+    path: LOOKUP_PATH,
+    response: SOURCE_LINK_ANSWER,
   },
   {
     description:
-      "List one source's links. Add ?external_id= to find the link that holds that external id, or ?link_type= and ?link_id= to find the links of one record. The external id is found through its blind index, so nothing is decrypted to search.",
+      "List every source's links that name one record. Both link_type and link_id are required. Each link names the source that holds it.",
+    method: "GET",
+    path: SEARCH_BASE,
+    response: SOURCE_LINK_ANSWER,
+  },
+  {
+    description:
+      "List one source's links. Add ?external_id= to find the links that hold that external id, or ?link_type= and ?link_id= to find the links of one record. One external id can name several records. The external id is found through its blind index, so nothing is decrypted to search.",
     method: "GET",
     path: LINKS_BASE,
     response: json({ links: [ADMIN_API_EXAMPLE_EXTERNAL_SOURCE_LINK] }),
   },
   {
     description:
-      "Link one record to its id at a source. link_type is attendee, listing, or group. Leave external_id out when the other system has not named the record yet. The record must exist and the source must not already hold that external id.",
+      "Link one record to its id at a source. link_type is attendee, listing, or group. Leave external_id out when the other system has not named the record yet. One external id can name several records, such as an invoice that covers a group. The record must exist and the source must not hold that record under that id twice.",
     method: "POST",
     path: LINKS_BASE,
     request: json(CREATE_LINK_BODY),

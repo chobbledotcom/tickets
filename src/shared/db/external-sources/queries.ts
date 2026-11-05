@@ -11,6 +11,8 @@ import { blindIndexFor } from "#crypto/hashing.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import {
   deleteByFieldBatch,
+  inPlaceholders,
+  queryAll,
   resultRows,
   type TxScope,
   withTransaction,
@@ -95,6 +97,50 @@ export const listExternalLinksForTarget = (
     { order: "id ASC" },
   );
 
+/** One link found by its external id, with the source that holds it. */
+export type ExternalLinkMatch = {
+  link: ExternalSourceLink;
+  source: ExternalSource;
+};
+
+const LINK_COLUMNS = externalSourceLinksTable.columns.join(", ");
+
+/** The sources under their ids, for pairing a row with the source that holds
+ *  it. */
+export const sourcesById = (
+  sources: readonly ExternalSource[],
+): ReadonlyMap<number, ExternalSource> =>
+  new Map(sources.map((source) => [source.id, source]));
+
+/** One record's links found by its external id, in every source that holds it.
+ *  The blind index binds the id to its source, so the query hashes the id once
+ *  per source and matches them all in one statement. */
+export const lookupExternalLinks = async (
+  externalId: string,
+): Promise<ExternalLinkMatch[]> => {
+  const sources = await getAllExternalSources();
+  if (sources.length === 0) return [];
+  const indexes = await Promise.all(
+    sources.map((source) => externalLinkIndex(source.id, externalId)),
+  );
+  const stored = await queryAll<ExternalSourceLink>(
+    `SELECT ${LINK_COLUMNS} FROM external_source_links
+      WHERE external_id_index IN (${inPlaceholders(indexes)})
+      ORDER BY id ASC`,
+    indexes,
+  );
+  const byId = sourcesById(sources);
+  return Promise.all(
+    stored.map(async (row) => ({
+      link: await externalSourceLinksTable.fromDb(row),
+      source: requireValue(
+        byId.get(row.source_id),
+        `External source ${row.source_id} is missing`,
+      ),
+    })),
+  );
+};
+
 export const getExternalSourceLink = (
   sourceId: number,
   linkId: number,
@@ -130,6 +176,8 @@ const linkWriteFactsStatement = (
         SELECT 1 FROM external_source_links AS existingLink
          WHERE existingLink.source_id = ${bind(input.sourceId)}
            AND existingLink.external_id_index = ${bind(input.externalIdIndex)}
+           AND existingLink.link_type = ${bind(input.linkType)}
+           AND existingLink.link_id = ${bind(input.linkId)}
            AND existingLink.id != ${bind(excludingId)}
       )`;
     return `SELECT
@@ -166,7 +214,9 @@ const prepareLinkWrite = async (
     return errorResult(`No ${write.linkType} has id ${write.linkId}`);
   }
   if (stored.duplicate === 1) {
-    return errorResult("This source already links that external id");
+    return errorResult(
+      "This source already links that record to that external id",
+    );
   }
   return okResult(input);
 };

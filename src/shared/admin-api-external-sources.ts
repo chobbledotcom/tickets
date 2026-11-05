@@ -35,7 +35,7 @@ export type AdminApiExternalSource = v.InferOutput<
 
 /** One record's external id at one source. The blind index stays in the
  *  database, so no row carries it. A link made before the other system named
- *  the record has no external id yet. */
+ *  the record has no external id, and so no address. */
 export const ExternalSourceLinkRowSchema = v.looseObject({
   created: v.string(),
   external_id: v.nullable(v.string()),
@@ -43,6 +43,7 @@ export const ExternalSourceLinkRowSchema = v.looseObject({
   link_id: v.number(),
   link_type: ExternalLinkKindSchema,
   source_id: v.number(),
+  url: v.nullable(v.string()),
 });
 
 export type AdminApiExternalSourceLink = v.InferOutput<

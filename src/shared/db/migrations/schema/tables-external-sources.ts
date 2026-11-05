@@ -52,7 +52,14 @@ export const externalSourceTables: [name: string, table: Table][] = [
       ],
       indexes: [
         {
-          columns: ["source_id", "external_id_index"],
+          columns: ["external_id_index"],
+          name: "idx_external_source_links_lookup",
+        },
+        {
+          // One external id can name several records: an invoice that covers a
+          // group, a diary entry that runs over two listings. The same source
+          // still cannot hold the same record under the same id twice.
+          columns: ["source_id", "external_id_index", "link_type", "link_id"],
           name: "idx_external_source_links_external",
           unique: true,
         },

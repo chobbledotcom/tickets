@@ -23,7 +23,9 @@ import {
   getExternalSourceLink,
   listExternalLinksForTarget,
   listExternalSourceLinks,
+  lookupExternalLinks,
   requireExternalSourceLink,
+  sourcesById,
   updateExternalSourceLink,
 } from "#db/external-sources/queries.ts";
 import { externalSourcesTable } from "#db/external-sources/tables.ts";
@@ -42,6 +44,7 @@ import {
   type ExternalSourceLink,
   ExternalUrlPatternSchema,
 } from "#db/external-sources/types.ts";
+import { externalLinkUrl } from "#db/external-sources/url.ts";
 import { settings } from "#db/settings.ts";
 import { requiredMapValue } from "#fp";
 import { t } from "#i18n";
@@ -185,11 +188,15 @@ const parseLinkFilter = (
     : errorResult(target.error);
 };
 
-/** One link as a response carries it: its sealed index stays in the database. */
-const toLinkResponse = ({
-  external_id_index: _index,
-  ...link
-}: ExternalSourceLink): Omit<ExternalSourceLink, "external_id_index"> => link;
+/** One link as a response carries it: its sealed index stays in the database,
+ *  and its address is filled from the source's pattern. */
+const toLinkResponse = (
+  { external_id_index: _index, ...link }: ExternalSourceLink,
+  pattern: string,
+): Omit<ExternalSourceLink, "external_id_index"> & { url: string | null } => ({
+  ...link,
+  url: externalLinkUrl(pattern, link.external_id),
+});
 
 /** The parent gate every link route runs. The read pins to the primary, so a
  *  link created right after its source can always see the source. */
@@ -238,32 +245,68 @@ const handleLinkList = underSource(async ({ request, source }) => {
   const filter = parseLinkFilter(new URL(request.url).searchParams);
   if (!filter.ok) return apiErrorResponse(filter.error);
   const links = await listExternalSourceLinks(source.id, filter.value);
-  return jsonResponse({ links: links.map(toLinkResponse) });
+  return jsonResponse({
+    links: links.map((link) => toLinkResponse(link, source.url_pattern)),
+  });
+});
+
+/** One read the owner's tools ask for, addressed by the query string. */
+const ownerRead =
+  (run: (params: URLSearchParams) => Promise<Response>): RouteHandlerFn =>
+  (request) =>
+    withAuth(request, ADMIN_API, async () =>
+      run(new URL(request.url).searchParams),
+    );
+
+/** One link as a cross-source answer carries it: the row, the address the
+ *  source's pattern gives it, and the source's name. */
+const toSourceLinkResponse = (
+  link: ExternalSourceLink,
+  source: ExternalSource,
+) => ({
+  ...toLinkResponse(link, source.url_pattern),
+  source_name: source.name,
 });
 
 /** Every source's links that name one record, with the source that holds
  *  each. This is the read an admin record page needs: one request answers
  *  "where else does this appear?", whatever the number of sources. */
-const handleLinkSearch: RouteHandlerFn = (request) =>
-  withAuth(request, ADMIN_API, async () => {
-    const target = parseRecordSearch(new URL(request.url).searchParams);
-    if (!target.ok) return apiErrorResponse(target.error);
-    const [links, sources] = await Promise.all([
-      listExternalLinksForTarget(target.value),
-      getAllExternalSources(),
-    ]);
-    const names = new Map(sources.map((source) => [source.id, source.name]));
-    return jsonResponse({
-      links: links.map((link) => ({
-        ...toLinkResponse(link),
-        source_name: requiredMapValue(
-          names,
+const handleLinkSearch = ownerRead(async (params) => {
+  const target = parseRecordSearch(params);
+  if (!target.ok) return apiErrorResponse(target.error);
+  const [links, sources] = await Promise.all([
+    listExternalLinksForTarget(target.value),
+    getAllExternalSources(),
+  ]);
+  const byId = sourcesById(sources);
+  return jsonResponse({
+    links: links.map((link) =>
+      toSourceLinkResponse(
+        link,
+        requiredMapValue(
+          byId,
           link.source_id,
           "Every link names a source in the directory",
         ),
-      })),
-    });
+      ),
+    ),
   });
+});
+
+/** The record one external id names, in every source that holds it. The id is
+ *  hashed once per source, so nothing is decrypted to find it. */
+const handleLinkLookup: RouteHandlerFn = ownerRead(async (params) => {
+  const externalId = params.get("external_id");
+  if (externalId === null || externalId.trim() === "") {
+    return apiErrorResponse("external_id is required");
+  }
+  const matches = await lookupExternalLinks(externalId.trim());
+  return jsonResponse({
+    links: matches.map(({ link, source }) =>
+      toSourceLinkResponse(link, source),
+    ),
+  });
+});
 
 /** The activity line one link write records, naming the record and the source
  *  it belongs to. A link with no external id yet names the record instead. */
@@ -290,7 +333,10 @@ const handleLinkCreate = underSource(({ body, source }) =>
     const created = await createExternalSourceLink(source.id, write);
     if (!created.ok) return apiErrorResponse(created.error);
     await logLink("added to", created.value, source);
-    return jsonResponse({ link: toLinkResponse(created.value) }, 201);
+    return jsonResponse(
+      { link: toLinkResponse(created.value, source.url_pattern) },
+      201,
+    );
   }),
 );
 
@@ -300,7 +346,7 @@ const handleLinkUpdate = withExistingLink(({ body, link, source }) =>
     if (!updated.ok) return apiErrorResponse(updated.error);
     const stored = await requireExternalSourceLink(source.id, link.id);
     await logLink("updated in", stored, source);
-    return jsonResponse({ link: toLinkResponse(stored) });
+    return jsonResponse({ link: toLinkResponse(stored, source.url_pattern) });
   }),
 );
 
@@ -347,7 +393,11 @@ export const externalSourceApiRoutes = mapValues(
         update: handleLinkUpdate,
       },
     },
-    customHandlers: { linkSearch: handleLinkSearch, links: handleLinkList },
+    customHandlers: {
+      linkLookup: handleLinkLookup,
+      linkSearch: handleLinkSearch,
+      links: handleLinkList,
+    },
     getAll: getAllExternalSources,
     lookup: getExternalSource,
     // Read-your-writes: the create and update answers re-read the row from the

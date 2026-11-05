@@ -211,6 +211,12 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
         visible: featureVisible("questions"),
       },
       {
+        id: "externalSources",
+        kind: "link",
+        labelKey: "nav.sub.external_sources",
+        visible: featureVisible("externalSources"),
+      },
+      {
         id: "logistics",
         kind: "link",
         labelKey: "nav.logistics",

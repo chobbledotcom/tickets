@@ -26,6 +26,9 @@ export const EXTERNAL_LINK_KINDS = ExternalLinkKindSchema.options;
  *  there before it has an id. */
 export const URL_PATTERN_PLACEHOLDERS = ["external_id"] as const;
 
+/** The placeholder a link's external id fills. */
+export const EXTERNAL_ID_PLACEHOLDER = `{${URL_PATTERN_PLACEHOLDERS[0]}}`;
+
 const KNOWN_PLACEHOLDERS: readonly string[] = URL_PATTERN_PLACEHOLDERS;
 
 const PLACEHOLDER = /\{([^{}]+)\}/g;

@@ -168,6 +168,10 @@ export const ADMIN_AREA_LOADERS: Record<AdminAreaId, AdminAreaLoader> = {
     () => import("#routes/admin/deliveries.ts"),
     ["attendees", "capacity", "date-picker", "deliveries", "logistics"],
   ),
+  externalSources: area(
+    () => import("#routes/admin/external-sources-page.ts"),
+    ["features"],
+  ),
   groups: area(
     () => import("#routes/admin/groups.ts"),
     [
