@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminGet } from "#test-utils/session.ts";
@@ -17,8 +18,7 @@ describeWithEnv("server (listing logistics field)", { db: true }, () => {
 
     const response = await adminGet(`/admin/listing/${listing.id}/edit`);
     const html = await response.text();
-    assertStringIncludes(html, 'name="uses_logistics"');
-    assertStringIncludes(html, "Needs logistics");
+    expectIncludesAll(html, ['name="uses_logistics"', "Needs logistics"]);
   });
 
   test("the new and duplicate forms include the logistics field", async () => {

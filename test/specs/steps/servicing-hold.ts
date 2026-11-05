@@ -12,6 +12,7 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
@@ -203,8 +204,7 @@ Then(
     // The page carrying the cost this story just recorded, for a screenshot.
     leaveEvidencePage(this, ["maintenance-cost-on-a-room"], path);
     const body = await renderAdminPage(path);
-    assertStringIncludes(body, ">£90<");
-    assertStringIncludes(body, "Boiler part");
+    expectIncludesAll(body, [">£90<", "Boiler part"]);
   },
 );
 

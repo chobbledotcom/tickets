@@ -13,6 +13,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 
 const note = (overrides: Partial<SystemNote> = {}): SystemNote => ({
@@ -30,15 +31,14 @@ describe("AttendeeNotesSection", () => {
 
   test("renders a system note as a red alert with its markdown link", () => {
     const html = String(<AttendeeNotesSection isOwner notes={[note()]} />);
-    assertStringIncludes(html, "system-note-alert");
-    assertStringIncludes(html, 'role="alert"');
-    // The markdown body is rendered — for an OWNER the ledger link survives.
-    assertStringIncludes(html, 'href="/admin/ledger?attendee=5"');
-    // The × opens the are-you-sure delete page, returning to the attendee page.
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "system-note-alert",
+      'role="alert"',
+      // The markdown body is rendered — for an OWNER the ledger link survives.
+      'href="/admin/ledger?attendee=5"',
+      // The × opens the are-you-sure delete page, returning to the attendee page.
       "/admin/attendee/5/note/1/delete?return_url=%2Fadmin%2Fattendees%2F5",
-    );
+    ]);
   });
 
   test("demotes the ledger link to plain text for a non-owner admin", () => {
@@ -129,12 +129,14 @@ describe("AttendeeNotesSummary", () => {
         ]}
       />,
     );
-    assertStringIncludes(html, "<details");
-    assertStringIncludes(html, "2 attendees have notes");
-    assertStringIncludes(html, 'href="/admin/attendees/5"');
-    assertStringIncludes(html, "Alice");
-    assertStringIncludes(html, "first");
-    assertStringIncludes(html, "other");
+    expectIncludesAll(html, [
+      "<details",
+      "2 attendees have notes",
+      'href="/admin/attendees/5"',
+      "Alice",
+      "first",
+      "other",
+    ]);
   });
 
   test("falls back to the id when a name is unknown", () => {
@@ -191,14 +193,13 @@ describe("adminNoteNewPage", () => {
       returnUrl: "/admin/attendees/5",
       session: OWNER_SESSION,
     });
-    assertStringIncludes(html, "Add a note for Alice Example");
-    assertStringIncludes(html, 'action="/admin/attendee/5/note"');
-    assertStringIncludes(html, 'name="note"');
-    assertStringIncludes(html, 'name="csrf_token"');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "Add a note for Alice Example",
+      'action="/admin/attendee/5/note"',
+      'name="note"',
+      'name="csrf_token"',
       'name="return_url" type="hidden" value="/admin/attendees/5"',
-    );
+    ]);
   });
 
   test("shows a flash error when re-rendered after a rejected save", () => {
@@ -226,9 +227,11 @@ describe("adminNoteDeletePage", () => {
       returnUrl: "/admin/attendees/5",
       session: OWNER_SESSION,
     });
-    assertStringIncludes(html, "Are you sure");
-    assertStringIncludes(html, "delete this");
-    assertStringIncludes(html, 'action="/admin/attendee/5/note/1/delete"');
+    expectIncludesAll(html, [
+      "Are you sure",
+      "delete this",
+      'action="/admin/attendee/5/note/1/delete"',
+    ]);
     // The intermediate page is deliberately NOT the copy/paste confirmation.
     assert(!html.includes('name="confirm_identifier"'));
     // It bounces back via return_url.

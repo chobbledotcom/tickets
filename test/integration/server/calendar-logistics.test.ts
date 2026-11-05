@@ -6,6 +6,7 @@ import { logisticsAgents } from "#db/logistics-agents.ts";
 import { settings } from "#db/settings.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -69,9 +70,11 @@ describeWithEnv(
     test("CSV export includes the run-sheet agent columns", async () => {
       const { d } = await setup();
       const csv = await exportCsv(`/admin/calendar/export?date=${d}`);
-      assertStringIncludes(csv, "Start Agent,Start Time,End Agent,End Time");
-      assertStringIncludes(csv, "Mine");
-      assertStringIncludes(csv, "Agent User");
+      expectIncludesAll(csv, [
+        "Start Agent,Start Time,End Agent,End Time",
+        "Mine",
+        "Agent User",
+      ]);
     });
 
     test("CSV export honours the agent filter", async () => {
@@ -86,9 +89,7 @@ describeWithEnv(
     test("renders the agent filter bar when agents exist", async () => {
       const { d } = await setup();
       const html = await calendarHtml(`/admin/calendar?date=${d}`);
-      assertStringIncludes(html, "Agent:");
-      assertStringIncludes(html, "Mine");
-      assertStringIncludes(html, "Agent User");
+      expectIncludesAll(html, ["Agent:", "Mine", "Agent User"]);
     });
 
     test("does not load the agent filter bar until a date is selected", async () => {
@@ -132,9 +133,11 @@ describeWithEnv(
       // page returns by all carried only the date. The operator landed on the
       // whole site's list for that day with nothing to say the run sheet had
       // gone.
-      assertStringIncludes(html, `href="${withAgent}#attendees"`);
-      assertStringIncludes(html, `value="${withAgent}#attendees"`);
-      assertStringIncludes(html, `${withAgent}&amp;cal=`);
+      expectIncludesAll(html, [
+        `href="${withAgent}#attendees"`,
+        `value="${withAgent}#attendees"`,
+        `${withAgent}&amp;cal=`,
+      ]);
     });
 
     test("keeps the agent out of the link that shows every agent", async () => {

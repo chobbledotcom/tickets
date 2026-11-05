@@ -3,7 +3,10 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { builtSites } from "#db/built-sites.ts";
-import { expectHtmlResponse } from "#test-utils/assertions.ts";
+import {
+  expectHtmlResponse,
+  expectIncludesAll,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 import { adminGet } from "#test-utils/session.ts";
@@ -24,8 +27,7 @@ const expectArrow = (
   if (arrow === undefined) {
     throw new Error(`No anchor carries the aria-label "${label}"`);
   }
-  assertStringIncludes(arrow, `href="${href}"`);
-  assertStringIncludes(arrow, `title="${title}"`);
+  expectIncludesAll(arrow, [`href="${href}"`, `title="${title}"`]);
 };
 
 describeWithEnv(

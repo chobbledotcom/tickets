@@ -9,6 +9,7 @@ import {
 } from "#templates/admin/attendee-detail.tsx";
 import { attendeeSummaryRows } from "#templates/admin/attendee-page.tsx";
 import { renderSection } from "#templates/admin/entity-pages.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { testAttendee } from "#test-utils/factories.ts";
 
@@ -49,10 +50,12 @@ describe("attendee summary section", () => {
     const html = renderDetail(
       testAttendee({ name: "Jane Doe", ticket_token: "tok-123" }),
     );
-    assertStringIncludes(html, '<th scope="row">Name</th>');
-    assertStringIncludes(html, "Jane Doe");
-    assertStringIncludes(html, `https://${ALLOWED_DOMAIN}/t/tok-123`);
-    assertStringIncludes(html, "Registered");
+    expectIncludesAll(html, [
+      '<th scope="row">Name</th>',
+      "Jane Doe",
+      `https://${ALLOWED_DOMAIN}/t/tok-123`,
+      "Registered",
+    ]);
   });
 
   test("shows the no-quantity indicator instead of a dead ticket link for a ghost-only attendee", () => {
@@ -79,16 +82,20 @@ describe("attendee summary section", () => {
 
   test("shows the phone number with small tel and whatsapp links", () => {
     const html = renderDetail(testAttendee({ phone: "07700 900000" }));
-    assertStringIncludes(html, "07700 900000");
-    assertStringIncludes(html, '<a href="tel:+447700900000">tel</a>');
-    assertStringIncludes(html, "https://wa.me/447700900000");
-    assertStringIncludes(html, "<small>");
+    expectIncludesAll(html, [
+      "07700 900000",
+      '<a href="tel:+447700900000">tel</a>',
+      "https://wa.me/447700900000",
+      "<small>",
+    ]);
   });
 
   test("normalises the phone with the given dialling code", () => {
     const html = renderDetail(testAttendee({ phone: "0234 567 8900" }), "1");
-    assertStringIncludes(html, 'href="tel:+12345678900"');
-    assertStringIncludes(html, "https://wa.me/12345678900");
+    expectIncludesAll(html, [
+      'href="tel:+12345678900"',
+      "https://wa.me/12345678900",
+    ]);
   });
 
   test("omits the phone row when there is no phone", () => {
@@ -104,16 +111,20 @@ describe("attendee summary section", () => {
         special_instructions: "Step free\nNut allergy",
       }),
     );
-    assertStringIncludes(html, "white-space:pre-wrap");
-    assertStringIncludes(html, "1 High St\nTownsville");
-    assertStringIncludes(html, "Step free\nNut allergy");
+    expectIncludesAll(html, [
+      "white-space:pre-wrap",
+      "1 High St\nTownsville",
+      "Step free\nNut allergy",
+    ]);
   });
 
   test("links the attendee's invoice and names its status and date", () => {
     const html = renderDetail(testAttendee(), "44", true, [presentInvoice]);
-    assertStringIncludes(html, '<th scope="row">Invoice</th>');
-    assertStringIncludes(html, 'href="/admin/invoices/12"');
-    assertStringIncludes(html, "12 — New — Wednesday 4 November 2026");
+    expectIncludesAll(html, [
+      '<th scope="row">Invoice</th>',
+      'href="/admin/invoices/12"',
+      "12 — New — Wednesday 4 November 2026",
+    ]);
   });
 
   test("omits the invoice row when the attendee has no invoice", () => {
@@ -197,9 +208,11 @@ describe("attendee activity section", () => {
     const html = String(
       renderSection({ entries, kind: "activity", viewAllHref: null }),
     );
-    assertStringIncludes(html, "Attendee 'Jane Doe' updated");
-    assertStringIncludes(html, "<th>Time</th>");
-    assertStringIncludes(html, "<th>Activity</th>");
+    expectIncludesAll(html, [
+      "Attendee 'Jane Doe' updated",
+      "<th>Time</th>",
+      "<th>Activity</th>",
+    ]);
     // The full tab has no preview link.
     assert(!html.includes("View all activity"));
   });
@@ -212,8 +225,10 @@ describe("attendee activity section", () => {
         viewAllHref: "/admin/attendees/7/activity",
       }),
     );
-    assertStringIncludes(html, 'href="/admin/attendees/7/activity"');
-    assertStringIncludes(html, "View all activity");
+    expectIncludesAll(html, [
+      'href="/admin/attendees/7/activity"',
+      "View all activity",
+    ]);
   });
 
   test("shows the empty state when the attendee has no log entries", () => {

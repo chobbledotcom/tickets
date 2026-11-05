@@ -2,6 +2,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { logRefundLedgerError } from "#shared/refund-ledger/log.ts";
 import { initSentry } from "#shared/sentry.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
@@ -39,9 +40,11 @@ describe("refund ledger diagnostics", () => {
     assert(!(errors.lastMessage() ?? "").includes(failure.message));
 
     const body = sentryRequestBody(fetchStub.calls);
-    assertStringIncludes(body, '"value":"ledger backend failed"');
-    assertStringIncludes(body, "stacktrace");
-    assertStringIncludes(body, '"detail":"Refund ledger post failed"');
-    assertStringIncludes(body, '"attendeeId":"17"');
+    expectIncludesAll(body, [
+      '"value":"ledger backend failed"',
+      "stacktrace",
+      '"detail":"Refund ledger post failed"',
+      '"attendeeId":"17"',
+    ]);
   });
 });

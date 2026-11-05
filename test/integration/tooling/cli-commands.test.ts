@@ -9,6 +9,7 @@ import {
   ADMIN_API_RESOURCES,
   type AdminApiResource,
 } from "#shared/admin-api-resources.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { gadgetEntry, testTable } from "#test-utils/cli-table.ts";
 
 /** Parse one command, or answer the usage error's exit code and message. */
@@ -313,8 +314,7 @@ describe("CLI parser", () => {
   test("answers exit 2 with the valid resources for an unknown resource", () => {
     const answer = parseOrUsage(["list", "orders"]);
     expect(answer.code).toBe(2);
-    assertStringIncludes(answer.message, "The valid resources are:");
-    assertStringIncludes(answer.message, "gadgets");
+    expectIncludesAll(answer.message, ["The valid resources are:", "gadgets"]);
   });
 
   test("answers exit 2 with the valid children for an unknown child", () => {

@@ -6,7 +6,11 @@ import { groups } from "#db/groups.ts";
 import { handleRequest } from "#routes";
 import { stripeApi } from "#shared/stripe.ts";
 import { renderPaymentSuccess } from "#test/integration/server/payment-success-helpers.ts";
-import { expectHtmlResponse, followRedirect } from "#test-utils/assertions.ts";
+import {
+  expectHtmlResponse,
+  expectIncludesAll,
+  followRedirect,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -285,9 +289,11 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         );
         expect(response2.status).toBe(200);
         const html = await response2.text();
-        assertStringIncludes(html, "Thank you for your order");
-        // Single-item cart replay also shows thank_you_url
-        assertStringIncludes(html, "redirected");
+        expectIncludesAll(html, [
+          "Thank you for your order",
+          // Single-item cart replay also shows thank_you_url
+          "redirected",
+        ]);
       } finally {
         mockRetrieve.restore();
       }

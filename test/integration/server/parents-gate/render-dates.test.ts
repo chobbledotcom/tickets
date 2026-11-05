@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
 import { DAY_NAMES } from "#shared/day-names.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { weekdayOf } from "#test-utils/booking-model-fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -214,10 +215,12 @@ describeWithEnv(
 
       const html = await bookingPageHtml(parent.slug);
       // The parent renders a normal bookable form, not the sold-out message.
-      assertStringIncludes(html, `name="quantity_${parent.id}"`);
-      // The daily child is the sole bookable option, rendered
-      // informational — never as a disabled control.
-      assertStringIncludes(html, `data-sole-child="${child.id}"`);
+      expectIncludesAll(html, [
+        `name="quantity_${parent.id}"`,
+        // The daily child is the sole bookable option, rendered
+        // informational — never as a disabled control.
+        `data-sole-child="${child.id}"`,
+      ]);
       assert(!html.includes("Sorry, this listing is full."));
     });
   },

@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -18,6 +18,7 @@ import {
 import {
   expectFlashRedirect,
   expectHtmlResponse,
+  expectIncludesAll,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestNewsPost } from "#test-utils/db-helpers/misc.ts";
@@ -216,9 +217,11 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
         await adminGet(`/admin/images/${image.id}/edit`),
         200,
       );
-      assertStringIncludes(html, `value="news:${post.id}"`);
-      assertStringIncludes(html, "Linked news");
-      assertStringIncludes(html, "Linkable post");
+      expectIncludesAll(html, [
+        `value="news:${post.id}"`,
+        "Linked news",
+        "Linkable post",
+      ]);
     });
 
     test("saving the image edit form links it to a news post", async () => {

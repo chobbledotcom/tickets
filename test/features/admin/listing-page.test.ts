@@ -8,6 +8,7 @@ import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingsTable } from "#db/listings/records.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
@@ -45,13 +46,12 @@ describeWithEnv("the listing page", { db: true }, () => {
     const html = await (
       await adminGet(`/admin/listing/${listing.id}/actions`)
     ).text();
-    assertStringIncludes(html, "<strong>wording</strong>");
-    // The add-note link sits beside the heading, returning to the listing page.
-    assertStringIncludes(html, "Add a note");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "<strong>wording</strong>",
+      // The add-note link sits beside the heading, returning to the listing page.
+      "Add a note",
       `/admin/listing/${listing.id}/note?return_url=%2Fadmin%2Flisting%2F${listing.id}`,
-    );
+    ]);
   });
 
   test("marks the listings list as the section it belongs to", async () => {
@@ -118,11 +118,10 @@ describeWithEnv("the listing page", { db: true }, () => {
       await awaitTestRequest(`/admin/listing/${listing.id}/actions`, { cookie })
     ).text();
 
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       `href="/admin/listing/${listing.id}/export.json"`,
-    );
-    assertStringIncludes(html, `href="/admin/listing/${listing.id}/duplicate"`);
+      `href="/admin/listing/${listing.id}/duplicate"`,
+    ]);
     assert(!html.includes(`href="/admin/listing/${listing.id}/delete"`));
     assert(!html.includes(`href="/admin/listing/${listing.id}/refund-all"`));
   });

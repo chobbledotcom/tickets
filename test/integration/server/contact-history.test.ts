@@ -14,6 +14,7 @@ import { makeImage } from "#test-utils/admin-images.ts";
 import {
   expectFlashRedirect,
   expectHtml,
+  expectIncludesAll,
   expectRedirect,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
@@ -155,16 +156,15 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
       // Re-rendered in place with an error, not redirected.
       expect(response.status).toBe(200);
       const html = await response.text();
-      assertStringIncludes(html, "characters or fewer");
-      // The note preview renders the saved-but-rejected note, and its image
-      // reference resolves through the image-url table like the GET path's.
-      assertStringIncludes(html, 'class="contact-notes"');
-      // renderMarkdown percent-encodes the image URL, so the filename's space
-      // renders as %20.
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        "characters or fewer",
+        // The note preview renders the saved-but-rejected note, and its image
+        // reference resolves through the image-url table like the GET path's.
+        'class="contact-notes"',
+        // renderMarkdown percent-encodes the image URL, so the filename's space
+        // renders as %20.
         `<img src="/image/${encodeURI(image.filename)}" alt="Note Poster">`,
-      );
+      ]);
     });
 
     test("coerces blank/negative counters to zero", async () => {

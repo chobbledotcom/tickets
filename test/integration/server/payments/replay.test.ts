@@ -6,7 +6,10 @@ import { getNoteRows } from "#db/notes/queries.ts";
 import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
 import { loadRefundAuthorityByReference } from "#db/provider-refund-authority.ts";
 import { handleRequest } from "#routes";
-import { expectHtmlResponse } from "#test-utils/assertions.ts";
+import {
+  expectHtmlResponse,
+  expectIncludesAll,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestListing,
@@ -103,8 +106,10 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           );
           expect(second.status).toBe(410);
           const html = await second.text();
-          assertStringIncludes(html, "no longer accepting registrations");
-          assertStringIncludes(html, "refunded");
+          expectIncludesAll(html, [
+            "no longer accepting registrations",
+            "refunded",
+          ]);
           // The retry never shows the transient lock message...
           assert(!html.includes("being processed"));
           // ...and never issues a second refund.

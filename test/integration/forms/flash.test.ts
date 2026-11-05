@@ -16,6 +16,7 @@ import {
 } from "#shared/forms/flash.tsx";
 import { detectIframeMode } from "#shared/request-context.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { hasInputWithValue } from "#test-utils/csrf.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
@@ -40,9 +41,11 @@ describe("renderError", () => {
 
   test("renders error with role alert", () => {
     const html = renderError("Something went wrong");
-    assertStringIncludes(html, "Something went wrong");
-    assertStringIncludes(html, 'class="error"');
-    assertStringIncludes(html, 'role="alert"');
+    expectIncludesAll(html, [
+      "Something went wrong",
+      'class="error"',
+      'role="alert"',
+    ]);
   });
 
   test("escapes HTML in error message", () => {
@@ -60,9 +63,11 @@ describe("renderSuccess", () => {
 
   test("renders success message with role alert", () => {
     const html = renderSuccess("Changes saved");
-    assertStringIncludes(html, "Changes saved");
-    assertStringIncludes(html, 'class="success"');
-    assertStringIncludes(html, 'role="alert"');
+    expectIncludesAll(html, [
+      "Changes saved",
+      'class="success"',
+      'role="alert"',
+    ]);
   });
 
   test("escapes HTML in success message", () => {
@@ -81,26 +86,24 @@ describe("Flash", () => {
 
   test("renders error with role alert", () => {
     const html = String(Flash({ error: "Bad input" }));
-    assertStringIncludes(html, "Bad input");
-    assertStringIncludes(html, 'class="error"');
-    assertStringIncludes(html, 'role="alert"');
+    expectIncludesAll(html, ["Bad input", 'class="error"', 'role="alert"']);
     assert(!html.includes('class="success"'));
   });
 
   test("renders success with role alert", () => {
     const html = String(Flash({ success: "Saved" }));
-    assertStringIncludes(html, "Saved");
-    assertStringIncludes(html, 'class="success"');
-    assertStringIncludes(html, 'role="alert"');
+    expectIncludesAll(html, ["Saved", 'class="success"', 'role="alert"']);
     assert(!html.includes('class="error"'));
   });
 
   test("renders both error and success", () => {
     const html = String(Flash({ error: "Oops", success: "Done" }));
-    assertStringIncludes(html, "Oops");
-    assertStringIncludes(html, "Done");
-    assertStringIncludes(html, 'class="error"');
-    assertStringIncludes(html, 'class="success"');
+    expectIncludesAll(html, [
+      "Oops",
+      "Done",
+      'class="error"',
+      'class="success"',
+    ]);
   });
 
   test("escapes HTML in messages", () => {
@@ -115,9 +118,7 @@ test("requestFlash renders every message from the request context", async () => 
     setFlashContext({ error: "Bad", info: "Notice", success: "Saved" });
     return String(requestFlash());
   });
-  assertStringIncludes(html, "Bad");
-  assertStringIncludes(html, "Notice");
-  assertStringIncludes(html, "Saved");
+  expectIncludesAll(html, ["Bad", "Notice", "Saved"]);
 });
 
 describe("CsrfForm", () => {
@@ -129,8 +130,7 @@ describe("CsrfForm", () => {
 
   test("renders POST form with action and CSRF token", () => {
     const html = String(CsrfForm({ action: "/submit" }));
-    assertStringIncludes(html, 'action="/submit"');
-    assertStringIncludes(html, 'method="POST"');
+    expectIncludesAll(html, ['action="/submit"', 'method="POST"']);
     expect(hasInputWithValue(html, "csrf_token", getCurrentCsrfToken())).toBe(
       true,
     );
@@ -174,8 +174,7 @@ describe("CsrfForm", () => {
       { success: "Saved" },
       "my-form",
     );
-    assertStringIncludes(html, "Saved");
-    assertStringIncludes(html, 'class="success"');
+    expectIncludesAll(html, ["Saved", 'class="success"']);
   });
 
   test("does not show success when id does not match", async () => {
@@ -208,8 +207,7 @@ describe("CsrfForm", () => {
       { error: "Something went wrong" },
       "my-form",
     );
-    assertStringIncludes(html, "Something went wrong");
-    assertStringIncludes(html, 'class="error"');
+    expectIncludesAll(html, ["Something went wrong", 'class="error"']);
   });
 
   test("does not show error when id does not match", async () => {

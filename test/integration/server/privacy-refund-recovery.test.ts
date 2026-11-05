@@ -16,6 +16,7 @@ import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   expectFlashRedirect,
+  expectIncludesAll,
   expectStatus,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
@@ -200,8 +201,10 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
 
     const detail = await adminGet(refundCasePath(id));
     const detailHtml = await detail.text();
-    assertStringIncludes(detailHtml, "Send this refund");
-    assertStringIncludes(detailHtml, 'button class="danger"');
+    expectIncludesAll(detailHtml, [
+      "Send this refund",
+      'button class="danger"',
+    ]);
     assert(!detailHtml.includes("Check the provider again"));
     await expectFlashRedirect(
       refundCasePath(id),
@@ -289,10 +292,12 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
     const html = await page.text();
     assertStringIncludes(html, 'value="provider_confirmed_returned"');
     assert(!html.includes('value="provider_confirmed_not_sent"'));
-    assertStringIncludes(html, "Provider returned");
-    assertStringIncludes(html, "£4 GBP");
-    assertStringIncludes(html, "Not returned");
-    assertStringIncludes(html, "£21 GBP");
+    expectIncludesAll(html, [
+      "Provider returned",
+      "£4 GBP",
+      "Not returned",
+      "£21 GBP",
+    ]);
 
     const refuse = async (body: Record<string, string>): Promise<void> => {
       await expectFlashRedirect(
@@ -376,11 +381,10 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
     const detail = await adminGet(refundCasePath(id));
     const detailHtml = await detail.text();
     expect(detail.status).toBe(200);
-    assertStringIncludes(detailHtml, reference);
-    assertStringIncludes(
-      detailHtml,
+    expectIncludesAll(detailHtml, [
+      reference,
       "The provider confirms that the money was returned",
-    );
+    ]);
     assert(!detailHtml.includes("checked"));
 
     await expectFlashRedirect(

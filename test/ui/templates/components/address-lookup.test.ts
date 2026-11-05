@@ -14,6 +14,7 @@ import { renderField, renderFields } from "#shared/forms/rendering.tsx";
 import { renderAddressLookupPanel } from "#templates/components/address-lookup.tsx";
 import { getAddAttendeeFields } from "#templates/fields/add-attendee.ts";
 import { getTicketFields } from "#templates/fields/ticket.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 const enableProviderForTest = (): void => {
   settings.setForTest({ address_lookup_provider: "easypostcodes" });
@@ -36,20 +37,20 @@ describe("renderAddressLookupPanel", () => {
   test("renders a hidden panel with the provider's search copy", () => {
     enableProviderForTest();
     const html = renderAddressLookupPanel();
-    assertStringIncludes(html, "data-address-lookup");
-    assertStringIncludes(html, "hidden");
-    assertStringIncludes(html, ">Postcode<");
+    expectIncludesAll(html, ["data-address-lookup", "hidden", ">Postcode<"]);
     // The search input carries no placeholder (the `data-placeholder` results
     // attribute is a different thing — hence the leading-space match).
     assert(!html.includes(" placeholder="));
-    assertStringIncludes(html, ">Find address<");
-    assertStringIncludes(html, "data-address-search");
-    assertStringIncludes(html, "data-address-results");
-    assertStringIncludes(html, "data-address-status");
-    assertStringIncludes(html, 'data-searching="Searching…"');
-    assertStringIncludes(html, "data-no-results=");
-    assertStringIncludes(html, "data-error=");
-    assertStringIncludes(html, "data-placeholder=");
+    expectIncludesAll(html, [
+      ">Find address<",
+      "data-address-search",
+      "data-address-results",
+      "data-address-status",
+      'data-searching="Searching…"',
+      "data-no-results=",
+      "data-error=",
+      "data-placeholder=",
+    ]);
   });
 
   test("never renders an Edit button — the textarea stays editable", () => {

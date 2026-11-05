@@ -6,6 +6,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testGroup } from "#test-utils/factories.ts";
 import type { AdminSession } from "#types";
 
@@ -23,12 +24,11 @@ describe("admin groups list template", () => {
     const second = testGroup({ id: 8, name: "Summer", slug: "summer" });
     const html = adminGroupsPage([GROUP, second], OWNER_SESSION);
 
-    assertStringIncludes(html, "<th>Name</th><th>Slug</th>");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "<th>Name</th><th>Slug</th>",
       '<a href="/admin/groups/7">Family &lt;script&gt;</a>',
-    );
-    assertStringIncludes(html, "family-&quot;weekend&quot;");
+      "family-&quot;weekend&quot;",
+    ]);
     assert(!html.includes("Family <script>"));
     expect(html.indexOf("Family &lt;script&gt;")).toBeLessThan(
       html.indexOf(">Summer<"),
@@ -58,8 +58,7 @@ describe("admin groups list template", () => {
   test("renders the empty state without an empty table", () => {
     const html = adminGroupsPage([], OWNER_SESSION, "Group deleted.");
 
-    assertStringIncludes(html, "Group deleted.");
-    assertStringIncludes(html, "No groups configured.");
+    expectIncludesAll(html, ["Group deleted.", "No groups configured."]);
     assert(!html.includes("<table"));
     assertStringIncludes(html, 'href="/admin/guide#packages"');
   });

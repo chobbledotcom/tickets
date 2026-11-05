@@ -1,7 +1,7 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { PR_QUEUE_USAGE, parsePrQueueArgs } from "#scripts/pr-queue/args.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 describe("reading the PR queue report's arguments", () => {
   test("asks for the grouped report on this repo by default", () => {
@@ -74,8 +74,10 @@ describe("reading the PR queue report's arguments", () => {
   });
 
   test("the help text names every option", () => {
-    assertStringIncludes(PR_QUEUE_USAGE, "--json");
-    assertStringIncludes(PR_QUEUE_USAGE, "--repo owner/name");
-    assertStringIncludes(PR_QUEUE_USAGE, "-h, --help");
+    expectIncludesAll(PR_QUEUE_USAGE, [
+      "--json",
+      "--repo owner/name",
+      "-h, --help",
+    ]);
   });
 });

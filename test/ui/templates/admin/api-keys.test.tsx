@@ -11,7 +11,10 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
-import { tableRowContaining } from "#test-utils/assertions.ts";
+import {
+  expectIncludesAll,
+  tableRowContaining,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { enableFeature } from "#test-utils/settings.ts";
@@ -38,28 +41,18 @@ describeWithEnv("adminApiKeyDeletePage", { db: true }, () => {
     await enableFeature("apiKeys");
     const html = adminApiKeyDeletePage(API_KEY, OWNER_SESSION);
 
-    assertStringIncludes(html, 'action="/admin/api-keys/7/delete"');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'action="/admin/api-keys/7/delete"',
       "<p>Warning: This will permanently delete this API key. Any integrations using it will stop working immediately.</p>",
-    );
-    assertStringIncludes(
-      html,
       "<p>To delete this API key, type its name &quot;Deploy key&quot; into the box below:</p>",
-    );
-    assertStringIncludes(
-      html,
       'name="confirm_identifier" placeholder="Deploy key" required',
-    );
-    assertStringIncludes(html, '<button class="danger" type="submit">');
-    assertStringIncludes(html, "/icons.svg#trash-2");
-    assertStringIncludes(html, "Delete API Key");
-    assertStringIncludes(html, "<title>Delete: Deploy key");
-    // The delete page sits in the same Users section as the list.
-    assertStringIncludes(
-      html,
+      '<button class="danger" type="submit">',
+      "/icons.svg#trash-2",
+      "Delete API Key",
+      "<title>Delete: Deploy key",
+      // The delete page sits in the same Users section as the list.
       '<a class="active" href="/admin/users">Users</a>',
-    );
+    ]);
   });
 
   test("renders a rejected-submit error", () => {
@@ -106,35 +99,35 @@ describeWithEnv("API key pages in read-only mode", { db: true }, () => {
   test("the key table names its created and last-used columns and links each key", async () => {
     await enableFeature("apiKeys");
     const html = adminApiKeysPage([API_KEY], OWNER_SESSION, {});
-    assertStringIncludes(html, "<th>Name</th>");
-    assertStringIncludes(html, "<th>Created</th>");
-    assertStringIncludes(html, "<th>Last used</th>");
-    assertStringIncludes(html, '<a href="/admin/api-keys/7">Deploy key</a>');
-    // With the feature on, the nav marks the page's Users section active.
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "<th>Name</th>",
+      "<th>Created</th>",
+      "<th>Last used</th>",
+      '<a href="/admin/api-keys/7">Deploy key</a>',
+      // With the feature on, the nav marks the page's Users section active.
       '<a class="active" href="/admin/users">Users</a>',
-    );
+    ]);
   });
 
   test("a fresh key carries its copy notice and bearer example", () => {
     const html = adminApiKeysPage([API_KEY], OWNER_SESSION, {
       newKey: "tik_live_secret",
     });
-    assertStringIncludes(html, '<div class="warning">');
-    assertStringIncludes(html, "Copy your API key now");
-    assertStringIncludes(html, "<pre><code>tik_live_secret</code></pre>");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      '<div class="warning">',
+      "Copy your API key now",
+      "<pre><code>tik_live_secret</code></pre>",
       "<p>Use it with: <code>Authorization: Bearer YOUR_KEY</code></p>",
-    );
+    ]);
   });
 
   test("the list links its docs page and its guide", () => {
     const html = adminApiKeysPage([API_KEY], OWNER_SESSION, {});
-    assertStringIncludes(html, '<a href="/admin/api-keys/docs">');
-    assertStringIncludes(html, 'href="/admin/guide#api"');
-    assertStringIncludes(html, 'action="/admin/api-keys"');
+    expectIncludesAll(html, [
+      '<a href="/admin/api-keys/docs">',
+      'href="/admin/guide#api"',
+      'action="/admin/api-keys"',
+    ]);
   });
 });
 
@@ -144,20 +137,13 @@ describe("adminApiDocsPage", () => {
   test("labels and code-fences each endpoint's request and response", () => {
     const html = adminApiDocsPage(OWNER_SESSION, [ENDPOINT], []);
     // The entry's summary line: method, path, dash, description.
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       "<code>GET /api/listings</code> — Collect every listing",
-    );
-    assertStringIncludes(html, "<strong>Request:</strong>");
-    assertStringIncludes(
-      html,
+      "<strong>Request:</strong>",
       "<pre><code>{ &quot;slug&quot;: &quot;summer&quot; }</code></pre>",
-    );
-    assertStringIncludes(html, "<strong>Response:</strong>");
-    assertStringIncludes(
-      html,
+      "<strong>Response:</strong>",
       "<pre><code>{ &quot;listings&quot;: [] }</code></pre>",
-    );
+    ]);
   });
 
   test("an endpoint without a request body shows only its response", () => {
@@ -172,27 +158,22 @@ describe("adminApiDocsPage", () => {
   test("the three doc sections keep their headings and intros", () => {
     const html = adminApiDocsPage(OWNER_SESSION, [ENDPOINT], [ENDPOINT]);
     // Every docs section is a prose block, so its copy sits in .prose.
-    assertStringIncludes(html, '<div class="prose"><h3>Authentication</h3>');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      '<div class="prose"><h3>Authentication</h3>',
       "Admin API endpoints require authentication via API key or session cookie:",
-    );
-    assertStringIncludes(html, "<h3>Public API</h3>");
-    assertStringIncludes(html, "<h3>Admin API</h3>");
-    assertStringIncludes(html, "Requires <code>Authorization");
-    // The whole page keeps the shell's active tab and title.
-    assertStringIncludes(html, "<title>API Documentation");
+      "<h3>Public API</h3>",
+      "<h3>Admin API</h3>",
+      "Requires <code>Authorization",
+      // The whole page keeps the shell's active tab and title.
+      "<title>API Documentation",
+    ]);
   });
 
   test("the authentication section code-fences its bearer header", () => {
     const html = adminApiDocsPage(OWNER_SESSION, [ENDPOINT], []);
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       "<pre><code>Authorization: Bearer YOUR_API_KEY</code></pre>",
-    );
-    assertStringIncludes(
-      html,
       "Public API endpoints require no authentication.",
-    );
+    ]);
   });
 });

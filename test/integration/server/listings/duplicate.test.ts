@@ -1,9 +1,13 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { listingsTable } from "#db/listings/records.ts";
-import { assertAdminHtml, testRequiresAuth } from "#test-utils/assertions.ts";
+import {
+  assertAdminHtml,
+  expectIncludesAll,
+  testRequiresAuth,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { baseListingForm } from "#test-utils/factories.ts";
@@ -47,9 +51,11 @@ describeWithEnv("server listings > duplicate", { db: true }, () => {
       // Name field should be empty (not pre-filled)
       assert(!html.includes('value="Original Listing"'));
       // Form posts to create endpoint
-      assertStringIncludes(html, 'action="/admin/listing"');
-      // Name field has autofocus
-      assertStringIncludes(html, "autofocus");
+      expectIncludesAll(html, [
+        'action="/admin/listing"',
+        // Name field has autofocus
+        "autofocus",
+      ]);
     });
 
     /** Sets up a plain listing and returns its rendered Actions tab HTML —
@@ -67,14 +73,18 @@ describeWithEnv("server listings > duplicate", { db: true }, () => {
 
     test("shows Duplicate link on the Actions tab", async () => {
       const html = await getActionsTabHtml();
-      assertStringIncludes(html, 'href="/admin/listing/1/duplicate"');
-      assertStringIncludes(html, "<span>Duplicate</span>");
+      expectIncludesAll(html, [
+        'href="/admin/listing/1/duplicate"',
+        "<span>Duplicate</span>",
+      ]);
     });
 
     test("shows the JSON export link on the Actions tab", async () => {
       const html = await getActionsTabHtml();
-      assertStringIncludes(html, 'href="/admin/listing/1/export.json"');
-      assertStringIncludes(html, "<span>Export</span>");
+      expectIncludesAll(html, [
+        'href="/admin/listing/1/export.json"',
+        "<span>Export</span>",
+      ]);
     });
   });
 

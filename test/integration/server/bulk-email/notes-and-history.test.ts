@@ -18,7 +18,11 @@ import {
   seedListingWithAttendees,
   useResend,
 } from "#test/integration/server/bulk-email/helpers.ts";
-import { expectHtmlResponse, expectRedirect } from "#test-utils/assertions.ts";
+import {
+  expectHtmlResponse,
+  expectIncludesAll,
+  expectRedirect,
+} from "#test-utils/assertions.ts";
 import { seedOrderActivity } from "#test-utils/contact-tokens.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -151,17 +155,13 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       // Before any activity: the panel shows a labelled section per channel,
       // each linking to its own /admin/history editor.
       const before = await attendeePage();
-      assertStringIncludes(before, "Contact History");
-      assertStringIncludes(before, "Stats / notes for alice@example.com");
-      assertStringIncludes(before, "Stats / notes for 07700 900333");
-      assertStringIncludes(
-        before,
+      expectIncludesAll(before, [
+        "Contact History",
+        "Stats / notes for alice@example.com",
+        "Stats / notes for 07700 900333",
         `/admin/history/${base64ToBase64Url(emailHash)}`,
-      );
-      assertStringIncludes(
-        before,
         `/admin/history/${base64ToBase64Url(phoneHash)}`,
-      );
+      ]);
 
       // A bulk-email send gives the email contact outreach history...
       await adminFormPost("/admin/emails/preview", {
@@ -192,13 +192,15 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       const after = await attendeePage();
       // The shared summary lists previous bookings and each channel's messages;
       // the last-subject recap still surfaces the outreach send.
-      assertStringIncludes(after, "Previous bookings shown:");
-      assertStringIncludes(after, "Total email messages:");
-      assertStringIncludes(after, "Total phone messages:");
-      assertStringIncludes(after, "Newsletter");
-      // The private notes render as MARKDOWN (bold), never raw asterisks.
-      assertStringIncludes(after, "<strong>Email VIP</strong> customer");
-      assertStringIncludes(after, "<strong>Phone VIP</strong> customer");
+      expectIncludesAll(after, [
+        "Previous bookings shown:",
+        "Total email messages:",
+        "Total phone messages:",
+        "Newsletter",
+        // The private notes render as MARKDOWN (bold), never raw asterisks.
+        "<strong>Email VIP</strong> customer",
+        "<strong>Phone VIP</strong> customer",
+      ]);
       assert(!after.includes("**Email VIP** customer"));
     });
 
@@ -239,11 +241,13 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       // Two previous bookings on file, each date-cell linking to its attendee,
       // the first's status name and the booked listing named in the items
       // column.
-      assertStringIncludes(html, "Previous bookings shown:</strong> 2");
-      assertStringIncludes(html, `/admin/attendees/${first.id}`);
-      assertStringIncludes(html, `/admin/attendees/${third.id}`);
-      assertStringIncludes(html, "Confirmed");
-      assertStringIncludes(html, "Repeat");
+      expectIncludesAll(html, [
+        "Previous bookings shown:</strong> 2",
+        `/admin/attendees/${first.id}`,
+        `/admin/attendees/${third.id}`,
+        "Confirmed",
+        "Repeat",
+      ]);
       // The current attendee never links to itself in its own table.
       assert(!html.includes(`<a href="/admin/attendees/${second.id}">`));
     });

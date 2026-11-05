@@ -2,7 +2,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { setGroupPackageMembers } from "#db/groups.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
-import { expectStatus } from "#test-utils/assertions.ts";
+import { expectIncludesAll, expectStatus } from "#test-utils/assertions.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -53,10 +53,12 @@ describeWithEnv(
         const response = await adminGet(`/admin/groups/${group.id}`);
         expectStatus(200)(response);
         const html = await response.text();
-        assertStringIncludes(html, "Free-Standalone Member");
-        // The override makes the package paid, so the page treats it as paid: the
-        // revenue row shows (a non-package or no-override group would hide it).
-        assertStringIncludes(html, "Total income earned");
+        expectIncludesAll(html, [
+          "Free-Standalone Member",
+          // The override makes the package paid, so the page treats it as paid: the
+          // revenue row shows (a non-package or no-override group would hide it).
+          "Total income earned",
+        ]);
       });
 
       test("decrypts the roster for a package paid only via a per-day override", async () => {
@@ -205,10 +207,12 @@ describeWithEnv(
         );
 
         const html = await getGroupAttendeesHtml(group.id);
-        assertStringIncludes(html, "Alice Alpha");
-        assertStringIncludes(html, "Bob Beta");
-        assertStringIncludes(html, "Listing Alpha");
-        assertStringIncludes(html, "Listing Beta");
+        expectIncludesAll(html, [
+          "Alice Alpha",
+          "Bob Beta",
+          "Listing Alpha",
+          "Listing Beta",
+        ]);
       });
 
       test("shows no attendees message for group with listings but no registrations", async () => {

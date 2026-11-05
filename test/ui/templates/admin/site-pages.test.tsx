@@ -13,6 +13,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 import type { SitePage, SitePageNavRow } from "#types";
 
@@ -44,8 +45,10 @@ describe("site page templates", () => {
       OWNER_SESSION,
     );
 
-    assertStringIncludes(html, "<em>No pages yet.</em>");
-    assertStringIncludes(html, 'href="/admin/site/pages/new"');
+    expectIncludesAll(html, [
+      "<em>No pages yet.</em>",
+      'href="/admin/site/pages/new"',
+    ]);
     assert(!html.includes("Top-level pages"));
     assert(!html.includes("Nested pages"));
     assert(!html.includes("<table"));
@@ -70,23 +73,21 @@ describe("site page templates", () => {
       "Page moved",
     );
 
-    assertStringIncludes(html, "Page moved");
-    assertStringIncludes(html, "<h2>Top-level pages</h2>");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "Page moved",
+      "<h2>Top-level pages</h2>",
       '<a href="/admin/site/pages/1/edit">First root</a>',
-    );
-    assertStringIncludes(html, "<code>/page/first</code>");
-    assertStringIncludes(html, 'action="/admin/site/pages/1/move-down"');
+      "<code>/page/first</code>",
+      'action="/admin/site/pages/1/move-down"',
+    ]);
     assert(!html.includes('action="/admin/site/pages/1/move-up"'));
     assertStringIncludes(html, 'action="/admin/site/pages/2/move-up"');
     assert(!html.includes('action="/admin/site/pages/2/move-down"'));
-    assertStringIncludes(html, "<h2>Nested pages</h2>");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "<h2>Nested pages</h2>",
       '<a href="/admin/site/pages/3/edit">Child page</a></td><td>First root</td>',
-    );
-    assertStringIncludes(html, 'href="/admin/site/pages/3/delete"');
+      'href="/admin/site/pages/3/delete"',
+    ]);
   });
 
   test("renders page names as plain text when the list is read-only", () => {
@@ -106,14 +107,16 @@ describe("site page templates", () => {
   test("renders the create form fields, action, error, and submit button", () => {
     const html = adminSitePageNewPage(OWNER_SESSION, "Slug is already used");
 
-    assertStringIncludes(html, 'action="/admin/site/pages"');
-    assertStringIncludes(html, "Slug is already used");
-    assertStringIncludes(html, 'name="name"');
-    assertStringIncludes(html, 'name="slug"');
-    assertStringIncludes(html, 'name="meta_title"');
-    assertStringIncludes(html, 'name="meta_description"');
-    assertStringIncludes(html, 'name="content"');
-    assertStringIncludes(html, "Create Page");
+    expectIncludesAll(html, [
+      'action="/admin/site/pages"',
+      "Slug is already used",
+      'name="name"',
+      'name="slug"',
+      'name="meta_title"',
+      'name="meta_description"',
+      'name="content"',
+      "Create Page",
+    ]);
     assert(!html.includes('href="/page/"'));
   });
 
@@ -126,8 +129,7 @@ describe("site page templates", () => {
     assertStringIncludes(html, 'href="/page/inside"');
     expect(html).toMatch(/name="meta_title"[^>]*value="Inside title"/);
     expect(html).toMatch(/name="meta_description"[^>]*value="A useful page"/);
-    assertStringIncludes(html, "Welcome **inside**.");
-    assertStringIncludes(html, "Save Changes");
+    expectIncludesAll(html, ["Welcome **inside**.", "Save Changes"]);
   });
 
   test("shows only the no-items note when nothing exists or can be added", () => {
@@ -161,42 +163,30 @@ describe("site page templates", () => {
       }),
     );
 
-    assertStringIncludes(html, "<td>Listing</td><td>Summer show</td>");
-    assertStringIncludes(html, "<td>Group</td><td>Weekend bundle</td>");
-    assertStringIncludes(html, "<td>Page</td><td>Child page</td>");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "<td>Listing</td><td>Summer show</td>",
+      "<td>Group</td><td>Weekend bundle</td>",
+      "<td>Page</td><td>Child page</td>",
       'action="/admin/site/pages/7/items/listing/11/move-down"',
-    );
+    ]);
     assert(
       !html.includes('action="/admin/site/pages/7/items/listing/11/move-up"'),
     );
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       'action="/admin/site/pages/7/items/group/12/move-up"',
-    );
-    assertStringIncludes(
-      html,
       'action="/admin/site/pages/7/items/group/12/move-down"',
-    );
+    ]);
     assert(
       !html.includes('action="/admin/site/pages/7/items/page/13/move-down"'),
     );
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       'action="/admin/site/pages/7/items/page/13/remove"',
-    );
-    assertStringIncludes(html, "<h3>Add to this page</h3>");
-    assertStringIncludes(
-      html,
+      "<h3>Add to this page</h3>",
       '<input name="item_type" type="hidden" value="listing">',
-    );
-    assertStringIncludes(html, '<option value="21">Winter show</option>');
-    assertStringIncludes(
-      html,
+      '<option value="21">Winter show</option>',
       '<input name="item_type" type="hidden" value="page">',
-    );
-    assertStringIncludes(html, '<option value="22">About</option>');
+      '<option value="22">About</option>',
+    ]);
     assert(
       !html.includes('<input name="item_type" type="hidden" value="group">'),
     );
@@ -209,13 +199,12 @@ describe("site page templates", () => {
       "Page name does not match",
     );
 
-    assertStringIncludes(html, 'action="/admin/site/pages/7/delete"');
-    assertStringIncludes(html, "Page name does not match");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'action="/admin/site/pages/7/delete"',
+      "Page name does not match",
       "Type the page name &quot;Inside&quot; to confirm deletion. Its sub-pages become top-level pages.",
-    );
-    assertStringIncludes(html, 'placeholder="Inside"');
-    assertStringIncludes(html, "Delete Page");
+      'placeholder="Inside"',
+      "Delete Page",
+    ]);
   });
 });

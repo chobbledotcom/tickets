@@ -8,7 +8,10 @@ import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { createDailyListing } from "#test/integration/server/listings/_shared-setup.ts";
 import { logActivity } from "#test-utils/activity-log.ts";
-import { expectFlashRedirect } from "#test-utils/assertions.ts";
+import {
+  expectFlashRedirect,
+  expectIncludesAll,
+} from "#test-utils/assertions.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -137,13 +140,15 @@ describeWithEnv(
         );
         const html = await response.text();
         // The confirmed count excludes the incomplete booking (2 booked − 1).
-        assertStringIncludes(html, "1 / 100");
-        // Received revenue is the paid sale only (£50), not the £80 gross.
-        assertStringIncludes(html, "Total Revenue");
-        assertStringIncludes(html, "£50");
-        // The note (with its author's decrypted name) renders on the Overview.
-        assertStringIncludes(html, "Called ahead about access");
-        assertStringIncludes(html, "Grace Hopper");
+        expectIncludesAll(html, [
+          "1 / 100",
+          // Received revenue is the paid sale only (£50), not the £80 gross.
+          "Total Revenue",
+          "£50",
+          // The note (with its author's decrypted name) renders on the Overview.
+          "Called ahead about access",
+          "Grace Hopper",
+        ]);
       });
       test("shows the full activity log on the Activity tab", async () => {
         const { listing, cookie } = await setupListingAndLogin({

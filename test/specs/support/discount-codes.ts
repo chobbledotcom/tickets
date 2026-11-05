@@ -6,7 +6,6 @@
  * the story rather than being worked around.
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { stub } from "@std/testing/mock";
 import { formatCurrency } from "#shared/currency.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
@@ -27,6 +26,7 @@ import {
   type TicketsWorld,
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { completePaidCheckout } from "#test-utils/order-journey.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
@@ -195,6 +195,5 @@ export const expectDiscountLine = (
   poundsOff: string,
 ): void => {
   const summary = priceSummary(world);
-  assertStringIncludes(summary, code);
-  assertStringIncludes(summary, formatCurrency(-minorUnits(poundsOff)));
+  expectIncludesAll(summary, [code, formatCurrency(-minorUnits(poundsOff))]);
 };

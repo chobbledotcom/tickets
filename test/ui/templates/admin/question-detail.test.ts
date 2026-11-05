@@ -7,6 +7,7 @@ import {
   QuestionListingsSection,
 } from "#templates/admin/question-detail.tsx";
 import { resetFeaturePageTest } from "#test/ui/templates/admin/feature-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 import {
   testAnswer,
@@ -27,14 +28,13 @@ describe("QuestionEditPanel", () => {
 
   test("renders question text and edit form", () => {
     const html = String(QuestionEditPanel({ question }));
-    assertStringIncludes(html, "T-shirt size?");
-    assertStringIncludes(html, 'action="/admin/questions/1/edit"');
-    // The choice-type selector offers radio vs select, with the question's
-    // current type (radio) pre-selected.
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "T-shirt size?",
+      'action="/admin/questions/1/edit"',
+      // The choice-type selector offers radio vs select, with the question's
+      // current type (radio) pre-selected.
       '<select name="display_type"><option selected value="radio">Radio buttons</option><option value="select">Select box</option></select>',
-    );
+    ]);
   });
 
   test("locks the type on a free-text question's edit form", () => {
@@ -56,8 +56,10 @@ describe("QuestionEditPanel", () => {
     assert(!html.includes("Radio buttons"));
     // The free-text note renders inside its prose block, so a free-text
     // question still explains why it has no answers.
-    assertStringIncludes(html, '<div class="prose">');
-    assertStringIncludes(html, "Free-text questions collect a typed answer");
+    expectIncludesAll(html, [
+      '<div class="prose">',
+      "Free-text questions collect a typed answer",
+    ]);
   });
 
   test("hides the edit form in read-only mode", () => {
@@ -77,14 +79,13 @@ describe("QuestionAnswersSection", () => {
     const html = String(
       QuestionAnswersSection({ answerCounts: new Map(), question }),
     );
-    assertStringIncludes(html, "Small");
-    assertStringIncludes(html, "Large");
-    assertStringIncludes(html, 'href="/admin/questions/1/answers/10/edit"');
-    assertStringIncludes(html, 'href="/admin/questions/1/answers/11/edit"');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "Small",
+      "Large",
+      'href="/admin/questions/1/answers/10/edit"',
+      'href="/admin/questions/1/answers/11/edit"',
       '<form action="/admin/questions/1/answers" autocomplete="off" method="POST" id="add-answer">',
-    );
+    ]);
   });
 
   test("no longer links to answer deletion from the question page", () => {
@@ -125,9 +126,11 @@ describe("QuestionAnswersSection", () => {
     const html = String(
       QuestionAnswersSection({ answerCounts: counts, question }),
     );
-    assertStringIncludes(html, "<table");
-    assertStringIncludes(html, '<td class="col-quantity">5</td>');
-    assertStringIncludes(html, '<td class="col-quantity">3</td>');
+    expectIncludesAll(html, [
+      "<table",
+      '<td class="col-quantity">5</td>',
+      '<td class="col-quantity">3</td>',
+    ]);
   });
 
   test("shows zero selections for answers with no stored total", () => {
@@ -162,8 +165,7 @@ describe("QuestionAnswersSection", () => {
     const html = String(
       QuestionAnswersSection({ answerCounts: new Map(), question: q }),
     );
-    assertStringIncludes(html, "/answers/11/move-up");
-    assertStringIncludes(html, "/answers/11/move-down");
+    expectIncludesAll(html, ["/answers/11/move-up", "/answers/11/move-down"]);
   });
 
   test("hides the write controls in read-only mode", () => {
@@ -192,8 +194,7 @@ describe("QuestionListingsSection", () => {
         question,
       }),
     );
-    assertStringIncludes(html, "Assign to Listings");
-    assertStringIncludes(html, "No listings yet");
+    expectIncludesAll(html, ["Assign to Listings", "No listings yet"]);
   });
 
   test("renders an listing checkbox for each listing", () => {
@@ -204,16 +205,15 @@ describe("QuestionListingsSection", () => {
         question,
       }),
     );
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<form action="/admin/questions/1/listings" autocomplete="off" method="POST" id="question-listings">',
-    );
-    assertStringIncludes(html, "<strong>Linked listings (0):</strong>");
-    assertStringIncludes(html, 'name="listing_ids"');
-    assertStringIncludes(html, 'value="1"');
-    assertStringIncludes(html, 'value="2"');
-    assertStringIncludes(html, "Spring Gig");
-    assertStringIncludes(html, "Summer Gig");
+      "<strong>Linked listings (0):</strong>",
+      'name="listing_ids"',
+      'value="1"',
+      'value="2"',
+      "Spring Gig",
+      "Summer Gig",
+    ]);
   });
 
   test("renders the assign-to-all toggle before the listing checkboxes", () => {

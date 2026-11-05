@@ -18,6 +18,7 @@ import {
   isBytesImport,
 } from "#scripts/inline-jsquash-wasm.ts";
 import { ASSETS } from "#shared/images/wasm-assets.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 type ResolveCallback = Parameters<PluginBuild["onResolve"]>[1];
@@ -100,10 +101,12 @@ describe("buildModule", () => {
           ? new Uint8Array([1, 2, 3])
           : new Uint8Array([4, 5]),
     );
-    assertStringIncludes(source, 'const jpegDecBytes = b64ToBytes("AQID");');
-    assertStringIncludes(source, "export const jpegDec = () => jpegDecBytes;");
-    assertStringIncludes(source, 'const webpEncBytes = b64ToBytes("BAU=");');
-    assertStringIncludes(source, "export const webpEnc = () => webpEncBytes;");
+    expectIncludesAll(source, [
+      'const jpegDecBytes = b64ToBytes("AQID");',
+      "export const jpegDec = () => jpegDecBytes;",
+      'const webpEncBytes = b64ToBytes("BAU=");',
+      "export const webpEnc = () => webpEncBytes;",
+    ]);
     const generated = await importGeneratedModule(source);
     expect([...(await generated.jpegDec())]).toEqual([1, 2, 3]);
     expect([...(await generated.webpEnc())]).toEqual([4, 5]);

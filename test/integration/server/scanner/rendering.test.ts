@@ -7,7 +7,10 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { expectHtmlResponse } from "#test-utils/assertions.ts";
+import {
+  expectHtmlResponse,
+  expectIncludesAll,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -65,11 +68,13 @@ describeWithEnv("QR scanner page, links and guide", { db: true }, () => {
     test("includes manual check-in form with combobox", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
       const body = await getScannerBody(listing.id);
-      assertStringIncludes(body, "Manual Check-in");
-      assertStringIncludes(body, "data-manual-checkin");
-      assertStringIncludes(body, 'id="ticket-options"');
-      assertStringIncludes(body, 'role="listbox"');
-      assertStringIncludes(body, 'role="combobox"');
+      expectIncludesAll(body, [
+        "Manual Check-in",
+        "data-manual-checkin",
+        'id="ticket-options"',
+        'role="listbox"',
+        'role="combobox"',
+      ]);
     });
 
     test("datalist shows the tickets each person still owes", async () => {
@@ -101,8 +106,7 @@ describeWithEnv("QR scanner page, links and guide", { db: true }, () => {
 
     test("contains back link to listing page", async () => {
       const { listing, body } = await createListingAndGetScannerBody();
-      assertStringIncludes(body, `/admin/listing/${listing.id}`);
-      assertStringIncludes(body, listing.name);
+      expectIncludesAll(body, [`/admin/listing/${listing.id}`, listing.name]);
     });
   });
 
@@ -125,8 +129,7 @@ describeWithEnv("QR scanner page, links and guide", { db: true }, () => {
 
       const overview = await adminGet(`/admin/listing/${listing.id}`);
       const overviewBody = await overview.text();
-      assertStringIncludes(overviewBody, scannerHref);
-      assertStringIncludes(overviewBody, "Scanner");
+      expectIncludesAll(overviewBody, [scannerHref, "Scanner"]);
 
       // The tab strip renders on every tab (so the actions page still carries
       // ONE occurrence, the strip link) — but the Actions section's own
@@ -176,11 +179,13 @@ describeWithEnv("QR scanner page, links and guide", { db: true }, () => {
       const response = await adminGet("/admin/guide");
       const body = await response.text();
 
-      assertStringIncludes(body, 'id="modifiers"');
-      assertStringIncludes(body, "What are modifiers?");
-      assertStringIncludes(body, "Fixed amount");
-      assertStringIncludes(body, "10%");
-      assertStringIncludes(body, "10x");
+      expectIncludesAll(body, [
+        'id="modifiers"',
+        "What are modifiers?",
+        "Fixed amount",
+        "10%",
+        "10x",
+      ]);
     });
 
     test("footer contains guide link", async () => {

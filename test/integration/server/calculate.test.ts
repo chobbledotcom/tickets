@@ -11,6 +11,7 @@ import { modifiersTable } from "#db/modifiers.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { formatCurrency } from "#shared/currency.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { postRunningTotal, quoteTicketHtml } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -33,10 +34,12 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     expect(response.status).toBe(200);
 
     const html = await response.text();
-    assertStringIncludes(html, "Adult Ticket");
-    assertStringIncludes(html, formatCurrency(1500));
-    assertStringIncludes(html, "order-summary-total");
-    assertStringIncludes(html, "Total");
+    expectIncludesAll(html, [
+      "Adult Ticket",
+      formatCurrency(1500),
+      "order-summary-total",
+      "Total",
+    ]);
   });
 
   test("prices a multi-unit line with a booking-fee extra line", async () => {
@@ -55,12 +58,14 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     ).text();
 
     // Two units priced as one line, labelled with the quantity.
-    assertStringIncludes(html, "2× Workshop");
-    // Booking fee (10% of 2000) added as an extra line.
-    assertStringIncludes(html, "Booking fee");
-    assertStringIncludes(html, formatCurrency(200));
-    // Total = 2000 + 200 booking fee.
-    assertStringIncludes(html, formatCurrency(2200));
+    expectIncludesAll(html, [
+      "2× Workshop",
+      // Booking fee (10% of 2000) added as an extra line.
+      "Booking fee",
+      formatCurrency(200),
+      // Total = 2000 + 200 booking fee.
+      formatCurrency(2200),
+    ]);
   });
 
   test("totals without any contact details (PII is stripped)", async () => {
@@ -87,8 +92,10 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     });
     expect(response.status).toBe(200);
     const html = await response.text();
-    assertStringIncludes(html, "order-summary-message");
-    assertStringIncludes(html, "Please select at least one ticket");
+    expectIncludesAll(html, [
+      "order-summary-message",
+      "Please select at least one ticket",
+    ]);
   });
 
   test("rejects an invalid CSRF token", async () => {

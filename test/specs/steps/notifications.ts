@@ -26,6 +26,7 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { setPendingNotificationFlags } from "#test-utils/db-helpers/attendees.ts";
 import { adminGet } from "#test-utils/session.ts";
 
@@ -199,8 +200,7 @@ Then(
   "the list says {word}'s email and webhooks never went out",
   function (this: TicketsWorld, who: string): void {
     const row = rowOnTheList(this, who);
-    assertStringIncludes(row, emailNotice());
-    assertStringIncludes(row, webhooksNotice());
+    expectIncludesAll(row, [emailNotice(), webhooksNotice()]);
   },
 );
 

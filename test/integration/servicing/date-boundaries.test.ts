@@ -10,6 +10,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getListingRemainingForRange } from "#db/attendees/capacity/remaining.ts";
 import { getDb } from "#db/client.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createDailyTestListing,
@@ -74,8 +75,7 @@ describeWithEnv("servicing edge cases — date boundaries", { db: true }, () => 
       name: "Today Service",
     });
     const body = await renderAdminPage("/admin/");
-    assertStringIncludes(body, "Today Service");
-    assertStringIncludes(body, `/admin/servicing/${id}`);
+    expectIncludesAll(body, ["Today Service", `/admin/servicing/${id}`]);
   });
 
   test("a past-dated hold is excluded from the upcoming-events list (boundary exclusion)", async () => {

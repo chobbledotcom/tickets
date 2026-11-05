@@ -1,9 +1,10 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   ConfirmPage,
   warningDeletePage,
 } from "#templates/admin/confirm-page.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import type { AdminSession } from "#types";
 
 const OWNER: AdminSession = {
@@ -46,27 +47,27 @@ describe("ConfirmPage", () => {
       OWNER,
     );
 
-    assertStringIncludes(html, "<title></title>");
-    assertStringIncludes(html, "<h1>Delete Alice</h1>");
+    expectIncludesAll(html, ["<title></title>", "<h1>Delete Alice</h1>"]);
   });
 
   test("renders the real confirmation form while the action is available", () => {
     const html = renderConfirmation();
 
-    assertStringIncludes(html, 'action="/admin/people/1/refund"');
-    assertStringIncludes(html, 'name="confirm_identifier"');
-    assertStringIncludes(html, 'placeholder="Alice Example"');
-    assertStringIncludes(html, "Send refund");
-    assertStringIncludes(html, "Money will be returned.");
-    assertStringIncludes(html, "<h1>Check payment</h1>");
-    assertStringIncludes(html, "Payment details");
+    expectIncludesAll(html, [
+      'action="/admin/people/1/refund"',
+      'name="confirm_identifier"',
+      'placeholder="Alice Example"',
+      "Send refund",
+      "Money will be returned.",
+      "<h1>Check payment</h1>",
+      "Payment details",
+    ]);
   });
 
   test("renders the blocked explanation without any usable form", () => {
     const html = renderConfirmation(true);
 
-    assertStringIncludes(html, "A refund is already moving");
-    assertStringIncludes(html, "Payment details");
+    expectIncludesAll(html, ["A refund is already moving", "Payment details"]);
     assert(!html.includes("<form"));
     assert(!html.includes('name="confirm_identifier"'));
     assert(!html.includes("Send refund"));

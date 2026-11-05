@@ -2,6 +2,7 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { runGradeCodeCli, USAGE } from "#scripts/grade-code/cli.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { tempDir } from "#test-utils/files.ts";
 import {
   BROKEN_CODE,
@@ -97,8 +98,10 @@ describe("runGradeCodeCli", () => {
     );
     expect(code).toBe(0);
     const report = out.join("\n");
-    assertStringIncludes(report, "Comments earn their place");
-    assertStringIncludes(report, "Jev: model=jev-test");
+    expectIncludesAll(report, [
+      "Comments earn their place",
+      "Jev: model=jev-test",
+    ]);
   });
 
   test("falls back to mechanical-only when Jev fails", async () => {

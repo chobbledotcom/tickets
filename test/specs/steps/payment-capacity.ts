@@ -11,6 +11,7 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { fillSoleCapacityListing } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -165,8 +166,10 @@ Then(
     );
     expect(notes).toHaveLength(1);
     const note = notes[0]!.note;
-    assertStringIncludes(note, "the event filled up while they were paying");
-    assertStringIncludes(note, "Refund code: capacity_full");
+    expectIncludesAll(note, [
+      "the event filled up while they were paying",
+      "Refund code: capacity_full",
+    ]);
     assert(!note.includes(lateSession.paymentIntent));
     assertStringIncludes(note, `/admin/ledger/attendee/${attendeeId}`);
     await expectSessionFailed(sessionId);
@@ -242,8 +245,7 @@ Then(
     const firstBody = requiredWorldValue(this.firstBody, "first body");
     const secondBody = requiredWorldValue(this.secondBody, "second body");
     expect(secondBody).toBe(firstBody);
-    assertStringIncludes(firstBody, "saved your details");
-    assertStringIncludes(firstBody, "refunded");
+    expectIncludesAll(firstBody, ["saved your details", "refunded"]);
     assert(!firstBody.includes("being processed"));
     const sessionId = requiredWorldValue(this.sessionId, "session id");
     const record = await getProcessedPayment(sessionId);

@@ -8,7 +8,10 @@ import { loadExistingLines } from "#db/attendees/atomic-update.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { queryAll } from "#db/client.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
-import { attendeeLineIndex } from "#test-utils/assertions.ts";
+import {
+  attendeeLineIndex,
+  expectIncludesAll,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   type AttendeeLineInput,
@@ -191,10 +194,12 @@ describeWithEnv(
       expect(standaloneIndex).not.toBeNull();
       expect(packageIndex).not.toBeNull();
       expect(standaloneIndex).not.toBe(packageIndex);
-      assertStringIncludes(html, "via Render Kit");
-      // The blank package-path lines sit behind their pure-CSS toggle.
-      assertStringIncludes(html, 'class="package-paths-toggle"');
-      assertStringIncludes(html, "attendee-line-package-blank");
+      expectIncludesAll(html, [
+        "via Render Kit",
+        // The blank package-path lines sit behind their pure-CSS toggle.
+        'class="package-paths-toggle"',
+        "attendee-line-package-blank",
+      ]);
     });
 
     test("each path's quantity saves independently", async () => {

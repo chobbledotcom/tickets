@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -9,6 +8,7 @@ import {
   makeImage,
   postImageUpload,
 } from "#test-utils/admin-images.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, withStorageMock } from "#test-utils/mocks.ts";
@@ -24,11 +24,10 @@ describeWithEnv("editor listing images", { db: true, storage: "cdn" }, () => {
     );
     const html = await response.text();
     expect(response.status).toBe(200);
-    assertStringIncludes(html, `action="/admin/listing/${listing.id}/images"`);
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      `action="/admin/listing/${listing.id}/images"`,
       `action="/admin/listing/${listing.id}/images/upload"`,
-    );
+    ]);
   });
 
   test("selects an existing listing image", async () => {

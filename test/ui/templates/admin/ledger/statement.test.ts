@@ -24,9 +24,9 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { featureSetting, useSetting } from "#test-utils/settings.ts";
-
 import { attendeeLinkRefs, names, transfer } from "./helpers.ts";
 
 describe("statementBalanceKey", () => {
@@ -92,11 +92,13 @@ describe("AccountStatementSection", () => {
         returnUrl: "/admin/ledger/attendee/1",
       }),
     );
-    assertStringIncludes(html, "<th>Other side</th>");
-    // Leg 1: counterparty is the revenue listing (this account is the source).
-    assertStringIncludes(html, '<a href="/admin/listing/1">Concert</a>');
-    // Leg 2: counterparty is the card/bank singleton (this account received).
-    assertStringIncludes(html, "Card / bank");
+    expectIncludesAll(html, [
+      "<th>Other side</th>",
+      // Leg 1: counterparty is the revenue listing (this account is the source).
+      '<a href="/admin/listing/1">Concert</a>',
+      // Leg 2: counterparty is the card/bank singleton (this account received).
+      "Card / bank",
+    ]);
     // The ledger stores the sale as a -5000 debit and the payment as a +5000
     // credit against the attendee. The attendee view flips both: the sale reads
     // as a +5000 charge and the payment as a -5000 reduction.
@@ -190,9 +192,7 @@ describe("AccountStatementSection", () => {
         returnUrl: "/admin/ledger/attendee/1",
       }),
     );
-    assertStringIncludes(html, "Extra amount now owed by");
-    assertStringIncludes(html, "Delivery");
-    assertStringIncludes(html, "Ada");
+    expectIncludesAll(html, ["Extra amount now owed by", "Delivery", "Ada"]);
   });
 
   test("renders the empty state row spanning all five columns", () => {
@@ -202,8 +202,7 @@ describe("AccountStatementSection", () => {
         returnUrl: "/admin/ledger/attendee/1",
       }),
     );
-    assertStringIncludes(html, 'colspan="5"');
-    assertStringIncludes(html, "No money changes yet.");
+    expectIncludesAll(html, ['colspan="5"', "No money changes yet."]);
   });
 
   const renderStatement = (returnUrl: string): string =>
@@ -265,24 +264,27 @@ describe("adminAccountStatementPage", () => {
       }),
     ]);
     const html = adminAccountStatementPage(acct, lines, refs, OWNER_SESSION);
-    assertStringIncludes(html, "Ada Lovelace");
-    assertStringIncludes(html, `Amount still owed: ${formatCurrency(5000)}`);
+    expectIncludesAll(html, [
+      "Ada Lovelace",
+      `Amount still owed: ${formatCurrency(5000)}`,
+    ]);
     assert(!html.includes(`Amount still owed: −${formatCurrency(5000)}`));
     // The nav links back to the ledger; no separate back-link arrow is shown.
     assertStringIncludes(html, 'href="/admin/ledger"');
     assert(!html.includes("&larr;"));
-    assertStringIncludes(html, '<th class="col-amount">Running total</th>');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      '<th class="col-amount">Running total</th>',
       'href="/admin/ledger/attendee/7/add?return_url=%2Fadmin%2Fledger%2Fattendee%2F7"',
-    );
+    ]);
     assert(!html.includes("View all money changes"));
   });
 
   test("shows a zero balance for an account with no history", () => {
     const html = adminAccountStatementPage(acct, [], names(), OWNER_SESSION);
-    assertStringIncludes(html, `Amount still owed: ${formatCurrency(0)}`);
-    assertStringIncludes(html, "No money changes yet.");
+    expectIncludesAll(html, [
+      `Amount still owed: ${formatCurrency(0)}`,
+      "No money changes yet.",
+    ]);
     assert(!html.includes("/admin/ledger/attendee/7/add"));
   });
 

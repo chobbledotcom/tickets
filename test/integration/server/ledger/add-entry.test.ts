@@ -19,7 +19,10 @@ import {
   seededAttendee,
   seededSale,
 } from "#test/integration/server/ledger/helpers.ts";
-import { expectFlashRedirect } from "#test-utils/assertions.ts";
+import {
+  expectFlashRedirect,
+  expectIncludesAll,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
@@ -31,11 +34,10 @@ describeWithEnv("server (admin ledger add entry)", { db: true }, () => {
     const response = await adminGet(`/admin/ledger/attendee/${attendeeId}`);
     expect(response.status).toBe(200);
     const html = await response.text();
-    assertStringIncludes(html, "Add money change");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "Add money change",
       `/admin/ledger/attendee/${attendeeId}/add?return_url=%2Fadmin%2Fledger%2Fattendee%2F${attendeeId}`,
-    );
+    ]);
   });
 
   test("renders attendee add choices in plain language", async () => {
@@ -45,11 +47,13 @@ describeWithEnv("server (admin ledger add entry)", { db: true }, () => {
     );
     expect(response.status).toBe(200);
     const html = await response.text();
-    assertStringIncludes(html, "Add money change");
-    assertStringIncludes(html, "Payment received another way");
-    assertStringIncludes(html, "Extra amount this attendee needs to pay");
-    assertStringIncludes(html, "Waive or reduce what this attendee owes");
-    assertStringIncludes(html, `/admin/attendees/${attendeeId}`);
+    expectIncludesAll(html, [
+      "Add money change",
+      "Payment received another way",
+      "Extra amount this attendee needs to pay",
+      "Waive or reduce what this attendee owes",
+      `/admin/attendees/${attendeeId}`,
+    ]);
   });
 
   test("renders listing add choices for outside income and listing costs", async () => {
@@ -61,9 +65,11 @@ describeWithEnv("server (admin ledger add entry)", { db: true }, () => {
     const response = await adminGet(`/admin/ledger/revenue/${listing.id}/add`);
     expect(response.status).toBe(200);
     const html = await response.text();
-    assertStringIncludes(html, "Village Hall");
-    assertStringIncludes(html, "Income received another way");
-    assertStringIncludes(html, "Listing cost paid another way");
+    expectIncludesAll(html, [
+      "Village Hall",
+      "Income received another way",
+      "Listing cost paid another way",
+    ]);
     assert(!html.includes("Extra amount this attendee needs to pay"));
   });
 
@@ -79,9 +85,11 @@ describeWithEnv("server (admin ledger add entry)", { db: true }, () => {
     );
     expect(response.status).toBe(200);
     const html = await response.text();
-    assertStringIncludes(html, "Helmet hire");
-    assertStringIncludes(html, "Extra option income");
-    assertStringIncludes(html, "Reduce option income");
+    expectIncludesAll(html, [
+      "Helmet hire",
+      "Extra option income",
+      "Reduce option income",
+    ]);
     assert(!html.includes("Listing cost paid another way"));
   });
 

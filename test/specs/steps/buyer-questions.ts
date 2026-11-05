@@ -19,6 +19,7 @@ import {
   visitorOpensBooking,
 } from "#test/specs/support/buyer-questions.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 Given(
   "the owner asks {word} buyers {string} offering {word} or {word}",
@@ -63,8 +64,7 @@ Then(
     const browser = await visitorOpensBooking(this, listingName);
     assertStringIncludes(browser.pageText, text);
     questionFieldOn(this, browser);
-    assertStringIncludes(browser.pageText, first);
-    assertStringIncludes(browser.pageText, second);
+    expectIncludesAll(browser.pageText, [first, second]);
   },
 );
 

@@ -1,6 +1,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { ConfirmForm } from "#templates/components/save-form.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 describe("ConfirmForm", () => {
   test("defaults to danger styling", () => {
@@ -12,9 +13,11 @@ describe("ConfirmForm", () => {
         name: "n",
       }),
     );
-    assertStringIncludes(html, 'class="danger"');
-    // A danger confirm carries the bin icon; a safe confirm the check icon.
-    assertStringIncludes(html, "#trash-2");
+    expectIncludesAll(html, [
+      'class="danger"',
+      // A danger confirm carries the bin icon; a safe confirm the check icon.
+      "#trash-2",
+    ]);
     assert(!html.includes("#check"));
   });
 
@@ -41,13 +44,12 @@ describe("ConfirmForm", () => {
         name: "n",
       }),
     );
-    assertStringIncludes(html, 'name="confirm_identifier"');
-    // The typed-name box must not offer or remember completions.
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'name="confirm_identifier"',
+      // The typed-name box must not offer or remember completions.
       '<input autocomplete="off" name="confirm_identifier"',
-    );
-    assertStringIncludes(html, 'type="text"');
+      'type="text"',
+    ]);
   });
 
   test("omits the confirm input when confirmName is false", () => {
@@ -66,8 +68,7 @@ describe("ConfirmForm", () => {
         confirmName: false,
       }),
     );
-    assertStringIncludes(html, 'class="prose"');
-    assertStringIncludes(html, "Warning text");
+    expectIncludesAll(html, ['class="prose"', "Warning text"]);
   });
 
   test("renders a hidden return_url input when returnUrl is given", () => {
@@ -79,8 +80,7 @@ describe("ConfirmForm", () => {
         returnUrl: "/back",
       }),
     );
-    assertStringIncludes(html, 'name="return_url"');
-    assertStringIncludes(html, 'value="/back"');
+    expectIncludesAll(html, ['name="return_url"', 'value="/back"']);
   });
 
   test("renders the form with the given id", () => {
@@ -104,7 +104,6 @@ describe("ConfirmForm", () => {
         hiddenFields: { foo: "bar" },
       }),
     );
-    assertStringIncludes(html, 'name="foo"');
-    assertStringIncludes(html, 'value="bar"');
+    expectIncludesAll(html, ['name="foo"', 'value="bar"']);
   });
 });

@@ -3,7 +3,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { bookingError } from "#booking/form.ts";
 import { handleRequest } from "#routes";
-import { expectFlash } from "#test-utils/assertions.ts";
+import { expectFlash, expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { submitPackageBooking } from "#test-utils/packages.ts";
@@ -23,11 +23,13 @@ describeWithEnv("package child availability", { db: true }, () => {
     const body = await (
       await handleRequest(mockRequest(`/ticket/${group.slug}`))
     ).text();
-    assertStringIncludes(body, `name="child_qty_${parent.id}_${child.id}"`);
-    assertStringIncludes(body, `name="child_qty_${parent.id}_${childB.id}"`);
-    assertStringIncludes(body, "Kit Addon");
-    assertStringIncludes(body, `name="package_quantity_${group.id}"`);
-    assertStringIncludes(body, `data-parent-id="${parent.id}"`);
+    expectIncludesAll(body, [
+      `name="child_qty_${parent.id}_${child.id}"`,
+      `name="child_qty_${parent.id}_${childB.id}"`,
+      "Kit Addon",
+      `name="package_quantity_${group.id}"`,
+      `data-parent-id="${parent.id}"`,
+    ]);
     expect(body).toMatch(
       new RegExp(`data-package-members="[^"]*${parent.id}:1`),
     );

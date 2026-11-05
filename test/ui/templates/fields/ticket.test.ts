@@ -19,6 +19,7 @@ import {
   validatePhone,
   validateSpecialInstructions,
 } from "#templates/fields/validators.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { expectInvalid, expectValid } from "#test-utils/validation.ts";
 
 // Helper: get the names of fields in order
@@ -197,10 +198,12 @@ describe("getTicketFields — field validation", () => {
 
   test("renders with correct autocomplete attributes for HTML", () => {
     const html = renderFields(getTicketFields("email,phone,address", false));
-    assertStringIncludes(html, 'autocomplete="name"');
-    assertStringIncludes(html, 'autocomplete="email"');
-    assertStringIncludes(html, 'autocomplete="tel"');
-    assertStringIncludes(html, 'autocomplete="street-address"');
+    expectIncludesAll(html, [
+      'autocomplete="name"',
+      'autocomplete="email"',
+      'autocomplete="tel"',
+      'autocomplete="street-address"',
+    ]);
   });
 });
 

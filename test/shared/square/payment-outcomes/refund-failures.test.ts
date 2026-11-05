@@ -5,6 +5,7 @@ import type { RefundAttemptResult } from "#payment/refund-attempt.ts";
 import { providerDetail, transportError } from "#payment/transport-error.ts";
 import { initSentry } from "#shared/sentry.ts";
 import { squareApi } from "#shared/square/api.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
@@ -119,12 +120,11 @@ describeSquare(() => {
 
         const body = sentryRequestBody(fetchStub.calls);
         assert(!body.includes(PRIVATE_REFERENCE));
-        assertStringIncludes(body, "Status code: 503");
-        assertStringIncludes(body, "stacktrace");
-        assertStringIncludes(
-          body,
+        expectIncludesAll(body, [
+          "Status code: 503",
+          "stacktrace",
           '"detail":"outcome=uncertain reason=provider_error"',
-        );
+        ]);
       } finally {
         resetSentry();
       }

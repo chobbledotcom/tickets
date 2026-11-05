@@ -24,6 +24,7 @@ import {
 import type { LoadedAttendee } from "#routes/admin/attendee-page-data.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { DEMO_ADDRESSES } from "#shared/demo/samples.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildAttendeeEditForm } from "#test-utils/db-helpers/attendees.ts";
@@ -134,8 +135,7 @@ describeWithEnv(
       expect(response.status).toBe(400);
       const html = await response.text();
       // The form re-renders with the operator's submitted choices…
-      assertStringIncludes(html, 'value="10:30"');
-      assertStringIncludes(html, 'value="18:30"');
+      expectIncludesAll(html, ['value="10:30"', 'value="18:30"']);
       assert(!html.includes('value="08:00"'));
       // …while nothing was saved.
       expect((await getLogisticsAssignments(id)).get(listing.id)).toEqual({
@@ -165,9 +165,11 @@ describeWithEnv(
       ]);
 
       const html = await logisticsTabHtml(current);
-      assertStringIncludes(html, "Other attendees");
-      assertStringIncludes(html, "Overlap Person");
-      assertStringIncludes(html, `/admin/attendees/${overlapping}/logistics`);
+      expectIncludesAll(html, [
+        "Other attendees",
+        "Overlap Person",
+        `/admin/attendees/${overlapping}/logistics`,
+      ]);
       assert(!html.includes("Far Away Person"));
       assert(!html.includes(`/admin/attendees/${elsewhere}/logistics`));
     });
@@ -202,10 +204,12 @@ describeWithEnv(
       );
 
       const html = await logisticsTabHtml(current);
-      assertStringIncludes(html, "10:45");
-      assertStringIncludes(html, "15:30");
-      // A multi-unit booking shows its quantity beside the listing name.
-      assertStringIncludes(html, "×2");
+      expectIncludesAll(html, [
+        "10:45",
+        "15:30",
+        // A multi-unit booking shows its quantity beside the listing name.
+        "×2",
+      ]);
     });
 
     test("a booking in the gap between two bookings is not listed", async () => {

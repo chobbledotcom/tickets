@@ -6,6 +6,7 @@ import { handleRequest } from "#routes";
 import {
   expectFlash,
   expectHtmlResponse,
+  expectIncludesAll,
   redirectFormId,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
@@ -100,8 +101,7 @@ describeAdminSettings(() => {
       expect(response.status).toBe(200);
       const html = await response.text();
       // Check that dark radio button is checked
-      assertStringIncludes(html, 'value="dark"');
-      assertStringIncludes(html, "checked");
+      expectIncludesAll(html, ['value="dark"', "checked"]);
     });
 
     test("ticking the underline-links checkbox enables it", async () => {

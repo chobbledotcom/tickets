@@ -10,6 +10,7 @@ import {
   getOrCreateBucket,
 } from "#db/capacity-batch.ts";
 import { addDays } from "#shared/dates.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { flatSql, occurrences } from "#test-utils/sql-text.ts";
 
@@ -72,9 +73,11 @@ describe("buildCartCapacitySql", () => {
       demandWith(new Map([[LISTING, bucket([], QTY)]])),
     );
     expect(args).toEqual([LISTING]);
-    assertStringIncludes(sql, `+ ${QTY} <=`);
-    assertStringIncludes(sql, "id = ?1 AND active = 1");
-    assertStringIncludes(sql, ") AS fits");
+    expectIncludesAll(sql, [
+      `+ ${QTY} <=`,
+      "id = ?1 AND active = 1",
+      ") AS fits",
+    ]);
   });
 
   test("a single remaining unit of demand still gets its clause", () => {
@@ -215,12 +218,11 @@ describe("buildCartCapacitySql", () => {
     // The per-day clause carries the day's 2 booked units beside the 3
     // date-less units that occupy the group every day; the undated clause
     // counts the whole 5-unit bucket against the group's running total.
-    assertStringIncludes(sql, "+ 5 <=");
-    assertStringIncludes(
-      sql,
+    expectIncludesAll(sql, [
+      "+ 5 <=",
       "(SELECT max_attendees FROM groups WHERE id = ?1)",
-    );
-    assertStringIncludes(sql, "= 0 OR");
+      "= 0 OR",
+    ]);
     expect(args).toEqual([9, startAt, endAt]);
   });
 
@@ -313,8 +315,7 @@ describe("buildCartCapacitySql", () => {
         ]),
       ),
     );
-    assertStringIncludes(sql, "AS fits");
-    assertStringIncludes(sql, "+ 2 <=");
+    expectIncludesAll(sql, ["AS fits", "+ 2 <="]);
     expect(args).toEqual([LISTING]);
   });
 });

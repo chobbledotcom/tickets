@@ -4,6 +4,7 @@ import { MASK_SENTINEL } from "#db/settings/mask.ts";
 import { t } from "#i18n";
 import { SETTINGS_FORMS } from "#shared/settings/forms.ts";
 import { settingsForm } from "#templates/admin/settings/schema-form.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 const state = {
   addressLookupApiKeyConfigured: false,
@@ -34,11 +35,13 @@ describe("settingsForm", () => {
   test("renders a text setting from the schema", () => {
     const html = htmlFor("businessEmail");
 
-    assertStringIncludes(html, 'action="/admin/settings/business-email"');
-    assertStringIncludes(html, 'id="settings-business-email"');
-    assertStringIncludes(html, 'name="business_email"');
-    assertStringIncludes(html, 'type="email"');
-    assertStringIncludes(html, 'value="ops@example.com"');
+    expectIncludesAll(html, [
+      'action="/admin/settings/business-email"',
+      'id="settings-business-email"',
+      'name="business_email"',
+      'type="email"',
+      'value="ops@example.com"',
+    ]);
   });
 
   test("renders an empty text value when the state has no value", () => {
@@ -46,9 +49,11 @@ describe("settingsForm", () => {
       settingsForm(SETTINGS_FORMS.businessEmail, { businessEmail: undefined }),
     );
 
-    assertStringIncludes(html, 'name="business_email"');
-    // The input itself must carry the empty value, not the empty csrf field.
-    assertStringIncludes(html, 'type="email" value=""');
+    expectIncludesAll(html, [
+      'name="business_email"',
+      // The input itself must carry the empty value, not the empty csrf field.
+      'type="email" value=""',
+    ]);
   });
 
   test("keeps a number written in the state as it was written", () => {
@@ -56,8 +61,7 @@ describe("settingsForm", () => {
       settingsForm(SETTINGS_FORMS.bookingFee, { bookingFee: 0 }),
     );
 
-    assertStringIncludes(html, 'name="booking_fee"');
-    assertStringIncludes(html, 'type="number" value="0"');
+    expectIncludesAll(html, ['name="booking_fee"', 'type="number" value="0"']);
   });
 
   test("uses the definition's declared formId as the form id", () => {
@@ -76,36 +80,38 @@ describe("settingsForm", () => {
   test("renders schema footer copy for text settings", () => {
     const html = htmlFor("embedHosts");
 
-    assertStringIncludes(html, 'name="embed_hosts"');
-    assertStringIncludes(html, "Use *.example.com to allow all subdomains");
+    expectIncludesAll(html, [
+      'name="embed_hosts"',
+      "Use *.example.com to allow all subdomains",
+    ]);
   });
 
   test("renders a textarea setting with its schema options", () => {
     const html = htmlFor("terms");
 
-    assertStringIncludes(html, 'action="/admin/settings/terms"');
-    assertStringIncludes(html, 'name="terms_and_conditions"');
-    assertStringIncludes(html, "data-markdown-preview");
-    assertStringIncludes(html, "Be kind.");
-    assertStringIncludes(html, "Formatting");
+    expectIncludesAll(html, [
+      'action="/admin/settings/terms"',
+      'name="terms_and_conditions"',
+      "data-markdown-preview",
+      "Be kind.",
+      "Formatting",
+    ]);
   });
 
   test("renders trusted html description copy from the schema", () => {
     const html = htmlFor("showPublicApi");
 
-    assertStringIncludes(html, 'href="/admin/guide#api"');
-    assertStringIncludes(html, "API guide");
+    expectIncludesAll(html, ['href="/admin/guide#api"', "API guide"]);
   });
 
   test("renders a boolean setting from the schema", () => {
     const html = htmlFor("externalOrder");
 
-    assertStringIncludes(html, 'action="/admin/settings/external-order"');
-    assertStringIncludes(html, 'name="external_order_enabled"');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'action="/admin/settings/external-order"',
+      'name="external_order_enabled"',
       '<input checked name="external_order_enabled" type="radio" value="true">',
-    );
+    ]);
   });
 });
 
@@ -118,47 +124,38 @@ describe("settingsForm multi-field forms", () => {
         taxRate: "7.25",
       }),
     );
-    assertStringIncludes(html, 'action="/admin/settings/tax"');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'action="/admin/settings/tax"',
       'checked name="tax_mode" type="radio" value="calculate_from_total"',
-    );
-    assertStringIncludes(html, 'inputmode="decimal"');
-    assertStringIncludes(html, 'name="tax_rate"');
-    assertStringIncludes(html, 'pattern="[0-9]+([.][0-9]{1,2})?"');
-    assertStringIncludes(html, 'type="text" value="7.25"');
-    assertStringIncludes(html, 'name="expected_tax"');
-    assertStringIncludes(html, 'type="hidden"');
-    assertStringIncludes(html, "&quot;rateBasisPoints&quot;:725");
+      'inputmode="decimal"',
+      'name="tax_rate"',
+      'pattern="[0-9]+([.][0-9]{1,2})?"',
+      'type="text" value="7.25"',
+      'name="expected_tax"',
+      'type="hidden"',
+      "&quot;rateBasisPoints&quot;:725",
+    ]);
   });
   const themeState = { theme: "dark", underlineLinks: false };
 
   test("checks exactly the radio matching the saved value", () => {
     const html = String(settingsForm(SETTINGS_FORMS.theme, themeState));
 
-    assertStringIncludes(html, '<fieldset class="radios">');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      '<fieldset class="radios">',
       '<input checked name="theme" type="radio" value="dark">',
-    );
-    assertStringIncludes(
-      html,
       '<input name="theme" type="radio" value="light">',
-    );
+    ]);
   });
 
   test("renders the checkbox with its class and hint, unchecked", () => {
     const html = String(settingsForm(SETTINGS_FORMS.theme, themeState));
 
-    assertStringIncludes(html, '<label class="checkbox">');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      '<label class="checkbox">',
       '<input name="underline_links" type="checkbox" value="true">',
-    );
-    assertStringIncludes(
-      html,
       "<small>Underline links everywhere, including the navigation.",
-    );
+    ]);
   });
 
   test("checks the checkbox when the setting is on", () => {
@@ -183,23 +180,13 @@ describe("settingsForm multi-field forms", () => {
       }),
     );
 
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<label for="calendar_feeds_group_by">Group feed entries by</label>',
-    );
-    assertStringIncludes(
-      html,
       '<select id="calendar_feeds_group_by" name="calendar_feeds_group_by">',
-    );
-    assertStringIncludes(
-      html,
       '<option selected value="listings">Listings</option>',
-    );
-    assertStringIncludes(html, '<option value="attendees">Attendees</option>');
-    assertStringIncludes(
-      html,
+      '<option value="attendees">Attendees</option>',
       '<input checked name="calendar_feeds_enabled" type="checkbox" value="true">',
-    );
+    ]);
   });
 
   test("builds select options at render time and masks a stored secret", () => {
@@ -211,15 +198,11 @@ describe("settingsForm multi-field forms", () => {
     );
 
     // No labelFor: the label wraps the select, and the select has no id.
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<label>Provider<select name="address_lookup_provider">',
-    );
-    assertStringIncludes(
-      html,
       '<option value="none">None (type addresses manually)</option>',
-    );
-    assertStringIncludes(html, '<option selected value="easypostcodes">');
+      '<option selected value="easypostcodes">',
+    ]);
     const secret = html.match(
       /<input[^>]*name="address_lookup_api_key"[^>]*>/,
     )?.[0];
@@ -288,8 +271,10 @@ describe("settingsForm schema options", () => {
       ),
     );
 
-    assertStringIncludes(html, 'placeholder="Built placeholder"');
-    assertStringIncludes(html, "<p><small>Built footer note</small></p>");
+    expectIncludesAll(html, [
+      'placeholder="Built placeholder"',
+      "<p><small>Built footer note</small></p>",
+    ]);
   });
 
   test("forwards number input constraints to the field", () => {

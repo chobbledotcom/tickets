@@ -18,6 +18,7 @@ import { groups } from "#db/groups.ts";
 import { formatDateRangeLabelCompactEn } from "#shared/date-labels.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -104,8 +105,7 @@ describeWithEnv("ticket view package grouping", { db: true }, () => {
       });
 
       const body = await fetchTicketBody(token);
-      assertStringIncludes(body, "Kit Bag");
-      assertStringIncludes(body, "Standalone Ticket");
+      expectIncludesAll(body, ["Kit Bag", "Standalone Ticket"]);
       assert(!body.includes("Widget"));
     });
   });
@@ -123,10 +123,12 @@ describeWithEnv("ticket view package grouping", { db: true }, () => {
     const tokenB = await bookedToken(asPackage, "b");
 
     const body = await fetchTicketBody(`${tokenA}+${tokenB}`);
-    assertStringIncludes(body, "2 Tickets");
-    assertStringIncludes(body, `/t/${tokenA}/svg`);
-    assertStringIncludes(body, `/t/${tokenB}/svg`);
-    assertStringIncludes(body, "Kit Bag");
+    expectIncludesAll(body, [
+      "2 Tickets",
+      `/t/${tokenA}/svg`,
+      `/t/${tokenB}/svg`,
+      "Kit Bag",
+    ]);
     assert(!body.includes("Widget"));
   });
 

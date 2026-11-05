@@ -8,6 +8,7 @@ import { getDb } from "#db/client.ts";
 import {
   expectHtml,
   expectHtmlResponse,
+  expectIncludesAll,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { createReservedAttendee } from "#test-utils/balance.ts";
@@ -77,30 +78,26 @@ describeWithEnv("server (admin attendee ledger)", { db: true }, () => {
     const html = await response.text();
     // The headline summary opens with a prose block and the status name beside
     // its label (with the separating space).
-    assertStringIncludes(html, 'class="prose"><h3>Reservation balance');
-    assertStringIncludes(html, "Status:</strong> Reserved");
-    assertStringIncludes(html, "Reservation deposit");
-    assertStringIncludes(html, "Balance outstanding");
-    // The account statement (the "bits already there") renders alongside, with
-    // its running-balance table's counterparty column.
-    assertStringIncludes(html, "<th>Other side</th>");
-    // The customer payment link block: its prose heading, the copyable text
-    // input carrying the signed link, and the quantity note.
-    assertStringIncludes(html, 'class="prose"><h3>Customer payment link');
-    assertStringIncludes(html, 'class="copyable" readonly type="text"');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'class="prose"><h3>Reservation balance',
+      "Status:</strong> Reserved",
+      "Reservation deposit",
+      "Balance outstanding",
+      // The account statement (the "bits already there") renders alongside, with
+      // its running-balance table's counterparty column.
+      "<th>Other side</th>",
+      // The customer payment link block: its prose heading, the copyable text
+      // input carrying the signed link, and the quantity note.
+      'class="prose"><h3>Customer payment link',
+      'class="copyable" readonly type="text"',
       'class="muted small">Only items with a quantity',
-    );
-    // The signed customer link points at the public pay page.
-    assertStringIncludes(html, "/pay/bal1.");
-    // The history section is a prose pointer to the Activity tab (no log list).
-    assertStringIncludes(html, 'class="prose"><h3>History');
-    assertStringIncludes(
-      html,
+      // The signed customer link points at the public pay page.
+      "/pay/bal1.",
+      // The history section is a prose pointer to the Activity tab (no log list).
+      'class="prose"><h3>History',
       "See the full plain-English log on the Activity tab",
-    );
-    assertStringIncludes(html, `/admin/attendees/${attendeeId}/activity`);
+      `/admin/attendees/${attendeeId}/activity`,
+    ]);
   });
 
   test("explains why the payment link is missing for a reservation with no provider", async () => {
@@ -221,11 +218,13 @@ describeWithEnv("server (admin attendee ledger)", { db: true }, () => {
     });
     const response = await adminGet(`/admin/attendees/${attendeeId}`);
     const html = await response.text();
-    assertStringIncludes(html, "Balance outstanding");
-    assertStringIncludes(html, `/admin/attendees/${attendeeId}/ledger`);
-    // The tab strip alone also carries that href, so pin the payment-details
-    // link itself by its anchor text — it must render for owners.
-    assertStringIncludes(html, "View money changes and payment link");
+    expectIncludesAll(html, [
+      "Balance outstanding",
+      `/admin/attendees/${attendeeId}/ledger`,
+      // The tab strip alone also carries that href, so pin the payment-details
+      // link itself by its anchor text — it must render for owners.
+      "View money changes and payment link",
+    ]);
   });
 
   test("a manager's overview shows the balance owed but never the owner-only ledger link", async () => {

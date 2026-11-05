@@ -8,6 +8,7 @@ import {
   ticketListing,
 } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
 /** A minimal public-nav prop set — the fixed root links only, no page tree. */
@@ -34,9 +35,11 @@ describe("ticketPage (site menu)", () => {
       nav: navProps(),
       slugs: ["listing"],
     });
-    assertStringIncludes(html, '<div class="admin-nav-group">');
-    assertStringIncludes(html, 'aria-label="Site menu"');
-    assertStringIncludes(html, '<a href="/listings">');
+    expectIncludesAll(html, [
+      '<div class="admin-nav-group">',
+      'aria-label="Site menu"',
+      '<a href="/listings">',
+    ]);
   });
 
   test("drops the site menu in iframe mode even when one is supplied", async () => {

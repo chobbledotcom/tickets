@@ -8,6 +8,7 @@ import { account } from "#shared/ledger/account.ts";
 import { requireValue } from "#shared/required-value.ts";
 import {
   expectHtmlResponse,
+  expectIncludesAll,
   expectStatus,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
@@ -114,8 +115,7 @@ describeWithEnv(
         const response = await adminGet(`/admin/groups/${group.id}`);
         const html = await response.text();
         // The embed/share affordances render despite the member being sold out.
-        assertStringIncludes(html, "Embed Script");
-        assertStringIncludes(html, "/ticket/sold-out-group");
+        expectIncludesAll(html, ["Embed Script", "/ticket/sold-out-group"]);
       });
 
       test("a bookable package is shareable — public URL, QR, and embed render", async () => {
@@ -137,8 +137,10 @@ describeWithEnv(
         ]);
 
         const html = await (await adminGet(`/admin/groups/${group.id}`)).text();
-        assertStringIncludes(html, "/ticket/bookable-pkg");
-        assertStringIncludes(html, `embed-script-${group.id}`);
+        expectIncludesAll(html, [
+          "/ticket/bookable-pkg",
+          `embed-script-${group.id}`,
+        ]);
       });
 
       test("a sold-out package hides its share affordances", async () => {
@@ -255,9 +257,11 @@ describeWithEnv(
 
         const html = await (await adminGet(`/admin/groups/${group.id}`)).text();
 
-        assertStringIncludes(html, "Costs paid outside checkout");
-        assertStringIncludes(html, "−£30");
-        assertStringIncludes(html, `href="/admin/ledger?group=${group.id}"`);
+        expectIncludesAll(html, [
+          "Costs paid outside checkout",
+          "−£30",
+          `href="/admin/ledger?group=${group.id}"`,
+        ]);
       });
 
       test("shows hidden status on detail page when group is hidden", async () => {

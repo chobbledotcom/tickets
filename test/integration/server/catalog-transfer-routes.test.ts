@@ -9,6 +9,7 @@ import { signCsrfToken } from "#shared/csrf.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   expectFlashRedirect,
+  expectIncludesAll,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -122,8 +123,7 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
       const response = await adminGet("/admin/catalog/import");
       expect(response.status).toBe(200);
       const html = await response.text();
-      assertStringIncludes(html, "Import a catalog file");
-      assertStringIncludes(html, 'name="catalog_file"');
+      expectIncludesAll(html, ["Import a catalog file", 'name="catalog_file"']);
     });
   });
 
@@ -243,8 +243,7 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
         version: 1,
       });
       const location = response.headers.get("location") ?? "";
-      assertStringIncludes(location, "/admin/catalog/import");
-      assertStringIncludes(location, "flash=");
+      expectIncludesAll(location, ["/admin/catalog/import", "flash="]);
     });
 
     test("imports a bundle and flashes the created counts", async () => {

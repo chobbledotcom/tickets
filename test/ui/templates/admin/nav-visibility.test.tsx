@@ -2,6 +2,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { AdminNav } from "#templates/admin/nav.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withStorageDisabled, withStorageEnabled } from "#test-utils/mocks.ts";
@@ -62,8 +63,7 @@ describeWithEnv("AdminNav visibility", {}, () => {
     const ownerHtml = String(
       AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
     );
-    assertStringIncludes(ownerHtml, 'href="/admin/ledger"');
-    assertStringIncludes(ownerHtml, "Money");
+    expectIncludesAll(ownerHtml, ['href="/admin/ledger"', "Money"]);
     assert(!ownerHtml.includes("Money history"));
     const managerHtml = String(
       AdminNav({ active: "/admin/", session: { adminLevel: "manager" } }),
@@ -111,8 +111,10 @@ describeWithEnv("AdminNav visibility", {}, () => {
       const html = String(
         AdminNav({ active: "/admin/site", session: { adminLevel } }),
       );
-      assertStringIncludes(html, 'href="/admin/site/contact"');
-      assertStringIncludes(html, 'href="/admin/site/order"');
+      expectIncludesAll(html, [
+        'href="/admin/site/contact"',
+        'href="/admin/site/order"',
+      ]);
     }
   });
 
@@ -123,8 +125,7 @@ describeWithEnv("AdminNav visibility", {}, () => {
     const html = String(
       AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
     );
-    assertStringIncludes(html, 'href="/admin/built-sites"');
-    assertStringIncludes(html, "Builds");
+    expectIncludesAll(html, ['href="/admin/built-sites"', "Builds"]);
   });
 
   test("Builds is absent on a site that cannot build", () => {
@@ -163,8 +164,7 @@ describeWithEnv("AdminNav visibility", {}, () => {
       );
       assertStringIncludes(html, 'href="/admin/images/new"');
       const sub = subNav(html);
-      assertStringIncludes(sub, 'href="/admin/images/new"');
-      assertStringIncludes(sub, "Add");
+      expectIncludesAll(sub, ['href="/admin/images/new"', "Add"]);
     }));
 
   test("editors see the Images Add sub-nav link too when storage is enabled", () =>
@@ -201,8 +201,7 @@ describeWithEnv("AdminNav visibility", {}, () => {
       AdminNav({ active: "/admin/guide", session: { adminLevel: "owner" } }),
     );
     const sub = subNav(html);
-    assertStringIncludes(sub, 'href="/admin/support"');
-    assertStringIncludes(sub, "Support");
+    expectIncludesAll(sub, ['href="/admin/support"', "Support"]);
   });
 
   test("Support is hidden from managers even when the host offers it", () => {
@@ -239,7 +238,9 @@ describeWithEnv("AdminNav visibility", {}, () => {
     const html = String(
       AdminNav({ active: "/admin/support", session: { adminLevel: "owner" } }),
     );
-    assertStringIncludes(html, 'class="active" href="/admin/guide"');
-    assertStringIncludes(html, 'class="active" href="/admin/support"');
+    expectIncludesAll(html, [
+      'class="active" href="/admin/guide"',
+      'class="active" href="/admin/support"',
+    ]);
   });
 });

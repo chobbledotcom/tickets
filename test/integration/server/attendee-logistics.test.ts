@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingsTable } from "#db/listings/records.ts";
@@ -17,6 +16,7 @@ import {
   startTimeField,
 } from "#routes/admin/attendee-logistics.ts";
 import { FormParams } from "#shared/form-data.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   attendeeLineFields,
@@ -199,14 +199,16 @@ describeWithEnv("attendee form logistics (HTTP)", { db: true }, () => {
       { cookie },
     );
     const html = await response.text();
-    assertStringIncludes(html, ">Logistics<");
-    assertStringIncludes(html, 'name="logistics_start"');
-    assertStringIncludes(html, 'name="logistics_end"');
-    assertStringIncludes(html, `name="${SPLIT_AGENTS_FIELD}"`);
-    // Per-listing (split mode) selectors and the time inputs are rendered too.
-    assertStringIncludes(html, `name="${startAgentField(listing.id)}"`);
-    assertStringIncludes(html, 'name="logistics_start_time"');
-    assertStringIncludes(html, "Drop Van");
+    expectIncludesAll(html, [
+      ">Logistics<",
+      'name="logistics_start"',
+      'name="logistics_end"',
+      `name="${SPLIT_AGENTS_FIELD}"`,
+      // Per-listing (split mode) selectors and the time inputs are rendered too.
+      `name="${startAgentField(listing.id)}"`,
+      'name="logistics_start_time"',
+      "Drop Van",
+    ]);
   });
 
   test("creating an attendee persists the chosen agents", async () => {

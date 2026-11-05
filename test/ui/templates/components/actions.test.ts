@@ -17,15 +17,18 @@ import {
   SpanOrLink,
   SubmitButton,
 } from "#templates/components/actions.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import type { AdminLevel } from "#types";
 
 describe("Icon", () => {
   test("renders a sprite reference sized via the icon class", () => {
     const html = String(Icon({ name: "plus" }));
-    assertStringIncludes(html, 'class="icon"');
-    assertStringIncludes(html, 'aria-hidden="true"');
-    assertStringIncludes(html, 'focusable="false"');
-    assertStringIncludes(html, `href="${ICONS_PATH}#plus"`);
+    expectIncludesAll(html, [
+      'class="icon"',
+      'aria-hidden="true"',
+      'focusable="false"',
+      `href="${ICONS_PATH}#plus"`,
+    ]);
   });
 });
 
@@ -38,10 +41,12 @@ describe("ActionButton", () => {
         icon: "plus",
       }),
     );
-    assertStringIncludes(html, 'class="btn"');
-    assertStringIncludes(html, 'href="/admin/holidays/new"');
-    assertStringIncludes(html, `href="${ICONS_PATH}#plus"`);
-    assertStringIncludes(html, "<span>Add holiday</span>");
+    expectIncludesAll(html, [
+      'class="btn"',
+      'href="/admin/holidays/new"',
+      `href="${ICONS_PATH}#plus"`,
+      "<span>Add holiday</span>",
+    ]);
   });
 
   test("omits the icon when none is given", () => {
@@ -73,9 +78,11 @@ describe("ActionButton", () => {
 describe("SubmitButton", () => {
   test("renders a submit button with a leading icon and label", () => {
     const html = String(SubmitButton({ children: "Save Theme", icon: "save" }));
-    assertStringIncludes(html, 'type="submit"');
-    assertStringIncludes(html, `href="${ICONS_PATH}#save"`);
-    assertStringIncludes(html, "<span>Save Theme</span>");
+    expectIncludesAll(html, [
+      'type="submit"',
+      `href="${ICONS_PATH}#save"`,
+      "<span>Save Theme</span>",
+    ]);
   });
 
   test("passes through a class for button modifiers", () => {
@@ -86,8 +93,7 @@ describe("SubmitButton", () => {
         icon: "trash-2",
       }),
     );
-    assertStringIncludes(html, 'class="danger"');
-    assertStringIncludes(html, `href="${ICONS_PATH}#trash-2"`);
+    expectIncludesAll(html, ['class="danger"', `href="${ICONS_PATH}#trash-2"`]);
   });
 
   test("passes through an id for script-targeted buttons", () => {
@@ -117,9 +123,11 @@ describe("SubmitButton", () => {
 describe("save buttons", () => {
   test("renders the form action wrapper and primary save button", () => {
     const html = String(SaveActions({ children: "Store changes" }));
-    assertStringIncludes(html, '<p class="form-actions">');
-    assertStringIncludes(html, '<button class="primary"');
-    assertStringIncludes(html, "<span>Store changes</span>");
+    expectIncludesAll(html, [
+      '<p class="form-actions">',
+      '<button class="primary"',
+      "<span>Store changes</span>",
+    ]);
   });
 
   test("renders each standard translated label", () => {
@@ -186,10 +194,12 @@ describe("BackButton", () => {
     const html = String(
       BackButton({ children: "Back to attendee", href: "/admin/attendees/7" }),
     );
-    assertStringIncludes(html, 'class="btn small"');
-    assertStringIncludes(html, 'href="/admin/attendees/7"');
-    assertStringIncludes(html, `href="${ICONS_PATH}#arrow-left"`);
-    assertStringIncludes(html, "<span>Back to attendee</span>");
+    expectIncludesAll(html, [
+      'class="btn small"',
+      'href="/admin/attendees/7"',
+      `href="${ICONS_PATH}#arrow-left"`,
+      "<span>Back to attendee</span>",
+    ]);
   });
 });
 
@@ -198,10 +208,12 @@ describe("GuideLink", () => {
     const html = String(
       GuideLink({ children: "Holidays guide", href: "/admin/guide#holidays" }),
     );
-    assertStringIncludes(html, 'class="guide-link"');
-    assertStringIncludes(html, 'href="/admin/guide#holidays"');
-    assertStringIncludes(html, `href="${ICONS_PATH}#book-open"`);
-    assertStringIncludes(html, "<span>Holidays guide</span>");
+    expectIncludesAll(html, [
+      'class="guide-link"',
+      'href="/admin/guide#holidays"',
+      `href="${ICONS_PATH}#book-open"`,
+      "<span>Holidays guide</span>",
+    ]);
   });
 });
 
@@ -214,9 +226,11 @@ describe("GuideFooter", () => {
 
   test("renders the bottom-of-page guide link when no role is given", () => {
     const html = String(GuideFooter(guideFooterProps()));
-    assertStringIncludes(html, 'class="guide-footer"');
-    assertStringIncludes(html, 'href="/admin/guide#listings"');
-    assertStringIncludes(html, "<span>Listings guide</span>");
+    expectIncludesAll(html, [
+      'class="guide-footer"',
+      'href="/admin/guide#listings"',
+      "<span>Listings guide</span>",
+    ]);
   });
 
   test("renders for staff roles (owner/manager) when a role is given", () => {
@@ -245,8 +259,10 @@ describe("GuideFooter", () => {
     const html = String(
       guideFooterFor("/admin/guide#settings", "settings.guide_link"),
     );
-    assertStringIncludes(html, 'href="/admin/guide#settings"');
-    assertStringIncludes(html, 'class="guide-footer"');
-    assertStringIncludes(html, "Settings guide");
+    expectIncludesAll(html, [
+      'href="/admin/guide#settings"',
+      'class="guide-footer"',
+      "Settings guide",
+    ]);
   });
 });

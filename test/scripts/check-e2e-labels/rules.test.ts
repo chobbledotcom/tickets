@@ -5,6 +5,7 @@ import {
   type CatalogCopy,
   findLabelIssues,
 } from "#scripts/check-e2e-labels/rules.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 /** A catalog from bare values (and keys when a case exercises them). */
 const catalog = (
@@ -208,8 +209,10 @@ describe("e2e label rules", () => {
     expect(issues.length).toBe(1);
     const issue = issues[0]!;
     expect(issue.line).toBe(1);
-    assertStringIncludes(issue.message, '"Update Stripe Key"');
-    assertStringIncludes(issue.message, "no message in src/locales/en");
+    expectIncludesAll(issue.message, [
+      '"Update Stripe Key"',
+      "no message in src/locales/en",
+    ]);
   });
 
   test("flags a page-text marker that no message carries", () => {

@@ -5,6 +5,7 @@ import {
   registerListingTemplateHooks,
   renderListingDetail,
 } from "#test/ui/templates/admin/listings/helpers.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 
 describe("adminListingPage roster and attendees", () => {
@@ -18,10 +19,12 @@ describe("adminListingPage roster and attendees", () => {
       attendees: [],
       listing,
     });
-    assertStringIncludes(html, "Thank You URL");
-    assertStringIncludes(html, 'value="https://example.com/thanks"');
-    assertStringIncludes(html, "readonly");
-    assertStringIncludes(html, "data-select-on-click");
+    expectIncludesAll(html, [
+      "Thank You URL",
+      'value="https://example.com/thanks"',
+      "readonly",
+      "data-select-on-click",
+    ]);
   });
 
   test("shows public URL with allowed domain", () => {
@@ -30,9 +33,11 @@ describe("adminListingPage roster and attendees", () => {
       attendees: [],
       listing,
     });
-    assertStringIncludes(html, "Public URL");
-    assertStringIncludes(html, 'href="https://example.com/ticket/ab12c"');
-    assertStringIncludes(html, "example.com/ticket/ab12c");
+    expectIncludesAll(html, [
+      "Public URL",
+      'href="https://example.com/ticket/ab12c"',
+      "example.com/ticket/ab12c",
+    ]);
   });
 
   test("shows collapsed embed codes with allowed domain and iframe param", () => {
@@ -41,20 +46,19 @@ describe("adminListingPage roster and attendees", () => {
       attendees: [],
       listing,
     });
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<label class="small-action" for="embed-toggle-1">Embed</label>',
-    );
-    assertStringIncludes(html, 'class="visually-hidden embed-toggle"');
-    assertStringIncludes(html, 'class="embed-code-row"');
-    assertStringIncludes(html, "Embed Script");
-    assertStringIncludes(html, "Embed Iframe");
-    assertStringIncludes(html, "embed.js");
-    assertStringIncludes(html, "data-listings=");
-    assertStringIncludes(html, "https://example.com/ticket/ab12c?iframe=true");
-    assertStringIncludes(html, "height: 600px");
-    assertStringIncludes(html, "loading=");
-    assertStringIncludes(html, "readonly");
+      'class="visually-hidden embed-toggle"',
+      'class="embed-code-row"',
+      "Embed Script",
+      "Embed Iframe",
+      "embed.js",
+      "data-listings=",
+      "https://example.com/ticket/ab12c?iframe=true",
+      "height: 600px",
+      "loading=",
+      "readonly",
+    ]);
   });
 
   test("iframe embed is a plain iframe without resizer scripts", () => {
@@ -82,8 +86,7 @@ describe("adminListingPage roster and attendees", () => {
       attendees,
       listing,
     });
-    assertStringIncludes(html, "John Doe");
-    assertStringIncludes(html, "john@example.com");
+    expectIncludesAll(html, ["John Doe", "john@example.com"]);
   });
 
   test("escapes attendee data", () => {
@@ -112,8 +115,7 @@ describe("adminListingPage roster and attendees", () => {
       attendees,
       listing,
     });
-    assertStringIncludes(html, "<th>Phone</th>");
-    assertStringIncludes(html, "+1 555 123 4567");
+    expectIncludesAll(html, ["<th>Phone</th>", "+1 555 123 4567"]);
   });
 
   test("hides phone column when no attendees have phone", () => {
@@ -147,8 +149,7 @@ describe("adminListingPage roster and attendees", () => {
       attendees: [],
       listing: nearFullListing,
     });
-    assertStringIncludes(html, 'class="danger-text"');
-    assertStringIncludes(html, "9 remain");
+    expectIncludesAll(html, ['class="danger-text"', "9 remain"]);
   });
 
   test("does not show danger-text class when not near capacity", () => {
@@ -162,11 +163,10 @@ describe("adminListingPage roster and attendees", () => {
 
   test("shows deactivated alert for inactive listings", () => {
     const html = String(ListingDeactivatedBanner({ active: false }));
-    assertStringIncludes(html, 'class="error"');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'class="error"',
       "This listing is deactivated and cannot be booked",
-    );
+    ]);
   });
 
   test("does not show deactivated alert for active listings", () => {
@@ -190,8 +190,7 @@ describe("adminListingPage roster and attendees", () => {
       attendees,
       listing,
     });
-    assertStringIncludes(html, 'href="https://mysite.com/t/abc123"');
-    assertStringIncludes(html, "abc123");
+    expectIncludesAll(html, ['href="https://mysite.com/t/abc123"', "abc123"]);
   });
 
   test("renders empty date cell for attendee without date on daily listing", () => {
@@ -248,8 +247,7 @@ describe("adminListingPage roster and attendees", () => {
       dateFilter: "2026-03-15",
       listing: dailyListing,
     });
-    assertStringIncludes(html, 'class="danger-text"');
-    assertStringIncludes(html, "0 remain");
+    expectIncludesAll(html, ['class="danger-text"', "0 remain"]);
   });
 
   test("shows danger-text on the total count for a near-capacity daily listing without a date filter", () => {
@@ -293,9 +291,11 @@ describe("adminListingPage optional fields", () => {
       attendees: [],
       listing,
     });
-    assertStringIncludes(html, "Webhook URL");
-    assertStringIncludes(html, 'value="https://hooks.example.com/notify"');
-    assertStringIncludes(html, "readonly");
+    expectIncludesAll(html, [
+      "Webhook URL",
+      'value="https://hooks.example.com/notify"',
+      "readonly",
+    ]);
   });
 
   test("hides embed rows for a child listing", () => {
@@ -324,8 +324,10 @@ describe("adminListingPage listing date and location", () => {
       attendees: [],
       listing,
     });
-    assertStringIncludes(html, "Listing Date");
-    assertStringIncludes(html, "Monday 15 June 2026 at 15:00 GMT+1");
+    expectIncludesAll(html, [
+      "Listing Date",
+      "Monday 15 June 2026 at 15:00 GMT+1",
+    ]);
   });
 
   test("does not show Listing Date row when date is empty", () => {
@@ -348,8 +350,7 @@ describe("adminListingPage listing date and location", () => {
       attendees: [],
       listing,
     });
-    assertStringIncludes(html, "<th>Location</th>");
-    assertStringIncludes(html, "Village Hall");
+    expectIncludesAll(html, ["<th>Location</th>", "Village Hall"]);
   });
 
   test("does not show Location row when location is empty", () => {
@@ -373,7 +374,6 @@ describe("adminListingPage listing date and location", () => {
       attendees: [],
       listing,
     });
-    assertStringIncludes(html, "Listing Date");
-    assertStringIncludes(html, "Town Centre");
+    expectIncludesAll(html, ["Listing Date", "Town Centre"]);
   });
 });

@@ -18,6 +18,7 @@ import {
   transfer,
 } from "#test/ui/templates/admin/ledger/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 /** The admin page each row-backed money account opens, keyed by the picklist
  *  the account types come from, so a new type must decide its page here. */
@@ -54,10 +55,12 @@ describe("money account labels", () => {
       names(),
       "dual",
     );
-    assertStringIncludes(html, "Card / bank");
-    assertStringIncludes(html, "Booking fees");
-    assertStringIncludes(html, "Tax");
-    assertStringIncludes(html, "Corrections");
+    expectIncludesAll(html, [
+      "Card / bank",
+      "Booking fees",
+      "Tax",
+      "Corrections",
+    ]);
     assert(!html.includes("/admin/ledger/external/"));
     assert(!html.includes("/admin/ledger/fee_income/"));
     assert(!html.includes("/admin/ledger/tax/"));
@@ -147,9 +150,7 @@ describe("money account labels", () => {
       names(),
       "dual",
     );
-    assertStringIncludes(html, "Attendee #42");
-    assertStringIncludes(html, "Listing #9");
-    assertStringIncludes(html, "Modifier #8");
+    expectIncludesAll(html, ["Attendee #42", "Listing #9", "Modifier #8"]);
     assert(!html.includes("/admin/attendees/42"));
     assert(!html.includes("/admin/modifiers/8"));
   });

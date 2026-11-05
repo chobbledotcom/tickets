@@ -4,6 +4,7 @@ import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { CustomDomainForm } from "#templates/admin/settings/custom-domain.tsx";
 import { advancedDefaultState } from "#test/ui/templates/admin/settings-advanced/state.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 describe("CustomDomainForm", () => {
   beforeAll(setupAdminPageTest);
@@ -16,11 +17,10 @@ describe("CustomDomainForm", () => {
         existingPaymentProvider: "stripe",
       }),
     );
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       "Changing your domain changes your payment webhook",
-    );
-    assertStringIncludes(html, 'href="/admin/settings#settings-stripe"');
+      'href="/admin/settings#settings-stripe"',
+    ]);
   });
 
   test("hides the warning when no provider is configured", () => {
@@ -52,12 +52,11 @@ describe("CustomDomainForm", () => {
     const formHtml = form[0];
     assertStringIncludes(formHtml, 'id="settings-custom-domain"');
     // Prose container around the heading
-    assertStringIncludes(html, 'class="prose"');
-    // The intro links the guide's buy-a-domain steps
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'class="prose"',
+      // The intro links the guide's buy-a-domain steps
       'The <a href="/admin/guide#custom-domain">setup guide</a> shows you how to point it here',
-    );
+    ]);
     const domainInput = formHtml.match(/<input[^>]*name="custom_domain"[^>]*>/);
     expect(domainInput).not.toBeNull();
     if (domainInput === null) return;
@@ -68,28 +67,24 @@ describe("CustomDomainForm", () => {
     assertStringIncludes(domainInput[0] ?? "", 'type="text"');
     assertStringIncludes(domainInput[0] ?? "", 'value="tickets.example.com"');
     // Guide link
-    assertStringIncludes(html, 'href="/admin/guide#custom-domain"');
-    // Subdomain note (visible when subdomain is set)
-    assertStringIncludes(html, "keeps working at the same time");
-    // Validate button (visible when customDomain is set)
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'href="/admin/guide#custom-domain"',
+      // Subdomain note (visible when subdomain is set)
+      "keeps working at the same time",
+      // Validate button (visible when customDomain is set)
       'action="/admin/settings/custom-domain/validate"',
-    );
-    assertStringIncludes(html, 'id="settings-custom-domain-validate"');
-    // Not-yet-validated warning (customDomainLastValidated defaults to "")
-    assertStringIncludes(html, "not yet validated");
-    // Numbered CNAME steps with the record values
-    assertStringIncludes(html, "Make one CNAME record like this:");
-    assertStringIncludes(html, "Open the DNS settings for your domain.");
-    assertStringIncludes(html, "Validation can take a few minutes.");
-    // CNAME record rows: the exact label, value, and one space between them
-    assertStringIncludes(html, "<strong>Type:</strong> CNAME");
-    assertStringIncludes(
-      html,
+      'id="settings-custom-domain-validate"',
+      // Not-yet-validated warning (customDomainLastValidated defaults to "")
+      "not yet validated",
+      // Numbered CNAME steps with the record values
+      "Make one CNAME record like this:",
+      "Open the DNS settings for your domain.",
+      "Validation can take a few minutes.",
+      // CNAME record rows: the exact label, value, and one space between them
+      "<strong>Type:</strong> CNAME",
       "<strong>Name:</strong> <code>tickets.example.com</code>",
-    );
-    assertStringIncludes(html, "<strong>TTL:</strong> 3600");
+      "<strong>TTL:</strong> 3600",
+    ]);
     // Last-validated line is hidden when customDomainLastValidated is empty
     assert(!html.includes("Last validated"));
   });
@@ -104,11 +99,10 @@ describe("CustomDomainForm", () => {
         customDomainLastValidated: "2026-09-24T17:26:00.000Z",
       }),
     );
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       "<strong>Value:</strong> <code>site.b-cdn.net</code>",
-    );
-    assertStringIncludes(html, "Last validated: 2026-09-24T17:26:00.000Z");
+      "Last validated: 2026-09-24T17:26:00.000Z",
+    ]);
   });
 
   test("blocks a domain change until provider recovery is complete", () => {

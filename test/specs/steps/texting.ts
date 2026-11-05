@@ -20,6 +20,7 @@ import {
   type TicketsWorld,
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 Given("the gateway is set up", (): Promise<void> => gatewayIsSetUp());
 
@@ -118,12 +119,11 @@ Then(
   "the page names {word} and the number she gave",
   async function (this: TicketsWorld, who: string): Promise<void> {
     const page = whatTheyWereTold(this, ORGANISER);
-    assertStringIncludes(page, who);
-    assertStringIncludes(page, phoneOf(this, who));
-    assertStringIncludes(
-      page,
+    expectIncludesAll(page, [
+      who,
+      phoneOf(this, who),
       await textingCopy("sms.contact.compose_heading"),
-    );
+    ]);
   },
 );
 

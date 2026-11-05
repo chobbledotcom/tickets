@@ -1,8 +1,8 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { appleMapsUrl, googleMapsUrl, mapLinks } from "#shared/maps.ts";
 import { MapsLinks } from "#templates/components/maps-links.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 test("googleMapsUrl encodes the query", () => {
   expect(googleMapsUrl("1 High St, Town")).toBe(
@@ -28,16 +28,15 @@ test("mapLinks returns nothing for a blank/whitespace query", () => {
 
 test("MapsLinks renders both provider links for an address", () => {
   const html = String(MapsLinks({ query: "1 High St" }));
-  assertStringIncludes(html, "maps:");
-  // Apple URL has no & to escape; assert it verbatim.
-  assertStringIncludes(html, `href="${appleMapsUrl("1 High St")}"`);
-  // The Google URL's & is HTML-escaped to &amp; in the rendered href.
-  assertStringIncludes(
-    html,
+  expectIncludesAll(html, [
+    "maps:",
+    // Apple URL has no & to escape; assert it verbatim.
+    `href="${appleMapsUrl("1 High St")}"`,
+    // The Google URL's & is HTML-escaped to &amp; in the rendered href.
     'href="https://www.google.com/maps/search/?api=1&amp;query=1%20High%20St"',
-  );
-  assertStringIncludes(html, ">Google<");
-  assertStringIncludes(html, ">Apple<");
+    ">Google<",
+    ">Apple<",
+  ]);
 });
 
 test("MapsLinks renders nothing for a blank address", () => {

@@ -7,6 +7,7 @@ import { sitePlanMemberError } from "#shared/package-membership.ts";
 import {
   expectErrorFlash,
   expectFlash,
+  expectIncludesAll,
   followRedirectWithFlash,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -44,8 +45,7 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
 
       const html = await getDuplicateForm(group.id);
 
-      assertStringIncludes(html, "Spring Workshop");
-      assertStringIncludes(html, "Original (copy)");
+      expectIncludesAll(html, ["Spring Workshop", "Original (copy)"]);
     });
   });
 
@@ -169,11 +169,13 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
 
       // Every field must still show what the owner submitted, so a failed
       // duplicate costs no retyping.
-      assertStringIncludes(html, 'value="Summer Tour"');
-      assertStringIncludes(html, 'value="First"');
-      assertStringIncludes(html, 'value="Second"');
-      assertStringIncludes(html, 'value="2026-03-02"');
-      assertStringIncludes(html, 'value="2026-03-09"');
+      expectIncludesAll(html, [
+        'value="Summer Tour"',
+        'value="First"',
+        'value="Second"',
+        'value="2026-03-02"',
+        'value="2026-03-09"',
+      ]);
     });
 
     test("rebuilds the preview from the restored replacements", async () => {

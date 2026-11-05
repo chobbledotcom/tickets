@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
@@ -6,6 +5,7 @@ import {
   expectedSiteSecrets,
   loadSiteSecretsStatus,
 } from "#shared/site-secrets.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import {
   recordingSecretSetter,
   stubEdgeScriptSecrets,
@@ -88,9 +88,11 @@ describeWithEnv(
       const { calls, result } = await backfillHalfPair(false);
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        assertStringIncludes(result.error, "The site already holds");
-        assertStringIncludes(result.error, "the two keys match");
-        assertStringIncludes(result.error, "Tick the confirm box");
+        expectIncludesAll(result.error, [
+          "The site already holds",
+          "the two keys match",
+          "Tick the confirm box",
+        ]);
       }
       // Nothing is copied while the conflict stands.
       expect(calls).toEqual([]);

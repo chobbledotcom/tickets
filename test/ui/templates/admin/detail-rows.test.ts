@@ -13,6 +13,7 @@ import {
 } from "#templates/admin/detail-rows.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { LabelledRow } from "#templates/components/labelled-row.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import {
   singleAnswerSizeQuestionData,
   sizeQuestionAnswerData,
@@ -208,8 +209,7 @@ describe("detail-rows", () => {
 
     test("includes attendees row with count, capacity, and remain", () => {
       const value = attendeesRowValue(5, 20);
-      assertStringIncludes(value, "5 / 20");
-      assertStringIncludes(value, "15 remain");
+      expectIncludesAll(value, ["5 / 20", "15 remain"]);
     });
 
     test("uses a capacity of one", () => {
@@ -246,8 +246,7 @@ describe("detail-rows", () => {
       // A row's value renders as text; the string case is what this asserts.
       const checkedInValue = checkedIn!.value;
       assert(typeof checkedInValue === "string");
-      assertStringIncludes(checkedInValue, "1 / 2");
-      assertStringIncludes(checkedInValue, "1 remain");
+      expectIncludesAll(checkedInValue, ["1 / 2", "1 remain"]);
     });
 
     test("excludes no-quantity rows from the check-in stats", () => {

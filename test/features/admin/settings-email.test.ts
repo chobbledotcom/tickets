@@ -11,10 +11,10 @@
  * cover, because a Cucumber run does not count towards coverage.
  */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  expectIncludesAll,
   expectRedirectWithFlash,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
@@ -199,7 +199,9 @@ describeWithEnv("server (admin settings: email)", { db: true }, () => {
     settings.invalidateCache();
 
     const html = await (await adminGet("/admin/settings-advanced")).text();
-    assertStringIncludes(html, 'id="settings-email"');
-    assertStringIncludes(html, 'id="settings-email-test"');
+    expectIncludesAll(html, [
+      'id="settings-email"',
+      'id="settings-email-test"',
+    ]);
   });
 });

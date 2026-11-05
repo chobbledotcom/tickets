@@ -9,7 +9,11 @@ import { getListingsByGroupId, setGroupPackageMembers } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { t } from "#i18n";
 import { handleRequest } from "#routes";
-import { expectFlash, expectFlashError } from "#test-utils/assertions.ts";
+import {
+  expectFlash,
+  expectFlashError,
+  expectIncludesAll,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestGroup,
@@ -58,12 +62,11 @@ describeWithEnv("admin group listing removal", { db: true }, () => {
       )
     ).text();
 
-    assertStringIncludes(html, "Saturday Gig");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "Saturday Gig",
       "Warning: Each listing keeps its bookings and its money.",
-    );
-    assertStringIncludes(html, `value="${listing.id}"`);
+      `value="${listing.id}"`,
+    ]);
   });
 
   test("nothing selected sends the operator back to the group", async () => {
@@ -163,7 +166,6 @@ describeWithEnv("admin group listing removal", { db: true }, () => {
     await confirmRemoval(group.id, group.name, [listing.id]);
     const html = await (await adminGet(`/admin/groups/${group.id}`)).text();
 
-    assertStringIncludes(html, "Saturday Gig");
-    assertStringIncludes(html, t("groups.detail.no_listings"));
+    expectIncludesAll(html, ["Saturday Gig", t("groups.detail.no_listings")]);
   });
 });

@@ -13,6 +13,7 @@ import {
 } from "#templates/public/errors.tsx";
 import { registerPublicTemplateHooks } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 
 describe("notFoundPage", () => {
@@ -31,30 +32,28 @@ describe("temporaryErrorPage", () => {
 
   test("renders error message with auto-refresh", () => {
     const html = temporaryErrorPage(true);
-    assertStringIncludes(html, "<h1>Temporary error</h1>");
-    assertStringIncludes(html, "Retrying automatically");
-    assertStringIncludes(html, 'http-equiv="refresh"');
-    assertStringIncludes(html, 'content="2"');
-    assertStringIncludes(html, "<style>");
-    assertStringIncludes(html, "font-family:system-ui");
-    // Points at Bunny's status page, with the space before the link kept.
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "<h1>Temporary error</h1>",
+      "Retrying automatically",
+      'http-equiv="refresh"',
+      'content="2"',
+      "<style>",
+      "font-family:system-ui",
+      // Points at Bunny's status page, with the space before the link kept.
       'Check <strong><a href="https://status.bunny.net/">status.bunny.net</a>',
-    );
+    ]);
   });
   test("preserves uncertainty about the submission", () => {
     const html = temporaryErrorPage(false);
     assert(!html.includes('http-equiv="refresh"'));
     assert(!html.includes("Retrying automatically"));
     assert(!html.includes("your submission was not saved"));
-    assertStringIncludes(html, "Your changes may already be saved.");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "Your changes may already be saved.",
       "Check the existing records or your booking before you submit again.",
-    );
-    assertStringIncludes(html, "font-family:system-ui");
-    assertStringIncludes(html, 'href="https://status.bunny.net/"');
+      "font-family:system-ui",
+      'href="https://status.bunny.net/"',
+    ]);
   });
 });
 
@@ -64,20 +63,21 @@ describe("qrBookErrorPage", () => {
 
   test("identifies a checkout failure and escapes the provider message", () => {
     const html = qrBookCheckoutErrorPage("summer-fete", "Failed <payment>");
-    assertStringIncludes(html, "<title>Could not start payment</title>");
-    assertStringIncludes(html, "<h1>Could not start your payment</h1>");
-    assertStringIncludes(html, "<p>Failed &lt;payment&gt;</p>");
-    assertStringIncludes(html, 'href="/ticket/summer-fete"');
+    expectIncludesAll(html, [
+      "<title>Could not start payment</title>",
+      "<h1>Could not start your payment</h1>",
+      "<p>Failed &lt;payment&gt;</p>",
+      'href="/ticket/summer-fete"',
+    ]);
   });
 
   test("offers the normal booking page when the listing has a slug", () => {
     const html = qrBookErrorPage("summer-fete");
-    assertStringIncludes(html, "<h1>QR code expired or invalid</h1>");
-    assertStringIncludes(html, "This QR code has expired");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "<h1>QR code expired or invalid</h1>",
+      "This QR code has expired",
       '<a href="/ticket/summer-fete">Go to booking page</a>',
-    );
+    ]);
   });
 
   test("omits the booking link when there is no standalone page", () => {
@@ -94,8 +94,10 @@ describe("rateLimitedPage", () => {
 
   test("renders the too-many-requests message", () => {
     const html = rateLimitedPage();
-    assertStringIncludes(html, "<h1>Too Many Requests</h1>");
-    assertStringIncludes(html, "You've hit too many invalid ticket links.");
+    expectIncludesAll(html, [
+      "<h1>Too Many Requests</h1>",
+      "You've hit too many invalid ticket links.",
+    ]);
   });
 });
 
@@ -105,9 +107,11 @@ describe("databaseBusyPage", () => {
 
   test("auto-refreshes and reassures when the method is idempotent", () => {
     const html = databaseBusyPage(true);
-    assertStringIncludes(html, "<h1>The database is too busy.</h1>");
-    assertStringIncludes(html, 'http-equiv="refresh"');
-    assertStringIncludes(html, "Reloading so you can try again.");
+    expectIncludesAll(html, [
+      "<h1>The database is too busy.</h1>",
+      'http-equiv="refresh"',
+      "Reloading so you can try again.",
+    ]);
     assert(!html.includes("your submission was not saved"));
   });
 
@@ -137,11 +141,10 @@ describe("readOnlyPage", () => {
   test("includes the renewal link when RENEWAL_URL is set", () => {
     withRenewalUrl("https://example.com/renew", () => {
       const html = readOnlyPage();
-      assertStringIncludes(html, "This site is in read-only mode.");
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        "This site is in read-only mode.",
         '<a href="https://example.com/renew">Renew now</a>',
-      );
+      ]);
     });
   });
 
@@ -160,12 +163,14 @@ describe("migrationInProgressPage", () => {
 
   test("renders update message with auto-refresh", () => {
     const html = migrationInProgressPage();
-    assertStringIncludes(html, "<h1>Update In Progress</h1>");
-    assertStringIncludes(html, "backing up and updating the database");
-    assertStringIncludes(html, 'http-equiv="refresh"');
-    assertStringIncludes(html, 'content="5"');
-    assertStringIncludes(html, "<style>");
-    assertStringIncludes(html, "font-family:system-ui");
+    expectIncludesAll(html, [
+      "<h1>Update In Progress</h1>",
+      "backing up and updating the database",
+      'http-equiv="refresh"',
+      'content="5"',
+      "<style>",
+      "font-family:system-ui",
+    ]);
   });
 
   test("does not present itself as an error", () => {
@@ -181,12 +186,11 @@ describe("siteNotActivatedPage", () => {
 
   test("renders not-activated message in the error dialog style", () => {
     const html = siteNotActivatedPage();
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<div class="prose"><h1>Not Activated</h1><p>This site has not been activated yet.</p></div>',
-    );
-    assertStringIncludes(html, "<style>");
-    assertStringIncludes(html, "font-family:system-ui");
+      "<style>",
+      "font-family:system-ui",
+    ]);
   });
 
   test("does not auto-refresh", () => {

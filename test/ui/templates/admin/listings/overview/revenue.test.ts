@@ -1,9 +1,10 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   detailHtml,
   registerListingTemplateHooks,
 } from "#test/ui/templates/admin/listings/helpers.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 
 describe("adminListingPage total revenue", () => {
@@ -19,8 +20,7 @@ describe("adminListingPage total revenue", () => {
         ],
       },
     );
-    assertStringIncludes(html, "Total Revenue");
-    assertStringIncludes(html, "£30");
+    expectIncludesAll(html, ["Total Revenue", "£30"]);
   });
 
   test("does not show total revenue for free listings", () => {
@@ -35,7 +35,6 @@ describe("adminListingPage total revenue", () => {
     const html = detailHtml(
       testListingWithCount({ attendee_count: 0, unit_price: 1000 }),
     );
-    assertStringIncludes(html, "Total Revenue");
-    assertStringIncludes(html, "£0");
+    expectIncludesAll(html, ["Total Revenue", "£0"]);
   });
 });

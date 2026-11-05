@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { logisticsAgents } from "#db/logistics-agents.ts";
@@ -6,7 +6,11 @@ import { userAgents } from "#db/user-agents.ts";
 import { deleteUser, getUserByUsername } from "#db/users.ts";
 import { handleRequest } from "#routes";
 import { getSessionCookieName } from "#shared/cookies.ts";
-import { expectHtml, expectRedirect } from "#test-utils/assertions.ts";
+import {
+  expectHtml,
+  expectIncludesAll,
+  expectRedirect,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
@@ -165,8 +169,7 @@ describeWithEnv("server (agent user management)", { db: true }, () => {
     const response = await adminGet("/admin/users");
     expect(response.status).toBe(200);
     const html = await response.text();
-    assertStringIncludes(html, "listedagent");
-    assertStringIncludes(html, "Van 1");
+    expectIncludesAll(html, ["listedagent", "Van 1"]);
   });
 
   test("posting agents for a non-agent user is rejected", async () => {

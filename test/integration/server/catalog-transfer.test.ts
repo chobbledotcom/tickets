@@ -15,6 +15,7 @@ import {
   exportListing,
 } from "#routes/admin/catalog-transfer/export.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import {
   requireEntityImport,
   unwrapExport,
@@ -344,8 +345,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       });
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("unreachable");
-      assertStringIncludes(result.error, "listing.name");
-      assertStringIncludes(result.error, "listing.maxAttendees");
+      expectIncludesAll(result.error, ["listing.name", "listing.maxAttendees"]);
     });
 
     test("rejects an unsupported version", async () => {
@@ -363,16 +363,17 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       const result = await importCatalog({ kind: "widget" });
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("unreachable");
-      assertStringIncludes(result.error, "kind:");
-      assertStringIncludes(result.error, "listing");
+      expectIncludesAll(result.error, ["kind:", "listing"]);
     });
 
     test("rejects a blob that is not an object (root type message)", async () => {
       const result = await importCatalog(42);
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("unreachable");
-      assertStringIncludes(result.error, "Invalid catalog file — Invalid type");
-      assertStringIncludes(result.error, "Object");
+      expectIncludesAll(result.error, [
+        "Invalid catalog file — Invalid type",
+        "Object",
+      ]);
     });
 
     test("rejects a blob with an unknown relationship key", async () => {

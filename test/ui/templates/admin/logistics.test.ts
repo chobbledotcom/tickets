@@ -12,6 +12,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { enableFeature } from "#test-utils/settings.ts";
 import type { LogisticsAgent } from "#types";
@@ -33,13 +34,15 @@ describe("LogisticsAgentEditPanel", () => {
 
   test("groups the form into agent-details and assigned-users fieldsets", () => {
     const html = renderPanel();
-    assertStringIncludes(html, "<legend>Agent details</legend>");
-    assertStringIncludes(html, "<legend>Assigned users</legend>");
-    assertStringIncludes(html, "Van 1");
-    // The agent-details fieldset and the assigned-users fieldset carry their
-    // exact classes.
-    assertStringIncludes(html, '<fieldset class="listing-section">');
-    assertStringIncludes(html, 'class="checkboxes listing-section"');
+    expectIncludesAll(html, [
+      "<legend>Agent details</legend>",
+      "<legend>Assigned users</legend>",
+      "Van 1",
+      // The agent-details fieldset and the assigned-users fieldset carry their
+      // exact classes.
+      '<fieldset class="listing-section">',
+      'class="checkboxes listing-section"',
+    ]);
   });
 
   test("explains that agent-class users only see the deliveries page", () => {
@@ -52,9 +55,11 @@ describe("LogisticsAgentEditPanel", () => {
 
   test("lists every user class as an assignable checkbox", () => {
     const html = renderPanel();
-    assertStringIncludes(html, 'name="user_ids"');
-    assertStringIncludes(html, "driver (agent)");
-    assertStringIncludes(html, "boss (manager)");
+    expectIncludesAll(html, [
+      'name="user_ids"',
+      "driver (agent)",
+      "boss (manager)",
+    ]);
   });
 
   test("pre-checks the users already assigned to the agent", () => {
@@ -85,8 +90,10 @@ describe("LogisticsAgentEditPanel", () => {
         values: { name: "Submitted van" },
       }),
     );
-    assertStringIncludes(html, 'value="Submitted van"');
-    assertStringIncludes(html, "Agent name is required");
+    expectIncludesAll(html, [
+      'value="Submitted van"',
+      "Agent name is required",
+    ]);
     expect(html).toMatch(/value="1"[^>]*checked|checked[^>]*value="1"/);
   });
 });
@@ -96,15 +103,11 @@ describe("logisticsAgentPages delete page", () => {
 
   test("confirms the agent by name and posts to its delete path", () => {
     const html = logisticsAgentPages.deletePage(agent, OWNER_SESSION);
-    assertStringIncludes(html, 'action="/admin/logistics/7/delete"');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'action="/admin/logistics/7/delete"',
       "delete the logistics agent <strong>Van 1</strong>?",
-    );
-    assertStringIncludes(
-      html,
       "Type the agent name &quot;Van 1&quot; to confirm:",
-    );
+    ]);
   });
 
   test("renders the delete as a non-danger confirmation", () => {
@@ -120,9 +123,11 @@ describe("logisticsAgentPages new page", () => {
 
   test("renders the add-agent form posting to the logistics base path", () => {
     const html = logisticsAgentPages.newPage(OWNER_SESSION);
-    assertStringIncludes(html, "Add logistics agent");
-    assertStringIncludes(html, "Create agent");
-    assertStringIncludes(html, 'action="/admin/logistics"');
+    expectIncludesAll(html, [
+      "Add logistics agent",
+      "Create agent",
+      'action="/admin/logistics"',
+    ]);
     // A direct URL stays usable while the feature is hidden, without restoring
     // its navigation link.
     assert(!html.includes('<a class="active" href="/admin/logistics">'));
@@ -139,27 +144,31 @@ describeWithEnv("adminLogisticsPage", { db: true, encryptionKey: true }, () => {
 
     assert(!html.includes('action="/admin/logistics/has-logistics"'));
     assert(!html.includes('name="has_logistics"'));
-    assertStringIncludes(html, 'href="/admin/guide#logistics"');
-    assertStringIncludes(html, "Logistics guide");
-    assertStringIncludes(html, "Logistics agents");
-    assertStringIncludes(html, 'href="/admin/logistics/7"');
+    expectIncludesAll(html, [
+      'href="/admin/guide#logistics"',
+      "Logistics guide",
+      "Logistics agents",
+      'href="/admin/logistics/7"',
+    ]);
   });
 
   test("renders a row per agent and marks enabled logistics active", async () => {
     await enableFeature("logistics");
     const html = adminLogisticsPage([agent], OWNER_SESSION);
 
-    assertStringIncludes(html, "Logistics agents");
-    assertStringIncludes(html, "Agents (e.g. vans, drivers, or crew)");
-    assertStringIncludes(html, 'href="/admin/logistics/7"');
-    assertStringIncludes(html, "Van 1");
-    // The inline add form, its section fieldset and the add (plus) button.
-    assertStringIncludes(html, 'action="/admin/logistics"');
-    assertStringIncludes(html, 'class="listing-section"');
-    assertStringIncludes(html, 'href="/icons.svg#plus"');
-    assertStringIncludes(html, "Add agent");
-    // The page marks the logistics nav entry active.
-    assertStringIncludes(html, '<a class="active" href="/admin/logistics">');
+    expectIncludesAll(html, [
+      "Logistics agents",
+      "Agents (e.g. vans, drivers, or crew)",
+      'href="/admin/logistics/7"',
+      "Van 1",
+      // The inline add form, its section fieldset and the add (plus) button.
+      'action="/admin/logistics"',
+      'class="listing-section"',
+      'href="/icons.svg#plus"',
+      "Add agent",
+      // The page marks the logistics nav entry active.
+      '<a class="active" href="/admin/logistics">',
+    ]);
     // A populated list shows the table, not the empty-state placeholder.
     assert(!html.includes("No logistics agents yet."));
   });
@@ -167,8 +176,7 @@ describeWithEnv("adminLogisticsPage", { db: true, encryptionKey: true }, () => {
   test("shows the empty-state placeholder with no agents", () => {
     const html = adminLogisticsPage([], OWNER_SESSION);
 
-    assertStringIncludes(html, "Logistics agents");
-    assertStringIncludes(html, "No logistics agents yet.");
+    expectIncludesAll(html, ["Logistics agents", "No logistics agents yet."]);
     // No agent rows are rendered.
     assert(!html.includes('href="/admin/logistics/7"'));
   });

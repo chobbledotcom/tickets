@@ -10,6 +10,7 @@ import {
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
+  expectIncludesAll,
   expectStatus,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
@@ -128,10 +129,12 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       const editForm = await adminGet(`/admin/logistics/${id}`);
       const editHtml = await editForm.text();
       // The form must post to the real edit route (no stray /agents/ segment).
-      assertStringIncludes(editHtml, `action="/admin/logistics/${id}/edit"`);
-      assertStringIncludes(editHtml, `href="/admin/logistics/${id}"`);
-      assertStringIncludes(editHtml, `href="/admin/logistics/${id}/actions"`);
-      assertStringIncludes(editHtml, "Van A");
+      expectIncludesAll(editHtml, [
+        `action="/admin/logistics/${id}/edit"`,
+        `href="/admin/logistics/${id}"`,
+        `href="/admin/logistics/${id}/actions"`,
+        "Van A",
+      ]);
       assert(!editHtml.includes(`/admin/logistics/${id}/delete`));
       const actionsHtml = await (
         await adminGet(`/admin/logistics/${id}/actions`)
@@ -229,12 +232,11 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       const id = await createLogisticsAgent("Doomed Van");
       const confirm = await adminGet(`/admin/logistics/${id}/delete`);
       const confirmHtml = await confirm.text();
-      assertStringIncludes(
-        confirmHtml,
+      expectIncludesAll(confirmHtml, [
         `action="/admin/logistics/${id}/delete"`,
-      );
-      assertStringIncludes(confirmHtml, "Delete logistics agent");
-      assertStringIncludes(confirmHtml, "Doomed Van");
+        "Delete logistics agent",
+        "Doomed Van",
+      ]);
       const { response } = await adminFormPost(
         `/admin/logistics/${id}/delete`,
         {

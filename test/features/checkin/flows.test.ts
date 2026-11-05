@@ -1,7 +1,7 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import { storedCheckinRows } from "#test-utils/db-helpers/checkin-rows.ts";
@@ -39,12 +39,14 @@ describeWithEnv(
           },
         );
         const body = await viewResponse.text();
-        assertStringIncludes(body, "Check out");
-        assertStringIncludes(body, 'class="success"');
-        assertStringIncludes(body, "Checked in 1 ticket");
-        assertStringIncludes(body, 'class="bulk-checkout"');
-        assertStringIncludes(body, "Check Out All");
-        assertStringIncludes(body, 'value="false"');
+        expectIncludesAll(body, [
+          "Check out",
+          'class="success"',
+          "Checked in 1 ticket",
+          'class="bulk-checkout"',
+          "Check Out All",
+          'value="false"',
+        ]);
       });
 
       test("checks out attendee with check_in=false and shows success", async () => {
@@ -71,8 +73,7 @@ describeWithEnv(
           },
         );
         const body = await viewResponse.text();
-        assertStringIncludes(body, "Check in");
-        assertStringIncludes(body, "Checked out");
+        expectIncludesAll(body, ["Check in", "Checked out"]);
       });
 
       test("duplicate check-in shows already checked in message", async () => {
@@ -95,8 +96,7 @@ describeWithEnv(
           { cookie: session.cookie },
         );
         const body = await viewResponse.text();
-        assertStringIncludes(body, "Check out");
-        assertStringIncludes(body, "Already checked in 1 ticket");
+        expectIncludesAll(body, ["Check out", "Already checked in 1 ticket"]);
       });
 
       test("check-in with quantity > 1 shows plural ticket count", async () => {

@@ -6,6 +6,7 @@ import { formatCurrency, formatSignedCurrency } from "#shared/currency.ts";
 import { ticketViewPage } from "#templates/tickets.tsx";
 import { registerPublicTemplateHooks } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testTokenEntry } from "#test-utils/factories.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
@@ -104,8 +105,10 @@ describe("ticketViewPage ticket cards", () => {
       },
     ];
     const html = ticketViewPage(cards);
-    assertStringIncludes(html, "Monday 15 June 2026 at 15:00 GMT+1");
-    assertStringIncludes(html, "Town Centre");
+    expectIncludesAll(html, [
+      "Monday 15 June 2026 at 15:00 GMT+1",
+      "Town Centre",
+    ]);
   });
 
   test("shows each ticket as separate card with SVG endpoint reference", () => {
@@ -129,9 +132,11 @@ describe("ticketViewPage ticket cards", () => {
       },
     ];
     const html = ticketViewPage(cards);
-    assertStringIncludes(html, "/t/AABB0011CCDDEEF1/svg");
-    assertStringIncludes(html, "/t/AABB0011CCDDEEF2/svg");
-    assertStringIncludes(html, "2 Tickets");
+    expectIncludesAll(html, [
+      "/t/AABB0011CCDDEEF1/svg",
+      "/t/AABB0011CCDDEEF2/svg",
+      "2 Tickets",
+    ]);
   });
 
   test("hides QR code and token for purchase_only listings", () => {
@@ -208,8 +213,7 @@ describe("ticketViewPage ticket cards", () => {
 
   test("shows the organiser's description of the thing booked", () => {
     const html = oneCardPage({ listing: { description: "A night of song" } });
-    assertStringIncludes(html, "ticket-card-description");
-    assertStringIncludes(html, "A night of song");
+    expectIncludesAll(html, ["ticket-card-description", "A night of song"]);
   });
 
   test("leaves the description out when the organiser wrote none", () => {
@@ -222,8 +226,10 @@ describe("ticketViewPage ticket cards", () => {
 
   test("shows what was paid for a booking that cost money", () => {
     const html = oneCardPage({ attendee: { price_paid: "1500" } });
-    assertStringIncludes(html, "ticket-card-price");
-    assertStringIncludes(html, `Price: ${formatCurrency(1500)}`);
+    expectIncludesAll(html, [
+      "ticket-card-price",
+      `Price: ${formatCurrency(1500)}`,
+    ]);
   });
 
   test("says nothing about price for a free booking", () => {
@@ -244,19 +250,12 @@ describe("ticketViewPage ticket cards", () => {
         ],
       },
     );
-    assertStringIncludes(html, "ticket-card-modifiers");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "ticket-card-modifiers",
       `Service charge <span class="ticket-card-modifier-amount">${formatSignedCurrency(200)}</span>`,
-    );
-    assertStringIncludes(
-      html,
       `Early bird <span class="ticket-card-modifier-amount">${formatSignedCurrency(-500)}</span>`,
-    );
-    assertStringIncludes(
-      html,
       `ticket-card-total"><strong>Total:</strong> ${formatCurrency(1200)}`,
-    );
+    ]);
   });
 
   test("shows the modifier total when a free ticket carries a charge", () => {
@@ -281,8 +280,10 @@ describe("ticketViewPage ticket cards", () => {
     const html = oneCardPage({
       listing: { non_transferable: true, purchase_only: false },
     });
-    assertStringIncludes(html, "ticket-card-notice");
-    assertStringIncludes(html, "Non-transferable — ID required at entry");
+    expectIncludesAll(html, [
+      "ticket-card-notice",
+      "Non-transferable — ID required at entry",
+    ]);
   });
 
   test("offers the file the organiser attached, behind its signed link", () => {
@@ -290,8 +291,10 @@ describe("ticketViewPage ticket cards", () => {
       { listing: { attachment_name: "Guide.pdf" } },
       { attachmentUrl: "/attachment/42?a=7&exp=1&sig=x" },
     );
-    assertStringIncludes(html, 'href="/attachment/42?a=7&amp;exp=1&amp;sig=x"');
-    assertStringIncludes(html, "Download: Guide.pdf");
+    expectIncludesAll(html, [
+      'href="/attachment/42?a=7&amp;exp=1&amp;sig=x"',
+      "Download: Guide.pdf",
+    ]);
   });
 
   test("leaves out the download when the thing hands out no file", () => {
@@ -320,10 +323,12 @@ describe("ticketViewPage ticket cards", () => {
       false,
       new Map([[7, { hideListings: false, name: "Welcome Pack" }]]),
     );
-    assertStringIncludes(html, "Welcome Pack");
-    assertStringIncludes(html, "Handbook");
-    assertStringIncludes(html, 'href="/attachment/9?a=3&amp;exp=1&amp;sig=y"');
-    assertStringIncludes(html, "Download: Handbook.pdf");
+    expectIncludesAll(html, [
+      "Welcome Pack",
+      "Handbook",
+      'href="/attachment/9?a=3&amp;exp=1&amp;sig=y"',
+      "Download: Handbook.pdf",
+    ]);
   });
 
   test("renders multi-day booking range when daily listing has duration > 1", () => {

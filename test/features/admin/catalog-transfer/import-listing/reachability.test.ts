@@ -7,6 +7,7 @@ import { listingParents } from "#db/listing-parents.ts";
 import { requireListingWithCount } from "#db/listings/records.ts";
 import { getAllModifiers, modifierListings } from "#db/modifiers.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { requireEntityImport } from "#test-utils/catalog-import.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -46,8 +47,10 @@ describeWithEnv(
       if (result.ok) throw new Error("unreachable");
       // The edge editor's own child-add-on message (its {addon}/{name}
       // placeholders are quote-escaped in the locale, so assert its stable prose).
-      assertStringIncludes(result.error, "opt-in add-on");
-      assertStringIncludes(result.error, "offering it as a child");
+      expectIncludesAll(result.error, [
+        "opt-in add-on",
+        "offering it as a child",
+      ]);
     });
 
     test("accepts a bookable-alone child even when only it reaches the add-on", async () => {

@@ -5,7 +5,10 @@ import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { renderChildBlock } from "#templates/public/reservations/child-block.ts";
 import { ticketListing } from "#test/ui/templates/helpers.ts";
-import { followRedirectWithFlash } from "#test-utils/assertions.ts";
+import {
+  expectIncludesAll,
+  followRedirectWithFlash,
+} from "#test-utils/assertions.ts";
 import { submitMultiTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -49,8 +52,10 @@ const renderHidingChildName = async (
   child: Listing,
 ): Promise<string> => {
   const html = await bookingPageHtml(parent.slug);
-  assertStringIncludes(html, `data-sole-child="${child.id}"`);
-  assertStringIncludes(html, `name="child_price_${parent.id}_${child.id}"`);
+  expectIncludesAll(html, [
+    `data-sole-child="${child.id}"`,
+    `name="child_price_${parent.id}_${child.id}"`,
+  ]);
   assert(!html.includes("Hidden add-on"));
   return html;
 };
@@ -122,22 +127,12 @@ describeWithEnv(
       ];
 
       const html = await bookingPageHtml(parent.slug);
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
         `<fieldset class="child-selector" data-parent-id="${parent.id}">`,
-      );
-      assertStringIncludes(
-        html,
         `name="child_price_${parent.id}_${childA.id}"`,
-      );
-      assertStringIncludes(
-        html,
         `name="child_price_${parent.id}_${childB.id}"`,
-      );
-      assertStringIncludes(
-        html,
         `name="child_qty_${parent.id}_${fixedChild.id}"`,
-      );
+      ]);
       assert(
         !html.includes(`name="child_price_${parent.id}_${fixedChild.id}"`),
       );
@@ -187,14 +182,10 @@ describeWithEnv(
       const [childA, childB] = [children[0]!, children[1]!];
 
       const html = await bookingPageHtml(parent.slug);
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
         `<select name="child_qty_${parent.id}_${childA.id}"`,
-      );
-      assertStringIncludes(
-        html,
         `<select name="child_qty_${parent.id}_${childB.id}"`,
-      );
+      ]);
       const optionsA = await selectOptionsHtml(
         parent.slug,
         `child_qty_${parent.id}_${childA.id}`,
@@ -206,14 +197,10 @@ describeWithEnv(
         "Choose add-ons to match your ticket quantity",
       );
       assert(!html.includes("Choose 2 add-ons in total"));
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
         `<p class="child-total-note" data-child-total="${parent.id}">Choose add-ons to match your ticket quantity. <span class="child-total-hint" data-child-hint="${parent.id}"></span></p>`,
-      );
-      assertStringIncludes(
-        html,
         "<legend>Choose an option for Parent</legend>",
-      );
+      ]);
     });
 
     test("a sole pay-more child renders its price input", async () => {
@@ -234,17 +221,13 @@ describeWithEnv(
 
       const html = await bookingPageHtml(parent.slug);
       assert(!html.includes(`name="child_qty_${parent.id}_${child.id}"`));
-      assertStringIncludes(html, `data-sole-child="${child.id}"`);
-      // An ordinary sole child shows its name alone — no plan term.
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        `data-sole-child="${child.id}"`,
+        // An ordinary sole child shows its name alone — no plan term.
         `<p class="child-option child-sole" data-sole-parent="${parent.id}" data-sole-child="${child.id}">Add-on</p>`,
-      );
-      assertStringIncludes(
-        html,
         `<fieldset class="child-selector" data-parent-id="${parent.id}"><p class="child-option child-sole"`,
-      );
-      assertStringIncludes(html, "Add-on");
+        "Add-on",
+      ]);
       assert(!html.includes("Includes"));
       assert(!html.includes("one per booking"));
       assert(!html.includes("Choose an option for"));
@@ -258,9 +241,11 @@ describeWithEnv(
       });
 
       const html = await bookingPageHtml(parent.slug);
-      assertStringIncludes(html, `data-sole-child="${child.id}"`);
-      assertStringIncludes(html, "Paid add-on");
-      assertStringIncludes(html, "(£10");
+      expectIncludesAll(html, [
+        `data-sole-child="${child.id}"`,
+        "Paid add-on",
+        "(£10",
+      ]);
       assert(!html.includes("Includes"));
       assert(!html.includes("one per booking"));
       assert(!html.includes("Choose an option for"));
@@ -270,11 +255,10 @@ describeWithEnv(
       const { parent, child } = await makeHiddenSoleChild();
 
       const html = await renderHidingChildName(parent, child);
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
         `<p class="child-option child-sole" data-sole-parent="${parent.id}" data-sole-child="${child.id}"></p><label>Price per ticket`,
-      );
-      assertStringIncludes(html, "</label></fieldset>");
+        "</label></fieldset>",
+      ]);
       assert(!html.includes("Includes"));
       assert(!html.includes("Choose an option for"));
     });
@@ -286,10 +270,12 @@ describeWithEnv(
       await giveAdultsAudience(child.id);
 
       const html = await bookingPageHtml(parent.slug);
-      assertStringIncludes(html, `data-sole-child="${child.id}"`);
-      assertStringIncludes(html, "listing-attributes");
-      assertStringIncludes(html, "Audience");
-      assertStringIncludes(html, "Adults");
+      expectIncludesAll(html, [
+        `data-sole-child="${child.id}"`,
+        "listing-attributes",
+        "Audience",
+        "Adults",
+      ]);
     });
 
     test("a hidden sole child does not show its attributes", async () => {
@@ -311,15 +297,14 @@ describeWithEnv(
       const [childA, childB] = [children[0]!, children[1]!];
 
       const html = await bookingPageHtml(parent.slug);
-      assertStringIncludes(html, "Choose an option for Parent");
-      assertStringIncludes(html, "Free A");
-      assertStringIncludes(html, "Free B");
-      assertStringIncludes(html, `name="child_qty_${parent.id}_${childA.id}"`);
-      assertStringIncludes(html, `name="child_qty_${parent.id}_${childB.id}"`);
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        "Choose an option for Parent",
+        "Free A",
+        "Free B",
+        `name="child_qty_${parent.id}_${childA.id}"`,
+        `name="child_qty_${parent.id}_${childB.id}"`,
         `Free A</label><label class="child-option"><select name="child_qty_${parent.id}_${childB.id}"`,
-      );
+      ]);
       assert(!html.includes("(£0"));
     });
 
@@ -332,11 +317,13 @@ describeWithEnv(
       });
 
       const html = await bookingPageHtml(parent.slug);
-      assertStringIncludes(html, "Choose an option for Parent");
-      assertStringIncludes(html, "Free A");
-      assertStringIncludes(html, "Paid B");
-      assertStringIncludes(html, "(£0");
-      assertStringIncludes(html, "(£10");
+      expectIncludesAll(html, [
+        "Choose an option for Parent",
+        "Free A",
+        "Paid B",
+        "(£0",
+        "(£10",
+      ]);
     });
   },
 );

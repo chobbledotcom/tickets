@@ -1,6 +1,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { walkSourceFiles } from "#test-utils/walk-src.ts";
 
 const imagePath = ".github/workflows/publish-image.yml";
@@ -95,11 +96,10 @@ describe("Release image publication", () => {
 
   test("grants registry writes only to the image job", () => {
     const workflow = Deno.readTextFileSync(releasePath);
-    assertStringIncludes(workflow, "\npermissions:\n  contents: read\n");
-    assertStringIncludes(
-      workflow,
+    expectIncludesAll(workflow, [
+      "\npermissions:\n  contents: read\n",
       "  release:\n    permissions:\n      contents: write\n",
-    );
+    ]);
     expect(workflow.match(/packages: write/g)).toHaveLength(1);
   });
 

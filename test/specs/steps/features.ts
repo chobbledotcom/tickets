@@ -30,6 +30,7 @@ import {
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { saveAModifier } from "#test-utils/settings.ts";
 
 /** The field the two radios send under. It never reaches a story — the owner
@@ -247,8 +248,10 @@ Then(
     // Read off the page the site serves now: the status line is what the
     // owner would see.
     const page = await featurePageHtml(this, printed);
-    assertStringIncludes(page, t("features.status_label"));
-    assertStringIncludes(page, t("features.status.enabled"));
+    expectIncludesAll(page, [
+      t("features.status_label"),
+      t("features.status.enabled"),
+    ]);
   },
 );
 

@@ -12,6 +12,7 @@ import {
 import { handleRequest } from "#routes";
 import { formatCurrency } from "#shared/currency.ts";
 import { insertBareAttendee } from "#test/integration/balance-helpers.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { createReservedAttendee } from "#test-utils/balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
@@ -45,12 +46,14 @@ describeWithEnv("server (public invoice page)", { db: true }, () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
     const html = await response.text();
-    assertStringIncludes(html, "Frozen body");
-    assertStringIncludes(html, "Status: New");
-    // The same pay button the balance page renders, with the amount it charges.
-    assertStringIncludes(html, `Pay ${formatCurrency(1500)} now`);
-    assertStringIncludes(html, 'action="/pay/bal1.');
-    assertStringIncludes(html, 'class="inline"');
+    expectIncludesAll(html, [
+      "Frozen body",
+      "Status: New",
+      // The same pay button the balance page renders, with the amount it charges.
+      `Pay ${formatCurrency(1500)} now`,
+      'action="/pay/bal1.',
+      'class="inline"',
+    ]);
     // The frozen body owns the page's headings, so the page adds none.
     expect(html).not.toContain("<h1>");
   });

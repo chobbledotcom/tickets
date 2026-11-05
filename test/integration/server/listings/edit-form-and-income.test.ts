@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -9,6 +9,7 @@ import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   assertAdminHtml,
   expectFlashRedirect,
+  expectIncludesAll,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -64,10 +65,12 @@ describeWithEnv("server listings > edit form and income", { db: true }, () => {
       const response = await adminGet("/admin/listing/1/edit");
       const html = await response.text();
       // The dedicated money-correction section, separate from the counts override.
-      assertStringIncludes(html, "Adjust income");
-      assertStringIncludes(html, 'action="/admin/listing/1/income"');
-      assertStringIncludes(html, 'name="income"');
-      assertStringIncludes(html, "This adds a correction to Money.");
+      expectIncludesAll(html, [
+        "Adjust income",
+        'action="/admin/listing/1/income"',
+        'name="income"',
+        "This adds a correction to Money.",
+      ]);
     });
   });
   describe("POST /admin/listing/:id/income", () => {

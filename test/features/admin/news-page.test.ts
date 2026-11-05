@@ -7,6 +7,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestNewsPost } from "#test-utils/db-helpers/misc.ts";
 import { adminGet } from "#test-utils/session.ts";
@@ -19,9 +20,11 @@ describeWithEnv("the news post page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    assertStringIncludes(html, `action="/admin/site/news/${post.id}/edit"`);
-    assertStringIncludes(html, "Summer opening");
-    assertStringIncludes(html, 'href="/admin/guide#public-site"');
+    expectIncludesAll(html, [
+      `action="/admin/site/news/${post.id}/edit"`,
+      "Summer opening",
+      'href="/admin/guide#public-site"',
+    ]);
   });
 
   test("titles the page with the post's own name", async () => {
@@ -39,11 +42,10 @@ describeWithEnv("the news post page", { db: true }, () => {
 
     const html = await (await adminGet(`/admin/site/news/${post.id}`)).text();
 
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       `<a aria-current="page" class="active" href="/admin/site/news/${post.id}/edit">Edit</a>`,
-    );
-    assertStringIncludes(html, `href="/admin/site/news/${post.id}/actions"`);
+      `href="/admin/site/news/${post.id}/actions"`,
+    ]);
     assert(!html.includes(`href="/admin/site/news/${post.id}/images"`));
   });
 

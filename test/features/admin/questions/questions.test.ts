@@ -7,6 +7,7 @@ import {
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
+  expectIncludesAll,
   expectStatus,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
@@ -405,11 +406,10 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const response = await adminGet(`/admin/questions/${qId}`);
       const body = await response.text();
       // The answers table shows the stored selection total (0 with no bookings).
-      assertStringIncludes(
-        body,
+      expectIncludesAll(body, [
         '<th class="col-quantity">Times selected</th>',
-      );
-      assertStringIncludes(body, '<td class="col-quantity">0</td>');
+        '<td class="col-quantity">0</td>',
+      ]);
     });
   });
 });

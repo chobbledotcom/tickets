@@ -12,6 +12,7 @@ import {
   integrationsSections,
   PricedJsonExample,
 } from "#templates/admin/guide/integrations.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 /** What a `<code>` body shows: JSX escapes double quotes as entities. */
 const shown = (code: string): string => code.replaceAll('"', "&quot;");
@@ -19,22 +20,12 @@ const shown = (code: string): string => code.replaceAll('"', "&quot;");
 describe("guide integrations section", () => {
   test("the booking example answers are labelled and code-fenced", () => {
     const html = String(renderGuideSections(integrationsSections()));
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       "<p><strong>Free listing response:</strong></p>",
-    );
-    assertStringIncludes(
-      html,
       `<pre><code>${shown(API_BOOK_FREE_EXAMPLE_JSON)}</code></pre>`,
-    );
-    assertStringIncludes(
-      html,
       "<p><strong>Paid listing response:</strong></p>",
-    );
-    assertStringIncludes(
-      html,
       `<pre><code>${shown(API_BOOK_PAID_EXAMPLE_JSON)}</code></pre>`,
-    );
+    ]);
   });
 
   test("PricedJsonExample code-fences its JSON, then notes the currency unit", () => {
@@ -44,12 +35,11 @@ describe("guide integrations section", () => {
         json: API_BOOK_FREE_EXAMPLE_JSON,
       }),
     );
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       `<pre><code>${shown(API_BOOK_FREE_EXAMPLE_JSON)}</code></pre>`,
-    );
-    assertStringIncludes(html, "smallest currency unit (e.g. pence for GBP");
-    assertStringIncludes(html, "Amounts include the booking fee.");
+      "smallest currency unit (e.g. pence for GBP",
+      "Amounts include the booking fee.",
+    ]);
   });
 
   test("ExampleCode pairs a bold label with its code block", () => {
@@ -65,59 +55,34 @@ describe("guide integrations section", () => {
   test("the guide's links, anchors, and inline-code joins stay intact", () => {
     const html = String(renderGuideSections(integrationsSections()));
     // Links the sections are reachable through.
-    assertStringIncludes(html, '<a href="https://sms-gate.app">');
-    assertStringIncludes(html, '<a href="https://mobilizon.org/">');
-    assertStringIncludes(html, '<a href="https://import.mobilizon.fr/">');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      '<a href="https://sms-gate.app">',
+      '<a href="https://mobilizon.org/">',
+      '<a href="https://import.mobilizon.fr/">',
       '<a href="/admin/settings-advanced#settings-sms-gateway">',
-    );
-    assertStringIncludes(html, '<a href="/admin/log">');
-    // The anchor ids the guide's own footer deep-links use.
-    assertStringIncludes(html, '<h3 id="sms">');
-    assertStringIncludes(html, '<h3 id="api">');
-    assertStringIncludes(html, '<h3 id="admin-api">');
-    // The joins between prose and its inline code: exactly one space each.
-    assertStringIncludes(html, "the public importer at <a href=");
-    assertStringIncludes(
-      html,
+      '<a href="/admin/log">',
+      // The anchor ids the guide's own footer deep-links use.
+      '<h3 id="sms">',
+      '<h3 id="api">',
+      '<h3 id="admin-api">',
+      // The joins between prose and its inline code: exactly one space each.
+      "the public importer at <a href=",
       "Enter your calendar feed address: <code>https://",
-    );
-    assertStringIncludes(html, "works with the free <a href=");
-    assertStringIncludes(
-      html,
+      "works with the free <a href=",
       "Message text and phone numbers are <strong>end-to-end",
-    );
-    assertStringIncludes(
-      html,
       "shows you a <strong>username and password</strong>",
-    );
-    assertStringIncludes(html, "recorded in the <a href=");
-    assertStringIncludes(
-      html,
+      "recorded in the <a href=",
       "The starting address is your own site address (for example <code>https://",
-    );
-    assertStringIncludes(
-      html,
       "Returns <code>{ &quot;error&quot;: &quot;Listing not found&quot; }</code> with status 404",
-    );
-    // The app link join: the link text and the following word share one space.
-    assertStringIncludes(
-      html,
+      // The app link join: the link text and the following word share one space.
       ">SMS Gateway for Android</a> app: install the app",
-    );
-    // The settings link begins its list item with one space after "In".
-    assertStringIncludes(html, "In <a href=");
-    // The wrapped availability code block joins its dash with one space too.
-    assertStringIncludes(
-      html,
+      // The settings link begins its list item with one space after "In".
+      "In <a href=",
+      // The wrapped availability code block joins its dash with one space too.
       "date=YYYY-MM-DD</code> — check whether places are free",
-    );
-    // The daily-listing parameter note joins its inline code the same way.
-    assertStringIncludes(
-      html,
+      // The daily-listing parameter note joins its inline code the same way.
       "For daily listings, add <code>&amp;date=YYYY-MM-DD</code> to check",
-    );
-    assertStringIncludes(html, "(use a date from <code>availableDates</code>)");
+      "(use a date from <code>availableDates</code>)",
+    ]);
   });
 });

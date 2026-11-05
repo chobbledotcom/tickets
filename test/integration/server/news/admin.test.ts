@@ -8,6 +8,7 @@ import { wasActivityLogged as wasLogged } from "#test-utils/activity-log.ts";
 import {
   expectErrorFlash,
   expectHtmlResponse,
+  expectIncludesAll,
   expectRedirect,
   expectRedirectWithFlash,
   testRequiresAuth,
@@ -42,25 +43,20 @@ describeWithEnv("server (admin news)", { db: true }, () => {
 
     test("GET new renders the create form with a markdown content field", async () => {
       const html = await expectHtmlResponse(await adminGet(`${BASE}/new`), 200);
-      assertStringIncludes(html, "Create News Post");
-      assertStringIncludes(html, "data-markdown-preview");
-      assertStringIncludes(html, 'name="snippet"');
+      expectIncludesAll(html, [
+        "Create News Post",
+        "data-markdown-preview",
+        'name="snippet"',
+      ]);
     });
 
     test("the shared content fields render their input limits", async () => {
       const html = await expectHtmlResponse(await adminGet(`${BASE}/new`), 200);
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
         `maxlength="${CONTENT_FIELD_LIMITS.name}" name="name"`,
-      );
-      assertStringIncludes(
-        html,
         `maxlength="${CONTENT_FIELD_LIMITS.meta_title}" name="meta_title"`,
-      );
-      assertStringIncludes(
-        html,
         `maxlength="${CONTENT_FIELD_LIMITS.meta_description}" name="meta_description"`,
-      );
+      ]);
     });
 
     test("the list shows each post's name and published date, newest first", async () => {
@@ -68,8 +64,10 @@ describeWithEnv("server (admin news)", { db: true }, () => {
       await create("Second post");
       const html = await expectHtmlResponse(await adminGet(BASE), 200);
       const second = await findPost("Second post");
-      assertStringIncludes(html, `${BASE}/${second.id}/edit`);
-      assertStringIncludes(html, `${BASE}/${second.id}/delete`);
+      expectIncludesAll(html, [
+        `${BASE}/${second.id}/edit`,
+        `${BASE}/${second.id}/delete`,
+      ]);
       expect(html.indexOf("Second post")).toBeLessThan(
         html.indexOf("First post"),
       );
@@ -78,8 +76,10 @@ describeWithEnv("server (admin news)", { db: true }, () => {
     test("the Site sub-nav carries the News tab", async () => {
       await enablePublicSite();
       const html = await expectHtmlResponse(await adminGet(BASE), 200);
-      assertStringIncludes(html, 'href="/admin/site/news"');
-      assertStringIncludes(html, 'href="/admin/site/pages"');
+      expectIncludesAll(html, [
+        'href="/admin/site/news"',
+        'href="/admin/site/pages"',
+      ]);
     });
   });
 
@@ -141,24 +141,23 @@ describeWithEnv("server (admin news)", { db: true }, () => {
         await adminGet(`${BASE}/${post.id}/edit`),
         200,
       );
-      assertStringIncludes(html, 'value="Editable"');
-      assertStringIncludes(html, "the snippet");
-      // The slug is now an editable field pre-filled with the saved slug.
-      assertStringIncludes(html, `name="slug"`);
-      assertStringIncludes(html, `value="${post.slug}"`);
-      // The public link sits under the slug field, opening in a new tab.
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        'value="Editable"',
+        "the snippet",
+        // The slug is now an editable field pre-filled with the saved slug.
+        `name="slug"`,
+        `value="${post.slug}"`,
+        // The public link sits under the slug field, opening in a new tab.
         `Public link: <a href="/news/${post.slug}" rel="noopener" target="_blank">/news/${post.slug}</a>`,
-      );
-      // A guide footer sits at the bottom of the body.
-      assertStringIncludes(html, 'class="guide-footer"');
-      assertStringIncludes(html, 'href="/admin/guide#public-site"');
-      // The shared tabbed strip carries Edit and Actions (Images is hidden
-      // while storage is off — the live panel is covered in the news image
-      // routes suite). Delete lives on the Actions tab, not the Edit form.
-      assertStringIncludes(html, 'class="entity-tabs"');
-      assertStringIncludes(html, `href="${BASE}/${post.id}/actions"`);
+        // A guide footer sits at the bottom of the body.
+        'class="guide-footer"',
+        'href="/admin/guide#public-site"',
+        // The shared tabbed strip carries Edit and Actions (Images is hidden
+        // while storage is off — the live panel is covered in the news image
+        // routes suite). Delete lives on the Actions tab, not the Edit form.
+        'class="entity-tabs"',
+        `href="${BASE}/${post.id}/actions"`,
+      ]);
       assert(!html.includes(`href="${BASE}/${post.id}/images"`));
       assert(!html.includes("File storage is not configured."));
       assert(!html.includes(`${BASE}/${post.id}/delete`));
@@ -170,8 +169,7 @@ describeWithEnv("server (admin news)", { db: true }, () => {
         await adminGet(`${BASE}/${post.id}`),
         200,
       );
-      assertStringIncludes(html, 'value="Bare"');
-      assertStringIncludes(html, 'class="entity-tabs"');
+      expectIncludesAll(html, ['value="Bare"', 'class="entity-tabs"']);
     });
 
     test("the images tab 404s while storage is disabled", async () => {
@@ -291,9 +289,11 @@ describeWithEnv("server (admin news)", { db: true }, () => {
         await adminGet(`${BASE}/${post.id}/delete`),
         200,
       );
-      assertStringIncludes(html, "Delete News Post");
-      assertStringIncludes(html, "to confirm deletion");
-      assertStringIncludes(html, "Confirm me");
+      expectIncludesAll(html, [
+        "Delete News Post",
+        "to confirm deletion",
+        "Confirm me",
+      ]);
     });
 
     test("requires the exact post name to confirm", async () => {

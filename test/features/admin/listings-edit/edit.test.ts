@@ -13,7 +13,11 @@ import {
 } from "#db/listings/records.ts";
 import { t } from "#i18n";
 import { activityMessages } from "#test-utils/activity-log.ts";
-import { expectRedirect, parseFlashCookie } from "#test-utils/assertions.ts";
+import {
+  expectIncludesAll,
+  expectRedirect,
+  parseFlashCookie,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
@@ -151,11 +155,10 @@ describeWithEnv("what a saved edit says afterwards", { db: true }, () => {
 
     expect(response.status).toBe(400);
     const html = await response.text();
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       `<a aria-current="page" class="active" href="/admin/listing/${listing.id}/edit">Edit</a>`,
-    );
-    assertStringIncludes(html, "Listing name is required");
+      "Listing name is required",
+    ]);
   });
 
   test("refuses inside the write an edit that orphans a child-scoped add-on", async () => {

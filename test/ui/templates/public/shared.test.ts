@@ -11,6 +11,7 @@ import {
   ticketListing,
 } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { testListingWithCount, testTokenEntry } from "#test-utils/factories.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
@@ -34,9 +35,11 @@ describeWithEnv(
           image_thumb_url: "",
           image_url: "abc123.jpg",
         });
-        assertStringIncludes(html, "/image/abc123.jpg");
-        assertStringIncludes(html, 'alt=""');
-        assertStringIncludes(html, 'class="listing-image"');
+        expectIncludesAll(html, [
+          "/image/abc123.jpg",
+          'alt=""',
+          'class="listing-image"',
+        ]);
       });
 
       test("uses empty alt text for decorative image", () => {
@@ -101,12 +104,11 @@ describeWithEnv(
         slugs: ["camp-kit"],
       });
 
-      assertStringIncludes(html, "/image/camp-kit.webp");
-      assertStringIncludes(html, 'alt="Camp kit display"');
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        "/image/camp-kit.webp",
+        'alt="Camp kit display"',
         '<meta property="og:image" content="https://tickets.example/image/camp-kit.webp">',
-      );
+      ]);
       assert(!html.includes('property="og:description"'));
     });
 
@@ -122,8 +124,10 @@ describeWithEnv(
       test("shows listing image when image_url is set", () => {
         const listing = testListingWithCount({ image_url: "listing-img.jpg" });
         const html = renderSingleListing(listing);
-        assertStringIncludes(html, "/image/listing-img.jpg");
-        assertStringIncludes(html, 'class="listing-image"');
+        expectIncludesAll(html, [
+          "/image/listing-img.jpg",
+          'class="listing-image"',
+        ]);
       });
 
       test("does not show image when image_url is empty", () => {
@@ -159,8 +163,7 @@ describeWithEnv(
           }),
         ];
         const html = ticketPage({ listings, slugs: ["slug-a", "slug-b"] });
-        assertStringIncludes(html, "/image/img-a.jpg");
-        assertStringIncludes(html, "/image/img-b.jpg");
+        expectIncludesAll(html, ["/image/img-a.jpg", "/image/img-b.jpg"]);
       });
 
       test("does not show images when image_url is empty", () => {
@@ -224,8 +227,10 @@ describeWithEnv(
           },
         ];
         const html = ticketViewPage(cards);
-        assertStringIncludes(html, "/image/ticket-img.jpg");
-        assertStringIncludes(html, 'class="ticket-card-image"');
+        expectIncludesAll(html, [
+          "/image/ticket-img.jpg",
+          'class="ticket-card-image"',
+        ]);
       });
 
       test("does not show image when image_url is empty", () => {

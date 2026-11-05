@@ -15,6 +15,7 @@ import { formatCurrency, formatSignedCurrency } from "#shared/currency.ts";
 import { allBalances } from "#shared/ledger/project.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
 import { articleOutOf } from "#test/specs/support/browser.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { adminGet } from "#test-utils/session.ts";
 
 /** Something a story checks about one record's money, by that record's id and a
@@ -134,8 +135,7 @@ export const assertRenderedOwed: CheckMoneyShown = async (
     `/admin/attendees/${attendeeId}/ledger`,
     minor,
   );
-  assertStringIncludes(balancePage, "Balance outstanding:");
-  assertStringIncludes(balancePage, formatted);
+  expectIncludesAll(balancePage, ["Balance outstanding:", formatted]);
 };
 
 /**

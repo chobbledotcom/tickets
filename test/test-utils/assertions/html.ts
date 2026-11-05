@@ -23,15 +23,15 @@ export const assertAdminHtml = async (
   return expectHtml(response, { contains: substrings, status: 200 });
 };
 
-/** Assert every substring appears in the HTML; returns the HTML for further
+/** Assert every substring appears in the text; returns the text for further
  *  checks. The positive half of {@link expectHtml}, for callers that already
  *  hold the body text rather than a `Response`. */
-export const expectHtmlContains = (
-  html: string,
+export const expectIncludesAll = (
+  text: string,
   substrings: string[],
 ): string => {
-  for (const s of substrings) assertStringIncludes(html, s);
-  return html;
+  for (const s of substrings) assertStringIncludes(text, s);
+  return text;
 };
 
 /** The one form control tag on a page with the given name — input, textarea,
@@ -71,7 +71,7 @@ export const cachedAdminPage = (
     return expectHtml(await adminGet(path), { status: 200 });
   });
   return async (...substrings: string[]): Promise<string> =>
-    expectHtmlContains(await load(), substrings);
+    expectIncludesAll(await load(), substrings);
 };
 
 export const assertAdminHtmlWithCookie = async (
@@ -126,7 +126,7 @@ export const expectHtml = async (
 ): Promise<string> => {
   if (opts.status !== undefined) expect(response.status).toBe(opts.status);
   const html = await response.text();
-  expectHtmlContains(html, opts.contains ?? []);
+  expectIncludesAll(html, opts.contains ?? []);
   for (const s of opts.notContains ?? []) assert(!html.includes(s));
   return html;
 };

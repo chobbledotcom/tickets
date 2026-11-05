@@ -8,6 +8,7 @@ import {
   ContactHistory,
 } from "#templates/admin/attendee-page.tsx";
 import { PaymentDetails } from "#templates/admin/attendees.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { testAttendee } from "#test-utils/factories.ts";
 
@@ -152,8 +153,10 @@ describe("attendee page blocks", () => {
       }),
     );
 
-    assertStringIncludes(html, "Payment Details");
-    assertStringIncludes(html, 'action="/admin/attendees/7/refresh-payment"');
+    expectIncludesAll(html, [
+      "Payment Details",
+      'action="/admin/attendees/7/refresh-payment"',
+    ]);
     assert(!html.includes("Payment ID:"));
   });
 
@@ -180,8 +183,7 @@ describe("attendee page blocks", () => {
       }),
     );
 
-    assertStringIncludes(html, "Payment Details");
-    assertStringIncludes(html, message);
+    expectIncludesAll(html, ["Payment Details", message]);
     assert(!html.includes("/refresh-payment"));
   });
 });

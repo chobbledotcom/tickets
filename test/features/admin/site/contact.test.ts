@@ -8,6 +8,7 @@ import {
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
+  expectIncludesAll,
   expectRedirect,
   expectRedirectWithFlash,
   FLASH_TEST_ID,
@@ -37,9 +38,11 @@ describeWithEnv("server (admin site contact)", { db: true }, () => {
     test("shows the contact form toggle even without Botpoison", async () => {
       const response = await adminGet("/admin/site/contact");
       const html = await response.text();
-      assertStringIncludes(html, "contact_form_enabled");
-      assertStringIncludes(html, "Enable contact form");
-      assertStringIncludes(html, "No spam-protection provider is configured");
+      expectIncludesAll(html, [
+        "contact_form_enabled",
+        "Enable contact form",
+        "No spam-protection provider is configured",
+      ]);
     });
 
     test("displays existing contact text", async () => {

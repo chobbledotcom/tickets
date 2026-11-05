@@ -13,6 +13,7 @@ import {
   waitingPageStillReloads,
 } from "#templates/payment.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testAttendee, testListing } from "#test-utils/factories.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
@@ -29,10 +30,12 @@ describe("paymentPage", () => {
       "https://checkout.stripe.com/session",
       "£10.00",
     );
-    assertStringIncludes(html, "Complete Your Payment");
-    assertStringIncludes(html, "John Doe");
-    assertStringIncludes(html, "john@example.com");
-    assertStringIncludes(html, "£10.00");
+    expectIncludesAll(html, [
+      "Complete Your Payment",
+      "John Doe",
+      "john@example.com",
+      "£10.00",
+    ]);
   });
 
   test("includes checkout URL", () => {
@@ -42,9 +45,11 @@ describe("paymentPage", () => {
       "https://checkout.stripe.com/session",
       "£10.00",
     );
-    assertStringIncludes(html, "https://checkout.stripe.com/session");
-    assertStringIncludes(html, 'class="btn"');
-    assertStringIncludes(html, "Pay Now");
+    expectIncludesAll(html, [
+      "https://checkout.stripe.com/session",
+      'class="btn"',
+      "Pay Now",
+    ]);
   });
 
   test("escapes user data", () => {
@@ -68,15 +73,16 @@ describe("successPage", () => {
       thankYouUrl: "https://example.com/thanks",
       ticketUrl: null,
     });
-    assertStringIncludes(html, "Thank you for your order");
-    assertStringIncludes(html, "https://example.com/thanks");
-    assertStringIncludes(html, 'class="prose"');
+    expectIncludesAll(html, [
+      "Thank you for your order",
+      "https://example.com/thanks",
+      'class="prose"',
+    ]);
   });
 
   test("renders order success message when not paid", () => {
     const html = successPage({ ticketUrl: "/t/abc123" });
-    assertStringIncludes(html, "Order Successful");
-    assertStringIncludes(html, "Thank you for your order");
+    expectIncludesAll(html, ["Order Successful", "Thank you for your order"]);
   });
 
   test("includes meta refresh redirect", () => {
@@ -85,8 +91,10 @@ describe("successPage", () => {
       thankYouUrl: "https://example.com/thanks",
       ticketUrl: null,
     });
-    assertStringIncludes(html, 'http-equiv="refresh"');
-    assertStringIncludes(html, "3;url=https://example.com/thanks");
+    expectIncludesAll(html, [
+      'http-equiv="refresh"',
+      "3;url=https://example.com/thanks",
+    ]);
   });
 
   test("includes data-payment-result attribute for popup postMessage", () => {
@@ -107,15 +115,16 @@ describe("successPage", () => {
 
   test("renders ticket link with plural text for multiple tickets", () => {
     const html = successPage({ paid: true, ticketUrl: "/t/abc123+def456" });
-    assertStringIncludes(html, 'href="/t/abc123+def456"');
-    assertStringIncludes(html, 'target="_blank"');
-    assertStringIncludes(html, "View your tickets");
+    expectIncludesAll(html, [
+      'href="/t/abc123+def456"',
+      'target="_blank"',
+      "View your tickets",
+    ]);
   });
 
   test("renders ticket link with singular text for single ticket", () => {
     const html = successPage({ paid: true, ticketUrl: "/t/abc123" });
-    assertStringIncludes(html, 'href="/t/abc123"');
-    assertStringIncludes(html, "View your ticket");
+    expectIncludesAll(html, ['href="/t/abc123"', "View your ticket"]);
     // The plural link text contains the singular as a prefix, so the exact
     // plural words are what proves this one-token link reads as singular.
     assert(!html.includes("View your tickets"));
@@ -127,10 +136,12 @@ describe("successPage", () => {
       thankYouUrl: "https://example.com/thanks",
       ticketUrl: "/t/abc123",
     });
-    assertStringIncludes(html, 'href="/t/abc123"');
-    assertStringIncludes(html, "View your ticket");
-    assertStringIncludes(html, "https://example.com/thanks");
-    assertStringIncludes(html, 'http-equiv="refresh"');
+    expectIncludesAll(html, [
+      'href="/t/abc123"',
+      "View your ticket",
+      "https://example.com/thanks",
+      'http-equiv="refresh"',
+    ]);
   });
 
   test("does not render ticket link when ticketUrl is null", () => {
@@ -142,8 +153,7 @@ describe("successPage", () => {
     await withRequestContext(() => {
       detectIframeMode(new URL("https://example.com/?iframe=true"));
       const html = successPage({ ticketUrl: "/t/abc123" });
-      assertStringIncludes(html, "iframe-resizer-child.js");
-      assertStringIncludes(html, 'class="iframe"');
+      expectIncludesAll(html, ["iframe-resizer-child.js", 'class="iframe"']);
     });
   });
 
@@ -172,8 +182,7 @@ describe("successPage", () => {
       paid: true,
       ticketUrl: "/t/abc123",
     });
-    assertStringIncludes(html, "tickets@example.com");
-    assertStringIncludes(html, "Junk/Spam");
+    expectIncludesAll(html, ["tickets@example.com", "Junk/Spam"]);
   });
 
   test("does not show email notice when fromEmail is empty", () => {
@@ -185,8 +194,7 @@ describe("successPage", () => {
       fromEmail: "tickets@example.com",
       ticketUrl: "/t/abc123",
     });
-    assertStringIncludes(html, "tickets@example.com");
-    assertStringIncludes(html, "Junk/Spam");
+    expectIncludesAll(html, ["tickets@example.com", "Junk/Spam"]);
   });
 
   test("does not show email notice for reservation when fromEmail is empty", () => {
@@ -202,11 +210,13 @@ describe("paymentCancelPage", () => {
 
   test("renders cancel message", () => {
     const html = paymentCancelPage(listing, "/ticket/ab12c");
-    assertStringIncludes(html, "Payment Cancelled");
-    assertStringIncludes(html, "/ticket/ab12c");
-    assertStringIncludes(html, "Try again");
-    assertStringIncludes(html, 'class="prose"');
-    assertStringIncludes(html, 'class="btn outline"');
+    expectIncludesAll(html, [
+      "Payment Cancelled",
+      "/ticket/ab12c",
+      "Try again",
+      'class="prose"',
+      'class="btn outline"',
+    ]);
   });
 
   test("includes data-payment-result attribute for popup postMessage", () => {
@@ -217,10 +227,12 @@ describe("paymentCancelPage", () => {
   test("shows a return-home link (no retry) when the listing has no standalone page", () => {
     // A null URL means the listing has no standalone page.
     const html = paymentCancelPage(listing, null);
-    assertStringIncludes(html, "Payment Cancelled");
-    assertStringIncludes(html, "Return home");
-    assertStringIncludes(html, 'href="/"');
-    assertStringIncludes(html, 'class="btn outline"');
+    expectIncludesAll(html, [
+      "Payment Cancelled",
+      "Return home",
+      'href="/"',
+      'class="btn outline"',
+    ]);
     assert(!html.includes("Try again"));
   });
 });
@@ -252,8 +264,7 @@ describe("checkoutPopupPage", () => {
     // The waiting hint's new-tab link also carries target="_blank", so the
     // popup anchor is matched through its own data-open-checkout attribute.
     expect(html).toMatch(/data-open-checkout[^>]*target="_blank"/);
-    assertStringIncludes(html, 'class="btn"');
-    assertStringIncludes(html, "Pay Now");
+    expectIncludesAll(html, ['class="btn"', "Pay Now"]);
   });
 
   test("includes waiting element for popup state", () => {
@@ -295,13 +306,15 @@ describe("paymentWaitingPage", () => {
 
   test("renders the waiting copy and the check-again link", () => {
     const html = page("/payment/success?session_id=cs_1&wait=1");
-    assertStringIncludes(html, "Payment not confirmed yet");
-    assertStringIncludes(html, "We have not received your payment yet");
-    assertStringIncludes(html, "your ticket will be sent to you by email");
-    assertStringIncludes(html, "Check again");
-    assertStringIncludes(html, 'href="/payment/success?session_id=cs_1"');
-    assertStringIncludes(html, 'class="prose"');
-    assertStringIncludes(html, 'class="btn outline"');
+    expectIncludesAll(html, [
+      "Payment not confirmed yet",
+      "We have not received your payment yet",
+      "your ticket will be sent to you by email",
+      "Check again",
+      'href="/payment/success?session_id=cs_1"',
+      'class="prose"',
+      'class="btn outline"',
+    ]);
   });
 
   test("does not tell a popup that the payment was cancelled", () => {
@@ -311,9 +324,11 @@ describe("paymentWaitingPage", () => {
 
   test("reloads itself on a timer while the window is open", () => {
     const html = page("/payment/success?session_id=cs_1&wait=3");
-    assertStringIncludes(html, 'http-equiv="refresh"');
-    assertStringIncludes(html, "30;url=/payment/success?session_id=cs_1");
-    assertStringIncludes(html, "This page will keep checking for you.");
+    expectIncludesAll(html, [
+      'http-equiv="refresh"',
+      "30;url=/payment/success?session_id=cs_1",
+      "This page will keep checking for you.",
+    ]);
   });
 
   test("stops reloading at the end of the window", () => {
@@ -332,10 +347,12 @@ describe("paymentWaitingPage", () => {
       },
       refreshUrl: null,
     });
-    assertStringIncludes(html, 'class="staff-diagnostics"');
-    assertStringIncludes(html, "Known reasons a payment can sit unconfirmed:");
-    assertStringIncludes(html, "Payment status");
-    assertStringIncludes(html, "unpaid");
+    expectIncludesAll(html, [
+      'class="staff-diagnostics"',
+      "Known reasons a payment can sit unconfirmed:",
+      "Payment status",
+      "unpaid",
+    ]);
   });
 
   test("the reload window closes once the limit is reached", () => {
@@ -360,9 +377,11 @@ describe("paymentErrorPage", () => {
 
   test("renders error message", () => {
     const html = paymentErrorPage("Payment verification failed");
-    assertStringIncludes(html, "Payment Error");
-    assertStringIncludes(html, "Payment verification failed");
-    assertStringIncludes(html, 'class="error"');
+    expectIncludesAll(html, [
+      "Payment Error",
+      "Payment verification failed",
+      'class="error"',
+    ]);
   });
 
   test("escapes error message", () => {
@@ -382,11 +401,13 @@ describe("paymentErrorPage", () => {
       ],
       rows: [{ label: "Session id", value: "cs_test_123" }],
     });
-    assertStringIncludes(html, 'class="staff-diagnostics"');
-    assertStringIncludes(html, "Staff diagnostics");
-    assertStringIncludes(html, "Session id");
-    assertStringIncludes(html, "cs_test_123");
-    assertStringIncludes(html, "Known reasons a payment can sit unconfirmed:");
-    assertStringIncludes(html, "The card step was never finished");
+    expectIncludesAll(html, [
+      'class="staff-diagnostics"',
+      "Staff diagnostics",
+      "Session id",
+      "cs_test_123",
+      "Known reasons a payment can sit unconfirmed:",
+      "The card step was never finished",
+    ]);
   });
 });

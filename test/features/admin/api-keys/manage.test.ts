@@ -5,6 +5,7 @@ import { getApiKeysForUser, touchApiKeyLastUsed } from "#db/api-keys.ts";
 import { handleRequest } from "#routes";
 import {
   expectFlashRedirect,
+  expectIncludesAll,
   followRedirectWithFlash,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -33,13 +34,17 @@ describeWithEnv("API key manage page", { db: true }, () => {
 
       // A never-used key shows the "Never" placeholder for last used.
       const html = await getManagePage(id);
-      assertStringIncludes(html, "Managed Key");
-      assertStringIncludes(html, `href="/admin/api-keys/${id}"`);
-      assertStringIncludes(html, `href="/admin/api-keys/${id}/actions"`);
+      expectIncludesAll(html, [
+        "Managed Key",
+        `href="/admin/api-keys/${id}"`,
+        `href="/admin/api-keys/${id}/actions"`,
+      ]);
       assert(!html.includes(`/admin/api-keys/${id}/delete`));
-      assertStringIncludes(html, "Never");
-      // The manage page lights up the API keys entry in the admin nav.
-      assertStringIncludes(html, '<a class="active" href="/admin/api-keys">');
+      expectIncludesAll(html, [
+        "Never",
+        // The manage page lights up the API keys entry in the admin nav.
+        '<a class="active" href="/admin/api-keys">',
+      ]);
     });
 
     test("GET /admin/api-keys/:id shows the last-used date once the key is used", async () => {
@@ -62,9 +67,11 @@ describeWithEnv("API key manage page", { db: true }, () => {
 
       expect(response.status).toBe(200);
       const html = await response.text();
-      assertStringIncludes(html, `href="/admin/api-keys/${id}/delete"`);
-      assertStringIncludes(html, `href="/admin/api-keys/${id}"`);
-      assertStringIncludes(html, `href="/admin/api-keys/${id}/actions"`);
+      expectIncludesAll(html, [
+        `href="/admin/api-keys/${id}/delete"`,
+        `href="/admin/api-keys/${id}"`,
+        `href="/admin/api-keys/${id}/actions"`,
+      ]);
     });
 
     test("GET /admin/api-keys/:id rejects an unknown tab", async () => {
@@ -195,8 +202,7 @@ describeWithEnv("API key manage page", { db: true }, () => {
 
       expect(response.status).toBe(200);
       const html = await response.text();
-      assertStringIncludes(html, "Confirm Key");
-      assertStringIncludes(html, "confirm_identifier");
+      expectIncludesAll(html, ["Confirm Key", "confirm_identifier"]);
     });
 
     test("GET /admin/api-keys/:id/delete returns 404 for nonexistent key", async () => {

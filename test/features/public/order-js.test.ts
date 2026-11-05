@@ -8,6 +8,7 @@ import { getAllListings } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { orderWidgetBody } from "#routes/assets.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createHiddenPackageGroup,
@@ -56,9 +57,7 @@ describeWithEnv("order.js", { db: true, triggers: true }, () => {
     expect(res.headers.get("access-control-allow-origin")).toBe("*");
     expect(res.headers.get("vary")).toBe("Origin");
     expect(res.headers.get("cache-control")).toBe("no-store");
-    assertStringIncludes(body, "const CATALOG");
-    assertStringIncludes(body, slug);
-    assertStringIncludes(body, "isExternalOrderModule");
+    expectIncludesAll(body, ["const CATALOG", slug, "isExternalOrderModule"]);
   });
 
   test("includes a concealed package's members in the catalog", async () => {
@@ -70,8 +69,7 @@ describeWithEnv("order.js", { db: true, triggers: true }, () => {
     const standaloneSlug = await slugByName("Standalone");
 
     const body = await (await orderJs()).text();
-    assertStringIncludes(body, standaloneSlug);
-    assertStringIncludes(body, memberSlug);
+    expectIncludesAll(body, [standaloneSlug, memberSlug]);
   });
 
   test("advertises a bookable package's bundle slug in the catalog packages", async () => {
@@ -86,8 +84,7 @@ describeWithEnv("order.js", { db: true, triggers: true }, () => {
     const body = await (await orderJs()).text();
     // The bundle is bookable via /ticket/<group>, so its slug rides in the
     // packages map even though it's not a listing cart line.
-    assertStringIncludes(body, '"packages"');
-    assertStringIncludes(body, '"camp-bundle"');
+    expectIncludesAll(body, ['"packages"', '"camp-bundle"']);
   });
 
   test("a hidden package's bundle is still bookable from the widget", async () => {
@@ -106,9 +103,11 @@ describeWithEnv("order.js", { db: true, triggers: true }, () => {
 
     const body = await (await orderJs()).text();
     // Both booking paths stay available in the widget.
-    assertStringIncludes(body, '"secret-bundle"');
-    assertStringIncludes(body, `"${memberSlug}"`);
-    assertStringIncludes(body, member.name);
+    expectIncludesAll(body, [
+      '"secret-bundle"',
+      `"${memberSlug}"`,
+      member.name,
+    ]);
   });
 
   test("omits an unbookable package (an inactive member) from the catalog", async () => {
@@ -215,8 +214,7 @@ describeWithEnv("order.js", { db: true, triggers: true }, () => {
     const slug = await slugByName("Inherits Visible");
 
     const body = await (await orderJs()).text();
-    assertStringIncludes(body, "const CATALOG");
-    assertStringIncludes(body, slug);
+    expectIncludesAll(body, ["const CATALOG", slug]);
   });
 
   test("a Hidden=No default never reveals a renewal tier", async () => {
@@ -254,8 +252,7 @@ describeWithEnv("order.js", { db: true, triggers: true }, () => {
     await listingChildren.setIds(parent.id, [child.id]);
 
     const body = await (await orderJs()).text();
-    assertStringIncludes(body, "const CATALOG");
-    assertStringIncludes(body, parent.slug);
+    expectIncludesAll(body, ["const CATALOG", parent.slug]);
     assert(!body.includes(child.slug));
   });
 
@@ -291,8 +288,7 @@ describeWithEnv("order.js", { db: true, triggers: true }, () => {
     expect(allowed.headers.get("access-control-allow-origin")).toBe(
       "https://shop.example.com",
     );
-    assertStringIncludes(body, "const CATALOG");
-    assertStringIncludes(body, slug);
+    expectIncludesAll(body, ["const CATALOG", slug]);
   });
 
   test("a disallowed origin gets no CORS header, no catalog, and no slugs", async () => {

@@ -6,7 +6,7 @@ import { ALL_SETTINGS_KEYS, CONFIG_KEYS, settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { buildFlashCookie } from "#shared/cookies.ts";
 import { initSentry } from "#shared/sentry.ts";
-import { getHeader } from "#test-utils/assertions.ts";
+import { expectIncludesAll, getHeader } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withMigrationLock } from "#test-utils/db-helpers/migration-lock.ts";
@@ -257,8 +257,10 @@ describeWithEnv("request pipeline", { db: true }, () => {
       );
       expect(response.status).toBe(503);
       const html = await response.text();
-      assertStringIncludes(html, "The database is too busy.");
-      assertStringIncludes(html, 'http-equiv="refresh"');
+      expectIncludesAll(html, [
+        "The database is too busy.",
+        'http-equiv="refresh"',
+      ]);
       expect(errors.contains("E_DB_BUSY")).toBe(true);
     } finally {
       executeStub.restore();
@@ -273,8 +275,7 @@ describeWithEnv("request pipeline", { db: true }, () => {
     expect(response.status).toBe(302);
     expect(response.headers.get("location")).toBe("/admin");
     const cookie = getHeader(response, "set-cookie");
-    assertStringIncludes(cookie, "session=");
-    assertStringIncludes(cookie, "Max-Age=0");
+    expectIncludesAll(cookie, ["session=", "Max-Age=0"]);
   });
 
   test("redirects an unsupported setup request while setup is incomplete", async () => {

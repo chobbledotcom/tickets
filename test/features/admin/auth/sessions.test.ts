@@ -8,6 +8,7 @@ import {
   assertAdminHtml,
   expectFlashRedirect,
   expectHtmlResponse,
+  expectIncludesAll,
   FLASH_TEST_ID,
   flashCookieHeader,
   testRequiresAuth,
@@ -192,8 +193,7 @@ describeWithEnv("server (admin sessions)", { db: true }, () => {
       const html = await response.text();
 
       // Verify we get login page, not blank screen or dashboard
-      assertStringIncludes(html, "Login");
-      assertStringIncludes(html, "<form");
+      expectIncludesAll(html, ["Login", "<form"]);
       expect(html.length).toBeGreaterThan(100); // Not blank
       assert(!html.includes("Listings")); // Should not show dashboard
       assert(!html.includes("No listings yet")); // Should not show listings table
@@ -240,9 +240,13 @@ describeWithEnv("server (admin sessions)", { db: true }, () => {
       const html = await response.text();
 
       // Verify key content elements that should never be blank
-      assertStringIncludes(html, "Listings"); // Page title
-      assertStringIncludes(html, "<table"); // Table structure
-      assertStringIncludes(html, "Listing name"); // Table header
+      expectIncludesAll(html, [
+        "Listings",
+        // Page title
+        "<table",
+        // Table structure
+        "Listing name",
+      ]); // Table header
       expect(html.length).toBeGreaterThan(500); // Substantial content
     });
 
@@ -252,10 +256,7 @@ describeWithEnv("server (admin sessions)", { db: true }, () => {
       const html = await response.text();
 
       // Verify key content elements of login page
-      assertStringIncludes(html, "Login");
-      assertStringIncludes(html, "<form");
-      assertStringIncludes(html, "username");
-      assertStringIncludes(html, "password");
+      expectIncludesAll(html, ["Login", "<form", "username", "password"]);
       expect(html.length).toBeGreaterThan(200); // Substantial content
     });
   });

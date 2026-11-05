@@ -14,6 +14,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 
 const RESERVED_STATUS: AttendeeStatus = {
@@ -46,27 +47,24 @@ describe("attendee status templates", () => {
       OWNER_SESSION,
     );
 
-    assertStringIncludes(html, 'href="/admin/settings/statuses/new"');
-    assertStringIncludes(html, 'href="/admin/settings/statuses/7"');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'href="/admin/settings/statuses/new"',
+      'href="/admin/settings/statuses/7"',
       '<span class="badge">Public default</span><span class="badge">Paid</span><span class="badge">Reservation: 25%</span>',
-    );
+    ]);
     assert(!html.includes("Reservation: 0"));
     assertStringIncludes(html, 'action="/admin/settings/statuses/7/move-down"');
     assert(!html.includes('action="/admin/settings/statuses/7/move-up"'));
     assertStringIncludes(html, 'action="/admin/settings/statuses/8/move-up"');
     assert(!html.includes('action="/admin/settings/statuses/8/move-down"'));
-    assertStringIncludes(html, 'title="Move down"');
-    assertStringIncludes(html, 'title="Move up"');
+    expectIncludesAll(html, ['title="Move down"', 'title="Move up"']);
   });
 
   test("keeps status data but removes write controls in read-only mode", () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     const html = statusPages.listPage([RESERVED_STATUS], OWNER_SESSION);
 
-    assertStringIncludes(html, "Reserved");
-    assertStringIncludes(html, "Reservation: 25%");
+    expectIncludesAll(html, ["Reserved", "Reservation: 25%"]);
     assert(!html.includes('href="/admin/settings/statuses/new"'));
     assert(!html.includes('href="/admin/settings/statuses/7"'));
     assert(!html.includes("/move-"));
@@ -123,13 +121,12 @@ describe("attendee status templates", () => {
   test("gives every field the shape the browser needs", () => {
     const html = statusPages.newPage(OWNER_SESSION);
 
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<input maxlength="250" name="name" required type="text"',
-    );
-    assertStringIncludes(html, '<input name="reservation_amount" type="text"');
-    assertStringIncludes(html, '<fieldset class="checkboxes">');
-    assertStringIncludes(html, '<label class="checkbox">');
+      '<input name="reservation_amount" type="text"',
+      '<fieldset class="checkboxes">',
+      '<label class="checkbox">',
+    ]);
   });
 
   test("pairs the paid-default and reservation checkboxes so only one can hold", () => {
@@ -178,14 +175,13 @@ describe("attendee status templates", () => {
       "Status is still in use",
     );
 
-    assertStringIncludes(html, "Status is still in use");
-    assertStringIncludes(html, 'action="/admin/settings/statuses/7/delete"');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "Status is still in use",
+      'action="/admin/settings/statuses/7/delete"',
       "Type the status name &quot;Reserved&quot; to confirm deletion:",
-    );
-    assertStringIncludes(html, 'name="confirm_identifier"');
-    assertStringIncludes(html, "Delete status");
+      'name="confirm_identifier"',
+      "Delete status",
+    ]);
     assert(!html.includes('<button class="danger"'));
   });
 });
@@ -213,15 +209,19 @@ describe("the delete page of a status attendees hold", () => {
   test("shows the count, a warning, and a required picker of the other statuses", () => {
     const html = render({ count: 1, others: [OTHER_STATUS] });
 
-    assertStringIncludes(html, "1 attendee holds this status.");
-    assertStringIncludes(html, t("statuses.delete_reassign_warning"));
+    expectIncludesAll(html, [
+      "1 attendee holds this status.",
+      t("statuses.delete_reassign_warning"),
+    ]);
     expect(html).toMatch(/<select[^>]*name="reassign_status_id"[^>]*required/);
     // The empty prompt stays preselected, so a save without a real pick
     // cannot slip through the browser's own required check.
-    assertStringIncludes(html, '<option selected value="">');
-    assertStringIncludes(html, t("statuses.delete_reassign_prompt"));
-    assertStringIncludes(html, 'value="8"');
-    assertStringIncludes(html, "Checked in");
+    expectIncludesAll(html, [
+      '<option selected value="">',
+      t("statuses.delete_reassign_prompt"),
+      'value="8"',
+      "Checked in",
+    ]);
   });
 
   test("keeps the picker off a status nobody holds", () => {
@@ -251,7 +251,9 @@ describe("the delete page of a status attendees hold", () => {
       "Choose another paid default before deleting this status",
     );
     assert(!html.includes('name="reassign_status_id"'));
-    assertStringIncludes(html, 'action="/admin/settings/statuses/9/delete"');
-    assertStringIncludes(html, "Delete status");
+    expectIncludesAll(html, [
+      'action="/admin/settings/statuses/9/delete"',
+      "Delete status",
+    ]);
   });
 });

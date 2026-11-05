@@ -4,6 +4,7 @@ import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { HostSubdomainForm } from "#templates/admin/settings/subdomain.tsx";
 import { advancedDefaultState } from "#test/ui/templates/admin/settings-advanced/state.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 describe("HostSubdomainForm", () => {
   beforeAll(setupAdminPageTest);
@@ -16,14 +17,10 @@ describe("HostSubdomainForm", () => {
         existingPaymentProvider: "square",
       }),
     );
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       "Changing your domain changes your payment webhook",
-    );
-    assertStringIncludes(
-      html,
       'href="/admin/settings#settings-square-webhook"',
-    );
+    ]);
   });
 
   test("hides the domain-change warning when no provider is configured", () => {
@@ -60,10 +57,12 @@ describe("HostSubdomainForm", () => {
         subdomainPreviewFullDomain: "my-sub.example.com",
       }),
     );
-    assertStringIncludes(html, "my-sub.example.com");
-    assertStringIncludes(html, "is free");
-    // Whitespace between the previewed domain and the "is free" suffix
-    assertStringIncludes(html, "</strong> is free.");
+    expectIncludesAll(html, [
+      "my-sub.example.com",
+      "is free",
+      // Whitespace between the previewed domain and the "is free" suffix
+      "</strong> is free.",
+    ]);
     const form = html.match(
       /<form[^>]*action="\/admin\/settings\/host-subdomain"[^>]*>[\s\S]*?<\/form>/,
     );
@@ -80,15 +79,14 @@ describe("HostSubdomainForm", () => {
     );
     // Confirm checkbox: defaults to unchecked, carries name="save" + value="1"
     assert(!html.includes("checked"));
-    assertStringIncludes(html, 'name="save"');
-    assertStringIncludes(html, 'value="1"');
-    assertStringIncludes(html, "Register subdomain");
-    assertStringIncludes(html, "btn secondary");
-    assertStringIncludes(html, "Cancel");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'name="save"',
+      'value="1"',
+      "Register subdomain",
+      "btn secondary",
+      "Cancel",
       'href="/admin/settings-advanced#settings-host-subdomain"',
-    );
+    ]);
     assertStringIncludes(form[0] ?? "", 'id="settings-host-subdomain"');
   });
 
@@ -114,14 +112,13 @@ describe("HostSubdomainForm", () => {
     assertStringIncludes(subdomainInput[0] ?? "", 'type="text"');
     assertStringIncludes(form[0] ?? "", 'id="settings-host-subdomain"');
     assertStringIncludes(form[0] ?? "", "Check if the name is free");
-    assertStringIncludes(html, "muted");
-    assertStringIncludes(html, ".tickets.example");
-    // The intro promises the address through the check, not an example that
-    // would need the DNS zone to be exact.
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "muted",
+      ".tickets.example",
+      // The intro promises the address through the check, not an example that
+      // would need the DNS zone to be exact.
       "Press Check if the name is free to see your full site address",
-    );
+    ]);
   });
 
   test("renders the active subdomain state", () => {
@@ -132,10 +129,12 @@ describe("HostSubdomainForm", () => {
         bunnySubdomain: "my-sub",
       }),
     );
-    assertStringIncludes(html, "Your site is available at");
-    assertStringIncludes(html, "at <a");
-    assertStringIncludes(html, "https://my-sub");
-    assertStringIncludes(html, "can also set a custom domain");
-    assertStringIncludes(html, "permanent and cannot be changed");
+    expectIncludesAll(html, [
+      "Your site is available at",
+      "at <a",
+      "https://my-sub",
+      "can also set a custom domain",
+      "permanent and cannot be changed",
+    ]);
   });
 });

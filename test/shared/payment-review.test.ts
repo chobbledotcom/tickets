@@ -4,6 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import type { WithheldRefund } from "#payment/admit-refund.ts";
 import { reportWithheldRefund } from "#shared/payment-review.ts";
 import { initSentry } from "#shared/sentry.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
@@ -55,8 +56,7 @@ describe("reporting a withheld refund", () => {
 
       const body = sentryRequestBody(fetchStub.calls);
       assert(!body.includes(PRIVATE_REFERENCE));
-      assertStringIncludes(body, '"listingId":"3"');
-      assertStringIncludes(body, '"attendeeId":"7"');
+      expectIncludesAll(body, ['"listingId":"3"', '"attendeeId":"7"']);
     } finally {
       fetchStub.restore();
       resetSentry();

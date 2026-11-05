@@ -10,6 +10,7 @@ import {
   listingMoneyLegs,
   seededSale,
 } from "#test/integration/server/ledger/helpers.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -26,14 +27,16 @@ describeWithEnv("server (admin ledger filters and stats)", { db: true }, () => {
     // page is already titled "Money").
     assertStringIncludes(html, "Everything");
     assert(!html.includes("<h2>Everything</h2>"));
-    assertStringIncludes(html, "Total income earned");
-    assertStringIncludes(html, "Customer balances due");
-    assertStringIncludes(html, "Total refunded");
-    assertStringIncludes(html, "Booking fees");
-    // Two range pickers with unique anchor ids, plus the by-listing select.
-    assertStringIncludes(html, 'id="ledger-from"');
-    assertStringIncludes(html, 'id="ledger-to"');
-    assertStringIncludes(html, "Summer Concert");
+    expectIncludesAll(html, [
+      "Total income earned",
+      "Customer balances due",
+      "Total refunded",
+      "Booking fees",
+      // Two range pickers with unique anchor ids, plus the by-listing select.
+      'id="ledger-from"',
+      'id="ledger-to"',
+      "Summer Concert",
+    ]);
   });
 
   test("a from-date later than the only transfer empties the list and zeroes income", async () => {
@@ -41,9 +44,11 @@ describeWithEnv("server (admin ledger filters and stats)", { db: true }, () => {
     await seededSale("Workshop", 2500);
     const response = await adminGet("/admin/ledger?from=2026-06-22");
     const html = await response.text();
-    assertStringIncludes(html, "No money changes yet.");
-    // Income stat falls to zero outside the window.
-    assertStringIncludes(html, "Total income");
+    expectIncludesAll(html, [
+      "No money changes yet.",
+      // Income stat falls to zero outside the window.
+      "Total income",
+    ]);
   });
 
   test("scoping to a listing shows its revenue breakdown and preselects it", async () => {
@@ -51,14 +56,13 @@ describeWithEnv("server (admin ledger filters and stats)", { db: true }, () => {
     const response = await adminGet(`/admin/ledger?listing=${listingId}`);
     const html = await response.text();
     // The stats switch to the per-listing breakdown, headed by the listing name.
-    assertStringIncludes(html, "Gross ticket sales");
-    assertStringIncludes(html, "Total income earned");
-    assertStringIncludes(html, "Net after refunds and costs");
-    // The by-listing select is preselected to this listing.
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "Gross ticket sales",
+      "Total income earned",
+      "Net after refunds and costs",
+      // The by-listing select is preselected to this listing.
       `<option selected value="/admin/ledger?listing=${listingId}">`,
-    );
+    ]);
   });
 
   test("listing stats keep servicing costs inside the selected dates", async () => {
@@ -85,9 +89,7 @@ describeWithEnv("server (admin ledger filters and stats)", { db: true }, () => {
       `/admin/ledger?listing=${listing.id}&from=2026-06-01&to=2026-06-30`,
     );
     const html = await response.text();
-    assertStringIncludes(html, "+£25");
-    assertStringIncludes(html, "−£10");
-    assertStringIncludes(html, "£15");
+    expectIncludesAll(html, ["+£25", "−£10", "£15"]);
     assert(!html.includes("−£30"));
   });
 
@@ -99,9 +101,11 @@ describeWithEnv("server (admin ledger filters and stats)", { db: true }, () => {
     await seededSale("Outside group", 1000);
     const response = await adminGet(`/admin/ledger?group=${group.id}`);
     const html = await response.text();
-    assertStringIncludes(html, "<h2>Festival package</h2>");
-    assertStringIncludes(html, "Total income earned");
-    assertStringIncludes(html, "+£60");
+    expectIncludesAll(html, [
+      "<h2>Festival package</h2>",
+      "Total income earned",
+      "+£60",
+    ]);
     assert(!html.includes("+£70"));
     assertStringIncludes(
       html,
@@ -161,15 +165,17 @@ describeWithEnv("server (admin ledger filters and stats)", { db: true }, () => {
       `/admin/ledger?group=${group.id}&from=2026-06-01&to=2026-06-30`,
     );
     const html = await response.text();
-    assertStringIncludes(html, "Gross ticket sales");
-    assertStringIncludes(html, "+£30");
-    assertStringIncludes(html, "−£12");
-    assertStringIncludes(html, "Total refunded");
-    assertStringIncludes(html, "−£7");
-    assertStringIncludes(html, "Costs paid outside checkout");
-    assertStringIncludes(html, "−£3");
-    assertStringIncludes(html, "Net after refunds and costs");
-    assertStringIncludes(html, "£8");
+    expectIncludesAll(html, [
+      "Gross ticket sales",
+      "+£30",
+      "−£12",
+      "Total refunded",
+      "−£7",
+      "Costs paid outside checkout",
+      "−£3",
+      "Net after refunds and costs",
+      "£8",
+    ]);
     assert(!html.includes("£11"));
     assert(!html.includes("£18"));
     assert(!html.includes("+£70"));
@@ -181,8 +187,7 @@ describeWithEnv("server (admin ledger filters and stats)", { db: true }, () => {
     const group = await createTestGroup({ name: "Empty group" });
     const response = await adminGet(`/admin/ledger?group=${group.id}`);
     const html = await response.text();
-    assertStringIncludes(html, "<h2>Empty group</h2>");
-    assertStringIncludes(html, "No money changes yet.");
+    expectIncludesAll(html, ["<h2>Empty group</h2>", "No money changes yet."]);
   });
 
   test("lists every listing in the by-listing select, name-sorted", async () => {
@@ -193,8 +198,7 @@ describeWithEnv("server (admin ledger filters and stats)", { db: true }, () => {
     await createTestGroup({ name: "Autumn package" });
     const response = await adminGet("/admin/ledger");
     const html = await response.text();
-    assertStringIncludes(html, "Zither Workshop");
-    assertStringIncludes(html, "Accordion Night");
+    expectIncludesAll(html, ["Zither Workshop", "Accordion Night"]);
     // Sorted A→Z, so Accordion's option precedes Zither's.
     expect(html.indexOf("Accordion Night")).toBeLessThan(
       html.indexOf("Zither Workshop"),
@@ -225,8 +229,7 @@ describeWithEnv("server (admin ledger filters and stats)", { db: true }, () => {
     );
     const html = await response.text();
 
-    assertStringIncludes(html, "<h2>Priority recital</h2>");
-    assertStringIncludes(html, "+£25");
+    expectIncludesAll(html, ["<h2>Priority recital</h2>", "+£25"]);
     assert(!html.includes("+£35"));
     assertStringIncludes(
       html,
@@ -244,12 +247,11 @@ describeWithEnv("server (admin ledger filters and stats)", { db: true }, () => {
     );
     const html = await response.text();
 
-    assertStringIncludes(html, "<h2>Fallback package</h2>");
-    assertStringIncludes(html, "+£35");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "<h2>Fallback package</h2>",
+      "+£35",
       `<option selected value="/admin/ledger?group=${group.id}">Fallback package</option>`,
-    );
+    ]);
   });
 
   test("an unknown positive group id falls back to the whole ledger", async () => {
@@ -259,8 +261,7 @@ describeWithEnv("server (admin ledger filters and stats)", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    assertStringIncludes(html, "Total income earned");
-    assertStringIncludes(html, "+£25");
+    expectIncludesAll(html, ["Total income earned", "+£25"]);
     assert(!html.includes("Gross ticket sales"));
     assertStringIncludes(
       html,
@@ -277,8 +278,7 @@ describeWithEnv("server (admin ledger filters and stats)", { db: true }, () => {
     const html = await response.text();
     // Every bad param is dropped, so the unfiltered all-listings list still shows
     // the seeded sale in the default human view.
-    assertStringIncludes(html, "Matinee");
-    assertStringIncludes(html, "booked");
+    expectIncludesAll(html, ["Matinee", "booked"]);
     assert(!html.includes("<td>sale</td>"));
   });
 
@@ -290,8 +290,10 @@ describeWithEnv("server (admin ledger filters and stats)", { db: true }, () => {
     expect(response.status).toBe(200);
     const html = await response.text();
     // The 2026-06-21 sale falls within "up to and including the 21st".
-    assertStringIncludes(html, "Concerto");
-    // The from picker is paged to May 2026, so its prev-month link targets April.
-    assertStringIncludes(html, "fromCal=2026-04");
+    expectIncludesAll(html, [
+      "Concerto",
+      // The from picker is paged to May 2026, so its prev-month link targets April.
+      "fromCal=2026-04",
+    ]);
   });
 });

@@ -6,6 +6,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 describe("the scanner doors page template", () => {
   beforeAll(setupAdminPageTest);
@@ -16,16 +17,18 @@ describe("the scanner doors page template", () => {
       listingDoors: [{ name: "Main Gate", path: "/admin/listing/3/scanner" }],
     });
 
-    assertStringIncludes(html, t("admin.scanner.doors_title"));
-    assertStringIncludes(html, t("admin.scanner.doors_heading"));
-    assertStringIncludes(html, t("admin.scanner.doors_intro"));
-    // Each kind gets its own heading, and each door its own link.
-    assertStringIncludes(html, t("terms.listings"));
-    assertStringIncludes(html, t("terms.groups"));
-    assertStringIncludes(html, 'href="/admin/listing/3/scanner"');
-    assertStringIncludes(html, 'href="/admin/groups/5/scanner"');
-    assertStringIncludes(html, "Main Gate");
-    assertStringIncludes(html, "Camping");
+    expectIncludesAll(html, [
+      t("admin.scanner.doors_title"),
+      t("admin.scanner.doors_heading"),
+      t("admin.scanner.doors_intro"),
+      // Each kind gets its own heading, and each door its own link.
+      t("terms.listings"),
+      t("terms.groups"),
+      'href="/admin/listing/3/scanner"',
+      'href="/admin/groups/5/scanner"',
+      "Main Gate",
+      "Camping",
+    ]);
     assert(!html.includes(t("admin.scanner.doors_empty")));
   });
 
@@ -37,8 +40,7 @@ describe("the scanner doors page template", () => {
       listingDoors: [{ name: "Main Gate", path: "/admin/listing/3/scanner" }],
     });
 
-    assertStringIncludes(html, 'href="/admin/listing/3/scanner"');
-    assertStringIncludes(html, "Main Gate");
+    expectIncludesAll(html, ['href="/admin/listing/3/scanner"', "Main Gate"]);
     assert(!html.includes(t("admin.scanner.doors_empty")));
   });
 

@@ -7,6 +7,7 @@ import {
   emptyCustomCssResponse,
   isCssResponse,
 } from "#routes/public/custom-css.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
@@ -94,7 +95,9 @@ describeWithEnv("custom.css handler", { db: true, triggers: true }, () => {
     );
     const after = await handleRequest(mockRequest("/"));
     const csp = after.headers.get("content-security-policy") ?? "";
-    assertStringIncludes(csp, "style-src 'self' https://fonts.bunny.net");
-    assertStringIncludes(csp, "font-src 'self' https://fonts.bunny.net");
+    expectIncludesAll(csp, [
+      "style-src 'self' https://fonts.bunny.net",
+      "font-src 'self' https://fonts.bunny.net",
+    ]);
   });
 });

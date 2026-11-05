@@ -14,6 +14,7 @@ import {
 } from "#templates/admin/listings/attendees.tsx";
 import type { RosterListView } from "#templates/admin/listings/types.ts";
 import { registerListingTemplateHooks } from "#test/ui/templates/admin/listings/helpers.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { bookedLineRow } from "#test-utils/attendees/pair-bookings.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 
@@ -99,31 +100,31 @@ describe("FailedPaymentsSection", () => {
   );
 
   test("heads the section and counts the unresolved rows", () => {
-    assertStringIncludes(html, '<h2 id="failed-payments">Failed Payments</h2>');
-    assertStringIncludes(html, "<p>1 attendee(s) with unresolved payments</p>");
+    expectIncludesAll(html, [
+      '<h2 id="failed-payments">Failed Payments</h2>',
+      "<p>1 attendee(s) with unresolved payments</p>",
+    ]);
   });
 
   test("renders one delete row per attendee with its own columns", () => {
-    assertStringIncludes(html, "<th>Name</th>");
-    assertStringIncludes(html, '<th class="col-quantity">Qty</th>');
-    assertStringIncludes(html, "<th>Registered</th>");
-    assertStringIncludes(html, "<td>John Doe</td>");
-    assertStringIncludes(html, '<td class="col-quantity">2</td>');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "<th>Name</th>",
+      '<th class="col-quantity">Qty</th>',
+      "<th>Registered</th>",
+      "<td>John Doe</td>",
+      '<td class="col-quantity">2</td>',
       `<td>${formatDatetimeShort(attendee.created)}</td>`,
-    );
+    ]);
   });
 
   test("points each row's delete at that attendee's record", () => {
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       'action="/admin/listing/7/attendee/9/delete-incomplete"',
-    );
-    assertStringIncludes(html, 'class="inline"');
-    assertStringIncludes(html, 'class="link-button danger"');
-    assertStringIncludes(html, "<button");
-    assertStringIncludes(html, ">Delete</button>");
+      'class="inline"',
+      'class="link-button danger"',
+      "<button",
+      ">Delete</button>",
+    ]);
   });
 });
 
@@ -137,13 +138,12 @@ describe("AddAttendeeSection", () => {
         listing: testListingWithCount({ id: 7, listing_type: "daily" }),
       }),
     );
-    assertStringIncludes(html, '<h2 id="add-attendee">Add Attendee</h2>');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      '<h2 id="add-attendee">Add Attendee</h2>',
       '<p class="notice">This listing requires a child listing (Kayak Hire, Wetsuit Hire) when booked publicly.',
-    );
-    assertStringIncludes(html, 'action="/admin/listing/7/attendee"');
-    assertStringIncludes(html, "<span>Add Attendee</span>");
+      'action="/admin/listing/7/attendee"',
+      "<span>Add Attendee</span>",
+    ]);
   });
 
   test("warns about one child listing the same way", () => {

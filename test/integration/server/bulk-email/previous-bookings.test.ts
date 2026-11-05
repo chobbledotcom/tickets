@@ -1,6 +1,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -67,8 +68,10 @@ describeWithEnv("server previous bookings", { db: true }, () => {
     );
 
     const html = await (await adminGet(`/admin/attendees/${viewer.id}`)).text();
-    assertStringIncludes(html, `href="/admin/attendees/${previous.id}"`);
-    assertStringIncludes(html, '<td class="col-amount">£10</td>');
+    expectIncludesAll(html, [
+      `href="/admin/attendees/${previous.id}"`,
+      '<td class="col-amount">£10</td>',
+    ]);
     assert(!html.includes('<td class="col-amount">£20</td>'));
   });
 });

@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -7,6 +6,7 @@ import { stripeApi } from "#shared/stripe.ts";
 import { twoListingsAttendees } from "#test/integration/server/attendee-read-helpers.ts";
 import {
   expectHtmlResponse,
+  expectIncludesAll,
   expectRedirect,
   followRedirect,
 } from "#test-utils/assertions.ts";
@@ -371,9 +371,11 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           }),
         );
         const page = await response.text();
-        assertStringIncludes(page, "Staff diagnostics");
-        assertStringIncludes(page, "cs_staff_unpaid");
-        assertStringIncludes(page, "unpaid");
+        expectIncludesAll(page, [
+          "Staff diagnostics",
+          "cs_staff_unpaid",
+          "unpaid",
+        ]);
       } finally {
         mockRetrieve.restore();
       }

@@ -12,6 +12,7 @@ import {
   readTicketPage,
   setupCheckinTest,
 } from "#test/features/checkin/helpers.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import { createTwoListingBooking } from "#test-utils/db-helpers/bookings.ts";
@@ -35,12 +36,14 @@ describeWithEnv(
       // The working bulk check-in stays; the per-row forms POST to a
       // staff-only admin endpoint, so a scanner is never shown one. Each
       // row's state reads as a badge instead.
-      assertStringIncludes(body, "Check In All");
-      assertStringIncludes(body, 'class="bulk-checkin"');
-      // The hidden field's value is what the POST reads; the admit button
-      // must submit the true spelling, not any falsy stand-in.
-      assertStringIncludes(body, 'type="hidden" value="true"');
-      assertStringIncludes(body, "Not checked in");
+      expectIncludesAll(body, [
+        "Check In All",
+        'class="bulk-checkin"',
+        // The hidden field's value is what the POST reads; the admit button
+        // must submit the true spelling, not any falsy stand-in.
+        'type="hidden" value="true"',
+        "Not checked in",
+      ]);
       assert(!body.includes(`/admin/listing/${listing.id}/attendee/`));
     });
 
@@ -64,8 +67,7 @@ describeWithEnv(
       // while the live row still waits at the door.
       assertStringIncludes(beforeBody, "Check In All");
       assert(!beforeBody.includes("Check Out All"));
-      assertStringIncludes(beforeBody, "Refunded");
-      assertStringIncludes(beforeBody, "Not checked in");
+      expectIncludesAll(beforeBody, ["Refunded", "Not checked in"]);
 
       const went = await postCheckin(token, session, "true");
       expect(went.status).toBe(302);
@@ -123,10 +125,12 @@ describeWithEnv(
       const body = await response.text();
       // The checked leg can be undone and the waiting leg can be admitted:
       // neither intent is hidden behind the other.
-      assertStringIncludes(body, "Check In All");
-      assertStringIncludes(body, "Check Out All");
-      assertStringIncludes(body, "Checked in");
-      assertStringIncludes(body, "Not checked in");
+      expectIncludesAll(body, [
+        "Check In All",
+        "Check Out All",
+        "Checked in",
+        "Not checked in",
+      ]);
     });
 
     test("offers checkout once a row is checked, with no per-row controls", async () => {
@@ -137,10 +141,12 @@ describeWithEnv(
 
       const body = await readTicketPage(token, cookie);
       // The one bulk action can undo the check-in the door just made.
-      assertStringIncludes(body, "Check Out All");
-      assertStringIncludes(body, 'class="bulk-checkout"');
-      assertStringIncludes(body, 'name="check_in"');
-      assertStringIncludes(body, 'value="false"');
+      expectIncludesAll(body, [
+        "Check Out All",
+        'class="bulk-checkout"',
+        'name="check_in"',
+        'value="false"',
+      ]);
       assert(!body.includes("/attendee/"));
     });
 
@@ -173,8 +179,7 @@ describeWithEnv(
 
       const body = await readTicketPage(token, scanner.cookie);
       // The fixed door-safe columns carry the door facts regardless.
-      assertStringIncludes(body, "Fay");
-      assertStringIncludes(body, ">Qty</th>");
+      expectIncludesAll(body, ["Fay", ">Qty</th>"]);
       assert(!body.includes("<th>Email</th>"));
     });
   },

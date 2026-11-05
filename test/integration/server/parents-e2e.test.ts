@@ -2,7 +2,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
-import { expectFlash } from "#test-utils/assertions.ts";
+import { expectFlash, expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
@@ -207,17 +207,16 @@ describeWithEnv(
       const html = await bookingPageHtml(parent.slug);
 
       // Per-unit selectors are namespaced per parent+child (invariant I1/I2).
-      assertStringIncludes(html, `name="child_qty_${parent.id}_${childA.id}"`);
-      assertStringIncludes(html, `name="child_qty_${parent.id}_${childB.id}"`);
-      // The live hint supplies the exact target after the buyer chooses a parent
-      // quantity, so the initial note stays true before that choice.
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        `name="child_qty_${parent.id}_${childA.id}"`,
+        `name="child_qty_${parent.id}_${childB.id}"`,
+        // The live hint supplies the exact target after the buyer chooses a parent
+        // quantity, so the initial note stays true before that choice.
         "Choose add-ons to match your ticket quantity",
-      );
-      assertStringIncludes(html, "Choose an option for Daily base unit");
-      assertStringIncludes(html, "Add-on Alpha");
-      assertStringIncludes(html, "Add-on Beta");
+        "Choose an option for Daily base unit",
+        "Add-on Alpha",
+        "Add-on Beta",
+      ]);
     });
 
     test("parent qty 1 with no child chosen is rejected (choose 1 more)", async () => {
@@ -361,8 +360,10 @@ describeWithEnv(
       );
       expect(parentPage.status).toBe(200);
       const parentHtml = await parentPage.text();
-      assertStringIncludes(parentHtml, "Ada Lovelace");
-      assertStringIncludes(parentHtml, '<td class="col-quantity">2</td>');
+      expectIncludesAll(parentHtml, [
+        "Ada Lovelace",
+        '<td class="col-quantity">2</td>',
+      ]);
 
       // Child Alpha's page lists the buyer with the chosen quantity 1.
       const childAPage = await adminGet(
@@ -370,8 +371,10 @@ describeWithEnv(
       );
       expect(childAPage.status).toBe(200);
       const childAHtml = await childAPage.text();
-      assertStringIncludes(childAHtml, "Ada Lovelace");
-      assertStringIncludes(childAHtml, '<td class="col-quantity">1</td>');
+      expectIncludesAll(childAHtml, [
+        "Ada Lovelace",
+        '<td class="col-quantity">1</td>',
+      ]);
 
       // Child Beta's page lists the buyer with the chosen quantity 1.
       const childBPage = await adminGet(
@@ -379,8 +382,10 @@ describeWithEnv(
       );
       expect(childBPage.status).toBe(200);
       const childBHtml = await childBPage.text();
-      assertStringIncludes(childBHtml, "Ada Lovelace");
-      assertStringIncludes(childBHtml, '<td class="col-quantity">1</td>');
+      expectIncludesAll(childBHtml, [
+        "Ada Lovelace",
+        '<td class="col-quantity">1</td>',
+      ]);
     });
 
     test("a one-of-each booking shares one order token and records each child's parent", async () => {
@@ -430,9 +435,11 @@ describeWithEnv(
 
       // Both children are annotated as add-ons chosen under the parent; the
       // parent's own row carries no such annotation.
-      assertStringIncludes(html, "Add-on chosen under Daily base unit");
-      assertStringIncludes(html, "Add-on Alpha");
-      assertStringIncludes(html, "Add-on Beta");
+      expectIncludesAll(html, [
+        "Add-on chosen under Daily base unit",
+        "Add-on Alpha",
+        "Add-on Beta",
+      ]);
     });
 
     test("a standalone booking's attendee detail page shows no add-on annotation", async () => {
@@ -453,10 +460,12 @@ describeWithEnv(
       // The buyer appears, and all three listings (parent + both children) are
       // listed against the parent's booked date because the daily children
       // inherit it (invariant I4); the calendar shows the listing column.
-      assertStringIncludes(html, "Ada Lovelace");
-      assertStringIncludes(html, "Daily base unit");
-      assertStringIncludes(html, "Add-on Alpha");
-      assertStringIncludes(html, "Add-on Beta");
+      expectIncludesAll(html, [
+        "Ada Lovelace",
+        "Daily base unit",
+        "Add-on Alpha",
+        "Add-on Beta",
+      ]);
     });
   },
 );

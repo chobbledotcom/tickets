@@ -14,6 +14,7 @@ import {
   readConfig,
 } from "#e2e/config.ts";
 import { fail, log, step, warn } from "#e2e/log.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 /** Build an env lookup from a plain record of raw values. */
 const lookupOf =
@@ -43,8 +44,7 @@ describe("randomOwnerCredentials", () => {
 describe("newBookerIdentity", () => {
   it("builds a unique email and name from the run id", () => {
     const id1 = newBookerIdentity("abc123");
-    assertStringIncludes(id1.email, "abc123");
-    assertStringIncludes(id1.email, "@mailinator.com");
+    expectIncludesAll(id1.email, ["abc123", "@mailinator.com"]);
     assertStringIncludes(id1.name, "E2E Booker");
     const id2 = newBookerIdentity("abc123");
     expect(id1.email).not.toBe(id2.email);
@@ -302,8 +302,7 @@ describe("log functions", () => {
     } finally {
       console.log = original;
     }
-    assertStringIncludes(captured, "▸");
-    assertStringIncludes(captured, "hello");
+    expectIncludesAll(captured, ["▸", "hello"]);
   });
 
   it("warn writes to console.warn with an exclamation", () => {
@@ -315,8 +314,7 @@ describe("log functions", () => {
     } finally {
       console.warn = original;
     }
-    assertStringIncludes(captured, "!");
-    assertStringIncludes(captured, "careful");
+    expectIncludesAll(captured, ["!", "careful"]);
   });
 
   it("fail writes to console.error with a cross", () => {
@@ -328,8 +326,7 @@ describe("log functions", () => {
     } finally {
       console.error = original;
     }
-    assertStringIncludes(captured, "✖");
-    assertStringIncludes(captured, "broken");
+    expectIncludesAll(captured, ["✖", "broken"]);
   });
 
   it("log writes to console.log with a timestamp", () => {

@@ -3,10 +3,11 @@
  * admit and checkout as the rows come in. The door-only view's forms live in
  * scanner-rendering.test.ts; this renders the staff page's own template. */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { it as bddTest, describe } from "@std/testing/bdd";
 import { pairKey } from "#shared/keys.ts";
 import { checkinAdminPage } from "#templates/checkin.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withCsrfRequest } from "#test-utils/csrf-request.ts";
 import { testTokenEntry } from "#test-utils/factories.ts";
 
@@ -36,8 +37,10 @@ describe("the staff bulk form on the check-in admin page", () => {
 
     // The hidden field's name and value are exactly what the POST reads
     // (form.get("check_in") === "true"): admit means the true spelling.
-    assertStringIncludes(html, 'class="bulk-checkin"');
-    assertStringIncludes(html, 'name="check_in" type="hidden" value="true"');
+    expectIncludesAll(html, [
+      'class="bulk-checkin"',
+      'name="check_in" type="hidden" value="true"',
+    ]);
     assert(!html.includes("bulk-checkout"));
   });
 
@@ -54,8 +57,10 @@ describe("the staff bulk form on the check-in admin page", () => {
 
     // The flipped action submits the false spelling — any other value would
     // read as another admit and re-check the rows instead of undoing them.
-    assertStringIncludes(html, 'class="bulk-checkout"');
-    assertStringIncludes(html, 'name="check_in" type="hidden" value="false"');
+    expectIncludesAll(html, [
+      'class="bulk-checkout"',
+      'name="check_in" type="hidden" value="false"',
+    ]);
     assert(!html.includes('value="true"'));
   });
 });

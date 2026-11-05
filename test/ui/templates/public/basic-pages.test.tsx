@@ -7,6 +7,7 @@ import { contactPage, publicSitePage } from "#templates/public/basic-pages.tsx";
 import type { PublicNavProps } from "#templates/public/shared.tsx";
 import { registerPublicTemplateHooks } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
 /** The nav a public page test needs: fixed links on, no operator pages. */
@@ -40,18 +41,14 @@ describe("the public contact page", () => {
       }),
     );
 
-    assertStringIncludes(html, "<title>Contact - Teeside Walks</title>");
-    assertStringIncludes(html, "<h2>Send us a message</h2>");
-    assertStringIncludes(html, 'action="/contact"');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "<title>Contact - Teeside Walks</title>",
+      "<h2>Send us a message</h2>",
+      'action="/contact"',
       `<label>Your email address<input autocomplete="email" maxlength="${MAX_INPUT_LENGTH}" name="email" required type="email"></label>`,
-    );
-    assertStringIncludes(
-      html,
       `<textarea maxlength="${MAX_TEXTAREA_LENGTH}" name="message" required></textarea>`,
-    );
-    assertStringIncludes(html, `<button type="submit">Send message</button>`);
+      `<button type="submit">Send message</button>`,
+    ]);
   });
 
   test("loads the contact script only when a botpoison key is configured", () => {
@@ -62,8 +59,10 @@ describe("the public contact page", () => {
       websiteTitle: "",
     });
 
-    assertStringIncludes(withKey, '<script defer src="/contact.js"></script>');
-    assertStringIncludes(withKey, 'data-botpoison-public-key="pk_example"');
+    expectIncludesAll(withKey, [
+      '<script defer src="/contact.js"></script>',
+      'data-botpoison-public-key="pk_example"',
+    ]);
 
     const withoutKey = contactPage({
       botpoisonPublicKey: "",
@@ -109,8 +108,10 @@ describe("the public contact page", () => {
       websiteTitle: "",
     });
 
-    assertStringIncludes(html, '<div class="prose"><h2>Find us</h2>');
-    assertStringIncludes(html, "Call first.");
+    expectIncludesAll(html, [
+      '<div class="prose"><h2>Find us</h2>',
+      "Call first.",
+    ]);
   });
 });
 
@@ -128,10 +129,12 @@ describe("the public home page", () => {
 
     assertStringIncludes(html, "<title>Teeside Walks</title>");
     assert(!html.includes("<title>Home"));
-    assertStringIncludes(html, "<h1>Teeside Walks</h1>");
-    assertStringIncludes(html, "<h1>Welcome</h1>");
-    assertStringIncludes(html, "Enjoy.");
-    assertStringIncludes(html, 'href="/admin/login"');
+    expectIncludesAll(html, [
+      "<h1>Teeside Walks</h1>",
+      "<h1>Welcome</h1>",
+      "Enjoy.",
+      'href="/admin/login"',
+    ]);
   });
 
   test("falls back to the bare title and the no-content note", () => {

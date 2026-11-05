@@ -7,7 +7,7 @@ import { signCsrfToken } from "#shared/csrf.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
-import { expectRedirect } from "#test-utils/assertions.ts";
+import { expectIncludesAll, expectRedirect } from "#test-utils/assertions.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -44,11 +44,13 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
     const response = await awaitTestRequest("/admin/deliveries", { cookie });
     expect(response.status).toBe(200);
     const html = await response.text();
-    assertStringIncludes(html, "Bouncy Castle");
-    assertStringIncludes(html, "Alice");
-    assertStringIncludes(html, "Drop-off");
-    assertStringIncludes(html, "Collection");
-    assertStringIncludes(html, "09:00");
+    expectIncludesAll(html, [
+      "Bouncy Castle",
+      "Alice",
+      "Drop-off",
+      "Collection",
+      "09:00",
+    ]);
   });
 
   test("a one-day hire is collected the same day it is dropped off", async () => {
@@ -262,8 +264,7 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
     const html = await fetchDeliveriesHtml();
     // Staff (unlike agents) get the full navigation and the Calendar submenu
     // link to the deliveries page.
-    assertStringIncludes(html, 'id="main-nav"');
-    assertStringIncludes(html, 'href="/admin/deliveries"');
+    expectIncludesAll(html, ['id="main-nav"', 'href="/admin/deliveries"']);
   });
 
   test("staff with no assigned agents see the no-agents prompt", async () => {
@@ -281,8 +282,7 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
     const html = await fetchDeliveriesForDate(future);
     // The picked day's booking is shown, headed by its full date label (it is
     // neither today nor tomorrow).
-    assertStringIncludes(html, "Future Castle");
-    assertStringIncludes(html, formatDateLabel(future));
+    expectIncludesAll(html, ["Future Castle", formatDateLabel(future)]);
   });
 
   test("staff can mark a leg done on a future date they opened", async () => {
@@ -322,8 +322,10 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
     const html = await fetchDeliveriesHtml();
     // The shared calendar picker renders, with the future delivery date as a
     // selectable link back into the run sheet.
-    assertStringIncludes(html, "date-picker");
-    assertStringIncludes(html, `/admin/deliveries?date=${future}`);
+    expectIncludesAll(html, [
+      "date-picker",
+      `/admin/deliveries?date=${future}`,
+    ]);
   });
 
   test("an agent cannot steer the date — the ?date= param is ignored", async () => {

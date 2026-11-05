@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
@@ -42,8 +43,7 @@ describeWithEnv("Markdown preview endpoint", { db: true }, () => {
       "text/html",
     );
     const html = await response.text();
-    assertStringIncludes(html, "<strong>bold</strong>");
-    assertStringIncludes(html, "<em>italic</em>");
+    expectIncludesAll(html, ["<strong>bold</strong>", "<em>italic</em>"]);
   });
 
   test("escapes raw script tags so they cannot execute", async () => {

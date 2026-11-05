@@ -12,6 +12,7 @@ import type { RefundCtx } from "#test/features/admin/refunds-helpers.ts";
 import {
   expectFlashRedirect,
   expectHtmlResponse,
+  expectIncludesAll,
 } from "#test-utils/assertions.ts";
 import { settle } from "#test-utils/balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -247,11 +248,10 @@ describeWithEnv("server (admin balance-payment refunds)", { db: true }, () => {
         await adminGet(`/admin/attendees/${ctx.attendee.id}`),
         200,
       );
-      assertStringIncludes(
-        overview,
+      expectIncludesAll(overview, [
         `action="/admin/attendees/${ctx.attendee.id}/refresh-payment"`,
-      );
-      assertStringIncludes(overview, "Refresh payment status");
+        "Refresh payment status",
+      ]);
     });
   });
 });

@@ -1,10 +1,10 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { createSitePage } from "#db/site-pages.ts";
 import { handleRequest } from "#routes";
 import { makeImage } from "#test-utils/admin-images.ts";
-import { assertPublicHtml } from "#test-utils/assertions.ts";
+import { assertPublicHtml, expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
@@ -26,8 +26,7 @@ describeWithEnv("public /page/:slug route", { db: true }, () => {
     const response = await handleRequest(mockRequest("/page/about-us"));
     expect(response.status).toBe(200);
     const body = await response.text();
-    assertStringIncludes(body, "About Us");
-    assertStringIncludes(body, "Everything about About Us.");
+    expectIncludesAll(body, ["About Us", "Everything about About Us."]);
   });
 
   test("renders a page's img#N reference as the image's uid URL", async () => {

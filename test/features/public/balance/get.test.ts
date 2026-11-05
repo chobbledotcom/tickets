@@ -14,6 +14,7 @@ import {
   getPayPage,
   settle,
 } from "#test/integration/balance-helpers.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookedAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
@@ -84,9 +85,7 @@ describeWithEnv("server (public balance page) > GET", { db: true }, () => {
     const html = await getPayPage(attendeeId);
 
     assert(!html.includes("Secret Contents"));
-    assertStringIncludes(html, "Mystery Box");
-    assertStringIncludes(html, "Workshop Ticket");
-    assertStringIncludes(html, "Balance due");
+    expectIncludesAll(html, ["Mystery Box", "Workshop Ticket", "Balance due"]);
   });
 
   test("GET uses the generic package label when the package row is gone", async () => {

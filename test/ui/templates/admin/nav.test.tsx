@@ -4,6 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { ADMIN_SURFACE, adminDestination } from "#shared/admin-surface.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { featureSetting, useSetting } from "#test-utils/settings.ts";
@@ -55,11 +56,10 @@ describeWithEnv("AdminNav", {}, () => {
         session: { adminLevel: "owner", settingsNagItems: [superuserNag] },
       }),
     );
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       "Choose whether to enable a superuser recovery account.",
-    );
-    assertStringIncludes(html, 'href="/admin/settings#settings-superuser"');
+      'href="/admin/settings#settings-superuser"',
+    ]);
   });
 
   test("AdminNav links to the attendees browser for owners and managers", () => {

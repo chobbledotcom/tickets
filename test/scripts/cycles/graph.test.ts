@@ -9,6 +9,7 @@ import {
 } from "#scripts/cycles/graph.ts";
 import { runCycleGate } from "#scripts/cycles/run.ts";
 import type { ModuleGraph } from "#scripts/module-graph.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 const ROOT = "/repo";
 
@@ -236,12 +237,14 @@ describe("formatCycleReport", () => {
       ["b.ts", new Set(["a.ts"])],
     ]);
     const report = formatCycleReport(edges, [["a.ts", "b.ts"]]);
-    assertStringIncludes(report, "modules with load-time imports: 2");
-    assertStringIncludes(report, "cyclic groups: 1");
-    assertStringIncludes(report, "dynamic");
-    assertStringIncludes(report, "== group of 2 ==");
-    assertStringIncludes(report, "  a.ts");
-    assertStringIncludes(report, "  b.ts");
+    expectIncludesAll(report, [
+      "modules with load-time imports: 2",
+      "cyclic groups: 1",
+      "dynamic",
+      "== group of 2 ==",
+      "  a.ts",
+      "  b.ts",
+    ]);
   });
 
   test("still explains the measurement when the tree is clean", () => {
@@ -272,15 +275,14 @@ describe("runCycleGate", () => {
   test("exits non-zero with fix guidance while a ring stands", async () => {
     const gate = await gateOverPair();
     expect(gate.exitCode).toBe(1);
-    assertStringIncludes(gate.text, "modules with load-time imports: 2");
-    assertStringIncludes(gate.text, "cyclic groups: 1");
-    assertStringIncludes(gate.text, "== group of 2 ==");
-    assertStringIncludes(gate.text, "  src/a.ts");
-    assertStringIncludes(gate.text, "  src/b.ts");
-    assertStringIncludes(
-      gate.text,
+    expectIncludesAll(gate.text, [
+      "modules with load-time imports: 2",
+      "cyclic groups: 1",
+      "== group of 2 ==",
+      "  src/a.ts",
+      "  src/b.ts",
       "type-only imports evaluate nothing and dynamic",
-    );
+    ]);
   });
 
   test("exits zero once the tree holds no ring", async () => {

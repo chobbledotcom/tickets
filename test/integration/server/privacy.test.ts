@@ -14,6 +14,7 @@ import { nowMs } from "#shared/now.ts";
 import {
   cachedAdminPage,
   expectFlashRedirect,
+  expectIncludesAll,
   expectStatus,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
@@ -147,9 +148,11 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
         "The normal cleanup queue is empty right now.",
       );
       assert(!html.includes("There are no orphaned records right now."));
-      assertStringIncludes(html, "Outstanding payment work");
-      assertStringIncludes(html, `href="/admin/attendees/${attendee.id}"`);
-      assertStringIncludes(html, `Open attendee ${attendee.id}`);
+      expectIncludesAll(html, [
+        "Outstanding payment work",
+        `href="/admin/attendees/${attendee.id}"`,
+        `Open attendee ${attendee.id}`,
+      ]);
       expect((await adminGet(`/admin/attendees/${attendee.id}`)).status).toBe(
         200,
       );
@@ -178,11 +181,10 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
         );
       }
       assert(!firstHtml.includes(`href="/admin/attendees/${attendeeIds[20]}"`));
-      assertStringIncludes(
-        firstHtml,
+      expectIncludesAll(firstHtml, [
         `href="/admin/privacy?work_after=${attendeeIds[19]}"`,
-      );
-      assertStringIncludes(firstHtml, 'rel="next"');
+        'rel="next"',
+      ]);
       assert(!firstHtml.includes('rel="prev"'));
 
       const queueQueries = queries.filter((sql) =>
@@ -205,55 +207,42 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
       assert(
         !secondHtml.includes(`href="/admin/attendees/${attendeeIds[19]}"`),
       );
-      assertStringIncludes(
-        secondHtml,
+      expectIncludesAll(secondHtml, [
         `href="/admin/privacy?work_before=${attendeeIds[20]}"`,
-      );
-      assertStringIncludes(
-        secondHtml,
         `href="/admin/privacy?work_after=${attendeeIds[39]}"`,
-      );
-      assertStringIncludes(secondHtml, 'rel="prev"');
-      assertStringIncludes(secondHtml, 'rel="next"');
+        'rel="prev"',
+        'rel="next"',
+      ]);
 
       const last = await adminGet(
         `/admin/privacy?work_after=${attendeeIds[39]}`,
       );
       const lastHtml = await last.text();
-      assertStringIncludes(
-        lastHtml,
+      expectIncludesAll(lastHtml, [
         `href="/admin/attendees/${attendeeIds[40]}"`,
-      );
-      assertStringIncludes(
-        lastHtml,
         `href="/admin/privacy?work_before=${attendeeIds[40]}"`,
-      );
+      ]);
       assert(!lastHtml.includes('rel="next"'));
 
       const previous = await adminGet(
         `/admin/privacy?work_before=${attendeeIds[40]}`,
       );
       const previousHtml = await previous.text();
-      assertStringIncludes(
-        previousHtml,
+      expectIncludesAll(previousHtml, [
         `href="/admin/attendees/${attendeeIds[20]}"`,
-      );
-      assertStringIncludes(
-        previousHtml,
         `href="/admin/privacy?work_before=${attendeeIds[20]}"`,
-      );
-      assertStringIncludes(previousHtml, 'rel="prev"');
-      assertStringIncludes(previousHtml, 'rel="next"');
+        'rel="prev"',
+        'rel="next"',
+      ]);
 
       const firstAgain = await adminGet(
         `/admin/privacy?work_before=${attendeeIds[20]}`,
       );
       const firstAgainHtml = await firstAgain.text();
-      assertStringIncludes(
-        firstAgainHtml,
+      expectIncludesAll(firstAgainHtml, [
         `href="/admin/attendees/${attendeeIds[0]}"`,
-      );
-      assertStringIncludes(firstAgainHtml, 'rel="next"');
+        'rel="next"',
+      ]);
       assert(!firstAgainHtml.includes('rel="prev"'));
     });
 
@@ -275,12 +264,11 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
         `/admin/privacy?work_after=${highCursor}`,
       );
       const afterEndHtml = await afterEnd.text();
-      assertStringIncludes(afterEndHtml, "There are no records on this page.");
-      assertStringIncludes(
-        afterEndHtml,
+      expectIncludesAll(afterEndHtml, [
+        "There are no records on this page.",
         `href="/admin/privacy?work_before=${highCursor + 1}"`,
-      );
-      assertStringIncludes(afterEndHtml, 'rel="prev"');
+        'rel="prev"',
+      ]);
       assert(!afterEndHtml.includes("undefined"));
       assertStringIncludes(
         await (
@@ -293,15 +281,11 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
         `/admin/privacy?work_before=${attendeeId}`,
       );
       const beforeStartHtml = await beforeStart.text();
-      assertStringIncludes(
-        beforeStartHtml,
+      expectIncludesAll(beforeStartHtml, [
         "There are no records on this page.",
-      );
-      assertStringIncludes(
-        beforeStartHtml,
         `href="/admin/privacy?work_after=${attendeeId - 1}"`,
-      );
-      assertStringIncludes(beforeStartHtml, 'rel="next"');
+        'rel="next"',
+      ]);
       assert(!beforeStartHtml.includes("undefined"));
       assertStringIncludes(
         await (

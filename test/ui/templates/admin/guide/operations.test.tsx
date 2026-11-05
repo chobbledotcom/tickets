@@ -11,6 +11,7 @@ import {
 import { operationsSections } from "#templates/admin/guide/operations.tsx";
 import { listingTable } from "#templates/admin/listing-table.tsx";
 import { attendeeTable } from "#templates/attendee-table/columns.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 const sections = operationsSections();
 
@@ -41,8 +42,10 @@ describe("operations guide schema", () => {
         sections.find(({ titleKey }) => titleKey === "customising_your_site")!,
       ]),
     );
-    assertStringIncludes(html, "Saving gives every visitor a fresh copy");
-    assertStringIncludes(html, "your change appears at once");
+    expectIncludesAll(html, [
+      "Saving gives every visitor a fresh copy",
+      "your change appears at once",
+    ]);
     assert(!html.includes("cached for up to an hour"));
   });
 

@@ -7,6 +7,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { handleTicketQrGet } from "#routes/public/ticket-routes.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -37,8 +38,7 @@ describeWithEnv("ticket QR code", { db: true }, () => {
         mockRequest(`/ticket/${listing.slug}/qr`),
       );
       const body = await response.text();
-      assertStringIncludes(body, "<svg");
-      assertStringIncludes(body, "</svg>");
+      expectIncludesAll(body, ["<svg", "</svg>"]);
     });
 
     test("returns 404 for non-existent listing", async () => {

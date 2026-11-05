@@ -14,6 +14,7 @@ import {
 } from "#templates/admin/listing-table.tsx";
 import { AttendeeTable } from "#templates/attendee-table/component.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import type { ListingWithCount } from "#types";
 
@@ -126,8 +127,7 @@ describe("listingTable", () => {
       }),
     );
 
-    assertStringIncludes(html, "<th>Location</th>");
-    assertStringIncludes(html, "<td>Town Hall</td>");
+    expectIncludesAll(html, ["<th>Location</th>", "<td>Town Hall</td>"]);
     assert(!html.includes("Listing name"));
   });
 
@@ -172,8 +172,10 @@ describe("listingTable", () => {
       }),
     );
 
-    assertStringIncludes(html, "listing-thumbnail");
-    assertStringIncludes(html, '<a href="/admin/listing/7">Gala</a>');
+    expectIncludesAll(html, [
+      "listing-thumbnail",
+      '<a href="/admin/listing/7">Gala</a>',
+    ]);
     assert(!html.includes(">GALA<"));
   });
 

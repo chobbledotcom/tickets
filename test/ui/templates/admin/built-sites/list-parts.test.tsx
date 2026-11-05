@@ -5,6 +5,7 @@ import {
   BuiltSitesListActions,
   BuiltSitesListBody,
 } from "#templates/admin/built-sites/list-parts.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testBuiltSite } from "#test-utils/factories.ts";
 
 test("renders the empty list with its renewal summary", () => {
@@ -16,8 +17,7 @@ test("renders the empty list with its renewal summary", () => {
       sort: "name",
     }),
   );
-  assertStringIncludes(html, "No built sites recorded.");
-  assertStringIncludes(html, "Renewal tiers");
+  expectIncludesAll(html, ["No built sites recorded.", "Renewal tiers"]);
 });
 
 test("renders a site's link, URL, status, channel, and host id", () => {
@@ -39,11 +39,13 @@ test("renders a site's link, URL, status, channel, and host id", () => {
       sort: "name",
     }),
   );
-  assertStringIncludes(html, 'href="/admin/built-sites/42">Child site</a>');
-  assertStringIncludes(html, "https://child.example");
-  assertStringIncludes(html, "Assigned (attendee #17)");
-  assertStringIncludes(html, "beta");
-  assertStringIncludes(html, "host-42");
+  expectIncludesAll(html, [
+    'href="/admin/built-sites/42">Child site</a>',
+    "https://child.example",
+    "Assigned (attendee #17)",
+    "beta",
+    "host-42",
+  ]);
 });
 
 test("labels an unassigned site that others can book as Available", () => {
@@ -55,8 +57,10 @@ test("labels an unassigned site that others can book as Available", () => {
       sort: "name",
     }),
   );
-  assertStringIncludes(html, '<a href="/admin/built-sites/1">Alpha</a>');
-  assertStringIncludes(html, "Available</td>");
+  expectIncludesAll(html, [
+    '<a href="/admin/built-sites/1">Alpha</a>',
+    "Available</td>",
+  ]);
   assert(!html.includes("Not assignable"));
 });
 
@@ -69,8 +73,10 @@ test("labels an unassigned site nobody can book as Not assignable", () => {
       sort: "name",
     }),
   );
-  assertStringIncludes(html, '<a href="/admin/built-sites/2">Beta</a>');
-  assertStringIncludes(html, "Not assignable</td>");
+  expectIncludesAll(html, [
+    '<a href="/admin/built-sites/2">Beta</a>',
+    "Not assignable</td>",
+  ]);
   assert(!html.includes("Available</td>"));
 });
 
@@ -95,8 +101,10 @@ test("links a bare bunny.run address as a working b-cdn.net link", () => {
 
 test("renders the list actions and guide destination", () => {
   const actions = String(BuiltSitesListActions());
-  assertStringIncludes(actions, 'href="/admin/built-sites/new"');
-  assertStringIncludes(actions, 'href="/admin/builder"');
+  expectIncludesAll(actions, [
+    'href="/admin/built-sites/new"',
+    'href="/admin/builder"',
+  ]);
   assertStringIncludes(
     String(BuiltSitesGuideFooter()),
     'href="/admin/guide#built-sites"',

@@ -11,6 +11,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import type { ListingWithCount } from "#types";
 
@@ -136,8 +137,10 @@ describe("adminListingsPage multi-booking link", () => {
       undefined,
       new Set<number>([2]),
     );
-    assertStringIncludes(html, 'data-multi-booking-slug="ab12c"');
-    assertStringIncludes(html, 'data-multi-booking-slug="ef56g"');
+    expectIncludesAll(html, [
+      'data-multi-booking-slug="ab12c"',
+      'data-multi-booking-slug="ef56g"',
+    ]);
     assert(!html.includes('data-multi-booking-slug="cd34e"'));
   });
 
@@ -232,7 +235,9 @@ describe("adminListingsPage multi-booking link", () => {
     // The venue filter narrows the table to the Hall listing...
     assert(!html.includes('href="/admin/listing/2"'));
     // ...but the builder still offers every active listing.
-    assertStringIncludes(html, 'data-multi-booking-slug="ab12c"');
-    assertStringIncludes(html, 'data-multi-booking-slug="cd34e"');
+    expectIncludesAll(html, [
+      'data-multi-booking-slug="ab12c"',
+      'data-multi-booking-slug="cd34e"',
+    ]);
   });
 });

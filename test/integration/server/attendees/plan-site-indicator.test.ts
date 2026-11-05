@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
 import { getAssignableBuiltSites, insertBuiltSite } from "#db/built-sites.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   bookedAttendee,
@@ -39,8 +40,7 @@ describeWithEnv(
 
         const owed = await adminGet(`/admin/attendees/${attendee.id}`);
         const before = await owed.text();
-        assertStringIncludes(before, "Site Plan");
-        assertStringIncludes(before, "No site assigned yet");
+        expectIncludesAll(before, ["Site Plan", "No site assigned yet"]);
 
         await insertBuiltSite("Pooled", "pooled.test", "", "", true);
         const pool = await getAssignableBuiltSites();
@@ -93,8 +93,7 @@ describeWithEnv(
 
         const page = await adminGet(`/admin/attendees/${attendee.id}`);
         const html = await page.text();
-        assertStringIncludes(html, "Site Plan");
-        assertStringIncludes(html, "No site assigned yet");
+        expectIncludesAll(html, ["Site Plan", "No site assigned yet"]);
       });
 
       test("a claim on a refunded plan row still serves the active plan", async () => {
@@ -160,8 +159,7 @@ describeWithEnv(
 
         const served = await adminGet(`/admin/attendees/${attendee.id}`);
         const after = await served.text();
-        assertStringIncludes(after, "First Plan");
-        assertStringIncludes(after, "Second Plan");
+        expectIncludesAll(after, ["First Plan", "Second Plan"]);
         assert(!after.includes("No site assigned yet"));
       });
     });

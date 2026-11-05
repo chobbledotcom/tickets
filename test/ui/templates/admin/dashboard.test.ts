@@ -9,6 +9,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
@@ -18,31 +19,29 @@ describe("adminDashboardPage", () => {
 
   test("renders empty state when no listings", () => {
     const html = adminDashboardPage([], OWNER_SESSION);
-    assertStringIncludes(html, "Listings");
-    assertStringIncludes(html, "No listings yet");
+    expectIncludesAll(html, ["Listings", "No listings yet"]);
   });
 
   test("renders listings table", () => {
     const listings = [testListingWithCount({ attendee_count: 25 })];
     const html = adminDashboardPage(listings, OWNER_SESSION);
-    assertStringIncludes(html, "Test Listing");
-    assertStringIncludes(html, "25 / 100");
-    assertStringIncludes(html, "/admin/listing/1");
+    expectIncludesAll(html, ["Test Listing", "25 / 100", "/admin/listing/1"]);
   });
 
   test("displays listing name", () => {
     const listings = [testListingWithCount({ name: "My Test Listing" })];
     const html = adminDashboardPage(listings, OWNER_SESSION);
-    assertStringIncludes(html, "My Test Listing");
-    assertStringIncludes(html, "Listing name");
+    expectIncludesAll(html, ["My Test Listing", "Listing name"]);
   });
 
   test("renders the add-listing and add-attendee quick actions", () => {
     const html = adminDashboardPage([], OWNER_SESSION);
-    assertStringIncludes(html, 'href="/admin/listing/new"');
-    assertStringIncludes(html, "Add Listing");
-    assertStringIncludes(html, 'href="/admin/attendees/new"');
-    assertStringIncludes(html, "Add Attendee");
+    expectIncludesAll(html, [
+      'href="/admin/listing/new"',
+      "Add Listing",
+      'href="/admin/attendees/new"',
+      "Add Attendee",
+    ]);
   });
 
   test("does not render the multi-booking link builder", () => {
@@ -74,8 +73,7 @@ describe("adminDashboardPage", () => {
       undefined,
       attendees,
     );
-    assertStringIncludes(html, "<details open");
-    assertStringIncludes(html, "Newest 2 Attendees");
+    expectIncludesAll(html, ["<details open", "Newest 2 Attendees"]);
   });
 
   test("newest attendees section not shown when no attendees", () => {
@@ -103,15 +101,14 @@ describe("adminDashboardPage", () => {
       ],
     );
 
-    assertStringIncludes(html, "Upcoming holidays</summary>");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "Upcoming holidays</summary>",
       'class="table-scroll dashboard-holidays-scroll"',
-    );
-    assertStringIncludes(html, 'href="/admin/holidays/1"');
-    assertStringIncludes(html, "Winter Break");
-    assertStringIncludes(html, "2026-12-24");
-    assertStringIncludes(html, "2026-12-26");
+      'href="/admin/holidays/1"',
+      "Winter Break",
+      "2026-12-24",
+      "2026-12-26",
+    ]);
   });
 
   test("renders upcoming service events with listing details and edit links", () => {
@@ -143,13 +140,15 @@ describe("adminDashboardPage", () => {
         },
       ],
     );
-    assertStringIncludes(html, "Upcoming service events</summary>");
-    assertStringIncludes(html, 'href="/admin/servicing/42"');
-    assertStringIncludes(html, "Boiler Service");
-    assertStringIncludes(html, "2099");
-    assertStringIncludes(html, "1 listing · 2");
-    assertStringIncludes(html, 'href="/admin/servicing/43"');
-    assertStringIncludes(html, "Unassigned Service");
+    expectIncludesAll(html, [
+      "Upcoming service events</summary>",
+      'href="/admin/servicing/42"',
+      "Boiler Service",
+      "2099",
+      "1 listing · 2",
+      'href="/admin/servicing/43"',
+      "Unassigned Service",
+    ]);
   });
 
   test("newest attendees shows singular for single attendee", () => {
@@ -173,8 +172,7 @@ describe("adminDashboardPage", () => {
       undefined,
       attendees,
     );
-    assertStringIncludes(html, "<th>Listings</th>");
-    assertStringIncludes(html, "Workshop");
+    expectIncludesAll(html, ["<th>Listings</th>", "Workshop"]);
   });
 
   test("newest attendees groups an attendee's bookings into one row, listings in display order", () => {
@@ -194,13 +192,12 @@ describe("adminDashboardPage", () => {
       undefined,
       attendees,
     );
-    assertStringIncludes(html, "Newest 1 Attendee</summary>");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "Newest 1 Attendee</summary>",
       '<span class="listings-cell" title="Gala, Workshop">' +
         '<a href="/admin/listing/1">Gala</a>, ' +
         '<a href="/admin/listing/2">Workshop</a></span>',
-    );
+    ]);
   });
 
   test("newest attendees not shown when all attendees have unknown listing_id", () => {
@@ -295,12 +292,14 @@ describe("activeListingStatsSection", () => {
       income: 5000,
       tickets: 30,
     });
-    assertStringIncludes(html, "Active Listing Statistics");
-    assertStringIncludes(html, "<strong>Income:</strong>");
-    assertStringIncludes(html, "<strong>Tickets:</strong>");
-    assertStringIncludes(html, "<strong>Attendees:</strong>");
-    assertStringIncludes(html, "30");
-    assertStringIncludes(html, "52");
+    expectIncludesAll(html, [
+      "Active Listing Statistics",
+      "<strong>Income:</strong>",
+      "<strong>Tickets:</strong>",
+      "<strong>Attendees:</strong>",
+      "30",
+      "52",
+    ]);
   });
 
   test("renders zero values", () => {
@@ -309,8 +308,10 @@ describe("activeListingStatsSection", () => {
       income: 0,
       tickets: 0,
     });
-    assertStringIncludes(html, "<strong>Tickets:</strong> 0");
-    assertStringIncludes(html, "<strong>Attendees:</strong> 0");
+    expectIncludesAll(html, [
+      "<strong>Tickets:</strong> 0",
+      "<strong>Attendees:</strong> 0",
+    ]);
   });
 
   test("renders as closed details element", () => {
@@ -379,9 +380,11 @@ describe("adminDashboardPage type filter", () => {
 
   test("shows the filter bar when more than one type is present", () => {
     const html = adminDashboardPage([standard, daily], OWNER_SESSION);
-    assertStringIncludes(html, "Showing:");
-    assertStringIncludes(html, 'href="/admin/?type=standard"');
-    assertStringIncludes(html, 'href="/admin/?type=daily"');
+    expectIncludesAll(html, [
+      "Showing:",
+      'href="/admin/?type=standard"',
+      'href="/admin/?type=daily"',
+    ]);
   });
 
   test("hides the filter bar when only one type is present", () => {
@@ -396,9 +399,11 @@ describe("adminDashboardPage type filter", () => {
 
   test("shows every type and marks 'All' active on the default view", () => {
     const html = adminDashboardPage([standard, daily], OWNER_SESSION);
-    assertStringIncludes(html, "Standard Listing");
-    assertStringIncludes(html, "Daily Listing");
-    assertStringIncludes(html, "<strong><u>All</u></strong>");
+    expectIncludesAll(html, [
+      "Standard Listing",
+      "Daily Listing",
+      "<strong><u>All</u></strong>",
+    ]);
   });
 
   test("filters the listing table to the active type", () => {
@@ -422,9 +427,11 @@ describe("adminDashboardPage type filter", () => {
     );
     assertStringIncludes(html, "Daily Listing");
     assert(!html.includes("Standard Listing"));
-    assertStringIncludes(html, "<strong><u>Daily</u></strong>");
-    // The "All" option links back to the unfiltered dashboard.
-    assertStringIncludes(html, '<a href="/admin/">All</a>');
+    expectIncludesAll(html, [
+      "<strong><u>Daily</u></strong>",
+      // The "All" option links back to the unfiltered dashboard.
+      '<a href="/admin/">All</a>',
+    ]);
   });
 
   test("does not show a CSV export footer (the dashboard table is active-only)", () => {
@@ -443,8 +450,10 @@ describeWithEnv(
       test("shows thumbnail when listing has image_url", () => {
         const listings = [testListingWithCount({ image_url: "thumb.jpg" })];
         const html = adminDashboardPage(listings, OWNER_SESSION);
-        assertStringIncludes(html, "/image/thumb.jpg");
-        assertStringIncludes(html, 'class="listing-thumbnail"');
+        expectIncludesAll(html, [
+          "/image/thumb.jpg",
+          'class="listing-thumbnail"',
+        ]);
       });
 
       test("does not show thumbnail when listing has no image_url", () => {

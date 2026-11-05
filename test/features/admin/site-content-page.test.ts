@@ -10,6 +10,7 @@ import { it as test } from "@std/testing/bdd";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { panelTab } from "#routes/admin/entity-write-tab.ts";
 import { defineSiteContentPage } from "#routes/admin/site-content-page.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { withStorageEnabled } from "#test-utils/mocks.ts";
@@ -45,8 +46,10 @@ describeWithEnv("a site content page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    assertStringIncludes(html, "<h1>Opening times</h1>");
-    assertStringIncludes(html, "<p>Edit Opening times</p>");
+    expectIncludesAll(html, [
+      "<h1>Opening times</h1>",
+      "<p>Edit Opening times</p>",
+    ]);
   });
 
   test("puts the extra tabs between edit and actions", async () => {

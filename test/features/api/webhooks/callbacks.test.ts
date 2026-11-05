@@ -4,7 +4,10 @@ import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { expectHtmlResponse } from "#test-utils/assertions.ts";
+import {
+  expectHtmlResponse,
+  expectIncludesAll,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { logLogged, useErrorLogSpy } from "#test-utils/debug-log.ts";
@@ -130,9 +133,11 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
     );
     expect(res.status).toBe(200);
     const html = await res.text();
-    assertStringIncludes(html, "/t/");
-    assertStringIncludes(html, "https://ty.example.com");
-    assertStringIncludes(html, 'data-payment-result="success"');
+    expectIncludesAll(html, [
+      "/t/",
+      "https://ty.example.com",
+      'data-payment-result="success"',
+    ]);
   });
 
   test("redirect URL includes the actual token value", async () => {
@@ -208,8 +213,7 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
     if (loc === null) return;
     const res2 = await handleRequest(mockRequest(loc));
     const html = await res2.text();
-    assertStringIncludes(html, "/t/");
-    assertStringIncludes(html, "tok-ty.example.com");
+    expectIncludesAll(html, ["/t/", "tok-ty.example.com"]);
   });
 
   test("no-session callback logs all param names comma-separated", async () => {

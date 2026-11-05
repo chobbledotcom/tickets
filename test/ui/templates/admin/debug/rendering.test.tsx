@@ -7,6 +7,7 @@ import {
   adminDebugPage,
   SENTRY_TEST_FORM_ID,
 } from "#templates/admin/debug.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { debugOwnerSession, makeDebugState } from "#test-utils/debug.ts";
 
 const rowValues = (html: string, label: string): string[] => {
@@ -234,10 +235,12 @@ describe("admin debug template rendering", () => {
     expectBadgeRow(html, t("debug.field.public_api"), "ok", "Enabled");
     expectBadgeRow(html, t("debug.field.contact_form"), "ok", "Enabled");
     expectBadgeRow(html, t("debug.field.schema_status"), "ok", "Up to date");
-    assertStringIncludes(html, `action="/admin/debug/sentry"`);
-    assertStringIncludes(html, `class="inline"`);
-    assertStringIncludes(html, `id="${SENTRY_TEST_FORM_ID}"`);
-    assertStringIncludes(html, `>${t("debug.test_sentry")}</button>`);
+    expectIncludesAll(html, [
+      `action="/admin/debug/sentry"`,
+      `class="inline"`,
+      `id="${SENTRY_TEST_FORM_ID}"`,
+      `>${t("debug.test_sentry")}</button>`,
+    ]);
   });
 
   test("renders the disabled site and database states", () => {
@@ -318,13 +321,12 @@ describe("admin debug template rendering", () => {
       }),
     );
 
-    assertStringIncludes(html, "<td><span>100B</span></td>");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "<td><span>100B</span></td>",
       `<td><strong>200B ${t("debug.overridden")}</strong></td>`,
-    );
-    assertStringIncludes(html, "DEFAULT_LIMIT");
-    assertStringIncludes(html, "OVERRIDDEN_LIMIT");
+      "DEFAULT_LIMIT",
+      "OVERRIDDEN_LIMIT",
+    ]);
   });
 
   test("uses the stable Sentry test form id", () => {

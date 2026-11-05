@@ -6,6 +6,7 @@ import {
   STRIPE_MOCK_FAILED_TO_START,
   startStripeMock,
 } from "#scripts/stripe-mock.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { pathExists } from "#test-utils/files.ts";
 import {
   type StartOptions,
@@ -208,8 +209,10 @@ describe("starting stripe-mock", () => {
         startAttempts: 2,
       });
 
-      assertStringIncludes(message, STRIPE_MOCK_FAILED_TO_START);
-      assertStringIncludes(message, "Failed to spawn");
+      expectIncludesAll(message, [
+        STRIPE_MOCK_FAILED_TO_START,
+        "Failed to spawn",
+      ]);
     });
   });
 

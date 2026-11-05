@@ -9,6 +9,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { featureSetting, useSetting } from "#test-utils/settings.ts";
 import { names, transfer } from "./helpers.ts";
 
@@ -48,29 +49,25 @@ describe("adminLedgerPage", () => {
     const html = adminLedgerPage(pageData(), OWNER_SESSION);
     assertStringIncludes(html, "Money");
     assert(!html.includes("Money history"));
-    assertStringIncludes(html, 'href="/admin/ledger"');
-    assertStringIncludes(html, "<th>Activity</th>");
-    assertStringIncludes(html, "Simple view");
-    assertStringIncludes(html, "Detailed view");
-    assertStringIncludes(html, "Money moved from");
-    // The whole-business scope is selected and keeps an unscoped URL.
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'href="/admin/ledger"',
+      "<th>Activity</th>",
+      "Simple view",
+      "Detailed view",
+      "Money moved from",
+      // The whole-business scope is selected and keeps an unscoped URL.
       '<option selected value="/admin/ledger">Everything</option>',
-    );
-    assertStringIncludes(html, "Total income");
-    assertStringIncludes(html, "£25.00");
-    // Both range pickers render with unique anchor ids.
-    assertStringIncludes(html, 'id="ledger-from"');
-    assertStringIncludes(html, 'id="ledger-to"');
-    // The by-listing select lists every listing plus the "all" option.
-    assertStringIncludes(html, "Everything");
-    assertStringIncludes(html, "Summer Concert");
-    assertStringIncludes(
-      html,
+      "Total income",
+      "£25.00",
+      // Both range pickers render with unique anchor ids.
+      'id="ledger-from"',
+      'id="ledger-to"',
+      // The by-listing select lists every listing plus the "all" option.
+      "Everything",
+      "Summer Concert",
       '<option selected value="/admin/ledger">Everything</option>',
-    );
-    assertStringIncludes(html, "Festival package");
+      "Festival package",
+    ]);
   });
 
   test("heads the stats with the listing name when scoped to one listing", () => {
@@ -86,9 +83,11 @@ describe("adminLedgerPage", () => {
       pageData({ filters: { ...NO_FILTERS, view: "dual" } }),
       OWNER_SESSION,
     );
-    assertStringIncludes(html, "<th>Money moved</th>");
-    assertStringIncludes(html, 'href="/admin/ledger">Simple view</a>');
-    assertStringIncludes(html, "<strong>Detailed view</strong>");
+    expectIncludesAll(html, [
+      "<th>Money moved</th>",
+      'href="/admin/ledger">Simple view</a>',
+      "<strong>Detailed view</strong>",
+    ]);
   });
 
   test("preselects the chosen listing in the by-listing select", () => {
@@ -119,11 +118,10 @@ describe("adminLedgerPage", () => {
       }),
       OWNER_SESSION,
     );
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<option selected value="/admin/ledger?group=2">Festival package</option>',
-    );
-    assertStringIncludes(html, "<h2>Festival package</h2>");
+      "<h2>Festival package</h2>",
+    ]);
   });
 
   test("day links carry the from/to filters and the other side's state", () => {
@@ -138,9 +136,7 @@ describe("adminLedgerPage", () => {
       OWNER_SESSION,
     );
     // A "to" day link keeps the existing from + listing scope.
-    assertStringIncludes(html, "to=2026-06-20");
-    assertStringIncludes(html, "from=2026-06-20");
-    assertStringIncludes(html, "listing=1");
+    expectIncludesAll(html, ["to=2026-06-20", "from=2026-06-20", "listing=1"]);
   });
 
   test("filter links preserve dual view and paged calendar state", () => {
@@ -158,12 +154,11 @@ describe("adminLedgerPage", () => {
       }),
       OWNER_SESSION,
     );
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       'value="/admin/ledger?from=2026-06-20&amp;to=2026-06-22&amp;view=dual&amp;fromCal=2026-05&amp;toCal=2026-07"',
-    );
-    assertStringIncludes(html, "view=dual");
-    assertStringIncludes(html, "toCal=2026-07");
+      "view=dual",
+      "toCal=2026-07",
+    ]);
   });
 
   test("surfaces the 'showing recent' note only when truncated", () => {

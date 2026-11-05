@@ -10,7 +10,10 @@ import { it as test } from "@std/testing/bdd";
 import { getNoteRows, getNotesFor } from "#db/notes/queries.ts";
 import { type NoteTarget, noteTargets } from "#db/notes/target.ts";
 import { t } from "#i18n";
-import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
+import {
+  expectIncludesAll,
+  expectRedirectWithFlash,
+} from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -72,8 +75,7 @@ const noteRoutesSuite = (kind: NoteKind): void => {
       const response = await adminGet(kind.notePath(id));
       expect(response.status).toBe(200);
       const html = await response.text();
-      assertStringIncludes(html, `action="${kind.notePath(id)}"`);
-      assertStringIncludes(html, 'name="note"');
+      expectIncludesAll(html, [`action="${kind.notePath(id)}"`, 'name="note"']);
     });
 
     test("GET on a missing record is a 404", async () => {
@@ -140,8 +142,7 @@ const noteRoutesSuite = (kind: NoteKind): void => {
       const response = await adminGet(`${kind.notePath(id)}/${row!.id}/delete`);
       expect(response.status).toBe(200);
       const html = await response.text();
-      assertStringIncludes(html, "Are you sure");
-      assertStringIncludes(html, "deletable");
+      expectIncludesAll(html, ["Are you sure", "deletable"]);
       // The intermediate page never asks for the copy/paste confirmation.
       assert(!html.includes('name="confirm_identifier"'));
     });

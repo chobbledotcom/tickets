@@ -14,7 +14,10 @@ import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
 import { getAssignableBuiltSites, insertBuiltSite } from "#db/built-sites.ts";
 import { t } from "#i18n";
 import { activityMessages } from "#test-utils/activity-log.ts";
-import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
+import {
+  expectIncludesAll,
+  expectRedirectWithFlash,
+} from "#test-utils/assertions.ts";
 import {
   emptyBookingLine,
   setupListingAndAttendee,
@@ -355,15 +358,11 @@ describeWithEnv("the re-send page's send choice", { db: true }, () => {
 
     const html = await pageHtml(attendee.id);
 
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       'checked name="resend_sides" type="radio" value="email"',
-    );
-    assertStringIncludes(
-      html,
       'name="resend_sides" type="radio" value="webhooks"',
-    );
-    assertStringIncludes(html, 'name="resend_sides" type="radio" value="both"');
+      'name="resend_sides" type="radio" value="both"',
+    ]);
     // The choice is a visible form field, not a hidden default.
     assert(!html.includes('name="resend_sides" type="hidden"'));
   });

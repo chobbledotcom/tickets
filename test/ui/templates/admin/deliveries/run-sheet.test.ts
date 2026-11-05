@@ -7,6 +7,7 @@ import {
   type DeliveryLegView,
   renderRunSheetDays,
 } from "#templates/admin/deliveries/run-sheet.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
@@ -92,26 +93,28 @@ describe("renderRunSheetDays", () => {
   test("renders a drop-off booking with labelled details, maps, phone and a done toggle", async () => {
     const html = await renderBody(group());
 
-    assertStringIncludes(html, "Drop-off");
-    assertStringIncludes(html, "09:00");
-    assertStringIncludes(html, "Van 1");
-    // Details are prefixed with bold labels.
-    assertStringIncludes(html, "<strong>Name:</strong> Alice");
-    assertStringIncludes(html, "<strong>Listing:</strong> Bouncy Castle");
-    assertStringIncludes(html, "<strong>Address:</strong> 1 Test Street");
-    assertStringIncludes(html, "https://www.google.com/maps/search/?api=1");
-    assertStringIncludes(html, "https://maps.apple.com/?q=");
-    assertStringIncludes(html, "<strong>Phone:</strong>");
-    assertStringIncludes(html, "tel:+447700900000");
-    assertStringIncludes(html, "https://wa.me/447700900000");
-    // The toggle is the site's own CSRF-protected form.
-    assertStringIncludes(html, 'action="/admin/deliveries/mark"');
-    assertStringIncludes(html, 'name="csrf_token"');
-    assertStringIncludes(html, 'value="start"');
-    assertStringIncludes(html, 'name="date" type="hidden" value="2026-06-16"');
-    assertStringIncludes(html, "Mark done");
-    // The ticket token the customer can quote is shown.
-    assertStringIncludes(html, "<strong>Token:</strong> TOKEN123");
+    expectIncludesAll(html, [
+      "Drop-off",
+      "09:00",
+      "Van 1",
+      // Details are prefixed with bold labels.
+      "<strong>Name:</strong> Alice",
+      "<strong>Listing:</strong> Bouncy Castle",
+      "<strong>Address:</strong> 1 Test Street",
+      "https://www.google.com/maps/search/?api=1",
+      "https://maps.apple.com/?q=",
+      "<strong>Phone:</strong>",
+      "tel:+447700900000",
+      "https://wa.me/447700900000",
+      // The toggle is the site's own CSRF-protected form.
+      'action="/admin/deliveries/mark"',
+      'name="csrf_token"',
+      'value="start"',
+      'name="date" type="hidden" value="2026-06-16"',
+      "Mark done",
+      // The ticket token the customer can quote is shown.
+      "<strong>Token:</strong> TOKEN123",
+    ]);
   });
 
   test("shows both the drop-off and collection jobs for a same-day booking", async () => {
@@ -128,8 +131,7 @@ describe("renderRunSheetDays", () => {
       }),
     );
 
-    assertStringIncludes(html, "Drop-off");
-    assertStringIncludes(html, "Collection");
+    expectIncludesAll(html, ["Drop-off", "Collection"]);
     // The shared booking details appear once, not once per leg.
     expect(html.match(/Bouncy Castle/g)).toHaveLength(1);
   });
@@ -147,11 +149,13 @@ describe("renderRunSheetDays", () => {
       }),
     );
 
-    assertStringIncludes(html, "Collection");
-    assertStringIncludes(html, "Mark not done");
-    assertStringIncludes(html, "delivery-leg done");
-    // Non-callable phone is shown as plain text, with no tel: link.
-    assertStringIncludes(html, "no-digits-here");
+    expectIncludesAll(html, [
+      "Collection",
+      "Mark not done",
+      "delivery-leg done",
+      // Non-callable phone is shown as plain text, with no tel: link.
+      "no-digits-here",
+    ]);
     assert(!html.includes("tel:"));
     // Blank address and map lines are left out.
     assert(!html.includes("1 Test Street"));
@@ -187,10 +191,12 @@ describe("renderRunSheetDays", () => {
     );
 
     assert(!html.includes("<script>"));
-    assertStringIncludes(html, "&lt;script&gt;alert(1)&lt;/script&gt;");
-    assertStringIncludes(html, "Alice &amp; Bob");
-    assertStringIncludes(html, "1 &lt;b&gt;Bold&lt;/b&gt; Street");
-    assertStringIncludes(html, "&quot;; onload=&quot;");
+    expectIncludesAll(html, [
+      "&lt;script&gt;alert(1)&lt;/script&gt;",
+      "Alice &amp; Bob",
+      "1 &lt;b&gt;Bold&lt;/b&gt; Street",
+      "&quot;; onload=&quot;",
+    ]);
   });
 
   test("renders the owner's body template with the day's bookings", async () => {

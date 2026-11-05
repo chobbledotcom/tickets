@@ -6,6 +6,7 @@ import {
 } from "#templates/admin/questions.tsx";
 import { resetFeaturePageTest } from "#test/ui/templates/admin/feature-page-test.ts";
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testAnswer, testQuestion } from "#test-utils/factories.ts";
 import { setupQuestionPageTest, tShirtQuestion } from "./fixtures.ts";
 
@@ -38,15 +39,14 @@ describe("adminAnswerEditPage", () => {
   afterAll(resetFeaturePageTest);
 
   test("renders the editable text pre-filled and the form action", () => {
-    assertStringIncludes(html, 'action="/admin/questions/1/answers/11/edit"');
-    assertStringIncludes(html, 'value="Large"');
-    assertStringIncludes(html, 'class="active" href="/admin/questions"');
-    // An active answer renders the box checked, as a checkbox valued "on", with
-    // one space between the input and its "Active" label.
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'action="/admin/questions/1/answers/11/edit"',
+      'value="Large"',
+      'class="active" href="/admin/questions"',
+      // An active answer renders the box checked, as a checkbox valued "on", with
+      // one space between the input and its "Active" label.
       '<input checked name="active" type="checkbox" value="on"> Active',
-    );
+    ]);
   });
 
   test("renders the active box unchecked for a deactivated answer", () => {
@@ -64,13 +64,11 @@ describe("adminAnswerEditPage", () => {
   });
 
   test("renders the editable selection total field with the stored value", () => {
-    assertStringIncludes(html, 'name="times_selected"');
-    assertStringIncludes(html, 'value="7"');
+    expectIncludesAll(html, ['name="times_selected"', 'value="7"']);
   });
 
   test("links back to the question", () => {
-    assertStringIncludes(html, 'href="/admin/questions/1"');
-    assertStringIncludes(html, "Back to question");
+    expectIncludesAll(html, ['href="/admin/questions/1"', "Back to question"]);
   });
 
   test("links to the recalculate flow", () => {
@@ -94,10 +92,12 @@ describe("adminAnswerEditPage", () => {
       modifiers,
       null,
     );
-    assertStringIncludes(html, "expected-actual-notice");
-    // Expected (rebuilt from attendee answers) then got (stored).
-    assertStringIncludes(html, "<strong>5</strong>");
-    assertStringIncludes(html, "<strong>7</strong>");
+    expectIncludesAll(html, [
+      "expected-actual-notice",
+      // Expected (rebuilt from attendee answers) then got (stored).
+      "<strong>5</strong>",
+      "<strong>7</strong>",
+    ]);
   });
 
   test("lists modifier options and marks the linked one selected", () => {
@@ -110,10 +110,12 @@ describe("adminAnswerEditPage", () => {
       modifiers,
       5,
     );
-    assertStringIncludes(html, '<select id="modifier_id" name="modifier_id">');
-    assertStringIncludes(html, "Large surcharge");
-    assertStringIncludes(html, "Tiny discount");
-    assertStringIncludes(html, '<option selected value="5">');
+    expectIncludesAll(html, [
+      '<select id="modifier_id" name="modifier_id">',
+      "Large surcharge",
+      "Tiny discount",
+      '<option selected value="5">',
+    ]);
   });
 
   test("says beside the selector that only answer-triggered modifiers appear here", () => {
@@ -167,16 +169,15 @@ describe("adminAnswerRecalculatePage", () => {
       snapshot,
       OWNER_SESSION,
     );
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       'action="/admin/questions/1/answers/11/recalculate"',
-    );
-    assertStringIncludes(html, 'class="active" href="/admin/questions"');
-    assertStringIncludes(html, '<div class="table-scroll">');
-    // Current (stored) and recalculated (from attendee answers) columns.
-    assertStringIncludes(html, "<td>7</td>");
-    assertStringIncludes(html, "<td>5</td>");
-    assertStringIncludes(html, 'name="recalculate_fields"');
+      'class="active" href="/admin/questions"',
+      '<div class="table-scroll">',
+      // Current (stored) and recalculated (from attendee answers) columns.
+      "<td>7</td>",
+      "<td>5</td>",
+      'name="recalculate_fields"',
+    ]);
   });
 
   test("renders an error flash", () => {

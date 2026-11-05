@@ -7,6 +7,7 @@ import { handleRequest } from "#routes";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   expectFlash,
+  expectIncludesAll,
   expectRedirect,
   FLASH_TEST_ID,
   flashCookieHeader,
@@ -122,12 +123,11 @@ describeWithEnv(
     describe("GET /contact", () => {
       test("renders the form with the public key when active", async () => {
         const html = await renderActiveContactForm();
-        assertStringIncludes(
-          html,
+        expectIncludesAll(html, [
           'data-botpoison-public-key="pk_test_public"',
-        );
-        assertStringIncludes(html, 'name="email"');
-        assertStringIncludes(html, 'name="message"');
+          'name="email"',
+          'name="message"',
+        ]);
       });
 
       test("loads the bundled contact widget script", async () => {
@@ -149,8 +149,10 @@ describeWithEnv(
         await settings.update.contactPageText("Reach us anytime");
         const response = await handleRequest(mockRequest("/contact"));
         const html = await response.text();
-        assertStringIncludes(html, "Reach us anytime");
-        assertStringIncludes(html, "data-botpoison-public-key");
+        expectIncludesAll(html, [
+          "Reach us anytime",
+          "data-botpoison-public-key",
+        ]);
       });
 
       test("shows the website title heading when one is configured", async () => {
@@ -158,8 +160,10 @@ describeWithEnv(
         await settings.update.websiteTitle("Acme Tickets");
         const response = await handleRequest(mockRequest("/contact"));
         const html = await response.text();
-        assertStringIncludes(html, "<h1>Acme Tickets</h1>");
-        assertStringIncludes(html, "<title>Contact - Acme Tickets</title>");
+        expectIncludesAll(html, [
+          "<h1>Acme Tickets</h1>",
+          "<title>Contact - Acme Tickets</title>",
+        ]);
       });
 
       test("renders a success flash after a redirect", async () => {
@@ -383,8 +387,7 @@ describeWithEnv(
   () => {
     test("renders the form without the Botpoison widget", async () => {
       const html = await renderActiveContactForm();
-      assertStringIncludes(html, 'name="email"');
-      assertStringIncludes(html, 'name="message"');
+      expectIncludesAll(html, ['name="email"', 'name="message"']);
       assert(!html.includes("data-botpoison-public-key"));
       assert(!html.includes("/contact.js"));
     });

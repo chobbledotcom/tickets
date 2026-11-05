@@ -6,6 +6,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 const render = (defaults: ListingDefaults = {}, hasLogistics = true): string =>
   adminListingDefaultsPage(OWNER_SESSION, defaults, hasLogistics);
@@ -27,27 +28,28 @@ describe("adminListingDefaultsPage", () => {
 
   test("draws a number control for a number default", () => {
     const html = render({ minimumDaysBefore: 3 });
-    assertStringIncludes(html, 'name="default_minimum_days_before"');
-    assertStringIncludes(html, 'value="3"');
+    expectIncludesAll(html, [
+      'name="default_minimum_days_before"',
+      'value="3"',
+    ]);
   });
 
   test("draws a url control for a url default", () => {
     const html = render({ webhookUrl: "https://example.com/hook" });
-    assertStringIncludes(html, 'name="default_webhook_url"');
-    assertStringIncludes(html, "https://example.com/hook");
+    expectIncludesAll(html, [
+      'name="default_webhook_url"',
+      "https://example.com/hook",
+    ]);
   });
 
   test("draws the day checkboxes, ticked for the chosen days", () => {
     const html = render({ bookableDays: ["Monday"] });
-    assertStringIncludes(html, "default_bookable_days_enabled");
-    assertStringIncludes(html, "Monday");
+    expectIncludesAll(html, ["default_bookable_days_enabled", "Monday"]);
   });
 
   test("offers no default, yes and no for a true/false default", () => {
     const html = render({}, true);
-    assertStringIncludes(html, "No default");
-    assertStringIncludes(html, 'value="1"');
-    assertStringIncludes(html, 'value="0"');
+    expectIncludesAll(html, ["No default", 'value="1"', 'value="0"']);
   });
 
   test("shows an error above the form when one is given", () => {

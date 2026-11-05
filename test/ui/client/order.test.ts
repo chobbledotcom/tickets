@@ -23,6 +23,7 @@
 import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import {
   addLink,
   adoptedCss,
@@ -202,9 +203,11 @@ describe("order widget", {
     mountOpenListing(h, true);
     const styles = adoptedCss(h);
 
-    assertStringIncludes(styles, "grid-template-columns: minmax(0, 1fr) auto");
-    assertStringIncludes(styles, ".stepper { grid-column: 1 / -1");
-    assertStringIncludes(styles, ".close { display: block; width: 100%");
+    expectIncludesAll(styles, [
+      "grid-template-columns: minmax(0, 1fr) auto",
+      ".stepper { grid-column: 1 / -1",
+      ".close { display: block; width: 100%",
+    ]);
   });
 
   test("falls back to a <style> element when the browser can't build a sheet", () => {

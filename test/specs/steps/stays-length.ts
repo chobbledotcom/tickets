@@ -34,6 +34,7 @@ import {
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import {
+  expectIncludesAll,
   expectListingActivityLogContains,
   expectListingActivityLogLacks,
 } from "#test-utils/assertions.ts";
@@ -123,11 +124,10 @@ Then(
   "the page says each booking lasts {int} days",
   function (this: TicketsWorld, days: number): void {
     const page = scenarioBrowser(this).pageText;
-    assertStringIncludes(page, t("listings_table.booking_duration"));
-    assertStringIncludes(
-      page,
+    expectIncludesAll(page, [
+      t("listings_table.booking_duration"),
       `${days} ${t("listings_table.day_count_with_parens")}`,
-    );
+    ]);
   },
 );
 
@@ -317,8 +317,7 @@ Then(
       `/admin/listing/${listingIdNamed(this, name)}/attendees`,
     );
     for (const { email, who } of [guest(1), guest(2)]) {
-      assertStringIncludes(browser.pageText, who);
-      assertStringIncludes(browser.pageText, email);
+      expectIncludesAll(browser.pageText, [who, email]);
     }
   },
 );

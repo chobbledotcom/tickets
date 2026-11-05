@@ -4,6 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { denoDeployApi, denoHostingProvider } from "#shared/deno-deploy-api.ts";
 import { okResult } from "#shared/result.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { withVirtualBackoff } from "#test-utils/virtual-time.ts";
@@ -72,8 +73,10 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
     const result = await denoDeployApi.createApp("bad");
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      assertStringIncludes(result.error, "Create app failed (400)");
-      assertStringIncludes(result.error, "Invalid slug");
+      expectIncludesAll(result.error, [
+        "Create app failed (400)",
+        "Invalid slug",
+      ]);
     }
   });
 
@@ -118,8 +121,10 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
     const result = await denoDeployApi.setEnvVars("app_pe", [["BAD VAR", "v"]]);
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      assertStringIncludes(result.error, "Set app env vars failed (422)");
-      assertStringIncludes(result.error, "invalid env var name");
+      expectIncludesAll(result.error, [
+        "Set app env vars failed (422)",
+        "invalid env var name",
+      ]);
     }
   });
   test("setEnvVar PATCHes one secret, production entry by default", async () => {
@@ -316,8 +321,10 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
     const result = await denoDeployApi.deployCode("app_missing", "code");
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      assertStringIncludes(result.error, "Deploy code failed (404)");
-      assertStringIncludes(result.error, "app not found");
+      expectIncludesAll(result.error, [
+        "Deploy code failed (404)",
+        "app not found",
+      ]);
     }
   });
 

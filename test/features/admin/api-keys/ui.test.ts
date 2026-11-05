@@ -10,6 +10,7 @@ import { buildSessionCookie } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import {
   expectFlash,
+  expectIncludesAll,
   expectRedirect,
   FLASH_TEST_ID,
   flashCookieHeader,
@@ -58,15 +59,16 @@ describeWithEnv("API keys admin UI", { db: true }, () => {
       const html = apiKeyForm.render();
       assertStringIncludes(html, "Name");
       const input = inputNamed(html, "name");
-      assertStringIncludes(input, 'maxlength="250"');
-      assertStringIncludes(input, 'placeholder="e.g. CI Pipeline"');
-      assertStringIncludes(input, "required");
+      expectIncludesAll(input, [
+        'maxlength="250"',
+        'placeholder="e.g. CI Pipeline"',
+        "required",
+      ]);
     });
 
     test("GET /admin/api-keys shows the page", async () => {
       const html = await getApiKeysHtml();
-      assertStringIncludes(html, "API Keys");
-      assertStringIncludes(html, "Create API key");
+      expectIncludesAll(html, ["API Keys", "Create API key"]);
     });
 
     test("GET /admin/api-keys shows existing keys with last used date", async () => {
@@ -94,8 +96,7 @@ describeWithEnv("API keys admin UI", { db: true }, () => {
 
       expect(response.status).toBe(200);
       const html = await response.text();
-      assertStringIncludes(html, "API Documentation");
-      assertStringIncludes(html, "Bearer");
+      expectIncludesAll(html, ["API Documentation", "Bearer"]);
     });
   });
 
@@ -107,8 +108,7 @@ describeWithEnv("API keys admin UI", { db: true }, () => {
 
     test("shows an error message from the flash cookie", async () => {
       const html = await getApiKeysHtml(flashCookieHeader("key failed", false));
-      assertStringIncludes(html, "key failed");
-      assertStringIncludes(html, "error");
+      expectIncludesAll(html, ["key failed", "error"]);
     });
 
     test("shows a success message without a newline (no new key)", async () => {
@@ -122,16 +122,15 @@ describeWithEnv("API keys admin UI", { db: true }, () => {
       // has an empty message and only the key. The copy panel must still
       // appear — the split runs on position 0, which is a found position.
       const html = await getApiKeysHtml(flashCookieHeader("\nBARE-KEY-123"));
-      assertStringIncludes(html, "Copy your API key now");
-      // The key sits in its code block, exactly, with no stray newline.
-      assertStringIncludes(html, "<code>BARE-KEY-123</code>");
-      // The page's own message is empty, so the only flash on the page is
-      // the layout backstop's — which sits first inside <main>. A non-empty
-      // page message would render inside the page body instead.
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        "Copy your API key now",
+        // The key sits in its code block, exactly, with no stray newline.
+        "<code>BARE-KEY-123</code>",
+        // The page's own message is empty, so the only flash on the page is
+        // the layout backstop's — which sits first inside <main>. A non-empty
+        // page message would render inside the page body instead.
         '<main id="main-content" tabindex="-1"><div class="success"',
-      );
+      ]);
     });
   });
 
@@ -188,8 +187,7 @@ describeWithEnv("API keys admin UI", { db: true }, () => {
         }),
       );
       const html = await redirectResponse.text();
-      assertStringIncludes(html, "API key created");
-      assertStringIncludes(html, "Copy your API key now");
+      expectIncludesAll(html, ["API key created", "Copy your API key now"]);
       expect(await storedFeatureEnabled("apiKeys")).toBe(true);
     });
 

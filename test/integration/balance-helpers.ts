@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { type Stub, stub } from "@std/testing/mock";
 import { requirePaidDefaultStatus } from "#db/attendee-statuses.ts";
@@ -8,6 +7,7 @@ import { handleRequest } from "#routes";
 import { signBalanceToken } from "#shared/balance-link.ts";
 import type { StripeCheckoutSession } from "#shared/stripe/schemas.ts";
 import { stripeApi } from "#shared/stripe.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import {
   createNonReservationAttendee,
   createReservedAttendee,
@@ -77,9 +77,11 @@ export const createNonReservation = async (
 
 /** Assert the pay page rendered the recap: title, listing name and amount due. */
 export const expectRecap = (html: string): void => {
-  assertStringIncludes(html, "Pay your balance");
-  assertStringIncludes(html, "Workshop Ticket");
-  assertStringIncludes(html, "Balance due");
+  expectIncludesAll(html, [
+    "Pay your balance",
+    "Workshop Ticket",
+    "Balance due",
+  ]);
 };
 
 /** GET /pay for an attendee's signed token; assert 200 and return the html. */

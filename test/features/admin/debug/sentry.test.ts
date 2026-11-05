@@ -4,6 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import {
   expectFlash,
+  expectIncludesAll,
   expectRedirect,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
@@ -48,10 +49,12 @@ describeWithEnv("server (admin Sentry test)", { db: true }, () => {
     const response = await adminGet("/admin/debug");
     const html = await response.text();
     expect(response.status).toBe(200);
-    assertStringIncludes(html, 'action="/admin/debug/sentry"');
-    assertStringIncludes(html, 'class="inline"');
-    assertStringIncludes(html, 'id="debug-sentry-test"');
-    assertStringIncludes(html, ">Test Sentry</button>");
+    expectIncludesAll(html, [
+      'action="/admin/debug/sentry"',
+      'class="inline"',
+      'id="debug-sentry-test"',
+      ">Test Sentry</button>",
+    ]);
   });
 
   test("hides the test form when Sentry is not configured", async () => {

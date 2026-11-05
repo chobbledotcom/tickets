@@ -22,6 +22,7 @@ import {
   startAgentField,
   startTimeField,
 } from "#routes/admin/attendee-logistics.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -39,19 +40,23 @@ describeWithEnv("attendee Logistics tab (GET)", { db: true }, () => {
     const listing = await createTestListing({ maxAttendees: 10 });
     const id = await makeAttendee("Tab Person", [{ listingId: listing.id }]);
     const html = await logisticsTabHtml(id);
-    assertStringIncludes(html, 'name="address"');
-    assertStringIncludes(html, 'name="lat"');
-    assertStringIncludes(html, 'name="lng"');
-    assertStringIncludes(html, "data-logistics-map hidden");
-    assertStringIncludes(html, "data-address-diff");
+    expectIncludesAll(html, [
+      'name="address"',
+      'name="lat"',
+      'name="lng"',
+      "data-logistics-map hidden",
+      "data-address-diff",
+    ]);
   });
 
   test("the tab strip links to the Logistics tab", async () => {
     const listing = await createTestListing({ maxAttendees: 10 });
     const id = await makeAttendee("Strip Person", [{ listingId: listing.id }]);
     const html = await logisticsTabHtml(id);
-    assertStringIncludes(html, `/admin/attendees/${id}/logistics`);
-    assertStringIncludes(html, ">Logistics<");
+    expectIncludesAll(html, [
+      `/admin/attendees/${id}/logistics`,
+      ">Logistics<",
+    ]);
   });
 
   test("404s for an unknown attendee", async () => {
@@ -111,8 +116,7 @@ describeWithEnv("attendee Logistics tab (POST)", { db: true }, () => {
     });
 
     const html = await logisticsTabHtml(id);
-    assertStringIncludes(html, 'value="51.5"');
-    assertStringIncludes(html, 'value="-0.1"');
+    expectIncludesAll(html, ['value="51.5"', 'value="-0.1"']);
     assert(!html.includes("data-logistics-map hidden"));
     assertStringIncludes(html, "data-logistics-map");
   });
@@ -152,9 +156,7 @@ describeWithEnv("attendee Logistics tab (POST)", { db: true }, () => {
     expect(response.status).toBe(400);
     const html = await response.text();
     // The submitted values survive the re-render; the stored blob does not change.
-    assertStringIncludes(html, "New Address");
-    assertStringIncludes(html, 'value="91"');
-    assertStringIncludes(html, "leave both empty");
+    expectIncludesAll(html, ["New Address", 'value="91"', "leave both empty"]);
     const saved = (await getAttendeeOrNull(id, await getTestPrivateKey()))!;
     expect(saved.address).toBe("");
     expect(saved.lat).toBe("");
@@ -192,8 +194,7 @@ describeWithEnv("attendee Logistics tab (POST)", { db: true }, () => {
     );
 
     const html = await logisticsTabHtml(id);
-    assertStringIncludes(html, 'name="logistics_start"');
-    assertStringIncludes(html, "Tab Van");
+    expectIncludesAll(html, ['name="logistics_start"', "Tab Van"]);
 
     await adminFormPost(`/admin/attendees/${id}/logistics`, {
       address: "Somewhere",

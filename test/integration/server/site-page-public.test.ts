@@ -9,6 +9,7 @@ import { handleRequest } from "#routes";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import {
   assertPublicHtml,
+  expectIncludesAll,
   expectRedirect,
   expectStatus,
 } from "#test-utils/assertions.ts";
@@ -52,14 +53,13 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
         metaTitle: "About | Acme",
       });
       const html = await assertPublicHtml("/page/about-us");
-      assertStringIncludes(html, "<h1>Page about-us</h1>");
-      assertStringIncludes(html, "<strong>world</strong>");
-      assertStringIncludes(html, "<title>About | Acme</title>");
-      // The description is escaped into the net-new meta tag.
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        "<h1>Page about-us</h1>",
+        "<strong>world</strong>",
+        "<title>About | Acme</title>",
+        // The description is escaped into the net-new meta tag.
         '<meta name="description" content="We sell &quot;things&quot; &amp; fun" />',
-      );
+      ]);
       // No items ⇒ no item list at all.
       assert(!html.includes('class="page-items"'));
       // The login footer is a homepage-only affordance (#69).
@@ -94,18 +94,14 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
       const html = await assertPublicHtml("/page/gallery-page");
       // The public page now shows the images an editor attached, as the same
       // CSS-only gallery the news post page uses.
-      assertStringIncludes(html, 'class="news-gallery"');
-      assertStringIncludes(html, "one.webp");
-      assertStringIncludes(html, 'alt="First alt"');
-      // Two images ⇒ a swappable thumbnail per image.
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        'class="news-gallery"',
+        "one.webp",
+        'alt="First alt"',
+        // Two images ⇒ a swappable thumbnail per image.
         '<label class="news-gallery-thumb" for="news-gallery-0">',
-      );
-      assertStringIncludes(
-        html,
         '<label class="news-gallery-thumb" for="news-gallery-1">',
-      );
+      ]);
     });
 
     test("renders no gallery when the page has no images", async () => {
@@ -158,18 +154,20 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
         await addPageItem(page.id, type, id);
       }
       const html = await assertPublicHtml("/page/catalogue");
-      assertStringIncludes(html, 'class="page-items"');
-      // Reachable targets link — including a parent with a bookable child;
-      // unreachable ones are plain text (never a dead link): inactive listing,
-      // child listing, sold-out parent, renewal tier, member-less group.
-      assertStringIncludes(html, `href="/ticket/${live.slug}"`);
-      assertStringIncludes(html, `href="/ticket/${parent.slug}"`);
-      assertStringIncludes(html, `href="/ticket/fg"`);
-      assertStringIncludes(html, "<span>Dead Listing</span>");
-      assertStringIncludes(html, "<span>Child Listing</span>");
-      assertStringIncludes(html, "<span>Starved Parent</span>");
-      assertStringIncludes(html, "<span>Tier Listing</span>");
-      assertStringIncludes(html, "<span>Empty Group</span>");
+      expectIncludesAll(html, [
+        'class="page-items"',
+        // Reachable targets link — including a parent with a bookable child;
+        // unreachable ones are plain text (never a dead link): inactive listing,
+        // child listing, sold-out parent, renewal tier, member-less group.
+        `href="/ticket/${live.slug}"`,
+        `href="/ticket/${parent.slug}"`,
+        `href="/ticket/fg"`,
+        "<span>Dead Listing</span>",
+        "<span>Child Listing</span>",
+        "<span>Starved Parent</span>",
+        "<span>Tier Listing</span>",
+        "<span>Empty Group</span>",
+      ]);
       assert(!html.includes(`href="/ticket/${dead.slug}"`));
       assert(!html.includes(`href="/ticket/${child.slug}"`));
       assert(!html.includes(`href="/ticket/${soldOutParent.slug}"`));
@@ -227,26 +225,19 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
       const html = await assertPublicHtml("/page/cleaning");
       // Desktop: the active root carries the nested subnav; the chain page is
       // marked active at each level, its sibling is not.
-      assertStringIncludes(html, 'class="admin-subnav"');
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        'class="admin-subnav"',
         `<a class="active" href="/page/services">Page services</a>`,
-      );
-      assertStringIncludes(
-        html,
         `<a class="active" href="/page/cleaning">Page cleaning</a>`,
-      );
-      assertStringIncludes(
-        html,
         `<a href="/page/gardening">Page gardening</a>`,
-      );
-      // The current page's own children are offered as the deepest level (N7).
-      assertStringIncludes(html, 'href="/page/windows"');
-      // Mobile: one stacked bar per level, named after its parent page (the
-      // ACTIVE chain page, not the sibling that happens to sort first).
-      assertStringIncludes(html, 'aria-label="Site menu"');
-      assertStringIncludes(html, 'aria-label="Page services"');
-      assertStringIncludes(html, 'aria-label="Page cleaning"');
+        // The current page's own children are offered as the deepest level (N7).
+        'href="/page/windows"',
+        // Mobile: one stacked bar per level, named after its parent page (the
+        // ACTIVE chain page, not the sibling that happens to sort first).
+        'aria-label="Site menu"',
+        'aria-label="Page services"',
+        'aria-label="Page cleaning"',
+      ]);
       assert(!html.includes('aria-label="Page gardening"'));
     });
 

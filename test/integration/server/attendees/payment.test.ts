@@ -12,6 +12,7 @@ import {
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
+  expectIncludesAll,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import {
@@ -129,8 +130,7 @@ describeWithEnv(
         const html = await response.text();
         expect(response.status).toBe(200);
         // Both badges render, separated by the space between them.
-        assertStringIncludes(html, "Checked in");
-        assertStringIncludes(html, "Refunded");
+        expectIncludesAll(html, ["Checked in", "Refunded"]);
       });
 
       test("shows success message when flash cookie present", async () => {

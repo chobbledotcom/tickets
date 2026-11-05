@@ -10,6 +10,7 @@ import {
   detailHtml,
   registerListingTemplateHooks,
 } from "#test/ui/templates/admin/listings/helpers.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 
 const listing = () => testListingWithCount({ attendee_count: 3 });
@@ -38,18 +39,11 @@ describe("adminListingPage roster sort", () => {
 
   test("offers its own order plus the two registration orders", () => {
     const html = detailHtml(listing(), { attendees: trio() });
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       "Sort: <strong><u>By date and name</u></strong>",
-    );
-    assertStringIncludes(
-      html,
       'href="/admin/listing/1/attendees?sort=newest">Newest first</a>',
-    );
-    assertStringIncludes(
-      html,
       'href="/admin/listing/1/attendees?sort=oldest">Oldest first</a>',
-    );
+    ]);
   });
 
   test("orders by name (its own order) when no sort is chosen", () => {

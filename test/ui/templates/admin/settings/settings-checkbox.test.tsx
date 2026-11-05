@@ -4,16 +4,19 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { SettingsCheckbox } from "#templates/admin/settings/settings-checkbox.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 describe("SettingsCheckbox", () => {
   test("posts true when ticked, with its label text beside it", () => {
     const html = String(
       SettingsCheckbox({ checked: true, label: "Enabled", name: "enabled" }),
     );
-    assertStringIncludes(html, '<input checked name="enabled"');
-    assertStringIncludes(html, '<input checked name="enabled" type="checkbox"');
-    assertStringIncludes(html, "> Enabled</label>");
-    assertStringIncludes(html, 'type="checkbox" value="true"');
+    expectIncludesAll(html, [
+      '<input checked name="enabled"',
+      '<input checked name="enabled" type="checkbox"',
+      "> Enabled</label>",
+      'type="checkbox" value="true"',
+    ]);
   });
 
   test("keeps the label unstyled when no class is asked for", () => {
@@ -51,11 +54,10 @@ describe("SettingsCheckbox", () => {
         name: "is_paid_default",
       }),
     );
-    assertStringIncludes(html, 'data-exclusive-with="is_reservation"');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'data-exclusive-with="is_reservation"',
       'data-exclusive-why="A paid status can\'t also be a reservation"',
-    );
+    ]);
   });
 
   test("renders no data attributes when no pair is declared", () => {

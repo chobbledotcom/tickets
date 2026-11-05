@@ -1,5 +1,6 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestListing,
@@ -237,8 +238,7 @@ describeWithEnv(
       const html = await bookingPageHtml(`${parent.slug}+${sibling.slug}`);
       // Both options survive: the multi-listing page is not constrained by the
       // parent's 2-day-only child (which on its own page would drop the 1-day).
-      assertStringIncludes(html, ">1 day");
-      assertStringIncludes(html, ">2 days");
+      expectIncludesAll(html, [">1 day", ">2 days"]);
     });
 
     test("a customisable parent builds its day-count union from SELECTABLE children only", async () => {

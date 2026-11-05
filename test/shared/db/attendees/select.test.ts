@@ -21,6 +21,7 @@ import {
   attendeeBatchStatement,
   attendeeColumns,
 } from "#db/attendees/select.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 /** The filter and order half of an attendee read — everything from `FROM`
  * onwards — plus its bound values. Field selection is covered separately, so
@@ -96,22 +97,12 @@ describe("attendeeColumns", () => {
 
   test("a LEFT join COALESCEs the cheap per-listing columns; an INNER join does not", () => {
     const left = attendeeColumns("left", ["attachment_downloads"], "attendee");
-    assertStringIncludes(
-      left,
+    expectIncludesAll(left, [
       "COALESCE(listingAttendee.listing_id, 0) as listing_id",
-    );
-    assertStringIncludes(
-      left,
       "COALESCE(listingAttendee.quantity, 0) as quantity",
-    );
-    assertStringIncludes(
-      left,
       "COALESCE(listingAttendee.checked_in, 0) as checked_in",
-    );
-    assertStringIncludes(
-      left,
       "COALESCE(listingAttendee.attachment_downloads, 0) as attachment_downloads",
-    );
+    ]);
 
     const inner = attendeeColumns(
       "inner",
@@ -119,8 +110,10 @@ describe("attendeeColumns", () => {
       "attendee",
     );
     assert(!inner.includes("COALESCE(listingAttendee.listing_id"));
-    assertStringIncludes(inner, "listingAttendee.listing_id");
-    assertStringIncludes(inner, "listingAttendee.attachment_downloads");
+    expectIncludesAll(inner, [
+      "listingAttendee.listing_id",
+      "listingAttendee.attachment_downloads",
+    ]);
   });
 
   test("omitting the money fields makes the column list strictly shorter", () => {
@@ -246,13 +239,12 @@ describe("attendee filter and order SQL", () => {
         before: "2026-07-13T00:00:00Z",
       },
     });
-    assertStringIncludes(
-      from,
+    expectIncludesAll(from, [
       "JOIN listings AS listing ON listingAttendee.listing_id = listing.id",
-    );
-    assertStringIncludes(from, "listing.listing_type = 'daily'");
-    assertStringIncludes(from, "listingAttendee.start_at < ?");
-    assertStringIncludes(from, "listingAttendee.end_at > ?");
+      "listing.listing_type = 'daily'",
+      "listingAttendee.start_at < ?",
+      "listingAttendee.end_at > ?",
+    ]);
     // before fills the `< ?` bound, after the `> ?` bound.
     expect(args).toEqual(["2026-07-13T00:00:00Z", "2026-07-12T00:00:00Z"]);
   });

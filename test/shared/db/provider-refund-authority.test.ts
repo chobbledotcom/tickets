@@ -23,6 +23,7 @@ import {
   markRefundObservationDue,
   readyRefund,
 } from "#payment/refund-authority.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { gbp } from "#test-utils/payment-state.ts";
@@ -99,8 +100,10 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
       "updated_at",
       "observed_at",
     ]);
-    assertStringIncludes(insert, "ON CONFLICT DO UPDATE");
-    assertStringIncludes(insert, "RETURNING id, provider, reference_index");
+    expectIncludesAll(insert, [
+      "ON CONFLICT DO UPDATE",
+      "RETURNING id, provider, reference_index",
+    ]);
     assert(!insert.includes("INSERT OR IGNORE"));
     expect(insert.match(/\?/gu)?.length).toBe(16);
     expect(queries.filter((sql) => sql.includes("payment_charges"))).toEqual([
