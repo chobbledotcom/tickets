@@ -216,9 +216,9 @@ At these limits, the strict scans found these clones:
 
 | Scan                  | minTokens | Clones |
 | --------------------- | --------: | -----: |
-| `.jscpd.json`         |        40 |  1,364 |
+| `.jscpd.json`         |        40 |  1,192 |
 | `.jscpd.test.json`    |        48 | 13,111 |
-| `.jscpd.helpers.json` |        40 |  1,382 |
+| `.jscpd.helpers.json` |        40 |    941 |
 | `.jscpd.support.json` |        40 |     17 |
 
 Each scan holds these clones in its committed baseline and runs with
@@ -231,6 +231,15 @@ After a merge, run the scan with `--update` to remove the fixed clones.
 
 Each TypeScript scan skips import and re-export statements through its
 `ignorePattern` list. Source files carry no ignore markers around imports.
+
+With literals ignored, two long lists of strings match, for example two word
+lists of the band-name generator. A list of strings is data, and no helper can
+share it. Each declared list that holds only strings is wrapped in
+`/* jscpd:ignore-start -- a list of strings, not code */` and
+`/* jscpd:ignore-end */`. The rule does not cover SQL text, such as the check
+rules in `charges.ts`, or the message group lists inside the `area(...)` calls
+in `area-loaders.ts`. Markers inside a call cut the long matches into many
+short matches of the call shape.
 
 After each scan, `scripts/cpd.ts` names the worst duplication in the report.
 jscpd reports pairs, so the pairs that share a place make one family. The

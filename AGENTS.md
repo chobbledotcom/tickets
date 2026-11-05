@@ -505,9 +505,14 @@ pair is one merge:
   Never add a clone to these baselines.
 - After each scan, `deno task cpd` names the worst duplication: the code in the
   most places, then the code with the most tokens. Merge that one first.
-- Import and re-export statements are the one sanctioned repeat. The
+- Import and re-export statements are a sanctioned repeat. The
   `ignorePattern` list in each config skips them, so do not add ignore markers
   around imports.
+- A declared list of strings is the other sanctioned repeat. The strict scans
+  ignore literals, so two long word lists match. Wrap the whole declaration in
+  `/* jscpd:ignore-start -- a list of strings, not code */` and
+  `/* jscpd:ignore-end */`. Wrap only a declaration that holds nothing but
+  strings. Never wrap code, SQL text, or a list inside a call.
 
 `docs/test-duplication.md` measures the remaining steps. Read its counts as work
 to do.

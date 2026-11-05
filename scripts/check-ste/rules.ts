@@ -28,6 +28,7 @@ const WORDY: Record<string, string> = {
   utilize: 'write "use"',
 };
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** The irregular past participles the present-perfect rule knows by heart.
  * A word whose noun reading forms a compound directly after had stays off
  * the list: "cost overruns", "ground beef". */
@@ -126,6 +127,7 @@ const PARTICIPLES = [
   "worn",
   "written",
 ];
+/* jscpd:ignore-end */
 
 /** -ed words that are nouns or the adverb "indeed", not participles: had
  * and have take them as objects, so they name no present perfect. */

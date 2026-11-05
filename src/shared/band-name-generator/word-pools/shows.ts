@@ -1,5 +1,6 @@
 /** Show items, prizes, rules, and the small filler pools (numbers, times, connectors). */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** Concrete things you see, smell, or regret at a gig */
 export const SHOW_ITEMS = [
   "denim",
@@ -54,7 +55,9 @@ export const SHOW_ITEMS = [
   "expired pizza vouchers",
   "improvised mosh choreography",
 ] as const;
+/* jscpd:ignore-end */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** Karaoke / dress-up prize categories */
 export const PRIZES = [
   "biggest hair",
@@ -78,7 +81,9 @@ export const PRIZES = [
   "most emphatic horns-up gesture",
   "best Joe-Cocker-style face",
 ] as const;
+/* jscpd:ignore-end */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** Things that are absolutely not allowed at this gig */
 export const PROHIBITIONS = [
   "stage diving onto the pizza",
@@ -115,7 +120,9 @@ export const PROHIBITIONS = [
   "audible sighs during solos",
   "inappropriately enthusiastic kazoo work",
 ] as const;
+/* jscpd:ignore-end */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** Items of clothing or attire that are notionally compulsory */
 export const REQUIREMENTS = [
   "sequins",
@@ -147,7 +154,9 @@ export const REQUIREMENTS = [
   "regrettable haircuts",
   "tour T-shirts (preferably someone else's)",
 ] as const;
+/* jscpd:ignore-end */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** Predictable consequences of attending the gig */
 export const AUDIENCE_OUTCOMES = [
   "regret",
@@ -175,7 +184,9 @@ export const AUDIENCE_OUTCOMES = [
   "incoherent stories",
   "second-hand glitter",
 ] as const;
+/* jscpd:ignore-end */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** Audience-eligibility blurbs */
 export const AGE_NOTES = [
   "all ages welcome",
@@ -194,7 +205,9 @@ export const AGE_NOTES = [
   "well-behaved teens permitted",
   "responsible adults preferred",
 ] as const;
+/* jscpd:ignore-end */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** Prepositional phrases connecting clauses without being entirely hard-coded */
 export const CONNECTORS = [
   "with",
@@ -216,7 +229,9 @@ export const CONNECTORS = [
   "loosely supervised by",
   "barely tolerated by",
 ] as const;
+/* jscpd:ignore-end */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** Spelled-out small numbers for descriptions */
 export const NUMBER_WORDS = [
   "two",
@@ -240,7 +255,9 @@ export const NUMBER_WORDS = [
   "approximately seven",
   "exactly one",
 ] as const;
+/* jscpd:ignore-end */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** Wildly out-of-place instruments for novelty descriptions */
 export const ODD_INSTRUMENTS = [
   "theremin",
@@ -284,7 +301,9 @@ export const ODD_INSTRUMENTS = [
   "bicycle bell choir",
   "amplified beard",
 ] as const;
+/* jscpd:ignore-end */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** Common gig start times (24h-style hours) */
 export const TIMES = [
   "6",
@@ -298,3 +317,4 @@ export const TIMES = [
   "11",
   "midnight",
 ] as const;
+/* jscpd:ignore-end */
