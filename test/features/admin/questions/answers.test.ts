@@ -207,7 +207,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         "#db/questions/queries.ts"
       );
       const question = await getQuestionWithAnswers(qId);
-      expect(question!.answers.find((a) => a.id === aId)).toBeUndefined();
+      expect(question!.answers.map((a) => a.id)).not.toContain(aId);
       assertArrayIncludes(await activityMessages(), [
         `Answer 'Goodbye Answer' deleted from question ${qId}`,
       ]);
@@ -234,7 +234,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         "#db/questions/queries.ts"
       );
       const question = await getQuestionWithAnswers(qId);
-      expect(question!.answers.find((a) => a.id === aId)).toBeTruthy();
+      expect(question!.answers.map((a) => a.id)).toContain(aId);
     });
 
     test("rejects deletion when confirm_identifier is missing", async () => {

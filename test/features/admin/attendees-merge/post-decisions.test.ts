@@ -4,7 +4,7 @@ import { getAttendeeAnswersByQuestion } from "#db/questions/attendee-answers/rea
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import {
-  mergeWithAnswerConflict,
+  expectAnswerConflictMerged,
   submitBookingDecision,
 } from "#test-utils/attendees/merge.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -41,12 +41,13 @@ describeWithEnv(
     });
 
     test("a source answer decision takes the source's answer and logs it", async () => {
-      const { a2, listing1, response, target } = await mergeWithAnswerConflict(
-        "Size?",
-        ["first", "second"],
-        "source",
-        "source",
-      );
+      const { a2, listing1, response, target } =
+        await expectAnswerConflictMerged(
+          "Size?",
+          ["first", "second"],
+          "source",
+          "source",
+        );
       expect(response.status).toBe(302);
       expect(await answerOf(target.id, a2!.question_id)).toBe(a2!.id);
 
@@ -58,14 +59,15 @@ describeWithEnv(
     });
 
     test("a clear answer decision drops the answer and logs it", async () => {
-      const { a1, listing1, response, target } = await mergeWithAnswerConflict(
-        "Diet?",
-        ["first", "second"],
-        "clear",
-        "target",
-      );
+      const { a1, listing1, response, target } =
+        await expectAnswerConflictMerged(
+          "Diet?",
+          ["first", "second"],
+          "clear",
+          "target",
+        );
       expect(response.status).toBe(302);
-      expect(await answerOf(target.id, a1.question_id)).toBeUndefined();
+      expect(await answerOf(target.id, a1.question_id)).toBe(undefined);
 
       // Keeping the target's name names the merged person after the target.
       expect(await mergeLog(listing1.id)).toBe(

@@ -83,7 +83,7 @@ describe("finding a row's own arrow", () => {
   /** A page whose Confirmed row carries a move-up arrow that posts to
    * postsTo, served by a recording browser. Moving the row up sends that
    * form, so the send must be a POST to the arrow's own address. */
-  const pressingUpSendsTo = async (
+  const expectPressingUpSendsTo = async (
     postsTo: string,
     listPath: string | ((world: TicketsWorld) => string),
     mover: TicketsWorld,
@@ -103,12 +103,12 @@ describe("finding a row's own arrow", () => {
   };
 
   test("presses the row's own arrow, sending its form where it posts", async () => {
-    await pressingUpSendsTo(`${LIST}/7/move-up`, LIST, world);
+    await expectPressingUpSendsTo(`${LIST}/7/move-up`, LIST, world);
   });
 
   test("reads a list path the world carries", async () => {
     const path = `${LIST}/7/answers`;
-    await pressingUpSendsTo(
+    await expectPressingUpSendsTo(
       `${path}/7/move-up`,
       (w: TicketsWorld) => `${LIST}/${w.listingId}/answers`,
       { listingId: 7 } as TicketsWorld,

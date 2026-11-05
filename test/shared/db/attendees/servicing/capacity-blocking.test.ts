@@ -111,15 +111,15 @@ describeWithEnv("servicing §2 — capacity blocking", { db: true }, () => {
   });
 
   test("group remaining returns undefined for a missing listing id", async () => {
-    expect(
-      await getGroupRemainingForListing(999_999, "2026-07-01"),
-    ).toBeUndefined();
+    expect(await getGroupRemainingForListing(999_999, "2026-07-01")).toBe(
+      undefined,
+    );
   });
 
   test("listing range remaining returns undefined for a missing listing id", async () => {
-    expect(
-      await getListingRemainingForRange(999_999, "2026-07-01"),
-    ).toBeUndefined();
+    expect(await getListingRemainingForRange(999_999, "2026-07-01")).toBe(
+      undefined,
+    );
   });
 
   test("servicing on a standard listing consumes cumulative capacity", async () => {

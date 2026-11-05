@@ -118,7 +118,9 @@ describeWithEnv(
         const log = (await getListingActivityLog(listing.id)).find((l) =>
           l.message.includes("Incomplete attendee deleted"),
         );
-        expect(log).toBeDefined();
+        expect(log?.message).toBe(
+          `Incomplete attendee deleted from '${listing.name}'`,
+        );
 
         // The delete releases the booking by default, so the reserved spot is
         // freed (booked count returns to zero).

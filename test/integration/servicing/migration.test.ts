@@ -52,7 +52,6 @@ const columnDefault = async (): Promise<string | null> => {
 describe("servicing §1 — schema declares the kind column + index", () => {
   test("the attendees schema carries a NOT NULL kind column defaulting to ATTENDEE_KIND", () => {
     const kindCol = attendeesTable.columns.find(([name]) => name === "kind");
-    expect(kindCol).toBeDefined();
     const [, type] = kindCol!;
     expect(type).toMatch(/NOT NULL/);
     assertStringIncludes(type, ATTENDEE_KIND);
@@ -142,7 +141,7 @@ describe("servicing §1 — schema and migration stay in sync", () => {
         };
       }
     ).requires;
-    expect(requires?.columns?.kind).toBeDefined();
+    expect(requires?.columns?.kind).toEqual(["attendees.kind"]);
     assertArrayIncludes(requires?.indexes ?? [], ["idx_attendees_kind"]);
   });
 });

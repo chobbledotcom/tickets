@@ -55,9 +55,9 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
       const listing = await createTestListing({ maxAttendees: 5 });
       const ctx = await ticketContext([listing.id]);
 
-      expect(
-        computeListingAnswerMap(ctx, answerInfo(ctx, listing.id)),
-      ).toBeUndefined();
+      expect(computeListingAnswerMap(ctx, answerInfo(ctx, listing.id))).toBe(
+        undefined,
+      );
     });
 
     test("gives text answers their stored string ids, keyed per listing", async () => {
@@ -87,7 +87,7 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
 
       expect(
         await computeListingTextAnswerIdMap(ctx, answerInfo(ctx, listing.id)),
-      ).toBeUndefined();
+      ).toBe(undefined);
     });
   });
 });

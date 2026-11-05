@@ -269,7 +269,7 @@ describeWithEnv(
           // GET is the default method (no explicit method on the request init).
           expect(
             (fetchStub.calls[0]!.args[1] as RequestInit | undefined)?.method,
-          ).toBeUndefined();
+          ).toBe(undefined);
         },
       );
     });

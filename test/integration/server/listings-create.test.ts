@@ -202,8 +202,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
       expectStatus(400)(response);
 
       const listings = await getAllListings();
-      const match = listings.find((e) => e.name === "Bad Group Listing");
-      expect(match).toBeUndefined();
+      expect(listings.map((e) => e.name)).not.toContain("Bad Group Listing");
     });
 
     test("rejects listing type mismatch with group on create", async () => {

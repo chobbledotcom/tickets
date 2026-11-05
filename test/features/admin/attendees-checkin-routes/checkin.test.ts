@@ -108,7 +108,9 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       const log = (await getListingActivityLog(listing.id)).find((l) =>
         l.message.includes("checked in"),
       );
-      expect(log).toBeDefined();
+      expect(log?.message).toBe(
+        `Attendee checked in 1 ticket for '${listing.name}'`,
+      );
     });
 
     // Regression: the paired load used to read the attendee's first booking

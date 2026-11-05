@@ -26,7 +26,7 @@ import { adminFormPost, adminGet } from "#test-utils/session.ts";
  *  skipped, choosing `money` ("credit"/"writeoff") for the discarded charge,
  *  then assert the flash and activity-log messages. The two money-decision
  *  tests differ only in that decision and the resulting wording. */
-const runMoneyDecisionMerge = async (
+const expectMoneyDecisionMerge = async (
   money: string,
   paymentId: string,
   expectedFlash: string,
@@ -307,7 +307,7 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
     });
 
     test("POST merge credits a discarded paid conflict's money", async () => {
-      await runMoneyDecisionMerge(
+      await expectMoneyDecisionMerge(
         "credit",
         "pi_merge_credit",
         "Merged John Smith into Jane Doe. 1 booking(s) skipped. 1 payment(s) credited",
@@ -316,7 +316,7 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
     });
 
     test("POST merge writes off a discarded paid conflict's money", async () => {
-      await runMoneyDecisionMerge(
+      await expectMoneyDecisionMerge(
         "writeoff",
         "pi_merge_writeoff",
         "Merged John Smith into Jane Doe. 1 booking(s) skipped. 1 payment(s) written off",

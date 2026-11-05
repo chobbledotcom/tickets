@@ -56,7 +56,7 @@ describe("the story's shared lookups", () => {
       expect(getEnv("TICKETS_WORLD_TEST")).toBe("on");
 
       await cleanup.runAll();
-      expect(getEnv("TICKETS_WORLD_TEST")).toBeUndefined();
+      expect(getEnv("TICKETS_WORLD_TEST")).toBe(undefined);
     });
   });
 

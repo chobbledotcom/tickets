@@ -266,7 +266,7 @@ describeWithEnv("admin payment review action", { db: true }, () => {
       expectRedirect(response, actionsUrl(context.attendeeId));
       const flash = parseFlashCookie(response);
       expect(flash.info).toBe(NOTHING);
-      expect(flash.formToken).toBeUndefined();
+      expect(flash.formToken).toBe(undefined);
       expect(await paymentReviewActivity(context.attendeeId)).toEqual([]);
     });
 

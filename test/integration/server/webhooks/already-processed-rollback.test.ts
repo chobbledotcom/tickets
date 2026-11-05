@@ -166,7 +166,7 @@ describeWithEnv(
         200,
         (json) => {
           expect(json.processed).toBe(true);
-          expect(json.error).toBeUndefined();
+          expect(json).not.toHaveProperty("error");
         },
       );
     });

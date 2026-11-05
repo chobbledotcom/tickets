@@ -12,10 +12,10 @@ import {
 } from "#test-utils/attendees/helpers.ts";
 import {
   assignMergeAnswers,
-  mergeNonConflictingAnswer,
+  expectAnswerConflictMerged,
+  expectNonConflictingAnswerMerged,
   mergePair,
   mergePairWithQuestion,
-  mergeWithAnswerConflict,
   submitBookingDecision,
   submitMerge,
 } from "#test-utils/attendees/merge.ts";
@@ -55,7 +55,7 @@ describeWithEnv(
       });
 
       test("POST merge applies selected answer winners", async () => {
-        const { response } = await mergeWithAnswerConflict(
+        const { response } = await expectAnswerConflictMerged(
           "Size?",
           ["Small", "Large"],
           "source",
@@ -91,19 +91,19 @@ describeWithEnv(
       });
 
       test("POST merge with clear answer choice clears the answer", async () => {
-        await mergeWithAnswerConflict("Diet?", ["Vegan", "Keto"], "clear");
+        await expectAnswerConflictMerged("Diet?", ["Vegan", "Keto"], "clear");
       });
 
       test("POST merge with target answer choice keeps target answer", async () => {
-        await mergeWithAnswerConflict("Shirt?", ["M", "L"], "target");
+        await expectAnswerConflictMerged("Shirt?", ["M", "L"], "target");
       });
 
       test("POST merge auto-adopts source-only non-conflicting answer", async () => {
-        await mergeNonConflictingAnswer("Colour?", "Green", "source");
+        await expectNonConflictingAnswerMerged("Colour?", "Green", "source");
       });
 
       test("POST merge keeps target-only non-conflicting answer", async () => {
-        await mergeNonConflictingAnswer("Food?", "Pizza", "target");
+        await expectNonConflictingAnswerMerged("Food?", "Pizza", "target");
       });
 
       test("take_source on one path leaves the target's other package path alone", async () => {

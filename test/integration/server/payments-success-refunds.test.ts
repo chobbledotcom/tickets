@@ -286,7 +286,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         const ghost = (await getAttendeesRaw(listing.id)).find(
           (a) => a.quantity === 0,
         );
-        expect(ghost).toBeDefined();
+        expect(ghost?.quantity).toBe(0);
         expect(await getNoteRows("attendee", [ghost!.id])).toHaveLength(1);
       } finally {
         mockRetrieve.restore();
@@ -357,10 +357,9 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         // The paid customer is never lost: a quantity-0 ghost is kept on listing1
         // (not rolled back to nothing).
         const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
-        const ghost1 = (await getAttendeesRaw(listing1.id)).find(
-          (a) => a.quantity === 0,
-        );
-        expect(ghost1).toBeDefined();
+        expect(
+          (await getAttendeesRaw(listing1.id)).map((a) => a.quantity),
+        ).toContain(0);
       } finally {
         mockRetrieve.restore();
         mockRefund.restore();

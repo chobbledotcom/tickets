@@ -59,7 +59,7 @@ describeWithEnv("servicing §22 - cost idempotency", { db: true }, () => {
     await postCost(key);
     const retried = await postCost(key);
     expect(retried.status).toBe(302);
-    expect(parseFlashCookie(retried).error).toBeUndefined();
+    expect(parseFlashCookie(retried).error).toBe(undefined);
     expectFlashSuccess(retried);
     expect((await transfersOfKind(KIND.serviceCost)).length).toBe(1);
     expect(await listingCostOf(listing.id)).toBe(9000);
@@ -84,7 +84,7 @@ describeWithEnv("servicing §22 - cost idempotency", { db: true }, () => {
     const changed = await postCost("50.00");
     expect((await transfersOfKind(KIND.serviceCost)).length).toBe(1);
     expect(await listingCostOf(listing.id)).toBe(9000);
-    expect(parseFlashCookie(changed).success).toBeUndefined();
+    expect(parseFlashCookie(changed).success).toBe(undefined);
     expectFlashError(changed);
     const costs = await getServicingCosts(id);
     expect(costs.map((cost) => cost.amount)).toEqual([9000]);
@@ -105,7 +105,7 @@ describeWithEnv("servicing §22 - cost idempotency", { db: true }, () => {
     await postCost("Original memo");
     const changed = await postCost("Edited memo");
     expect(changed.status).toBe(302);
-    expect(parseFlashCookie(changed).success).toBeUndefined();
+    expect(parseFlashCookie(changed).success).toBe(undefined);
     expectFlashError(changed);
     const costs = await getServicingCosts(id);
     expect(costs).toHaveLength(1);

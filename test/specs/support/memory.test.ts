@@ -35,7 +35,7 @@ describe("what a story remembers", () => {
   });
 
   test("says nothing was kept, rather than failing, when only asked", () => {
-    expect(namedThings().recall("listing", "the Pottery")).toBeUndefined();
+    expect(namedThings().recall("listing", "the Pottery")).toBe(undefined);
   });
 
   test("names the kind and the name when the story never set one up", () => {

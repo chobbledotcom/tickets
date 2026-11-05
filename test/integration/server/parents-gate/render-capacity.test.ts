@@ -10,10 +10,10 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   bookingPageHtml,
-  bookOneOfEachFold,
   bookParent,
   childField,
   expectNoBooking,
+  expectOneOfEachFolded,
   expectRejectedBooking,
   expectReserved,
   makeParent,
@@ -194,7 +194,7 @@ describeWithEnv(
         parent: { maxAttendees: 100, maxQuantity: 5 },
       });
       const [childA, childB] = [children[0]!, children[1]!];
-      await bookOneOfEachFold(parent, childA, childB);
+      await expectOneOfEachFolded(parent, childA, childB);
     });
 
     test("two children sharing one capped group with the parent cap by combined demand, not naive sum", async () => {

@@ -22,7 +22,7 @@ const SINGLE_PULL_ZONE = [{ Id: 222 }];
 /** Call a derived lookup while bunnyCdnApi.getEdgeScript is replaced, and
  *  expect the replacement's result: the lookups must route through that
  *  entry, so the fetch stub below stays unused. */
-const viaReplacedEdgeScript = async (
+const expectViaReplacedEdgeScript = async (
   call: () => Promise<unknown>,
   expected: unknown,
 ): Promise<void> => {
@@ -128,7 +128,7 @@ describeWithEnv(
     });
 
     test("goes through the bunnyCdnApi.getEdgeScript entry", async () => {
-      await viaReplacedEdgeScript(() => bunnyCdnApi.findPullZoneId(), {
+      await expectViaReplacedEdgeScript(() => bunnyCdnApi.findPullZoneId(), {
         id: 222,
         ok: true,
       });
@@ -170,7 +170,7 @@ describeWithEnv(
     });
 
     test("goes through the bunnyCdnApi.getEdgeScript entry", async () => {
-      await viaReplacedEdgeScript(() => bunnyCdnApi.getCdnHostname(), {
+      await expectViaReplacedEdgeScript(() => bunnyCdnApi.getCdnHostname(), {
         hostname: "mysite.b-cdn.net",
         ok: true,
       });

@@ -46,7 +46,7 @@ describeWithEnv(
       await withRequestContext(async () => {
         const out = await renderCtx(pageCtx({ id: 1, type: "listing" }));
         expect("nav" in out).toBe(true);
-        expect(out.attributesByListing).toBeDefined();
+        expect(out.attributesByListing).toEqual(new Map());
         expect(out.groupIdsByListingId).toBeInstanceOf(Map);
         expect(out.groupRemainingByGroupId).toBeInstanceOf(Map);
         expect(out.listings.map((entry) => entry.listing.id)).toEqual([1]);

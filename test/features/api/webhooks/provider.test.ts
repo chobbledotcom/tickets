@@ -191,7 +191,7 @@ describeWithEnv("server (payment webhook edge cases)", { db: true }, () => {
       }),
       (j) => {
         expect(j.received).toBe(true);
-        expect(j.processed).toBeUndefined();
+        expect(j).not.toHaveProperty("processed");
         expect(logLogged(D, "unrecognized payment session")).toBe(true);
         expect(logLogged(D, "pi_unrec3")).toBe(false);
       },
@@ -215,7 +215,7 @@ describeWithEnv("server (payment webhook edge cases)", { db: true }, () => {
       }),
       (j) => {
         expect(j.received).toBe(true);
-        expect(j.processed).toBeUndefined();
+        expect(j).not.toHaveProperty("processed");
         expect(logLogged(D, "unverifiable session")).toBe(true);
         expect(logLogged(D, "pi_uv3")).toBe(false);
         expect(logLogged(D, "f@e.com")).toBe(false);

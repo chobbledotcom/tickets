@@ -143,7 +143,7 @@ describeWithEnv(
         200,
         (json) => {
           expect(json.received).toBe(true);
-          expect(json.processed).toBeUndefined();
+          expect(json).not.toHaveProperty("processed");
         },
       );
     });

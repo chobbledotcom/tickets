@@ -4,11 +4,11 @@ import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
-  bookOneOfEachFold,
   bookParent,
   childField,
   expectFoldedLine,
   expectNoBooking,
+  expectOneOfEachFolded,
   expectRejectedBooking,
   expectReserved,
   makeParent,
@@ -90,7 +90,7 @@ describeWithEnv(
       const { parent, childA, childB } = await makeTwoDefaultChildren({
         maxQuantity: 5,
       });
-      await bookOneOfEachFold(parent, childA, childB);
+      await expectOneOfEachFolded(parent, childA, childB);
     });
 
     // Child-quantity validation rejections: each builds a 2-child parent named
