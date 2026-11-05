@@ -1,4 +1,4 @@
-import type { MessageGroup } from "#locales/manifest.ts";
+import type { MessageGroup } from "#locales/message-groups.generated.ts";
 
 /** Copy used by the admin layout itself, independent of the page it wraps. */
 export const ADMIN_SHELL_MESSAGE_GROUPS = [

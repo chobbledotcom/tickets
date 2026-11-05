@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * What one read of a payment provider's records can come back as. Every read
  * lands in exactly one of four states. A caller can therefore never confuse

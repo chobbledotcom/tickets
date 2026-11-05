@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { MESSAGE_GROUPS } from "#locales/manifest.ts";
 import {
   EXTRA_SCAN_FILES,
   flashLiterals,
@@ -24,7 +23,7 @@ import { walkSourceFiles as walk } from "#test-utils/walk-src.ts";
  *
  * The per-string detection lives in scripts/check-i18n/rules.ts, which the
  * grader's i18n_catalog check shares. This file owns the tree-wide scans:
- * the catalog manifest, the forward key resolution, the reviewed prose that
+ * the forward key resolution, the reviewed prose that
  * must stay catalog-backed, the backward budget, and the allowlist ratchet.
  *
  * The backward scan covers JSX templates (.tsx) AND the .ts modules that hold
@@ -64,15 +63,6 @@ const missingMessageReferences = (file: string): string[] => {
 };
 
 describe("i18n coverage", () => {
-  test("the manifest owns every English catalog", () => {
-    const files = Array.from(Deno.readDirSync("src/locales/en"))
-      .filter((entry) => entry.isFile && entry.name.endsWith(".json"))
-      .map((entry) => entry.name.slice(0, -".json".length))
-      .sort();
-
-    expect(files).toEqual([...MESSAGE_GROUPS].sort());
-  });
-
   test('forward: every t("key") in the source resolves to a locale key', () => {
     const missing = walk(SRC_DIR, [".ts", ".tsx"]).flatMap(
       missingMessageReferences,

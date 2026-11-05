@@ -1,3 +1,4 @@
+// effects: pure
 type BookingPaymentInput = {
   customUnitPrice: number | undefined;
   paymentsEnabled: boolean;

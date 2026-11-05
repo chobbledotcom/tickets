@@ -1,3 +1,4 @@
+// effects: pure
 /** The shared shape of one executable machine table.
  *
  * An atlas machine DESCRIBES itself: it draws whatever the real transitions

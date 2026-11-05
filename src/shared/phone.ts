@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * Phone number normalization utilities
  */

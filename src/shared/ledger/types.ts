@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * Pure value types for the double-entry transfer ledger.
  *

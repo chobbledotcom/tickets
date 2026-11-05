@@ -1,3 +1,4 @@
+// effects: pure
 import { requiredMapValue } from "#fp";
 /** The exact combined capacity of one parent's required children.
  *

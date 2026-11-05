@@ -1,3 +1,4 @@
+// effects: pure
 /** The only ways one payment row's stored record changes.
  *
  * A row's slot carries up to three pieces of live work: a refund claim, an

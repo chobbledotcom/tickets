@@ -10,7 +10,7 @@ import { enableFooterDebug } from "#db/query-log.ts";
 import { once } from "#fp";
 import { withMessageGroups } from "#i18n";
 import { ADMIN_SHELL_MESSAGE_GROUPS } from "#locales/groups.ts";
-import type { MessageGroup } from "#locales/manifest.ts";
+import type { MessageGroup } from "#locales/message-groups.generated.ts";
 import {
   ADMIN_AREA_LOADERS,
   type AdminAreaLoader,

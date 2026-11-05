@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * Whether an operation that moves or removes payment rows can go ahead. A
  * merge relocates them, a delete destroys them, and either way the rows can be

@@ -1,3 +1,4 @@
+// effects: pure
 /** Reasons a payment row must stay for an owner to inspect. */
 
 import * as v from "valibot";

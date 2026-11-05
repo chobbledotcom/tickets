@@ -1,3 +1,4 @@
+// effects: pure
 /** Why a signed payment became a quantity-0 placeholder. */
 
 import * as v from "valibot";

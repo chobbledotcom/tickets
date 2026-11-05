@@ -216,9 +216,9 @@ At these limits, the strict scans found these clones:
 
 | Scan                  | minTokens | Clones |
 | --------------------- | --------: | -----: |
-| `.jscpd.json`         |        40 |  1,192 |
-| `.jscpd.test.json`    |        48 | 12,211 |
-| `.jscpd.helpers.json` |        40 |    941 |
+| `.jscpd.json`         |        40 |  1,152 |
+| `.jscpd.test.json`    |        48 | 12,202 |
+| `.jscpd.helpers.json` |        40 |    852 |
 | `.jscpd.support.json` |        40 |     17 |
 
 Each scan holds these clones in its committed baseline and runs with

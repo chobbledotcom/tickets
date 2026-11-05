@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * What can be wrong with a payment, as a list of named problems. This lives in
  * its own file. Both the answer a reading produces and the check on a stored

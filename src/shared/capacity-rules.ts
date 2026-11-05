@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * Capacity is enforced in three places: the JS preflight, the inline SQL guard
  * in the booking write, and the booking-page limits.

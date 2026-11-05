@@ -1,3 +1,4 @@
+// effects: pure
 import * as v from "valibot";
 import { parseOrThrow } from "./parse.ts";
 

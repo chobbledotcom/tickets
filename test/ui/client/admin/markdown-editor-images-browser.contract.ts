@@ -17,7 +17,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { Locator, Page } from "playwright";
 import { ensureMessageGroups, t } from "#i18n";
-import { MESSAGE_GROUPS } from "#locales/manifest.ts";
+import { MESSAGE_GROUPS } from "#locales/message-groups.generated.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
 import {
   describeWithBrowser,

@@ -1,3 +1,4 @@
+// effects: pure
 import * as v from "valibot";
 import { type ResourceId, ResourceIdSchema } from "#payment/resource-id.ts";
 import { parseOrThrow } from "#shared/validation/parse.ts";

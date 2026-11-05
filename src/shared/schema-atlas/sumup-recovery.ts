@@ -1,3 +1,4 @@
+// effects: pure
 /** The SumUp checkout-recovery machine on `/admin/schema`, drawn from the
  * shared machine spec.
  *

@@ -1,3 +1,4 @@
+// effects: pure
 /** Capacity facts for a parent listing and one of its children that share
  *  capped groups: what still fits in the pools the pair contends for. The
  *  exact combined search over a whole set of children lives in

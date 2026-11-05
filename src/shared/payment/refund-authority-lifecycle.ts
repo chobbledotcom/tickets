@@ -1,3 +1,4 @@
+// effects: pure
 /** The declared exit and destructive-write policy for every refund state. */
 
 import type { RowMove } from "#payment/admit-move.ts";

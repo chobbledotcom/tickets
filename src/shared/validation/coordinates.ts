@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * Latitude/longitude pair validation for the operator-pinned attendee
  * location (the Logistics tab's map pin).

@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * Country configuration for timezone, currency, and phone prefix.
  * Add new countries as needed — each entry maps an ISO 3166-1 alpha-2

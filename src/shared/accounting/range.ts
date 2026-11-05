@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * An inclusive-start / exclusive-end date range over the ledger's `occurred_at`
  * (stored as an INTEGER epoch-ms business time). The tiny SQL-fragment

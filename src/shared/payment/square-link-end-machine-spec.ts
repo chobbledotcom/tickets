@@ -1,3 +1,4 @@
+// effects: pure
 /** The machine that ends an unpaid Square checkout's payment link.
  *
  * A Square payment link stays payable for 180 days unless somebody ends it.

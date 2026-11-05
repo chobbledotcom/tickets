@@ -1,3 +1,4 @@
+// effects: pure
 import * as v from "valibot";
 import { integerAtLeast } from "#shared/validation/number.ts";
 

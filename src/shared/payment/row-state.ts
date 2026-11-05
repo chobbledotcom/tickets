@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * Everything one payment row remembers besides its own resolution. The
  * `failure_data` slot holds ONE record with a field per concern. The fields

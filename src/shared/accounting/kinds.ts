@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * Transfer `kind` literals — the single home for every kind the accounting
  * layer posts or filters on. It extends the treatment `service_cost` always had

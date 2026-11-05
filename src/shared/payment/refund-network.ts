@@ -1,3 +1,4 @@
+// effects: pure
 import type { PaymentProviderType } from "#types";
 
 /**

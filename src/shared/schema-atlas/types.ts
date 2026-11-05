@@ -1,3 +1,4 @@
+// effects: pure
 /** The shared shape of a state machine this site declares in code.
  *
  * An atlas machine is derived, never hand-drawn: each module builds its states
