@@ -6,6 +6,7 @@
 import {
   adminPageHtmlAt,
   keepsWhatTheOrganiserSaw,
+  scenarioBrowser,
   submitRenderedAdminForm,
 } from "#test/specs/support/browser.ts";
 import { messagesSent, type SentMessage } from "#test/specs/support/contact.ts";
@@ -13,9 +14,11 @@ import { copyFrom } from "#test/specs/support/copy.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
   requiredWorldValue,
+  type StoryJourney,
   type TicketsWorld,
   theBooking,
 } from "#test/specs/support/world.ts";
+import { regionOutOf } from "#test-utils/test-browser/parsing.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
@@ -98,16 +101,11 @@ const confirmThePreview = async (
 
 /** Make an invoice for the booking the story is working on, through the form
  *  the site served. The first form shows the invoice text for review, and the
- *  second one makes it. */
-export const sendInvoice = async (world: TicketsWorld): Promise<void> => {
-  await confirmThePreview(world, null);
-};
-
-/** Make an invoice whose text the organiser changed on the preview page. */
-export const sendInvoiceWithText = async (
-  world: TicketsWorld,
-  text: string,
-): Promise<void> => {
+ *  second one makes it. When the story gives text, the invoice uses that text. */
+export const sendInvoice: StoryJourney<[text?: string | null], void> = async (
+  world,
+  text = null,
+) => {
   await confirmThePreview(world, text);
 };
 
@@ -120,6 +118,30 @@ export const previewInvoiceFor = async (world: TicketsWorld): Promise<void> => {
     );
   }
 };
+
+/** Change the invoice text on the preview page and press Update preview, so
+ *  the story reads the invoice the new text makes. */
+export const updateInvoicePreviewText: StoryJourney<[string], void> = async (
+  world,
+  text,
+) => {
+  const browser = scenarioBrowser(world);
+  await fillInAndSend(
+    browser,
+    { body: text },
+    await invoiceCopy("invoices.action.update_preview"),
+  );
+  keepsWhatTheOrganiserSaw(world, browser);
+};
+
+/** The invoice the preview page shows, from the box that bounds it. */
+export const previewBoxOn = (browser: TestBrowser): string =>
+  regionOutOf(
+    browser.currentHtml,
+    '<div class="prose email-preview">',
+    "</div>",
+    "the invoice preview box",
+  );
 
 /** Cancel the last invoice from its own page. */
 export const cancelInvoice = async (world: TicketsWorld): Promise<void> => {

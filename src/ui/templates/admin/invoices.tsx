@@ -179,8 +179,10 @@ export const adminInvoicePreviewPage = ({
           ? t("invoices.preview.will_email", { email: attendeeEmail })
           : t("invoices.preview.no_email")}
       </p>
-      <h2>{t("invoices.preview.rendered_heading")}</h2>
       <div class="prose">
+        <h2>{t("invoices.preview.rendered_heading")}</h2>
+      </div>
+      <div class="prose email-preview">
         <Raw html={previewHtml} />
       </div>
       <input name="attendee_id" type="hidden" value={attendeeId} />
@@ -192,7 +194,16 @@ export const adminInvoicePreviewPage = ({
         </textarea>
       </label>
       <p class="small">{t("invoices.preview.body_hint")}</p>
-      <SubmitButton icon="save">{t("invoices.action.create")}</SubmitButton>
+      <p class="form-actions">
+        <button
+          class="secondary"
+          formaction={adminPath("invoicePreview", {})}
+          type="submit"
+        >
+          {t("invoices.action.update_preview")}
+        </button>
+        <SubmitButton icon="save">{t("invoices.action.create")}</SubmitButton>
+      </p>
     </>,
     session,
     t("invoices.preview.title", { number }),

@@ -5,14 +5,20 @@ import { KIND } from "#accounting/kinds.ts";
 import { account } from "#shared/ledger/account.ts";
 import { ledgerEntryMemo } from "#templates/admin/ledger/formatting.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
-import { ledgerRows, names, renderLedger, transfer } from "./helpers.ts";
+import {
+  attendeeLinkRefs,
+  ledgerRows,
+  names,
+  renderLedger,
+  transfer,
+} from "./helpers.ts";
 
 describe("HumanLedgerTable", () => {
   beforeAll(setupAdminPageTest);
 
   test("renders plain-language descriptions for every known ledger event family", () => {
     const refs = names({
-      attendees: new Map([[1, "Ada"]]),
+      attendees: attendeeLinkRefs([[1, "Ada"]]),
       listings: new Map([[1, "Concert"]]),
       modifiers: new Map([[1, "Helmet hire"]]),
     });
@@ -176,11 +182,11 @@ describe("HumanLedgerTable", () => {
     assertStringIncludes(html, "Helmet hire");
     assertStringIncludes(
       html,
-      'Payment received for <a href="/admin/ledger/attendee/1">Ada</a>',
+      'Payment received for <a href="/admin/attendees/1">Ada</a>',
     );
     assertStringIncludes(
       html,
-      'Correction reduced <a href="/admin/ledger?listing=1">Concert</a>',
+      'Correction reduced <a href="/admin/listing/1">Concert</a>',
     );
     const rows = ledgerRows(html);
     assertStringIncludes(rows[2] ?? "", "+£50");
@@ -194,7 +200,7 @@ describe("HumanLedgerTable", () => {
   });
 
   test("uses attendee-balance wording for adjustment legs against writeoff", () => {
-    const refs = names({ attendees: new Map([[1, "Ada"]]) });
+    const refs = names({ attendees: attendeeLinkRefs([[1, "Ada"]]) });
     const html = renderLedger(
       [
         transfer({

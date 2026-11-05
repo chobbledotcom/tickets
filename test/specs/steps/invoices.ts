@@ -11,6 +11,7 @@ import {
   newcomerReading,
   ORGANISER,
   openAdminPage,
+  scenarioBrowser,
 } from "#test/specs/support/browser.ts";
 import {
   cancelInvoice,
@@ -21,9 +22,10 @@ import {
   invoiceNumber,
   invoiceSays,
   invoicesListed,
+  previewBoxOn,
   previewInvoiceFor,
   sendInvoice,
-  sendInvoiceWithText,
+  updateInvoicePreviewText,
 } from "#test/specs/support/invoices.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import {
@@ -151,21 +153,45 @@ Then(
 When(
   "the organiser sends that booking an invoice with the text:",
   function (this: TicketsWorld, text: string): Promise<void> {
-    return sendInvoiceWithText(this, text);
+    return sendInvoice(this, text);
   },
 );
 
 When(
   "the organiser sends that booking an invoice with no text",
   function (this: TicketsWorld): Promise<void> {
-    return sendInvoiceWithText(this, "");
+    return sendInvoice(this, "");
   },
 );
 
+/** Open the preview page for the story's booking, keeping what it says. */
+const previewTheInvoice = function (this: TicketsWorld): Promise<void> {
+  return previewInvoiceFor(this);
+};
+
+When("the organiser previews an invoice for that booking", previewTheInvoice);
+
 When(
-  "the organiser previews an invoice for that booking",
-  function (this: TicketsWorld): Promise<void> {
-    return previewInvoiceFor(this);
+  "the organiser changes the invoice text and updates the preview:",
+  function (this: TicketsWorld, text: string): Promise<void> {
+    return updateInvoicePreviewText(this, text);
+  },
+);
+
+Then(
+  "the preview shows the heading {string}",
+  function (this: TicketsWorld, heading: string): void {
+    assertStringIncludes(
+      previewBoxOn(scenarioBrowser(this)),
+      `<h1>${heading}</h1>`,
+    );
+  },
+);
+
+Then(
+  "the booking has no invoice",
+  async function (this: TicketsWorld): Promise<void> {
+    expect(await invoicesListed(this)).toBe(0);
   },
 );
 
@@ -184,7 +210,7 @@ Then(
 );
 
 Then(
-  "the preview shows the new booking owes {word}",
+  "the preview shows the booking owes {word}",
   function (this: TicketsWorld, amount: string): void {
     assertStringIncludes(
       whatTheyWereTold(this, ORGANISER),

@@ -14,14 +14,14 @@ import {
 } from "#accounting/manual-entries.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
-import { names, renderLedger, transfer } from "./helpers.ts";
+import { attendeeLinkRefs, names, renderLedger, transfer } from "./helpers.ts";
 
 describe("LedgerTable", () => {
   beforeAll(setupAdminPageTest);
 
   test("renders each money change with a translated event, time and amount", () => {
     const refs = names({
-      attendees: new Map([[1, "Ada"]]),
+      attendees: attendeeLinkRefs([[1, "Ada"]]),
       listings: new Map([[1, "Concert"]]),
     });
     const html = renderLedger(
@@ -34,8 +34,8 @@ describe("LedgerTable", () => {
     assertStringIncludes(html, "Booking made");
     assert(!html.includes(">sale<"));
     // Both legs resolve to links, joined by an arrow (rendered as the glyph).
-    assertStringIncludes(html, '<a href="/admin/ledger/attendee/1">Ada</a>');
-    assertStringIncludes(html, '<a href="/admin/ledger?listing=1">Concert</a>');
+    assertStringIncludes(html, '<a href="/admin/attendees/1">Ada</a>');
+    assertStringIncludes(html, '<a href="/admin/listing/1">Concert</a>');
     assertStringIncludes(html, "→");
     assertStringIncludes(html, formatCurrency(2500));
   });
@@ -110,7 +110,9 @@ describe("LedgerTable", () => {
   });
 
   test("escapes a stored name so PII cannot inject markup", () => {
-    const refs = names({ attendees: new Map([[1, "<script>x</script>"]]) });
+    const refs = names({
+      attendees: attendeeLinkRefs([[1, "<script>x</script>"]]),
+    });
     const html = renderLedger([transfer()], refs, "dual");
     assertStringIncludes(html, "&lt;script&gt;x&lt;/script&gt;");
     assert(!html.includes("<script>x</script>"));

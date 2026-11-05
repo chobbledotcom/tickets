@@ -13,7 +13,7 @@ import {
 } from "#test-utils/admin-page-test.ts";
 import { assertPageMatchesSnapshot } from "#test-utils/page-snapshot.ts";
 import { featureSetting, useSetting } from "#test-utils/settings.ts";
-import { transfer } from "./helpers.ts";
+import { attendeeLinkRefs, transfer } from "./helpers.ts";
 
 const POPULATED: LedgerPageData = {
   dates: [
@@ -30,7 +30,7 @@ const POPULATED: LedgerPageData = {
   groups: [{ id: 3, name: "Summer" }],
   listings: [{ id: 4, name: "Concert" }],
   names: {
-    attendees: new Map([[1, "Ada"]]),
+    attendees: attendeeLinkRefs([[1, "Ada"]]),
     listings: new Map(),
     modifiers: new Map(),
   },
@@ -66,7 +66,7 @@ describe("the ledger page shell", () => {
         groups: [],
         listings: [],
         names: {
-          attendees: new Map(),
+          attendees: attendeeLinkRefs([]),
           listings: new Map(),
           modifiers: new Map(),
         },
