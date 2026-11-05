@@ -7,6 +7,7 @@ import {
   type StripeWebhookEvent,
   verifyWebhookSignature,
 } from "#shared/stripe/webhook.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { activateStripe } from "#test-utils/settings.ts";
 import { signedHeader, signedWebhook } from "#test-utils/stripe/fixtures.ts";
 import { describeStripe } from "#test-utils/stripe/harness.ts";
@@ -279,8 +280,10 @@ describeStripe("stripe", () => {
           valid: false,
         });
         const callArg = errorSpy.calls[0]!.args[0] as string;
-        assertStringIncludes(callArg, "timestamp out of tolerance delta=");
-        assertStringIncludes(callArg, "tolerance=300s");
+        expectIncludesAll(callArg, [
+          "timestamp out of tolerance delta=",
+          "tolerance=300s",
+        ]);
       } finally {
         errorSpy.restore();
       }

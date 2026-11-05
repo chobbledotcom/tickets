@@ -2,6 +2,7 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { jsSiblingPath, runCommand } from "#scripts/sentry-debug-ids/run.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 const BUNDLE = "code;\n//# sourceMappingURL=bundle.ts.map";
 const MAP = '{"version":3,"sources":[],"mappings":""}';
@@ -73,8 +74,10 @@ describe("sentry debug ids", () => {
       await runCommand("adopt", bundle);
 
       const deployed = await Deno.readTextFile(bundle);
-      assertStringIncludes(deployed, "//# debugId=abc");
-      assertStringIncludes(deployed, "//# sourceMappingURL=bundle.ts.map");
+      expectIncludesAll(deployed, [
+        "//# debugId=abc",
+        "//# sourceMappingURL=bundle.ts.map",
+      ]);
       expect(await Deno.readTextFile(`${bundle}.map`)).toBe(
         '{"debug_id":"abc"}',
       );

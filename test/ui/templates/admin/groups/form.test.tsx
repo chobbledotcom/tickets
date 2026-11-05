@@ -10,6 +10,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testGroup, testListingWithCount } from "#test-utils/factories.ts";
 import { useSetting } from "#test-utils/settings.ts";
 
@@ -20,12 +21,14 @@ describe("admin group form templates", () => {
   test("renders the create form with empty group fields and no editable slug", () => {
     const html = adminGroupNewPage(OWNER_SESSION, "Fix the group.");
 
-    assertStringIncludes(html, "Fix the group.");
-    assertStringIncludes(html, 'action="/admin/groups"');
-    assertStringIncludes(html, 'name="name"');
-    assertStringIncludes(html, 'name="description"');
-    assertStringIncludes(html, 'name="max_attendees"');
-    assertStringIncludes(html, 'name="terms_and_conditions"');
+    expectIncludesAll(html, [
+      "Fix the group.",
+      'action="/admin/groups"',
+      'name="name"',
+      'name="description"',
+      'name="max_attendees"',
+      'name="terms_and_conditions"',
+    ]);
     for (const name of ["hidden", "is_package", "hide_package_listings"]) {
       expect(html).toMatch(
         new RegExp(
@@ -64,12 +67,14 @@ describe("admin group form templates", () => {
       GroupEditPanel({ group, listings: [], members: new Map() }),
     );
 
-    assertStringIncludes(html, 'action="/admin/groups/21/edit"');
-    assertStringIncludes(html, 'value="Family &quot;Bundle&quot;"');
-    assertStringIncludes(html, 'value="family-bundle"');
-    assertStringIncludes(html, "A &lt;strong&gt;group&lt;/strong&gt;");
-    assertStringIncludes(html, 'name="max_attendees" type="number" value="25"');
-    assertStringIncludes(html, "Be kind.");
+    expectIncludesAll(html, [
+      'action="/admin/groups/21/edit"',
+      'value="Family &quot;Bundle&quot;"',
+      'value="family-bundle"',
+      "A &lt;strong&gt;group&lt;/strong&gt;",
+      'name="max_attendees" type="number" value="25"',
+      "Be kind.",
+    ]);
     for (const name of ["hidden", "is_package", "hide_package_listings"]) {
       assertStringIncludes(html, `name="${name}" value="1" checked`);
     }

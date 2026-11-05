@@ -8,6 +8,7 @@ import {
   visitorReadsListingPage,
 } from "#test/specs/support/listing-details.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 Given(
   "the owner keeps a detail called {word} worded {string} or {string}",
@@ -41,8 +42,7 @@ Then(
     wording: string,
   ): Promise<void> {
     const said = await visitorReadsListingPage(this, listingName);
-    assertStringIncludes(said, detailName);
-    assertStringIncludes(said, wording);
+    expectIncludesAll(said, [detailName, wording]);
   },
 );
 

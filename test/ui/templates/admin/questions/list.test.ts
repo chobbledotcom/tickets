@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import { adminQuestionsPage } from "#templates/admin/questions.tsx";
 import { resetFeaturePageTest } from "#test/ui/templates/admin/feature-page-test.ts";
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { testAnswer, testQuestion } from "#test-utils/factories.ts";
 import { setupQuestionPageTest } from "./fixtures.ts";
@@ -31,10 +32,12 @@ describe("adminQuestionsPage", () => {
 
   test("renders questions in a table with the answer count", () => {
     const html = adminQuestionsPage([colourQuestion], OWNER_SESSION);
-    assertStringIncludes(html, "<table");
-    assertStringIncludes(html, "Favourite colour?");
-    // Answer-count cell shows the raw number.
-    assertStringIncludes(html, '<td class="col-quantity">2</td>');
+    expectIncludesAll(html, [
+      "<table",
+      "Favourite colour?",
+      // Answer-count cell shows the raw number.
+      '<td class="col-quantity">2</td>',
+    ]);
   });
 
   test("shows a Listings count with the listing names as the cell title", () => {
@@ -88,15 +91,14 @@ describe("adminQuestionsPage", () => {
 
   test("links to the questions guide", () => {
     const html = adminQuestionsPage([colourQuestion], OWNER_SESSION);
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<a class="guide-link" href="/admin/guide#questions">',
-    );
-    // The guide link carries its "Questions guide" label, not just the href —
-    // a blanked label would still leave the anchor above. The label renders in
-    // its own <span> (after the icon), so assert it there rather than as loose
-    // page text that unrelated copy could satisfy.
-    assertStringIncludes(html, "<span>Questions guide</span>");
+      // The guide link carries its "Questions guide" label, not just the href —
+      // a blanked label would still leave the anchor above. The label renders in
+      // its own <span> (after the icon), so assert it there rather than as loose
+      // page text that unrelated copy could satisfy.
+      "<span>Questions guide</span>",
+    ]);
   });
 
   test("renders reorder controls: down on the first, up on the last", () => {
@@ -131,8 +133,7 @@ describe("adminQuestionsPage", () => {
   test("keeps the list readable without write controls in read-only mode", () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     const html = adminQuestionsPage([colourQuestion], OWNER_SESSION);
-    assertStringIncludes(html, "Favourite colour?");
-    assertStringIncludes(html, 'href="/admin/questions/1"');
+    expectIncludesAll(html, ["Favourite colour?", 'href="/admin/questions/1"']);
     assert(!html.includes('id="new-question"'));
     assert(!html.includes("/admin/questions/1/move-"));
   });

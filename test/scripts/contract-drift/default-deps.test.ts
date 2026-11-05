@@ -10,6 +10,7 @@ import {
 } from "#scripts/contract-drift/run.ts";
 import type { CapturedOutput } from "#scripts/process.ts";
 import { projectRoot } from "#scripts/project-root.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 /** The machine ids one dump run printed, after the run held the dump's
  * shape. Sorted, so two runs compare as sets. */
@@ -71,8 +72,7 @@ const assertBaseError = async (deps: DriftDeps): Promise<void> => {
     failure = reason;
   }
   const message = failure instanceof Error ? failure.message : "";
-  assertStringIncludes(message, NO_ORIGIN_MAIN);
-  assertStringIncludes(message, NO_MAIN.stderr.trim());
+  expectIncludesAll(message, [NO_ORIGIN_MAIN, NO_MAIN.stderr.trim()]);
 };
 
 /** A git for the base tests. It records every call in `calls` and answers

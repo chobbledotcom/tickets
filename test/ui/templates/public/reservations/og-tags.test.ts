@@ -4,6 +4,7 @@ import { buildOgTags } from "#templates/public/reservations/og-tags.ts";
 
 import { registerPublicTemplateHooks } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 describe("buildOgTags", () => {
   beforeAll(setupAdminPageTest);
@@ -19,15 +20,11 @@ describe("buildOgTags", () => {
       },
       "https://example.com",
     );
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<meta property="og:title" content="My Listing">',
-    );
-    assertStringIncludes(html, '<meta property="og:type" content="website">');
-    assertStringIncludes(
-      html,
+      '<meta property="og:type" content="website">',
       '<meta property="og:url" content="https://example.com/ticket/my-listing">',
-    );
+    ]);
   });
 
   test("includes description when present", () => {

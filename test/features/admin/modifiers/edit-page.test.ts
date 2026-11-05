@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   expectHtmlResponse,
+  expectIncludesAll,
   expectStatus,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
@@ -42,12 +43,11 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         "Actions",
         "/admin/guide#modifiers",
       );
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
         `aria-current="page" class="active" href="/admin/modifiers/${id}/edit"`,
-      );
-      assertStringIncludes(html, '<a class="active" href="/admin/modifiers">');
-      assertStringIncludes(html, `href="/admin/modifiers/${id}/actions"`);
+        '<a class="active" href="/admin/modifiers">',
+        `href="/admin/modifiers/${id}/actions"`,
+      ]);
     });
 
     test("returns 404 for an unknown tab", async () => {
@@ -92,10 +92,12 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const { id } = await lastModifier();
       const response = await adminGet(`/admin/modifiers/${id}/edit`);
       const html = await response.text();
-      assertStringIncludes(html, "Adjust revenue");
-      assertStringIncludes(html, `action="/admin/modifiers/${id}/revenue"`);
-      assertStringIncludes(html, 'name="total_revenue"');
-      assertStringIncludes(html, "This adds a correction to Money.");
+      expectIncludesAll(html, [
+        "Adjust revenue",
+        `action="/admin/modifiers/${id}/revenue"`,
+        'name="total_revenue"',
+        "This adds a correction to Money.",
+      ]);
     });
 
     test("shows the owner-only modifier ledger section", async () => {
@@ -108,11 +110,10 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const html = await response.text();
       assertStringIncludes(html, "Money");
       assert(!html.includes("Money history"));
-      assertStringIncludes(html, "Add money change");
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        "Add money change",
         `/admin/ledger/modifier/${id}/add?return_url=%2Fadmin%2Fmodifiers%2F${id}%2Fedit`,
-      );
+      ]);
     });
 
     test("omits the ledger section for managers", async () => {

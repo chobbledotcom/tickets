@@ -8,6 +8,7 @@ import { getServicingCosts } from "#db/attendees/servicing.ts";
 import { queryAll } from "#db/client.ts";
 import { deleteListing } from "#db/listings/delete.ts";
 import { formatCurrency } from "#shared/currency.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
@@ -61,14 +62,16 @@ describeWithEnv("servicing §22 - cost history and pages", { db: true }, () => {
       servicingId: id,
     });
     const body = await renderAdminPage(`/admin/servicing/${id}`);
-    assertStringIncludes(body, "Service event costs");
-    assertStringIncludes(body, formatCurrency(9000));
-    assertStringIncludes(body, "Boiler part");
-    assertStringIncludes(body, listing.name);
-    assertStringIncludes(body, "Money out");
-    assertStringIncludes(body, `href="/admin/ledger?listing=${listing.id}"`);
-    assertStringIncludes(body, "View money changes");
-    assertStringIncludes(body, `/admin/servicing/${id}/cost/`);
+    expectIncludesAll(body, [
+      "Service event costs",
+      formatCurrency(9000),
+      "Boiler part",
+      listing.name,
+      "Money out",
+      `href="/admin/ledger?listing=${listing.id}"`,
+      "View money changes",
+      `/admin/servicing/${id}/cost/`,
+    ]);
   });
 
   test("shows managers the outgoing without a forbidden ledger link", async () => {

@@ -1,6 +1,5 @@
 /** The ticket view shows the modifiers that changed a booking's price. */
 
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { modifiersTable } from "#db/modifiers.ts";
@@ -10,6 +9,7 @@ import {
   formatSignedCurrency,
   toMinorUnits,
 } from "#shared/currency.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { decryptFirstAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -87,15 +87,11 @@ describeWithEnv("ticket view > modifiers", { db: true }, () => {
       name: "Service charge",
     });
     const html = await ticketPageHtml(attendee);
-    assertStringIncludes(html, `Price: ${formatCurrency(1000)}`);
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      `Price: ${formatCurrency(1000)}`,
       `Service charge <span class="ticket-card-modifier-amount">${formatSignedCurrency(100)}</span>`,
-    );
-    assertStringIncludes(
-      html,
       `ticket-card-total"><strong>Total:</strong> ${formatCurrency(1100)}`,
-    );
+    ]);
   });
 
   test("shows a discount with a minus sign and the reduced total", async () => {
@@ -106,14 +102,10 @@ describeWithEnv("ticket view > modifiers", { db: true }, () => {
       name: "Early bird",
     });
     const html = await ticketPageHtml(attendee);
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       `Early bird <span class="ticket-card-modifier-amount">${formatSignedCurrency(-200)}</span>`,
-    );
-    assertStringIncludes(
-      html,
       `ticket-card-total"><strong>Total:</strong> ${formatCurrency(800)}`,
-    );
+    ]);
   });
 
   test("names a deleted modifier with the plain price-change label", async () => {
@@ -125,11 +117,10 @@ describeWithEnv("ticket view > modifiers", { db: true }, () => {
     });
     await modifiersTable.deleteById(modifierId);
     const html = await ticketPageHtml(attendee);
-    assertStringIncludes(html, "Price change");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "Price change",
       `ticket-card-modifier-amount">${formatSignedCurrency(100)}</span>`,
-    );
+    ]);
   });
 
   test("puts each card's share of a charge on its own price", async () => {
@@ -174,21 +165,11 @@ describeWithEnv("ticket view > modifiers", { db: true }, () => {
     const html = await ticketPageHtml(await decryptFirstAttendee(costly.id));
     // The charge is a tenth of each card's own price: £10 on the first card
     // and £1 on the second.
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       `ticket-card-modifier-amount">${formatSignedCurrency(1000)}</span>`,
-    );
-    assertStringIncludes(
-      html,
       `ticket-card-total"><strong>Total:</strong> ${formatCurrency(11_000)}</div>`,
-    );
-    assertStringIncludes(
-      html,
       `ticket-card-modifier-amount">${formatSignedCurrency(100)}</span>`,
-    );
-    assertStringIncludes(
-      html,
       `ticket-card-total"><strong>Total:</strong> ${formatCurrency(1100)}</div>`,
-    );
+    ]);
   });
 });

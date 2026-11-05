@@ -5,6 +5,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testGroup } from "#test-utils/factories.ts";
 
 const group = testGroup({ id: 5, name: "Autumn Tours", slug: "autumn-tours" });
@@ -15,24 +16,14 @@ describe("adminGroupDeletePage", () => {
   test("renders the heading, confirm copy, note, and prompt", () => {
     const html = adminGroupDeletePage(group, OWNER_SESSION);
 
-    assertStringIncludes(html, 'action="/admin/groups/5/delete"');
-    assertStringIncludes(html, "<h1>Delete Group</h1>");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'action="/admin/groups/5/delete"',
+      "<h1>Delete Group</h1>",
       "Are you sure you want to delete the group <strong>Autumn Tours</strong> (autumn-tours)?",
-    );
-    assertStringIncludes(
-      html,
       "<p>Listings in this group will not be deleted. They will be moved out of the group.</p>",
-    );
-    assertStringIncludes(
-      html,
       "Type the group name &quot;Autumn Tours&quot; to confirm.",
-    );
-    assertStringIncludes(
-      html,
       'name="confirm_identifier" placeholder="Autumn Tours" required',
-    );
+    ]);
   });
 
   test("escapes the group name inside the confirm copy", () => {
@@ -52,8 +43,7 @@ describe("adminGroupDeletePage", () => {
     const html = adminGroupDeletePage(group, OWNER_SESSION);
 
     assert(!html.includes('<button class="danger" type="submit">'));
-    assertStringIncludes(html, "/icons.svg#check");
-    assertStringIncludes(html, "Delete Group");
+    expectIncludesAll(html, ["/icons.svg#check", "Delete Group"]);
   });
 
   test("renders a rejected-submit error", () => {

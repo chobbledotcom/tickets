@@ -17,7 +17,10 @@ import {
   validationFailure,
 } from "#routes/api/payment-processing/refunds.ts";
 import type { PaymentFailureResult } from "#routes/api/webhook-types.ts";
-import { expectHtmlResponse } from "#test-utils/assertions.ts";
+import {
+  expectHtmlResponse,
+  expectIncludesAll,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestListing,
@@ -243,8 +246,10 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
   test("placeholderRefundNote distinguishes returned from tracked recovery", () => {
     const spec = placeholderRefund("price_changed")("detail line");
     const refunded = placeholderRefundNote(7, spec, true);
-    assertStringIncludes(refunded, "payment was refunded because");
-    assertStringIncludes(refunded, "Refund code: price_changed");
+    expectIncludesAll(refunded, [
+      "payment was refunded because",
+      "Refund code: price_changed",
+    ]);
     assert(!refunded.includes("pi_ref"));
     assert(!refunded.includes("Payment reference"));
     assertStringIncludes(refunded, "/admin/ledger/attendee/7");

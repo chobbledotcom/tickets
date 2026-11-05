@@ -37,6 +37,7 @@ import {
   type TicketsWorld,
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import type { RecordedFetchCall } from "#test-utils/mocks.ts";
 
 /** The site's own words, read from production rather than written out here:
@@ -200,8 +201,7 @@ Then(
     words: string,
   ): Promise<void> {
     const html = (await openAdminPage(this, SUPPORT_PAGE)).currentHtml;
-    assertStringIncludes(html, `<h1>${heading}</h1>`);
-    assertStringIncludes(html, `<p>${words}</p>`);
+    expectIncludesAll(html, [`<h1>${heading}</h1>`, `<p>${words}</p>`]);
   },
 );
 
@@ -240,8 +240,7 @@ Then(
   "the owner is offered a message box and nothing else to fill in",
   async function (this: TicketsWorld): Promise<void> {
     const html = (await openAdminPage(this, SUPPORT_PAGE)).currentHtml;
-    assertStringIncludes(html, `action="${SUPPORT_PAGE}"`);
-    assertStringIncludes(html, 'name="message"');
+    expectIncludesAll(html, [`action="${SUPPORT_PAGE}"`, 'name="message"']);
     assert(!html.includes('name="email"'));
   },
 );

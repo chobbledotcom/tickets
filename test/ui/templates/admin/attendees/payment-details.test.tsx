@@ -13,6 +13,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 
 describe("attendee payment details panel", () => {
@@ -46,10 +47,12 @@ describe("attendee payment details panel", () => {
         showBalanceLink: false,
       }),
     );
-    assertStringIncludes(html, '<div class="prose"><h3>Payment Details</h3>');
-    assertStringIncludes(html, "<strong>Payment ID:</strong> pi_123");
-    assertStringIncludes(html, "<strong>Amount Paid:</strong> £15");
-    assertStringIncludes(html, "<strong>Refund Status:</strong> Not refunded");
+    expectIncludesAll(html, [
+      '<div class="prose"><h3>Payment Details</h3>',
+      "<strong>Payment ID:</strong> pi_123",
+      "<strong>Amount Paid:</strong> £15",
+      "<strong>Refund Status:</strong> Not refunded",
+    ]);
     // A fully paid attendee shows no outstanding balance line.
     assert(!html.includes("Balance outstanding"));
   });
@@ -100,11 +103,10 @@ describe("attendee payment details panel", () => {
         showBalanceLink: true,
       }),
     );
-    assertStringIncludes(linked, "Balance outstanding:</strong> £4 — <a href=");
-    assertStringIncludes(
-      linked,
+    expectIncludesAll(linked, [
+      "Balance outstanding:</strong> £4 — <a href=",
       '<a href="/admin/attendees/1/ledger">View money changes and payment link</a>',
-    );
+    ]);
 
     const unlinked = String(
       PaymentDetails({
@@ -141,12 +143,11 @@ describe("attendee payment details panel", () => {
         showBalanceLink: false,
       }),
     );
-    assertStringIncludes(refreshable, 'class="inline"');
-    assertStringIncludes(
-      refreshable,
+    expectIncludesAll(refreshable, [
+      'class="inline"',
       'action="/admin/attendees/1/refresh-payment"',
-    );
-    assertStringIncludes(refreshable, "Refresh payment status");
+      "Refresh payment status",
+    ]);
 
     const failed = String(
       PaymentDetails({
@@ -170,13 +171,12 @@ describe("attendee refund confirmation pages", () => {
       { attendee: testAttendee({ payment_id: "pi_2", price_paid: "0x1A" }) },
       OWNER_SESSION,
     );
-    assertStringIncludes(html, "Refund Attendee: John Doe");
-    assertStringIncludes(html, 'action="/admin/attendees/1/refund"');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "Refund Attendee: John Doe",
+      'action="/admin/attendees/1/refund"',
       "This will issue a full refund for this attendee's payment",
-    );
-    assertStringIncludes(html, "<strong>Warning:</strong>");
+      "<strong>Warning:</strong>",
+    ]);
     assert(!html.includes("<strong>Amount Paid:</strong>"));
     // The refund confirm sits under the Home nav, not a section's.
     assertStringIncludes(html, '<a class="active" href="/admin/"');
@@ -187,9 +187,11 @@ describe("attendee refund confirmation pages", () => {
       { attendee: testAttendee({ payment_id: "pi_3", price_paid: "700" }) },
       OWNER_SESSION,
     );
-    assertStringIncludes(blocked, "Refund Attendee: John Doe");
-    assertStringIncludes(blocked, "<strong>Amount Paid:</strong> £7");
-    assertStringIncludes(blocked, "Attendee Details");
+    expectIncludesAll(blocked, [
+      "Refund Attendee: John Doe",
+      "<strong>Amount Paid:</strong> £7",
+      "Attendee Details",
+    ]);
     // A disabled confirm page sends nothing: no form and no submit control.
     assert(!blocked.includes("<form"));
     assert(!blocked.includes('type="submit"'));
@@ -203,10 +205,12 @@ describe("attendee refund confirmation pages", () => {
       },
       OWNER_SESSION,
     );
-    assertStringIncludes(html, 'action="/admin/attendees/1/payment-review"');
-    assertStringIncludes(html, "review_identity");
-    assertStringIncludes(html, "case-88");
-    assertStringIncludes(html, "type their name");
+    expectIncludesAll(html, [
+      'action="/admin/attendees/1/payment-review"',
+      "review_identity",
+      "case-88",
+      "type their name",
+    ]);
     // The review page's details stay payment-blind: no amount line, even
     // though this attendee paid.
     assert(!html.includes("<strong>Amount Paid:</strong>"));
@@ -221,18 +225,14 @@ describe("attendee refund confirmation pages", () => {
       },
       OWNER_SESSION,
     );
-    assertStringIncludes(html, "Re-send Notification: John Doe");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "Re-send Notification: John Doe",
       'action="/admin/attendees/1/resend-notification"',
-    );
-    assertStringIncludes(
-      html,
       "This will re-send the registration notification for this attendee.",
-    );
-    assertStringIncludes(html, "<strong>Note:</strong>");
-    // One minor unit still shows as paid on the details block.
-    assertStringIncludes(html, "<strong>Amount Paid:</strong>");
+      "<strong>Note:</strong>",
+      // One minor unit still shows as paid on the details block.
+      "<strong>Amount Paid:</strong>",
+    ]);
     // Re-sending is not a destructive action: no danger styling anywhere.
     assert(!html.includes('class="danger"'));
   });
@@ -249,25 +249,23 @@ describe("attendee refund confirmation pages", () => {
       },
       OWNER_SESSION,
     );
-    assertStringIncludes(blocked, "Refund All: Camp");
-    assertStringIncludes(
-      blocked,
+    expectIncludesAll(blocked, [
+      "Refund All: Camp",
       "This will issue a full refund for all 3 attendee(s)",
-    );
-    assertStringIncludes(
-      blocked,
       "Two attendees still have payments in flight.",
-    );
-    assertStringIncludes(blocked, "Try again later.");
+      "Try again later.",
+    ]);
 
     const ready = adminRefundAllAttendeesPage(
       listing,
       { count: 2, flash: undefined, kind: "available" },
       OWNER_SESSION,
     );
-    assertStringIncludes(ready, "all 2 attendee(s)");
-    assertStringIncludes(ready, 'action="/admin/listing/5/refund-all"');
-    assertStringIncludes(ready, '<a class="active" href="/admin/"');
+    expectIncludesAll(ready, [
+      "all 2 attendee(s)",
+      'action="/admin/listing/5/refund-all"',
+      '<a class="active" href="/admin/"',
+    ]);
     assert(!ready.includes("payments in flight"));
     assert(!ready.includes("Try again later."));
   });
@@ -293,8 +291,7 @@ describe("attendee refund confirmation pages", () => {
       ),
     ];
     for (const html of flaggedPages) {
-      assertStringIncludes(html, "Email not sent");
-      assertStringIncludes(html, "Webhooks not sent");
+      expectIncludesAll(html, ["Email not sent", "Webhooks not sent"]);
     }
 
     const settledPages = [

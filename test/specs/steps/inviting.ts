@@ -16,6 +16,7 @@ import {
   type TicketsWorld,
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { TEST_ADMIN_USERNAME } from "#test-utils/internal.ts";
 
 /** A role the story names, checked against the ones the site has. A story that
@@ -69,8 +70,7 @@ Then(
   "the list says {word} is a/an {word} who has not joined yet",
   function (this: TicketsWorld, who: string, role: string): void {
     const { row } = rowForPersonOnList(this, who);
-    assertStringIncludes(row, roleNamed(role));
-    assertStringIncludes(row, t("users.status.invited"));
+    expectIncludesAll(row, [roleNamed(role), t("users.status.invited")]);
   },
 );
 
@@ -78,8 +78,7 @@ Then("the list holds the owner as well", function (this: TicketsWorld): void {
   // The owner is on the same list as everybody else, and has joined — they
   // set their password when the site was set up.
   const { row } = rowForPersonOnList(this, TEST_ADMIN_USERNAME);
-  assertStringIncludes(row, "owner");
-  assertStringIncludes(row, t("users.status.active"));
+  expectIncludesAll(row, ["owner", t("users.status.active")]);
 });
 
 Then(

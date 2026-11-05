@@ -6,6 +6,7 @@ import {
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
+  expectIncludesAll,
   expectStatus,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
@@ -134,9 +135,11 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
 
       const response = await adminGet("/admin/built-sites");
       const body = await response.text();
-      assertStringIncludes(body, "Listed Monthly Tier");
-      // Sum of quantities, not the booking count.
-      assertStringIncludes(body, ">5<");
+      expectIncludesAll(body, [
+        "Listed Monthly Tier",
+        // Sum of quantities, not the booking count.
+        ">5<",
+      ]);
       assert(!body.includes("No renewal tier listing is configured"));
     });
   });
@@ -259,9 +262,11 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       try {
         const response = await adminGet("/admin/built-sites");
         const body = await response.text();
-        assertStringIncludes(body, "/admin/built-sites");
-        // The nav link is labelled "Builds" (the page title stays "Built sites").
-        assertStringIncludes(body, ">Builds<");
+        expectIncludesAll(body, [
+          "/admin/built-sites",
+          // The nav link is labelled "Builds" (the page title stays "Built sites").
+          ">Builds<",
+        ]);
       } finally {
         Deno.env.delete("CAN_BUILD_SITES");
       }

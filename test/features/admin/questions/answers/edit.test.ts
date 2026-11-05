@@ -6,6 +6,7 @@ import {
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
+  expectIncludesAll,
   expectStatus,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
@@ -91,8 +92,10 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
       // The shared child-edit frame: a back link to the question and a small
       // context line naming it.
-      assertStringIncludes(html, `href="/admin/questions/${qId}"`);
-      assertStringIncludes(html, "Answer for: Edit answer page");
+      expectIncludesAll(html, [
+        `href="/admin/questions/${qId}"`,
+        "Answer for: Edit answer page",
+      ]);
     });
 
     test("updates the answer text and redirects to the question", async () => {
@@ -228,8 +231,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       const response = await adminGet("/admin/log");
       const body = await response.text();
-      assertStringIncludes(body, "Logged after");
-      assertStringIncludes(body, "updated");
+      expectIncludesAll(body, ["Logged after", "updated"]);
     });
 
     test("saves the edited selection total", async () => {
@@ -315,12 +317,11 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const body = await response.text();
       expect(response.status).toBe(200);
       // Stored (8) and the value rebuilt from the single booking (1).
-      assertStringIncludes(body, "<td>8</td>");
-      assertStringIncludes(body, "<td>1</td>");
-      assertStringIncludes(
-        body,
+      expectIncludesAll(body, [
+        "<td>8</td>",
+        "<td>1</td>",
         `action="/admin/questions/${qId}/answers/${aId}/recalculate"`,
-      );
+      ]);
     });
 
     test("re-renders with a prompt when no field is selected", async () => {

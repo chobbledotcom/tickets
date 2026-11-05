@@ -13,6 +13,7 @@ import {
   withoutBuilder,
 } from "#test/ui/templates/admin/listings/helpers.ts";
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { TEST_STORAGE_ZONE } from "#test-utils/internal.ts";
@@ -84,8 +85,10 @@ describeWithEnv(
       test("shows assign built site field when CAN_BUILD_SITES is true", () => {
         withBuilder(() => {
           const html = adminListingNewPage([], OWNER_SESSION);
-          assertStringIncludes(html, "assign_built_site");
-          assertStringIncludes(html, "Assign a site on booking");
+          expectIncludesAll(html, [
+            "assign_built_site",
+            "Assign a site on booking",
+          ]);
         });
       });
 
@@ -101,8 +104,7 @@ describeWithEnv(
           const html = editPanelHtml(
             testListingWithCount({ assign_built_site: true }),
           );
-          assertStringIncludes(html, "assign_built_site");
-          assertStringIncludes(html, "checked");
+          expectIncludesAll(html, ["assign_built_site", "checked"]);
         });
       });
 
@@ -119,10 +121,12 @@ describeWithEnv(
       test("shows months_per_unit and initial_site_months when CAN_BUILD_SITES is true", () => {
         withBuilder(() => {
           const html = adminListingNewPage([], OWNER_SESSION);
-          assertStringIncludes(html, "months_per_unit");
-          assertStringIncludes(html, "Months per unit");
-          assertStringIncludes(html, "initial_site_months");
-          assertStringIncludes(html, "Initial site months");
+          expectIncludesAll(html, [
+            "months_per_unit",
+            "Months per unit",
+            "initial_site_months",
+            "Initial site months",
+          ]);
         });
       });
 
@@ -139,8 +143,7 @@ describeWithEnv(
       test("shows on edit page when CAN_BUILD_SITES is true", () => {
         withBuilder(() => {
           const html = editPanelHtml(builderListing());
-          assertStringIncludes(html, "months_per_unit");
-          assertStringIncludes(html, "initial_site_months");
+          expectIncludesAll(html, ["months_per_unit", "initial_site_months"]);
         });
       });
 
@@ -159,8 +162,7 @@ describeWithEnv(
             [],
             OWNER_SESSION,
           );
-          assertStringIncludes(html, "months_per_unit");
-          assertStringIncludes(html, "initial_site_months");
+          expectIncludesAll(html, ["months_per_unit", "initial_site_months"]);
         });
       });
 

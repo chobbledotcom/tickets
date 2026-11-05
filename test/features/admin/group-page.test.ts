@@ -7,6 +7,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -42,13 +43,12 @@ describeWithEnv("the group page", { db: true }, () => {
     const html = await (
       await adminGet(`/admin/groups/${group.id}/actions`)
     ).text();
-    assertStringIncludes(html, "<strong>wording</strong>");
-    // The add-note link sits beside the heading, returning to the group page.
-    assertStringIncludes(html, "Add a note");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "<strong>wording</strong>",
+      // The add-note link sits beside the heading, returning to the group page.
+      "Add a note",
       `/admin/groups/${group.id}/note?return_url=%2Fadmin%2Fgroups%2F${group.id}`,
-    );
+    ]);
   });
 
   test("marks the groups list as the section it belongs to", async () => {
@@ -66,9 +66,11 @@ describeWithEnv("the group page", { db: true }, () => {
       await adminGet(`/admin/groups/${group.id}/actions`)
     ).text();
 
-    assertStringIncludes(html, `href="/admin/groups/${group.id}/export.json"`);
-    assertStringIncludes(html, `href="/admin/groups/${group.id}/bulk-actions"`);
-    assertStringIncludes(html, `href="/admin/groups/${group.id}/delete"`);
+    expectIncludesAll(html, [
+      `href="/admin/groups/${group.id}/export.json"`,
+      `href="/admin/groups/${group.id}/bulk-actions"`,
+      `href="/admin/groups/${group.id}/delete"`,
+    ]);
   });
 
   test("offers an editor the export alone", async () => {
@@ -114,23 +116,13 @@ describeWithEnv("the group page", { db: true }, () => {
 
     const html = await (await adminGet(`/admin/groups/${group.id}`)).text();
 
-    assertStringIncludes(html, `href="/admin/groups/${group.id}">Overview</a>`);
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      `href="/admin/groups/${group.id}">Overview</a>`,
       `href="/admin/groups/${group.id}/attendees">Attendees</a>`,
-    );
-    assertStringIncludes(
-      html,
       `href="/admin/groups/${group.id}/scanner">Scanner</a>`,
-    );
-    assertStringIncludes(
-      html,
       `href="/admin/groups/${group.id}/edit">Edit</a>`,
-    );
-    assertStringIncludes(
-      html,
       `href="/admin/groups/${group.id}/actions">Actions</a>`,
-    );
+    ]);
   });
 
   test("keeps an editor off the scanner tab", async () => {

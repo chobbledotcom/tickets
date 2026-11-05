@@ -17,6 +17,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 import type { AdminSession } from "#types";
 
@@ -95,8 +96,10 @@ describe("the spec's shell", () => {
       title: "Holidays",
     });
 
-    assertStringIncludes(html, '<a class="active" href="/admin/users">');
-    assertStringIncludes(html, "<p>Opener body</p>");
+    expectIncludesAll(html, [
+      '<a class="active" href="/admin/users">',
+      "<p>Opener body</p>",
+    ]);
   });
 
   test("renders the action row it is handed", () => {
@@ -136,8 +139,10 @@ describe("the spec's shell", () => {
       title: "Advanced",
     });
 
-    assertStringIncludes(html, '<body class="custom-body"');
-    assertStringIncludes(html, 'class="page-regions custom-shell"');
+    expectIncludesAll(html, [
+      '<body class="custom-body"',
+      'class="page-regions custom-shell"',
+    ]);
     assert(!html.includes('class="page-regions admin-page"'));
   });
 });
@@ -164,9 +169,11 @@ describe("the spec's form facet", () => {
   test("posts the whole body to the action it was given", () => {
     const html = formSpec();
 
-    assertStringIncludes(html, '<form action="/admin/recalculate"');
-    assertStringIncludes(html, "<h1>Recalculate</h1>");
-    assertStringIncludes(html, "<p>Opener body</p>");
+    expectIncludesAll(html, [
+      '<form action="/admin/recalculate"',
+      "<h1>Recalculate</h1>",
+      "<p>Opener body</p>",
+    ]);
     expect(html.indexOf("<h1>Recalculate</h1>")).toBeLessThan(
       html.indexOf("<p>Opener body</p>"),
     );
@@ -229,15 +236,19 @@ describe("the spec's list facet", () => {
   test("renders the table when items exist and the empty note when not", () => {
     const full = listSpec(["one", "two"]);
 
-    assertStringIncludes(full, "<h2>Groups</h2>");
-    assertStringIncludes(full, "<p>one</p>");
-    assertStringIncludes(full, '<a href="/admin/guide">Guide</a>');
+    expectIncludesAll(full, [
+      "<h2>Groups</h2>",
+      "<p>one</p>",
+      '<a href="/admin/guide">Guide</a>',
+    ]);
     assert(!full.includes("Nothing yet"));
 
     const empty = listSpec([]);
 
-    assertStringIncludes(empty, "Nothing yet");
-    assertStringIncludes(empty, '<a href="/admin/guide">Guide</a>');
+    expectIncludesAll(empty, [
+      "Nothing yet",
+      '<a href="/admin/guide">Guide</a>',
+    ]);
   });
 
   test("renders the table for a single item, not the empty note", () => {
@@ -255,13 +266,14 @@ describe("the spec's list facet", () => {
       header: () => "Move",
     });
 
-    assertStringIncludes(html, '<th class="col-reorder">');
-    assertStringIncludes(html, "/admin/groups/one/move-down");
-    assertStringIncludes(html, "/admin/groups/two/move-up");
+    expectIncludesAll(html, [
+      '<th class="col-reorder">',
+      "/admin/groups/one/move-down",
+      "/admin/groups/two/move-up",
+    ]);
     assert(!html.includes("/admin/groups/one/move-up"));
     assert(!html.includes("/admin/groups/two/move-down"));
-    assertStringIncludes(html, "▲");
-    assertStringIncludes(html, "▼");
+    expectIncludesAll(html, ["▲", "▼"]);
   });
 
   test("omits the move column when the site is read-only", () => {
@@ -305,9 +317,11 @@ describe("pages built on the spec", () => {
   test("titles itself from the message catalog and renders its data", () => {
     const html = dataPage(OWNER_SESSION, ["first", "second"]);
 
-    assertStringIncludes(html, `<title>${t("backup.page_title")}</title>`);
-    assertStringIncludes(html, "<p>first, second</p>");
-    assertStringIncludes(html, '<a class="active" href="/admin/backup">');
+    expectIncludesAll(html, [
+      `<title>${t("backup.page_title")}</title>`,
+      "<p>first, second</p>",
+      '<a class="active" href="/admin/backup">',
+    ]);
   });
 
   test("carries the notices its route passes back", () => {
@@ -369,9 +383,11 @@ describe("pages built on the spec", () => {
   test("hands the body both the items and the viewer", () => {
     const html = collectionPage(["one", "two"], OWNER_SESSION);
 
-    assertStringIncludes(html, "<p>2 for owner</p>");
-    assertStringIncludes(html, `<title>${t("terms.groups")}</title>`);
-    assertStringIncludes(html, '<a class="active" href="/admin/groups">');
+    expectIncludesAll(html, [
+      "<p>2 for owner</p>",
+      `<title>${t("terms.groups")}</title>`,
+      '<a class="active" href="/admin/groups">',
+    ]);
   });
 
   test("shows the notice a write left behind", () => {
@@ -399,8 +415,10 @@ describe("pages built on the spec", () => {
   test("hands the body the viewer and titles itself from the catalog", () => {
     const html = formPage(OWNER_SESSION);
 
-    assertStringIncludes(html, "<p>owner</p>");
-    assertStringIncludes(html, `<title>${t("admin.seeds.title")}</title>`);
+    expectIncludesAll(html, [
+      "<p>owner</p>",
+      `<title>${t("admin.seeds.title")}</title>`,
+    ]);
   });
 
   test("shows the notices its route passes back", () => {

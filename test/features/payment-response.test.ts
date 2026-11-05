@@ -6,6 +6,7 @@ import {
   paymentErrorResponse,
 } from "#routes/payment-response.ts";
 import { detectIframeMode } from "#shared/request-context.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
 describe("paymentErrorResponse", () => {
@@ -30,10 +31,12 @@ describe("paymentErrorResponse", () => {
     });
 
     const page = await response.text();
-    assertStringIncludes(page, "Staff diagnostics");
-    assertStringIncludes(page, "Session id");
-    assertStringIncludes(page, "cs_panel");
-    assertStringIncludes(page, "The card step was never finished.");
+    expectIncludesAll(page, [
+      "Staff diagnostics",
+      "Session id",
+      "cs_panel",
+      "The card step was never finished.",
+    ]);
   });
 });
 

@@ -7,6 +7,7 @@ import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildAttendeeEditForm } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -106,8 +107,7 @@ describeWithEnv(
           },
         );
         const html = await response.text();
-        assertStringIncludes(html, "Shirt size?");
-        assertStringIncludes(html, "Meal choice?");
+        expectIncludesAll(html, ["Shirt size?", "Meal choice?"]);
       });
 
       test("saving an edit preserves answers for every booked event", async () => {

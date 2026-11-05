@@ -7,6 +7,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { advancedDefaultState } from "./state.ts";
 
 describe("adminAdvancedSettingsPage", () => {
@@ -18,11 +19,13 @@ describe("adminAdvancedSettingsPage", () => {
       smsGatewayBaseUrl: "https://sms.example.com",
       smsGatewayUsername: "myuser",
     });
-    assertStringIncludes(html, "SMS Gateway");
-    assertStringIncludes(html, 'name="sms_gateway_username"');
-    assertStringIncludes(html, "myuser");
-    assertStringIncludes(html, "https://sms.example.com");
-    assertStringIncludes(html, `minlength="${SMS_PASSPHRASE_MIN_LENGTH}"`);
+    expectIncludesAll(html, [
+      "SMS Gateway",
+      'name="sms_gateway_username"',
+      "myuser",
+      "https://sms.example.com",
+      `minlength="${SMS_PASSPHRASE_MIN_LENGTH}"`,
+    ]);
   });
 
   test("masks the SMS gateway secrets when configured", () => {
@@ -32,10 +35,12 @@ describe("adminAdvancedSettingsPage", () => {
       smsGatewayPasswordConfigured: true,
       smsGatewayWebhookConfigured: true,
     });
-    assertStringIncludes(html, 'name="sms_gateway_password"');
-    assertStringIncludes(html, 'name="sms_gateway_passphrase"');
-    assertStringIncludes(html, 'name="sms_gateway_webhook_secret"');
-    assertStringIncludes(html, MASK_SENTINEL);
+    expectIncludesAll(html, [
+      'name="sms_gateway_password"',
+      'name="sms_gateway_passphrase"',
+      'name="sms_gateway_webhook_secret"',
+      MASK_SENTINEL,
+    ]);
   });
 
   test("shows email provider selection when configured", () => {
@@ -44,9 +49,11 @@ describe("adminAdvancedSettingsPage", () => {
       emailFromAddress: "from@test.com",
       emailProvider: "resend",
     });
-    assertStringIncludes(html, 'value="resend"');
-    assertStringIncludes(html, "Send Test Email");
-    assertStringIncludes(html, 'value="from@test.com"');
+    expectIncludesAll(html, [
+      'value="resend"',
+      "Send Test Email",
+      'value="from@test.com"',
+    ]);
   });
 
   test("hides test button when no email provider configured", () => {
@@ -98,11 +105,13 @@ describe("adminAdvancedSettingsPage", () => {
       subdomainPreview: "mylisting",
       subdomainPreviewFullDomain: "mylisting.tickets.example.com",
     });
-    assertStringIncludes(html, "mylisting.tickets.example.com");
-    assertStringIncludes(html, "is free.");
-    assertStringIncludes(html, 'name="save"');
-    assertStringIncludes(html, "Register this subdomain");
-    assertStringIncludes(html, 'value="mylisting"');
+    expectIncludesAll(html, [
+      "mylisting.tickets.example.com",
+      "is free.",
+      'name="save"',
+      "Register this subdomain",
+      'value="mylisting"',
+    ]);
   });
 
   test("custom domain form warns Square users about the webhook URL", () => {
@@ -111,14 +120,10 @@ describe("adminAdvancedSettingsPage", () => {
       bunnyCdnEnabled: true,
       existingPaymentProvider: "square",
     });
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       "Changing your domain changes your payment webhook",
-    );
-    assertStringIncludes(
-      html,
       'href="/admin/settings#settings-square-webhook"',
-    );
+    ]);
   });
 
   test("subdomain form warns Stripe users about the webhook URL", () => {
@@ -127,11 +132,10 @@ describe("adminAdvancedSettingsPage", () => {
       bunnyDnsEnabled: true,
       existingPaymentProvider: "stripe",
     });
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       "Changing your domain changes your payment webhook",
-    );
-    assertStringIncludes(html, 'href="/admin/settings#settings-stripe"');
+      'href="/admin/settings#settings-stripe"',
+    ]);
   });
 
   test("does not warn about webhooks for providers without webhooks", () => {
@@ -149,13 +153,15 @@ describe("adminAdvancedSettingsPage", () => {
       ...advancedDefaultState,
       logisticsEnabled: true,
     });
-    assertStringIncludes(shown, 'id="settings-logistics-run-sheet"');
-    assertStringIncludes(shown, "Logistics run sheet template");
-    assertStringIncludes(shown, 'name="heading"');
-    assertStringIncludes(shown, 'name="body"');
-    // The built-in template sits behind each box, ready to fill in.
-    assertStringIncludes(shown, "Edit default template");
-    assertStringIncludes(shown, 'action="/admin/settings/logistics-run-sheet"');
+    expectIncludesAll(shown, [
+      'id="settings-logistics-run-sheet"',
+      "Logistics run sheet template",
+      'name="heading"',
+      'name="body"',
+      // The built-in template sits behind each box, ready to fill in.
+      "Edit default template",
+      'action="/admin/settings/logistics-run-sheet"',
+    ]);
 
     const hidden = adminAdvancedSettingsPage(
       OWNER_SESSION,
@@ -174,7 +180,9 @@ describe("adminAdvancedSettingsPage", () => {
       logisticsRunSheetHeading: "{{ relative }}",
     });
 
-    assertStringIncludes(html, "{% for booking in day.bookings %}");
-    assertStringIncludes(html, "{{ relative }}");
+    expectIncludesAll(html, [
+      "{% for booking in day.bookings %}",
+      "{{ relative }}",
+    ]);
   });
 });

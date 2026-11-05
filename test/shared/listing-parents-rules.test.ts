@@ -10,6 +10,7 @@ import {
   scopeIsChildDeadEnd,
   scopeReachesPage,
 } from "#shared/listing-parents-rules.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { edgeListing as listing } from "./listing-parents-rules/helpers.ts";
 
 /** The i18n message a broken edge rule reports for the named listing — the
@@ -31,8 +32,7 @@ const cabin = (over: Partial<EdgeListing> = {}): EdgeListing =>
 describe("childAddOnError", () => {
   test("resolves to real copy naming the add-on and the child, not a raw key", () => {
     const message = childAddOnError("Face Paint", "Bouncy Castle");
-    assertStringIncludes(message, "Face Paint");
-    assertStringIncludes(message, "Bouncy Castle");
+    expectIncludesAll(message, ["Face Paint", "Bouncy Castle"]);
     assert(!message.includes("children_err"));
   });
 });

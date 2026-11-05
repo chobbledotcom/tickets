@@ -4,6 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   attendeeLineIndex,
   expectHtmlResponse,
+  expectIncludesAll,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { hasSelectedOption } from "#test-utils/csrf.ts";
@@ -84,10 +85,12 @@ describeWithEnv(
         await createDailyTestListing({ name: "Daily One" });
         const response = await adminGet("/admin/attendees/new");
         const html = await expectHtmlResponse(response, 200);
-        assertStringIncludes(html, 'name="start_date"');
-        assertStringIncludes(html, 'id="day_count"');
-        // The note makes clear the date is optional and daily-only.
-        assertStringIncludes(html, "only affects daily listings");
+        expectIncludesAll(html, [
+          'name="start_date"',
+          'id="day_count"',
+          // The note makes clear the date is optional and daily-only.
+          "only affects daily listings",
+        ]);
       });
 
       test("omits the 'Back without saving' link", async () => {

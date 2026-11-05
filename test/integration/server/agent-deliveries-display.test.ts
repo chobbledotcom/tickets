@@ -11,6 +11,7 @@ import { setAdminFeatureEnabled } from "#db/admin-features.ts";
 import { setLogisticsAssignments } from "#db/logistics.ts";
 import { settings } from "#db/settings.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -56,9 +57,7 @@ describeWithEnv("server (run sheet display)", { db: true }, () => {
     );
 
     const html = await fetchDeliveriesHtml();
-    assertStringIncludes(html, "Boiler Service");
-    assertStringIncludes(html, listing.name);
-    assertStringIncludes(html, "Drop-off");
+    expectIncludesAll(html, ["Boiler Service", listing.name, "Drop-off"]);
     // A servicing event has no contact details, so those lines stay out.
     assert(!html.includes("delivery-phone"));
   });
@@ -92,8 +91,7 @@ describeWithEnv("server (run sheet display)", { db: true }, () => {
       fetchDeliveriesHtml,
     );
 
-    assertStringIncludes(html, "<h2>today day</h2>");
-    assertStringIncludes(html, "<h2>tomorrow day</h2>");
+    expectIncludesAll(html, ["<h2>today day</h2>", "<h2>tomorrow day</h2>"]);
   });
 
   test("staff get the template link, and it goes when logistics is off", async () => {

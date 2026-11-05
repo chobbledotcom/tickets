@@ -2,7 +2,11 @@ import { assertStringIncludes } from "@std/assert";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { listingAggregates } from "#db/listings/aggregates.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
-import { expectHtmlResponse, expectStatus } from "#test-utils/assertions.ts";
+import {
+  expectHtmlResponse,
+  expectIncludesAll,
+  expectStatus,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -40,10 +44,7 @@ describeWithEnv("server (admin groups) — attendee stats", { db: true }, () => 
       const response = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);
       const html = await response.text();
-      assertStringIncludes(html, "Attendees");
-      assertStringIncludes(html, "Checked In");
-      assertStringIncludes(html, "0 / 2");
-      assertStringIncludes(html, "2 remain");
+      expectIncludesAll(html, ["Attendees", "Checked In", "0 / 2", "2 remain"]);
     });
 
     test("shows stored-total mismatches on the group detail page", async () => {
@@ -107,11 +108,13 @@ describeWithEnv("server (admin groups) — attendee stats", { db: true }, () => 
       const response = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);
       const html = await response.text();
-      assertStringIncludes(html, "Attendees Checked In");
-      assertStringIncludes(html, "Tickets Checked In");
-      // 0 / 2 tickets checked in, 0 / 4 attendees checked in
-      assertStringIncludes(html, "0 / 2");
-      assertStringIncludes(html, "0 / 4");
+      expectIncludesAll(html, [
+        "Attendees Checked In",
+        "Tickets Checked In",
+        // 0 / 2 tickets checked in, 0 / 4 attendees checked in
+        "0 / 2",
+        "0 / 4",
+      ]);
     });
 
     test("shows attendees table with listing name column", async () => {
@@ -135,9 +138,11 @@ describeWithEnv("server (admin groups) — attendee stats", { db: true }, () => 
       const response = await adminGet(`/admin/groups/${group.id}/attendees`);
       expectStatus(200)(response);
       const html = await response.text();
-      assertStringIncludes(html, "Charlie");
-      assertStringIncludes(html, "Table Listing");
-      assertStringIncludes(html, `/admin/listing/${listing.id}`);
+      expectIncludesAll(html, [
+        "Charlie",
+        "Table Listing",
+        `/admin/listing/${listing.id}`,
+      ]);
     });
 
     test("Attendees tab renders the roster's answers column when a listing has questions", async () => {
@@ -177,9 +182,11 @@ describeWithEnv("server (admin groups) — attendee stats", { db: true }, () => 
       const html = await (
         await adminGet(`/admin/groups/${group.id}/attendees`)
       ).text();
-      assertStringIncludes(html, "Quentin");
-      // The Answers column only renders when the roster carries question data.
-      assertStringIncludes(html, "<th>Answers</th>");
+      expectIncludesAll(html, [
+        "Quentin",
+        // The Answers column only renders when the roster carries question data.
+        "<th>Answers</th>",
+      ]);
     });
 
     test("shows question answer summary in group details", async () => {
@@ -216,8 +223,7 @@ describeWithEnv("server (admin groups) — attendee stats", { db: true }, () => 
       const response = await adminGet(`/admin/groups/${group.id}`);
       expectStatus(200)(response);
       const html = await response.text();
-      assertStringIncludes(html, "<th>Color</th>");
-      assertStringIncludes(html, "Red (0)");
+      expectIncludesAll(html, ["<th>Color</th>", "Red (0)"]);
     });
 
     test("shows total revenue for paid listings", async () => {

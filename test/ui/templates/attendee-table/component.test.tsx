@@ -9,6 +9,7 @@ import {
   render,
   zaraAliceRows,
 } from "#test/ui/templates/attendee-table/shared.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testAttendee, testRadioQuestion } from "#test-utils/factories.ts";
 
 attendeeTableSuite(() => {
@@ -31,16 +32,12 @@ attendeeTableSuite(() => {
         }),
       );
 
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
         "<thead><tr><th>Registered</th><th>Phone</th><th>Ticket</th></tr></thead>",
-      );
-      assertStringIncludes(html, "<td>2026</td>");
-      assertStringIncludes(html, 'href="tel:+12345678900"');
-      assertStringIncludes(
-        html,
+        "<td>2026</td>",
+        'href="tel:+12345678900"',
         '<a href="https://tickets.example.test/t/custom-token">custom-token</a>',
-      );
+      ]);
       assert(!html.includes("Check in"));
     });
 
@@ -48,10 +45,12 @@ attendeeTableSuite(() => {
       const attendee = testAttendee({ phone: "07700 900000" });
       const html = render(makeOpts({ rows: [makeRow({ attendee })] }));
 
-      assertStringIncludes(html, 'class="link-button checkin"');
-      assertStringIncludes(html, "<th>Name</th>");
-      assertStringIncludes(html, "<th>Phone</th>");
-      assertStringIncludes(html, 'href="tel:+447700900000"');
+      expectIncludesAll(html, [
+        'class="link-button checkin"',
+        "<th>Name</th>",
+        "<th>Phone</th>",
+        'href="tel:+447700900000"',
+      ]);
     });
 
     test("sorts rows unless the caller marks them as presorted", () => {
@@ -88,11 +87,10 @@ attendeeTableSuite(() => {
       );
 
       assert(!empty.includes("<th>Answers</th>"));
-      assertStringIncludes(populated, "<th>Answers</th>");
-      assertStringIncludes(
-        populated,
+      expectIncludesAll(populated, [
+        "<th>Answers</th>",
         '<span title="Meal?: Vegan">Vegan</span>',
-      );
+      ]);
     });
 
     test("marks only servicing rows with servicing attributes", () => {
@@ -113,11 +111,10 @@ attendeeTableSuite(() => {
         }),
       );
 
-      assertStringIncludes(html, "<tbody><tr><td>");
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        "<tbody><tr><td>",
         '<tr class="servicing-event" data-servicing="true"><td>',
-      );
+      ]);
       expect(html.match(/data-servicing="true"/g)).toHaveLength(1);
     });
 

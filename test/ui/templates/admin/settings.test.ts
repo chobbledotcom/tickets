@@ -6,6 +6,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { hasCheckedInput } from "#test-utils/csrf.ts";
 import { defaultSettingsState } from "./settings-state.ts";
 
@@ -32,16 +33,20 @@ describe("adminSettingsPage", () => {
 
   test("shows settings sub-navigation", () => {
     const html = adminSettingsPage(OWNER_SESSION, defaultSettingsState());
-    assertStringIncludes(html, 'href="/admin/settings-advanced"');
-    assertStringIncludes(html, 'href="/admin/backup"');
-    assertStringIncludes(html, 'href="/admin/debug"');
+    expectIncludesAll(html, [
+      'href="/admin/settings-advanced"',
+      'href="/admin/backup"',
+      'href="/admin/debug"',
+    ]);
   });
 
   test("renders the calendar feeds form as markup, not escaped HTML", () => {
     const html = adminSettingsPage(OWNER_SESSION, defaultSettingsState());
-    assertStringIncludes(html, 'action="/admin/settings/calendar-feeds"');
-    assertStringIncludes(html, 'name="calendar_feeds_enabled"');
-    assertStringIncludes(html, 'name="calendar_feeds_group_by"');
+    expectIncludesAll(html, [
+      'action="/admin/settings/calendar-feeds"',
+      'name="calendar_feeds_enabled"',
+      'name="calendar_feeds_group_by"',
+    ]);
     assert(!html.includes("&lt;form"));
   });
 
@@ -64,8 +69,10 @@ describe("adminSettingsPage", () => {
       bookingFee: "2.5",
       paymentProvider: "stripe",
     });
-    assertStringIncludes(html, 'action="/admin/settings/booking-fee"');
-    assertStringIncludes(html, 'id="settings-booking-fee"');
+    expectIncludesAll(html, [
+      'action="/admin/settings/booking-fee"',
+      'id="settings-booking-fee"',
+    ]);
     const input = html.match(/<input[^>]*name="booking_fee"[^>]*>/)?.[0];
     assertStringIncludes(input ?? "", 'type="number"');
     assertStringIncludes(input ?? "", 'min="0"');

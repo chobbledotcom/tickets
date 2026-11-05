@@ -1,21 +1,7 @@
-/**
- * Servicing §4 — editing.
- *
- * Editing a servicing event reuses the attendee atomic-edit core: it preserves
- * the existing ticket token (read-and-reencrypt), updates name + bookings
- * (added/changed/removed `listing_attendees` rows), and cannot change its kind
- * or be unhidden through the form — `kind` is immutable, the hidden state is
- * owned by the kind.
- *
- * Implementation contract (test-first):
- *   - `#shared/db/attendees/servicing.ts` exports `updateServicingEvent(id,
- *     input)` and `getServicingEvent(id)`. The edit path goes through the same
- *     atomic-edit core as attendees, scoped to `kind='servicing'`.
- */
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
@@ -146,8 +132,7 @@ describeWithEnv(
       await deactivateTestListing(listing.id);
 
       const body = await renderAdminPage(`/admin/servicing/${id}`);
-      assertStringIncludes(body, "Boiler Room");
-      assertStringIncludes(body, "(inactive)");
+      expectIncludesAll(body, ["Boiler Room", "(inactive)"]);
       expect(body).toMatch(
         new RegExp(`name="quantity_${listing.id}"[^>]*value="2"`),
       );
@@ -190,8 +175,7 @@ describeWithEnv(
       });
 
       const body = await renderAdminPage(`/admin/servicing/${id}`);
-      assertStringIncludes(body, "no longer exist");
-      assertStringIncludes(body, "will be removed");
+      expectIncludesAll(body, ["no longer exist", "will be removed"]);
     });
   },
 );

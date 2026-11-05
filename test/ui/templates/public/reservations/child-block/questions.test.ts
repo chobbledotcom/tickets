@@ -5,6 +5,7 @@ import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getAttendeeAnswersBatch } from "#db/questions/attendee-answers/reads.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
 import { assignQuestion } from "#test/shared/db/questions/helpers.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   bookingPageHtml,
@@ -82,12 +83,11 @@ describeWithEnv(
 
       const html = await bookingPageHtml(parent.slug);
       expectQuestionControls(html, [questionAId, questionBId]);
-      assertStringIncludes(html, `data-listing-ids="${childA.id}"`);
-      assertStringIncludes(html, `data-listing-ids="${childB.id}"`);
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        `data-listing-ids="${childA.id}"`,
+        `data-listing-ids="${childB.id}"`,
         `</fieldset><fieldset class="custom-question" data-listing-ids="${childB.id}">`,
-      );
+      ]);
     });
 
     test("one child's questions render next to each other", async () => {

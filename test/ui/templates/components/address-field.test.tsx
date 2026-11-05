@@ -2,6 +2,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { AddressFieldWithLookup } from "#templates/components/address-field.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withSetting } from "#test-utils/settings.ts";
 
 describe("AddressFieldWithLookup", () => {
@@ -32,18 +33,14 @@ describe("AddressFieldWithLookup", () => {
     await withSetting({ address_lookup_provider: "easypostcodes" }, () => {
       const html = String(AddressFieldWithLookup({ address }));
 
-      assertStringIncludes(html, 'class="address-lookup"');
-      // The saved address ends with its postcode, so the search box starts
-      // pre-filled with it, normalised.
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        'class="address-lookup"',
+        // The saved address ends with its postcode, so the search box starts
+        // pre-filled with it, normalised.
         '<input autocomplete="off" data-address-search type="text" value="LS1 1AA">',
-      );
-      // The textarea stays editable and shows the saved address.
-      assertStringIncludes(
-        html,
+        // The textarea stays editable and shows the saved address.
         `maxlength="${MAX_INPUT_LENGTH}" name="address" rows="3">\n${address}</textarea>`,
-      );
+      ]);
     });
   });
 

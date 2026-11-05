@@ -12,6 +12,7 @@ import {
 import { handleRequest } from "#routes";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildCreateListingForm } from "#test-utils/db-helpers/listing-forms.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -246,8 +247,7 @@ describeWithEnv("server (editor role) security", { db: true }, () => {
 
       // The owner's users page shows the activated editor as Active.
       const usersHtml = await (await adminUsersHtml()).text();
-      assertStringIncludes(usersHtml, "joineditor");
-      assertStringIncludes(usersHtml, "Active");
+      expectIncludesAll(usersHtml, ["joineditor", "Active"]);
     });
   });
 });

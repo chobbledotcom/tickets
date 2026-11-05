@@ -7,6 +7,7 @@ import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { escapeIcs } from "#routes/feeds.ts";
 import { escapeXml } from "#shared/xml.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
@@ -102,16 +103,12 @@ describeWithEnv("listing feed contracts", { db: true }, () => {
           '<rss version="2.0">\n  <channel>\n',
       ),
     ).toBe(true);
-    assertStringIncludes(
-      body,
+    expectIncludesAll(body, [
       "    <item>\n      <title>Full listing</title>\n",
-    );
-    assertStringIncludes(
-      body,
       "<description>A great listing\n" +
         "Date: Mon, 15 Jun 2026 14:00:00 GMT\n" +
         "Location: Town Hall</description>",
-    );
+    ]);
     expect(body.endsWith("\n  </channel>\n</rss>")).toBe(true);
   });
 });
@@ -121,8 +118,10 @@ describeWithEnv("news feed contracts", { db: true }, () => {
     await enablePublicSite();
 
     const body = await feedBody("/feeds/news.rss");
-    assertStringIncludes(body, "<title>News</title>");
-    assertStringIncludes(body, "<description>News from News</description>");
+    expectIncludesAll(body, [
+      "<title>News</title>",
+      "<description>News from News</description>",
+    ]);
   });
 });
 

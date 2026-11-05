@@ -4,6 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import type { CatalogBundle } from "#routes/admin/catalog-transfer/schema.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { requireBundleImport } from "#test-utils/catalog-import.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -55,8 +56,7 @@ describeWithEnv("bundle package member checks", { db: true }, () => {
     const result = await importCatalog(mixedPackage());
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("unreachable");
-    assertStringIncludes(result.error, '"Mixed Pack"');
-    assertStringIncludes(result.error, "Stored Member");
+    expectIncludesAll(result.error, ['"Mixed Pack"', "Stored Member"]);
   });
 
   test("judges a planned member against its own input fields", async () => {

@@ -5,7 +5,7 @@ import { execute } from "#db/client.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { t } from "#i18n";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
-import { expectFlash } from "#test-utils/assertions.ts";
+import { expectFlash, expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { linkedParentChild } from "#test-utils/listing-parents/helpers.ts";
@@ -80,11 +80,10 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
   test("renders the section with the chosen child checked", async () => {
     const { parent, child } = await linkedParentChild();
     const html = await listingEditPageHtml(parent.id);
-    assertStringIncludes(html, "Required child listings");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "Required child listings",
       `<input checked name="child_listing_ids" type="checkbox" value="${child.id}">`,
-    );
+    ]);
   });
 
   test("saves multiple children", async () => {
@@ -110,14 +109,10 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
     const other = await createTestListing({ name: "Unrelated" });
     await postChildren(parent.id, [child.id]);
     const html = await listingEditPageHtml(parent.id);
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       `<input checked name="child_listing_ids" type="checkbox" value="${child.id}">`,
-    );
-    assertStringIncludes(
-      html,
       `<input name="child_listing_ids" type="checkbox" value="${other.id}">`,
-    );
+    ]);
   });
 
   test("shows what a child is offered under", async () => {
@@ -138,11 +133,10 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
     const grandchild = await createTestListing({ name: "Leaf" });
     await postChildren(child.id, [grandchild.id]);
     const html = await listingEditPageHtml(parent.id);
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       `<input disabled name="child_listing_ids" type="checkbox" value="${child.id}">`,
-    );
-    assertStringIncludes(html, "already has its own child listings");
+      "already has its own child listings",
+    ]);
   });
 
   test("pre-disables a daily candidate under a non-daily parent (usability #4)", async () => {
@@ -161,14 +155,10 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
   test("a child listing's edit page shows the inherited-fields banner (usability #3)", async () => {
     const { child } = await linkedParentChild();
     const html = await listingEditPageHtml(child.id);
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       "This listing is offered as a child of Base unit",
-    );
-    assertStringIncludes(
-      html,
       "Inherited from the parent when this listing is chosen as a child",
-    );
+    ]);
   });
 
   test("a non-child listing's edit page shows no inherited-fields banner", async () => {

@@ -17,6 +17,7 @@ import {
 } from "#routes/admin/entity-write-tab.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import { FormParams } from "#shared/form-data.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
 import { getTestAuthSession } from "#test-utils/session.ts";
@@ -107,10 +108,12 @@ describeWithEnv("an edit entity page", { db: true }, () => {
 
     const html = await (await editPage.renderPage(session, 7, "")).text();
 
-    assertStringIncludes(html, "<p>Widget|clean</p>");
-    assertStringIncludes(html, 'href="/admin/holidays/7/edit"');
-    assertStringIncludes(html, 'href="/admin/holidays/7/notes"');
-    assertStringIncludes(html, 'href="/admin/holidays/7/actions"');
+    expectIncludesAll(html, [
+      "<p>Widget|clean</p>",
+      'href="/admin/holidays/7/edit"',
+      'href="/admin/holidays/7/notes"',
+      'href="/admin/holidays/7/actions"',
+    ]);
   });
 
   test("offers deleting the record on the actions tab", async () => {

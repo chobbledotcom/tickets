@@ -6,6 +6,7 @@ import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { AppleWalletForm } from "#templates/admin/settings/apple-wallet.tsx";
 import { advancedDefaultState } from "#test/ui/templates/admin/settings-advanced/state.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 describe("AppleWalletForm", () => {
   beforeAll(setupAdminPageTest);
@@ -19,16 +20,12 @@ describe("AppleWalletForm", () => {
       }),
     );
 
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="apple_wallet_pass_type_id" placeholder="pass.com.example.tickets" type="text" value="pass.com.example.tickets">`,
-    );
-    assertStringIncludes(
-      html,
       `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="apple_wallet_team_id" placeholder="ABC1234567" type="text" value="ABC1234567">`,
-    );
-    assertStringIncludes(html, "<label>Pass Type ID<input");
-    assertStringIncludes(html, "<label>Team ID<input");
+      "<label>Pass Type ID<input",
+      "<label>Team ID<input",
+    ]);
   });
 
   test("renders the three PEM secret fields textareas, empty until configured", () => {
@@ -39,15 +36,16 @@ describe("AppleWalletForm", () => {
       "apple_wallet_signing_key",
       "apple_wallet_wwdr_cert",
     ]) {
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
         `maxlength="${MAX_TEXTAREA_LENGTH}" name="${name}"`,
-      );
-      assertStringIncludes(html, `name="${name}" placeholder="-----BEGIN`);
+        `name="${name}" placeholder="-----BEGIN`,
+      ]);
     }
-    assertStringIncludes(html, "<label>Signing Certificate (PEM)<textarea");
-    assertStringIncludes(html, "<label>Signing Private Key (PEM)<textarea");
-    assertStringIncludes(html, "<label>WWDR Certificate (PEM)<textarea");
+    expectIncludesAll(html, [
+      "<label>Signing Certificate (PEM)<textarea",
+      "<label>Signing Private Key (PEM)<textarea",
+      "<label>WWDR Certificate (PEM)<textarea",
+    ]);
     assert(!html.includes(MASK_SENTINEL));
   });
 
@@ -65,12 +63,14 @@ describe("AppleWalletForm", () => {
   test("points its heading, action, and guide link at the Apple Wallet route", () => {
     const html = String(AppleWalletForm(advancedDefaultState));
 
-    assertStringIncludes(html, "<h2>Apple Wallet</h2>");
-    assertStringIncludes(html, 'action="/admin/settings/apple-wallet"');
-    assertStringIncludes(html, 'id="settings-apple-wallet"');
-    assertStringIncludes(html, 'href="/admin/guide#apple-wallet"');
-    assertStringIncludes(html, "Save Apple Wallet Settings");
-    assertStringIncludes(html, "Add to Apple Wallet");
+    expectIncludesAll(html, [
+      "<h2>Apple Wallet</h2>",
+      'action="/admin/settings/apple-wallet"',
+      'id="settings-apple-wallet"',
+      'href="/admin/guide#apple-wallet"',
+      "Save Apple Wallet Settings",
+      "Add to Apple Wallet",
+    ]);
   });
 
   test("carries the host-config hint in both override states", () => {

@@ -8,6 +8,7 @@ import {
   adminListingActivityLogPage,
 } from "#templates/admin/activity-log.tsx";
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withCsrfRequest } from "#test-utils/csrf-request.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { assertPageMatchesSnapshot } from "#test-utils/page-snapshot.ts";
@@ -61,9 +62,7 @@ describe("activity log templates", () => {
         logEntry({ id: 2, listing_id: 1, message: "Payment received" }),
       ];
       const html = adminListingActivityLogPage(listing, entries, OWNER_SESSION);
-      assertStringIncludes(html, "Ticket reserved");
-      assertStringIncludes(html, "Payment received");
-      assertStringIncludes(html, "Log");
+      expectIncludesAll(html, ["Ticket reserved", "Payment received", "Log"]);
     });
 
     test("renders empty state when no entries", () => {
@@ -82,8 +81,7 @@ describe("activity log templates", () => {
         OWNER_SESSION,
         emptyRefs(),
       );
-      assertStringIncludes(html, "System started");
-      assertStringIncludes(html, "Log");
+      expectIncludesAll(html, ["System started", "Log"]);
     });
 
     test("renders empty state when no entries", () => {
@@ -133,13 +131,12 @@ describe("activity log templates", () => {
         OWNER_SESSION,
         emptyRefs(),
       );
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
         'href="/admin/settings#settings-square-webhook"',
-      );
-      assertStringIncludes(html, "Re-enter your Square settings");
-      // The original error message is still shown after the link
-      assertStringIncludes(html, "Square signature verification failed");
+        "Re-enter your Square settings",
+        // The original error message is still shown after the link
+        "Square signature verification failed",
+      ]);
     });
 
     test("does not add the Square settings link to unrelated messages", () => {
@@ -173,10 +170,12 @@ describe("activity log templates", () => {
         OWNER_SESSION,
         emptyRefs(),
       );
-      assertStringIncludes(html, "<th>Attendee</th>");
-      assertStringIncludes(html, "<th>Listing</th>");
-      // The empty-state row spans all four columns.
-      assertStringIncludes(html, 'colspan="4"');
+      expectIncludesAll(html, [
+        "<th>Attendee</th>",
+        "<th>Listing</th>",
+        // The empty-state row spans all four columns.
+        'colspan="4"',
+      ]);
     });
 
     test("links an entry to its attendee and listing by name", () => {
@@ -194,14 +193,10 @@ describe("activity log templates", () => {
         OWNER_SESSION,
         refs,
       );
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
         '<a href="/admin/attendees/7">Ada Lovelace</a>',
-      );
-      assertStringIncludes(
-        html,
         '<a href="/admin/listing/3">Summer Concert</a>',
-      );
+      ]);
     });
 
     test("escapes attendee names so stored PII cannot inject markup", () => {

@@ -2,6 +2,7 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { ALL_SETTINGS_KEYS, CONFIG_KEYS, settings } from "#db/settings.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { hasCheckedInput, inputTagWithValue } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -21,11 +22,10 @@ describeWithEnv(
         BUNNY_SCRIPT_ID: undefined,
       });
       const html = await (await adminGet("/admin/settings-advanced")).text();
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
         "Changing your domain changes your payment webhook",
-      );
-      assertStringIncludes(html, 'href="/admin/settings#settings-stripe"');
+        'href="/admin/settings#settings-stripe"',
+      ]);
       const settingsHtml = await (await adminGet("/admin/settings")).text();
       assertStringIncludes(settingsHtml, 'id="settings-stripe"');
     });

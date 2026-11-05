@@ -8,6 +8,7 @@ import {
   expectErrorFlash,
   expectFlash,
   expectHtmlResponse,
+  expectIncludesAll,
   expectRedirect,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -29,22 +30,21 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         200,
       );
       // The page's own name is the heading; the form carries the editable slug.
-      assertStringIncludes(html, `<h1>${page.name}</h1>`);
-      assertStringIncludes(html, 'name="slug"');
-      assertStringIncludes(html, `value="${page.slug}"`);
-      // The public link sits under the slug field, opening in a new tab.
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        `<h1>${page.name}</h1>`,
+        'name="slug"',
+        `value="${page.slug}"`,
+        // The public link sits under the slug field, opening in a new tab.
         `Public link: <a href="/page/${page.slug}" rel="noopener" target="_blank">/page/${page.slug}</a>`,
-      );
-      // A guide footer sits at the bottom of the body.
-      assertStringIncludes(html, 'class="guide-footer"');
-      assertStringIncludes(html, 'href="/admin/guide#public-site"');
-      // The tabbed strip carries Edit, Items and Actions (Images hidden while
-      // storage is off). The item manager lives on the Items tab, not here.
-      assertStringIncludes(html, 'class="entity-tabs"');
-      assertStringIncludes(html, `href="${BASE}/${page.id}/items"`);
-      assertStringIncludes(html, `href="${BASE}/${page.id}/actions"`);
+        // A guide footer sits at the bottom of the body.
+        'class="guide-footer"',
+        'href="/admin/guide#public-site"',
+        // The tabbed strip carries Edit, Items and Actions (Images hidden while
+        // storage is off). The item manager lives on the Items tab, not here.
+        'class="entity-tabs"',
+        `href="${BASE}/${page.id}/items"`,
+        `href="${BASE}/${page.id}/actions"`,
+      ]);
       assert(!html.includes("Add to this page"));
     });
 
@@ -56,8 +56,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         await adminGet(`${BASE}/${page.id}/items`),
         200,
       );
-      assertStringIncludes(html, "Add to this page");
-      assertStringIncludes(html, ">Addable<");
+      expectIncludesAll(html, ["Add to this page", ">Addable<"]);
     });
 
     test("the items tab hides the add section (and any 'nothing available') when nothing can be added", async () => {
@@ -85,8 +84,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         await adminGet(`${BASE}/${page.id}`),
         200,
       );
-      assertStringIncludes(html, `<h1>${page.name}</h1>`);
-      assertStringIncludes(html, 'name="slug"');
+      expectIncludesAll(html, [`<h1>${page.name}</h1>`, 'name="slug"']);
     });
 
     test("an image POST with storage disabled bounces to the edit tab, not the hidden images tab", async () => {
@@ -149,8 +147,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         await adminGet(`${BASE}/${page.id}/edit`),
         200,
       );
-      assertStringIncludes(editorHtml, 'name="hidden"');
-      assertStringIncludes(editorHtml, 'value="1" checked');
+      expectIncludesAll(editorHtml, ['name="hidden"', 'value="1" checked']);
 
       // Unticking puts the page back in the menus and the sitemap.
       const { response: shown } = await adminFormPost(

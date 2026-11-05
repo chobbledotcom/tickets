@@ -17,6 +17,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { testBuiltSite, testListingWithCount } from "#test-utils/factories.ts";
 
@@ -27,9 +28,7 @@ describe("built-site templates", () => {
     test("renders formatted deadline column", () => {
       const site = testBuiltSite({ readOnlyFrom: "2099-06-01T00:00:00Z" });
       const html = adminBuiltSitesPage([site], OWNER_SESSION);
-      assertStringIncludes(html, "Read-only from");
-      assertStringIncludes(html, "in");
-      assertStringIncludes(html, "day");
+      expectIncludesAll(html, ["Read-only from", "in", "day"]);
     });
 
     test("shows the build count above the list, singular for 1", () => {
@@ -48,12 +47,11 @@ describe("built-site templates", () => {
       const html = adminBuiltSitesPage([testBuiltSite()], OWNER_SESSION);
       // Name is the default sort, so its heading is plain text and the
       // others link to their sort.
-      assertStringIncludes(html, "<strong>Name</strong>");
-      assertStringIncludes(html, 'href="/admin/built-sites?sort=created"');
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        "<strong>Name</strong>",
+        'href="/admin/built-sites?sort=created"',
         'href="/admin/built-sites?sort=read_only_from"',
-      );
+      ]);
       const byCreated = adminBuiltSitesPage(
         [testBuiltSite()],
         OWNER_SESSION,
@@ -61,14 +59,15 @@ describe("built-site templates", () => {
         [],
         "created",
       );
-      assertStringIncludes(byCreated, "<strong>Created</strong>");
-      assertStringIncludes(byCreated, 'href="/admin/built-sites?sort=name"');
+      expectIncludesAll(byCreated, [
+        "<strong>Created</strong>",
+        'href="/admin/built-sites?sort=name"',
+      ]);
     });
 
     test("renders the created column as a short datetime", () => {
       const html = adminBuiltSitesPage([testBuiltSite()], OWNER_SESSION);
-      assertStringIncludes(html, "Created");
-      assertStringIncludes(html, "<td>2026-01-01 00:00</td>");
+      expectIncludesAll(html, ["Created", "<td>2026-01-01 00:00</td>"]);
     });
 
     test("renders 'never' for empty deadline", () => {
@@ -87,9 +86,11 @@ describe("built-site templates", () => {
     test("warns when no qualifying renewal tier is configured", () => {
       const site = testBuiltSite({ readOnlyFrom: "" });
       const html = adminBuiltSitesPage([site], OWNER_SESSION, undefined, []);
-      assertStringIncludes(html, "Renewal tiers");
-      assertStringIncludes(html, "No renewal tier listing is configured");
-      assertStringIncludes(html, "won't be able to renew");
+      expectIncludesAll(html, [
+        "Renewal tiers",
+        "No renewal tier listing is configured",
+        "won't be able to renew",
+      ]);
     });
 
     test("keeps the read-only entity link but hides create actions", () => {
@@ -138,12 +139,14 @@ describe("built-site templates", () => {
         monthly,
         annual,
       ]);
-      assertStringIncludes(html, "Monthly tier");
-      assertStringIncludes(html, "Annual tier");
-      assertStringIncludes(html, ">7<");
-      assertStringIncludes(html, ">2<");
-      assertStringIncludes(html, 'href="/admin/listing/11"');
-      assertStringIncludes(html, 'href="/admin/listing/12"');
+      expectIncludesAll(html, [
+        "Monthly tier",
+        "Annual tier",
+        ">7<",
+        ">2<",
+        'href="/admin/listing/11"',
+        'href="/admin/listing/12"',
+      ]);
       assert(!html.includes("No renewal tier listing is configured"));
     });
   });
@@ -191,15 +194,21 @@ describe("built-site templates", () => {
     test("renders new, edit, and delete destinations and labels", () => {
       const site = testBuiltSite({ id: 42, name: "Delete <site>" });
       const newPage = adminBuiltSiteNewPage(OWNER_SESSION);
-      assertStringIncludes(newPage, 'action="/admin/built-sites"');
-      assertStringIncludes(newPage, "Add Built Site");
+      expectIncludesAll(newPage, [
+        'action="/admin/built-sites"',
+        "Add Built Site",
+      ]);
       const edit = String(BuiltSiteEditPanel({ site }));
-      assertStringIncludes(edit, 'action="/admin/built-sites/42/edit"');
-      assertStringIncludes(edit, "Save Changes");
+      expectIncludesAll(edit, [
+        'action="/admin/built-sites/42/edit"',
+        "Save Changes",
+      ]);
       const deletePage = adminBuiltSiteDeletePage(site, OWNER_SESSION);
-      assertStringIncludes(deletePage, 'action="/admin/built-sites/42/delete"');
-      assertStringIncludes(deletePage, "Delete Built Site");
-      assertStringIncludes(deletePage, "Delete &lt;site&gt;");
+      expectIncludesAll(deletePage, [
+        'action="/admin/built-sites/42/delete"',
+        "Delete Built Site",
+        "Delete &lt;site&gt;",
+      ]);
       assert(!deletePage.includes("button-danger"));
     });
 
@@ -236,8 +245,10 @@ describe("built-site templates", () => {
     test("renders the edit form, with no (visit) link, for a malformed saved URL", () => {
       const site = testBuiltSite({ siteUrl: "https://" });
       const edit = String(BuiltSiteEditPanel({ site }));
-      assertStringIncludes(edit, 'action="/admin/built-sites');
-      assertStringIncludes(edit, 'value="https://"');
+      expectIncludesAll(edit, [
+        'action="/admin/built-sites',
+        'value="https://"',
+      ]);
       assert(!edit.includes("(visit)"));
     });
   });
@@ -251,13 +262,15 @@ describe("built-site templates", () => {
 
     test("shows renewal URL and rotate/bump/override/re-sync forms; no tier picker", () => {
       const html = String(renewalPanelFor(provisionedSite));
-      assertStringIncludes(html, "Renewal URL");
-      assertStringIncludes(html, "rotate-renewal-token");
-      assertStringIncludes(html, "bump-deadline");
-      assertStringIncludes(html, "override-deadline");
-      assertStringIncludes(html, "re-sync-deadline");
-      assertStringIncludes(html, "Rotate token");
-      assertStringIncludes(html, "Re-sync deadline");
+      expectIncludesAll(html, [
+        "Renewal URL",
+        "rotate-renewal-token",
+        "bump-deadline",
+        "override-deadline",
+        "re-sync-deadline",
+        "Rotate token",
+        "Re-sync deadline",
+      ]);
       assert(!html.includes("tier_listing_id"));
       assert(!html.includes("set-renewal-tier"));
     });
@@ -270,14 +283,10 @@ describe("built-site templates", () => {
 
     test("labels the shared bump/override forms inline (no headings)", () => {
       const html = String(renewalPanelFor(provisionedSite));
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
         '<label for="bump_months">Bump deadline by months',
-      );
-      assertStringIncludes(
-        html,
         '<label for="override_date">Override deadline',
-      );
+      ]);
       assert(!html.includes("<h3>Bump deadline</h3>"));
     });
   });
@@ -290,10 +299,12 @@ describe("built-site templates", () => {
 
     test("shows Provision Renewal form, bump/override forms; no Rotate/Re-sync; no tier picker", () => {
       const html = String(renewalPanelFor(unprovisionedSite));
-      assertStringIncludes(html, "Provision renewal");
-      assertStringIncludes(html, "provision-renewal");
-      assertStringIncludes(html, "bump-deadline");
-      assertStringIncludes(html, "override-deadline");
+      expectIncludesAll(html, [
+        "Provision renewal",
+        "provision-renewal",
+        "bump-deadline",
+        "override-deadline",
+      ]);
       assert(!html.includes("rotate-renewal-token"));
       assert(!html.includes("re-sync-deadline"));
       assert(!html.includes("tier_listing_id"));
@@ -301,8 +312,10 @@ describe("built-site templates", () => {
 
     test("labels the shared bump/override forms with headings (no inline labels)", () => {
       const html = String(renewalPanelFor(unprovisionedSite));
-      assertStringIncludes(html, "<h3>Bump deadline</h3>");
-      assertStringIncludes(html, "<h3>Override deadline</h3>");
+      expectIncludesAll(html, [
+        "<h3>Bump deadline</h3>",
+        "<h3>Override deadline</h3>",
+      ]);
       assert(!html.includes('for="bump_months"'));
       assert(!html.includes('for="override_date"'));
     });
@@ -324,14 +337,16 @@ describe("built-site templates", () => {
           },
         }),
       );
-      assertStringIncludes(html, "/admin/built-sites/9/add-secrets");
-      assertStringIncludes(html, "<code>NTFY_URL</code>");
-      assertStringIncludes(html, "<code>STORAGE_ZONE_KEY</code>");
-      assertStringIncludes(html, "Set 2 missing secret(s)");
-      assertStringIncludes(html, "host-level infrastructure credentials");
-      assertStringIncludes(html, "STORAGE_ZONE_KEY");
-      assertStringIncludes(html, "Secrets currently on this site");
-      assertStringIncludes(html, "<code>DB_ENCRYPTION_KEY</code>");
+      expectIncludesAll(html, [
+        "/admin/built-sites/9/add-secrets",
+        "<code>NTFY_URL</code>",
+        "<code>STORAGE_ZONE_KEY</code>",
+        "Set 2 missing secret(s)",
+        "host-level infrastructure credentials",
+        "STORAGE_ZONE_KEY",
+        "Secrets currently on this site",
+        "<code>DB_ENCRYPTION_KEY</code>",
+      ]);
     });
 
     test("omits the live-secrets list when the site has none set", () => {
@@ -407,14 +422,13 @@ describe("built-site templates", () => {
 
     test("shows the version, latest release, and an update button when behind", () => {
       const html = render();
-      assertStringIncludes(html, "Thu, 01 Jan 2026 00:00:00 UTC");
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        "Thu, 01 Jan 2026 00:00:00 UTC",
         "2099-01-01 - Big Update (v2099-01-01-120000)",
-      );
-      assertStringIncludes(html, "An update is available");
-      assertStringIncludes(html, "/admin/built-sites/42/update");
-      assertStringIncludes(html, "Update this site");
+        "An update is available",
+        "/admin/built-sites/42/update",
+        "Update this site",
+      ]);
     });
 
     test("shows up to date when the site is on the latest release", () => {

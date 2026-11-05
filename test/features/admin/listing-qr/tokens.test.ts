@@ -4,6 +4,7 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createDailyTestListing,
@@ -61,8 +62,7 @@ describeWithEnv("admin listing QR tokens", { db: true }, () => {
       value: "200.00",
     });
     expect(response.status).toBe(200);
-    assertStringIncludes(body, "/qr-book?t=");
-    assertStringIncludes(body, "<svg");
+    expectIncludesAll(body, ["/qr-book?t=", "<svg"]);
   });
 
   test("accepts a zero price override for a fixed-price listing", async () => {

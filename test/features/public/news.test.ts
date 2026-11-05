@@ -4,6 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { createNewsPost } from "#db/news-posts.ts";
 import { handleRequest } from "#routes";
 import { makeImage } from "#test-utils/admin-images.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { adminFormPost } from "#test-utils/session.ts";
@@ -53,8 +54,7 @@ describeWithEnv("public /news routes", { db: true }, () => {
     const page = await handleRequest(mockRequest(`/news/${post.slug}`));
     expect(page.status).toBe(200);
     const body = await page.text();
-    assertStringIncludes(body, `src="/image/${image.filename}"`);
-    assertStringIncludes(body, 'alt="Hero"');
+    expectIncludesAll(body, [`src="/image/${image.filename}"`, 'alt="Hero"']);
     assert(!body.includes("/image/id/"));
   });
 

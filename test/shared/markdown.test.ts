@@ -8,6 +8,7 @@ import {
   renderMarkdown,
   withoutLinksTo,
 } from "#shared/markdown.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
 describe("markdown", () => {
@@ -34,14 +35,12 @@ describe("markdown", () => {
 
     test("renders multiple paragraphs", () => {
       const result = renderMarkdown("para1\n\npara2");
-      assertStringIncludes(result, "<p>para1</p>");
-      assertStringIncludes(result, "<p>para2</p>");
+      expectIncludesAll(result, ["<p>para1</p>", "<p>para2</p>"]);
     });
 
     test("renders unordered lists", () => {
       const result = renderMarkdown("- item1\n- item2");
-      assertStringIncludes(result, "<li>item1</li>");
-      assertStringIncludes(result, "<li>item2</li>");
+      expectIncludesAll(result, ["<li>item1</li>", "<li>item2</li>"]);
     });
 
     test("escapes raw HTML tags", () => {
@@ -95,8 +94,7 @@ describe("markdown", () => {
         "![poster](img#7)",
         new Map([[7, "/img/abc"]]),
       );
-      assertStringIncludes(result, '<img src="/img/abc"');
-      assertStringIncludes(result, 'alt="poster"');
+      expectIncludesAll(result, ['<img src="/img/abc"', 'alt="poster"']);
     });
 
     test("renders an img#N reference with no table entry as its alt text", () => {
@@ -257,9 +255,11 @@ describe("markdown", () => {
       );
       const rendered = renderMarkdown(filtered);
       assert(!rendered.includes('href="/admin/ledger'));
-      assertStringIncludes(rendered, '<a href="/admin/guide">guide</a>');
-      assertStringIncludes(rendered, "<strong>Money links:</strong>");
-      assertStringIncludes(rendered, "<em>formatting</em>");
+      expectIncludesAll(rendered, [
+        '<a href="/admin/guide">guide</a>',
+        "<strong>Money links:</strong>",
+        "<em>formatting</em>",
+      ]);
     });
 
     test("demotes automatic links to a forbidden absolute prefix", () => {

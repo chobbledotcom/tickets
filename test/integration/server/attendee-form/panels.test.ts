@@ -6,6 +6,7 @@ import { attendeesApi } from "#db/attendees/api.ts";
 import { moveTickets } from "#db/attendees/update.ts";
 import {
   expectHtmlResponse,
+  expectIncludesAll,
   expectListingRowQuantity,
 } from "#test-utils/assertions.ts";
 import { everydayDailyListing } from "#test-utils/attendee-form/helpers.ts";
@@ -122,10 +123,12 @@ describeWithEnv(
           },
         );
         const html = await expectHtmlResponse(response, 200);
-        assertStringIncludes(html, "<th>Other side</th>");
-        // The sale's counterparty links to the listing; the payment's is card/bank.
-        assertStringIncludes(html, "Pottery Class");
-        assertStringIncludes(html, "Card / bank");
+        expectIncludesAll(html, [
+          "<th>Other side</th>",
+          // The sale's counterparty links to the listing; the payment's is card/bank.
+          "Pottery Class",
+          "Card / bank",
+        ]);
       });
 
       test("a manager's Ledger tab 404s and is absent from the strip (owner-only money movements)", async () => {
@@ -214,15 +217,11 @@ describeWithEnv(
         });
         const html = await editPageHtml(result);
         // Per-listing warnings (singular + plural) and a top-of-page summary.
-        assertStringIncludes(
-          html,
+        expectIncludesAll(html, [
           "One Day is designed for up to 1 day, but the booking spans 3.",
-        );
-        assertStringIncludes(
-          html,
           "Two Day is designed for up to 2 days, but the booking spans 3.",
-        );
-        assertStringIncludes(html, "Please double-check");
+          "Please double-check",
+        ]);
       });
 
       test("no warning when the range fits the listing's duration", async () => {

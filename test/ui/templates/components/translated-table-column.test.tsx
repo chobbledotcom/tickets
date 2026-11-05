@@ -4,6 +4,7 @@ import { resetI18nForTest } from "#i18n";
 import { defineTable } from "#shared/tables/definition.ts";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 
 const nameColumn = translatedTableColumn<{ value: string }, "name">(
@@ -30,11 +31,10 @@ test("carries the extras a column with more than a heading needs", () => {
       context: 5,
     }),
   );
-  assertStringIncludes(html, '<th class="col-quantity">Name</th>');
-  assertStringIncludes(
-    html,
+  expectIncludesAll(html, [
+    '<th class="col-quantity">Name</th>',
     '<td class="col-quantity" data-remaining="2">2/5</td>',
-  );
+  ]);
 });
 
 const headerWith = (replacement: string): string => {

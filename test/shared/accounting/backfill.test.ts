@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
 import {
@@ -19,6 +18,7 @@ import { attendeesApi } from "#db/attendees/api.ts";
 import { getDb } from "#db/client.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import {
   seedPreDropLedgerColumns,
   stampHistoricalPricePaid,
@@ -284,11 +284,10 @@ describeWithEnv("accounting > backfill", { db: true }, () => {
       const ran = getQueryLog()
         .map((entry) => entry.sql)
         .join("\n");
-      assertStringIncludes(ran, "ORDER BY attendee.attendee_id LIMIT ?");
-      assertStringIncludes(
-        ran,
+      expectIncludesAll(ran, [
+        "ORDER BY attendee.attendee_id LIMIT ?",
         "ORDER BY listingAttendee.attendee_id, listingAttendee.listing_id",
-      );
+      ]);
     });
   });
 

@@ -19,6 +19,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import type { AdminSession } from "#types";
 
 const AGENT_SESSION: AdminSession = { adminLevel: "agent" };
@@ -40,8 +41,7 @@ describe("the admin page shell", () => {
   test("titles the page and puts the body inside it", () => {
     const html = page();
 
-    assertStringIncludes(html, "<title>Page title</title>");
-    assertStringIncludes(html, "<p>Body</p>");
+    expectIncludesAll(html, ["<title>Page title</title>", "<p>Body</p>"]);
   });
 
   test("names the content admin-page unless the caller names it", () => {
@@ -103,9 +103,11 @@ describe("rendering an admin page to a string", () => {
       title: "Plain page",
     });
 
-    assertStringIncludes(html, "<title>Plain page</title>");
-    assertStringIncludes(html, '<a class="active" href="/admin/settings">');
-    assertStringIncludes(html, "<p>Plain body</p>");
+    expectIncludesAll(html, [
+      "<title>Plain page</title>",
+      '<a class="active" href="/admin/settings">',
+      "<p>Plain body</p>",
+    ]);
   });
 });
 
@@ -133,11 +135,10 @@ describe("the page staff and agents share", () => {
     const html = staffPage(AGENT_SESSION);
 
     assert(!html.includes("<h1>For staff</h1>"));
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<header class="agent-header"><h1>Deliveries</h1></header>',
-    );
-    assertStringIncludes(html, "<p>Run sheet</p>");
+      "<p>Run sheet</p>",
+    ]);
   });
 });
 
@@ -157,11 +158,13 @@ describe("the data-page opener the backup and update dashboards share", () => {
       "Backup saved",
     );
 
-    assertStringIncludes(html, "<title>Database backup</title>");
-    assertStringIncludes(html, 'class="active" href="/admin/backup"');
-    assertStringIncludes(html, "<p>Snapshot</p>");
-    assertStringIncludes(html, "Restore failed");
-    assertStringIncludes(html, "Backup saved");
+    expectIncludesAll(html, [
+      "<title>Database backup</title>",
+      'class="active" href="/admin/backup"',
+      "<p>Snapshot</p>",
+      "Restore failed",
+      "Backup saved",
+    ]);
     expect(html.indexOf("Restore failed")).toBeLessThan(
       html.indexOf("<p>Snapshot</p>"),
     );

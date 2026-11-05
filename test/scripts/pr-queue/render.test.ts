@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { renderReport } from "#scripts/pr-queue/render.ts";
 import type { Bucket, PrSummary } from "#scripts/pr-queue/types.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 /** A frozen clock so `ago`/stale output is deterministic. 2026-07-10T13:00:00Z. */
 const NOW = Date.UTC(2026, 6, 10, 13); // month is 0-indexed (6 = July)
@@ -21,8 +22,10 @@ const summary = (over: Partial<PrSummary> & { bucket: Bucket }): PrSummary => ({
 describe("renderReport", () => {
   test("an empty queue announces no open pull requests", () => {
     const out = renderReport("o/n", [], clock);
-    assertStringIncludes(out, "PR queue — o/n — 0 open");
-    assertStringIncludes(out, "No open pull requests.");
+    expectIncludesAll(out, [
+      "PR queue — o/n — 0 open",
+      "No open pull requests.",
+    ]);
   });
 
   test("the header names every bucket count in order, comma-separated", () => {
@@ -74,11 +77,13 @@ describe("renderReport", () => {
     );
     // The branch tag is wrapped in ANSI colour codes, so the "branch … (PR n)"
     // label and the fact sentence are matched separately rather than as one run.
-    assertStringIncludes(out, "branch fix-foo (PR 7)");
-    assertStringIncludes(out, "is behind main and needs main merged in.");
-    // The header line names the PR, author, and a "1h ago" age (12:00 vs the
-    // 13:00 clock), with the age immediately followed by the closing paren.
-    assertStringIncludes(out, "(by stefan-burke, 1h ago)");
+    expectIncludesAll(out, [
+      "branch fix-foo (PR 7)",
+      "is behind main and needs main merged in.",
+      // The header line names the PR, author, and a "1h ago" age (12:00 vs the
+      // 13:00 clock), with the age immediately followed by the closing paren.
+      "(by stefan-burke, 1h ago)",
+    ]);
   });
 
   test("multiple facts for one PR are joined with '; ' and end in a full stop", () => {

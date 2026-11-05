@@ -6,6 +6,7 @@ import {
 } from "#templates/admin/listings/overview.tsx";
 import { ListingQuestionsPanel } from "#templates/admin/questions.tsx";
 import { resetFeaturePageTest } from "#test/ui/templates/admin/feature-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import {
   singleAnswerSizeQuestionData,
   testAnswer,
@@ -50,12 +51,11 @@ describe("adminListingQuestionsPage", () => {
         listing,
       }),
     );
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<input name="question_ids" type="checkbox" value="1">',
-    );
-    // A single space sits before the "(1 option…)" summary inside the label.
-    assertStringIncludes(html, "<small> (1 option: Yes)</small>");
+      // A single space sits before the "(1 option…)" summary inside the label.
+      "<small> (1 option: Yes)</small>",
+    ]);
     assert(!html.includes("1 options"));
   });
 
@@ -78,8 +78,7 @@ describe("adminListingQuestionsPage", () => {
         listing,
       }),
     );
-    assertStringIncludes(html, 'href="/admin/questions"');
-    assertStringIncludes(html, "Manage questions");
+    expectIncludesAll(html, ['href="/admin/questions"', "Manage questions"]);
   });
 
   test("lists option names in parentheses", () => {
@@ -123,7 +122,6 @@ describe("adminListingPage with questionData", () => {
         stats: overviewStatsFromAttendees(listing, []),
       }),
     );
-    assertStringIncludes(html, "<th>Size?</th>");
-    assertStringIncludes(html, "S (0)");
+    expectIncludesAll(html, ["<th>Size?</th>", "S (0)"]);
   });
 });

@@ -11,6 +11,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 
 const FEATURE = ADMIN_FEATURES.find((feature) => feature.key === "attributes");
@@ -42,30 +43,22 @@ describe("admin feature templates", () => {
     for (const feature of ADMIN_FEATURES) {
       assertStringIncludes(html, `href="/admin/features/${feature.slug}"`);
     }
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<td><a href="/admin/features/attributes">Attributes</a></td><td>Enabled</td>',
-    );
-    assertStringIncludes(
-      html,
       '<td><a href="/admin/features/site">Site</a></td><td>Disabled</td>',
-    );
+    ]);
   });
 
   test("renders an enabled feature as an editable yes-no form", () => {
     using _env = withEnv({ READ_ONLY_FROM: undefined });
     const html = renderFeature({ enabled: true });
 
-    assertStringIncludes(html, 'action="/admin/features/attributes"');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'action="/admin/features/attributes"',
       '<input checked name="enabled" type="radio" value="true">',
-    );
-    assertStringIncludes(
-      html,
       '<input name="enabled" type="radio" value="false">',
-    );
-    assertStringIncludes(html, "Save feature");
+      "Save feature",
+    ]);
     assert(!html.includes("This feature is in use."));
   });
 
@@ -73,9 +66,11 @@ describe("admin feature templates", () => {
     using _env = withEnv({ READ_ONLY_FROM: undefined });
     const html = renderFeature({ enabled: true, inUse: true });
 
-    assertStringIncludes(html, "<strong>Status:</strong> Enabled");
-    assertStringIncludes(html, "This feature is in use.");
-    assertStringIncludes(html, "Remove its saved items before you disable it.");
+    expectIncludesAll(html, [
+      "<strong>Status:</strong> Enabled",
+      "This feature is in use.",
+      "Remove its saved items before you disable it.",
+    ]);
     assert(!html.includes('action="/admin/features/attributes"'));
     assert(!html.includes('name="enabled"'));
   });
@@ -97,8 +92,10 @@ describe("admin feature templates", () => {
       success: "Attributes enabled.",
     });
 
-    assertStringIncludes(html, '<div class="success" role="alert">');
-    assertStringIncludes(html, "Attributes enabled.");
+    expectIncludesAll(html, [
+      '<div class="success" role="alert">',
+      "Attributes enabled.",
+    ]);
     expect(html).toMatch(
       /<div(?=[^>]*class="error")(?=[^>]*role="alert")[^>]*>/,
     );

@@ -21,6 +21,7 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 Given(
   "the owner is looking at their keys",
@@ -45,10 +46,12 @@ Then(
       this.apiKeyShownOnce,
       "what the owner was shown",
     );
-    assertStringIncludes(shown, t("api_keys.copy_notice"));
-    // The words alone are not the key. The page has to carry the real one, or
-    // the owner has nothing to hand on.
-    assertStringIncludes(shown, keyNamed(this, "Shopfront"));
+    expectIncludesAll(shown, [
+      t("api_keys.copy_notice"),
+      // The words alone are not the key. The page has to carry the real one, or
+      // the owner has nothing to hand on.
+      keyNamed(this, "Shopfront"),
+    ]);
   },
 );
 

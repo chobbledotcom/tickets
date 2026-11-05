@@ -5,6 +5,7 @@ import { KIND } from "#accounting/kinds.ts";
 import { account } from "#shared/ledger/account.ts";
 import { ledgerEntryMemo } from "#templates/admin/ledger/formatting.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import {
   attendeeLinkRefs,
   ledgerRows,
@@ -177,17 +178,13 @@ describe("HumanLedgerTable", () => {
     ]) {
       assertStringIncludes(html, phrase);
     }
-    assertStringIncludes(html, "Ada");
-    assertStringIncludes(html, "Concert");
-    assertStringIncludes(html, "Helmet hire");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "Ada",
+      "Concert",
+      "Helmet hire",
       'Payment received for <a href="/admin/attendees/1">Ada</a>',
-    );
-    assertStringIncludes(
-      html,
       'Correction reduced <a href="/admin/listing/1">Concert</a>',
-    );
+    ]);
     const rows = ledgerRows(html);
     assertStringIncludes(rows[2] ?? "", "+£50");
     assertStringIncludes(rows[4] ?? "", "−£50");
@@ -218,9 +215,11 @@ describe("HumanLedgerTable", () => {
       ],
       refs,
     );
-    assertStringIncludes(html, "Extra amount now owed by");
-    assertStringIncludes(html, "Amount no longer owed by");
-    assertStringIncludes(html, "Ada");
+    expectIncludesAll(html, [
+      "Extra amount now owed by",
+      "Amount no longer owed by",
+      "Ada",
+    ]);
     assert(!html.includes("Correction reduced"));
     assert(!html.includes("Correction increased"));
     const rows = ledgerRows(html);

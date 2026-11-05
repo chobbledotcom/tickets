@@ -3,12 +3,13 @@
  * asks how many tickets, the ticket page reads the part count, and the
  * staff quantity page stays shut. */
 
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { moveTickets } from "#db/attendees/update.ts";
 import { handleRequest } from "#routes";
 import { activityMessages } from "#test-utils/activity-log.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import { storedCheckinRows } from "#test-utils/db-helpers/checkin-rows.ts";
@@ -86,9 +87,11 @@ describeWithEnv("a scanner login and part bookings", { db: true }, () => {
       await awaitTestRequest(`/checkin/${token}`, { cookie })
     ).text();
 
-    assertStringIncludes(body, "Checked in (1 of 3)");
-    assertStringIncludes(body, "Check In All");
-    assertStringIncludes(body, "Check Out All");
+    expectIncludesAll(body, [
+      "Checked in (1 of 3)",
+      "Check In All",
+      "Check Out All",
+    ]);
     // The per-line quantity page is a staff page, so the door-only view
     // never links to it (never render a forbidden link).
     assert(
@@ -137,8 +140,10 @@ describeWithEnv("a scanner login and part bookings", { db: true }, () => {
       })
     ).text();
 
-    assertStringIncludes(body, `data-attendee-id="${attendee.id}"`);
-    assertStringIncludes(body, 'data-quantity="1"');
-    assertStringIncludes(body, "Pia (1 ticket)");
+    expectIncludesAll(body, [
+      `data-attendee-id="${attendee.id}"`,
+      'data-quantity="1"',
+      "Pia (1 ticket)",
+    ]);
   });
 });

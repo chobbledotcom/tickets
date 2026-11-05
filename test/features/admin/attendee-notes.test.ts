@@ -6,7 +6,10 @@ import { attendeeNotes } from "#db/notes/target.ts";
 import { t } from "#i18n";
 import { setupAdminTest } from "#test-utils/admin-fixture.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
-import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
+import {
+  expectIncludesAll,
+  expectRedirectWithFlash,
+} from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
@@ -17,8 +20,10 @@ describeWithEnv("admin > attendee notes routes", { db: true }, () => {
     const response = await adminGet(`/admin/attendee/${attendee.id}/note`);
     expect(response.status).toBe(200);
     const html = await response.text();
-    assertStringIncludes(html, `action="/admin/attendee/${attendee.id}/note"`);
-    assertStringIncludes(html, 'name="note"');
+    expectIncludesAll(html, [
+      `action="/admin/attendee/${attendee.id}/note"`,
+      'name="note"',
+    ]);
   });
 
   test("GET on a missing attendee is a 404", async () => {
@@ -79,8 +84,7 @@ describeWithEnv("admin > attendee notes routes", { db: true }, () => {
     );
     expect(response.status).toBe(200);
     const html = await response.text();
-    assertStringIncludes(html, "Are you sure");
-    assertStringIncludes(html, "deletable note");
+    expectIncludesAll(html, ["Are you sure", "deletable note"]);
     // The intermediate page never asks for the copy/paste confirmation.
     assert(!html.includes('name="confirm_identifier"'));
   });

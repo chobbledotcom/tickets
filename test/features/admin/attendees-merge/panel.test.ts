@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   expectHtmlResponse,
+  expectIncludesAll,
   tableRowContaining,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
@@ -113,8 +114,7 @@ describeWithEnv("server (admin attendees) > merge panel", { db: true }, () => {
 
       const response = await mergeActionsPage(target.id, sourceToken);
       const html = await response.text();
-      assertStringIncludes(html, "Merge Preview");
-      assertStringIncludes(html, "Email not sent");
+      expectIncludesAll(html, ["Merge Preview", "Email not sent"]);
     });
 
     test("the token search box focuses when idle and echoes the searched token", async () => {

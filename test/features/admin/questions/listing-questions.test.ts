@@ -7,6 +7,7 @@ import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   expectFlashRedirect,
   expectHtmlResponse,
+  expectIncludesAll,
   expectStatus,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
@@ -205,8 +206,10 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         "Dietary needs?",
       );
       // Each question's checkbox summarises its answers, pluralised by count.
-      assertStringIncludes(body, "(2 options: Vegetarian, Vegan)");
-      assertStringIncludes(body, "(1 option: Yes)");
+      expectIncludesAll(body, [
+        "(2 options: Vegetarian, Vegan)",
+        "(1 option: Yes)",
+      ]);
     });
 
     test("shows no error box on a plain page load", async () => {
@@ -369,8 +372,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       await createQuestion("Logged Question");
       const response = await adminGet("/admin/log");
       const body = await response.text();
-      assertStringIncludes(body, "Logged Question");
-      assertStringIncludes(body, "created");
+      expectIncludesAll(body, ["Logged Question", "created"]);
     });
 
     test("logs question update", async () => {
@@ -381,8 +383,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       });
       const response = await adminGet("/admin/log");
       const body = await response.text();
-      assertStringIncludes(body, "After Update Q");
-      assertStringIncludes(body, "updated");
+      expectIncludesAll(body, ["After Update Q", "updated"]);
     });
 
     test("logs question deletion", async () => {
@@ -392,8 +393,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       });
       const response = await adminGet("/admin/log");
       const body = await response.text();
-      assertStringIncludes(body, "Deleted Question");
-      assertStringIncludes(body, "deleted");
+      expectIncludesAll(body, ["Deleted Question", "deleted"]);
     });
 
     test("logs answer addition", async () => {
@@ -401,8 +401,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       await addAnswer(id, "Logged Answer");
       const response = await adminGet("/admin/log");
       const body = await response.text();
-      assertStringIncludes(body, "Logged Answer");
-      assertStringIncludes(body, "added");
+      expectIncludesAll(body, ["Logged Answer", "added"]);
     });
 
     test("logs answer deletion", async () => {
@@ -413,8 +412,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       });
       const response = await adminGet("/admin/log");
       const body = await response.text();
-      assertStringIncludes(body, "Deleted Answer");
-      assertStringIncludes(body, "deleted");
+      expectIncludesAll(body, ["Deleted Answer", "deleted"]);
     });
   });
 });

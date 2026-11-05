@@ -5,6 +5,7 @@ import { moveTickets } from "#db/attendees/update.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createDailyTestAttendee,
@@ -57,8 +58,7 @@ describeWithEnv("the listing CSV export", { db: true }, () => {
     const listing = await setup();
     const response = await adminGet(`/admin/listing/${listing.id}/export`);
     const csv = await response.text();
-    assertStringIncludes(csv, "AliceIn");
-    assertStringIncludes(csv, "BobOut");
+    expectIncludesAll(csv, ["AliceIn", "BobOut"]);
   });
 
   test("notes the export in the record of what was done", async () => {
@@ -141,8 +141,7 @@ describeWithEnv("the listing CSV export", { db: true }, () => {
     const listing = await setupFreeText();
     const response = await adminGet(`/admin/listing/${listing.id}/export`);
     const csv = await response.text();
-    assertStringIncludes(csv, "Dietary needs?");
-    assertStringIncludes(csv, "Coeliac");
+    expectIncludesAll(csv, ["Dietary needs?", "Coeliac"]);
   });
 
   test("shows the decrypted free-text answer on the roster tab", async () => {

@@ -18,6 +18,7 @@ import {
   mockMultipartRequest,
   mockRequest,
 } from "#test-utils/mocks.ts";
+import { expectIncludesAll } from "./assertions/html.ts";
 import { expectAdminRedirect } from "./assertions/redirect.ts";
 
 export * from "./assertions/html.ts";
@@ -37,8 +38,7 @@ export const expectActivityLogShows = async (
   const { adminGet } = await import("#test-utils/session.ts");
   const response = await adminGet("/admin/log");
   const body = await response.text();
-  assertStringIncludes(body, name);
-  assertStringIncludes(body, verb);
+  expectIncludesAll(body, [name, verb]);
 };
 
 const listingActivityLogHasMessage = async (
@@ -79,9 +79,7 @@ export const expectTestAttendeeCsvColumns = (
   quantity = 1,
 ): void => {
   assertExists(row);
-  assertStringIncludes(row, "John Doe");
-  assertStringIncludes(row, "john@example.com");
-  assertStringIncludes(row, `,${quantity},`);
+  expectIncludesAll(row, ["John Doe", "john@example.com", `,${quantity},`]);
 };
 
 /** Asserts a response is a 200 CSV download with the standard
@@ -96,8 +94,7 @@ export const expectCsvDownloadHeaders = (
   expect(response.headers.get("content-type")).toBe("text/csv; charset=utf-8");
   const disposition = response.headers.get("content-disposition");
   assertExists(disposition);
-  assertStringIncludes(disposition, "attachment");
-  assertStringIncludes(disposition, filenameFragment);
+  expectIncludesAll(disposition, ["attachment", filenameFragment]);
 };
 
 /** Fetch a listing's CSV export as the given admin, assert 200, return the body. */

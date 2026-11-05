@@ -5,6 +5,7 @@ import {
   type AdvancedSettingsPageState,
   adminAdvancedSettingsPage,
 } from "#templates/admin/settings-advanced.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { advancedDefaultState } from "./state.ts";
 
@@ -53,7 +54,9 @@ describe("admin advanced settings rendering contracts", () => {
   test("renders the reset form with its exact action and id", () => {
     const html = render();
 
-    assertStringIncludes(html, 'action="/admin/settings/reset-database"');
-    assertStringIncludes(html, 'id="settings-reset-database"');
+    expectIncludesAll(html, [
+      'action="/admin/settings/reset-database"',
+      'id="settings-reset-database"',
+    ]);
   });
 });

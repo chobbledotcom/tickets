@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { BookedAnswer, QuestionWithAnswers } from "#db/question-types.ts";
 import { EditQuestions } from "#templates/admin/attendees.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 const render = (
   questions: QuestionWithAnswers[],
@@ -101,9 +102,7 @@ describe("EditQuestions", () => {
       { answerIds: [10] },
     );
 
-    assertStringIncludes(html, 'type="radio"');
-    assertStringIncludes(html, "checked");
-    assertStringIncludes(html, "Small");
+    expectIncludesAll(html, ['type="radio"', "checked", "Small"]);
   });
 
   test("renders select inputs when configured", () => {
@@ -135,9 +134,11 @@ describe("EditQuestions", () => {
       { answerIds: [11] },
     );
 
-    assertStringIncludes(html, '<select name="question_1">');
-    assertStringIncludes(html, '<option value="">No answer</option>');
-    assertStringIncludes(html, '<option selected value="11">Large</option>');
+    expectIncludesAll(html, [
+      '<select name="question_1">',
+      '<option value="">No answer</option>',
+      '<option selected value="11">Large</option>',
+    ]);
     assert(!html.includes('type="radio"'));
   });
 
@@ -155,8 +156,10 @@ describe("EditQuestions", () => {
       { textAnswers: new Map([[1, "Allergic to nuts"]]) },
     );
 
-    assertStringIncludes(html, 'name="question_1" type="text"');
-    assertStringIncludes(html, 'value="Allergic to nuts"');
+    expectIncludesAll(html, [
+      'name="question_1" type="text"',
+      'value="Allergic to nuts"',
+    ]);
     assert(!html.includes('type="radio"'));
     assert(!html.includes("<select"));
   });
@@ -189,9 +192,11 @@ describe("EditQuestions", () => {
       { textAnswers: new Map([[1, "done"]]) },
     );
 
-    assertStringIncludes(html, '<div class="prose" id="question-1-prose">');
-    assertStringIncludes(html, 'aria-labelledby="question-1-prose"');
-    assertStringIncludes(html, "<strong>more</strong>");
+    expectIncludesAll(html, [
+      '<div class="prose" id="question-1-prose">',
+      'aria-labelledby="question-1-prose"',
+      "<strong>more</strong>",
+    ]);
     assert(!html.includes('<label class="custom-question">'));
   });
 
@@ -217,9 +222,11 @@ describe("EditQuestions", () => {
       { answerIds: [10] },
     );
 
-    assertStringIncludes(html, '<div class="prose" id="question-1-prose">');
-    assertStringIncludes(html, 'aria-labelledby="question-1-prose"');
-    assertStringIncludes(html, '<a href="https://example.com">a colour</a>');
+    expectIncludesAll(html, [
+      '<div class="prose" id="question-1-prose">',
+      'aria-labelledby="question-1-prose"',
+      '<a href="https://example.com">a colour</a>',
+    ]);
     assert(!html.includes('<label class="custom-question">'));
   });
 
@@ -245,12 +252,11 @@ describe("EditQuestions", () => {
       { answerIds: [10] },
     );
 
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<fieldset aria-labelledby="question-1-prose" class="custom-question">',
-    );
-    assertStringIncludes(html, '<div class="prose" id="question-1-prose">');
-    assertStringIncludes(html, "<h1>Heading</h1>");
+      '<div class="prose" id="question-1-prose">',
+      "<h1>Heading</h1>",
+    ]);
     assert(!html.includes("<legend>"));
   });
 

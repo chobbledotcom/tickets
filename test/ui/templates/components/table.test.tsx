@@ -8,6 +8,7 @@ import {
   renderTable,
   tableColumnText,
 } from "#templates/components/table.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 describe("typed table rendering", () => {
   test("ignores non-text and empty cell classes through the renderer", () => {
@@ -85,8 +86,10 @@ describe("typed table rendering", () => {
         hiddenKeys: new Set<"shown" | "hidden">(["hidden"]),
       }),
     );
-    assertStringIncludes(html, "<thead><tr><th>Shown</th></tr></thead>");
-    assertStringIncludes(html, "<tbody><tr><td>Keep</td></tr></tbody>");
+    expectIncludesAll(html, [
+      "<thead><tr><th>Shown</th></tr></thead>",
+      "<tbody><tr><td>Keep</td></tr></tbody>",
+    ]);
   });
 
   test("renders attributes derived from each row", () => {
@@ -135,14 +138,13 @@ describe("typed table rendering", () => {
     ]);
 
     const html = String(renderColumnReference(table));
-    assertStringIncludes(html, `<th>${t("guide.table_reference.tag")}</th>`);
-    assertStringIncludes(html, `<th>${t("guide.table_reference.label")}</th>`);
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      `<th>${t("guide.table_reference.tag")}</th>`,
+      `<th>${t("guide.table_reference.label")}</th>`,
       `<th>${t("guide.table_reference.description")}</th>`,
-    );
-    assertStringIncludes(html, "{{name}}");
-    assertStringIncludes(html, "Stored name");
+      "{{name}}",
+      "Stored name",
+    ]);
     assert(!html.includes("{{internal}}"));
   });
 });

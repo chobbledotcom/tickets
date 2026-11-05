@@ -4,6 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { PARENT_CHILD_GROUP_UNITS } from "#shared/group-capacity.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -101,10 +102,12 @@ describeWithEnv(
       });
 
       const html = await bookingPageHtml(parent.slug);
-      assertStringIncludes(html, `name="quantity_${parent.id}"`);
-      // The sole child is offered informationally (auto-selected), so it appears
-      // in the child block but posts no `child_qty_*` field.
-      assertStringIncludes(html, `data-sole-child="${child.id}"`);
+      expectIncludesAll(html, [
+        `name="quantity_${parent.id}"`,
+        // The sole child is offered informationally (auto-selected), so it appears
+        // in the child block but posts no `child_qty_*` field.
+        `data-sole-child="${child.id}"`,
+      ]);
     });
 
     test("a shared capped group caps the parent quantity selector by floor(remaining / units)", async () => {

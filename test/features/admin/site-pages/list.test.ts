@@ -4,6 +4,7 @@ import { addPageItem } from "#db/site-page-items.ts";
 import { sitePages } from "#db/site-pages.ts";
 import {
   expectHtmlResponse,
+  expectIncludesAll,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -22,12 +23,14 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
 
     test("GET new renders the create form with a slug field but no public link", async () => {
       const html = await expectHtmlResponse(await adminGet(`${BASE}/new`), 200);
-      assertStringIncludes(html, "Create Page");
-      // The content textarea is a markdown field (preview enabled).
-      assertStringIncludes(html, "data-markdown-preview");
-      // The slug is entered on create, but the page has no live page yet — so no
-      // "Public link" (which would 404 or point at a duplicate/reserved slug).
-      assertStringIncludes(html, 'name="slug"');
+      expectIncludesAll(html, [
+        "Create Page",
+        // The content textarea is a markdown field (preview enabled).
+        "data-markdown-preview",
+        // The slug is entered on create, but the page has no live page yet — so no
+        // "Public link" (which would 404 or point at a duplicate/reserved slug).
+        'name="slug"',
+      ]);
       assert(!html.includes("Public link"));
     });
 
@@ -56,12 +59,14 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       const child = await findPage("child-a");
       await addPageItem(parent.id, "page", child.id);
       const html = await expectHtmlResponse(await adminGet(BASE), 200);
-      assertStringIncludes(html, "Top-level pages");
-      assertStringIncludes(html, "Nested pages");
-      assertStringIncludes(html, "/page/root-a");
-      // Two roots ⇒ both arrows render (first has "down", second has "up").
-      assertStringIncludes(html, "move-down");
-      assertStringIncludes(html, "move-up");
+      expectIncludesAll(html, [
+        "Top-level pages",
+        "Nested pages",
+        "/page/root-a",
+        // Two roots ⇒ both arrows render (first has "down", second has "up").
+        "move-down",
+        "move-up",
+      ]);
     });
 
     test("removes the order column in read-only mode", async () => {

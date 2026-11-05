@@ -7,6 +7,7 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
 import { adminGet } from "#test-utils/session.ts";
@@ -19,9 +20,11 @@ describeWithEnv("the site page's page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    assertStringIncludes(html, `action="/admin/site/pages/${page.id}/edit"`);
-    assertStringIncludes(html, "About us");
-    assertStringIncludes(html, 'href="/admin/guide#public-site"');
+    expectIncludesAll(html, [
+      `action="/admin/site/pages/${page.id}/edit"`,
+      "About us",
+      'href="/admin/guide#public-site"',
+    ]);
   });
 
   test("titles the page with the page's own name", async () => {

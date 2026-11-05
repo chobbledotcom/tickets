@@ -12,7 +12,7 @@ import {
   type LedgerEntryAddOption,
   ledgerEntryForm,
 } from "#templates/admin/ledger/entry-form.ts";
-import { inputNamed } from "#test-utils/assertions.ts";
+import { expectIncludesAll, inputNamed } from "#test-utils/assertions.ts";
 import { testWithSetting } from "#test-utils/settings.ts";
 
 describe("ledger entry forms", () => {
@@ -21,8 +21,7 @@ describe("ledger entry forms", () => {
   test("serves the amount and date boxes as required, with a zero floor", () => {
     const html = ledgerEntryForm.render();
     const amount = inputNamed(html, "amount");
-    assertStringIncludes(amount, 'min="0"');
-    assertStringIncludes(amount, "required");
+    expectIncludesAll(amount, ['min="0"', "required"]);
     assertStringIncludes(inputNamed(html, "occurred_at"), "required");
   });
 
@@ -57,14 +56,10 @@ describe("ledger entry forms", () => {
     });
     // The type choice itself is a required control.
     assertStringIncludes(inputNamed(html, "entry_type"), "required");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<option value="manual_attendee_charge" selected>Charge</option>',
-    );
-    assertStringIncludes(
-      html,
       '<option value="manual_attendee_payment">Payment</option>',
-    );
+    ]);
   });
 
   test("uses the dynamic option schema to reject a type from another account", () => {

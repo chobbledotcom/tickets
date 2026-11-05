@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { uptimeKumaMonitorService } from "#shared/uptime-kuma/monitors.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   insertScheduledTestSite,
@@ -22,30 +23,14 @@ describeWithEnv(
       const html = await response.text();
 
       expect(response.status).toBe(200);
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
         `<a class="active" href="/admin/built-sites">Builds</a>`,
-      );
-      assertStringIncludes(
-        html,
         `href="/admin/built-sites/${site.id}/renewal">Renewal</a>`,
-      );
-      assertStringIncludes(
-        html,
         `href="/admin/built-sites/${site.id}/maintenance">Scheduled maintenance</a>`,
-      );
-      assertStringIncludes(
-        html,
         `href="/admin/built-sites/${site.id}/secrets">Secrets</a>`,
-      );
-      assertStringIncludes(
-        html,
         `href="/admin/built-sites/${site.id}/support-message">Support message</a>`,
-      );
-      assertStringIncludes(
-        html,
         `href="/admin/built-sites/${site.id}/update">Software update</a>`,
-      );
+      ]);
     });
 
     test("shows the exact delete action on the actions tab", async () => {
@@ -55,8 +40,10 @@ describeWithEnv(
       const html = await response.text();
 
       expect(response.status).toBe(200);
-      assertStringIncludes(html, `href="/admin/built-sites/${site.id}/delete"`);
-      assertStringIncludes(html, "Delete this site");
+      expectIncludesAll(html, [
+        `href="/admin/built-sites/${site.id}/delete"`,
+        "Delete this site",
+      ]);
     });
 
     test("shows the child key without rotation controls", async () => {
@@ -107,8 +94,7 @@ describeWithEnv(
       const html = await response.text();
 
       expect(response.status).toBe(200);
-      assertStringIncludes(html, "Live child monitor");
-      assertStringIncludes(html, "Every 15 minutes");
+      expectIncludesAll(html, ["Live child monitor", "Every 15 minutes"]);
       assert(!html.includes("add-uptime-monitor"));
     });
   },

@@ -1,4 +1,4 @@
-import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -9,7 +9,11 @@ import {
   activityMessages,
   getListingActivityLog,
 } from "#test-utils/activity-log.ts";
-import { expectRedirect, testRequiresAuth } from "#test-utils/assertions.ts";
+import {
+  expectIncludesAll,
+  expectRedirect,
+  testRequiresAuth,
+} from "#test-utils/assertions.ts";
 import { oneLineAttendeeForm } from "#test-utils/attendee-form/_shared-setup.ts";
 import { expectAttendeeLineCount } from "#test-utils/attendee-form/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -138,8 +142,7 @@ describeWithEnv(
         );
         expect(response.status).toBe(200);
         const html = await response.text();
-        assertStringIncludes(html, "Name is required");
-        assertStringIncludes(html, "preserve@example.com");
+        expectIncludesAll(html, ["Name is required", "preserve@example.com"]);
         // No attendee was created
         await expectAttendeeLineCount(event.id, 0);
       });

@@ -11,6 +11,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { groups } from "#db/groups.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
@@ -88,8 +89,7 @@ describeWithEnv(
       );
       expect(qrBook.status).toBe(200);
       const page = await qrBook.text();
-      assertStringIncludes(page, "QrMember");
-      assertStringIncludes(page, 'value="Ada"');
+      expectIncludesAll(page, ["QrMember", 'value="Ada"']);
     });
 
     test("a regular group shows a shared concealed-package member", async () => {
@@ -145,10 +145,12 @@ describeWithEnv(
       const body = await (
         await adminGet(`/admin/listing/${listing.id}`)
       ).text();
-      assertStringIncludes(body, `/admin/listing/${listing.id}/qr`);
-      assertStringIncludes(body, `/ticket/${listing.slug}`);
-      assertStringIncludes(body, `embed-script-${listing.id}`);
-      assertStringIncludes(body, `embed-iframe-${listing.id}`);
+      expectIncludesAll(body, [
+        `/admin/listing/${listing.id}/qr`,
+        `/ticket/${listing.slug}`,
+        `embed-script-${listing.id}`,
+        `embed-iframe-${listing.id}`,
+      ]);
     });
 
     test("a concealed package member's admin QR generator serves", async () => {

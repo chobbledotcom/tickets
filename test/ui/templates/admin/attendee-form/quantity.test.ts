@@ -6,6 +6,7 @@ import { getDb } from "#db/client.ts";
 import {
   attendeeLineIndex,
   expectHtmlResponse,
+  expectIncludesAll,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -143,8 +144,7 @@ describeWithEnv(
         );
         expect(qtyInputMatch).not.toBeNull();
         const qtyInput = qtyInputMatch?.[0] ?? "";
-        assertStringIncludes(qtyInput, 'class="line-qty"');
-        assertStringIncludes(qtyInput, 'type="number"');
+        expectIncludesAll(qtyInput, ['class="line-qty"', 'type="number"']);
         expect(qtyInput).not.toMatch(/\bstyle\s*=/);
       });
 
@@ -187,19 +187,15 @@ describeWithEnv(
         // The block is surfaced as a top-of-page error, not buried in the table.
         // The alert is focusable (autofocus + tabindex) so the browser scrolls to
         // it after the failed submit.
-        assertStringIncludes(
-          html,
+        expectIncludesAll(html, [
           `<div autofocus class="error" role="alert" tabindex="-1">Refund this line's payment before marking it no quantity.</div>`,
-        );
-        // The paid line's "no quantity" box is disabled with an explaining tooltip
-        // so it can't be ticked in the first place.
-        assertStringIncludes(
-          html,
+          // The paid line's "no quantity" box is disabled with an explaining tooltip
+          // so it can't be ticked in the first place.
           `class="no-quantity-toggle" disabled name="noqty_${attendeeLineIndex(
             html,
             listing.id,
           )}" title="Refund this line's payment before marking it no quantity."`,
-        );
+        ]);
         expect(await readLine(attendeeId, listing.id)).toMatchObject({
           price_paid: 1500,
           quantity: 2,

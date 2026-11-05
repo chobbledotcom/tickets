@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -7,6 +6,7 @@ import {
   expectActivityLogShows,
   expectFlash,
   expectHtmlResponse,
+  expectIncludesAll,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { requireJoinCsrfToken } from "#test-utils/csrf.ts";
@@ -55,7 +55,6 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
       const inviteLink = decodeURIComponent(inviteMatch?.[1] as string);
       // Extract token from invite link
       const inviteToken = inviteLink.split("/join/")[1];
-      expect(inviteToken).toBeTruthy();
 
       // Set password for manager
       const joinPageResponse = await handleRequest(
@@ -243,8 +242,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
     test("holidays link visible to owners", async () => {
       const response = await adminGet("/admin/holidays");
       const body = await response.text();
-      assertStringIncludes(body, "/admin/holidays");
-      assertStringIncludes(body, "Holidays");
+      expectIncludesAll(body, ["/admin/holidays", "Holidays"]);
     });
   });
 

@@ -16,7 +16,10 @@ import {
   setBookingLineQuantity,
   setupRefundTest,
 } from "#test/features/admin/refunds-helpers.ts";
-import { expectHtmlResponse } from "#test-utils/assertions.ts";
+import {
+  expectHtmlResponse,
+  expectIncludesAll,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   bookTestAttendee,
@@ -109,11 +112,10 @@ describeWithEnv("server (admin refund actions)", { db: true }, () => {
     const response = await adminGet(`/admin/attendees/${attendee.id}/actions`);
     const html = await expectHtmlResponse(response, 200);
     assert(!html.includes(`/admin/attendees/${attendee.id}/refund`));
-    assertStringIncludes(html, `/admin/attendees/${attendee.id}/delete`);
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      `/admin/attendees/${attendee.id}/delete`,
       `/admin/attendees/${attendee.id}/resend-notification`,
-    );
+    ]);
   });
 
   test("loads canRefund as false without an active booking line", async () => {

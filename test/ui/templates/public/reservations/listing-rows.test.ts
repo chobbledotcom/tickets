@@ -16,6 +16,7 @@ import type {
   ChildRenderCtx,
   TicketPrefill,
 } from "#templates/public/reservations/types.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { resolved } from "#test-utils/booking-model-fixtures.ts";
 import { pagePackage, tl } from "#test-utils/package-cap-fixtures.ts";
 
@@ -132,8 +133,10 @@ describe("buildPageListingRows", () => {
         rowListing(2, "Listing B", "cd34e"),
       ],
     });
-    assertStringIncludes(html, '<label>Listing A<select name="quantity_1">');
-    assertStringIncludes(html, '<label>Listing B<select name="quantity_2">');
+    expectIncludesAll(html, [
+      '<label>Listing A<select name="quantity_1">',
+      '<label>Listing B<select name="quantity_2">',
+    ]);
     expect(occurrences(html, 'class="ticket-row"')).toBe(2);
     // The rows are joined edge to edge, and nothing renders in a row's
     // accessory slots (image, description, price, add-on selector).
@@ -228,11 +231,10 @@ describe("buildPageListingRows", () => {
       listings: [rowListing(1, "Listing A", "ab12c")],
       prefill,
     });
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<label>Number of Tickets<select name="quantity_1">',
-    );
-    assertStringIncludes(html, '<option value="3" selected>');
+      '<option value="3" selected>',
+    ]);
     assert(!html.includes("Listing A"));
   });
 
@@ -262,14 +264,10 @@ describe("buildPageListingRows", () => {
       isSingleListing: true,
       listings: [plan],
     });
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<input type="hidden" name="quantity_1" value="1" />',
-    );
-    assertStringIncludes(
-      html,
       t("public.ticket.fixed_term_granted", { count: 3 }),
-    );
+    ]);
   });
 
   test("a built-site plan is sold in months, an ordinary listing in tickets", () => {
@@ -285,12 +283,11 @@ describe("buildPageListingRows", () => {
     });
     // Each option states the months it buys: three units of a three-month
     // plan are nine months.
-    assertStringIncludes(planHtml, '<option value="1">3 months</option>');
-    assertStringIncludes(planHtml, '<option value="2">6 months</option>');
-    assertStringIncludes(
-      planHtml,
+    expectIncludesAll(planHtml, [
+      '<option value="1">3 months</option>',
+      '<option value="2">6 months</option>',
       '<label>Number of months<select name="quantity_1">',
-    );
+    ]);
     assert(!planHtml.includes("Number of Tickets"));
     assert(!planHtml.includes('">2</option>'));
 
@@ -298,11 +295,10 @@ describe("buildPageListingRows", () => {
       isSingleListing: true,
       listings: [rowListing(1, "Listing A", "ab12c")],
     });
-    assertStringIncludes(
-      ordinaryHtml,
+    expectIncludesAll(ordinaryHtml, [
       '<label>Number of Tickets<select name="quantity_1">',
-    );
-    assertStringIncludes(ordinaryHtml, '<option value="2">2</option>');
+      '<option value="2">2</option>',
+    ]);
     assert(!ordinaryHtml.includes("Number of months"));
   });
 
@@ -319,13 +315,12 @@ describe("buildPageListingRows", () => {
       listings: [tier],
       renewal: true,
     });
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<label>Number of months<select name="quantity_1">',
-    );
-    // Fulfillment extends the site by months per unit: two units of a
-    // one-month-per-unit tier are two months.
-    assertStringIncludes(html, '<option value="2">2 months</option>');
+      // Fulfillment extends the site by months per unit: two units of a
+      // one-month-per-unit tier are two months.
+      '<option value="2">2 months</option>',
+    ]);
     assert(!html.includes("6 months"));
   });
 
@@ -335,10 +330,12 @@ describe("buildPageListingRows", () => {
       packages: [pagePackage(3, [7], { quantities: new Map([[7, 2]]) })],
       singlePackagePage: true,
     });
-    assertStringIncludes(html, 'data-package-members="7:2"');
-    assertStringIncludes(html, "Number of packages");
-    assertStringIncludes(html, "&times;2");
-    assertStringIncludes(html, '<option value="1" selected>');
+    expectIncludesAll(html, [
+      'data-package-members="7:2"',
+      "Number of packages",
+      "&times;2",
+      '<option value="1" selected>',
+    ]);
     assert(!html.includes('name="quantity_7"'));
     assert(!html.includes("mutated"));
   });
@@ -349,8 +346,7 @@ describe("buildPageListingRows", () => {
       packages: [pagePackage(3, [7], { quantities: new Map() })],
       singlePackagePage: true,
     });
-    assertStringIncludes(html, 'data-package-members="7:1"');
-    assertStringIncludes(html, "&times;1");
+    expectIncludesAll(html, ['data-package-members="7:1"', "&times;1"]);
   });
 
   test("a member's stored zero quantity is kept, not swapped for the default one", () => {
@@ -362,8 +358,7 @@ describe("buildPageListingRows", () => {
       packages: [pagePackage(3, [7, 8], { quantities: new Map([[8, 0]]) })],
       singlePackagePage: true,
     });
-    assertStringIncludes(html, 'data-package-members="7:1 8:0"');
-    assertStringIncludes(html, "&times;0");
+    expectIncludesAll(html, ['data-package-members="7:1 8:0"', "&times;0"]);
   });
 
   test("each package on a mixed page sells under its own count", () => {
@@ -374,15 +369,14 @@ describe("buildPageListingRows", () => {
       ],
       packages: [pagePackage(3, [7]), pagePackage(4, [8])],
     });
-    assertStringIncludes(html, "package_quantity_3");
-    assertStringIncludes(html, "package_quantity_4");
-    assertStringIncludes(html, "<legend>Package 3</legend>");
-    assertStringIncludes(html, "<legend>Package 4</legend>");
-    // The sections render edge to edge, with no filler between them.
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "package_quantity_3",
+      "package_quantity_4",
+      "<legend>Package 3</legend>",
+      "<legend>Package 4</legend>",
+      // The sections render edge to edge, with no filler between them.
       '</fieldset><fieldset class="ticket-package" data-package-section="4">',
-    );
+    ]);
   });
 
   test("a titled bundle section renders its description above its controls", () => {
@@ -396,13 +390,12 @@ describe("buildPageListingRows", () => {
         pagePackage(4, [8]),
       ],
     });
-    assertStringIncludes(html, "<p>Two together</p>");
-    assertStringIncludes(html, "<legend>Package 3</legend>");
-    // A living bundle carries no sold-out marker on its fieldset.
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "<p>Two together</p>",
+      "<legend>Package 3</legend>",
+      // A living bundle carries no sold-out marker on its fieldset.
       '<fieldset class="ticket-package" data-package-section="3">',
-    );
+    ]);
   });
 
   test("a package that hides its listings shows only its bundle count", () => {
@@ -439,7 +432,6 @@ describe("buildPageListingRows", () => {
       standaloneListingIds: new Set([7]),
     });
     expect(occurrences(html, 'data-sole-parent="7"')).toBe(1);
-    assertStringIncludes(html, "&times;2");
-    assertStringIncludes(html, 'name="quantity_7"');
+    expectIncludesAll(html, ["&times;2", 'name="quantity_7"']);
   });
 });

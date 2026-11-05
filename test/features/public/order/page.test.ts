@@ -7,6 +7,7 @@ import { enablePublicOrder } from "#test/features/public/order/helpers.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
 import {
   assertPublicHtml,
+  expectIncludesAll,
   expectRedirect,
   expectStatus,
 } from "#test-utils/assertions.ts";
@@ -63,8 +64,10 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
         "View order",
         "Continue",
       );
-      assertStringIncludes(html, `name="select_${standard.id}"`);
-      assertStringIncludes(html, `name="select_${daily.id}"`);
+      expectIncludesAll(html, [
+        `name="select_${standard.id}"`,
+        `name="select_${daily.id}"`,
+      ]);
       // The login footer is a homepage-only affordance (#69).
       assert(!html.includes('href="/admin/login"'));
     });
@@ -246,9 +249,11 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
       });
 
       const html = await assertPublicHtml("/order", "Mystery Box");
-      assertStringIncludes(html, `name="select_package_${group.id}"`);
-      assertStringIncludes(html, "Secret Widget");
-      assertStringIncludes(html, `name="select_${secret.id}"`);
+      expectIncludesAll(html, [
+        `name="select_package_${group.id}"`,
+        "Secret Widget",
+        `name="select_${secret.id}"`,
+      ]);
       assert(!html.includes("No items are available to order"));
     });
   });

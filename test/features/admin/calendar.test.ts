@@ -8,6 +8,7 @@ import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import {
   expectHtmlResponse,
+  expectIncludesAll,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
@@ -94,8 +95,7 @@ describeWithEnv(
         const html = await fetchCalendarHtml();
         // Both the start day and the second day must be selectable links,
         // not disabled options — the booking occupies both days.
-        assertStringIncludes(html, `date=${start}`);
-        assertStringIncludes(html, `date=${secondDay}`);
+        expectIncludesAll(html, [`date=${start}`, `date=${secondDay}`]);
         assert(
           !html.includes(
             `<option disabled>${formatDateLabel(secondDay)}</option>`,
@@ -127,11 +127,13 @@ describeWithEnv(
         const { listing1, listing2, date } = await setupTwoDailyBookings();
 
         const html = await fetchCalendarHtml(`/admin/calendar?date=${date}`);
-        assertStringIncludes(html, "User A");
-        assertStringIncludes(html, "User B");
-        // Both listing names should appear
-        assertStringIncludes(html, listing1.name);
-        assertStringIncludes(html, listing2.name);
+        expectIncludesAll(html, [
+          "User A",
+          "User B",
+          // Both listing names should appear
+          listing1.name,
+          listing2.name,
+        ]);
       });
 
       test("links listing name to listing page", async () => {
@@ -145,8 +147,10 @@ describeWithEnv(
         const { date } = await setupDailyBooking();
 
         const html = await fetchCalendarHtml(`/admin/calendar?date=${date}`);
-        assertStringIncludes(html, "Export CSV");
-        assertStringIncludes(html, `/admin/calendar/export?date=${date}`);
+        expectIncludesAll(html, [
+          "Export CSV",
+          `/admin/calendar/export?date=${date}`,
+        ]);
       });
 
       test("does not show Export CSV link when no attendees for date", async () => {
@@ -190,8 +194,7 @@ describeWithEnv(
         await setupStandardConcertBooking();
 
         const html = await fetchCalendarHtml("/admin/calendar?date=2026-06-15");
-        assertStringIncludes(html, "Concert Fan");
-        assertStringIncludes(html, "Concert");
+        expectIncludesAll(html, ["Concert Fan", "Concert"]);
       });
 
       test("does not show standard listing attendees on wrong date", async () => {
@@ -208,10 +211,12 @@ describeWithEnv(
         const html = await fetchCalendarHtml(
           `/admin/calendar?date=${listingDate}`,
         );
-        assertStringIncludes(html, "Daily User");
-        assertStringIncludes(html, "Standard User");
-        assertStringIncludes(html, dailyListing.name);
-        assertStringIncludes(html, "Workshop");
+        expectIncludesAll(html, [
+          "Daily User",
+          "Standard User",
+          dailyListing.name,
+          "Workshop",
+        ]);
       });
 
       test("marks standard listing date as having bookings when attendees exist", async () => {
@@ -248,10 +253,12 @@ describeWithEnv(
         });
 
         const html = await fetchCalendarHtml("/admin/calendar?date=2026-06-15");
-        assertStringIncludes(html, "Morning Fan");
-        assertStringIncludes(html, "Evening Fan");
-        assertStringIncludes(html, "Morning Concert");
-        assertStringIncludes(html, "Evening Concert");
+        expectIncludesAll(html, [
+          "Morning Fan",
+          "Evening Fan",
+          "Morning Concert",
+          "Evening Concert",
+        ]);
       });
 
       test("does not show standard attendees when no standard listings match date", async () => {
@@ -285,8 +292,7 @@ describeWithEnv(
 
       test("renders the calendar grid", async () => {
         const html = await fetchCalendarHtml();
-        assertStringIncludes(html, 'class="calendar"');
-        assertStringIncludes(html, "calendar-grid");
+        expectIncludesAll(html, ['class="calendar"', "calendar-grid"]);
       });
 
       test("the cal parameter sets the displayed month", async () => {

@@ -10,6 +10,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 /** Factory for a {@link DisplayUser} with common defaults. */
 const displayUser = (overrides: Partial<DisplayUser> = {}): DisplayUser => ({
@@ -46,13 +47,15 @@ describe("adminUsersPage", () => {
       inviteLink: "",
       success: "",
     });
-    assertStringIncludes(html, "Active");
-    assertStringIncludes(html, "Invited");
-    // The username links to the per-user manage page; the delete action lives
-    // there now, not inline in the table. There is no activate action — invited
-    // users self-activate at /join.
-    assertStringIncludes(html, '<a href="/admin/users/2">pending</a>');
-    assertStringIncludes(html, '<a href="/admin/users/3">invited</a>');
+    expectIncludesAll(html, [
+      "Active",
+      "Invited",
+      // The username links to the per-user manage page; the delete action lives
+      // there now, not inline in the table. There is no activate action — invited
+      // users self-activate at /join.
+      '<a href="/admin/users/2">pending</a>',
+      '<a href="/admin/users/3">invited</a>',
+    ]);
     assert(!html.includes("/activate"));
     assert(!html.includes("/delete"));
   });
@@ -98,9 +101,11 @@ describe("adminUsersPage", () => {
     expect(html).toMatch(
       /class="success" role="alert">\s*<p>Invite link \(share this with the new user\)/,
     );
-    assertStringIncludes(html, "https://example.com/join/abc123");
-    assertStringIncludes(html, "Invite created");
-    assertStringIncludes(html, "Something went wrong");
+    expectIncludesAll(html, [
+      "https://example.com/join/abc123",
+      "Invite created",
+      "Something went wrong",
+    ]);
   });
 
   test("marks the Users nav link active and links to the roles guide", () => {
@@ -108,8 +113,10 @@ describe("adminUsersPage", () => {
       currentUserId: 1,
       inviteLink: "",
     });
-    assertStringIncludes(html, '<a class="active" href="/admin/users">');
-    assertStringIncludes(html, 'href="/admin/guide#user-classes"');
+    expectIncludesAll(html, [
+      '<a class="active" href="/admin/users">',
+      'href="/admin/guide#user-classes"',
+    ]);
   });
 
   test("shows an agent user's single assigned agent name", () => {
@@ -142,12 +149,14 @@ describe("adminUserDeletePage", () => {
       username: "targetuser",
     };
     const html = adminUserDeletePage(user, OWNER_SESSION);
-    assertStringIncludes(html, "Delete User");
-    assertStringIncludes(html, "targetuser");
-    assertStringIncludes(html, '<a class="active" href="/admin/users">');
-    assertStringIncludes(html, 'name="confirm_identifier"');
-    assertStringIncludes(html, 'action="/admin/users/5/delete"');
-    assertStringIncludes(html, "permanently delete");
+    expectIncludesAll(html, [
+      "Delete User",
+      "targetuser",
+      '<a class="active" href="/admin/users">',
+      'name="confirm_identifier"',
+      'action="/admin/users/5/delete"',
+      "permanently delete",
+    ]);
   });
 
   test("renders error message when provided", () => {

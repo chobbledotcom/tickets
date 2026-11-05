@@ -28,7 +28,7 @@ import { getDb } from "#db/client.ts";
 import { loadMigrations } from "#db/migrations/context.ts";
 import { SCHEMA } from "#db/migrations/schema/index.ts";
 import { requireValue } from "#shared/required-value.ts";
-
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -70,8 +70,7 @@ describe("servicing §1 — schema declares the kind column + index", () => {
 
   test("the kind column's allowed values are ATTENDEE_KIND and SERVICING_KIND only", () => {
     const [, type] = attendeesTable.columns.find(([n]) => n === "kind")!;
-    assertStringIncludes(type, ATTENDEE_KIND);
-    assertStringIncludes(type, SERVICING_KIND);
+    expectIncludesAll(type, [ATTENDEE_KIND, SERVICING_KIND]);
     expect(type).toMatch(/CHECK/i);
   });
 });

@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { generateListingsCsv } from "#routes/admin/listings-csv.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 describe("generateListingsCsv", () => {
@@ -39,8 +40,7 @@ describe("generateListingsCsv", () => {
     const csv = generateListingsCsv([
       testListingWithCount({ active: false, name: "Freebie", unit_price: 0 }),
     ]);
-    assertStringIncludes(csv, "Freebie,Inactive,");
-    assertStringIncludes(csv, ",Free,");
+    expectIncludesAll(csv, ["Freebie,Inactive,", ",Free,"]);
   });
 
   test("shows the day-price range for a paid customisable-days listing", () => {

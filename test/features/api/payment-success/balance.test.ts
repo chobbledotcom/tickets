@@ -11,6 +11,7 @@ import {
   createMixedConcealedAttendee,
   getPayPage,
 } from "#test/integration/balance-helpers.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { createReservedAttendee } from "#test-utils/balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
@@ -102,7 +103,6 @@ describeWithEnv("the paid success balance page", { db: true }, () => {
     const html = await getPayPage(attendeeId);
 
     assert(!html.includes("Secret Contents"));
-    assertStringIncludes(html, "Mystery Box");
-    assertStringIncludes(html, "Workshop Ticket");
+    expectIncludesAll(html, ["Mystery Box", "Workshop Ticket"]);
   });
 });

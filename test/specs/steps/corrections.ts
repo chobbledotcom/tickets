@@ -48,6 +48,7 @@ import {
   type TicketsWorld,
   theBooking,
 } from "#test/specs/support/world.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 const LISTING_TOLD = "Listing income corrected.";
 const GOODWILL = "manual_attendee_writeoff";
@@ -300,11 +301,10 @@ Then(
   "their payment link offers to take the {word} that is left",
   async function (this: TicketsWorld, amount: string): Promise<void> {
     const page = await balancePageHtml(this);
-    assertStringIncludes(
-      page,
+    expectIncludesAll(page, [
       `Balance due:</strong> ${formatCurrency(minorUnits(amount))}`,
-    );
-    assertStringIncludes(page, `Pay ${formatCurrency(minorUnits(amount))} now`);
+      `Pay ${formatCurrency(minorUnits(amount))} now`,
+    ]);
   },
 );
 
@@ -317,15 +317,11 @@ Then(
     paid: string,
   ): Promise<void> {
     const page = await balancePageHtml(this);
-    assertStringIncludes(page, name);
-    assertStringIncludes(
-      page,
+    expectIncludesAll(page, [
+      name,
       `Full order price:</strong> ${formatCurrency(minorUnits(ordered))}`,
-    );
-    assertStringIncludes(
-      page,
       `Already paid:</strong> ${formatCurrency(minorUnits(paid))}`,
-    );
+    ]);
   },
 );
 

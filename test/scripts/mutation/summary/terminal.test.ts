@@ -6,6 +6,7 @@ import {
   type MutantResult,
   summarize,
 } from "#scripts/mutation/summary.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { fakeResult, plain, timingSummary } from "./fixtures.ts";
 
 describe("the terminal mutation report", () => {
@@ -79,8 +80,10 @@ describe("the terminal mutation report", () => {
   test("formats phase timing work when all mutants are ignored", () => {
     const terminal = formatSummaryLines(timingSummary("ignored")).join("\n");
 
-    assertStringIncludes(terminal, "phase timings (cumulative elapsed):");
-    assertStringIncludes(terminal, "direct-tests: 10ms in 1 run(s)");
+    expectIncludesAll(terminal, [
+      "phase timings (cumulative elapsed):",
+      "direct-tests: 10ms in 1 run(s)",
+    ]);
   });
 
   test("formats inconclusive and all-ignored terminal summaries", () => {
@@ -104,8 +107,10 @@ describe("the terminal mutation report", () => {
       ]),
     ).join("\n");
 
-    assertStringIncludes(lines, "ignored:");
-    assertStringIncludes(lines, "All mutants were detected");
-    assertStringIncludes(lines, "1 suppressed as known-equivalent");
+    expectIncludesAll(lines, [
+      "ignored:",
+      "All mutants were detected",
+      "1 suppressed as known-equivalent",
+    ]);
   });
 });

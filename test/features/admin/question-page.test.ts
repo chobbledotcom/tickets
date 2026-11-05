@@ -6,6 +6,7 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { addAnswer, createQuestion } from "#test-utils/questions/helpers.ts";
 import { adminGet } from "#test-utils/session.ts";
@@ -16,9 +17,7 @@ describeWithEnv("the question entity page", { db: true }, () => {
     await addAnswer(id, "One");
     await addAnswer(id, "Two");
     const html = await (await adminGet(`/admin/questions/${id}`)).text();
-    assertStringIncludes(html, "What is your role?");
-    assertStringIncludes(html, "One");
-    assertStringIncludes(html, "Two");
+    expectIncludesAll(html, ["What is your role?", "One", "Two"]);
   });
 
   test("opens the actions tab with the type-the-name delete", async () => {

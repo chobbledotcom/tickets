@@ -4,6 +4,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { deadlineReport, unfinishedRun } from "#scripts/mutation/summary.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 const ended = (
   state: { aborted: boolean; hitDeadline: boolean },
@@ -32,8 +33,7 @@ describe("the whole-run deadline report", () => {
   test("points at the mutants after the last one reported", () => {
     const lines = deadlineReport(1000, 1, 2).join(" ");
 
-    assertStringIncludes(lines, "loop forever");
-    assertStringIncludes(lines, "after the last one");
+    expectIncludesAll(lines, ["loop forever", "after the last one"]);
   });
 
   test("says so plainly when it stopped before there was a mutant to test", () => {

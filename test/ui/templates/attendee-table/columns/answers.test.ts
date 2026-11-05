@@ -7,6 +7,7 @@ import {
   makeRow,
   render,
 } from "#test/ui/templates/attendee-table/shared.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testAttendee, testRadioQuestion } from "#test-utils/factories.ts";
 
 attendeeTableSuite(() => {
@@ -41,8 +42,7 @@ attendeeTableSuite(() => {
 
   test("renders answer text in the answer cell", () => {
     const html = renderAnswers(1);
-    assertStringIncludes(html, 'class="answers-cell"');
-    assertStringIncludes(html, "Small, Red");
+    expectIncludesAll(html, ['class="answers-cell"', "Small, Red"]);
   });
 
   test("puts questions and answers in the tooltip", () => {
@@ -51,8 +51,7 @@ attendeeTableSuite(() => {
 
   test("renders an empty answer for an attendee with no answers", () => {
     const html = renderAnswers(999);
-    assertStringIncludes(html, 'class="answers-cell"');
-    assertStringIncludes(html, 'title=""');
+    expectIncludesAll(html, ['class="answers-cell"', 'title=""']);
   });
 
   test("renders only the answers saved for an attendee", () => {
@@ -78,8 +77,10 @@ attendeeTableSuite(() => {
 
   test("counts Answers in an empty table layout", () => {
     const html = render(makeOpts({ questionData, rows: [] }));
-    assertStringIncludes(html, "<th>Answers</th>");
-    assertStringIncludes(html, "No attendees yet");
-    assertStringIncludes(html, 'colspan="6"');
+    expectIncludesAll(html, [
+      "<th>Answers</th>",
+      "No attendees yet",
+      'colspan="6"',
+    ]);
   });
 });

@@ -11,6 +11,7 @@ import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import type { CatalogBundle } from "#routes/admin/catalog-transfer/schema.ts";
 import { matchKey } from "#shared/keys.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
@@ -91,11 +92,10 @@ describeWithEnv("catalog bundle import", { db: true }, () => {
     const result = await importCatalog(bundle);
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("unreachable");
-    assertStringIncludes(result.error, "No records were created.");
-    assertStringIncludes(
-      result.error,
+    expectIncludesAll(result.error, [
+      "No records were created.",
       '"Already Here": A listing or group named "Already Here" already exists',
-    );
+    ]);
     // The valid item of the same document is not imported either.
     expect(await listingIdsByNamePrefix("act ")).toEqual([]);
   });

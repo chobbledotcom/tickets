@@ -15,7 +15,10 @@ import {
   hashEmail,
   saveContactRecord,
 } from "#db/contact-preferences.ts";
-import { expectHtmlResponse } from "#test-utils/assertions.ts";
+import {
+  expectHtmlResponse,
+  expectIncludesAll,
+} from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { hasSelectedOption } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -143,8 +146,10 @@ describeWithEnv(
         const reservation = await newReservation();
         const id = await seedAttendee(reservation.id, 0, 1000); // paid in full
         const html = await getEdit(id);
-        assertStringIncludes(html, "consider moving it to a paid status");
-        assertStringIncludes(html, 'class="info"');
+        expectIncludesAll(html, [
+          "consider moving it to a paid status",
+          'class="info"',
+        ]);
       });
 
       test("edit page treats a fully-paid discounted reservation as paid", async () => {
@@ -179,10 +184,12 @@ describeWithEnv(
         const reservation = await newReservation();
         const id = await seedAttendee(reservation.id, 900);
         const html = await getEdit(id);
-        assertStringIncludes(html, "<h2>Status: Reserved</h2>");
-        // The heading is wrapped in the .attendee-status pin so it holds still
-        // across the view transition between an attendee's tabs.
-        assertStringIncludes(html, '<div class="prose attendee-status">');
+        expectIncludesAll(html, [
+          "<h2>Status: Reserved</h2>",
+          // The heading is wrapped in the .attendee-status pin so it holds still
+          // across the view transition between an attendee's tabs.
+          '<div class="prose attendee-status">',
+        ]);
       });
 
       test("edit page status heading reads None when the attendee has no status", async () => {
@@ -407,12 +414,11 @@ describeWithEnv(
         const html = await (
           await adminGet(`/admin/attendees/${attendee.id}/activity`)
         ).text();
-        assertStringIncludes(html, "Allergic to peanuts");
-        // The strip marks the active tab for the viewer.
-        assertStringIncludes(
-          html,
+        expectIncludesAll(html, [
+          "Allergic to peanuts",
+          // The strip marks the active tab for the viewer.
           `aria-current="page" class="active" href="/admin/attendees/${attendee.id}/activity"`,
-        );
+        ]);
       });
     });
   },

@@ -9,6 +9,7 @@ import { signCsrfToken } from "#shared/csrf.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import {
   expectFlashRedirect,
+  expectIncludesAll,
   expectStatus,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
@@ -46,15 +47,14 @@ describeWithEnv(
       test("renders a tab strip linking Overview, Attendees, Edit, and Actions", async () => {
         const group = await createTestGroup({ name: "Tabbed", slug: "tabbed" });
         const html = await (await adminGet(`/admin/groups/${group.id}`)).text();
-        assertStringIncludes(html, `href="/admin/groups/${group.id}"`);
-        assertStringIncludes(
-          html,
+        expectIncludesAll(html, [
+          `href="/admin/groups/${group.id}"`,
           `href="/admin/groups/${group.id}/attendees"`,
-        );
-        assertStringIncludes(html, `href="/admin/groups/${group.id}/edit"`);
-        assertStringIncludes(html, `href="/admin/groups/${group.id}/actions"`);
-        // The admin nav highlights the Groups section (navActive).
-        assertStringIncludes(html, 'class="active" href="/admin/groups"');
+          `href="/admin/groups/${group.id}/edit"`,
+          `href="/admin/groups/${group.id}/actions"`,
+          // The admin nav highlights the Groups section (navActive).
+          'class="active" href="/admin/groups"',
+        ]);
       });
 
       test("Actions tab shows the export, bulk-actions, and delete links", async () => {
@@ -65,16 +65,18 @@ describeWithEnv(
         const html = await (
           await adminGet(`/admin/groups/${group.id}/actions`)
         ).text();
-        assertStringIncludes(html, `/admin/groups/${group.id}/export.json`);
-        assertStringIncludes(html, `/admin/groups/${group.id}/bulk-actions`);
-        assertStringIncludes(html, `/admin/groups/${group.id}/delete`);
-        // Each action carries its icon (an empty icon name drops the <use> ref);
-        // the nav renders none of these, so the refs are unique to the buttons.
-        assertStringIncludes(html, "#save");
-        assertStringIncludes(html, "#hammer");
-        assertStringIncludes(html, "#trash-2");
-        // Delete is destructive, so it renders inside the danger zone (danger: true).
-        assertStringIncludes(html, "entity-danger-zone");
+        expectIncludesAll(html, [
+          `/admin/groups/${group.id}/export.json`,
+          `/admin/groups/${group.id}/bulk-actions`,
+          `/admin/groups/${group.id}/delete`,
+          // Each action carries its icon (an empty icon name drops the <use> ref);
+          // the nav renders none of these, so the refs are unique to the buttons.
+          "#save",
+          "#hammer",
+          "#trash-2",
+          // Delete is destructive, so it renders inside the danger zone (danger: true).
+          "entity-danger-zone",
+        ]);
       });
 
       test("returns 404 for an unknown tab", async () => {

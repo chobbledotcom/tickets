@@ -7,6 +7,7 @@ import {
   advancedPageHtml,
   describeCustomDomain,
 } from "#test/features/admin/settings-domains/support.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { mockRequestWithHost } from "#test-utils/mocks.ts";
 import { testCookie } from "#test-utils/session.ts";
@@ -19,8 +20,7 @@ describeCustomDomain("custom domain settings page", (enable) => {
   test("shows the custom domain form when Bunny CDN is configured", async () => {
     enable();
     const html = await advancedPageHtml();
-    assertStringIncludes(html, 'id="settings-custom-domain"');
-    assertStringIncludes(html, "Custom domain");
+    expectIncludesAll(html, ['id="settings-custom-domain"', "Custom domain"]);
   });
 
   test("leads with the host subdomain section, above the custom domain section", async () => {
@@ -49,17 +49,16 @@ describeCustomDomain("custom domain settings page", (enable) => {
     enable();
     await settings.update.customDomain("tickets.example.com");
     const html = await advancedPageHtml();
-    assertStringIncludes(html, 'id="settings-custom-domain-validate"');
-    assertStringIncludes(html, "Make one CNAME record like this:");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'id="settings-custom-domain-validate"',
+      "Make one CNAME record like this:",
       "Open the DNS settings for your domain. These are often with the company you bought it from.",
-    );
-    assertStringIncludes(html, "CNAME");
-    assertStringIncludes(html, "tickets.example.com");
-    assertStringIncludes(html, "mysite.b-cdn.net");
-    assertStringIncludes(html, "not yet validated");
-    assertStringIncludes(html, "will not work until validation is complete");
+      "CNAME",
+      "tickets.example.com",
+      "mysite.b-cdn.net",
+      "not yet validated",
+      "will not work until validation is complete",
+    ]);
   });
 
   test("shows the last validation time without the warning", async () => {

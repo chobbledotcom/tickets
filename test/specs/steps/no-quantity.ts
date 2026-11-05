@@ -10,6 +10,7 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import {
   type AttendeeLineInput,
   createTestAttendeeDirect,
@@ -117,11 +118,10 @@ const expectNoQuantityWithoutTicket = async (
   listingName: string,
 ): Promise<void> => {
   const html = await attendeeList(world, listingName);
-  assertStringIncludes(
-    html,
+  expectIncludesAll(html, [
     requiredWorldValue(world.attendeeName, "attendee name"),
-  );
-  assertStringIncludes(html, "No quantity");
+    "No quantity",
+  ]);
   assert(!html.includes(`/t/${ticketToken(world)}`));
 };
 

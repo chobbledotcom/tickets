@@ -8,6 +8,7 @@ import { createDailyListing } from "#test/integration/server/listings/_shared-se
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import {
   expectHtmlResponse,
+  expectIncludesAll,
   fetchListingExportCsv,
 } from "#test-utils/assertions.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
@@ -148,8 +149,7 @@ describeWithEnv(
           listing,
           `?date=${validDate1}`,
         );
-        assertStringIncludes(html, "User A");
-        assertStringIncludes(html, "User B");
+        expectIncludesAll(html, ["User A", "User B"]);
         assert(!html.includes("User C"));
       });
 
@@ -174,8 +174,7 @@ describeWithEnv(
         const html = await response.text();
         // The date filter scopes the roster to date1's two bookings, and the
         // date selector marks that date as the active option.
-        assertStringIncludes(html, "User A");
-        assertStringIncludes(html, "User B");
+        expectIncludesAll(html, ["User A", "User B"]);
         assert(!html.includes("User C"));
         assertStringIncludes(
           html,
@@ -188,8 +187,7 @@ describeWithEnv(
 
         const response = await adminGet(`/admin/listing/${listing.id}`);
         const html = await response.text();
-        assertStringIncludes(html, "(total)");
-        assertStringIncludes(html, "Capacity of");
+        expectIncludesAll(html, ["(total)", "Capacity of"]);
       });
 
       test("date filter composes with check-in filter", async () => {
@@ -200,8 +198,7 @@ describeWithEnv(
           listing,
           `?filter=out&date=${validDate1}`,
         );
-        assertStringIncludes(html, "User A");
-        assertStringIncludes(html, "User B");
+        expectIncludesAll(html, ["User A", "User B"]);
         assert(!html.includes("User C"));
       });
 
@@ -213,8 +210,7 @@ describeWithEnv(
           `/admin/listing/${listing.id}/attendees?date=not-a-date`,
         );
         const html = await response.text();
-        assertStringIncludes(html, "User A");
-        assertStringIncludes(html, "User C");
+        expectIncludesAll(html, ["User A", "User C"]);
       });
 
       test("shows a date-scoped capacity summary on the roster, only when dated", async () => {
@@ -291,8 +287,7 @@ describeWithEnv(
           `/admin/listing/${listing.id}/export?date=${validDate1}`,
         );
         const disposition = response.headers.get("content-disposition") ?? "";
-        assertStringIncludes(disposition, validDate1);
-        assertStringIncludes(disposition, "_attendees.csv");
+        expectIncludesAll(disposition, [validDate1, "_attendees.csv"]);
       });
 
       test("Export CSV link includes ?date= when filter is active", async () => {
@@ -307,14 +302,10 @@ describeWithEnv(
         const { listing, html } = await fetchDate1Roster();
         // The shared filter bar injects its links raw, so the ampersand
         // between the query parameters is not entity-escaped.
-        assertStringIncludes(
-          html,
+        expectIncludesAll(html, [
           `/admin/listing/${listing.id}/attendees?filter=in&date=${validDate1}`,
-        );
-        assertStringIncludes(
-          html,
           `/admin/listing/${listing.id}/attendees?filter=out&date=${validDate1}`,
-        );
+        ]);
       });
     });
   },

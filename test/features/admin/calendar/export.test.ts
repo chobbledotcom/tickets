@@ -12,6 +12,7 @@ import {
 } from "#test/features/admin/calendar-test-helpers.ts";
 import {
   expectCsvDownloadHeaders,
+  expectIncludesAll,
   expectRedirectWithFlash,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
@@ -79,10 +80,12 @@ describeWithEnv(
           `/admin/calendar/export?date=${tomorrow()}`,
         );
         const csv = await response.text();
-        assertStringIncludes(csv, "User A");
-        assertStringIncludes(csv, "User B");
-        assertStringIncludes(csv, listing1.name);
-        assertStringIncludes(csv, listing2.name);
+        expectIncludesAll(csv, [
+          "User A",
+          "User B",
+          listing1.name,
+          listing2.name,
+        ]);
       });
 
       test("returns empty CSV when no attendees for date", async () => {
@@ -112,8 +115,7 @@ describeWithEnv(
           "/admin/calendar/export?date=2026-06-15",
         );
         const csv = await response.text();
-        assertStringIncludes(csv, "Concert");
-        assertStringIncludes(csv, "CSV Fan");
+        expectIncludesAll(csv, ["Concert", "CSV Fan"]);
       });
 
       test("includes mixed daily and standard attendees in CSV export", async () => {
@@ -128,10 +130,12 @@ describeWithEnv(
           `/admin/calendar/export?date=${listingDate}`,
         );
         const csv = await response.text();
-        assertStringIncludes(csv, "Daily CSV");
-        assertStringIncludes(csv, "Standard CSV");
-        assertStringIncludes(csv, dailyListing.name);
-        assertStringIncludes(csv, "Workshop");
+        expectIncludesAll(csv, [
+          "Daily CSV",
+          "Standard CSV",
+          dailyListing.name,
+          "Workshop",
+        ]);
       });
 
       test("exports newest bookings first", async () => {
@@ -198,8 +202,7 @@ describeWithEnv(
             `/admin/calendar/export?date=${date}`,
           );
           const csv = await response.text();
-          assertStringIncludes(csv, "Start Agent");
-          assertStringIncludes(csv, "Van One");
+          expectIncludesAll(csv, ["Start Agent", "Van One"]);
         });
       });
     });

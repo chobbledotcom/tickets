@@ -16,6 +16,7 @@ import {
 import {
   expectFlash,
   expectHtmlResponse,
+  expectIncludesAll,
   expectRedirect,
   FLASH_TEST_ID,
   flashCookieHeader,
@@ -141,8 +142,7 @@ describeWithEnv("server (admin update)", { db: true }, () => {
     test("shows update available when latest version is newer", async () => {
       await setLatestVersion("v2099-01-01-120000", "2099-01-01 - Big Update");
       const html = await getUpdatePageHtml();
-      assertStringIncludes(html, "Update Available");
-      assertStringIncludes(html, "2099-01-01 - Big Update");
+      expectIncludesAll(html, ["Update Available", "2099-01-01 - Big Update"]);
     });
 
     test("shows no update available when version is current", async () => {

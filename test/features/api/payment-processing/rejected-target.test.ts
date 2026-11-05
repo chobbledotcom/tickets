@@ -30,6 +30,7 @@ import {
   settleRejectedCharge,
 } from "#routes/api/payment-processing/rejected-target.ts";
 import { recordProviderRefunds } from "#shared/provider-refunds.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -77,8 +78,7 @@ describeWithEnv("the rejected-checkout answer", { db: true }, () => {
     );
 
     const page = await response.text();
-    assertStringIncludes(page, "Staff diagnostics");
-    assertStringIncludes(page, "cs_blank");
+    expectIncludesAll(page, ["Staff diagnostics", "cs_blank"]);
   });
 
   it("tells the buyer the money went back when the refund succeeded", async () => {

@@ -1,5 +1,4 @@
 import { Given, Then, When } from "@cucumber/cucumber";
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { formatCurrency } from "#shared/currency.ts";
 import { scenarioBrowser } from "#test/specs/support/browser.ts";
@@ -9,6 +8,7 @@ import {
   safetyBooking,
 } from "#test/specs/support/refund-safety/state.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import {
   expectOwnerWasTold,
   expectProviderSendCount,
@@ -66,7 +66,9 @@ Then(
   function (this: TicketsWorld, who: string, pounds: number): void {
     expect(safetyBooking(this, who).amount).toBe(Math.round(pounds * 100));
     const page = scenarioBrowser(this).pageText;
-    assertStringIncludes(page, formatCurrency(Math.round(pounds * 100)));
-    assertStringIncludes(page, "Refunded");
+    expectIncludesAll(page, [
+      formatCurrency(Math.round(pounds * 100)),
+      "Refunded",
+    ]);
   },
 );

@@ -2,6 +2,7 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { runGradeCodeCli, USAGE } from "#scripts/grade-code/cli.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { tempDir } from "#test-utils/files.ts";
 import {
   BROKEN_CODE,
@@ -97,8 +98,10 @@ describe("runGradeCodeCli", () => {
     );
     expect(code).toBe(0);
     const report = out.join("\n");
-    assertStringIncludes(report, "Comments earn their place");
-    assertStringIncludes(report, "Jev: model=jev-test");
+    expectIncludesAll(report, [
+      "Comments earn their place",
+      "Jev: model=jev-test",
+    ]);
   });
 
   test("falls back to mechanical-only when Jev fails", async () => {
@@ -375,7 +378,7 @@ describe("the fake repository the CLI tests run on", () => {
   test("reads a missing fixture file as empty and resolves the wait", async () => {
     const deps = depsOver({ files: {} });
     expect(await deps.grade.readFile("src/nowhere.ts")).toBe("");
-    expect(await deps.grade.sleep(0)).toBeUndefined();
+    expect(await deps.grade.sleep(0)).toBe(undefined);
   });
 
   test("hands the secret file's key to the loader", async () => {

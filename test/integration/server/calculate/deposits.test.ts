@@ -5,6 +5,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { formatCurrency } from "#shared/currency.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { postRunningTotal } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -28,8 +29,7 @@ describeWithEnv("server (/calculate deposit quotes)", { db: true }, () => {
       })
     ).text();
     // The smallest paid value must remain distinct from a free booking.
-    assertStringIncludes(html, "you'll owe");
-    assertStringIncludes(html, formatCurrency(1));
+    expectIncludesAll(html, ["you'll owe", formatCurrency(1)]);
   });
 
   test("shows no amount owed for a free booking when payments are disabled", async () => {
@@ -66,8 +66,7 @@ describeWithEnv("server (/calculate deposit quotes)", { db: true }, () => {
 
     // A deposit summary shows what's due now (10% of £20.00 = £2.00), not the
     // full £20.00 list price — the deposit already reflects the reservation.
-    assertStringIncludes(html, "Weekend Pass");
-    assertStringIncludes(html, formatCurrency(200));
+    expectIncludesAll(html, ["Weekend Pass", formatCurrency(200)]);
     assert(!html.includes(formatCurrency(2000)));
     assertStringIncludes(html, "order-summary-total");
   });

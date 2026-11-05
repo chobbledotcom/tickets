@@ -7,7 +7,10 @@ import {
   readTicketPage,
   setupCheckinTest,
 } from "#test/features/checkin/helpers.ts";
-import { tableRowContaining } from "#test-utils/assertions.ts";
+import {
+  expectIncludesAll,
+  tableRowContaining,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
@@ -32,8 +35,7 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       expect(response.status).toBe(200);
 
       const body = await response.text();
-      assertStringIncludes(body, "Check-in");
-      assertStringIncludes(body, "show this QR code");
+      expectIncludesAll(body, ["Check-in", "show this QR code"]);
     });
 
     test("returns 404 for invalid token", async () => {
@@ -45,8 +47,7 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
     test("shows current status without auto-checking-in", async () => {
       const { token, session } = await setupCheckinTest("Bob", "bob@test.com");
       const body = await readTicketPage(token, session.cookie);
-      assertStringIncludes(body, "Check in");
-      assertStringIncludes(body, "Check In All");
+      expectIncludesAll(body, ["Check in", "Check In All"]);
       assert(!body.includes('class="success"'));
     });
 
@@ -72,14 +73,10 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       );
       const body = await response.text();
       // The bookings stay separate rows so each listing checks in on its own.
-      assertStringIncludes(
-        body,
+      expectIncludesAll(body, [
         `/admin/listing/${first.id}/attendee/${attendee.id}/checkin`,
-      );
-      assertStringIncludes(
-        body,
         `/admin/listing/${second.id}/attendee/${attendee.id}/checkin`,
-      );
+      ]);
     });
 
     test("shows attendee contact details in admin view", async () => {
@@ -91,9 +88,7 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
         "555-1234",
       );
       const body = await readTicketPage(token, session.cookie);
-      assertStringIncludes(body, "Bob");
-      assertStringIncludes(body, "bob@test.com");
-      assertStringIncludes(body, "555-1234");
+      expectIncludesAll(body, ["Bob", "bob@test.com", "555-1234"]);
     });
 
     test("shows multiple attendees from different listings", async () => {
@@ -106,8 +101,7 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       expect(response.status).toBe(200);
 
       const body = await response.text();
-      assertStringIncludes(body, listingA.name);
-      assertStringIncludes(body, listingB.name);
+      expectIncludesAll(body, [listingA.name, listingB.name]);
     });
 
     test("returns 404 for invalid tokens when authenticated", async () => {
@@ -137,8 +131,7 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
         3,
       );
       const body = await readTicketPage(token, session.cookie);
-      assertStringIncludes(body, listing.name);
-      assertStringIncludes(body, "3");
+      expectIncludesAll(body, [listing.name, "3"]);
     });
 
     test("links listing name to admin listing page", async () => {
@@ -153,16 +146,15 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
     test("shows green bulk check-in button when not checked in", async () => {
       const { token, session } = await setupCheckinTest("Eve", "eve@test.com");
       const body = await readTicketPage(token, session.cookie);
-      assertStringIncludes(body, 'class="bulk-checkin"');
-      assertStringIncludes(body, "Check In All");
-      // The form posts this hidden input, so the name the POST handler reads
-      // is part of what the page renders. The input and the bulk button sit
-      // together, apart from the per-row forms that carry the same name.
-      assertStringIncludes(
-        body,
+      expectIncludesAll(body, [
+        'class="bulk-checkin"',
+        "Check In All",
+        // The form posts this hidden input, so the name the POST handler reads
+        // is part of what the page renders. The input and the bulk button sit
+        // together, apart from the per-row forms that carry the same name.
         '<input name="check_in" type="hidden" value="true">' +
           '<button class="bulk-checkin" type="submit">Check In All</button>',
-      );
+      ]);
     });
 
     test("displays booked date for daily listing in admin view", async () => {
@@ -177,8 +169,7 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       expect(response.status).toBe(200);
 
       const body = await response.text();
-      assertStringIncludes(body, formatDateLabel(date));
-      assertStringIncludes(body, "<th>Date</th>");
+      expectIncludesAll(body, [formatDateLabel(date), "<th>Date</th>"]);
     });
 
     test("shows the Date column when a daily listing attendee is combined with a standard one", async () => {
@@ -234,8 +225,7 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       );
       const body = await response.text();
       // Column headers render because at least one attendee has each field.
-      assertStringIncludes(body, "<th>Email</th>");
-      assertStringIncludes(body, "<th>Phone</th>");
+      expectIncludesAll(body, ["<th>Email</th>", "<th>Phone</th>"]);
       assertStringIncludes(
         tableRowContaining(body, "WithContact"),
         '<td>with@test.com</td><td><a href="tel:+44712345678">0712345678</a></td>',
@@ -281,8 +271,7 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       const body = await response.text();
       // Staff have the per-row controls for fine-grained work, so the bulk
       // action stays on check-in until EVERY eligible row is in.
-      assertStringIncludes(body, "Check In All");
-      assertStringIncludes(body, "Check out");
+      expectIncludesAll(body, ["Check In All", "Check out"]);
     });
 
     test("offers checkout when every eligible row is checked in", async () => {
@@ -294,13 +283,12 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       await postCheckin(token, session, "true");
 
       const body = await (await adminGet(`/checkin/${token}`)).text();
-      assertStringIncludes(body, "Check Out All");
-      // The bulk way out posts its own false spelling, tied to its button.
-      assertStringIncludes(
-        body,
+      expectIncludesAll(body, [
+        "Check Out All",
+        // The bulk way out posts its own false spelling, tied to its button.
         '<input name="check_in" type="hidden" value="false">' +
           '<button class="bulk-checkout" type="submit">Check Out All</button>',
-      );
+      ]);
     });
 
     test("hides the bulk action when no eligible row remains", async () => {

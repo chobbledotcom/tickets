@@ -9,6 +9,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { holidayPage } from "#routes/admin/holiday-page.ts";
 import { FormParams } from "#shared/form-data.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestHoliday } from "#test-utils/db-helpers/holidays.ts";
 import { adminGet, getTestAuthSession } from "#test-utils/session.ts";
@@ -21,8 +22,10 @@ describeWithEnv("the holiday page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    assertStringIncludes(html, `action="/admin/holidays/${holiday.id}/edit"`);
-    assertStringIncludes(html, "Bank Holiday");
+    expectIncludesAll(html, [
+      `action="/admin/holidays/${holiday.id}/edit"`,
+      "Bank Holiday",
+    ]);
   });
 
   test("marks the holidays list as the section it belongs to", async () => {
@@ -40,8 +43,10 @@ describeWithEnv("the holiday page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    assertStringIncludes(html, `href="/admin/holidays/${holiday.id}/delete"`);
-    assertStringIncludes(html, "Delete holiday");
+    expectIncludesAll(html, [
+      `href="/admin/holidays/${holiday.id}/delete"`,
+      "Delete holiday",
+    ]);
   });
 
   test("answers 404 for a holiday that is not there", async () => {
@@ -60,7 +65,9 @@ describeWithEnv("the holiday page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(400);
-    assertStringIncludes(html, "2026-06-01");
-    assertStringIncludes(html, "End date is before the start date");
+    expectIncludesAll(html, [
+      "2026-06-01",
+      "End date is before the start date",
+    ]);
   });
 });

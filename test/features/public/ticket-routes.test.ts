@@ -10,6 +10,7 @@ import {
   handleTicketQrGet,
 } from "#routes/public/ticket-routes.ts";
 import { hostEmail } from "#shared/email.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { submitMultiTicketForm, submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -57,12 +58,11 @@ describeWithEnv("public ticket routes", { db: true }, () => {
     const html = await response.text();
     // The listing's page's submenu bar renders, the current listing is its
     // active node, and the sibling sits beside it.
-    assertStringIncludes(html, 'aria-label="Visit"');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'aria-label="Visit"',
       `<a class="active" href="/ticket/${listing.slug}">`,
-    );
-    assertStringIncludes(html, `href="/ticket/${sibling.slug}"`);
+      `href="/ticket/${sibling.slug}"`,
+    ]);
   });
 
   test("a multi-item combo booking page keeps the unhighlighted menu", async () => {
@@ -175,8 +175,7 @@ describeWithEnv("public ticket routes", { db: true }, () => {
     const response = await handleRequest(mockRequest(`/ticket/${group.slug}`));
     expect(response.status).toBe(200);
     const html = await response.text();
-    assertStringIncludes(html, "Surf Society Lesson 0");
-    assertStringIncludes(html, "Surf Society Lesson 1");
+    expectIncludesAll(html, ["Surf Society Lesson 0", "Surf Society Lesson 1"]);
     assert(!html.includes("Surf Society Secret Tier"));
 
     // A crafted quantity field cannot book the hidden tier either: the
@@ -337,13 +336,12 @@ describeWithEnv("public ticket routes", { db: true }, () => {
     const response = await handleRequest(mockRequest(`/ticket/${group.slug}`));
     expect(response.status).toBe(200);
     const html = await response.text();
-    assertStringIncludes(html, `name="package_quantity_${group.id}"`);
-    // Only the group fallback renders the description; the lone-package cart
-    // path would drop it.
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      `name="package_quantity_${group.id}"`,
+      // Only the group fallback renders the description; the lone-package cart
+      // path would drop it.
       "The package page names what the group page says.",
-    );
+    ]);
   });
 
   test("a package booked beside a listing renders the cart's package section", async () => {
@@ -362,9 +360,11 @@ describeWithEnv("public ticket routes", { db: true }, () => {
     );
     expect(response.status).toBe(200);
     const html = await response.text();
-    assertStringIncludes(html, `name="package_quantity_${group.id}"`);
-    assertStringIncludes(html, "Combo Pkg Stall");
-    assertStringIncludes(html, "Combo Addon");
+    expectIncludesAll(html, [
+      `name="package_quantity_${group.id}"`,
+      "Combo Pkg Stall",
+      "Combo Addon",
+    ]);
   });
 
   test("a multi-slug page renders the cart, and a mixed unknown cart stays 404", async () => {
@@ -376,8 +376,7 @@ describeWithEnv("public ticket routes", { db: true }, () => {
     );
     expect(cart.status).toBe(200);
     const html = await cart.text();
-    assertStringIncludes(html, "Cart Kayak");
-    assertStringIncludes(html, "Cart Sauna");
+    expectIncludesAll(html, ["Cart Kayak", "Cart Sauna"]);
 
     const group = await createTestGroup({ name: "Cart Decoy Group" });
     await createTestListing({ groupId: group.id, name: "Cart Decoy Stall" });

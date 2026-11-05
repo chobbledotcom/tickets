@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
@@ -8,6 +8,7 @@ import {
   questionTextContent,
   questionWrapper,
 } from "#templates/components/question-text.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testAnswer, testQuestion } from "#test-utils/factories.ts";
 
 const radioQuestion = (text: string): QuestionWithAnswers =>
@@ -45,8 +46,10 @@ describe("questionTextContent", () => {
     const content = String(
       questionTextContent(radioQuestion("What **size**?")),
     );
-    assertStringIncludes(content, '<div class="prose" id="question-1-prose">');
-    assertStringIncludes(content, "<strong>size</strong>");
+    expectIncludesAll(content, [
+      '<div class="prose" id="question-1-prose">',
+      "<strong>size</strong>",
+    ]);
   });
 });
 
@@ -57,10 +60,12 @@ describe("questionWrapper", () => {
         <input name="q1" type="text" />
       )),
     );
-    assertStringIncludes(html, '<label class="custom-question">');
-    assertStringIncludes(html, "What size?");
-    assertStringIncludes(html, 'name="q1"');
-    assertStringIncludes(html, 'type="text"');
+    expectIncludesAll(html, [
+      '<label class="custom-question">',
+      "What size?",
+      'name="q1"',
+      'type="text"',
+    ]);
   });
 
   test("does not pass a labelledBy id when the control is inside a label", () => {
@@ -81,12 +86,11 @@ describe("questionWrapper", () => {
         () => <input name="q1" type="text" />,
       ),
     );
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<div class="custom-question" data-listing-ids="100 200">',
-    );
-    assertStringIncludes(html, '<div class="prose" id="question-1-prose">');
-    assertStringIncludes(html, "<strong>size</strong>");
+      '<div class="prose" id="question-1-prose">',
+      "<strong>size</strong>",
+    ]);
     assert(!html.includes('<label class="custom-question">'));
   });
 
@@ -98,8 +102,10 @@ describe("questionWrapper", () => {
         <input aria-labelledby={labelledBy} name="q1" type="text" />
       )),
     );
-    assertStringIncludes(html, 'aria-labelledby="question-1-prose"');
-    assertStringIncludes(html, '<div class="prose" id="question-1-prose">');
+    expectIncludesAll(html, [
+      'aria-labelledby="question-1-prose"',
+      '<div class="prose" id="question-1-prose">',
+    ]);
   });
 });
 
@@ -113,9 +119,11 @@ describe("questionFieldset", () => {
       ]),
     );
 
-    assertStringIncludes(html, '<fieldset class="custom-question">');
-    assertStringIncludes(html, "<legend>What size?</legend>");
-    assertStringIncludes(html, 'type="radio"');
+    expectIncludesAll(html, [
+      '<fieldset class="custom-question">',
+      "<legend>What size?</legend>",
+      'type="radio"',
+    ]);
     assert(!html.includes('<div class="prose">'));
     assert(!html.includes("aria-labelledby"));
   });
@@ -132,12 +140,11 @@ describe("questionFieldset", () => {
       ),
     );
 
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<fieldset aria-labelledby="question-1-prose" class="custom-question" data-listing-ids="100 200">',
-    );
-    assertStringIncludes(html, '<div class="prose" id="question-1-prose">');
-    assertStringIncludes(html, "<strong>size</strong>");
+      '<div class="prose" id="question-1-prose">',
+      "<strong>size</strong>",
+    ]);
     assert(!html.includes("<legend>"));
   });
 });

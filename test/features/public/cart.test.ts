@@ -8,6 +8,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleCartBySlugs } from "#routes/public/cart.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestListing,
@@ -51,10 +52,12 @@ describeWithEnv("cart slug resolution", { db: true }, () => {
     });
 
     const html = await cartHtml([group.slug, solo.slug]);
-    assertStringIncludes(html, `name="package_quantity_${group.id}"`);
-    assertStringIncludes(html, `name="quantity_${solo.id}"`);
-    assertStringIncludes(html, "Kit tent");
-    assertStringIncludes(html, "Lantern");
+    expectIncludesAll(html, [
+      `name="package_quantity_${group.id}"`,
+      `name="quantity_${solo.id}"`,
+      "Kit tent",
+      "Lantern",
+    ]);
   });
 
   test("keeps one row for a listing named twice", async () => {
@@ -96,7 +99,9 @@ describeWithEnv("cart slug resolution", { db: true }, () => {
     const { group } = await createFreePackage("Lone kit", "Lone tent");
 
     const html = await cartHtml([group.slug]);
-    assertStringIncludes(html, `name="package_quantity_${group.id}"`);
-    assertStringIncludes(html, "Lone tent");
+    expectIncludesAll(html, [
+      `name="package_quantity_${group.id}"`,
+      "Lone tent",
+    ]);
   });
 });

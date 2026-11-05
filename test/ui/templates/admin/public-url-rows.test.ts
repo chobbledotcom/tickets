@@ -3,6 +3,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { PublicUrlRows } from "#templates/admin/public-url-rows.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { createDomInstaller, requireElement } from "#test-utils/happy-dom.ts";
 
 const availableRows = (): string =>
@@ -30,24 +31,22 @@ describe("the Public URL rows", () => {
 
   test("shows the full URL as the row's first content", () => {
     const html = availableRows();
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<a data-share-link href="https://fair.example/ticket/sunday">',
-    );
-    // The link text equals its href, so a manual selection copies the whole
-    // address and not a schemeless label.
-    assertStringIncludes(html, ">https://fair.example/ticket/sunday</a>");
+      // The link text equals its href, so a manual selection copies the whole
+      // address and not a schemeless label.
+      ">https://fair.example/ticket/sunday</a>",
+    ]);
   });
 
   test("offers Share, QR code, and Embed under the link, never beside it", () => {
     const html = availableRows();
-    assertStringIncludes(html, 'class="public-url-actions"');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'class="public-url-actions"',
       'data-share-url="https://fair.example/ticket/sunday"',
-    );
-    assertStringIncludes(html, ">Share</button>");
-    assertStringIncludes(html, 'href="/ticket/sunday/qr"');
+      ">Share</button>",
+      'href="/ticket/sunday/qr"',
+    ]);
     // The actions block follows the link inside one wrapping row.
     expect(html.indexOf("data-share-link")).toBeLessThan(
       html.indexOf("public-url-actions"),
@@ -65,14 +64,10 @@ describe("the Public URL rows", () => {
 
   test("Embed is a label for the hidden toggle, and the embed code rows start hidden", () => {
     const html = availableRows();
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<label class="small-action" for="embed-toggle-7">Embed</label>',
-    );
-    assertStringIncludes(
-      html,
       'class="visually-hidden embed-toggle" id="embed-toggle-7" type="checkbox"',
-    );
+    ]);
     // The two embed rows carry the class the stylesheet hides until the
     // toggle is ticked.
     expect((html.match(/class="embed-code-row"/g) ?? []).length).toBe(2);
@@ -115,14 +110,10 @@ describe("the Public URL rows", () => {
     const stylesheet = await Deno.readTextFile(
       "src/ui/static/_public-url-rows.scss",
     );
-    assertStringIncludes(
-      stylesheet,
+    expectIncludesAll(stylesheet, [
       ".embed-toggle:focus-visible ~ .public-url-row label",
-    );
-    assertStringIncludes(
-      stylesheet,
       "outline: 2px solid var(--color-secondary);",
-    );
+    ]);
   });
 
   test("hands the copied label to the client through a data attribute", () => {
@@ -136,8 +127,7 @@ describe("the Public URL rows", () => {
         message: "This page isn't live yet.",
       }),
     );
-    assertStringIncludes(html, "This page isn't live yet.");
-    assertStringIncludes(html, "Public URL");
+    expectIncludesAll(html, ["This page isn't live yet.", "Public URL"]);
     assert(!html.includes("data-share-url"));
     assert(!html.includes("public-url-actions"));
   });

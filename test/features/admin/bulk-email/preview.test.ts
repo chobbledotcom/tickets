@@ -14,6 +14,7 @@ import { makeImage } from "#test-utils/admin-images.ts";
 import {
   expectFlash,
   expectFlashRedirect,
+  expectIncludesAll,
   expectRedirect,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -123,13 +124,15 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
         listing_id: String(listing.id),
         subject: "Big news",
       });
-      assertStringIncludes(html, "Big news");
-      assertStringIncludes(html, "<strong>world</strong>");
-      assertStringIncludes(html, "via Resend");
-      assertStringIncludes(html, 'action="/admin/emails/send"');
-      assertStringIncludes(html, "Transactional / service email");
-      assertStringIncludes(html, 'class="recipient-emails"');
-      assertStringIncludes(html, "alice@example.com, bob@example.com");
+      expectIncludesAll(html, [
+        "Big news",
+        "<strong>world</strong>",
+        "via Resend",
+        'action="/admin/emails/send"',
+        "Transactional / service email",
+        'class="recipient-emails"',
+        "alice@example.com, bob@example.com",
+      ]);
     });
 
     test("BCCs several recipients from the owner's business email", async () => {
@@ -141,9 +144,11 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
         listing_id: String(listing.id),
         subject: "Big news",
       });
-      assertStringIncludes(html, "everyone in BCC");
-      assertStringIncludes(html, "Open a BCC draft to 2 recipients");
-      assertStringIncludes(html, "mailto:owner%40example.com?bcc=");
+      expectIncludesAll(html, [
+        "everyone in BCC",
+        "Open a BCC draft to 2 recipients",
+        "mailto:owner%40example.com?bcc=",
+      ]);
     });
 
     test("addresses a lone recipient directly instead of using BCC", async () => {
@@ -156,9 +161,11 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
         listing_id: String(listing.id),
         subject: "Big news",
       });
-      assertStringIncludes(html, "Open a draft to 1 recipient");
-      assertStringIncludes(html, "addressed straight to your one recipient");
-      assertStringIncludes(html, "mailto:alice%40example.com?");
+      expectIncludesAll(html, [
+        "Open a draft to 1 recipient",
+        "addressed straight to your one recipient",
+        "mailto:alice%40example.com?",
+      ]);
       assert(!html.includes("Open a BCC draft"));
       assert(!html.includes("everyone in BCC"));
     });
@@ -193,16 +200,12 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
       });
       // The code span is text the owner wrote as code, so the draft keeps it
       // written. The real reference still names the picture's address.
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
         encodeURIComponent(`Write \`![Poster](img#${image.id})\` by hand:`),
-      );
-      assertStringIncludes(
-        html,
         encodeURIComponent(
           `![Poster](https://${getEffectiveDomain()}/image/${image.filename})`,
         ),
-      );
+      ]);
     });
 
     test("omits the address list when there are no recipients", async () => {
@@ -219,9 +222,11 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
         marketing: "1",
         subject: "Sale",
       });
-      assertStringIncludes(html, "Sending is disabled");
-      assertStringIncludes(html, "Marketing email");
-      assertStringIncludes(html, "unsubscribe footer is appended");
+      expectIncludesAll(html, [
+        "Sending is disabled",
+        "Marketing email",
+        "unsubscribe footer is appended",
+      ]);
     });
 
     test("shows the audience description for an audience send", async () => {
@@ -232,12 +237,11 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
         body: "Newsletter",
         subject: "Monthly news",
       });
-      assertStringIncludes(html, "Active listing attendees");
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        "Active listing attendees",
         "Everyone booked onto a listing that is currently active.",
-      );
-      assertStringIncludes(html, "1 recipient");
+        "1 recipient",
+      ]);
       assert(!html.includes("1 recipients"));
     });
 
@@ -251,9 +255,11 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
       useResend();
       await seedMarketingDraftWithUnsubscriber();
       const html = await getPreviewHtml();
-      assertStringIncludes(html, "1 unsubscribed will be skipped");
-      // The other attendee is still sendable, so the send is not empty.
-      assertStringIncludes(html, "1 recipient");
+      expectIncludesAll(html, [
+        "1 unsubscribed will be skipped",
+        // The other attendee is still sendable, so the send is not empty.
+        "1 recipient",
+      ]);
     });
 
     test("skips nobody when the same audience gets a plain send", async () => {

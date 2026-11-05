@@ -8,7 +8,10 @@ import { handleRequest } from "#routes";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { addMonthsIso } from "#shared/dates.ts";
 import { postExpectingNoCheckout } from "#test/integration/routes/_shared-checkout.ts";
-import { expectHtmlResponse } from "#test-utils/assertions.ts";
+import {
+  expectHtmlResponse,
+  expectIncludesAll,
+} from "#test-utils/assertions.ts";
 import { stubCheckout } from "#test-utils/checkout.ts";
 import { extractCsrfToken } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -90,16 +93,18 @@ describeWithEnv("routes > renewal", { db: true }, () => {
         "Renew Renewal Test Site",
       );
       // Both tiers must appear as separately-selectable picker rows.
-      assertStringIncludes(html, `quantity_${monthly.id}`);
-      assertStringIncludes(html, `quantity_${annual.id}`);
-      assertStringIncludes(html, "Monthly tier");
-      assertStringIncludes(html, "Annual tier");
-      // Counts price months per unit, not tickets.
-      assertStringIncludes(html, '<option value="1">1 month</option>');
-      assertStringIncludes(html, '<option value="1">12 months</option>');
-      // The form posts back to /renew/?t=… so the token survives submission.
-      assertStringIncludes(html, `/renew/?t=${encodeURIComponent(token)}`);
-      assertStringIncludes(html, "csrf_token");
+      expectIncludesAll(html, [
+        `quantity_${monthly.id}`,
+        `quantity_${annual.id}`,
+        "Monthly tier",
+        "Annual tier",
+        // Counts price months per unit, not tickets.
+        '<option value="1">1 month</option>',
+        '<option value="1">12 months</option>',
+        // The form posts back to /renew/?t=… so the token survives submission.
+        `/renew/?t=${encodeURIComponent(token)}`,
+        "csrf_token",
+      ]);
     });
 
     test("does not show terms and conditions or agreement checkbox", async () => {

@@ -29,6 +29,7 @@ import {
   withErrorSpy,
 } from "#test/shared/webhook/helpers.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendeeWithFlags } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -159,12 +160,11 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
       const report = await requestErrorLogs(() =>
         reportRegistrationDeliveryError(true),
       );
-      assertStringIncludes(report, "E_REGISTRATION_DELIVERY");
-      assertStringIncludes(report, "E_DB_QUERY");
-      assertStringIncludes(
-        report,
+      expectIncludesAll(report, [
+        "E_REGISTRATION_DELIVERY",
+        "E_DB_QUERY",
         "Registration delivery failure activity write",
-      );
+      ]);
     } finally {
       await execute("DROP TRIGGER IF EXISTS reject_activity_log", []);
     }
@@ -214,8 +214,10 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
       });
       // The delivery refusal is still reported, and the release failure is
       // reported with its name beside it.
-      assertStringIncludes(report, "E_REGISTRATION_DELIVERY");
-      assertStringIncludes(report, "A recovery's flag restore failed");
+      expectIncludesAll(report, [
+        "E_REGISTRATION_DELIVERY",
+        "A recovery's flag restore failed",
+      ]);
       // The refused restore leaves the claimed flags at zero: the raised
       // values could not land, and the logged incident names the state.
       const row = await queryOne<{

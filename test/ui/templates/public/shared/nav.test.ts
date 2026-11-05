@@ -9,6 +9,7 @@ import {
   type PublicNavProps,
   publicPage,
 } from "#templates/public/shared.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import {
   navEdge as edge,
   navKey,
@@ -53,8 +54,7 @@ describe("PublicNav (leaf-current render)", () => {
     // (page 1's children, page 2's children), each once more in mobile bars.
     expect((html.match(/admin-subnav/g) ?? []).length).toBe(2);
     // Mobile bars are named for each level's parent page.
-    assertStringIncludes(html, 'aria-label="Page 1"');
-    assertStringIncludes(html, 'aria-label="Page 2"');
+    expectIncludesAll(html, ['aria-label="Page 1"', 'aria-label="Page 2"']);
     // The terms link renders in both the desktop and mobile root rows.
     expect((html.match(/href="\/terms"/g) ?? []).length).toBe(2);
   });
@@ -72,10 +72,9 @@ describe("PublicNav (leaf-current render)", () => {
       props(true),
     )(Raw({ html: "<p>Page body</p>" }));
 
-    assertStringIncludes(html, '<h1>Website</h1><div class="admin-nav-group">');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      '<h1>Website</h1><div class="admin-nav-group">',
       '</nav></div><div class="page-regions public-page"><p>Page body</p></div>',
-    );
+    ]);
   });
 });

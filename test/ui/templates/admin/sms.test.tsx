@@ -19,6 +19,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 
 const PHONE = "+447700900123";
@@ -61,9 +62,11 @@ describe("admin sms page", () => {
       queueCount: 2,
     });
 
-    assertStringIncludes(html, "<title>Text messages</title>");
-    assertStringIncludes(html, "Messages awaiting delivery: 2");
-    assertStringIncludes(html, 'href="/admin/guide#sms"');
+    expectIncludesAll(html, [
+      "<title>Text messages</title>",
+      "Messages awaiting delivery: 2",
+      'href="/admin/guide#sms"',
+    ]);
     assert(!html.includes(COMPOSE_FORM));
     // Nobody is chosen, so there is no history to show. One shown here would
     // be somebody's messages on a page that never says whose.
@@ -74,13 +77,15 @@ describe("admin sms page", () => {
   test("offers the compose form for somebody with a number", () => {
     const html = render();
 
-    assertStringIncludes(html, "<title>Contact: Nina</title>");
-    assertStringIncludes(html, "Contact Nina");
-    assertStringIncludes(html, `<strong>Phone:</strong> ${PHONE}`);
-    // The way back to the person this page is about.
-    assertStringIncludes(html, 'href="/admin/attendees/3"');
-    assertStringIncludes(html, COMPOSE_FORM);
-    assertStringIncludes(html, "Send a text message");
+    expectIncludesAll(html, [
+      "<title>Contact: Nina</title>",
+      "Contact Nina",
+      `<strong>Phone:</strong> ${PHONE}`,
+      // The way back to the person this page is about.
+      'href="/admin/attendees/3"',
+      COMPOSE_FORM,
+      "Send a text message",
+    ]);
     // The box's own limit: the route refuses the same count, so a send past
     // it fails even from a crafted POST.
     expect(html).toMatch(
@@ -118,11 +123,13 @@ describe("admin sms page", () => {
   test("warns and offers no form when the gateway is not configured", () => {
     const html = render({ configured: false });
 
-    assertStringIncludes(html, 'class="warning"');
-    assertStringIncludes(html, "The SMS gateway is not configured.");
-    // The warning says what to put right, so it has to carry the way to do
-    // it. A warning with no route out leaves the owner told and stuck.
-    assertStringIncludes(html, GATEWAY_SETTINGS);
+    expectIncludesAll(html, [
+      'class="warning"',
+      "The SMS gateway is not configured.",
+      // The warning says what to put right, so it has to carry the way to do
+      // it. A warning with no route out leaves the owner told and stuck.
+      GATEWAY_SETTINGS,
+    ]);
     assert(!html.includes(COMPOSE_FORM));
   });
 
@@ -142,8 +149,10 @@ describe("admin sms page", () => {
   test("says so plainly when nothing has been sent yet", () => {
     const html = render();
 
-    assertStringIncludes(html, "<h3>Message history</h3>");
-    assertStringIncludes(html, "No text messages yet.");
+    expectIncludesAll(html, [
+      "<h3>Message history</h3>",
+      "No text messages yet.",
+    ]);
   });
 
   test("lists what was sent, newest first, with when it went", () => {
@@ -157,15 +166,16 @@ describe("admin sms page", () => {
     });
 
     assert(!html.includes("No text messages yet."));
-    assertStringIncludes(html, "Later");
-    assertStringIncludes(html, "Earlier");
+    expectIncludesAll(html, ["Later", "Earlier"]);
     expect(html.indexOf("Later")).toBeLessThan(html.indexOf("Earlier"));
     // When each one went, under its own heading. The message alone leaves the
     // organiser unable to tell a text sent this morning from one sent a year
     // ago, and the site's own short format is what the other tables use.
-    assertStringIncludes(html, "<th>When</th><th>Message</th>");
-    assertStringIncludes(html, formatDatetimeShort(later));
-    assertStringIncludes(html, formatDatetimeShort(earlier));
+    expectIncludesAll(html, [
+      "<th>When</th><th>Message</th>",
+      formatDatetimeShort(later),
+      formatDatetimeShort(earlier),
+    ]);
     assert(!html.includes(later));
   });
 });

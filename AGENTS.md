@@ -683,7 +683,9 @@ Every optional variable is documented in
 
 ## Test Framework
 
-Use helpers from `#test-utils` instead of defining local ones.
+Use helpers from `#test-utils` instead of defining local ones. Assert several
+fragments of one text with one `expectIncludesAll(text, [...])` call, not with a
+run of `assertStringIncludes` calls.
 
 ### Cucumber Acceptance Specifications
 

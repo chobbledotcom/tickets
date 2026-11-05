@@ -13,6 +13,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testGroup, testListingWithCount } from "#test-utils/factories.ts";
 import { assertPageMatchesSnapshot } from "#test-utils/page-snapshot.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
@@ -42,30 +43,22 @@ describe("admin bulk action templates", () => {
   test("offers deactivation when the group has an active listing", () => {
     const html = adminBulkActionsPage(GROUP, [ACTIVE, INACTIVE], OWNER_SESSION);
 
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       'href="/admin/groups/17/bulk-actions/duplicate"',
-    );
-    assertStringIncludes(
-      html,
       'href="/admin/groups/17/bulk-actions/deactivate"',
-    );
+    ]);
     assert(!html.includes('href="/admin/groups/17/bulk-actions/reactivate"'));
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       "2 listings in <strong>Summer &lt;Crew&gt;</strong>.",
-    );
-    // The landing links back to the group itself and highlights the Groups nav.
-    assertStringIncludes(
-      html,
+      // The landing links back to the group itself and highlights the Groups nav.
       'href="/admin/groups/17">← Summer &lt;Crew&gt;</a>',
-    );
-    assertStringIncludes(html, '<a class="active" href="/admin/groups"');
-    // Each landing action names what it does after its link, and the prose
-    // block heads the page copy.
-    assertStringIncludes(html, '<div class="prose"><h1>Bulk Actions</h1>');
-    assertStringIncludes(html, "Deactivate Group</a> — ");
-    assertStringIncludes(html, "Duplicate Group</a> — Create a new group");
+      '<a class="active" href="/admin/groups"',
+      // Each landing action names what it does after its link, and the prose
+      // block heads the page copy.
+      '<div class="prose"><h1>Bulk Actions</h1>',
+      "Deactivate Group</a> — ",
+      "Duplicate Group</a> — Create a new group",
+    ]);
   });
 
   test("offers reactivation only when every listing is inactive", () => {
@@ -117,26 +110,24 @@ describe("admin bulk action templates", () => {
       "Try again.",
     );
 
-    assertStringIncludes(html, "Try again.");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "Try again.",
       'action="/admin/groups/17/bulk-actions/duplicate"',
-    );
-    assertStringIncludes(html, 'data-duplicate-preview data-timezone="UTC"');
+      'data-duplicate-preview data-timezone="UTC"',
+    ]);
     expect(html).toMatch(
       /<input(?=[^>]*name="new_name")(?=[^>]*required)(?=[^>]*type="text")(?=[^>]*value="Summer &lt;Crew&gt; \(copy\)")[^>]*>/,
     );
     // The duplicate page's back-link lands on the bulk-actions landing, not
     // the group page, and its copy heads a prose block.
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       'href="/admin/groups/17/bulk-actions">← Bulk Actions</a>',
-    );
-    // The find field starts empty (its own name_find input shows no value).
-    assertStringIncludes(html, "<td data-preview-original-name>");
-    assertStringIncludes(html, '<div class="prose"><h1>Duplicate Group</h1>');
-    // The nested nav highlight matches the landing's Groups section.
-    assertStringIncludes(html, '<a class="active" href="/admin/groups"');
+      // The find field starts empty (its own name_find input shows no value).
+      "<td data-preview-original-name>",
+      '<div class="prose"><h1>Duplicate Group</h1>',
+      // The nested nav highlight matches the landing's Groups section.
+      '<a class="active" href="/admin/groups"',
+    ]);
     // The find/replace pairs keep their input kinds.
     expect(html).toMatch(
       /<input(?=[^>]*name="name_replace")(?=[^>]*type="text")[^>]*>/,
@@ -152,31 +143,29 @@ describe("admin bulk action templates", () => {
     ]) {
       assertStringIncludes(html, `name="${name}"`);
     }
-    assertStringIncludes(html, '<tbody data-duplicate-preview-rows="">');
-    // The preview table tags each cell with the JS preview hooks (a boolean
-    // attribute renders with no value), and the find/replace inputs carry
-    // their kinds.
-    assertStringIncludes(html, "<td data-preview-original-name>");
-    assertStringIncludes(html, "<td data-preview-new-name>");
-    assertStringIncludes(html, "<td data-preview-original-date>");
-    assertStringIncludes(html, "<td data-preview-new-date>");
+    expectIncludesAll(html, [
+      '<tbody data-duplicate-preview-rows="">',
+      // The preview table tags each cell with the JS preview hooks (a boolean
+      // attribute renders with no value), and the find/replace inputs carry
+      // their kinds.
+      "<td data-preview-original-name>",
+      "<td data-preview-new-name>",
+      "<td data-preview-original-date>",
+      "<td data-preview-new-date>",
+    ]);
     expect(html).toMatch(/<input(?=[^>]*name="name_find")(?=[^>]*type="text")/);
     expect(html).toMatch(/<input(?=[^>]*name="date_find")(?=[^>]*type="date")/);
-    assertStringIncludes(html, 'id="duplicate-group-form"');
-    assertStringIncludes(html, "<span>Duplicate Group</span>");
-    // A name whose text would change under any non-empty find still previews
-    // unchanged: the initial find is empty.
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'id="duplicate-group-form"',
+      "<span>Duplicate Group</span>",
+      // A name whose text would change under any non-empty find still previews
+      // unchanged: the initial find is empty.
       "<td data-preview-original-name>Afternoon session</td>",
-    );
-    assertStringIncludes(
-      html,
       "<td data-preview-new-name>Unmutated session</td>",
-    );
-    assertStringIncludes(html, '<tr data-listing-id="9">');
-    assertStringIncludes(html, "Afternoon session");
-    assertStringIncludes(html, "2026-08-03 14:30");
+      '<tr data-listing-id="9">',
+      "Afternoon session",
+      "2026-08-03 14:30",
+    ]);
   });
 
   test("renders the restored replacements into the fields and the preview", async () => {
@@ -196,26 +185,19 @@ describe("admin bulk action templates", () => {
 
       const html = adminDuplicateGroupPage(GROUP, [listing], OWNER_SESSION);
 
-      assertStringIncludes(html, 'value="Chosen Copy"');
-      assertStringIncludes(html, 'value="First"');
-      assertStringIncludes(html, 'value="Second"');
-      assertStringIncludes(html, 'value="2026-03-02"');
-      assertStringIncludes(html, 'value="2026-03-09"');
-      // The preview opens on the restored replacements, not on empty ones:
-      // the new-name and new-date cells already show the computed result.
-      assertStringIncludes(html, "<td data-preview-new-name>Second Night</td>");
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        'value="Chosen Copy"',
+        'value="First"',
+        'value="Second"',
+        'value="2026-03-02"',
+        'value="2026-03-09"',
+        // The preview opens on the restored replacements, not on empty ones:
+        // the new-name and new-date cells already show the computed result.
+        "<td data-preview-new-name>Second Night</td>",
         "<td data-preview-new-date>2026-03-09 18:00</td>",
-      );
-      assertStringIncludes(
-        html,
         "<td data-preview-original-name>First Night</td>",
-      );
-      assertStringIncludes(
-        html,
         "<td data-preview-original-date>2026-03-02 18:00</td>",
-      );
+      ]);
     });
   });
 
@@ -249,13 +231,12 @@ describe("admin bulk action templates", () => {
 
       const html = adminDuplicateGroupPage(GROUP, [listing], OWNER_SESSION);
 
-      assertStringIncludes(html, 'value="2026-03-09"');
-      assertStringIncludes(html, 'value="First"');
-      assertStringIncludes(html, "<td data-preview-new-name> Night</td>");
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        'value="2026-03-09"',
+        'value="First"',
+        "<td data-preview-new-name> Night</td>",
         "<td data-preview-new-date>2026-03-02 18:00</td>",
-      );
+      ]);
     });
   });
 
@@ -278,13 +259,12 @@ describe("admin bulk action templates", () => {
 
       const html = adminDuplicateGroupPage(GROUP, [listing], OWNER_SESSION);
 
-      assertStringIncludes(html, 'value="2026-03-02"');
-      assertStringIncludes(html, 'value="Second"');
-      assertStringIncludes(html, "<td data-preview-new-name>Second Night</td>");
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        'value="2026-03-02"',
+        'value="Second"',
+        "<td data-preview-new-name>Second Night</td>",
         "<td data-preview-new-date>2026-03-02 18:00</td>",
-      );
+      ]);
     });
   });
 
@@ -327,24 +307,22 @@ describe("admin bulk action templates", () => {
       "Name did not match.",
     );
 
-    assertStringIncludes(html, "Name did not match.");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "Name did not match.",
       'action="/admin/groups/17/bulk-actions/deactivate"',
-    );
-    assertStringIncludes(html, "1 active listing");
-    assertStringIncludes(html, "Warning:");
-    assertStringIncludes(html, '<button class="danger" type="submit">');
+      "1 active listing",
+      "Warning:",
+      '<button class="danger" type="submit">',
+    ]);
     expect(html).toMatch(
       /<input(?=[^>]*name="confirm_identifier")(?=[^>]*placeholder="Summer &lt;Crew&gt;")(?=[^>]*required)[^>]*>/,
     );
     // The warning lead is bold wording, joined to the count that follows it.
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       "<strong>Warning:</strong> Deactivating this group will deactivate 1",
-    );
-    // The confirm page sits in the Groups nav section like the landing does.
-    assertStringIncludes(html, '<a class="active" href="/admin/groups"');
+      // The confirm page sits in the Groups nav section like the landing does.
+      '<a class="active" href="/admin/groups"',
+    ]);
   });
 
   test("renders the reactivate confirmation for inactive listings as safe", () => {
@@ -356,21 +334,19 @@ describe("admin bulk action templates", () => {
       OWNER_SESSION,
     );
 
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       'action="/admin/groups/17/bulk-actions/reactivate"',
-    );
-    assertStringIncludes(
-      html,
       "1 listing in <strong>Summer &lt;Crew&gt;</strong>.",
-    );
-    assertStringIncludes(html, "public ticket pages will be accessible");
+      "public ticket pages will be accessible",
+    ]);
     assert(!html.includes("Warning:"));
     assert(!html.includes('<button class="danger" type="submit">'));
-    assertStringIncludes(html, 'name="confirm_identifier"');
-    // An activate-flipping page still sits in the Groups nav section, so the
-    // nav highlights Groups the way the landing does.
-    assertStringIncludes(html, '<a class="active" href="/admin/groups"');
+    expectIncludesAll(html, [
+      'name="confirm_identifier"',
+      // An activate-flipping page still sits in the Groups nav section, so the
+      // nav highlights Groups the way the landing does.
+      '<a class="active" href="/admin/groups"',
+    ]);
   });
 
   describe("the bulk-actions page shells", () => {

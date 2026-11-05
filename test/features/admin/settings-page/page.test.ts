@@ -8,6 +8,7 @@ import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import {
   expectHtml,
   expectHtmlResponse,
+  expectIncludesAll,
   FLASH_TEST_ID,
   flashCookieHeader,
   testRequiresAuth,
@@ -111,8 +112,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       // With no ?form= target, no CsrfForm claims the flash, so the Layout
       // backstop renders it — surfacing it rather than the old behavior of
       // silently swallowing an unattributed flash.
-      assertStringIncludes(html, 'class="success"');
-      assertStringIncludes(html, "Test success message");
+      expectIncludesAll(html, ['class="success"', "Test success message"]);
     });
 
     test("displays success message on the matching form when form param is provided", async () => {
@@ -172,21 +172,25 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     test("each settings form has an id attribute", async () => {
       const response = await adminGet("/admin/settings");
       const html = await response.text();
-      assertStringIncludes(html, 'id="settings-business-email"');
-      assertStringIncludes(html, 'id="settings-payment-provider"');
-      assertStringIncludes(html, 'id="settings-embed-hosts"');
-      assertStringIncludes(html, 'id="settings-terms"');
-      assertStringIncludes(html, 'id="settings-password"');
-      assertStringIncludes(html, 'id="settings-theme"');
+      expectIncludesAll(html, [
+        'id="settings-business-email"',
+        'id="settings-payment-provider"',
+        'id="settings-embed-hosts"',
+        'id="settings-terms"',
+        'id="settings-password"',
+        'id="settings-theme"',
+      ]);
       assert(!html.includes("/admin/settings/show-public-site"));
     });
 
     test("shows settings sub-navigation", async () => {
       const response = await adminGet("/admin/settings");
       const html = await response.text();
-      assertStringIncludes(html, 'href="/admin/settings-advanced"');
-      assertStringIncludes(html, 'href="/admin/backup"');
-      assertStringIncludes(html, 'href="/admin/debug"');
+      expectIncludesAll(html, [
+        'href="/admin/settings-advanced"',
+        'href="/admin/backup"',
+        'href="/admin/debug"',
+      ]);
     });
   });
 
@@ -208,11 +212,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
       // Rendering the page reads every row, and a missing key throws there, so
       // a 200 with this wording is proof the whole table resolved.
-      assertStringIncludes(html, "Link to view the tickets");
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        "Link to view the tickets",
         "Picks the singular or plural word for a number",
-      );
+      ]);
     });
 
     test("shows exact empty host settings and scheduled-key state", async () => {
@@ -229,11 +232,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       settings.googleWallet.setHostConfigForTest(null);
       try {
         const html = await (await adminGet("/admin/settings-advanced")).text();
-        assertStringIncludes(html, ">None (disabled)</option>");
-        assertStringIncludes(
-          html,
+        expectIncludesAll(html, [
+          ">None (disabled)</option>",
           "No scheduled maintenance key is set on this site.",
-        );
+        ]);
         assert(!html.includes("Currently using:"));
       } finally {
         settings.appleWallet.resetHostConfig();
@@ -256,14 +258,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       });
       try {
         const html = await (await adminGet("/admin/settings-advanced")).text();
-        assertStringIncludes(
-          html,
+        expectIncludesAll(html, [
           "Currently using: Host env (pass.com.host.tickets).",
-        );
-        assertStringIncludes(
-          html,
           "Currently using: Host env (3388000000012345678).",
-        );
+        ]);
       } finally {
         settings.appleWallet.resetHostConfig();
         settings.googleWallet.resetHostConfig();
@@ -298,11 +296,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         "my-site\nmy-site.tickets.test",
       );
 
-      assertStringIncludes(html, "<strong>my-site.tickets.test</strong>");
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        "<strong>my-site.tickets.test</strong>",
         '<input name="subdomain" type="hidden" value="my-site">',
-      );
+      ]);
     });
 
     test("uses an empty full domain when a preview result has one line", async () => {
@@ -314,11 +311,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
       const html = await advancedPageWithResult("my-site");
 
-      assertStringIncludes(html, "<strong></strong>");
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        "<strong></strong>",
         '<input name="subdomain" type="hidden" value="my-site">',
-      );
+      ]);
     });
 
     test("shows an unvalidated custom domain and exact empty CDN target", () =>
@@ -327,8 +323,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
         const html = await (await adminGet("/admin/settings-advanced")).text();
 
-        assertStringIncludes(html, "Your custom domain is not yet validated.");
-        assertStringIncludes(html, "<strong>Value:</strong> <code></code>");
+        expectIncludesAll(html, [
+          "Your custom domain is not yet validated.",
+          "<strong>Value:</strong> <code></code>",
+        ]);
         assert(!html.includes("Last validated:"));
       }));
 
@@ -347,12 +345,11 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         const html = await response.text();
 
         expect(response.status).toBe(200);
-        assertStringIncludes(html, "<code>tickets.example.com</code>");
-        assertStringIncludes(
-          html,
+        expectIncludesAll(html, [
+          "<code>tickets.example.com</code>",
           "<strong>Value:</strong> <code>site.b-cdn.net</code>",
-        );
-        assertStringIncludes(html, `Last validated: ${validatedAt}`);
+          `Last validated: ${validatedAt}`,
+        ]);
       }));
 
     test("keeps an empty custom domain empty when Bunny CDN is configured", () =>
@@ -378,19 +375,20 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     test("shows breadcrumb back to settings", async () => {
       const response = await adminGet("/admin/settings-advanced");
       const html = await response.text();
-      assertStringIncludes(html, 'href="/admin/settings"');
-      assertStringIncludes(html, "Settings");
+      expectIncludesAll(html, ['href="/admin/settings"', "Settings"]);
     });
 
     test("each advanced settings form has an id attribute", async () => {
       const response = await adminGet("/admin/settings-advanced");
       const html = await response.text();
-      assertStringIncludes(html, 'id="settings-show-public-api"');
-      assertStringIncludes(html, 'id="settings-apple-wallet"');
-      assertStringIncludes(html, 'id="settings-email-tpl-confirmation"');
-      assertStringIncludes(html, 'id="settings-email-tpl-admin"');
-      assertStringIncludes(html, 'id="settings-email"');
-      assertStringIncludes(html, 'id="settings-reset-database"');
+      expectIncludesAll(html, [
+        'id="settings-show-public-api"',
+        'id="settings-apple-wallet"',
+        'id="settings-email-tpl-confirmation"',
+        'id="settings-email-tpl-admin"',
+        'id="settings-email"',
+        'id="settings-reset-database"',
+      ]);
     });
 
     test("shows host email label when host email is configured", async () => {

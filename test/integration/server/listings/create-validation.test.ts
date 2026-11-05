@@ -2,7 +2,10 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingWithCount } from "#db/listings/records.ts";
-import { expectHtmlResponse } from "#test-utils/assertions.ts";
+import {
+  expectHtmlResponse,
+  expectIncludesAll,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestListing,
@@ -65,8 +68,10 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
       });
       expect(response.status).toBe(400);
       const html = await response.text();
-      assertStringIncludes(html, 'value="Monday" checked');
-      assertStringIncludes(html, 'value="Wednesday" checked');
+      expectIncludesAll(html, [
+        'value="Monday" checked',
+        'value="Wednesday" checked',
+      ]);
     });
 
     test("accepts a create with a valid day price and stores it", async () => {

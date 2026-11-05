@@ -6,6 +6,7 @@ import {
 } from "#templates/admin/questions.tsx";
 import { resetFeaturePageTest } from "#test/ui/templates/admin/feature-page-test.ts";
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testAnswer, testQuestion } from "#test-utils/factories.ts";
 import { setupQuestionPageTest, tShirtQuestion } from "./fixtures.ts";
 
@@ -26,16 +27,17 @@ describe("adminQuestionDeletePage", () => {
   afterAll(resetFeaturePageTest);
 
   test("renders confirmation form with question text", () => {
-    assertStringIncludes(html, "Delete question");
-    assertStringIncludes(html, "T-shirt size?");
-    assertStringIncludes(html, 'name="confirm_identifier"');
-    assertStringIncludes(html, 'action="/admin/questions/1/delete"');
-    assertStringIncludes(html, 'class="active" href="/admin/questions"');
+    expectIncludesAll(html, [
+      "Delete question",
+      "T-shirt size?",
+      'name="confirm_identifier"',
+      'action="/admin/questions/1/delete"',
+      'class="active" href="/admin/questions"',
+    ]);
   });
 
   test("warns about cascading deletes", () => {
-    assertStringIncludes(html, "all its answers");
-    assertStringIncludes(html, "attendee responses");
+    expectIncludesAll(html, ["all its answers", "attendee responses"]);
   });
 
   test("renders error message when provided", () => {
@@ -62,10 +64,12 @@ describe("adminAnswerDeletePage", () => {
   afterAll(resetFeaturePageTest);
 
   test("renders confirmation form with answer text", () => {
-    assertStringIncludes(html, "Delete answer");
-    assertStringIncludes(html, "Small");
-    assertStringIncludes(html, 'name="confirm_identifier"');
-    assertStringIncludes(html, 'action="/admin/questions/1/answers/10/delete"');
+    expectIncludesAll(html, [
+      "Delete answer",
+      "Small",
+      'name="confirm_identifier"',
+      'action="/admin/questions/1/answers/10/delete"',
+    ]);
   });
 
   test("shows question context", () => {

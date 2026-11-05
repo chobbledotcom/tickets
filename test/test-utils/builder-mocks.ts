@@ -268,7 +268,7 @@ export const stubDenoBuilderApis = (opts: DenoBuilderMockOptions = {}) => ({
 });
 
 /** Assert `api.createDatabase` returns a 403 error when fetch responds Forbidden. */
-export const testCreateDatabaseReturnsErrorOn403 = async (api: {
+export const expectCreateDatabaseErrorOn403 = async (api: {
   createDatabase: (name: string) => Promise<{ ok: boolean; error?: string }>;
 }): Promise<void> => {
   using _fetch = stubFetch(new Response("Forbidden", { status: 403 }));

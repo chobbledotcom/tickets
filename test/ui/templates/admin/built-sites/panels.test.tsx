@@ -6,6 +6,7 @@ import {
   SecretsPanel,
   UpdatePanel,
 } from "#templates/admin/built-sites/panels.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { testBuiltSite } from "#test-utils/factories.ts";
 import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";
@@ -24,10 +25,12 @@ describe("built site maintenance panel", () => {
       }),
     );
 
-    assertStringIncludes(html, "/admin/built-sites/42/provision-scheduler");
-    assertStringIncludes(html, "Set up scheduled maintenance");
-    assertStringIncludes(html, "on the builder");
-    assertStringIncludes(html, '<div class="prose">');
+    expectIncludesAll(html, [
+      "/admin/built-sites/42/provision-scheduler",
+      "Set up scheduled maintenance",
+      "on the builder",
+      '<div class="prose">',
+    ]);
     assert(!html.includes("stage-scheduler"));
     assert(!html.includes("Site key"));
   });
@@ -43,17 +46,18 @@ describe("built site maintenance panel", () => {
       }),
     );
 
-    assertStringIncludes(html, `<code>${TEST_SCHEDULED_KEY}</code>`);
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      `<code>${TEST_SCHEDULED_KEY}</code>`,
       `<strong>Site key</strong> <code>${TEST_SCHEDULED_KEY}</code>`,
-    );
-    assertStringIncludes(html, "/admin/built-sites/42/provision-scheduler");
-    assertStringIncludes(html, "Send key to site again");
+      "/admin/built-sites/42/provision-scheduler",
+      "Send key to site again",
+    ]);
     assert(!html.includes("stage-scheduler"));
     assert(!html.includes("promote-scheduler"));
-    assertStringIncludes(html, "No Uptime Kuma monitor exists for this site");
-    assertStringIncludes(html, "/admin/built-sites/42/add-uptime-monitor");
+    expectIncludesAll(html, [
+      "No Uptime Kuma monitor exists for this site",
+      "/admin/built-sites/42/add-uptime-monitor",
+    ]);
   });
 
   test("shows monitor details without exposing its request headers", () => {
@@ -75,11 +79,13 @@ describe("built site maintenance panel", () => {
       }),
     );
 
-    assertStringIncludes(html, "A child");
-    assertStringIncludes(html, "Chobble Tickets");
-    assertStringIncludes(html, "Every 15 minutes");
-    assertStringIncludes(html, "POST");
-    assertStringIncludes(html, "Active");
+    expectIncludesAll(html, [
+      "A child",
+      "Chobble Tickets",
+      "Every 15 minutes",
+      "POST",
+      "Active",
+    ]);
     assert(!html.includes("Authorization"));
     assert(!html.includes("add-uptime-monitor"));
   });
@@ -92,8 +98,10 @@ describe("built site maintenance panel", () => {
       }),
     );
 
-    assertStringIncludes(html, "Uptime Kuma could not be checked");
-    assertStringIncludes(html, "connection refused");
+    expectIncludesAll(html, [
+      "Uptime Kuma could not be checked",
+      "connection refused",
+    ]);
     assert(!html.includes("add-uptime-monitor"));
   });
 
@@ -131,8 +139,7 @@ describe("built site maintenance panel", () => {
       }),
     );
 
-    assertStringIncludes(html, "Paused");
-    assertStringIncludes(html, "Every 45 seconds");
+    expectIncludesAll(html, ["Paused", "Every 45 seconds"]);
   });
 });
 
@@ -152,14 +159,16 @@ describe("secrets panel", () => {
         },
       }),
     );
-    assertStringIncludes(html, "/admin/built-sites/9/add-secrets");
-    assertStringIncludes(html, "<code>NTFY_URL</code>");
-    assertStringIncludes(html, "<code>STORAGE_ZONE_KEY</code>");
-    assertStringIncludes(html, "Set 2 missing secret(s)");
-    assertStringIncludes(html, "host-level infrastructure credentials");
-    assertStringIncludes(html, "Secrets currently on this site");
-    assertStringIncludes(html, "<code>DB_ENCRYPTION_KEY</code>");
-    assertStringIncludes(html, '<div class="prose">');
+    expectIncludesAll(html, [
+      "/admin/built-sites/9/add-secrets",
+      "<code>NTFY_URL</code>",
+      "<code>STORAGE_ZONE_KEY</code>",
+      "Set 2 missing secret(s)",
+      "host-level infrastructure credentials",
+      "Secrets currently on this site",
+      "<code>DB_ENCRYPTION_KEY</code>",
+      '<div class="prose">',
+    ]);
   });
 
   test("omits empty present and infrastructure sections", () => {
@@ -206,8 +215,7 @@ describe("secrets panel", () => {
         view: { error: "provider failed", ok: false },
       }),
     );
-    assertStringIncludes(html, "provider failed");
-    assertStringIncludes(html, '<div class="prose">');
+    expectIncludesAll(html, ["provider failed", '<div class="prose">']);
     assert(!html.includes("add-secrets"));
   });
 
@@ -231,10 +239,12 @@ describe("secrets panel", () => {
         },
       }),
     );
-    assertStringIncludes(html, "Pair warning");
-    assertStringIncludes(html, "rejects every contact form submission");
-    assertStringIncludes(html, 'name="confirm_pair_secrets"');
-    assertStringIncludes(html, "required");
+    expectIncludesAll(html, [
+      "Pair warning",
+      "rejects every contact form submission",
+      'name="confirm_pair_secrets"',
+      "required",
+    ]);
   });
 
   test("separates multiple missing infrastructure secrets", () => {
@@ -251,8 +261,10 @@ describe("secrets panel", () => {
       }),
     );
 
-    assertStringIncludes(html, "Heads up:</strong> some of these");
-    assertStringIncludes(html, "STORAGE_ZONE_NAME, STORAGE_ZONE_KEY");
+    expectIncludesAll(html, [
+      "Heads up:</strong> some of these",
+      "STORAGE_ZONE_NAME, STORAGE_ZONE_KEY",
+    ]);
   });
 
   test("shows a single present secret", () => {
@@ -269,8 +281,10 @@ describe("secrets panel", () => {
       }),
     );
 
-    assertStringIncludes(html, "Secrets currently on this site");
-    assertStringIncludes(html, "<code>DB_URL</code>");
+    expectIncludesAll(html, [
+      "Secrets currently on this site",
+      "<code>DB_URL</code>",
+    ]);
   });
 });
 
@@ -291,14 +305,13 @@ describe("update panel", () => {
 
   test("shows the versions and update action when behind", () => {
     const html = render();
-    assertStringIncludes(html, "Thu, 01 Jan 2026 00:00:00 UTC");
-    assertStringIncludes(html, "2099-01-01 - Big Update (v2099-01-01-120000)");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "Thu, 01 Jan 2026 00:00:00 UTC",
+      "2099-01-01 - Big Update (v2099-01-01-120000)",
       "<strong>Latest known release:</strong> 2099-01-01 - Big Update",
-    );
-    assertStringIncludes(html, "An update is available");
-    assertStringIncludes(html, "/admin/built-sites/42/update");
+      "An update is available",
+      "/admin/built-sites/42/update",
+    ]);
   });
 
   test("shows up-to-date state", () => {

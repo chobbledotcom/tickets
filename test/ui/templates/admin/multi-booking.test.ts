@@ -3,7 +3,7 @@
  * where it sits, and what it leaves out.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { adminListingsPage } from "#templates/admin/dashboard.tsx";
@@ -11,23 +11,21 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import type { ListingWithCount } from "#types";
 
 describe("adminListingsPage multi-booking link", () => {
   beforeAll(setupAdminPageTest);
 
-  const renderListingsPage = (
+  const expectListingsPageShows = (
     listings: ListingWithCount[],
     ...expectations: string[]
-  ): string => {
-    const html = adminListingsPage(listings, OWNER_SESSION);
-    for (const expected of expectations) assertStringIncludes(html, expected);
-    return html;
-  };
+  ): string =>
+    expectIncludesAll(adminListingsPage(listings, OWNER_SESSION), expectations);
 
   const expectNoMultiBookingLink = (listings: ListingWithCount[]) => {
-    assert(!renderListingsPage(listings).includes("Multi-booking link"));
+    assert(!expectListingsPageShows(listings).includes("Multi-booking link"));
   };
 
   const twoListings = [
@@ -49,7 +47,7 @@ describe("adminListingsPage multi-booking link", () => {
   });
 
   test("shows multi-booking section with two active listings", () => {
-    renderListingsPage(
+    expectListingsPageShows(
       [
         testListingWithCount({ id: 1, name: "Listing A", slug: "ab12c" }),
         testListingWithCount({ id: 2, name: "Listing B", slug: "cd34e" }),
@@ -82,7 +80,7 @@ describe("adminListingsPage multi-booking link", () => {
   });
 
   test("excludes inactive listings from checkboxes", () => {
-    const html = renderListingsPage(
+    const html = expectListingsPageShows(
       [
         testListingWithCount({
           active: true,
@@ -136,13 +134,15 @@ describe("adminListingsPage multi-booking link", () => {
       undefined,
       new Set<number>([2]),
     );
-    assertStringIncludes(html, 'data-multi-booking-slug="ab12c"');
-    assertStringIncludes(html, 'data-multi-booking-slug="ef56g"');
+    expectIncludesAll(html, [
+      'data-multi-booking-slug="ab12c"',
+      'data-multi-booking-slug="ef56g"',
+    ]);
     assert(!html.includes('data-multi-booking-slug="cd34e"'));
   });
 
   test("renders checkboxes with slug data attributes", () => {
-    renderListingsPage(
+    expectListingsPageShows(
       twoListings,
       'data-multi-booking-slug="ab12c"',
       'data-multi-booking-slug="cd34e"',
@@ -150,7 +150,7 @@ describe("adminListingsPage multi-booking link", () => {
   });
 
   test("renders URL input with domain data attribute", () => {
-    renderListingsPage(
+    expectListingsPageShows(
       twoListings,
       'data-domain="localhost"',
       "data-multi-booking-url",
@@ -161,11 +161,11 @@ describe("adminListingsPage multi-booking link", () => {
   });
 
   test("is collapsed by default via details element", () => {
-    renderListingsPage(twoListings, "<details>", "<summary>");
+    expectListingsPageShows(twoListings, "<details>", "<summary>");
   });
 
   test("renders embed code inputs", () => {
-    renderListingsPage(
+    expectListingsPageShows(
       twoListingsWithFields,
       "data-multi-booking-embed-script",
       "data-multi-booking-embed-iframe",
@@ -177,7 +177,7 @@ describe("adminListingsPage multi-booking link", () => {
   });
 
   test("checkboxes include data-fields attribute for embed code generation", () => {
-    renderListingsPage(
+    expectListingsPageShows(
       twoListingsWithFields,
       'data-fields="email"',
       'data-fields="email,phone"',
@@ -232,7 +232,9 @@ describe("adminListingsPage multi-booking link", () => {
     // The venue filter narrows the table to the Hall listing...
     assert(!html.includes('href="/admin/listing/2"'));
     // ...but the builder still offers every active listing.
-    assertStringIncludes(html, 'data-multi-booking-slug="ab12c"');
-    assertStringIncludes(html, 'data-multi-booking-slug="cd34e"');
+    expectIncludesAll(html, [
+      'data-multi-booking-slug="ab12c"',
+      'data-multi-booking-slug="cd34e"',
+    ]);
   });
 });

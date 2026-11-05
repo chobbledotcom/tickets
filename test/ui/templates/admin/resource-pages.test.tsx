@@ -11,6 +11,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 
 type SyntheticResource = {
@@ -113,8 +114,7 @@ describe("admin resource page factory", () => {
     // hidden keys, filters), so an empty key would break those silently.
     expect(column.key).toBe("name");
     const cell = String(column.cell(entity, undefined, 0, [entity]));
-    assertStringIncludes(cell, "/edit/17");
-    assertStringIncludes(cell, "Widget &amp; One");
+    expectIncludesAll(cell, ["/edit/17", "Widget &amp; One"]);
   });
 
   test("renders the synthetic list schema and writable row link", () => {
@@ -125,31 +125,18 @@ describe("admin resource page factory", () => {
       "Widgets loaded.",
     );
 
-    assertStringIncludes(html, "Could not load widgets.");
-    assertStringIncludes(html, "Widgets loaded.");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "Could not load widgets.",
+      "Widgets loaded.",
       '<p data-list-intro="true">Manage synthetic widgets.</p>',
-    );
-    assertStringIncludes(
-      html,
       '<th class="col-reorder">Order</th><th>Name</th><th>Code</th>',
-    );
-    assertStringIncludes(
-      html,
       '<a href="/admin/widgets/17/edit">Widget &amp; One</a>',
-    );
-    assertStringIncludes(html, "<td>W-17</td>");
-    assertStringIncludes(html, 'action="/admin/widgets/17/move-down"');
-    assertStringIncludes(html, 'action="/admin/widgets/18/move-up"');
-    assertStringIncludes(
-      html,
+      "<td>W-17</td>",
+      'action="/admin/widgets/17/move-down"',
+      'action="/admin/widgets/18/move-up"',
       '<a href="/admin/widgets/new">Add synthetic widget</a>',
-    );
-    assertStringIncludes(
-      html,
       '<p data-guide-footer="true">Synthetic widget guide</p>',
-    );
+    ]);
   });
 
   test("renders the configured empty state instead of a table", () => {
@@ -174,15 +161,14 @@ describe("admin resource page factory", () => {
   test("renders the create form from the synthetic field callback", () => {
     const html = pages.newPage(OWNER_SESSION, "Widget name is required.");
 
-    assertStringIncludes(html, 'action="/admin/widgets"');
-    assertStringIncludes(html, "Widget name is required.");
-    assertStringIncludes(html, "<h1>Add synthetic widget</h1>");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'action="/admin/widgets"',
+      "Widget name is required.",
+      "<h1>Add synthetic widget</h1>",
       '<input name="widget_name" type="text" value="new widget">',
-    );
-    assertStringIncludes(html, "Create synthetic widget");
-    assertStringIncludes(html, "/icons.svg#plus");
+      "Create synthetic widget",
+      "/icons.svg#plus",
+    ]);
   });
 
   test("renders every configured delete detail and the dangerous submit", () => {
@@ -192,23 +178,16 @@ describe("admin resource page factory", () => {
       "Widget did not match.",
     );
 
-    assertStringIncludes(html, 'action="/admin/widgets/17/delete"');
-    assertStringIncludes(html, "Widget did not match.");
-    assertStringIncludes(html, "<h1>Delete synthetic widget</h1>");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'action="/admin/widgets/17/delete"',
+      "Widget did not match.",
+      "<h1>Delete synthetic widget</h1>",
       'Type the status name "Widget &amp; One" to confirm deletion:',
-    );
-    assertStringIncludes(
-      html,
       "Type the post name &quot;Widget &amp; One&quot; to confirm deletion.",
-    );
-    assertStringIncludes(html, '<p data-delete-extra="true">Code: W-17</p>');
-    assertStringIncludes(
-      html,
+      '<p data-delete-extra="true">Code: W-17</p>',
       'name="confirm_identifier" placeholder="Widget &amp; One" required',
-    );
-    assertStringIncludes(html, '<button class="danger" type="submit">');
-    assertStringIncludes(html, "Delete synthetic widget");
+      '<button class="danger" type="submit">',
+      "Delete synthetic widget",
+    ]);
   });
 });

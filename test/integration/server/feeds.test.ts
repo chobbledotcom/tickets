@@ -9,7 +9,7 @@ import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { escapeIcs } from "#routes/feeds.ts";
 import { escapeXml } from "#shared/xml.ts";
-import { expectHtml } from "#test-utils/assertions.ts";
+import { expectHtml, expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createHiddenPackageGroup,
@@ -137,10 +137,12 @@ describeWithEnv("feeds", { db: true }, () => {
       await enablePublicSite();
       const response = await handleRequest(mockRequest("/feeds/listings.ics"));
       const body = await response.text();
-      assertStringIncludes(body, "BEGIN:VCALENDAR");
-      assertStringIncludes(body, "VERSION:2.0");
-      assertStringIncludes(body, "PRODID:-//Chobble Tickets//EN");
-      assertStringIncludes(body, "END:VCALENDAR");
+      expectIncludesAll(body, [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//Chobble Tickets//EN",
+        "END:VCALENDAR",
+      ]);
       assert(!body.includes("BEGIN:VLISTING"));
     });
 
@@ -167,10 +169,12 @@ describeWithEnv("feeds", { db: true }, () => {
       });
       const response = await handleRequest(mockRequest("/feeds/listings.ics"));
       const body = await response.text();
-      assertStringIncludes(body, "BEGIN:VLISTING");
-      assertStringIncludes(body, "SUMMARY:Concert");
-      assertStringIncludes(body, `/ticket/${listing.slug}`);
-      assertStringIncludes(body, "END:VLISTING");
+      expectIncludesAll(body, [
+        "BEGIN:VLISTING",
+        "SUMMARY:Concert",
+        `/ticket/${listing.slug}`,
+        "END:VLISTING",
+      ]);
     });
 
     test("includes UID and DTSTAMP", async () => {
@@ -181,8 +185,7 @@ describeWithEnv("feeds", { db: true }, () => {
       });
       const response = await handleRequest(mockRequest("/feeds/listings.ics"));
       const body = await response.text();
-      assertStringIncludes(body, `UID:listing-${listing.id}@`);
-      assertStringIncludes(body, "DTSTAMP:");
+      expectIncludesAll(body, [`UID:listing-${listing.id}@`, "DTSTAMP:"]);
     });
 
     test("includes DTSTART when listing has a date", async () => {
@@ -244,9 +247,11 @@ describeWithEnv("feeds", { db: true }, () => {
       });
       const response = await handleRequest(mockRequest("/feeds/listings.ics"));
       const body = await response.text();
-      assertStringIncludes(body, "SUMMARY:Rock\\, Paper\\; Scissors");
-      assertStringIncludes(body, "DESCRIPTION:Fun\\, games\\; and more");
-      assertStringIncludes(body, "LOCATION:Hall A\\, Floor 2");
+      expectIncludesAll(body, [
+        "SUMMARY:Rock\\, Paper\\; Scissors",
+        "DESCRIPTION:Fun\\, games\\; and more",
+        "LOCATION:Hall A\\, Floor 2",
+      ]);
     });
   });
 
@@ -270,11 +275,13 @@ describeWithEnv("feeds", { db: true }, () => {
       await enablePublicSite();
       const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       const body = await response.text();
-      assertStringIncludes(body, '<?xml version="1.0"');
-      assertStringIncludes(body, '<rss version="2.0">');
-      assertStringIncludes(body, "<channel>");
-      assertStringIncludes(body, "</channel>");
-      assertStringIncludes(body, "</rss>");
+      expectIncludesAll(body, [
+        '<?xml version="1.0"',
+        '<rss version="2.0">',
+        "<channel>",
+        "</channel>",
+        "</rss>",
+      ]);
       assert(!body.includes("<item>"));
     });
 
@@ -283,11 +290,10 @@ describeWithEnv("feeds", { db: true }, () => {
       await settings.update.websiteTitle("My Listings");
       const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       const body = await response.text();
-      assertStringIncludes(body, "<title>My Listings</title>");
-      assertStringIncludes(
-        body,
+      expectIncludesAll(body, [
+        "<title>My Listings</title>",
         "<description>Listings from My Listings</description>",
-      );
+      ]);
     });
 
     test("defaults title to Listings when no title set", async () => {
@@ -305,11 +311,13 @@ describeWithEnv("feeds", { db: true }, () => {
       });
       const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       const body = await response.text();
-      assertStringIncludes(body, "<item>");
-      assertStringIncludes(body, "<title>Concert</title>");
-      assertStringIncludes(body, `/ticket/${listing.slug}`);
-      assertStringIncludes(body, "<pubDate>");
-      assertStringIncludes(body, "</item>");
+      expectIncludesAll(body, [
+        "<item>",
+        "<title>Concert</title>",
+        `/ticket/${listing.slug}`,
+        "<pubDate>",
+        "</item>",
+      ]);
     });
 
     test("includes guid as permalink", async () => {
@@ -320,8 +328,10 @@ describeWithEnv("feeds", { db: true }, () => {
       });
       const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       const body = await response.text();
-      assertStringIncludes(body, `<guid isPermaLink="true">`);
-      assertStringIncludes(body, `/ticket/${listing.slug}</guid>`);
+      expectIncludesAll(body, [
+        `<guid isPermaLink="true">`,
+        `/ticket/${listing.slug}</guid>`,
+      ]);
     });
 
     test("includes description when listing has one", async () => {
@@ -345,8 +355,7 @@ describeWithEnv("feeds", { db: true }, () => {
       });
       const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       const body = await response.text();
-      assertStringIncludes(body, "Date:");
-      assertStringIncludes(body, "15 Jun 2026");
+      expectIncludesAll(body, ["Date:", "15 Jun 2026"]);
     });
 
     test("includes location in description when listing has a location", async () => {
@@ -372,9 +381,11 @@ describeWithEnv("feeds", { db: true }, () => {
       });
       const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       const body = await response.text();
-      assertStringIncludes(body, "A great listing");
-      assertStringIncludes(body, "Date:");
-      assertStringIncludes(body, "Location: Town Hall");
+      expectIncludesAll(body, [
+        "A great listing",
+        "Date:",
+        "Location: Town Hall",
+      ]);
     });
 
     test("excludes inactive listings", async () => {
@@ -396,8 +407,10 @@ describeWithEnv("feeds", { db: true }, () => {
       });
       const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       const body = await response.text();
-      assertStringIncludes(body, "<title>Rock &amp; Roll &lt;Live&gt;</title>");
-      assertStringIncludes(body, "He said &quot;hello&quot; &amp; goodbye");
+      expectIncludesAll(body, [
+        "<title>Rock &amp; Roll &lt;Live&gt;</title>",
+        "He said &quot;hello&quot; &amp; goodbye",
+      ]);
     });
   });
 

@@ -8,6 +8,7 @@ import { hmacHash } from "#crypto/hashing.ts";
 import { modifiersTable } from "#db/modifiers.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { matchKey } from "#shared/keys.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { quoteTicketHtml } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -50,11 +51,13 @@ describeWithEnv("server (/calculate promo-code quotes)", { db: true }, () => {
     const html = await quotePromoListing({ promo_code: "SAVE10" });
 
     // Discount line shown with modifier name and negative amount.
-    assertStringIncludes(html, "10% off");
-    assertStringIncludes(html, formatCurrency(-100));
-    // Total reflects the discounted price (10% off £10.00 = £9.00).
-    assertStringIncludes(html, formatCurrency(900));
-    assertStringIncludes(html, "order-summary-total");
+    expectIncludesAll(html, [
+      "10% off",
+      formatCurrency(-100),
+      // Total reflects the discounted price (10% off £10.00 = £9.00).
+      formatCurrency(900),
+      "order-summary-total",
+    ]);
   });
 
   test("shows the listing price before modifiers, not the discounted line price", async () => {
@@ -62,11 +65,13 @@ describeWithEnv("server (/calculate promo-code quotes)", { db: true }, () => {
 
     // The ticket line is the full £10.00 list price, so the discount isn't
     // baked into it — the modifier is itemised separately on its own row...
-    assertStringIncludes(html, formatCurrency(1000));
-    assertStringIncludes(html, "10% off");
-    assertStringIncludes(html, formatCurrency(-100));
-    // ...and only the total carries the £9.00 discounted figure.
-    assertStringIncludes(html, formatCurrency(900));
+    expectIncludesAll(html, [
+      formatCurrency(1000),
+      "10% off",
+      formatCurrency(-100),
+      // ...and only the total carries the £9.00 discounted figure.
+      formatCurrency(900),
+    ]);
   });
 
   test("does not apply a promo code discount when no code is submitted", async () => {
@@ -91,8 +96,10 @@ describeWithEnv("server (/calculate promo-code quotes)", { db: true }, () => {
     const html = await quotePromoListing({ promo_code: "save10" });
 
     // Lowercase variant of the code should still match.
-    assertStringIncludes(html, "10% off");
-    assertStringIncludes(html, formatCurrency(-100));
-    assertStringIncludes(html, formatCurrency(900));
+    expectIncludesAll(html, [
+      "10% off",
+      formatCurrency(-100),
+      formatCurrency(900),
+    ]);
   });
 });

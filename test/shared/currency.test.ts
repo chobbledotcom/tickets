@@ -9,6 +9,7 @@ import {
   toMajorUnits,
   toMinorUnits,
 } from "#shared/currency.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { createTestDbWithSetup, resetDb } from "#test-utils/db.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { testWithSetting } from "#test-utils/settings.ts";
@@ -84,8 +85,7 @@ describe("currency", () => {
 
     testWithSetting("formats EUR with euro symbol", { currency: "EUR" }, () => {
       const result = formatCurrency(1050);
-      assertStringIncludes(result, "10.50");
-      assertStringIncludes(result, "€");
+      expectIncludesAll(result, ["10.50", "€"]);
     });
 
     testWithSetting(

@@ -11,6 +11,7 @@ import {
   setupFeaturePageTest,
 } from "#test/ui/templates/admin/feature-page-test.ts";
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { testModifier } from "#test-utils/factories.ts";
 
@@ -36,12 +37,14 @@ describe("adminModifiersPage", () => {
       ],
       OWNER_SESSION,
     );
-    assertStringIncludes(html, "Discount · 10%");
-    assertStringIncludes(html, "Charge · 500");
-    assertStringIncludes(html, "Multiply · ×1.5");
-    assertStringIncludes(html, 'href="/admin/modifiers/new"');
-    assertStringIncludes(html, "/admin/modifiers/1/edit");
-    assertStringIncludes(html, "/admin/guide#modifiers");
+    expectIncludesAll(html, [
+      "Discount · 10%",
+      "Charge · 500",
+      "Multiply · ×1.5",
+      'href="/admin/modifiers/new"',
+      "/admin/modifiers/1/edit",
+      "/admin/guide#modifiers",
+    ]);
   });
 
   test("shows the trigger-maintained usage figures", () => {
@@ -49,17 +52,16 @@ describe("adminModifiersPage", () => {
       [mod({ id: 1, total_revenue: 2500, total_uses: 7, usage_count: 3 })],
       OWNER_SESSION,
     );
-    assertStringIncludes(html, "Uses");
-    assertStringIncludes(html, "Orders");
-    assertStringIncludes(html, "Revenue");
-    // Each count/money column carries its own alignment class on the cell:
-    // uses and orders are quantity columns, revenue is an amount column.
-    assertStringIncludes(html, '<td class="col-quantity">7</td>');
-    assertStringIncludes(html, '<td class="col-quantity">3</td>');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "Uses",
+      "Orders",
+      "Revenue",
+      // Each count/money column carries its own alignment class on the cell:
+      // uses and orders are quantity columns, revenue is an amount column.
+      '<td class="col-quantity">7</td>',
+      '<td class="col-quantity">3</td>',
       `<td class="col-amount">${formatCurrency(2500)}</td>`,
-    );
+    ]);
   });
 
   test("shows an empty state when there are no modifiers", () => {
@@ -82,16 +84,18 @@ describe("adminModifierNewPage", () => {
 
   test("renders the create form", () => {
     const html = adminModifierNewPage(OWNER_SESSION);
-    assertStringIncludes(html, "Add Modifier");
-    assertStringIncludes(html, "Create Modifier");
-    assertStringIncludes(html, "Name");
-    assertStringIncludes(html, "Type");
-    assertStringIncludes(html, "Direction");
-    assertStringIncludes(html, "/admin/guide#modifiers");
-    assertStringIncludes(html, 'action="/admin/modifiers"');
-    assertStringIncludes(html, "/icons.svg#plus");
-    // The create page marks the Modifiers section active in the admin nav.
-    assertStringIncludes(html, '<a class="active" href="/admin/modifiers">');
+    expectIncludesAll(html, [
+      "Add Modifier",
+      "Create Modifier",
+      "Name",
+      "Type",
+      "Direction",
+      "/admin/guide#modifiers",
+      'action="/admin/modifiers"',
+      "/icons.svg#plus",
+      // The create page marks the Modifiers section active in the admin nav.
+      '<a class="active" href="/admin/modifiers">',
+    ]);
   });
 });
 
@@ -104,10 +108,12 @@ describe("adminModifierDeletePage", () => {
       mod({ name: "Loyalty" }),
       OWNER_SESSION,
     );
-    assertStringIncludes(html, "Delete Modifier");
-    assertStringIncludes(html, "Loyalty");
-    assertStringIncludes(html, 'name="confirm_identifier"');
-    assertStringIncludes(html, '<a class="active" href="/admin/modifiers">');
+    expectIncludesAll(html, [
+      "Delete Modifier",
+      "Loyalty",
+      'name="confirm_identifier"',
+      '<a class="active" href="/admin/modifiers">',
+    ]);
     // Removing a modifier is not a data-loss action, so the confirm button is
     // not danger-styled (danger: false) — unlike the image/listing deletes.
     assert(!html.includes('class="danger"'));

@@ -7,7 +7,7 @@ import { MAX_SEED_LISTINGS, SEED_MAX_ATTENDEES } from "#shared/seeds.ts";
 import { seedsForm } from "#templates/fields/seeds.ts";
 import {
   expectFlashRedirect,
-  expectHtmlContains,
+  expectIncludesAll,
   inputNamed,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -31,7 +31,7 @@ describeWithEnv("admin seeds handler", { db: true }, () => {
 
   for (const box of expectedBoxes) {
     test(`serves the ${box.name} box with its bounds and default`, () => {
-      expectHtmlContains(inputNamed(seedsForm.render(), box.name), [
+      expectIncludesAll(inputNamed(seedsForm.render(), box.name), [
         `id="${box.name}"`,
         `min="${box.from}"`,
         `max="${box.upTo}"`,

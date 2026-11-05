@@ -6,6 +6,7 @@ import {
   renderRosterPanel,
   type renderRosterPanel as renderRosterPanelType,
 } from "#test/ui/templates/admin/listings/helpers.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 
 describe("adminListingPage export button", () => {
@@ -13,8 +14,7 @@ describe("adminListingPage export button", () => {
 
   test("renders export CSV button", () => {
     const html = detailHtml(testListingWithCount({ attendee_count: 2 }));
-    assertStringIncludes(html, "/admin/listing/1/export");
-    assertStringIncludes(html, "Export CSV");
+    expectIncludesAll(html, ["/admin/listing/1/export", "Export CSV"]);
   });
 
   test("the export link carries the active check-in filter", () => {
@@ -46,28 +46,24 @@ describe("adminListingPage filter links", () => {
 
   test("renders All / Checked In / Checked Out links", () => {
     const html = linkHtml();
-    assertStringIncludes(html, "All");
-    assertStringIncludes(html, "Checked In");
-    assertStringIncludes(html, "Checked Out");
+    expectIncludesAll(html, ["All", "Checked In", "Checked Out"]);
   });
 
   test("bolds All when no filter is active", () => {
     const html = linkHtml();
-    assertStringIncludes(html, "<strong><u>All</u></strong>");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "<strong><u>All</u></strong>",
       `href="/admin/listing/${listing.id}/attendees?filter=in"`,
-    );
-    assertStringIncludes(
-      html,
       `href="/admin/listing/${listing.id}/attendees?filter=out"`,
-    );
+    ]);
   });
 
   test("bolds Checked In when filter is in", () => {
     const html = linkHtml("in");
-    assertStringIncludes(html, "<strong><u>Checked In</u></strong>");
-    assertStringIncludes(html, `href="/admin/listing/${listing.id}/attendees"`);
+    expectIncludesAll(html, [
+      "<strong><u>Checked In</u></strong>",
+      `href="/admin/listing/${listing.id}/attendees"`,
+    ]);
   });
 
   test("bolds Checked Out when filter is out", () => {
@@ -101,8 +97,7 @@ describe("adminListingPage filter links", () => {
       activeFilter: "all",
       attendees: namedPair(),
     });
-    assertStringIncludes(html, "Checked In User");
-    assertStringIncludes(html, "Not Checked In User");
+    expectIncludesAll(html, ["Checked In User", "Not Checked In User"]);
   });
 
   test("includes return_filter hidden field in checkin form", () => {
@@ -110,8 +105,7 @@ describe("adminListingPage filter links", () => {
       activeFilter: "in",
       attendees: [testAttendee({ checked_in: 1 })],
     });
-    assertStringIncludes(html, 'name="return_filter"');
-    assertStringIncludes(html, 'value="in"');
+    expectIncludesAll(html, ['name="return_filter"', 'value="in"']);
   });
 });
 
@@ -139,9 +133,11 @@ describe("adminListingPage failed payments", () => {
       testListingWithCount({ attendee_count: 3, unit_price: 1000 }),
       { attendees: paidPlusFailed() },
     );
-    assertStringIncludes(html, "Failed Payments");
-    assertStringIncludes(html, "1 attendee(s) with unresolved payments");
-    assertStringIncludes(html, "/delete-incomplete");
+    expectIncludesAll(html, [
+      "Failed Payments",
+      "1 attendee(s) with unresolved payments",
+      "/delete-incomplete",
+    ]);
   });
 
   test("hides Failed Payments section when no incomplete attendees", () => {
@@ -245,9 +241,11 @@ describe("adminListingPage failed payments", () => {
     );
     const failedSection =
       html.split("Failed Payments")[1]?.split("Add Attendee")[0] ?? "";
-    assertStringIncludes(failedSection, "Jane Stuck");
-    assertStringIncludes(failedSection, "Delete");
-    assertStringIncludes(failedSection, "/delete-incomplete");
+    expectIncludesAll(failedSection, [
+      "Jane Stuck",
+      "Delete",
+      "/delete-incomplete",
+    ]);
     assert(!failedSection.includes("Check in"));
     assert(!failedSection.includes("Check out"));
     assert(!failedSection.includes("Refund"));
@@ -298,8 +296,7 @@ describe("adminListingPage daily roster detail table", () => {
     const html = dailyRosterHtml(1000, [
       testAttendee({ id: 1, payment_id: "pi_ok", price_paid: "1000" }),
     ]);
-    assertStringIncludes(html, "Total Revenue");
-    assertStringIncludes(html, "£10");
+    expectIncludesAll(html, ["Total Revenue", "£10"]);
   });
 
   test("hides the revenue row for a free listing", () => {

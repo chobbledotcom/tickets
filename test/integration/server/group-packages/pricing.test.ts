@@ -7,13 +7,14 @@
  * own the branch cover, and the invariants that have no journey behind them.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getGroupPackagePrices, groups } from "#db/groups.ts";
 import {
   expectFlashRedirect,
   expectHtmlResponse,
+  expectIncludesAll,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -106,9 +107,11 @@ describeWithEnv(
         await adminGet(`/admin/groups/${group.id}/edit`),
         200,
       );
-      assertStringIncludes(html, `name="package_day_price_${flex.id}_1"`);
-      assertStringIncludes(html, `name="package_day_price_${flex.id}_2"`);
-      assertStringIncludes(html, 'value="15.00"');
+      expectIncludesAll(html, [
+        `name="package_day_price_${flex.id}_1"`,
+        `name="package_day_price_${flex.id}_2"`,
+        'value="15.00"',
+      ]);
       assert(!html.includes(`package_day_price_${plain.id}_`));
 
       // Re-saving without the day inputs clears the overrides (full replace).
@@ -260,13 +263,15 @@ describeWithEnv(
         "Package prices",
         "Shown A",
       );
-      assertStringIncludes(html, `name="package_price_${a.id}"`);
-      assertStringIncludes(html, 'value="7.00"');
-      // The override-free member renders an empty value, falling back to base price.
-      assertStringIncludes(html, `name="package_price_${b.id}"`);
-      // Per-package quantity inputs render, pre-filled with the saved quantity.
-      assertStringIncludes(html, `name="package_qty_${a.id}"`);
-      assertStringIncludes(html, 'value="5"');
+      expectIncludesAll(html, [
+        `name="package_price_${a.id}"`,
+        'value="7.00"',
+        // The override-free member renders an empty value, falling back to base price.
+        `name="package_price_${b.id}"`,
+        // Per-package quantity inputs render, pre-filled with the saved quantity.
+        `name="package_qty_${a.id}"`,
+        'value="5"',
+      ]);
     });
 
     test("edit GET shows the empty-group prompt when there are no listings", async () => {

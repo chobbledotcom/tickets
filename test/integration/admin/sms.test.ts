@@ -21,6 +21,7 @@ import { settings } from "#db/settings.ts";
 import { getSmsMessageByProviderId } from "#db/sms-messages.ts";
 import { SMS_MESSAGE_MAX_LENGTH } from "#shared/sms/message-limit.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -94,10 +95,12 @@ describeWithEnv("admin sms", { db: true }, () => {
     await adminFormPost("/admin/sms", { ...form, message: "History line" });
 
     const html = await (await adminGet(smsUrl)).text();
-    assertStringIncludes(html, "Send a text message");
-    assertStringIncludes(html, "Jane Doe");
-    assertStringIncludes(html, PHONE);
-    assertStringIncludes(html, "History line");
+    expectIncludesAll(html, [
+      "Send a text message",
+      "Jane Doe",
+      PHONE,
+      "History line",
+    ]);
   });
 
   it("POST rejects a message of only spaces", async () => {

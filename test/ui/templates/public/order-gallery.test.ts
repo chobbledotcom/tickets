@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -6,6 +6,7 @@ import {
   orderGalleryPage,
 } from "#templates/public/order-gallery.tsx";
 import type { PublicNavProps } from "#templates/public/shared.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { getRealEnv, withEnv } from "#test-utils/env.ts";
 import { testGroup } from "#test-utils/factories.ts";
 
@@ -56,18 +57,20 @@ describe("orderGalleryPage packages", () => {
       emptyNav,
       "",
     );
-    assertStringIncludes(html, "Packages");
-    // A package joins the cart as a checkbox card, never a direct book link.
-    assertStringIncludes(html, 'name="select_package_1"');
-    assertStringIncludes(html, 'name="select_package_2"');
-    assertStringIncludes(html, 'data-order-key="package:1"');
-    assertStringIncludes(html, 'class="order-select"');
-    assertStringIncludes(html, 'class="order-gallery"');
-    // Order cards build on the shared Card markup (also used by /news).
-    assertStringIncludes(html, 'class="card order-card"');
-    assertStringIncludes(html, 'class="card-body"');
-    assertStringIncludes(html, 'class="card-name"');
-    assertStringIncludes(html, 'class="card-grid order-grid"');
+    expectIncludesAll(html, [
+      "Packages",
+      // A package joins the cart as a checkbox card, never a direct book link.
+      'name="select_package_1"',
+      'name="select_package_2"',
+      'data-order-key="package:1"',
+      'class="order-select"',
+      'class="order-gallery"',
+      // Order cards build on the shared Card markup (also used by /news).
+      'class="card order-card"',
+      'class="card-body"',
+      'class="card-name"',
+      'class="card-grid order-grid"',
+    ]);
     assert(!html.includes('href="/ticket/alpha"'));
     assert(!html.includes('href="/ticket/zeta"'));
     // Sorted by decrypted name: Alpha precedes Zeta.
@@ -96,12 +99,11 @@ describe("orderGalleryPage packages", () => {
       emptyNav,
       "",
     );
-    assertStringIncludes(html, "Frozen Bundle");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "Frozen Bundle",
       'class="card order-card order-card--unavailable"',
-    );
-    assertStringIncludes(html, "Registration Closed");
+      "Registration Closed",
+    ]);
     // No live booking affordance while the site is read-only: neither a
     // link nor a selectable checkbox.
     assert(!html.includes('href="/ticket/frozen"'));
@@ -109,6 +111,6 @@ describe("orderGalleryPage packages", () => {
     // The cutoff must stay in this worker's env overlay: a write to the real
     // process env is visible to every parallel test worker and flips the
     // whole app read-only under them mid-test.
-    expect(getRealEnv("READ_ONLY_FROM")).toBeUndefined();
+    expect(getRealEnv("READ_ONLY_FROM")).toBe(undefined);
   });
 });

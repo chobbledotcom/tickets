@@ -16,6 +16,7 @@ import {
   FilteredAttendeeTable,
 } from "#templates/attendee-table/controls.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import {
   testBrowserListSetup,
   testRosterListSetup,
@@ -47,18 +48,14 @@ describe("the shared attendee-list controls", () => {
 
   test("a roster gets the day dropdown, check-in bar, and sort bar", () => {
     const html = controlsHtml(testRosterListSetup(), state());
-    assertStringIncludes(html, "data-nav-select");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "data-nav-select",
       'value="/admin/listing/5/attendees?date=2026-08-03"',
-    );
-    assertStringIncludes(html, 'href="/admin/listing/5/attendees?filter=in"');
-    assertStringIncludes(html, 'href="/admin/listing/5/attendees?filter=out"');
-    assertStringIncludes(
-      html,
+      'href="/admin/listing/5/attendees?filter=in"',
+      'href="/admin/listing/5/attendees?filter=out"',
       "Sort: <strong><u>By date and name</u></strong>",
-    );
-    assertStringIncludes(html, 'href="/admin/listing/5/attendees?sort=newest"');
+      'href="/admin/listing/5/attendees?sort=newest"',
+    ]);
     // No listing dropdown and no type bar: one listing, one kind.
     assert(!html.includes('name="listing"'));
     assert(!html.includes("Showing:"));
@@ -93,14 +90,10 @@ describe("the shared attendee-list controls", () => {
       testRosterListSetup(),
       state({ checkin: "in", date: testDate("2026-08-03") }),
     );
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<option value="/admin/listing/5/attendees?filter=in&amp;date=2026-08-03" selected>',
-    );
-    assertStringIncludes(
-      html,
       '<option value="/admin/listing/5/attendees?filter=in">',
-    );
+    ]);
   });
 
   test("a type bar appears only when the listings span more than one kind", () => {
@@ -119,20 +112,21 @@ describe("the shared attendee-list controls", () => {
       withTypes: true,
     });
     const html = controlsHtml(twoKinds, state());
-    assertStringIncludes(html, "Showing:");
-    assertStringIncludes(html, 'href="/admin/attendees?type=daily"');
+    expectIncludesAll(html, ["Showing:", 'href="/admin/attendees?type=daily"']);
   });
 
   test("a group dropdown appears when the list offers groups", () => {
     const browser = testBrowserListSetup();
     const html = controlsHtml(browser, state({ groupId: 5, sort: "oldest" }));
-    assertStringIncludes(html, 'name="group"');
-    assertStringIncludes(html, "All groups");
-    assertStringIncludes(html, "Term two");
-    assertStringIncludes(html, "Weekend");
-    assertStringIncludes(html, 'value="5"');
-    // The other active choices ride along in the form's hidden inputs.
-    assertStringIncludes(html, 'name="sort" type="hidden" value="oldest"');
+    expectIncludesAll(html, [
+      'name="group"',
+      "All groups",
+      "Term two",
+      "Weekend",
+      'value="5"',
+      // The other active choices ride along in the form's hidden inputs.
+      'name="sort" type="hidden" value="oldest"',
+    ]);
   });
 
   test("no group dropdown when the list offers no groups", () => {
@@ -231,12 +225,11 @@ describe("the shared pagination", () => {
         },
       }),
     );
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       'href="/admin/listing/5/attendees?page=2" rel="next"',
-    );
-    assertStringIncludes(html, 'href="/admin/listing/5/attendees" rel="prev"');
-    assertStringIncludes(html, "Page 2");
+      'href="/admin/listing/5/attendees" rel="prev"',
+      "Page 2",
+    ]);
   });
 
   test("renders a first page with its next link and page number", () => {
@@ -251,8 +244,7 @@ describe("the shared pagination", () => {
     );
 
     expect(html).toMatch(/<nav class="pagination"/);
-    assertStringIncludes(html, "Page 1");
-    assertStringIncludes(html, 'rel="next"');
+    expectIncludesAll(html, ["Page 1", 'rel="next"']);
   });
 });
 
@@ -276,8 +268,10 @@ describe("the filtered attendee table", () => {
         },
       }),
     );
-    assertStringIncludes(html, 'href="/admin/listing/5/export?filter=out"');
-    assertStringIncludes(html, "Export CSV");
+    expectIncludesAll(html, [
+      'href="/admin/listing/5/export?filter=out"',
+      "Export CSV",
+    ]);
   });
 
   test("shows no paging for a list that is not paged", () => {

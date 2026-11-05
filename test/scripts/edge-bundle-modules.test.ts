@@ -22,6 +22,7 @@ import {
   SENTRY_BUILD_DEFINES,
   sentryTreeShakingGuard,
 } from "#scripts/edge-bundle-modules.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 describe("buildBuildInfoModule", () => {
   test("emits both constants with the given timestamp and commit", () => {
@@ -61,8 +62,7 @@ describe("buildAssetPathsModule", () => {
     const out = buildAssetPathsModule(PATH_DEFS, 1234);
     // favicon.svg has no path constant, so it is filtered out entirely.
     assert(!out.includes("favicon"));
-    assertStringIncludes(out, "CSS_PATH");
-    assertStringIncludes(out, "EMBED_JS_PATH");
+    expectIncludesAll(out, ["CSS_PATH", "EMBED_JS_PATH"]);
   });
 
   test("cache-busts normal assets with the build timestamp", () => {
@@ -96,15 +96,11 @@ describe("buildAssetPathsModule", () => {
         "style.css": "https://assets.example.com/assets/release/style.css",
       },
     });
-    assertStringIncludes(
-      paths,
+    expectIncludesAll(paths, [
       `export const CSS_PATH = "https://assets.example.com/assets/release/style.css";`,
-    );
-    assertStringIncludes(paths, `export const EMBED_JS_PATH = "/embed.js";`);
-    assertStringIncludes(
-      paths,
+      `export const EMBED_JS_PATH = "/embed.js";`,
       `export const ASSET_CDN_ORIGIN = "https://assets.example.com";`,
-    );
+    ]);
   });
 });
 
@@ -136,20 +132,18 @@ const importAssetsModule = <T extends Record<string, unknown>>(
 describe("buildAssetsModule", () => {
   test("declares a variable per def carrying the pre-read content", () => {
     const out = buildAssetsModule(ASSET_DEFS, STATIC_ASSETS);
-    assertStringIncludes(out, `const v0 = "<svg/>";`);
-    assertStringIncludes(out, `const v1 = "console.log(1)";`);
+    expectIncludesAll(out, [
+      `const v0 = "<svg/>";`,
+      `const v1 = "console.log(1)";`,
+    ]);
   });
 
   test("emits a handler wiring each export name to its content-type and var", () => {
     const out = buildAssetsModule(ASSET_DEFS, STATIC_ASSETS);
-    assertStringIncludes(
-      out,
+    expectIncludesAll(out, [
       `export const handleFavicon = () => new Response(v0, { headers: { "content-type": "image/svg+xml", ...CACHE_HEADERS } });`,
-    );
-    assertStringIncludes(
-      out,
       `export const handleAdminJs = () => new Response(v1, { headers: { "content-type": "application/javascript", ...CACHE_HEADERS } });`,
-    );
+    ]);
   });
 
   test("declares the immutable cache header once", () => {
@@ -188,21 +182,19 @@ describe("buildAssetsModule", () => {
 
   test("mirrors assets.ts's orderWidgetBody from the inlined order.js", () => {
     const out = buildAssetsModule(ASSET_DEFS, STATIC_ASSETS);
-    assertStringIncludes(out, `const orderJsBody = "widget-source";`);
-    assertStringIncludes(
-      out,
+    expectIncludesAll(out, [
+      `const orderJsBody = "widget-source";`,
       "export const orderWidgetBody = () => orderJsBody;",
-    );
+    ]);
   });
 
   test("redirects published assets without embedding their bodies", () => {
     const out = buildAssetsModule(ASSET_DEFS, STATIC_ASSETS, CDN_ASSETS);
     assert(!out.includes("console.log(1)"));
-    assertStringIncludes(
-      out,
+    expectIncludesAll(out, [
       `export const handleAdminJs = () => new Response(null, { status: 302, headers: { location: "https://assets.example.com/assets/release/admin.js" } });`,
-    );
-    assertStringIncludes(out, `const v0 = "<svg/>";`);
+      `const v0 = "<svg/>";`,
+    ]);
   });
 
   test("returns a CDN redirect whose security headers remain mutable", async () => {

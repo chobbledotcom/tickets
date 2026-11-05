@@ -8,6 +8,7 @@ import {
   renderGuideSections,
 } from "#templates/admin/guide/components.tsx";
 import { domainsSections } from "#templates/admin/guide/domains.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 const hostConfig = (
   overrides: Partial<GuideHostConfig> = {},
@@ -90,10 +91,12 @@ describe("guide domains sections", () => {
 test("the sections keep the anchors the settings page links to", () => {
   const html = String(renderGuideSections(domainsSections()));
   // The advanced-settings intro deep-links these two anchors.
-  assertStringIncludes(html, '<h3 id="host-subdomain">');
-  assertStringIncludes(html, '<h3 id="custom-domain">');
-  // The settings-overview section carries its own anchor too.
-  assertStringIncludes(html, '<h3 id="settings">');
+  expectIncludesAll(html, [
+    '<h3 id="host-subdomain">',
+    '<h3 id="custom-domain">',
+    // The settings-overview section carries its own anchor too.
+    '<h3 id="settings">',
+  ]);
 });
 
 test("states the header image size limit the site actually uses", () => {
@@ -104,9 +107,11 @@ test("states the header image size limit the site actually uses", () => {
 test("the host subdomain answer does not promise the ending", () => {
   const html = String(renderGuideSections(domainsSections()));
   // The host sets the DNS zone, so only the check can name the full address.
-  assertStringIncludes(html, "You pick the first part of the name");
-  assertStringIncludes(html, "sets the ending");
-  assertStringIncludes(html, "only when your host offers subdomains");
+  expectIncludesAll(html, [
+    "You pick the first part of the name",
+    "sets the ending",
+    "only when your host offers subdomains",
+  ]);
   assert(!html.includes("site answers at"));
 });
 
@@ -130,6 +135,8 @@ test("the answers name the request-hostname fallback", () => {
   const html = String(renderGuideSections(domainsSections()));
   // The system keeps the raw request hostname — a bunny.run request keeps
   // bunny.run links — so the copy must not claim a fixed b-cdn.net address.
-  assertStringIncludes(html, "the address the visitor used to open the site");
-  assertStringIncludes(html, "b-cdn.net</code> or <code>bunny.run</code>");
+  expectIncludesAll(html, [
+    "the address the visitor used to open the site",
+    "b-cdn.net</code> or <code>bunny.run</code>",
+  ]);
 });

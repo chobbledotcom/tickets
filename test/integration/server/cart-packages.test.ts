@@ -5,6 +5,7 @@ import { queryAll } from "#db/client.ts";
 import { setGroupPackageMembers, setListingGroups } from "#db/groups.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -56,11 +57,13 @@ describeWithEnv(
 
       const html = await pageHtml(`${group.slug}+${solo.slug}`);
       // The bundle keeps its own count selector; the listing keeps its row.
-      assertStringIncludes(html, `name="package_quantity_${group.id}"`);
-      assertStringIncludes(html, `name="quantity_${solo.id}"`);
-      assertStringIncludes(html, "Camp Kit");
-      assertStringIncludes(html, "Kit Tent");
-      assertStringIncludes(html, "Lantern");
+      expectIncludesAll(html, [
+        `name="package_quantity_${group.id}"`,
+        `name="quantity_${solo.id}"`,
+        "Camp Kit",
+        "Kit Tent",
+        "Lantern",
+      ]);
     });
 
     test("a member added by its own slug sells through both paths at once", async () => {
@@ -73,8 +76,10 @@ describeWithEnv(
       const html = await pageHtml(`${group.slug}+${member.slug}`);
       // One package section (read-only member row) AND one standalone quantity
       // row for the same listing — the two bookable paths.
-      assertStringIncludes(html, `name="package_quantity_${group.id}"`);
-      assertStringIncludes(html, `name="quantity_${member.id}"`);
+      expectIncludesAll(html, [
+        `name="package_quantity_${group.id}"`,
+        `name="quantity_${member.id}"`,
+      ]);
     });
 
     test("books one row per path when a package and its member's own row are both taken", async () => {
@@ -163,8 +168,10 @@ describeWithEnv(
 
       const slugs = `${camp.group.slug}+${beach.group.slug}+${solo.slug}`;
       const html = await pageHtml(slugs);
-      assertStringIncludes(html, `name="package_quantity_${camp.group.id}"`);
-      assertStringIncludes(html, `name="package_quantity_${beach.group.id}"`);
+      expectIncludesAll(html, [
+        `name="package_quantity_${camp.group.id}"`,
+        `name="package_quantity_${beach.group.id}"`,
+      ]);
 
       const submit = await submitPackageBooking(slugs, {
         email: "trio@test.com",
@@ -203,10 +210,12 @@ describeWithEnv(
       const html = await pageHtml(`${group.slug}+${member.slug}+${solo.slug}`);
       // The package row uses its package name. The standalone row uses the
       // listing name because it is a separate booking path.
-      assertStringIncludes(html, "Mystery Box");
-      assertStringIncludes(html, `name="package_quantity_${group.id}"`);
-      assertStringIncludes(html, "Secret Widget");
-      assertStringIncludes(html, `name="quantity_${member.id}"`);
+      expectIncludesAll(html, [
+        "Mystery Box",
+        `name="package_quantity_${group.id}"`,
+        "Secret Widget",
+        `name="quantity_${member.id}"`,
+      ]);
 
       const submit = await submitPackageBooking(
         `${group.slug}+${member.slug}+${solo.slug}`,
@@ -259,8 +268,10 @@ describeWithEnv(
       ]);
 
       const html = await pageHtml(`${a.slug}+${b.slug}`);
-      assertStringIncludes(html, `name="package_quantity_${a.id}"`);
-      assertStringIncludes(html, `name="package_quantity_${b.id}"`);
+      expectIncludesAll(html, [
+        `name="package_quantity_${a.id}"`,
+        `name="package_quantity_${b.id}"`,
+      ]);
       expect(html).toMatch(/name="email"[^>]*required/);
     });
 
@@ -406,8 +417,10 @@ describeWithEnv(
       const a = await createTestListing({ name: "Alpha" });
       const b = await createTestListing({ name: "Bravo" });
       const html = await pageHtml(`${a.slug}+${b.slug}`);
-      assertStringIncludes(html, `name="quantity_${a.id}"`);
-      assertStringIncludes(html, `name="quantity_${b.id}"`);
+      expectIncludesAll(html, [
+        `name="quantity_${a.id}"`,
+        `name="quantity_${b.id}"`,
+      ]);
       assert(!html.includes("package_quantity_"));
     });
   },

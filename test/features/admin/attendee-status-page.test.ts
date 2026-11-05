@@ -9,6 +9,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { FormParams } from "#shared/form-data.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { adminGet, getTestAuthSession } from "#test-utils/session.ts";
 
@@ -25,8 +26,10 @@ describeWithEnv("the attendee status page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    assertStringIncludes(html, `action="${PATH}/${status.id}/edit"`);
-    assertStringIncludes(html, status.name);
+    expectIncludesAll(html, [
+      `action="${PATH}/${status.id}/edit"`,
+      status.name,
+    ]);
   });
 
   test("marks the statuses list as the section it belongs to", async () => {
@@ -44,8 +47,10 @@ describeWithEnv("the attendee status page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    assertStringIncludes(html, `href="${PATH}/${status.id}/delete"`);
-    assertStringIncludes(html, "Delete status");
+    expectIncludesAll(html, [
+      `href="${PATH}/${status.id}/delete"`,
+      "Delete status",
+    ]);
   });
 
   test("answers 404 for a status that is not there", async () => {
@@ -69,7 +74,6 @@ describeWithEnv("the attendee status page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(400);
-    assertStringIncludes(html, "Half typed");
-    assertStringIncludes(html, "Name is already taken");
+    expectIncludesAll(html, ["Half typed", "Name is already taken"]);
   });
 });

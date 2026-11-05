@@ -7,6 +7,7 @@ import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   expectFlashRedirect,
   expectHtmlResponse,
+  expectIncludesAll,
   expectRedirectWithFlash,
   FLASH_TEST_ID,
   flashCookieHeader,
@@ -24,11 +25,10 @@ describeWithEnv("server (admin site home)", { db: true }, () => {
     test("serves the home form boxes with their labels and hints", async () => {
       const { siteHomeForm } = await import("#templates/fields/site.ts");
       const html = siteHomeForm.render();
-      assertStringIncludes(html, "Website title");
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        "Website title",
         `Displayed as the main heading on all public pages (max ${MAX_INPUT_LENGTH} characters).`,
-      );
+      ]);
       assertStringIncludes(
         inputNamed(html, "website_title"),
         'autocomplete="off"',
@@ -40,9 +40,11 @@ describeWithEnv("server (admin site home)", { db: true }, () => {
       );
       assertStringIncludes(html, "Homepage text");
       const homepage = inputNamed(html, "homepage_text");
-      assertStringIncludes(homepage, 'placeholder="Welcome to our site..."');
-      // markdown: true wires the preview affordance to the textarea.
-      assertStringIncludes(homepage, "data-markdown-preview");
+      expectIncludesAll(homepage, [
+        'placeholder="Welcome to our site..."',
+        // markdown: true wires the preview affordance to the textarea.
+        "data-markdown-preview",
+      ]);
     });
 
     test("serves the contact form box with its label", async () => {
@@ -73,8 +75,7 @@ describeWithEnv("server (admin site home)", { db: true }, () => {
       await settings.update.homepageText("Welcome!");
       const response = await adminGet("/admin/site");
       const html = await response.text();
-      assertStringIncludes(html, "My Listings");
-      assertStringIncludes(html, "Welcome!");
+      expectIncludesAll(html, ["My Listings", "Welcome!"]);
     });
 
     test("displays success message from flash cookie", async () => {

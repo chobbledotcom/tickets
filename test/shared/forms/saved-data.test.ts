@@ -10,6 +10,7 @@ import {
   savedFormValueOrNull,
   setSavedFormData,
 } from "#shared/forms/saved-data.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { field } from "#test-utils/field.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
@@ -21,8 +22,7 @@ describe("saved form data", () => {
         field({ label: "Name", name: "name" }),
         field({ label: "Email", name: "email", type: "email" }),
       ]);
-      assertStringIncludes(html, 'value="Alice"');
-      assertStringIncludes(html, 'value="alice@test.com"');
+      expectIncludesAll(html, ['value="Alice"', 'value="alice@test.com"']);
     });
   });
 
@@ -88,8 +88,7 @@ describe("saved form data", () => {
       const html = renderFields([
         field({ label: "Start", name: "start", type: "datetime" }),
       ]);
-      assertStringIncludes(html, 'value="2026-03-21"');
-      assertStringIncludes(html, 'value="14:30"');
+      expectIncludesAll(html, ['value="2026-03-21"', 'value="14:30"']);
     });
   });
 
@@ -99,8 +98,7 @@ describe("saved form data", () => {
       const html = renderFields([
         field({ label: "Start", name: "start", type: "datetime" }),
       ]);
-      assertStringIncludes(html, 'value="2026-03-21"');
-      assertStringIncludes(html, 'value="00:00"');
+      expectIncludesAll(html, ['value="2026-03-21"', 'value="00:00"']);
     });
   });
 

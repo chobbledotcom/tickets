@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import { settings } from "#db/settings.ts";
@@ -12,6 +12,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 import type { NewsPost, NewsPostSummary } from "#types";
 
@@ -42,13 +43,12 @@ describe("admin news templates", () => {
     using _env = withEnv({ READ_ONLY_FROM: undefined });
     const html = adminNewsListPage([], OWNER_SESSION, "News post removed.");
 
-    assertStringIncludes(html, 'href="/admin/site/news/new"');
-    assertStringIncludes(html, "Add News Post");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'href="/admin/site/news/new"',
+      "Add News Post",
       '<div class="success" role="alert">News post removed.</div>',
-    );
-    assertStringIncludes(html, "<em>No news posts yet.</em>");
+      "<em>No news posts yet.</em>",
+    ]);
     assert(!html.includes("<table"));
   });
 
@@ -56,46 +56,45 @@ describe("admin news templates", () => {
     using _env = withEnv({ READ_ONLY_FROM: undefined });
     const html = adminNewsListPage([summary], OWNER_SESSION);
 
-    assertStringIncludes(html, "<th>Name</th><th>Published</th><th></th>");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "<th>Name</th><th>Published</th><th></th>",
       '<a href="/admin/site/news/17/edit">Launch &amp; Learn</a>',
-    );
-    assertStringIncludes(html, "<td>2026-01-02 03:04</td>");
-    assertStringIncludes(
-      html,
+      "<td>2026-01-02 03:04</td>",
       '<a href="/admin/site/news/17/delete">Delete</a>',
-    );
+    ]);
     assert(!html.includes("No news posts yet."));
   });
 
   test("renders every create field without an editable slug", () => {
     const html = adminNewsNewPage(OWNER_SESSION, "Name is required.");
 
-    assertStringIncludes(html, 'action="/admin/site/news"');
-    assertStringIncludes(html, "Name is required.");
-    assertStringIncludes(html, 'name="name"');
-    assertStringIncludes(html, 'name="meta_title"');
-    assertStringIncludes(html, 'name="meta_description"');
-    assertStringIncludes(html, 'name="snippet"');
-    assertStringIncludes(html, 'name="content"');
+    expectIncludesAll(html, [
+      'action="/admin/site/news"',
+      "Name is required.",
+      'name="name"',
+      'name="meta_title"',
+      'name="meta_description"',
+      'name="snippet"',
+      'name="content"',
+    ]);
     assert(!html.includes('name="slug"'));
-    assertStringIncludes(html, "Create News Post");
-    assertStringIncludes(html, "/icons.svg#plus");
+    expectIncludesAll(html, ["Create News Post", "/icons.svg#plus"]);
   });
 
   test("renders the edit form with all saved values and its public link", () => {
     const html = String(newsEditPanel(post));
 
-    assertStringIncludes(html, 'action="/admin/site/news/17/edit"');
-    assertStringIncludes(html, 'value="Launch &amp; Learn"');
-    assertStringIncludes(html, 'value="launch-learn"');
-    assertStringIncludes(html, 'href="/news/launch-learn"');
-    assertStringIncludes(html, 'value="Launch &lt;News&gt;"');
-    assertStringIncludes(html, "Launch details &amp; dates");
-    assertStringIncludes(html, "A short update.");
-    assertStringIncludes(html, "Full **launch** details &amp; more.");
-    assertStringIncludes(html, "Save Changes");
+    expectIncludesAll(html, [
+      'action="/admin/site/news/17/edit"',
+      'value="Launch &amp; Learn"',
+      'value="launch-learn"',
+      'href="/news/launch-learn"',
+      'value="Launch &lt;News&gt;"',
+      "Launch details &amp; dates",
+      "A short update.",
+      "Full **launch** details &amp; more.",
+      "Save Changes",
+    ]);
   });
 
   test("renders the delete form with the post name and rejected-submit error", () => {
@@ -105,16 +104,12 @@ describe("admin news templates", () => {
       "Name did not match.",
     );
 
-    assertStringIncludes(html, 'action="/admin/site/news/17/delete"');
-    assertStringIncludes(html, "Name did not match.");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'action="/admin/site/news/17/delete"',
+      "Name did not match.",
       "Type the post name &quot;Launch &amp; Learn&quot; to confirm deletion.",
-    );
-    assertStringIncludes(
-      html,
       'name="confirm_identifier" placeholder="Launch &amp; Learn" required',
-    );
-    assertStringIncludes(html, "Delete News Post");
+      "Delete News Post",
+    ]);
   });
 });

@@ -7,6 +7,7 @@ import {
 } from "#db/attributes.ts";
 import {
   expectHtmlResponse,
+  expectIncludesAll,
   expectStatus,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
@@ -45,26 +46,19 @@ describeWithEnv("server (admin attribute detail pages)", { db: true }, () => {
         200,
         '<th class="col-quantity">Listings</th>',
       );
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
         `<a href="/admin/attributes/${attribute.id}/options/${
           easy!.id
         }/edit">Easy</a>`,
-      );
-      assertStringIncludes(
-        html,
         `<a href="/admin/attributes/${attribute.id}/options/${
           hard!.id
         }/edit">Hard</a>`,
-      );
-      // Easy is set on one listing; Hard on none.
-      assertStringIncludes(html, '<td class="col-quantity">1</td>');
-      assertStringIncludes(html, '<td class="col-quantity">0</td>');
-      // The attribute's own delete action stays on its detail page.
-      assertStringIncludes(
-        html,
+        // Easy is set on one listing; Hard on none.
+        '<td class="col-quantity">1</td>',
+        '<td class="col-quantity">0</td>',
+        // The attribute's own delete action stays on its detail page.
         `<a class="danger" href="/admin/attributes/${attribute.id}/delete">`,
-      );
+      ]);
     });
 
     test("lists each listing using the attribute with its selected options", async () => {
@@ -77,17 +71,13 @@ describeWithEnv("server (admin attribute detail pages)", { db: true }, () => {
         200,
         "Listings using this attribute",
       );
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
         `<a href="/admin/listing/${listing.id}">Climbing</a>`,
-      );
-      assertStringIncludes(html, "<td>Easy</td>");
-      // A listing with several options appears once, options in option order.
-      assertStringIncludes(
-        html,
+        "<td>Easy</td>",
+        // A listing with several options appears once, options in option order.
         `<a href="/admin/listing/${bothListing.id}">Both options</a>`,
-      );
-      assertStringIncludes(html, "<td>Easy, Hard</td>");
+        "<td>Easy, Hard</td>",
+      ]);
       // Rows are ordered by listing id (creation order).
       const climbingIndex = html.indexOf(">Climbing</a>");
       const bothOptionsIndex = html.indexOf(">Both options</a>");
@@ -155,16 +145,12 @@ describeWithEnv("server (admin attribute detail pages)", { db: true }, () => {
         "Listings using this option",
         "Set on 1 listing.",
       );
-      assertStringIncludes(html, 'value="Easy"');
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        'value="Easy"',
         `<a href="/admin/listing/${listing.id}">Climbing</a>`,
-      );
-      assertStringIncludes(html, `href="/admin/attributes/${attribute.id}"`);
-      assertStringIncludes(
-        html,
+        `href="/admin/attributes/${attribute.id}"`,
         `<a class="danger" href="/admin/attributes/${attribute.id}/options/${easy.id}/delete">Delete option</a>`,
-      );
+      ]);
     });
 
     test("only lists listings that selected this option", async () => {

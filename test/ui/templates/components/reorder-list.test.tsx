@@ -11,6 +11,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 
 type Item = { count: number; id: number; name: string };
@@ -87,13 +88,12 @@ describe("reorder list components", () => {
     using _env = withEnv({ READ_ONLY_FROM: undefined });
     const html = countTable(ITEMS);
 
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<th class="col-reorder">Order</th><th>Thing</th><th class="col-quantity">Uses</th>',
-    );
-    assertStringIncludes(html, '<a href="/things/1/edit">First</a>');
-    assertStringIncludes(html, '<td class="col-quantity">3</td>');
-    assertStringIncludes(html, 'action="/things/1/move-down"');
+      '<a href="/things/1/edit">First</a>',
+      '<td class="col-quantity">3</td>',
+      'action="/things/1/move-down"',
+    ]);
     assert(!html.includes('action="/things/1/move-up"'));
     assertStringIncludes(html, 'action="/things/2/move-up"');
     assert(!html.includes('action="/things/2/move-down"'));
@@ -103,8 +103,10 @@ describe("reorder list components", () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     const html = countTable(ITEMS);
 
-    assertStringIncludes(html, "<td>First</td>");
-    assertStringIncludes(html, '<td class="col-quantity">5</td>');
+    expectIncludesAll(html, [
+      "<td>First</td>",
+      '<td class="col-quantity">5</td>',
+    ]);
     assert(!html.includes('href="/things/1/edit"'));
     assert(!html.includes('class="col-reorder"'));
     assert(!html.includes("/move-"));
@@ -114,29 +116,27 @@ describe("reorder list components", () => {
     using _env = withEnv({ READ_ONLY_FROM: undefined });
     const html = listPage([], "Name is required");
 
-    assertStringIncludes(html, "Name is required");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "Name is required",
       '<form action="/things" autocomplete="off" method="POST" id="new-thing">',
-    );
-    assertStringIncludes(html, '<label>Name<input name="name"></label>');
-    assertStringIncludes(html, "Add thing");
-    assertStringIncludes(html, "<p><em>Nothing here</em></p>");
-    assertStringIncludes(html, 'href="/admin/guide#things"');
-    assertStringIncludes(html, "<span>Things guide</span>");
+      '<label>Name<input name="name"></label>',
+      "Add thing",
+      "<p><em>Nothing here</em></p>",
+      'href="/admin/guide#things"',
+      "<span>Things guide</span>",
+    ]);
   });
 
   test("renders populated list rows through the declared columns and routes", () => {
     using _env = withEnv({ READ_ONLY_FROM: undefined });
     const html = listPage(ITEMS);
 
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<th>Name</th><th class="col-quantity">Uses</th>',
-    );
-    assertStringIncludes(html, '<td>First</td><td class="col-quantity">3</td>');
-    assertStringIncludes(html, 'action="/things/1/move-down"');
-    assertStringIncludes(html, 'action="/things/2/move-up"');
+      '<td>First</td><td class="col-quantity">3</td>',
+      'action="/things/1/move-down"',
+      'action="/things/2/move-up"',
+    ]);
     assert(!html.includes("Nothing here"));
   });
 
@@ -144,8 +144,7 @@ describe("reorder list components", () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     const html = listPage([ITEMS[0]!]);
 
-    assertStringIncludes(html, "<td>First</td>");
-    assertStringIncludes(html, "Things guide");
+    expectIncludesAll(html, ["<td>First</td>", "Things guide"]);
     assert(!html.includes('id="new-thing"'));
     assert(!html.includes("Add thing"));
     assert(!html.includes('class="col-reorder"'));

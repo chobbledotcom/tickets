@@ -9,7 +9,10 @@ import {
   markAdminFooter,
   renderAdminFooter,
 } from "#templates/admin/footer.tsx";
-import { expectHtmlEscaped } from "#test-utils/assertions.ts";
+import {
+  expectHtmlEscaped,
+  expectIncludesAll,
+} from "#test-utils/assertions.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
 describe("admin footer templates", () => {
@@ -50,10 +53,12 @@ describe("admin footer templates", () => {
     });
 
     test("wraps content in a details/summary element", () => {
-      assertStringIncludes(bareHtml, "<details");
-      assertStringIncludes(bareHtml, "<summary>");
-      assertStringIncludes(bareHtml, "</summary>");
-      assertStringIncludes(bareHtml, "</details>");
+      expectIncludesAll(bareHtml, [
+        "<details",
+        "<summary>",
+        "</summary>",
+        "</details>",
+      ]);
     });
 
     test("lists each query with its duration", () => {
@@ -68,10 +73,12 @@ describe("admin footer templates", () => {
         ],
         renderTimeMs: 20,
       });
-      assertStringIncludes(html, "SELECT * FROM listings");
-      assertStringIncludes(html, "5.2ms");
-      assertStringIncludes(html, "SELECT * FROM users WHERE id = ?");
-      assertStringIncludes(html, "3.1ms");
+      expectIncludesAll(html, [
+        "SELECT * FROM listings",
+        "5.2ms",
+        "SELECT * FROM users WHERE id = ?",
+        "3.1ms",
+      ]);
     });
 
     test("escapes HTML in SQL strings", () => {
@@ -125,26 +132,28 @@ describe("admin footer templates", () => {
         ],
         renderTimeMs: 100,
       });
-      assertStringIncludes(html, "sql 50.0ms");
-      assertStringIncludes(html, "other 50.0ms");
+      expectIncludesAll(html, ["sql 50.0ms", "other 50.0ms"]);
     });
 
     test("breakdown keeps other non-negative when queries overlap", () => {
       // Durations sum to 60ms but only 35ms of wall-clock ([0,35]); without the
       // union, other would be render − 60 = −10ms. With it, other is 5ms.
-      assertStringIncludes(overlappingHtml, "sql 35.0ms");
-      assertStringIncludes(overlappingHtml, "other 5.0ms");
+      expectIncludesAll(overlappingHtml, ["sql 35.0ms", "other 5.0ms"]);
     });
 
     test("reports total query work and the parallel factor", () => {
       // 60ms of work folded into 35ms wall-clock → 60/35 ≈ 1.7×.
-      assertStringIncludes(overlappingHtml, "60.0ms work across 2 queries");
-      assertStringIncludes(overlappingHtml, "1.7&times; parallel");
+      expectIncludesAll(overlappingHtml, [
+        "60.0ms work across 2 queries",
+        "1.7&times; parallel",
+      ]);
     });
 
     test("reports a 1.0x parallel factor for sequential queries", () => {
-      assertStringIncludes(sequentialHtml, "25.0ms work across 2 queries");
-      assertStringIncludes(sequentialHtml, "1.0&times; parallel");
+      expectIncludesAll(sequentialHtml, [
+        "25.0ms work across 2 queries",
+        "1.0&times; parallel",
+      ]);
     });
 
     test("omits the SQL work line when there are no queries", () => {
@@ -159,9 +168,11 @@ describe("admin footer templates", () => {
         ],
         renderTimeMs: 10,
       });
-      assertStringIncludes(html, "Caches (2)");
-      assertStringIncludes(html, "sessions: 3");
-      assertStringIncludes(html, "decrypt: 150/10000");
+      expectIncludesAll(html, [
+        "Caches (2)",
+        "sessions: 3",
+        "decrypt: 150/10000",
+      ]);
     });
 
     test("shows total cached entries in summary", () => {
@@ -199,17 +210,15 @@ describe("admin footer templates", () => {
   describe("adminFooterHtml", () => {
     test("renders a footer with the admin-footer class", () => {
       const html = adminFooterHtml(null, "owner");
-      assertStringIncludes(html, '<footer class="admin-footer">');
-      assertStringIncludes(html, "</footer>");
+      expectIncludesAll(html, ['<footer class="admin-footer">', "</footer>"]);
     });
 
     test("links to the GitHub repo", () => {
       const html = adminFooterHtml(null, "owner");
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
         'href="https://github.com/chobbledotcom/tickets"',
-      );
-      assertStringIncludes(html, "Chobble Tickets</a>");
+        "Chobble Tickets</a>",
+      ]);
     });
 
     test("wraps the Chobble link in a span so it doesn't stretch the row", () => {
@@ -222,11 +231,10 @@ describe("admin footer templates", () => {
 
     test("staff see log, guide, and logout links separated by dots", () => {
       const html = adminFooterHtml(null, "owner");
-      assertStringIncludes(html, '<div class="admin-footer-links">');
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        '<div class="admin-footer-links">',
         '<a href="/admin/log">Log</a> &middot; <a href="/admin/guide">Guide</a> &middot; <a href="/admin/logout">Log out</a>',
-      );
+      ]);
       assert(!html.includes('action="/admin/logout"'));
       assert(!html.includes("#log-out"));
     });
@@ -260,8 +268,7 @@ describe("admin footer templates", () => {
         },
         "owner",
       );
-      assertStringIncludes(html, "debug-menu");
-      assertStringIncludes(html, "12ms");
+      expectIncludesAll(html, ["debug-menu", "12ms"]);
     });
   });
 
@@ -276,13 +283,15 @@ describe("admin footer templates", () => {
       await withRequestContext(async () => {
         markAdminFooter("owner");
         const html = renderAdminFooter();
-        assertStringIncludes(html, '<footer class="admin-footer">');
-        assertStringIncludes(html, '<a href="/admin/logout">Log out</a>');
-        // The exact role passed to markAdminFooter drives the gated links: a staff
-        // role gets the staff-only log/guide links (proves the stored role is used
-        // verbatim, not mangled).
-        assertStringIncludes(html, '<a href="/admin/log">Log</a>');
-        assertStringIncludes(html, '<a href="/admin/guide">Guide</a>');
+        expectIncludesAll(html, [
+          '<footer class="admin-footer">',
+          '<a href="/admin/logout">Log out</a>',
+          // The exact role passed to markAdminFooter drives the gated links: a staff
+          // role gets the staff-only log/guide links (proves the stored role is used
+          // verbatim, not mangled).
+          '<a href="/admin/log">Log</a>',
+          '<a href="/admin/guide">Guide</a>',
+        ]);
         assert(!html.includes("debug-menu"));
       });
     });

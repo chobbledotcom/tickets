@@ -10,6 +10,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 
 const holiday: Holiday = {
@@ -25,21 +26,22 @@ describe("holiday templates", () => {
   describe("adminHolidaysPage (resource factory list page)", () => {
     test("renders the add-holiday action and guide link in the action row", () => {
       const html = adminHolidaysPage([holiday], OWNER_SESSION);
-      assertStringIncludes(html, 'href="/admin/holidays/new"');
-      assertStringIncludes(html, "Add holiday");
-      assertStringIncludes(html, 'href="/admin/guide#holidays"');
+      expectIncludesAll(html, [
+        'href="/admin/holidays/new"',
+        "Add holiday",
+        'href="/admin/guide#holidays"',
+      ]);
     });
 
     test("renders the table with name links and start/end columns", () => {
       const html = adminHolidaysPage([holiday], OWNER_SESSION);
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
         '<a class="active" href="/admin/holidays">Holidays</a>',
-      );
-      assertStringIncludes(html, 'href="/admin/holidays/42"');
-      assertStringIncludes(html, "Christmas");
-      assertStringIncludes(html, "2026-12-25");
-      assertStringIncludes(html, "2026-12-26");
+        'href="/admin/holidays/42"',
+        "Christmas",
+        "2026-12-25",
+        "2026-12-26",
+      ]);
     });
 
     test("renders the empty state when there are no holidays", () => {
@@ -67,12 +69,14 @@ describe("holiday templates", () => {
   describe("holidayPages.newPage (resource factory new page)", () => {
     test("renders the create form posting to the base path with the add fields", () => {
       const html = getHolidayPages().newPage(OWNER_SESSION);
-      assertStringIncludes(html, 'action="/admin/holidays"');
-      assertStringIncludes(html, 'name="name"');
-      assertStringIncludes(html, 'name="start_date"');
-      assertStringIncludes(html, 'name="end_date"');
-      // Submit button uses the create label and plus icon.
-      assertStringIncludes(html, "Create holiday");
+      expectIncludesAll(html, [
+        'action="/admin/holidays"',
+        'name="name"',
+        'name="start_date"',
+        'name="end_date"',
+        // Submit button uses the create label and plus icon.
+        "Create holiday",
+      ]);
     });
 
     test("renders the error flash when an error is passed", () => {
@@ -87,10 +91,12 @@ describe("holiday templates", () => {
   describe("HolidayEditPanel", () => {
     test("renders the edit form with prefilled values", () => {
       const html = String(HolidayEditPanel({ holiday }));
-      assertStringIncludes(html, 'action="/admin/holidays/42/edit"');
-      assertStringIncludes(html, "Christmas");
-      assertStringIncludes(html, "2026-12-25");
-      assertStringIncludes(html, "Save Changes");
+      expectIncludesAll(html, [
+        'action="/admin/holidays/42/edit"',
+        "Christmas",
+        "2026-12-25",
+        "Save Changes",
+      ]);
     });
 
     test("renders a submitted error and values", () => {
@@ -105,21 +111,25 @@ describe("holiday templates", () => {
           },
         }),
       );
-      assertStringIncludes(html, "Date error");
-      assertStringIncludes(html, "Winter break");
-      assertStringIncludes(html, "2027-01-01");
-      assertStringIncludes(html, "2027-01-02");
+      expectIncludesAll(html, [
+        "Date error",
+        "Winter break",
+        "2027-01-01",
+        "2027-01-02",
+      ]);
     });
   });
 
   describe("holidayPages.deletePage (resource factory delete confirmation)", () => {
     test("renders the type-the-name confirmation form posting to the delete path", () => {
       const html = getHolidayPages().deletePage(holiday, OWNER_SESSION);
-      assertStringIncludes(html, 'action="/admin/holidays/42/delete"');
-      assertStringIncludes(html, 'name="confirm_identifier"');
-      // The name to type is shown as the confirm target.
-      assertStringIncludes(html, "Christmas");
-      assertStringIncludes(html, "Delete holiday");
+      expectIncludesAll(html, [
+        'action="/admin/holidays/42/delete"',
+        'name="confirm_identifier"',
+        // The name to type is shown as the confirm target.
+        "Christmas",
+        "Delete holiday",
+      ]);
       assert(!html.includes('<button class="danger"'));
     });
 

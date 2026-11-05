@@ -5,6 +5,7 @@ import { RATCHET_GUIDE } from "#scripts/check-test-quality/gate.ts";
 import { gateExit } from "#scripts/check-test-quality/run.ts";
 import type { EnvironmentValues } from "#scripts/environment-values.ts";
 import { withEnvironment } from "#scripts/test-environment.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { capturedCheckOutput } from "#test-utils/check-script.ts";
 import { gitShow, holds, lsTree, stubRun } from "#test-utils/git-stub.ts";
 
@@ -103,12 +104,11 @@ describe("gateExit", () => {
     );
     expect(code).toBe(1);
     const joined = output.lines.join("\n");
-    assertStringIncludes(
-      joined,
+    expectIncludesAll(joined, [
       "::error file=test/a.test.ts,line=4::truthiness assertion; prefer an exact value or contract-specific matcher",
-    );
-    assertStringIncludes(joined, "test/a.test.ts:4:3");
-    assertStringIncludes(joined, RATCHET_GUIDE);
+      "test/a.test.ts:4:3",
+      RATCHET_GUIDE,
+    ]);
   });
 
   test("fails and names a weak assertion the change adds", async () => {
@@ -118,12 +118,11 @@ describe("gateExit", () => {
     );
     expect(code).toBe(1);
     const joined = output.lines.join("\n");
-    assertStringIncludes(joined, "test/a.test.ts:4:3");
-    assertStringIncludes(
-      joined,
+    expectIncludesAll(joined, [
+      "test/a.test.ts:4:3",
       "truthiness assertion; prefer an exact value or contract-specific matcher",
-    );
-    assertStringIncludes(joined, RATCHET_GUIDE);
+      RATCHET_GUIDE,
+    ]);
   });
 
   test("fails on a weak assertion the change only moves", async () => {

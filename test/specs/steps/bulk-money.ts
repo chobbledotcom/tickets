@@ -30,6 +30,7 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 Given(
   "{int} people each paid {word} for a {word} place",
@@ -173,11 +174,10 @@ Then(
       this.bulkRefundMessage,
       "what they were told",
     );
-    assertStringIncludes(
-      told,
+    expectIncludesAll(told, [
       `${worked} refund${worked === 1 ? "" : "s"} succeeded`,
-    );
-    assertStringIncludes(told, `There was ${failed} failure`);
+      `There was ${failed} failure`,
+    ]);
     // Every booking was tried, not just the ones before the failure.
     expect(requiredWorldValue(this.refundCalls, "refund calls")()).toBe(
       worked + failed,
@@ -192,14 +192,10 @@ Then(
       this.bulkRefundMessage,
       "what they were told",
     );
-    assertStringIncludes(
-      told,
+    expectIncludesAll(told, [
       `${worked} refund${worked === 1 ? "" : "s"} succeeded`,
-    );
-    assertStringIncludes(
-      told,
       `${remaining} refund${remaining === 1 ? "" : "s"} remain`,
-    );
+    ]);
     expect(requiredWorldValue(this.refundCalls, "refund calls")()).toBe(worked);
   },
 );

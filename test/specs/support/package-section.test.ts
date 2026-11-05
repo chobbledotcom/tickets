@@ -5,6 +5,7 @@ import {
   memberRowHtml,
   packageSectionHtml,
 } from "#test/specs/support/package-section.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import type { Group } from "#types";
 
 describe("the package section helpers", () => {
@@ -91,12 +92,13 @@ describe("the package section helpers", () => {
 
   test("slices one member's row out of the section", () => {
     const row = rowSlice("Tent");
-    assertStringIncludes(row, 'alt="Bedroll"');
-    assertStringIncludes(row, memberLabel("Tent", 1));
+    expectIncludesAll(row, ['alt="Bedroll"', memberLabel("Tent", 1)]);
     assert(!row.includes("Lantern"));
     // A member that is itself a parent keeps its child selector in its row.
-    assertStringIncludes(row, '<fieldset class="child-selector"');
-    assertStringIncludes(row, "</fieldset></div>");
+    expectIncludesAll(row, [
+      '<fieldset class="child-selector"',
+      "</fieldset></div>",
+    ]);
   });
 
   test("slices the last member's row to the section's end", () => {

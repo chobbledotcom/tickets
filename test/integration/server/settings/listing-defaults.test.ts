@@ -7,6 +7,7 @@ import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import {
   expectErrorFlash,
   expectFlash,
+  expectIncludesAll,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -38,8 +39,10 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       const response = await adminGet("/admin/listing-defaults");
       expect(response.status).toBe(200);
       const body = await response.text();
-      assertStringIncludes(body, 'name="default_hidden"');
-      assertStringIncludes(body, 'name="default_webhook_url"');
+      expectIncludesAll(body, [
+        'name="default_hidden"',
+        'name="default_webhook_url"',
+      ]);
     });
 
     test("pre-fills the form with the saved number and day defaults", async () => {
@@ -90,8 +93,8 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
         default_minimum_days_before: "3",
       });
       const submitted = await submittedDefaults();
-      expect(submitted.get("default_bookable_days_enabled")).toBeUndefined();
-      expect(submitted.get("default_bookable_days")).toBeUndefined();
+      expect(submitted.get("default_bookable_days_enabled")).toBe(undefined);
+      expect(submitted.get("default_bookable_days")).toBe(undefined);
     });
 
     test("a url default pre-fills its input", async () => {
@@ -290,11 +293,13 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       assertStringIncludes(body, 'id="use-defaults"');
       // A plain (Custom) new listing starts with Use-defaults checked.
       expect(body).toMatch(/checked[^>]*id="use-defaults"/);
-      assertStringIncludes(body, "listing-form--default-hidden");
-      assertStringIncludes(body, "listing-form--default-webhook-url");
-      // Defaulted fields are pre-filled with the default values.
-      assertStringIncludes(body, "https://example.com/hook");
-      assertStringIncludes(body, "https://example.com/thanks");
+      expectIncludesAll(body, [
+        "listing-form--default-hidden",
+        "listing-form--default-webhook-url",
+        // Defaulted fields are pre-filled with the default values.
+        "https://example.com/hook",
+        "https://example.com/thanks",
+      ]);
     });
 
     test("a template-picked new listing keeps Use-defaults off so the template wins", async () => {
@@ -338,7 +343,7 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       ]);
       // …and the hidden checkbox reflects the stored false (unchecked, so not
       // submitted), not the inherited Hidden=Yes default.
-      expect(submitted.get("hidden")).toBeUndefined();
+      expect(submitted.get("hidden")).toBe(undefined);
     });
 
     test("edit form reflects a listing's Use-defaults flag", async () => {

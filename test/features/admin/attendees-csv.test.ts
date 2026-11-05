@@ -8,7 +8,10 @@ import {
   generateAttendeesCsv,
 } from "#routes/admin/attendees-csv.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
-import { expectTestAttendeeCsvColumns } from "#test-utils/assertions.ts";
+import {
+  expectIncludesAll,
+  expectTestAttendeeCsvColumns,
+} from "#test-utils/assertions.ts";
 import { testAttendee } from "#test-utils/factories.ts";
 import type { Attendee } from "#types";
 
@@ -102,14 +105,13 @@ describe("generateAttendeesCsv", () => {
       }),
     ];
     const row = generateAttendeesCsv(attendees).split("\n")[1]!;
-    assertStringIncludes(row, '"\t=SUM(A1:A2)"');
-    assertStringIncludes(row, '"\t+44@example.com"');
-    assertStringIncludes(row, '"\t+1 555 123 4567"');
-    assertStringIncludes(
-      row,
+    expectIncludesAll(row, [
+      '"\t=SUM(A1:A2)"',
+      '"\t+44@example.com"',
+      '"\t+1 555 123 4567"',
       '"\t=HYPERLINK(""http://evil.example"",""Free trips!"")"',
-    );
-    assertStringIncludes(row, "\"\t=cmd|' /C calc'!A0\"");
+      "\"\t=cmd|' /C calc'!A0\"",
+    ]);
   });
 
   test("stops a value whose formula hides behind a line feed", () => {

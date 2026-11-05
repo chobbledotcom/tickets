@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { setAdminFeatureEnabled } from "#db/admin-features.ts";
@@ -7,6 +7,7 @@ import { handleRequest } from "#routes";
 import {
   expectFlashRedirect,
   expectHtmlResponse,
+  expectIncludesAll,
   expectStatus,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
@@ -151,17 +152,13 @@ describeWithEnv("server (admin attributes)", { db: true }, () => {
         "Easy",
         "Hard",
       );
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
         `checked name="option_ids" type="checkbox" value="${
           attribute.options[1]!.id
         }"`,
-      );
-      // Each attribute's options render as a row-based checkbox fieldset.
-      assertStringIncludes(
-        html,
+        // Each attribute's options render as a row-based checkbox fieldset.
         '<fieldset class="checkboxes listing-section">',
-      );
+      ]);
     });
 
     test("shows attributes that do not have options yet", async () => {

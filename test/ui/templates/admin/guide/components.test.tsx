@@ -9,6 +9,7 @@ import {
   renderGuideSections,
   Section,
 } from "#templates/admin/guide/components.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 describe("admin guide components", () => {
   test("renders the standalone section and question structure with escaped copy", () => {
@@ -40,15 +41,11 @@ describe("admin guide components", () => {
       ]),
     );
 
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       `<h3 id="sample-guide">${t("guide.sections.servicing")}</h3>`,
-    );
-    assertStringIncludes(
-      html,
       `<summary>${t("guide.q.what_is_servicing")}</summary><p>`,
-    );
-    assertStringIncludes(html, "<strong>service event</strong>");
+      "<strong>service event</strong>",
+    ]);
     assert(!html.includes("&lt;strong&gt;service event&lt;/strong&gt;"));
     assertStringIncludes(
       html,

@@ -8,6 +8,7 @@ import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
 import { ticketViewPage } from "#templates/tickets.tsx";
 import { registerPublicTemplateHooks } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { testListingWithCount, testTokenEntry } from "#test-utils/factories.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
@@ -36,8 +37,10 @@ describe("ticketPage listing date and location", () => {
       date: "2026-06-15T14:00:00.000Z",
     });
     const html = await renderTicket(listing);
-    assertStringIncludes(html, "<strong>Date:</strong>");
-    assertStringIncludes(html, "Monday 15 June 2026 at 15:00 GMT+1");
+    expectIncludesAll(html, [
+      "<strong>Date:</strong>",
+      "Monday 15 June 2026 at 15:00 GMT+1",
+    ]);
   });
 
   test("does not show date on public ticket page when date is empty", async () => {
@@ -52,8 +55,7 @@ describe("ticketPage listing date and location", () => {
       location: "Village Hall",
     });
     const html = await renderTicket(listing);
-    assertStringIncludes(html, "<strong>Location:</strong>");
-    assertStringIncludes(html, "Village Hall");
+    expectIncludesAll(html, ["<strong>Location:</strong>", "Village Hall"]);
   });
 
   test("does not show location on public ticket page when location is empty", async () => {
@@ -79,8 +81,7 @@ describe("ticketPage listing date and location", () => {
       date: "2020-01-15T14:00:00.000Z",
     });
     const html = await renderTicket(listing);
-    assertStringIncludes(html, "badge-alert");
-    assertStringIncludes(html, "ago");
+    expectIncludesAll(html, ["badge-alert", "ago"]);
   });
 
   test("does not show past listing badge for future listing", async () => {
@@ -153,13 +154,15 @@ describe("ticketViewPage package grouping", () => {
       false,
       new Map([[1, { hideListings: false, name: "Camp Kit" }]]),
     );
-    assertStringIncludes(html, "Camp Kit");
-    assertStringIncludes(html, "Tent");
-    assertStringIncludes(html, "&times;2");
-    assertStringIncludes(html, "Chair");
-    assertStringIncludes(html, "&times;6");
-    // One shared QR for the whole bundle.
-    assertStringIncludes(html, `/t/${token}/svg`);
+    expectIncludesAll(html, [
+      "Camp Kit",
+      "Tent",
+      "&times;2",
+      "Chair",
+      "&times;6",
+      // One shared QR for the whole bundle.
+      `/t/${token}/svg`,
+    ]);
     // No member is non-transferable, so no "ID required" notice.
     assert(!html.includes("ID required at entry"));
   });

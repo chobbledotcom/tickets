@@ -9,6 +9,7 @@ import { attendeeNotes } from "#db/notes/target.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
 import {
   expectHtmlResponse,
+  expectIncludesAll,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";
@@ -180,9 +181,11 @@ describeWithEnv(
           "Save Attendee",
         );
         // Listing link table shows the listing
-        assertStringIncludes(html, "Edit Page Listing");
-        // The editor renders a quantity box per listing
-        assertStringIncludes(html, "qty_");
+        expectIncludesAll(html, [
+          "Edit Page Listing",
+          // The editor renders a quantity box per listing
+          "qty_",
+        ]);
       });
 
       test("edit page shows checked-in badge for checked-in attendee", async () => {

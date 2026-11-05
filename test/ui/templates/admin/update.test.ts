@@ -6,6 +6,7 @@ import {
   type UpdatePageState,
 } from "#templates/admin/update.tsx";
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 const baseState = (): UpdatePageState => ({
   buildCommit: "",
@@ -20,8 +21,7 @@ describe("adminUpdatePage", () => {
   test("renders build commit when present", () => {
     const state = { ...baseState(), buildCommit: "abc123def456" };
     const html = adminUpdatePage(OWNER_SESSION, state);
-    assertStringIncludes(html, "abc123def456");
-    assertStringIncludes(html, "<code>");
+    expectIncludesAll(html, ["abc123def456", "<code>"]);
   });
 
   test("hides commit section when buildCommit is empty", () => {
@@ -61,8 +61,7 @@ describe("adminUpdatePage", () => {
       latestVersion: "v2026-01-01-000000",
     };
     const html = adminUpdatePage(OWNER_SESSION, state);
-    assertStringIncludes(html, "No Update Available");
-    assertStringIncludes(html, "v2026-01-01-000000");
+    expectIncludesAll(html, ["No Update Available", "v2026-01-01-000000"]);
   });
 
   test("does not show update sections when no check performed", () => {

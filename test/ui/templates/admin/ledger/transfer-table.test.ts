@@ -14,6 +14,7 @@ import {
 } from "#accounting/manual-entries.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { attendeeLinkRefs, names, renderLedger, transfer } from "./helpers.ts";
 
 describe("LedgerTable", () => {
@@ -29,15 +30,15 @@ describe("LedgerTable", () => {
       refs,
       "dual",
     );
-    assertStringIncludes(html, "table-scroll");
-    assertStringIncludes(html, "<th>Time</th>");
-    assertStringIncludes(html, "Booking made");
+    expectIncludesAll(html, ["table-scroll", "<th>Time</th>", "Booking made"]);
     assert(!html.includes(">sale<"));
     // Both legs resolve to links, joined by an arrow (rendered as the glyph).
-    assertStringIncludes(html, '<a href="/admin/attendees/1">Ada</a>');
-    assertStringIncludes(html, '<a href="/admin/listing/1">Concert</a>');
-    assertStringIncludes(html, "→");
-    assertStringIncludes(html, formatCurrency(2500));
+    expectIncludesAll(html, [
+      '<a href="/admin/attendees/1">Ada</a>',
+      '<a href="/admin/listing/1">Concert</a>',
+      "→",
+      formatCurrency(2500),
+    ]);
   });
 
   test("explains a money change with no event type", () => {
@@ -105,8 +106,7 @@ describe("LedgerTable", () => {
 
   test("renders the empty state row spanning all four columns", () => {
     const html = renderLedger([], names(), "dual");
-    assertStringIncludes(html, 'colspan="4"');
-    assertStringIncludes(html, "No money changes yet.");
+    expectIncludesAll(html, ['colspan="4"', "No money changes yet."]);
   });
 
   test("escapes a stored name so PII cannot inject markup", () => {
@@ -125,11 +125,10 @@ describe("LedgerTable", () => {
       "dual",
       "/admin/ledger?listing=1",
     );
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       'href="/admin/ledger/entries/77/edit?return_url=%2Fadmin%2Fledger%3Flisting%3D1"',
-    );
-    assertStringIncludes(html, formatCurrency(5000));
+      formatCurrency(5000),
+    ]);
   });
 
   test("does not link manual-entry amounts without a return URL", () => {

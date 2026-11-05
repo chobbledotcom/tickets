@@ -1,5 +1,5 @@
 import { Given, Then, When } from "@cucumber/cucumber";
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getNotesFor } from "#db/notes/queries.ts";
@@ -16,6 +16,7 @@ import {
   type TicketsWorld,
   theListing,
 } from "#test/specs/support/world.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
@@ -188,12 +189,11 @@ Then(
     );
     expect(notes).toHaveLength(1);
     const note = notes[0]!.note;
-    assertStringIncludes(
-      note,
+    expectIncludesAll(note, [
       "the provider reported the payment in a form the site could not read",
-    );
-    assertStringIncludes(note, "Refund code: malformed_charge");
-    assertStringIncludes(note, `/admin/ledger/attendee/${attendeeId}`);
+      "Refund code: malformed_charge",
+      `/admin/ledger/attendee/${attendeeId}`,
+    ]);
     assert(!note.includes(UNREADABLE.paymentIntent));
   },
 );

@@ -5,6 +5,7 @@ import { setGroupPackageMembers } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { clearSessionTokens, reserveSession } from "#db/processed-payments.ts";
 import { handlePaymentSuccess } from "#routes/api/payment-success.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
 import {
@@ -57,9 +58,11 @@ describeWithEnv("the paid success redirect", { db: true }, () => {
 
     expect(response.status).toBe(200);
     const page = await response.text();
-    assertStringIncludes(page, 'data-payment-result="success"');
-    assertStringIncludes(page, "https://example.com/parent-thanks");
-    assertStringIncludes(page, 'href="/t/');
+    expectIncludesAll(page, [
+      'data-payment-result="success"',
+      "https://example.com/parent-thanks",
+      'href="/t/',
+    ]);
   });
 
   test("replays an already-processed checkout from the listing's thank-you URL", async () => {
@@ -78,8 +81,10 @@ describeWithEnv("the paid success redirect", { db: true }, () => {
 
     expect(replay.status).toBe(200);
     const page = await replay.text();
-    assertStringIncludes(page, 'data-payment-result="success"');
-    assertStringIncludes(page, "url=https://example.com/listing-thanks");
+    expectIncludesAll(page, [
+      'data-payment-result="success"',
+      "url=https://example.com/listing-thanks",
+    ]);
   });
 
   test("keeps the intent's thank-you URL when a single-listing replay recomputes", async () => {

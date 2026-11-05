@@ -3,7 +3,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { MASK_SENTINEL } from "#db/settings/mask.ts";
 import { settings } from "#db/settings.ts";
-import { expectFlash, testRequiresAuth } from "#test-utils/assertions.ts";
+import {
+  expectFlash,
+  expectIncludesAll,
+  testRequiresAuth,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
@@ -121,10 +125,12 @@ describeWithEnv("server (admin settings: address lookup)", { db: true }, () => {
     test("shows the address lookup section with the provider picklist", async () => {
       const response = await adminGet("/admin/settings-advanced");
       const html = await response.text();
-      assertStringIncludes(html, "settings-address-lookup");
-      assertStringIncludes(html, 'name="address_lookup_provider"');
-      assertStringIncludes(html, ">EasyPostcodes</option>");
-      assertStringIncludes(html, 'name="address_lookup_api_key"');
+      expectIncludesAll(html, [
+        "settings-address-lookup",
+        'name="address_lookup_provider"',
+        ">EasyPostcodes</option>",
+        'name="address_lookup_api_key"',
+      ]);
       assert(!html.includes(MASK_SENTINEL));
     });
 

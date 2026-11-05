@@ -11,6 +11,7 @@ import {
   expectDatabaseResetRedirect,
   expectFlash,
   expectHtmlResponse,
+  expectIncludesAll,
   redirectFormId,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
@@ -182,11 +183,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     test("advanced settings page shows reset database section", async () => {
       const response = await adminGet("/admin/settings-advanced");
       const html = await expectHtmlResponse(response, 200, "Reset Database");
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
         "The site will be fully reset and all data will be lost.",
-      );
-      assertStringIncludes(html, "confirm_phrase");
+        "confirm_phrase",
+      ]);
     });
   });
 

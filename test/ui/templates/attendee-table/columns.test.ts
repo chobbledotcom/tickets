@@ -1,6 +1,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testAttendee } from "#test-utils/factories.ts";
 import {
   ALLOWED_DOMAIN,
@@ -15,14 +16,12 @@ attendeeTableSuite(() => {
   describe("always-visible columns", () => {
     test("renders check-in button column", () => {
       const html = render(makeOpts());
-      assertStringIncludes(html, "Check in");
-      assertStringIncludes(html, "/checkin");
+      expectIncludesAll(html, ["Check in", "/checkin"]);
     });
 
     test("renders Name column", () => {
       const html = render(makeOpts());
-      assertStringIncludes(html, "<th>Name</th>");
-      assertStringIncludes(html, "John Doe");
+      expectIncludesAll(html, ["<th>Name</th>", "John Doe"]);
     });
 
     test("links Name to the edit attendee page", () => {
@@ -43,8 +42,7 @@ attendeeTableSuite(() => {
       const staff = render(
         makeOpts({ rows: [makeRow({ attendee: flagged })] }),
       );
-      assertStringIncludes(staff, "Email not sent");
-      assertStringIncludes(staff, "Webhooks not sent");
+      expectIncludesAll(staff, ["Email not sent", "Webhooks not sent"]);
       const scanner = render(
         makeOpts({
           adminLinks: false,
@@ -64,11 +62,10 @@ attendeeTableSuite(() => {
 
     test("renders Ticket column with link", () => {
       const html = render(makeOpts());
-      assertStringIncludes(html, "<th>Ticket</th>");
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        "<th>Ticket</th>",
         `<a href="https://${ALLOWED_DOMAIN}/t/test-token-1">test-token-1</a>`,
-      );
+      ]);
     });
 
     test("renders Registered column", () => {
@@ -130,8 +127,10 @@ attendeeTableSuite(() => {
           showListing: true,
         }),
       );
-      assertStringIncludes(html, "<th>Listings</th>");
-      assertStringIncludes(html, '<a href="/admin/listing/42">Test Gala</a>');
+      expectIncludesAll(html, [
+        "<th>Listings</th>",
+        '<a href="/admin/listing/42">Test Gala</a>',
+      ]);
     });
 
     const groupedRowHtml = (): string =>
@@ -204,8 +203,7 @@ attendeeTableSuite(() => {
       test(`shows ${heading} when a value is present`, () => {
         const attendee = testAttendee({ [field]: value });
         const html = render(makeOpts({ rows: [makeRow({ attendee })] }));
-        assertStringIncludes(html, `<th>${heading}</th>`);
-        assertStringIncludes(html, value);
+        expectIncludesAll(html, [`<th>${heading}</th>`, value]);
       });
     }
 
@@ -225,8 +223,10 @@ attendeeTableSuite(() => {
       const html = render(
         makeOpts({ phonePrefix: "44", rows: [makeRow({ attendee })] }),
       );
-      assertStringIncludes(html, 'href="tel:+447700900000"');
-      assertStringIncludes(html, ">07700 900000</a>");
+      expectIncludesAll(html, [
+        'href="tel:+447700900000"',
+        ">07700 900000</a>",
+      ]);
     });
 
     test("uses the supplied phone prefix", () => {
@@ -258,9 +258,11 @@ attendeeTableSuite(() => {
     ] as const) {
       test(`renders a blank ${heading} cell beside a filled one`, () => {
         const html = render(makeOpts({ rows: mixedRows(field) }));
-        assertStringIncludes(html, `<th>${heading}</th>`);
-        assertStringIncludes(html, "Filled in");
-        assertStringIncludes(html, "<td></td>");
+        expectIncludesAll(html, [
+          `<th>${heading}</th>`,
+          "Filled in",
+          "<td></td>",
+        ]);
       });
     }
 

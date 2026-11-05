@@ -6,6 +6,7 @@ import {
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
+  expectIncludesAll,
   expectRedirect,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
@@ -111,8 +112,7 @@ describeWithEnv(
         });
         expect(response.status).toBe(200);
         const html = await response.text();
-        assertStringIncludes(html, "Name is required");
-        assertStringIncludes(html, returnUrl);
+        expectIncludesAll(html, ["Name is required", returnUrl]);
       });
 
       test("rejects whitespace-only name", async () => {
@@ -146,11 +146,13 @@ describeWithEnv(
         );
         expect(editResponse.status).toBe(200);
         const html = await editResponse.text();
-        assertStringIncludes(html, "Jane Doe");
-        assertStringIncludes(html, "jane@example.com");
-        assertStringIncludes(html, "555-9999");
-        assertStringIncludes(html, "456 Oak Ave");
-        assertStringIncludes(html, "Wheelchair access");
+        expectIncludesAll(html, [
+          "Jane Doe",
+          "jane@example.com",
+          "555-9999",
+          "456 Oak Ave",
+          "Wheelchair access",
+        ]);
       });
 
       test("editing an unrelated field keeps every path of a dual-path booking", async () => {
