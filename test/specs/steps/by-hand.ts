@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -19,8 +17,6 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
 
 /** The list the organiser downloaded, as the file's own text. */
 const downloadedList = (world: TicketsWorld): string =>

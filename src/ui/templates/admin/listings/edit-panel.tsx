@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import { map } from "#fp";
 import { t } from "#i18n";
 import { adminPath } from "#shared/admin-surface.ts";
@@ -32,8 +31,6 @@ import {
 } from "./form-sections.tsx";
 import { listingFormClassAttr, listingToFieldValues } from "./form-values.tsx";
 import type { ChildCandidate, ListingEditPanelOptions } from "./types.ts";
-
-/* jscpd:ignore-end */
 
 const listingRunningTotalsConfig = (
   listing: ListingWithCount,

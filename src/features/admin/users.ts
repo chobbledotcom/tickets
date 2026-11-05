@@ -1,5 +1,3 @@
-/* jscpd:ignore-start */
-
 import { fieldById } from "#fp";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
@@ -69,8 +67,6 @@ import {
 } from "#templates/fields/admin.ts";
 import type { LogisticsAgent, User } from "#types";
 import { confirmDeleteWithLog } from "./logged-actions.ts";
-
-/* jscpd:ignore-end */
 
 /** Invite link expiry: 7 days */
 const INVITE_EXPIRY_MS = 7 * DAY_MS;

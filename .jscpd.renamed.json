@@ -19,7 +19,7 @@
     "tsx",
     "javascript"
   ],
-  "absolute": false,
+  "absolute": true,
   "minLines": 1,
   "minTokens": 20,
   "similarity": 0.99,
@@ -27,5 +27,9 @@
     "src",
     "e2e-payments",
     "scripts"
+  ],
+  "ignorePattern": [
+    "(?m)^import\\s[^;]*;",
+    "(?m)^export\\s+(type\\s+)?(\\*|\\{[^}]*\\})(\\s+as\\s+\\w+)?\\s+from\\s[^;]*;"
   ]
 }

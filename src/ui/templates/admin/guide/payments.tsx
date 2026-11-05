@@ -3,7 +3,6 @@
  */
 
 import { t } from "#i18n";
-/* jscpd:ignore-start -- imports */
 import { formatCurrency } from "#shared/currency.ts";
 import { durationWords } from "#shared/format-units.ts";
 import { CHECKOUT_WINDOW_MINUTES } from "#shared/limits.ts";
@@ -12,7 +11,6 @@ import {
   faq,
   type GuideSection,
 } from "#templates/admin/guide/components.tsx";
-/* jscpd:ignore-end */
 import { MAX_DURATION_DAYS } from "#types";
 
 export const paymentsSections = (): GuideSection[] => [

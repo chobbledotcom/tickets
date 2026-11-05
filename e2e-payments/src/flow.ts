@@ -8,7 +8,6 @@
  * listing name) is passed in by the caller rather than shared globally.
  */
 
-/* jscpd:ignore-start */
 import type { Locator } from "playwright";
 import { type BrowserSession, hrefOf, requirePageText } from "./browser.ts";
 import { catalogWords } from "./catalog-words.ts";
@@ -20,8 +19,6 @@ import {
 import { incomeLedgerText, totalIncomeEarnedMinor } from "./income-ledger.ts";
 import { log, step } from "./log.ts";
 import { pollUntil } from "./util.ts";
-
-/* jscpd:ignore-end */
 
 const LOGIN_FIELDS_SELECTOR = '[name="username"], [name="password"]';
 

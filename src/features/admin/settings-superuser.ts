@@ -9,7 +9,6 @@ import { unwrapSessionDataKey } from "#crypto/keys.ts";
 import { logActivity } from "#db/activity-log.ts";
 import { settings } from "#db/settings.ts";
 import { deleteUser } from "#db/users.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import {
   type ErrorPageFn,
@@ -25,8 +24,6 @@ import {
   getSuperuserState,
   sendSuperuserCredentialsEmail,
 } from "#shared/superuser.ts";
-
-/* jscpd:ignore-end */
 
 /** Roll back a created superuser after email failure and return error page */
 const rollbackSuperuser = async (

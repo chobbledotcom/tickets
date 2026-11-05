@@ -3,13 +3,11 @@
  * payment e2e sources, and reports what the pure rules in `rules.ts` flag.
  */
 
-/* jscpd:ignore-start */
 import * as v from "valibot";
 import { type CheckOutput, reportCheck } from "#scripts/check-report.ts";
 import { readJsonOrNull } from "#scripts/read-json.ts";
 import { collectFiles, collectSourceFiles } from "#scripts/walk-files.ts";
 import { type CatalogCopy, findLabelIssues } from "./rules.ts";
-/* jscpd:ignore-end */
 
 /** Where the app's words live — the only source the e2e may quote. */
 export const CATALOG_DIR = "src/locales/en";

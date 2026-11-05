@@ -6,7 +6,6 @@
  * can hold each page region to its own copy of it.
  */
 
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { getNoteRows } from "#db/notes/queries.ts";
 import { emailFor } from "#test/specs/support/emails.ts";
@@ -21,8 +20,6 @@ import { makeImage } from "#test-utils/admin-images.ts";
 import { createAttendeeOn } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 /** The listing every note story books its person onto, so one note shows on
  * the person's page, the attendees list, and the listing's own panels. */

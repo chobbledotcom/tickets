@@ -4,7 +4,6 @@
  * is data, are in ./guide/components.tsx.
  */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { Child } from "#jsx/jsx-runtime.ts";
 import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
@@ -27,7 +26,6 @@ import { operationsSections } from "#templates/admin/guide/operations.tsx";
 import { paymentsSections } from "#templates/admin/guide/payments.tsx";
 import { ticketsSections } from "#templates/admin/guide/tickets.tsx";
 import type { AdminSession } from "#types";
-/* jscpd:ignore-end */
 
 /** The whole guide as one ordered list of sections. */
 export const guideSections = (hostConfig?: GuideHostConfig): GuideSection[] => [

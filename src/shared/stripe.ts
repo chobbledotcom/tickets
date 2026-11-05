@@ -1,5 +1,3 @@
-/* jscpd:ignore-start */
-
 import { settings } from "#db/settings.ts";
 import { checkoutMetadata } from "#payment/checkout-session.ts";
 import type { Money } from "#payment/money.ts";
@@ -50,8 +48,6 @@ import type {
   StripeExpandedPaymentIntent,
   StripeRefund,
 } from "#shared/stripe/schemas.ts";
-
-/* jscpd:ignore-end */
 
 export const isoFromUnixSeconds = (seconds: unknown): string | undefined =>
   typeof seconds === "number"

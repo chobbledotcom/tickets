@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -20,8 +19,6 @@ import { makeParent } from "#test-utils/parents.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks/stripe.ts";
-
-// jscpd:ignore-end
 
 /** A signed, paid "John" checkout for a single listing — the shared
  *  {@link johnCheckoutSession} pinned to this suite's fixed `pi_test_123`

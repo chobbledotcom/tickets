@@ -7,7 +7,6 @@
  */
 
 import type { ContactRecord } from "#db/contact-preferences.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
@@ -19,8 +18,6 @@ import { SubmitButton } from "#templates/components/actions.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
 import { TextField } from "#templates/components/text-field.tsx";
-
-/* jscpd:ignore-end */
 
 /** A labelled non-negative integer field for one of the plaintext counters. */
 const CountField = ({

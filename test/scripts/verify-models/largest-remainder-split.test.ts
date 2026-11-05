@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { sum } from "#fp";
@@ -11,8 +10,6 @@ import {
 import { largestRemainderAllocation } from "#shared/largest-remainder.ts";
 import { records } from "#test-utils/tla-data.ts";
 import { registeredModel } from "./registered-model.ts";
-
-/* jscpd:ignore-end */
 
 const { data: largestRemainderSplitModelData, controls } = registeredModel(
   "LargestRemainderSplit",

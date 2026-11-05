@@ -12,7 +12,6 @@
  */
 
 import type { ActivityLogEntry } from "#db/activity-log.ts";
-/* jscpd:ignore-start */
 import { compact } from "#fp";
 import { t } from "#i18n";
 import type { Child } from "#jsx/jsx-runtime.ts";
@@ -29,7 +28,6 @@ import {
   PageRegions,
 } from "#templates/components/page-structure.tsx";
 import type { AdminSession } from "#types";
-/* jscpd:ignore-end */
 
 /** One row of a read-only summary table. `href` renders the value as a link
  * (`external` adds target=_blank); neither ⇒ plain content. Omit a row

@@ -12,7 +12,6 @@
  *   - `deleteServicingEvent` is the same row-vanishes check the attendee edit
  *     core runs; a concurrent delete must not re-insert a phantom row.
  */
-// jscpd:ignore-start
 import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -30,8 +29,6 @@ import {
   servicingRowsForListing,
   updateServicingEvent,
 } from "#test-utils/servicing.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "servicing edge cases — lifecycle & concurrency",

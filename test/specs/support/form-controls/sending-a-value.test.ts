@@ -4,7 +4,6 @@
  * can type into, and each carries its own limits.
  */
 
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -12,8 +11,6 @@ import {
   optionsOffered,
 } from "#test/specs/support/form-controls/reading.ts";
 import { whyValueCannotBeSent } from "#test/specs/support/form-controls/rules.ts";
-
-// jscpd:ignore-end
 
 describe("what a visitor can send", () => {
   const chooser = (options: string, attributes = 'name="date"') =>

@@ -3,7 +3,6 @@
  * planned listing, and the parent-edge rules each named parent must pass.
  */
 
-/* jscpd:ignore-start -- imports */
 import { getListingsByGroupIds } from "#db/groups.ts";
 import { requiredMapValue, unique } from "#fp";
 import { t } from "#i18n";
@@ -39,7 +38,6 @@ import {
 } from "./bundle-site.ts";
 import { applyImportPolicy, listingDataToInput } from "./import-listing.ts";
 import type { ListingBody } from "./schema.ts";
-/* jscpd:ignore-end */
 
 /** The plan for every listing item, with the listing validator the form and
  * the single import share. The group-sibling read is hoisted out of the loop,

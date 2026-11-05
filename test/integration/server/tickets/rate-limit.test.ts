@@ -9,7 +9,6 @@
  * show.
  */
 
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { clearTokenAttempts } from "#db/token-attempts.ts";
@@ -17,8 +16,6 @@ import { MAX_TOKEN_404S } from "#shared/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
-
-// jscpd:ignore-end
 
 /** Ask for `count` distinct made-up codes, each labelled so no two repeat, and
  * insist every one is a plain miss rather than a lockout. */

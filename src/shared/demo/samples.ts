@@ -20,6 +20,7 @@ import {
 export const randomChoice = <T>(arr: readonly T[]): T =>
   arr[Math.floor(Math.random() * arr.length)]!;
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** Demo attendee names (full names for demo mode overrides) */
 export const DEMO_NAMES = [
   "Alice Johnson",
@@ -73,7 +74,9 @@ export const DEMO_NAMES = [
   "Yuki Nakamura",
   "Amara Osei",
 ] as const;
+/* jscpd:ignore-end */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** Demo servicing-event names (a reason/job for a capacity hold, not a person) */
 export const DEMO_SERVICING_NAMES = [
   "Boiler Service",
@@ -127,7 +130,9 @@ export const DEMO_SERVICING_NAMES = [
   "Insurance Inspection",
   "Stage Lighting Focus",
 ] as const;
+/* jscpd:ignore-end */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** Demo email addresses */
 export const DEMO_EMAILS = [
   "alice@example.com",
@@ -181,7 +186,9 @@ export const DEMO_EMAILS = [
   "yuki@example.com",
   "amara@example.com",
 ] as const;
+/* jscpd:ignore-end */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** Demo phone numbers (UK format) */
 export const DEMO_PHONES = [
   "+44 7700 900001",
@@ -215,7 +222,9 @@ export const DEMO_PHONES = [
   "+44 7700 900029",
   "+44 7700 900030",
 ] as const;
+/* jscpd:ignore-end */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** Demo addresses */
 export const DEMO_ADDRESSES = [
   "1 High Street, London, SW1A 1AA",
@@ -234,7 +243,9 @@ export const DEMO_ADDRESSES = [
   "14 Meadow Way, Canterbury, CT1 1AA",
   "15 Harbour View, Brighton, BN1 1AA",
 ] as const;
+/* jscpd:ignore-end */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** Demo special instructions */
 export const DEMO_SPECIAL_INSTRUCTIONS = [
   "No special requirements",
@@ -253,6 +264,7 @@ export const DEMO_SPECIAL_INSTRUCTIONS = [
   "BSL interpreter needed",
   "Bringing own mobility scooter",
 ] as const;
+/* jscpd:ignore-end */
 
 /**
  * Demo listing names — pretend rock/heavy-metal band listings.

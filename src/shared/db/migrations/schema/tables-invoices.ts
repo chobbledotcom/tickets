@@ -1,12 +1,9 @@
 /** The invoice table: one frozen rendered invoice per row. */
 
-/* jscpd:ignore-start */
 import { INVOICE_STATUSES } from "#shared/invoices/status.ts";
 import { attendeeIdColumn } from "./columns.ts";
 import { checked, defaulted, oneOf, rowId, text } from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
-
-/* jscpd:ignore-end */
 
 export const invoiceTables: [name: string, table: Table][] = [
   [

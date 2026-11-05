@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import * as v from "valibot";
 import { requireValue } from "#shared/required-value.ts";
 import { okResult, type Result } from "#shared/result.ts";
@@ -16,8 +15,6 @@ import {
   formatBundleIssues,
   formatTransferIssues,
 } from "./schema.ts";
-
-/* jscpd:ignore-end */
 
 /** The entity kind a single-item import answers with, or undefined for a
  *  bundle document. */

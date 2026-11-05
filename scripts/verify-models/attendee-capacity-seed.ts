@@ -3,7 +3,6 @@
  *  Every production statement the fact generator runs lands on this copy, so
  *  a fact is the real write's outcome and never a stored copy of a verdict. */
 
-/* jscpd:ignore-start -- imports */
 import type { Client } from "@libsql/client";
 import type {
   DesiredListingLine,
@@ -12,7 +11,6 @@ import type {
 import { lineKeyFromBooking } from "#db/attendees/atomic-update.ts";
 import { TRIGGERS } from "#db/migrations/schema/triggers.ts";
 import { schemaClientWith } from "#scripts/verify-models/schema-client.ts";
-/* jscpd:ignore-end */
 
 /** The two representative slots and their fixed listing ids. */
 export const SLOT_IDS = { one: 1, two: 2 } as const;

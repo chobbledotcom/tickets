@@ -1,5 +1,3 @@
-/* jscpd:ignore-start */
-
 import { bookingEventGroup } from "#accounting/mappers.ts";
 import {
   accountBalanceSubquery,
@@ -31,8 +29,6 @@ import type {
 } from "#routes/api/payment-processing/snapshot/types.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import type { GroupListing, ListingWithCount } from "#types";
-
-/* jscpd:ignore-end */
 
 const selectIn = (column: string, values: readonly unknown[]): string =>
   values.length === 0 ? "0" : `${column} IN (${inPlaceholders(values)})`;

@@ -14,14 +14,12 @@ import { refundWithOneReread } from "#payment/refund-attempt.ts";
 import { requireProviderRefundAuthorization } from "#payment/refund-provider-authorization.ts";
 import { type ChargeMoney, chargeMoneyRead } from "#payment/resources.ts";
 import { validatedPaymentSession } from "#payment/validated-session.ts";
-/* jscpd:ignore-start -- imports */
 import { logDebug } from "#shared/logger.ts";
 import {
   extractSessionMetadata,
   hasRequiredSessionMetadata,
   toCanonicalIso,
 } from "#shared/payment-helpers.ts";
-/* jscpd:ignore-end */
 import { parsePriceProof } from "#shared/payment-signature.ts";
 import type {
   PaymentProvider,

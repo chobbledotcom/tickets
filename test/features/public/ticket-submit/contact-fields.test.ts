@@ -4,15 +4,12 @@
  * carries.
  */
 
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { validateTicketFields } from "#routes/public/ticket-submit/parse.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { quantityForm, ticketContext } from "#test-utils/ticket-ctx.ts";
-
-/* jscpd:ignore-end */
 
 describeWithEnv("ticket-submit parse", { db: true }, () => {
   describe("validateTicketFields", () => {

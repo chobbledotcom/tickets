@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -6,8 +5,6 @@ import {
   csvDateColumn,
   csvEvidencePage,
 } from "#test/specs/support/evidence.ts";
-
-// jscpd:ignore-end
 
 const previewHtml = (path: string): string =>
   decodeURIComponent(path.slice("data:text/html,".length));

@@ -1,6 +1,5 @@
 /** Admin invoice routes: list, create, view, cancel, and delete. */
 
-/* jscpd:ignore-start */
 import { decryptWithOwnerKey } from "#crypto/hybrid.ts";
 import {
   getAttendeeBalanceState,
@@ -72,8 +71,6 @@ import {
 } from "#templates/admin/invoices.tsx";
 import { getInvoiceForm } from "#templates/fields/invoice.ts";
 import { INVOICE_BODY_TEMPLATE } from "#templates/invoice/defaults.ts";
-
-/* jscpd:ignore-end */
 
 /** Send one invoice email, returning false when no provider is configured or
  *  the provider refused it. The invoice itself is already stored. */

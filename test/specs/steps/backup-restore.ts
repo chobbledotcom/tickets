@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -20,8 +18,6 @@ import { setupTestStorage, teardownTestStorage } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { invalidateAllCaches, setupAndLogin } from "#test-utils/e2e.ts";
-
-// jscpd:ignore-end
 
 const LISTING = "Summer Concert";
 const CUSTOMER = "Jane Doe";

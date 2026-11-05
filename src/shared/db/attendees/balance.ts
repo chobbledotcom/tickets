@@ -8,7 +8,6 @@
  * balance is cleared is a no-op.
  */
 
-/* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import { attendeeAccount, WORLD } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
@@ -37,7 +36,6 @@ import { markOpenInvoicesPaidStatement } from "#db/invoices.ts";
 import { compact, mapParallel, sumOf } from "#fp";
 import { formatCurrency } from "#shared/currency.ts";
 import { nowIso } from "#shared/now.ts";
-/* jscpd:ignore-end */
 
 /**
  * The event group a balance settlement's payment leg posts under, keyed on the

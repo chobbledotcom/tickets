@@ -14,7 +14,6 @@ import { logisticsAgents } from "#db/logistics-agents.ts";
 import type { SelectedQuestionAnswers } from "#db/question-types.ts";
 import { parseQuestionAnswers } from "#db/questions/parsing.ts";
 import { settings } from "#db/settings.ts";
-/* jscpd:ignore-start */
 import { identity, mapById } from "#fp";
 import { t } from "#i18n";
 import {
@@ -65,7 +64,6 @@ import {
   attendeeFormPage,
 } from "#templates/admin/attendee-form.tsx";
 import type { Attendee, ListingWithCount } from "#types";
-/* jscpd:ignore-end */
 
 /** Handle GET /admin/attendees/new — render the create form, pre-filled from a
  * calendar deep link when present. */

@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -17,8 +15,6 @@ import {
   refundObservation,
   refundResource,
 } from "#test-utils/payment-state.ts";
-
-// jscpd:ignore-end
 
 Given(
   "Stripe says a failed refund returned {float} to {word}",

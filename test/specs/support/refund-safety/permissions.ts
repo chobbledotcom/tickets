@@ -1,6 +1,5 @@
 /** Browser journeys that prove manager accounts cannot use owner money forms. */
 
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { handleRequest } from "#routes";
 import { sessionCookie } from "#test/specs/support/evidence.ts";
@@ -21,8 +20,6 @@ import {
   type SavedOwnerFormKind,
   safetyBooking,
 } from "./state.ts";
-
-// jscpd:ignore-end
 
 type ActOnSavedOwnerForm = (
   world: TicketsWorld,

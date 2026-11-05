@@ -1,10 +1,8 @@
 /** Site builder form fields. */
 
-/* jscpd:ignore-start -- imports */
 import { t } from "#i18n";
 import { defineForm } from "#shared/forms/definition.ts";
 import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
-/* jscpd:ignore-end */
 import {
   builtSiteBox,
   denoDeployOption,

@@ -7,7 +7,6 @@
  * public effect of a hold is reduced availability. The row is also hidden by
  * construction (kind='servicing' owns that state; the form cannot toggle it).
  */
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -27,8 +26,6 @@ import {
 } from "#test-utils/mocks.ts";
 import { createServicingHold, kindOf } from "#test-utils/servicing.ts";
 import { enablePublicSite, setupStripe } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 const HOLD_NAME = "Boiler Service";
 

@@ -22,7 +22,6 @@ import {
   isBookedLine,
   isNoQuantityLine,
 } from "#routes/admin/attendee-form-model.ts";
-/* jscpd:ignore-start */
 import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
 import { withEntityLoader } from "#routes/admin/entity-handlers.ts";
 import type { AuthSession } from "#routes/auth.ts";
@@ -43,7 +42,6 @@ import { parseListingFields } from "#shared/listing-fields.ts";
 import type { ParamsRoute, ResponseHandler } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { AdminSession, Attendee, ListingWithCount } from "#types";
-/* jscpd:ignore-end */
 
 /**
  * True when any no-quantity line satisfies a check, judged from the live DB (not

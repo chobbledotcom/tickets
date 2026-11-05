@@ -8,7 +8,6 @@
  * and the blind index that makes a token findable without decrypting it.
  */
 
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -22,8 +21,6 @@ import {
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
   describe("a code the site cannot resolve", () => {

@@ -2,7 +2,6 @@
  * what the answer proved. The queue's own moves live beside the database
  * module; this file owns the run's orchestration around them. */
 
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -19,8 +18,6 @@ import {
   theAnswer,
 } from "#test/shared/square/link-end-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-
-/* jscpd:ignore-end */
 
 describeWithEnv("square link expiry run", { db: true }, () => {
   test("a run ends due links by what Square answered", async () => {

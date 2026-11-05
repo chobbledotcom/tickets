@@ -9,7 +9,6 @@
  * migration made `attendees.kind` a real NOT NULL invariant, so such a row can
  * no longer be inserted and the recompute no longer needs to defend against it.)
  */
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -28,8 +27,6 @@ import {
   createServicingHold,
   updateServicingEvent,
 } from "#test-utils/servicing.ts";
-
-// jscpd:ignore-end
 
 const reloadAggregates = async (listingId: number) => {
   invalidateListingsCache();

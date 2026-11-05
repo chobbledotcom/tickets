@@ -2,7 +2,6 @@
  * Host Subdomain form for advanced settings
  */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { SafeHtml } from "#jsx/jsx-runtime.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
@@ -13,8 +12,6 @@ import { SubmitButton } from "#templates/components/actions.tsx";
 import { CheckboxLabel } from "#templates/components/aggregate-sections.tsx";
 import { ProseIntro } from "#templates/components/prose-heading.tsx";
 import { SUBDOMAIN_INPUT_PATTERN } from "#templates/fields/ticket.ts";
-
-/* jscpd:ignore-end */
 
 const SubdomainIntroProse = (): SafeHtml =>
   ProseIntro({ html: t("settings.subdomain.intro") });

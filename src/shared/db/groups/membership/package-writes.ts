@@ -1,7 +1,6 @@
 /** The package half of a group write: every path that packages a group, sets
  *  its members, or assigns listings to it. Each path rechecks
  *  transaction-fresh state through the guards and fences here. */
-/* jscpd:ignore-start -- imports */
 
 import {
   inPlaceholders,
@@ -36,8 +35,6 @@ import { byId, compact, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import { groupLeavingOrphanedAddOnError } from "#shared/add-on-reachability.ts";
 import type { PackageMemberInput } from "#shared/catalog-fields/fields.ts";
-
-/* jscpd:ignore-end */
 
 /** Rechecks every member after a group becomes a package or hides its members.
  *  A built-site plan can be no group's final member — ordinary or package —

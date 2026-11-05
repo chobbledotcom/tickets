@@ -7,12 +7,9 @@
  * back.
  */
 
-/* jscpd:ignore-start -- imports */
 import { settings } from "#db/settings.ts";
 import { settingsHandler } from "#routes/admin/settings-helpers.ts";
 import { validateEditableTemplate } from "#shared/editable-template.ts";
-
-/* jscpd:ignore-end */
 
 type RunSheetTemplates = {
   body: string;

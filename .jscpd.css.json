@@ -12,7 +12,7 @@
   "format": [
     "scss"
   ],
-  "absolute": false,
+  "absolute": true,
   "gitignore": true,
   "exitCode": 1,
   "minLines": 1,

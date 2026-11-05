@@ -4,7 +4,6 @@
  * openers in admin-page.tsx rewire to this module layer by layer.
  */
 
-/* jscpd:ignore-start */
 import type { Child } from "#jsx/jsx-runtime.ts";
 import type { FlashFields } from "#shared/flash-fields.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
@@ -25,7 +24,6 @@ import {
 } from "#templates/components/table.tsx";
 import { Layout } from "#templates/layout.tsx";
 import type { AdminSession, Theme } from "#types";
-/* jscpd:ignore-end */
 
 export type AdminPageProps = {
   title: string;

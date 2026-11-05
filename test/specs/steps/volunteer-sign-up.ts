@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { questionsTable } from "#db/questions/tables.ts";
@@ -16,8 +14,6 @@ import {
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { enableFeature } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 const GROUP_NAME = "Oakfield Primary Summer Fair volunteers";
 const SETUP_SHIFT = "Set-up shift | 08:00-10:00 | 8 places";

@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -31,8 +30,6 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import { expectTemporaryError } from "#test-utils/temporary-error.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("route responses", { db: true }, () => {
   describe("encoded responses", () => {

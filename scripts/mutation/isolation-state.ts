@@ -32,6 +32,7 @@ export const MUTATION_SUPERVISOR_PID_ENV = "TICKETS_MUTATION_SUPERVISOR_PID";
 export const MUTATION_RUN_ROOT_ENV = "TICKETS_MUTATION_RUN_ROOT";
 export const MUTATION_WORK_ROOT_ENV = "TICKETS_MUTATION_WORK_ROOT";
 
+/* jscpd:ignore-start -- a list of strings, not code */
 const SKIPPED_TOP_LEVEL_NAMES = new Set([
   ".agents",
   ".claude",
@@ -58,6 +59,7 @@ const SKIPPED_TOP_LEVEL_NAMES = new Set([
   "undefined",
   "null",
 ]);
+/* jscpd:ignore-end */
 
 const SKIPPED_TOP_LEVEL_PREFIXES = ["coverage", ".jscpd", "docs-output"];
 

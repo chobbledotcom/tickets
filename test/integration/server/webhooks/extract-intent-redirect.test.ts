@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -15,8 +14,6 @@ import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubCheckoutSession } from "#test-utils/stripe/responses.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks/stripe.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "server webhooks > extractIntent + redirect/renewal",

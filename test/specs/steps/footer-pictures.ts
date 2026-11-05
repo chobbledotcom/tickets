@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Then } from "@cucumber/cucumber";
 import { assertStringIncludes } from "@std/assert";
 import { t } from "#i18n";
@@ -24,8 +22,6 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
 
 Then(
   "a visitor on the list sees the {word} and the picture in the footer",

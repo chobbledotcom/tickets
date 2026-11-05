@@ -1,11 +1,9 @@
-/* jscpd:ignore-start */
 import { COST, REVENUE, WRITEOFF_TYPE } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import {
   MANUAL_LISTING_COST,
   MANUAL_LISTING_INCOME,
 } from "#accounting/manual-entries.ts";
-/* jscpd:ignore-end */
 import { type LedgerRange, occurredAtRange } from "#accounting/range.ts";
 import { requireOne } from "#db/client.ts";
 import { clauseArgs, whereSql } from "#db/where-clauses.ts";

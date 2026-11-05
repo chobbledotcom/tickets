@@ -1,5 +1,3 @@
-/* jscpd:ignore-start */
-
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
@@ -24,8 +22,6 @@ import {
   renderDayPricesFieldset,
   showUseDefaultsToggle,
 } from "./form-values.tsx";
-
-/* jscpd:ignore-end */
 
 type ListingFieldsOptions = { includeSlug?: boolean; nameAutofocus?: boolean };
 

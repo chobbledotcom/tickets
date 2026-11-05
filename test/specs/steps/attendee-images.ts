@@ -1,16 +1,8 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
-import { t } from "#i18n";
-import { openAdminPage, scenarioBrowser } from "#test/specs/support/browser.ts";
-import { listingIdNamed } from "#test/specs/support/listings.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
-
 import { setListingGroups } from "#db/groups.ts";
+import { t } from "#i18n";
 import {
   BANNER_BLOCK,
   NOTES_BLOCK,
@@ -22,7 +14,10 @@ import {
   regionFrom,
   regionShowsPicture,
 } from "#test/specs/support/attendee-images.ts";
+import { openAdminPage, scenarioBrowser } from "#test/specs/support/browser.ts";
 import { findOrCreateGroup, groupNamed } from "#test/specs/support/groups.ts";
+import { listingIdNamed } from "#test/specs/support/listings.ts";
+import type { TicketsWorld } from "#test/specs/support/world.ts";
 
 /** The group the Attendees-page steps filter by. Every scenario starts from
  * an empty database, so one fixed name carries nothing over. */

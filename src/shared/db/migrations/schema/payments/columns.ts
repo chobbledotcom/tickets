@@ -9,7 +9,6 @@
  * see: a type says `string` while the value is bytes.
  */
 
-/* jscpd:ignore-start -- imports */
 import {
   checked,
   rowId,
@@ -17,8 +16,6 @@ import {
   wholeNumber,
 } from "#db/migrations/schema/scalar-columns.ts";
 import type { Column, Table } from "#db/migrations/schema/types.ts";
-
-/* jscpd:ignore-end */
 
 /**
  * A value counts as hidden only if it is really text, says how it was hidden,

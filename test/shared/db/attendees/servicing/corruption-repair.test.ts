@@ -9,7 +9,6 @@
  * … raise it as an error" — these tests pin that a corrupted row is excluded
  * from every surface, never silently accepted.
  */
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -26,8 +25,6 @@ import {
   renderAdminPage,
   servicingRowsForListing,
 } from "#test-utils/servicing.ts";
-
-// jscpd:ignore-end
 
 /**
  * Insert an attendee row with an arbitrary `kind` and a booking on `listingId`,

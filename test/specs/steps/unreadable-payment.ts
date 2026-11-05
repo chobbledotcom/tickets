@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -28,8 +26,6 @@ import {
   checkoutSessionEvent,
   findKeptPlaceholder,
 } from "#test-utils/webhooks.ts";
-
-// jscpd:ignore-end
 
 const UNREADABLE = {
   eventId: "evt_spec_unreadable",

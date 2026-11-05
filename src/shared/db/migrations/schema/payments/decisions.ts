@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import {
   aboutTheRow,
   checked,
@@ -11,7 +10,6 @@ import {
 } from "#db/migrations/schema/scalar-columns.ts";
 import type { Table } from "#db/migrations/schema/types.ts";
 import { ownerEncryptedColumn, ownerEncryptedRuleOrNull } from "./columns.ts";
-/* jscpd:ignore-end */
 
 /** What a decision can never be, whatever else is true of it. */
 export const paymentCaseDecisionTable: [name: string, table: Table] = [

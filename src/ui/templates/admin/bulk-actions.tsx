@@ -9,7 +9,6 @@
  */
 
 import { settings } from "#db/settings.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import {
   buildDuplicatePreview,
@@ -32,8 +31,6 @@ import { TextField } from "#templates/components/text-field.tsx";
 import { TextFields } from "#templates/components/text-fields.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import type { AdminSession, Group, ListingWithCount } from "#types";
-
-/* jscpd:ignore-end */
 
 /** A group bulk-action page: rendered from the group, its listings, the
  * signed-in admin, and an optional error from a failed submit. */

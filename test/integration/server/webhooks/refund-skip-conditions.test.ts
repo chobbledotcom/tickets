@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -12,6 +11,7 @@ import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { logLogged, useErrorLogSpy } from "#test-utils/debug-log.ts";
 import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
@@ -22,10 +22,6 @@ import {
   expectWebhookIgnored,
   postWebhookAndAssert,
 } from "#test-utils/webhooks.ts";
-
-// jscpd:ignore-end
-
-import { logLogged, useErrorLogSpy } from "#test-utils/debug-log.ts";
 
 describeWithEnv(
   "server webhooks > refund skip conditions",

@@ -1,7 +1,5 @@
 /** An organiser fills the site with example data and looks around. */
 
-// jscpd:ignore-start
-
 import { Then, When } from "@cucumber/cucumber";
 import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { t } from "#i18n";
@@ -10,8 +8,6 @@ import { openAdminPage, scenarioBrowser } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { fieldValueOnPage, openAttendeeEditor } from "#test-utils/e2e.ts";
-
-// jscpd:ignore-end
 
 /** The first free example listing. Every second example listing is free, and
  * the free one lists its attendee with an ordinary Edit link — a paid example

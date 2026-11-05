@@ -1,11 +1,9 @@
-/* jscpd:ignore-start -- imports */
 import { type BuiltSite, DEFAULT_UPDATE_TIER } from "#db/built-sites/types.ts";
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import type { BuiltSitesSort } from "#shared/built-sites-list.ts";
 import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
-/* jscpd:ignore-end */
 import { booleanToCheckbox } from "#shared/forms/values.ts";
 import { visitSiteUrl } from "#shared/site-address.ts";
 import { editPanel, flashFormPage } from "#templates/admin/admin-page.tsx";

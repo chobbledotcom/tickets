@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -29,8 +27,6 @@ import {
   wordsOnlyOn,
 } from "#test/specs/support/site-pages.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
 
 Given(
   "the owner is writing the site's pages",

@@ -5,13 +5,10 @@
  */
 
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
-// jscpd:ignore-start
 import { rememberListing } from "#test/specs/support/listings.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import type { Attendee, Listing } from "#types";
-
-// jscpd:ignore-end
 
 /** The booking fixture's own listing shape, with the booking's size beside
  * it. */

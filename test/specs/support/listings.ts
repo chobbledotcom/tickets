@@ -7,7 +7,6 @@
  * quietly refused, fails the story rather than being stepped around.
  */
 
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { requireListingWithCount } from "#db/listings/records.ts";
@@ -31,7 +30,6 @@ import type { TestListingOverrides } from "#test-utils/factories.ts";
 import { enablePublicSite, setupStripe } from "#test-utils/settings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 import type { Listing } from "#types";
-// jscpd:ignore-end
 
 /** Keep a listing under the name the story calls it, so later steps can find
  * it however it was set up. */

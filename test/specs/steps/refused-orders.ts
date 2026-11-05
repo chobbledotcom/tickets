@@ -6,7 +6,6 @@
  */
 
 import { Given, Then, When } from "@cucumber/cucumber";
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { customPriceFieldName, quantityFieldName } from "#booking/tree.ts";
@@ -66,8 +65,6 @@ import {
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 Given(
   "the shop sells an Alpha and a Bravo, and a Charlie booked by the day with room for {int} a day",

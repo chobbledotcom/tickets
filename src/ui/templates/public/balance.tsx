@@ -6,10 +6,8 @@
 
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
-/* jscpd:ignore-start */
 import type { LineItem } from "#shared/line-item.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-/* jscpd:ignore-end */
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { messagePublicPage, prosePage } from "./prose-page.tsx";

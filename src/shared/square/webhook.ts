@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import { settings } from "#db/settings.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import {
@@ -8,8 +7,6 @@ import {
 } from "#shared/payment-crypto.ts";
 import type { WebhookVerifyResult } from "#shared/payments.ts";
 import { finishWebhookVerification } from "#shared/webhook-verification.ts";
-
-/* jscpd:ignore-end */
 
 const signedPayload = (
   notificationUrl: string,

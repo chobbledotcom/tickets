@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import type { InValue, Row } from "@libsql/client";
 import { decrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
@@ -10,7 +9,6 @@ import {
   resultRows,
 } from "#db/client.ts";
 import { mapParallel } from "#fp";
-/* jscpd:ignore-end */
 
 /**
  * Execute a SQL query and map result rows through an async transformer.

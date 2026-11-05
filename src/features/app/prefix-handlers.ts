@@ -4,8 +4,6 @@
  * that names a handler for each prefix is `prefixes.ts`.
  */
 
-/* jscpd:ignore-start -- imports */
-
 import { settings } from "#db/settings.ts";
 import { once } from "#fp";
 import { withMessageGroups } from "#i18n";
@@ -23,8 +21,6 @@ import type { PathMethodRoute } from "#routes/types.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { readOnlyPage } from "#templates/public/errors.tsx";
 import type { PrefixGate } from "./prefix-fold.ts";
-
-/* jscpd:ignore-end */
 
 /** Create a lazy-loaded route handler (prefix already matched by dispatch map). */
 const lazyRoute =

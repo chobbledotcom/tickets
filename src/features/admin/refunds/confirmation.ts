@@ -1,5 +1,3 @@
-/* jscpd:ignore-start -- imports */
-
 import { logActivity } from "#db/activity-log.ts";
 import { withTransaction } from "#db/client.ts";
 import { createSystemNote } from "#db/notes/queries.ts";
@@ -11,8 +9,6 @@ import { t } from "#i18n";
 import type { Attendee } from "#types";
 import type { HeldRefundClaim } from "./claim.ts";
 import type { ReadyRefundReference } from "./readiness.ts";
-
-/* jscpd:ignore-end */
 
 type ConfirmedReference = ReadyRefundReference["reference"];
 export type RefundConfirmation = "current" | "new";

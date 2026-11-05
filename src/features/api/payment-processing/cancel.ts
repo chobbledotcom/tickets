@@ -6,7 +6,6 @@
  * friendly page rather than a "contact support" error.
  */
 
-/* jscpd:ignore-start -- imports */
 import { bookedPathGroupIds, lineGroupIds } from "#booking/signed-metadata.ts";
 import { getGroupById, getPackageDisplaysByIds } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
@@ -23,8 +22,6 @@ import type { BookingIntent } from "#shared/booking-intent.ts";
 import { hasNamedBookingPath } from "#shared/package-privacy.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { paymentCancelPage } from "#templates/payment.tsx";
-
-/* jscpd:ignore-end */
 
 /** The retry link for a cancelled checkout. Returns null whenever the target
  * page no longer serves, so a "Try again" link never dead-ends. A listing can

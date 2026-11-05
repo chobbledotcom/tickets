@@ -9,7 +9,6 @@
  */
 
 import { logActivity } from "#db/activity-log.ts";
-/* jscpd:ignore-start -- imports */
 import {
   type PreparedRefundAuthority,
   prepareRefundAuthority,
@@ -23,7 +22,6 @@ import {
   taggedPaymentReference,
 } from "#payment/provider-reference.ts";
 import { refundCallbackReplayIndex } from "#payment/refund-request-identity.ts";
-/* jscpd:ignore-end */
 import {
   paidPaymentReferenceOf,
   type SessionRejection,

@@ -1,6 +1,5 @@
 /** Revision-fenced changes to the one provider-refund authority. */
 
-/* jscpd:ignore-start -- imports */
 import { execute, type TxScope } from "#db/client.ts";
 import {
   loadRefundAuthorityById,
@@ -21,7 +20,6 @@ import {
   refundStateMirror,
   writeRefundAuthorityState,
 } from "#payment/refund-authority-state.ts";
-/* jscpd:ignore-end */
 
 export type RefundAuthorityMoney = Pick<
   RefundAuthorityRow,

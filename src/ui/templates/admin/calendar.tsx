@@ -3,7 +3,6 @@
  */
 
 import type { PairBookings } from "#booking/ticket-moves.ts";
-/* jscpd:ignore-start -- imports */
 import { map, pipe } from "#fp";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
@@ -11,7 +10,6 @@ import {
   attendeeLineRow,
   withPairBookings,
 } from "#shared/attendee-table-rows.ts";
-/* jscpd:ignore-end */
 import { formatDateLabel } from "#shared/date-labels.ts";
 import { filterHref, type ParamWriter } from "#shared/filter-href.ts";
 import {

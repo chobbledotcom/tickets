@@ -15,7 +15,6 @@
  *   - `getAttendeesByListingIds` (groups page + CalDAV feed) excludes
  *     `kind='servicing'`.
  */
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -34,8 +33,6 @@ import {
   renderAdminPage,
 } from "#test-utils/servicing.ts";
 import { getTestSession } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 const CALENDAR_DATE = "2026-07-01";
 

@@ -3,7 +3,6 @@
  * what the site seeds, and what a refused save leaves behind.
  */
 
-// jscpd:ignore-start
 import { hashEmail, saveContactRecord } from "#db/contact-preferences.ts";
 import { t } from "#i18n";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
@@ -15,8 +14,6 @@ import {
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
-
-// jscpd:ignore-end
 
 /** A story step that keeps a private note about someone, with a picture
  * named in it. */

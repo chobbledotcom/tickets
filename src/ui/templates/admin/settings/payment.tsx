@@ -4,7 +4,6 @@
  */
 
 import { MASK_SENTINEL } from "#db/settings/mask.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
 import { Raw } from "#jsx/jsx-runtime.ts";
@@ -27,8 +26,6 @@ import {
   getSumupFields,
 } from "#templates/fields/admin.ts";
 import type { PaymentProviderType } from "#types";
-
-/* jscpd:ignore-end */
 
 /** One payment-provider choice, switched off with a reason when the site
  *  currency rules it out. Currency is write-once at setup, so a provider

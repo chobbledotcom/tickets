@@ -27,7 +27,6 @@ import {
 } from "#routes/admin/route-tables.ts";
 import { authPage, formPolicyFor, pageGuardFor } from "#routes/auth.ts";
 import { entityFormById, idRouteFor } from "#routes/entity.ts";
-/* jscpd:ignore-start */
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 import {
@@ -41,7 +40,6 @@ import {
   questionTextFlat,
 } from "#templates/admin/questions.tsx";
 
-/* jscpd:ignore-end */
 import { createListingChoicePost } from "./listing-choice-post.ts";
 import {
   appendWithCreationLog,

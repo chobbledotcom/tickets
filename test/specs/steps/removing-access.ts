@@ -4,7 +4,6 @@
  */
 
 import { Then, When } from "@cucumber/cucumber";
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
@@ -21,8 +20,6 @@ import {
   type TicketsWorld,
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
 
 /** The refusal when the typed username is not the person's. The full wording is
  * built where every confirmed removal builds it,

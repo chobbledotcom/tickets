@@ -1,12 +1,9 @@
-/* jscpd:ignore-start -- imports */
 import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeTables } from "#db/migrations/schema/tables-attendees.ts";
 import { RECOVERY_NODES } from "#payment/sumup-recovery-machine-spec.ts";
 import { jsonHash } from "#test-utils/hash.ts";
-
-/* jscpd:ignore-end */
 
 test("keeps the complete attendee schema declaration exact", async () => {
   expect(await jsonHash(attendeeTables)).toBe(

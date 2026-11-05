@@ -4,7 +4,6 @@
  * itself leaves the site as a real email, so the story watches what was sent.
  */
 
-// jscpd:ignore-start
 import { settings } from "#db/settings.ts";
 import { openAsNewcomer } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
@@ -20,8 +19,6 @@ import {
 } from "#test/specs/support/world.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { activateContactForm } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 /** The person writing in. Everything the site says back is said to them. */
 const VISITOR = "the visitor";

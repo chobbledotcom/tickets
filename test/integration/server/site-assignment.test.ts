@@ -7,7 +7,6 @@ import { addMonthsIso } from "#shared/dates.ts";
 import { hostEmail } from "#shared/email.ts";
 import { ErrorCode } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
-/* jscpd:ignore-start -- imports */
 import { assignAndNotifyBuiltSites } from "#shared/site-assignment.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -18,8 +17,6 @@ import {
   silencedErrors,
   siteEntry,
 } from "./site-assignment-shared.ts";
-
-/* jscpd:ignore-end */
 
 describeWithEnv(
   "site-assignment",

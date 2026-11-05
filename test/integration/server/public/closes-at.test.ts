@@ -12,7 +12,6 @@
  * page test renders one.
  */
 
-// jscpd:ignore-start
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -31,8 +30,6 @@ import {
   updateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
-
-// jscpd:ignore-end
 
 /** POSTs `formData` to `path` after closing `listingIdToClose` mid-submission
  * (having already fetched a valid CSRF token while it was still open) and

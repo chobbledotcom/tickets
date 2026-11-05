@@ -14,7 +14,6 @@
  *     `kind = 'attendee'` predicate; a sibling servicing reader returns only
  *     servicing rows.
  */
-// jscpd:ignore-start
 import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -36,8 +35,6 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createServicingHold, renderAdminPage } from "#test-utils/servicing.ts";
-
-// jscpd:ignore-end
 
 const REAL_NAME = "Real Person";
 const REAL_EMAIL = "real@example.com";

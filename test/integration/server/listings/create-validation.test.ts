@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -10,8 +9,6 @@ import {
   updateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost, adminMultipartPost } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("server listings > create validation", { db: true }, () => {
   describe("POST /admin/listing with unit_price", () => {

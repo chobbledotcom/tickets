@@ -10,7 +10,6 @@ import {
   paymentRowsWith,
   readAttendeeRowStates,
 } from "#db/payment-claim.ts";
-/* jscpd:ignore-start -- imports */
 import { sortStrings } from "#fp";
 import { type PaymentWorkStatus, paymentWorkFor } from "#payment/admit-move.ts";
 import {
@@ -19,7 +18,6 @@ import {
 } from "#payment/review.ts";
 import type { PaymentRowState } from "#payment/row-state.ts";
 import { nowIso } from "#shared/now.ts";
-/* jscpd:ignore-end */
 
 export type AcknowledgePaymentReviewInput = {
   readonly attendeeId: number;

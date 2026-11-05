@@ -8,11 +8,9 @@
  * and a new story adds a name instead of a new world field.
  */
 
-// jscpd:ignore-start
 import { type CleanupTask, runCleanups } from "#scripts/cleanup.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 import type { Group, Listing } from "#types";
-// jscpd:ignore-end
 
 /** Every kind of thing a story can keep by name, and what each name holds. */
 export interface ThingsByKind {

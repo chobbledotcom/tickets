@@ -6,7 +6,7 @@ reason each limit holds, and the cost of the remaining steps.
 **Decided and shipped.** The reusable helpers under `test/test-utils` are
 scanned at **40 tokens**, alongside `src/`, by `.jscpd.helpers.json`. The
 Cucumber support helpers under `test/specs/support` are scanned twice: at **18
-tokens** alongside `src/`, and at **15 tokens** on their own by
+tokens** alongside `src/`, and at **40 tokens** on their own by
 `.jscpd.support.json`. The 18-token scan holds its accepted clones in the
 committed baseline `.jscpd.specs-baseline.json`, the way the renamed-clone gate
 does. See [What is left](#what-is-left) for the remaining steps.
@@ -24,9 +24,9 @@ lower number is a tighter net.
 
 | Config                | Scans                            | minTokens |
 | --------------------- | -------------------------------- | --------- |
-| `.jscpd.json`         | `src`, `e2e-payments`, `scripts` | 19        |
+| `.jscpd.json`         | `src`, `e2e-payments`, `scripts` | 40        |
 | `.jscpd.specs.json`   | `src` + `test/specs/support`     | 18        |
-| `.jscpd.support.json` | `test/specs/support`             | 15        |
+| `.jscpd.support.json` | `test/specs/support`             | 40        |
 | `.jscpd.helpers.json` | `src` + `test/test-utils`        | 40        |
 | `.jscpd.test.json`    | `test`                           | 48        |
 | `.jscpd.css.json`     | `src/ui/static/style.scss`       | 50        |
@@ -52,7 +52,7 @@ A test body is different. It repeats by design, and the shared mechanism is the
 test framework itself. That is why the whole of `test/` sits at 48 tokens, and
 why the helper trees can be held tighter than the tree that contains them.
 
-## The support helpers hold at 15 tokens
+## The support helpers held at 15 tokens
 
 The shared scan `.jscpd.specs.json` reads `src/` alongside the support helpers,
 so a helper that reimplements production logic is flagged against the source it
@@ -197,17 +197,55 @@ the merge history carries it.
 
 Since jscpd 5.4.2 the strict scans (`.jscpd.json`, `.jscpd.test.json`,
 `.jscpd.helpers.json`, `.jscpd.support.json`) enable the Type-2 clone options
-`ignoreIdentifiers`, `ignoreLiterals` and `ignoreAnnotations`, and each reports
-only kind `exact`. jscpd classifies each matched window. A window whose raw
-tokens differ only in names, literal values or annotations is a `renamed`
-clone. A window with identical raw tokens is an `exact` clone. jscpd splits a
-longer match at the tokens that differ. A renamed copy can still leave a
-raw-identical stretch. When that stretch reaches the scan's `minTokens`, the
-strict gate reports it and demands the merge. The `kind` filter removes the
-renamed windows, so the gates still count only token-identical code. The
-renamed-clone gate still tracks renamed functions in the trees it scans. A run
-that asks for every kind, or a report without the `kind` filter, shows the
-renamed clones too.
+`ignoreIdentifiers`, `ignoreLiterals` and `ignoreAnnotations`. jscpd classifies
+each matched window. A window whose raw tokens differ only in names, literal
+values or annotations is a `renamed` clone. A window with identical raw tokens
+is an `exact` clone. The strict scans report both kinds. An earlier
+`kind: ["exact"]` filter removed every `renamed` window, so the strict scans
+reported zero and did not check renamed copies at their `minTokens`.
+
+With names and literals ignored, a short window matches common code shapes:
+two valibot objects with three fields, or two small `for` loops. At 19 tokens
+the main scan found 24,773 clones. A new module of 140 lines made 30 new
+clones against unrelated code, and none of them had a helper to share. At 30
+tokens the same module made none. The main and support scans run at 40
+tokens, the floor of the helpers scan, so a renamed match must be a full
+operation and not a common shape.
+
+At these limits, the strict scans found these clones:
+
+| Scan                  | minTokens | Clones |
+| --------------------- | --------: | -----: |
+| `.jscpd.json`         |        40 |  1,192 |
+| `.jscpd.test.json`    |        48 | 13,111 |
+| `.jscpd.helpers.json` |        40 |    941 |
+| `.jscpd.support.json` |        40 |     17 |
+
+Each scan holds these clones in its committed baseline and runs with
+`--fail-on-new-clones`. A new renamed copy fails the gate. The fingerprints do
+not change when lines move. A code change can pair a recorded window with a
+different identical copy. That pair has a new fingerprint, so the gate fails
+on code that it already recorded. If the new clone is a copy that exists on
+`main`, record it with `--update`. The added and removed counts must match.
+After a merge, run the scan with `--update` to remove the fixed clones.
+
+Each TypeScript scan skips import and re-export statements through its
+`ignorePattern` list. Source files carry no ignore markers around imports.
+
+With literals ignored, two long lists of strings match, for example two word
+lists of the band-name generator. A list of strings is data, and no helper can
+share it. Each declared list that holds only strings is wrapped in
+`/* jscpd:ignore-start -- a list of strings, not code */` and
+`/* jscpd:ignore-end */`. The rule does not cover SQL text, such as the check
+rules in `charges.ts`, or the message group lists inside the `area(...)` calls
+in `area-loaders.ts`. Markers inside a call cut the long matches into many
+short matches of the call shape.
+
+After each scan, `scripts/cpd.ts` names the worst duplication in the report.
+jscpd reports pairs, so the pairs that share a place make one family. The
+worst family appears in the most places. If two families appear in the same
+number of places, the family with more tokens is worse. Start the next merge
+there.
 
 A pair changes status one way: merge it (extract a helper, or curry the parts
 that differ), then refresh the baseline. A new renamed copy anywhere in the

@@ -29,7 +29,6 @@ import {
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
 import { col, defineTable } from "#db/table.ts";
 import { txIdSetInTable } from "#db/transaction.ts";
-/* jscpd:ignore-start */
 import {
   filter,
   groupToMap,
@@ -41,7 +40,6 @@ import {
   uniqueBy,
 } from "#fp";
 import type { Listing } from "#types";
-/* jscpd:ignore-end */
 
 export type Attribute = {
   id: number;

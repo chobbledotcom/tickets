@@ -13,7 +13,6 @@
 
 import type { OrphanPaymentWorkPage } from "#db/orphan-attendees.ts";
 import type { ProviderRefundCasePage } from "#db/provider-refund-cases.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import type { FlashFields } from "#shared/flash-fields.ts";
@@ -29,7 +28,6 @@ import {
   SelectField,
 } from "#templates/components/select-field.tsx";
 import type { AdminSession } from "#types";
-/* jscpd:ignore-end */
 
 export type PrivacyPageData = {
   /** Bounded, PII-free cases whose provider outcome still needs attention. */

@@ -1,4 +1,3 @@
-// jscpd:ignore-start -- imports
 import { World } from "@cucumber/cucumber";
 import type { Page } from "playwright";
 import type { AppBrowser, BrowserSession } from "#e2e/browser.ts";
@@ -26,8 +25,6 @@ import type { AppServer } from "#e2e/server.ts";
 import { parseLiveTarget } from "#e2e/targets.ts";
 import type { Tunnel } from "#e2e/tunnel.ts";
 import { newJournal, type ScenarioJournal, writeJournal } from "./journal.ts";
-
-// jscpd:ignore-end
 
 /** Everything that makes this scenario's values selectable and unique. */
 export interface ScenarioIdentity {

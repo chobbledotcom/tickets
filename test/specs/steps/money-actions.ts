@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -36,8 +34,6 @@ import {
 } from "#test/specs/support/money-reads.ts";
 import { type TicketsWorld, theBooking } from "#test/specs/support/world.ts";
 import { singleItem } from "#test-utils/factories.ts";
-
-// jscpd:ignore-end
 
 const FREE_MEETUP = "Free Meetup";
 const SHOW = "Show";

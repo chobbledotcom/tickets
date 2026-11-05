@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -16,8 +14,6 @@ import {
   expectProviderSendCount,
   showCompletedStripeRefund,
 } from "./common.ts";
-
-// jscpd:ignore-end
 
 Given(
   "Money will temporarily refuse to record {word}'s refund",

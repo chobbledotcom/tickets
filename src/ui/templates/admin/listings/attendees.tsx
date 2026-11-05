@@ -1,5 +1,3 @@
-/* jscpd:ignore-start */
-
 import { filter, joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
@@ -28,8 +26,6 @@ import {
   type ListingWithCount,
 } from "#types";
 import type { RosterListView } from "./types.ts";
-
-/* jscpd:ignore-end */
 
 /** Whether the day's recipient query would find this booking: a ticket, an
  * email, and a stored `[date, end_date)` range that covers the day. The stored

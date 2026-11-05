@@ -7,7 +7,6 @@
  * the note row, the picture, and the addresses they hand the story.
  */
 
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getNoteRows } from "#db/notes/queries.ts";
@@ -23,20 +22,16 @@ import { namedThings } from "#test/specs/support/memory.ts";
 import { type TicketsWorld, worldWith } from "#test/specs/support/world.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
-// jscpd:ignore-end
-
 const poster = { alt: "Poster", filename: "poster.png", id: 12 };
 const worldWithPicture = (): TicketsWorld =>
   worldWith({ noteImage: { ...poster, noteText: "" } });
 const shown = '<img src="/image/poster.png" alt="Poster">';
 
-/** Holds the region check to its loud failure on a page with no whole region. */
-const expectRegionCheckToThrow = (
-  html: string,
-  marker: string,
-  world: TicketsWorld,
-): void =>
-  expect(() => regionShowsPicture(html, marker, "div", world)).toThrow();
+/** The region check against a page that carries the picture. */
+const regionCheck =
+  (html: string, marker: string, tag = "div") =>
+  (): void =>
+    regionShowsPicture(html, marker, tag, worldWithPicture());
 
 describe("holding one page region to its own picture", () => {
   test("reads a child of the same kind and stops at the region's own end", () => {
@@ -44,59 +39,55 @@ describe("holding one page region to its own picture", () => {
       '<div class="contact-notes"><p>Called first.</p>' +
       `<div class="contact-note">a later note</div>${shown}</div>` +
       `<div class="elsewhere">img#${poster.id}</div>`;
-    regionShowsPicture(
-      html,
-      '<div class="contact-notes">',
-      "div",
-      worldWithPicture(),
-    );
+    expect(regionCheck(html, '<div class="contact-notes">')).not.toThrow();
   });
 
   test("starts at the tag a marker inside its attributes names", () => {
     const html =
       '<details class="attendee-notes-summary"><details>inner words</details>' +
       `${shown}</details><details>img#${poster.id}</details>`;
-    regionShowsPicture(
-      html,
-      "attendee-notes-summary",
-      "details",
-      worldWithPicture(),
-    );
+    expect(
+      regionCheck(html, "attendee-notes-summary", "details"),
+    ).not.toThrow();
   });
 
   test("skips a longer tag's name to find the region's own opening tag", () => {
     const html = `<div class="region"><divider-notes title="contact-notes">decoy</divider-notes>${shown}</div>`;
-    regionShowsPicture(html, "contact-notes", "div", worldWithPicture());
+    expect(regionCheck(html, "contact-notes")).not.toThrow();
   });
 
-  test("fails loudly when the marker names nothing on the page", () => {
-    expectRegionCheckToThrow(
-      shown,
-      "attendee-notes-summary",
-      worldWithPicture(),
-    );
-  });
-
-  test("fails loudly when no real opening tag holds the marker", () => {
-    const html =
-      `<divider-notes title="contact-notes">decoy</divider-notes>` +
-      `<div class="contact-notes">${shown}</div>`;
-    expectRegionCheckToThrow(html, "contact-notes", worldWithPicture());
-  });
-
-  test("fails loudly when the page ends inside the opening tag", () => {
-    expectRegionCheckToThrow("<div", "div", worldWithPicture());
-  });
-
-  test("fails loudly when the region's own tag never closes", () => {
-    const html = `<div class="contact-notes"><p>words</p>${shown}`;
-    expectRegionCheckToThrow(html, "contact-notes", worldWithPicture());
-  });
+  const pagesWithNoWholeRegion: [name: string, html: string, marker: string][] =
+    [
+      [
+        "fails loudly when the marker names nothing on the page",
+        shown,
+        "attendee-notes-summary",
+      ],
+      [
+        "fails loudly when no real opening tag holds the marker",
+        `<divider-notes title="contact-notes">decoy</divider-notes>` +
+          `<div class="contact-notes">${shown}</div>`,
+        "contact-notes",
+      ],
+      ["fails loudly when the page ends inside the opening tag", "<div", "div"],
+      [
+        "fails loudly when the region's own tag never closes",
+        `<div class="contact-notes"><p>words</p>${shown}`,
+        "contact-notes",
+      ],
+    ];
+  for (const [name, html, marker] of pagesWithNoWholeRegion) {
+    test(name, () => {
+      expect(regionCheck(html, marker)).toThrow();
+    });
+  }
 });
 
 describe("holding the page as a whole to its picture", () => {
   test("passes when the picture shows and no reference stays", () => {
-    pageShowsPicture(`<main><p>words</p>${shown}</main>`, worldWithPicture());
+    expect(() =>
+      pageShowsPicture(`<main><p>words</p>${shown}</main>`, worldWithPicture()),
+    ).not.toThrow();
   });
 
   test("fails loudly when a raw reference stays anywhere on the page", () => {

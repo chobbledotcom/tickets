@@ -1,6 +1,5 @@
 /** Two real owner browsers acting while one provider refund is paused. */
 
-// jscpd:ignore-start
 import { t } from "#i18n";
 import type { RefundRequest } from "#payment/refund-attempt.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
@@ -12,8 +11,6 @@ import {
 } from "#test-utils/test-browser/forms.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 import type { PausedProviderRefund } from "./provider-script.ts";
-
-// jscpd:ignore-end
 
 type OwnerAction = "delete" | "refund";
 

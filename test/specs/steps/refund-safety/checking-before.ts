@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -20,8 +18,6 @@ import {
   showCompletedStripeRefund,
   untouchedChargeFor,
 } from "./common.ts";
-
-// jscpd:ignore-end
 
 Given(
   "{word}'s old payment record does not name its provider",

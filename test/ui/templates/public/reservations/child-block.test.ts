@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -26,8 +25,6 @@ import {
   selectOptionsHtml,
 } from "#test-utils/parents-gate/helpers.ts";
 import type { Listing } from "#types";
-
-// jscpd:ignore-end
 
 const makeHiddenSoleChild = () =>
   makeParent({

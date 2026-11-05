@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { DetailRow } from "#templates/admin/detail-rows.tsx";
 import {
@@ -10,7 +9,6 @@ import { DetailTable } from "#templates/components/detail-table.tsx";
 import { LabelledRow } from "#templates/components/labelled-row.tsx";
 import type { ListingWithCount } from "#types";
 import type { GroupContext } from "./types.ts";
-/* jscpd:ignore-end */
 
 export type ListingCapacityRowsProps = {
   listing: ListingWithCount;

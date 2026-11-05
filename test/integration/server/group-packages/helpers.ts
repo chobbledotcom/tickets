@@ -4,7 +4,6 @@
  * allowed?" checks the invariants are read through.
  */
 
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { getGroupById, getGroupPackagePrices, groups } from "#db/groups.ts";
@@ -13,8 +12,6 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 import type { Group, ListingWithCount } from "#types";
-
-// jscpd:ignore-end
 
 /** The fields the group edit form always submits, whatever else a test adds. */
 interface GroupEditFields {

@@ -4,7 +4,6 @@
  * count table, and a full reorderable collection page shell.
  */
 
-/* jscpd:ignore-start */
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
@@ -19,8 +18,6 @@ import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
 import type { ReorderDirection } from "#templates/components/reorder.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import type { AdminSession } from "#types";
-
-/* jscpd:ignore-end */
 
 /** Show the table (or whatever `whenPresent` builds) for a non-empty list, or
  * the supplied note content in a paragraph when the list is empty. */

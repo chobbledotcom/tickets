@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import type Stripe from "stripe";
 import { settings } from "#db/settings.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
@@ -6,8 +5,6 @@ import { nowSeconds } from "#shared/now.ts";
 import { hmacSha256Hex, secureCompare } from "#shared/payment-crypto.ts";
 import type { WebhookEvent, WebhookVerifyResult } from "#shared/payments.ts";
 import { finishWebhookVerification } from "#shared/webhook-verification.ts";
-
-/* jscpd:ignore-end */
 
 const DEFAULT_TOLERANCE_SECONDS = 300;
 

@@ -22,7 +22,6 @@ import {
 } from "#db/listings/daily-switch.ts";
 import { listingsTable } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
-/* jscpd:ignore-start */
 import { range } from "#fp";
 import { formDataToParams } from "#routes/csrf.ts";
 import { listingSaveOrphanedAddOnTx } from "#shared/add-on-reachability.ts";
@@ -68,8 +67,6 @@ import {
   persistListingJoins,
   prepareListingJoins,
 } from "./api-listing-joins.ts";
-
-/* jscpd:ignore-end */
 
 /** The stored values an editor's submitted form freezes the locked fields
  *  back to. */

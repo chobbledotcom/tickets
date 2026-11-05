@@ -4,7 +4,6 @@
  * is ours before anything downstream processes or refunds it.
  */
 
-/* jscpd:ignore-start -- import block */
 import { addPageImageUrls } from "#db/image-urls.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
@@ -34,7 +33,6 @@ import {
   WAITING_PAGE_RELOAD_LIMIT,
   waitingPageStillReloads,
 } from "#templates/payment.tsx";
-/* jscpd:ignore-end */
 
 /** Makes a logger that records a payment-session error, prefixed with the
  * payment step it happened on (for example "redirect", "cancel"). */

@@ -11,7 +11,6 @@
  * a single listing is a list of one.
  */
 
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { bookingError } from "#booking/form.ts";
@@ -29,7 +28,6 @@ import { expectCanReallySend } from "#test/specs/support/form-controls/rules.ts"
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 import type { Listing } from "#types";
-// jscpd:ignore-end
 
 /** What somebody fills in to book a place — a visitor on the public page, or
  * an organiser adding one by hand. The same details either way, so both use

@@ -11,7 +11,6 @@
 
 import { logActivity } from "#db/activity-log.ts";
 import type { BuiltSite, HostingProvider } from "#db/built-sites/types.ts";
-/* jscpd:ignore-start -- imports */
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { getEnv } from "#shared/env.ts";
@@ -22,7 +21,6 @@ import { type Result, requireSuccess } from "#shared/result.ts";
 import { siteBaseUrl } from "#shared/site-address.ts";
 import { hasSiteDbCredentials, readSiteSetting } from "#shared/site-db.ts";
 import { resolveHostingProvider } from "#shared/site-hosting.ts";
-/* jscpd:ignore-end */
 import { tryStep } from "#shared/try-step.ts";
 import {
   CURRENT_SCRIPT_VERSION_KEY,

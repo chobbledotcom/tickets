@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
@@ -15,8 +14,6 @@ import {
   expectWebhookIgnored,
   expectWebhookProcessed,
 } from "#test-utils/webhooks.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("server webhooks > multi-ticket booking", { db: true }, () => {
   test("processes valid multi-ticket webhook and creates attendees", async () => {

@@ -3,14 +3,11 @@
  * Owner-only access enforced via settingsHandler / withAuth
  */
 
-/* jscpd:ignore-start -- imports */
 import { settings } from "#db/settings.ts";
 import { settingsHandler } from "#routes/admin/settings-helpers.ts";
 import { validateEditableTemplate } from "#shared/editable-template.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
 import type { EmailTemplateType } from "#types";
-
-/* jscpd:ignore-end */
 
 /** Handle POST /admin/settings/email-templates/:type - save custom email templates */
 const validateTemplateFields = ({

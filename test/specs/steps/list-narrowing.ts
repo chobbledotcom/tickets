@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Then, When } from "@cucumber/cucumber";
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -13,8 +11,6 @@ import {
   whatTheCustomerSees,
 } from "#test/specs/support/list-narrowing.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
 
 When(
   "the organiser opens their list",

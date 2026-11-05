@@ -11,8 +11,6 @@
  * loader shared by two prefixes is named so both reuse one cached import.
  */
 
-/* jscpd:ignore-start -- imports */
-
 import {
   foldPrefixes,
   type PrefixRoute,
@@ -20,8 +18,6 @@ import {
 } from "./prefix-fold.ts";
 import { PREFIXES_A_L } from "./prefixes-a-l.ts";
 import { PREFIXES_M_Z } from "./prefixes-m-z.ts";
-
-/* jscpd:ignore-end */
 
 const APP_PREFIXES = {
   ...PREFIXES_A_L,

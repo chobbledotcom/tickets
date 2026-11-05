@@ -1,10 +1,8 @@
-/* jscpd:ignore-start -- imports */
 import { requireProviderFailure } from "#payment/provider-failures.ts";
 import type { ProviderRead } from "#payment/provider-read.ts";
 import type { RefundAttemptResult } from "#payment/refund-attempt.ts";
 import { transportFactsOf } from "#payment/transport-error.ts";
 import { logDebug } from "#shared/logger.ts";
-/* jscpd:ignore-end */
 
 /** The immediate answer to a SumUp refund call. Its empty success body only
  * proves that the request was sent. A fresh transaction read must decide

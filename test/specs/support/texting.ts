@@ -4,8 +4,6 @@
  * that gateway up or deliberately leaves it out.
  */
 
-// jscpd:ignore-start
-
 import { countRows } from "#db/client.ts";
 import { getContactRecord, hashPhone } from "#db/contact-preferences.ts";
 import { settings } from "#db/settings.ts";
@@ -19,8 +17,6 @@ import { copyFrom } from "#test/specs/support/copy.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
-
-// jscpd:ignore-end
 
 const TEXTS_PATH = "/admin/sms";
 

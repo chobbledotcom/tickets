@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -10,8 +9,6 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { baseListingForm } from "#test-utils/factories.ts";
 import { awaitTestRequest, mockMultipartRequest } from "#test-utils/mocks.ts";
 import { adminGet, setupListingAndLogin } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("server listings > duplicate", { db: true }, () => {
   describe("GET /admin/listing/:id/duplicate", () => {

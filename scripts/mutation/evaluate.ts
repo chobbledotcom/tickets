@@ -1,10 +1,8 @@
-/* jscpd:ignore-start */
 import { resolve } from "@std/path";
 import { withCleanup } from "#scripts/cleanup.ts";
 import { dim, yellow } from "#scripts/precommit/colors.ts";
 import { projectRoot, rel } from "#scripts/project-root.ts";
 import type { StaticAssetBuild } from "#scripts/static-assets/session.ts";
-/* jscpd:ignore-end */
 import {
   mutantTestEnv,
   runTests,

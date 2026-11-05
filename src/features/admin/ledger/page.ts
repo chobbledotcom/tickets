@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import * as v from "valibot";
 import {
   type ListingMoneyTotals,
@@ -44,8 +43,6 @@ import {
 } from "#templates/admin/ledger/filter.tsx";
 import { adminLedgerPage } from "#templates/admin/ledger.tsx";
 import type { DatePickerDate } from "#templates/date-picker.tsx";
-
-/* jscpd:ignore-end */
 
 const LEDGER_DISPLAY_LIMIT = 500;
 

@@ -4,7 +4,6 @@
  * sign-in page accepts the new one — the same way its reader would find out.
  */
 
-// jscpd:ignore-start
 import { t } from "#i18n";
 import {
   browserSeenBy,
@@ -20,8 +19,6 @@ import {
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
 } from "#test-utils/internal.ts";
-
-// jscpd:ignore-end
 
 /** The settings page, where the password form lives. */
 const SETTINGS_PAGE = "/admin/settings";

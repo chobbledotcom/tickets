@@ -4,7 +4,6 @@
  * whose customers may pay more than it asks.
  */
 
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { execute } from "#db/client.ts";
@@ -44,8 +43,6 @@ import {
   withRefundMock,
 } from "#test-utils/refund-routes.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 const FIRST_PAYMENT = "pi_bulk_1";
 

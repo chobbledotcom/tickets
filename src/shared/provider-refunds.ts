@@ -1,6 +1,5 @@
 /** The one durable path allowed to ask a payment provider for a refund. */
 
-/* jscpd:ignore-start -- imports */
 import type { RefundAuthorityRow } from "#db/provider-refund-authority.ts";
 import { markRefundAuthorityRecorded } from "#db/provider-refund-authority-change.ts";
 import { mapParallel } from "#fp";
@@ -39,7 +38,6 @@ import {
   type RefundWorkFacts,
   withRefundWorkFacts,
 } from "#shared/provider-refunds/work.ts";
-/* jscpd:ignore-end */
 
 export type ProviderRefundEvidence =
   | { readonly kind: "read_provider" }

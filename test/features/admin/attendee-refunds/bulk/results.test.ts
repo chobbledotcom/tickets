@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
@@ -21,8 +20,6 @@ import {
   refundIsRejected,
   withRefundMock,
 } from "#test-utils/refund-routes.ts";
-
-// jscpd:ignore-end
 
 const SINGLE_ERROR_RESULT =
   "0 refunds succeeded. There was 1 failure. There was 1 error. Check the activity log for details. 1 refund remains. Submit again to continue.";

@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -24,6 +23,11 @@ import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import {
+  logLogged,
+  useDebugLogSpy,
+  useErrorLogSpy,
+} from "#test-utils/debug-log.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { paidSession } from "#test-utils/payment-session.ts";
@@ -35,18 +39,11 @@ import {
 } from "#test-utils/payment-state.ts";
 import { refundCompletes, withRefundMock } from "#test-utils/refund-routes.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { stubRetrieveCheckoutSession } from "#test-utils/webhooks/stripe.ts";
-// jscpd:ignore-end
-
-import {
-  logLogged,
-  useDebugLogSpy,
-  useErrorLogSpy,
-} from "#test-utils/debug-log.ts";
 import {
   webhookEvent,
   withWebhookVerify,
 } from "#test-utils/webhook-verify-helpers.ts";
+import { stubRetrieveCheckoutSession } from "#test-utils/webhooks/stripe.ts";
 
 /** Create a listing, deactivate it, and return its id — the shared setup for
  *  every redirect-path refund test. */

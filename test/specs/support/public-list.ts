@@ -7,7 +7,6 @@
  * happily its page still answers when asked for directly.
  */
 
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
@@ -31,7 +30,6 @@ import {
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import type { TestListingOverrides } from "#test-utils/factories.ts";
-// jscpd:ignore-end
 
 /** The address the site sells one named thing from, whether that name belongs
  * to a single thing or to a group of them. */

@@ -8,7 +8,6 @@
  * render must never 404.
  */
 
-/* jscpd:ignore-start -- imports */
 import { hmacHash } from "#crypto/hashing.ts";
 import { getNewsPostBySlugIndex, getNewsPostCards } from "#db/news-posts.ts";
 import { settings } from "#db/settings.ts";
@@ -16,7 +15,6 @@ import { notFoundResponse, publicPageResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { requirePublicSite } from "#shared/public-site.ts";
 import { newsListPage, newsPostPage } from "#templates/public/news.tsx";
-/* jscpd:ignore-end */
 import { publicNavProps } from "./site-nav.ts";
 import { publicSlugRoute, renderContentPage } from "./site-page.ts";
 

@@ -1,5 +1,3 @@
-/* jscpd:ignore-start */
-
 import { formPolicyFor, pageGuardFor, withAuth } from "#routes/auth.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
 import { adminDestinationAt } from "#shared/admin-surface.ts";
@@ -14,8 +12,6 @@ import { RECALCULATE_FIELD_NAME } from "#shared/recalculate-fields.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { errorResult } from "#shared/result.ts";
 import type { AdminSession } from "#types";
-
-/* jscpd:ignore-end */
 
 type AggregateParseResult<T> =
   | { input: T | null; ok: true }

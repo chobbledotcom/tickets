@@ -4,7 +4,6 @@
  * two can't drift. */
 
 import { quantityBelowMin } from "#booking/model.ts";
-/* jscpd:ignore-start */
 import {
   childQuantityFieldName,
   packageQuantityFieldName,
@@ -16,8 +15,6 @@ import { monthsPerUnitOf, resolvePurchaseUnit } from "#shared/purchase-unit.ts";
 import { parseNonNegativeInt } from "#shared/validation/number.ts";
 import type { ListingWithCount } from "#types";
 import type { TicketPrefill } from "./types.ts";
-
-/* jscpd:ignore-end */
 
 /** The listing facts a month labeler reads: which kind of plan it is and the
  *  term each of its units buys. */

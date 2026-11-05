@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -20,8 +19,6 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 const recordPublicPage = async (
   path: string,

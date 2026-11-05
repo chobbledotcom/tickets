@@ -1,6 +1,5 @@
 /** Form tables: questions, answers, attributes, built sites, notes. */
 
-/* jscpd:ignore-start -- imports */
 import { UPDATE_TIERS } from "#db/built-sites/types.ts";
 import { NOTE_ENTITIES } from "#db/notes/target.ts";
 import { SYSTEM_NOTE_TYPES } from "#db/notes/types.ts";
@@ -22,8 +21,6 @@ import {
   wholeNumberStartingAtZero,
 } from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
-
-/* jscpd:ignore-end */
 
 export const questionTables: [name: string, table: Table][] = [
   [

@@ -7,7 +7,6 @@
  * modifier consumption, purchase-only restrictions). These pin that the
  * servicing create path skips each customer-only resolution.
  */
-// jscpd:ignore-start
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -17,8 +16,6 @@ import {
   createServicingHold,
   expectLogisticsDisabled,
 } from "#test-utils/servicing.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "servicing edge cases — cross-feature interactions",

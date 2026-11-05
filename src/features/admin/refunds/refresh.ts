@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { attendeeAccount } from "#accounting/accounts.ts";
 import { transfersByAccount } from "#accounting/queries.ts";
 import { PAYMENT_REVIEW_RETIREMENT } from "#payment/review.ts";
@@ -41,8 +40,6 @@ import {
 } from "./readiness.ts";
 import { runRefundReadiness } from "./readiness-run.ts";
 import { currentPaymentReviews, resolvePaymentReview } from "./row-reviews.ts";
-
-/* jscpd:ignore-end */
 
 type TaggedRefundReference = ReadyRefundReference["reference"];
 type RecordRefund = (

@@ -1,11 +1,9 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { handleRequest } from "#routes";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
-// jscpd:ignore-end
 import {
   adminAttendeeAction,
   adminListingPage,
@@ -110,7 +108,9 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       const log = (await getListingActivityLog(listing.id)).find((l) =>
         l.message.includes("checked in"),
       );
-      expect(log).toBeDefined();
+      expect(log?.message).toBe(
+        `Attendee checked in 1 ticket for '${listing.name}'`,
+      );
     });
 
     // Regression: the paired load used to read the attendee's first booking

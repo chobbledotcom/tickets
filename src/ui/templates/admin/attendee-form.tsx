@@ -8,7 +8,6 @@
  * works without JavaScript.
  */
 
-/* jscpd:ignore-start */
 import { compact, range } from "#fp";
 import { t } from "#i18n";
 import {
@@ -54,8 +53,6 @@ import {
   PHONE_FIELD_LENGTH,
 } from "#templates/fields/validators.ts";
 import { type AdminSession, MAX_DURATION_DAYS } from "#types";
-
-/* jscpd:ignore-end */
 
 /** Option list for the day-count select: 1…horizon, each labelled with the
  * resulting end date when a start date is known. A malformed submitted date

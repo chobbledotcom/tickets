@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -25,8 +24,6 @@ import {
   mockFormRequest,
   mockRequest,
 } from "#test-utils/mocks.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "server public > ticket slug POST",

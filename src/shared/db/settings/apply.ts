@@ -23,7 +23,6 @@ import {
   type SettingsData,
   setSnapshotField,
 } from "#db/settings/snapshot.ts";
-/* jscpd:ignore-start */
 import { DEFAULT_COUNTRY, getCountry } from "#shared/countries.ts";
 import {
   DEFAULT_ORPHAN_RETENTION,
@@ -41,8 +40,6 @@ import {
   isPaymentProvider,
   isPaymentProviderSetting,
 } from "#types";
-
-/* jscpd:ignore-end */
 
 /** Template type:format → config key */
 type TemplateKeyMap = `${EmailTemplateType}:${EmailTemplateFormat}`;

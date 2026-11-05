@@ -12,7 +12,6 @@
  *     input)` and `getServicingEvent(id)`. The edit path goes through the same
  *     atomic-edit core as attendees, scoped to `kind='servicing'`.
  */
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -32,8 +31,6 @@ import {
   updateServicingEvent,
 } from "#test-utils/servicing.ts";
 import { adminFormPost } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("servicing §4 — editing", { db: true }, () => {
   test("editing a servicing event preserves its token", async () => {

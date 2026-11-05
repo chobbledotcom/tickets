@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -25,8 +23,6 @@ import {
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-
-// jscpd:ignore-end
 
 /** The confirmation form's page text, captured before the submit button is
  * sent, so a `Then` can assert the rendered impact count. `TestBrowser.

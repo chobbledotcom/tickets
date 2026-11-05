@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { parse } from "@std/csv";
 import { expect } from "@std/expect";
@@ -20,8 +19,6 @@ import {
   adminGet,
   setupListingAndLogin,
 } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("server listings > export", { db: true }, () => {
   describe("GET /admin/listing/:id/export", () => {

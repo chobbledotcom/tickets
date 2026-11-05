@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { FakeTime } from "@std/testing/time";
@@ -17,8 +16,6 @@ import {
   returnedChargeFor,
   untouchedChargeFor,
 } from "./common.ts";
-
-// jscpd:ignore-end
 
 const clocks = new WeakMap<TicketsWorld, FakeTime>();
 

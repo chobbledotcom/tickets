@@ -1,11 +1,8 @@
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { classifyBookingLedger } from "#shared/session-ledger.ts";
 import { members, records } from "#test-utils/tla-data.ts";
 import { registeredModel } from "./registered-model.ts";
-
-/* jscpd:ignore-end */
 
 const { data: bookingReplayModelData, controls } =
   registeredModel("BookingReplay");

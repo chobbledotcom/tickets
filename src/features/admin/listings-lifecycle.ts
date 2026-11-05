@@ -7,7 +7,6 @@
  */
 
 import { getListingWithCount } from "#db/listings/records.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
@@ -27,8 +26,6 @@ import {
 } from "#templates/admin/listings/lifecycle.tsx";
 import type { AdminSession, ListingWithCount } from "#types";
 import { type ListingCommand, listingFormRoute } from "./listing-entity.ts";
-
-/* jscpd:ignore-end */
 
 const listingConfirmBase = {
   identifier: (listing: ListingWithCount) => listing.name,

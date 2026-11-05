@@ -5,15 +5,12 @@
  * that silently dropped the box fails here.
  */
 
-// jscpd:ignore-start
 import { AssertionError } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { sendOneBox } from "#test/specs/support/form-controls.ts";
 import { recordingBrowser } from "#test-utils/test-browser/helpers.ts";
-
-// jscpd:ignore-end
 
 describe("sending one box", () => {
   const BOX = "hidden";

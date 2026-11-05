@@ -7,7 +7,6 @@ import { settings } from "#db/settings.ts";
 import { builderApi } from "#shared/builder.ts";
 import { addMonthsIso } from "#shared/dates.ts";
 import { nowIso } from "#shared/now.ts";
-/* jscpd:ignore-start -- imports */
 import { assignAndNotifyBuiltSites } from "#shared/site-assignment.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -17,8 +16,6 @@ import {
   silencedErrors,
   siteEntry,
 } from "./site-assignment-shared.ts";
-
-/* jscpd:ignore-end */
 
 describeWithEnv(
   "site-assignment claims",

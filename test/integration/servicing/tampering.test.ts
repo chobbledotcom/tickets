@@ -5,7 +5,6 @@
  * and POST bodies, not just the happy-path UI. Overlaps §3/§9; restated as
  * adversarial scenarios because the user called them out explicitly.
  */
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
@@ -21,8 +20,6 @@ import {
   updateServicingEvent,
 } from "#test-utils/servicing.ts";
 import { adminFormPost } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "servicing §19 — URL / parameter tampering",

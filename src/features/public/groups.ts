@@ -2,7 +2,6 @@
  * Group ticket context and routing
  */
 
-/* jscpd:ignore-start -- imports */
 import { hmacHash } from "#crypto/hashing.ts";
 import { groupListings } from "#db/groups/table.ts";
 import {
@@ -18,7 +17,6 @@ import { sortListings } from "#shared/sort-listings.ts";
 import type { Group, ListingWithCount } from "#types";
 import { getVisibleGroupMembers, groupBookable } from "./group-liveness.ts";
 import { renderTicketFlow } from "./ticket-submit.ts";
-/* jscpd:ignore-end */
 
 /** A group resolved with its buyer-visible active listings. */
 export type GroupWithListings = {

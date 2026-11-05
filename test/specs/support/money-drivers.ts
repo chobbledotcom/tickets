@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { stub } from "@std/testing/mock";
 import { requiredMapValue } from "#fp";
 import type {
@@ -24,7 +23,6 @@ import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { withRefundMock } from "#test-utils/refund-routes.ts";
 import { stubCheckoutSession } from "#test-utils/stripe/responses.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
-// jscpd:ignore-end
 
 // -- Public-payment driver (mirrors server-payments-success.test.ts) ------ //
 

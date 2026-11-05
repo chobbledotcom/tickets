@@ -1,5 +1,3 @@
-/* jscpd:ignore-start -- imports */
-
 import { DatabaseBusyError } from "#db/client.ts";
 import {
   classifyDatabaseError,
@@ -70,8 +68,6 @@ import {
   shouldPrefetchSettings,
   trackingRedirectLocation,
 } from "./rules.ts";
-
-/* jscpd:ignore-end */
 
 const loadSetupRoutes = once(async () =>
   (await import("#routes/setup.ts")).createSetupRouter(

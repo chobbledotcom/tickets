@@ -9,7 +9,6 @@ import {
 } from "#db/built-sites/types.ts";
 import { builtSites, builtSitesCrudTable } from "#db/built-sites.ts";
 import { t } from "#i18n";
-/* jscpd:ignore-start */
 import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
 import {
   crudRoutes,
@@ -25,7 +24,6 @@ import {
   readBuiltSitesSort,
 } from "#shared/built-sites-list.ts";
 import { isBuilderEnabled } from "#shared/config.ts";
-/* jscpd:ignore-end */
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormValues } from "#shared/forms/definition.ts";
 import { isProvisioned, isReservedRenewal } from "#shared/renewal-helpers.ts";

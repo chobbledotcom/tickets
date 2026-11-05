@@ -8,7 +8,6 @@
  * them is here, so every provider waits, counts, and gives up the same way.
  */
 
-/* jscpd:ignore-start -- imports */
 import {
   connectionReasonOf,
   type ProviderConnectionReason,
@@ -17,8 +16,6 @@ import {
 } from "#payment/transport-error.ts";
 import { type FetchResult, fetchText } from "#shared/fetch.ts";
 import { delay } from "#shared/now.ts";
-
-/* jscpd:ignore-end */
 
 /** How long one provider HTTP call can wait before it gives up. A refund
  * send is armed before its POST, so a stuck call must become a timeout the

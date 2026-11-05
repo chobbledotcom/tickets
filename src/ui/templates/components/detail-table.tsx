@@ -8,11 +8,9 @@
  * cells. The custom rows come first, followed by the shared rows.
  */
 
-/* jscpd:ignore-start */
 import type { Child } from "#jsx/jsx-runtime.ts";
 import type { DetailRow } from "#templates/admin/detail-rows.tsx";
 import { LabelledRow } from "#templates/components/labelled-row.tsx";
-/* jscpd:ignore-end */
 
 export type DetailTableProps = {
   rows?: DetailRow[];

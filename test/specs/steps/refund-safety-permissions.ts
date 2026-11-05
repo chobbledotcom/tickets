@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -37,8 +35,6 @@ import {
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { chargeMoney } from "#test-utils/payment-state.ts";
-
-// jscpd:ignore-end
 
 const providerContacts = (world: TicketsWorld): number => {
   const provider = refundProviderFor(world);

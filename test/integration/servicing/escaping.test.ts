@@ -7,15 +7,12 @@
  * `<script>alert(1)</script>` reads as text, not executable markup — the same
  * escaping JSX applies automatically elsewhere.
  */
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createServicingHold, renderAdminPage } from "#test-utils/servicing.ts";
-
-// jscpd:ignore-end
 
 const XSS_NAME = "<script>alert(1)</script>";
 const ESCAPED_NAME = "&lt;script&gt;alert(1)&lt;/script&gt;";

@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingWithCount } from "#db/listings/records.ts";
@@ -8,8 +7,6 @@ import {
   updateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("server listings > assign_built_site", { db: true }, () => {
   describe("assign_built_site", () => {

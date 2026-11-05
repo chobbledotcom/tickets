@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-/* jscpd:ignore-start -- imports */
 import {
   checkListingAvailability as hasAvailableSpots,
   unfitListingIds,
@@ -15,8 +14,6 @@ import {
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
-
-/* jscpd:ignore-end */
 
 const createCappedListingWithJohn = async () => {
   const listing = await createTestListing({ maxAttendees: 2 });

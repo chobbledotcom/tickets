@@ -14,14 +14,12 @@ import {
   rowTicketLimit,
 } from "#booking/package-cap.ts";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
-/* jscpd:ignore-start */
 import { filter, flatMap, mapNotNullish, pipe, reduce } from "#fp";
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { availableDayCounts, dayPriceFor, type ListingWithCount } from "#types";
 import { answerableQuestion } from "./questions.tsx";
 import type { ChildRenderCtx } from "./types.ts";
-/* jscpd:ignore-end */
 
 /** Max parent tickets after checking the children it must book too. */
 export const childLimitedMax = (

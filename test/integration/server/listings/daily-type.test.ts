@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -14,8 +13,6 @@ import {
   updateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost, setupListingAndLogin } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("server listings > daily listing type", { db: true }, () => {
   describe("daily listing type", () => {

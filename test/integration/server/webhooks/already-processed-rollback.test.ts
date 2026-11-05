@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -15,8 +14,6 @@ import {
   expectKeptAsQuantityZeroAndRefunded,
   postWebhookAndAssert,
 } from "#test-utils/webhooks.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "server webhooks > already-processed rollback",
@@ -169,7 +166,7 @@ describeWithEnv(
         200,
         (json) => {
           expect(json.processed).toBe(true);
-          expect(json.error).toBeUndefined();
+          expect(json).not.toHaveProperty("error");
         },
       );
     });

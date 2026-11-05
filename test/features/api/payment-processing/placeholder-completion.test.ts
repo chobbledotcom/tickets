@@ -26,7 +26,6 @@ import { readRowState } from "#payment/row-state.ts";
 import { completePlaceholderMoney } from "#routes/api/payment-processing/placeholder-completion.ts";
 import { settleRejectedCharge } from "#routes/api/payment-processing/rejected-target.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-/* jscpd:ignore-start -- imports */
 import {
   withAuthorityRetirementFault,
   withRefundConfirmationFault,
@@ -41,8 +40,6 @@ import {
   ourRejection,
   withSucceedingRefundFor,
 } from "#test-utils/rejected-charge.ts";
-
-/* jscpd:ignore-end */
 
 setupTestEncryptionKey();
 

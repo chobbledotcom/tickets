@@ -2,7 +2,6 @@
  * Admin guide — Domains sections.
  */
 
-/* jscpd:ignore-start */
 import { compact } from "#fp";
 import { formatBytes } from "#shared/format-units.ts";
 import { MAX_IMAGE_SIZE } from "#shared/limits.ts";
@@ -12,7 +11,6 @@ import {
   type GuideHostConfig,
   type GuideSection,
 } from "#templates/admin/guide/components.tsx";
-/* jscpd:ignore-end */
 
 export const domainsSections = (hostConfig?: GuideHostConfig): GuideSection[] =>
   compact<GuideSection>([

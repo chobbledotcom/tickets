@@ -7,7 +7,6 @@
  */
 
 import type { InValue } from "@libsql/client";
-/* jscpd:ignore-start */
 import * as v from "valibot";
 import { hmacHash } from "#crypto/hashing.ts";
 import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/hybrid.ts";
@@ -28,7 +27,6 @@ import { map } from "#fp";
 import { nowIso } from "#shared/now.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 import type { ContactInfo, PiiBlob } from "#types";
-/* jscpd:ignore-end */
 
 /** Current PII blob schema version */
 export const PII_BLOB_VERSION = 1;

@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -14,8 +13,6 @@ import {
   stageSignedSumupCheckout,
   sumupRecoveryRow,
 } from "#test-utils/sumup.ts";
-
-/* jscpd:ignore-end */
 
 /** SumUp is never reachable, so every checkout stays open — this suite is
  * about how a run picks work up, not about what an answer means. */

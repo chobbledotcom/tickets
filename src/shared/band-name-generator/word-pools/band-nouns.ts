@@ -1,5 +1,6 @@
 /** Nouns and person names that anchor generated band names. */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** Concrete and abstract nouns that work as band-name subjects */
 export const BAND_NOUNS = [
   "Fox",
@@ -250,7 +251,9 @@ export const BAND_NOUNS = [
   "Footpad",
   "Highwayman",
 ] as const;
+/* jscpd:ignore-end */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** First names used for "{Adjective} {Name} and Friends"-style patterns */
 export const BAND_PERSON_NAMES = [
   "David",
@@ -358,3 +361,4 @@ export const BAND_PERSON_NAMES = [
   "Hans",
   "Dieter",
 ] as const;
+/* jscpd:ignore-end */

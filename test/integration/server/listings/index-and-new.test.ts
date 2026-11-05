@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -14,8 +13,6 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { adminGet } from "#test-utils/session.ts";
 import { featureSetting } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("server listings > index and new", { db: true }, () => {
   describe("GET /admin/listings", () => {

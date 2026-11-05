@@ -5,14 +5,12 @@
  * drive the same controls with their own link targets.
  */
 
-/* jscpd:ignore-start -- imports */
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
 import { renderFilterBar } from "#shared/filter-bar.ts";
 import type { LedgerScopeOption } from "#shared/ledger-scope.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
 import type { ListingType } from "#types";
-/* jscpd:ignore-end */
 
 /** Filter values: "all" plus the three listing categories. */
 export const LISTING_FILTERS = [

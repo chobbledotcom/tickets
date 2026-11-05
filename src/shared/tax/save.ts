@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import { attendeeAccount, MODIFIER, REVENUE } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import { eventGroup } from "#accounting/refs.ts";
@@ -25,7 +24,6 @@ import {
 } from "#shared/tax/store.ts";
 import { reassessTax } from "#shared/tax/transitions.ts";
 import { NO_TAX, type TaxBasis } from "#shared/tax/types.ts";
-/* jscpd:ignore-end */
 
 export type TaxSavePreview = {
   token: string;

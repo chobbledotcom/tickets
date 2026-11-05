@@ -7,7 +7,6 @@
 /** The box on the edit form. Its value is read off the page, not assumed. */
 const FIELD = "bookable_alone";
 
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { groups, setListingGroups } from "#db/groups.ts";
@@ -48,7 +47,6 @@ import {
 import { makeParent, ticketPageStatus } from "#test-utils/parents.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
-// jscpd:ignore-end
 
 /** Something sold with an add-on, which the organiser may or may not also sell
  * on its own. Both are remembered by the names the story calls them. */

@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -19,8 +18,6 @@ import {
   sumupCheckout,
   withSumupCheckoutStatus,
 } from "#test-utils/sumup.ts";
-
-/* jscpd:ignore-end */
 
 /** A real session, built the way the SumUp adapter builds one. `signed: false`
  * leaves out the price proof, which is the only thing that proves a paid

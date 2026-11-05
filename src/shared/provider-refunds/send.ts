@@ -1,6 +1,5 @@
 /** Arm, authorize, send, and durably interpret one exact refund generation. */
 
-/* jscpd:ignore-start -- imports */
 import type { RefundAuthorityRow } from "#db/provider-refund-authority.ts";
 import { transitionRefundAuthority } from "#db/provider-refund-authority-change.ts";
 import { sameMoney } from "#payment/money.ts";
@@ -37,8 +36,6 @@ import {
   requireCurrentRefund,
 } from "./state.ts";
 import { withRefundWorkFacts } from "./work.ts";
-
-/* jscpd:ignore-end */
 
 const authorizeSend = async (
   row: RefundAuthorityRow,

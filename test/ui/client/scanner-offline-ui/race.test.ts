@@ -13,7 +13,6 @@
  * asserted are the words the door reads.
  */
 
-// jscpd:ignore-start -- imports
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { hmacHex } from "#shared/sha256.ts";
@@ -53,8 +52,6 @@ import {
   settledCheckIn,
 } from "#test/ui/client/scanner/offline-door.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
-
-// jscpd:ignore-end
 
 /** The held ticket digest: release opens the gate, and disposing restores
  * the platform's own sign. */

@@ -5,7 +5,6 @@
  */
 
 import { Given, Then, When } from "@cucumber/cucumber";
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
@@ -29,8 +28,6 @@ import {
 } from "#test/specs/support/world.ts";
 import { setPendingNotificationFlags } from "#test-utils/db-helpers/attendees.ts";
 import { adminGet } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 /** The email badge's own words, as the site prints them. */
 const emailNotice = () => t("attendees.badge.email_not_sent");

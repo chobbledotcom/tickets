@@ -8,7 +8,6 @@
  * `resolveListingDefaults`).
  */
 
-/* jscpd:ignore-start -- imports */
 import { invalidateListingsCache } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
@@ -29,8 +28,6 @@ import {
 import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";
 import { parseNonNegativeInt } from "#shared/validation/number.ts";
 import { adminListingDefaultsPage } from "#templates/admin/listing-defaults.tsx";
-
-/* jscpd:ignore-end */
 
 /** One field's parse outcome: a value to set, an error, or neither (unset). */
 type FieldParse = { value?: unknown; error?: string };

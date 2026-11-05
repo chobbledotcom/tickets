@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { requiredMapValue } from "#fp";
 import { reportRefundNotRecorded } from "#shared/invariant-errors.ts";
 import { withDeferredErrorReports } from "#shared/logger.ts";
@@ -29,8 +28,6 @@ import { runRefundReadiness } from "./readiness-run.ts";
 import { reportRefundProblem } from "./report.ts";
 import { rememberCandidateFindings } from "./result-findings.ts";
 import type { RefundOutcome } from "./waves.ts";
-
-/* jscpd:ignore-end */
 
 type RecordRefunds = typeof recordAttendeeRefundsBatch;
 type TaggedRefundReference =

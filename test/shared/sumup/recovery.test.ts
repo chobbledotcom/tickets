@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -10,8 +9,6 @@ import {
   type SumupCheckoutReading,
   sumupRecoveryOutcome,
 } from "#shared/sumup/recovery.ts";
-
-/* jscpd:ignore-end */
 
 /** A settled outcome of each kind, with the fields its arm carries. */
 const outcomeOf = (kind: CallbackOutcome["kind"]): CallbackOutcome => {

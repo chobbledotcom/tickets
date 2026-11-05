@@ -1,5 +1,3 @@
-/* jscpd:ignore-start -- imports */
-
 import type {
   ProviderRefundCase,
   ProviderRefundCasePage,
@@ -20,8 +18,6 @@ import { renderAdminPage } from "#templates/admin/admin-page.tsx";
 import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
 import { RadioOption } from "#templates/components/radio-option.tsx";
 import type { AdminSession } from "#types";
-
-/* jscpd:ignore-end */
 
 const CASE_PATH = "/admin/privacy/refunds";
 

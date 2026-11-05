@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import { askProvider } from "#payment/provider-call.ts";
 import { withExactRefundMoney } from "#payment/provider-failures.ts";
 import type { ProviderRead } from "#payment/provider-read.ts";
@@ -17,7 +16,6 @@ import {
   squareRefundFailure,
 } from "#shared/square/outcomes.ts";
 import type { SquarePayment, SquareRefund } from "#shared/square/wire.ts";
-/* jscpd:ignore-end */
 
 /** The two client methods payment reads and refunds need. */
 export type SquarePaymentClient = Pick<SquareClient, "payments" | "refunds">;

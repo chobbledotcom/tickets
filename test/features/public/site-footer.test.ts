@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import type { InStatement } from "@libsql/client";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -37,8 +36,6 @@ import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import { adminGet } from "#test-utils/session.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 const footerTag = `<footer class="site-footer">`;
 

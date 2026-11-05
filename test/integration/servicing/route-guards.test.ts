@@ -14,7 +14,6 @@
  *     a single kind-guarded read (§20) defaulting to `kind='attendee'`; the
  *     servicing loaders default to `kind='servicing'`.
  */
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -31,8 +30,6 @@ import {
   recordServiceCost,
 } from "#test-utils/servicing.ts";
 import { adminFormPost, getTestSession } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "servicing §9 — single-record route guards",

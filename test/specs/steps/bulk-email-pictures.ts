@@ -2,8 +2,6 @@
  * copy carries it, and what the owner wrote as code or as a web address
  * beside it. */
 
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { t } from "#i18n";
@@ -21,8 +19,6 @@ import {
   writtenMessage,
 } from "#test/specs/support/bulk-email.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
 
 /** The message the owner writes when they name a picture: their words, then
  * the reference the editor's dropdown leaves in the box. The words may name

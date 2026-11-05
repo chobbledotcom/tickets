@@ -1,5 +1,3 @@
-/* jscpd:ignore-start -- imports */
-
 import { removeIfPresent } from "#scripts/cleanup.ts";
 import {
   captureOutput,
@@ -8,7 +6,6 @@ import {
   removeTree,
 } from "#scripts/process.ts";
 import { projectRoot } from "#scripts/project-root.ts";
-/* jscpd:ignore-end */
 import { errorMessage } from "#shared/error-message.ts";
 import type { ParsedArgs } from "./args.ts";
 import {

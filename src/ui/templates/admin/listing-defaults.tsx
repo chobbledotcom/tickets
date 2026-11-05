@@ -6,7 +6,6 @@
  * deciding it themselves; any other value becomes the inherited default.
  */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import {
@@ -25,8 +24,6 @@ import { CheckboxLabel } from "#templates/components/aggregate-sections.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
 import type { AdminSession } from "#types";
-
-/* jscpd:ignore-end */
 
 const labelFor = (field: ListingDefaultField): string =>
   t(listingDefaultLabelKey(field));

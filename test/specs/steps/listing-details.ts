@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { ownerLastTold } from "#test/specs/support/buyer-questions.ts";
@@ -10,8 +8,6 @@ import {
   visitorReadsListingPage,
 } from "#test/specs/support/listing-details.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
 
 Given(
   "the owner keeps a detail called {word} worded {string} or {string}",

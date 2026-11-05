@@ -4,7 +4,6 @@
  */
 
 import { type Holiday, holidays } from "#db/holidays.ts";
-/* jscpd:ignore-start */
 import {
   defineEditEntityPage,
   type EditEntityPage,
@@ -12,8 +11,6 @@ import {
 } from "#routes/admin/entity-write-tab.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 import { HolidayEditPanel } from "#templates/admin/holidays.tsx";
-
-/* jscpd:ignore-end */
 
 export const holidayPage: EditEntityPage<Holiday> = defineEditEntityPage({
   deleteDestination: "holidayDelete",

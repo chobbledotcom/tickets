@@ -6,7 +6,6 @@
  * authenticated request.
  */
 
-/* jscpd:ignore-start */
 import { isAnchorSession } from "#db/payment-anchor/session.ts";
 import {
   loadSelectedPaymentReferenceRows,
@@ -26,7 +25,6 @@ import type {
   UntaggedPaymentReference,
 } from "#payment/provider-reference.ts";
 import { type RefundState, refundStateOf } from "#payment/refund-state.ts";
-/* jscpd:ignore-end */
 
 export type RefundPaymentReferenceSource = {
   id: number;

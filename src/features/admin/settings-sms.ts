@@ -7,7 +7,6 @@
  */
 
 import { settings } from "#db/settings.ts";
-/* jscpd:ignore-start */
 import {
   processSecretField,
   type SecretFieldResult,
@@ -16,8 +15,6 @@ import {
 } from "#routes/admin/settings-helpers.ts";
 import { SMS_PASSPHRASE_MIN_LENGTH } from "#shared/sms/e2e.ts";
 import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";
-
-/* jscpd:ignore-end */
 
 type SmsGatewayFormData = {
   username: string;

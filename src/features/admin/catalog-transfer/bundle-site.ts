@@ -6,7 +6,6 @@
  */
 
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
-/* jscpd:ignore-start -- imports */
 import { inPlaceholders, queryAll } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { getGroupsById } from "#db/groups.ts";
@@ -42,7 +41,6 @@ import type {
   ListingBody,
   ListingMembership,
 } from "./schema.ts";
-/* jscpd:ignore-end */
 
 /** Everything the later phases read: the document and its per-item resolution
  * maps (keyed by the item objects themselves), plus the stored rows the site

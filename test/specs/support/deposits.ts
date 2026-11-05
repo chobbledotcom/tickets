@@ -5,7 +5,6 @@
 
 import { expect } from "@std/expect";
 import { settleAttendeeBalance } from "#db/attendees/balance.ts";
-// jscpd:ignore-start
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { signBalanceToken } from "#shared/balance-link.ts";
 import { sellSomethingAt } from "#test/specs/support/listings.ts";
@@ -23,8 +22,6 @@ import {
 import { createAttendeeOn } from "#test-utils/db-helpers/attendees.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
-
-// jscpd:ignore-end
 
 /** A page read the way anyone not signed in reads it. */
 const publicPageHtml: ReadOnePageHtml = pageHtmlVia((path) =>

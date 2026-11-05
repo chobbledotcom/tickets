@@ -1,12 +1,9 @@
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import type { CheckerResult } from "#scripts/verify-models/check.ts";
 import type { ModelCheck } from "#scripts/verify-models/jobs.ts";
 import { runChecks } from "#scripts/verify-models/run.ts";
-
-/* jscpd:ignore-end */
 
 const proof = (module: string): ModelCheck => ({
   directory: `/proof/${module}`,

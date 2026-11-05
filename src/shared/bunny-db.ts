@@ -6,7 +6,6 @@
  * Auth: AccessKey header (same BUNNY_API_KEY as CDN API)
  */
 
-/* jscpd:ignore-start -- import block */
 import * as v from "valibot";
 import { defineApiClient } from "#shared/api-client.ts";
 import { bunnyDryRunFetch } from "#shared/bunny-api.ts";
@@ -18,8 +17,6 @@ import {
   databaseCredentialsFromResponse,
 } from "#shared/provider-types.ts";
 import { okResult, type Result } from "#shared/result.ts";
-
-/* jscpd:ignore-end */
 
 const DB_API_BASE = "https://api.bunny.net/database";
 

@@ -7,7 +7,6 @@
  * factors that wrapper out so the scaffolding lives in one place.
  */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { Flash } from "#shared/forms/flash.tsx";
@@ -15,8 +14,6 @@ import { renderAdminPage } from "#templates/admin/admin-page.tsx";
 import type { NavActive } from "#templates/admin/nav.tsx";
 import { ConfirmForm } from "#templates/components/save-form.tsx";
 import type { AdminSession } from "#types";
-
-/* jscpd:ignore-end */
 
 /** A translate-key + the args to pass to t(). */
 export type TCall = { key: string; args?: Record<string, unknown> };

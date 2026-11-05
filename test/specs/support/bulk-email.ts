@@ -9,7 +9,6 @@
  */
 
 import { settings } from "#db/settings.ts";
-// jscpd:ignore-start
 import { t } from "#i18n";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import {
@@ -45,8 +44,6 @@ import { makeImage } from "#test-utils/admin-images.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { connectResendProvider } from "#test-utils/settings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
-
-// jscpd:ignore-end
 
 /** Where pressing Send really goes. Asked of the page as well as posted to, so
  * a story can tell "the owner may send" from "the owner is shown a dead

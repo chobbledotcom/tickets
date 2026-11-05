@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -9,8 +8,6 @@ import { expectAltTextPreview } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { createTestEditorSession } from "#test-utils/session.ts";
-
-/* jscpd:ignore-end */
 
 describeWithEnv("the admin markdown preview", { db: true }, () => {
   test("resolves an img#id reference to the image's uid URL", async () => {

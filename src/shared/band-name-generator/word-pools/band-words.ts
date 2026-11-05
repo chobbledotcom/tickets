@@ -1,5 +1,6 @@
 /** Adjectives, descriptors, verbs, and name suffixes for the band-name generator. */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** Weird, evocative adjectives suitable for metal/rock band names */
 export const BAND_ADJECTIVES = [
   "Brutal",
@@ -221,7 +222,9 @@ export const BAND_ADJECTIVES = [
   "Pugilistic",
   "Sclerotic",
 ] as const;
+/* jscpd:ignore-end */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** Collective nouns for "the band's reputation" */
 export const BAND_DESCRIPTORS = [
   "pioneers",
@@ -255,7 +258,9 @@ export const BAND_DESCRIPTORS = [
   "criminally-undercelebrated trio",
   "begrudgingly-respected veterans",
 ] as const;
+/* jscpd:ignore-end */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** Verbs the band itself does — used in "{bandDescriptor} {bandVerb} ..." patterns */
 export const BAND_VERBS = [
   "reunite",
@@ -283,7 +288,9 @@ export const BAND_VERBS = [
   "drift in",
   "crash through the door",
 ] as const;
+/* jscpd:ignore-end */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** Tail phrases that turn a noun phrase into a fully-realised band name */
 export const BAND_SUFFIXES = [
   "of Doom",
@@ -372,3 +379,4 @@ export const BAND_SUFFIXES = [
   "Wake",
   "Vigil",
 ] as const;
+/* jscpd:ignore-end */

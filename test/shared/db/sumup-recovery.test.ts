@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
@@ -14,8 +13,6 @@ import { SUMUP_RECOVERY_BATCH } from "#shared/limits.ts";
 import { nowIso } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { plantSumupRecoveryRow, sumupRecoveryRow } from "#test-utils/sumup.ts";
-
-/* jscpd:ignore-end */
 
 const PAST = "2000-01-01T00:00:00.000Z";
 const FUTURE = "2999-01-01T00:00:00.000Z";

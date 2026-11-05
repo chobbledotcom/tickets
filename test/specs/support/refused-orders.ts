@@ -5,7 +5,6 @@
  * `test/specs/steps/refused-orders.ts` stay thin over these.
  */
 
-// jscpd:ignore-start
 import {
   attribute,
   boxFor,
@@ -34,7 +33,6 @@ import {
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import type { TestListingOverrides } from "#test-utils/factories.ts";
-// jscpd:ignore-end
 
 export const THE_CUSTOMER = { email: "jane@example.com", who: "Jane Doe" };
 export const SOMEONE_QUICKER = {

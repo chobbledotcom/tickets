@@ -1,13 +1,11 @@
 /** Where a built-site tab lives, and the one way a tab write answers back:
  * its success line, or its failure line, on that tab. */
 
-/* jscpd:ignore-start -- imports */
 import { identity } from "#fp";
 import { errorRedirect, redirect } from "#routes/response.ts";
 import { adminPath } from "#shared/admin-surface.ts";
 import { tabPath } from "#shared/entity-pages/core.ts";
 import type { Outcome } from "#shared/result.ts";
-/* jscpd:ignore-end */
 
 /** One tab of a built site's page, by its URL segment. */
 export type BuiltSiteTab =

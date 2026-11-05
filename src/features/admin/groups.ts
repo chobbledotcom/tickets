@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import {
   defineAdminRoutes,
@@ -74,8 +73,6 @@ import {
   validatePackageMemberForm,
 } from "./package-member-rules.ts";
 import { bindNoteRoutes } from "./record-notes.ts";
-
-/* jscpd:ignore-end */
 
 /** Shared shape of the group validators: an error message, or null when valid.
  * `id` is the group being edited (absent on create). */

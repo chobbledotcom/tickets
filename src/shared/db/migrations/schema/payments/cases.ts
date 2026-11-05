@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import {
   text,
   textOrNull,
@@ -7,7 +6,6 @@ import {
   wholeNumberStartingAtOne,
 } from "#db/migrations/schema/scalar-columns.ts";
 import { ownerEncryptedColumn, paymentRecord } from "./columns.ts";
-/* jscpd:ignore-end */
 
 export const paymentCaseTable = paymentRecord("payment_cases", {
   columns: [

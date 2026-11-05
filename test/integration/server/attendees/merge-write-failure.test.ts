@@ -1,8 +1,6 @@
-// jscpd:ignore-start
 import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-// jscpd:ignore-end
 import { attendeeAccount } from "#accounting/accounts.ts";
 import { queryAll } from "#db/client.ts";
 import {

@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import { logActivity } from "#db/activity-log.ts";
 import { parseTaxPolicy } from "#db/settings/tax.ts";
 import { settings } from "#db/settings.ts";
@@ -7,8 +6,6 @@ import { formPost, OWNER_FORM } from "#routes/auth.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { TaxPolicy } from "#shared/tax/types.ts";
-
-/* jscpd:ignore-end */
 
 const formId = "settings-tax";
 const destination = "/admin/settings";

@@ -8,7 +8,6 @@ import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
  * email exists, a message form that delivers to the host.
  */
 
-/* jscpd:ignore-start */
 import { addPageImageUrls } from "#db/image-urls.ts";
 import { t } from "#i18n";
 import {
@@ -25,7 +24,6 @@ import {
 } from "#routes/response.ts";
 import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
-/* jscpd:ignore-end */
 import { MESSAGE_SEND_FAILED } from "#shared/inbound-message.ts";
 import {
   getSupportPageText,

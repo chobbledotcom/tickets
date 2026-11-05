@@ -10,7 +10,6 @@ import {
 } from "#db/attendees/queries.ts";
 import { getListingWithAttendeesRaw } from "#db/listings/attendees.ts";
 import { listingNames } from "#db/listings/records.ts";
-/* jscpd:ignore-start */
 import {
   type AuthPolicy,
   type AuthSession,
@@ -33,8 +32,6 @@ import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { isIsoMonth } from "#shared/validation/date.ts";
 import { isIsoDate } from "#shared/validation/date-string.ts";
 import type { Attendee, ListingWithCount } from "#types";
-
-/* jscpd:ignore-end */
 
 /** Read one query parameter. Keep it only when it reads as a real date.
  *  Anything else is treated as absent, so a typed URL cannot filter by junk. */

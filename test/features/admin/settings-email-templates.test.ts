@@ -12,7 +12,6 @@
  * because a Cucumber run does not count towards coverage.
  */
 
-// jscpd:ignore-start
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
@@ -28,8 +27,6 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 const CONFIRMATION_PATH = "/admin/settings/email-templates/confirmation";
 const ADMIN_PATH = "/admin/settings/email-templates/admin";

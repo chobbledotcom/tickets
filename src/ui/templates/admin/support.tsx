@@ -6,7 +6,6 @@
  * set. Rendered only when the Support feature is enabled (ADMIN_EMAIL_ADDRESS).
  */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
 import { Raw } from "#jsx/jsx-runtime.ts";
@@ -17,8 +16,6 @@ import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { RawParagraph } from "#templates/components/prose-heading.tsx";
 import type { AdminSession } from "#types";
-
-/* jscpd:ignore-end */
 
 /** Message form delivering to the platform host (no Botpoison). Just a message
  * box: support always comes from the site's own business email, so there is no

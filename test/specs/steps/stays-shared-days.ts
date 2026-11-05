@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -25,8 +23,6 @@ import {
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-
-// jscpd:ignore-end
 
 /** Two listings that share one day limit, each with its own stay length. The
  * group's own page is where a customer books both at once. */

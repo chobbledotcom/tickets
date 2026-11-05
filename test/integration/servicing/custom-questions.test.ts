@@ -12,7 +12,6 @@
  *     the attendee form), and the shared answer-save step runs inside the
  *     servicing create/edit core.
  */
-// jscpd:ignore-start
 import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -27,8 +26,6 @@ import {
   createServicingHold,
   updateServicingEvent,
 } from "#test-utils/servicing.ts";
-
-// jscpd:ignore-end
 
 /** Attach a single radio "Boiler model?" question to a listing. */
 const attachQuestion = async (

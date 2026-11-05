@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -8,7 +7,6 @@ import { getNotesFor } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
 import { settings } from "#db/settings.ts";
 import { paymentsApi } from "#shared/payments.ts";
-// jscpd:ignore-end
 import { createRefundableAttendee } from "#test/features/admin/refunds-helpers.ts";
 import {
   expectFlash,

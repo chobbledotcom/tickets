@@ -1,10 +1,8 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { makeImage } from "#test-utils/admin-images.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
-// jscpd:ignore-end
 import {
   attendeeAnswerIds,
   saveAttendeeAnswer,

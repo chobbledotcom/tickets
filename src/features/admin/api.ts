@@ -18,7 +18,6 @@ import {
   getListingWithCountPrimary,
   listingsTable,
 } from "#db/listings/records.ts";
-/* jscpd:ignore-start */
 import { mapById, requiredMapValue } from "#fp";
 import { attendeeStatusApiRoutes } from "#routes/admin/api-attendee-statuses.ts";
 import { attributeApiRoutes } from "#routes/admin/api-attributes.ts";
@@ -55,8 +54,6 @@ import {
   prepareChildEdges,
   prepareListingJoins,
 } from "./api-listing-joins.ts";
-
-/* jscpd:ignore-end */
 
 // DELETE /api/admin/listings/:listingId takes the shared DeleteBody the
 // crud-parsers module exports.

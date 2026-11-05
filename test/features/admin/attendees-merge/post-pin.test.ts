@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { decryptPiiBlob } from "#db/attendees/pii.ts";
@@ -12,8 +11,6 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { attendeePiiOf } from "#test-utils/db-helpers/attendee-payments.ts";
 import type { Attendee } from "#types";
-
-// jscpd:ignore-end
 
 /** Pin an attendee at the given coordinates through the real edit path. */
 const pinAttendee = async (

@@ -14,7 +14,6 @@ import {
 } from "#db/logistics.ts";
 import { logisticsAgents } from "#db/logistics-agents.ts";
 import { settings } from "#db/settings.ts";
-/* jscpd:ignore-start */
 import { requiredMapValue, uniqueBy } from "#fp";
 import {
   type AttendeeFormLine,
@@ -24,7 +23,6 @@ import {
 import type { FormParams } from "#shared/form-data.ts";
 import { parsePositiveInt as parsePositiveIntId } from "#shared/validation/number.ts";
 import type { Attendee, LogisticsAgent } from "#types";
-/* jscpd:ignore-end */
 
 /** Checkbox field: when "1", each logistics listing carries its own agents. */
 export const SPLIT_AGENTS_FIELD = "split_logistics_agents";

@@ -10,6 +10,7 @@
  * docs/designing-systems.md). Remove an entry as soon as its reason is gone.
  */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 export const COVERAGE_EXCLUSIONS: readonly string[] = [
   // The reporter's own IO edges — spawning a real deno test child and the
   // paths around reading its streams — cannot all be reached from an
@@ -85,3 +86,4 @@ export const COVERAGE_EXCLUSIONS: readonly string[] = [
   // gate still mutates it against those tests.
   "test/scripts/unread-fields/fields/fields-of-source.ts",
 ];
+/* jscpd:ignore-end */

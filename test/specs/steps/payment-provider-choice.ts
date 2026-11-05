@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -16,8 +14,6 @@ import { hasCheckedInput, inputTagWithValue } from "#test-utils/csrf.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withMockBunnyCdnApi } from "#test-utils/mocks.ts";
 import { requirePaymentProviderRecovery } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 Given(
   "a Stripe test key is saved while Square takes payments",

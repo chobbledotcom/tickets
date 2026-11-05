@@ -11,7 +11,6 @@
  * boxes the create and edit pages render, and the values the calendar checker
  * hands over in the address it sends the organiser to.
  */
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -21,8 +20,6 @@ import {
   createTestServicingEvent,
   renderAdminPage,
 } from "#test-utils/servicing.ts";
-
-// jscpd:ignore-end
 
 /** Room A (daily, cap 5) + a 2-qty "Boiler Service" hold on 2099-07-01. */
 const roomAWithBoiler = async () => {

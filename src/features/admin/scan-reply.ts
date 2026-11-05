@@ -4,7 +4,6 @@
  * live in `scan-answer.ts`. The delivery's identity and its ledger row
  * live in `scan-delivery.ts`. */
 
-/* jscpd:ignore-start -- imports */
 import type { TxScope } from "#db/client.ts";
 import { createSystemNote } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
@@ -14,7 +13,6 @@ import { jsonResponse } from "#routes/response.ts";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
 import type { ScanDecision } from "./scan-decision.ts";
 import { deliveredAdmission, type QueuedDelivery } from "./scan-delivery.ts";
-/* jscpd:ignore-end */
 
 /** The door's own listing names behind an answer, first occurrence first. */
 export const listingNamesOf = (rows: readonly TokenEntry[]): string =>

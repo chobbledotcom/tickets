@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -19,8 +18,6 @@ import {
   registerConformanceSweep,
   registerTableChecks,
 } from "#test-utils/machine-spec.ts";
-
-/* jscpd:ignore-end */
 
 const spec = {
   events: RECOVERY_EVENTS,

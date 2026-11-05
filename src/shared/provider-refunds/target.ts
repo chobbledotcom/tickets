@@ -1,6 +1,5 @@
 /** Load and prepare exactly one canonical refund target. */
 
-/* jscpd:ignore-start -- imports */
 import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
 import {
   bindRefundCallbackIfChargeExists,
@@ -22,8 +21,6 @@ import type {
   ProviderRefundTarget,
   RefundEngineProvider,
 } from "#shared/provider-refunds.ts";
-
-/* jscpd:ignore-end */
 
 interface LoadedRefundTarget {
   readonly callbackReplayIndex: string | undefined;

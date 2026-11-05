@@ -1,5 +1,3 @@
-/* jscpd:ignore-start */
-
 import type { ModifierRow } from "#db/modifiers.ts";
 import { t } from "#i18n";
 import { Raw, type SafeHtml } from "#jsx/jsx-runtime.ts";
@@ -37,8 +35,6 @@ import {
   ScopeLinksForm,
 } from "./links.tsx";
 import { modifierToFieldValues, ruleSummary } from "./values.ts";
-
-/* jscpd:ignore-end */
 
 const renderModifierFormFields = (
   modifier?: Modifier,

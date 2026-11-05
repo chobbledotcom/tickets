@@ -1,5 +1,3 @@
-/* jscpd:ignore-start */
-
 import { buildBookingTree } from "#booking/build-tree.ts";
 import { bookingError } from "#booking/form.ts";
 import {
@@ -58,8 +56,6 @@ import {
   standInNameFor,
 } from "#shared/package-privacy.ts";
 import type { Group } from "#types";
-
-/* jscpd:ignore-end */
 
 const PACKAGE_NOT_FOUND = "Package not found";
 

@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import type { BrowserSession } from "#e2e/browser.ts";
 import { catalogWords } from "#e2e/catalog-words.ts";
 import { log } from "#e2e/log.ts";
@@ -14,8 +13,6 @@ import {
   testProviderConnection,
 } from "./shared.ts";
 import type { PaidSandboxCheckout, PaymentProvider } from "./types.ts";
-
-/* jscpd:ignore-end */
 
 /** A Stripe REST call (form-encoded GET/DELETE with the test-mode key). */
 const stripeApi = <T>(

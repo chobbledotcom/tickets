@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -16,8 +15,6 @@ import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { account } from "#shared/ledger/account.ts";
 import { tx, useTransactionalDb } from "#test-utils/ledger.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
-
-// jscpd:ignore-end
 
 const world = account("external", "world");
 const feeIncome = account("fee_income", "booking");

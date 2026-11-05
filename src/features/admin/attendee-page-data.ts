@@ -28,7 +28,6 @@ import {
   type RefundPaymentReferenceSet,
 } from "#db/payment-references.ts";
 import type { BookedAnswer, QuestionWithAnswers } from "#db/question-types.ts";
-/* jscpd:ignore-start */
 import { filter, identity, mapById, requiredMapValue } from "#fp";
 import { resolveSharedDates } from "#routes/admin/attendee-form-dates.ts";
 import type {
@@ -43,7 +42,6 @@ import { refundWorkRemains } from "#routes/admin/refunds/candidates.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { AttendeeFormTemplateData } from "#templates/admin/attendee-form/types.ts";
 import type { Attendee, ListingWithCount } from "#types";
-/* jscpd:ignore-end */
 
 /** An attendee plus its listing_attendees rows — the entity the whole page
  * loads once and every tab shares. */

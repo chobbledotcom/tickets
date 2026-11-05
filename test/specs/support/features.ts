@@ -4,8 +4,6 @@
  * a story reads as the owner's own screen does.
  */
 
-// jscpd:ignore-start
-
 import { t } from "#i18n";
 import {
   ADMIN_FEATURES,
@@ -30,8 +28,6 @@ import {
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
-
-// jscpd:ignore-end
 
 const SETTINGS_PATH = "/admin/settings";
 

@@ -5,7 +5,6 @@
  * filter — each a place where ISO 8601 lexicographic ordering or a `>= DATE('now')`
  * predicate can silently shift a day.
  */
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -21,8 +20,6 @@ import {
   createTestServicingEvent,
   renderAdminPage,
 } from "#test-utils/servicing.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("servicing edge cases — date boundaries", { db: true }, () => {
   test("a servicing hold spanning a year boundary consumes capacity for both years correctly", async () => {

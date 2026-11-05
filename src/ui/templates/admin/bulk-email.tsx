@@ -2,7 +2,6 @@
  * Admin bulk email templates — compose and preview pages.
  */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import type { BulkEmailDraft } from "#shared/bulk-email.ts";
@@ -26,8 +25,6 @@ import { rawParagraph } from "#templates/components/raw-paragraph.tsx";
 import { idOptions, SelectField } from "#templates/components/select-field.tsx";
 import { textareaBody } from "#templates/components/textarea.tsx";
 import type { AdminSession } from "#types";
-
-/* jscpd:ignore-end */
 
 const NAV_ACTIVE = "/admin/emails";
 

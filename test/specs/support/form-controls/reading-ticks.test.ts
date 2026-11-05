@@ -3,7 +3,6 @@
  * ticking each would send, and which the page has ticked already.
  */
 
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -11,8 +10,6 @@ import {
   requireCheckboxOffered,
   tickedCheckboxes,
 } from "#test/specs/support/form-controls/reading.ts";
-
-// jscpd:ignore-end
 
 describe("the days a page has ticked", () => {
   const day = (value: string, attributes = "checked") =>

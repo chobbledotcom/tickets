@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { bookedPathGroupIds } from "#booking/signed-metadata.ts";
 import { getPackageDisplaysByIds } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
@@ -22,7 +21,6 @@ import { getSearchParam } from "#routes/url.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { hasNamedBookingPath } from "#shared/package-privacy.ts";
 import { successPage } from "#templates/payment.tsx";
-/* jscpd:ignore-end */
 
 /** The `session_id` query param of a payment callback, or "" when absent. */
 export const paymentSessionId = (request: Request): string =>

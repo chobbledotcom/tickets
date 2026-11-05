@@ -23,7 +23,6 @@ import {
   explicitStandaloneIds,
   type PagePackage,
 } from "#booking/page-packages.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { daysAgo } from "#shared/dates.ts";
 import { isReadOnly } from "#shared/env.ts";
@@ -55,8 +54,6 @@ import { TicketPageForm, TicketPageHeader } from "./form.tsx";
 import { buildPageListingRows } from "./listing-rows.ts";
 import { ticketPageHeadExtra } from "./og-tags.ts";
 import type { TicketPageOptions } from "./types.ts";
-
-/* jscpd:ignore-end */
 
 type TicketHeaderInput = {
   attributesByListing: NonNullable<TicketPageOptions["attributesByListing"]>;

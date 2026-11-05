@@ -4,11 +4,7 @@
  * repeating every key.
  */
 
-/* jscpd:ignore-start -- imports */
-
 import { CONFIG_KEYS, EMAIL_BODY_KEYS, SNAPSHOT_KEYS } from "#db/settings.ts";
-
-/* jscpd:ignore-end */
 
 /**
  * Extra keys the full public-page nav reads (theme + header are in infra).

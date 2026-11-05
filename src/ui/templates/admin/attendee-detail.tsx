@@ -10,12 +10,10 @@
  */
 
 import type { SelectedQuestionAnswers } from "#db/question-types.ts";
-/* jscpd:ignore-start -- imports */
 import { compact, sumOf } from "#fp";
 import { t } from "#i18n";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import type { AttendeeBooking } from "#routes/admin/attendee-form-dates.ts";
-/* jscpd:ignore-end */
 import { formatDateRangeLabel } from "#shared/date-labels.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";

@@ -6,13 +6,11 @@
  * scenario ends.
  */
 
-// jscpd:ignore-start
 import { stub } from "@std/testing/mock";
 import { supportMessageApi } from "#shared/site-support-message.ts";
 import { uploadsAPicture } from "#test/specs/support/attendee-images.ts";
 import { type ActOnOneThing, scenarioEnv } from "#test/specs/support/world.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
-// jscpd:ignore-end
 
 /** The tab a site's support message is read and edited on. */
 export const supportMessageTab = (siteId: number): string =>

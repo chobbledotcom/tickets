@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import type { TlaRecord } from "#scripts/verify-models/data.ts";
 import type {
   MachineEvent,
@@ -7,8 +6,6 @@ import type {
   MachineRepresentative,
 } from "#shared/schema-atlas/machine-spec.ts";
 import { attemptTransition } from "#shared/schema-atlas/types.ts";
-
-/* jscpd:ignore-end */
 
 export const representativeFields = {
   declaredState: "Str",

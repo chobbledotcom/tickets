@@ -1,9 +1,9 @@
 {
-  "src/features/auth.ts": 711,
+  "src/features/auth.ts": 708,
   "src/fp.ts": 585,
-  "src/shared/db/attendees/servicing.ts": 902,
+  "src/shared/db/attendees/servicing.ts": 899,
   "src/shared/db/client.ts": 915,
-  "src/shared/db/groups.ts": 800,
+  "src/shared/db/groups.ts": 797,
   "src/shared/db/migrations/schema-sync.ts": 633,
   "src/shared/db/modifier-resolve.ts": 616,
   "src/shared/db/table.ts": 764,
@@ -37,5 +37,5 @@
   "test/shared/sentry.test.ts": 540,
   "test/shared/superuser.test.ts": 800,
   "test/test-utils/mocks.ts": 569,
-  "e2e-payments/src/cucumber/steps/booking.ts": 637
+  "e2e-payments/src/cucumber/steps/booking.ts": 635
 }

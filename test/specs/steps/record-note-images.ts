@@ -4,7 +4,6 @@
  */
 
 import { Given, Then, When } from "@cucumber/cucumber";
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { regionShowsPicture } from "#test/specs/support/attendee-images.ts";
@@ -24,8 +23,6 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
 
 /** The region a rendered note shows in, on the record page and the person's
  * page alike. */

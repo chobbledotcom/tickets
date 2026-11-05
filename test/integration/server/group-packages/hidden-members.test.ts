@@ -17,11 +17,8 @@ import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
-// jscpd:ignore-start
 import { adminGet } from "#test-utils/session.ts";
 import { hiddenPackageMember, member } from "./helpers.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "server (admin group packages) — a package that hides what is inside",

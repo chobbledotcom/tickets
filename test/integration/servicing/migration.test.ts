@@ -19,7 +19,6 @@
  *   - `#shared/db/migrations.ts` appends that migration to `MIGRATIONS`.
  *   - `#shared/db/attendees/kind.ts` exports `ATTENDEE_KIND` / `SERVICING_KIND`.
  */
-// jscpd:ignore-start
 import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -37,7 +36,6 @@ import { indexExists } from "#test-utils/migrations.ts";
 import { createTestServicingEvent, kindOf } from "#test-utils/servicing.ts";
 
 const MIGRATIONS = await loadMigrations();
-// jscpd:ignore-end
 
 const MIGRATION_ID = "2026-06-24_attendees_kind";
 const NOT_NULL_MIGRATION_ID = "2026-06-26_attendees_kind_not_null";
@@ -54,7 +52,6 @@ const columnDefault = async (): Promise<string | null> => {
 describe("servicing §1 — schema declares the kind column + index", () => {
   test("the attendees schema carries a NOT NULL kind column defaulting to ATTENDEE_KIND", () => {
     const kindCol = attendeesTable.columns.find(([name]) => name === "kind");
-    expect(kindCol).toBeDefined();
     const [, type] = kindCol!;
     expect(type).toMatch(/NOT NULL/);
     assertStringIncludes(type, ATTENDEE_KIND);
@@ -144,7 +141,7 @@ describe("servicing §1 — schema and migration stay in sync", () => {
         };
       }
     ).requires;
-    expect(requires?.columns?.kind).toBeDefined();
+    expect(requires?.columns?.kind).toEqual(["attendees.kind"]);
     assertArrayIncludes(requires?.indexes ?? [], ["idx_attendees_kind"]);
   });
 });

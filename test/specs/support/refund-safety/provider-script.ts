@@ -7,7 +7,6 @@
  * fails at that boundary instead of accidentally reaching a network.
  */
 
-// jscpd:ignore-start
 import { stub } from "@std/testing/mock";
 import { settings } from "#db/settings.ts";
 import type { ProviderRead } from "#payment/provider-read.ts";
@@ -22,8 +21,6 @@ import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
 import type { PutsThingsBack } from "#test/specs/support/memory.ts";
 import type { PaymentProviderType } from "#types";
-
-// jscpd:ignore-end
 
 type ChargeAnswer = ProviderRead<ChargeMoney>;
 type RefundAnswer =

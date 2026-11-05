@@ -6,7 +6,6 @@
 
 import { logActivity } from "#db/activity-log.ts";
 import { type TxScope, withTransaction } from "#db/client.ts";
-/* jscpd:ignore-start */
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import {
   requireSiteOr,
@@ -26,8 +25,6 @@ import type { Result } from "#shared/result.ts";
 import type { AdminSession, ImageUseItemType } from "#types";
 import type { CollectionRenderers } from "./crud-handlers.ts";
 import { createItemImageHandlers } from "./item-images.ts";
-
-/* jscpd:ignore-end */
 
 type SavedContent = {
   flashMessage: string;

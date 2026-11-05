@@ -1,6 +1,5 @@
 /** Modifier form fields (same for create and edit — no slug). */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { defineFieldsForm, type FormValues } from "#shared/forms/definition.ts";
 import type { Field } from "#shared/forms/field.ts";
@@ -17,8 +16,6 @@ import {
   validateWholeNumber,
   wholeNumberFieldShape,
 } from "#templates/fields/validators.ts";
-
-/* jscpd:ignore-end */
 
 const DECIMAL_VALUE_PATTERN = /^(?:\d+(?:\.\d+)?|\.\d+)$/;
 

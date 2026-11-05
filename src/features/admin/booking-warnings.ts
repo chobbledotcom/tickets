@@ -5,11 +5,9 @@
  */
 
 import { checkLinesCapacity } from "#db/attendees/capacity/checks.ts";
-/* jscpd:ignore-start */
 import { hydrateListingLinks, listingChildren } from "#db/listing-parents.ts";
 import { compact, requiredMapValue } from "#fp";
 import { t } from "#i18n";
-/* jscpd:ignore-end */
 import {
   type AttendeeFormLine,
   isBookedLine,

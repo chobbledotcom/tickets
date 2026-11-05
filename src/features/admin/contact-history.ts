@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 
@@ -35,8 +34,6 @@ import {
   ContactHistoryForm,
   ContactHistoryProse,
 } from "#templates/admin/contact-history.tsx";
-
-/* jscpd:ignore-end */
 
 /** Load the record for the editor, tolerating a corrupt stats blob. This
  * editor is the repair path, so a decryption failure must not lock the

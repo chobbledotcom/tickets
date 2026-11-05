@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -16,8 +15,6 @@ import {
   postCalculate,
 } from "#test-utils/parents.ts";
 import type { Listing } from "#types";
-
-// jscpd:ignore-end
 
 /** Two maxQuantity-5 base listings "Base A"/"Base B" — the shared parent pair
  *  behind every shared-child test (so each re-creates the same pair without

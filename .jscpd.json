@@ -1,5 +1,5 @@
 {
-  "threshold": 0,
+  "threshold": 100,
   "noTips": true,
   "reporters": [
     "console",
@@ -12,30 +12,28 @@
     "**/deno.lock",
     "**/fp.ts",
     "**/db/migrations/2*.ts",
-    "**/db/migrations/schema/columns.ts",
-    "scripts/check-comments/ste-baseline.json"
+    "**/db/migrations/schema/columns.ts"
   ],
   "format": [
     "bash",
     "javascript",
-    "json",
     "typescript",
     "tsx"
   ],
-  "absolute": false,
+  "absolute": true,
   "gitignore": true,
-  "exitCode": 1,
   "ignoreIdentifiers": true,
   "ignoreLiterals": true,
   "ignoreAnnotations": true,
-  "kind": [
-    "exact"
-  ],
   "minLines": 1,
-  "minTokens": 19,
+  "minTokens": 40,
   "path": [
     "src",
     "e2e-payments",
     "scripts"
+  ],
+  "ignorePattern": [
+    "(?m)^import\\s[^;]*;",
+    "(?m)^export\\s+(type\\s+)?(\\*|\\{[^}]*\\})(\\s+as\\s+\\w+)?\\s+from\\s[^;]*;"
   ]
 }

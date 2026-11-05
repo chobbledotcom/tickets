@@ -1,5 +1,3 @@
-/* jscpd:ignore-start */
-
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import type { Child } from "#jsx/jsx-runtime.ts";
@@ -22,8 +20,6 @@ import {
   listingFormClassAttr,
   listingToFieldValues,
 } from "./form-values.tsx";
-
-/* jscpd:ignore-end */
 
 const CreateListingFormBody = ({ children }: ChildProps): JSX.Element => (
   <>

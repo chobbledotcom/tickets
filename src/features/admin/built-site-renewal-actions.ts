@@ -2,7 +2,6 @@
  * customer deadline and provision (or retry) the renewal URL push. Split out
  * of built-sites.ts, which keeps the route table wired to these exports. */
 
-/* jscpd:ignore-start -- imports */
 import { logActivity } from "#db/activity-log.ts";
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { t } from "#i18n";
@@ -21,8 +20,6 @@ import { parsePositiveInt } from "#shared/validation/number.ts";
 import { type BuiltSitePost, builtSiteFormPost } from "./built-site-form.ts";
 import { answerRenewalPush } from "./built-site-push.ts";
 import { answerTab, refuseTab } from "./built-site-tab.ts";
-
-/* jscpd:ignore-end */
 
 /** Max months any single bump/provision can request — guards against form tampering. */
 const MAX_RENEWAL_MONTHS = 120;

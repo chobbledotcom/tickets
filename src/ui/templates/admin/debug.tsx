@@ -2,7 +2,6 @@
  * Admin debug page template - shows configuration status for troubleshooting
  */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { Child } from "#jsx/jsx-runtime.ts";
 import { formatLimitValue } from "#shared/format-units.ts";
@@ -13,8 +12,6 @@ import { Badge, statusBadge } from "#templates/components/badge.tsx";
 import { LabelledRow } from "#templates/components/labelled-row.tsx";
 import { ProseArticle } from "#templates/components/prose-article.tsx";
 import type { AdminSession } from "#types";
-
-/* jscpd:ignore-end */
 
 /** A row declared as data: a label plus a value (string or JSX). */
 type RowSpec = { label: string; value: Child };

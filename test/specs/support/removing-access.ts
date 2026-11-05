@@ -5,7 +5,6 @@
  * that is what they would notice.
  */
 
-// jscpd:ignore-start
 import { t } from "#i18n";
 import {
   keepsWhatTheOrganiserSaw,
@@ -18,8 +17,6 @@ import type {
   TicketsWorld,
 } from "#test/specs/support/world.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
-
-// jscpd:ignore-end
 
 /** The Users list, where the owner picks the person to remove. */
 const USERS_LIST = "/admin/users";

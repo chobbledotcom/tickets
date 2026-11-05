@@ -1,5 +1,6 @@
 /** Venue names, weird venues, and building states. */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** Indoor venue archetypes — concrete buildings/rooms */
 export const VENUE_TYPES = [
   "Arena",
@@ -64,7 +65,9 @@ export const VENUE_TYPES = [
   "Practice Room",
   "Rehearsal Studio",
 ] as const;
+/* jscpd:ignore-end */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** Improbable buildings to be "converted into" a venue */
 export const WEIRD_VENUES = [
   "lift shaft",
@@ -107,7 +110,9 @@ export const WEIRD_VENUES = [
   "regrettable nightclub",
   "decommissioned petrol station",
 ] as const;
+/* jscpd:ignore-end */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** Adjective phrases describing the state of a "weird venue" before being repurposed */
 export const BUILDING_STATES = [
   "converted",
@@ -134,3 +139,4 @@ export const BUILDING_STATES = [
   "improvisationally-rewired",
   "inadvisably-reopened",
 ] as const;
+/* jscpd:ignore-end */

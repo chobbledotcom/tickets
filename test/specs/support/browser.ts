@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import {
@@ -24,7 +22,6 @@ import {
   type TicketsWorld,
   whatWasKeptFor,
 } from "./world.ts";
-// jscpd:ignore-end
 
 /** Whose browser each story keeps. An unnamed step is the organiser's own. */
 export const ORGANISER = "the organiser";

@@ -9,12 +9,9 @@
  * into every page's import graph.
  */
 
-/* jscpd:ignore-start -- imports */
 import { lazyRef } from "#fp";
 import { t } from "#i18n";
 import { getEnv } from "#shared/env.ts";
-
-/* jscpd:ignore-end */
 
 const [getDemoMode, setDemoMode] = lazyRef(
   () => getEnv("DEMO_MODE") === "true",

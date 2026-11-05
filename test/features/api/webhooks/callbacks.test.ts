@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -8,13 +7,11 @@ import { handleRequest } from "#routes";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { logLogged, useErrorLogSpy } from "#test-utils/debug-log.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks/stripe.ts";
-// jscpd:ignore-end
-
-import { logLogged, useErrorLogSpy } from "#test-utils/debug-log.ts";
 import {
   setupMismatchWithFailingRefund,
   setupMultiMismatchWithFailingRefund,

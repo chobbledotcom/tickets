@@ -2,7 +2,6 @@
  * Admin image library templates.
  */
 
-// jscpd:ignore-start
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { isReadOnly } from "#shared/env.ts";
@@ -40,7 +39,6 @@ import {
   type ImageUseItemType,
   ImageUseItemTypeSchema,
 } from "#types";
-// jscpd:ignore-end
 
 export type ImageItemOption = {
   type: ImageUseItemType;

@@ -11,7 +11,6 @@
  * only persists the open/closed state across a single navigation.
  */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { sortByName } from "#shared/name-order.ts";
@@ -22,7 +21,6 @@ import { adminListingLink } from "#templates/admin/admin-page.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import { OrderCartButtonBody } from "#templates/public/order-gallery.tsx";
-/* jscpd:ignore-end */
 
 /** One row of the availability table: a bookable listing and its remaining
  * capacity for the selected date (or overall when no date is selected). */

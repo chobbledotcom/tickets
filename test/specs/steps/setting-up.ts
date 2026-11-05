@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -23,8 +21,6 @@ import {
   whatSetterWasTold,
 } from "#test/specs/support/setting-up.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
 
 Given("nobody has set the site up", (): Promise<void> => aSiteNobodyHasSetUp());
 

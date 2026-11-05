@@ -8,7 +8,6 @@
  * could state in a visitor's words.
  */
 
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -23,8 +22,6 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
-
-// jscpd:ignore-end
 
 /** Two pictures on one thing: the first with words describing it, the second
  * without, so a missing description cannot take the gallery down with it. */

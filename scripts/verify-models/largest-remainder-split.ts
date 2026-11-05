@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { sum } from "#fp";
 import {
   corruptOneFact,
@@ -6,8 +5,6 @@ import {
   type TlaFact,
   tlaRecordModuleFor,
 } from "#scripts/verify-models/data.ts";
-
-/* jscpd:ignore-end */
 
 type SplitOptions = {
   readonly canReceive?: (index: number, floor: number) => boolean;

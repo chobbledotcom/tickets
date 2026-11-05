@@ -1,5 +1,3 @@
-/* jscpd:ignore-start -- imports */
-
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 
@@ -14,7 +12,6 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 
 import { logActivity } from "#db/activity-log.ts";
 import { t } from "#i18n";
-/* jscpd:ignore-end */
 import {
   type ContentRecordLoad,
   contentRecordPage,

@@ -10,9 +10,7 @@ import {
   toPublicListing,
   toResolvedPublicListing,
 } from "#routes/api/public-listing.ts";
-/* jscpd:ignore-start */
 import { isRegistrationClosed } from "#routes/format.ts";
-/* jscpd:ignore-end */
 import { keepParentDailyDatesChildrenCanServe } from "#routes/public/booking-dates.ts";
 import { classifyForDiscovery } from "#routes/public/discovery.ts";
 import {

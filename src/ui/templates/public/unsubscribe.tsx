@@ -7,7 +7,6 @@
  */
 
 import { settings } from "#db/settings.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { Child } from "#jsx/jsx-runtime.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
@@ -16,7 +15,6 @@ import { flashProps } from "#templates/admin/admin-page-spec.tsx";
 import { RawParagraph } from "#templates/components/prose-heading.tsx";
 import { ProseSection } from "#templates/components/prose-section.tsx";
 import { Layout } from "#templates/layout.tsx";
-/* jscpd:ignore-end */
 
 export type UnsubscribeState = {
   /** Opaque contact hash from the link, or null when missing/invalid. */

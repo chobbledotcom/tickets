@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import {
   type AuthPolicy,
   type AuthSession,
@@ -19,7 +18,6 @@ import type { FormParams } from "#shared/form-data.ts";
 import type { ValidationResult } from "#shared/forms/validation.ts";
 import { planReorder } from "#shared/reorder.ts";
 import type { ParamsRoute, ResponseHandler } from "#shared/response-steps.ts";
-/* jscpd:ignore-end */
 
 export type FormValidator<TValues> = {
   validate: (form: FormParams) => ValidationResult<TValues>;

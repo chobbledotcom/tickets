@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -42,8 +40,6 @@ import {
 import { twoGroupedListingsBookedOnAdjacentDays } from "#test-utils/db-helpers/grouped-days.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { expectStayCanBeBooked, expectStayRunsFor } from "./stays-booking.ts";
-
-// jscpd:ignore-end
 
 const FIRST = "Retreat One";
 

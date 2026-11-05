@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -11,8 +10,6 @@ import {
   squareMoney,
 } from "#test-utils/square/fixtures.ts";
 import { squareOrderRead } from "#test-utils/square/outcomes.ts";
-
-/* jscpd:ignore-end */
 
 const completedOrder = (id: string, metadata: Record<string, string>) =>
   squareOrderRead({

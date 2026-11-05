@@ -1,4 +1,3 @@
-/* jscpd:ignore-end */
 import { logActivity } from "#db/activity-log.ts";
 import {
   createConfirmedHandlers,
@@ -7,7 +6,6 @@ import {
 import type { EditErrorRenderer } from "#routes/admin/entity-write-tab.ts";
 import type { CrudHandlers } from "#routes/admin/route-tables.ts";
 import { type AuthSession, authPage, type SessionGuard } from "#routes/auth.ts";
-/* jscpd:ignore-start */
 import { type IdRouteHandler, idRouteFor } from "#routes/entity.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import { formGuardAt, pageGuardAt } from "#routes/route-gates.ts";

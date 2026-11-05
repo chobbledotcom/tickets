@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
@@ -19,8 +18,6 @@ import {
   checkoutSessionEvent,
   expectWebhookProcessed,
 } from "#test-utils/webhooks.ts";
-
-// jscpd:ignore-end
 
 /** Submit a multi-ticket form against a stubbed `createCheckoutSession` (so
  *  the test drives the real checkout without a flaky Stripe HTTP round trip),

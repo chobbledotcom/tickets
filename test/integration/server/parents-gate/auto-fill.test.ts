@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -12,8 +11,6 @@ import {
   parentField,
   postCalculate,
 } from "#test-utils/parents.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "server > parents gate > sole-child auto-fill",

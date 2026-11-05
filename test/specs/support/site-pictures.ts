@@ -4,8 +4,6 @@
  * the one picture a story talks about and read it back off the rendered pages.
  */
 
-// jscpd:ignore-start
-
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { showsPicture } from "#test/specs/support/picture-assertions.ts";
@@ -15,8 +13,6 @@ import {
 } from "#test/specs/support/world.ts";
 import { regionOutOf } from "#test-utils/test-browser/parsing.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
-
-// jscpd:ignore-end
 
 /** The picture the story put in the site's words. A story that never uploaded
  * one has nothing to look for, so it says so rather than hunting for a row

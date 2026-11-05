@@ -1,8 +1,6 @@
 /** Somebody the site emails follows the link in their copy and chooses what
  * may be sent to them. */
 
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -36,8 +34,6 @@ import {
   type TicketsWorld,
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
 
 /** The person in the scenarios that never send an email first: somebody the
  * site has seen before, acting on their own page. */

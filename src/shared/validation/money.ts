@@ -1,10 +1,7 @@
-/* jscpd:ignore-start */
 import * as v from "valibot";
 import { settings } from "#db/settings.ts";
 import { getDecimalPlaces, toMinorUnits } from "#shared/currency.ts";
 import { parseOrNull, parserFor } from "./parse.ts";
-
-/* jscpd:ignore-end */
 
 /**
  * Currency-aware money validation: a major-unit `"90.00"` becomes safe-integer

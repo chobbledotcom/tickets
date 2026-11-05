@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { settingsFieldAttributes } from "#shared/settings/fields.ts";
@@ -29,8 +28,6 @@ import { settingsSectionWith } from "#templates/components/settings-section.tsx"
 import { TextField } from "#templates/components/text-field.tsx";
 import { textareaBody } from "#templates/components/textarea.tsx";
 import { YesNoRadios } from "#templates/components/yes-no-radios.tsx";
-
-/* jscpd:ignore-end */
 
 type StateFieldOf<Value> = Value extends {
   stateField: infer Field extends string;

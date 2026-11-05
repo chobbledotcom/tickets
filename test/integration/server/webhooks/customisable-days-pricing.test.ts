@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -11,8 +10,6 @@ import {
   expectKeptAsQuantityZeroAndRefunded,
   expectWebhookProcessed,
 } from "#test-utils/webhooks.ts";
-
-// jscpd:ignore-end
 
 /** A daily listing offering a 1-day (£10) or 3-day (£25) price — every
  *  customisable-days test below books against one of these. */

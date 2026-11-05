@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -19,8 +17,6 @@ import {
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
 import { TEST_ADMIN_USERNAME } from "#test-utils/internal.ts";
-
-// jscpd:ignore-end
 
 /** A role the story names, checked against the ones the site has. A story that
  * invented one would otherwise be sent to a form that cannot offer it, and the

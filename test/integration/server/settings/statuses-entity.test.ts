@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -13,8 +12,6 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
-
-/* jscpd:ignore-end */
 
 const PATH = "/admin/settings/statuses";
 const seedStatus = async () => (await attendeeStatuses.getAll())[0]!;

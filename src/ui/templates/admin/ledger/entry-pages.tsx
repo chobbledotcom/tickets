@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { formatCurrency } from "#shared/currency.ts";
@@ -20,8 +19,6 @@ import {
 import { ActionButton, SubmitButton } from "#templates/components/actions.tsx";
 import { ConfirmForm } from "#templates/components/save-form.tsx";
 import type { AdminSession } from "#types";
-
-/* jscpd:ignore-end */
 
 type LedgerEntryFormValues = {
   amount: string;

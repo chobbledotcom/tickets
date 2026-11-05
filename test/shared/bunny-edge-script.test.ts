@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -6,7 +5,6 @@ import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { withMocks } from "#test-utils/mocks.ts";
-/* jscpd:ignore-end */
 import { expectErrorResult } from "./bunny/fixtures.ts";
 
 describeWithEnv(
@@ -271,7 +269,7 @@ describeWithEnv(
           // GET is the default method (no explicit method on the request init).
           expect(
             (fetchStub.calls[0]!.args[1] as RequestInit | undefined)?.method,
-          ).toBeUndefined();
+          ).toBe(undefined);
         },
       );
     });

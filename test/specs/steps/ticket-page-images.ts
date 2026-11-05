@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { settings } from "#db/settings.ts";
@@ -30,8 +28,6 @@ import {
   updateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { createFreePackage } from "#test-utils/packages.ts";
-
-// jscpd:ignore-end
 
 Given(
   "the owner sells a {word} whose description carries the image {word}",

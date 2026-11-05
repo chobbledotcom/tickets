@@ -28,12 +28,10 @@ import {
 import { collectStateBuilderFiles } from "#scripts/mutation/state-graph.ts";
 import { directTestMapFor } from "#scripts/mutation/test-map.ts";
 import { projectRoot } from "#scripts/project-root.ts";
-/* jscpd:ignore-start -- imports */
 import {
   offTerminationSignals,
   onTerminationSignals,
 } from "#scripts/termination-signals.ts";
-/* jscpd:ignore-end -- imports */
 import { collectTestFiles } from "#scripts/test-groups.ts";
 import { withTestHarness } from "#scripts/test-harness.ts";
 

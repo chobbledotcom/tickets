@@ -1,5 +1,3 @@
-/* jscpd:ignore-start */
-
 import type {
   ServicingCostRecord,
   ServicingEvent,
@@ -38,8 +36,6 @@ import {
 } from "#templates/components/translated-table-column.ts";
 import { isOwnerRole, type ListingWithCount } from "#types";
 import { buildServicingFieldSchema } from "./form-model.ts";
-
-/* jscpd:ignore-end */
 
 const SERVICING_FORM_ID = "servicing-form";
 

@@ -4,11 +4,9 @@
  * logic stays testable.
  */
 
-/* jscpd:ignore-start -- imports */
 import { perFileCheck } from "#scripts/check-runner.ts";
 import { collectGateScriptFiles } from "#scripts/walk-files.ts";
 import { findIssues } from "./rules.ts";
-/* jscpd:ignore-end */
 
 /** Check every source tree for an empty catch. */
 export const runEmptyCatchCheck = perFileCheck(

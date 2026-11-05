@@ -10,7 +10,6 @@
  */
 
 import type { AttendeeStatus } from "#db/attendee-statuses.ts";
-/* jscpd:ignore-start -- imports */
 import type { OrderSummary } from "#db/attendees/balance.ts";
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
@@ -18,7 +17,6 @@ import {
   type AccountLedgerData,
   AccountStatementSection,
 } from "#templates/admin/ledger/statement.tsx";
-/* jscpd:ignore-end */
 import { LabelledAmount } from "#templates/components/labelled-amount.tsx";
 import { PageRegions } from "#templates/components/page-structure.tsx";
 import { ProseArticle } from "#templates/components/prose-article.tsx";

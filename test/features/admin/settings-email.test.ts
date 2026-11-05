@@ -11,7 +11,6 @@
  * cover, because a Cucumber run does not count towards coverage.
  */
 
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -22,8 +21,6 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 /** Where each form's redirect lands: the advanced page, anchored to the form
  * that was sent, so the flash appears beside the boxes it is about. */
