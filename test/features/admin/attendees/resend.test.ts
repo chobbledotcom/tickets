@@ -51,7 +51,7 @@ const resend = async (attendeeId: number, name: string) => {
  * pooled site stayed unclaimed. Returns every site for further assertions.
  * The re-send notifies every live line the attendee holds, so the caller
  * states how many its booking holds. */
-const resendLeavesSiteUnclaimed = async (
+const expectResendLeavesSiteUnclaimed = async (
   attendeeId: number,
   name: string,
   siteName: string,
@@ -203,7 +203,7 @@ describeWithEnv(
       await refundBookedOrder(attendee.id, plan.id);
       await insertBuiltSite("Unwanted", "unwanted.test", "", "", true);
 
-      await resendLeavesSiteUnclaimed(
+      await expectResendLeavesSiteUnclaimed(
         attendee.id,
         "Refunded Plan Buyer",
         "Unwanted",
@@ -242,7 +242,7 @@ describeWithEnv(
       await refundBookedOrder(attendee.id, claimed.id);
       await insertBuiltSite("Second Site", "second.test", "", "", true);
 
-      const sites = await resendLeavesSiteUnclaimed(
+      const sites = await expectResendLeavesSiteUnclaimed(
         attendee.id,
         "Refund After Claim",
         "Second Site",
@@ -285,7 +285,7 @@ describeWithEnv(
 
       // Both live lines notify: the standalone purchase and the package
       // member. Neither send claims the second site.
-      await resendLeavesSiteUnclaimed(
+      await expectResendLeavesSiteUnclaimed(
         attendee.id,
         "Two Purchases",
         "Second Site",

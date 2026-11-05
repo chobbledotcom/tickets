@@ -378,7 +378,7 @@ describe("the fake repository the CLI tests run on", () => {
   test("reads a missing fixture file as empty and resolves the wait", async () => {
     const deps = depsOver({ files: {} });
     expect(await deps.grade.readFile("src/nowhere.ts")).toBe("");
-    expect(await deps.grade.sleep(0)).toBeUndefined();
+    expect(await deps.grade.sleep(0)).toBe(undefined);
   });
 
   test("hands the secret file's key to the loader", async () => {

@@ -132,7 +132,7 @@ const attributeOptionRoutes = (created: unknown): Routes => ({
 
 /** Run one non-plan, non-update import expected to refuse, assert its
  *  refusal message, and return the calls made before the refusal. */
-const refusedRun = async (
+const expectRefusedRun = async (
   dir: string,
   routes: Routes,
   message: string,
@@ -174,7 +174,7 @@ describe("frontmatter import runner", () => {
     const dir = await seedCatalog(
       PRODUCT_FRONTMATTER.replace("categories/tarps.md", "../secret"),
     );
-    const calls = await refusedRun(
+    const calls = await expectRefusedRun(
       dir,
       {},
       'tower.md: category "../secret" must be a bare category file name',
@@ -309,7 +309,7 @@ describe("frontmatter import runner", () => {
 
   test("refuses a stamp whose tickets id names no listing", async () => {
     const dir = await seedCatalog(stamped());
-    const calls = await refusedRun(
+    const calls = await expectRefusedRun(
       dir,
       snapshotRoutes(LISTINGS_EMPTY, GROUPS_EMPTY, []),
       "tower: tickets_id 41 names no listing on the site; restore the listing or delete the stamp from the file",
@@ -322,7 +322,7 @@ describe("frontmatter import runner", () => {
 
   test("refuses a stamp whose tickets id names a differently named listing", async () => {
     const dir = await seedCatalog(stamped());
-    await refusedRun(
+    await expectRefusedRun(
       dir,
       snapshotRoutes(
         [{ id: 41, name: "Bouncy Castle", slug: "castle" }],
@@ -335,7 +335,7 @@ describe("frontmatter import runner", () => {
 
   test("refuses two existing attributes under one name", async () => {
     const dir = await seedCatalog(PRODUCT_FRONTMATTER);
-    await refusedRun(
+    await expectRefusedRun(
       dir,
       snapshotRoutes(LISTINGS_EMPTY, GROUPS_EMPTY, [
         { id: 11, name: "Guest Capacity", options: [] },
@@ -347,7 +347,7 @@ describe("frontmatter import runner", () => {
 
   test("refuses two options under one text inside one attribute", async () => {
     const dir = await seedCatalog(PRODUCT_FRONTMATTER);
-    await refusedRun(
+    await expectRefusedRun(
       dir,
       snapshotRoutes(LISTINGS_EMPTY, GROUPS_EMPTY, [
         {
@@ -365,7 +365,7 @@ describe("frontmatter import runner", () => {
 
   test("refuses an option that the create response did not return", async () => {
     const dir = await seedCatalog(PRODUCT_FRONTMATTER);
-    await refusedRun(
+    await expectRefusedRun(
       dir,
       {
         ...snapshotRoutes(LISTINGS_EMPTY, GROUPS_EMPTY, []),
@@ -377,7 +377,7 @@ describe("frontmatter import runner", () => {
 
   test("refuses two existing groups under one name", async () => {
     const dir = await seedCatalog(PRODUCT_FRONTMATTER);
-    await refusedRun(
+    await expectRefusedRun(
       dir,
       snapshotRoutes(
         LISTINGS_EMPTY,
@@ -393,7 +393,7 @@ describe("frontmatter import runner", () => {
 
   test("refuses to attach products to a package group", async () => {
     const dir = await seedCatalog(PRODUCT_FRONTMATTER);
-    await refusedRun(
+    await expectRefusedRun(
       dir,
       snapshotRoutes(
         LISTINGS_EMPTY,
@@ -480,7 +480,7 @@ describe("frontmatter import runner", () => {
       "products/tower-2.md": PRODUCT_FRONTMATTER,
       "products/tower.md": PRODUCT_FRONTMATTER,
     });
-    const calls = await refusedRun(
+    const calls = await expectRefusedRun(
       dir,
       snapshotRoutes(LISTINGS_EMPTY, GROUPS_EMPTY, []),
       "duplicate product title 'Tumble Tower Hire' in tower and tower-2",

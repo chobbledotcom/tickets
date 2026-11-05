@@ -111,6 +111,6 @@ describe("orderGalleryPage packages", () => {
     // The cutoff must stay in this worker's env overlay: a write to the real
     // process env is visible to every parallel test worker and flips the
     // whole app read-only under them mid-test.
-    expect(getRealEnv("READ_ONLY_FROM")).toBeUndefined();
+    expect(getRealEnv("READ_ONLY_FROM")).toBe(undefined);
   });
 });

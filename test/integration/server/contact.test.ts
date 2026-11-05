@@ -252,7 +252,7 @@ describeWithEnv(
             expect.stringContaining("Could not verify your submission."),
             false,
           );
-          expect(mock.emailCall()).toBeUndefined();
+          expect(mock.emailCall()).toBe(undefined);
         });
       });
 

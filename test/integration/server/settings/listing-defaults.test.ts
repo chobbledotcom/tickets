@@ -93,8 +93,8 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
         default_minimum_days_before: "3",
       });
       const submitted = await submittedDefaults();
-      expect(submitted.get("default_bookable_days_enabled")).toBeUndefined();
-      expect(submitted.get("default_bookable_days")).toBeUndefined();
+      expect(submitted.get("default_bookable_days_enabled")).toBe(undefined);
+      expect(submitted.get("default_bookable_days")).toBe(undefined);
     });
 
     test("a url default pre-fills its input", async () => {
@@ -343,7 +343,7 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       ]);
       // …and the hidden checkbox reflects the stored false (unchecked, so not
       // submitted), not the inherited Hidden=Yes default.
-      expect(submitted.get("hidden")).toBeUndefined();
+      expect(submitted.get("hidden")).toBe(undefined);
     });
 
     test("edit form reflects a listing's Use-defaults flag", async () => {

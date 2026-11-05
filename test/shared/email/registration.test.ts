@@ -149,7 +149,7 @@ describeWithEnv(
       await setupAndSendRegistration({ businessEmail: "admin@business.com" });
 
       const body = fetch.findCallBodyByRecipient("admin@business.com");
-      expect(body.attachments).toBeUndefined();
+      expect(body.attachments).toBe(undefined);
     });
 
     test("collapses a hidden package's tickets into one package-level SVG", async () => {

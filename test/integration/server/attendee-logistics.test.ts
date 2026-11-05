@@ -122,24 +122,24 @@ describe("parseLogisticsPlan", () => {
 describeWithEnv("buildAttendeeLogisticsData", { db: true }, () => {
   test("undefined when logistics is disabled", async () => {
     settings.setForTest(featureSetting());
-    expect(
-      await buildAttendeeLogisticsData([bookedLine(1, true)], null),
-    ).toBeUndefined();
+    expect(await buildAttendeeLogisticsData([bookedLine(1, true)], null)).toBe(
+      undefined,
+    );
   });
 
   test("undefined when no delivered listing is booked", async () => {
     settings.setForTest(featureSetting("logistics"));
     await logisticsAgents.table.insert({ name: "Van" });
-    expect(
-      await buildAttendeeLogisticsData([bookedLine(1, false)], null),
-    ).toBeUndefined();
+    expect(await buildAttendeeLogisticsData([bookedLine(1, false)], null)).toBe(
+      undefined,
+    );
   });
 
   test("undefined when there are no agents", async () => {
     settings.setForTest(featureSetting("logistics"));
-    expect(
-      await buildAttendeeLogisticsData([bookedLine(1, true)], null),
-    ).toBeUndefined();
+    expect(await buildAttendeeLogisticsData([bookedLine(1, true)], null)).toBe(
+      undefined,
+    );
   });
 
   test("returns agents and an empty single pair for a create form", async () => {

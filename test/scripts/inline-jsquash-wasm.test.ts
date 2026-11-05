@@ -214,7 +214,7 @@ describe("createPlugin", () => {
       path: "./other.ts",
       resolveDir: "/repo/src/shared/images",
     } as OnResolveArgs);
-    expect(ignored).toBeUndefined();
+    expect(ignored).toBe(undefined);
     const imagesDir = fromFileUrl(
       new URL("../../src/shared/images", import.meta.url),
     );

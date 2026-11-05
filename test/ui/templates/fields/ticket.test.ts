@@ -98,7 +98,7 @@ describe("getTicketFields — field composition", () => {
     try {
       patchable.addressLookup = { ...original, provider: "none" };
       const plain = getTicketFields("address", false)[1]!;
-      expect(plain.beforeHtml).toBeUndefined();
+      expect(plain.beforeHtml).toBe(undefined);
 
       patchable.addressLookup = { ...original, provider: "easypostcodes" };
       const withPanel = getTicketFields("address", false)[1]!;
@@ -106,7 +106,7 @@ describe("getTicketFields — field composition", () => {
       assertStringIncludes(withPanel.beforeHtml ?? "", "<fieldset");
       // The panel never attaches to a non-address field.
       const email = getTicketFields("email", false)[1]!;
-      expect(email.beforeHtml).toBeUndefined();
+      expect(email.beforeHtml).toBe(undefined);
     } finally {
       patchable.addressLookup = original;
     }

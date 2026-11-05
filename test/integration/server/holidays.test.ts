@@ -55,7 +55,6 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
       const inviteLink = decodeURIComponent(inviteMatch?.[1] as string);
       // Extract token from invite link
       const inviteToken = inviteLink.split("/join/")[1];
-      expect(inviteToken).toBeTruthy();
 
       // Set password for manager
       const joinPageResponse = await handleRequest(

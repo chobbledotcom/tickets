@@ -100,14 +100,14 @@ describe("address field panel threading", () => {
 
   test("no provider means the plain field, with no panel attached", () => {
     const field = addressField(getTicketFields("address", false));
-    expect(field.beforeHtml).toBeUndefined();
+    expect(field.beforeHtml).toBe(undefined);
   });
 
   test("other contact fields never carry the panel", () => {
     enableProviderForTest();
     const fields = getTicketFields("email,phone,address", false);
     for (const field of fields.filter((f) => f.name !== "address")) {
-      expect(field.beforeHtml).toBeUndefined();
+      expect(field.beforeHtml).toBe(undefined);
     }
   });
 

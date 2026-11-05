@@ -477,7 +477,7 @@ describeWithEnv(
             db_url: "libsql://test.io",
             site_name: "Manual DB Site",
           });
-          expect(capture.input?.dbProvider).toBeUndefined();
+          expect(capture.input?.dbProvider).toBe(undefined);
         },
       );
     });

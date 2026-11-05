@@ -35,7 +35,7 @@ const cell = (key: ListingColumnKey, listing: ListingWithCount): string =>
 describe("listingTable", () => {
   beforeAll(setupAdminPageTest);
 
-  test("keeps configurable table keys separate at compile time", () => {
+  test("keeps configurable table keys separate at compile time and at run time", () => {
     const renderAttendees = () =>
       AttendeeTable({
         allowedDomain: "example.com",
@@ -61,9 +61,11 @@ describe("listingTable", () => {
         table: "editor",
       });
 
-    void renderAttendees;
-    void renderInvalidEditorColumns;
-    void renderListings;
+    expect(renderAttendees).toThrow('Column "description" is not in the table');
+    expect(renderInvalidEditorColumns).toThrow(
+      'Column "revenue" is not in the table',
+    );
+    expect(renderListings).toThrow('Column "listings" is not in the table');
   });
 
   test("returns the stored values used by Liquid filters", () => {

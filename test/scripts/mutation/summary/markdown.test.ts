@@ -174,9 +174,13 @@ describe("the Markdown mutation report", () => {
   });
 
   test("ignores absent or unwritable GitHub step summary paths", async () => {
-    await withStepSummary(null, () => writeStepSummary(summarize([])));
-    await withStepSummary("/tmp/missing-dir/mutation-summary.md", () =>
-      writeStepSummary(summarize([fakeResult("killed", 1, "true", "false")])),
-    );
+    expect(
+      await withStepSummary(null, () => writeStepSummary(summarize([]))),
+    ).toBe("");
+    expect(
+      await withStepSummary("/tmp/missing-dir/mutation-summary.md", () =>
+        writeStepSummary(summarize([fakeResult("killed", 1, "true", "false")])),
+      ),
+    ).toBe("");
   });
 });

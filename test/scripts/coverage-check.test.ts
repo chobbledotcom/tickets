@@ -118,7 +118,7 @@ describe("findCoverageFailures", () => {
     )!;
 
     expect(failures[0]?.lines?.uncovered).toEqual([2]);
-    expect(failures[0]?.branches).toBeUndefined();
+    expect(failures[0]?.branches).toBe(undefined);
   });
 
   test("counts fewer hits than found lines as gaps with no line numbers", () => {
@@ -146,7 +146,7 @@ describe("findCoverageFailures", () => {
       total: 2,
       uncovered: [5],
     });
-    expect(failures[0]?.lines).toBeUndefined();
+    expect(failures[0]?.lines).toBe(undefined);
   });
 
   test("reports nothing for records whose metrics are complete", () => {

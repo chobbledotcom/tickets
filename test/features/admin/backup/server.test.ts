@@ -132,7 +132,6 @@ describeWithEnv("server (admin backup)", { db: true, storage: "local" }, () => {
       const token = html.match(
         /backup-(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z)\.zip/,
       )?.[1];
-      expect(token).toBeDefined();
       assertStringIncludes(html, `<code>${token}</code>`);
     });
 
@@ -210,7 +209,6 @@ describeWithEnv("server (admin backup)", { db: true, storage: "local" }, () => {
       const filename = html.match(
         /\/admin\/backup\/download\/(backup-[^"]+\.zip)/,
       )?.[1];
-      expect(filename).toBeDefined();
 
       const response = await adminGet(`/admin/backup/download/${filename}`);
       expect(response.status).toBe(200);

@@ -87,7 +87,7 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
     testRequiresAuth("/admin/privacy");
 
     // Assertions about the page's default state share one render.
-    const page = cachedAdminPage("/admin/privacy");
+    const expectPrivacyPageSays = cachedAdminPage("/admin/privacy");
 
     test("returns 403 for a non-owner", async () => {
       const response = await awaitTestRequest("/admin/privacy", {
@@ -97,24 +97,29 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
     });
 
     test("says it is a ticketing system, not a CRM", async () => {
-      await page("not a CRM");
+      await expectPrivacyPageSays("not a CRM");
     });
 
     test("links to webhook setup so a CRM can be connected", async () => {
-      await page("add a webhook to a listing", 'href="/admin/guide#webhooks"');
+      await expectPrivacyPageSays(
+        "add a webhook to a listing",
+        'href="/admin/guide#webhooks"',
+      );
     });
 
     test("recognises by a one-way code that excludes the email and phone", async () => {
-      await page("one-way code");
-      await page("not the email or phone itself");
+      await expectPrivacyPageSays("one-way code");
+      await expectPrivacyPageSays("not the email or phone itself");
     });
 
     test("says contact details stay in the encrypted booking, not just the code", async () => {
-      await page("stay with the booking, kept encrypted");
+      await expectPrivacyPageSays("stay with the booking, kept encrypted");
     });
 
     test("does not show an empty payment-work queue", async () => {
-      assert(!(await page()).includes("Outstanding payment work"));
+      assert(
+        !(await expectPrivacyPageSays()).includes("Outstanding payment work"),
+      );
     });
 
     test("keeps payment work reachable after its last listing is deleted", async () => {

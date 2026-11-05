@@ -62,7 +62,7 @@ describe("DatePicker month select", () => {
   test("the month label is a nav-select that reads as plain text", () => {
     const html = render();
     assertStringIncludes(html, 'class="calendar-month-select"');
-    expect(monthSelect(html)).toBeDefined();
+    expect(monthSelect(html)).toContain("<option");
     assertStringIncludes(html, "data-nav-select");
   });
 

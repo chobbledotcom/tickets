@@ -11,6 +11,10 @@ const BUNNY_DEPLOY_WORKFLOW_PATHS = [
 ] as const;
 const RESTORE_WORKFLOW_PATH = ".github/workflows/restore-deploy.yml";
 const SHA = "[a-f0-9]{40}";
+/** The quoted path the action grants read permission for. */
+const ALLOW_READ_PATH = /--allow-read="([^"]+)"/;
+/** The quoted file argument the action hands the deploy script. */
+const SCRIPT_FILE_ARG = /deploy-built-edge\.ts\s+"[^"]+"\s+"([^"]+)"/;
 
 const readText = (path: string): Promise<string> => Deno.readTextFile(path);
 const githubValue = (name: string): string =>
@@ -61,10 +65,10 @@ describe("Bunny deploy workflow", () => {
 
     const allowRead = lines
       .find((line) => line.startsWith("--allow-read="))!
-      .match(/--allow-read="([^"]+)"/)![1]!;
+      .match(ALLOW_READ_PATH)![1]!;
     const scriptFileArg = lines
       .find((line) => line.startsWith("scripts/deploy-built-edge.ts"))!
-      .match(/deploy-built-edge\.ts\s+"[^"]+"\s+"([^"]+)"/)![1]!;
+      .match(SCRIPT_FILE_ARG)![1]!;
 
     // parseDeployBuiltArgs trims the file internally, so the action must hand the
     // script an already-trimmed path and grant the read permission for that same

@@ -144,7 +144,7 @@ const createViaForm = async (
 
 /** Create an attendee through the form booking the listing on BOTH paths —
  * 2 through the package beside 1 standalone — and assert the stored rows. */
-const createDualPathViaForm = async (
+const expectDualPathCreatedViaForm = async (
   name: string,
   group: Group,
   listing: Listing,
@@ -278,7 +278,7 @@ describeWithEnv(
 
     test("creating an attendee can book a package path directly", async () => {
       const { group, listing } = await packageAndMember("Create Kit");
-      await createDualPathViaForm("Path Creator", group, listing);
+      await expectDualPathCreatedViaForm("Path Creator", group, listing);
     });
 
     test("a row tagged with a deleted package is labelled by its id", async () => {
@@ -387,7 +387,7 @@ describeWithEnv(
         { listingId: listing.id, price: 400 },
       ]);
 
-      await createDualPathViaForm("Package Pricer", group, listing);
+      await expectDualPathCreatedViaForm("Package Pricer", group, listing);
       // The manual add's sale legs price each path by ITS OWN rule: 2 × 400
       // through the package beside 1 × 1000 standalone — never the listing's
       // base price for the package units.

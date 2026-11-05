@@ -242,7 +242,6 @@ describe("detail-rows", () => {
         maxCapacity: 0,
       });
       const checkedIn = rows.find((r) => r.key === "Checked In");
-      expect(checkedIn).toBeDefined();
       // A row's value renders as text; the string case is what this asserts.
       const checkedInValue = checkedIn!.value;
       assert(typeof checkedInValue === "string");
@@ -267,7 +266,7 @@ describe("detail-rows", () => {
       const checkedInValue = checkedIn!.value;
       assert(typeof checkedInValue === "string");
       assertStringIncludes(checkedInValue, "1 / 1");
-      expect(rows.find((r) => r.key === "Tickets Checked In")).toBeUndefined();
+      expect(rows.map((r) => r.key)).not.toContain("Tickets Checked In");
     });
 
     test("shows split checked-in rows for multi-quantity", () => {
@@ -281,9 +280,11 @@ describe("detail-rows", () => {
         hasPaidListing: false,
         maxCapacity: 0,
       });
-      expect(rows.find((r) => r.key === "Tickets Checked In")).toBeDefined();
-      expect(rows.find((r) => r.key === "Attendees Checked In")).toBeDefined();
-      expect(rows.find((r) => r.key === "Checked In")).toBeUndefined();
+      const keys = rows.map((r) => r.key);
+      expect(keys).toEqual(
+        expect.arrayContaining(["Tickets Checked In", "Attendees Checked In"]),
+      );
+      expect(keys).not.toContain("Checked In");
     });
 
     test("a part line counts its people but not as a checked-in line", () => {
@@ -346,7 +347,7 @@ describe("detail-rows", () => {
         hasPaidListing: false,
         maxCapacity: 0,
       });
-      expect(rows.find((r) => r.key === "Total Revenue")).toBeUndefined();
+      expect(rows.map((r) => r.key)).not.toContain("Total Revenue");
     });
 
     test("does not read attendee revenue for an unpaid listing", () => {
@@ -363,8 +364,8 @@ describe("detail-rows", () => {
           attendees: [attendee],
           hasPaidListing: false,
           maxCapacity: 0,
-        }).find((r) => r.key === "Total Revenue"),
-      ).toBeUndefined();
+        }).map((r) => r.key),
+      ).not.toContain("Total Revenue");
     });
 
     test("includes question summary rows", () => {
@@ -375,7 +376,7 @@ describe("detail-rows", () => {
         maxCapacity: 0,
         questionData: singleAnswerSizeQuestionData(),
       });
-      expect(rows.find((r) => r.key === "Size?")).toBeDefined();
+      expect(rows.map((r) => r.key)).toContain("Size?");
     });
 
     test("appends labelSuffix to keys", () => {
@@ -386,8 +387,9 @@ describe("detail-rows", () => {
         labelSuffix: " (total)",
         maxCapacity: 0,
       });
-      expect(rows.find((r) => r.key === "Attendees (total)")).toBeDefined();
-      expect(rows.find((r) => r.key === "Checked In (total)")).toBeDefined();
+      expect(rows.map((r) => r.key)).toEqual(
+        expect.arrayContaining(["Attendees (total)", "Checked In (total)"]),
+      );
     });
   });
 });
