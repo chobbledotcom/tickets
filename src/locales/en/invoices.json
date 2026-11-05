@@ -3,6 +3,7 @@
   "invoices.action.create": "Create invoice",
   "invoices.action.delete": "Delete invoice",
   "invoices.action.preview": "Preview invoice",
+  "invoices.action.update_preview": "Update preview",
   "invoices.body.due": "Amount due",
   "invoices.body.heading": "Invoice {number}",
   "invoices.body.item": "Item",
