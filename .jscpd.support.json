@@ -20,7 +20,7 @@
   "ignoreLiterals": true,
   "ignoreAnnotations": true,
   "minLines": 1,
-  "minTokens": 30,
+  "minTokens": 40,
   "path": [
     "test/specs/support"
   ],

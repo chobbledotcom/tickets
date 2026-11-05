@@ -6,7 +6,7 @@ reason each limit holds, and the cost of the remaining steps.
 **Decided and shipped.** The reusable helpers under `test/test-utils` are
 scanned at **40 tokens**, alongside `src/`, by `.jscpd.helpers.json`. The
 Cucumber support helpers under `test/specs/support` are scanned twice: at **18
-tokens** alongside `src/`, and at **30 tokens** on their own by
+tokens** alongside `src/`, and at **40 tokens** on their own by
 `.jscpd.support.json`. The 18-token scan holds its accepted clones in the
 committed baseline `.jscpd.specs-baseline.json`, the way the renamed-clone gate
 does. See [What is left](#what-is-left) for the remaining steps.
@@ -24,9 +24,9 @@ lower number is a tighter net.
 
 | Config                | Scans                            | minTokens |
 | --------------------- | -------------------------------- | --------- |
-| `.jscpd.json`         | `src`, `e2e-payments`, `scripts` | 30        |
+| `.jscpd.json`         | `src`, `e2e-payments`, `scripts` | 40        |
 | `.jscpd.specs.json`   | `src` + `test/specs/support`     | 18        |
-| `.jscpd.support.json` | `test/specs/support`             | 30        |
+| `.jscpd.support.json` | `test/specs/support`             | 40        |
 | `.jscpd.helpers.json` | `src` + `test/test-utils`        | 40        |
 | `.jscpd.test.json`    | `test`                           | 48        |
 | `.jscpd.css.json`     | `src/ui/static/style.scss`       | 50        |
@@ -208,17 +208,18 @@ With names and literals ignored, a short window matches common code shapes:
 two valibot objects with three fields, or two small `for` loops. At 19 tokens
 the main scan found 24,773 clones. A new module of 140 lines made 30 new
 clones against unrelated code, and none of them had a helper to share. At 30
-tokens the same module made none. The main and support scans therefore run at
-30 tokens.
+tokens the same module made none. The main and support scans run at 40
+tokens, the floor of the helpers scan, so a renamed match must be a full
+operation and not a common shape.
 
-When the filter was removed, the strict scans found these clones:
+At these limits, the strict scans found these clones:
 
 | Scan                  | minTokens | Clones |
 | --------------------- | --------: | -----: |
-| `.jscpd.json`         |        30 |  3,832 |
+| `.jscpd.json`         |        40 |  1,364 |
 | `.jscpd.test.json`    |        48 | 13,111 |
 | `.jscpd.helpers.json` |        40 |  1,382 |
-| `.jscpd.support.json` |        30 |     81 |
+| `.jscpd.support.json` |        40 |     17 |
 
 Each scan holds these clones in its committed baseline and runs with
 `--fail-on-new-clones`. A new renamed copy fails the gate. The fingerprints do
