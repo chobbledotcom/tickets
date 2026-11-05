@@ -2,7 +2,7 @@
 import "#test-utils/bdd.ts";
 import "#test-utils/typed-array-equality.ts";
 import { ensureMessageGroups } from "#i18n";
-import { MESSAGE_GROUPS } from "#locales/manifest.ts";
+import { MESSAGE_GROUPS } from "#locales/message-groups.generated.ts";
 
 // Unit tests often render templates directly rather than entering through a
 // route loader. Give those tests the complete catalog before their imports run.

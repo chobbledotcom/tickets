@@ -9,10 +9,10 @@ import { IntlMessageFormat } from "intl-messageformat";
 import { lazyRef } from "#fp";
 import {
   ENGLISH_MESSAGE_LOADERS,
-  type MessageGroup,
   type Messages,
   SYSTEM_MESSAGES,
 } from "#locales/manifest.ts";
+import type { MessageGroup } from "#locales/message-groups.generated.ts";
 import { getEnv } from "#shared/env.ts";
 import { buildReplacer, needsIcu, type Replacer } from "#shared/rebrand.ts";
 import { getLocale } from "#shared/request-context.ts";

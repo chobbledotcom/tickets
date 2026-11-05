@@ -1,3 +1,4 @@
+// effects: pure
 /** The payment row machine on `/admin/schema`, drawn from the shared
  * machine spec.
  *

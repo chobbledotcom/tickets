@@ -11,7 +11,8 @@
     "**/fp.ts",
     "**/db/migrations/2*.ts",
     "**/db/migrations/schema/columns.ts",
-    "**/test-utils/**/*.test.ts"
+    "**/test-utils/**/*.test.ts",
+    "**/*.generated.ts"
   ],
   "format": [
     "typescript",

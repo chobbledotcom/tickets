@@ -1,3 +1,4 @@
+// effects: pure
 /** One shared boundary for unpacking a refund engine step. */
 
 import type {

@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * Whether a refund can be sent, given what the provider says already happened
  * to the money. Every refund route asks before it calls a provider. "Already

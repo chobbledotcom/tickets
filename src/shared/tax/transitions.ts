@@ -1,3 +1,4 @@
+// effects: pure
 import { assessTax } from "#shared/tax/assessment.ts";
 import type { TaxAssessment, TaxPolicy } from "#shared/tax/types.ts";
 

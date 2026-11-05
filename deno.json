@@ -34,6 +34,7 @@
     "cpd:renamed": "deno run -A scripts/cpd.ts --config .jscpd.renamed.json --baseline .jscpd.renamed-baseline.json --fail-on-new-clones",
     "cpd:specs": "deno run -A scripts/cpd.ts --config .jscpd.specs.json --baseline .jscpd.specs-baseline.json --fail-on-new-clones",
     "cpd:tla": "deno run -A scripts/tla-cpd.ts",
+    "locales:generate": "deno run --allow-read=src/locales --allow-write=src/locales/message-groups.generated.ts scripts/locale-groups/run.ts",
     "check:tla": "deno run --allow-read=verification,scripts,src scripts/check-tla.ts",
     "check:copy": "deno run --allow-read=src/locales scripts/check-copy.ts",
     "check:ste": "deno run --allow-read=. --allow-write=scripts/check-ste/baseline.json scripts/check-ste.ts",

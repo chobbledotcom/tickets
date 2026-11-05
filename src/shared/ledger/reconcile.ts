@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * Pure, non-tautological reconciliation checks.
  *

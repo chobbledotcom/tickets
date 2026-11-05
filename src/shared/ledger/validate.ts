@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * Pure validation of a transfer before it is posted.
  *

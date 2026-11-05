@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * Markdown rendering for user-authored content.
  *

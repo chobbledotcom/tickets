@@ -1,3 +1,4 @@
+// effects: pure
 /** The pure, durable life of one provider-qualified refund request. */
 
 import {

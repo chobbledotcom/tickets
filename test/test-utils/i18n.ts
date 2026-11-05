@@ -1,11 +1,10 @@
 import { bracket } from "#fp";
 import { addMessageGroup, ensureMessageGroups, resetI18nForTest } from "#i18n";
+import { ENGLISH_MESSAGE_LOADERS, type Messages } from "#locales/manifest.ts";
 import {
-  ENGLISH_MESSAGE_LOADERS,
   MESSAGE_GROUPS,
   type MessageGroup,
-  type Messages,
-} from "#locales/manifest.ts";
+} from "#locales/message-groups.generated.ts";
 
 /** Build a complete flat English catalog for catalog-wide assertions. */
 export const allEnglishMessages = async (

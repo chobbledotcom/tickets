@@ -1,4 +1,4 @@
-import type { MessageGroup } from "#locales/manifest.ts";
+import type { MessageGroup } from "#locales/message-groups.generated.ts";
 import { catalogWords } from "./catalog-words.ts";
 
 /**

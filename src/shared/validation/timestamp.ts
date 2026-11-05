@@ -1,3 +1,4 @@
+// effects: pure
 import { Temporal } from "temporal-polyfill";
 
 /**

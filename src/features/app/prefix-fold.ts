@@ -3,7 +3,7 @@
  * the maps the app reads.
  */
 
-import type { MessageGroup } from "#locales/manifest.ts";
+import type { MessageGroup } from "#locales/message-groups.generated.ts";
 import type { PathMethodRoute } from "#routes/types.ts";
 
 /** A gate answers before a prefix's message groups load. */

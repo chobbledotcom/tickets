@@ -8,9 +8,9 @@ import {
 } from "#i18n";
 import {
   ENGLISH_MESSAGE_LOADERS,
-  MESSAGE_GROUPS,
   type MessageLoader,
 } from "#locales/manifest.ts";
+import { MESSAGE_GROUPS } from "#locales/message-groups.generated.ts";
 import { allEnglishMessages, withColdMessages } from "#test-utils/i18n.ts";
 
 const withCommonLoader = (

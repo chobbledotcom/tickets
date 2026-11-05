@@ -1,3 +1,4 @@
+// effects: pure
 /** Required owner decisions for refund outcomes evidence cannot settle. */
 
 import { markRefundCompleted, readyRefund } from "#payment/refund-authority.ts";

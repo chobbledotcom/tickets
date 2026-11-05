@@ -1,3 +1,4 @@
+// effects: pure
 import { requiredMapValue } from "#fp";
 import type {
   OrderOption,

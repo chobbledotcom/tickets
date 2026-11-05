@@ -2,7 +2,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { ensureMessageGroups, t } from "#i18n";
-import { MESSAGE_GROUPS } from "#locales/manifest.ts";
+import { MESSAGE_GROUPS } from "#locales/message-groups.generated.ts";
 import { SCHEMA_ATLAS_MACHINES } from "#shared/schema-atlas/index.ts";
 import { adminSchemaAtlasPage } from "#templates/admin/schema-atlas.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";

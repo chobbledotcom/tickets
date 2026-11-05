@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * Slug utilities for URL-friendly identifiers
  *

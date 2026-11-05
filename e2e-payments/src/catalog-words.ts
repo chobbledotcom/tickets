@@ -1,5 +1,5 @@
 import { ensureMessageGroups, t } from "#i18n";
-import type { MessageGroup } from "#locales/manifest.ts";
+import type { MessageGroup } from "#locales/message-groups.generated.ts";
 
 /**
  * The words one catalog message renders, for the driver to click, count, or

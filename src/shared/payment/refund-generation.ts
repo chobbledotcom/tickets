@@ -1,3 +1,4 @@
+// effects: pure
 import { isPositiveSafeInteger } from "#shared/validation/number.ts";
 
 /** Refuse a refund command generation that cannot be stored exactly. */

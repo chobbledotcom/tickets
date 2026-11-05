@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * The chart of accounts — the small fixed set of account types and the builders
  * that map domain rows onto ledger accounts. The ledger itself is type-agnostic.

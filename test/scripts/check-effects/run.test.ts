@@ -16,94 +16,57 @@ const capture = (): CheckOutput & { errors: string[]; logs: string[] } => {
   };
 };
 
+const CLEAN = "test/scripts/check-effects/clean-fixtures";
+
 const checkOver = (
   output: CheckOutput,
-  over: {
-    effects?: Readonly<Record<string, readonly string[]>>;
-    pureModules?: readonly string[];
+  effects: Readonly<Record<string, readonly string[]>> = {
+    clock: ["#clock"],
+    db: ["#io/client.ts"],
   },
 ) => ({
   configPath: `${FIXTURES}/aliases.json`,
-  effects: over.effects ?? { clock: ["#clock"], db: ["#io/client.ts"] },
+  effects,
   output,
-  pureModules: over.pureModules ?? ["#pure/core.ts", "#pure/helper.ts"],
   treeRoot: FIXTURES,
 });
 
+const fix = 'Split the IO shell out, or remove the "// effects: pure" line.';
+
 describe("effects check", () => {
-  test("passes when every pure module stays pure", async () => {
+  test("checks only the modules that carry the pure line", async () => {
     const output = capture();
-    const code = await runEffectsCheck(checkOver(output, {}));
+    const code = await runEffectsCheck({
+      configPath: `${CLEAN}/aliases.json`,
+      effects: { clock: ["#clock"] },
+      output,
+      treeRoot: CLEAN,
+    });
     expect(code).toBe(0);
-    expect(output.logs).toEqual(["Every one of 2 pure modules stays pure."]);
+    expect(output.logs).toEqual(["Every one of 1 pure modules stays pure."]);
   });
 
-  test("reports a pure module that reaches the database root", async () => {
+  test("reports each marked module that reaches a root, with its chain", async () => {
     const output = capture();
-    const code = await runEffectsCheck(
-      checkOver(output, { pureModules: ["#pure/leaky.ts"] }),
-    );
+    const code = await runEffectsCheck(checkOver(output));
     expect(code).toBe(1);
+    const at = (name: string): string => `${FIXTURES}/${name}`;
+    const finding = (name: string, effect: string, chain: string[]): string =>
+      `${at(`pure/${name}`)} [pure-module]: reaches an effect root — ` +
+      `${effect}: ${[`pure/${name}`, ...chain].map(at).join(" → ")} — ${fix}`;
     expect(output.errors).toEqual([
-      `${FIXTURES}/pure/leaky.ts [pure-module]: reaches an effect root — ` +
-        `db: ${FIXTURES}/pure/leaky.ts → ${FIXTURES}/io/store.ts → ` +
-        `${FIXTURES}/io/client.ts — ` +
-        "Split the IO shell out, or drop the pure entry.",
-      '\n1 pure-module issue(s) found. See "Pure, functional" in docs/designing-systems.md.',
-    ]);
-  });
-
-  test("reports a pure module that reaches a root through a dynamic import", async () => {
-    const output = capture();
-    const code = await runEffectsCheck(
-      checkOver(output, { pureModules: ["#pure/late.ts"] }),
-    );
-    expect(code).toBe(1);
-    expect(output.errors[0]).toContain(
-      `db: ${FIXTURES}/pure/late.ts → ${FIXTURES}/io/store.ts`,
-    );
-  });
-
-  test("reports a pure module that reaches a root through a re-export", async () => {
-    const output = capture();
-    const code = await runEffectsCheck(
-      checkOver(output, { pureModules: ["#pure/reexporter.ts"] }),
-    );
-    expect(code).toBe(1);
-    expect(output.errors[0]).toContain(
-      `db: ${FIXTURES}/pure/reexporter.ts → ${FIXTURES}/io/client.ts`,
-    );
-  });
-
-  test("reports a pure module that reaches the clock root", async () => {
-    const output = capture();
-    const code = await runEffectsCheck(
-      checkOver(output, { pureModules: ["#pure/timed.ts"] }),
-    );
-    expect(code).toBe(1);
-    expect(output.errors[0]).toContain("clock: ");
-  });
-
-  test("reports a pure entry that names no file", async () => {
-    const output = capture();
-    const code = await runEffectsCheck(
-      checkOver(output, { pureModules: ["#pure/gone.ts"] }),
-    );
-    expect(code).toBe(1);
-    expect(output.errors).toEqual([
-      "#pure/gone.ts [pure-module]: names no file under the source tree — " +
-        "Remove the stale pure entry.",
-      '\n1 pure-module issue(s) found. See "Pure, functional" in docs/designing-systems.md.',
+      finding("late.ts", "db", ["io/store.ts", "io/client.ts"]),
+      finding("leaky.ts", "db", ["io/store.ts", "io/client.ts"]),
+      finding("reexporter.ts", "db", ["io/client.ts"]),
+      finding("timed.ts", "clock", ["clock.ts"]),
+      '\n4 pure-module issue(s) found. See "Pure, functional" in docs/designing-systems.md.',
     ]);
   });
 
   test("reports an effect root that names no file", async () => {
     const output = capture();
     const code = await runEffectsCheck(
-      checkOver(output, {
-        effects: { clock: ["#clock"], db: ["#io/missing.ts"] },
-        pureModules: ["#pure/core.ts"],
-      }),
+      checkOver(output, { clock: ["#clock"], db: ["#io/missing.ts"] }),
     );
     expect(code).toBe(1);
     expect(output.errors).toEqual([
@@ -115,7 +78,7 @@ describe("effects check", () => {
   test("stops when the alias table cannot be read", async () => {
     const output = capture();
     const code = await runEffectsCheck({
-      ...checkOver(output, {}),
+      ...checkOver(output),
       configPath: `${FIXTURES}/no-aliases.json`,
     });
     expect(code).toBe(1);

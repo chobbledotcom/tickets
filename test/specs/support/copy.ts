@@ -9,7 +9,7 @@
  */
 
 import { ensureMessageGroups, t } from "#i18n";
-import type { MessageGroup } from "#locales/manifest.ts";
+import type { MessageGroup } from "#locales/message-groups.generated.ts";
 
 /** One group's copy, ready to be quoted. */
 export const copyLoaded = (group: MessageGroup): Promise<void> =>

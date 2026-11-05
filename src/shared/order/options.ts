@@ -1,3 +1,4 @@
+// effects: pure
 import { listingNodeKey } from "#booking/tree.ts";
 import type { GroupIdsByListingId } from "#shared/group-capacity.ts";
 

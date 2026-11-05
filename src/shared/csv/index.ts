@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * A pure CSV system. It knows nothing about attendees, listings, or the wider
  * application — only how to turn a list of items plus an ordered set of columns

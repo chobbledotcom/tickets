@@ -5,7 +5,7 @@ import type {
   ProviderRefundCasePage,
 } from "#db/provider-refund-cases.ts";
 import { ensureMessageGroups } from "#i18n";
-import { MESSAGE_GROUPS } from "#locales/manifest.ts";
+import { MESSAGE_GROUPS } from "#locales/message-groups.generated.ts";
 import { money } from "#payment/money.ts";
 import {
   adminProviderRefundCasePage,

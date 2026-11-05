@@ -612,10 +612,10 @@ automatic.
   [model verification guide](docs/model-verification.md) before you add or review
   a model. It defines the evidence boundaries and author procedure
 - `deno task check:effects` — hold the pure core to the effect table: a
-  module the pure list names must hold no import path, static or dynamic,
-  to a module that opens the database, the network, or the wall clock. The
-  finding names the import chain, and the fix is to split the IO shell out
-  or drop the pure entry
+  module with the `// effects: pure` line must hold no import path, static
+  or dynamic, to a module that opens the database, the network, or the
+  wall clock. The finding names the import chain, and the fix is to split
+  the IO shell out or remove the line
 - `deno task suite:production` — run the production-shape checks as one
   scheduled suite, separate from `deno task test`: the edge-bundle boot
   smoke, the backup and restore drills, the concurrent-reservation race,

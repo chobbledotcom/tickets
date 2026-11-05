@@ -1,3 +1,4 @@
+// effects: pure
 /** Pure helpers for account identity. */
 
 import { sameOn } from "#fp";

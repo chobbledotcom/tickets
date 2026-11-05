@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * The one shell every payment provider call runs inside.
  *

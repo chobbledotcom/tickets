@@ -1,3 +1,4 @@
+// effects: pure
 /** The payment-review machine as one executable table.
  *
  * A review slot is the review side of one payment row: no case held, an

@@ -1,3 +1,4 @@
+// effects: pure
 import {
   type MachineEvent,
   type MachineNode,

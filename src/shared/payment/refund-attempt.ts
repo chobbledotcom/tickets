@@ -1,3 +1,4 @@
+// effects: pure
 import { type ObservationOutcome, refundOutcomeOf } from "#payment/diagnose.ts";
 import { type Money, sameMoney } from "#payment/money.ts";
 import type {

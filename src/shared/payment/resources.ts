@@ -1,3 +1,4 @@
+// effects: pure
 import * as v from "valibot";
 import { sumOf } from "#fp";
 import { type Money, MoneySchema, money } from "#payment/money.ts";

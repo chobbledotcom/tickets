@@ -1,3 +1,4 @@
+// effects: pure
 /** The Square link-end machine on `/admin/schema`, drawn from the shared
  * machine spec.
  *
