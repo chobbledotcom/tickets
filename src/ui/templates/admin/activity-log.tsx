@@ -6,7 +6,10 @@ import type { ActivityLogEntry } from "#db/activity-log.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { Child, SafeHtml } from "#jsx/jsx-runtime.ts";
-import { attendeeAdminPath } from "#shared/attendee-links.ts";
+import {
+  type AttendeeLinkRefs,
+  attendeeAdminPath,
+} from "#shared/attendee-links.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import { ErrorCode, errorCodeLabel } from "#shared/logger.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
@@ -63,15 +66,12 @@ const SquareSignatureHint = (): SafeHtml => (
 
 /**
  * Display names for the global log's optional Attendee and Listing columns:
- * each map turns a record id into the name shown (and linked) for it. The
+ * each lookup turns a record id into the name shown (and linked) for it. The
  * feature layer builds these — decrypting attendee names with the session key
  * and reading listing names from cache — so the template stays render-only.
  */
 export interface ActivityLogRefs {
-  attendees: {
-    kinds: Map<number, string>;
-    names: Map<number, string>;
-  };
+  attendees: AttendeeLinkRefs;
   listings: Map<number, string>;
 }
 

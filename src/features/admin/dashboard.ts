@@ -20,11 +20,14 @@ import { getSelectedAttributesForListings } from "#db/attributes.ts";
 import { getAllGroupNames } from "#db/groups.ts";
 import { getActiveHolidays } from "#db/holidays.ts";
 import { getNonStandaloneChildIds } from "#db/listing-parents.ts";
-import { getAllListings, listingNames } from "#db/listings/records.ts";
+import { getAllListings } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
 import { compact, filter, unique } from "#fp";
 import { t } from "#i18n";
-import { csvResponse, loadAttendeeLinkRefs } from "#routes/admin/actions.ts";
+import {
+  csvResponse,
+  loadAttendeeAndListingRefs,
+} from "#routes/admin/actions.ts";
 import { generateListingsCsv } from "#routes/admin/listings-csv.ts";
 import { returnPathFromQuery } from "#routes/admin/login-return.ts";
 import {
@@ -258,17 +261,13 @@ const idsOf = (
   field: (entry: ActivityLogEntry) => number | null,
 ): number[] => unique(compact(entries.map(field)));
 
-const loadActivityLogRefs = async (
+const loadActivityLogRefs = (
   entries: ActivityLogEntry[],
-): Promise<ActivityLogRefs> => {
-  const attendeeIds = idsOf(entries, (entry) => entry.attendee_id);
-  const listingIds = idsOf(entries, (entry) => entry.listing_id);
-  const [attendees, listings] = await Promise.all([
-    loadAttendeeLinkRefs(attendeeIds),
-    listingNames.byIds(listingIds),
-  ]);
-  return { attendees, listings };
-};
+): Promise<ActivityLogRefs> =>
+  loadAttendeeAndListingRefs(
+    idsOf(entries, (entry) => entry.attendee_id),
+    idsOf(entries, (entry) => entry.listing_id),
+  );
 
 const handleAdminLog: TypedRouteHandler<"GET /admin/log"> = authPage(
   pageGuardFor(adminDestinationAt("/admin/log")),

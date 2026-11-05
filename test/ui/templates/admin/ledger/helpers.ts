@@ -1,3 +1,5 @@
+import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
+import type { AttendeeLinkRefs } from "#shared/attendee-links.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
 import {
   adminLedgerPage,
@@ -7,9 +9,18 @@ import {
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 import { makeTransfer } from "#test-utils/transfer-factory.ts";
 
+/** Attendee link lookups for the rows a rendering test names, defaulting each
+ *  row to the ordinary attendee kind. */
+export const attendeeLinkRefs = (
+  rows: readonly (readonly [id: number, name: string, kind?: string])[],
+): AttendeeLinkRefs => ({
+  kinds: new Map(rows.map(([id, , kind]) => [id, kind ?? ATTENDEE_KIND])),
+  names: new Map(rows.map(([id, name]) => [id, name])),
+});
+
 /** Build a LedgerNames from id-to-name pairs for each entity kind. */
 export const names = (overrides: Partial<LedgerNames> = {}): LedgerNames => ({
-  attendees: new Map(),
+  attendees: attendeeLinkRefs([]),
   listings: new Map(),
   modifiers: new Map(),
   ...overrides,

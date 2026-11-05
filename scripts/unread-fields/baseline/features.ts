@@ -23,9 +23,6 @@ const LISTING_BODY_FIELDS = [
 
 export const FEATURE_BASELINE: readonly FindingIdentity[] = [
   ...identitiesAt([
-    ["src/features/admin/actions.ts", [{ name: "AttendeeLinkRefs" }]],
-  ])(["kinds", "names"]),
-  ...identitiesAt([
     ["src/features/admin/api-groups.ts", [{ name: "CreateGroupBody" }]],
   ])(["name", "package_members"]),
   ...identitiesAt([
