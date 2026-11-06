@@ -150,6 +150,16 @@ describeWithEnv("Admin API - External link search", { db: true }, () => {
       );
     });
 
+    test("answers nothing when the directory holds no sources", async () => {
+      await assertJson(
+        apiRequest("/api/admin/external-sources/lookup?external_id=ANY"),
+        200,
+        (body) => {
+          expect(body.links).toEqual([]);
+        },
+      );
+    });
+
     test("refuses a lookup without an external id", async () => {
       await assertJson(
         apiRequest("/api/admin/external-sources/lookup"),
