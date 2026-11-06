@@ -3,6 +3,7 @@
  * the pattern it stores, and every link it holds.
  */
 
+import type { ExternalLinkMatch } from "#db/external-sources/queries.ts";
 /* jscpd:ignore-start */
 import type {
   ExternalSource,
@@ -24,8 +25,6 @@ export type ExternalSourceEntry = {
   links: readonly ExternalSourceLink[];
   source: ExternalSource;
 };
-
-type LinkRow = { link: ExternalSourceLink; source: ExternalSource };
 
 /** The site's word for each kind of record a link can name. */
 const RECORD_KIND: Record<ExternalSourceLink["link_type"], string> = {
@@ -54,7 +53,7 @@ const recordLink = (link: ExternalSourceLink): Child => (
 
 /** The address the source's pattern gives this link, or the site's word for a
  *  record the other system has not named yet. */
-const addressCell = ({ link, source }: LinkRow): Child => {
+const addressCell = ({ link, source }: ExternalLinkMatch): Child => {
   const url = externalLinkUrl(source.url_pattern, link.external_id);
   return url === null ? (
     t("features.external_sources.not_named")
@@ -63,7 +62,7 @@ const addressCell = ({ link, source }: LinkRow): Child => {
   );
 };
 
-const linkColumns: TableColumn<LinkRow>[] = [
+const linkColumns: TableColumn<ExternalLinkMatch>[] = [
   translatedTableColumn(
     "record",
     "features.external_sources.record",

@@ -55,6 +55,7 @@ describeWithEnv(
         id: "2026-11-03_external_sources",
         requires: {
           indexes: [
+            "idx_external_source_links_lookup",
             "idx_external_source_links_external",
             "idx_external_source_links_target",
           ],
