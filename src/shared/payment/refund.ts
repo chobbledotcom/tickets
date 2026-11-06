@@ -1,3 +1,4 @@
+// effects: pure
 import type { Money } from "#payment/money.ts";
 import {
   type ChargeMoney,

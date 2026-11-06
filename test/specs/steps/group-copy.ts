@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -20,8 +18,6 @@ import { rememberListing } from "#test/specs/support/listings.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
-
-// jscpd:ignore-end
 
 /** The duplicate form's URL, built from the group's id. The form's fields are
  * read off the served page in `fillInAndSend`, so a form that stopped rendering

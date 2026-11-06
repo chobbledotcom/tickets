@@ -1,5 +1,4 @@
-// jscpd:ignore-start
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { revenueAccount } from "#accounting/accounts.ts";
@@ -13,6 +12,7 @@ import {
 import { emptyRange } from "#accounting/range.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { account } from "#shared/ledger/account.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -31,8 +31,6 @@ import {
   transfersOfKind,
 } from "#test-utils/servicing-ledger.ts";
 import { adminFormPost } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "servicing §22 - cost recording and listing profit",
@@ -112,10 +110,12 @@ describeWithEnv(
 
       const html = await renderAdminPage(`/admin/listing/${listing.id}`);
 
-      assertStringIncludes(html, "Service event costs");
-      assertStringIncludes(html, formatCurrency(9000));
-      assertStringIncludes(html, "Profit before refunds");
-      assertStringIncludes(html, formatCurrency(11000));
+      expectIncludesAll(html, [
+        "Service event costs",
+        formatCurrency(9000),
+        "Profit before refunds",
+        formatCurrency(11000),
+      ]);
     });
 
     test("the cost route dates the cost leg to the service event date, not the submit time", async () => {

@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import {
   aboutTheRow,
   defaulted,
@@ -10,8 +9,6 @@ import {
 } from "#db/migrations/schema/scalar-columns.ts";
 import type { Table } from "#db/migrations/schema/types.ts";
 import { madeAndTouched, ownerEncryptedRuleOrNull } from "./columns.ts";
-
-/* jscpd:ignore-end */
 
 const HIDDEN_COLUMNS = [
   "session_resource",

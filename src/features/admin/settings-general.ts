@@ -4,7 +4,6 @@
  * enforced via the settings-helpers route wrappers.
  */
 
-/* jscpd:ignore-start -- imports */
 import { logActivity } from "#db/activity-log.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
@@ -45,8 +44,6 @@ import {
   type PaymentProviderType,
   type Theme,
 } from "#types";
-
-/* jscpd:ignore-end */
 
 type SingleFieldSettingsForm = Exclude<SettingsFormConfig, { kind: "fields" }>;
 

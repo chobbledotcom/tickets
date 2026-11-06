@@ -1,11 +1,14 @@
-// jscpd:ignore-start
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { formatCountdown } from "#routes/format.ts";
 import { nowMs } from "#shared/now.ts";
-import { assertAdminHtml, expectHtmlResponse } from "#test-utils/assertions.ts";
+import {
+  assertAdminHtml,
+  expectHtmlResponse,
+  expectIncludesAll,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestListing,
@@ -16,8 +19,6 @@ import {
   adminGet,
   setupListingAndLogin,
 } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("server listings > closes_at field", { db: true }, () => {
   describe("closes_at field", () => {
@@ -151,8 +152,7 @@ describeWithEnv("server listings > closes_at field", { db: true }, () => {
       const result = formatCountdown(
         new Date(nowMs() + 30 * 60 * 1000).toISOString(),
       );
-      assertStringIncludes(result, "minute");
-      assertStringIncludes(result, "from now");
+      expectIncludesAll(result, ["minute", "from now"]);
     });
 
     test("formatCountdown shows closed for past dates", () => {

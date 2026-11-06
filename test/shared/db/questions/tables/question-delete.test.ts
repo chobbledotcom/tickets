@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -11,8 +10,6 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createQuestion } from "#test-utils/questions/helpers.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("server (admin questions)", { db: true }, () => {
   describe("GET /admin/questions/:id/delete", () => {

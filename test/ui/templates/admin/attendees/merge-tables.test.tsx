@@ -8,6 +8,7 @@ import type {
   AttendeeMergeDiffBookingItem,
 } from "#shared/merge/attendee-merge-types.ts";
 import { MergeDecisionTables } from "#templates/admin/attendees/merge-tables.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 const bookingRow = (
   overrides: Partial<ListingAttendeeRow> = {},
@@ -88,24 +89,19 @@ describe("MergeDecisionTables", () => {
       }),
     );
 
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       "<th>Field</th><th>Keep current: Target Person</th><th>Use source: Source Person</th>",
-    );
-    assertStringIncludes(html, '<th scope="row">Name</th>');
-    assertStringIncludes(
-      html,
+      '<th scope="row">Name</th>',
       '<input checked name="pii_name" type="radio" value="target"> Target &lt;script&gt;name&lt;/script&gt;',
-    );
-    assertStringIncludes(
-      html,
       '<input name="pii_name" type="radio" value="source"> Source &lt;strong&gt;name&lt;/strong&gt;',
-    );
+    ]);
     assert(!html.includes("<script>name</script>"));
     assert(!html.includes("<strong>name</strong>"));
-    assertStringIncludes(html, '<th scope="row">Address</th>');
-    assertStringIncludes(html, '<span style="white-space:pre-wrap">—</span>');
-    assertStringIncludes(html, '<span class="muted">(same)</span>');
+    expectIncludesAll(html, [
+      '<th scope="row">Address</th>',
+      '<span style="white-space:pre-wrap">—</span>',
+      '<span class="muted">(same)</span>',
+    ]);
     assert(!html.includes('name="pii_address" type="radio" value="source"'));
   });
 
@@ -126,23 +122,13 @@ describe("MergeDecisionTables", () => {
       }),
     );
 
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<fieldset class="listing-section"><legend>Custom Question Answers</legend>',
-    );
-    assertStringIncludes(html, '<th scope="row">Favourite colour?</th>');
-    assertStringIncludes(
-      html,
+      '<th scope="row">Favourite colour?</th>',
       '<input checked name="answer_10" type="radio" value="target"> Red',
-    );
-    assertStringIncludes(
-      html,
       '<input name="answer_10" type="radio" value="source"> Blue',
-    );
-    assertStringIncludes(
-      html,
       '<input name="answer_10" type="radio" value="clear"> None',
-    );
+    ]);
   });
 
   test("labels non-conflicting answers without rendering controls", () => {
@@ -171,22 +157,12 @@ describe("MergeDecisionTables", () => {
       }),
     );
 
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<span class="muted">Target kept (target, kept automatically)</span>',
-    );
-    assertStringIncludes(
-      html,
       '<span class="muted">Source kept (source, kept automatically)</span>',
-    );
-    assertStringIncludes(
-      html,
       "<thead><tr><th>Question</th><th>Status</th></tr></thead>",
-    );
-    assertStringIncludes(
-      html,
       '<tr><th scope="row">Source answer?</th><td><span class="muted">Source kept (source, kept automatically)</span></td></tr>',
-    );
+    ]);
     assert(!html.includes('name="answer_11"'));
     assert(!html.includes('name="answer_12"'));
   });
@@ -226,49 +202,24 @@ describe("MergeDecisionTables", () => {
       }),
     );
 
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       "<th>Listing</th><th>Date</th><th>Source (qty)</th><th>Status</th><th>Decision</th>",
-    );
-    assertStringIncludes(html, "2–3 February 2027");
-    assertStringIncludes(
-      html,
+      "2–3 February 2027",
       "<strong>Duplicate</strong> Current quantity: 5. Source quantity: 2.",
-    );
-    assertStringIncludes(
-      html,
       '<input checked name="booking_' +
         paidKey +
         '" type="radio" value="keep_target"> Keep current booking',
-    );
-    assertStringIncludes(
-      html,
       '<input name="booking_' +
         paidKey +
         '" type="radio" value="take_source"> Use source booking',
-    );
-    assertStringIncludes(
-      html,
       '<input name="booking_' +
         paidKey +
         '" type="radio" value="skip_source"> Skip source booking',
-    );
-    assertStringIncludes(
-      html,
       `Source payment: ${formatCurrency(1234)}. Current payment: ${formatCurrency(567)}.`,
-    );
-    assertStringIncludes(
-      html,
       `<input name="money_${paidKey}" type="radio" value="credit"> Keep it as credit for this person`,
-    );
-    assertStringIncludes(
-      html,
       `<input name="money_${paidKey}" type="radio" value="writeoff"> Write it off`,
-    );
-    assertStringIncludes(
-      html,
       "<strong>Conflicting metadata</strong> Current quantity: 1. Source quantity: 3.",
-    );
+    ]);
     assert(!html.includes('name="money_8:null:0:0"'));
     assertStringIncludes(
       html,
@@ -291,8 +242,10 @@ describe("MergeDecisionTables", () => {
       }),
     );
 
-    assertStringIncludes(html, "Listing #15");
-    assertStringIncludes(html, '<span class="muted">Will be moved</span>');
+    expectIncludesAll(html, [
+      "Listing #15",
+      '<span class="muted">Will be moved</span>',
+    ]);
     assert(!html.includes("<th>Decision</th>"));
     assert(!html.includes('name="booking_15:null:0:0"'));
     assert(!html.includes("Custom Question Answers"));

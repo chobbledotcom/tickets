@@ -1,3 +1,4 @@
+// effects: pure
 import * as v from "valibot";
 import { largestRemainderAllocation } from "#shared/largest-remainder.ts";
 import {

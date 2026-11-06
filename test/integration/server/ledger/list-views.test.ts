@@ -9,7 +9,7 @@ import {
   ledgerPageHtml,
   seededSale,
 } from "#test/integration/server/ledger/helpers.ts";
-import { testRequiresAuth } from "#test-utils/assertions.ts";
+import { expectIncludesAll, testRequiresAuth } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { postModifierLeg } from "#test-utils/ledger.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
@@ -31,11 +31,13 @@ describeWithEnv("server (admin ledger list views)", { db: true }, () => {
     const html = await ledgerPageHtml("/admin/ledger?view=dual");
     // The sale leg credits the listing's revenue account, linked by its name to
     // the listing itself, not to a filtered ledger.
-    assertStringIncludes(html, "Summer Concert");
-    assertStringIncludes(html, '<a href="/admin/listing/1">Summer Concert</a>');
-    // The attendee leg resolves to a link too (name decrypted with the key).
-    assertStringIncludes(html, "Ada Lovelace");
-    assertStringIncludes(html, '<a href="/admin/attendees/1">Ada Lovelace</a>');
+    expectIncludesAll(html, [
+      "Summer Concert",
+      '<a href="/admin/listing/1">Summer Concert</a>',
+      // The attendee leg resolves to a link too (name decrypted with the key).
+      "Ada Lovelace",
+      '<a href="/admin/attendees/1">Ada Lovelace</a>',
+    ]);
     assert(!html.includes("/admin/ledger/attendee/"));
     assertStringIncludes(html, "<td>Booking made</td>");
     assert(!html.includes("<td>sale</td>"));
@@ -62,10 +64,12 @@ describeWithEnv("server (admin ledger list views)", { db: true }, () => {
     await seededSale("Gala", 2500);
     const response = await adminGet("/admin/ledger");
     const html = await response.text();
-    assertStringIncludes(html, "<th>Activity</th>");
-    assertStringIncludes(html, "<strong>Simple view</strong>");
-    assertStringIncludes(html, "booked");
-    assertStringIncludes(html, "Gala");
+    expectIncludesAll(html, [
+      "<th>Activity</th>",
+      "<strong>Simple view</strong>",
+      "booked",
+      "Gala",
+    ]);
     assert(!html.includes("<th>Event</th>"));
     assert(!html.includes("<td>sale</td>"));
   });
@@ -83,8 +87,10 @@ describeWithEnv("server (admin ledger list views)", { db: true }, () => {
     const response = await adminGet("/admin/ledger");
     expect(response.status).toBe(200);
     const html = await response.text();
-    assertStringIncludes(html, "Booking surcharge");
-    assertStringIncludes(html, `<a href="/admin/modifiers/${modifier.id}">`);
+    expectIncludesAll(html, [
+      "Booking surcharge",
+      `<a href="/admin/modifiers/${modifier.id}">`,
+    ]);
     assert(!html.includes("/admin/ledger/modifier/"));
   });
 

@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
@@ -10,6 +9,7 @@ import {
   reportOutOfStockBuyers,
   reportSiteAssignmentFailure,
 } from "#shared/site-assignment-failure.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { validEmail } from "#test-utils/email.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -139,8 +139,10 @@ describeWithEnv("empty site pool reporting", { db: true }, () => {
     expect(fetchStub.calls.length).toBe(2);
     expect(fetchStub.calls[0]!.args[1].body).toBe(ErrorCode.SITE_ASSIGNMENT);
     const logLine = String(errorSpy.calls[0]!.args[0]);
-    assertStringIncludes(logLine, "2 plan buyer(s) got no site");
-    assertStringIncludes(logLine, "plans: One Month Site + Second Plan");
+    expectIncludesAll(logLine, [
+      "2 plan buyer(s) got no site",
+      "plans: One Month Site + Second Plan",
+    ]);
 
     const body = JSON.parse(fetchStub.calls[1]!.args[1].body);
     expect(body.subject).toBe("A site plan sold with no site available");

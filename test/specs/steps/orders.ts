@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -12,15 +10,16 @@ import {
   placedOrder,
 } from "#test/specs/support/orders.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
-import { attendeeLineIndex } from "#test-utils/assertions.ts";
+import {
+  attendeeLineIndex,
+  expectIncludesAll,
+} from "#test-utils/assertions.ts";
 import { testDate } from "#test-utils/dates.ts";
 import {
   lineCountFor,
   lineQty,
   openEditorFromRoster,
 } from "#test-utils/order-journey.ts";
-
-// jscpd:ignore-end
 
 const BUYER = "Journey Buyer";
 
@@ -134,11 +133,13 @@ Then(
   "each booking says which bundle or parent it came from",
   async function (this: TicketsWorld): Promise<void> {
     const editor = await openOrder(this, "Tent");
-    assertStringIncludes(editor, "via Mega Kit");
-    assertStringIncludes(editor, "add-on under Marquee");
-    // The day the customer picked rides with the order.
-    assertStringIncludes(editor, 'name="start_date"');
-    assertStringIncludes(editor, `value="${this.orderDay}"`);
+    expectIncludesAll(editor, [
+      "via Mega Kit",
+      "add-on under Marquee",
+      // The day the customer picked rides with the order.
+      'name="start_date"',
+      `value="${this.orderDay}"`,
+    ]);
   },
 );
 

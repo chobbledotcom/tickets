@@ -1,9 +1,9 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { awaitTestRequest, mockRequest } from "#test-utils/mocks.ts";
 import {
@@ -12,8 +12,6 @@ import {
   expectStaticFile,
 } from "#test-utils/public/static-route-checks.ts";
 import { disablePublicSite, enablePublicSite } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 /** The compiled stylesheet is one media query per topic, compressed, with flat
  * rules. Read it the way a print stylesheet resolves: take the `@media print`
@@ -202,8 +200,7 @@ describeWithEnv(
     describe("GET /favicon.ico", () => {
       test("returns SVG favicon", async () => {
         await expectStaticFile("/favicon.ico", "image/svg+xml", (svg) => {
-          assertStringIncludes(svg, "<svg");
-          assertStringIncludes(svg, "viewBox");
+          expectIncludesAll(svg, ["<svg", "viewBox"]);
         });
       });
 
@@ -219,8 +216,7 @@ describeWithEnv(
     describe("GET /icons.svg", () => {
       test("returns SVG icon sprite", async () => {
         await expectStaticFile("/icons.svg", "image/svg+xml", (svg) => {
-          assertStringIncludes(svg, "<svg");
-          assertStringIncludes(svg, 'id="plus"');
+          expectIncludesAll(svg, ["<svg", 'id="plus"']);
         });
       });
 
@@ -239,8 +235,7 @@ describeWithEnv(
           "/style.css",
           "text/css; charset=utf-8",
           (css) => {
-            assertStringIncludes(css, ":root");
-            assertStringIncludes(css, "--color-link");
+            expectIncludesAll(css, [":root", "--color-link"]);
           },
         );
       });
@@ -322,8 +317,7 @@ describeWithEnv(
           "/admin.js",
           "application/javascript; charset=utf-8",
           (js) => {
-            assertStringIncludes(js, "data-select-on-click");
-            assertStringIncludes(js, "data-nav-select");
+            expectIncludesAll(js, ["data-select-on-click", "data-nav-select"]);
           },
         );
       });

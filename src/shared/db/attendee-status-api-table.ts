@@ -1,7 +1,6 @@
 /** The CRUD table the admin JSON API writes through. It lives apart from
  *  attendee-statuses.ts, which stays under its length limit. */
 
-/* jscpd:ignore-start -- import block */
 import type { InValue } from "@libsql/client";
 import {
   type AttendeeStatus,
@@ -13,8 +12,6 @@ import {
 } from "#db/attendee-statuses.ts";
 import type { Table } from "#db/table.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
-
-/* jscpd:ignore-end */
 
 /** Save a status through the boundary, throwing the operator-facing message
  *  as a validation error when the boundary refuses. */

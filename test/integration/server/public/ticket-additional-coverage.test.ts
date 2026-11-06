@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -25,8 +24,6 @@ import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 /** Add a one-penny returning-customer charge to a free, phone-only listing. */
 const setupReturningCustomerFeeListing = async () => {

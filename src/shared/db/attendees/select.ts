@@ -4,7 +4,6 @@
  * per row, so narrow reads are much cheaper than full ones.
  */
 
-/* jscpd:ignore-start */
 import { ATTENDEE, REVENUE } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import {
@@ -19,7 +18,6 @@ import type { SqlStatement } from "#db/client.ts";
 import { defineReader } from "#db/read.ts";
 import { inList, inSubquery, type WhereClause } from "#db/where-clauses.ts";
 import type { Attendee } from "#types";
-/* jscpd:ignore-end */
 
 /**
  * Projected from the ledger rather than a stored column, so the projection and

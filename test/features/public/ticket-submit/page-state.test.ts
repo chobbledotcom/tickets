@@ -4,7 +4,6 @@
  * sold-out page states.
  */
 
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { bookingError } from "#booking/form.ts";
@@ -21,8 +20,6 @@ import {
   ticketContext,
   twoListingContext,
 } from "#test-utils/ticket-ctx.ts";
-
-/* jscpd:ignore-end */
 
 /** The page context with its listings replaced, for the state a real page
  * cannot reach in one shot (a closed listing beside an open one). */

@@ -1,7 +1,5 @@
 /** The stories about the invoices an organiser sends for what a booking owes. */
 
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -34,8 +32,7 @@ import {
   theBooking,
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 /** One action, told as the state before a scenario and as the act within it. */
 const sendTheInvoice = function (this: TicketsWorld): Promise<void> {
@@ -120,8 +117,10 @@ Then(
   "the invoice says it is paid",
   async function (this: TicketsWorld): Promise<void> {
     const details = detailsOnPage(await invoiceSays(this), "The invoice page");
-    assertStringIncludes(details, await invoiceCopy("invoices.column.status"));
-    assertStringIncludes(details, await invoiceCopy("invoices.status.paid"));
+    expectIncludesAll(details, [
+      await invoiceCopy("invoices.column.status"),
+      await invoiceCopy("invoices.status.paid"),
+    ]);
     expect(details).not.toContain(await invoiceCopy("invoices.status.new"));
   },
 );
@@ -233,10 +232,9 @@ Then(
       await adminPageHtmlAt(this, `/admin/attendees/${theBooking(this)}`),
       "The booking's page",
     );
-    assertStringIncludes(
-      details,
+    expectIncludesAll(details, [
       `href="/admin/invoices/${invoiceNumber(this)}"`,
-    );
-    assertStringIncludes(details, await invoiceCopy("invoices.status.new"));
+      await invoiceCopy("invoices.status.new"),
+    ]);
   },
 );

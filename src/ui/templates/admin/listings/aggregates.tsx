@@ -1,5 +1,3 @@
-/* jscpd:ignore-start */
-
 import type {
   ListingAggregateField,
   ListingAggregateRecalculation,
@@ -21,8 +19,6 @@ import {
 import { capacityLevel } from "#templates/components/capacity.tsx";
 import { getListingAggregateFields } from "#templates/fields/aggregate.ts";
 import type { ListingWithCount } from "#types";
-
-/* jscpd:ignore-end */
 
 export {
   calculateTotalRevenue,

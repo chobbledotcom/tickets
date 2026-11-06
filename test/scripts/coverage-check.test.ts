@@ -11,6 +11,7 @@ import {
 } from "#scripts/coverage-check.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 import { withEnvironment } from "#scripts/test-environment.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withTempDir } from "#test-utils/files.ts";
 
 /** Wrap raw lcov lines into one record. */
@@ -117,7 +118,7 @@ describe("findCoverageFailures", () => {
     )!;
 
     expect(failures[0]?.lines?.uncovered).toEqual([2]);
-    expect(failures[0]?.branches).toBeUndefined();
+    expect(failures[0]?.branches).toBe(undefined);
   });
 
   test("counts fewer hits than found lines as gaps with no line numbers", () => {
@@ -145,7 +146,7 @@ describe("findCoverageFailures", () => {
       total: 2,
       uncovered: [5],
     });
-    expect(failures[0]?.lines).toBeUndefined();
+    expect(failures[0]?.lines).toBe(undefined);
   });
 
   test("reports nothing for records whose metrics are complete", () => {
@@ -177,12 +178,14 @@ describe("printFailureSummary", () => {
         printFailureSummary(failure),
       );
       const text = errors.join("\n");
-      assertStringIncludes(text, "missing 2, 10");
-      assertStringIncludes(text, "missing 10");
-      assertStringIncludes(text, "| row number 2");
-      assertStringIncludes(text, "| row number 10");
-      // The jump from the lines around 2 to the lines around 10 is shown.
-      assertStringIncludes(text, "    ...");
+      expectIncludesAll(text, [
+        "missing 2, 10",
+        "missing 10",
+        "| row number 2",
+        "| row number 10",
+        // The jump from the lines around 2 to the lines around 10 is shown.
+        "    ...",
+      ]);
     });
   });
 
@@ -256,8 +259,7 @@ describe("printFailureSummary", () => {
         printFailureSummary(failure),
       );
       const text = errors.join("\n");
-      assertStringIncludes(text, "| line 1");
-      assertStringIncludes(text, "more source lines");
+      expectIncludesAll(text, ["| line 1", "more source lines"]);
     });
   });
 });
@@ -325,7 +327,9 @@ describe("printCoverageReport", () => {
     );
 
     const text = errors.join("\n");
-    assertStringIncludes(text, "::error file=");
-    assertStringIncludes(text, "additional coverage annotations omitted");
+    expectIncludesAll(text, [
+      "::error file=",
+      "additional coverage annotations omitted",
+    ]);
   });
 });

@@ -1,6 +1,5 @@
 /** Admin backup routes. Restores run out of band through `deno task restore`. */
 
-/* jscpd:ignore-start -- imports */
 import { getEncryptionKeyString } from "#crypto/encryption.ts";
 import { backupBudget, createAndUploadBackup } from "#db/backup.ts";
 import {
@@ -35,8 +34,6 @@ import {
   type BackupEntry,
   type BackupPageState,
 } from "#templates/admin/backup.tsx";
-
-/* jscpd:ignore-end */
 
 const parseBackupEntry = (file: StorageFileMeta): BackupEntry => {
   const takenAt = new Date(parseBackupTime(file.name)!);

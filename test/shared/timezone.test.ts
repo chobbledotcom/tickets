@@ -15,6 +15,7 @@ import {
 } from "#shared/timezone.ts";
 import { DEFAULT_TIMEZONE } from "#shared/timezone-default.ts";
 import { isIsoDate } from "#shared/validation/date-string.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 describe("timezone", () => {
   describe("DEFAULT_TIMEZONE", () => {
@@ -140,8 +141,7 @@ describe("timezone", () => {
         "2026-01-15T14:30:00.000Z",
         "Europe/London",
       );
-      assertStringIncludes(result, "Thursday 15 January 2026 at 14:30");
-      assertStringIncludes(result, "GMT");
+      expectIncludesAll(result, ["Thursday 15 January 2026 at 14:30", "GMT"]);
     });
 
     test("formats UTC datetime in London summer time (BST)", () => {
@@ -164,8 +164,7 @@ describe("timezone", () => {
 
     test("pads single-digit hours and minutes", () => {
       const result = formatDatetimeInTz("2026-01-05T09:05:00.000Z", "UTC");
-      assertStringIncludes(result, "Monday 5 January 2026 at 09:05");
-      assertStringIncludes(result, "UTC");
+      expectIncludesAll(result, ["Monday 5 January 2026 at 09:05", "UTC"]);
     });
   });
 

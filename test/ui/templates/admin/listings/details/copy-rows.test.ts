@@ -5,6 +5,7 @@ import {
   registerListingTemplateHooks,
   renderListingDetail,
 } from "#test/ui/templates/admin/listings/helpers.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 /** Render the details table for one listing, roster trimmed away. */
@@ -28,9 +29,11 @@ describe("listing details table copy rows", () => {
       max_price: 2000,
       unit_price: 1500,
     });
-    assertStringIncludes(rows, "<th>Ticket Price</th>");
-    assertStringIncludes(rows, "£15");
-    assertStringIncludes(rows, "pay more: £15–£20");
+    expectIncludesAll(rows, [
+      "<th>Ticket Price</th>",
+      "£15",
+      "pay more: £15–£20",
+    ]);
   });
 
   test("pay-more without headroom names the enabled state", () => {
@@ -39,8 +42,7 @@ describe("listing details table copy rows", () => {
       max_price: 1000,
       unit_price: 1000,
     });
-    assertStringIncludes(rows, "£10");
-    assertStringIncludes(rows, "pay more enabled");
+    expectIncludesAll(rows, ["£10", "pay more enabled"]);
   });
 
   test("a free listing without pay-more says Free, with no suffix", () => {
@@ -62,8 +64,10 @@ describe("listing details table copy rows", () => {
       listing_type: "daily",
     });
     // The chooser sentence and the price list share one space.
-    assertStringIncludes(rows, "Visitors choose 1–4 days. <span>1 day: £10");
-    assertStringIncludes(rows, "1 day: £10, 3 days: £25");
+    expectIncludesAll(rows, [
+      "Visitors choose 1–4 days. <span>1 day: £10",
+      "1 day: £10, 3 days: £25",
+    ]);
   });
 
   test("one offered day count still prices it", () => {
@@ -92,13 +96,15 @@ describe("listing details table copy rows", () => {
       maximum_days_after: 10,
       minimum_days_before: 2,
     });
-    assertStringIncludes(rows, "<th>Listing Type</th><td>Daily</td>");
-    assertStringIncludes(rows, "<th>Bookable Days</th>");
-    assertStringIncludes(rows, "Monday, Tuesday");
-    assertStringIncludes(rows, "<th>Booking Window</th>");
-    assertStringIncludes(rows, "2 to 10 days from today");
-    assertStringIncludes(rows, "<th>Booking duration</th>");
-    assertStringIncludes(rows, "<td>3 day(s)</td>");
+    expectIncludesAll(rows, [
+      "<th>Listing Type</th><td>Daily</td>",
+      "<th>Bookable Days</th>",
+      "Monday, Tuesday",
+      "<th>Booking Window</th>",
+      "2 to 10 days from today",
+      "<th>Booking duration</th>",
+      "<td>3 day(s)</td>",
+    ]);
   });
 
   test("an unlimited booking window says unlimited", () => {
@@ -116,18 +122,14 @@ describe("listing details table copy rows", () => {
       months_per_unit: 1,
       non_transferable: true,
     });
-    assertStringIncludes(rows, "<th>Renewal</th>");
-    assertStringIncludes(rows, "<td>1 month(s) per ticket</td>");
-    assertStringIncludes(rows, "<th>Non-Transferable</th>");
-    assertStringIncludes(
-      rows,
+    expectIncludesAll(rows, [
+      "<th>Renewal</th>",
+      "<td>1 month(s) per ticket</td>",
+      "<th>Non-Transferable</th>",
       "<td>Yes — ID verification required at entry</td>",
-    );
-    assertStringIncludes(rows, "<th>Hidden</th>");
-    assertStringIncludes(
-      rows,
+      "<th>Hidden</th>",
       "<td>Yes — not shown in public listings list</td>",
-    );
+    ]);
   });
 
   test("a child shows no public link or embed rows", () => {
@@ -164,16 +166,12 @@ describe("listing details table copy rows", () => {
 
   test("the public url row toggles the embed inputs beside the link", () => {
     const rows = detailRows({ id: 30 });
-    assertStringIncludes(
-      rows,
+    expectIncludesAll(rows, [
       '<label class="small-action" for="embed-toggle-30">Embed</label>',
-    );
-    assertStringIncludes(
-      rows,
       'class="visually-hidden embed-toggle" id="embed-toggle-30" type="checkbox"',
-    );
-    assertStringIncludes(rows, 'id="embed-script-30"');
-    assertStringIncludes(rows, 'id="embed-iframe-30"');
+      'id="embed-script-30"',
+      'id="embed-iframe-30"',
+    ]);
   });
 
   test("thank-you and webhook urls become copyable rows when present", () => {
@@ -182,13 +180,15 @@ describe("listing details table copy rows", () => {
       thank_you_url: "https://example.com/thanks",
       webhook_url: "https://example.com/hook",
     });
-    assertStringIncludes(rows, "<th>Location</th><td>The Old Mill</td>");
-    assertStringIncludes(rows, 'for="thank-you-url-1">Thank You URL</label>');
-    assertStringIncludes(rows, 'value="https://example.com/thanks"');
-    assertStringIncludes(rows, 'for="webhook-url-1">Webhook URL</label>');
-    assertStringIncludes(rows, 'value="https://example.com/hook"');
-    // The embed rows carry the class the embed toggle styles live on.
-    assertStringIncludes(rows, '<tr class="embed-code-row"><th>');
+    expectIncludesAll(rows, [
+      "<th>Location</th><td>The Old Mill</td>",
+      'for="thank-you-url-1">Thank You URL</label>',
+      'value="https://example.com/thanks"',
+      'for="webhook-url-1">Webhook URL</label>',
+      'value="https://example.com/hook"',
+      // The embed rows carry the class the embed toggle styles live on.
+      '<tr class="embed-code-row"><th>',
+    ]);
     expect((rows.match(/class="embed-code-row"/g) ?? []).length).toBe(2);
   });
 

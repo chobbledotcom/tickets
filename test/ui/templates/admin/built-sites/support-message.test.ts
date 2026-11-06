@@ -6,6 +6,7 @@ import { FormParams } from "#shared/form-data.ts";
 import { setSavedFormData } from "#shared/forms/saved-data.ts";
 import type { SupportMessageResult } from "#shared/site-support-message.ts";
 import { SupportMessagePanel } from "#templates/admin/built-sites/support-message.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
@@ -51,14 +52,16 @@ const editorContent = (html: string): string => {
 describe("SupportMessagePanel", () => {
   test("shows the Markdown editor holding the current value", () => {
     const html = panelHtml({ ok: true, value: "# Ring us" });
-    assertStringIncludes(html, 'class="prose"');
-    assertStringIncludes(html, 'action="/admin/built-sites/1/support-message"');
-    assertStringIncludes(html, 'name="support_message"');
-    assertStringIncludes(html, "data-markdown-preview");
-    // The stored limit is UTF-8 bytes, which a character maxlength cannot
-    // express, so the panel states it instead.
-    assertStringIncludes(html, "at most 2,048 bytes");
-    assertStringIncludes(html, 'class="hint"');
+    expectIncludesAll(html, [
+      'class="prose"',
+      'action="/admin/built-sites/1/support-message"',
+      'name="support_message"',
+      "data-markdown-preview",
+      // The stored limit is UTF-8 bytes, which a character maxlength cannot
+      // express, so the panel states it instead.
+      "at most 2,048 bytes",
+      'class="hint"',
+    ]);
     expect(editorContent(html)).toBe("# Ring us");
     assertStringIncludes(html, "Save support message");
   });
@@ -94,8 +97,10 @@ describe("SupportMessagePanel", () => {
         ok: false,
       });
     });
-    assertStringIncludes(html, "The support message could not be read");
-    assertStringIncludes(html, 'name="support_message"');
+    expectIncludesAll(html, [
+      "The support message could not be read",
+      'name="support_message"',
+    ]);
     expect(editorContent(html)).toBe("# Draft kept through the outage");
   });
 

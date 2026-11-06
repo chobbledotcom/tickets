@@ -51,13 +51,15 @@ export const settingsValueOrNull = async (
   return (result.rows[0]?.value as string) ?? null;
 };
 
-/** Every migration id the database has recorded as applied, in id order. */
-export const appliedMigrationIds = async (): Promise<string[]> => {
-  const result = await getDb().execute(
-    "SELECT id FROM schema_migrations ORDER BY id",
-  );
-  return result.rows.map((row) => String(row.id));
+/** One column of a query's rows, as text, in the query's own order. */
+const textColumn = async (sql: string, column: string): Promise<string[]> => {
+  const result = await getDb().execute(sql);
+  return result.rows.map((row) => String(row[column]));
 };
+
+/** Every migration id the database has recorded as applied, in id order. */
+export const appliedMigrationIds = (): Promise<string[]> =>
+  textColumn("SELECT id FROM schema_migrations ORDER BY id", "id");
 
 /**
  * A database last migrated at the previous release, with one migration still
@@ -105,12 +107,11 @@ export const takeMigrationLock = async (): Promise<string> => {
   return lease.token;
 };
 
-export const schemaMarkerKeys = async (): Promise<string[]> => {
-  const result = await getDb().execute(
+export const schemaMarkerKeys = (): Promise<string[]> =>
+  textColumn(
     "SELECT key FROM settings WHERE key IN ('latest_db_update', 'db_schema_hash') ORDER BY key",
+    "key",
   );
-  return result.rows.map((row) => String(row.key));
-};
 
 /** Assert the "empty but initialized settings table" state: settings table
  *  exists, listings table absent, no schema-version markers recorded yet. */

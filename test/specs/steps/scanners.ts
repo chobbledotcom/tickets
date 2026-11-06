@@ -1,9 +1,6 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
-// jscpd:ignore-end
 
 import { t } from "#i18n";
 import { overAdmissionNoteText } from "#routes/admin/scan-reply.ts";
@@ -28,6 +25,7 @@ import {
   signedInScanner,
 } from "#test/specs/support/scanners.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 Given(
   "the owner invites {word} to work a door",
@@ -114,8 +112,10 @@ Then(
     // The scanner's own window stands on the door's scanner page: the page
     // carries the door's scan target and answers with the door's own heading.
     const page = scannerBrowser(this).currentHtml;
-    assertStringIncludes(page, "data-scan-path=");
-    assertStringIncludes(page, t("admin.scanner.title", { name: listing }));
+    expectIncludesAll(page, [
+      "data-scan-path=",
+      t("admin.scanner.title", { name: listing }),
+    ]);
   },
 );
 
@@ -417,7 +417,9 @@ Then(
   "the ticket page offers to check them in and out",
   function (this: TicketsWorld): void {
     const page = scannerBrowser(this).currentHtml;
-    assertStringIncludes(page, t("admin.checkin.check_in_all"));
-    assertStringIncludes(page, t("admin.checkin.check_out_all"));
+    expectIncludesAll(page, [
+      t("admin.checkin.check_in_all"),
+      t("admin.checkin.check_out_all"),
+    ]);
   },
 );

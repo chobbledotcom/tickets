@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -27,8 +25,6 @@ import { ownerLastTold } from "#test/specs/support/buyer-questions.ts";
 import { copyLoaded } from "#test/specs/support/copy.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
-
-// jscpd:ignore-end
 
 /** The page of everything for sale, as the customer last saw it. */
 const forSalePage = (world: TicketsWorld): TestBrowser =>

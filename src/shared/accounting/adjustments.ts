@@ -10,14 +10,12 @@
  * (`world→*`) stay honest — see {@link WRITEOFF}.
  */
 
-/* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import { WRITEOFF } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import { eventGroup, legReference, type RefPart } from "#accounting/refs.ts";
 import { insertStatement } from "#accounting/rows.ts";
 import { signedLegParts } from "#accounting/signed-leg.ts";
-/* jscpd:ignore-end */
 import { postTransfersTx } from "#accounting/store.ts";
 import { orIgnore, type TxScope } from "#db/client.ts";
 import type { AccountRef, TransferInput } from "#shared/ledger/types.ts";

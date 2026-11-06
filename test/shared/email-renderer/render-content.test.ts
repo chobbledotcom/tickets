@@ -5,6 +5,7 @@ import { stub } from "@std/testing/mock";
 import { Liquid } from "liquidjs";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import { renderEmailContent } from "#shared/email-renderer.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
 import {
   buildTestData,
@@ -18,10 +19,14 @@ describeEmailRenderer(() => {
       const { result } = await renderConfirmation();
 
       assertStringIncludes(result.subject, "Test Listing");
-      assertStringIncludes(result.html, "Test Listing");
-      assertStringIncludes(result.html, "https://example.com/t/ABC");
-      assertStringIncludes(result.text, "Test Listing");
-      assertStringIncludes(result.text, "https://example.com/t/ABC");
+      expectIncludesAll(result.html, [
+        "Test Listing",
+        "https://example.com/t/ABC",
+      ]);
+      expectIncludesAll(result.text, [
+        "Test Listing",
+        "https://example.com/t/ABC",
+      ]);
     });
 
     test("uses custom templates when set", async () => {
@@ -64,8 +69,7 @@ describeEmailRenderer(() => {
       const data = await buildTestData([makeEntry()]);
       const result = await renderEmailContent("admin", data);
 
-      assertStringIncludes(result.subject, "Jane Doe");
-      assertStringIncludes(result.subject, "Test Listing");
+      expectIncludesAll(result.subject, ["Jane Doe", "Test Listing"]);
       assertStringIncludes(result.html, "Jane Doe");
       assertStringIncludes(result.text, "Name: Jane Doe");
     });
@@ -83,9 +87,11 @@ describeEmailRenderer(() => {
       ]);
       const result = await renderEmailContent("admin", data);
 
-      assertStringIncludes(result.text, "Phone: 555-1234");
-      assertStringIncludes(result.text, "Address: 123 Main St");
-      assertStringIncludes(result.text, "Notes: Wheelchair");
+      expectIncludesAll(result.text, [
+        "Phone: 555-1234",
+        "Address: 123 Main St",
+        "Notes: Wheelchair",
+      ]);
     });
 
     test("escapes HTML and script-like values in booking fields", async () => {
@@ -107,16 +113,12 @@ describeEmailRenderer(() => {
       assert(!html.includes("<script>"));
       assert(!html.includes("<img"));
       assert(!html.includes("<iframe>"));
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
         "Jane &lt;script&gt;alert(&#34;x&#34;)&lt;/script&gt; Doe",
-      );
-      assertStringIncludes(html, "&lt;img src=x onerror=alert(1)&gt;");
-      assertStringIncludes(
-        html,
+        "&lt;img src=x onerror=alert(1)&gt;",
         "7 &lt;b&gt;Elm&lt;/b&gt; St &amp; &#34;Sign&#34;",
-      );
-      assertStringIncludes(html, "&lt;iframe&gt;&lt;/iframe&gt;");
+        "&lt;iframe&gt;&lt;/iframe&gt;",
+      ]);
       assertStringIncludes(
         admin.subject,
         `Jane <script>alert("x")</script> Doe`,
@@ -190,8 +192,7 @@ describeEmailRenderer(() => {
       const confirmation = await renderEmailContent("confirmation", data);
       const admin = await renderEmailContent("admin", data);
 
-      assertStringIncludes(confirmation.html, "Amount owed");
-      assertStringIncludes(confirmation.html, "£20");
+      expectIncludesAll(confirmation.html, ["Amount owed", "£20"]);
       assertStringIncludes(confirmation.text, "Amount owed: £20");
       assertStringIncludes(admin.html, "Amount owed");
     });

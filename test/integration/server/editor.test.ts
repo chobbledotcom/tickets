@@ -4,6 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { buildCreateListingForm } from "#test-utils/db-helpers/listing-forms.ts";
@@ -180,14 +181,10 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       );
       expect(listingActions.status).toBe(200);
       const listingActionsHtml = await listingActions.text();
-      assertStringIncludes(
-        listingActionsHtml,
+      expectIncludesAll(listingActionsHtml, [
         `/admin/listing/${listing.id}/duplicate`,
-      );
-      assertStringIncludes(
-        listingActionsHtml,
         `/admin/listing/${listing.id}/export.json`,
-      );
+      ]);
       assert(
         !listingActionsHtml.includes(`/admin/listing/${listing.id}/deactivate`),
       );
@@ -396,9 +393,11 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       const { cookie } = await createTestEditorSession();
       const html = await (await getAs("/admin/listings", cookie)).text();
 
-      assertStringIncludes(html, 'href="/admin/listings"');
-      assertStringIncludes(html, 'href="/admin/groups"');
-      assertStringIncludes(html, 'href="/admin/site"');
+      expectIncludesAll(html, [
+        'href="/admin/listings"',
+        'href="/admin/groups"',
+        'href="/admin/site"',
+      ]);
       for (const forbidden of [
         '"/admin/users"',
         '"/admin/ledger"',

@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -24,9 +22,8 @@ import {
   refundSafety,
 } from "#test/specs/support/refund-safety/state.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { chargeMoney } from "#test-utils/payment-state.ts";
-
-// jscpd:ignore-end
 
 const REFERENCE = "sumup-owner-recovery-reference";
 const OBSERVATION_DELAY = 5 * 60 * 1000;
@@ -237,14 +234,10 @@ Then(
     const browser = scenarioBrowser(this);
     assertStringIncludes(browser.pageText, "Send this refund");
     assert(!browser.pageText.includes("Check the provider again"));
-    assertStringIncludes(
-      browser.currentHtml,
+    expectIncludesAll(browser.currentHtml, [
       'name="choice" type="hidden" value="check_again"',
-    );
-    assertStringIncludes(
-      browser.currentHtml,
       '<button class="danger" type="submit">Send this refund</button>',
-    );
+    ]);
     expect(usableInputsOfKind(browser.currentHtml, "radio")).toEqual([]);
   },
 );
@@ -333,8 +326,10 @@ Then(
   "the newly authorised attempt remains reachable in the owner queue",
   function (this: TicketsWorld): void {
     const browser = scenarioBrowser(this);
-    assertStringIncludes(browser.pageText, `Open refund ${ownerCase(this).id}`);
-    assertStringIncludes(browser.pageText, "Refund ready to continue");
+    expectIncludesAll(browser.pageText, [
+      `Open refund ${ownerCase(this).id}`,
+      "Refund ready to continue",
+    ]);
   },
 );
 

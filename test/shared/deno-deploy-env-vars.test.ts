@@ -2,6 +2,7 @@ import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 
@@ -88,8 +89,10 @@ describeWithEnv(
       const result = await denoDeployApi.getEnvVarNames("app_bad");
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        assertStringIncludes(result.error, "Get app failed (404)");
-        assertStringIncludes(result.error, "app not found");
+        expectIncludesAll(result.error, [
+          "Get app failed (404)",
+          "app not found",
+        ]);
       }
     });
 

@@ -1,18 +1,19 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { payMoreListing } from "#test/integration/server/public/can-pay-more-listing.ts";
-import { expectCheckoutRedirect, expectFlash } from "#test-utils/assertions.ts";
+import {
+  expectCheckoutRedirect,
+  expectFlash,
+  expectIncludesAll,
+} from "#test-utils/assertions.ts";
 import { hasCheckedInput, submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, mockRequest } from "#test-utils/mocks.ts";
 import { testCookie } from "#test-utils/session.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "server public > can_pay_more (single ticket)",
@@ -50,9 +51,11 @@ describeWithEnv(
         const html = await getTicketHtml(listing);
         expect(html).toMatch(/name="custom_price(_\d+)?"/);
 
-        assertStringIncludes(html, "Price per ticket (£10 minimum)");
-        assertStringIncludes(html, 'value="10.00"');
-        assertStringIncludes(html, "required");
+        expectIncludesAll(html, [
+          "Price per ticket (£10 minimum)",
+          'value="10.00"',
+          "required",
+        ]);
       });
 
       test("GET does not show price input when can_pay_more is disabled", async () => {
@@ -69,8 +72,10 @@ describeWithEnv(
         const html = await getTicketHtml(listing);
         expect(html).toMatch(/name="custom_price(_\d+)?"/);
 
-        assertStringIncludes(html, "Price per ticket (optional, up to £100)");
-        assertStringIncludes(html, 'min="0.00"');
+        expectIncludesAll(html, [
+          "Price per ticket (optional, up to £100)",
+          'min="0.00"',
+        ]);
       });
 
       test("GET shows optional price input for free can_pay_more listings", async () => {
@@ -78,8 +83,10 @@ describeWithEnv(
         const html = await getTicketHtml(listing);
         expect(html).toMatch(/name="custom_price(_\d+)?"/);
 
-        assertStringIncludes(html, "Price per ticket (optional, up to £100)");
-        assertStringIncludes(html, 'value="0.00" min="0.00" max="100.00"');
+        expectIncludesAll(html, [
+          "Price per ticket (optional, up to £100)",
+          'value="0.00" min="0.00" max="100.00"',
+        ]);
       });
 
       test("POST free can_pay_more with custom price redirects to checkout", async () => {

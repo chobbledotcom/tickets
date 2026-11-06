@@ -1,3 +1,4 @@
+// effects: pure
 /** The validated, stored shapes for one provider refund authority. */
 
 import * as v from "valibot";

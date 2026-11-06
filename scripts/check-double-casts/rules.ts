@@ -14,13 +14,11 @@
  * and adding any cast fails the check.
  */
 
-/* jscpd:ignore-start -- imports */
 import { byLine } from "#scripts/check-report.ts";
 import type { PerFileFinding } from "#scripts/check-runner.ts";
 import { lineColumnAt } from "#scripts/line-column.ts";
 import { parseProgram } from "#scripts/parse-program.ts";
 import { walkNodes } from "#scripts/walk-nodes.ts";
-/* jscpd:ignore-end */
 
 /** The count of double casts each accepted file carried when recorded. */
 export type DoubleCasts = Record<string, number>;

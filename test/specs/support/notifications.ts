@@ -4,7 +4,6 @@
  * rows and merge sections those notices belong to.
  */
 
-// jscpd:ignore-start
 import { execute } from "#db/client.ts";
 import { t } from "#i18n";
 import { personBookedOnListing } from "#test/specs/support/booked-person.ts";
@@ -17,8 +16,6 @@ import {
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { setPendingNotificationFlags } from "#test-utils/db-helpers/attendees.ts";
-
-// jscpd:ignore-end
 
 /** One person's booking on a listing, with the sends it still owes: 1 says
  * the send never got accepted, 0 says it went out or nothing was owed. The

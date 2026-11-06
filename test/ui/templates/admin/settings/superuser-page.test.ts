@@ -10,6 +10,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { hasCheckedInput } from "#test-utils/csrf.ts";
 import { validEmail } from "#test-utils/email.ts";
 
@@ -68,11 +69,10 @@ describe("adminSettingsPage > SuperuserForm", () => {
   describe("radio labels", () => {
     test("renders the self-managed choice with the correct wording", () => {
       const html = renderSuperuser(availableSuperuser());
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
         "I understand that my attendee information cannot be decrypted without my password, and that I am responsible for storing my password securely. If I forget it, I will be locked out of my attendee records.",
-      );
-      assertStringIncludes(html, "responsible");
+        "responsible",
+      ]);
       assert(!html.includes("responsiblity"));
     });
 
@@ -83,14 +83,10 @@ describe("adminSettingsPage > SuperuserForm", () => {
           username: "myadmin",
         }),
       );
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
         "I wish to enable a &quot;super user&quot; account on this platform for my admin, myadmin@example.com.",
-      );
-      assertStringIncludes(
-        html,
         "This user will be able to log in, decrypt attendee data, and invite a replacement owner account if I lose access.",
-      );
+      ]);
     });
   });
 
@@ -132,8 +128,7 @@ describe("adminSettingsPage > SuperuserForm", () => {
 
     test("includes a CSRF token field", () => {
       const html = renderSuperuser(baseSuperuser);
-      assertStringIncludes(html, 'type="hidden"');
-      assertStringIncludes(html, 'name="csrf_token"');
+      expectIncludesAll(html, ['type="hidden"', 'name="csrf_token"']);
     });
   });
 
@@ -180,8 +175,10 @@ describe("adminSettingsPage > SuperuserForm", () => {
 
     test("links to the users page and ends the message with a period", () => {
       const html = existingSuperuserHtml();
-      assertStringIncludes(html, '<a href="/admin/users">users page</a>');
-      assertStringIncludes(html, "users page</a>.");
+      expectIncludesAll(html, [
+        '<a href="/admin/users">users page</a>',
+        "users page</a>.",
+      ]);
     });
 
     test("does not render radio inputs", () => {

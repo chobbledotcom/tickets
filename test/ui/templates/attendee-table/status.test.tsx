@@ -8,6 +8,7 @@ import {
 } from "#templates/attendee-table/status.tsx";
 import type { AttendeeTableOptions } from "#templates/attendee-table/types.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testAttendee } from "#test-utils/factories.ts";
 import type { Attendee, AttendeeTableRow } from "#types";
 import { makeOpts, makeRow } from "./shared.ts";
@@ -136,23 +137,13 @@ describe("attendee status cells", () => {
       { activeFilter: "in", returnUrl: "/admin/checkin/today" },
     );
 
-    assertStringIncludes(html, 'action="/admin/listing/9/attendee/8/checkin"');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'action="/admin/listing/9/attendee/8/checkin"',
       '<input name="check_in" type="hidden" value="false">',
-    );
-    assertStringIncludes(
-      html,
       '<input name="return_filter" type="hidden" value="in">',
-    );
-    assertStringIncludes(
-      html,
       '<input name="return_url" type="hidden" value="/admin/checkin/today">',
-    );
-    assertStringIncludes(
-      html,
       '<button class="link-button checkout" type="submit">Check out</button>',
-    );
+    ]);
   });
 
   test("links a multi-ticket line to the quantity page", () => {
@@ -161,16 +152,12 @@ describe("attendee status cells", () => {
       { activeFilter: "out", returnUrl: "/admin/checkin/today" },
     );
 
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       'href="/admin/listing/9/attendee/11/checkin' +
         '?return_url=%2Fadmin%2Fcheckin%2Ftoday&amp;return_filter=out"',
-    );
-    assertStringIncludes(
-      html,
       'class="link-button checkin" href="/admin/listing/9/attendee/11/checkin' +
         '?return_url=%2Fadmin%2Fcheckin%2Ftoday&amp;return_filter=out">Check in</a>',
-    );
+    ]);
     assert(!html.includes("Check out"));
   });
 

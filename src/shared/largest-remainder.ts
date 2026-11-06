@@ -1,3 +1,4 @@
+// effects: pure
 type LargestRemainderOptions = {
   canReceive?: ((index: number) => boolean) | undefined;
   tieBreaker?: ((index: number) => number) | undefined;

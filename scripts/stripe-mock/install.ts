@@ -1,12 +1,9 @@
-/* jscpd:ignore-start */
 import { join } from "node:path";
 import { ensureInstalled, withTempDir } from "#scripts/bin-tools.ts";
 import type { LockBody } from "#scripts/lock-file.ts";
 import { removeTree } from "#scripts/process.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 import { type StaleClaimSettings, withClaim } from "#scripts/stale-claim.ts";
-
-/* jscpd:ignore-end */
 
 /** The stripe-mock release this repo pins. Every workflow that caches
  * `.bin` names the same release in its STRIPE_MOCK_VERSION env — the

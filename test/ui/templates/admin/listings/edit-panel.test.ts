@@ -9,6 +9,7 @@ import {
   withBuilder,
 } from "#test/ui/templates/admin/listings/helpers.ts";
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { testGroup, testListingWithCount } from "#test-utils/factories.ts";
 
@@ -38,9 +39,7 @@ describe("adminListingEditPage group select", () => {
         session: OWNER_SESSION,
       }),
     );
-    assertStringIncludes(html, 'name="group_ids"');
-    assertStringIncludes(html, 'value="2"');
-    assertStringIncludes(html, "checked");
+    expectIncludesAll(html, ['name="group_ids"', 'value="2"', "checked"]);
   });
 
   test("does not link to the JSON export (that now lives on the Actions tab)", () => {
@@ -65,19 +64,18 @@ describe("adminListingEditPage duration warning", () => {
     const html = String(
       ListingEditPanel({ groups: [], listing, session: OWNER_SESSION }),
     );
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       "Changing booking duration will update existing bookings",
-    );
-    assertStringIncludes(html, 'id="duration-warning"');
-    assertStringIncludes(html, 'id="duration-warning-confirm"');
-    // The current duration is exposed via a data attribute so the bundled
-    // admin script can compare against the form's input.
-    assertStringIncludes(html, 'data-duration-original="3"');
-    // Every other element initDurationWarning() hooks into must be present —
-    // if any of these IDs change, the client-side gate silently no-ops.
-    assertStringIncludes(html, 'id="listing-edit-form"');
-    assertStringIncludes(html, 'id="listing-edit-submit"');
+      'id="duration-warning"',
+      'id="duration-warning-confirm"',
+      // The current duration is exposed via a data attribute so the bundled
+      // admin script can compare against the form's input.
+      'data-duration-original="3"',
+      // Every other element initDurationWarning() hooks into must be present —
+      // if any of these IDs change, the client-side gate silently no-ops.
+      'id="listing-edit-form"',
+      'id="listing-edit-submit"',
+    ]);
     // The duration input the script reads is pre-filled with the stored value.
     expect(html).toMatch(/name="duration_days"[^>]*value="3"/);
   });
@@ -96,13 +94,15 @@ describe("adminListingEditPage day prices", () => {
       ListingEditPanel({ groups: [], listing, session: OWNER_SESSION }),
     );
     // One input per day up to the maximum duration, pre-filled from day_prices.
-    assertStringIncludes(html, 'name="day_price_1"');
-    assertStringIncludes(html, 'value="10.00"');
-    assertStringIncludes(html, 'name="day_price_2"');
-    assertStringIncludes(html, 'value="18.00"');
-    // The customisable-days checkbox is rendered checked for such a listing.
-    assertStringIncludes(html, 'name="customisable_days"');
-    assertStringIncludes(html, "Day Prices (customisable days)");
+    expectIncludesAll(html, [
+      'name="day_price_1"',
+      'value="10.00"',
+      'name="day_price_2"',
+      'value="18.00"',
+      // The customisable-days checkbox is rendered checked for such a listing.
+      'name="customisable_days"',
+      "Day Prices (customisable days)",
+    ]);
   });
 
   test("renders a single blank day-price row on the new-listing form", () => {
@@ -145,15 +145,14 @@ describe("adminListingEditPage form sections", () => {
     const html = String(
       ListingEditPanel({ groups: [], listing, session: OWNER_SESSION }),
     );
-    assertStringIncludes(html, "<legend>Basics</legend>");
-    assertStringIncludes(html, "<legend>Tickets &amp; Pricing</legend>");
-    assertStringIncludes(html, "<legend>Daily Scheduling</legend>");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "<legend>Basics</legend>",
+      "<legend>Tickets &amp; Pricing</legend>",
+      "<legend>Daily Scheduling</legend>",
       "<legend>Booking duration &amp; day prices</legend>",
-    );
-    assertStringIncludes(html, "<legend>Options &amp; Visibility</legend>");
-    assertStringIncludes(html, "<summary>Advanced settings</summary>");
+      "<legend>Options &amp; Visibility</legend>",
+      "<summary>Advanced settings</summary>",
+    ]);
   });
 
   test("renders the day-prices block immediately after the customisable-days checkbox", () => {
@@ -195,12 +194,14 @@ describe("adminListingEditPage form sections", () => {
     const html = String(
       ListingEditPanel({ groups: [], listing, session: OWNER_SESSION }),
     );
-    assertStringIncludes(html, "<legend>Running totals</legend>");
-    assertStringIncludes(html, "Accuracy is not guaranteed");
-    assertStringIncludes(html, 'name="booked_quantity"');
-    assertStringIncludes(html, 'value="7"');
-    assertStringIncludes(html, 'name="tickets_count"');
-    assertStringIncludes(html, 'value="3"');
+    expectIncludesAll(html, [
+      "<legend>Running totals</legend>",
+      "Accuracy is not guaranteed",
+      'name="booked_quantity"',
+      'value="7"',
+      'name="tickets_count"',
+      'value="3"',
+    ]);
     // Income is not a count override in the running-totals form — that form keeps
     // only the two count aggregates, which post to the recalculate route.
     const totalsForm = html.slice(
@@ -217,10 +218,12 @@ describe("adminListingEditPage form sections", () => {
       ListingEditPanel({ groups: [], listing, session: OWNER_SESSION }),
     );
     // Income correction stays in a dedicated warned form, apart from counts.
-    assertStringIncludes(html, "<h2>Adjust income</h2>");
-    assertStringIncludes(html, `action="/admin/listing/${listing.id}/income"`);
-    assertStringIncludes(html, 'name="income"');
-    assertStringIncludes(html, "This adds a correction to Money.");
+    expectIncludesAll(html, [
+      "<h2>Adjust income</h2>",
+      `action="/admin/listing/${listing.id}/income"`,
+      'name="income"',
+      "This adds a correction to Money.",
+    ]);
   });
 
   test("links from the income form to the detail page's money breakdown", () => {
@@ -230,15 +233,19 @@ describe("adminListingEditPage form sections", () => {
     );
     // A compact pointer beside the adjust-income form to the full reconciliation
     // section on the detail page, so the two figures are explained in one place.
-    assertStringIncludes(html, 'href="/admin/listing/4#income-ledger"');
-    assertStringIncludes(html, "Money in and out");
+    expectIncludesAll(html, [
+      'href="/admin/listing/4#income-ledger"',
+      "Money in and out",
+    ]);
   });
 
   test("shows a running-total mismatch on the edit page", () => {
     const { html, listing } = renderMismatchPanel();
-    assertStringIncludes(html, "Mismatch");
-    assertStringIncludes(html, "expected <strong>4</strong>, got");
-    assertStringIncludes(html, `/admin/listings/recalculate/${listing.id}`);
+    expectIncludesAll(html, [
+      "Mismatch",
+      "expected <strong>4</strong>, got",
+      `/admin/listings/recalculate/${listing.id}`,
+    ]);
   });
 
   test("hides the recalculate link in read-only mode", () => {

@@ -2,13 +2,11 @@
  * Admin Notification Email Template form for advanced settings
  */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { emailTemplateFields } from "#templates/components/email-template-fields.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
 import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
-/* jscpd:ignore-end */
 
 export const AdminEmailTemplateForm = (
   s: AdvancedSettingsPageState,

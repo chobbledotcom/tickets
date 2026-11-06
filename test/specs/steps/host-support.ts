@@ -4,7 +4,6 @@
  */
 
 import { Given, Then, When } from "@cucumber/cucumber";
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
@@ -38,9 +37,8 @@ import {
   type TicketsWorld,
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import type { RecordedFetchCall } from "#test-utils/mocks.ts";
-
-// jscpd:ignore-end
 
 /** The site's own words, read from production rather than written out here:
  * what it says when a support message went. The wording lives in the route
@@ -203,8 +201,7 @@ Then(
     words: string,
   ): Promise<void> {
     const html = (await openAdminPage(this, SUPPORT_PAGE)).currentHtml;
-    assertStringIncludes(html, `<h1>${heading}</h1>`);
-    assertStringIncludes(html, `<p>${words}</p>`);
+    expectIncludesAll(html, [`<h1>${heading}</h1>`, `<p>${words}</p>`]);
   },
 );
 
@@ -243,8 +240,7 @@ Then(
   "the owner is offered a message box and nothing else to fill in",
   async function (this: TicketsWorld): Promise<void> {
     const html = (await openAdminPage(this, SUPPORT_PAGE)).currentHtml;
-    assertStringIncludes(html, `action="${SUPPORT_PAGE}"`);
-    assertStringIncludes(html, 'name="message"');
+    expectIncludesAll(html, [`action="${SUPPORT_PAGE}"`, 'name="message"']);
     assert(!html.includes('name="email"'));
   },
 );

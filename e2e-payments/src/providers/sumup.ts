@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import type { Locator, Page } from "playwright";
 import type { BrowserSession } from "#e2e/browser.ts";
 import { catalogWords } from "#e2e/catalog-words.ts";
@@ -18,8 +17,6 @@ import {
   testProviderConnection,
 } from "./shared.ts";
 import type { PaidSandboxCheckout, PaymentProvider } from "./types.ts";
-
-/* jscpd:ignore-end */
 
 /**
  * SumUp. A key names no mode — every key starts `sup_sk_`, and the merchant

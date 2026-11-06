@@ -5,6 +5,7 @@ import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { GoogleWalletForm } from "#templates/admin/settings/google-wallet.tsx";
 import { advancedDefaultState } from "#test/ui/templates/admin/settings-advanced/state.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 describe("GoogleWalletForm", () => {
   beforeAll(setupAdminPageTest);
@@ -18,29 +19,21 @@ describe("GoogleWalletForm", () => {
       }),
     );
 
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="google_wallet_issuer_id" placeholder="3388000000012345678" type="text" value="3388000000012345678">`,
-    );
-    assertStringIncludes(
-      html,
       `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="google_wallet_service_account_email" placeholder="wallet@project.iam.gserviceaccount.com" type="email" value="wallet@project.example.com">`,
-    );
-    assertStringIncludes(html, "<label>Issuer ID<input");
-    assertStringIncludes(html, "<label>Service Account Email<input");
+      "<label>Issuer ID<input",
+      "<label>Service Account Email<input",
+    ]);
   });
 
   test("masks the saved service account key only when configured", () => {
     const unconfigured = String(GoogleWalletForm(advancedDefaultState));
 
-    assertStringIncludes(
-      unconfigured,
+    expectIncludesAll(unconfigured, [
       "<label>Service Account Private Key (PEM)<textarea",
-    );
-    assertStringIncludes(
-      unconfigured,
       `<textarea maxlength="${MAX_TEXTAREA_LENGTH}" name="google_wallet_service_account_key" placeholder="-----BEGIN PRIVATE KEY-----" rows="4"></textarea>`,
-    );
+    ]);
 
     const configured = String(
       GoogleWalletForm({
@@ -55,12 +48,14 @@ describe("GoogleWalletForm", () => {
   test("targets the Google Wallet route, guide, and save copy", () => {
     const html = String(GoogleWalletForm(advancedDefaultState));
 
-    assertStringIncludes(html, "<h2>Google Wallet</h2>");
-    assertStringIncludes(html, 'action="/admin/settings/google-wallet"');
-    assertStringIncludes(html, 'id="settings-google-wallet"');
-    assertStringIncludes(html, 'href="/admin/guide#google-wallet"');
-    assertStringIncludes(html, "Save Google Wallet Settings");
-    assertStringIncludes(html, "Google Wallet API enabled");
+    expectIncludesAll(html, [
+      "<h2>Google Wallet</h2>",
+      'action="/admin/settings/google-wallet"',
+      'id="settings-google-wallet"',
+      'href="/admin/guide#google-wallet"',
+      "Save Google Wallet Settings",
+      "Google Wallet API enabled",
+    ]);
   });
 
   test("carries the host-config hint in both override states", () => {

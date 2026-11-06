@@ -8,7 +8,8 @@ export type TlaToken = {
 
 export type TlaComment = { line: number; column: number; text: string };
 
-const operators = [
+/* jscpd:ignore-start -- a list of strings, not code */
+const OPERATOR_SPELLINGS = [
   "-+->",
   "::=",
   "<=>",
@@ -62,7 +63,12 @@ const operators = [
   "(/)",
   "(\\X)",
   "\\",
-].sort((left, right) => right.length - left.length);
+];
+/* jscpd:ignore-end */
+/** Longest first, so a longer operator wins over its own prefix. */
+const operators = OPERATOR_SPELLINGS.toSorted(
+  (left, right) => right.length - left.length,
+);
 const identifier = /^[\p{N}_]*[\p{L}_][\p{L}\p{M}\p{N}_]*/u;
 const number = /^(?:\d+\.\d+(?:[eE][+-]?\d+)?|\d+)/;
 const radix = /^\\(?:[bB][01]+|[oO][0-7]+|[hH][0-9a-fA-F]+)/;

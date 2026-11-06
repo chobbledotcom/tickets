@@ -1,10 +1,7 @@
-// jscpd:ignore-start
-
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 import type { RefundProviderScript } from "./provider-script.ts";
 import type { RefundWindows } from "./windows.ts";
-// jscpd:ignore-end
 
 /** One paid booking made through the public page in a refund-safety story. */
 export interface SafetyBooking {

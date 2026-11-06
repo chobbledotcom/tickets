@@ -2,7 +2,6 @@
  *  fact its failure mode names, and each corruption throws when its victim
  *  fact is missing. */
 
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type {
@@ -12,8 +11,6 @@ import type {
 import { corruptCompositionData } from "#scripts/verify-models/composition-corruptions.ts";
 import { records } from "#test-utils/tla-data.ts";
 import { registeredModel } from "./registered-model.ts";
-
-/* jscpd:ignore-end */
 
 const { controls } = registeredModel("CheckoutComposition");
 const compoundingDiscountData = controls[0].data;

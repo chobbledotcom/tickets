@@ -5,8 +5,6 @@
  * the image arrives where a customer reads.
  */
 
-// jscpd:ignore-start
-
 import { assertStringIncludes } from "@std/assert";
 import { openAsNewcomer } from "#test/specs/support/browser.ts";
 import { imageNamed } from "#test/specs/support/images.ts";
@@ -26,8 +24,6 @@ import {
 import { enablePublicSite } from "#test-utils/settings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 import type { Group, Image } from "#types";
-
-// jscpd:ignore-end
 
 /** Beyond any id the fresh scenario database can hand out, so a reference to
  * it can only be one the library cannot answer. */

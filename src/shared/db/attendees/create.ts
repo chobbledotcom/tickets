@@ -1,6 +1,5 @@
 /** Atomic attendee creation across one or more listing bookings. */
 
-/* jscpd:ignore-start */
 import { generateTicketToken } from "#crypto/utils.ts";
 import type {
   AttendeeInput,
@@ -38,8 +37,6 @@ import type { NumberedSql } from "#db/numbered-statement.ts";
 import { addDays } from "#shared/dates.ts";
 import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import { type Attendee, type ContactInfo, clampDurationDays } from "#types";
-
-/* jscpd:ignore-end */
 
 type AttendeeOrderFields = {
   emailPending?: PendingNotificationFlag | undefined;

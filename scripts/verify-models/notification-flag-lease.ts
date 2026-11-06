@@ -4,7 +4,6 @@
  *  returns the captured colour. A clear-on-accept removes the owed work.
  *  The negative controls keep the safety verdicts honest. */
 
-/* jscpd:ignore-start -- imports */
 import * as v from "valibot";
 import {
   clearPendingFlagStatement,
@@ -18,8 +17,6 @@ import {
   modelDataFor,
   tlaRecordModuleFor,
 } from "#scripts/verify-models/data.ts";
-
-/* jscpd:ignore-end */
 
 /** The two racing recoveries. The claim transaction lets only one capture
  *  the outstanding flags. */

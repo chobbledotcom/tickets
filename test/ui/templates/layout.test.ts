@@ -21,6 +21,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
@@ -36,8 +37,7 @@ const EDITOR_SESSION: AdminSession = { adminLevel: "editor" };
 const expectRenewalLink = async (): Promise<void> => {
   using _env = withEnv({ RENEWAL_URL: "https://example.com/renew" });
   const html = String(AdminNav({ active: "/admin/", session: OWNER_SESSION }));
-  assertStringIncludes(html, "Renew now");
-  assertStringIncludes(html, "https://example.com/renew");
+  expectIncludesAll(html, ["Renew now", "https://example.com/renew"]);
 };
 
 const setupLayoutTest = async (): Promise<void> => {
@@ -56,14 +56,12 @@ describe("asset-paths", () => {
 
   test("pages include CSS_PATH in stylesheet link", () => {
     const html = adminLoginPage();
-    assertStringIncludes(html, `href="${CSS_PATH}"`);
-    assertStringIncludes(html, 'rel="stylesheet"');
+    expectIncludesAll(html, [`href="${CSS_PATH}"`, 'rel="stylesheet"']);
   });
 
   test("pages include JS_PATH in deferred script tag", () => {
     const html = adminLoginPage();
-    assertStringIncludes(html, `src="${JS_PATH}"`);
-    assertStringIncludes(html, "defer");
+    expectIncludesAll(html, [`src="${JS_PATH}"`, "defer"]);
   });
 
   test("pages link /custom.css cache-busted by the settings version", () => {
@@ -80,11 +78,13 @@ describe("Layout skip navigation", () => {
     const html = String(
       Layout({ children: "", family: "public", title: "Test" }),
     );
-    assertStringIncludes(html, 'class="skip-nav"');
-    assertStringIncludes(html, 'href="#main-content"');
-    assertStringIncludes(html, "Skip to content");
-    assertStringIncludes(html, 'id="main-content"');
-    assertStringIncludes(html, 'tabindex="-1"');
+    expectIncludesAll(html, [
+      'class="skip-nav"',
+      'href="#main-content"',
+      "Skip to content",
+      'id="main-content"',
+      'tabindex="-1"',
+    ]);
   });
 
   test("keeps global chrome direct while grouping page regions", () => {
@@ -115,15 +115,11 @@ describe("Layout document shell", () => {
     );
 
     expect(html.slice(0, "<!DOCTYPE html>".length)).toBe("<!DOCTYPE html>");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<meta charset="UTF-8"><meta content="width=device-width, initial-scale=1.0" name="viewport">',
-    );
-    assertStringIncludes(html, `<link href="${CSS_PATH}" rel="stylesheet">`);
-    assertStringIncludes(
-      html,
+      `<link href="${CSS_PATH}" rel="stylesheet">`,
       `<link href="/custom.css?v=${settings.version}" rel="stylesheet">`,
-    );
+    ]);
   });
 
   test("renders head extras as markup", () => {
@@ -168,14 +164,10 @@ describe("Layout document shell", () => {
       }),
     );
 
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<body class="example iframe" data-page-family="public">',
-    );
-    assertStringIncludes(
-      html,
       `<script src="${IFRAME_RESIZER_CHILD_JS_PATH}"></script>`,
-    );
+    ]);
   });
 
   test("renders the configured header image with decorative semantics", () => {
@@ -250,16 +242,17 @@ describe("adminLoginPage", () => {
 
   test("renders login form", () => {
     const html = adminLoginPage();
-    assertStringIncludes(html, "Login");
-    assertStringIncludes(html, 'action="/admin/login"');
-    assertStringIncludes(html, 'type="password"');
-    assertStringIncludes(html, 'name="csrf_token"');
+    expectIncludesAll(html, [
+      "Login",
+      'action="/admin/login"',
+      'type="password"',
+      'name="csrf_token"',
+    ]);
   });
 
   test("shows error when provided", () => {
     const html = adminLoginPage("Invalid password");
-    assertStringIncludes(html, "Invalid password");
-    assertStringIncludes(html, 'class="error"');
+    expectIncludesAll(html, ["Invalid password", 'class="error"']);
   });
 
   test("escapes error message", () => {
@@ -300,8 +293,10 @@ describeWithEnv(
       const html = String(
         AdminNav({ active: "/admin/", session: OWNER_SESSION }),
       );
-      assertStringIncludes(html, "read-only-banner");
-      assertStringIncludes(html, "This site is in read-only mode");
+      expectIncludesAll(html, [
+        "read-only-banner",
+        "This site is in read-only mode",
+      ]);
     });
 
     test("AdminNav read-only banner includes renewal link when RENEWAL_URL is set", async () => {
@@ -336,8 +331,7 @@ describeWithEnv(
       const html = String(
         AdminNav({ active: "/admin/", session: OWNER_SESSION }),
       );
-      assertStringIncludes(html, "read-only-banner-warning");
-      assertStringIncludes(html, "expires on");
+      expectIncludesAll(html, ["read-only-banner-warning", "expires on"]);
     });
 
     test("AdminNav warning banner includes renewal link when RENEWAL_URL is set", async () => {
@@ -351,8 +345,10 @@ describeWithEnv(
         const html = String(
           AdminNav({ active: "/admin/", session: OWNER_SESSION }),
         );
-        assertStringIncludes(html, "read-only-banner-warning");
-        assertStringIncludes(html, "Your site is approaching its expiry");
+        expectIncludesAll(html, [
+          "read-only-banner-warning",
+          "Your site is approaching its expiry",
+        ]);
         assert(!html.includes("expires on"));
       } finally {
         Date.prototype.toLocaleDateString = original;

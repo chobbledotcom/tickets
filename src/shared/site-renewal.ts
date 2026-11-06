@@ -3,7 +3,6 @@
  * provider pushes that carry them.
  */
 
-/* jscpd:ignore-start */
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import {
   requireBuiltSiteByIdPrimary,
@@ -20,8 +19,6 @@ import { generateRenewalToken } from "#shared/renewal-token.ts";
 import type { Outcome } from "#shared/result.ts";
 import { resolveHostingProvider } from "#shared/site-hosting.ts";
 import { tokenUrl } from "#shared/token-url.ts";
-
-/* jscpd:ignore-end */
 
 /** Parse a site's stored read-only deadline as milliseconds, or null when empty/invalid. */
 export const parseReadOnlyFromMs = (

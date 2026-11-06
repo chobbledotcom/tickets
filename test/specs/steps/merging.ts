@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -34,8 +32,6 @@ import {
   theBooking,
   theListing,
 } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
 
 Given(
   "the same person paid twice for a {word} place",

@@ -10,7 +10,6 @@
  * Pure: callers hand in the resolved listings, holidays, and date.
  */
 
-/* jscpd:ignore-start -- imports */
 import * as v from "valibot";
 import {
   childSelectableForSpan,
@@ -24,7 +23,6 @@ import {
   parentResolvedDuration,
   type TicketListing,
 } from "#booking/model.ts";
-/* jscpd:ignore-end */
 import {
   noSpanReason,
   type OptionRefusal,

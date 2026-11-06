@@ -18,6 +18,7 @@ import {
 } from "#test/ui/templates/helpers.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { hasInputWithValue } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
@@ -76,18 +77,19 @@ describe("ticketPage — packages", () => {
       ],
       slugs: ["group-page"],
     });
-    assertStringIncludes(html, "<title>Group heading</title>");
-    assertStringIncludes(html, "<h1>Group heading</h1>");
-    assertStringIncludes(html, "<p>Group description</p>");
+    expectIncludesAll(html, [
+      "<title>Group heading</title>",
+      "<h1>Group heading</h1>",
+      "<p>Group description</p>",
+    ]);
     assert(!html.includes("Listing description"));
     assertStringIncludes(html, "/image/group.webp");
     assert(!html.includes("/image/listing.webp"));
-    assertStringIncludes(html, "Format");
-    assertStringIncludes(html, "Outdoor");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "Format",
+      "Outdoor",
       'property="og:url" content="https://tickets.example/ticket/group-page"',
-    );
+    ]);
   });
 
   test("keeps an intentionally empty group description", () => {
@@ -120,11 +122,10 @@ describe("ticketPage — packages", () => {
         listings: [ticketListing({ name: "Listing" })],
         slugs: ["group-page"],
       });
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
         '<body class="iframe" data-page-family="public">',
-      );
-      assertStringIncludes(html, 'class="page-regions public-page"');
+        'class="page-regions public-page"',
+      ]);
       assert(!html.includes("<h1>Iframe-only heading</h1>"));
     });
   });
@@ -179,12 +180,14 @@ describe("ticketPage — packages", () => {
       packages: [pagePackage(5, [1, 2], { quantities: new Map([[2, 4]]) })],
       slugs: [PKG_SLUG],
     });
-    assertStringIncludes(html, 'name="package_quantity_5"');
-    assertStringIncludes(html, "Number of packages");
-    assertStringIncludes(html, "Tent");
-    assertStringIncludes(html, "&times;1");
-    assertStringIncludes(html, "Chair");
-    assertStringIncludes(html, "&times;4");
+    expectIncludesAll(html, [
+      'name="package_quantity_5"',
+      "Number of packages",
+      "Tent",
+      "&times;1",
+      "Chair",
+      "&times;4",
+    ]);
     assert(!html.includes('name="quantity_1"'));
   });
 
@@ -294,8 +297,7 @@ describe("ticketPage — packages", () => {
       packages: [pagePackage(7, [1, 2], { quantities: new Map([[1, 2]]) })],
       slugs: [PKG_SLUG],
     });
-    assertStringIncludes(html, 'name="package_quantity_7"');
-    assertStringIncludes(html, '<option value="1"');
+    expectIncludesAll(html, ['name="package_quantity_7"', '<option value="1"']);
     assert(!html.includes('<option value="2"'));
   });
 
@@ -358,9 +360,11 @@ describe("ticketPage — packages", () => {
       packages: [pagePackage(5, [1, 2], { name: "Camp Kit" })],
       slugs: [PKG_SLUG, "tent1"],
     });
-    assertStringIncludes(html, 'class="ticket-package sold-out"');
-    assertStringIncludes(html, 'name="quantity_1"');
-    assertStringIncludes(html, 'data-parent-id="1"');
+    expectIncludesAll(html, [
+      'class="ticket-package sold-out"',
+      'name="quantity_1"',
+      'data-parent-id="1"',
+    ]);
   });
 
   test("caps the package by a SECOND capped group the members share", () => {
@@ -379,8 +383,7 @@ describe("ticketPage — packages", () => {
       packages: evenSplitPackages(),
       slugs: [PKG_SLUG],
     });
-    assertStringIncludes(html, 'name="package_quantity_7"');
-    assertStringIncludes(html, '<option value="1"');
+    expectIncludesAll(html, ['name="package_quantity_7"', '<option value="1"']);
     assert(!html.includes('<option value="2"'));
   });
 
@@ -398,8 +401,7 @@ describe("ticketPage — packages", () => {
       packages: [pagePackage(5, [1], { hideListings: true })],
       slugs: [PKG_SLUG],
     });
-    assertStringIncludes(html, 'name="package_quantity_5"');
-    assertStringIncludes(html, "Hidden Bundle");
+    expectIncludesAll(html, ['name="package_quantity_5"', "Hidden Bundle"]);
     assert(!html.includes("SecretItem"));
   });
 
@@ -414,8 +416,7 @@ describe("ticketPage — packages", () => {
       packages: [pagePackage(5, [1, 2], { quantities: new Map([[2, 1]]) })],
       slugs: [PKG_SLUG],
     });
-    assertStringIncludes(html, "Format");
-    assertStringIncludes(html, "Outdoor");
+    expectIncludesAll(html, ["Format", "Outdoor"]);
   });
 
   test("renders attributes on package sections alongside standalone rows", () => {
@@ -429,7 +430,6 @@ describe("ticketPage — packages", () => {
       packages: [pagePackage(5, [1, 2])],
       slugs: [PKG_SLUG, "big01", "sml01"],
     });
-    assertStringIncludes(html, "Beginner");
-    assertStringIncludes(html, "Advanced");
+    expectIncludesAll(html, ["Beginner", "Advanced"]);
   });
 });

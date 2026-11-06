@@ -7,6 +7,7 @@ import {
   registerListingTemplateHooks,
 } from "#test/ui/templates/admin/listings/helpers.ts";
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testGroup, testListingWithCount } from "#test-utils/factories.ts";
 
 describe("adminListingNewPage Advanced section", () => {
@@ -31,27 +32,26 @@ describe("adminListingNewPage", () => {
 
   test("renders create listing form fields", () => {
     const html = adminListingNewPage([], OWNER_SESSION);
-    assertStringIncludes(html, "Add Listing");
-    assertStringIncludes(html, 'name="name"');
-    assertStringIncludes(html, 'name="max_attendees"');
-    assertStringIncludes(html, 'name="thank_you_url"');
-    assertStringIncludes(html, 'name="unit_price"');
-    // The shared form keeps the site's own ticket wording on every install.
-    assertStringIncludes(html, t("fields.listing.price"));
+    expectIncludesAll(html, [
+      "Add Listing",
+      'name="name"',
+      'name="max_attendees"',
+      'name="thank_you_url"',
+      'name="unit_price"',
+      // The shared form keeps the site's own ticket wording on every install.
+      t("fields.listing.price"),
+    ]);
   });
 
   test("renders breadcrumb back link", () => {
     const html = adminListingNewPage([], OWNER_SESSION);
-    assertStringIncludes(html, 'href="/admin/"');
-    assertStringIncludes(html, "Listings");
+    expectIncludesAll(html, ['href="/admin/"', "Listings"]);
   });
 
   test("renders group checkboxes when groups exist", () => {
     const groups = [testGroup({ id: 2, name: "My Group" })];
     const html = adminListingNewPage(groups, OWNER_SESSION);
-    assertStringIncludes(html, 'name="group_ids"');
-    assertStringIncludes(html, 'value="2"');
-    assertStringIncludes(html, "My Group");
+    expectIncludesAll(html, ['name="group_ids"', 'value="2"', "My Group"]);
   });
 
   test("renders error when provided", () => {
@@ -80,9 +80,11 @@ describe("adminListingNewPage", () => {
     const html = adminListingNewPage([], OWNER_SESSION, {
       templateId: "hireable-item",
     });
-    assertStringIncludes(html, 'name="fields" value="email" checked');
-    assertStringIncludes(html, 'name="fields" value="phone" checked');
-    assertStringIncludes(html, 'name="fields" value="address" checked');
+    expectIncludesAll(html, [
+      'name="fields" value="email" checked',
+      'name="fields" value="phone" checked',
+      'name="fields" value="address" checked',
+    ]);
   });
 
   test("seeds every weekday into the hireable-item bookable_days", () => {
@@ -121,24 +123,21 @@ describe("adminListingNewPage", () => {
     const html = adminListingNewPage(groups, OWNER_SESSION, {
       selectedGroupIds: [3],
     });
-    assertStringIncludes(html, 'value="3"');
-    assertStringIncludes(html, "checked");
+    expectIncludesAll(html, ['value="3"', "checked"]);
   });
 
   test("carries custom sentinel through as template_id hidden input", () => {
     const html = adminListingNewPage([], OWNER_SESSION, {
       templateId: "custom",
     });
-    assertStringIncludes(html, 'name="template_id"');
-    assertStringIncludes(html, 'value="custom"');
+    expectIncludesAll(html, ['name="template_id"', 'value="custom"']);
   });
 
   test("carries duplicated_from hidden input when present in submitted values", () => {
     const html = adminListingNewPage([], OWNER_SESSION, {
       values: { duplicated_from: "42" },
     });
-    assertStringIncludes(html, 'name="duplicated_from"');
-    assertStringIncludes(html, 'value="42"');
+    expectIncludesAll(html, ['name="duplicated_from"', 'value="42"']);
   });
 
   test("does not render duplicated_from input when not in submitted values", () => {
@@ -155,8 +154,7 @@ describe("adminListingPage edit form pre-fills date and location", () => {
       testListingWithCount({ attendee_count: 0, date: "" }),
     );
     // The date field should render split date and time inputs
-    assertStringIncludes(html, 'name="date_date"');
-    assertStringIncludes(html, 'name="date_time"');
+    expectIncludesAll(html, ['name="date_date"', 'name="date_time"']);
   });
 
   test("non-empty date shows formatted split values in edit form", () => {
@@ -167,8 +165,7 @@ describe("adminListingPage edit form pre-fills date and location", () => {
       }),
     );
     // Should contain split date and time values converted to Europe/London (BST = UTC+1)
-    assertStringIncludes(html, 'value="2026-06-15"');
-    assertStringIncludes(html, 'value="15:00"');
+    expectIncludesAll(html, ['value="2026-06-15"', 'value="15:00"']);
   });
 
   test("pre-fills location in edit form", () => {
@@ -194,13 +191,11 @@ describe("adminListingEditPage max_price field", () => {
 
   test("renders max_price field with value when set", () => {
     const html = maxPriceEditHtml(50000);
-    assertStringIncludes(html, 'name="max_price"');
-    assertStringIncludes(html, 'value="500.00"');
+    expectIncludesAll(html, ['name="max_price"', 'value="500.00"']);
   });
 
   test("renders max_price field with 0.00 when zero", () => {
     const html = maxPriceEditHtml(0);
-    assertStringIncludes(html, 'name="max_price"');
-    assertStringIncludes(html, 'value="0.00"');
+    expectIncludesAll(html, ['name="max_price"', 'value="0.00"']);
   });
 });

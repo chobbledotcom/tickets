@@ -12,6 +12,7 @@ import {
   runWithSubrequestBudget,
   withSubrequestAllowance,
 } from "#shared/subrequest-budget.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { resetSentry } from "#test-utils/sentry.ts";
@@ -174,11 +175,13 @@ describe("Sentry SDK transport", () => {
         ),
       );
 
-      assertStringIncludes(body, '"level":"error"');
-      assertStringIncludes(body, '"code":"E_DB_QUERY"');
-      assertStringIncludes(body, '"listingId":"42"');
-      assertStringIncludes(body, '"extra":{"detail":"select failed"}');
-      assertStringIncludes(body, '"transaction":"GET /admin/listings/[id]"');
+      expectIncludesAll(body, [
+        '"level":"error"',
+        '"code":"E_DB_QUERY"',
+        '"listingId":"42"',
+        '"extra":{"detail":"select failed"}',
+        '"transaction":"GET /admin/listings/[id]"',
+      ]);
     });
 
     test("groups a report with no stack even outside a request", async () => {

@@ -7,6 +7,7 @@ import {
   siteHomeForm,
   siteOrderForm,
 } from "#templates/fields/site.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 /** The box names each site form offers, in order. */
 const fieldNames = (form: { fields: ReadonlyArray<{ name: string }> }) =>
@@ -21,11 +22,13 @@ describe("site editor forms", () => {
     const title = siteHomeForm.fields[0]!;
     expect(title.maxlength).toBe(MAX_INPUT_LENGTH);
     const html = siteHomeForm.render();
-    assertStringIncludes(html, "Website title");
-    // The id ties the label to the box, and the browser must not offer
-    // saved site-login values for a page title.
-    assertStringIncludes(html, 'id="website_title"');
-    assertStringIncludes(html, 'autocomplete="off"');
+    expectIncludesAll(html, [
+      "Website title",
+      // The id ties the label to the box, and the browser must not offer
+      // saved site-login values for a page title.
+      'id="website_title"',
+      'autocomplete="off"',
+    ]);
   });
 
   test("the contact and order forms each offer their one markdown text box", () => {

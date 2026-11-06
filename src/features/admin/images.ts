@@ -1,5 +1,3 @@
-/* jscpd:ignore-start -- imports */
-
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 
@@ -9,7 +7,6 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 
 import { logActivity } from "#db/activity-log.ts";
 import { groups } from "#db/groups.ts";
-/* jscpd:ignore-end */
 import {
   deleteImageRecord,
   getAllImages,
@@ -23,7 +20,6 @@ import {
 import { getAllListingOptions } from "#db/listings/records.ts";
 import { getNewsPostNames } from "#db/news-posts.ts";
 import { sitePages } from "#db/site-pages.ts";
-// jscpd:ignore-start
 import { t } from "#i18n";
 import {
   CONTENT_FORM,
@@ -65,8 +61,6 @@ import {
   isSiteRole,
 } from "#types";
 import { imageMetadataFromForm, withUploadedImage } from "./image-upload.ts";
-
-// jscpd:ignore-end
 
 /** The image's edit page: where a create and a save both land. */
 const imagePath = (id: number): string => adminPath("imageEdit", { id });

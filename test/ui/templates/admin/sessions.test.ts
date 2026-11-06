@@ -6,6 +6,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import type { Session } from "#types";
 
 const mkSession = (token: string): Session => ({
@@ -45,9 +46,7 @@ describe("adminSessionsPage", () => {
       OWNER_SESSION,
       "",
     );
-    assertStringIncludes(html, "abcdefgh...");
-    assertStringIncludes(html, "qrstuvwx...");
-    assertStringIncludes(html, "Current");
+    expectIncludesAll(html, ["abcdefgh...", "qrstuvwx...", "Current"]);
   });
 
   test("renders empty state when no sessions", () => {

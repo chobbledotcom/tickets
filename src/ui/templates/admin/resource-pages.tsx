@@ -6,7 +6,6 @@
  * that is not a field list — the attendee-status checkboxes — still fits.
  */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { Child } from "#jsx/jsx-runtime.ts";
 import type {
@@ -27,7 +26,6 @@ import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
 import type { AdminSession } from "#types";
-/* jscpd:ignore-end */
 
 /** The type-the-name fields of a delete spec: the label above the input and
  * the prompt paragraph, both naming the entity. */

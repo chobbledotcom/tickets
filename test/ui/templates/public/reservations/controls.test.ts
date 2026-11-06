@@ -7,6 +7,7 @@ import {
   renderPayMoreInput,
   renderTermsAndCheckbox,
 } from "#templates/public/reservations/controls.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { reservesHint, reservesHintStart } from "#test-utils/duration-hint.ts";
 import { withSubmittedValues } from "#test-utils/saved-form.ts";
 
@@ -32,8 +33,10 @@ describe("renderDateSelector", () => {
       "2026-01-02",
       1,
     );
-    assertStringIncludes(html, 'value="2026-01-02" selected');
-    assertStringIncludes(html, 'value="2026-01-01"');
+    expectIncludesAll(html, [
+      'value="2026-01-02" selected',
+      'value="2026-01-01"',
+    ]);
     assert(!html.includes('value="2026-01-01" selected'));
     // Options join edge to edge between the two dates.
     assert(!html.includes("mutated"));
@@ -147,8 +150,10 @@ describe("renderPayMoreInput", () => {
   test("treats even one minor unit as a priced minimum", () => {
     const smallest = { ...listing, unit_price: 1 };
     const html = renderPayMoreInput(smallest);
-    assertStringIncludes(html, "Price per ticket (£0.01 minimum)");
-    assertStringIncludes(html, " required />");
+    expectIncludesAll(html, [
+      "Price per ticket (£0.01 minimum)",
+      " required />",
+    ]);
   });
 
   test("prefills the entered value when it is at or above the minimum", () => {

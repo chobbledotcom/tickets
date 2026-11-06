@@ -6,7 +6,6 @@ import {
   getRefundPaymentReferences,
   type TaggedRefundPaymentReference,
 } from "#db/payment-references.ts";
-/* jscpd:ignore-start -- imports */
 import { requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import type { PaymentWorkStatus } from "#payment/admit-move.ts";
@@ -26,8 +25,6 @@ import {
 } from "#templates/admin/attendees.tsx";
 import type { Attendee } from "#types";
 import { refundError, singleRefundResultError } from "./single-result.ts";
-
-/* jscpd:ignore-end */
 
 type RefundableCharges =
   | { kind: "nothing"; reason: string }

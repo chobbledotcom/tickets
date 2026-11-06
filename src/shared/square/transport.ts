@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import * as v from "valibot";
 import { isNotNullish } from "#fp";
 import {
@@ -10,7 +9,6 @@ import {
   type RejectedBuyerField,
 } from "#payment/transport-error.ts";
 import type { FetchResult } from "#shared/fetch.ts";
-/* jscpd:ignore-end */
 
 /** Square API version for all requests. */
 export const SQUARE_API_VERSION = "2025-01-23";

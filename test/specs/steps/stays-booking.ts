@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -34,8 +32,6 @@ import {
 import { testDate } from "#test-utils/dates.ts";
 import { createTestHoliday } from "#test-utils/db-helpers/holidays.ts";
 import { reservesHint, reservesHintStart } from "#test-utils/duration-hint.ts";
-
-// jscpd:ignore-end
 
 /** The first day of the stay the Scenario booked. */
 const stayStart = (world: TicketsWorld): string =>

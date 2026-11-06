@@ -7,6 +7,7 @@ import {
   summarize,
   writeStepSummary,
 } from "#scripts/mutation/summary.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { tempFile } from "#test-utils/files.ts";
 import {
   fakeResult,
@@ -122,8 +123,7 @@ describe("the Markdown mutation report", () => {
       writeStepSummary(summarize([fakeResult("ignored", 1, "??", "||")]));
     });
 
-    assertStringIncludes(text, "Inconclusive");
-    assertStringIncludes(text, "nothing killable");
+    expectIncludesAll(text, ["Inconclusive", "nothing killable"]);
   });
 
   test("says on the console where the Markdown summary went", async () => {
@@ -155,8 +155,10 @@ describe("the Markdown mutation report", () => {
       "| phase | runs | time |",
       "| --- | ---: | ---: |",
     ]);
-    assertStringIncludes(markdown, "| lint | 1 | 4ms |");
-    assertStringIncludes(markdown, "| direct-tests | 1 | 10ms |");
+    expectIncludesAll(markdown, [
+      "| lint | 1 | 4ms |",
+      "| direct-tests | 1 | 10ms |",
+    ]);
   });
 
   test("writes phase timing work when all mutants are ignored", async () => {
@@ -165,14 +167,20 @@ describe("the Markdown mutation report", () => {
       writeStepSummary(timingSummary("ignored")),
     );
 
-    assertStringIncludes(markdown, "### Phase timings");
-    assertStringIncludes(markdown, "| direct-tests | 1 | 10ms |");
+    expectIncludesAll(markdown, [
+      "### Phase timings",
+      "| direct-tests | 1 | 10ms |",
+    ]);
   });
 
   test("ignores absent or unwritable GitHub step summary paths", async () => {
-    await withStepSummary(null, () => writeStepSummary(summarize([])));
-    await withStepSummary("/tmp/missing-dir/mutation-summary.md", () =>
-      writeStepSummary(summarize([fakeResult("killed", 1, "true", "false")])),
-    );
+    expect(
+      await withStepSummary(null, () => writeStepSummary(summarize([]))),
+    ).toBe("");
+    expect(
+      await withStepSummary("/tmp/missing-dir/mutation-summary.md", () =>
+        writeStepSummary(summarize([fakeResult("killed", 1, "true", "false")])),
+      ),
+    ).toBe("");
   });
 });

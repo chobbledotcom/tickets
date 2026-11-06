@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import type { World } from "@cucumber/cucumber";
 import type { ChargeMoney } from "#payment/resources.ts";
 import type { CleanupTask } from "#scripts/cleanup.ts";
@@ -30,7 +29,6 @@ import type {
   JourneyCatalogSpec,
   OrderJourneyCtx,
 } from "#test-utils/order-journey.ts";
-// jscpd:ignore-end
 
 /** Something a story does, told which one to do it to. The three below differ
  * only in what that second word means — the name of a thing for sale, a

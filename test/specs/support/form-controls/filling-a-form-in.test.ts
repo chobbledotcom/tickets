@@ -4,12 +4,9 @@
  * on may be left empty.
  */
 
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
-
-// jscpd:ignore-end
 
 describe("filling a form in and sending it", () => {
   /** A browser stand-in: it holds the page it was served and remembers what

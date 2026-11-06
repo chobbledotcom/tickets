@@ -8,6 +8,7 @@
 
 import { assert, assertStringIncludes } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -48,8 +49,10 @@ describeWithEnv("the actions on a paid listing", { db: true }, () => {
 
     const { danger, plain } = await actionsOf(listing.id);
 
-    assertStringIncludes(danger, hrefFor(listing.id, "refund-all"));
-    assertStringIncludes(danger, "Refund All");
+    expectIncludesAll(danger, [
+      hrefFor(listing.id, "refund-all"),
+      "Refund All",
+    ]);
     assert(!plain.includes(hrefFor(listing.id, "refund-all")));
   });
 
@@ -94,8 +97,7 @@ describeWithEnv("the email action", { db: true }, () => {
 
     const { plain } = await actionsOf(listing.id);
 
-    assertStringIncludes(plain, `href="/admin/emails?`);
-    assertStringIncludes(plain, "Email");
+    expectIncludesAll(plain, [`href="/admin/emails?`, "Email"]);
   });
 
   test("is not offered when the listing has nobody on it", async () => {
@@ -128,8 +130,10 @@ describeWithEnv("the actions that end a listing", { db: true }, () => {
 
     const { danger, plain } = await actionsOf(listing.id);
 
-    assertStringIncludes(danger, hrefFor(listing.id, "deactivate"));
-    assertStringIncludes(danger, hrefFor(listing.id, "delete"));
+    expectIncludesAll(danger, [
+      hrefFor(listing.id, "deactivate"),
+      hrefFor(listing.id, "delete"),
+    ]);
     assert(!plain.includes(hrefFor(listing.id, "deactivate")));
     assert(!plain.includes(hrefFor(listing.id, "delete")));
   });

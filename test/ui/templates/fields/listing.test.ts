@@ -9,6 +9,7 @@ import {
   validateBookableDays,
   validateDate,
 } from "#templates/fields/validators.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { baseListingForm } from "#test-utils/factories.ts";
 import type { TestFormValues } from "#test-utils/form-values.ts";
 import { expectInvalid, expectValid } from "#test-utils/validation.ts";
@@ -275,8 +276,10 @@ describe("listing form contact fields setting", () => {
     const fieldsField = getListingForm().fields.find(
       (f) => f.name === "fields",
     )!;
-    assertStringIncludes(fieldsField.hintHtml, "<strong>");
-    assertStringIncludes(fieldsField.hintHtml, "emailed their ticket");
+    expectIncludesAll(fieldsField.hintHtml, [
+      "<strong>",
+      "emailed their ticket",
+    ]);
   });
 });
 

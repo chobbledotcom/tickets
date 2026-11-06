@@ -8,7 +8,10 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
-import { expectFlashRedirect } from "#test-utils/assertions.ts";
+import {
+  expectFlashRedirect,
+  expectIncludesAll,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
@@ -45,8 +48,7 @@ describeWithEnv("attendee statuses", { db: true }, () => {
 
     const html = await (await adminGet(`${PATH}/${id}/delete`)).text();
 
-    assertStringIncludes(html, "Name");
-    assertStringIncludes(html, "Spare");
+    expectIncludesAll(html, ["Name", "Spare"]);
   });
 
   test("moves a status down, and the list shows the new order", async () => {

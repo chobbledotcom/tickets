@@ -9,6 +9,7 @@ import {
 } from "#test/integration/server/bulk-email/helpers.ts";
 import {
   expectHtmlResponse,
+  expectIncludesAll,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -34,9 +35,11 @@ describeWithEnv("server bulk email > compose", { db: true }, () => {
 
     test("shows the disabled notice when no own provider is configured", async () => {
       const html = await (await adminGet("/admin/emails")).text();
-      assertStringIncludes(html, "Heads up");
-      // The notice must say why, not just that something is wrong.
-      assertStringIncludes(html, "configured your own email provider");
+      expectIncludesAll(html, [
+        "Heads up",
+        // The notice must say why, not just that something is wrong.
+        "configured your own email provider",
+      ]);
     });
 
     test("hides the disabled notice when a bulk provider is configured", async () => {
@@ -89,9 +92,11 @@ describeWithEnv("server bulk email > compose", { db: true }, () => {
       const html = await (
         await adminGet(`/admin/emails?listing=${listing.id}`)
       ).text();
-      assertStringIncludes(html, 'value="Saved subject"');
-      assertStringIncludes(html, "checked");
-      assertStringIncludes(html, "recipient. That's everyone");
+      expectIncludesAll(html, [
+        'value="Saved subject"',
+        "checked",
+        "recipient. That's everyone",
+      ]);
       assert(!html.includes("recipients"));
     });
 

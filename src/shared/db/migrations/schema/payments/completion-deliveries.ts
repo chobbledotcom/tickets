@@ -1,10 +1,8 @@
-/* jscpd:ignore-start -- imports */
 import {
   text,
   wholeNumberOrNull,
 } from "#db/migrations/schema/scalar-columns.ts";
 import { ownerEncryptedColumn, paymentRecord } from "./columns.ts";
-/* jscpd:ignore-end */
 
 export const paymentCompletionDeliveriesTable = paymentRecord(
   "payment_completion_deliveries",

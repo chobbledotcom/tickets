@@ -19,6 +19,7 @@ import {
 } from "#routes/admin/listing-page-data.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -305,8 +306,7 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
       );
 
       const html = await overviewHtml(listing.id);
-      assertStringIncludes(html, "Called about parking");
-      assertStringIncludes(html, "Noted Person");
+      expectIncludesAll(html, ["Called about parking", "Noted Person"]);
     });
 
     test("resolve a note's img#N reference on the overview", async () => {

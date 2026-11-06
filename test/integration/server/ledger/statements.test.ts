@@ -10,6 +10,7 @@ import {
   postAttendeePayment,
   seededSale,
 } from "#test/integration/server/ledger/helpers.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -25,20 +26,16 @@ describeWithEnv(
       const { attendeeId, listingId } = await seededSale("Gala", 2500);
       const html = await ledgerPageHtml(`/admin/ledger/attendee/${attendeeId}`);
       // The attendee's own label heads the page; a fully-paid sale nets to zero.
-      assertStringIncludes(html, "Ada Lovelace");
-      assertStringIncludes(html, "Amount still owed:");
-      assertStringIncludes(html, '<th class="col-amount">Running total</th>');
-      // The sale's counterparty is the listing revenue account, linked by name.
-      assertStringIncludes(html, "Gala");
-      // Each item links to the record it names, never back to the ledger.
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        "Ada Lovelace",
+        "Amount still owed:",
+        '<th class="col-amount">Running total</th>',
+        // The sale's counterparty is the listing revenue account, linked by name.
+        "Gala",
+        // Each item links to the record it names, never back to the ledger.
         `<a href="/admin/attendees/${attendeeId}">Ada Lovelace</a>`,
-      );
-      assertStringIncludes(
-        html,
         `<a href="/admin/listing/${listingId}">Gala</a>`,
-      );
+      ]);
       assert(!html.includes(`/admin/ledger?listing=${listingId}`));
     });
 
@@ -47,13 +44,12 @@ describeWithEnv(
       const response = await adminGet(`/admin/ledger/revenue/${listingId}`);
       expect(response.status).toBe(200);
       const html = await response.text();
-      assertStringIncludes(html, "Workshop");
-      // The counterparty of the sale leg is the paying attendee.
-      assertStringIncludes(html, "Ada Lovelace");
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        "Workshop",
+        // The counterparty of the sale leg is the paying attendee.
+        "Ada Lovelace",
         `<a href="/admin/attendees/${attendeeId}">Ada Lovelace</a>`,
-      );
+      ]);
     });
 
     test("links a service event's money change to the service event page", async () => {
@@ -121,9 +117,11 @@ describeWithEnv(
       await adjustListingIncome(listing.id, 1500);
       const html = await ledgerPageHtml("/admin/ledger/writeoff/default");
       // The writeoff singleton renders its label, not a raw "writeoff:default".
-      assertStringIncludes(html, "Corrections");
-      // The correction's counterparty is the listing's revenue account.
-      assertStringIncludes(html, "Adjusted");
+      expectIncludesAll(html, [
+        "Corrections",
+        // The correction's counterparty is the listing's revenue account.
+        "Adjusted",
+      ]);
     });
 
     test("includes a refunded attendee's reversal legs in their statement", async () => {
@@ -144,9 +142,11 @@ describeWithEnv(
       });
       const response = await adminGet(`/admin/ledger/attendee/${attendee.id}`);
       const html = await response.text();
-      assertStringIncludes(html, "Grace Hopper");
-      // A full refund nets to zero, so the final running balance is zero.
-      assertStringIncludes(html, "Amount still owed:");
+      expectIncludesAll(html, [
+        "Grace Hopper",
+        // A full refund nets to zero, so the final running balance is zero.
+        "Amount still owed:",
+      ]);
     });
 
     test("404s on an unknown account type", async () => {

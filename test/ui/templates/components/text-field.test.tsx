@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { TextField } from "#templates/components/text-field.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 describe("TextField", () => {
   test("renders a labelled text input capped at the shared input length", () => {
@@ -27,14 +28,10 @@ describe("TextField", () => {
       </>,
     );
 
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="email" type="email">`,
-    );
-    assertStringIncludes(
-      html,
       `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="server_url" type="url">`,
-    );
+    ]);
   });
 
   test("keeps an explicitly declared maxlength over the default", () => {

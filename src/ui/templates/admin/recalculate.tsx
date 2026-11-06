@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import { RECALCULATE_FIELD_NAME } from "#shared/recalculate-fields.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
@@ -6,7 +5,6 @@ import type { NavActive } from "#templates/admin/nav.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import type { AdminSession } from "#types";
-/* jscpd:ignore-end */
 
 export type RecalculateRow = {
   current: string;

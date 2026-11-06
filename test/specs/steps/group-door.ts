@@ -1,7 +1,5 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { ticketOf } from "#test/specs/support/door.ts";
@@ -19,8 +17,7 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 /** What the door said about the last person the organiser looked at. */
 const lastAnswer = (world: TicketsWorld) =>
@@ -124,11 +121,10 @@ Then(
   "the {word} group's scanner warns that one scan checks in every listing",
   async function (this: TicketsWorld, groupName: string): Promise<void> {
     const page = await groupDoorPageHtml(this, groupName);
-    assertStringIncludes(
-      page,
+    expectIncludesAll(page, [
       t("admin.scanner.scan_checks_in_all_listings_warning"),
-    );
-    assertStringIncludes(page, 'role="alert"');
+      'role="alert"',
+    ]);
   },
 );
 

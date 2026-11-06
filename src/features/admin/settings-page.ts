@@ -5,7 +5,6 @@
  */
 
 import { getAdminFeatureUsage } from "#db/admin-features.ts";
-/* jscpd:ignore-start */
 import { serializeTaxPolicy } from "#db/settings/tax.ts";
 import { settings } from "#db/settings.ts";
 import type { AuthSession } from "#routes/auth.ts";
@@ -36,8 +35,6 @@ import {
 } from "#templates/admin/settings.tsx";
 import { adminAdvancedSettingsPage } from "#templates/admin/settings-advanced.tsx";
 import type { PaymentProviderType } from "#types";
-
-/* jscpd:ignore-end */
 
 /** The line a wallet configured through host env settings shows: its detail,
  *  or nothing when no host config stands behind the settings. */

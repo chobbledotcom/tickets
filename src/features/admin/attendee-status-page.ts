@@ -4,15 +4,12 @@ import {
   type AttendeeStatus,
   getAttendeeStatus,
 } from "#db/attendee-statuses.ts";
-/* jscpd:ignore-start */
 import {
   defineEditEntityPage,
   type EditEntityPage,
 } from "#routes/admin/entity-write-tab.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 import { AttendeeStatusEditPanel } from "#templates/admin/settings-statuses.tsx";
-
-/* jscpd:ignore-end */
 
 export const attendeeStatusPage: EditEntityPage<AttendeeStatus> =
   defineEditEntityPage({

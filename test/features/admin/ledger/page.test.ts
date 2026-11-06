@@ -13,6 +13,7 @@ import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { formatSignedCurrency } from "#shared/currency.ts";
 import { account } from "#shared/ledger/account.ts";
 import { ledgerPageHtml } from "#test/integration/server/ledger/helpers.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -67,8 +68,10 @@ describeWithEnv("the admin ledger page", { db: true }, () => {
       `/admin/ledger?${SCOPED_SEED_RANGE}&listing=${listing.id}`,
     );
 
-    assertStringIncludes(body, "<h2>Scoped solo</h2>");
-    assertStringIncludes(body, formatSignedCurrency(25000, true));
+    expectIncludesAll(body, [
+      "<h2>Scoped solo</h2>",
+      formatSignedCurrency(25000, true),
+    ]);
     // The other listing's sale stays out of the stats and the rows.
     expect(body.includes(formatSignedCurrency(30000, true))).toBe(false);
   });
@@ -107,8 +110,10 @@ describeWithEnv("the admin ledger page", { db: true }, () => {
       `/admin/ledger?${SCOPED_SEED_RANGE}&group=${group.id}`,
     );
 
-    assertStringIncludes(body, "<h2>Scoped pair</h2>");
-    assertStringIncludes(body, formatSignedCurrency(55000, true));
+    expectIncludesAll(body, [
+      "<h2>Scoped pair</h2>",
+      formatSignedCurrency(55000, true),
+    ]);
     // The listing outside the group stays out of the stats and the rows.
     expect(body.includes(formatSignedCurrency(40000, true))).toBe(false);
   });
@@ -179,10 +184,12 @@ describeWithEnv("the admin ledger page", { db: true }, () => {
     // The three figures the page owes the operator: the total income, the
     // service costs taken away, and the total income minus those costs. The
     // expected strings come from the same formatter the page renders with.
-    assertStringIncludes(body, "Total income earned");
-    assertStringIncludes(body, formatSignedCurrency(25000, true));
-    assertStringIncludes(body, "Service event costs");
-    assertStringIncludes(body, formatSignedCurrency(-9000, true));
+    expectIncludesAll(body, [
+      "Total income earned",
+      formatSignedCurrency(25000, true),
+      "Service event costs",
+      formatSignedCurrency(-9000, true),
+    ]);
     expect(netCellValue(body)).toBe(formatSignedCurrency(16000, false));
     // The costs and the net sit between the income and the rows that were
     // already there.
@@ -208,8 +215,10 @@ describeWithEnv("the admin ledger page", { db: true }, () => {
     await seedLedger(false);
     const body = await renderAdminPage(SEED_RANGE);
 
-    assertStringIncludes(body, formatSignedCurrency(25000, true));
-    assertStringIncludes(body, formatSignedCurrency(0, true));
+    expectIncludesAll(body, [
+      formatSignedCurrency(25000, true),
+      formatSignedCurrency(0, true),
+    ]);
     // The income row already contains the net's unsigned string, so the net
     // assertion compares the net row's own cell exactly, sign included.
     expect(netCellValue(body)).toBe(formatSignedCurrency(25000, false));

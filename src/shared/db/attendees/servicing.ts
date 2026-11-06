@@ -1,5 +1,3 @@
-/* jscpd:ignore-start */
-
 import { costAccount, WORLD } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import { eventGroup, legReference } from "#accounting/refs.ts";
@@ -45,7 +43,6 @@ import {
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { DAY_MS, nowIso } from "#shared/now.ts";
 import { type Attendee, clampDurationDays } from "#types";
-/* jscpd:ignore-end */
 
 /** An answer chosen for a service event's custom question. Only the `answerId`
  *  is needed — `saveAttendeeAnswers` resolves each answer's question itself, so

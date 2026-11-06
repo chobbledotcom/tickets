@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -20,8 +18,7 @@ import {
   type TicketsWorld,
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 /** A day in each year the stories name. Fixed rather than counted from today,
  * so a scenario run near midnight cannot set up against one day and read back
@@ -96,8 +93,7 @@ Then(
   "the list names {string} holding {string}",
   function (this: TicketsWorld, name: string, rooms: string): void {
     const page = whatTheyWereTold(this, ORGANISER);
-    assertStringIncludes(page, name);
-    assertStringIncludes(page, rooms);
+    expectIncludesAll(page, [name, rooms]);
   },
 );
 
@@ -174,13 +170,12 @@ Then(
     listings: number,
   ): Promise<void> {
     const block = await workComingUp(this);
-    assertStringIncludes(block, name);
-    assertStringIncludes(
-      block,
+    expectIncludesAll(block, [
+      name,
       await dashboardCopy("admin.dashboard.service_event_listing_count", {
         count: listings,
       }),
-    );
+    ]);
   },
 );
 

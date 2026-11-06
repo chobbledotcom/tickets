@@ -5,7 +5,6 @@
  * the story names and lets the site work that code out.
  */
 
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { base64ToBase64Url } from "#crypto/utils.ts";
@@ -26,8 +25,6 @@ import type {
 } from "#test/specs/support/world.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
-
-// jscpd:ignore-end
 
 /** What the organiser types into the record's form. A box left out here keeps
  * whatever the page already had in it, the way it would for a person who edits

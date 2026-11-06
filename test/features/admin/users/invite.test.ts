@@ -16,6 +16,7 @@ import { t } from "#i18n";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import {
   expectFlashRedirect,
+  expectIncludesAll,
   parseFlashCookie,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -125,8 +126,7 @@ describeWithEnv("removing a user", { db: true }, () => {
 
     const html = await (await adminGet(`${LIST_PATH}/${id}/delete`)).text();
 
-    assertStringIncludes(html, "Username");
-    assertStringIncludes(html, "typeme");
+    expectIncludesAll(html, ["Username", "typeme"]);
   });
 
   test("removes one whose username was typed exactly", async () => {

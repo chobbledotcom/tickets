@@ -1,3 +1,4 @@
+// effects: pure
 /** The parsed span of a submitted order that several stages pass along. It
  * holds the per-listing quantities, the chosen date (or null), the booked day
  * count, and whether any line is priced by that day count. Both the child-fold

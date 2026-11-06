@@ -1,9 +1,7 @@
-/* jscpd:ignore-start */
 import { identity, mapById, requiredMapValue } from "#fp";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 
-/* jscpd:ignore-end */
 /**
  * Bulk actions for groups.
  *
@@ -41,7 +39,6 @@ import {
   catalogNameLengthError,
   isNameTakenAnywhere,
 } from "#db/name-registry.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { createVerifiedFormRoute } from "#routes/admin/confirmation.ts";
 import { groupFormPost } from "#routes/admin/group-form-post.ts";
@@ -72,8 +69,6 @@ import {
 } from "#templates/admin/bulk-actions.tsx";
 import type { AdminSession, Group, ListingWithCount } from "#types";
 import { remapDuplicatedGroupEdges } from "./listings-parents.ts";
-
-/* jscpd:ignore-end */
 
 const groupListingsPage =
   (

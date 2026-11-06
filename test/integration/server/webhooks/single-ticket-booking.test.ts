@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -9,8 +8,6 @@ import {
   checkoutSessionEvent,
   expectWebhookProcessed,
 } from "#test-utils/webhooks.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("server webhooks > single-ticket booking", { db: true }, () => {
   test("dates booking ledger legs from the checkout time, not now", async () => {

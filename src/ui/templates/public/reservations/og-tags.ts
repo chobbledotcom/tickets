@@ -1,10 +1,8 @@
 /** OpenGraph head tags for a public listing page. */
 
 import { escapeHtml } from "#jsx/escape-html.ts";
-/* jscpd:ignore-start */
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
 import type { ItemImageColumns } from "#types";
-/* jscpd:ignore-end */
 
 /** OpenGraph meta tags for a public listing page. */
 export const buildOgTags = (

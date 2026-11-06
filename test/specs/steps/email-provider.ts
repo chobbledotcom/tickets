@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -23,8 +21,6 @@ import {
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
-
-// jscpd:ignore-end
 
 /** The key a story's owner types when it is connecting for the first time. */
 const KEY_TYPED_NOW = "re_key_typed_now";

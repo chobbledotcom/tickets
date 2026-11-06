@@ -1,6 +1,5 @@
 /** Evidence-to-state transitions shared by initial work and later retries. */
 
-/* jscpd:ignore-start -- imports */
 import {
   loadRefundAuthorityById,
   type RefundAuthorityRow,
@@ -45,7 +44,6 @@ import type {
   RefundAuthorityReceipt,
   RefundEngineProvider,
 } from "#shared/provider-refunds.ts";
-/* jscpd:ignore-end */
 
 export const REFUND_OBSERVATION_DELAY_MS = 5 * 60 * 1000;
 

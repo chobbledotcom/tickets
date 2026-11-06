@@ -7,6 +7,7 @@ import {
   ticketListing,
 } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 describe("ticketPage day-count selector", () => {
@@ -26,11 +27,13 @@ describe("ticketPage day-count selector", () => {
       listings: [buildTicketListing(listing, false, undefined)],
       slugs: ["ab12c"],
     });
-    assertStringIncludes(html, 'name="day_count"');
-    assertStringIncludes(html, '<option value="1">1 day');
-    assertStringIncludes(html, '<option value="2">2 days');
-    // The single-listing page annotates each option with its price.
-    assertStringIncludes(html, "2 days —");
+    expectIncludesAll(html, [
+      'name="day_count"',
+      '<option value="1">1 day',
+      '<option value="2">2 days',
+      // The single-listing page annotates each option with its price.
+      "2 days —",
+    ]);
   });
 
   test("shows an unavailable message when grouped listings share no day count", () => {
@@ -81,9 +84,11 @@ describe("ticketPage day-count selector", () => {
       slug: "cd34e",
     });
     const html = ticketPage({ listings: [a, b], slugs: ["ab12c", "cd34e"] });
-    assertStringIncludes(html, 'name="day_count"');
-    assertStringIncludes(html, '<option value="1">1 day</option>');
-    assertStringIncludes(html, '<option value="2">2 days</option>');
+    expectIncludesAll(html, [
+      'name="day_count"',
+      '<option value="1">1 day</option>',
+      '<option value="2">2 days</option>',
+    ]);
   });
 
   test("omits the day-count selector for non-customisable listings", () => {

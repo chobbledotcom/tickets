@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { allTransfers } from "#accounting/queries.ts";
@@ -18,8 +17,6 @@ import {
   SERVICE_DATE,
 } from "#test-utils/servicing-ledger.ts";
 import { adminFormPost } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("servicing §22 - cost validation", { db: true }, () => {
   test("invalid create cost amounts write no service_cost transfer (form error, not 500)", async () => {

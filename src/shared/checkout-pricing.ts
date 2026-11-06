@@ -8,7 +8,6 @@
  * providers in lock-step and gives later pricing features one place to plug in.
  */
 
-/* jscpd:ignore-start */
 import { settings } from "#db/settings.ts";
 import { sum, sumByKey, sumOf } from "#fp";
 import { feeSubtotalFor, getBookingFeeAmount } from "#shared/booking-fee.ts";
@@ -28,7 +27,6 @@ import {
 } from "#shared/reservation-amount.ts";
 import { assessTax, taxBasisLines } from "#shared/tax/assessment.ts";
 import type { TaxAssessment, TaxBasis, TaxPolicy } from "#shared/tax/types.ts";
-/* jscpd:ignore-end */
 
 /** One ticket line and the amount charged per unit (deposit- and
  * discount-aware). A single cart item can split into several lines when a

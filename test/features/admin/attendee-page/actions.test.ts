@@ -4,6 +4,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { deleteListing } from "#db/listings/delete.ts";
 import { attendeePage } from "#routes/admin/attendee-page.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
@@ -117,9 +118,11 @@ describeWithEnv("the attendee Actions tab", { db: true }, () => {
     test("offers a refund for an attendee who paid", async () => {
       const { attendeeId } = await paidPagePayment("refund");
       const html = await tabHtml(attendeeId, "actions");
-      assertStringIncludes(html, `/admin/attendees/${attendeeId}/refund`);
-      // Named, not just linked — the label is what the operator reads.
-      assertStringIncludes(html, "Refund");
+      expectIncludesAll(html, [
+        `/admin/attendees/${attendeeId}/refund`,
+        // Named, not just linked — the label is what the operator reads.
+        "Refund",
+      ]);
     });
 
     test("shows only owners the review action instead of refund", async () => {
@@ -133,11 +136,10 @@ describeWithEnv("the attendee Actions tab", { db: true }, () => {
       );
 
       const ownerHtml = await tabHtml(attendeeId, "actions");
-      assertStringIncludes(
-        ownerHtml,
+      expectIncludesAll(ownerHtml, [
         `/admin/attendees/${attendeeId}/payment-review`,
-      );
-      assertStringIncludes(ownerHtml, "Mark payment reviewed");
+        "Mark payment reviewed",
+      ]);
       assert(!ownerHtml.includes(`/admin/attendees/${attendeeId}/refund`));
       assert(!ownerHtml.includes(`/admin/attendees/${attendeeId}/delete`));
 
@@ -197,8 +199,10 @@ describeWithEnv("the attendee Actions tab", { db: true }, () => {
       await addProviderRefundTestCase(paymentId);
 
       const ownerHtml = await tabHtml(attendeeId, "actions");
-      assertStringIncludes(ownerHtml, 'href="/admin/privacy#refund-recovery"');
-      assertStringIncludes(ownerHtml, "Open Refund recovery");
+      expectIncludesAll(ownerHtml, [
+        'href="/admin/privacy#refund-recovery"',
+        "Open Refund recovery",
+      ]);
       assert(!ownerHtml.includes(`/admin/attendees/${attendeeId}/refund`));
       assert(
         !ownerHtml.includes(`/admin/attendees/${attendeeId}/payment-review`),

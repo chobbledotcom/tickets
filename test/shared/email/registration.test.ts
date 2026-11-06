@@ -13,6 +13,7 @@ import {
   runWithSubrequestBudget,
   withSubrequestAllowance,
 } from "#shared/subrequest-budget.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -148,7 +149,7 @@ describeWithEnv(
       await setupAndSendRegistration({ businessEmail: "admin@business.com" });
 
       const body = fetch.findCallBodyByRecipient("admin@business.com");
-      expect(body.attachments).toBeUndefined();
+      expect(body.attachments).toBe(undefined);
     });
 
     test("collapses a hidden package's tickets into one package-level SVG", async () => {
@@ -244,8 +245,10 @@ describeWithEnv(
       // notification went out first with no answers to show. The one sent
       // here is the second fetch.
       const body = fetch.getFetchJsonBody(1);
-      assertStringIncludes(body.text, "Choose one: Chosen");
-      assertStringIncludes(body.text, "Anything else?: Arriving late");
+      expectIncludesAll(body.text, [
+        "Choose one: Chosen",
+        "Anything else?: Arriving late",
+      ]);
     });
 
     test("attaches numbered tickets for multi-listing registration", async () => {

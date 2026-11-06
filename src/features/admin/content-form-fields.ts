@@ -5,15 +5,12 @@
  */
 
 import { pick } from "@std/collections";
-// jscpd:ignore-start
 import { t } from "#i18n";
 import { defineForm, type FormDefinition } from "#shared/forms/definition.ts";
 import type { Field } from "#shared/forms/field.ts";
 import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
 import { slugFieldBase } from "#templates/fields/validators.ts";
-
-// jscpd:ignore-end
 
 /**
  * The shared SEO/content fields' character limits, keyed by the form field

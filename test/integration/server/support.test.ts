@@ -12,7 +12,6 @@
  * not count towards coverage and these routes have no other direct cover.
  */
 
-/* jscpd:ignore-start -- imports */
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -20,7 +19,11 @@ import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
-import { expectFlash, expectRedirect } from "#test-utils/assertions.ts";
+import {
+  expectFlash,
+  expectIncludesAll,
+  expectRedirect,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import {
@@ -34,8 +37,6 @@ import {
   createTestManagerSession,
   testCookie,
 } from "#test-utils/session.ts";
-
-/* jscpd:ignore-end */
 
 const ADMIN_ENV = { ADMIN_EMAIL_ADDRESS: "host@support.test" };
 
@@ -76,8 +77,10 @@ describeWithEnv(
         });
         const response = await adminGet("/admin/support");
         const html = await response.text();
-        assertStringIncludes(html, "<h1>Help Center</h1>");
-        assertStringIncludes(html, "<p>Reach out anytime</p>");
+        expectIncludesAll(html, [
+          "<h1>Help Center</h1>",
+          "<p>Reach out anytime</p>",
+        ]);
       });
 
       test("resolves the page text's img#N reference", async () => {

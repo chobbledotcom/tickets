@@ -10,13 +10,11 @@ import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { invalidApiValueField } from "#shared/catalog-fields/definition.ts";
 import { holidayFields } from "#shared/catalog-fields/fields.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
-// jscpd:ignore-start
 import {
   type FieldRefusal,
   requireEntityField,
 } from "#shared/rest/crud-parsers.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
-// jscpd:ignore-end
 
 /** JSON body accepted by POST /api/admin/holidays */
 export type CreateHolidayBody = {

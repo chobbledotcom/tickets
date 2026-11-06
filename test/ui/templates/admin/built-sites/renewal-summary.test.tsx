@@ -1,8 +1,9 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { formatCurrency } from "#shared/currency.ts";
 import { RenewalTierSummary } from "#templates/admin/built-sites/renewal-summary.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 describe("RenewalTierSummary", () => {
@@ -36,18 +37,11 @@ describe("RenewalTierSummary", () => {
       />,
     );
 
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<th>Tier</th><th class="col-quantity">Months per unit</th><th class="col-amount">Unit price</th><th class="col-quantity">Units sold</th>',
-    );
-    assertStringIncludes(
-      html,
       `<tr><td><a href="/admin/listing/41">Starter &lt;Tier&gt;</a></td><td class="col-quantity">3</td><td class="col-amount">${formatCurrency(1250)}</td><td class="col-quantity">7</td></tr>`,
-    );
-    assertStringIncludes(
-      html,
       `<tr><td><a href="/admin/listing/42">Free tier</a></td><td class="col-quantity">12</td><td class="col-amount">${formatCurrency(0)}</td><td class="col-quantity">0</td></tr>`,
-    );
+    ]);
     assert(!html.includes("No renewal tier listing is configured."));
   });
 });

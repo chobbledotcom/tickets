@@ -33,7 +33,6 @@ import { requiredMapValue } from "#fp";
 import { checkoutResponse } from "#routes/payment-response.ts";
 import { errorRedirect } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
-/* jscpd:ignore-start */
 import { bookingDateFields } from "#shared/booking-date-fields.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { logDebug } from "#shared/logger.ts";
@@ -60,7 +59,6 @@ import type {
   TicketCtx,
   TicketSharedContext,
 } from "./types.ts";
-/* jscpd:ignore-end */
 
 /** Redirect to checkout, or return the handler's error.
  * In iframe mode returns a popup page instead of a redirect: Stripe cannot run in iframes. */

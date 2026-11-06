@@ -9,6 +9,7 @@ import {
   ScopeLinksForm,
 } from "#templates/admin/modifiers/links.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testModifier } from "#test-utils/factories.ts";
 
 const MODIFIER = testModifier({ id: 1 });
@@ -38,9 +39,11 @@ describe("ScopeLinksForm", () => {
       options: [{ active: true, id: 7, name: "VIP Pass" }],
       selected: [7],
     });
-    assertStringIncludes(html, 'action="/admin/modifiers/1/links"');
-    assertStringIncludes(html, "/icons.svg#save");
-    assertStringIncludes(html, "Save scope");
+    expectIncludesAll(html, [
+      'action="/admin/modifiers/1/links"',
+      "/icons.svg#save",
+      "Save scope",
+    ]);
   });
 
   test("renders listing checkboxes under the listings field, current links checked", () => {
@@ -52,16 +55,12 @@ describe("ScopeLinksForm", () => {
       ],
       selected: [7],
     });
-    assertStringIncludes(html, "<strong>Linked listings (1):</strong>");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "<strong>Linked listings (1):</strong>",
       'checked name="listing_ids" type="checkbox" value="7"',
-    );
-    assertStringIncludes(
-      html,
       '<label><input name="listing_ids" type="checkbox" value="8"',
-    );
-    assertStringIncludes(html, "VIP Pass");
+      "VIP Pass",
+    ]);
   });
 
   test("renders group checkboxes under the groups field", () => {
@@ -70,9 +69,11 @@ describe("ScopeLinksForm", () => {
       options: [{ active: true, id: 3, name: "Weekend" }],
       selected: [],
     });
-    assertStringIncludes(html, "<strong>Linked groups (0):</strong>");
-    assertStringIncludes(html, 'name="group_ids" type="checkbox" value="3"');
-    assertStringIncludes(html, "Weekend");
+    expectIncludesAll(html, [
+      "<strong>Linked groups (0):</strong>",
+      'name="group_ids" type="checkbox" value="3"',
+      "Weekend",
+    ]);
     assert(!html.includes('name="listing_ids"'));
   });
 
@@ -112,13 +113,12 @@ describe("AnswerLinksForm", () => {
       options: [{ id: 10, name: "Size — Large" }],
       selected: [10],
     });
-    assertStringIncludes(html, 'action="/admin/modifiers/1/answers"');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'action="/admin/modifiers/1/answers"',
       "when a buyer selects any of the ticked answers",
-    );
-    assertStringIncludes(html, "/icons.svg#save");
-    assertStringIncludes(html, "Save answers");
+      "/icons.svg#save",
+      "Save answers",
+    ]);
   });
 
   test("checks linked answers and leaves unlinked ones unchecked", () => {
@@ -129,15 +129,11 @@ describe("AnswerLinksForm", () => {
       ],
       selected: [10],
     });
-    assertStringIncludes(html, "<strong>Linked answers (1):</strong>");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "<strong>Linked answers (1):</strong>",
       'checked name="answer_ids" type="checkbox" value="10"',
-    );
-    assertStringIncludes(
-      html,
       '<label><input name="answer_ids" type="checkbox" value="11"',
-    );
+    ]);
   });
 
   test("renders answers active (never muted), since answers have no deactivated state", () => {

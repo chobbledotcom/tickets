@@ -1,5 +1,4 @@
 import * as v from "valibot";
-/* jscpd:ignore-start -- imports */
 import { map } from "#fp";
 import { t } from "#i18n";
 import type { SafeHtml } from "#jsx/jsx-runtime.ts";
@@ -10,7 +9,6 @@ import {
   ledgerScopeSelected,
   setLedgerScopeParam,
 } from "#shared/ledger-scope.ts";
-/* jscpd:ignore-end */
 import { TableActionRow } from "#templates/components/table-action-row.tsx";
 import { DatePicker, type DatePickerDate } from "#templates/date-picker.tsx";
 

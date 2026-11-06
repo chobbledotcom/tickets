@@ -12,6 +12,7 @@ import type {
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { stubSessionRetrieval } from "#test-utils/payment-session.ts";
@@ -192,12 +193,11 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
 
     expect(result.ok).toBe(false);
     const page = await refusedPageOf(result);
-    assertStringIncludes(
-      page,
+    expectIncludesAll(page, [
       "Online payment is not set up on this site yet.",
-    );
-    assertStringIncludes(page, "Staff diagnostics");
-    assertStringIncludes(page, "cs_no_provider");
+      "Staff diagnostics",
+      "cs_no_provider",
+    ]);
     // LabelledParas renders the label and value as separate nodes, so the
     // label alone states the provider row is absent.
     assert(!page.includes("Provider"));

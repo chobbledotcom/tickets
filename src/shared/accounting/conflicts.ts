@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * Conflict detection for ledger writes.
  *

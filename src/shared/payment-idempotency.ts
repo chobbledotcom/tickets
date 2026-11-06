@@ -1,3 +1,4 @@
+// effects: pure
 import { toBase64Url } from "#crypto/utils.ts";
 import { requireRefundGeneration } from "#payment/refund-generation.ts";
 import { sha256Digest } from "#shared/sha256.ts";

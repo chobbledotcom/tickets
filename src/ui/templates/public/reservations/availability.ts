@@ -2,7 +2,6 @@
  * booking tree plus which listings get their own standalone row, the overall
  * sold-out check, and the lone header listing whose details head the page. */
 
-/* jscpd:ignore-start -- imports */
 import { type BuildTreeInput, buildBookingTree } from "#booking/build-tree.ts";
 import type { TicketListing } from "#booking/model.ts";
 import {
@@ -21,7 +20,6 @@ import { reduce, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import { isReadOnly } from "#shared/env.ts";
 import type { ListingWithCount } from "#types";
-/* jscpd:ignore-end */
 
 /** Unavailability message shown when all listings are sold out or closed */
 export const unavailableMessage = (

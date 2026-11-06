@@ -10,7 +10,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
-import { inputNamed } from "#test-utils/assertions.ts";
+import { expectIncludesAll, inputNamed } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { enableFeature } from "#test-utils/settings.ts";
 
@@ -19,11 +19,13 @@ describeWithEnv("site editor pages", { db: true }, () => {
 
   test("the home page shows both boxes carrying the stored values", () => {
     const html = adminSiteHomePage(OWNER_SESSION, "My site", "Welcome!");
-    assertStringIncludes(html, 'value="My site"');
-    assertStringIncludes(html, "Welcome!");
-    assertStringIncludes(html, 'name="website_title"');
-    assertStringIncludes(html, 'name="homepage_text"');
-    assertStringIncludes(html, 'action="/admin/site"');
+    expectIncludesAll(html, [
+      'value="My site"',
+      "Welcome!",
+      'name="website_title"',
+      'name="homepage_text"',
+      'action="/admin/site"',
+    ]);
   });
 
   test("every site editor page links its guide chapter", () => {
@@ -50,14 +52,15 @@ describeWithEnv("site editor pages", { db: true }, () => {
       enabled: false,
       hasBusinessEmail: true,
     });
-    assertStringIncludes(html, "Email us");
-    assertStringIncludes(html, 'name="contact_page_text"');
-    assertStringIncludes(html, 'action="/admin/site/contact"');
-    // The toggle posts to its own route with a checkbox the route reads.
-    assertStringIncludes(html, 'action="/admin/site/contact/form"');
+    expectIncludesAll(html, [
+      "Email us",
+      'name="contact_page_text"',
+      'action="/admin/site/contact"',
+      // The toggle posts to its own route with a checkbox the route reads.
+      'action="/admin/site/contact/form"',
+    ]);
     const toggle = inputNamed(html, "contact_form_enabled");
-    assertStringIncludes(toggle, 'type="checkbox"');
-    assertStringIncludes(toggle, 'value="true"');
+    expectIncludesAll(toggle, ['type="checkbox"', 'value="true"']);
     // The box and its label stay one space apart, not glued.
     expect(html).toMatch(
       /name="contact_form_enabled"[^>]*>\s+Enable contact form/,
@@ -65,8 +68,10 @@ describeWithEnv("site editor pages", { db: true }, () => {
     assertStringIncludes(html, "submissions are accepted without a spam check");
     assert(!html.includes("to receive contact form messages"));
     // The env-key names sit one space apart, not glued.
-    assertStringIncludes(html, "and <code>BOTPOISON_SECRET_KEY</code>");
-    assertStringIncludes(html, 'class="prose"');
+    expectIncludesAll(html, [
+      "and <code>BOTPOISON_SECRET_KEY</code>",
+      'class="prose"',
+    ]);
   });
 
   test("the contact page names Botpoison when it is active", () => {
@@ -93,13 +98,14 @@ describeWithEnv("site editor pages", { db: true }, () => {
       enabled: false,
       listingCount: 2,
     });
-    assertStringIncludes(html, "Before you book, note:");
-    assertStringIncludes(html, 'name="order_intro_text"');
-    assertStringIncludes(html, 'action="/admin/site/order"');
-    assertStringIncludes(html, 'action="/admin/site/order/toggle"');
+    expectIncludesAll(html, [
+      "Before you book, note:",
+      'name="order_intro_text"',
+      'action="/admin/site/order"',
+      'action="/admin/site/order/toggle"',
+    ]);
     const toggle = inputNamed(html, "order_enabled");
-    assertStringIncludes(toggle, 'type="checkbox"');
-    assertStringIncludes(toggle, 'value="true"');
+    expectIncludesAll(toggle, ['type="checkbox"', 'value="true"']);
     // The box and its label stay one space apart, not glued.
     expect(html).toMatch(/name="order_enabled"[^>]*>\s+Enable order page/);
     assertStringIncludes(html, 'class="prose"');
@@ -123,9 +129,11 @@ describeWithEnv("site editor pages", { db: true }, () => {
       enabled: false,
       listingCount: 0,
     });
-    assertStringIncludes(html, "You have no bookable listings yet.");
-    // The warning's own link, with its words one space apart.
-    assertStringIncludes(html, 'href="/admin/">Create a listing</a> for it');
+    expectIncludesAll(html, [
+      "You have no bookable listings yet.",
+      // The warning's own link, with its words one space apart.
+      'href="/admin/">Create a listing</a> for it',
+    ]);
     assert(!html.includes("will be shown on the order page"));
   });
 

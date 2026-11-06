@@ -11,7 +11,11 @@ import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { type ModifierInput, modifiersTable } from "#db/modifiers.ts";
 import { settings } from "#db/settings.ts";
 import { formatCurrency } from "#shared/currency.ts";
-import { assertPublicHtml, expectFlash } from "#test-utils/assertions.ts";
+import {
+  assertPublicHtml,
+  expectFlash,
+  expectIncludesAll,
+} from "#test-utils/assertions.ts";
 import { quoteTicketHtml, submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
@@ -235,8 +239,10 @@ describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
 
       expect(response.status).toBe(302);
       const body = fetch.getFetchJsonBody();
-      assertStringIncludes(body.text, "Choose one: Chosen");
-      assertStringIncludes(body.text, "Anything else?: Arriving late");
+      expectIncludesAll(body.text, [
+        "Choose one: Chosen",
+        "Anything else?: Arriving late",
+      ]);
     });
   });
 

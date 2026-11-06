@@ -6,6 +6,7 @@ import { handleRequest } from "#routes";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import type { DateString } from "#shared/validation/date-string.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -63,9 +64,11 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
       await handleRequest(mockRequest(`/ticket/${group.slug}`))
     ).text();
     // One date control for the whole bundle (members share the start date).
-    assertStringIncludes(body, 'name="date"');
-    // The package quantity selector still rides alongside it.
-    assertStringIncludes(body, `name="package_quantity_${group.id}"`);
+    expectIncludesAll(body, [
+      'name="date"',
+      // The package quantity selector still rides alongside it.
+      `name="package_quantity_${group.id}"`,
+    ]);
   });
 
   test("a hidden package's clashing members are never named in conflict notes", async () => {
@@ -254,15 +257,12 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     ).text();
     // The bundle offers only the day counts EVERY member supports: 1 and 2,
     // never the hut-only 3-day option.
-    assertStringIncludes(body, 'name="day_count"');
-    assertStringIncludes(body, 'value="1"');
-    assertStringIncludes(body, 'value="2"');
+    expectIncludesAll(body, ['name="day_count"', 'value="1"', 'value="2"']);
     assert(!body.includes('value="3"'));
     // Each option is labelled with the whole bundle's total for that span —
     // the members' ENTERED day prices summed (1000+500, 1800+900), never
     // base × days.
-    assertStringIncludes(body, "£15");
-    assertStringIncludes(body, "£27");
+    expectIncludesAll(body, ["£15", "£27"]);
   });
 
   test("a customisable package prices each member's own day price, never base times days", async () => {
@@ -368,9 +368,11 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     const body = await (
       await handleRequest(mockRequest(`/ticket/${group.slug}`))
     ).text();
-    assertStringIncludes(body, 'name="day_count"');
-    // 2700 for the members plus the boat's unavoidable 200 add-on charge.
-    assertStringIncludes(body, "2 days — £29");
+    expectIncludesAll(body, [
+      'name="day_count"',
+      // 2700 for the members plus the boat's unavoidable 200 add-on charge.
+      "2 days — £29",
+    ]);
     assert(!body.includes("1 day —"));
   });
 

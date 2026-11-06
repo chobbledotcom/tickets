@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import { buildBookingTree } from "#booking/build-tree.ts";
 import type { FoldBase, FoldChildrenResult } from "#booking/fold-tree.ts";
 import { buildOrderLines, nodeQuantitiesFor } from "#booking/order-lines.ts";
@@ -45,7 +44,6 @@ import {
   tryValidateTicketFields,
 } from "#templates/fields/ticket.ts";
 import { type ContactInfo, isPaidListing, type ListingWithCount } from "#types";
-/* jscpd:ignore-end */
 
 /** Parse the `children` array of a booking body against `schema`, or null (the
  * caller's 400) when it is present but malformed. */

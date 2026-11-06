@@ -3,7 +3,6 @@
  * the list-page opener and the pre-filled edit form.
  */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
@@ -18,8 +17,6 @@ import {
   renderedFieldsSaveForm,
 } from "#templates/components/save-form.tsx";
 import type { AdminLevel, AdminSession } from "#types";
-
-/* jscpd:ignore-end */
 
 /** Curried list page for a Site-tab collection at `base`. It wraps the
  * AdminPage shell with its success flash and Add button (the page's own flash

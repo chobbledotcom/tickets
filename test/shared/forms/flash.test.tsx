@@ -3,13 +3,13 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { flashConsumed } from "#shared/flash-context.ts";
 import { Flash, renderError, renderSuccess } from "#shared/forms/flash.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
 describe("Flash", () => {
   test("renders a success message inside a success alert", () => {
     const html = String(Flash({ success: "Saved" }));
-    assertStringIncludes(html, 'class="success"');
-    assertStringIncludes(html, "Saved");
+    expectIncludesAll(html, ['class="success"', "Saved"]);
   });
 
   test("consumes the request flash for any single flash kind", () => {
@@ -33,8 +33,7 @@ describe("Flash", () => {
 
   test("renders an info message inside an info alert", () => {
     const html = String(Flash({ info: "Heads up" }));
-    assertStringIncludes(html, 'class="info"');
-    assertStringIncludes(html, "Heads up");
+    expectIncludesAll(html, ['class="info"', "Heads up"]);
   });
 
   test("renders an error message inside the error alert", () => {
@@ -63,8 +62,7 @@ describe("renderError", () => {
 describe("renderSuccess", () => {
   test("renders the success message inside a success alert", () => {
     const html = renderSuccess("Saved");
-    assertStringIncludes(html, 'class="success"');
-    assertStringIncludes(html, "Saved");
+    expectIncludesAll(html, ['class="success"', "Saved"]);
   });
 
   test("renders nothing when there is no message", () => {

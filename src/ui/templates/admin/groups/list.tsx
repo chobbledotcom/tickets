@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { entityReturnPath } from "#shared/admin-pages.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
@@ -7,8 +6,6 @@ import { successListPage } from "#templates/admin/admin-page.tsx";
 import { guideFooterFor } from "#templates/components/actions.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import type { Group } from "#types";
-
-/* jscpd:ignore-end */
 
 const groupLink = (group: Group): JSX.Element => (
   <a href={entityReturnPath(adminPattern("groups"), group.id)}>{group.name}</a>

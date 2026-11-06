@@ -162,6 +162,7 @@ const VENUE_PATTERNS = [
   "{person}'s {venue}",
 ] as const;
 
+/* jscpd:ignore-start -- a list of strings, not code */
 // Description patterns lean heavily on slots so the connective tissue is
 // minimal — most words come from the pools and uniqueness is very high.
 const DESCRIPTION_PATTERNS = [
@@ -191,6 +192,7 @@ const DESCRIPTION_PATTERNS = [
   "{number} {genre} acts {connector} {number} {oddInstrument}",
   "{bandDescriptor} of {genre} return for one {tourAdj} {listingType}",
 ] as const;
+/* jscpd:ignore-end */
 
 /** One name from the given templates: pick one, then fill its slots. */
 const generatorFor =

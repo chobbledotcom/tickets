@@ -11,7 +11,6 @@
  * check-in read, and the queue panel's first row.
  */
 
-// jscpd:ignore-start -- imports
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -29,8 +28,6 @@ import {
   firstRow,
 } from "#test/ui/client/scanner/offline-door.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
-
-// jscpd:ignore-end
 
 describe("scanner offline door helpers", {
   sanitizeOps: false,

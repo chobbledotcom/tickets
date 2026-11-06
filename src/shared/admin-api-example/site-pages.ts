@@ -5,7 +5,6 @@
  * disagree with the server about them.
  */
 
-// jscpd:ignore-start
 import type {
   CreateSitePageBody,
   UpdateSitePageBody,
@@ -16,7 +15,6 @@ import {
 } from "#shared/admin-api-resources.ts";
 import type { DeleteBody } from "#shared/rest/crud-parsers.ts";
 import { crudDocs, type EndpointDoc, json } from "./endpoint-doc.ts";
-// jscpd:ignore-end
 
 /** One content page exactly as the admin endpoints answer with it: the
  *  stored row plus the page it nests under (null at the top level). */

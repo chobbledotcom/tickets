@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -17,8 +15,6 @@ import { combinedPath } from "#test/specs/support/sales-pages.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { TestBrowser } from "#test-utils/test-browser.ts";
 import type { SitePageItemType } from "#types";
-
-// jscpd:ignore-end
 
 /** The page the owner wrote, found by the name the story gave it. */
 const pageCalled = async (name: string) => {

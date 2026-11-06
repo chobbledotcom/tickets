@@ -11,7 +11,6 @@
  * edit form is a panel in the logistics-agent entity page.
  */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
 import { Raw } from "#jsx/jsx-runtime.ts";
@@ -39,8 +38,6 @@ import { SaveForm } from "#templates/components/save-form.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import { logisticsAgentForm } from "#templates/fields/listing.ts";
 import type { AdminLevel, LogisticsAgent } from "#types";
-
-/* jscpd:ignore-end */
 
 /** Single-column table of logistics agents (name linking to edit). */
 const agentColumns: TableColumn<LogisticsAgent>[] = [

@@ -6,6 +6,7 @@ import {
   type DeliveriesDateNav,
 } from "#templates/admin/deliveries.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import type { AdminSession } from "#types";
 
@@ -50,8 +51,10 @@ describe("agentDeliveriesPage", () => {
         agentSession,
         null,
       );
-      assertStringIncludes(html, "no logistics agents assigned");
-      assertStringIncludes(html, "/admin/logout");
+      expectIncludesAll(html, [
+        "no logistics agents assigned",
+        "/admin/logout",
+      ]);
     });
   });
 
@@ -74,10 +77,12 @@ describe("agentDeliveriesPage", () => {
       }),
     ]);
 
-    assertStringIncludes(html, "<h2>Today</h2>");
-    assertStringIncludes(html, "<h2>Tomorrow</h2>");
-    // The body is the template's own markup, not escaped text.
-    assertStringIncludes(html, "<ul><li>Bouncy Castle</li></ul>");
+    expectIncludesAll(html, [
+      "<h2>Today</h2>",
+      "<h2>Tomorrow</h2>",
+      // The body is the template's own markup, not escaped text.
+      "<ul><li>Bouncy Castle</li></ul>",
+    ]);
   });
 
   test("renders an error flash message", () => {
@@ -119,10 +124,12 @@ describe("agentDeliveriesPage", () => {
     );
 
     // The shared calendar component renders, wired to reopen the run sheet.
-    assertStringIncludes(html, "date-picker");
-    assertStringIncludes(html, 'href="/admin/deliveries?date=2026-07-06"');
-    // Month paging keeps the deliveries route (not the calendar page).
-    assertStringIncludes(html, "/admin/deliveries?cal=");
+    expectIncludesAll(html, [
+      "date-picker",
+      'href="/admin/deliveries?date=2026-07-06"',
+      // Month paging keeps the deliveries route (not the calendar page).
+      "/admin/deliveries?cal=",
+    ]);
   });
 
   test("staff picker keeps the opened date while paging months", () => {
@@ -153,11 +160,10 @@ describe("agentDeliveriesPage", () => {
       null,
     );
 
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       'href="/admin/settings-advanced#settings-logistics-run-sheet"',
-    );
-    assertStringIncludes(html, "Edit template");
+      "Edit template",
+    ]);
   });
 
   test("renders no template link when the viewer cannot edit it", () => {

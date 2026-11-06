@@ -3,7 +3,6 @@
  */
 
 import { MASK_SENTINEL } from "#db/settings/mask.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { settingsFormFieldAttributes } from "#shared/settings/forms.ts";
@@ -12,7 +11,6 @@ import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanc
 import { MaskedInput } from "#templates/components/masked-input.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
 import { TextField } from "#templates/components/text-field.tsx";
-/* jscpd:ignore-end */
 
 export const SmsGatewayForm = (s: AdvancedSettingsPageState): JSX.Element => (
   <SettingsSection

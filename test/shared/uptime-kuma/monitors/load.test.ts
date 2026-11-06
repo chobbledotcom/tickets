@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -21,8 +20,6 @@ import {
   runWithKeylessSite,
   siteMonitor,
 } from "./support.test.ts";
-
-// jscpd:ignore-end
 
 describe("Uptime Kuma built-site monitor state", () => {
   test("uses the required shared group name", () => {

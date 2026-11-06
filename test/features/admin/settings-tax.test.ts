@@ -7,6 +7,7 @@ import { parseTaxSettingsForm } from "#routes/admin/settings-tax.ts";
 import { FormParams } from "#shared/form-data.ts";
 import type { TaxPolicy } from "#shared/tax/types.ts";
 import { TaxSaveFields } from "#templates/admin/attendee-form/tax.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { hasCheckedInput, inputTagWithValue } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
@@ -108,12 +109,11 @@ describe("attendeeTaxSavedMessage", () => {
       changed: true,
       token: "t",
     });
-    assertStringIncludes(message, "Saved Dana");
-    assertStringIncludes(message, "Tax changed from £0 to £20");
-    assertStringIncludes(
-      message,
+    expectIncludesAll(message, [
+      "Saved Dana",
+      "Tax changed from £0 to £20",
       "outstanding balance changed from £100 to £120",
-    );
+    ]);
   });
 
   test("shows a zero before balance as plain zero, not negative zero", () => {
@@ -156,17 +156,16 @@ describe("TaxSaveFields", () => {
         },
       }),
     );
-    assertStringIncludes(html, 'name="tax_preview"');
-    assertStringIncludes(html, 'value="tok-1"');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'name="tax_preview"',
+      'value="tok-1"',
       "Your Tax settings changed. Save this attendee to apply them",
-    );
-    assertStringIncludes(html, "Amount");
-    assertStringIncludes(html, "Saved now");
-    assertStringIncludes(html, "After you save");
-    assertStringIncludes(html, "£20");
-    assertStringIncludes(html, "£120");
+      "Amount",
+      "Saved now",
+      "After you save",
+      "£20",
+      "£120",
+    ]);
   });
 
   test("explains that the booking already uses the current settings", () => {

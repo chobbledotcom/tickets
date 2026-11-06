@@ -12,6 +12,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
 describe("summary section", () => {
@@ -32,8 +33,7 @@ describe("summary section", () => {
 
   test("renders one key/value row per entry with translated labels", () => {
     const html = String(renderSection({ kind: "summary", rows }));
-    assertStringIncludes(html, '<th scope="row">Name</th>');
-    assertStringIncludes(html, "Jane");
+    expectIncludesAll(html, ['<th scope="row">Name</th>', "Jane"]);
   });
 
   test("a row with an href renders its value as a link", () => {
@@ -109,8 +109,7 @@ describe("actions section", () => {
         titleKey: "entity.tab.actions",
       }),
     );
-    assertStringIncludes(html, "<h3>Actions</h3>");
-    assertStringIncludes(html, 'href="/admin/x/refund"');
+    expectIncludesAll(html, ["<h3>Actions</h3>", 'href="/admin/x/refund"']);
     const zoneStart = html.indexOf('class="entity-danger-zone"');
     expect(zoneStart).toBeGreaterThan(-1);
     assertStringIncludes(html, "Danger zone");
@@ -136,12 +135,11 @@ describe("actions section", () => {
         titleKey: "entity.tab.actions",
       }),
     );
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<span class="muted small">What the attendee still owes',
-    );
-    // Each action sits in its own entity-action row.
-    assertStringIncludes(html, '<div class="entity-action">');
+      // Each action sits in its own entity-action row.
+      '<div class="entity-action">',
+    ]);
   });
 
   test("omits the danger zone when no action is dangerous", () => {
@@ -210,10 +208,12 @@ describe("entityPageView", () => {
 
   test("renders title, banner, tab strip, and the sections in order", () => {
     const html = entityPageView(view);
-    assertStringIncludes(html, "<h1>Attendee: Jane</h1>");
-    assertStringIncludes(html, '<output class="warning">note</output>');
-    assertStringIncludes(html, 'class="entity-tabs"');
-    assertStringIncludes(html, "Jane");
+    expectIncludesAll(html, [
+      "<h1>Attendee: Jane</h1>",
+      '<output class="warning">note</output>',
+      'class="entity-tabs"',
+      "Jane",
+    ]);
     // Banner renders ABOVE the tab strip: alerts must not hide behind a tab.
     expect(html.indexOf("note")).toBeLessThan(html.indexOf("entity-tabs"));
   });
@@ -227,8 +227,10 @@ describe("entityPageView", () => {
     const proseStart = html.indexOf('<div class="prose entity-header">');
     const proseEnd = html.indexOf("</div>", proseStart);
     const prose = html.slice(proseStart, proseEnd);
-    assertStringIncludes(prose, "<h1>Attendee: Jane</h1>");
-    assertStringIncludes(prose, '<a href="/add-note">Add a note</a>');
+    expectIncludesAll(prose, [
+      "<h1>Attendee: Jane</h1>",
+      '<a href="/add-note">Add a note</a>',
+    ]);
   });
 
   test("pins the header block across view transitions via .entity-header", () => {
@@ -252,18 +254,19 @@ describe("entityPageView", () => {
       html.indexOf('<div class="title-nav">'),
       html.indexOf("</div>", html.indexOf('<div class="title-nav">')),
     );
-    assertStringIncludes(row, '<a href="/prev" aria-label="Previous">←</a>');
-    assertStringIncludes(row, "<h1>Attendee: Jane</h1>");
-    assertStringIncludes(row, '<a href="/next" aria-label="Next">→</a>');
+    expectIncludesAll(row, [
+      '<a href="/prev" aria-label="Previous">←</a>',
+      "<h1>Attendee: Jane</h1>",
+      '<a href="/next" aria-label="Next">→</a>',
+    ]);
   });
 
   test("marks only the active tab with aria-current=page", () => {
     const html = entityPageView(view);
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<a aria-current="page" class="active" href="/admin/attendees/5">Overview</a>',
-    );
-    assertStringIncludes(html, '<a href="/admin/attendees/5/edit">Edit</a>');
+      '<a href="/admin/attendees/5/edit">Edit</a>',
+    ]);
   });
 
   test("uses link semantics, never ARIA tablist", () => {
@@ -280,9 +283,11 @@ describe("entityPageView", () => {
         { html: Raw({ html: "<p>Second section</p>" }), kind: "custom" },
       ],
     });
-    assertStringIncludes(html, '<div class="page-regions entity-page">');
-    assertStringIncludes(html, '<div class="page-regions entity-tab-panel">');
-    assertStringIncludes(html, '<div class="page-block">');
+    expectIncludesAll(html, [
+      '<div class="page-regions entity-page">',
+      '<div class="page-regions entity-tab-panel">',
+      '<div class="page-block">',
+    ]);
     expect((html.match(/class="page-block"/g) ?? []).length).toBe(2);
     assertStringIncludes(html, "Second section");
     assert(!html.includes('class="table-controls"'));

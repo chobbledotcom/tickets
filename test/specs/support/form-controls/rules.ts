@@ -6,7 +6,6 @@
  */
 
 import { expect } from "@std/expect";
-// jscpd:ignore-start
 import {
   attribute,
   boxFor,
@@ -21,8 +20,6 @@ import {
   usableInputsOfKind,
 } from "#test/specs/support/form-controls/reading.ts";
 import { withoutSwitchedOffGroups } from "#test-utils/test-browser/forms.ts";
-
-// jscpd:ignore-end
 
 /** Why a field could not carry a value, or null when it could. Each rule below
  * answers the same question about a different piece of the page, so they share

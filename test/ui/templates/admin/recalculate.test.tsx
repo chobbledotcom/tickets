@@ -10,6 +10,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 const rows: RecalculateRow[] = [
   {
@@ -47,22 +48,15 @@ describe("admin recalculate page", () => {
   test("renders each selectable row in order with current and counted values", () => {
     const html = renderPage();
 
-    assertStringIncludes(html, 'action="/admin/synthetic/recalculate"');
-    assertStringIncludes(html, "<p>Choose totals &amp; save.</p>");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'action="/admin/synthetic/recalculate"',
+      "<p>Choose totals &amp; save.</p>",
       "<th></th><th>Stored value</th><th>Counted value</th>",
-    );
-    assertStringIncludes(
-      html,
       `<th scope="row"><label><input name="${RECALCULATE_FIELD_NAME}" type="checkbox" value="booked_quantity"> Booked places</label></th>`,
-    );
-    assertStringIncludes(html, "<td>3 stored</td><td>5 counted</td>");
-    assertStringIncludes(
-      html,
+      "<td>3 stored</td><td>5 counted</td>",
       `<th scope="row"><label><input name="${RECALCULATE_FIELD_NAME}" type="checkbox" value="tickets_count"> Tickets sold</label></th>`,
-    );
-    assertStringIncludes(html, "<td>7 stored</td><td>8 counted</td>");
+      "<td>7 stored</td><td>8 counted</td>",
+    ]);
     expect(html.indexOf('value="booked_quantity"')).toBeLessThan(
       html.indexOf('value="tickets_count"'),
     );

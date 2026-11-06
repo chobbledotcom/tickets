@@ -1,7 +1,5 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-// jscpd:ignore-end
 import { queryOne } from "#db/client.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import {

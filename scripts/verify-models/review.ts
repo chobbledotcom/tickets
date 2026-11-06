@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { map } from "#fp";
 import {
   REVIEW_EVENTS,
@@ -18,8 +17,6 @@ import {
 } from "#scripts/verify-models/data.ts";
 import { bindFirst } from "#shared/fp-bind.ts";
 import { attemptTransition } from "#shared/schema-atlas/types.ts";
-
-/* jscpd:ignore-end */
 
 const nodeFields = {
   held: "Bool",

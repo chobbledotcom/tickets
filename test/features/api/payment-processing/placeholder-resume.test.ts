@@ -2,7 +2,6 @@
  * left open — the refund itself, the money records, or only the stored
  * words — exactly once, from durable rows alone. */
 
-/* jscpd:ignore-start -- imports */
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -44,8 +43,6 @@ import {
   crashedPlaceholderStore,
   type reservedPlaceholder,
 } from "./store-refund-helpers.ts";
-
-/* jscpd:ignore-end */
 
 const REFUNDED_ANSWER =
   "We couldn't complete your booking, so we've saved your details and a member of our team can help you rebook.";

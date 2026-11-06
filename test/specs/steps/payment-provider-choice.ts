@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -12,12 +10,11 @@ import {
 } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { hasCheckedInput, inputTagWithValue } from "#test-utils/csrf.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withMockBunnyCdnApi } from "#test-utils/mocks.ts";
 import { requirePaymentProviderRecovery } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 Given(
   "a Stripe test key is saved while Square takes payments",
@@ -53,9 +50,11 @@ Then(
     for (const provider of ["Square", "Stripe", "SumUp"]) {
       assertStringIncludes(browser.pageText, provider);
     }
-    assertStringIncludes(browser.pageText, "Your Stripe credentials are saved");
-    assertStringIncludes(browser.pageText, "Test mode:");
-    assertStringIncludes(browser.pageText, "No real charges will be made");
+    expectIncludesAll(browser.pageText, [
+      "Your Stripe credentials are saved",
+      "Test mode:",
+      "No real charges will be made",
+    ]);
   },
 );
 
@@ -186,8 +185,10 @@ Then(
   "the organiser must choose the provider for existing payments",
   function (this: TicketsWorld): void {
     const browser = scenarioBrowser(this);
-    assertStringIncludes(browser.pageText, "Provider for existing payments");
-    assertStringIncludes(browser.pageText, "New sales will stay off.");
+    expectIncludesAll(browser.pageText, [
+      "Provider for existing payments",
+      "New sales will stay off.",
+    ]);
     assertStringIncludes(
       browser.currentHtml,
       'id="settings-payment-provider-recovery"',
@@ -198,9 +199,11 @@ Then(
         provider,
         "existing_payment_provider",
       );
-      assertStringIncludes(input, 'name="existing_payment_provider"');
-      assertStringIncludes(input, "required");
-      assertStringIncludes(input, `value="${provider}"`);
+      expectIncludesAll(input, [
+        'name="existing_payment_provider"',
+        "required",
+        `value="${provider}"`,
+      ]);
     }
   },
 );

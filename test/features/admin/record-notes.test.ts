@@ -20,7 +20,10 @@ import {
 import type { AuthSession } from "#routes/auth.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
+import {
+  expectIncludesAll,
+  expectRedirectWithFlash,
+} from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -231,11 +234,10 @@ describeWithEnv("record note routes", { db: true }, () => {
     );
     expect(response.status).toBe(200);
     const html = await response.text();
-    assertStringIncludes(html, "deletable");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "deletable",
       'name="return_url" type="hidden" value="/admin/somewhere"',
-    );
+    ]);
   });
 
   test("deletePost removes the note and returns to the record page", async () => {

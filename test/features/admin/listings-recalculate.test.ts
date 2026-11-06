@@ -8,6 +8,7 @@ import {
 } from "#routes/admin/listings-recalculate.ts";
 import { RECALCULATE_FIELD_NAME } from "#shared/recalculate-fields.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createListingWithDriftedTotals } from "#test-utils/db-helpers/listing-totals.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
@@ -29,12 +30,14 @@ describeWithEnv("admin listing recalculate routes", { db: true }, () => {
 
       expect(response.status).toBe(200);
       const html = await response.text();
-      assertStringIncludes(html, "Current");
-      assertStringIncludes(html, "From attendee data");
-      // Stored 9 and 5 beside the one booking's 1 and 1, or the operator
-      // cannot see what they are about to change.
-      assertStringIncludes(html, "<td>9</td><td>1</td>");
-      assertStringIncludes(html, "<td>5</td><td>1</td>");
+      expectIncludesAll(html, [
+        "Current",
+        "From attendee data",
+        // Stored 9 and 5 beside the one booking's 1 and 1, or the operator
+        // cannot see what they are about to change.
+        "<td>9</td><td>1</td>",
+        "<td>5</td><td>1</td>",
+      ]);
     });
 
     test("is a 404 for a listing id that does not exist", async () => {

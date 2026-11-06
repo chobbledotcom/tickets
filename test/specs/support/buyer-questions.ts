@@ -4,7 +4,6 @@
  * asking if it renders where a buyer would answer it.
  */
 
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { parse } from "@std/csv/parse";
 import {
@@ -32,8 +31,6 @@ import {
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
-
-// jscpd:ignore-end
 
 /** What the owner was last told, or a loud failure when nothing was said. */
 export const ownerLastTold = (world: TicketsWorld): string =>

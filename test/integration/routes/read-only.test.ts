@@ -5,6 +5,7 @@ import { allTransfers } from "#accounting/queries.ts";
 import { handleRequest } from "#routes";
 import { setBuildTimestampForTest } from "#shared/update.ts";
 import { updateBuildTagMeta } from "#shared/update-guard.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { jsonRequest, mockRequest } from "#test-utils/mocks.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
@@ -222,8 +223,7 @@ describeWithEnv(
       await assignListingsToGroup([roListing.id], group.id);
       const res = await handleRequest(mockRequest("/listings"));
       const html = await res.text();
-      assertStringIncludes(html, "Read Only Group");
-      assertStringIncludes(html, "Registration Closed");
+      expectIncludesAll(html, ["Read Only Group", "Registration Closed"]);
     });
 
     test("GET /ticket/my-listing is allowed (view form)", async () => {
@@ -343,8 +343,10 @@ describeWithEnv(
       const res = await handleRequest(mockRequest("/read-only"));
       expect(res.status).toBe(200);
       const html = await res.text();
-      assertStringIncludes(html, "The site is being updated.");
-      assertStringIncludes(html, 'name="update-in-progress" content="active"');
+      expectIncludesAll(html, [
+        "The site is being updated.",
+        'name="update-in-progress" content="active"',
+      ]);
     });
 
     test("a mutating /api/ request returns 503 with the update message", async () => {
@@ -438,11 +440,10 @@ describeWithEnv(
     test("the marker says supported, so a later deploy's wait can run", async () => {
       const res = await handleRequest(mockRequest("/read-only"));
       const html = await res.text();
-      assertStringIncludes(html, "This site is in read-only mode.");
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        "This site is in read-only mode.",
         'name="update-in-progress" content="supported"',
-      );
+      ]);
     });
   },
 );

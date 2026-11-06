@@ -1,11 +1,9 @@
-/* jscpd:ignore-start -- imports */
 import {
   requiredTextKey,
   text,
   wholeNumber,
 } from "#db/migrations/schema/scalar-columns.ts";
 import type { Table } from "#db/migrations/schema/types.ts";
-/* jscpd:ignore-end */
 
 /** One durable operator-visible completion for an exact returned payment set. */
 export const refundConfirmationTable: [name: string, table: Table] = [

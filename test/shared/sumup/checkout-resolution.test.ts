@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -17,8 +16,6 @@ import {
   sumupCheckout,
   withSumupCheckoutStatus,
 } from "#test-utils/sumup.ts";
-
-/* jscpd:ignore-end */
 
 describeWithEnv("sumup checkout resolution", { db: true }, () => {
   const debug = useDebugLogSpy();

@@ -21,7 +21,6 @@ import {
 } from "#payment/provider-resource-read.ts";
 import { REFUND_NOT_SENT } from "#payment/refund-attempt.ts";
 import { transportFactsOf } from "#payment/transport-error.ts";
-/* jscpd:ignore-start */
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { countedText, orderLabel } from "#shared/count-text.ts";
 import { toMajorUnits } from "#shared/currency.ts";
@@ -53,8 +52,6 @@ import {
   classifySumupCheckout,
   type SumupCheckout,
 } from "#shared/sumup-observation.ts";
-
-/* jscpd:ignore-end */
 
 /** Result of creating a hosted checkout. */
 export type SumupCheckoutResult = { reference: string; url: string } | null;

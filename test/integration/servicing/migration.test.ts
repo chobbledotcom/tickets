@@ -19,7 +19,6 @@
  *   - `#shared/db/migrations.ts` appends that migration to `MIGRATIONS`.
  *   - `#shared/db/attendees/kind.ts` exports `ATTENDEE_KIND` / `SERVICING_KIND`.
  */
-// jscpd:ignore-start
 import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -29,7 +28,7 @@ import { getDb } from "#db/client.ts";
 import { loadMigrations } from "#db/migrations/context.ts";
 import { SCHEMA } from "#db/migrations/schema/index.ts";
 import { requireValue } from "#shared/required-value.ts";
-
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -37,7 +36,6 @@ import { indexExists } from "#test-utils/migrations.ts";
 import { createTestServicingEvent, kindOf } from "#test-utils/servicing.ts";
 
 const MIGRATIONS = await loadMigrations();
-// jscpd:ignore-end
 
 const MIGRATION_ID = "2026-06-24_attendees_kind";
 const NOT_NULL_MIGRATION_ID = "2026-06-26_attendees_kind_not_null";
@@ -54,7 +52,6 @@ const columnDefault = async (): Promise<string | null> => {
 describe("servicing §1 — schema declares the kind column + index", () => {
   test("the attendees schema carries a NOT NULL kind column defaulting to ATTENDEE_KIND", () => {
     const kindCol = attendeesTable.columns.find(([name]) => name === "kind");
-    expect(kindCol).toBeDefined();
     const [, type] = kindCol!;
     expect(type).toMatch(/NOT NULL/);
     assertStringIncludes(type, ATTENDEE_KIND);
@@ -73,8 +70,7 @@ describe("servicing §1 — schema declares the kind column + index", () => {
 
   test("the kind column's allowed values are ATTENDEE_KIND and SERVICING_KIND only", () => {
     const [, type] = attendeesTable.columns.find(([n]) => n === "kind")!;
-    assertStringIncludes(type, ATTENDEE_KIND);
-    assertStringIncludes(type, SERVICING_KIND);
+    expectIncludesAll(type, [ATTENDEE_KIND, SERVICING_KIND]);
     expect(type).toMatch(/CHECK/i);
   });
 });
@@ -144,7 +140,7 @@ describe("servicing §1 — schema and migration stay in sync", () => {
         };
       }
     ).requires;
-    expect(requires?.columns?.kind).toBeDefined();
+    expect(requires?.columns?.kind).toEqual(["attendees.kind"]);
     assertArrayIncludes(requires?.indexes ?? [], ["idx_attendees_kind"]);
   });
 });

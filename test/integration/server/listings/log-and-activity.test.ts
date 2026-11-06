@@ -1,11 +1,8 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { assertAdminHtml, testRequiresAuth } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { adminGet, setupListingAndLogin } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("server listings > log and activity", { db: true }, () => {
   describe("GET /admin/listing/:id/activity", () => {

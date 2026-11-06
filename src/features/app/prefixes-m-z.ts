@@ -4,8 +4,6 @@
  * prefix to the half its name sorts into.
  */
 
-/* jscpd:ignore-start -- imports */
-
 import { CONFIG_KEYS } from "#db/settings.ts";
 import { publicMessageGroups } from "#locales/groups.ts";
 import type { PrefixSpec } from "./prefix-fold.ts";
@@ -27,8 +25,6 @@ import {
   PAYMENT_SETTINGS,
   PUBLIC_NAV_SETTINGS,
 } from "./prefix-setting-keys.ts";
-
-/* jscpd:ignore-end */
 
 export const PREFIXES_M_Z = {
   listings: {

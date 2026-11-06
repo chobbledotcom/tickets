@@ -5,7 +5,6 @@
  * is gated behind CAN_BUILD_SITES.
  */
 
-/* jscpd:ignore-start */
 import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
 import { getAssignableBuiltSites } from "#db/built-sites.ts";
 import { settings } from "#db/settings.ts";
@@ -31,8 +30,6 @@ import {
   provisionSiteRenewal,
 } from "#shared/site-renewal.ts";
 import { parseEmail, type ValidEmail } from "#shared/validation/email.ts";
-
-/* jscpd:ignore-end */
 
 /** Info about an assigned site for email rendering */
 type SiteAssignment = {

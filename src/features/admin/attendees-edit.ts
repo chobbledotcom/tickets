@@ -6,7 +6,6 @@
  * `refund_cash` leg is what the per-row `refunded` projection reads.
  */
 
-/* jscpd:ignore-start -- imports */
 import { getFirstBooking } from "#db/attendees/queries.ts";
 import {
   getRefundPaymentReferencesForAttendee,
@@ -27,8 +26,6 @@ import {
   type RefreshPaymentResult,
   refreshClaimedPayment,
 } from "./refunds/refresh.ts";
-
-/* jscpd:ignore-end */
 
 type RefreshPaymentContext = {
   attendee: Attendee;

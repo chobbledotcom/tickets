@@ -1,5 +1,3 @@
-/* jscpd:ignore-start -- imports */
-
 import * as v from "valibot";
 import { logActivity } from "#db/activity-log.ts";
 import {
@@ -25,8 +23,6 @@ import {
 import { adminDestinationAt } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { adminFeaturePage } from "#templates/admin/features.tsx";
-
-/* jscpd:ignore-end */
 
 const FeatureChoiceSchema = v.picklist(["true", "false"]);
 

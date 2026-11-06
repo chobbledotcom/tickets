@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import {
@@ -33,8 +31,6 @@ import {
 } from "#test/specs/support/world.ts";
 import { insertModifier } from "#test-utils/modifiers.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 const FEE_DAY = "Fee Day";
 const TALK = "Talk";

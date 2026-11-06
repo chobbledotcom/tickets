@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- shared import block with rest.test.ts */
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
@@ -11,8 +10,6 @@ import {
   jsonResponse,
 } from "#test/shared/square/mock-fetch.ts";
 import { describeSquare } from "#test-utils/square/harness.ts";
-
-/* jscpd:ignore-end */
 
 describeSquare(() => {
   describe("Square refund REST transport", () => {

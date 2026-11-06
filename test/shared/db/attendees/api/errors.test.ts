@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { attendeesApi } from "#db/attendees/api.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { oneLineAttendeeForm } from "#test-utils/attendee-form/_shared-setup.ts";
 import { attendeeWithNoBookings } from "#test-utils/attendee-form/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -32,8 +33,7 @@ describeWithEnv(
         });
         expect(response.status).toBe(200);
         const html = await response.text();
-        assertStringIncludes(html, "Book at least one listing");
-        assertStringIncludes(html, "No Lines");
+        expectIncludesAll(html, ["Book at least one listing", "No Lines"]);
       });
 
       test("create re-renders with error when atomic create fails with capacity_exceeded", async () => {
@@ -81,8 +81,7 @@ describeWithEnv(
         });
         expect(response.status).toBe(200);
         const html = await response.text();
-        assertStringIncludes(html, "Quantity must be at most 2.");
-        assertStringIncludes(html, "Valid Name");
+        expectIncludesAll(html, ["Quantity must be at most 2.", "Valid Name"]);
       });
 
       test("create rejects a malformed email and saves nothing", async () => {
@@ -103,8 +102,10 @@ describeWithEnv(
         // is the only thing standing between bad data and the PII blob.
         expect(response.status).toBe(200);
         const html = await response.text();
-        assertStringIncludes(html, "Please enter a valid email address");
-        assertStringIncludes(html, "Valid Name");
+        expectIncludesAll(html, [
+          "Please enter a valid email address",
+          "Valid Name",
+        ]);
         expect((await getAttendeesRaw(event.id)).length).toBe(0);
       });
 
@@ -122,13 +123,12 @@ describeWithEnv(
         // The date error is a focusable alert (autofocus + tabindex), so the
         // browser scrolls straight to it instead of leaving the operator at the
         // top of the page — no JavaScript involved.
-        assertStringIncludes(
-          html,
+        expectIncludesAll(html, [
           `<div autofocus class="error" role="alert" tabindex="-1">A start date is required`,
-        );
-        // The name field gives up its default autofocus so it doesn't win the
-        // focus race over the (lower) date error.
-        assertStringIncludes(html, `autocomplete="off" id="name"`);
+          // The name field gives up its default autofocus so it doesn't win the
+          // focus race over the (lower) date error.
+          `autocomplete="off" id="name"`,
+        ]);
         assert(!html.includes(`autocomplete="off" autofocus id="name"`));
         expect((await getAttendeesRaw(daily.id)).length).toBe(0);
       });
@@ -189,8 +189,7 @@ describeWithEnv(
             // page-level explanation that nothing was saved.
             expect(response.status).toBe(200);
             const html = await response.text();
-            assertStringIncludes(html, "nothing was saved");
-            assertStringIncludes(html, "Cap Edited");
+            expectIncludesAll(html, ["nothing was saved", "Cap Edited"]);
           },
         );
       });

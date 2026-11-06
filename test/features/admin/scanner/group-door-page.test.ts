@@ -11,6 +11,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createMultiBookingAttendee } from "#test-utils/db-helpers/attendees.ts";
 import {
@@ -40,11 +41,10 @@ describeWithEnv("group scanner page", { db: true }, () => {
     const { group, members } = await groupDoor();
     const body = await doorPage(group.id);
 
-    assertStringIncludes(body, `Scanner: ${group.name}`);
-    assertStringIncludes(
-      body,
+    expectIncludesAll(body, [
+      `Scanner: ${group.name}`,
       `data-scan-path="/admin/groups/${group.id}/scan"`,
-    );
+    ]);
     assert(!body.includes(`/admin/listing/${members[0]!.id}/scan`));
   });
 
@@ -95,11 +95,10 @@ describeWithEnv("group scanner page", { db: true }, () => {
 
     await updateTestGroup(door.group.id, { scanChecksInAllListings: true });
     const warned = await doorPage(door.group.id);
-    assertStringIncludes(warned, 'role="alert"');
-    assertStringIncludes(
-      warned,
+    expectIncludesAll(warned, [
+      'role="alert"',
       "Scanning a ticket in this group will check in ALL of the attendee's booked listings in that group",
-    );
+    ]);
 
     // One listing left that a scan can span: the warning would say "ALL"
     // over a single place, so even the stored rule on stays quiet.
@@ -201,8 +200,7 @@ describeWithEnv("group scanner page", { db: true }, () => {
 
     const body = await doorPage(door.group.id);
 
-    assertStringIncludes(body, rosterOption("Sam"));
-    assertStringIncludes(body, 'data-detail=""');
+    expectIncludesAll(body, [rosterOption("Sam"), 'data-detail=""']);
   });
 
   test("answers the scan of a missing group with not_found", async () => {

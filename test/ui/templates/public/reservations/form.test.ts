@@ -20,6 +20,7 @@ import {
   ticketListing,
 } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { hasInputWithValue } from "#test-utils/csrf.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
@@ -83,17 +84,16 @@ describe("ticketPage — fields & form", () => {
         location: "Main hall",
       }),
     });
-    assertStringIncludes(html, 'class="listing-image"');
-    assertStringIncludes(html, 'alt="People at the listing"');
-    assertStringIncludes(html, '<div class="prose"><h1>Listing header</h1>');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'class="listing-image"',
+      'alt="People at the listing"',
+      '<div class="prose"><h1>Listing header</h1>',
       '<div class="description"><p>First paragraph</p>',
-    );
-    assertStringIncludes(html, "<p>Second paragraph</p>");
-    assertStringIncludes(html, "<strong>Date:</strong> ");
-    assertStringIncludes(html, 'class="badge-alert"> 2 days ago');
-    assertStringIncludes(html, "<strong>Location:</strong> Main hall");
+      "<p>Second paragraph</p>",
+      "<strong>Date:</strong> ",
+      'class="badge-alert"> 2 days ago',
+      "<strong>Location:</strong> Main hall",
+    ]);
   });
 
   test("uses gallery images instead of the fallback header image", () => {
@@ -113,11 +113,10 @@ describe("ticketPage — fields & form", () => {
         image_url: "fallback.webp",
       },
     });
-    assertStringIncludes(html, '<fieldset class="news-gallery">');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      '<fieldset class="news-gallery">',
       'class="news-gallery-full" src="/image/gallery.webp"',
-    );
+    ]);
     assert(!html.includes("fallback.webp"));
   });
 
@@ -135,9 +134,11 @@ describe("ticketPage — fields & form", () => {
       slugs: ["ab12c"],
       terms: "Rule one\n\nRule two",
     });
-    assertStringIncludes(html, "<p>Rule one</p>");
-    assertStringIncludes(html, "<p>Rule two</p>");
-    assertStringIncludes(html, 'name="agree_terms"');
+    expectIncludesAll(html, [
+      "<p>Rule one</p>",
+      "<p>Rule two</p>",
+      'name="agree_terms"',
+    ]);
   });
 
   test("renders custom questions with listing IDs", () => {
@@ -173,9 +174,11 @@ describe("ticketPage — fields & form", () => {
       questions,
       slugs: ["ab12c"],
     });
-    assertStringIncludes(html, "Size?");
-    assertStringIncludes(html, 'name="question_5"');
-    assertStringIncludes(html, 'data-listing-ids="1"');
+    expectIncludesAll(html, [
+      "Size?",
+      'name="question_5"',
+      'data-listing-ids="1"',
+    ]);
   });
 
   test("renders an opt-in add-on selector with its price label", async () => {
@@ -202,15 +205,14 @@ describe("ticketPage — fields & form", () => {
         listings,
         slugs: ["ab12c"],
       });
-      assertStringIncludes(html, '<fieldset class="ticket-addons">');
-      assertStringIncludes(html, '<label class="addon-row">');
-      assertStringIncludes(html, '<span class="addon-name">T-shirt ');
-      assertStringIncludes(html, '<span class="addon-price">(+£5)</span>');
-      assertStringIncludes(html, 'aria-label="T-shirt — Quantity"');
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        '<fieldset class="ticket-addons">',
+        '<label class="addon-row">',
+        '<span class="addon-name">T-shirt ',
+        '<span class="addon-price">(+£5)</span>',
+        'aria-label="T-shirt — Quantity"',
         'max="5" min="0" name="addon_7" placeholder="0" type="number" value="2"',
-      );
+      ]);
     });
   });
 
@@ -260,8 +262,10 @@ describe("ticketPage — fields & form", () => {
     await withRequestContext(() => {
       detectIframeMode(new URL("https://example.com/?iframe=true"));
       const html = singleListingPageHtml();
-      assertStringIncludes(html, 'action="/ticket/ab12c?iframe=true"');
-      assertStringIncludes(html, 'class="iframe"');
+      expectIncludesAll(html, [
+        'action="/ticket/ab12c?iframe=true"',
+        'class="iframe"',
+      ]);
     });
   });
 
@@ -283,17 +287,13 @@ describe("ticketPage — fields & form", () => {
     assertStringIncludes(html, 'action="/ticket/ab12c"');
     assert(!html.includes("?iframe=true"));
     assert(!html.includes('class="iframe"'));
-    assertStringIncludes(html, '<div class="running-total">');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      '<div class="running-total">',
       'data-running-total formaction="/calculate/ab12c"',
-    );
-    assertStringIncludes(html, "formnovalidate");
-    assertStringIncludes(html, 'formtarget="_blank"');
-    assertStringIncludes(
-      html,
+      "formnovalidate",
+      'formtarget="_blank"',
       '<output class="order-summary-output" data-running-total-output></output>',
-    );
+    ]);
   });
 
   test("uses an explicit empty action for the current page", () => {
@@ -333,9 +333,11 @@ describe("ticketPage — fields & form", () => {
       }),
     ];
     const html = ticketPage({ listings, slugs: ["ab12c"] });
-    assertStringIncludes(html, "<select");
-    assertStringIncludes(html, 'name="quantity_1"');
-    assertStringIncludes(html, "Number of Tickets");
+    expectIncludesAll(html, [
+      "<select",
+      'name="quantity_1"',
+      "Number of Tickets",
+    ]);
     expect(hasInputWithValue(html, "quantity_1", "1")).toBe(false);
     assert(!html.includes("ticket-listings"));
   });
@@ -358,16 +360,12 @@ describe("ticketPage — fields & form", () => {
       }),
     ];
     const html = ticketPage({ listings, slugs: ["ab12c", "cd34e"] });
-    assertStringIncludes(html, "<select");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "<select",
       '<form action="/ticket/ab12c+cd34e" autocomplete="off" method="POST">',
-    );
-    assertStringIncludes(
-      html,
       '<fieldset class="ticket-listings"><legend>Select Tickets</legend>',
-    );
-    assertStringIncludes(html, 'formaction="/calculate/ab12c+cd34e"');
+      'formaction="/calculate/ab12c+cd34e"',
+    ]);
   });
 
   test("hides quantity selector when one listing available and one sold out", () => {

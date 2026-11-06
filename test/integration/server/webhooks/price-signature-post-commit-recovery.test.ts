@@ -31,7 +31,7 @@ import {
   webhookRequest,
 } from "#test/integration/webhook-price-signature/helpers.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
-import { assertJson } from "#test-utils/assertions.ts";
+import { assertJson, expectIncludesAll } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
@@ -288,13 +288,17 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
           ).toBe(1);
           // Both bodies carry the buyer's typed answer from the staged row.
           const buyerBody = emailBodies.find((body) => body.to[0] === email)!;
-          assertStringIncludes(buyerBody.html, "Anything else?");
-          assertStringIncludes(buyerBody.html, "Vegetarian, please");
+          expectIncludesAll(buyerBody.html, [
+            "Anything else?",
+            "Vegetarian, please",
+          ]);
           const ownerBody = emailBodies.find(
             (body) => body.to[0] === "owner@example.com",
           )!;
-          assertStringIncludes(ownerBody.html, "Anything else?");
-          assertStringIncludes(ownerBody.html, "Vegetarian, please");
+          expectIncludesAll(ownerBody.html, [
+            "Anything else?",
+            "Vegetarian, please",
+          ]);
           // The committed batch took the staged copy back with the booking.
           expect((await readCheckoutAnswers(sessionId)).size).toBe(0);
           // The recovered sends extended the renewal site's deadline once.

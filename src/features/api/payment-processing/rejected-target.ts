@@ -21,7 +21,6 @@ import {
   reserveSession,
 } from "#db/processed-payments.ts";
 import { loadRefundAuthorityById } from "#db/provider-refund-authority.ts";
-/* jscpd:ignore-start -- imports */
 import { t } from "#i18n";
 import {
   type PlaceholderRefund,
@@ -32,12 +31,10 @@ import {
   taggedPaymentReference,
 } from "#payment/provider-reference.ts";
 import { completedAtOf } from "#payment/refund-authority-state.ts";
-/* jscpd:ignore-end */
 import type {
   MalformedRejection,
   SessionRejection,
 } from "#payment/validated-session.ts";
-/* jscpd:ignore-start -- imports */
 import { attendeeBaseFields } from "#routes/api/payment-processing/create.ts";
 import { extractIntentFromMetadata } from "#routes/api/payment-processing/metadata.ts";
 import { completePlaceholderMoney } from "#routes/api/payment-processing/placeholder-completion.ts";
@@ -58,8 +55,6 @@ import {
 import { paymentErrorResponse } from "#routes/payment-response.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { requireValue } from "#shared/required-value.ts";
-
-/* jscpd:ignore-end */
 
 /** What a later delivery reads back for this session; the buyer answer is
  * the refunded message below. The marker tells a replay to check that the

@@ -7,9 +7,7 @@ import {
   keepWhatTheyWereTold,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-// jscpd:ignore-start
 import { createTestEditorSession, postFormAs } from "#test-utils/session.ts";
-// jscpd:ignore-end
 
 /** Whose preview the story reads. */
 export const PREVIEWER = "the editor";

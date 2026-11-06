@@ -4,7 +4,6 @@
  * (src/index.ts) — no mocks, no in-process test harness.
  */
 
-/* jscpd:ignore-start */
 import { type ChildProcess, spawn } from "node:child_process";
 import { createWriteStream, mkdirSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -13,8 +12,6 @@ import { delay } from "#shared/now.ts";
 import { config } from "./config.ts";
 import { log, warn } from "./log.ts";
 import { probeSignal, stopChild } from "./util.ts";
-
-/* jscpd:ignore-end */
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..", "..");

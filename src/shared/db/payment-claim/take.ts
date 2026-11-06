@@ -1,6 +1,5 @@
 /** Taking an all-or-none hold on the exact refund snapshot an admin loaded. */
 
-/* jscpd:ignore-start -- imports */
 import {
   inPlaceholders,
   resultRows,
@@ -31,8 +30,6 @@ import type { RefundClaimPhase } from "#payment/row-state.ts";
 import { checkingClaimFor, grantClaim } from "#payment/row-transitions.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { isoBefore, nowIso } from "#shared/now.ts";
-
-/* jscpd:ignore-end */
 
 /** Most sharing rows one claim accepts before refusing the payment history. */
 const MAX_SHARED_PAYMENT_ROWS_PER_CLAIM = 100;

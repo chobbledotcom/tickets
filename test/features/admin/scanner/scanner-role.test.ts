@@ -16,6 +16,7 @@ import { handleRequest } from "#routes";
 import { formatDateLabel } from "#shared/date-labels.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -91,8 +92,7 @@ describeWithEnv("the scanner class's doors", { db: true }, () => {
     expect(response.status).toBe(200);
     const body = await response.text();
 
-    assertStringIncludes(body, "Ceilidh");
-    assertStringIncludes(body, "Summer Ball");
+    expectIncludesAll(body, ["Ceilidh", "Summer Ball"]);
     // A "No check-in" listing sells something with no door, so it is not one.
     assert(!body.includes("Merch Stand"));
   });
@@ -245,14 +245,10 @@ describeWithEnv("the scanner class's doors", { db: true }, () => {
     );
 
     const body = await doorPage(group.id);
-    assertStringIncludes(
-      body,
+    expectIncludesAll(body, [
       `Ada (2 tickets) — Standard · ${formatDateLabel(firstDay)}`,
-    );
-    assertStringIncludes(
-      body,
       `Ada (2 tickets) — Society · ${formatDateLabel(addDays(testDate(firstDay), 1))}`,
-    );
+    ]);
   });
 
   test("an editor and an agent are refused every door and every scan", async () => {

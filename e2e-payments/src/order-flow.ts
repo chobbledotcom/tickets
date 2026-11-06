@@ -13,7 +13,6 @@
  * checkbox cards, the combined booking page, the hosted checkout.
  */
 
-/* jscpd:ignore-start */
 import { type BrowserSession, hrefOf } from "./browser.ts";
 import { catalogWords } from "./catalog-words.ts";
 import {
@@ -29,8 +28,6 @@ import {
 import { incomeLedgerText, totalIncomeEarnedMinor } from "./income-ledger.ts";
 import { createListing } from "./listing-flow.ts";
 import { log, step } from "./log.ts";
-
-/* jscpd:ignore-end */
 
 /** Prices in minor units; the free leg zeroes them all. */
 const PRICES = {

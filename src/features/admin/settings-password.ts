@@ -6,7 +6,6 @@
 import { logActivity } from "#db/activity-log.ts";
 import { settings } from "#db/settings.ts";
 import { getUserById, verifyUserPassword } from "#db/users.ts";
-// jscpd:ignore-start
 import { t } from "#i18n";
 import { settingsRoute } from "#routes/admin/settings-helpers.ts";
 import { clearSessionCookie } from "#shared/cookies.ts";
@@ -14,8 +13,6 @@ import type { FormParams } from "#shared/form-data.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { ok } from "#shared/response.ts";
 import { getChangePasswordForm } from "#templates/fields/admin.ts";
-
-// jscpd:ignore-end
 
 /**
  * Validate change password form data

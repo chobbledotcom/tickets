@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -24,8 +23,6 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("server listings > delete", { db: true }, () => {
   describe("GET /admin/listing/:id/delete", () => {

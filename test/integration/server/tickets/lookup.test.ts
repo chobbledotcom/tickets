@@ -8,12 +8,12 @@
  * and the blind index that makes a token findable without decrypting it.
  */
 
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingsTable } from "#db/listings/records.ts";
 import { verifyAttachmentUrl } from "#shared/attachment-url.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestAttendee,
@@ -22,8 +22,6 @@ import {
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
   describe("a code the site cannot resolve", () => {
@@ -129,8 +127,7 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
       );
 
       const body = await response.text();
-      assertStringIncludes(body, "<svg");
-      assertStringIncludes(body, "</svg>");
+      expectIncludesAll(body, ["<svg", "</svg>"]);
     });
   });
 });

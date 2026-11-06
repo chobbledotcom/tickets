@@ -2,7 +2,6 @@
  * Custom Domain form for advanced settings
  */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
@@ -13,7 +12,6 @@ import { SubmitButton } from "#templates/components/actions.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { TextField } from "#templates/components/text-field.tsx";
-/* jscpd:ignore-end */
 
 export const CustomDomainForm = (
   s: AdvancedSettingsPageState,

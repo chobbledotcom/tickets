@@ -6,7 +6,6 @@
  *  shows up as a corrupted fact the checker rejects. The model does not
  *  encode SQL text. */
 
-/* jscpd:ignore-start -- imports */
 import type {
   DesiredListingLine,
   ListingAttendeeRow,
@@ -40,8 +39,6 @@ import {
   tlaModule,
   tlaRecords,
 } from "#scripts/verify-models/data.ts";
-
-/* jscpd:ignore-end */
 
 /** The two representative slots' fixed caps: the checker constants. */
 const QuantityOne = 3;

@@ -1,5 +1,4 @@
-// jscpd:ignore-start
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
@@ -7,6 +6,7 @@ import { listingQuestions } from "#db/questions/queries.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -16,8 +16,6 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { adminGet, setupListingAndLogin } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "server listings > show groups and answers",
@@ -81,10 +79,12 @@ describeWithEnv(
           },
         );
         const html = await response.text();
-        assertStringIncludes(html, "Group Attendees");
-        assertStringIncludes(html, "4 / 20");
-        assertStringIncludes(html, "16 remain");
-        assertStringIncludes(html, `href="/admin/groups/${group.id}"`);
+        expectIncludesAll(html, [
+          "Group Attendees",
+          "4 / 20",
+          "16 remain",
+          `href="/admin/groups/${group.id}"`,
+        ]);
       });
 
       test("shows the tightest capped group when a listing is in several", async () => {
@@ -130,9 +130,11 @@ describeWithEnv(
         const html = await response.text();
         // The tight group (6 cap, 4 booked → 2 remain) is the binding one shown,
         // not the roomier groups it also belongs to.
-        assertStringIncludes(html, "4 / 6");
-        assertStringIncludes(html, "2 remain");
-        assertStringIncludes(html, `href="/admin/groups/${tight.id}"`);
+        expectIncludesAll(html, [
+          "4 / 6",
+          "2 remain",
+          `href="/admin/groups/${tight.id}"`,
+        ]);
         assert(!html.includes(`href="/admin/groups/${loose.id}"`));
         assert(!html.includes(`href="/admin/groups/${looser.id}"`));
       });
@@ -172,8 +174,10 @@ describeWithEnv(
           { cookie },
         );
         const html = await response.text();
-        assertStringIncludes(html, "<th>Answers</th>");
-        assertStringIncludes(html, '<span title="Size: Small">Small</span>');
+        expectIncludesAll(html, [
+          "<th>Answers</th>",
+          '<span title="Size: Small">Small</span>',
+        ]);
       });
 
       test("shows the whole-listing answer aggregate on the Overview tab", async () => {
@@ -192,8 +196,7 @@ describeWithEnv(
           },
         );
         const html = await response.text();
-        assertStringIncludes(html, "Size");
-        assertStringIncludes(html, "Small (1)");
+        expectIncludesAll(html, ["Size", "Small (1)"]);
       });
       test("shows the Group Attendees row on the roster's per-date capacity for a daily listing in a capped group", async () => {
         const bookingDate = addDays(testDate(todayInTz("UTC")), 1);
@@ -230,11 +233,13 @@ describeWithEnv(
           `/admin/listing/${listing.id}/attendees?date=${bookingDate}`,
         );
         const html = await response.text();
-        assertStringIncludes(html, "Group Attendees");
-        assertStringIncludes(html, `href="/admin/groups/${group.id}"`);
-        // The selected day keeps its checked-in summary (the combined page's
-        // date-filtered shared rows), not just the capacity snippet.
-        assertStringIncludes(html, "Checked In");
+        expectIncludesAll(html, [
+          "Group Attendees",
+          `href="/admin/groups/${group.id}"`,
+          // The selected day keeps its checked-in summary (the combined page's
+          // date-filtered shared rows), not just the capacity snippet.
+          "Checked In",
+        ]);
       });
     });
   },

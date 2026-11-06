@@ -2,7 +2,6 @@
 
 import { expect } from "@std/expect";
 import { hmacHash } from "#crypto/hashing.ts";
-/* jscpd:ignore-start -- imports */
 import { execute, queryOne } from "#db/client.ts";
 import {
   type DueSquareLinkEnd,
@@ -11,8 +10,6 @@ import {
 } from "#db/square-link-ends.ts";
 import type { FetchResult } from "#shared/fetch.ts";
 import { nowIso } from "#shared/now.ts";
-
-/* jscpd:ignore-end */
 
 export const PAST = "2020-01-01T00:00:00Z";
 export const WINDOW_END = "2999-01-01T13:00:00Z";

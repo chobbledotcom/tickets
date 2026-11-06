@@ -9,7 +9,10 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
-import { selectOptionLabels } from "#test-utils/assertions.ts";
+import {
+  expectIncludesAll,
+  selectOptionLabels,
+} from "#test-utils/assertions.ts";
 import { shownLineBookings } from "#test-utils/attendees/pair-bookings.ts";
 import {
   calendarAttendee,
@@ -33,9 +36,11 @@ describe("adminCalendarPage", () => {
       calendarDate("Monday 16 March 2026", "2026-03-16", false),
     ];
     const html = calendarHtml({ availableDates: dates });
-    assertStringIncludes(html, "Sunday 15 March 2026");
-    assertStringIncludes(html, "Monday 16 March 2026");
-    assertStringIncludes(html, "Select a date");
+    expectIncludesAll(html, [
+      "Sunday 15 March 2026",
+      "Monday 16 March 2026",
+      "Select a date",
+    ]);
   });
 
   test("disables options for dates without bookings", () => {
@@ -77,9 +82,11 @@ describe("adminCalendarPage", () => {
       attendees: [calendarAttendee()],
       dateFilter: "2026-03-15",
     });
-    assertStringIncludes(html, "Daily Listing");
-    assertStringIncludes(html, 'href="/admin/listing/1"');
-    assertStringIncludes(html, "John Doe");
+    expectIncludesAll(html, [
+      "Daily Listing",
+      'href="/admin/listing/1"',
+      "John Doe",
+    ]);
   });
 
   test("renders Listings column header", () => {
@@ -92,11 +99,10 @@ describe("adminCalendarPage", () => {
       attendees: [calendarAttendee()],
       dateFilter: "2026-03-15",
     });
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<div class="table-actions"><a href="/admin/calendar/export?date=2026-03-15">',
-    );
-    assertStringIncludes(html, "Export CSV");
+      "Export CSV",
+    ]);
   });
 
   test("renders the roster with no date column, plain count, no revenue", () => {
@@ -131,10 +137,12 @@ describe("adminCalendarPage", () => {
     const html = calendarHtml({
       agents: [{ id: 3, name: "Van 1" }],
     });
-    assertStringIncludes(html, "Agent");
-    // A specific agent's link carries the agent param and the #attendees
-    // anchor, so the roster's own filter and the page's section agree.
-    assertStringIncludes(html, 'href="/admin/calendar?agent=3#attendees"');
+    expectIncludesAll(html, [
+      "Agent",
+      // A specific agent's link carries the agent param and the #attendees
+      // anchor, so the roster's own filter and the page's section agree.
+      'href="/admin/calendar?agent=3#attendees"',
+    ]);
   });
 
   test("omits the agent filter bar when no agents exist", () => {
@@ -158,11 +166,13 @@ describe("adminCalendarPage", () => {
       attendees: [calendarAttendee()],
       dateFilter: "2026-03-15",
     });
-    assertStringIncludes(html, "listing-details-table");
-    assertStringIncludes(html, "Checked In");
-    // No capacity is set for a day, so the count is a plain number and the
-    // calendar page never claims revenue (the roster does not know it).
-    assertStringIncludes(html, "Attendees</");
+    expectIncludesAll(html, [
+      "listing-details-table",
+      "Checked In",
+      // No capacity is set for a day, so the count is a plain number and the
+      // calendar page never claims revenue (the roster does not know it).
+      "Attendees</",
+    ]);
     assert(!html.includes("Total Revenue"));
   });
 
@@ -235,8 +245,7 @@ describe("adminCalendarPage", () => {
     const html = calendarHtml({
       availableDates: [calendarDate("Sunday 15 March 2026", "2026-03-15")],
     });
-    assertStringIncludes(html, 'class="calendar"');
-    assertStringIncludes(html, "calendar-grid");
+    expectIncludesAll(html, ['class="calendar"', "calendar-grid"]);
     expect(html.indexOf('class="calendar"')).toBeLessThan(
       html.indexOf('aria-label="Select a date"'),
     );
@@ -277,11 +286,10 @@ describe("adminCalendarPage", () => {
       attendees: [calendarAttendee()],
       dateFilter: "2026-03-15",
     });
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       'name="return_url" type="hidden" value="/admin/calendar?date=2026-03-15#attendees"',
-    );
-    assertStringIncludes(html, 'value="/admin/calendar#attendees"');
+      'value="/admin/calendar#attendees"',
+    ]);
     expect(html).toMatch(
       /#calendar">(?:January|February|March) 2026<\/option>/,
     );
@@ -294,8 +302,7 @@ describe("admin nav Calendar link", () => {
 
   test("admin dashboard includes Calendar link in nav", () => {
     const html = adminDashboardPage([], OWNER_SESSION);
-    assertStringIncludes(html, 'href="/admin/calendar"');
-    assertStringIncludes(html, "Calendar");
+    expectIncludesAll(html, ['href="/admin/calendar"', "Calendar"]);
   });
 });
 
@@ -323,23 +330,24 @@ describe("adminCalendarPage availability checker", () => {
     const html = checkerHtml([
       availabilityRow({ id: 7, name: "Kayak Hire", remaining: 3, total: 5 }),
     ]);
-    assertStringIncludes(html, "Check availability");
-    assertStringIncludes(html, "data-availability-checker");
-    assertStringIncludes(html, 'href="/admin/listing/7"');
-    assertStringIncludes(html, "Kayak Hire");
-    assertStringIncludes(html, "3/5");
-    assertStringIncludes(html, 'name="select_7"');
-    assertStringIncludes(html, 'action="/admin/attendees/new"');
-    assertStringIncludes(html, 'formaction="/admin/servicing/new"');
-    assertStringIncludes(html, "Create Service Event");
+    expectIncludesAll(html, [
+      "Check availability",
+      "data-availability-checker",
+      'href="/admin/listing/7"',
+      "Kayak Hire",
+      "3/5",
+      'name="select_7"',
+      'action="/admin/attendees/new"',
+      'formaction="/admin/servicing/new"',
+      "Create Service Event",
+    ]);
   });
 
   test("marks a sold-out row as danger", () => {
     const html = checkerHtml([
       availabilityRow({ id: 8, remaining: 0, total: 2 }),
     ]);
-    assertStringIncludes(html, "0/2");
-    assertStringIncludes(html, 'class="col-quantity danger"');
+    expectIncludesAll(html, ["0/2", 'class="col-quantity danger"']);
   });
 
   test("shows Free, From and plain prices", () => {
@@ -348,15 +356,16 @@ describe("adminCalendarPage availability checker", () => {
       availabilityRow({ canPayMore: true, id: 2, unitPrice: 500 }),
       availabilityRow({ canPayMore: false, id: 3, unitPrice: 1000 }),
     ]);
-    assertStringIncludes(html, "Free");
-    assertStringIncludes(html, `From ${formatCurrency(500)}`);
-    assertStringIncludes(html, formatCurrency(1000));
+    expectIncludesAll(html, [
+      "Free",
+      `From ${formatCurrency(500)}`,
+      formatCurrency(1000),
+    ]);
   });
 
   test("includes the selected date as a hidden start_date field", () => {
     const html = checkerHtml([availabilityRow()], "2026-03-15");
-    assertStringIncludes(html, 'name="start_date"');
-    assertStringIncludes(html, 'value="2026-03-15"');
+    expectIncludesAll(html, ['name="start_date"', 'value="2026-03-15"']);
   });
 
   test("omits start_date when no date is selected", () => {
@@ -366,7 +375,6 @@ describe("adminCalendarPage availability checker", () => {
 
   test("shows a fallback when there are no bookable listings", () => {
     const html = checkerHtml([]);
-    assertStringIncludes(html, "Check availability");
-    assertStringIncludes(html, "No bookable listings");
+    expectIncludesAll(html, ["Check availability", "No bookable listings"]);
   });
 });

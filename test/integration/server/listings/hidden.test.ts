@@ -1,10 +1,9 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
-import { assertAdminHtml } from "#test-utils/assertions.ts";
+import { assertAdminHtml, expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestListing,
@@ -13,8 +12,6 @@ import {
 import { TEST_STORAGE_ZONE } from "#test-utils/internal.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { setupListingAndLogin } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("server listings > hidden listings", { db: true }, () => {
   describe("hidden listings", () => {
@@ -95,9 +92,11 @@ describeWithEnv("server listings > hidden listings", { db: true }, () => {
           { cookie },
         );
         const html = await response.text();
-        assertStringIncludes(html, "attachment-info");
-        assertStringIncludes(html, "Listing Guide.pdf");
-        assertStringIncludes(html, "Remove Attachment");
+        expectIncludesAll(html, [
+          "attachment-info",
+          "Listing Guide.pdf",
+          "Remove Attachment",
+        ]);
       });
     });
 

@@ -34,7 +34,6 @@ import {
   sessionAnswerOf,
 } from "#payment/row-state.ts";
 import { paidPaymentReferenceOf } from "#payment/validated-session.ts";
-/* jscpd:ignore-start -- imports */
 import { businessTime } from "#routes/api/payment-processing/metadata.ts";
 import {
   completePlaceholderMoney,
@@ -52,8 +51,6 @@ import type {
 import { ErrorCode, logError } from "#shared/logger.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { recordPlaceholderRefund } from "#shared/refund-ledger/placeholder.ts";
-
-/* jscpd:ignore-end */
 
 /**
  * User-facing message when a signed-by-us payment cannot be honoured (price

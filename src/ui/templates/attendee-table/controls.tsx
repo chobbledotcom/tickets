@@ -6,7 +6,6 @@
  * bar. Both get the sort bar. All link through the setup's own base path.
  */
 
-/* jscpd:ignore-start -- imports */
 import { map, unique } from "#fp";
 import { t } from "#i18n";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
@@ -22,7 +21,6 @@ import {
   choiceIsActive,
   type ListChoice,
 } from "#shared/attendee-list-controls.ts";
-/* jscpd:ignore-end */
 import { type FilterBarOption, renderFilterBar } from "#shared/filter-bar.ts";
 import { hiddenInputs } from "#shared/forms/hidden-inputs.tsx";
 import { renderSelectOptions } from "#shared/forms/rendering.tsx";

@@ -482,8 +482,10 @@ for why.
 
 ## Code Duplication
 
-`deno task cpd` runs jscpd at a 0% threshold, and the threshold is
-non-negotiable. A flagged pair is one merge:
+`deno task cpd` runs jscpd, and every scan fails on a clone that its committed
+baseline does not carry. The strict scans ignore names, literals, and
+annotations, so a renamed copy is a clone. The baselines only shrink. A flagged
+pair is one merge:
 
 - Write the helper, or give the shared tail its parameter. Two functions that
   differ only in a value, a path, a field name, a message, or a callback are one
@@ -495,8 +497,22 @@ non-negotiable. A flagged pair is one merge:
   shared call at all. Give that signature a named type instead.
 - The renamed scan holds accepted matches in `.jscpd.renamed-baseline.json`. Add
   a pair only after you try the curry, with `deno task cpd:renamed --update`.
-- Import blocks are the one sanctioned repeat. Wrap them in `jscpd:ignore-start`
-  / `jscpd:ignore-end` markers.
+- The strict scans hold the clones that existed when they started to count
+  renamed copies, in `.jscpd.baseline.json`, `.jscpd.test-baseline.json`,
+  `.jscpd.helpers-baseline.json`, and `.jscpd.support-baseline.json`. After a
+  merge, remove the fixed clones with
+  `deno run -A scripts/cpd.ts --config <config> --baseline <baseline> --update`.
+  Never add a clone to these baselines.
+- After each scan, `deno task cpd` names the worst duplication: the code in the
+  most places, then the code with the most tokens. Merge that one first.
+- Import and re-export statements are a sanctioned repeat. The
+  `ignorePattern` list in each config skips them, so do not add ignore markers
+  around imports.
+- A declared list of strings is the other sanctioned repeat. The strict scans
+  ignore literals, so two long word lists match. Wrap the whole declaration in
+  `/* jscpd:ignore-start -- a list of strings, not code */` and
+  `/* jscpd:ignore-end */`. Wrap only a declaration that holds nothing but
+  strings. Never wrap code, SQL text, or a list inside a call.
 
 `docs/test-duplication.md` measures the remaining steps. Read its counts as work
 to do.
@@ -596,10 +612,10 @@ automatic.
   [model verification guide](docs/model-verification.md) before you add or review
   a model. It defines the evidence boundaries and author procedure
 - `deno task check:effects` — hold the pure core to the effect table: a
-  module the pure list names must hold no import path, static or dynamic,
-  to a module that opens the database, the network, or the wall clock. The
-  finding names the import chain, and the fix is to split the IO shell out
-  or drop the pure entry
+  module with the `// effects: pure` line must hold no import path, static
+  or dynamic, to a module that opens the database, the network, or the
+  wall clock. The finding names the import chain, and the fix is to split
+  the IO shell out or remove the line
 - `deno task suite:production` — run the production-shape checks as one
   scheduled suite, separate from `deno task test`: the edge-bundle boot
   smoke, the backup and restore drills, the concurrent-reservation race,
@@ -667,7 +683,9 @@ Every optional variable is documented in
 
 ## Test Framework
 
-Use helpers from `#test-utils` instead of defining local ones.
+Use helpers from `#test-utils` instead of defining local ones. Assert several
+fragments of one text with one `expectIncludesAll(text, [...])` call, not with a
+run of `assertStringIncludes` calls.
 
 ### Cucumber Acceptance Specifications
 

@@ -6,6 +6,7 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { GroupEditPanel } from "#templates/admin/groups/form.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testGroup, testListingWithCount } from "#test-utils/factories.ts";
 
 describe("GroupEditPanel package members table", () => {
@@ -26,10 +27,12 @@ describe("GroupEditPanel package members table", () => {
         members,
       }),
     );
-    assertStringIncludes(html, 'name="package_price_1"');
-    assertStringIncludes(html, 'value="15.00"');
-    assertStringIncludes(html, 'name="package_qty_1"');
-    assertStringIncludes(html, 'value="4"');
+    expectIncludesAll(html, [
+      'name="package_price_1"',
+      'value="15.00"',
+      'name="package_qty_1"',
+      'value="4"',
+    ]);
     // Listing 2 (no row): blank price, quantity defaults to 1.
     expect(html).toMatch(
       /<input(?=[^>]*name="package_price_2")(?=[^>]*value="")[^>]*>/,

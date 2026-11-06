@@ -23,7 +23,6 @@ import {
   scopedCollectionSwap,
 } from "#db/ordered-collection.ts";
 import { t } from "#i18n";
-/* jscpd:ignore-start */
 import {
   createConfirmedHandlers,
   createVerifiedFormRoute,
@@ -75,8 +74,6 @@ import {
   appendWithCreationLog,
   confirmDeleteWithLog,
 } from "./logged-actions.ts";
-
-/* jscpd:ignore-end */
 
 const handleAttributesGet = authPage(
   pageGuardFor(adminDestinationAt("/admin/attributes")),

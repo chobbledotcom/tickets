@@ -14,6 +14,7 @@ import {
 } from "#templates/admin/listing-table.tsx";
 import { AttendeeTable } from "#templates/attendee-table/component.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import type { ListingWithCount } from "#types";
 
@@ -34,7 +35,7 @@ const cell = (key: ListingColumnKey, listing: ListingWithCount): string =>
 describe("listingTable", () => {
   beforeAll(setupAdminPageTest);
 
-  test("keeps configurable table keys separate at compile time", () => {
+  test("keeps configurable table keys separate at compile time and at run time", () => {
     const renderAttendees = () =>
       AttendeeTable({
         allowedDomain: "example.com",
@@ -60,9 +61,11 @@ describe("listingTable", () => {
         table: "editor",
       });
 
-    void renderAttendees;
-    void renderInvalidEditorColumns;
-    void renderListings;
+    expect(renderAttendees).toThrow('Column "description" is not in the table');
+    expect(renderInvalidEditorColumns).toThrow(
+      'Column "revenue" is not in the table',
+    );
+    expect(renderListings).toThrow('Column "listings" is not in the table');
   });
 
   test("returns the stored values used by Liquid filters", () => {
@@ -126,8 +129,7 @@ describe("listingTable", () => {
       }),
     );
 
-    assertStringIncludes(html, "<th>Location</th>");
-    assertStringIncludes(html, "<td>Town Hall</td>");
+    expectIncludesAll(html, ["<th>Location</th>", "<td>Town Hall</td>"]);
     assert(!html.includes("Listing name"));
   });
 
@@ -172,8 +174,10 @@ describe("listingTable", () => {
       }),
     );
 
-    assertStringIncludes(html, "listing-thumbnail");
-    assertStringIncludes(html, '<a href="/admin/listing/7">Gala</a>');
+    expectIncludesAll(html, [
+      "listing-thumbnail",
+      '<a href="/admin/listing/7">Gala</a>',
+    ]);
     assert(!html.includes(">GALA<"));
   });
 

@@ -11,7 +11,6 @@ import {
   loadRefundAllBatch,
   type RefundAllSummary,
 } from "#db/refund-all-candidates.ts";
-/* jscpd:ignore-start -- imports */
 import { compact } from "#fp";
 import { t } from "#i18n";
 import type { ListingRouteParams } from "#routes/admin/attendees-route-helpers.ts";
@@ -34,8 +33,6 @@ import { fail, ok } from "#shared/response.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { adminRefundAllAttendeesPage } from "#templates/admin/attendees.tsx";
 import type { ListingWithCount } from "#types";
-
-/* jscpd:ignore-end */
 
 const REFUND_ALL_BLOCKER_MESSAGES = {
   legacy_unindexed: t("error.payment_history_incomplete"),

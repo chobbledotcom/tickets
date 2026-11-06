@@ -3,7 +3,6 @@
  * Owner-only access enforced via advancedSettingsRoute
  */
 
-/* jscpd:ignore-start -- imports */
 import { logActivity } from "#db/activity-log.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
@@ -12,7 +11,6 @@ import {
   type ErrorPageFn,
   withSettingsFields,
 } from "#routes/admin/settings-helpers.ts";
-/* jscpd:ignore-end */
 import {
   checkSubdomainAvailable,
   registerBunnySubdomain,

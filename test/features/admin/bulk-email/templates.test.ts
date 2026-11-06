@@ -19,6 +19,7 @@ import {
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
+  expectIncludesAll,
   expectRedirect,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -120,8 +121,7 @@ describeWithEnv("server bulk email > templates", { db: true }, () => {
       const html = await (
         await adminGet("/admin/emails?audience=active")
       ).text();
-      assertStringIncludes(html, "Load a template");
-      assertStringIncludes(html, "My Newsletter");
+      expectIncludesAll(html, ["Load a template", "My Newsletter"]);
     });
 
     test("?template=N pre-fills subject and body from the template", async () => {
@@ -129,11 +129,13 @@ describeWithEnv("server bulk email > templates", { db: true }, () => {
       const html = await (
         await adminGet(`/admin/emails?audience=active&template=${id}`)
       ).text();
-      assertStringIncludes(html, "Pre-fill Subject");
-      assertStringIncludes(html, "Pre-fill body");
-      // A template carries no marketing flag, so the box starts unticked
-      // and the owner opts in deliberately.
-      assertStringIncludes(html, 'name="marketing"');
+      expectIncludesAll(html, [
+        "Pre-fill Subject",
+        "Pre-fill body",
+        // A template carries no marketing flag, so the box starts unticked
+        // and the owner opts in deliberately.
+        'name="marketing"',
+      ]);
       assert(!html.includes('name="marketing" checked'));
       assert(!html.includes('checked name="marketing"'));
     });
@@ -157,13 +159,12 @@ describeWithEnv("server bulk email > templates", { db: true }, () => {
         await adminGet(`/admin/emails?audience=active&template=${id}`)
       ).text();
       // The template's content replaces the draft's…
-      assertStringIncludes(html, "Template Subject");
-      assertStringIncludes(html, "Template body");
-      // …but the marketing flag is carried over from the saved draft.
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        "Template Subject",
+        "Template body",
+        // …but the marketing flag is carried over from the saved draft.
         'checked name="marketing" type="checkbox" value="1"',
-      );
+      ]);
     });
 
     test("POST /admin/emails/templates refuses to save when the template limit is reached", async () => {
@@ -237,14 +238,13 @@ describeWithEnv("server bulk email > templates", { db: true }, () => {
       const id = await seedTemplate("To delete", "Body");
       const response = await adminGet(`/admin/emails/templates/${id}/delete`);
       const html = await expectHtmlResponse(response, 200);
-      assertStringIncludes(html, "Delete template");
-      // The subject (encrypted at rest) is decrypted to confirm against.
-      assertStringIncludes(html, "To delete");
-      assertStringIncludes(html, 'name="confirm_identifier"');
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        "Delete template",
+        // The subject (encrypted at rest) is decrypted to confirm against.
+        "To delete",
+        'name="confirm_identifier"',
         `action="/admin/emails/templates/${id}/delete"`,
-      );
+      ]);
     });
 
     test("GET /admin/emails/templates/:id/delete 404s for unknown template", async () => {

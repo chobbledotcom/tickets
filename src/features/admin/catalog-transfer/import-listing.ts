@@ -1,5 +1,3 @@
-/* jscpd:ignore-start */
-
 import type { BlindIndex } from "#crypto/sealed.ts";
 import { settings } from "#db/settings.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
@@ -17,8 +15,6 @@ import {
 } from "#types";
 import type { ImportedMembership } from "./membership.ts";
 import type { GroupData, ListingData } from "./schema.ts";
-
-/* jscpd:ignore-end */
 
 export type ImportedEntity = {
   kind: "listing" | "group";

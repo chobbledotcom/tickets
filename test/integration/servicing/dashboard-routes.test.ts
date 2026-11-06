@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { beforeAll, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createDailyTestListing,
@@ -44,12 +45,14 @@ describeWithEnv("admin servicing routes", { db: true }, () => {
 
     const html = await renderAdminPage("/admin/servicing");
 
-    assertStringIncludes(html, 'class="servicing-event"');
-    assertStringIncludes(html, `/admin/servicing/${event.id}`);
-    assertStringIncludes(html, "Route Service");
-    assertStringIncludes(html, "Route Room");
-    assertStringIncludes(html, "<td>2</td>");
-    assertStringIncludes(html, "Undated Route Service");
+    expectIncludesAll(html, [
+      'class="servicing-event"',
+      `/admin/servicing/${event.id}`,
+      "Route Service",
+      "Route Room",
+      "<td>2</td>",
+      "Undated Route Service",
+    ]);
     assert(!html.includes("Deleted Route Listing"));
   });
 

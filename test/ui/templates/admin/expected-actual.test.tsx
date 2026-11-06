@@ -7,6 +7,7 @@ import {
   ExpectedActualNotice,
   ExpectedActualTableRow,
 } from "#templates/admin/expected-actual.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 const item = (over: Partial<ExpectedActualItem> = {}): ExpectedActualItem => ({
   actual: "4",
@@ -47,21 +48,17 @@ test("ExpectedActualNotice renders the wrapper, badge and first item", () => {
     items: [item({ actual: "4", expected: "3", label: "Total" })],
   })!.toString();
 
-  assertStringIncludes(html, 'class="expected-actual-notice"');
-  assertStringIncludes(html, 'role="alert"');
-  assertStringIncludes(html, 'class="badge-alert"');
-  // Default badge label and title come from i18n.
-  assertStringIncludes(html, ">Mismatch</span>");
-  assertStringIncludes(html, "Stored total mismatch");
-  // Summary spells out the first item with the surrounding spacing preserved.
-  assertStringIncludes(
-    html,
+  expectIncludesAll(html, [
+    'class="expected-actual-notice"',
+    'role="alert"',
+    'class="badge-alert"',
+    // Default badge label and title come from i18n.
+    ">Mismatch</span>",
+    "Stored total mismatch",
+    // Summary spells out the first item with the surrounding spacing preserved.
     "<strong>Total</strong>: expected <strong>3</strong>, got <strong>4</strong>.",
-  );
-  assertStringIncludes(
-    html,
     "The stored value does not match the expected value.",
-  );
+  ]);
 });
 
 test("ExpectedActualNotice omits the extra summary text for a single item", () => {
@@ -98,14 +95,10 @@ test("ExpectedActualNotice appends the pluralised extra count for many items", (
   // The full list renders every item, spacing between the labels and values
   // included.
   expect(html.match(/<li>/g)?.length).toBe(3);
-  assertStringIncludes(
-    html,
+  expectIncludesAll(html, [
     "<strong>Subtotal</strong>: expected <strong>3</strong>, got <strong>4</strong>",
-  );
-  assertStringIncludes(
-    html,
     "<strong>Tax</strong>: expected <strong>3</strong>, got <strong>4</strong>",
-  );
+  ]);
 });
 
 test("ExpectedActualNotice honours explicit badge and title overrides", () => {
@@ -116,8 +109,7 @@ test("ExpectedActualNotice honours explicit badge and title overrides", () => {
     title: "Custom title",
   })!.toString();
 
-  assertStringIncludes(html, ">Custom badge</span>");
-  assertStringIncludes(html, "Custom title");
+  expectIncludesAll(html, [">Custom badge</span>", "Custom title"]);
   assert(!html.includes("Mismatch"));
   assert(!html.includes("Stored total mismatch"));
 });
@@ -132,8 +124,10 @@ test("ExpectedActualNotice keeps empty-string overrides instead of the defaults"
 
   // `??` keeps the empty strings; `||` would fall back to the i18n defaults.
   // Assert the overrides are rendered as empty elements, not merely omitted.
-  assertStringIncludes(html, '<span class="badge-alert"></span>');
-  assertStringIncludes(html, "<div><p></p><p>explanation</p>");
+  expectIncludesAll(html, [
+    '<span class="badge-alert"></span>',
+    "<div><p></p><p>explanation</p>",
+  ]);
   assert(!html.includes("Mismatch"));
   assert(!html.includes("Stored total mismatch"));
 });

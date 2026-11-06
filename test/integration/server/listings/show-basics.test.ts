@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -6,6 +5,7 @@ import { listingAggregates } from "#db/listings/aggregates.ts";
 import {
   assertAdminHtml,
   expectHtmlResponse,
+  expectIncludesAll,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -19,8 +19,6 @@ import {
 } from "#test-utils/session.ts";
 import { enableFeature } from "#test-utils/settings.ts";
 import type { Attendee, Listing } from "#types";
-
-// jscpd:ignore-end
 
 describeWithEnv("server listings > show basics", { db: true }, () => {
   describe("GET /admin/listing/:id", () => {
@@ -93,16 +91,18 @@ describeWithEnv("server listings > show basics", { db: true }, () => {
       });
 
       const html = await getListingDetailHtml(listing.id, cookie);
-      assertStringIncludes(html, "Money in and out");
-      assertStringIncludes(html, "Gross ticket sales");
-      assertStringIncludes(html, "Total income earned");
-      assertStringIncludes(html, "Net after refunds and costs");
-      // Recognised income £70 differs from the net ledger balance £50 by the £20
-      // refund — both rendered, reconciled.
-      assertStringIncludes(html, "£70");
-      assertStringIncludes(html, "£50");
-      assertStringIncludes(html, "−£20");
-      assertStringIncludes(html, `href="/admin/ledger?listing=${listing.id}"`);
+      expectIncludesAll(html, [
+        "Money in and out",
+        "Gross ticket sales",
+        "Total income earned",
+        "Net after refunds and costs",
+        // Recognised income £70 differs from the net ledger balance £50 by the £20
+        // refund — both rendered, reconciled.
+        "£70",
+        "£50",
+        "−£20",
+        `href="/admin/ledger?listing=${listing.id}"`,
+      ]);
     });
 
     test("does not eagerly render the full revenue statement on listing detail pages", async () => {
@@ -110,8 +110,10 @@ describeWithEnv("server listings > show basics", { db: true }, () => {
         await setupListingWithFiftyPoundSale("Busy Listing");
 
       const html = await getListingDetailHtml(listing.id, cookie);
-      assertStringIncludes(html, "Money in and out");
-      assertStringIncludes(html, `href="/admin/ledger?listing=${listing.id}"`);
+      expectIncludesAll(html, [
+        "Money in and out",
+        `href="/admin/ledger?listing=${listing.id}"`,
+      ]);
       assert(!html.includes('<div class="page-block" id="ledger">'));
       assert(!html.includes("<th>Other side</th>"));
     });
@@ -177,8 +179,7 @@ describeWithEnv("server listings > show basics", { db: true }, () => {
         cookie: cookie,
       });
       const html = await response.text();
-      assertStringIncludes(html, "/admin/listing/1/edit");
-      assertStringIncludes(html, ">Edit<");
+      expectIncludesAll(html, ["/admin/listing/1/edit", ">Edit<"]);
     });
 
     test("hides Attributes and Questions tabs while their features are disabled", async () => {
@@ -201,8 +202,10 @@ describeWithEnv("server listings > show basics", { db: true }, () => {
       const html = await (
         await adminGet(`/admin/listing/${listing.id}`)
       ).text();
-      assertStringIncludes(html, `/admin/listing/${listing.id}/attributes`);
-      assertStringIncludes(html, `/admin/listing/${listing.id}/questions`);
+      expectIncludesAll(html, [
+        `/admin/listing/${listing.id}/attributes`,
+        `/admin/listing/${listing.id}/questions`,
+      ]);
     });
   });
 });

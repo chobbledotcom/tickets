@@ -7,6 +7,7 @@ import {
   servicingEventDateLabel,
   upcomingServicingSection,
 } from "#templates/admin/servicing-events.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 const event = (over: Partial<ServicingEventSummary> = {}) =>
   ({
@@ -33,16 +34,17 @@ describe("ServicingEventEditLink", () => {
     const html = String(
       ServicingEventEditLink({ event: { id: 12, name: "Summer service" } }),
     );
-    assertStringIncludes(html, 'href="/admin/servicing/12"');
-    assertStringIncludes(html, "Summer service");
+    expectIncludesAll(html, ['href="/admin/servicing/12"', "Summer service"]);
   });
 });
 
 describe("upcomingServicingSection", () => {
   test("opens with the upcoming-events heading", () => {
     const html = upcomingServicingSection([]);
-    assertStringIncludes(html, "<details open>");
-    assertStringIncludes(html, "<summary>Upcoming service events</summary>");
+    expectIncludesAll(html, [
+      "<details open>",
+      "<summary>Upcoming service events</summary>",
+    ]);
   });
 
   test("shows one line per event, not one per booking line", () => {
@@ -59,9 +61,7 @@ describe("upcomingServicingSection", () => {
 
   test("shows the date, the listing count and the total quantity", () => {
     const html = upcomingServicingSection([event()]);
-    assertStringIncludes(html, "Saturday 4 July 2026");
-    assertStringIncludes(html, "1 listing");
-    assertStringIncludes(html, "3");
+    expectIncludesAll(html, ["Saturday 4 July 2026", "1 listing", "3"]);
   });
 
   test("leaves the date out of the details when none is booked", () => {

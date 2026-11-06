@@ -8,7 +8,6 @@
  */
 
 import { settings } from "#db/settings.ts";
-/* jscpd:ignore-start */
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { buildPkpassForToken } from "#routes/wallet/index.ts";
 import {
@@ -17,8 +16,6 @@ import {
 } from "#shared/apple-wallet.ts";
 import { logDebug } from "#shared/logger.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
-
-/* jscpd:ignore-end */
 
 const JSON_HEADERS = { "Content-Type": "application/json" } as const;
 

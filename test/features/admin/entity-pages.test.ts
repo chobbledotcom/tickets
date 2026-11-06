@@ -13,6 +13,7 @@ import {
 import { defineEditEntityPage } from "#routes/admin/entity-write-tab.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import { FormParams } from "#shared/form-data.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
 import {
@@ -170,11 +171,13 @@ describe("defineEntityPage", () => {
     const response = await page.renderPage(SESSION, 7, "");
     expect(response.status).toBe(200);
     const html = await response.text();
-    assertStringIncludes(html, "<h1>Widget: Widget</h1>");
-    // Summary row + activity preview with a view-all link into the full tab.
-    assertStringIncludes(html, '<th scope="row">Name</th>');
-    assertStringIncludes(html, "made");
-    assertStringIncludes(html, 'href="/admin/holidays/7/activity"');
+    expectIncludesAll(html, [
+      "<h1>Widget: Widget</h1>",
+      // Summary row + activity preview with a view-all link into the full tab.
+      '<th scope="row">Name</th>',
+      "made",
+      'href="/admin/holidays/7/activity"',
+    ]);
     // The hidden tab is absent from the strip; the actions tab's content is
     // not rendered on this tab (per-tab loading).
     assert(!html.includes("/admin/holidays/7/hidden"));
@@ -236,13 +239,12 @@ describe("defineEntityPage", () => {
     const html = await (await page.renderPage(SESSION, 7, "actions")).text();
     // paid=false hides the refund action but keeps the danger delete.
     assert(!html.includes("/admin/holidays/7/refund"));
-    assertStringIncludes(html, 'href="/admin/holidays/7/delete"');
-    assertStringIncludes(html, "entity-danger-zone");
-    // The custom section received the tab's canonical URL as returnUrl.
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'href="/admin/holidays/7/delete"',
+      "entity-danger-zone",
+      // The custom section received the tab's canonical URL as returnUrl.
       '<p data-from="">Widget @ /admin/holidays/7/actions from </p>',
-    );
+    ]);
   });
 
   test("read-only mode hides write-form tabs and actions", async () => {
@@ -296,9 +298,7 @@ describe("defineEntityPage", () => {
 
   test("tab labels render translated, never as raw locale keys", async () => {
     const html = await (await page.renderPage(SESSION, 7, "")).text();
-    assertStringIncludes(html, ">Overview</a>");
-    assertStringIncludes(html, ">Activity</a>");
-    assertStringIncludes(html, ">Actions</a>");
+    expectIncludesAll(html, [">Overview</a>", ">Activity</a>", ">Actions</a>"]);
     assert(!html.includes("entity.tab."));
   });
 
@@ -334,9 +334,11 @@ describe("defineEntityPage", () => {
       tabs: [deleteActionTab<Fixture>("common.delete", "holidayDelete")],
     });
     const html = await (await deletePage.renderPage(SESSION, 7, "")).text();
-    assertStringIncludes(html, 'href="/admin/holidays/7/delete"');
-    assertStringIncludes(html, "Delete");
-    assertStringIncludes(html, "entity-danger-zone");
+    expectIncludesAll(html, [
+      'href="/admin/holidays/7/delete"',
+      "Delete",
+      "entity-danger-zone",
+    ]);
     expect((await deletePage.renderPage(SESSION, 7, "actions")).status).toBe(
       200,
     );

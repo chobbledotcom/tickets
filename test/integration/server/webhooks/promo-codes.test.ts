@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { modifiersTable } from "#db/modifiers.ts";
@@ -12,8 +11,6 @@ import {
   checkoutSessionEvent,
   expectWebhookProcessed,
 } from "#test-utils/webhooks.ts";
-
-// jscpd:ignore-end
 
 /** A £1 fixed code-triggered modifier — every promo-code test below books the
  *  same £10 listing against one of these, varying only the direction/name. */

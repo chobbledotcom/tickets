@@ -1,13 +1,10 @@
 /** Pure tests for the half-open date ranges that servicing holds use. */
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { expandDailyRange, overlapsDay } from "#db/attendees/capacity/range.ts";
 import { dateToRange } from "#db/capacity.ts";
 import { addDays } from "#shared/dates.ts";
 import { testDate } from "#test-utils/dates.ts";
-
-// jscpd:ignore-end
 
 describe("servicing §0 — capacity overlap predicate is half-open", () => {
   // `overlapsDay(day)` returns a predicate over rows carrying string

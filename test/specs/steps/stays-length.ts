@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -36,14 +34,13 @@ import {
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import {
+  expectIncludesAll,
   expectListingActivityLogContains,
   expectListingActivityLogLacks,
 } from "#test-utils/assertions.ts";
 import { twoGroupedListingsBookedOnAdjacentDays } from "#test-utils/db-helpers/grouped-days.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { expectStayCanBeBooked, expectStayRunsFor } from "./stays-booking.ts";
-
-// jscpd:ignore-end
 
 const FIRST = "Retreat One";
 
@@ -127,11 +124,10 @@ Then(
   "the page says each booking lasts {int} days",
   function (this: TicketsWorld, days: number): void {
     const page = scenarioBrowser(this).pageText;
-    assertStringIncludes(page, t("listings_table.booking_duration"));
-    assertStringIncludes(
-      page,
+    expectIncludesAll(page, [
+      t("listings_table.booking_duration"),
       `${days} ${t("listings_table.day_count_with_parens")}`,
-    );
+    ]);
   },
 );
 
@@ -321,8 +317,7 @@ Then(
       `/admin/listing/${listingIdNamed(this, name)}/attendees`,
     );
     for (const { email, who } of [guest(1), guest(2)]) {
-      assertStringIncludes(browser.pageText, who);
-      assertStringIncludes(browser.pageText, email);
+      expectIncludesAll(browser.pageText, [who, email]);
     }
   },
 );

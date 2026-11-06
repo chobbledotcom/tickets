@@ -1,9 +1,9 @@
 {
-  "src/features/auth.ts": 711,
+  "src/features/auth.ts": 708,
   "src/fp.ts": 585,
-  "src/shared/db/attendees/servicing.ts": 902,
+  "src/shared/db/attendees/servicing.ts": 899,
   "src/shared/db/client.ts": 915,
-  "src/shared/db/groups.ts": 800,
+  "src/shared/db/groups.ts": 797,
   "src/shared/db/migrations/schema-sync.ts": 633,
   "src/shared/db/modifier-resolve.ts": 616,
   "src/shared/db/table.ts": 764,
@@ -12,9 +12,9 @@
   "src/shared/payment-helpers.ts": 619,
   "src/shared/payment/refund-machine-spec.ts": 534,
   "src/shared/storage.ts": 534,
-  "src/shared/types.ts": 783,
+  "src/shared/types.ts": 782,
   "src/ui/static/style.scss": 3184,
-  "test/features/admin/debug/server.test.ts": 667,
+  "test/features/admin/debug/server.test.ts": 663,
   "test/fp/collections.test.ts": 515,
   "test/integration/bunny-cdn/domain.test.ts": 584,
   "test/integration/db/attendees/create-attendee-atomic.test.ts": 655,
@@ -37,5 +37,5 @@
   "test/shared/sentry.test.ts": 540,
   "test/shared/superuser.test.ts": 800,
   "test/test-utils/mocks.ts": 569,
-  "e2e-payments/src/cucumber/steps/booking.ts": 637
+  "e2e-payments/src/cucumber/steps/booking.ts": 635
 }

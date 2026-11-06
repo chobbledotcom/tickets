@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -18,12 +17,20 @@ import {
   validationFailure,
 } from "#routes/api/payment-processing/refunds.ts";
 import type { PaymentFailureResult } from "#routes/api/webhook-types.ts";
-import { expectHtmlResponse } from "#test-utils/assertions.ts";
+import {
+  expectHtmlResponse,
+  expectIncludesAll,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import {
+  logLogged,
+  useDebugLogSpy,
+  useErrorLogSpy,
+} from "#test-utils/debug-log.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { paidSession } from "#test-utils/payment-session.ts";
@@ -35,18 +42,11 @@ import {
 } from "#test-utils/payment-state.ts";
 import { refundCompletes, withRefundMock } from "#test-utils/refund-routes.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { stubRetrieveCheckoutSession } from "#test-utils/webhooks/stripe.ts";
-// jscpd:ignore-end
-
-import {
-  logLogged,
-  useDebugLogSpy,
-  useErrorLogSpy,
-} from "#test-utils/debug-log.ts";
 import {
   webhookEvent,
   withWebhookVerify,
 } from "#test-utils/webhook-verify-helpers.ts";
+import { stubRetrieveCheckoutSession } from "#test-utils/webhooks/stripe.ts";
 
 /** Create a listing, deactivate it, and return its id — the shared setup for
  *  every redirect-path refund test. */
@@ -246,8 +246,10 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
   test("placeholderRefundNote distinguishes returned from tracked recovery", () => {
     const spec = placeholderRefund("price_changed")("detail line");
     const refunded = placeholderRefundNote(7, spec, true);
-    assertStringIncludes(refunded, "payment was refunded because");
-    assertStringIncludes(refunded, "Refund code: price_changed");
+    expectIncludesAll(refunded, [
+      "payment was refunded because",
+      "Refund code: price_changed",
+    ]);
     assert(!refunded.includes("pi_ref"));
     assert(!refunded.includes("Payment reference"));
     assertStringIncludes(refunded, "/admin/ledger/attendee/7");

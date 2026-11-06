@@ -8,6 +8,7 @@ import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { loadAgentUserOptions } from "#routes/admin/logistics-agent-page.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createLogisticsAgent } from "#test-utils/db-helpers/logistics-agents.ts";
 import {
@@ -25,8 +26,10 @@ describeWithEnv("the logistics agent page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    assertStringIncludes(html, `action="/admin/logistics/${id}/edit"`);
-    assertStringIncludes(html, "Blue Van");
+    expectIncludesAll(html, [
+      `action="/admin/logistics/${id}/edit"`,
+      "Blue Van",
+    ]);
   });
 
   test("opens on the edit tab and highlights the section it sits in", async () => {
@@ -36,11 +39,10 @@ describeWithEnv("the logistics agent page", { db: true }, () => {
 
     const html = await (await adminGet(`/admin/logistics/${id}`)).text();
 
-    assertStringIncludes(html, `<a class="active" href="/admin/settings">`);
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      `<a class="active" href="/admin/settings">`,
       `<a aria-current="page" class="active" href="/admin/logistics/${id}">Edit</a>`,
-    );
+    ]);
   });
 
   test("offers deleting the agent on its actions tab", async () => {
@@ -64,8 +66,7 @@ describeWithEnv("the logistics agent page", { db: true }, () => {
     const html = await response.text();
 
     expect(response.status).toBe(400);
-    assertStringIncludes(html, `checked name="user_ids"`);
-    assertStringIncludes(html, `value="${userId}"`);
+    expectIncludesAll(html, [`checked name="user_ids"`, `value="${userId}"`]);
   });
 
   test("answers 404 for an agent that is not there", async () => {

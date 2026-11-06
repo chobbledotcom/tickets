@@ -909,7 +909,7 @@
     "contraction": 1
   },
   "src/shared/db/settings/snapshot.ts": {
-    "semicolon": 5,
+    "semicolon": 4,
     "long-sentence": 2,
     "contraction": 1
   },

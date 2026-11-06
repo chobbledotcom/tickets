@@ -10,7 +10,10 @@ import {
   seededSale,
 } from "#test/integration/server/ledger/helpers.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
-import { expectFlashRedirect } from "#test-utils/assertions.ts";
+import {
+  expectFlashRedirect,
+  expectIncludesAll,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
@@ -24,22 +27,18 @@ describeWithEnv("server (admin ledger edit and delete)", { db: true }, () => {
     );
     expect(response.status).toBe(200);
     const html = await response.text();
-    assertStringIncludes(html, "Edit money change");
-    assertStringIncludes(html, 'name="amount"');
-    assertStringIncludes(html, 'value="12.34"');
-    assertStringIncludes(html, 'name="occurred_at"');
-    assertStringIncludes(html, 'value="2026-06-22T09:30"');
-    assertStringIncludes(html, "Delete money change");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "Edit money change",
+      'name="amount"',
+      'value="12.34"',
+      'name="occurred_at"',
+      'value="2026-06-22T09:30"',
+      "Delete money change",
       "Warning: This permanently deletes this money change.",
-    );
-    assertStringIncludes(
-      html,
       `Type the exact amount &quot;${formatCurrency(1234)}&quot; to confirm.`,
-    );
-    assertStringIncludes(html, formatCurrency(1234));
-    assertStringIncludes(html, 'name="confirm_identifier"');
+      formatCurrency(1234),
+      'name="confirm_identifier"',
+    ]);
   });
 
   test("edit pages without a return_url fall back to the ledger", async () => {

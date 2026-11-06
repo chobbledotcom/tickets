@@ -4,7 +4,6 @@
  */
 
 import { Given, Then, When } from "@cucumber/cucumber";
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
@@ -25,8 +24,6 @@ import {
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
 import { TEST_ADMIN_PASSWORD } from "#test-utils/internal.ts";
-
-// jscpd:ignore-end
 
 Given(
   "the owner is signed in, in their own window",

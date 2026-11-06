@@ -1,6 +1,5 @@
 /** Attendee, booking, payment, and activity tables. */
 
-/* jscpd:ignore-start -- imports */
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
 import {
   attendeeIdColumn,
@@ -25,7 +24,6 @@ import {
   wholeNumberStartingAtZero,
 } from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
-/* jscpd:ignore-end */
 
 export const attendeeTables: [name: string, table: Table][] = [
   [

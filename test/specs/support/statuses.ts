@@ -9,7 +9,6 @@
  */
 
 import { assertArrayIncludes } from "@std/assert";
-// jscpd:ignore-start
 import { t } from "#i18n";
 import {
   findsTheWayInFrom,
@@ -31,8 +30,6 @@ import type {
   ReadAboutOneThing,
   TicketsWorld,
 } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
 
 /** Where the organiser's own list of states lives. */
 const THE_LIST = "/admin/settings/statuses";

@@ -1,5 +1,3 @@
-/* jscpd:ignore-start */
-
 import { modifierAccount } from "#accounting/accounts.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import { logActivity } from "#db/activity-log.ts";
@@ -70,8 +68,6 @@ import { withEntityLoader } from "./entity-handlers.ts";
 import { childAddOnSaveError } from "./modifier-add-on-reachability.ts";
 import { handleAnswerLinks, handleScopeLinks } from "./modifier-links.ts";
 import { makeMoneyAdjustHandler } from "./money-adjust.ts";
-
-/* jscpd:ignore-end */
 
 /** Build modifier input from validated form values. The value is stored as
  * the positive magnitude the owner typed. The signed engine value is

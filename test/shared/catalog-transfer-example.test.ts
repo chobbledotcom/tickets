@@ -20,6 +20,7 @@ import {
   CATALOG_LISTING_EXAMPLE,
   CATALOG_LISTING_EXAMPLE_JSON,
 } from "#shared/catalog-transfer-example.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 describe("catalog transfer example", () => {
   test("the listing example parses as a valid catalog transfer blob", () => {
@@ -83,10 +84,9 @@ describe("catalog transfer example", () => {
     // The guide's group example exists to show the package flags on; if either
     // flipped off it would document a plain group, not the package/privacy
     // feature it is meant to illustrate.
-    assertStringIncludes(CATALOG_GROUP_EXAMPLE_JSON, '"isPackage": true');
-    assertStringIncludes(
-      CATALOG_GROUP_EXAMPLE_JSON,
+    expectIncludesAll(CATALOG_GROUP_EXAMPLE_JSON, [
+      '"isPackage": true',
       '"hidePackageListings": true',
-    );
+    ]);
   });
 });

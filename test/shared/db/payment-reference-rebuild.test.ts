@@ -1,4 +1,3 @@
-// jscpd:ignore-start -- imports
 import { expect } from "@std/expect";
 import { test } from "@std/testing/bdd";
 import { encrypt } from "#crypto/encryption.ts";
@@ -28,8 +27,6 @@ import {
   finalizeProcessedPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("db > legacy payment reference rebuild", { db: true }, () => {
   test("a legacy payment is refused before the rebuild and refundable after", async () => {

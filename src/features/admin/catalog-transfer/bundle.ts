@@ -11,7 +11,6 @@
  * orphan row.
  */
 
-/* jscpd:ignore-start -- imports */
 import type { ResultSet } from "@libsql/client";
 import { hmacHash } from "#crypto/hashing.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
@@ -52,8 +51,6 @@ import { type BundleValidation, validateBundle } from "./bundle-validate.ts";
 import { groupDataToInput, type ImportedEntity } from "./import-listing.ts";
 import { type ImportedMembership, membershipStatements } from "./membership.ts";
 import type { CatalogBundle } from "./schema.ts";
-
-/* jscpd:ignore-end */
 
 /** Fresh random slugs for `count` new rows, checked in one batched read.
  * Random collisions (within the batch or with the site) are near-impossible.

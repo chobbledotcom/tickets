@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -23,8 +21,7 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 Given(
   "the owner is looking at their keys",
@@ -49,10 +46,12 @@ Then(
       this.apiKeyShownOnce,
       "what the owner was shown",
     );
-    assertStringIncludes(shown, t("api_keys.copy_notice"));
-    // The words alone are not the key. The page has to carry the real one, or
-    // the owner has nothing to hand on.
-    assertStringIncludes(shown, keyNamed(this, "Shopfront"));
+    expectIncludesAll(shown, [
+      t("api_keys.copy_notice"),
+      // The words alone are not the key. The page has to carry the real one, or
+      // the owner has nothing to hand on.
+      keyNamed(this, "Shopfront"),
+    ]);
   },
 );
 

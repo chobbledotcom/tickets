@@ -6,7 +6,6 @@
  * `check-runner.ts`, driven by `scripts/check-comments-ste.ts`.
  */
 
-/* jscpd:ignore-start -- imports */
 import { type CheckOutput, reportCheck } from "#scripts/check-report.ts";
 import {
   type Counts,
@@ -22,7 +21,6 @@ import {
 } from "#scripts/walk-files.ts";
 import { isShippedMigration } from "./run.ts";
 import { findCommentSteIssues } from "./ste.ts";
-/* jscpd:ignore-end */
 
 /** One scanned file and the findings its comments carry. */
 export interface CommentFile {

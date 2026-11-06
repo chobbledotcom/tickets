@@ -5,7 +5,7 @@ import { encrypt } from "#crypto/encryption.ts";
 import { getDb } from "#db/client.ts";
 import { invalidateUsersCache } from "#db/users.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
-import { assertPublicHtml } from "#test-utils/assertions.ts";
+import { assertPublicHtml, expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
@@ -19,8 +19,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("owner sees all nav links", async () => {
       const response = await adminGet("/admin/");
       const html = await response.text();
-      assertStringIncludes(html, "Settings");
-      assertStringIncludes(html, "Users");
+      expectIncludesAll(html, ["Settings", "Users"]);
     });
 
     test("manager does not see owner-only nav links", async () => {
@@ -59,13 +58,12 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const input = html.match(/<input[^>]*name="admin_username"[^>]*>/)?.[0];
       assert(input, "the setup page renders the admin_username input");
       // The browser must refuse an invalid username before anything is sent.
-      assertStringIncludes(input, 'pattern="[a-zA-Z0-9][a-zA-Z0-9_\\-]*"');
-      assertStringIncludes(input, 'minlength="1"');
-      assertStringIncludes(input, 'maxlength="250"');
-      assertStringIncludes(
-        input,
+      expectIncludesAll(input, [
+        'pattern="[a-zA-Z0-9][a-zA-Z0-9_\\-]*"',
+        'minlength="1"',
+        'maxlength="250"',
         'title="Letters, numbers, hyphens, and underscores only. Start with a letter or number."',
-      );
+      ]);
     });
   });
 

@@ -4,13 +4,11 @@
  * whether a listing or a group is created.
  */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { flashFormPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
-/* jscpd:ignore-end */
 
 export const adminCatalogImportPage = flashFormPage(
   "catalog_transfer.page_title",

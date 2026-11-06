@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import {
   getModifier,
   modifierGroups,
@@ -13,8 +12,6 @@ import { createAuthedHandler } from "#shared/app-forms.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { Modifier } from "#types";
 import { childAddOnSaveError } from "./modifier-add-on-reachability.ts";
-
-/* jscpd:ignore-end */
 
 /** Selected ids from a checkbox group, positive integers only. A value that is
  *  not a plain whole number is dropped. */

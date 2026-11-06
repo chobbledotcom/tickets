@@ -3,7 +3,6 @@
  * file under the listing the question sits on, and empty answers give no map.
  */
 
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { questionListings } from "#db/questions/queries.ts";
@@ -18,8 +17,6 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createQuestionWithAnswer } from "#test-utils/db-helpers/questions.ts";
 import { ticketContext } from "#test-utils/ticket-ctx.ts";
-
-/* jscpd:ignore-end */
 
 /** The submitted answers of a one-listing order: no answers at all unless
  * `chosen` or `typed` says otherwise. */
@@ -58,9 +55,9 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
       const listing = await createTestListing({ maxAttendees: 5 });
       const ctx = await ticketContext([listing.id]);
 
-      expect(
-        computeListingAnswerMap(ctx, answerInfo(ctx, listing.id)),
-      ).toBeUndefined();
+      expect(computeListingAnswerMap(ctx, answerInfo(ctx, listing.id))).toBe(
+        undefined,
+      );
     });
 
     test("gives text answers their stored string ids, keyed per listing", async () => {
@@ -90,7 +87,7 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
 
       expect(
         await computeListingTextAnswerIdMap(ctx, answerInfo(ctx, listing.id)),
-      ).toBeUndefined();
+      ).toBe(undefined);
     });
   });
 });

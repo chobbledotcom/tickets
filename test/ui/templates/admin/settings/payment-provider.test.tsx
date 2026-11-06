@@ -7,6 +7,7 @@ import { ExistingPaymentProviderForm } from "#templates/admin/settings/payment-p
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { defaultSettingsState } from "#test/ui/templates/admin/settings-state.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { hasCheckedInput, inputTagWithValue } from "#test-utils/csrf.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
@@ -24,17 +25,18 @@ describe("settings payment provider forms", () => {
         paymentProvider: null,
         paymentProviderRecoveryChoices: ["stripe", "square"],
       });
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
         'action="/admin/settings/payment-provider-recovery"',
-      );
-      assertStringIncludes(html, 'id="settings-payment-provider-recovery"');
-      assertStringIncludes(html, '<div class="prose">');
-      assertStringIncludes(html, '<fieldset class="radios">');
+        'id="settings-payment-provider-recovery"',
+        '<div class="prose">',
+        '<fieldset class="radios">',
+      ]);
       for (const provider of ["stripe", "square"]) {
         const input = inputTagWithValue(html, provider);
-        assertStringIncludes(input, 'name="existing_payment_provider"');
-        assertStringIncludes(input, "required");
+        expectIncludesAll(input, [
+          'name="existing_payment_provider"',
+          "required",
+        ]);
         assert(!input.includes("checked"));
       }
       assertStringIncludes(html, "New sales will stay off.");

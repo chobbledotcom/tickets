@@ -8,6 +8,7 @@ import {
   expectErrorFlash,
   expectFlash,
   expectHtmlResponse,
+  expectIncludesAll,
   expectRedirect,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -117,9 +118,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         await adminGet(`${BASE}/${page.id}/items`),
         200,
       );
-      assertStringIncludes(html, "Real Listing");
-      assertStringIncludes(html, "Real Group");
-      assertStringIncludes(html, "Name kidlabel");
+      expectIncludesAll(html, ["Real Listing", "Real Group", "Name kidlabel"]);
       // Only the dangling edge (not the empty-named listing) is "(missing)".
       expect((html.match(/\(missing\)/g) ?? []).length).toBe(1);
       // The spare page is offered in the sub-page picker.

@@ -6,7 +6,6 @@
 
 import { orderModifierLines } from "#accounting/queries.ts";
 import { hmacHash } from "#crypto/hashing.ts";
-/* jscpd:ignore-start -- imports */
 import { packageDisplaysForRows } from "#db/groups.ts";
 import { addPageImageUrls } from "#db/image-urls.ts";
 import { getModifierNamesByIds } from "#db/modifiers.ts";
@@ -26,7 +25,6 @@ import {
   withTokenRateLimit,
 } from "#routes/tickets/token-utils.ts";
 import type { PathMethodRoute } from "#routes/types.ts";
-/* jscpd:ignore-end */
 import { signAttachmentUrl } from "#shared/attachment-url.ts";
 import { generateQrSvg } from "#shared/qr.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";

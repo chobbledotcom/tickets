@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -14,6 +12,7 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
@@ -21,8 +20,6 @@ import {
   renderAdminPage,
 } from "#test-utils/servicing.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 const ROOM_A = "Room A";
 const ANNUAL_ROOM = "Annual Room";
@@ -207,8 +204,7 @@ Then(
     // The page carrying the cost this story just recorded, for a screenshot.
     leaveEvidencePage(this, ["maintenance-cost-on-a-room"], path);
     const body = await renderAdminPage(path);
-    assertStringIncludes(body, ">£90<");
-    assertStringIncludes(body, "Boiler part");
+    expectIncludesAll(body, [">£90<", "Boiler part"]);
   },
 );
 

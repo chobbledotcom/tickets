@@ -4,7 +4,6 @@
  * offering a correction fails the story rather than being worked around.
  */
 
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { WRITEOFF } from "#accounting/accounts.ts";
 import { accountBalance } from "#accounting/queries.ts";
@@ -18,7 +17,6 @@ import {
 } from "#test/specs/support/world.ts";
 import { postModifierLeg } from "#test-utils/ledger.ts";
 import { insertModifier } from "#test-utils/modifiers.ts";
-// jscpd:ignore-end
 
 /** What the site holds and what it has parked, before a correction is made, so
  * a story can prove a correction moved one and not the other. */

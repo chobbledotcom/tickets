@@ -5,7 +5,6 @@
  * visitor-contact one does.
  */
 
-// jscpd:ignore-start
 import { settings } from "#db/settings.ts";
 import {
   openAsNewcomer,
@@ -18,7 +17,6 @@ import {
 import { scenarioEnv, type TicketsWorld } from "#test/specs/support/world.ts";
 import { connectResendProvider } from "#test-utils/settings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
-// jscpd:ignore-end
 
 /** The Support page, in the owner's own admin area. */
 export const SUPPORT_PAGE = "/admin/support";

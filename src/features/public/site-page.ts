@@ -10,7 +10,6 @@
  */
 
 import { hmacHash } from "#crypto/hashing.ts";
-/* jscpd:ignore-start -- imports */
 import { addPageImageUrls } from "#db/image-urls.ts";
 import { getImagesForItem } from "#db/images.ts";
 import { settings } from "#db/settings.ts";
@@ -19,7 +18,6 @@ import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { requirePublicSite } from "#shared/public-site.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
-/* jscpd:ignore-end */
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import { sitePagePage } from "#templates/public/site-page.tsx";
 import { publicNavProps } from "./site-nav.ts";

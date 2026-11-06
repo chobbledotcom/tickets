@@ -1,5 +1,3 @@
-/* jscpd:ignore-start */
-
 import type { TicketListing } from "#booking/model.ts";
 import type { ListingAttributesById } from "#db/attributes.ts";
 import { joinStrings, partition } from "#fp";
@@ -20,8 +18,6 @@ import {
   publicPage,
   titleWithSiteName,
 } from "./shared.tsx";
-
-/* jscpd:ignore-end */
 
 /** A red {@link Badge} status line for the two date-search failure messages
  *  ("Sold Out" and "Not available on {date}") — rendered as a paragraph so it

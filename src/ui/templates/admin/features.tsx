@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { t } from "#i18n";
 import {
   ADMIN_FEATURES,
@@ -17,8 +16,6 @@ import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import { YesNoRadios } from "#templates/components/yes-no-radios.tsx";
 import type { AdminSession, Theme } from "#types";
-
-/* jscpd:ignore-end */
 
 type FeatureRow = {
   enabled: boolean;

@@ -2,7 +2,6 @@
  * nothing. Served from the static table, so the handler reads its own
  * settings, exactly like /robots.txt. */
 
-/* jscpd:ignore-start -- imports */
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -17,6 +16,7 @@ import {
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { handleSitemapXml } from "#routes/sitemap.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -28,8 +28,6 @@ import { testListingInput } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { soldOutParentInGroup } from "#test-utils/parents.ts";
 import { disablePublicSite, enablePublicSite } from "#test-utils/settings.ts";
-
-/* jscpd:ignore-end */
 
 describeWithEnv("server public > sitemap.xml", { db: true }, () => {
   test("answers 404 from a site before setup", async () => {
@@ -73,26 +71,16 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toBe("application/xml");
       const xml = await response.text();
-      assertStringIncludes(
-        xml,
+      expectIncludesAll(xml, [
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-      );
-      assertStringIncludes(xml, "<loc>https://localhost/</loc>");
-      assertStringIncludes(xml, "<loc>https://localhost/listings</loc>");
-      assertStringIncludes(xml, "<loc>https://localhost/news</loc>");
-      assertStringIncludes(xml, "<loc>https://localhost/page/plans</loc>");
-      assertStringIncludes(
-        xml,
+        "<loc>https://localhost/</loc>",
+        "<loc>https://localhost/listings</loc>",
+        "<loc>https://localhost/news</loc>",
+        "<loc>https://localhost/page/plans</loc>",
         `<loc>https://localhost/news/${post.slug}</loc>`,
-      );
-      assertStringIncludes(
-        xml,
         `<loc>https://localhost/ticket/${listing.slug}</loc>`,
-      );
-      assertStringIncludes(
-        xml,
         `<loc>https://localhost/ticket/${group.slug}</loc>`,
-      );
+      ]);
       // A hidden listing or group is not on the public site, so the sitemap
       // does not name it. No admin path belongs in a public document either.
       assert(!xml.includes("hidden-concert"));
@@ -133,8 +121,10 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       const empty = await (
         await handleRequest(mockRequest("/sitemap.xml"))
       ).text();
-      assertStringIncludes(empty, "<loc>https://localhost/</loc>");
-      assertStringIncludes(empty, "<loc>https://localhost/listings</loc>");
+      expectIncludesAll(empty, [
+        "<loc>https://localhost/</loc>",
+        "<loc>https://localhost/listings</loc>",
+      ]);
       assert(!empty.includes("<loc>https://localhost/terms</loc>"));
       assert(!empty.includes("<loc>https://localhost/contact</loc>"));
       assert(!empty.includes("<loc>https://localhost/order</loc>"));
@@ -148,10 +138,12 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       const served = await (
         await handleRequest(mockRequest("/sitemap.xml"))
       ).text();
-      assertStringIncludes(served, "<loc>https://localhost/terms</loc>");
-      assertStringIncludes(served, "<loc>https://localhost/contact</loc>");
-      assertStringIncludes(served, "<loc>https://localhost/order</loc>");
-      assertStringIncludes(served, "<loc>https://localhost/news</loc>");
+      expectIncludesAll(served, [
+        "<loc>https://localhost/terms</loc>",
+        "<loc>https://localhost/contact</loc>",
+        "<loc>https://localhost/order</loc>",
+        "<loc>https://localhost/news</loc>",
+      ]);
     } finally {
       await settings.update.orderEnabled(false);
       await settings.update.terms("");
@@ -256,14 +248,10 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       assert(
         !xml.includes("<loc>https://localhost/ticket/plans&amp;pricing</loc>"),
       );
-      assertStringIncludes(
-        xml,
+      expectIncludesAll(xml, [
         `<loc>https://localhost/ticket/${plain.slug}</loc>`,
-      );
-      assertStringIncludes(
-        xml,
         `<loc>https://localhost/ticket/${plainGroup.slug}</loc>`,
-      );
+      ]);
     } finally {
       await disablePublicSite();
     }

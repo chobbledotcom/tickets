@@ -1,13 +1,11 @@
 /** Listing table schema and stored-value transforms. */
 
-/* jscpd:ignore-start -- imports */
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import {
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
 } from "#db/common-schema.ts";
-/* jscpd:ignore-end */
 import { defineIdTable } from "#db/define-id-table.ts";
 import { decryptTextOrEmpty } from "#db/encrypted-text.ts";
 import { col } from "#db/table.ts";

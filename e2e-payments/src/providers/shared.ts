@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import { readFileSync } from "node:fs";
 import type { Page } from "playwright";
 import { type BrowserSession, fillAndSubmit } from "#e2e/browser.ts";
@@ -12,8 +11,6 @@ import { PROVIDER_TIMEOUT_MS } from "#payment/provider-fetch.ts";
 import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import { readJson } from "#shared/read-json.ts";
 import type { ConfigureProvider, PayHostedCheckout } from "./types.ts";
-
-/* jscpd:ignore-end */
 
 /**
  * The last value the app server has logged for this pattern, or null when its

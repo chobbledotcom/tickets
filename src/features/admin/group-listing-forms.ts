@@ -1,7 +1,6 @@
 /** The group page's two membership forms: the post that adds listings to one
  * group, and the typed-name confirmation that takes them back out of it. */
 
-/* jscpd:ignore-start -- imports */
 import { logActivity } from "#db/activity-log.ts";
 import {
   assignListingsToGroup,
@@ -28,8 +27,6 @@ import { commaParts } from "#shared/split.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
 import { adminGroupRemoveListingsPage } from "#templates/admin/groups/remove-listings.tsx";
 import type { Group, ListingWithCount } from "#types";
-
-/* jscpd:ignore-end */
 
 /** The verified-form base for group actions the operator confirms by typing
  * the group's name: the identifier check, its label, and the group load. */

@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -22,8 +21,6 @@ import {
   expectRefundedWithNote,
   findKeptPlaceholder,
 } from "#test-utils/webhooks.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
   describe("GET /payment/success", () => {

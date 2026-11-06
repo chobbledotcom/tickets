@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -6,7 +5,11 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { stripeApi } from "#shared/stripe.ts";
 import { renderPaymentSuccess } from "#test/integration/server/payment-success-helpers.ts";
-import { expectHtmlResponse, expectRedirect } from "#test-utils/assertions.ts";
+import {
+  expectHtmlResponse,
+  expectIncludesAll,
+  expectRedirect,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -15,8 +18,6 @@ import { signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubCheckoutSession } from "#test-utils/stripe/responses.ts";
-
-/* jscpd:ignore-end */
 
 describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
   describe("payment success token verification", () => {
@@ -85,12 +86,13 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         expect(response.status).toBe(200);
 
         // Should have ticket link with verified token
-        assertStringIncludes(html, "View your ticket");
-        assertStringIncludes(html, 'target="_blank"');
-        assertStringIncludes(html, "/t/");
-
-        // Should have thank_you_url for single-listing purchase
-        assertStringIncludes(html, "https://example.com/verified-thanks");
+        expectIncludesAll(html, [
+          "View your ticket",
+          'target="_blank"',
+          "/t/",
+          // Should have thank_you_url for single-listing purchase
+          "https://example.com/verified-thanks",
+        ]);
 
         // Token in the link should match the one in the redirect URL
         const tokenFromUrl = decodeURIComponent(location.split("tokens=")[1]!);

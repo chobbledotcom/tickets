@@ -1,3 +1,4 @@
+// effects: pure
 /** One row's slot carries up to three pieces of live work, or the terminal
  * outcome on a row that ended clean. The mirror test holds the declared
  * moves table: a cell it does not name must refuse.

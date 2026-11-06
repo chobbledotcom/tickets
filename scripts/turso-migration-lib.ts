@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import {
   checkedSource,
   configuredOrAsked,
@@ -9,7 +8,6 @@ import {
   type TursoMigrationDeps,
 } from "#scripts/turso-migration-steps.ts";
 import { tursoDatabaseSlug } from "#shared/config.ts";
-/* jscpd:ignore-end */
 
 export const MIGRATE_TURSO_USAGE = "Usage: deno task migrate:turso";
 

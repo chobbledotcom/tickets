@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { runWithSiteBuildScope } from "#shared/builder-dry-run.ts";
 import { bunnyDbProvider as bunnyDbApi } from "#shared/bunny-db.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
@@ -268,8 +269,10 @@ describeWithEnv("bunny-db", { env: { BUNNY_API_KEY: "test-api-key" } }, () => {
     const result = await bunnyDbApi.createDatabase("Err");
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      assertStringIncludes(result.error, "Get database failed (404)");
-      assertStringIncludes(result.error, "Database not found");
+      expectIncludesAll(result.error, [
+        "Get database failed (404)",
+        "Database not found",
+      ]);
     }
   });
 

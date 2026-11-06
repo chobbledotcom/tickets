@@ -1,6 +1,5 @@
 /** Atomic storage for the one provider-refund authority. */
 
-/* jscpd:ignore-start -- imports */
 import {
   execute,
   queryAll,
@@ -23,7 +22,6 @@ import {
 import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type { PaymentProviderType } from "#types";
-/* jscpd:ignore-end */
 
 export type RefundAuthorityRow = {
   readonly callbackReplayIndex: string | null;

@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingWithCount } from "#db/listings/records.ts";
@@ -15,8 +14,6 @@ import {
   adminGet,
   setupListingAndLogin,
 } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("server listings > deactivate", { db: true }, () => {
   describe("GET /admin/listing/:id/deactivate", () => {

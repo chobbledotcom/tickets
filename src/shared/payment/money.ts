@@ -1,3 +1,4 @@
+// effects: pure
 import * as v from "valibot";
 import { sameOn } from "#fp";
 import { guardFor } from "#shared/validation/guard.ts";

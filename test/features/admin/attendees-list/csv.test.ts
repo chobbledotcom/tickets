@@ -8,7 +8,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAllActivityLog } from "#db/activity-log.ts";
 import { ATTENDEES_PAGE_SIZE } from "#db/attendees/queries.ts";
-import { testRequiresAuth } from "#test-utils/assertions.ts";
+import { expectIncludesAll, testRequiresAuth } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { seedFillerAttendees } from "#test-utils/db-helpers/attendee-seeding.ts";
 import {
@@ -44,16 +44,13 @@ describeWithEnv("the attendees CSV export", { db: true }, () => {
         'filename="attendees.csv"',
       );
       const csv = await response.text();
-      assertStringIncludes(csv, "Alice");
-      assertStringIncludes(csv, "alice@example.com");
-      assertStringIncludes(csv, "Gala Night");
+      expectIncludesAll(csv, ["Alice", "alice@example.com", "Gala Night"]);
     });
 
     test("includes every attendee when no listing is chosen", async () => {
       await seedListingFilterPair();
       const csv = await csvBody();
-      assertStringIncludes(csv, "AliceOne");
-      assertStringIncludes(csv, "BobTwo");
+      expectIncludesAll(csv, ["AliceOne", "BobTwo"]);
     });
 
     test("filters the export to a single listing", async () => {
@@ -74,8 +71,7 @@ describeWithEnv("the attendees CSV export", { db: true }, () => {
       const csv = await csvBody(`?listing=${wanted.id}`);
       // One row: the booking on the filtered listing only — the grouped
       // attendees PAGE shows their other listings, but the export must not.
-      assertStringIncludes(csv, "DoubleBooker");
-      assertStringIncludes(csv, "Wanted Show");
+      expectIncludesAll(csv, ["DoubleBooker", "Wanted Show"]);
       assert(!csv.includes("Other Show"));
       expect(csv.split("\n")).toHaveLength(2);
     });
@@ -94,8 +90,7 @@ describeWithEnv("the attendees CSV export", { db: true }, () => {
       const { group } = await seedGroupRoster();
 
       const csv = await csvBody(`?group=${group.id}`);
-      assertStringIncludes(csv, "FairOne");
-      assertStringIncludes(csv, "FairTwo");
+      expectIncludesAll(csv, ["FairOne", "FairTwo"]);
       assert(!csv.includes("OutsidePerson"));
     });
 
@@ -112,8 +107,7 @@ describeWithEnv("the attendees CSV export", { db: true }, () => {
       // Every member booking exports; the DoubleBooker's row is their booking
       // inside the group only — the export keeps every row within the
       // selected scope.
-      assertStringIncludes(csv, "DoubleBooker");
-      assertStringIncludes(csv, "Fair Door");
+      expectIncludesAll(csv, ["DoubleBooker", "Fair Door"]);
       assert(!csv.includes("Other Show"));
       assert(!csv.includes("OutsidePerson"));
       expect(csv.split("\n")).toHaveLength(4);

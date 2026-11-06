@@ -8,7 +8,6 @@
  * the group's edit form, so turning it on goes through that real form.
  */
 
-// jscpd:ignore-start
 import { assertArrayIncludes } from "@std/assert";
 import { openAdminPage } from "#test/specs/support/browser.ts";
 import {
@@ -37,8 +36,6 @@ import {
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-
-// jscpd:ignore-end
 
 /** The world's group doors, keyed by the name the story calls the group. */
 const doorIdNamed = whatWasKeptFor("group_door");

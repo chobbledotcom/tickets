@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { After, Before, type ITestCaseHookParameter } from "@cucumber/cucumber";
 import {
   captureScenarioEvidence,
@@ -10,8 +9,6 @@ import { clearTestEncryptionKey } from "#test-utils/env.ts";
 import { reclaimLeakedFdsNow } from "#test-utils/reclaim-fds.ts";
 import { namedThings, putsThingsBack } from "./memory.ts";
 import { addDatabaseCleanup, type TicketsWorld } from "./world.ts";
-
-// jscpd:ignore-end
 
 Before(async function (this: TicketsWorld): Promise<void> {
   this.cleanup = putsThingsBack();

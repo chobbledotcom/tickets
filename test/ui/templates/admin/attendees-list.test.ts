@@ -15,6 +15,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 import type { AttendeeTableRow, ListingWithCount } from "#types";
 
@@ -91,10 +92,12 @@ describe("adminAttendeesListPage", () => {
 
   test("renders the page title, nav, and heading", () => {
     const html = adminAttendeesListPage(buildProps());
-    assertStringIncludes(html, "<title>Attendees</title>");
-    assertStringIncludes(html, 'href="/admin/attendees"');
-    // The create link lives in the section sub-nav as a concise "Add".
-    assertStringIncludes(html, 'href="/admin/attendees/new">Add<');
+    expectIncludesAll(html, [
+      "<title>Attendees</title>",
+      'href="/admin/attendees"',
+      // The create link lives in the section sub-nav as a concise "Add".
+      'href="/admin/attendees/new">Add<',
+    ]);
     assert(!html.includes("<h1>Attendees</h1>"));
   });
 
@@ -102,9 +105,11 @@ describe("adminAttendeesListPage", () => {
     const html = adminAttendeesListPage(
       buildProps({ listings: twoListings() }),
     );
-    assertStringIncludes(html, 'action="/admin/attendees"');
-    assertStringIncludes(html, 'method="get"');
-    assertStringIncludes(html, 'name="listing"');
+    expectIncludesAll(html, [
+      'action="/admin/attendees"',
+      'method="get"',
+      'name="listing"',
+    ]);
   });
 
   test("hides the listing filter when only one listing exists", () => {
@@ -119,8 +124,10 @@ describe("adminAttendeesListPage", () => {
         state: buildState({ sort: "oldest", type: "daily" }),
       }),
     );
-    assertStringIncludes(html, 'name="type" type="hidden" value="daily"');
-    assertStringIncludes(html, 'name="sort" type="hidden" value="oldest"');
+    expectIncludesAll(html, [
+      'name="type" type="hidden" value="daily"',
+      'name="sort" type="hidden" value="oldest"',
+    ]);
   });
 
   test("lists attendee rows with their listing name", () => {
@@ -133,8 +140,7 @@ describe("adminAttendeesListPage", () => {
         rows: [row(1, "Alice", 2, "Booked Listing")],
       }),
     );
-    assertStringIncludes(html, "Alice");
-    assertStringIncludes(html, "Booked Listing");
+    expectIncludesAll(html, ["Alice", "Booked Listing"]);
     // The row rendered, so the empty-state message must not appear.
     assert(!html.includes("No attendees yet"));
   });
@@ -160,8 +166,7 @@ describe("adminAttendeesListPage", () => {
         systemNotes: [noteRow],
       }),
     );
-    assertStringIncludes(html, "1 attendee has notes");
-    assertStringIncludes(html, "needs a follow-up call");
+    expectIncludesAll(html, ["1 attendee has notes", "needs a follow-up call"]);
   });
 
   test("offers no check-in control — the browser table is read-only", () => {
@@ -208,9 +213,11 @@ describe("adminAttendeesListPage", () => {
 
   test("renders a plain CSV export link when no filters are active", () => {
     const html = adminAttendeesListPage(buildProps());
-    assertStringIncludes(html, 'class="table-actions"');
-    assertStringIncludes(html, 'href="/admin/attendees/csv"');
-    assertStringIncludes(html, "Export CSV");
+    expectIncludesAll(html, [
+      'class="table-actions"',
+      'href="/admin/attendees/csv"',
+      "Export CSV",
+    ]);
   });
 
   test("the CSV export link carries the active listing and type filters", () => {
@@ -230,9 +237,7 @@ describe("adminAttendeesListPage", () => {
     const html = adminAttendeesListPage(
       buildProps({ listings: twoListings() }),
     );
-    assertStringIncludes(html, "All listings");
-    assertStringIncludes(html, "Gala Night");
-    assertStringIncludes(html, "Quiz Evening");
+    expectIncludesAll(html, ["All listings", "Gala Night", "Quiz Evening"]);
   });
 
   test("flags deactivated listings in the filter", () => {
@@ -268,17 +273,18 @@ describe("adminAttendeesListPage", () => {
   describe("the sort bar", () => {
     test("marks the active sort and links the other", () => {
       const newest = adminAttendeesListPage(buildProps());
-      assertStringIncludes(
-        newest,
+      expectIncludesAll(newest, [
         "Sort: <strong><u>Newest first</u></strong>",
-      );
-      assertStringIncludes(newest, 'href="/admin/attendees?sort=oldest"');
+        'href="/admin/attendees?sort=oldest"',
+      ]);
       const oldest = adminAttendeesListPage(
         buildProps({ state: buildState({ sort: "oldest" }) }),
       );
-      assertStringIncludes(oldest, "<strong><u>Oldest first</u></strong>");
-      // Back to the default order is the bare path.
-      assertStringIncludes(oldest, 'href="/admin/attendees">Newest first</a>');
+      expectIncludesAll(oldest, [
+        "<strong><u>Oldest first</u></strong>",
+        // Back to the default order is the bare path.
+        'href="/admin/attendees">Newest first</a>',
+      ]);
     });
 
     test("sort links keep the listing filter and reset the page", () => {
@@ -305,10 +311,12 @@ describe("adminAttendeesListPage", () => {
 
   test("shows a Next link (only) on the first of several pages", () => {
     const html = adminAttendeesListPage(buildProps({ hasNext: true }));
-    assertStringIncludes(html, 'class="pagination"');
-    assertStringIncludes(html, "Next");
-    // rel="next" pins the assertion to the Next link itself.
-    assertStringIncludes(html, 'href="/admin/attendees?page=1" rel="next"');
+    expectIncludesAll(html, [
+      'class="pagination"',
+      "Next",
+      // rel="next" pins the assertion to the Next link itself.
+      'href="/admin/attendees?page=1" rel="next"',
+    ]);
     assert(!html.includes("Previous"));
   });
 
@@ -316,11 +324,13 @@ describe("adminAttendeesListPage", () => {
     const html = adminAttendeesListPage(
       buildProps({ hasNext: false, state: buildState({ page: 1 }) }),
     );
-    assertStringIncludes(html, "Previous");
-    // From page 1 back to page 0 with no filter/sort drops the query entirely.
-    // rel="prev" pins this to the Previous link — the bare /admin/attendees
-    // path also appears in the nav.
-    assertStringIncludes(html, 'href="/admin/attendees" rel="prev"');
+    expectIncludesAll(html, [
+      "Previous",
+      // From page 1 back to page 0 with no filter/sort drops the query entirely.
+      // rel="prev" pins this to the Previous link — the bare /admin/attendees
+      // path also appears in the nav.
+      'href="/admin/attendees" rel="prev"',
+    ]);
     assert(!html.includes("Next"));
   });
 
@@ -334,14 +344,10 @@ describe("adminAttendeesListPage", () => {
     );
     // Next → page 3, Previous → page 1, both carrying listing + sort.
     // Ampersands are HTML-escaped in the rendered href attributes.
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       'href="/admin/attendees?listing=7&amp;sort=oldest&amp;page=3"',
-    );
-    assertStringIncludes(
-      html,
       'href="/admin/attendees?listing=7&amp;sort=oldest&amp;page=1"',
-    );
+    ]);
   });
 
   test("numbers the current page (1-based) in the pagination", () => {
@@ -372,10 +378,12 @@ describe("adminAttendeesListPage", () => {
           state: buildState({ type: "daily" }),
         }),
       );
-      assertStringIncludes(html, 'class="table-actions"');
-      assertStringIncludes(html, "<strong><u>Daily</u></strong>");
-      assertStringIncludes(html, ">Standard</a>");
-      assertStringIncludes(html, ">All</a>");
+      expectIncludesAll(html, [
+        'class="table-actions"',
+        "<strong><u>Daily</u></strong>",
+        ">Standard</a>",
+        ">All</a>",
+      ]);
     });
 
     test("omits the bar entirely when only one category is present", () => {
@@ -418,8 +426,10 @@ describe("adminAttendeesListPage", () => {
           state: buildState({ type: "daily" }),
         }),
       );
-      assertStringIncludes(html, "Showing 3 attendees for");
-      assertStringIncludes(html, "<strong>Daily</strong>");
+      expectIncludesAll(html, [
+        "Showing 3 attendees for",
+        "<strong>Daily</strong>",
+      ]);
     });
 
     test("pluralises a single filtered result", () => {

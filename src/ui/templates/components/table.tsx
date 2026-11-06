@@ -7,7 +7,6 @@
  * return JSX children, so text is escaped unless the caller supplies `Raw`.
  */
 
-/* jscpd:ignore-start */
 import { filter, map } from "#fp";
 import { t } from "#i18n";
 import type { Child } from "#jsx/jsx-runtime.ts";
@@ -28,8 +27,6 @@ import {
   colClass,
 } from "#templates/components/table-columns.ts";
 import { renderFilteredValue } from "#templates/components/table-filters.ts";
-
-/* jscpd:ignore-end */
 
 type TableRenderShell<TRow, TContext> = {
   /** Empty-state body rendered in a single `<td colspan>` when rows is

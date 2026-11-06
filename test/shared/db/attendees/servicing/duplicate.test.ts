@@ -12,7 +12,6 @@
  *     and `buildDuplicateServicingInput(event)`; the duplicate is created via
  *     `createServicingEvent(buildDuplicateServicingInput(original))`.
  */
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingRemainingForRange } from "#db/attendees/capacity/remaining.ts";
@@ -33,8 +32,6 @@ import {
   tokenIndexOf,
   updateServicingEvent,
 } from "#test-utils/servicing.ts";
-
-// jscpd:ignore-end
 
 /** Create a daily listing + a servicing hold on 2026-07-01. */
 const createHoldOnNewDailyListing = async (

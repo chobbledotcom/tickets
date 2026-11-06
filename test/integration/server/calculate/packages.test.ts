@@ -8,6 +8,7 @@ import { it as test } from "@std/testing/bdd";
 import { bookingError } from "#booking/form.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
 import { formatCurrency } from "#shared/currency.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { postRunningTotal, quoteTicketHtml } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -46,8 +47,7 @@ describeWithEnv("server (/calculate package quotes)", { db: true }, () => {
     });
     expect(response.status).toBe(200);
     const html = await response.text();
-    assertStringIncludes(html, "Mystery Box");
-    assertStringIncludes(html, formatCurrency(1200));
+    expectIncludesAll(html, ["Mystery Box", formatCurrency(1200)]);
     assert(!html.includes("Secret Contents"));
   });
 
@@ -223,7 +223,6 @@ describeWithEnv("server (/calculate package quotes)", { db: true }, () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
     const html = await response.text();
-    assertStringIncludes(html, "Day Pass");
-    assertStringIncludes(html, formatCurrency(2000));
+    expectIncludesAll(html, ["Day Pass", formatCurrency(2000)]);
   });
 });

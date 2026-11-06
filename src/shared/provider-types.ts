@@ -1,3 +1,4 @@
+// effects: pure
 import { okResult, type Result } from "#shared/result.ts";
 
 export interface DatabaseCredentials {

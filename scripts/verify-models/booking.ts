@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import {
   corruptedDataFor,
   type ModelDataSource,
@@ -11,8 +10,6 @@ import {
   type BookingLedgerDisposition,
   classifyBookingLedger,
 } from "#shared/session-ledger.ts";
-
-/* jscpd:ignore-end */
 
 /** One classifier call per ledger disposition. The `Record` annotation makes
  * a new disposition status a type error here, so the fact table cannot

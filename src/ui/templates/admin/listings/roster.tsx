@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import { fieldById, map, pipe } from "#fp";
 import {
   attendeeListHref,
@@ -30,8 +29,6 @@ import {
 } from "./capacity-rows.tsx";
 import { attendeeCountLabelSuffix } from "./helpers.ts";
 import type { ListingPanelOptions } from "./types.ts";
-
-/* jscpd:ignore-end */
 
 const listingRosterView = (opts: ListingPanelOptions) => {
   const {

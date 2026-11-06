@@ -15,7 +15,6 @@ import {
   type NewsPostWriteInput,
   updateNewsPost,
 } from "#db/news-posts.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import { normalizeSlug } from "#shared/slug.ts";
@@ -29,8 +28,6 @@ import { seoContentInput } from "./content-form-fields.ts";
 import { newsPostEditForm, newsPostForm } from "./news-form.ts";
 import { newsPage } from "./news-page.ts";
 import { contentWriteOrError, defineSiteContent } from "./site-content.ts";
-
-/* jscpd:ignore-end */
 
 type NewsContentValues = Parameters<typeof seoContentInput>[0] & {
   snippet: string;

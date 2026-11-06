@@ -2,6 +2,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { loginResponse } from "#routes/admin/dashboard.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createGroupWithListings } from "#test-utils/db-helpers/groups.ts";
@@ -38,9 +39,11 @@ describeWithEnv("admin listings route", { db: true }, () => {
     await createGroupWithListings("Autumn fair", ["Fair Listing"]);
     await createTestListing({ name: "Outside Listing" });
     const html = await (await adminGet("/admin/listings?group=999999")).text();
-    assertStringIncludes(html, "Fair Listing");
-    assertStringIncludes(html, "Outside Listing");
-    assertStringIncludes(html, "Group: <strong><u>All groups</u></strong>");
+    expectIncludesAll(html, [
+      "Fair Listing",
+      "Outside Listing",
+      "Group: <strong><u>All groups</u></strong>",
+    ]);
   });
 
   test("editor listings ignore an invalid owner column layout", async () => {

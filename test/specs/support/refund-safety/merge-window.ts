@@ -1,6 +1,5 @@
 /** A real merge form kept open while another owner window starts a refund. */
 
-// jscpd:ignore-start
 import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";
@@ -23,8 +22,6 @@ import {
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 import type { Attendee } from "#types";
 import type { RefundWindows } from "./windows.ts";
-
-// jscpd:ignore-end
 
 const MERGE_BUTTON = "Merge and delete source attendee";
 

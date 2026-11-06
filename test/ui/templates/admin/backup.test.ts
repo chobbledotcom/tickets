@@ -4,6 +4,7 @@ import {
   adminBackupPage,
   type BackupPageState,
 } from "#templates/admin/backup.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const mockSession = {
@@ -28,17 +29,18 @@ const baseState: BackupPageState = {
 describeWithEnv("backup template", { encryptionKey: true }, () => {
   test("renders page title", () => {
     const html = adminBackupPage(mockSession, baseState);
-    assertStringIncludes(html, "Database backup");
-    assertStringIncludes(html, 'class="active" href="/admin/backup"');
+    expectIncludesAll(html, [
+      "Database backup",
+      'class="active" href="/admin/backup"',
+    ]);
   });
 
   test("displays encryption key", () => {
     const html = adminBackupPage(mockSession, baseState);
-    assertStringIncludes(html, baseState.encryptionKey);
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      baseState.encryptionKey,
       '<section><div class="prose"><h2>Encryption key',
-    );
+    ]);
   });
 
   test("shows local database warning when not remote", () => {
@@ -64,11 +66,13 @@ describeWithEnv("backup template", { encryptionKey: true }, () => {
 
   test("shows create backup form when storage enabled", () => {
     const html = adminBackupPage(mockSession, baseState);
-    assertStringIncludes(html, "Create backup now");
-    assertStringIncludes(html, "/admin/backup/create");
-    assertStringIncludes(html, 'class="no-bg"');
-    assertStringIncludes(html, 'id="backup-create"');
-    assertStringIncludes(html, '<section><div class="prose"><h2>Create backup');
+    expectIncludesAll(html, [
+      "Create backup now",
+      "/admin/backup/create",
+      'class="no-bg"',
+      'id="backup-create"',
+      '<section><div class="prose"><h2>Create backup',
+    ]);
   });
 
   test("hides the create form when storage is disabled", () => {
@@ -121,10 +125,12 @@ describeWithEnv("backup template", { encryptionKey: true }, () => {
       ...baseState,
       createBlocked: { available: 43, needed: 120 },
     });
-    assertStringIncludes(html, "too big to back up from this page");
-    assertStringIncludes(html, "120 database calls");
-    assertStringIncludes(html, "only allows 43");
-    assertStringIncludes(html, "deno task backup");
+    expectIncludesAll(html, [
+      "too big to back up from this page",
+      "120 database calls",
+      "only allows 43",
+      "deno task backup",
+    ]);
     assert(!html.includes("/admin/backup/create"));
   });
 
@@ -140,15 +146,14 @@ describeWithEnv("backup template", { encryptionKey: true }, () => {
         },
       ],
     });
-    assertStringIncludes(html, "Monday 15 January 2024 at 12:00 UTC");
-    assertStringIncludes(html, "<code>2024-01-15T12-00-00-000Z</code>");
-    assertStringIncludes(html, "Timestamp");
-    assertStringIncludes(html, "1MB");
-    assertStringIncludes(html, "Download");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "Monday 15 January 2024 at 12:00 UTC",
+      "<code>2024-01-15T12-00-00-000Z</code>",
+      "Timestamp",
+      "1MB",
+      "Download",
       "/admin/backup/download/backup-2024-01-15T12-00-00-000Z.zip",
-    );
+    ]);
   });
 
   test("retention note counts backups and reports remaining capacity", () => {
@@ -164,13 +169,12 @@ describeWithEnv("backup template", { encryptionKey: true }, () => {
       ],
       maxBackups: 30,
     });
-    assertStringIncludes(html, '<div class="prose"><p>There is 1 backup');
-    assertStringIncludes(html, "There is 1 backup");
-    assertStringIncludes(html, "Up to 30 are kept");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      '<div class="prose"><p>There is 1 backup',
+      "There is 1 backup",
+      "Up to 30 are kept",
       "29 more can be created before the oldest is purged",
-    );
+    ]);
   });
 
   test("retention keeps the last available backup slot", () => {
@@ -209,20 +213,23 @@ describeWithEnv("backup template", { encryptionKey: true }, () => {
       backups: [entry(3), entry(2), entry(1)],
       maxBackups: 3,
     });
-    assertStringIncludes(html, "There are 3 backups");
-    assertStringIncludes(html, "the next will purge the oldest (backup 1)");
+    expectIncludesAll(html, [
+      "There are 3 backups",
+      "the next will purge the oldest (backup 1)",
+    ]);
   });
 
   test("shows the out-of-band restore command without a web form", () => {
     const html = adminBackupPage(mockSession, baseState);
-    assertStringIncludes(html, "deno task restore &lt;backup.zip&gt;");
-    assertStringIncludes(html, "large restore exceeds the edge request limit");
+    expectIncludesAll(html, [
+      "deno task restore &lt;backup.zip&gt;",
+      "large restore exceeds the edge request limit",
+    ]);
     assert(!html.includes("/admin/backup/restore"));
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<section><div class="prose"><h2>Restore from backup',
-    );
-    assertStringIncludes(html, 'href="/admin/guide#backups"');
+      'href="/admin/guide#backups"',
+    ]);
   });
 
   test("shows error message when provided", () => {
@@ -231,8 +238,7 @@ describeWithEnv("backup template", { encryptionKey: true }, () => {
       baseState,
       "Something went wrong",
     );
-    assertStringIncludes(html, "Something went wrong");
-    assertStringIncludes(html, "error");
+    expectIncludesAll(html, ["Something went wrong", "error"]);
   });
 
   test("shows success message when provided", () => {
@@ -242,7 +248,6 @@ describeWithEnv("backup template", { encryptionKey: true }, () => {
       undefined,
       "Backup created",
     );
-    assertStringIncludes(html, "Backup created");
-    assertStringIncludes(html, "success");
+    expectIncludesAll(html, ["Backup created", "success"]);
   });
 });

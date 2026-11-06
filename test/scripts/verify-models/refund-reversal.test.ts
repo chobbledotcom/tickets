@@ -1,13 +1,10 @@
 /* The refund reversal checker data: the production plan supplies every fact,
  * and the negative controls keep the safety verdicts honest. */
 
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { members, records } from "#test-utils/tla-data.ts";
 import { registeredModel } from "./registered-model.ts";
-
-/* jscpd:ignore-end */
 
 const { data: refundReversalModelData, controls } =
   registeredModel("RefundReversal");

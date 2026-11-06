@@ -5,7 +5,6 @@
  * separate browser of their own.
  */
 
-// jscpd:ignore-start
 import { getAllUsers } from "#db/users.ts";
 import { t } from "#i18n";
 import {
@@ -29,7 +28,6 @@ import type {
   TicketsWorld,
 } from "#test/specs/support/world.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
-// jscpd:ignore-end
 
 /** Staff roles whose account journeys are shared by the acceptance stories. */
 export type InvitedStaffRole = "editor" | "manager" | "scanner";

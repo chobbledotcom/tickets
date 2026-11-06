@@ -1,6 +1,5 @@
 /** Real customer and owner journeys used by the refund safety stories. */
 
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import * as v from "valibot";
@@ -35,8 +34,6 @@ import { makeSumupClient, withSumupClient } from "#test-utils/sumup.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 import type { Listing, PaymentProviderType } from "#types";
 import { refundSafety, type SafetyBooking, safetyBooking } from "./state.ts";
-
-// jscpd:ignore-end
 
 const safeName = (value: string): string =>
   value.toLowerCase().replaceAll(/[^a-z0-9]+/g, "_");

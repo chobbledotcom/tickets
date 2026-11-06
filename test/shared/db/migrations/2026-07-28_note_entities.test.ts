@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, getDb, queryAll } from "#db/client.ts";
@@ -6,6 +6,7 @@ import noteEntities from "#db/migrations/2026-07-28_note_entities.ts";
 import { MIGRATION_IDS } from "#db/migrations/registry.ts";
 import { recreateTable, syncIndexes } from "#db/migrations/schema-sync.ts";
 import type { Migration, MigrationContext } from "#db/migrations/types.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { columnNames } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext, indexExists } from "#test-utils/migrations.ts";
@@ -228,8 +229,7 @@ describeWithEnv(
       // The id is what the applied-marker is written under: a mismatch with the
       // registry would run the migration again on every boot.
       assertArrayIncludes(MIGRATION_IDS, [id]);
-      assertStringIncludes(description, "entity_type");
-      assertStringIncludes(description, "entity_id");
+      expectIncludesAll(description, ["entity_type", "entity_id"]);
     });
 
     test("refuses a note about a kind of record it does not know", async () => {

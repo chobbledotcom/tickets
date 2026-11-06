@@ -8,6 +8,7 @@ import {
   WalletSettingsForm,
 } from "#templates/admin/settings/wallet-settings.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 describe("hostOverrideHint", () => {
   test("says nothing when the host provides no wallet config", () => {
@@ -66,21 +67,22 @@ describe("WalletSettingsForm", () => {
   test("renders the section shell around the field lists", () => {
     const html = probe(false);
 
-    assertStringIncludes(html, 'action="/admin/settings/probe-wallet"');
-    assertStringIncludes(html, 'id="settings-probe-wallet"');
-    assertStringIncludes(html, "<h2>Probe Wallet</h2>");
-    assertStringIncludes(html, "Probe description.");
-    assertStringIncludes(html, "Save the wallet");
+    expectIncludesAll(html, [
+      'action="/admin/settings/probe-wallet"',
+      'id="settings-probe-wallet"',
+      "<h2>Probe Wallet</h2>",
+      "Probe description.",
+      "Save the wallet",
+    ]);
   });
 
   test("renders each text field with its translated label and value", () => {
     const html = probe(false);
 
-    assertStringIncludes(html, "<label>Issuer ID<input");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "<label>Issuer ID<input",
       `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="google_wallet_issuer_id" placeholder="3388000000012345678" type="text" value="3388000000012345678">`,
-    );
+    ]);
   });
 
   test("masks the secret textarea only once the site saves credentials", () => {

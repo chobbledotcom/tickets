@@ -10,7 +10,6 @@
  * API) posts inside its create transaction via {@link apiCreateLedgerPoster}.
  */
 
-/* jscpd:ignore-start */
 import { attendeeAccount, WORLD, WRITEOFF } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import { ledgerTx } from "#accounting/ledger-tx.ts";
@@ -37,8 +36,6 @@ import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import type { AccountRef, TransferInput } from "#shared/ledger/types.ts";
 import { nowIso } from "#shared/now.ts";
 import { postInitialTaxAssessmentTx } from "#shared/tax/store.ts";
-
-/* jscpd:ignore-end */
 
 /**
  * The attendee id stitched into the booking facts when building legs for the

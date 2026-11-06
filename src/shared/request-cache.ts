@@ -10,12 +10,9 @@
  */
 
 import { createPrimaryCacheRefill } from "#db/primary-reads.ts";
-/* jscpd:ignore-start -- imports */
 import { type CollectionCache, requiredMapValue, unique } from "#fp";
 import type { CacheInvalidation } from "#shared/cache-registry.ts";
 import { currentRequestStore } from "#shared/request-context.ts";
-
-/* jscpd:ignore-end */
 
 /** The per-request store: maps each cache's unique key to its cached data. */
 type CacheMap = Map<symbol, unknown>;

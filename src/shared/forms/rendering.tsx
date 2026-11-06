@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import { isNotNullish, joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
@@ -15,7 +14,6 @@ import { getSavedFieldValue } from "#shared/forms/saved-data.ts";
 import type { FieldValues } from "#shared/forms/values.ts";
 import { commaParts } from "#shared/split.ts";
 import { PriceInput } from "#templates/components/price-input.tsx";
-/* jscpd:ignore-end */
 
 export type SelectOption = {
   value: string;

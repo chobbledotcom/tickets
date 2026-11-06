@@ -1,5 +1,4 @@
-// jscpd:ignore-start
-import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
@@ -12,6 +11,7 @@ import {
   bookFreeOrder,
   bookPaidReservation,
 } from "#test/integration/server/_shared-setup.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { captureCheckoutIntent } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
@@ -30,8 +30,6 @@ import {
   stubPaidSession,
 } from "#test-utils/reservation/helpers.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "server (reservation deposit at checkout)",
@@ -75,9 +73,11 @@ describeWithEnv(
         const html = await (
           await handleRequest(mockRequest(`/pay/${token}`))
         ).text();
-        assertStringIncludes(html, "Full order price:</strong> £9");
-        assertStringIncludes(html, "Already paid:</strong> £0.90");
-        assertStringIncludes(html, "Balance due:</strong> £8.10");
+        expectIncludesAll(html, [
+          "Full order price:</strong> £9",
+          "Already paid:</strong> £0.90",
+          "Balance due:</strong> £8.10",
+        ]);
       } finally {
         session.restore();
       }

@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { questionsTable } from "#db/questions/tables.ts";
@@ -13,11 +11,10 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { enableFeature } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 const GROUP_NAME = "Oakfield Primary Summer Fair volunteers";
 const SETUP_SHIFT = "Set-up shift | 08:00-10:00 | 8 places";
@@ -65,8 +62,7 @@ When(
     await browser.visit(
       `/ticket/${requiredWorldValue(this.groupSlug, "volunteer group slug")}`,
     );
-    assertStringIncludes(browser.pageText, GROUP_NAME);
-    assertStringIncludes(browser.pageText, ACCESS_QUESTION);
+    expectIncludesAll(browser.pageText, [GROUP_NAME, ACCESS_QUESTION]);
     await browser.submitForm(
       {
         email: VOLUNTEER_EMAIL,
@@ -101,8 +97,10 @@ Then(
       "set-up shift listing id",
     );
     await browser.visit(`/admin/listing/${listingId}/attendees`);
-    assertStringIncludes(browser.pageText, VOLUNTEER_NAME);
-    assertStringIncludes(browser.pageText, VOLUNTEER_EMAIL);
-    assertStringIncludes(browser.pageText, ACCESS_ANSWER);
+    expectIncludesAll(browser.pageText, [
+      VOLUNTEER_NAME,
+      VOLUNTEER_EMAIL,
+      ACCESS_ANSWER,
+    ]);
   },
 );

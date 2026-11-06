@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import {
   type DerValue,
   encodeOid,
@@ -10,8 +9,6 @@ import { readPem } from "#crypto/pem.ts";
 import { isValidRsaPublicKey } from "#crypto/rsa-private-key.ts";
 import { sameOrder } from "#fp";
 import { succeeds } from "#shared/validation/succeeds.ts";
-
-/* jscpd:ignore-end */
 
 const RSA_ENCRYPTION_OID = encodeOid("1.2.840.113549.1.1.1");
 

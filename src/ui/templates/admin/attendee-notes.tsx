@@ -11,7 +11,6 @@
  */
 
 import { groupNotesByTargetId } from "#db/notes/target.ts";
-/* jscpd:ignore-start */
 import type { SystemNote } from "#db/notes/types.ts";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
@@ -29,8 +28,6 @@ import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { ActionButton, SubmitButton } from "#templates/components/actions.tsx";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
 import { type AdminSession, isOwnerRole } from "#types";
-
-/* jscpd:ignore-end */
 
 /** Fields shared by the note page templates: the operator's session, where to
  *  send them back to, and any error to show. */

@@ -1,7 +1,7 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ListingGroupSelect } from "#templates/admin/group-select.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testGroup } from "#test-utils/factories.ts";
 
 describe("ListingGroupSelect", () => {
@@ -19,16 +19,12 @@ describe("ListingGroupSelect", () => {
         selectedGroupIds: [],
       }),
     );
-    assertStringIncludes(html, '<fieldset class="checkboxes">');
-    assertStringIncludes(html, "<legend>Group</legend>");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      '<fieldset class="checkboxes">',
+      "<legend>Group</legend>",
       '<input name="group_ids" type="checkbox" value="3"> Weekend',
-    );
-    assertStringIncludes(
-      html,
       '<input name="group_ids" type="checkbox" value="9"> Christmas Bundle',
-    );
+    ]);
   });
 
   test("ticks only the group ids given as chosen", () => {
@@ -41,13 +37,9 @@ describe("ListingGroupSelect", () => {
         selectedGroupIds: [9],
       }),
     );
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<input name="group_ids" type="checkbox" value="3"> Weekend',
-    );
-    assertStringIncludes(
-      html,
       '<input checked name="group_ids" type="checkbox" value="9"> Weekend',
-    );
+    ]);
   });
 });

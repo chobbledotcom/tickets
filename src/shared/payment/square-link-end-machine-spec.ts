@@ -1,3 +1,4 @@
+// effects: pure
 /** The machine that ends an unpaid Square checkout's payment link.
  *
  * A Square payment link stays payable for 180 days unless somebody ends it.
@@ -10,7 +11,6 @@
  * that no longer exists. A stored word this machine does not have is
  * raised where it is read. */
 
-/* jscpd:ignore-start -- imports */
 import * as v from "valibot";
 import {
   derivedNodeIds,
@@ -22,7 +22,6 @@ import {
   parseMachineState,
   machineRep as rep,
 } from "#shared/schema-atlas/machine-spec.ts";
-/* jscpd:ignore-end */
 
 /** The words a `square_link_ends.state` column can hold. */
 export const SquareLinkEndStateSchema = v.picklist(["ending", "pending"]);

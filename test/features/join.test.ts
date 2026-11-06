@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { createInvitedUser, getUserByUsername } from "#db/users.ts";
@@ -8,6 +7,7 @@ import {
   expectAdminLoginSuccess,
   expectFlashRedirect,
   expectHtmlResponse,
+  expectIncludesAll,
   expectRedirectWithFlash,
   inputNamed,
 } from "#test-utils/assertions.ts";
@@ -31,17 +31,23 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("serves both password boxes with their labels, hints, and bounds", async () => {
       const { joinForm } = await import("#routes/join.ts");
       const html = joinForm.render();
-      assertStringIncludes(html, "Password");
-      assertStringIncludes(html, "Confirm password");
-      assertStringIncludes(html, "Minimum 8 characters");
+      expectIncludesAll(html, [
+        "Password",
+        "Confirm password",
+        "Minimum 8 characters",
+      ]);
       const password = inputNamed(html, "password");
-      assertStringIncludes(password, 'minlength="8"');
-      assertStringIncludes(password, 'autocomplete="new-password"');
-      assertStringIncludes(password, "required");
+      expectIncludesAll(password, [
+        'minlength="8"',
+        'autocomplete="new-password"',
+        "required",
+      ]);
       const confirm = inputNamed(html, "password_confirm");
-      assertStringIncludes(confirm, 'minlength="8"');
-      assertStringIncludes(confirm, 'autocomplete="new-password"');
-      assertStringIncludes(confirm, "required");
+      expectIncludesAll(confirm, [
+        'minlength="8"',
+        'autocomplete="new-password"',
+        "required",
+      ]);
     });
   });
 
@@ -103,8 +109,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       );
       expect(joinResponse.status).toBe(200);
       const joinHtml = await joinResponse.text();
-      assertStringIncludes(joinHtml, "joiner");
-      assertStringIncludes(joinHtml, "password");
+      expectIncludesAll(joinHtml, ["joiner", "password"]);
     });
 
     test("GET /join/complete shows confirmation page", async () => {

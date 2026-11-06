@@ -1,3 +1,4 @@
+// effects: pure
 import * as v from "valibot";
 import { parseOrNull } from "./parse.ts";
 import { NonEmptyTextSchema } from "./string.ts";

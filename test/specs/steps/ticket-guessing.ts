@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Then, When } from "@cucumber/cucumber";
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -18,8 +16,6 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
 
 /** The steps for the rules about repeated guessing: the made-up codes a story
  * tries, the real ticket that clears the count, the refusals the site answers

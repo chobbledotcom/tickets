@@ -1,7 +1,5 @@
 /** News posts: the owner writes and removes them, a visitor reads them. */
 
-// jscpd:ignore-start
-
 import {
   makesRecordThroughForm,
   openAsNewcomer,
@@ -14,8 +12,6 @@ import {
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
-
-// jscpd:ignore-end
 
 const makesPost = makesRecordThroughForm({
   button: "Create News Post",

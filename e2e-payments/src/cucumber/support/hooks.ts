@@ -1,5 +1,3 @@
-// jscpd:ignore-start -- imports
-
 import { readFile } from "node:fs/promises";
 import {
   After,
@@ -28,8 +26,6 @@ import { startAppServer } from "#e2e/server.ts";
 import { CANNED_BUNNY_CASES, type LiveCaseId } from "#e2e/targets.ts";
 import { noTunnel, startTunnel } from "#e2e/tunnel.ts";
 import { LiveWorld } from "./world.ts";
-
-// jscpd:ignore-end
 
 setDefaultTimeout(config.stepTimeoutMs);
 

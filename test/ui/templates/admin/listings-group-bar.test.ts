@@ -3,13 +3,14 @@
  * chosen group marked, and the export link carrying the chosen scope.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { adminListingsPage } from "#templates/admin/dashboard.tsx";
 import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 describe("the listings page group bar", () => {
@@ -30,15 +31,14 @@ describe("the listings page group bar", () => {
         ],
       },
     );
-    assertStringIncludes(html, "Group: <strong><u>All groups</u></strong>");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "Group: <strong><u>All groups</u></strong>",
       'href="/admin/listings?group=3">Autumn fair</a>',
-    );
-    assertStringIncludes(html, 'href="/admin/listings?group=5">Weekend</a>');
-    // The export link carries the chosen scope so a filtered page exports
-    // what it shows.
-    assertStringIncludes(html, 'href="/admin/listings/csv"');
+      'href="/admin/listings?group=5">Weekend</a>',
+      // The export link carries the chosen scope so a filtered page exports
+      // what it shows.
+      'href="/admin/listings/csv"',
+    ]);
   });
 
   test("marks the chosen group and points the CSV export at it", () => {
@@ -50,9 +50,11 @@ describe("the listings page group bar", () => {
       undefined,
       { activeGroupId: 3, groups: [{ id: 3, name: "Autumn fair" }] },
     );
-    assertStringIncludes(html, '<a href="/admin/listings">All groups</a>');
-    assertStringIncludes(html, "<strong><u>Autumn fair</u></strong>");
-    assertStringIncludes(html, 'href="/admin/listings/csv?group=3"');
+    expectIncludesAll(html, [
+      '<a href="/admin/listings">All groups</a>',
+      "<strong><u>Autumn fair</u></strong>",
+      'href="/admin/listings/csv?group=3"',
+    ]);
   });
 
   test("renders no group bar when the site stores no groups", () => {

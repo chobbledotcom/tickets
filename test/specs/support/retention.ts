@@ -10,7 +10,6 @@ import {
   readCheckoutAnswers,
   stageCheckoutAnswers,
 } from "#db/checkout-pending-answers.ts";
-// jscpd:ignore-start
 import { execute, queryAll } from "#db/client.ts";
 import { stageSquareLinkEnd } from "#db/square-link-ends.ts";
 import { getDueSumupCheckouts } from "#db/sumup-recovery.ts";
@@ -18,7 +17,6 @@ import { MAINTENANCE_TASKS } from "#shared/maintenance/registry.ts";
 import { maintenance } from "#shared/maintenance/runner.ts";
 import type { ActOnTheStory } from "#test/specs/support/world.ts";
 import { plantSumupRecoveryRow } from "#test-utils/sumup.ts";
-// jscpd:ignore-end
 
 /** The real scheduled maintenance job: the registry's tasks, through the
  * runner that claims and runs them. */

@@ -3,13 +3,10 @@
  * link that takes it down, then typing its name to confirm.
  */
 
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { takeDownFromActions } from "#test/specs/support/form-controls.ts";
-
-// jscpd:ignore-end
 
 describe("taking a thing down from its own page", () => {
   /** A browser stand-in that remembers which links were followed and what

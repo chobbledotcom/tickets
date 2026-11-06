@@ -10,7 +10,6 @@ import {
   imageUseTargets,
   setImagesForItem,
 } from "#db/images.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import {
   type AuthPolicy,
@@ -27,8 +26,6 @@ import { isStorageEnabled } from "#shared/storage.ts";
 import { ItemImagesPanel } from "#templates/admin/images.tsx";
 import type { ImageUseItemType } from "#types";
 import { withUploadedImage } from "./image-upload.ts";
-
-/* jscpd:ignore-end */
 
 type ItemImageConfig<T> = {
   /** Who can edit this entity's images. Defaults to the content gates.

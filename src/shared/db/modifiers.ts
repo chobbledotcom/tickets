@@ -7,7 +7,6 @@
  * the table directly without a cache.
  */
 
-/* jscpd:ignore-start */
 import { inOwnTx, ledgerTx } from "#accounting/ledger-tx.ts";
 import { accountBalanceSubquery } from "#accounting/projection-sql.ts";
 import { decrypt, encrypt } from "#crypto/encryption.ts";
@@ -51,7 +50,6 @@ import type {
   ModifierTrigger,
 } from "#shared/price-modifier.ts";
 import type { Modifier } from "#types";
-/* jscpd:ignore-end */
 
 /** The stored modifier row. `total_revenue` is NOT a column — it is projected
  * from the transfers ledger at read time (see {@link modifierRevenueSubquery})

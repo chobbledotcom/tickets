@@ -12,7 +12,6 @@
  *     reuses the atomic attendee create core with empty contact fields.
  *   - `#test-utils/servicing.ts` wraps it as `createTestServicingEvent`.
  */
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { SERVICING_KIND } from "#db/attendees/kind.ts";
@@ -36,8 +35,6 @@ import {
   servicingRowsForListing,
   tokenIndexOf,
 } from "#test-utils/servicing.ts";
-
-// jscpd:ignore-end
 
 const bookingRows = (listingId: number) =>
   getDb().execute({

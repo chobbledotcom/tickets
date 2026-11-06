@@ -1,3 +1,4 @@
+// effects: pure
 /** Exact provider money and the owner resolution it can safely support. */
 
 import * as v from "valibot";

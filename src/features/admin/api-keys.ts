@@ -1,11 +1,9 @@
-/* jscpd:ignore-start */
 import {
   defineAdminRoutes,
   entityTabRoutes,
 } from "#routes/admin/route-tables.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
-/* jscpd:ignore-end */
 /**
  * Admin API key management routes
  */
@@ -18,7 +16,6 @@ import {
   getApiKeyForUser,
   getApiKeysForUser,
 } from "#db/api-keys.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { createActionHandler } from "#routes/admin/actions.ts";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
@@ -43,8 +40,6 @@ import {
   adminApiKeysPage,
   apiKeySummaryRows,
 } from "#templates/admin/api-keys.tsx";
-
-/* jscpd:ignore-end */
 
 /** Gated handler that loads the caller's API keys up front. */
 const withOwnerApiKeys = withPageData("/admin/api-keys", (session) =>

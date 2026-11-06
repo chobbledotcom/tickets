@@ -10,7 +10,6 @@
  * told in the story "The organiser names the states a booking can be in".
  */
 
-/* jscpd:ignore-start */
 import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -29,8 +28,6 @@ import {
   adminGet,
   withTestSession,
 } from "#test-utils/session.ts";
-
-/* jscpd:ignore-end */
 
 const PATH = "/admin/settings/statuses";
 

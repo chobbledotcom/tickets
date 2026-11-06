@@ -13,7 +13,6 @@ import {
 } from "#booking/model.ts";
 import { childTicketLimit, groupCapacityInfo } from "#booking/package-cap.ts";
 import { childPriceFieldName, childQuantityFieldName } from "#booking/tree.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
 import { pairKey } from "#shared/keys.ts";
@@ -29,8 +28,6 @@ import { renderPayMoreInput } from "./controls.ts";
 import { quantityOptions, restoredChildQty } from "./quantities.ts";
 import { renderQuestion } from "./questions.tsx";
 import type { ChildRenderCtx } from "./types.ts";
-
-/* jscpd:ignore-end */
 
 /** Adds the child date data the browser uses to disable impossible choices. */
 const childDateAttrs = (

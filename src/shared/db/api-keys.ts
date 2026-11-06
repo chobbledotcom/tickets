@@ -9,7 +9,6 @@
  * Keys inherit admin_level from their parent user.
  */
 
-/* jscpd:ignore-start */
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import { wrapKeyWithToken } from "#crypto/keys.ts";
@@ -22,8 +21,6 @@ import { readerFor } from "#db/table-reader.ts";
 import { nowIso } from "#shared/now.ts";
 import { getTouchOverride } from "#shared/test-overrides.ts";
 import type { ApiKey } from "#types";
-
-/* jscpd:ignore-end */
 
 /** A row with its `name` decrypted for display — the table's read shape. */
 type ApiKeyRow = {

@@ -1,5 +1,3 @@
-/* jscpd:ignore-start */
-
 import type { ProviderRead } from "#payment/provider-read.ts";
 import type { RefundAttemptResult } from "#payment/refund-attempt.ts";
 import type { AuthorizedRefundRequest } from "#payment/refund-provider-authorization.ts";
@@ -25,8 +23,6 @@ import {
   refundSquareCharge,
 } from "#shared/square/payment-outcomes.ts";
 import type { SquareOrder, SquarePayment } from "#shared/square/wire.ts";
-
-/* jscpd:ignore-end */
 
 type SquareApi = {
   endLink(linkId: string): Promise<FetchResult>;

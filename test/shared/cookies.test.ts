@@ -16,21 +16,23 @@ import {
   getSessionCookieName,
   parseFlashValue,
 } from "#shared/cookies.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 /** Assert common cookie attributes for dev (localhost) mode */
 const expectDevCookieAttributes = (cookie: string) => {
   assertStringIncludes(cookie, "HttpOnly");
   assert(!cookie.includes("; Secure;"));
-  assertStringIncludes(cookie, "SameSite=Strict");
-  assertStringIncludes(cookie, "Path=/");
+  expectIncludesAll(cookie, ["SameSite=Strict", "Path=/"]);
 };
 
 /** Assert common cookie attributes for secure (non-localhost) mode */
 const expectSecureCookieAttributes = (cookie: string) => {
-  assertStringIncludes(cookie, "HttpOnly");
-  assertStringIncludes(cookie, "; Secure;");
-  assertStringIncludes(cookie, "SameSite=Strict");
-  assertStringIncludes(cookie, "Path=/");
+  expectIncludesAll(cookie, [
+    "HttpOnly",
+    "; Secure;",
+    "SameSite=Strict",
+    "Path=/",
+  ]);
 };
 
 describe("isSecureMode", () => {

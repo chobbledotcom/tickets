@@ -12,7 +12,6 @@
  * reads.
  */
 
-// jscpd:ignore-start -- imports
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -45,8 +44,6 @@ import {
   settledCheckIn,
 } from "#test/ui/client/scanner/offline-door.ts";
 import { type FetchResponder, stubFetch } from "#test-utils/fetch-stub.ts";
-
-// jscpd:ignore-end
 
 describe("scanner offline sync", {
   sanitizeOps: false,

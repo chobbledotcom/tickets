@@ -13,6 +13,7 @@ import {
 } from "#db/listing-prices.ts";
 import { deleteListing } from "#db/listings/delete.ts";
 import { listingsTable } from "#db/listings/records.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { updateTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
@@ -166,11 +167,10 @@ describe("removeGroupPricesStatement", () => {
     // Flat rows matched by exact group id; per-day rows by the "<id>/%" glob (the
     // trailing "/" keeps group 1's glob from matching group 12's price_ids).
     expect(stmt.args).toEqual([5, "1", "12", "1/%", "12/%"]);
-    assertStringIncludes(
-      stmt.sql,
+    expectIncludesAll(stmt.sql, [
       "price_type = 'group' AND price_id IN (?, ?)",
-    );
-    assertStringIncludes(stmt.sql, "price_id LIKE ? OR price_id LIKE ?");
+      "price_id LIKE ? OR price_id LIKE ?",
+    ]);
   });
 
   test("drops several listings' rows for one left group in one statement", () => {

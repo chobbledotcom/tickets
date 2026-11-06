@@ -12,7 +12,10 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { expectHtmlResponse } from "#test-utils/assertions.ts";
+import {
+  expectHtmlResponse,
+  expectIncludesAll,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   assignTestAttributeOptions,
@@ -52,9 +55,11 @@ describeWithEnv("listings type filter", { db: true }, () => {
       const daily = await createTestListing({ name: "Daily One", ...DAILY });
       const response = await adminGet("/admin?type=bogus");
       const html = await response.text();
-      assertStringIncludes(html, `href="/admin/listing/${standard.id}"`);
-      assertStringIncludes(html, `href="/admin/listing/${daily.id}"`);
-      assertStringIncludes(html, "<strong><u>All</u></strong>");
+      expectIncludesAll(html, [
+        `href="/admin/listing/${standard.id}"`,
+        `href="/admin/listing/${daily.id}"`,
+        "<strong><u>All</u></strong>",
+      ]);
     });
 
     // Only reading the link itself tells this apart: dropping the kind from a

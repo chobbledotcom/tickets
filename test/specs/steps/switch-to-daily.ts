@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { attendeesApi } from "#db/attendees/api.ts";
@@ -26,8 +24,6 @@ import {
   type TicketsWorld,
   whatWasKeptFor,
 } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
 
 const whatWasTold = whatWasKeptFor("told");
 const dayKept = whatWasKeptFor("day");

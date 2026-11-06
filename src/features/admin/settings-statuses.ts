@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import {
   crudRoutes,
   defineAdminRoutes,
@@ -6,7 +5,6 @@ import {
 } from "#routes/admin/route-tables.ts";
 import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 
-/* jscpd:ignore-end */
 /**
  * Admin routes for managing attendee statuses (owner-only).
  *
@@ -40,7 +38,6 @@ import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { validateReservationAmount } from "#shared/reservation-amount.ts";
 import type { NamedOperations } from "#shared/rest/resource.ts";
-/* jscpd:ignore-start */
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import {
   retireStatusDeletePage,
@@ -48,8 +45,6 @@ import {
   statusPages,
 } from "#templates/admin/settings-statuses.tsx";
 import { attendeeStatusPage } from "./attendee-status-page.ts";
-
-/* jscpd:ignore-end */
 
 const LIST_PATH = adminPattern("statuses");
 

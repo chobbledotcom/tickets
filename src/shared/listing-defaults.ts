@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * Inheritance happens at READ time, so changing a default instantly changes
  * every "Use defaults" listing. The row's own value for a defaulted field is

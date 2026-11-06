@@ -15,6 +15,7 @@ import {
 import {
   expectErrorFlash,
   expectFlashRedirect,
+  expectIncludesAll,
   expectRedirectWithFlash,
   followRedirectWithFlash,
 } from "#test-utils/assertions.ts";
@@ -64,9 +65,11 @@ describeWithEnv(
     test("shows the section when DNS is configured", async () => {
       enable();
       const html = await advancedPageHtml();
-      assertStringIncludes(html, 'id="settings-host-subdomain"');
-      assertStringIncludes(html, "Host subdomain");
-      assertStringIncludes(html, "Check if the name is free");
+      expectIncludesAll(html, [
+        'id="settings-host-subdomain"',
+        "Host subdomain",
+        "Check if the name is free",
+      ]);
     });
 
     test("shows a registered subdomain on its secure host", async () => {
@@ -85,9 +88,11 @@ describeWithEnv(
       );
       const html = await response.text();
       expect(response.status).toBe(200);
-      assertStringIncludes(html, "mylisting.tickets.example.com");
-      assertStringIncludes(html, "permanent and cannot be changed");
-      assertStringIncludes(html, "keeps working at the same time");
+      expectIncludesAll(html, [
+        "mylisting.tickets.example.com",
+        "permanent and cannot be changed",
+        "keeps working at the same time",
+      ]);
     });
 
     test("rejects registration when DNS is not configured", async () => {

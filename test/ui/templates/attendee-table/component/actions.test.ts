@@ -9,6 +9,7 @@ import {
   render,
   zaraAliceRows,
 } from "#test/ui/templates/attendee-table/shared.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { hasInputWithValue } from "#test-utils/csrf.ts";
 import { testAttendee } from "#test-utils/factories.ts";
 
@@ -17,15 +18,13 @@ attendeeTableSuite(() => {
     test("shows Check in for an unchecked attendee", () => {
       const attendee = testAttendee({ checked_in: 0 });
       const html = render(makeOpts({ rows: [makeRow({ attendee })] }));
-      assertStringIncludes(html, "Check in");
-      assertStringIncludes(html, 'class="link-button checkin"');
+      expectIncludesAll(html, ["Check in", 'class="link-button checkin"']);
     });
 
     test("shows Check out for a checked-in attendee", () => {
       const attendee = testAttendee({ checked_in: 1 });
       const html = render(makeOpts({ rows: [makeRow({ attendee })] }));
-      assertStringIncludes(html, "Check out");
-      assertStringIncludes(html, 'class="link-button checkout"');
+      expectIncludesAll(html, ["Check out", 'class="link-button checkout"']);
     });
 
     test("includes the current CSRF token", () => {
@@ -155,8 +154,7 @@ attendeeTableSuite(() => {
 
     test("retains data columns when false", () => {
       const html = render(makeOpts({ showCheckin: false }));
-      assertStringIncludes(html, "John Doe");
-      assertStringIncludes(html, "test-token-1");
+      expectIncludesAll(html, ["John Doe", "test-token-1"]);
     });
 
     test("shows check-in by default", () => {

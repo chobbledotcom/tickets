@@ -8,6 +8,7 @@ import { builderApi } from "#shared/builder.ts";
 import {
   expectFlash,
   expectHtmlResponse,
+  expectIncludesAll,
   expectRedirect,
   FLASH_TEST_ID,
   flashCookieHeader,
@@ -420,8 +421,7 @@ describeWithEnv(
 
       const response = await adminGet("/admin/builder");
       const html = await response.text();
-      assertStringIncludes(html, "Table Test Site");
-      assertStringIncludes(html, "test-42.b-cdn.net");
+      expectIncludesAll(html, ["Table Test Site", "test-42.b-cdn.net"]);
     });
 
     test("POST /admin/builder passes deno hosting_provider to buildSite", async () => {
@@ -477,7 +477,7 @@ describeWithEnv(
             db_url: "libsql://test.io",
             site_name: "Manual DB Site",
           });
-          expect(capture.input?.dbProvider).toBeUndefined();
+          expect(capture.input?.dbProvider).toBe(undefined);
         },
       );
     });

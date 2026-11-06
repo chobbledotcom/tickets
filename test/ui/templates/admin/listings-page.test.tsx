@@ -10,6 +10,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import type { AdminSession } from "#types";
@@ -29,10 +30,12 @@ describe("adminListingsPage", () => {
       name: "Old Show",
     });
     const html = adminListingsPage([active, inactive], OWNER_SESSION);
-    assertStringIncludes(html, 'class="active" href="/admin/listings"');
-    assertStringIncludes(html, "Active Show");
-    assertStringIncludes(html, "Deactivated");
-    assertStringIncludes(html, "Old Show");
+    expectIncludesAll(html, [
+      'class="active" href="/admin/listings"',
+      "Active Show",
+      "Deactivated",
+      "Old Show",
+    ]);
     expect(html.indexOf("Active Show")).toBeLessThan(html.indexOf("Old Show"));
     // The Listings section sub-nav offers the catalog import entry point.
     assertStringIncludes(html, 'href="/admin/catalog/import"');
@@ -51,9 +54,11 @@ describe("adminListingsPage", () => {
       [testListingWithCount({ name: "Active Show" })],
       OWNER_SESSION,
     );
-    assertStringIncludes(html, 'class="table-actions"');
-    assertStringIncludes(html, 'href="/admin/listings/csv"');
-    assertStringIncludes(html, "Export CSV");
+    expectIncludesAll(html, [
+      'class="table-actions"',
+      'href="/admin/listings/csv"',
+      "Export CSV",
+    ]);
   });
 
   const populated = [
@@ -67,30 +72,20 @@ describe("adminListingsPage", () => {
     await withRequestContext(() => {
       const html = adminListingsPage(populated, OWNER_SESSION);
 
-      assertStringIncludes(html, "<title>Listings</title>");
-      assertStringIncludes(html, 'class="page-regions admin-page"');
-      assertStringIncludes(html, '<a class="active" href="/admin/listings">');
-      assertStringIncludes(html, "<th>Revenue</th>");
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        "<title>Listings</title>",
+        'class="page-regions admin-page"',
+        '<a class="active" href="/admin/listings">',
+        "<th>Revenue</th>",
         '<a href="/admin/listings/csv">Export CSV</a>',
-      );
-      assertStringIncludes(html, "<h2>Deactivated</h2>");
-      assertStringIncludes(html, "Old Show");
-      assertStringIncludes(
-        html,
+        "<h2>Deactivated</h2>",
+        "Old Show",
         "<details><summary>Multi-booking link</summary>",
-      );
-      assertStringIncludes(
-        html,
         '<a href="/admin/log">Log</a> &middot; <a href="/admin/guide">Guide</a>',
-      );
-      assertStringIncludes(
-        html,
         '<p class="guide-footer"><a class="guide-link" href="/admin/guide#listings">',
-      );
-      assertStringIncludes(html, "<span>Listings guide</span>");
-      assertStringIncludes(html, '<footer class="admin-footer">');
+        "<span>Listings guide</span>",
+        '<footer class="admin-footer">',
+      ]);
     });
   });
 
@@ -98,18 +93,21 @@ describe("adminListingsPage", () => {
     await withRequestContext(() => {
       const html = adminListingsPage(populated, EDITOR_SESSION);
 
-      assertStringIncludes(html, '<a class="active" href="/admin/listings">');
-      assertStringIncludes(html, "<th>Listing name</th>");
+      expectIncludesAll(html, [
+        '<a class="active" href="/admin/listings">',
+        "<th>Listing name</th>",
+      ]);
       assert(!html.includes("<th>Revenue</th>"));
       assert(!html.includes('href="/admin/listings/csv"'));
-      assertStringIncludes(html, "<h2>Deactivated</h2>");
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        "<h2>Deactivated</h2>",
         "<details><summary>Multi-booking link</summary>",
-      );
+      ]);
       assert(!html.includes('href="/admin/guide#listings"'));
-      assertStringIncludes(html, '<footer class="admin-footer">');
-      assertStringIncludes(html, '<a href="/admin/logout">Log out</a>');
+      expectIncludesAll(html, [
+        '<footer class="admin-footer">',
+        '<a href="/admin/logout">Log out</a>',
+      ]);
     });
   });
 
@@ -117,21 +115,19 @@ describe("adminListingsPage", () => {
     await withRequestContext(() => {
       const html = adminListingsPage([], OWNER_SESSION);
 
-      assertStringIncludes(html, "<title>Listings</title>");
-      assertStringIncludes(html, '<a class="active" href="/admin/listings">');
-      assertStringIncludes(html, "No listings yet");
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        "<title>Listings</title>",
+        '<a class="active" href="/admin/listings">',
+        "No listings yet",
         '<a href="/admin/listings/csv">Export CSV</a>',
-      );
+      ]);
       assert(!html.includes("<h2>Deactivated</h2>"));
       assert(!html.includes("multi-booking-list"));
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
         '<p class="guide-footer"><a class="guide-link" href="/admin/guide#listings">',
-      );
-      assertStringIncludes(html, "<span>Listings guide</span>");
-      assertStringIncludes(html, '<footer class="admin-footer">');
+        "<span>Listings guide</span>",
+        '<footer class="admin-footer">',
+      ]);
     });
   });
 

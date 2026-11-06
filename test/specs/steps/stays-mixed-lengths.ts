@@ -4,8 +4,6 @@
  * many days they want, so short and long stays can want the same day.
  */
 
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import {
   dayFromToday,
@@ -14,8 +12,6 @@ import {
 } from "#test/specs/support/stays.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { expectStayCanBeBooked, tryToBook } from "./stays-booking.ts";
-
-// jscpd:ignore-end
 
 Given(
   "a Retreat where customers pick up to {int} days themselves, with room for {int} place(s) a day",

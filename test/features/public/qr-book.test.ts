@@ -26,6 +26,7 @@ import {
 } from "#shared/qr-token.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import type { DateString } from "#shared/validation/date-string.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { hasInputWithValue } from "#test-utils/csrf.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -74,8 +75,10 @@ describeWithEnv("QR booking", { db: true }, () => {
       );
       expect(response.status).toBe(400);
       const body = await response.text();
-      assertStringIncludes(body, "expired or invalid");
-      assertStringIncludes(body, `/ticket/${listing.slug}`);
+      expectIncludesAll(body, [
+        "expired or invalid",
+        `/ticket/${listing.slug}`,
+      ]);
     });
 
     test("unknown listing slug renders the error page", async () => {

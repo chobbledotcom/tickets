@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { bookingError } from "#booking/form.ts";
@@ -14,8 +13,6 @@ import { extractCsrfToken } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "server public > ticket multi-slug POST",

@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -32,9 +30,8 @@ import {
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { saveAModifier } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 /** The field the two radios send under. It never reaches a story — the owner
  * reads Yes and No, so that is what the story says. */
@@ -251,8 +248,10 @@ Then(
     // Read off the page the site serves now: the status line is what the
     // owner would see.
     const page = await featurePageHtml(this, printed);
-    assertStringIncludes(page, t("features.status_label"));
-    assertStringIncludes(page, t("features.status.enabled"));
+    expectIncludesAll(page, [
+      t("features.status_label"),
+      t("features.status.enabled"),
+    ]);
   },
 );
 

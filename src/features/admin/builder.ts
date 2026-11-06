@@ -13,11 +13,9 @@ import {
   insertBuiltSite,
 } from "#db/built-sites.ts";
 import { settings } from "#db/settings.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { authPage, formPolicyFor, pageGuardFor } from "#routes/auth.ts";
 import { adminRedirect, notFoundResponse } from "#routes/response.ts";
-/* jscpd:ignore-end */
 import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { builderApi } from "#shared/builder.ts";

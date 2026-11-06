@@ -1,3 +1,4 @@
+// effects: pure
 import type { PackagePrices } from "#db/groups.ts";
 import type { Group } from "#types";
 

@@ -278,7 +278,7 @@ export const expectNoBooking = (child: Pick<Listing, "id">): Promise<void> =>
  *  both folded exactly one line of quantity 1 — the shared "1+1 fold" behind the
  *  multi-child fold-acceptance test and the separate-pool combined-cap render
  *  test that proves the selector matches the fold. */
-export const bookOneOfEachFold = async (
+export const expectOneOfEachFolded = async (
   parent: Listing,
   childA: Listing,
   childB: Listing,

@@ -3,7 +3,6 @@
  * the all-or-none hold lives in `payment-claim/take.ts`.
  */
 
-/* jscpd:ignore-start -- imports */
 import type { InValue } from "@libsql/client";
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
@@ -32,8 +31,6 @@ import {
   settledRowState,
 } from "#payment/row-transitions.ts";
 import { nowIso } from "#shared/now.ts";
-
-/* jscpd:ignore-end */
 
 const SLOT = "processed_payments.failure_data";
 

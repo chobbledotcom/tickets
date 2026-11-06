@@ -4,7 +4,6 @@
  * decide whether the provider-imposed email field renders required, present, or
  * not at all — each listing is paid through ANY path this page sells it. */
 
-/* jscpd:ignore-start */
 import type { TicketListing } from "#booking/model.ts";
 import type { PagePackage } from "#booking/page-packages.ts";
 import type { AddOnOption } from "#db/modifier-resolve.ts";
@@ -15,8 +14,6 @@ import {
 } from "#shared/listing-fields.ts";
 import { getTicketFields } from "#templates/fields/ticket.ts";
 import { isPaidListing } from "#types";
-
-/* jscpd:ignore-end */
 
 /** All possible children of the page's listings, flattened into one list. An
  * absent map (no children were loaded) means there are none. */

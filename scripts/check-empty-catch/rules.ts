@@ -12,13 +12,11 @@
  * here, so the gate leaves it to its own definition.
  */
 
-/* jscpd:ignore-start -- imports */
 import { byLine } from "#scripts/check-report.ts";
 import type { PerFileFinding } from "#scripts/check-runner.ts";
 import { lineColumnAt } from "#scripts/line-column.ts";
 import { parseProgram } from "#scripts/parse-program.ts";
 import { walkNodes } from "#scripts/walk-nodes.ts";
-/* jscpd:ignore-end */
 
 /** An empty catch the source says nothing about. */
 export interface EmptyCatchIssue extends PerFileFinding {

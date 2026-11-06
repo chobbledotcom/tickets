@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FormParams } from "#shared/form-data.ts";
 import { defineForm } from "#shared/forms/definition.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testWithSetting } from "#test-utils/settings.ts";
 
 describe("defineForm", () => {
@@ -23,10 +24,12 @@ describe("defineForm", () => {
       });
 
       const html = form.render({ amount: "1.005" });
-      assertStringIncludes(html, 'type="number"');
-      assertStringIncludes(html, 'inputmode="decimal"');
-      assertStringIncludes(html, 'step="0.001"');
-      assertStringIncludes(html, 'value="1.005"');
+      expectIncludesAll(html, [
+        'type="number"',
+        'inputmode="decimal"',
+        'step="0.001"',
+        'value="1.005"',
+      ]);
     },
   );
 
@@ -46,8 +49,7 @@ describe("defineForm", () => {
       });
 
       const html = form.render();
-      assertStringIncludes(html, 'id="refund-amount"');
-      assertStringIncludes(html, 'step="0.01"');
+      expectIncludesAll(html, ['id="refund-amount"', 'step="0.01"']);
       assert(!html.includes(" required"));
       assert(!html.includes(' min="'));
     },
@@ -159,8 +161,7 @@ describe("defineForm", () => {
     });
 
     const html = form.render({ name: "Alice" });
-    assertStringIncludes(html, "Alice");
-    assertStringIncludes(html, 'name="name"');
+    expectIncludesAll(html, ["Alice", 'name="name"']);
   });
 
   test("field render returns single field HTML", () => {

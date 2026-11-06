@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * What the money on a set of charges amounts to.
  *

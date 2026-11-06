@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * Whether one ledger leg exactly undoes another — the check the store runs on
  * a leg carrying a `reversesId` before it inserts it.

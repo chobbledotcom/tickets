@@ -8,7 +8,6 @@
 
 import { logActivity } from "#db/activity-log.ts";
 import { listingsTable } from "#db/listings/records.ts";
-/* jscpd:ignore-start */
 import { compact } from "#fp";
 import { t } from "#i18n";
 import { CONTENT_FORM, formGuard } from "#routes/auth.ts";
@@ -28,8 +27,6 @@ import {
 import { tryDeleteFile } from "#shared/storage-cleanup.ts";
 import type { ListingWithCount } from "#types";
 import { type ListingCommand, listingFormRoute } from "./listing-entity.ts";
-
-/* jscpd:ignore-end */
 
 /** Generic form file processor: extract, validate, replace old, upload, update listing */
 const processFormFile = async (opts: {

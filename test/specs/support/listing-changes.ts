@@ -3,14 +3,12 @@
  * driven through the listing's own edit page.
  */
 
-// jscpd:ignore-start
 import { assertArrayIncludes } from "@std/assert";
 import { DAY_NAMES } from "#shared/day-names.ts";
 import { tickedCheckboxes } from "#test/specs/support/form-controls/reading.ts";
 import { setBoxOnListing } from "#test/specs/support/listings.ts";
 
 import type { ChangeOneThing } from "#test/specs/support/world.ts";
-// jscpd:ignore-end
 
 /** The name of the weekday a date falls on, in the words the site uses. */
 export const weekdayOf = (day: string): string => {

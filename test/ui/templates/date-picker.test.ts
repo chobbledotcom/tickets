@@ -7,7 +7,10 @@ import {
   type DatePickerProps,
   selectableDates,
 } from "#templates/date-picker.tsx";
-import { selectOptionLabels } from "#test-utils/assertions.ts";
+import {
+  expectIncludesAll,
+  selectOptionLabels,
+} from "#test-utils/assertions.ts";
 
 const baseProps: DatePickerProps = {
   ariaLabel: "Select a date",
@@ -59,7 +62,7 @@ describe("DatePicker month select", () => {
   test("the month label is a nav-select that reads as plain text", () => {
     const html = render();
     assertStringIncludes(html, 'class="calendar-month-select"');
-    expect(monthSelect(html)).toBeDefined();
+    expect(monthSelect(html)).toContain("<option");
     assertStringIncludes(html, "data-nav-select");
   });
 
@@ -81,14 +84,15 @@ describe("DatePicker month select", () => {
 describe("DatePicker month navigation", () => {
   test("links to the previous and next months", () => {
     const html = render();
-    assertStringIncludes(html, 'href="/m/2026-02"');
-    assertStringIncludes(html, 'href="/m/2026-04"');
+    expectIncludesAll(html, ['href="/m/2026-02"', 'href="/m/2026-04"']);
   });
 
   test("navigation arrows have accessible labels", () => {
     const html = render();
-    assertStringIncludes(html, 'aria-label="Previous month"');
-    assertStringIncludes(html, 'aria-label="Next month"');
+    expectIncludesAll(html, [
+      'aria-label="Previous month"',
+      'aria-label="Next month"',
+    ]);
   });
 
   test("crosses the year boundary when paging forward from December", () => {
@@ -133,8 +137,7 @@ describe("DatePicker grid", () => {
       dates: [date({ value: "2026-03-15" })],
       selected: "2026-03-15",
     });
-    assertStringIncludes(html, 'aria-current="date"');
-    assertStringIncludes(html, "cal-day-selected");
+    expectIncludesAll(html, ['aria-current="date"', "cal-day-selected"]);
   });
 
   test("selectable but unselected days omit aria-current", () => {
@@ -145,16 +148,18 @@ describe("DatePicker grid", () => {
   test("shows one extra week of adjacent-month context either side", () => {
     // March 2026: grid runs Mon 16 Feb → Sun 12 Apr (whole weeks + a week each side).
     const html = render();
-    assertStringIncludes(html, 'class="cal-day cal-day-muted">16</span>'); // 16 Feb
-    assertStringIncludes(html, 'class="cal-day cal-day-muted">12</span>'); // 12 Apr
+    expectIncludesAll(html, [
+      'class="cal-day cal-day-muted">16</span>',
+      // 16 Feb
+      'class="cal-day cal-day-muted">12</span>',
+    ]); // 12 Apr
   });
 });
 
 describe("DatePicker dropdown", () => {
   test("renders a navigable select with a clear option", () => {
     const html = render();
-    assertStringIncludes(html, "data-nav-select");
-    assertStringIncludes(html, "Select a date");
+    expectIncludesAll(html, ["data-nav-select", "Select a date"]);
   });
 
   test("the clear option is selected when nothing is chosen", () => {

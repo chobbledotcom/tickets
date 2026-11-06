@@ -9,6 +9,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestListing,
@@ -39,8 +40,7 @@ describeWithEnv(
         // bookable child, so the parent is omitted; the plain listing remains.
         assert(!rss.includes("FeedParent"));
         assert(!rss.includes("FeedChild"));
-        assertStringIncludes(rss, "FeedPlain");
-        assertStringIncludes(rss, `/ticket/${plain.slug}`);
+        expectIncludesAll(rss, ["FeedPlain", `/ticket/${plain.slug}`]);
       });
 
       test("omits a visible child item from the feed", async () => {
@@ -67,8 +67,10 @@ describeWithEnv(
         });
         const plain = await createTestListing({ name: "MbPlain" });
         const body = await (await adminGet("/admin/listings")).text();
-        assertStringIncludes(body, `data-multi-booking-slug="${parent.slug}"`);
-        assertStringIncludes(body, `data-multi-booking-slug="${plain.slug}"`);
+        expectIncludesAll(body, [
+          `data-multi-booking-slug="${parent.slug}"`,
+          `data-multi-booking-slug="${plain.slug}"`,
+        ]);
         assert(!body.includes(`data-multi-booking-slug="${child.slug}"`));
       });
     });
@@ -104,12 +106,14 @@ describeWithEnv(
         const body = await (
           await adminGet(`/admin/listing/${parent.id}`)
         ).text();
-        assertStringIncludes(body, `/admin/listing/${parent.id}/qr`);
-        // A non-child parent keeps its public URL and both embed snippets, so the
-        // suppression is genuinely conditional on being a child.
-        assertStringIncludes(body, `/ticket/${parent.slug}`);
-        assertStringIncludes(body, `embed-script-${parent.id}`);
-        assertStringIncludes(body, `embed-iframe-${parent.id}`);
+        expectIncludesAll(body, [
+          `/admin/listing/${parent.id}/qr`,
+          // A non-child parent keeps its public URL and both embed snippets, so the
+          // suppression is genuinely conditional on being a child.
+          `/ticket/${parent.slug}`,
+          `embed-script-${parent.id}`,
+          `embed-iframe-${parent.id}`,
+        ]);
       });
 
       test("the child QR generator route 404s", async () => {

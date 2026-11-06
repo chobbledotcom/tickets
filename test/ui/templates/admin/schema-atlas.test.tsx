@@ -2,10 +2,11 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { ensureMessageGroups, t } from "#i18n";
-import { MESSAGE_GROUPS } from "#locales/manifest.ts";
+import { MESSAGE_GROUPS } from "#locales/message-groups.generated.ts";
 import { SCHEMA_ATLAS_MACHINES } from "#shared/schema-atlas/index.ts";
 import { adminSchemaAtlasPage } from "#templates/admin/schema-atlas.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 const NO_UNANSWERED = { rows: [], total: 0 };
 
@@ -44,8 +45,7 @@ describe("the system map page", () => {
       assertStringIncludes(page, t(machine.titleKey));
       for (const state of machine.states) {
         assert(!page.includes(`>${state.labelKey}<`));
-        assertStringIncludes(page, t(state.labelKey));
-        assertStringIncludes(page, t(state.detailKey));
+        expectIncludesAll(page, [t(state.labelKey), t(state.detailKey)]);
         for (const edge of state.edges) {
           assertStringIncludes(page, t(edge.labelKey));
         }
@@ -56,22 +56,26 @@ describe("the system map page", () => {
   test("the static list answers the map question for a partial return", () => {
     const page = html();
     // The one-exit owner decision, in plain words, with its way forward.
-    assertStringIncludes(page, "Your decision needed: some money is back");
-    assertStringIncludes(page, "You confirm the money came back → Money back");
-    // A terminal state says so.
-    assertStringIncludes(page, "Recorded: done");
-    assertStringIncludes(page, "Nothing. This state is an ending.");
+    expectIncludesAll(page, [
+      "Your decision needed: some money is back",
+      "You confirm the money came back → Money back",
+      // A terminal state says so.
+      "Recorded: done",
+      "Nothing. This state is an ending.",
+    ]);
   });
 
   test("marks the start states and carries each machine's section", () => {
     const page = html();
-    assertStringIncludes(page, "Ready to send · where every record starts");
-    assertStringIncludes(page, 'id="refund"');
-    assertStringIncludes(page, 'id="review"');
-    assertStringIncludes(page, 'id="row"');
-    assertStringIncludes(page, "A refund at the payment provider");
-    assertStringIncludes(page, "A payment row kept for review");
-    assertStringIncludes(page, "One payment row's held work");
+    expectIncludesAll(page, [
+      "Ready to send · where every record starts",
+      'id="refund"',
+      'id="review"',
+      'id="row"',
+      "A refund at the payment provider",
+      "A payment row kept for review",
+      "One payment row's held work",
+    ]);
   });
 
   test("keeps every static and interactive schema hook", () => {
@@ -94,8 +98,10 @@ describe("the system map page", () => {
 
   test("the live check answers clean when the scan found nothing", () => {
     const page = html();
-    assertStringIncludes(page, 'id="schema-check"');
-    assertStringIncludes(page, "All stored records fit the system rules.");
+    expectIncludesAll(page, [
+      'id="schema-check"',
+      "All stored records fit the system rules.",
+    ]);
   });
 
   test("the live check names an unknown SumUp state", () => {
@@ -111,14 +117,10 @@ describe("the system map page", () => {
       ],
       NO_UNANSWERED,
     );
-    assertStringIncludes(
-      page,
+    expectIncludesAll(page, [
       "A SumUp recovery record has a state this site does not know.",
-    );
-    assertStringIncludes(
-      page,
       "<code>idx_unknown</code> <code>abandoned</code>",
-    );
+    ]);
   });
 
   test("the live check names a SumUp checkout id mismatch", () => {
@@ -134,11 +136,10 @@ describe("the system map page", () => {
       ],
       NO_UNANSWERED,
     );
-    assertStringIncludes(
-      page,
+    expectIncludesAll(page, [
       "A SumUp recovery record's state and checkout ID do not match.",
-    );
-    assertStringIncludes(page, "<code>idx_mismatch</code> <code>staged</code>");
+      "<code>idx_mismatch</code> <code>staged</code>",
+    ]);
   });
 
   test("the live check names a SumUp check time mismatch", () => {
@@ -154,18 +155,19 @@ describe("the system map page", () => {
       ],
       NO_UNANSWERED,
     );
-    assertStringIncludes(
-      page,
+    expectIncludesAll(page, [
       "A SumUp recovery record's state and next check time do not match.",
-    );
-    assertStringIncludes(page, "<code>idx_clock</code> <code>waiting</code>");
+      "<code>idx_clock</code> <code>waiting</code>",
+    ]);
   });
 
   test("the unanswered section answers clean when nothing is waiting", () => {
     const page = html();
-    assertStringIncludes(page, 'id="schema-unanswered"');
-    assertStringIncludes(page, "Money nobody has answered for");
-    assertStringIncludes(page, "No SumUp checkout needs your attention.");
+    expectIncludesAll(page, [
+      'id="schema-unanswered"',
+      "Money nobody has answered for",
+      "No SumUp checkout needs your attention.",
+    ]);
   });
 
   test("the unanswered section counts and lists the oldest rows", () => {
@@ -179,10 +181,12 @@ describe("the system map page", () => {
       ],
       total: 3,
     });
-    assertStringIncludes(page, "3 checkouts need an answer.");
-    assertStringIncludes(page, "Showing the oldest 1.");
-    assertStringIncludes(page, "Money not accounted for");
-    assertStringIncludes(page, "<code>idx_owed_row</code>");
+    expectIncludesAll(page, [
+      "3 checkouts need an answer.",
+      "Showing the oldest 1.",
+      "Money not accounted for",
+      "<code>idx_owed_row</code>",
+    ]);
     assert(!page.includes("No SumUp checkout needs your attention."));
   });
 
@@ -222,8 +226,10 @@ describe("the system map page", () => {
     });
     assertStringIncludes(page, "1 checkout needs an answer.");
     assert(!page.includes("Showing the oldest"));
-    assertStringIncludes(page, "Waiting for an answer");
-    assertStringIncludes(page, "<code>idx_waiting_row</code>");
+    expectIncludesAll(page, [
+      "Waiting for an answer",
+      "<code>idx_waiting_row</code>",
+    ]);
   });
 
   test("embeds the resolved diagram data as safe JSON", () => {

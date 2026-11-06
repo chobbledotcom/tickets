@@ -16,6 +16,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 describe("the single-form page", () => {
   beforeAll(setupAdminPageTest);
@@ -29,8 +30,10 @@ describe("the single-form page", () => {
   test("hands the body the viewer and titles itself from the catalog", () => {
     const html = page(OWNER_SESSION);
 
-    assertStringIncludes(html, "<p>owner</p>");
-    assertStringIncludes(html, `<title>${t("admin.seeds.title")}</title>`);
+    expectIncludesAll(html, [
+      "<p>owner</p>",
+      `<title>${t("admin.seeds.title")}</title>`,
+    ]);
   });
 
   test("shows the notices its route passes back", () => {
@@ -58,9 +61,11 @@ describe("the other opener families", () => {
       <p>Body</p>,
     );
 
-    assertStringIncludes(html, '<div class="success" role="alert">Saved</div>');
-    assertStringIncludes(html, 'class="error"');
-    assertStringIncludes(html, "Name is taken");
+    expectIncludesAll(html, [
+      '<div class="success" role="alert">Saved</div>',
+      'class="error"',
+      "Name is taken",
+    ]);
   });
 
   test("the error page shows its rejection over the body", () => {
@@ -69,9 +74,7 @@ describe("the other opener families", () => {
       "Date clashes",
     )(<p>Body</p>);
 
-    assertStringIncludes(html, 'class="error"');
-    assertStringIncludes(html, "Date clashes");
-    assertStringIncludes(html, "<p>Body</p>");
+    expectIncludesAll(html, ['class="error"', "Date clashes", "<p>Body</p>"]);
   });
 
   test("the list page shows only a write's success notice", () => {

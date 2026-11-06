@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -7,7 +6,11 @@ import { handleRequest } from "#routes";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
-import { assertPublicHtml, expectRedirect } from "#test-utils/assertions.ts";
+import {
+  assertPublicHtml,
+  expectIncludesAll,
+  expectRedirect,
+} from "#test-utils/assertions.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -18,8 +21,6 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("public listing pages", { db: true, triggers: true }, () => {
   describe("the address itself", () => {
@@ -124,8 +125,10 @@ describeWithEnv("public listing pages", { db: true, triggers: true }, () => {
       });
 
       const html = await assertPublicHtml("/listings", "Concert", "Raffle");
-      assertStringIncludes(html, `href="/ticket/${concert.slug}">Book now`);
-      assertStringIncludes(html, `href="/ticket/${raffle.slug}">Buy now`);
+      expectIncludesAll(html, [
+        `href="/ticket/${concert.slug}">Book now`,
+        `href="/ticket/${raffle.slug}">Buy now`,
+      ]);
     });
 
     test("uses the selected stay length for daily capacity", async () => {

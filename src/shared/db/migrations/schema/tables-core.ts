@@ -1,6 +1,5 @@
 /** Core schema tables: system config, auth, listings, assets, rate limits. */
 
-/* jscpd:ignore-start -- imports */
 import { datedRowColumns, itemLinkColumns } from "./columns.ts";
 import {
   checked,
@@ -17,7 +16,6 @@ import {
 } from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
 import { SCHEMA_MIGRATIONS_TABLE } from "./version.ts";
-/* jscpd:ignore-end */
 
 export const coreTables: [name: string, table: Table][] = [
   [

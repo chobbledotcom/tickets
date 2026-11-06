@@ -15,7 +15,10 @@ import {
 } from "#db/attendee-statuses.ts";
 import { execute } from "#db/client.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
-import { expectFlashRedirect } from "#test-utils/assertions.ts";
+import {
+  expectFlashRedirect,
+  expectIncludesAll,
+} from "#test-utils/assertions.ts";
 import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withDbFault } from "#test-utils/db-fault.ts";
@@ -133,8 +136,7 @@ describeWithEnv("the delete confirmation", { db: true }, () => {
 
     const html = await (await adminGet(`${PATH}/${id}/delete`)).text();
 
-    assertStringIncludes(html, "Name");
-    assertStringIncludes(html, "Type Me");
+    expectIncludesAll(html, ["Name", "Type Me"]);
   });
 
   test("refuses a name that does not match", async () => {
@@ -174,10 +176,12 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
 
     const html = await (await adminGet(`${PATH}/${busyId}/delete`)).text();
 
-    assertStringIncludes(html, "Busy");
-    assertStringIncludes(html, "1 attendee holds this status.");
-    assertStringIncludes(html, 'name="reassign_status_id"');
-    assertStringIncludes(html, "Landing Status");
+    expectIncludesAll(html, [
+      "Busy",
+      "1 attendee holds this status.",
+      'name="reassign_status_id"',
+      "Landing Status",
+    ]);
   });
 
   test("the picker is absent from a free status's delete page", async () => {

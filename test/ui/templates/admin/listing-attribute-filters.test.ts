@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -7,6 +6,7 @@ import {
   renderAttributeFilterBars,
   typeFilterHref,
 } from "#templates/admin/listing-attribute-filters.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 describe("listing attribute filter template helpers", () => {
   test("creates an empty filter view", () => {
@@ -60,12 +60,11 @@ describe("listing attribute filter template helpers", () => {
           : `/admin/?attribute_${attributeId}=${optionId}`,
     );
 
-    assertStringIncludes(html, "A &amp; B:");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "A &amp; B:",
       'href="/admin/?attribute_1=11">Easy &lt;Hard&gt;</a>',
-    );
-    assertStringIncludes(html, "<strong><u>Hard</u></strong>");
-    assertStringIncludes(html, 'href="/admin/?clear=1">All</a>');
+      "<strong><u>Hard</u></strong>",
+      'href="/admin/?clear=1">All</a>',
+    ]);
   });
 });

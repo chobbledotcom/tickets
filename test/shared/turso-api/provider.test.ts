@@ -2,7 +2,8 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { tursoDbProvider as tursoApi } from "#shared/turso-api.ts";
-import { testCreateDatabaseReturnsErrorOn403 } from "#test-utils/builder-mocks.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
+import { expectCreateDatabaseErrorOn403 } from "#test-utils/builder-mocks.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { withMocks } from "#test-utils/mocks.ts";
@@ -130,7 +131,7 @@ describeWithEnv("turso-api", { env: TEST_TURSO_ENV }, () => {
   });
 
   test("createDatabase returns error when create endpoint fails", async () => {
-    await testCreateDatabaseReturnsErrorOn403(tursoApi);
+    await expectCreateDatabaseErrorOn403(tursoApi);
   });
 
   test("createDatabase returns error when create endpoint fails with JSON error", async () => {
@@ -145,8 +146,10 @@ describeWithEnv("turso-api", { env: TEST_TURSO_ENV }, () => {
         const result = await tursoApi.createDatabase("Bad");
         expect(result.ok).toBe(false);
         if (!result.ok) {
-          assertStringIncludes(result.error, "Create database failed (422)");
-          assertStringIncludes(result.error, "quota exceeded");
+          expectIncludesAll(result.error, [
+            "Create database failed (422)",
+            "quota exceeded",
+          ]);
         }
       },
     );
@@ -176,11 +179,10 @@ describeWithEnv("turso-api", { env: TEST_TURSO_ENV }, () => {
         const result = await tursoApi.createDatabase("t");
         expect(result.ok).toBe(false);
         if (!result.ok) {
-          assertStringIncludes(
-            result.error,
+          expectIncludesAll(result.error, [
             "Generate database token failed (401)",
-          );
-          assertStringIncludes(result.error, "Unauthorized");
+            "Unauthorized",
+          ]);
         }
       },
     );

@@ -1,5 +1,4 @@
-// jscpd:ignore-start
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -9,6 +8,7 @@ import {
   assertPublicHtml,
   expectCheckoutRedirect,
   expectFlash,
+  expectIncludesAll,
   expectReservedRedirectWithTokens,
 } from "#test-utils/assertions.ts";
 import {
@@ -28,8 +28,6 @@ import {
   mockRequest,
 } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "server public > ticket reserved page and edge cases",
@@ -143,8 +141,7 @@ describeWithEnv(
         );
         expect(response.status).toBe(302);
         const location = response.headers.get("location") || "";
-        assertStringIncludes(location, "/ticket/reserved");
-        assertStringIncludes(location, "iframe=true");
+        expectIncludesAll(location, ["/ticket/reserved", "iframe=true"]);
       });
     });
 

@@ -7,6 +7,7 @@ import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 import { WELCOME_STEPS } from "#templates/admin/welcome-banner.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
@@ -76,19 +77,17 @@ describeWithEnv("admin dashboard welcome", { db: true }, () => {
   test("shows the owner the welcome steps and the Got it button", async () => {
     // The test store is one the setup ceremony just ran, so the message is on.
     const banner = bannerHtml(await (await adminGet("/admin/")).text());
-    assertStringIncludes(banner, "Welcome to your new Chobble Tickets site");
-    assertStringIncludes(
-      banner,
+    expectIncludesAll(banner, [
+      "Welcome to your new Chobble Tickets site",
       "Here are the first things to do on your new site.",
-    );
+    ]);
     // The public booking link renders only while the site feature is on; the
     // route test below covers it in that state.
     for (const { href, needsSite } of WELCOME_STEPS) {
       if (needsSite) continue;
       assertStringIncludes(banner, `href="${href}"`, href);
     }
-    assertStringIncludes(banner, "Got it");
-    assertStringIncludes(banner, 'action="/admin/welcome/dismiss"');
+    expectIncludesAll(banner, ["Got it", 'action="/admin/welcome/dismiss"']);
   });
 
   test("keeps the whole banner inside the dismiss form and the steps in one prose block", async () => {

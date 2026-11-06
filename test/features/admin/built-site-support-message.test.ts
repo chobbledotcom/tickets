@@ -10,6 +10,7 @@ import {
 import { makeImage } from "#test-utils/admin-images.ts";
 import {
   expectFlashRedirect,
+  expectIncludesAll,
   followRedirectWithFlash,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -197,9 +198,11 @@ describeWithEnv(
         },
         "# Draft kept through the outage",
       );
-      assertStringIncludes(html, "# Draft kept through the outage");
-      assertStringIncludes(html, 'name="support_message"');
-      assertStringIncludes(html, "The support message could not be read");
+      expectIncludesAll(html, [
+        "# Draft kept through the outage",
+        'name="support_message"',
+        "The support message could not be read",
+      ]);
     });
 
     test("keeps a refused empty draft empty over the stored text", async () => {

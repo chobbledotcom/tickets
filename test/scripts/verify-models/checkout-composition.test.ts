@@ -2,7 +2,6 @@
  *  supply every pass fact and every order fact, and the negative controls
  *  keep the safety verdicts honest. */
 
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { sum } from "#fp";
@@ -16,8 +15,6 @@ import { feeSubtotalFor } from "#shared/booking-fee.ts";
 import { applyModifiers } from "#shared/checkout-pricing.ts";
 import { records } from "#test-utils/tla-data.ts";
 import { registeredModel } from "./registered-model.ts";
-
-/* jscpd:ignore-end */
 
 const facts = compositionFacts();
 

@@ -1,0 +1,5 @@
+{
+  "imports": {
+    "#clock": "./test/scripts/check-effects/clean-fixtures/clock.ts"
+  }
+}

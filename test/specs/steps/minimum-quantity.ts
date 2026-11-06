@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -33,8 +31,6 @@ import {
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 /** Who the public-rule scenarios follow: a visitor only reading the page, and
  * a buyer sending it. Neither is the organiser, so neither sees their view. */

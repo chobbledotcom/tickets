@@ -1,3 +1,4 @@
+// effects: pure
 /** Spread a door's ticket count over a person's booking lines. One person
  * can hold several lines on one listing (two dates, two parents, two
  * packages). A count names tickets on the listing, never on each line. */

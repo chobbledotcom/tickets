@@ -1,12 +1,9 @@
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookingPageHtml, makeParent } from "#test-utils/parents.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "server > parents gate > render: selector & price visibility",

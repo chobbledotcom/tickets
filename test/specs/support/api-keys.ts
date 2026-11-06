@@ -4,7 +4,6 @@
  * the key and nothing else — no session, no cookie.
  */
 
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { t } from "#i18n";
 import { handleRequest } from "#routes";
@@ -26,8 +25,6 @@ import {
 import { mockRequest } from "#test-utils/mocks.ts";
 import { requestAsApiKey } from "#test-utils/session.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
-
-// jscpd:ignore-end
 
 /** The owner's own page listing the keys they have handed out. */
 const KEYS_PAGE = "/admin/api-keys";

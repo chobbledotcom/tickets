@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * Who is allowed to work on a payment row's money, and when they must let go.
  * A refund run holds its claim from before it reads the provider until after

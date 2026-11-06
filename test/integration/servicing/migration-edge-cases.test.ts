@@ -1,27 +1,16 @@
-/**
- * Servicing edge cases — migration idempotency & partial state.
- *
- * The §1 migration tests run `up()` once on a fresh DB. These cover the
- * "what if it ran twice, or halfway, or against a pre-existing kind value"
- * cases — each a real production scenario (a migration that crashed and
- * re-runs, a partial backfill, a backup taken before the migration).
- */
-// jscpd:ignore-start
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
 import { getDb } from "#db/client.ts";
 import { loadMigrations } from "#db/migrations/context.ts";
 import { SCHEMA } from "#db/migrations/schema/index.ts";
-
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { indexExists } from "#test-utils/migrations.ts";
 import { createServicingHold, kindOf } from "#test-utils/servicing.ts";
 
 const MIGRATIONS = await loadMigrations();
-// jscpd:ignore-end
 
 const MIGRATION_ID = "2026-06-24_attendees_kind";
 
@@ -134,8 +123,7 @@ describeWithEnv(
       )![1].columns.find(([n]) => n === "kind")!;
       const [, type] = kindCol;
       expect(type).toMatch(/CHECK/i);
-      assertStringIncludes(type, ATTENDEE_KIND);
-      assertStringIncludes(type, SERVICING_KIND);
+      expectIncludesAll(type, [ATTENDEE_KIND, SERVICING_KIND]);
     });
   },
 );

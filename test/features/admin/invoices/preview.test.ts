@@ -15,7 +15,10 @@ import {
   previewedBody,
   previewInvoice,
 } from "#test/features/admin/invoice-helpers.ts";
-import { expectFlashRedirect } from "#test-utils/assertions.ts";
+import {
+  expectFlashRedirect,
+  expectIncludesAll,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import { settingsAsStored } from "#test-utils/settings.ts";
@@ -28,16 +31,15 @@ describeWithEnv("server (admin invoice preview)", { db: true }, () => {
     const html = await pageText(response);
 
     expect(response.status).toBe(200);
-    assertStringIncludes(html, "Invoice preview");
-    assertStringIncludes(html, "<h1>Invoice 1</h1>");
-    assertStringIncludes(html, "Guest");
-    assertStringIncludes(html, "guest@example.com");
-    assertStringIncludes(html, `Amount due: ${formatCurrency(1500)}`);
-    assertStringIncludes(html, "{{ customer.name }}");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "Invoice preview",
+      "<h1>Invoice 1</h1>",
+      "Guest",
+      "guest@example.com",
+      `Amount due: ${formatCurrency(1500)}`,
+      "{{ customer.name }}",
       "The site will not email this invoice. After you create it, share the link with your customer.",
-    );
+    ]);
     // The preview stores nothing.
     assertStringIncludes(
       await pageText(await adminGet("/admin/invoices")),
@@ -55,8 +57,10 @@ describeWithEnv("server (admin invoice preview)", { db: true }, () => {
       "</div>",
       "the invoice preview box",
     );
-    assertStringIncludes(box, "<h1>Invoice 1</h1>");
-    assertStringIncludes(box, `Amount due: ${formatCurrency(1500)}`);
+    expectIncludesAll(box, [
+      "<h1>Invoice 1</h1>",
+      `Amount due: ${formatCurrency(1500)}`,
+    ]);
     assertStringIncludes(
       html,
       '<button class="secondary" formaction="/admin/invoices/preview" type="submit">Update preview</button>',
@@ -73,8 +77,10 @@ describeWithEnv("server (admin invoice preview)", { db: true }, () => {
     const html = await pageText(response);
 
     expect(response.status).toBe(200);
-    assertStringIncludes(html, "<h1>Thanks for booking</h1>");
-    assertStringIncludes(html, `owes ${formatCurrency(1500)}`);
+    expectIncludesAll(html, [
+      "<h1>Thanks for booking</h1>",
+      `owes ${formatCurrency(1500)}`,
+    ]);
     expect(previewedBody(html)).toBe(body);
     assertStringIncludes(
       await pageText(await adminGet("/admin/invoices")),

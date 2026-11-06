@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { twoListingsAttendees } from "#test/integration/server/attendee-read-helpers.ts";
@@ -15,8 +14,6 @@ import {
   expectRefundedWithNote,
   expectWebhookProcessed,
 } from "#test-utils/webhooks.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "server webhooks > can_pay_more (multi-ticket)",

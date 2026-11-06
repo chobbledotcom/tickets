@@ -1,6 +1,6 @@
 /** The attendee page's invoice row, and the links that start an invoice. */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { createInvoice, nextInvoiceNumber } from "#db/invoices.ts";
@@ -12,6 +12,7 @@ import {
   setFeatureEnabled,
 } from "#shared/admin-features.ts";
 import { isReadOnly } from "#shared/env.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { createReservedAttendee } from "#test-utils/balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -56,9 +57,11 @@ describeWithEnv("the attendee page's invoices", { db: true }, () => {
 
     const html = await tabHtml(id, "");
 
-    assertStringIncludes(html, `<a href="/admin/invoices/${invoiceId}">`);
-    assertStringIncludes(html, "New");
-    assertStringIncludes(html, "Wednesday 4 November 2026");
+    expectIncludesAll(html, [
+      `<a href="/admin/invoices/${invoiceId}">`,
+      "New",
+      "Wednesday 4 November 2026",
+    ]);
   });
 
   /** Every fact the create links read, both ways. The two tabs offer the link
@@ -119,8 +122,10 @@ describeWithEnv("the attendee page's invoices", { db: true }, () => {
 
     const html = await tabHtml(attendeeId, "actions");
 
-    assertStringIncludes(html, `href="${createLink(attendeeId)}"`);
-    assertStringIncludes(html, "Create invoice");
+    expectIncludesAll(html, [
+      `href="${createLink(attendeeId)}"`,
+      "Create invoice",
+    ]);
   });
 
   test("offers no invoice to an attendee with no booking balance", () => {

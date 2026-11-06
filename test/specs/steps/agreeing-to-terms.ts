@@ -7,7 +7,6 @@
  */
 
 import { Given, Then, When } from "@cucumber/cucumber";
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { settings } from "#db/settings.ts";
@@ -27,8 +26,7 @@ import {
 import { sentOrder, THE_CUSTOMER } from "#test/specs/support/refused-orders.ts";
 import { combinedPath } from "#test/specs/support/sales-pages.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 /** The box a customer ticks to agree, read from the page by its own label
  * when the story needs it (the catalog is not loaded at import time). */
@@ -57,9 +55,11 @@ Then(
     const html = (await openBookingPage(listingNamed(this, name))).currentHtml;
     // The site's own terms, exactly as the organiser wrote them, and the box
     // that carries the agreement — one is no good without the other.
-    assertStringIncludes(html, await settings.terms);
-    assertStringIncludes(html, agreeBoxLabel());
-    assertStringIncludes(html, 'name="agree_terms"');
+    expectIncludesAll(html, [
+      await settings.terms,
+      agreeBoxLabel(),
+      'name="agree_terms"',
+    ]);
   },
 );
 
@@ -67,9 +67,11 @@ Then(
   "the page selling both shows the terms and a box to agree to them",
   async function (this: TicketsWorld): Promise<void> {
     const { currentHtml } = await openTicketAndMugPage(this);
-    assertStringIncludes(currentHtml, await settings.terms);
-    assertStringIncludes(currentHtml, agreeBoxLabel());
-    assertStringIncludes(currentHtml, 'name="agree_terms"');
+    expectIncludesAll(currentHtml, [
+      await settings.terms,
+      agreeBoxLabel(),
+      'name="agree_terms"',
+    ]);
   },
 );
 

@@ -10,7 +10,6 @@
  * module holds only the SQL that carries them out.
  */
 
-/* jscpd:ignore-start -- imports */
 import { encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import { execute, inPlaceholders, queryAll } from "#db/client.ts";
@@ -28,8 +27,6 @@ import {
   SQUARE_LINK_LEASE_MS,
   SQUARE_LINK_RETRY_MS,
 } from "#shared/square/limits.ts";
-
-/* jscpd:ignore-end */
 
 /** One handle row the expiry task is about to act on. The link id stays
  * sealed: this is the queue, not the opening of a row. */

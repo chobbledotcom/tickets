@@ -1,10 +1,8 @@
-/* jscpd:ignore-start */
 import type { Page } from "playwright";
 import type { BrowserSession } from "#e2e/browser.ts";
 import type { ProviderName } from "#e2e/config.ts";
 
 export type { ProviderName };
-/* jscpd:ignore-end */
 
 /**
  * Drive a provider's *hosted* checkout page and return its exact identity.

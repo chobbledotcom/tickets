@@ -11,11 +11,9 @@ import {
   holdFirstAppReturn,
   requirePageText,
 } from "#e2e/browser.ts";
-// jscpd:ignore-start -- this #e2e import run is structural
 import { catalogWords } from "#e2e/catalog-words.ts";
 import { config } from "#e2e/config.ts";
 import { type LiveWorld, worldStep } from "#e2e/cucumber/support/world.ts";
-// jscpd:ignore-end
 import {
   assertBookedInAdmin,
   countOnRoster,

@@ -11,6 +11,7 @@ import {
   singleListingPageHtml,
 } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
 describe("the promo-code field", () => {
@@ -26,11 +27,10 @@ describe("the promo-code field", () => {
     await withRequestContext(() => {
       setSavedFormData(new FormParams({ promo_code: "SAVE20" }));
       const html = singleListingPageHtml({ promoCodesEnabled: true });
-      assertStringIncludes(html, '<div class="promo-code"><label>Promo code');
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        '<div class="promo-code"><label>Promo code',
         'name="promo_code" placeholder="Optional" type="text" value="SAVE20"',
-      );
+      ]);
     });
   });
 

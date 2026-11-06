@@ -2,7 +2,6 @@
  * Email Notifications form for advanced settings
  */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { EMAIL_PROVIDER_LABELS, VALID_EMAIL_PROVIDERS } from "#shared/email.ts";
 import { settingsFormFieldAttributes } from "#shared/settings/forms.ts";
@@ -12,7 +11,6 @@ import { SaveForm } from "#templates/components/save-form.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
 import { TextField } from "#templates/components/text-field.tsx";
-/* jscpd:ignore-end */
 
 export const EmailNotificationsForm = (
   s: AdvancedSettingsPageState,

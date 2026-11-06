@@ -1,7 +1,4 @@
-// jscpd:ignore-start
-
 import { Then, When } from "@cucumber/cucumber";
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { CUSTOMER, ORGANISER } from "#test/specs/support/browser.ts";
 import {
@@ -13,8 +10,7 @@ import {
   whatTheCustomerSees,
 } from "#test/specs/support/list-narrowing.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 When(
   "the organiser opens their list",
@@ -62,8 +58,7 @@ Then(
   "the customer is shown both the {word} and the {word}",
   function (this: TicketsWorld, first: string, second: string): void {
     const shown = whatTheCustomerSees(this);
-    assertStringIncludes(shown, first);
-    assertStringIncludes(shown, second);
+    expectIncludesAll(shown, [first, second]);
   },
 );
 

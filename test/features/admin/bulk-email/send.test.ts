@@ -21,7 +21,11 @@ import {
   getListingActivityLog,
 } from "#test-utils/activity-log.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
-import { expectFlashRedirect, expectRedirect } from "#test-utils/assertions.ts";
+import {
+  expectFlashRedirect,
+  expectIncludesAll,
+  expectRedirect,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -375,14 +379,13 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       const html = await (
         await adminGet(`/admin/emails?attendee=${encodeURIComponent(token)}`)
       ).text();
-      assertStringIncludes(html, "Email an attendee");
-      assertStringIncludes(html, "alice@example.com");
-      // The token round-trips through a hidden field so the POST keeps the target.
-      assertStringIncludes(html, 'name="attendee"');
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        "Email an attendee",
+        "alice@example.com",
+        // The token round-trips through a hidden field so the POST keeps the target.
+        'name="attendee"',
         "Preview to confirm the message before sending.",
-      );
+      ]);
     });
 
     test("404s for an unknown attendee token", async () => {
@@ -433,9 +436,11 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
         subject: "Hello Alice",
       });
       const html = await (await adminGet("/admin/emails/preview")).text();
-      assertStringIncludes(html, "Hello Alice");
-      assertStringIncludes(html, "alice@example.com");
-      assertStringIncludes(html, "1 recipient");
+      expectIncludesAll(html, [
+        "Hello Alice",
+        "alice@example.com",
+        "1 recipient",
+      ]);
     });
 
     test("sends to only that attendee and logs against no listing", async () => {

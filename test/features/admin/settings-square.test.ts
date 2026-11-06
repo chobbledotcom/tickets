@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
@@ -13,14 +12,13 @@ import {
   assertJson,
   expectFlash,
   expectHtmlResponse,
+  expectIncludesAll,
   redirectFormId,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { mockFormRequest, withMocks } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
 import { describeAdminSettings } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 describeAdminSettings(() => {
   describe("POST /admin/settings/square", () => {
@@ -165,9 +163,11 @@ describeAdminSettings(() => {
       // Check the settings page shows it's configured
       const response = await adminGet("/admin/settings");
       const html = await response.text();
-      assertStringIncludes(html, "Your Square credentials are saved");
-      assertStringIncludes(html, "square-test-btn");
-      assertStringIncludes(html, "Test connection");
+      expectIncludesAll(html, [
+        "Your Square credentials are saved",
+        "square-test-btn",
+        "Test connection",
+      ]);
     });
   });
 

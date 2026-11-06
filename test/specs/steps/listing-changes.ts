@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
@@ -26,8 +24,6 @@ import {
 } from "#test/specs/support/world.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { offeredDaysOf } from "./stays-booking.ts";
-
-// jscpd:ignore-end
 
 /** The first day of the stay the Scenario booked. */
 const stayStart = (world: TicketsWorld): string =>

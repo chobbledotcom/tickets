@@ -12,7 +12,6 @@
  *     populates (the existing `ActivityLogRefs.attendees` name map is
  *     supplemented with each attendee's kind, or a parallel kind map).
  */
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -24,8 +23,6 @@ import {
   createServicingHold,
   renderAdminPage,
 } from "#test-utils/servicing.ts";
-
-// jscpd:ignore-end
 
 describe("servicing §12 — activity-log link routing", () => {
   test("attendeeAdminPath is the single builder the log calls (kind-aware)", () => {

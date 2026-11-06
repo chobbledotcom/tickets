@@ -3,7 +3,6 @@
  */
 
 import { imagesTable } from "#db/images.ts";
-/* jscpd:ignore-start */
 import { getCurrentSettingsVersion } from "#db/settings.ts";
 import { inList } from "#db/where-clauses.ts";
 import { lazyRef, mapById } from "#fp";
@@ -13,8 +12,6 @@ import {
   currentRequestStore,
   withRequestStore,
 } from "#shared/request-context.ts";
-
-/* jscpd:ignore-end */
 
 const imageUrlColumns = imagesTable.read.pick(["id", "filename"]);
 

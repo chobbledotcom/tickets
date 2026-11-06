@@ -1,7 +1,5 @@
 /** An owner writes to the people who booked, checks it over, and sends it. */
 
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -32,8 +30,7 @@ import {
   type TicketsWorld,
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 /** Book people onto a listing, with the watch on the outside world standing by
  * first. Even a story with no provider set up needs it: a send that should have
@@ -198,8 +195,10 @@ Then(
     const shown = scenarioBrowser(this).pageText;
     // The words they wrote, under the heading that says this is a preview —
     // not the compose form they came from, which also holds those words.
-    assertStringIncludes(shown, t("bulk_email.message_preview_heading"));
-    assertStringIncludes(shown, wordsTheyWrote(this));
+    expectIncludesAll(shown, [
+      t("bulk_email.message_preview_heading"),
+      wordsTheyWrote(this),
+    ]);
   },
 );
 
@@ -248,9 +247,11 @@ Then(
   "the owner is told it went to {int} people",
   function (this: TicketsWorld, howMany: number): void {
     const told = whatTheyWereTold(this, ORGANISER);
-    assertStringIncludes(told, `${howMany} recipient`);
-    // Through their own provider, rather than by some other route.
-    assertStringIncludes(told, "Resend");
+    expectIncludesAll(told, [
+      `${howMany} recipient`,
+      // Through their own provider, rather than by some other route.
+      "Resend",
+    ]);
   },
 );
 

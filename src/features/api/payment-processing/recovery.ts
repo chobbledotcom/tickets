@@ -5,7 +5,6 @@ import {
   releaseReservation,
   UNRESOLVED_RESERVATION,
 } from "#db/processed-payments.ts";
-/* jscpd:ignore-start */
 import { sessionSuccess } from "#routes/api/payment-processing/create.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import { decideUnexpectedCreate } from "#routes/api/payment-processing/recovery-decision.ts";
@@ -17,8 +16,6 @@ import type { BookingIntent } from "#shared/booking-intent.ts";
 import type { FreeTextAnswers } from "#shared/email/answers.ts";
 import { queueRegistrationSends } from "#shared/webhook/delivery.ts";
 import { committedEntries } from "./committed-entries.ts";
-
-/* jscpd:ignore-end */
 
 type UnexpectedCreateRecovery = {
   error: unknown;

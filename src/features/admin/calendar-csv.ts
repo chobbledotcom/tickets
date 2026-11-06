@@ -9,7 +9,6 @@ import {
   bookingAssignmentKey,
   type LogisticsAssignment,
 } from "#db/logistics.ts";
-/* jscpd:ignore-start */
 import { identity, isNullish, mapById, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import {
@@ -24,7 +23,6 @@ import { appleMapsUrl, googleMapsUrl } from "#shared/maps.ts";
 import { formatDatetimeShortInTz } from "#shared/timezone.ts";
 import { DEFAULT_TIMEZONE } from "#shared/timezone-default.ts";
 import type { Attendee } from "#types";
-/* jscpd:ignore-end */
 
 /** Attendee with associated listing info for calendar CSV. */
 export type CalendarAttendee = Attendee & {

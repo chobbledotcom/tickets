@@ -1,11 +1,9 @@
 /** The renewal tab's answer after a hosting push, and the one place a push
  * writes the activity log. */
 
-/* jscpd:ignore-start -- imports */
 import { logActivity } from "#db/activity-log.ts";
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { answerTab } from "./built-site-tab.ts";
-/* jscpd:ignore-end */
 
 /** What a renewal push answers with: the activity line a push that worked
  * leaves, then the tab's own line for either outcome. */

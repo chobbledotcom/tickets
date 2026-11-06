@@ -1,3 +1,4 @@
+// effects: pure
 /** SumUp does not sign its callbacks and has no subscription to redeliver
  * against. A single lost callback is therefore the whole of the notice we get. This
  * machine replaces that notice. Every staged checkout is asked about until

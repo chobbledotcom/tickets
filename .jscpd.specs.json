@@ -10,18 +10,23 @@
     "**/node_modules/**",
     "**/fp.ts",
     "**/db/migrations/2*.ts",
-    "**/db/migrations/schema/columns.ts"
+    "**/db/migrations/schema/columns.ts",
+    "**/*.generated.ts"
   ],
   "format": [
     "typescript",
     "tsx"
   ],
-  "absolute": false,
+  "absolute": true,
   "gitignore": true,
   "minLines": 1,
   "minTokens": 18,
   "path": [
     "src",
     "test/specs/support"
+  ],
+  "ignorePattern": [
+    "(?m)^import\\s[^;]*;",
+    "(?m)^export\\s+(type\\s+)?(\\*|\\{[^}]*\\})(\\s+as\\s+\\w+)?\\s+from\\s[^;]*;"
   ]
 }

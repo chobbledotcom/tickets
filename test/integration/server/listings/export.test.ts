@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { parse } from "@std/csv";
 import { expect } from "@std/expect";
@@ -8,6 +7,7 @@ import { listingQuestions } from "#db/questions/queries.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import {
   expectCsvDownloadHeaders,
+  expectIncludesAll,
   fetchListingExportCsv,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
@@ -20,8 +20,6 @@ import {
   adminGet,
   setupListingAndLogin,
 } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("server listings > export", { db: true }, () => {
   describe("GET /admin/listing/:id/export", () => {
@@ -70,14 +68,13 @@ describeWithEnv("server listings > export", { db: true }, () => {
       );
 
       const csv = await fetchListingExportCsv(listing.id, cookie);
-      assertStringIncludes(
-        csv,
+      expectIncludesAll(csv, [
         "Name,Email,Phone,Address,Special Instructions,Quantity,Registered",
-      );
-      assertStringIncludes(csv, "John Doe");
-      assertStringIncludes(csv, "john@example.com");
-      assertStringIncludes(csv, "Jane Smith");
-      assertStringIncludes(csv, "jane@example.com");
+        "John Doe",
+        "john@example.com",
+        "Jane Smith",
+        "jane@example.com",
+      ]);
     });
 
     test("returns CSV with Checked In column", async () => {
@@ -221,8 +218,7 @@ describeWithEnv("server listings > export", { db: true }, () => {
       await saveAttendeeAnswers(new Map([[attendee.id, [a1.id]]]));
 
       const csv = await fetchListingExportCsv(listing.id, cookie);
-      assertStringIncludes(csv, "Shirt Size");
-      assertStringIncludes(csv, "Small");
+      expectIncludesAll(csv, ["Shirt Size", "Small"]);
     });
   });
 });

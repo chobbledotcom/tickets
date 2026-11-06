@@ -6,12 +6,9 @@
  * notices when the two drift apart (issue #2671).
  */
 
-/* jscpd:ignore-start */
 import * as v from "valibot";
 import { type CheckOutput, reportCheck } from "#scripts/check-report.ts";
 import { uniqueNamesSchema } from "#scripts/unique-names.ts";
-
-/* jscpd:ignore-end */
 
 /** One required status check, as the branch rules API reports it. */
 interface RequiredStatusCheck {

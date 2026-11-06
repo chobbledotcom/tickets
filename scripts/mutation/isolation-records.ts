@@ -2,12 +2,10 @@
  * Reading and writing the small record each mutation run keeps on disk.
  */
 
-/* jscpd:ignore-start */
 import { dirname, join } from "@std/path";
 import { namesInDirectory } from "#scripts/not-found.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 import { readJsonOrNull } from "#scripts/read-json.ts";
-/* jscpd:ignore-end */
 import {
   isRunId,
   MUTATION_RECORD_FILE,

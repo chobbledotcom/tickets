@@ -3,12 +3,8 @@
  * the maps the app reads.
  */
 
-/* jscpd:ignore-start -- imports */
-
-import type { MessageGroup } from "#locales/manifest.ts";
+import type { MessageGroup } from "#locales/message-groups.generated.ts";
 import type { PathMethodRoute } from "#routes/types.ts";
-
-/* jscpd:ignore-end */
 
 /** A gate answers before a prefix's message groups load. */
 export type PrefixGate = (path: string, method: string) => Response | null;

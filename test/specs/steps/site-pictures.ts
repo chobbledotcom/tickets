@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -46,8 +44,7 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 /** The page at one address shows the story's picture, and no reference. */
 const visitorSeesPictureAt = async (
@@ -314,8 +311,7 @@ Then(
     const listing = listingNamed(this, name);
     const browser = await openAsNewcomer(`/ticket/${listing.slug}?iframe=true`);
     expect(browser.answered).toBe(200);
-    assertStringIncludes(browser.currentHtml, listing.name);
-    assertStringIncludes(browser.currentHtml, "Continue");
+    expectIncludesAll(browser.currentHtml, [listing.name, "Continue"]);
     assert(!browser.currentHtml.includes('<footer class="site-footer">'));
     assert(!browser.currentHtml.includes(sitePictureTag(this)));
   },
@@ -360,8 +356,10 @@ Then(
   "a visitor on the list reads the {word} and sees the picture",
   async function (this: TicketsWorld, name: string): Promise<void> {
     const browser = await openAsNewcomer("/listings");
-    assertStringIncludes(browser.currentHtml, `<h2>${name}</h2>`);
-    assertStringIncludes(browser.currentHtml, sitePictureTag(this));
+    expectIncludesAll(browser.currentHtml, [
+      `<h2>${name}</h2>`,
+      sitePictureTag(this),
+    ]);
     assert(!browser.currentHtml.includes("img#"));
   },
 );

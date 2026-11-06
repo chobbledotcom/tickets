@@ -1,6 +1,6 @@
+// effects: pure
 /**
- * Functional programming utilities
- * Curried functions for array operations and composition
+ * Curried functional utilities for array operations and composition.
  *
  * Several utilities here are thin curried adapters over `@std/collections`,
  * keeping the project's pipe-friendly calling convention while delegating the

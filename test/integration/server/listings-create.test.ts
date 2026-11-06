@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
@@ -30,8 +29,6 @@ import {
 } from "#test-utils/session.ts";
 import { featureSetting } from "#test-utils/settings.ts";
 import { expectTemporaryError } from "#test-utils/temporary-error.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("server listings > create", { db: true }, () => {
   afterEach(() => {
@@ -205,8 +202,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
       expectStatus(400)(response);
 
       const listings = await getAllListings();
-      const match = listings.find((e) => e.name === "Bad Group Listing");
-      expect(match).toBeUndefined();
+      expect(listings.map((e) => e.name)).not.toContain("Bad Group Listing");
     });
 
     test("rejects listing type mismatch with group on create", async () => {

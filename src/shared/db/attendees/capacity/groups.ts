@@ -1,5 +1,3 @@
-/* jscpd:ignore-start */
-
 import { dateToRange } from "#db/capacity.ts";
 import { inPlaceholders, queryAll } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
@@ -11,8 +9,6 @@ import type { ListingType } from "#types";
 import { getListingGroupMembership, useListingById } from "./listing.ts";
 import { daySpan, type IntervalRow, perDayLoads } from "./range.ts";
 import type { ListingForGroupLookup, PerIdDayLoader } from "./types.ts";
-
-/* jscpd:ignore-end */
 
 type RemainingMap = Map<number, number>;
 

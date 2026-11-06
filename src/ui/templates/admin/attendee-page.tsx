@@ -9,7 +9,6 @@
 import type { AttendeeStatus } from "#db/attendee-statuses.ts";
 import type { ContactRecord } from "#db/contact-preferences.ts";
 import type { InvoiceSummary } from "#db/invoices.ts";
-/* jscpd:ignore-start */
 import { compact } from "#fp";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
@@ -39,7 +38,6 @@ import { ProseSection } from "#templates/components/prose-section.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { quantityLabel } from "#templates/public/order-summary.tsx";
 import type { Attendee } from "#types";
-/* jscpd:ignore-end */
 
 /** One channel's contact record plus the URL-safe HMAC param that keys its
  * /admin/history editor link. Null when the attendee has no value for that

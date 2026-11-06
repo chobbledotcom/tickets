@@ -13,6 +13,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withStorageDisabled, withStorageEnabled } from "#test-utils/mocks.ts";
 import type { Image } from "#types";
@@ -65,8 +66,7 @@ describe("admin image templates", () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     withStorageEnabled(() => {
       const html = adminImagesPage([image(7, "Hero")], OWNER_SESSION);
-      assertStringIncludes(html, "Hero");
-      assertStringIncludes(html, "/image/hero-thumb.webp");
+      expectIncludesAll(html, ["Hero", "/image/hero-thumb.webp"]);
       assert(!html.includes('href="/admin/images/7/edit"'));
       assert(!html.includes('href="/admin/images/new"'));
     });
@@ -80,8 +80,10 @@ describe("admin image templates", () => {
         '<img alt="Alt Poster" class="image-library-thumb" src="/image/poster-thumb.webp">',
       );
       assert(!html.includes("/image/poster.webp"));
-      assertStringIncludes(html, '<a class="active" href="/admin/images">');
-      assertStringIncludes(html, 'href="/admin/guide#images"');
+      expectIncludesAll(html, [
+        '<a class="active" href="/admin/images">',
+        'href="/admin/guide#images"',
+      ]);
     });
   });
 
@@ -90,14 +92,10 @@ describe("admin image templates", () => {
       const html = adminImagesPage(images(12), OWNER_SESSION);
 
       expectThumbnailRule(html, 12);
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
         '<img alt="Alt Image 9" class="image-library-thumb" src="/image/image 9-thumb.webp">',
-      );
-      assertStringIncludes(
-        html,
         '<img alt="Alt Image 10" class="image-library-thumb" loading="lazy" src="/image/image 10-thumb.webp">',
-      );
+      ]);
     });
   });
 
@@ -130,31 +128,26 @@ describe("admin image templates", () => {
   test("renders the new image upload form", () => {
     withStorageEnabled(() => {
       const html = adminImageNewPage(OWNER_SESSION, "Upload failed");
-      assertStringIncludes(html, "Upload failed");
-      assertStringIncludes(html, 'action="/admin/images"');
-      assertStringIncludes(html, 'enctype="multipart/form-data"');
-      assertStringIncludes(html, '<a class="active" href="/admin/images">');
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        "Upload failed",
+        'action="/admin/images"',
+        'enctype="multipart/form-data"',
+        '<a class="active" href="/admin/images">',
         '<input maxlength="250" name="name" required type="text">',
-      );
-      assertStringIncludes(
-        html,
         '<input maxlength="250" name="alt_text" type="text">',
-      );
-      assertStringIncludes(
-        html,
         '<input accept="image/jpeg,image/png,image/webp" name="image" type="file">',
-      );
-      assertStringIncludes(html, "/icons.svg#save");
+        "/icons.svg#save",
+      ]);
     });
   });
 
   test("renders the new image disabled state when storage is disabled", () => {
     withStorageDisabled(() => {
       const html = adminImageNewPage(OWNER_SESSION, "Upload failed");
-      assertStringIncludes(html, "Upload failed");
-      assertStringIncludes(html, "File storage is not configured.");
+      expectIncludesAll(html, [
+        "Upload failed",
+        "File storage is not configured.",
+      ]);
       assert(!html.includes('enctype="multipart/form-data"'));
       assert(!html.includes('name="image"'));
     });
@@ -173,30 +166,25 @@ describe("admin image templates", () => {
       }),
     );
 
-    assertStringIncludes(html, "Edit Poster");
-    assertStringIncludes(html, '<div class="image-library-preview">');
+    expectIncludesAll(html, [
+      "Edit Poster",
+      '<div class="image-library-preview">',
+    ]);
     // One preview thumbnail loads with the page.
     expect(lazyThumbnails(html)).toEqual([false]);
-    assertStringIncludes(html, 'value="Poster"');
-    assertStringIncludes(html, "<strong>Linked items (1):</strong>");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'value="Poster"',
+      "<strong>Linked items (1):</strong>",
       '<li class="checkboxes"><strong>Listings:</strong>',
-    );
-    assertStringIncludes(
-      html,
       '<li class="checkboxes"><strong>Groups:</strong>',
-    );
-    assertStringIncludes(html, 'value="listing:4"');
-    assertStringIncludes(
-      html,
+      'value="listing:4"',
       'checked name="image_items" type="checkbox" value="group:5"',
-    );
-    assertStringIncludes(html, '<a class="active" href="/admin/images">');
-    assertStringIncludes(html, '<div class="prose"><h2>Danger zone</h2>');
-    assertStringIncludes(html, 'class="btn secondary"');
-    assertStringIncludes(html, "/icons.svg#trash-2");
-    assertStringIncludes(html, 'href="/admin/images/3/delete"');
+      '<a class="active" href="/admin/images">',
+      '<div class="prose"><h2>Danger zone</h2>',
+      'class="btn secondary"',
+      "/icons.svg#trash-2",
+      'href="/admin/images/3/delete"',
+    ]);
   });
 
   test("groups news and page targets under their own labelled rows", () => {
@@ -212,16 +200,12 @@ describe("admin image templates", () => {
       }),
     );
 
-    assertStringIncludes(html, '<li class="checkboxes"><strong>News:</strong>');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      '<li class="checkboxes"><strong>News:</strong>',
       '<li class="checkboxes"><strong>Pages:</strong>',
-    );
-    assertStringIncludes(html, 'value="news:1"');
-    assertStringIncludes(
-      html,
+      'value="news:1"',
       'checked name="image_items" type="checkbox" value="page:2"',
-    );
+    ]);
   });
 
   test("renders a listings-only image as a single linked-listings line", () => {
@@ -261,12 +245,14 @@ describe("admin image templates", () => {
     const html = withStorageEnabled(() =>
       adminImageDeletePage(image(2, "Remove me"), OWNER_SESSION, "Nope"),
     );
-    assertStringIncludes(html, "Delete Remove me");
-    assertStringIncludes(html, "Nope");
-    assertStringIncludes(html, 'action="/admin/images/2/delete"');
-    assertStringIncludes(html, '<a class="active" href="/admin/images">');
-    assertStringIncludes(html, '<button class="danger" type="submit">');
-    assertStringIncludes(html, "Type the image name to confirm");
+    expectIncludesAll(html, [
+      "Delete Remove me",
+      "Nope",
+      'action="/admin/images/2/delete"',
+      '<a class="active" href="/admin/images">',
+      '<button class="danger" type="submit">',
+      "Type the image name to confirm",
+    ]);
   });
 
   test("renders item image storage-disabled state", () =>
@@ -298,10 +284,12 @@ describe("admin image templates", () => {
         }),
       );
 
-      assertStringIncludes(html, "No images linked.");
-      assertStringIncludes(html, "No images yet.");
-      assertStringIncludes(html, 'enctype="multipart/form-data"');
-      assertStringIncludes(html, 'name="image"');
+      expectIncludesAll(html, [
+        "No images linked.",
+        "No images yet.",
+        'enctype="multipart/form-data"',
+        'name="image"',
+      ]);
     }));
 
   test("renders selected item image checkboxes in current item order", () =>
@@ -319,11 +307,10 @@ describe("admin image templates", () => {
         }),
       );
 
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
         '<fieldset class="checkboxes image-picker-checkboxes">',
-      );
-      assertStringIncludes(html, "/icons.svg#plus");
+        "/icons.svg#plus",
+      ]);
       const first = html.indexOf('name="image_ids" type="checkbox" value="1"');
       const second = html.indexOf('name="image_ids" type="checkbox" value="2"');
       const library = html.indexOf(
@@ -369,14 +356,10 @@ describe("admin image templates", () => {
 
       // Two linked rows above put the picker entry for Image 8 at position 9.
       expectThumbnailRule(html, 14);
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
         '<img alt="Alt Image 7" class="image-library-thumb" src="/image/image 7-thumb.webp">',
-      );
-      assertStringIncludes(
-        html,
         '<img alt="Alt Image 8" class="image-library-thumb" loading="lazy" src="/image/image 8-thumb.webp">',
-      );
+      ]);
     }));
 
   test("starts the picker thumbnail count at the page top with nothing linked", () =>

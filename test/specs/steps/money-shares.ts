@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { attendeeAccount } from "#accounting/accounts.ts";
@@ -26,8 +24,6 @@ import { soleBookingOn } from "#test/specs/support/public-booking.ts";
 import { type TicketsWorld, theBooking } from "#test/specs/support/world.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 const FESTIVAL = "Festival";
 

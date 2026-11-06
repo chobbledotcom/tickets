@@ -23,7 +23,6 @@
  *   - `#routes/admin/attendee-form-validation.ts` — the shared
  *     `validateAttendeeBlock`.
  */
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { SERVICING_KIND } from "#db/attendees/kind.ts";
@@ -42,8 +41,6 @@ import {
 } from "#routes/admin/servicing/form-model.ts";
 import { FormParams } from "#shared/form-data.ts";
 import type { Field } from "#shared/forms/field.ts";
-
-// jscpd:ignore-end
 
 const EXCLUDED_FIELD_NAMES = [
   "email",

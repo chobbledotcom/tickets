@@ -1,5 +1,3 @@
-/* jscpd:ignore-start */
-
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 
@@ -15,8 +13,6 @@ import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { createSeeds } from "#shared/seeds.ts";
 import { adminSeedsPage } from "#templates/admin/seeds.tsx";
 import { seedsForm } from "#templates/fields/seeds.ts";
-
-/* jscpd:ignore-end */
 
 /** Handle GET /admin/seeds (show seed form) */
 const handleSeedsGet: TypedRouteHandler<"GET /admin/seeds"> = authFlashPage(

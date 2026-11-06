@@ -10,6 +10,7 @@ import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   assertJson,
   expectFlash,
+  expectIncludesAll,
   inputNamed,
   redirectFormId,
   testRequiresAuth,
@@ -130,8 +131,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       });
       const response = await adminGet("/admin/settings");
       const html = await response.text();
-      assertStringIncludes(html, "Your SumUp credentials are saved");
-      assertStringIncludes(html, "sumup-test-btn");
+      expectIncludesAll(html, [
+        "Your SumUp credentials are saved",
+        "sumup-test-btn",
+      ]);
     });
   });
 

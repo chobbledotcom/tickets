@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -19,8 +18,6 @@ import {
   checkoutSessionEvent,
   expectWebhookProcessed,
 } from "#test-utils/webhooks.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "server webhooks > custom questions (single-ticket)",

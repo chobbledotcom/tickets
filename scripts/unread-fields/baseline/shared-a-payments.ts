@@ -1,12 +1,9 @@
-// jscpd:ignore-start
 import { way } from "#scripts/unread-fields/fields/steps.ts";
 import {
   type FindingIdentity,
   identitiesAt,
   ownerAt,
 } from "#scripts/unread-fields/identity.ts";
-
-// jscpd:ignore-end
 
 const inRowMachine = ownerAt("src/shared/payment/row-machine-spec.ts");
 const inRowState = ownerAt("src/shared/payment/row-state.ts");

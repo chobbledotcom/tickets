@@ -5,7 +5,6 @@
  * and that is what is checked here.
  */
 
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getEnv } from "#shared/env.ts";
@@ -23,8 +22,6 @@ import {
   whatWasKeptFor,
   worldWith,
 } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
 
 /** A World that can remember things by name, for the lookups that read them
  * back. */
@@ -59,7 +56,7 @@ describe("the story's shared lookups", () => {
       expect(getEnv("TICKETS_WORLD_TEST")).toBe("on");
 
       await cleanup.runAll();
-      expect(getEnv("TICKETS_WORLD_TEST")).toBeUndefined();
+      expect(getEnv("TICKETS_WORLD_TEST")).toBe(undefined);
     });
   });
 

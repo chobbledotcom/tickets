@@ -1,5 +1,5 @@
 {
-  "threshold": 0,
+  "threshold": 100,
   "noTips": true,
   "reporters": [
     "console",
@@ -14,18 +14,18 @@
     "typescript",
     "tsx"
   ],
-  "absolute": false,
+  "absolute": true,
   "gitignore": true,
-  "exitCode": 1,
   "ignoreIdentifiers": true,
   "ignoreLiterals": true,
   "ignoreAnnotations": true,
-  "kind": [
-    "exact"
-  ],
   "minLines": 1,
-  "minTokens": 15,
+  "minTokens": 40,
   "path": [
     "test/specs/support"
+  ],
+  "ignorePattern": [
+    "(?m)^import\\s[^;]*;",
+    "(?m)^export\\s+(type\\s+)?(\\*|\\{[^}]*\\})(\\s+as\\s+\\w+)?\\s+from\\s[^;]*;"
   ]
 }

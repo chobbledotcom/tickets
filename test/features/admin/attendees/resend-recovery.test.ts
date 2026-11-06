@@ -9,7 +9,6 @@
  * selection is not owed sends anyway: that is the customer-service resend.
  */
 
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
@@ -37,8 +36,6 @@ import {
   recoverAllSides,
   resend,
 } from "./resend-press.ts";
-
-/* jscpd:ignore-end */
 
 describeWithEnv("re-sending only what a recovery owes", { db: true }, () => {
   const fetch = stubFetchEachTest(() => new Response("{}"));

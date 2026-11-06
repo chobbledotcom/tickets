@@ -8,6 +8,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 /** The hole names the scanner script fills in, spelled as the page carries
  * them between its own braces. */
@@ -38,9 +39,11 @@ describe("the admin scanner page template", () => {
       RETENTION_DAYS,
     );
 
-    assertStringIncludes(html, "<title>Scanner: Doors</title>");
-    assertStringIncludes(html, 'data-scan-path="/admin/groups/5/scan"');
-    assertStringIncludes(html, 'action="/admin/groups/5/scan"');
+    expectIncludesAll(html, [
+      "<title>Scanner: Doors</title>",
+      'data-scan-path="/admin/groups/5/scan"',
+      'action="/admin/groups/5/scan"',
+    ]);
     assert(!html.includes("Scanning a ticket in this group"));
   });
 
@@ -58,11 +61,13 @@ describe("the admin scanner page template", () => {
       RETENTION_DAYS,
     );
 
-    assertStringIncludes(html, "2 tickets available");
-    assertStringIncludes(html, 'data-name="Ada"');
-    assertStringIncludes(html, 'data-quantity="2"');
-    assertStringIncludes(html, 'data-attendee-id="41"');
-    assertStringIncludes(html, 'data-name="Sam"');
+    expectIncludesAll(html, [
+      "2 tickets available",
+      'data-name="Ada"',
+      'data-quantity="2"',
+      'data-attendee-id="41"',
+      'data-name="Sam"',
+    ]);
   });
 
   test("tells two people with the same name apart by their day and listing", () => {
@@ -92,12 +97,14 @@ describe("the admin scanner page template", () => {
     // Same name and the same number of places: only the day, and on a
     // multi-listing door the listing, tells the two picks apart, so the
     // roster shows it beside the name.
-    assertStringIncludes(html, "Ada (2 tickets) — Camping · 12 Jun");
-    assertStringIncludes(html, "Ada (2 tickets) — Workshop · 14 Jun");
-    assertStringIncludes(html, 'data-detail="Camping · 12 Jun"');
-    // The pick list searches what it shows; it no longer offers the ticket
-    // token, which the roster stopped carrying.
-    assertStringIncludes(html, "Search by name, day, or listing");
+    expectIncludesAll(html, [
+      "Ada (2 tickets) — Camping · 12 Jun",
+      "Ada (2 tickets) — Workshop · 14 Jun",
+      'data-detail="Camping · 12 Jun"',
+      // The pick list searches what it shows; it no longer offers the ticket
+      // token, which the roster stopped carrying.
+      "Search by name, day, or listing",
+    ]);
     assert(!html.includes("ticket token"));
   });
 
@@ -140,12 +147,11 @@ describe("the admin scanner page template", () => {
       RETENTION_DAYS,
     );
 
-    assertStringIncludes(html, 'data-name="Ada &amp; Bo"');
-    assertStringIncludes(html, 'data-detail="Tom &amp; Jerry &lt;Show&gt;"');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'data-name="Ada &amp; Bo"',
+      'data-detail="Tom &amp; Jerry &lt;Show&gt;"',
       "Ada &amp; Bo (1 ticket) — Tom &amp; Jerry &lt;Show&gt;",
-    );
+    ]);
     assert(!html.includes("&amp;amp;"));
   });
 
@@ -242,11 +248,10 @@ describe("the admin scanner page template", () => {
       DOOR_CACHE_KEY,
       RETENTION_DAYS,
     );
-    assertStringIncludes(warned, 'role="alert"');
-    assertStringIncludes(
-      warned,
+    expectIncludesAll(warned, [
+      'role="alert"',
       "Scanning a ticket in this group will check in ALL of the attendee's booked listings in that group",
-    );
+    ]);
     // The warning states the rule; it must not offer to change it at the door.
     assert(!warned.includes('name="scan_checks_in_all_listings"'));
     assert(!warned.includes('action="/admin/groups/5/scanner"'));
@@ -426,61 +431,58 @@ describe("the admin scanner page template", () => {
     );
     // The two asks the door puts before it admits: a forced or ID-checked
     // check-in, and how many tickets a multi-place booking admits.
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       'class="scanner-overlay hidden" id="scanner-confirm"',
-    );
-    assertStringIncludes(html, 'class="scanner-overlay-backdrop"');
-    assertStringIncludes(html, 'class="scanner-overlay-box"');
-    assertStringIncludes(html, 'id="scanner-confirm-close"');
-    assertStringIncludes(html, 'id="scanner-confirm-message"');
+      'class="scanner-overlay-backdrop"',
+      'class="scanner-overlay-box"',
+      'id="scanner-confirm-close"',
+      'id="scanner-confirm-message"',
+    ]);
     expect(times(html, 'class="scanner-confirm-actions"')).toBe(2);
-    assertStringIncludes(html, 'id="scanner-confirm-yes"');
-    assertStringIncludes(html, 'id="scanner-confirm-no"');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'id="scanner-confirm-yes"',
+      'id="scanner-confirm-no"',
       'class="scanner-overlay hidden" id="scanner-quantity"',
-    );
-    assertStringIncludes(html, 'id="scanner-start"');
-    // The offline-mode toggle the client binds and the quiet button it keeps.
-    assertStringIncludes(html, 'id="scanner-offline-toggle"');
-    assertStringIncludes(html, 'class="link-button muted"');
-    assertStringIncludes(html, 'aria-pressed="false"');
-    // The camera hole and status line the scanner script starts from, and
-    // the quantity ask's controls.
-    assertStringIncludes(html, 'id="scanner-container"');
-    assertStringIncludes(html, 'id="scanner-video"');
-    assertStringIncludes(html, 'id="scanner-status"');
-    // The offline door: the banner the client raises and fills, and the
-    // queue panel it keeps the kept scans in.
-    assertStringIncludes(html, 'id="scanner-offline-banner"');
-    assertStringIncludes(html, 'id="scanner-offline-banner-text"');
-    assertStringIncludes(html, 'id="scanner-queue"');
-    assertStringIncludes(html, 'id="scanner-queue-summary"');
-    assertStringIncludes(html, 'id="scanner-queue-items"');
-    assertStringIncludes(html, 'id="scanner-quantity-message"');
-    assertStringIncludes(html, 'for="scanner-quantity-select"');
-    assertStringIncludes(html, 'id="scanner-quantity-select"');
-    assertStringIncludes(html, 'id="scanner-quantity-confirm"');
-    assertStringIncludes(html, 'id="scanner-quantity-cancel"');
-    // The /admin/ route is the home section's own landing link, so the nav
-    // highlights it.
-    assertStringIncludes(html, '<a class="active" href="/admin/">Home</a>');
-
-    // The manual pick-up form.
-    assertStringIncludes(html, 'id="manual-checkin"');
-    assertStringIncludes(html, 'method="POST"');
-    assertStringIncludes(html, 'name="csrf_token"');
-    assertStringIncludes(html, 'for="manual-checkin-input"');
-    assertStringIncludes(html, 'class="combobox"');
-    assertStringIncludes(html, 'id="manual-checkin-attendee-id"');
-    assertStringIncludes(html, 'name="attendee_id"');
-    assertStringIncludes(html, 'autocomplete="off"');
-    assertStringIncludes(html, 'id="manual-checkin-input"');
-    assertStringIncludes(html, 'type="text"');
-    assertStringIncludes(html, 'class="combobox-list hidden"');
-    assertStringIncludes(html, 'id="ticket-options"');
-    assertStringIncludes(html, 'id="manual-checkin-status"');
+      'id="scanner-start"',
+      // The offline-mode toggle the client binds and the quiet button it keeps.
+      'id="scanner-offline-toggle"',
+      'class="link-button muted"',
+      'aria-pressed="false"',
+      // The camera hole and status line the scanner script starts from, and
+      // the quantity ask's controls.
+      'id="scanner-container"',
+      'id="scanner-video"',
+      'id="scanner-status"',
+      // The offline door: the banner the client raises and fills, and the
+      // queue panel it keeps the kept scans in.
+      'id="scanner-offline-banner"',
+      'id="scanner-offline-banner-text"',
+      'id="scanner-queue"',
+      'id="scanner-queue-summary"',
+      'id="scanner-queue-items"',
+      'id="scanner-quantity-message"',
+      'for="scanner-quantity-select"',
+      'id="scanner-quantity-select"',
+      'id="scanner-quantity-confirm"',
+      'id="scanner-quantity-cancel"',
+      // The /admin/ route is the home section's own landing link, so the nav
+      // highlights it.
+      '<a class="active" href="/admin/">Home</a>',
+      // The manual pick-up form.
+      'id="manual-checkin"',
+      'method="POST"',
+      'name="csrf_token"',
+      'for="manual-checkin-input"',
+      'class="combobox"',
+      'id="manual-checkin-attendee-id"',
+      'name="attendee_id"',
+      'autocomplete="off"',
+      'id="manual-checkin-input"',
+      'type="text"',
+      'class="combobox-list hidden"',
+      'id="ticket-options"',
+      'id="manual-checkin-status"',
+    ]);
     // Two hidden fields: the form's own code, and the chosen person's
     // ticket; plus the five plainly hidden boxes the script reveals (the
     // offline banner, the queue panel, and the overlays carry their hidden

@@ -3,7 +3,6 @@
  */
 
 import type { ActivityLogEntry } from "#db/activity-log.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { Child, SafeHtml } from "#jsx/jsx-runtime.ts";
 import {
@@ -19,8 +18,6 @@ import { GuideFooter } from "#templates/components/actions.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import type { AdminSession, ListingWithCount } from "#types";
-
-/* jscpd:ignore-end */
 
 /** The "Activity log guide" link shown at the bottom of both activity-log
  *  pages. */

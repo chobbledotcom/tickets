@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb, insert } from "#db/client.ts";
@@ -6,8 +5,6 @@ import { deleteAllStaleReservations } from "#db/processed-payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { setupListingAndLogin } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "server listings > stale reservation cleanup",

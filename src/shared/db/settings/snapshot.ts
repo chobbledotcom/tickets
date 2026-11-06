@@ -11,9 +11,6 @@
 import type { KeyEncrypted, OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { recordSettingRead } from "#db/settings-audit.ts";
 import { DEFAULT_COUNTRY } from "#shared/countries.ts";
-/* jscpd:ignore-start — the orphan-retention → CONFIG_KEYS → registry key lists
-   are the same triad apply.ts loads; shared infrastructure, not code that
-   changes per file. */
 import { DEFAULT_ORPHAN_RETENTION } from "#shared/orphan-retention.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 import {
@@ -21,7 +18,6 @@ import {
   PLAINTEXT_KEYS,
   type StringSettingKey,
 } from "#shared/settings/registry.ts";
-/* jscpd:ignore-end */
 import { DEFAULT_TIMEZONE } from "#shared/timezone-default.ts";
 import type {
   PaymentProviderSetting,

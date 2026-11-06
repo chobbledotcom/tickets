@@ -2,6 +2,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handlePaymentSuccess } from "#routes/api/payment-success.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createHiddenPackageGroup,
@@ -94,9 +95,11 @@ describeWithEnv("the paid success token page", { db: true }, () => {
 
     expect(response.status).toBe(200);
     const page = await response.text();
-    assertStringIncludes(page, 'data-payment-result="success"');
-    assertStringIncludes(page, `href="/t/${tokens}"`);
-    assertStringIncludes(page, "url=https://example.com/real-thanks");
+    expectIncludesAll(page, [
+      'data-payment-result="success"',
+      `href="/t/${tokens}"`,
+      "url=https://example.com/real-thanks",
+    ]);
   });
 
   test("joins several real tokens into one ticket link", async () => {
@@ -205,8 +208,10 @@ describeWithEnv("the paid success token page", { db: true }, () => {
       const { response, tokens } = await renderTokenPage(...bookings);
       expect(response.status).toBe(200);
       const page = await response.text();
-      assertStringIncludes(page, `href="/t/${tokens}"`);
-      assertStringIncludes(page, "url=https://example.com/mixed-thanks");
+      expectIncludesAll(page, [
+        `href="/t/${tokens}"`,
+        "url=https://example.com/mixed-thanks",
+      ]);
     });
   }
 

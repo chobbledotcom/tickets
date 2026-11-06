@@ -1,10 +1,8 @@
-/* jscpd:ignore-start */
 import { settings } from "#db/settings.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import type { CredentialCheck } from "#shared/payment-helpers.ts";
 import type { GetSquareClient } from "#shared/square/client.ts";
 import type { SquareLocation } from "#shared/square/wire.ts";
-/* jscpd:ignore-end */
 
 /** The operator-facing result of checking the stored Square configuration. */
 export type SquareConnectionTestResult = {

@@ -11,7 +11,6 @@
  * templates in `deliveries/run-sheet.tsx`.
  */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { Flash } from "#shared/forms/flash.tsx";
@@ -23,7 +22,6 @@ import type { RunSheetDay } from "#templates/admin/deliveries/run-sheet.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { DatePicker, type DatePickerDate } from "#templates/date-picker.tsx";
 import type { AdminSession } from "#types";
-/* jscpd:ignore-end */
 
 /** The date-picker context shown to staff so they can open any delivery date.
  * `selected` is the currently opened date (null = today's default view). */

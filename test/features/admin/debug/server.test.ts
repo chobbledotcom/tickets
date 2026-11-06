@@ -9,6 +9,7 @@ import { adminDebugPage } from "#templates/admin/debug.tsx";
 import {
   assertAdminHtml,
   expectHtmlResponse,
+  expectIncludesAll,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import {
@@ -505,8 +506,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
         },
       });
       const html = adminDebugPage(debugOwnerSession, state);
-      assertStringIncludes(html, "mylisting.example.com");
-      assertStringIncludes(html, ".tickets");
+      expectIncludesAll(html, ["mylisting.example.com", ".tickets"]);
     });
   });
 
@@ -618,8 +618,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
           },
         });
         const html = adminDebugPage(debugOwnerSession, state);
-        assertStringIncludes(html, "Database host");
-        assertStringIncludes(html, `<td>${label}</td>`);
+        expectIncludesAll(html, ["Database host", `<td>${label}</td>`]);
       }
     });
 
@@ -633,8 +632,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
         },
       });
       const html = adminDebugPage(debugOwnerSession, state);
-      assertStringIncludes(html, "Out of sync");
-      assertStringIncludes(html, "deadbeef");
+      expectIncludesAll(html, ["Out of sync", "deadbeef"]);
     });
   });
 
@@ -642,8 +640,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     test("shows limits table with all entries", async () => {
       const html = await assertAdminHtml("/admin/debug", "Limits");
       for (const entry of LIMIT_ENTRIES) {
-        assertStringIncludes(html, entry.envKey);
-        assertStringIncludes(html, entry.label);
+        expectIncludesAll(html, [entry.envKey, entry.label]);
       }
     });
 
@@ -660,8 +657,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
         ],
       });
       const html = adminDebugPage(debugOwnerSession, state);
-      assertStringIncludes(html, "200B");
-      assertStringIncludes(html, "(overridden)");
+      expectIncludesAll(html, ["200B", "(overridden)"]);
     });
   });
 });

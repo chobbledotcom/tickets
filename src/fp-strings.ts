@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * Curried string checks and sorts — the `#fp` combinators whose input is a
  * string rather than an array of anything. Kept beside `fp.ts` (which imports

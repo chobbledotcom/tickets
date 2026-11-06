@@ -3,7 +3,10 @@ import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import type { EdgeScriptSecret } from "#shared/bunny-edge-script.ts";
-import { expectHtmlResponse } from "#test-utils/assertions.ts";
+import {
+  expectHtmlResponse,
+  expectIncludesAll,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -59,9 +62,11 @@ describeWithEnv(
         BUNNY_API_KEY: "k",
         NTFY_URL: "https://ntfy.example.com/t",
       });
-      assertStringIncludes(html, "<code>BOTPOISON_PUBLIC_KEY</code>");
-      assertStringIncludes(html, "<code>BOTPOISON_SECRET_KEY</code>");
-      assertStringIncludes(html, `/admin/built-sites/${site.id}/add-secrets`);
+      expectIncludesAll(html, [
+        "<code>BOTPOISON_PUBLIC_KEY</code>",
+        "<code>BOTPOISON_SECRET_KEY</code>",
+        `/admin/built-sites/${site.id}/add-secrets`,
+      ]);
       // The secret key's value never reaches the page.
       assert(!html.includes("sk_host_7c2e"));
     });

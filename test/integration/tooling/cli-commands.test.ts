@@ -10,6 +10,7 @@ import {
   type AdminApiResource,
   DeleteBodySchema,
 } from "#shared/admin-api-resources.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { gadgetEntry, testTable } from "#test-utils/cli-table.ts";
 
 /** Parse one command, or answer the usage error's exit code and message. */
@@ -162,8 +163,10 @@ describe("CLI describe", () => {
   test("answers the resources of the table it is handed", () => {
     const doc = describeEntries(Object.entries(testTable));
     assertArrayIncludes(Object.keys(doc.resources), ["gadgets"]);
-    expect(doc.resources.gadgets!.children!.parts!.idParam).toBe("partId");
-    expect(doc.resources.gadgets!.children!.parts!.verbs.create).toEqual({
+    const parts = doc.resources.gadgets!.children.parts!;
+    expect(parts).toMatchObject({ idParam: "partId", path: "parts" });
+    expect(Object.keys(parts.verbs)).toEqual(["create", "delete", "update"]);
+    expect(parts.verbs.create).toEqual({
       body: {
         fields: [{ name: "label", required: true, type: "string" }],
         kind: "fields",
@@ -321,8 +324,7 @@ describe("CLI parser", () => {
   test("answers exit 2 with the valid resources for an unknown resource", () => {
     const answer = parseOrUsage(["list", "orders"]);
     expect(answer.code).toBe(2);
-    assertStringIncludes(answer.message, "The valid resources are:");
-    assertStringIncludes(answer.message, "gadgets");
+    expectIncludesAll(answer.message, ["The valid resources are:", "gadgets"]);
   });
 
   test("answers exit 2 with the valid children for an unknown child", () => {

@@ -2,6 +2,7 @@ import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { projectRoot } from "#scripts/project-root.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { type TempPath, tempDir } from "#test-utils/files.ts";
 import { TEST_NAME_FILTER_ENV } from "#test-utils/test-name-filter.ts";
 
@@ -129,8 +130,7 @@ describe("a test-name filter in the test child", () => {
     expect(success).toBe(true);
     assertArrayIncludes(names, ["standalone alpha"]);
     // The hidden suite's hook runs only when something below it is kept.
-    assertStringIncludes(marks, "global hook ran\n");
-    assertStringIncludes(marks, "standalone alpha ran\n");
+    expectIncludesAll(marks, ["global hook ran\n", "standalone alpha ran\n"]);
     assert(!marks.includes("standalone beta ran"));
     assert(!marks.includes("inner leaf ran"));
   });
@@ -209,8 +209,7 @@ describe("a test-name filter in the test child", () => {
 
     expect(success).toBe(true);
     assertArrayIncludes(names, ["standalone beta"]);
-    assertStringIncludes(marks, "global hook ran\n");
-    assertStringIncludes(marks, "standalone beta ran\n");
+    expectIncludesAll(marks, ["global hook ran\n", "standalone beta ran\n"]);
     assert(!marks.includes("standalone alpha ran"));
     assert(!marks.includes("inner leaf ran"));
   });
@@ -224,9 +223,11 @@ describe("a test-name filter in the test child", () => {
     expect(success).toBe(true);
     assertArrayIncludes(names, ["pruned leaf"]);
     assert(!names.includes("kept leaf"));
-    assertStringIncludes(marks, "pruned setup ran\n");
-    assertStringIncludes(marks, "pruned leaf ran\n");
-    assertStringIncludes(marks, "pruned afterAll ran after 1 setups\n");
+    expectIncludesAll(marks, [
+      "pruned setup ran\n",
+      "pruned leaf ran\n",
+      "pruned afterAll ran after 1 setups\n",
+    ]);
     assert(!marks.includes("kept leaf ran"));
   });
 

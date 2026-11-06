@@ -1,5 +1,6 @@
 /** Genres, festivals, listing types, and tour flavour for gig descriptions. */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** Sub-genres used inside gig-description templates */
 export const GENRES = [
   "doom",
@@ -66,7 +67,9 @@ export const GENRES = [
   "zydeco-thrash",
   "sea-shanty-core",
 ] as const;
+/* jscpd:ignore-end */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** Themes for crossover/novelty acts */
 export const CROSSOVERS = [
   "sea-shanty",
@@ -104,7 +107,9 @@ export const CROSSOVERS = [
   "town-council",
   "garden-centre",
 ] as const;
+/* jscpd:ignore-end */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** Outdoor / listing-style venue archetypes */
 export const FESTIVAL_TYPES = [
   "Festival",
@@ -150,7 +155,9 @@ export const FESTIVAL_TYPES = [
   "Tournament",
   "Olympiad",
 ] as const;
+/* jscpd:ignore-end */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** What the listing itself is — sits where words like "show" / "matinee" used to be hard-coded */
 export const LISTING_TYPES = [
   "night",
@@ -181,7 +188,9 @@ export const LISTING_TYPES = [
   "reckoning",
   "exorcism",
 ] as const;
+/* jscpd:ignore-end */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** Verbs for "the band ___ed the venue" */
 export const NOISE_VERBS = [
   "invade",
@@ -217,7 +226,9 @@ export const NOISE_VERBS = [
   "monopolise",
   "outlaw",
 ] as const;
+/* jscpd:ignore-end */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** Hyperbolic adjective phrases for sensory descriptions */
 export const INTENSITIES = [
   "ear-splitting",
@@ -256,7 +267,9 @@ export const INTENSITIES = [
   "hedge-trimming",
   "impressively-illegal",
 ] as const;
+/* jscpd:ignore-end */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** Adjectives that qualify a "tour" or one-off comeback show */
 export const TOUR_ADJECTIVES = [
   "farewell",
@@ -285,3 +298,4 @@ export const TOUR_ADJECTIVES = [
   "two-nights-only",
   "open-ended",
 ] as const;
+/* jscpd:ignore-end */

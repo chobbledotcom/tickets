@@ -1,11 +1,14 @@
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { updateBuiltSiteRenewalState } from "#db/built-sites.ts";
 import { addMonthsIso } from "#shared/dates.ts";
 import { renewalPanelFor } from "#templates/admin/built-sites/renewal-panels.tsx";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
-import { expectFlashRedirect } from "#test-utils/assertions.ts";
+import {
+  expectFlashRedirect,
+  expectIncludesAll,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestBuiltSite,
@@ -242,11 +245,10 @@ describeWithEnv(
         // control — no rotate, no deadline edits, no unconfirmed URL.
         suite.resetSecretStub();
         const panel = String(renewalPanelFor(await findSite(site.id)));
-        assertStringIncludes(
-          panel,
+        expectIncludesAll(panel, [
           "The last provisioning did not reach the site",
-        );
-        assertStringIncludes(panel, '/provision-renewal"');
+          '/provision-renewal"',
+        ]);
         assert(!panel.includes('/rotate-renewal-token"'));
         assert(!panel.includes('/bump-deadline"'));
         assert(!panel.includes('/override-deadline"'));

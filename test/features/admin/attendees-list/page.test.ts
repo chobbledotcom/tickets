@@ -9,7 +9,11 @@ import { describe, it as test } from "@std/testing/bdd";
 import { createSystemNote } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
-import { assertAdminHtml, testRequiresAuth } from "#test-utils/assertions.ts";
+import {
+  assertAdminHtml,
+  expectIncludesAll,
+  testRequiresAuth,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { deactivateTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -159,9 +163,11 @@ describeWithEnv("the attendees browser page", { db: true }, () => {
       // The decrypted system-note text renders inside the summary, and the
       // attendee's name links to their edit page — proving the notes-loading
       // path (which derives the owner private key only once notes exist) ran.
-      assertStringIncludes(html, "1 attendee has notes");
-      assertStringIncludes(html, "Refunded — follow up tomorrow.");
-      assertStringIncludes(html, 'href="/admin/attendees/');
+      expectIncludesAll(html, [
+        "1 attendee has notes",
+        "Refunded — follow up tomorrow.",
+        'href="/admin/attendees/',
+      ]);
     });
 
     test("resolves a summary note's img#N reference", async () => {

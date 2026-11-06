@@ -1,7 +1,6 @@
 /** Owner acknowledgement of the exact durable payment-review work they saw. */
 
 import { acknowledgeCurrentPaymentReview } from "#db/payment-review.ts";
-/* jscpd:ignore-start -- imports */
 import { t } from "#i18n";
 import type { PaymentWorkStatus } from "#payment/admit-move.ts";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
@@ -11,8 +10,6 @@ import {
   attendeeActions,
   attendeeActionUrlWithReturn,
 } from "./attendees-route-helpers.ts";
-
-/* jscpd:ignore-end */
 
 const ACTION = "payment-review";
 

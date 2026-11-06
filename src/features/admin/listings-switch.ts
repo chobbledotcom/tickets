@@ -11,7 +11,6 @@
  * Leaving the page saves nothing.
  */
 
-/* jscpd:ignore-start */
 import { buildListingCapCondition } from "#db/capacity.ts";
 import { resultRows, type SqlStatement, withTransaction } from "#db/client.ts";
 import { holidays } from "#db/holidays.ts";
@@ -32,7 +31,6 @@ import type { ListingWithCount } from "#types";
 import { listingPage } from "./listing-page.ts";
 import { loadListingEditPanel } from "./listing-page-management-panels.ts";
 import { buildUpdateListingResource } from "./listings-form.ts";
-/* jscpd:ignore-end */
 
 /** What the assign card shows: the warning's count, the dates offered, and
  * the date already chosen on a re-render. It also records whether any date

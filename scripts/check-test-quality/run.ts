@@ -5,7 +5,6 @@
  * runs this with the real git and console; tests call `gateExit` directly.
  */
 
-/* jscpd:ignore-start -- imports */
 import { unique } from "#fp";
 import { type CheckOutput, reportCheck } from "#scripts/check-report.ts";
 import { fileAtRevision } from "#scripts/file-at-revision.ts";
@@ -25,8 +24,6 @@ import {
   partitionFindings,
   RATCHET_GUIDE,
 } from "./gate.ts";
-
-/* jscpd:ignore-end */
 
 const TEST_FILE_PATTERN = /\.(?:test|spec)\.tsx?$/;
 

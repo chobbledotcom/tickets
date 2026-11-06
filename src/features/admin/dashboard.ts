@@ -5,7 +5,6 @@ import type { TypedRouteHandler } from "#routes/router.ts";
  * Admin dashboard route
  */
 
-/* jscpd:ignore-start -- imports */
 import {
   type ActivityLogEntry,
   getAllActivityLog,
@@ -42,7 +41,6 @@ import { flashForPage } from "#routes/flash-for-page.ts";
 import { htmlResponse, redirect, redirectResponse } from "#routes/response.ts";
 import { adminLandingPath } from "#shared/admin-pages.ts";
 import { adminDestinationAt } from "#shared/admin-surface.ts";
-/* jscpd:ignore-start */
 import { getFlash } from "#shared/flash-context.ts";
 import { groupScopeOptions } from "#shared/ledger-scope.ts";
 import {
@@ -62,7 +60,6 @@ import {
   sortListings,
 } from "#shared/sort-listings.ts";
 import { todayInTz } from "#shared/timezone.ts";
-/* jscpd:ignore-end */
 import {
   type ActivityLogRefs,
   adminGlobalActivityLogPage,
@@ -74,7 +71,6 @@ import {
 import type { ListingAttributeFilterView } from "#templates/admin/listing-attribute-filters.ts";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 import type { ListingWithCount } from "#types";
-/* jscpd:ignore-end */
 
 export const loginResponse = async (
   request: Request,

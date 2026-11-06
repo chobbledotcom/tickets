@@ -8,6 +8,7 @@ import {
   generateSvgTicket,
   type SvgTicketData,
 } from "#shared/svg-ticket.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const makeTicketData = (
@@ -98,8 +99,10 @@ describeWithEnv("svg-ticket", { db: true }, () => {
     test("returns valid SVG document with XML declaration", async () => {
       const svg = await generateSvgTicket(makeTicketData());
       expect(svg).toMatch(/^<\?xml version="1\.0" encoding="UTF-8"\?>/);
-      assertStringIncludes(svg, '<svg xmlns="http://www.w3.org/2000/svg"');
-      assertStringIncludes(svg, "</svg>");
+      expectIncludesAll(svg, [
+        '<svg xmlns="http://www.w3.org/2000/svg"',
+        "</svg>",
+      ]);
     });
 
     test("includes listing name", async () => {
@@ -176,9 +179,7 @@ describeWithEnv("svg-ticket", { db: true }, () => {
           purchaseOnly: true,
         }),
       );
-      assertStringIncludes(svg, "Summer Concert");
-      assertStringIncludes(svg, "Online");
-      assertStringIncludes(svg, "Price:");
+      expectIncludesAll(svg, ["Summer Concert", "Online", "Price:"]);
     });
   });
 });

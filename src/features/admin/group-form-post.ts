@@ -5,7 +5,6 @@
  * in the admin surface.
  */
 
-/* jscpd:ignore-start -- imports */
 import { getGroupById } from "#db/groups.ts";
 import { formPolicyAt } from "#routes/route-gates.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
@@ -13,7 +12,6 @@ import { createAuthedHandler } from "#shared/app-forms.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import type { Group } from "#types";
-/* jscpd:ignore-end */
 
 export const groupFormPost = (
   pattern: string,

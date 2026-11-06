@@ -1,4 +1,4 @@
-import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { IntlMessageFormat } from "intl-messageformat";
@@ -14,6 +14,7 @@ import {
   ENGLISH_MESSAGE_LOADERS,
   type MessageLoader,
 } from "#locales/manifest.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { allEnglishMessages, withColdMessages } from "#test-utils/i18n.ts";
 
@@ -162,8 +163,11 @@ describe("i18n", () => {
         const out = t("admin.attendees.refund_all_confirm", {
           name: "Attendee Gala",
         });
-        assertStringIncludes(out, '"Attendee Gala"'); // data untouched
-        assertStringIncludes(out, "all guests"); // copy rebranded
+        expectIncludesAll(out, [
+          '"Attendee Gala"',
+          // data untouched
+          "all guests",
+        ]); // copy rebranded
       });
     });
 

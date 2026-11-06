@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -9,8 +8,6 @@ import { assertPublicHtml, expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("server public > home", { db: true, triggers: true }, () => {
   describe("GET /", () => {

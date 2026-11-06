@@ -1,5 +1,3 @@
-/* jscpd:ignore-start */
-
 import { t } from "#i18n";
 import {
   crudRoutes,
@@ -7,7 +5,6 @@ import {
   entityTabRoutes,
 } from "#routes/admin/route-tables.ts";
 import { entityFormById, type IdRouteHandler } from "#routes/entity.ts";
-/* jscpd:ignore-end */
 /**
  * Admin logistics settings + logistics-agent management — owner only.
  *
@@ -16,7 +13,6 @@ import { entityFormById, type IdRouteHandler } from "#routes/entity.ts";
  * shared owner-CRUD handlers with the logistics page itself as the list view.
  */
 
-/* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import { logActivity } from "#db/activity-log.ts";
 import { clearLogisticsAgentReferences } from "#db/logistics.ts";
@@ -44,8 +40,6 @@ import {
   loadAgentUserOptions,
   logisticsAgentPage,
 } from "./logistics-agent-page.tsx";
-
-/* jscpd:ignore-end */
 
 /** Extract logistics agent input from validated form values. The `name` field
  * is required, so form validation already rejects blank/whitespace names. */

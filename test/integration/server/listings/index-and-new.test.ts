@@ -1,10 +1,10 @@
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import {
   expectHtmlResponse,
+  expectIncludesAll,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -14,8 +14,6 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { adminGet } from "#test-utils/session.ts";
 import { featureSetting } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("server listings > index and new", { db: true }, () => {
   describe("GET /admin/listings", () => {
@@ -29,9 +27,11 @@ describeWithEnv("server listings > index and new", { db: true }, () => {
       const response = await adminGet("/admin/listings");
       const html = await response.text();
       expect(response.status).toBe(200);
-      assertStringIncludes(html, 'class="active" href="/admin/listings"');
-      assertStringIncludes(html, active.name);
-      assertStringIncludes(html, deactivated.name);
+      expectIncludesAll(html, [
+        'class="active" href="/admin/listings"',
+        active.name,
+        deactivated.name,
+      ]);
       expect(html.indexOf(active.name)).toBeLessThan(
         html.indexOf(deactivated.name),
       );

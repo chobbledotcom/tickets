@@ -1,5 +1,3 @@
-/* jscpd:ignore-start */
-
 import { initDb } from "#db/migrations.ts";
 import { settings } from "#db/settings.ts";
 import { requestScopedHandler } from "#routes/request-scopes.ts";
@@ -11,7 +9,6 @@ import { reportMaintenanceFailure } from "#shared/maintenance/report.ts";
 import { maintenance } from "#shared/maintenance/runner.ts";
 import { scheduledResponse } from "#shared/scheduled-access.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
-/* jscpd:ignore-end */
 
 export const handleScheduledRequest = requestScopedHandler(async (request) => {
   const url = new URL(request.url);

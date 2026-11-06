@@ -20,18 +20,14 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import {
   freshLockStamp,
   LONG_EXPIRED_LOCK_STAMP,
+  settingsValueOrNull,
   takeMigrationLock,
 } from "#test-utils/migrations.ts";
 import { stubNtfyFetch } from "#test-utils/mocks.ts";
 
 describeWithEnv("db > migrations > lock", { db: true }, () => {
-  const heldLock = async (): Promise<string | null> => {
-    const result = await getDb().execute({
-      args: [MIGRATION_LOCK_KEY],
-      sql: "SELECT value FROM settings WHERE key = ?",
-    });
-    return (result.rows[0]?.value as string) ?? null;
-  };
+  const heldLock = (): Promise<string | null> =>
+    settingsValueOrNull(MIGRATION_LOCK_KEY);
 
   const holdLockSince = async (stamp: string): Promise<void> => {
     await getDb().execute({

@@ -5,6 +5,7 @@
  * masked to one symbol.
  */
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /** Sorted alphabetically; keep it that way. */
 export const SYNTAX_WORDS = new Set([
   "abstract",
@@ -71,3 +72,4 @@ export const SYNTAX_WORDS = new Set([
   "with",
   "yield",
 ]);
+/* jscpd:ignore-end */

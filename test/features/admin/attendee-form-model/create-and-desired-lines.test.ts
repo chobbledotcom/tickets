@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { ListingAttendeeRow } from "#db/attendee-types.ts";
@@ -13,8 +12,6 @@ import {
   parsedBase,
 } from "#test/features/admin/attendee-form-model/fixtures.ts";
 import { bookingRow, testListingWithCount } from "#test-utils/factories.ts";
-
-/* jscpd:ignore-end */
 
 describe("toCreateInput", () => {
   test("carries the status id through", () => {

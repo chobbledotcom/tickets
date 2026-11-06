@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -10,6 +9,7 @@ import {
   assertPublicHtml,
   expectFlash,
   expectHtmlResponse,
+  expectIncludesAll,
 } from "#test-utils/assertions.ts";
 import { extractInputValue, submitMultiTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -19,8 +19,6 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 import { enablePublicSite, withSetting } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "server public > ticket slug GET",
@@ -177,8 +175,7 @@ describeWithEnv(
         const html = await withSetting({ header_image_url: "header.jpg" }, () =>
           assertPublicHtml(`/ticket/${listing.slug}`),
         );
-        assertStringIncludes(html, 'class="header-image"');
-        assertStringIncludes(html, "/image/header.jpg");
+        expectIncludesAll(html, ['class="header-image"', "/image/header.jpg"]);
       });
 
       test("shows header and description without iframe param", async () => {
@@ -202,8 +199,10 @@ describeWithEnv(
         await enablePublicSite();
         const listing = await createTestListing({ maxAttendees: 50 });
         const html = await assertPublicHtml(`/ticket/${listing.slug}`, "<h1>");
-        assertStringIncludes(html, '<div class="admin-nav-group">');
-        assertStringIncludes(html, 'aria-label="Site menu"');
+        expectIncludesAll(html, [
+          '<div class="admin-nav-group">',
+          'aria-label="Site menu"',
+        ]);
       });
 
       test("still drops the menu in iframe mode when the public site is on", async () => {

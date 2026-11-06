@@ -1,4 +1,3 @@
-// jscpd:ignore-start -- imports
 import { expect } from "@std/expect";
 import { test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
@@ -10,8 +9,6 @@ import {
   rebuildStatingProviderForEveryRow,
   seedHistoricalProcessedPayment,
 } from "#test-utils/historical-payment-references.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("db > legacy rebuild provenance pointer", { db: true }, () => {
   test("the rebuild qualifies the attendee provenance pointer and unblocks Refund All", async () => {

@@ -2,7 +2,6 @@
  * refund plan and ledger functions over the fixture triples, never from a
  * stored move table. The negative controls keep the safety verdicts honest. */
 
-/* jscpd:ignore-start -- imports */
 import { createClient } from "@libsql/client";
 import { attendeeAccount } from "#accounting/accounts.ts";
 import { transfersByAccounts } from "#accounting/queries.ts";
@@ -49,8 +48,6 @@ import {
 import { requireValue } from "#shared/required-value.ts";
 import type { StoredTaxAssessment } from "#shared/tax/store.ts";
 import { TEST_ENCRYPTION_KEY } from "#test-utils/internal.ts";
-
-/* jscpd:ignore-end */
 
 /* The recorded original one posted refund leg inverts. The plan posts every
  * refund leg against a leg the ledger holds, so the derivation throws when

@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * Shared cryptographic utilities for payment webhook signature verification.
  * Used by both Stripe and Square webhook signature implementations.

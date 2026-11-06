@@ -1,6 +1,5 @@
 /** Invoice storage: the frozen body, the status, and the share token. */
 
-/* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import { encryptWithKey } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
@@ -17,7 +16,6 @@ import { col, defineTable } from "#db/table.ts";
 import { type RowFilter, readById } from "#db/table-reader.ts";
 import { invoiceBodyKey } from "#shared/invoices/seal.ts";
 import type { InvoiceStatus } from "#shared/invoices/status.ts";
-/* jscpd:ignore-end */
 
 /** A stored invoice row. The keys are the table's own column names. */
 export type InvoiceRow = {

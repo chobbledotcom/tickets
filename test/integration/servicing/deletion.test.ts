@@ -13,7 +13,6 @@
  *   - `purgeOrphanedAttendees` is kind-agnostic: a servicing row with no
  *     `listing_attendees` link is swept on the same cutoff as an attendee.
  */
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { SERVICING_KIND } from "#db/attendees/kind.ts";
@@ -36,8 +35,6 @@ import {
   recordServiceCost,
   servicingRowsForListing,
 } from "#test-utils/servicing.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("servicing §15 — deletion & orphan purge", { db: true }, () => {
   test("deleting a servicing event removes it and its dependent rows", async () => {

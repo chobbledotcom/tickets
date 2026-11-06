@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import {
   aboutTheRow,
   rowId,
@@ -12,8 +11,6 @@ import {
 import type { Table } from "#db/migrations/schema/types.ts";
 import { refundAuthorityWorkSql } from "#payment/refund-authority-lifecycle.ts";
 import { madeAndTouched, ownerEncryptedColumn } from "./columns.ts";
-
-/* jscpd:ignore-end */
 
 /** Rules the database can prove without understanding the whole state machine. */
 const ABOUT_THE_CHARGE = [

@@ -6,15 +6,12 @@
  * boundary the capacity guard's inequality (`<=` not `<`) and the half-open
  * range predicate (`[start, end)`) are the only defence for.
  */
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getListingRemainingForRange } from "#db/attendees/capacity/remaining.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createServicingHold, expectRejects } from "#test-utils/servicing.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "servicing edge cases — capacity boundaries",

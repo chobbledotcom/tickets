@@ -2,7 +2,6 @@
  * Read queries for attendees and their per-listing bookings.
  */
 
-/* jscpd:ignore-start */
 import { saleLegPredicate } from "#accounting/projection-sql.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
@@ -26,7 +25,6 @@ import {
 import { columnFrom, columnMapByIds, nameSource } from "#db/query.ts";
 import type { AttendeeSort } from "#shared/attendee-list-controls.ts";
 import type { Attendee } from "#types";
-/* jscpd:ignore-end */
 
 /**
  * Columns for a `ListingAttendeeRow` read straight from one `listing_attendees`

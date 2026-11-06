@@ -1,6 +1,5 @@
 /** Provider-neutral checkout, callback, and refund contracts. */
 
-/* jscpd:ignore-start */
 import * as v from "valibot";
 import type { ChildAllocation } from "#db/attendee-types.ts";
 import { settings } from "#db/settings.ts";
@@ -22,7 +21,6 @@ import {
 } from "#shared/purchase-unit.ts";
 import type { TaxPolicy } from "#shared/tax/types.ts";
 import type { ContactInfo, PaymentProviderType } from "#types";
-/* jscpd:ignore-end */
 
 /** Stubbable API for internal calls (testable via spyOn, like stripeApi/squareApi) */
 export const paymentsApi = {

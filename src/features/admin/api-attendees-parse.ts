@@ -5,7 +5,6 @@
  * route owns the writes. */
 
 import * as v from "valibot";
-/* jscpd:ignore-start */
 import {
   type AttendeeStatus,
   attendeeStatuses,
@@ -46,7 +45,6 @@ import {
   type ListingWithCount,
   MAX_DURATION_DAYS,
 } from "#types";
-/* jscpd:ignore-end */
 
 /** One validated booking line: its listing, the quantities the caller chose,
  * and the optional per-unit price override (minor units) they agreed. */

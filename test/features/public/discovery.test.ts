@@ -12,6 +12,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
 import { classifyForDiscovery } from "#routes/public/discovery.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -46,9 +47,11 @@ describeWithEnv(
         // The child's card is still shown, but with no /ticket/<child> CTA.
         assertStringIncludes(body, "Add-on");
         assert(!body.includes(`href="/ticket/${child.slug}"`));
-        assertStringIncludes(body, "Available as an add-on to another booking");
-        // The parent keeps its normal Book link.
-        assertStringIncludes(body, `href="/ticket/${parent.slug}"`);
+        expectIncludesAll(body, [
+          "Available as an add-on to another booking",
+          // The parent keeps its normal Book link.
+          `href="/ticket/${parent.slug}"`,
+        ]);
       });
 
       test("a child sold alone keeps its Book link and has no add-on note", async () => {
@@ -191,8 +194,7 @@ describeWithEnv(
         // card does not advertise an add-on the gate would reject.
         await setupSoldOutChild();
         const body = await publicBody("/listings");
-        assertStringIncludes(body, "Add-on");
-        assertStringIncludes(body, "Sold Out");
+        expectIncludesAll(body, ["Add-on", "Sold Out"]);
         assert(!body.includes("Available as an add-on to another booking"));
       });
 
@@ -255,8 +257,7 @@ describeWithEnv(
         });
         const body = await publicBody("/listings");
         assert(!body.includes("Available as an add-on to another booking"));
-        assertStringIncludes(body, parent.name);
-        assertStringIncludes(body, child.name);
+        expectIncludesAll(body, [parent.name, child.name]);
       });
 
       test("a child in a roomy SHARED group is bookable despite a tighter NON-shared group", async () => {

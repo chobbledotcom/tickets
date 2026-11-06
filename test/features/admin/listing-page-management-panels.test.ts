@@ -21,6 +21,7 @@ import {
   loadListingQuestionsPanel,
 } from "#routes/admin/listing-page-management-panels.ts";
 import type { AuthSession } from "#routes/auth.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   assignTestAttributeOptions,
@@ -178,8 +179,7 @@ describeWithEnv(
 
       test("offers every question the site has", async () => {
         const { html } = await questionsHtml();
-        assertStringIncludes(html, "Any allergies?");
-        assertStringIncludes(html, "Parking needed?");
+        expectIncludesAll(html, ["Any allergies?", "Parking needed?"]);
       });
 
       test("ticks only the questions this listing uses", async () => {
@@ -211,8 +211,7 @@ describeWithEnv(
 
       test("offers every option the attribute has", async () => {
         const { html } = await attributesHtml();
-        assertStringIncludes(html, "Step free");
-        assertStringIncludes(html, "Stairs only");
+        expectIncludesAll(html, ["Step free", "Stairs only"]);
       });
 
       test("ticks only the options this listing shows", async () => {

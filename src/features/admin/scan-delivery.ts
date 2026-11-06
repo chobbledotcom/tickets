@@ -3,7 +3,6 @@
  * row a completed delivery answers from. The scan answer parses the
  * request through this module. */
 
-// jscpd:ignore-start -- imports
 import { deriveDoorCacheKey } from "#crypto/hashing.ts";
 import type { AttendeeWithBookings } from "#db/attendee-types.ts";
 import type { DecryptedAttendeeRow } from "#db/attendees/pii.ts";
@@ -16,7 +15,6 @@ import { apiErrorResponse } from "#routes/api/cors.ts";
 import { hmacHex, importHmacKey } from "#shared/sha256.ts";
 import { isPositiveSafeInteger } from "#shared/validation/number.ts";
 import type { Attendee } from "#types";
-// jscpd:ignore-end
 
 /** A queued delivery's whole identity: the operation id the device made
  * up, the token digest it stored, and the quantity it admits. The

@@ -4,8 +4,6 @@
  * new prefix to the half its name sorts into.
  */
 
-/* jscpd:ignore-start -- imports */
-
 import { CONFIG_KEYS } from "#db/settings.ts";
 import {
   ADMIN_SHELL_MESSAGE_GROUPS,
@@ -35,8 +33,6 @@ import {
   OWNER_AUTH_SETTINGS,
   PUBLIC_NAV_SETTINGS,
 } from "./prefix-setting-keys.ts";
-
-/* jscpd:ignore-end */
 
 export const PREFIXES_A_L = {
   "": {

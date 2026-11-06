@@ -3,15 +3,11 @@
  * and what their dashboard carries a short version of.
  */
 
-// jscpd:ignore-start
-
 import { organiserReads } from "#test/specs/support/browser.ts";
 import { copyFrom } from "#test/specs/support/copy.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createTestServicingEvent } from "#test-utils/servicing.ts";
-
-// jscpd:ignore-end
 
 const SERVICING_PAGE = "/admin/servicing";
 const DASHBOARD = "/admin/";

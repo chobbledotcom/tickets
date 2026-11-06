@@ -3,7 +3,10 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { validatePaidSession } from "#routes/api/payment-processing/classify.ts";
 import type { SessionValidation } from "#routes/api/webhook-types.ts";
-import { expectBuyerRefusalWithoutStaffPanel } from "#test-utils/assertions.ts";
+import {
+  expectBuyerRefusalWithoutStaffPanel,
+  expectIncludesAll,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { logLogged, useDebugLogSpy } from "#test-utils/debug-log.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
@@ -68,16 +71,12 @@ describeWithEnv(
       );
 
       const page = await waitingPageOf(result);
-      assertStringIncludes(page, "We have not received your payment yet");
-      assertStringIncludes(
-        page,
+      expectIncludesAll(page, [
+        "We have not received your payment yet",
         "If you have paid, your ticket will be sent to you by email.",
-      );
-      assertStringIncludes(
-        page,
         'href="/payment/success?session_id=cs_unpaid"',
-      );
-      assertStringIncludes(page, "Check again");
+        "Check again",
+      ]);
       assert(!page.includes("Payment verification failed"));
       // A normal provider state is not an outage: a debug line, not an error.
       expect(logLogged(debugSpy, "not confirmed yet")).toBe(true);
@@ -151,12 +150,14 @@ describeWithEnv(
       );
 
       const page = await waitingPageOf(result);
-      assertStringIncludes(page, "Staff diagnostics");
-      assertStringIncludes(page, "cs_unpaid");
-      // The row markup (label, then value) cannot pass because the session id
-      // carries the word, so this reads the status itself, not the id.
-      assertStringIncludes(page, "Payment status</strong> unpaid");
-      assertStringIncludes(page, "3-D Secure");
+      expectIncludesAll(page, [
+        "Staff diagnostics",
+        "cs_unpaid",
+        // The row markup (label, then value) cannot pass because the session id
+        // carries the word, so this reads the status itself, not the id.
+        "Payment status</strong> unpaid",
+        "3-D Secure",
+      ]);
     });
 
     test("keeps the buyer's page free of staff detail", async () => {

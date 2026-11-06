@@ -1,6 +1,5 @@
 /** Bounded, PII-free candidate admission for a listing-wide refund. */
 
-/* jscpd:ignore-start -- imports */
 import type { ResultSet } from "@libsql/client";
 import { ATTENDEE } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
@@ -21,8 +20,6 @@ import { paymentAnchorSessionCondition } from "#db/payment-anchor/session.ts";
 import { rowWorkMirrorSql } from "#payment/admit-move.ts";
 import { refundAuthorityWorkSql } from "#payment/refund-authority-lifecycle.ts";
 import { requireValue } from "#shared/required-value.ts";
-
-/* jscpd:ignore-end */
 
 // One attendee's complete payment set is the largest command whose provider,
 // authority, ledger, settlement, and route tail fit one edge request.

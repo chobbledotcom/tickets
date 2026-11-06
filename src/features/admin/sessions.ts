@@ -1,5 +1,3 @@
-/* jscpd:ignore-start */
-
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 
@@ -14,8 +12,6 @@ import { gatedPost } from "#routes/auth.ts";
 import { adminRedirect } from "#routes/response.ts";
 import { authPageAt, formPolicyAt } from "#routes/route-gates.ts";
 import { adminSessionsPage } from "#templates/admin/sessions.tsx";
-
-/* jscpd:ignore-end */
 
 /**
  * Handle GET /admin/sessions

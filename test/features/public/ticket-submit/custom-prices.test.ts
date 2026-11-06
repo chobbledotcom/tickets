@@ -3,7 +3,6 @@
  * its posted price, and fixed-price or unchosen listings stay out of the map.
  */
 
-/* jscpd:ignore-start -- imports */
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -13,8 +12,6 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { priceFormValue } from "#test-utils/db-helpers/listing-forms.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { quantityForm, ticketContext } from "#test-utils/ticket-ctx.ts";
-
-/* jscpd:ignore-end */
 
 /** A pay-more listing's custom-price outcome: the listing is created with the
  * given overrides, its field carries `priceMinor`, and the parser answers. */

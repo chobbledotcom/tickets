@@ -12,6 +12,7 @@ import {
   StackDetails,
 } from "#templates/components/aggregate-sections.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 
 describe("IdCheckboxLabel", () => {
@@ -113,9 +114,11 @@ describe("CheckboxForm", () => {
     const html = String(
       CheckboxForm({ action: "/x", children: "kids", submitLabel: "Save it" }),
     );
-    assertStringIncludes(html, '<fieldset class="checkboxes">kids</fieldset>');
-    assertStringIncludes(html, "/icons.svg#save");
-    assertStringIncludes(html, "<span>Save it</span>");
+    expectIncludesAll(html, [
+      '<fieldset class="checkboxes">kids</fieldset>',
+      "/icons.svg#save",
+      "<span>Save it</span>",
+    ]);
   });
 });
 
@@ -165,11 +168,10 @@ describe("RunningTotalsFieldset", () => {
 
   test("offers the recalculate step as a link while the site is writable", () => {
     const html = String(RunningTotalsFieldset({ config }));
-    assertStringIncludes(html, "<legend>Running totals</legend>");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "<legend>Running totals</legend>",
       '<a href="/admin/listing/1/recalculate">Recalculate</a>',
-    );
+    ]);
   });
 
   test("shows the recalculate label as plain text once the site is read-only", () => {
@@ -205,14 +207,10 @@ describe("CheckboxesFieldset", () => {
         selected: [2],
       }),
     );
-    assertStringIncludes(html, '<fieldset class="checkboxes">');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      '<fieldset class="checkboxes">',
       '<input name="listing_ids" type="checkbox" value="1"> First',
-    );
-    assertStringIncludes(
-      html,
       '<input checked name="listing_ids" type="checkbox" value="2"> Second',
-    );
+    ]);
   });
 });

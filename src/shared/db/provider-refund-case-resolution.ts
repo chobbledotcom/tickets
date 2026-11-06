@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { logActivity } from "#db/activity-log.ts";
 import { resultRows, type TxScope, withTransaction } from "#db/client.ts";
 import type { RefundAuthorityVersion } from "#db/provider-refund-authority.ts";
@@ -28,7 +27,6 @@ import type {
 import { refundReplayUntil } from "#payment/refund-replay-window.ts";
 import { refundRequestIdentityIndex } from "#payment/refund-request-identity.ts";
 import { nowMs } from "#shared/now.ts";
-/* jscpd:ignore-end */
 
 export type ProviderRefundOwnerChoice =
   | "money_recorded"

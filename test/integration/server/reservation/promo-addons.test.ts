@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -20,8 +19,6 @@ import {
   stubPaidSession,
 } from "#test-utils/reservation/helpers.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "server (reservation deposit at checkout)",

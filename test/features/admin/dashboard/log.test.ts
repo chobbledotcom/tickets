@@ -1,9 +1,10 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { logActivity } from "#test-utils/activity-log.ts";
 import {
   assertAdminHtmlWithCookie,
   expectHtmlResponse,
+  expectIncludesAll,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -34,9 +35,11 @@ describeWithEnv("admin activity log", { db: true }, () => {
       await logActivity(`Action ${index}`);
     }
     const html = await (await adminGet("/admin/log")).text();
-    assertStringIncludes(html, "Showing the most recent 200 entries");
-    assertStringIncludes(html, "Action 200");
-    assertStringIncludes(html, "Action 1");
+    expectIncludesAll(html, [
+      "Showing the most recent 200 entries",
+      "Action 200",
+      "Action 1",
+    ]);
     assert(!html.includes("Action 0</td>"));
   });
 
@@ -64,13 +67,9 @@ describeWithEnv("admin activity log", { db: true }, () => {
     const html = await (
       await awaitTestRequest("/admin/log", { cookie })
     ).text();
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       `<a href="/admin/attendees/${attendee.id}">Ada Lovelace</a>`,
-    );
-    assertStringIncludes(
-      html,
       `<a href="/admin/listing/${listing.id}">Gala Dinner</a>`,
-    );
+    ]);
   });
 });

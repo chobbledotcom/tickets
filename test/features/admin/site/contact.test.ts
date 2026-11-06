@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -9,6 +8,7 @@ import {
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
+  expectIncludesAll,
   expectRedirect,
   expectRedirectWithFlash,
   FLASH_TEST_ID,
@@ -19,8 +19,6 @@ import { hasCheckedInput } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
-
-/* jscpd:ignore-end */
 
 describeWithEnv("server (admin site contact)", { db: true }, () => {
   describe("GET /admin/site/contact", () => {
@@ -40,9 +38,11 @@ describeWithEnv("server (admin site contact)", { db: true }, () => {
     test("shows the contact form toggle even without Botpoison", async () => {
       const response = await adminGet("/admin/site/contact");
       const html = await response.text();
-      assertStringIncludes(html, "contact_form_enabled");
-      assertStringIncludes(html, "Enable contact form");
-      assertStringIncludes(html, "No spam-protection provider is configured");
+      expectIncludesAll(html, [
+        "contact_form_enabled",
+        "Enable contact form",
+        "No spam-protection provider is configured",
+      ]);
     });
 
     test("displays existing contact text", async () => {

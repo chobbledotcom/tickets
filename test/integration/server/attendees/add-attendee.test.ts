@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -15,7 +14,6 @@ import {
   expectRedirect,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
-// jscpd:ignore-end
 import { expectAttendeeLineCount } from "#test-utils/attendee-form/helpers.ts";
 import {
   expectAttendeeAdded,

@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * Pure checks and sums for picking legs out of a slice of transfers. This is
  * the in-memory mirror of the SQL leg checks in `accounting/projection-sql.ts`.

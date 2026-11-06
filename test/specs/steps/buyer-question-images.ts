@@ -1,23 +1,18 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
-import { openAdminPage, scenarioBrowser } from "#test/specs/support/browser.ts";
-import { ownerAsksChoiceQuestion } from "#test/specs/support/buyer-questions.ts";
-import { organiserAddsBooking } from "#test/specs/support/by-hand.ts";
-import { whyValueCannotBeSent } from "#test/specs/support/form-controls/rules.ts";
-import { dayFromToday, newestStayOn } from "#test/specs/support/stays.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
-
 import {
   regionShowsPicture,
   uploadsAPicture,
 } from "#test/specs/support/attendee-images.ts";
+import { openAdminPage, scenarioBrowser } from "#test/specs/support/browser.ts";
+import { ownerAsksChoiceQuestion } from "#test/specs/support/buyer-questions.ts";
+import { organiserAddsBooking } from "#test/specs/support/by-hand.ts";
 import { emailFor } from "#test/specs/support/emails.ts";
+import { whyValueCannotBeSent } from "#test/specs/support/form-controls/rules.ts";
+import { dayFromToday, newestStayOn } from "#test/specs/support/stays.ts";
+import type { TicketsWorld } from "#test/specs/support/world.ts";
 
 /** The words the picture question asks, with the reference the picture is
  * named by. The story's subject is the picture, so the prose around it stays

@@ -7,7 +7,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ATTENDEES_PAGE_SIZE } from "#db/attendees/queries.ts";
-import { expectHtml } from "#test-utils/assertions.ts";
+import { expectHtml, expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { seedFillerAttendees } from "#test-utils/db-helpers/attendee-seeding.ts";
 import {
@@ -117,17 +117,21 @@ describeWithEnv("the attendees browser rows", { db: true }, () => {
       const first = await adminGet("/admin/attendees");
       const firstHtml = await first.text();
       assert(!firstHtml.includes("OldestPerson"));
-      assertStringIncludes(firstHtml, 'rel="next"');
-      assertStringIncludes(firstHtml, 'href="/admin/attendees?page=1"');
+      expectIncludesAll(firstHtml, [
+        'rel="next"',
+        'href="/admin/attendees?page=1"',
+      ]);
       assert(!firstHtml.includes('rel="prev"'));
 
       // Page 1: the remaining oldest attendee — one row carrying both
       // listings — a previous link, no next link.
       const second = await adminGet("/admin/attendees?page=1");
       const secondHtml = await second.text();
-      assertStringIncludes(secondHtml, "OldestPerson");
-      assertStringIncludes(secondHtml, 'title="Big Listing, Other Show"');
-      assertStringIncludes(secondHtml, 'rel="prev"');
+      expectIncludesAll(secondHtml, [
+        "OldestPerson",
+        'title="Big Listing, Other Show"',
+        'rel="prev"',
+      ]);
       assert(!secondHtml.includes('rel="next"'));
     });
   });

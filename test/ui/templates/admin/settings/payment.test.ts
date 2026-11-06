@@ -15,6 +15,7 @@ import {
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { defaultSettingsState } from "#test/ui/templates/admin/settings-state.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { hasCheckedInput, inputTagWithValue } from "#test-utils/csrf.ts";
 import type { PaymentProviderType } from "#types";
 
@@ -48,10 +49,12 @@ describe("settings payment forms", () => {
   describe("PaymentProviderForm", () => {
     test("posts the provider choice to its own settings route", () => {
       const html = render(PaymentProviderForm);
-      assertStringIncludes(html, 'action="/admin/settings/payment-provider"');
-      assertStringIncludes(html, 'id="settings-payment-provider"');
-      assertStringIncludes(html, '<div class="prose">');
-      assertStringIncludes(html, '<fieldset class="radios">');
+      expectIncludesAll(html, [
+        'action="/admin/settings/payment-provider"',
+        'id="settings-payment-provider"',
+        '<div class="prose">',
+        '<fieldset class="radios">',
+      ]);
     });
 
     test("attaches each registry label to its own radio value", () => {
@@ -112,18 +115,22 @@ describe("settings payment forms", () => {
 
       test(`posts ${label} credentials to that provider's own route`, () => {
         const html = credentials(provider);
-        assertStringIncludes(html, `action="/admin/settings/${provider}"`);
-        assertStringIncludes(html, `id="settings-${provider}"`);
-        assertStringIncludes(html, `name="${secretField}"`);
+        expectIncludesAll(html, [
+          `action="/admin/settings/${provider}"`,
+          `id="settings-${provider}"`,
+          `name="${secretField}"`,
+        ]);
       });
 
       test(`opens ${label} with the not-configured hint and the guide link`, () => {
         const html = credentials(provider);
-        assertStringIncludes(html, '<div class="prose">');
-        assertStringIncludes(html, `<h2>${label} settings</h2>`);
-        assertStringIncludes(html, `No ${label} credentials are saved`);
-        assertStringIncludes(html, 'href="/admin/guide#payment-setup"');
-        assertStringIncludes(html, "Read the payment setup guide");
+        expectIncludesAll(html, [
+          '<div class="prose">',
+          `<h2>${label} settings</h2>`,
+          `No ${label} credentials are saved`,
+          'href="/admin/guide#payment-setup"',
+          "Read the payment setup guide",
+        ]);
       });
 
       test(`swaps in the configured hint and masks the stored ${label} secret`, () => {
@@ -141,15 +148,11 @@ describe("settings payment forms", () => {
 
       test(`offers ${label} a connection test only once it is configured`, () => {
         const configured = credentials(provider, { configured: true });
-        assertStringIncludes(
-          configured,
+        expectIncludesAll(configured, [
           `<button class="secondary" data-testing="Testing..." id="${provider}-test-btn"`,
-        );
-        assertStringIncludes(configured, "Test connection");
-        assertStringIncludes(
-          configured,
+          "Test connection",
           `<div class="hidden" data-failed="Connection test failed:" id="${provider}-test-result"`,
-        );
+        ]);
 
         const blank = credentials(provider);
         assert(!blank.includes(`id="${provider}-test-btn"`));
@@ -184,9 +187,7 @@ describe("settings payment forms", () => {
     ] as const) {
       test(`warns that stored credentials point at the ${mode} estate`, () => {
         const html = credentials("stripe", { configured: true, mode });
-        assertStringIncludes(html, `<p ${style}>`);
-        assertStringIncludes(html, opening);
-        assertStringIncludes(html, "Stripe");
+        expectIncludesAll(html, [`<p ${style}>`, opening, "Stripe"]);
       });
     }
 
@@ -241,12 +242,14 @@ describe("settings payment forms", () => {
           configured: true,
         }),
       );
-      assertStringIncludes(html, 'action="/admin/settings/square-webhook"');
-      assertStringIncludes(html, 'id="settings-square-webhook"');
-      assertStringIncludes(html, '<div class="prose">');
-      assertStringIncludes(html, 'href="/admin/guide#payment-setup"');
-      assertStringIncludes(html, "No webhook signature key is configured");
-      assertStringIncludes(html, "Follow the steps above to set one up");
+      expectIncludesAll(html, [
+        'action="/admin/settings/square-webhook"',
+        'id="settings-square-webhook"',
+        '<div class="prose">',
+        'href="/admin/guide#payment-setup"',
+        "No webhook signature key is configured",
+        "Follow the steps above to set one up",
+      ]);
       assert(!html.includes(MASK_SENTINEL));
     });
 
@@ -255,11 +258,10 @@ describe("settings payment forms", () => {
         squareWebhookConfigured: true,
         ...showing("square", { configured: true }),
       });
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
         "A webhook signature key is currently configured",
-      );
-      assertStringIncludes(html, "Enter a new key below to replace it");
+        "Enter a new key below to replace it",
+      ]);
       const field = html.match(
         /<input[^>]*name="square_webhook_signature_key"[^>]*>/,
       )?.[0];

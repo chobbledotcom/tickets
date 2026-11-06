@@ -9,6 +9,7 @@ import { formatCurrency } from "#shared/currency.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   expectFlashRedirect,
+  expectIncludesAll,
   expectRedirect,
   inputNamed,
 } from "#test-utils/assertions.ts";
@@ -74,8 +75,7 @@ const createInvoiceAndLand = async (
 describeWithEnv("server (admin invoices)", { db: true }, () => {
   test("GET /admin/invoices starts empty", async () => {
     const html = await pageText(await adminGet("/admin/invoices"));
-    assertStringIncludes(html, "No invoices yet.");
-    assertStringIncludes(html, "Create invoice");
+    expectIncludesAll(html, ["No invoices yet.", "Create invoice"]);
   });
 
   test("the create form prefills the next number and the attendee", async () => {
@@ -84,10 +84,12 @@ describeWithEnv("server (admin invoices)", { db: true }, () => {
     );
     expect(inputNamed(html, "number")).toContain('value="1"');
     expect(inputNamed(html, "attendee_id")).toContain('value="42"');
-    assertStringIncludes(html, "Preview invoice");
-    // The first form only checks the booking; the preview page makes the
-    // invoice.
-    assertStringIncludes(html, 'action="/admin/invoices/preview"');
+    expectIncludesAll(html, [
+      "Preview invoice",
+      // The first form only checks the booking; the preview page makes the
+      // invoice.
+      'action="/admin/invoices/preview"',
+    ]);
   });
 
   test("a create stores the invoice and shows its frozen body", async () => {
@@ -99,17 +101,17 @@ describeWithEnv("server (admin invoices)", { db: true }, () => {
     );
 
     const html = await pageText(await adminGet(path));
-    assertStringIncludes(html, "Guest");
-    assertStringIncludes(html, "guest@example.com");
-    assertStringIncludes(html, "Invoice 1");
-    assertStringIncludes(html, "Amount due");
-    assertStringIncludes(html, "/invoice/");
-    assertStringIncludes(html, "New");
+    expectIncludesAll(html, [
+      "Guest",
+      "guest@example.com",
+      "Invoice 1",
+      "Amount due",
+      "/invoice/",
+      "New",
+    ]);
 
     const list = await pageText(await adminGet("/admin/invoices"));
-    assertStringIncludes(list, "Guest");
-    assertStringIncludes(list, "New");
-    assertStringIncludes(list, 'href="/admin/invoices/1"');
+    expectIncludesAll(list, ["Guest", "New", 'href="/admin/invoices/1"']);
   });
 
   test("stores the invoice text the operator edited", async () => {
@@ -120,8 +122,7 @@ describeWithEnv("server (admin invoices)", { db: true }, () => {
     );
 
     const html = await pageText(await adminGet("/admin/invoices/1"));
-    assertStringIncludes(html, "<h1>Thanks for booking</h1>");
-    assertStringIncludes(html, "Pay us.");
+    expectIncludesAll(html, ["<h1>Thanks for booking</h1>", "Pay us."]);
   });
 
   test("an empty text creates the invoice from the built-in text", async () => {
@@ -152,8 +153,10 @@ describeWithEnv("server (admin invoices)", { db: true }, () => {
 
     const next = await createOwing(700);
     const html = await pageText(await previewInvoice(next, 2));
-    assertStringIncludes(html, "{{ customer.name }} owes");
-    assertStringIncludes(html, `owes ${formatCurrency(700)}`);
+    expectIncludesAll(html, [
+      "{{ customer.name }} owes",
+      `owes ${formatCurrency(700)}`,
+    ]);
   });
 
   test("does not keep the built-in text", async () => {
@@ -360,8 +363,7 @@ describeWithEnv("server (admin invoices)", { db: true }, () => {
       };
       expect(body.to).toEqual(["guest@example.com"]);
       expect(body.subject).toBe("Invoice 1");
-      assertStringIncludes(body.html, "/invoice/");
-      assertStringIncludes(body.html, "guest@example.com");
+      expectIncludesAll(body.html, ["/invoice/", "guest@example.com"]);
       assertStringIncludes(body.text, "Invoice 1 is ready.");
     });
 

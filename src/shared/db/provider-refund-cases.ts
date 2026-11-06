@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { queryAll, queryOnePrimary } from "#db/client.ts";
 import {
   loadPaymentReference,
@@ -26,8 +25,6 @@ import type {
 import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import { writeProviderRefundCursor } from "#shared/provider-refund-cursor.ts";
 import { isPaymentProvider, type PaymentProviderType } from "#types";
-
-/* jscpd:ignore-end */
 
 const PAGE_SIZE = 20;
 const CASE_SQL = refundAuthorityWorkSql("charge.");

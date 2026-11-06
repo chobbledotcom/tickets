@@ -5,6 +5,7 @@ import type { QuestionWithAnswers } from "#db/question-types.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { setSavedFormData } from "#shared/forms/saved-data.ts";
 import { renderQuestions } from "#templates/public/reservations/questions.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import {
   testAnswer,
   testQuestion,
@@ -44,14 +45,16 @@ describe("renderQuestions", () => {
   test("renders radio buttons for each answer", () => {
     const html = renderQuestions(colourQuestion()).toString();
 
-    assertStringIncludes(html, "Favourite colour?");
-    assertStringIncludes(html, 'name="question_1"');
-    assertStringIncludes(html, 'value="10"');
-    assertStringIncludes(html, "Red");
-    assertStringIncludes(html, 'value="11"');
-    assertStringIncludes(html, "Blue");
-    assertStringIncludes(html, "required");
-    assertStringIncludes(html, "<fieldset");
+    expectIncludesAll(html, [
+      "Favourite colour?",
+      'name="question_1"',
+      'value="10"',
+      "Red",
+      'value="11"',
+      "Blue",
+      "required",
+      "<fieldset",
+    ]);
   });
 
   test("omits a choice question whose answers are all deactivated", () => {
@@ -102,13 +105,12 @@ describe("renderQuestions", () => {
 
     // The question text labels the <select> via a wrapping <label>, so the
     // control has an accessible name without a separate screen-reader element.
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<label class="custom-question">Favourite colour?<select',
-    );
-    assertStringIncludes(html, '<select name="question_1" required>');
-    assertStringIncludes(html, '<option value="">Select an answer</option>');
-    assertStringIncludes(html, '<option value="10">Red</option>');
+      '<select name="question_1" required>',
+      '<option value="">Select an answer</option>',
+      '<option value="10">Red</option>',
+    ]);
     assert(!html.includes('type="radio"'));
   });
 
@@ -127,13 +129,12 @@ describe("renderQuestions", () => {
 
     // The question text labels the text input via a wrapping <label>, matching
     // the select case, so the control has an accessible name on its own.
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<label class="custom-question">Your name?<input',
-    );
-    assertStringIncludes(html, 'name="question_1"');
-    assertStringIncludes(html, 'type="text"');
-    assertStringIncludes(html, "required");
+      'name="question_1"',
+      'type="text"',
+      "required",
+    ]);
     assert(!html.includes("<select"));
     assert(!html.includes('type="radio"'));
   });
@@ -168,8 +169,7 @@ describe("renderQuestions", () => {
   test("renders multiple questions", () => {
     const html = renderQuestions(twoRadioQuestions()).toString();
 
-    assertStringIncludes(html, 'name="question_1"');
-    assertStringIncludes(html, 'name="question_2"');
+    expectIncludesAll(html, ['name="question_1"', 'name="question_2"']);
   });
 
   test("escapes HTML in question and answer text", () => {
@@ -187,8 +187,7 @@ describe("renderQuestions", () => {
 
     const html = renderQuestions(questions).toString();
 
-    assertStringIncludes(html, "&lt;b&gt;");
-    assertStringIncludes(html, "S&amp;M");
+    expectIncludesAll(html, ["&lt;b&gt;", "S&amp;M"]);
     assert(!html.includes("<b>size</b>"));
   });
 
@@ -200,8 +199,10 @@ describe("renderQuestions", () => {
 
     const html = renderQuestions(twoRadioQuestions(), listingMap).toString();
 
-    assertStringIncludes(html, 'data-listing-ids="100 200"');
-    assertStringIncludes(html, 'data-listing-ids="200"');
+    expectIncludesAll(html, [
+      'data-listing-ids="100 200"',
+      'data-listing-ids="200"',
+    ]);
   });
 
   test("omits data-listing-ids when no map provided", () => {
@@ -233,8 +234,7 @@ describe("renderQuestions", () => {
       },
     ]).toString();
 
-    assertStringIncludes(html, '<label class="custom-question">');
-    assertStringIncludes(html, "Your name?");
+    expectIncludesAll(html, ['<label class="custom-question">', "Your name?"]);
     assert(!html.includes('<div class="prose">'));
   });
 
@@ -249,10 +249,12 @@ describe("renderQuestions", () => {
       },
     ]).toString();
 
-    assertStringIncludes(html, '<div class="custom-question">');
-    assertStringIncludes(html, '<div class="prose" id="question-1-prose">');
-    assertStringIncludes(html, 'aria-labelledby="question-1-prose"');
-    assertStringIncludes(html, "<strong>more</strong>");
+    expectIncludesAll(html, [
+      '<div class="custom-question">',
+      '<div class="prose" id="question-1-prose">',
+      'aria-labelledby="question-1-prose"',
+      "<strong>more</strong>",
+    ]);
     assert(!html.includes("**more**"));
   });
 
@@ -276,10 +278,12 @@ describe("renderQuestions", () => {
       },
     ]).toString();
 
-    assertStringIncludes(html, '<div class="custom-question">');
-    assertStringIncludes(html, '<div class="prose" id="question-1-prose">');
-    assertStringIncludes(html, 'aria-labelledby="question-1-prose"');
-    assertStringIncludes(html, '<a href="https://example.com">a colour</a>');
+    expectIncludesAll(html, [
+      '<div class="custom-question">',
+      '<div class="prose" id="question-1-prose">',
+      'aria-labelledby="question-1-prose"',
+      '<a href="https://example.com">a colour</a>',
+    ]);
   });
 
   test("wraps simple question text in a legend for radio questions", () => {
@@ -302,12 +306,11 @@ describe("renderQuestions", () => {
       },
     ]).toString();
 
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<fieldset aria-labelledby="question-1-prose" class="custom-question">',
-    );
-    assertStringIncludes(html, '<div class="prose" id="question-1-prose">');
-    assertStringIncludes(html, "<h1>Heading</h1>");
+      '<div class="prose" id="question-1-prose">',
+      "<h1>Heading</h1>",
+    ]);
     assert(!html.includes("<legend>"));
   });
 });

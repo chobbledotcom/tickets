@@ -15,15 +15,12 @@ import {
   type RefundNodeId,
   refundNodeOf,
 } from "#payment/refund-machine-spec.ts";
-/* jscpd:ignore-start -- imports */
 import {
   atlasMachineFrom,
   factsAndStart,
   type MachineLayouts,
 } from "#shared/schema-atlas/machine-spec.ts";
 import type { AtlasMachine, AtlasState } from "#shared/schema-atlas/types.ts";
-
-/* jscpd:ignore-end */
 
 /** Where each node sits on the map. */
 const LAYOUTS: MachineLayouts<RefundNodeId> = {

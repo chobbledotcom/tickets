@@ -15,7 +15,6 @@
  *     kind), so the predicate is the single source of truth for "is a ticket".
  *   - `booked_quantity` keeps counting every quantity > 0 row regardless of kind.
  */
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { revenueAccount } from "#accounting/accounts.ts";
@@ -33,8 +32,6 @@ import { TICKET_COUNTS_PREDICATE } from "#db/migrations/schema/listing-aggregate
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createServicingHold } from "#test-utils/servicing.ts";
-
-// jscpd:ignore-end
 
 /** Create a listing + a servicing hold of `quantity` on it, then invalidate
  *  the listings cache so `getListingWithCount` re-reads the aggregate. */

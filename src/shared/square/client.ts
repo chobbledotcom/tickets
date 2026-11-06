@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import { settings } from "#db/settings.ts";
 import { sameOn } from "#fp";
 import type { FetchResult } from "#shared/fetch.ts";
@@ -9,8 +8,6 @@ import {
   squareFetchAnswer,
 } from "#shared/square/transport.ts";
 import { type SquareMoney, squareAnswer } from "#shared/square/wire.ts";
-
-/* jscpd:ignore-end */
 
 /** One line sent to Square's payment-link endpoint. */
 type SquareLineItem = {

@@ -9,7 +9,6 @@
  * only.
  */
 
-/* jscpd:ignore-start -- imports */
 import * as v from "valibot";
 import { isCurrency } from "#payment/money.ts";
 import type {
@@ -30,8 +29,6 @@ import {
 } from "#shared/sumup/wire.ts";
 import { exceedsCurrencyPrecision } from "#shared/validation/money.ts";
 import { parseOrNull } from "#shared/validation/parse.ts";
-
-/* jscpd:ignore-end */
 
 /** SumUp's documented checkout lifecycle (pinned @sumup/sdk 0.1.6). */
 const SumupCheckoutStatusSchema = v.picklist([

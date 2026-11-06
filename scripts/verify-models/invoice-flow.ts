@@ -2,7 +2,6 @@
  *  Every fact comes from a production statement, run on an isolated in-memory
  *  copy of the production schema. See verification/InvoiceFlow.tla. */
 
-/* jscpd:ignore-start -- imports */
 import type { Client } from "@libsql/client";
 import * as v from "valibot";
 import type { SqlStatement } from "#db/client.ts";
@@ -24,8 +23,6 @@ import {
   type InvoiceStatus,
   InvoiceStatusSchema,
 } from "#shared/invoices/status.ts";
-
-/* jscpd:ignore-end */
 
 /** The attendee every scenario invoices. The model claims about one attendee. */
 const ATTENDEE_ID = 7;

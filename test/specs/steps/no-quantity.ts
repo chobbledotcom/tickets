@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -12,6 +10,7 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import {
   type AttendeeLineInput,
   createTestAttendeeDirect,
@@ -21,8 +20,6 @@ import {
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { testCookie } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 const WORKSHOP = "Workshop";
 const REAL_SHOW = "RealShow";
@@ -121,11 +118,10 @@ const expectNoQuantityWithoutTicket = async (
   listingName: string,
 ): Promise<void> => {
   const html = await attendeeList(world, listingName);
-  assertStringIncludes(
-    html,
+  expectIncludesAll(html, [
     requiredWorldValue(world.attendeeName, "attendee name"),
-  );
-  assertStringIncludes(html, "No quantity");
+    "No quantity",
+  ]);
   assert(!html.includes(`/t/${ticketToken(world)}`));
 };
 

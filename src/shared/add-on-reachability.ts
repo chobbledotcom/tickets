@@ -4,7 +4,6 @@
  * removal. They refuse the change when it orphans a child-scoped add-on.
  */
 
-/* jscpd:ignore-start -- imports */
 import { resultRows, type TxScope } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import {
@@ -30,8 +29,6 @@ import { once, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { requireValue } from "#shared/required-value.ts";
-
-/* jscpd:ignore-end */
 
 /** The user-facing refusal a reachability guard returns, or null when the
  * change it judged is safe. */

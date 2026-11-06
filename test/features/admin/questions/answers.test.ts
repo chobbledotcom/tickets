@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -16,8 +15,6 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { withFailingOrderTrigger } from "#test-utils/db-helpers/failing-order.ts";
 import { addAnswer, createQuestion } from "#test-utils/questions/helpers.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("server (admin questions)", { db: true }, () => {
   describe("POST /admin/questions/:id/answers", () => {
@@ -210,7 +207,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         "#db/questions/queries.ts"
       );
       const question = await getQuestionWithAnswers(qId);
-      expect(question!.answers.find((a) => a.id === aId)).toBeUndefined();
+      expect(question!.answers.map((a) => a.id)).not.toContain(aId);
       assertArrayIncludes(await activityMessages(), [
         `Answer 'Goodbye Answer' deleted from question ${qId}`,
       ]);
@@ -237,7 +234,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         "#db/questions/queries.ts"
       );
       const question = await getQuestionWithAnswers(qId);
-      expect(question!.answers.find((a) => a.id === aId)).toBeTruthy();
+      expect(question!.answers.map((a) => a.id)).toContain(aId);
     });
 
     test("rejects deletion when confirm_identifier is missing", async () => {

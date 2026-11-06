@@ -7,13 +7,11 @@
  * the provider return URLs work end-to-end from an ephemeral CI runner.
  */
 
-/* jscpd:ignore-start */
 import { type ChildProcess, spawn } from "node:child_process";
 import { delay } from "#shared/now.ts";
 import { config } from "./config.ts";
 import { log, warn } from "./log.ts";
 import { probeSignal, stopChild } from "./util.ts";
-/* jscpd:ignore-end */
 
 export interface Tunnel {
   /** Public base URL, e.g. https://foo-bar.trycloudflare.com (no trailing slash). */

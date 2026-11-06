@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -7,7 +6,11 @@ import { groups } from "#db/groups.ts";
 import { handleRequest } from "#routes";
 import { stripeApi } from "#shared/stripe.ts";
 import { renderPaymentSuccess } from "#test/integration/server/payment-success-helpers.ts";
-import { expectHtmlResponse, followRedirect } from "#test-utils/assertions.ts";
+import {
+  expectHtmlResponse,
+  expectIncludesAll,
+  followRedirect,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -15,8 +18,6 @@ import { signedMeta, signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubCheckoutSession } from "#test-utils/stripe/responses.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
   describe("GET /payment/success (ticket)", () => {
@@ -288,9 +289,11 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         );
         expect(response2.status).toBe(200);
         const html = await response2.text();
-        assertStringIncludes(html, "Thank you for your order");
-        // Single-item cart replay also shows thank_you_url
-        assertStringIncludes(html, "redirected");
+        expectIncludesAll(html, [
+          "Thank you for your order",
+          // Single-item cart replay also shows thank_you_url
+          "redirected",
+        ]);
       } finally {
         mockRetrieve.restore();
       }

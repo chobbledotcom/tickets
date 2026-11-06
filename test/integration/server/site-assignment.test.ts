@@ -7,8 +7,8 @@ import { addMonthsIso } from "#shared/dates.ts";
 import { hostEmail } from "#shared/email.ts";
 import { ErrorCode } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
-/* jscpd:ignore-start -- imports */
 import { assignAndNotifyBuiltSites } from "#shared/site-assignment.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import {
@@ -18,8 +18,6 @@ import {
   silencedErrors,
   siteEntry,
 } from "./site-assignment-shared.ts";
-
-/* jscpd:ignore-end */
 
 describeWithEnv(
   "site-assignment",
@@ -103,8 +101,10 @@ describeWithEnv(
         expect(assigned.assignedListingId).toBe(1);
         const body = JSON.parse(suite.fetchStub.calls[0]!.args[1].body);
         expect(body.subject).toBe("Your new site is ready");
-        assertStringIncludes(body.html, "12 Month Plan + 3 Month Plan");
-        assertStringIncludes(body.html, "https://a.test.net/setup/");
+        expectIncludesAll(body.html, [
+          "12 Month Plan + 3 Month Plan",
+          "https://a.test.net/setup/",
+        ]);
       });
 
       test("a no-quantity plan line beside a booked one adds no site and no months", async () => {

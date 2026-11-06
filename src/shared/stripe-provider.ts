@@ -5,7 +5,6 @@
  * provider-agnostic PaymentProvider contract.
  */
 
-/* jscpd:ignore-start -- imports */
 import type Stripe from "stripe";
 import * as v from "valibot";
 import { makeCreateCheckoutSession } from "#payment/checkout-session.ts";
@@ -18,7 +17,6 @@ import { requireProviderRefundAuthorization } from "#payment/refund-provider-aut
 import { type ChargeMoney, chargeMoneyRead } from "#payment/resources.ts";
 import { validatedPaymentSession } from "#payment/validated-session.ts";
 import { hasRequiredSessionMetadata } from "#shared/payment-helpers.ts";
-/* jscpd:ignore-end */
 import type {
   PaymentProvider,
   RetrieveSessionResult,

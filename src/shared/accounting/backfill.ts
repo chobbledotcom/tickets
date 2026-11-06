@@ -10,7 +10,6 @@
  * reference makes a re-run a no-op.
  */
 
-/* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import { ATTENDEE } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
@@ -29,8 +28,6 @@ import { sumOf } from "#fp";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { nowIso } from "#shared/now.ts";
 import { toCanonicalIso } from "#shared/payment-helpers.ts";
-
-/* jscpd:ignore-end */
 
 /** One paid `listing_attendees` row joined to its attendee's booking time. */
 type PaidRow = {

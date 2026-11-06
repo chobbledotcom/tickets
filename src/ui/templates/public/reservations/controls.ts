@@ -3,7 +3,6 @@
  * checkbox. Each restores the buyer's just-submitted value on a validation
  * re-render. */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
@@ -13,7 +12,6 @@ import { renderMarkdown } from "#shared/markdown.ts";
 import { moneyPattern } from "#templates/components/price-input.tsx";
 import type { ListingWithCount } from "#types";
 import { pricedMonthsForListing } from "./quantities.ts";
-/* jscpd:ignore-end */
 
 /** A date-selector dropdown for daily listings. */
 export const renderDateSelector = (

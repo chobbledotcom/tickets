@@ -7,14 +7,12 @@
 
 import { buildTicketListing, childActive, childOpen } from "#booking/model.ts";
 import type { Holiday } from "#db/holidays.ts";
-/* jscpd:ignore-start */
 import { requiredMapValue } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
 import {
   type ChildCapacityPart,
   childCapacityPartsFor,
 } from "#shared/capacity-fit.ts";
-/* jscpd:ignore-end */
 import type { ListingWithCount } from "#types";
 import {
   childOfferedOnDate,

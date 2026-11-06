@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import { filter } from "#fp";
 import { t } from "#i18n";
 import type { Child } from "#jsx/jsx-runtime.ts";
@@ -28,8 +27,6 @@ import {
 } from "#templates/components/radio-option.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
-
-/* jscpd:ignore-end */
 
 const MergeRadioOption = ({
   children,

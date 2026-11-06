@@ -1,6 +1,5 @@
 /** Content, communications, ledger, and page tables. */
 
-/* jscpd:ignore-start */
 import {
   attendeeIdColumn,
   datedRowColumns,
@@ -20,7 +19,6 @@ import {
   wholeNumberStartingAtZero,
 } from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
-/* jscpd:ignore-end */
 
 export const contentTables: [name: string, table: Table][] = [
   [

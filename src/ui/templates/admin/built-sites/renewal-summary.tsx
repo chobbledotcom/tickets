@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { formatCurrency } from "#shared/currency.ts";
@@ -9,8 +8,6 @@ import { ErrorNote } from "#templates/components/error.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import type { ListingWithCount } from "#types";
-
-/* jscpd:ignore-end */
 
 const renewalTierColumns: readonly TableColumn<ListingWithCount>[] = [
   translatedTableColumn(

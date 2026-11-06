@@ -1,11 +1,9 @@
 /** Seal and open the frozen invoice body. */
 
-/* jscpd:ignore-start */
 import { importAesKeyBytes } from "#crypto/aes-gcm.ts";
 import { decryptWithKey, getEncryptionKeyBytes } from "#crypto/encryption.ts";
 import { hmacWithKey } from "#crypto/hashing.ts";
 import type { KeyEncrypted } from "#crypto/sealed.ts";
-/* jscpd:ignore-end */
 
 /** The body's key comes from the share token and the site key together.
  *  Neither one alone opens a body. */

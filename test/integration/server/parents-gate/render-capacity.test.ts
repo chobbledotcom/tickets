@@ -1,20 +1,20 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { PARENT_CHILD_GROUP_UNITS } from "#shared/group-capacity.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   bookingPageHtml,
-  bookOneOfEachFold,
   bookParent,
   childField,
   expectNoBooking,
+  expectOneOfEachFolded,
   expectRejectedBooking,
   expectReserved,
   makeParent,
@@ -25,8 +25,6 @@ import {
   expectRendersSoldOut,
   expectSelectOffers,
 } from "#test-utils/parents-gate/helpers.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "server > parents gate > capacity & sold-out projection",
@@ -104,10 +102,12 @@ describeWithEnv(
       });
 
       const html = await bookingPageHtml(parent.slug);
-      assertStringIncludes(html, `name="quantity_${parent.id}"`);
-      // The sole child is offered informationally (auto-selected), so it appears
-      // in the child block but posts no `child_qty_*` field.
-      assertStringIncludes(html, `data-sole-child="${child.id}"`);
+      expectIncludesAll(html, [
+        `name="quantity_${parent.id}"`,
+        // The sole child is offered informationally (auto-selected), so it appears
+        // in the child block but posts no `child_qty_*` field.
+        `data-sole-child="${child.id}"`,
+      ]);
     });
 
     test("a shared capped group caps the parent quantity selector by floor(remaining / units)", async () => {
@@ -197,7 +197,7 @@ describeWithEnv(
         parent: { maxAttendees: 100, maxQuantity: 5 },
       });
       const [childA, childB] = [children[0]!, children[1]!];
-      await bookOneOfEachFold(parent, childA, childB);
+      await expectOneOfEachFolded(parent, childA, childB);
     });
 
     test("two children sharing one capped group with the parent cap by combined demand, not naive sum", async () => {

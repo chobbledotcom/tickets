@@ -11,6 +11,7 @@ import {
   expectBrokenImageResponse,
   expectFlashRedirect,
   expectHtmlResponse,
+  expectIncludesAll,
   expectRedirectWithFlash,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -120,12 +121,11 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
           "Remove Image",
           "/image/existing.jpg",
         );
-        assertStringIncludes(html, 'class="listing-image-preview"');
-        assertStringIncludes(
-          html,
+        expectIncludesAll(html, [
+          'class="listing-image-preview"',
           'action="/admin/settings/header-image/delete"',
-        );
-        assertStringIncludes(html, 'id="settings-header-image-delete"');
+          'id="settings-header-image-delete"',
+        ]);
       });
     });
 
@@ -133,18 +133,22 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
       await withStorageEnabled(async () => {
         const response = await adminGet("/admin/settings");
         const html = await expectHtmlResponse(response, 200, "Upload Image");
-        assertStringIncludes(html, 'action="/admin/settings/header-image"');
-        assertStringIncludes(html, 'enctype="multipart/form-data"');
-        assertStringIncludes(html, 'name="header_image"');
-        assertStringIncludes(html, 'type="file"');
+        expectIncludesAll(html, [
+          'action="/admin/settings/header-image"',
+          'enctype="multipart/form-data"',
+          'name="header_image"',
+          'type="file"',
+        ]);
       });
     });
 
     test("advertises only image formats the server accepts", async () => {
       await withStorageEnabled(async () => {
         const html = await assertAdminHtml("/admin/settings");
-        assertStringIncludes(html, "JPEG, PNG, or WebP");
-        assertStringIncludes(html, 'accept="image/jpeg,image/png,image/webp"');
+        expectIncludesAll(html, [
+          "JPEG, PNG, or WebP",
+          'accept="image/jpeg,image/png,image/webp"',
+        ]);
         assert(!html.includes("GIF"));
       });
     });

@@ -2,7 +2,6 @@
  *  every admission fact, and the negative controls keep the safety
  *  verdicts honest. */
 
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
@@ -15,8 +14,6 @@ import {
 import { requireValue } from "#shared/required-value.ts";
 import { records } from "#test-utils/tla-data.ts";
 import { registeredModel } from "./registered-model.ts";
-
-/* jscpd:ignore-end */
 
 const { data: doorScanModelData, controls } = registeredModel("DoorScan");
 const corruptDoorScanData = controls[0].data;

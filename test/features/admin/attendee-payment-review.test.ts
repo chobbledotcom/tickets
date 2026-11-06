@@ -1,6 +1,5 @@
 /** Owner-facing payment-review route behavior. */
 
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { deleteListing } from "#db/listings/delete.ts";
@@ -35,8 +34,6 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
-
-/* jscpd:ignore-end */
 
 const ACTION = "payment-review";
 const NAME = "Review Person";
@@ -269,7 +266,7 @@ describeWithEnv("admin payment review action", { db: true }, () => {
       expectRedirect(response, actionsUrl(context.attendeeId));
       const flash = parseFlashCookie(response);
       expect(flash.info).toBe(NOTHING);
-      expect(flash.formToken).toBeUndefined();
+      expect(flash.formToken).toBe(undefined);
       expect(await paymentReviewActivity(context.attendeeId)).toEqual([]);
     });
 

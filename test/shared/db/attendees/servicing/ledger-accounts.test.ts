@@ -1,10 +1,7 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { costAccount } from "#accounting/accounts.ts";
 import { account } from "#shared/ledger/account.ts";
-
-// jscpd:ignore-end
 
 describe("servicing §22 - cost account", () => {
   test("costAccount rejects 0/negative/fractional ids (no phantom cost account)", () => {

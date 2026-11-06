@@ -1,9 +1,9 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   expectHtmlResponse,
+  expectIncludesAll,
   tableRowContaining,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
@@ -23,8 +23,6 @@ import {
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminGet } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 /** Fetch the merge Actions page for `target` with `sourceToken` set. */
 const mergeActionsPage = (
@@ -116,8 +114,7 @@ describeWithEnv("server (admin attendees) > merge panel", { db: true }, () => {
 
       const response = await mergeActionsPage(target.id, sourceToken);
       const html = await response.text();
-      assertStringIncludes(html, "Merge Preview");
-      assertStringIncludes(html, "Email not sent");
+      expectIncludesAll(html, ["Merge Preview", "Email not sent"]);
     });
 
     test("the token search box focuses when idle and echoes the searched token", async () => {

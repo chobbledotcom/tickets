@@ -8,6 +8,7 @@ import { makeImage } from "#test-utils/admin-images.ts";
 import {
   expectFlash,
   expectHtmlResponse,
+  expectIncludesAll,
   followRedirectWithFlash,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -52,10 +53,12 @@ describeWithEnv(
         );
         const response = await adminGet(tabPath(site.id));
         const html = await expectHtmlResponse(response, 200, "Support message");
-        assertStringIncludes(html, "data-markdown-preview");
-        // The byte-budget hint replaces a character maxlength, which cannot
-        // express the UTF-8 byte rule.
-        assertStringIncludes(html, "at most 2,048 bytes");
+        expectIncludesAll(html, [
+          "data-markdown-preview",
+          // The byte-budget hint replaces a character maxlength, which cannot
+          // express the UTF-8 byte rule.
+          "at most 2,048 bytes",
+        ]);
       });
 
       test("shows the read error on the panel on Bunny failure", async () => {

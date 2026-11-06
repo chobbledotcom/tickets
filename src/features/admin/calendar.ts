@@ -10,7 +10,6 @@ import { getListingRemainingForRange } from "#db/attendees/capacity/remaining.ts
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getPairBookings } from "#db/attendees/ticket-lines.ts";
 import { getActiveHolidays } from "#db/holidays.ts";
-/* jscpd:ignore-start -- imports */
 import {
   getAttendeesByListingIds,
   getDailyListingAttendeeDates,
@@ -22,10 +21,8 @@ import {
   getLogisticsAssignmentsForAttendees,
 } from "#db/logistics.ts";
 import { logisticsAgents } from "#db/logistics-agents.ts";
-/* jscpd:ignore-end */
 import { loadAttendeeQuestionData } from "#db/questions/attendee-answers/reads.ts";
 import { settings } from "#db/settings.ts";
-/* jscpd:ignore-start */
 import {
   fieldById,
   filter,
@@ -76,8 +73,6 @@ import {
   type ListingWithCount,
   type LogisticsAgent,
 } from "#types";
-
-/* jscpd:ignore-end */
 
 /** Build a map of YYYY-MM-DD → listing IDs for standard listings that have a date */
 const buildStandardListingDateMap = (

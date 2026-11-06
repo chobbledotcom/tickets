@@ -6,6 +6,7 @@ import {
   type FrozenLoop,
   frozenLoopReport,
 } from "#scripts/mutation/summary.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 const loop: FrozenLoop = {
   batch: ["test/shared/example.test.ts"],
@@ -34,16 +35,17 @@ describe("the frozen loop report", () => {
   test("names the batch that outlived the limit and for how long", () => {
     const lines = frozenLoopReport(loop, 1, 4).join("\n");
 
-    assertStringIncludes(lines, "test/shared/example.test.ts");
-    assertStringIncludes(lines, "It ran for 92500ms");
-    assertStringIncludes(lines, "The limit is 60000ms");
+    expectIncludesAll(lines, [
+      "test/shared/example.test.ts",
+      "It ran for 92500ms",
+      "The limit is 60000ms",
+    ]);
   });
 
   test("says how far the run got before it stopped", () => {
     const headline = frozenLoopReport(loop, 1, 4)[0] ?? "";
 
-    assertStringIncludes(headline, "passed the limit");
-    assertStringIncludes(headline, "1 of 4 mutants tested");
+    expectIncludesAll(headline, ["passed the limit", "1 of 4 mutants tested"]);
   });
 
   test("says a clock never gave the mutant a verdict", () => {
@@ -51,8 +53,10 @@ describe("the frozen loop report", () => {
     // reader must not take the stop as evidence about this mutant.
     const lines = frozenLoopReport(loop, 1, 4).join(" ");
 
-    assertStringIncludes(lines, "No mutant is judged by a clock");
-    assertStringIncludes(lines, "has no score");
+    expectIncludesAll(lines, [
+      "No mutant is judged by a clock",
+      "has no score",
+    ]);
   });
 
   test("points at the loop the mutant froze", () => {

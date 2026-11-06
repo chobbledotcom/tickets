@@ -16,7 +16,6 @@
  *     `DEMO_NAMES`, `ATTENDEE_DEMO_FIELDS`,
  *     `applyDemoOverrides`, `setDemoModeForTest`.
  */
-// jscpd:ignore-start
 import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -32,8 +31,6 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { getServicingEvent } from "#test-utils/servicing.ts";
 import { adminFormPost } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 describe("servicing §0 — demo override replaces a servicing name with a servicing reason", () => {
   // Random choice inside applyDemoOverrides is non-deterministic, so the

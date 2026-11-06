@@ -6,7 +6,6 @@
  */
 
 import { expect } from "@std/expect";
-// jscpd:ignore-start
 import { LISTING_FILTERS } from "#shared/listing-filter.ts";
 import {
   browserSeenBy,
@@ -24,8 +23,6 @@ import type {
   TicketsWorld,
 } from "#test/specs/support/world.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
-
-// jscpd:ignore-end
 
 /** The organiser's own list of everything they sell. */
 const THE_LIST = "/admin/";

@@ -1,8 +1,9 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestNewsPost } from "#test-utils/db-helpers/misc.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
@@ -25,24 +26,27 @@ describeWithEnv("server (news RSS feed)", { db: true }, () => {
       "application/rss+xml; charset=utf-8",
     );
     const body = await response.text();
-    assertStringIncludes(body, '<rss version="2.0">');
-    assertStringIncludes(body, "<link>https://localhost/news</link>");
+    expectIncludesAll(body, [
+      '<rss version="2.0">',
+      "<link>https://localhost/news</link>",
+    ]);
     assert(!body.includes("<item>"));
   });
 
   test("channel uses the website title, defaulting to News", async () => {
     await enablePublicSite();
     let body = await (await fetchNewsRss()).text();
-    assertStringIncludes(body, "<title>News</title>");
-    assertStringIncludes(body, "<description>News from News</description>");
+    expectIncludesAll(body, [
+      "<title>News</title>",
+      "<description>News from News</description>",
+    ]);
 
     await settings.update.websiteTitle("Acme & Co");
     body = await (await fetchNewsRss()).text();
-    assertStringIncludes(body, "<title>Acme &amp; Co</title>");
-    assertStringIncludes(
-      body,
+    expectIncludesAll(body, [
+      "<title>Acme &amp; Co</title>",
       "<description>News from Acme &amp; Co</description>",
-    );
+    ]);
   });
 
   test("lists posts newest first with escaped snippet, permalink, and pubDate", async () => {
@@ -56,20 +60,18 @@ describeWithEnv("server (news RSS feed)", { db: true }, () => {
       snippet: 'Snippet with "quotes" & ampersands',
     });
     const body = await (await fetchNewsRss()).text();
-    assertStringIncludes(body, "<title>Tom &amp; Jerry &lt;launch&gt;</title>");
-    assertStringIncludes(
-      body,
+    expectIncludesAll(body, [
+      "<title>Tom &amp; Jerry &lt;launch&gt;</title>",
       "<description>Snippet with &quot;quotes&quot; &amp; ampersands</description>",
-    );
+    ]);
     // The permalink slug strips the punctuation from the name.
     expect(newer.slug).toBe("2026-07-02-tom-jerry-launch");
     const link = `https://localhost/news/${newer.slug}`;
-    assertStringIncludes(body, `<link>${link}</link>`);
-    assertStringIncludes(body, `<guid isPermaLink="true">${link}</guid>`);
-    assertStringIncludes(
-      body,
+    expectIncludesAll(body, [
+      `<link>${link}</link>`,
+      `<guid isPermaLink="true">${link}</guid>`,
       "<pubDate>Thu, 02 Jul 2026 10:00:00 GMT</pubDate>",
-    );
+    ]);
     expect(body.indexOf("Jerry")).toBeLessThan(body.indexOf("Older news"));
   });
 
@@ -77,7 +79,9 @@ describeWithEnv("server (news RSS feed)", { db: true }, () => {
     await enablePublicSite();
     await createTestNewsPost("Bare feed post");
     const body = await (await fetchNewsRss()).text();
-    assertStringIncludes(body, "<title>Bare feed post</title>");
-    assertStringIncludes(body, "<description></description>");
+    expectIncludesAll(body, [
+      "<title>Bare feed post</title>",
+      "<description></description>",
+    ]);
   });
 });

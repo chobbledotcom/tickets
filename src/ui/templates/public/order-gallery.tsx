@@ -1,5 +1,3 @@
-/* jscpd:ignore-start */
-
 import type { TicketListing } from "#booking/model.ts";
 import { listingNodeKey } from "#booking/tree.ts";
 import type { ListingAttributesById } from "#db/attributes.ts";
@@ -29,7 +27,6 @@ import {
   renderListingImage,
   titleWithSiteName,
 } from "./shared.tsx";
-/* jscpd:ignore-end */
 
 /**
  * The inner content of an `.order-cart` submit button: the leading {@link Icon},

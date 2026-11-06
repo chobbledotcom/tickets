@@ -1,4 +1,3 @@
-/* jscpd:ignore-start */
 import {
   type CreatedEntry,
   sessionSuccess,
@@ -8,7 +7,6 @@ import type { BookingIntent } from "#shared/booking-intent.ts";
 import type { FreeTextAnswers } from "#shared/email/answers.ts";
 import type { RegistrationPackageFacts } from "#shared/registration-package-facts.ts";
 import { queueRegistrationSends } from "#shared/webhook/delivery.ts";
-/* jscpd:ignore-end */
 
 /**
  * Queue a paid booking's external sends after its create batch committed.

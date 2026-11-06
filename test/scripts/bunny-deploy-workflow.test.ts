@@ -1,7 +1,8 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { map } from "#fp";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 const DEPLOY_ACTION_PATH = ".github/actions/deploy-bunny-script/action.yml";
 const BUNNY_DEPLOY_WORKFLOW_PATHS = [
@@ -10,6 +11,10 @@ const BUNNY_DEPLOY_WORKFLOW_PATHS = [
 ] as const;
 const RESTORE_WORKFLOW_PATH = ".github/workflows/restore-deploy.yml";
 const SHA = "[a-f0-9]{40}";
+/** The quoted path the action grants read permission for. */
+const ALLOW_READ_PATH = /--allow-read="([^"]+)"/;
+/** The quoted file argument the action hands the deploy script. */
+const SCRIPT_FILE_ARG = /deploy-built-edge\.ts\s+"[^"]+"\s+"([^"]+)"/;
 
 const readText = (path: string): Promise<string> => Deno.readTextFile(path);
 const githubValue = (name: string): string =>
@@ -19,12 +24,11 @@ describe("Bunny deploy workflow", () => {
   test("deploys built bundles through first-party code", async () => {
     const action = await readText(DEPLOY_ACTION_PATH);
 
-    assertStringIncludes(action, "scripts/deploy-built-edge.ts");
-    assertStringIncludes(action, "--allow-net=api.bunny.net");
-    assertStringIncludes(
-      action,
+    expectIncludesAll(action, [
+      "scripts/deploy-built-edge.ts",
+      "--allow-net=api.bunny.net",
       `BUNNY_ACCESS_KEY: ${githubValue("inputs.api_key")}`,
-    );
+    ]);
     assert(!action.includes("BunnyWay/actions/deploy-script@main"));
     expect(action).not.toMatch(/uses:\s+BunnyWay\/actions\/deploy-script@/);
   });
@@ -61,10 +65,10 @@ describe("Bunny deploy workflow", () => {
 
     const allowRead = lines
       .find((line) => line.startsWith("--allow-read="))!
-      .match(/--allow-read="([^"]+)"/)![1]!;
+      .match(ALLOW_READ_PATH)![1]!;
     const scriptFileArg = lines
       .find((line) => line.startsWith("scripts/deploy-built-edge.ts"))!
-      .match(/deploy-built-edge\.ts\s+"[^"]+"\s+"([^"]+)"/)![1]!;
+      .match(SCRIPT_FILE_ARG)![1]!;
 
     // parseDeployBuiltArgs trims the file internally, so the action must hand the
     // script an already-trimmed path and grant the read permission for that same

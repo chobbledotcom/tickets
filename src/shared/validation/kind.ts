@@ -1,3 +1,4 @@
+// effects: pure
 import * as v from "valibot";
 
 /** A choice that is only its own name — one arm of a "which of these is it"

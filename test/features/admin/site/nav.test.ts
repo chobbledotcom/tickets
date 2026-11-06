@@ -1,5 +1,6 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { adminGet, testCookie } from "#test-utils/session.ts";
@@ -14,12 +15,14 @@ describeWithEnv("server (admin site nav)", { db: true }, () => {
         cookie: await testCookie(),
       });
       const html = await response.text();
-      assertStringIncludes(html, 'href="/admin/site"');
-      assertStringIncludes(html, 'href="/admin/site/contact"');
-      assertStringIncludes(html, 'href="/admin/site/order"');
-      assertStringIncludes(html, "Homepage");
-      assertStringIncludes(html, "Contact");
-      assertStringIncludes(html, "Order");
+      expectIncludesAll(html, [
+        'href="/admin/site"',
+        'href="/admin/site/contact"',
+        'href="/admin/site/order"',
+        "Homepage",
+        "Contact",
+        "Order",
+      ]);
     };
 
     test("homepage shows subnav with Homepage, Contact and Order links", async () => {

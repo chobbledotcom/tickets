@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -20,8 +19,6 @@ import {
   firstBookableDate,
   stubCheckoutIntent,
 } from "#test-utils/parents-gate/helpers.ts";
-
-// jscpd:ignore-end
 
 /** A customisable daily parent offering 1 or 3 days, with a fixed 3-day daily
  *  child — the shared setup behind the two "fixed-span child must match the

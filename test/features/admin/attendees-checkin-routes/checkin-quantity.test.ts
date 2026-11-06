@@ -1,12 +1,14 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
-import { expectFlash, expectHtmlResponse } from "#test-utils/assertions.ts";
+import {
+  expectFlash,
+  expectHtmlResponse,
+  expectIncludesAll,
+} from "#test-utils/assertions.ts";
 import { bookRefundedSibling } from "#test-utils/attendees/refunded-sibling.ts";
-// jscpd:ignore-end
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createMultiBookingAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -53,9 +55,11 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       const html = await expectHtmlResponse(response, 200, "Check in tickets");
       // The line's state, the three options, the whole line selected, and no
       // release form while nothing is admitted.
-      assertStringIncludes(html, `Cara Party, ${listing.name}`);
-      assertStringIncludes(html, "Tickets to check in");
-      assertStringIncludes(html, `<option selected value="3">3 tickets`);
+      expectIncludesAll(html, [
+        `Cara Party, ${listing.name}`,
+        "Tickets to check in",
+        `<option selected value="3">3 tickets`,
+      ]);
       for (const option of ["1 ticket", "2 tickets", "3 tickets"]) {
         assertStringIncludes(html, `>${option}</option>`);
       }
@@ -72,14 +76,10 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
         ),
         200,
       );
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
         '<input name="return_filter" type="hidden" value="out">',
-      );
-      assertStringIncludes(
-        html,
         '<input name="return_url" type="hidden" value="/admin/calendar">',
-      );
+      ]);
     });
 
     test("offers both directions once part of the line is in", async () => {
@@ -93,12 +93,14 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
         `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
       );
       const html = await expectHtmlResponse(response, 200, "Check in tickets");
-      assertStringIncludes(html, "1 of 3 tickets checked in");
-      // The check-in select tops out at the two still owed; the release
-      // select holds the one admitted place.
-      assertStringIncludes(html, '<option selected value="2">2 tickets');
-      assertStringIncludes(html, "Tickets to check out");
-      assertStringIncludes(html, '<option selected value="1">1 ticket');
+      expectIncludesAll(html, [
+        "1 of 3 tickets checked in",
+        // The check-in select tops out at the two still owed; the release
+        // select holds the one admitted place.
+        '<option selected value="2">2 tickets',
+        "Tickets to check out",
+        '<option selected value="1">1 ticket',
+      ]);
     });
 
     test("totals only the rows a refund has not returned", async () => {
@@ -127,8 +129,10 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       const html = await expectHtmlResponse(response, 200, "Check in tickets");
       // The refunded sibling holds no movable tickets, so the page totals
       // the live row alone: one owed, and no offer the write cannot apply.
-      assertStringIncludes(html, "0 of 1 tickets checked in");
-      assertStringIncludes(html, '<option selected value="1">1 ticket');
+      expectIncludesAll(html, [
+        "0 of 1 tickets checked in",
+        '<option selected value="1">1 ticket',
+      ]);
       assert(!html.includes('value="3"'));
     });
 
@@ -181,8 +185,10 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       const html = await expectHtmlResponse(response, 200, "Check out tickets");
       assertStringIncludes(html, "3 of 3 tickets checked in");
       assert(!html.includes("Tickets to check in"));
-      assertStringIncludes(html, "Tickets to check out");
-      assertStringIncludes(html, '<option selected value="3">3 tickets');
+      expectIncludesAll(html, [
+        "Tickets to check out",
+        '<option selected value="3">3 tickets',
+      ]);
     });
 
     test("refuses a count that is not a positive whole number", async () => {

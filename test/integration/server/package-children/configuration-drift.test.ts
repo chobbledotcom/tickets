@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -18,8 +17,6 @@ import {
   packageChildSession,
   packageWithChild,
 } from "./helpers.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("package child configuration drift", { db: true }, () => {
   test("a child edge removed mid-checkout refunds instead of booking a stale bundle", async () => {

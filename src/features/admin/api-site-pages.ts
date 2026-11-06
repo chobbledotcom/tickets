@@ -11,7 +11,6 @@
  * through the settings writers. Parsers and auth are the shared ones.
  */
 
-/* jscpd:ignore-start */
 import { logActivity } from "#db/activity-log.ts";
 import { type TxScope, withTransaction } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
@@ -51,8 +50,6 @@ import {
   toFixedPageContent,
   toPageWrite,
 } from "./api-site-pages-input.ts";
-
-/* jscpd:ignore-end */
 
 const ENTRY = ADMIN_API_RESOURCES["site-pages"];
 const RESPONSE_KEY = "page";

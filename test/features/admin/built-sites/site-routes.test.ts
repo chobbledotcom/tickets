@@ -5,6 +5,7 @@ import {
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
+  expectIncludesAll,
   expectStatus,
   FLASH_TEST_ID,
   flashCookieHeader,
@@ -57,8 +58,10 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       });
       const response = await adminGet(`/admin/built-sites/${site.id}`);
       const html = await expectHtmlResponse(response, 200, "Sections");
-      assertStringIncludes(html, `/admin/built-sites/${site.id}/secrets`);
-      assertStringIncludes(html, `/admin/built-sites/${site.id}/actions`);
+      expectIncludesAll(html, [
+        `/admin/built-sites/${site.id}/secrets`,
+        `/admin/built-sites/${site.id}/actions`,
+      ]);
       assert(!html.includes("Secrets status is unavailable"));
       assert(!html.includes(`/admin/built-sites/${site.id}/delete`));
     });
@@ -199,8 +202,10 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
         "Site name is required",
         "https://test.b-cdn.net",
       );
-      assertStringIncludes(html, 'aria-current="page"');
-      assertStringIncludes(html, `href="/admin/built-sites/${site.id}/edit"`);
+      expectIncludesAll(html, [
+        'aria-current="page"',
+        `href="/admin/built-sites/${site.id}/edit"`,
+      ]);
       assert(!html.includes("Secrets status is unavailable"));
     });
 

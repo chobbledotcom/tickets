@@ -5,7 +5,6 @@
  *  reject the derived facts. The model does not prove the database write
  *  or the walk's booking order. */
 
-/* jscpd:ignore-start -- imports */
 import { decideScan } from "#routes/admin/scan-decision.ts";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
 import {
@@ -16,8 +15,6 @@ import {
 } from "#scripts/verify-models/data.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type { Attendee, ListingWithCount } from "#types";
-
-/* jscpd:ignore-end */
 
 const admitFields = {
   after: "Int",

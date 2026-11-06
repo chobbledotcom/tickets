@@ -1,8 +1,6 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-// jscpd:ignore-end
 import { moveTickets } from "#db/attendees/update.ts";
 import { hashEmail, saveContactRecord } from "#db/contact-preferences.ts";
 import { invalidateListingsCache } from "#db/listings/records.ts";
@@ -11,6 +9,7 @@ import { attendeeNotes } from "#db/notes/target.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
 import {
   expectHtmlResponse,
+  expectIncludesAll,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";
@@ -182,9 +181,11 @@ describeWithEnv(
           "Save Attendee",
         );
         // Listing link table shows the listing
-        assertStringIncludes(html, "Edit Page Listing");
-        // The editor renders a quantity box per listing
-        assertStringIncludes(html, "qty_");
+        expectIncludesAll(html, [
+          "Edit Page Listing",
+          // The editor renders a quantity box per listing
+          "qty_",
+        ]);
       });
 
       test("edit page shows checked-in badge for checked-in attendee", async () => {

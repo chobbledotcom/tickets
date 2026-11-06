@@ -1,5 +1,3 @@
-/* jscpd:ignore-start -- imports */
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -8,6 +6,7 @@ import { stripeApi } from "#shared/stripe.ts";
 import { twoListingsAttendees } from "#test/integration/server/attendee-read-helpers.ts";
 import {
   expectHtmlResponse,
+  expectIncludesAll,
   expectRedirect,
   followRedirect,
 } from "#test-utils/assertions.ts";
@@ -19,8 +18,6 @@ import { signMeta } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubCheckoutSession } from "#test-utils/stripe/responses.ts";
-
-// jscpd:ignore-end
 
 /** Assert every package member's most recent booking landed on `date` and
  *  carries the package's group id — the shared check for a dated package
@@ -374,9 +371,11 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           }),
         );
         const page = await response.text();
-        assertStringIncludes(page, "Staff diagnostics");
-        assertStringIncludes(page, "cs_staff_unpaid");
-        assertStringIncludes(page, "unpaid");
+        expectIncludesAll(page, [
+          "Staff diagnostics",
+          "cs_staff_unpaid",
+          "unpaid",
+        ]);
       } finally {
         mockRetrieve.restore();
       }

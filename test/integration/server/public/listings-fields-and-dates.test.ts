@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -7,7 +6,7 @@ import { handleRequest } from "#routes";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { icsDiscoveryTag, rssDiscoveryTag } from "#templates/public/shared.tsx";
-import { assertPublicHtml } from "#test-utils/assertions.ts";
+import { assertPublicHtml, expectIncludesAll } from "#test-utils/assertions.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -18,8 +17,6 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "server public > listings fields and dates",
@@ -123,14 +120,10 @@ describeWithEnv(
           `/listings?date=${date}`,
           "Not available on",
         );
-        assertStringIncludes(
-          filtered,
+        expectIncludesAll(filtered, [
           `href="/ticket/${freeDaily.slug}?date=${date}"`,
-        );
-        assertStringIncludes(
-          filtered,
           `href="/ticket/${flexDaily.slug}?date=${date}"`,
-        );
+        ]);
         assert(!filtered.includes(`href="/ticket/${fullDaily.slug}`));
         // The "Not available on" message is a red Badge inside the card's prose.
         assertStringIncludes(

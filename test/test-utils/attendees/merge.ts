@@ -192,7 +192,7 @@ const expectMergeAnswer = async (
  *  name-decision wording). The Size, Diet, and Shirt merge-conflict tests all
  *  share this exact shape. Returns the response, the surviving target, and the
  *  pair's pieces so a caller can add extra assertions (e.g. the activity log). */
-export const mergeWithAnswerConflict = async (
+export const expectAnswerConflictMerged = async (
   questionText: string,
   answerTexts: [string, string],
   choice: "source" | "clear" | "target",
@@ -240,7 +240,7 @@ export const submitBookingDecision = async (
  *  `side` ("source"/"target"), submit the merge (no answer choice — the
  *  non-conflicting answer auto-adopts), and assert the survivor keeps the
  *  answer. The source-only and target-only merge tests share this shape. */
-export const mergeNonConflictingAnswer = async (
+export const expectNonConflictingAnswerMerged = async (
   questionText: string,
   answerText: string,
   side: "source" | "target",

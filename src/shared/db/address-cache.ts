@@ -9,7 +9,6 @@
  * so an unpruned-but-expired row cannot come back stale.
  */
 
-/* jscpd:ignore-start */
 import * as v from "valibot";
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { blindIndexFor } from "#crypto/hashing.ts";
@@ -22,7 +21,6 @@ import {
 import { ADDRESS_CACHE_MS, MAINTENANCE_PRUNE_BATCH } from "#shared/limits.ts";
 import { isoBefore, nowMs } from "#shared/now.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
-/* jscpd:ignore-end */
 
 /**
  * Compute the blind-index HMAC for a lookup. The provider is part of the

@@ -1,6 +1,5 @@
-/**
- * Types for the ticket reservation system
- */
+// effects: pure
+/** Types for the ticket reservation system. */
 
 import * as v from "valibot";
 import type { PairBooking } from "#booking/ticket-moves.ts";

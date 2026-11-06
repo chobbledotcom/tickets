@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { insertBuiltSite } from "#db/built-sites.ts";
@@ -8,8 +7,6 @@ import { submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "server public > built site assignment",

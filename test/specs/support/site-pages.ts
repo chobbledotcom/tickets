@@ -6,7 +6,6 @@
 import { expect } from "@std/expect";
 import { sitePages } from "#db/site-pages.ts";
 import { t } from "#i18n";
-// jscpd:ignore-start
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import {
   adminPageHtmlAt,
@@ -46,8 +45,6 @@ import {
   findAllNavLinks,
 } from "#test-utils/test-browser/parsing.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
-
-// jscpd:ignore-end
 
 /** The owner's own list of the site's pages. */
 const PAGES_LIST = "/admin/site/pages";

@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -36,8 +35,6 @@ import {
   checkoutSessionEvent,
   expectAttendeeCreatedWithPiiBlob,
 } from "#test-utils/webhooks.ts";
-
-// jscpd:ignore-end
 
 /**
  * Turning new sales off (saving the payment provider as "none") must only stop

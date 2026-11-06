@@ -1,7 +1,6 @@
-/* jscpd:ignore-start */
+// effects: pure
 import { assessTax } from "#shared/tax/assessment.ts";
 import type { TaxAssessment, TaxPolicy } from "#shared/tax/types.ts";
-/* jscpd:ignore-end */
 
 /** The two states of a booking's tax assessment. */
 export const TAX_STATE_KINDS = ["active", "refunded"] as const;

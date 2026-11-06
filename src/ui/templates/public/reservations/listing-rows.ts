@@ -19,7 +19,6 @@ import type {
   AttributeWithOptions,
   ListingAttributesById,
 } from "#db/attributes.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
@@ -38,7 +37,6 @@ import {
 } from "./quantities.ts";
 import type { BookingPrefill, ChildRenderCtx, TicketPrefill } from "./types.ts";
 
-/* jscpd:ignore-end */
 /** Description HTML for a listing row. */
 export const renderListingDescription = (description: string): string =>
   description

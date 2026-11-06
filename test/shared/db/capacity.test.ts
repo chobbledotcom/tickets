@@ -8,6 +8,7 @@ import {
 } from "#db/capacity.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
 import { capacityRuleTypeSql } from "#shared/capacity-rules.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { flatSql, occurrences } from "#test-utils/sql-text.ts";
 
 /**
@@ -70,18 +71,11 @@ describe("buildCapacityCondition", () => {
 
   test("dated: every listing-type predicate comes from the rule table", () => {
     const cond = capacityStatement(LISTING, QTY, DAY);
-    assertStringIncludes(
-      cond.sql,
+    expectIncludesAll(cond.sql, [
       capacityRuleTypeSql("perDateCap", "listing.listing_type"),
-    );
-    assertStringIncludes(
-      cond.sql,
       capacityRuleTypeSql("dateLessCap", "memberListing.listing_type"),
-    );
-    assertStringIncludes(
-      cond.sql,
       capacityRuleTypeSql("perDateCap", "memberListing.listing_type"),
-    );
+    ]);
     // No hand-written type comparison survives anywhere in the guard.
     assert(!cond.sql.includes("!= 'daily'"));
     assert(!cond.sql.includes("= 'daily'"));

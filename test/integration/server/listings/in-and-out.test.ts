@@ -1,8 +1,11 @@
-// jscpd:ignore-start
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { assertAdminHtml, testRequiresAuth } from "#test-utils/assertions.ts";
+import {
+  assertAdminHtml,
+  expectIncludesAll,
+  testRequiresAuth,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -12,8 +15,6 @@ import {
   adminGet,
   setupListingAndLogin,
 } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv("server listings > check-in filter", { db: true }, () => {
   /** Creates a listing with one checked-in and one checked-out attendee —
@@ -99,8 +100,10 @@ describeWithEnv("server listings > check-in filter", { db: true }, () => {
       expect(response.status).toBe(200);
       const html = await response.text();
       assert(!html.includes("Checked In User"));
-      assertStringIncludes(html, "Not Checked User");
-      assertStringIncludes(html, "<strong><u>Checked Out</u></strong>");
+      expectIncludesAll(html, [
+        "Not Checked User",
+        "<strong><u>Checked Out</u></strong>",
+      ]);
     });
   });
 });

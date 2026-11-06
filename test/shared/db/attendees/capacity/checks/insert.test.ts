@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { buildCapacityCheckedInsert } from "#db/attendees/capacity/checks.ts";
 import { dateToStartEnd } from "#db/attendees/capacity/range.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 describe("buildCapacityCheckedInsert", () => {
   test("binds every default booking fact in statement order", () => {
@@ -15,11 +16,10 @@ describe("buildCapacityCheckedInsert", () => {
     expect(statement.args.slice(0, 6)).toEqual([17, startAt, endAt, 1, "", 0]);
     // Both zero defaults (parent_listing_id and package_group_id) share the
     // interned ?6 slot; the capacity clause binds nothing new.
-    assertStringIncludes(
-      statement.sql,
+    expectIncludesAll(statement.sql, [
       "SELECT ?1, last_insert_rowid(), ?2, ?3, ?4, ?5, ?6, ?6",
-    );
-    assertStringIncludes(statement.sql, "WHERE");
+      "WHERE",
+    ]);
   });
 
   test("binds a supplied attendee before custom booking facts", () => {

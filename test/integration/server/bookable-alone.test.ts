@@ -19,6 +19,7 @@ import { listingChildren } from "#db/listing-parents.ts";
 import { listingsTable } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
@@ -53,8 +54,7 @@ describeWithEnv(
         await settings.update.orderEnabled(true);
         const { child } = await parentWithFlaggedChild();
         const body = await (await handleRequest(mockRequest("/order"))).text();
-        assertStringIncludes(body, `name="select_${child.id}"`);
-        assertStringIncludes(body, "Solo Widget");
+        expectIncludesAll(body, [`name="select_${child.id}"`, "Solo Widget"]);
       });
     });
 

@@ -1,5 +1,5 @@
 /** The IO shell of the effect check: walk a source tree, build the module
- * graph, and report every pure-listed module that reaches an effect
+ * graph, and report every module with the pure marker that reaches an effect
  * root. The tests drive this against a fixture tree with fixture
  * declarations; the entry script passes the real ones. */
 
@@ -11,6 +11,7 @@ import {
   reportCheck,
 } from "#scripts/check-report.ts";
 import { collectFromFiles, collectSourceFiles } from "#scripts/walk-files.ts";
+import { carriesPureMarker, PURE_MARKER } from "./effects.ts";
 import {
   chainToEffect,
   type ModuleGraph,
@@ -19,13 +20,11 @@ import {
   type SourceFile,
 } from "./graph.ts";
 
-/** What one run checks: the tree, the alias table, the effect roots, and
- * the pure list. */
+/** What one run checks: the tree, the alias table, and the effect roots. */
 export interface EffectsCheck {
   readonly configPath: string;
   readonly effects: Readonly<Record<string, readonly string[]>>;
   readonly output: CheckOutput;
-  readonly pureModules: readonly string[];
   readonly treeRoot: string;
 }
 
@@ -83,26 +82,15 @@ const rootFilesOrNull = (
   return roots;
 };
 
-/** Every pure-listed module that reaches an effect root, with one chain
- * of imports per effect as evidence. */
+/** Every marked module that reaches an effect root, with one chain of
+ * imports per effect as evidence. */
 const pureFindings = (
-  check: EffectsCheck,
+  pureFiles: readonly string[],
   graph: ModuleGraph,
   roots: ReadonlyMap<string, readonly string[]>,
-  aliases: Alias[],
 ): string[] => {
-  const known = new Set(graph.keys());
   const findings: string[] = [];
-  for (const specifier of check.pureModules) {
-    const file = walkedFileOrNull(specifier, check, aliases, known);
-    if (file === null) {
-      reportMissing(findings, specifier, {
-        fix: "Remove the stale pure entry.",
-        problem: "names no file under the source tree",
-        rule: "pure-module",
-      });
-      continue;
-    }
+  for (const file of pureFiles) {
     const evidence = [...roots.entries()]
       .map(([effect, files]) => ({
         chain: chainToEffect(graph, new Set(files), file),
@@ -116,7 +104,7 @@ const pureFindings = (
     if (evidence.length === 0) continue;
     findings.push(
       formatFinding(file, {
-        fix: "Split the IO shell out, or drop the pure entry.",
+        fix: `Split the IO shell out, or remove the "${PURE_MARKER}" line.`,
         problem: `reaches an effect root — ${evidence.join("; ")}`,
         rule: "pure-module",
       }),
@@ -143,11 +131,14 @@ export const runEffectsCheck = async (check: EffectsCheck): Promise<number> => {
   const graph = moduleGraph(files, aliases, walkedFiles);
   const roots = rootFilesOrNull(check, walkedFiles, aliases);
   if (roots === null) return 1;
+  const pureFiles = files
+    .filter((source) => carriesPureMarker(source.content))
+    .map((source) => source.file);
   return reportCheck({
     ...check.output,
-    found: pureFindings(check, graph, roots, aliases),
+    found: pureFindings(pureFiles, graph, roots),
     guide: '"Pure, functional" in docs/designing-systems.md',
     noun: "pure-module",
-    success: `Every one of ${check.pureModules.length} pure modules stays pure.`,
+    success: `Every one of ${pureFiles.length} pure modules stays pure.`,
   });
 };

@@ -7,11 +7,9 @@
 import { Then, When } from "@cucumber/cucumber";
 import type { Locator } from "playwright";
 import { type BrowserSession, requirePageText } from "#e2e/browser.ts";
-// jscpd:ignore-start -- this #e2e import run is structural
 import { catalogWords } from "#e2e/catalog-words.ts";
 import { config } from "#e2e/config.ts";
 import { type LiveWorld, worldStep } from "#e2e/cucumber/support/world.ts";
-// jscpd:ignore-end
 import { refuseRefundTransfers } from "#e2e/db-fault.ts";
 import { login } from "#e2e/flow.ts";
 import { pageTextIncludes } from "#e2e/page-text.ts";

@@ -4,7 +4,6 @@
  * a JSON body → camelCase input conversion.
  */
 
-/* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import { logActivity } from "#db/activity-log.ts";
 import { byPrimaryKey } from "#db/table-reader.ts";
@@ -13,7 +12,18 @@ import { apiErrorResponse } from "#routes/api/cors.ts";
 import { type AuthPolicy, withAuth } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
+import {
+  type AdminApiChild,
+  type AdminApiCustomRoute,
+  type AdminApiResource,
+  adminApiIdParam,
+} from "#shared/admin-api-resources.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
+import type {
+  CrudApiConfig,
+  CrudApiHandlers,
+  CrudChildHandlers,
+} from "#shared/rest/crud-api-types.ts";
 import { parseAndValidate, withApiEntity } from "#shared/rest/crud-parsers.ts";
 import {
   type JoinWrite,
@@ -23,20 +33,6 @@ import {
 import { writeEntityOrValidationResponse } from "#shared/rest/write-error.ts";
 import type { Result } from "#shared/result.ts";
 import type { AdminSession } from "#types";
-
-/* jscpd:ignore-end */
-
-import {
-  type AdminApiChild,
-  type AdminApiCustomRoute,
-  type AdminApiResource,
-  adminApiIdParam,
-} from "#shared/admin-api-resources.ts";
-import type {
-  CrudApiConfig,
-  CrudApiHandlers,
-  CrudChildHandlers,
-} from "#shared/rest/crud-api-types.ts";
 
 /** Strip internal keys from a row before sending in the response */
 const stripRow = <Row>(row: Row, keys: string[]): Record<string, unknown> => {

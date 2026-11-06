@@ -6,7 +6,6 @@
  * the story rather than being worked around.
  */
 
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { queryAll } from "#db/client.ts";
@@ -33,8 +32,6 @@ import { mockFormRequest } from "#test-utils/mocks.ts";
 import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
 import { extractFormEntries } from "#test-utils/test-browser/forms.ts";
 import type { ListingWithCount } from "#types";
-
-// jscpd:ignore-end
 
 /** What the merge page shows before anything is merged: the page itself, the
  *  version it was built from, every booking field it offers a choice about,

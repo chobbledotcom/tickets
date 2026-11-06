@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { filter, map, pipe, requiredMapValue, unique } from "#fp";
 import { CLAIM_MIRROR } from "#payment/admit-move.ts";
 import { refundLifecycleFor } from "#payment/refund-authority-lifecycle.ts";
@@ -24,8 +23,6 @@ import {
   tlaSet,
 } from "#scripts/verify-models/data.ts";
 import { attemptTransition } from "#shared/schema-atlas/types.ts";
-
-/* jscpd:ignore-end */
 
 const authorityMoveFields = {
   ...moveFields,

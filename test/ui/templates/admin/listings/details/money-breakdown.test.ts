@@ -6,6 +6,7 @@ import {
   registerListingTemplateHooks,
   renderListingDetail,
 } from "#test/ui/templates/admin/listings/helpers.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 describe("adminListingPage money breakdown", () => {
@@ -40,26 +41,25 @@ describe("adminListingPage money breakdown", () => {
         transferCount: 3,
       },
     });
-    assertStringIncludes(html, "Money in and out");
-    // Gross sales credited (+), manual write-down (−), then the two subtotals.
-    assertStringIncludes(html, "Gross ticket sales");
-    assertStringIncludes(html, "+£100");
-    assertStringIncludes(html, "Income corrections");
-    assertStringIncludes(html, "−£10");
-    assertStringIncludes(html, "Total income earned");
-    assertStringIncludes(html, "£90");
-    assertStringIncludes(html, "Refunds");
-    assertStringIncludes(html, "−£20");
-    assertStringIncludes(html, "Net after refunds and costs");
-    assertStringIncludes(html, "£70");
-    // The plain-English reconciliation note and the button to the filtered
-    // ledger, preselected to this listing (no arrow glyph, button-styled).
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "Money in and out",
+      // Gross sales credited (+), manual write-down (−), then the two subtotals.
+      "Gross ticket sales",
+      "+£100",
+      "Income corrections",
+      "−£10",
+      "Total income earned",
+      "£90",
+      "Refunds",
+      "−£20",
+      "Net after refunds and costs",
+      "£70",
+      // The plain-English reconciliation note and the button to the filtered
+      // ledger, preselected to this listing (no arrow glyph, button-styled).
       "Income is what this listing earned before refunds",
-    );
-    assertStringIncludes(html, 'href="/admin/ledger?listing=7"');
-    assertStringIncludes(html, "View all money changes");
+      'href="/admin/ledger?listing=7"',
+      "View all money changes",
+    ]);
     assert(!html.includes("View all money changes →"));
   });
 
@@ -87,10 +87,12 @@ describe("adminListingPage money breakdown", () => {
     expect(recognisedIdx).toBeGreaterThan(-1);
     expect(netIdx).toBeGreaterThan(-1);
     expect(netIdx).toBeGreaterThan(recognisedIdx);
-    assertStringIncludes(html, "£90");
-    assertStringIncludes(html, "£70");
-    // The two figures differ exactly by the refunds line.
-    assertStringIncludes(html, "−£20");
+    expectIncludesAll(html, [
+      "£90",
+      "£70",
+      // The two figures differ exactly by the refunds line.
+      "−£20",
+    ]);
   });
 
   test("omits the manual-adjustments row when there are none", () => {
@@ -113,9 +115,11 @@ describe("adminListingPage money breakdown", () => {
     assertStringIncludes(html, "Money in and out");
     assert(!html.includes("Income corrections"));
     // With no refunds either, recognised income and net balance coincide at £50.
-    assertStringIncludes(html, "Total income earned");
-    assertStringIncludes(html, "Net after refunds and costs");
-    assertStringIncludes(html, "£50");
+    expectIncludesAll(html, [
+      "Total income earned",
+      "Net after refunds and costs",
+      "£50",
+    ]);
   });
 
   test("shows a signed positive manual write-up", () => {
@@ -135,8 +139,7 @@ describe("adminListingPage money breakdown", () => {
         transferCount: 2,
       },
     });
-    assertStringIncludes(html, "Income corrections");
-    assertStringIncludes(html, "+£15");
+    expectIncludesAll(html, ["Income corrections", "+£15"]);
   });
 
   test("shows outside income and listing-specific costs when present", () => {
@@ -156,10 +159,12 @@ describe("adminListingPage money breakdown", () => {
         transferCount: 3,
       },
     });
-    assertStringIncludes(html, "Income received outside checkout");
-    assertStringIncludes(html, "+£12");
-    assertStringIncludes(html, "Costs paid outside checkout");
-    assertStringIncludes(html, "−£3");
+    expectIncludesAll(html, [
+      "Income received outside checkout",
+      "+£12",
+      "Costs paid outside checkout",
+      "−£3",
+    ]);
   });
 });
 

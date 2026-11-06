@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import {
   isQuestionDisplayType,
   type Question,
@@ -50,8 +49,6 @@ import {
   deleteAnswerWithLog,
   updateAnswerWithLog,
 } from "./questions/answers.ts";
-
-/* jscpd:ignore-end */
 
 // The bodies a question and an answer write accept are the table's
 // CreateQuestionBodySchema / UpdateQuestionBodySchema / OptionBodySchema.

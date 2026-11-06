@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import {
@@ -16,8 +15,8 @@ import { formatCurrency, formatSignedCurrency } from "#shared/currency.ts";
 import { allBalances } from "#shared/ledger/project.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
 import { articleOutOf } from "#test/specs/support/browser.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { adminGet } from "#test-utils/session.ts";
-// jscpd:ignore-end
 
 /** Something a story checks about one record's money, by that record's id and a
  * figure in the smallest unit of currency. Most checks here are one of these,
@@ -136,8 +135,7 @@ export const assertRenderedOwed: CheckMoneyShown = async (
     `/admin/attendees/${attendeeId}/ledger`,
     minor,
   );
-  assertStringIncludes(balancePage, "Balance outstanding:");
-  assertStringIncludes(balancePage, formatted);
+  expectIncludesAll(balancePage, ["Balance outstanding:", formatted]);
 };
 
 /**

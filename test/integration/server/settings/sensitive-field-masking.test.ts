@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
@@ -11,8 +10,6 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
 import { withSuccessfulStripeWebhook } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 /** POST a settings form with a valid CSRF token and the admin cookie. */
 const postSettings = async (

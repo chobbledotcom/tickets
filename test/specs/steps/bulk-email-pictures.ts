@@ -2,8 +2,6 @@
  * copy carries it, and what the owner wrote as code or as a web address
  * beside it. */
 
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
 import { t } from "#i18n";
@@ -21,8 +19,7 @@ import {
   writtenMessage,
 } from "#test/specs/support/bulk-email.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
-
-// jscpd:ignore-end
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 /** The message the owner writes when they name a picture: their words, then
  * the reference the editor's dropdown leaves in the box. The words may name
@@ -182,11 +179,10 @@ Then(
   "the draft they can send themselves still shows {string} as the owner wrote it, and the {string} picture at its address on the site",
   function (this: TicketsWorld, words: string, name: string): void {
     const draft = mailtoDraftBody(this);
-    assertStringIncludes(draft, writtenWords(this, name, words));
-    assertStringIncludes(
-      draft,
+    expectIncludesAll(draft, [
+      writtenWords(this, name, words),
       pictureUrl(this, name, `https://${getEffectiveDomain()}`),
-    );
+    ]);
   },
 );
 
@@ -206,16 +202,14 @@ Then(
       const copy = whatWasSentTo(this, email);
       // The code the owner wrote arrives as code in the plain part, and the
       // picture beside it travels to the site's own address.
-      assertStringIncludes(copy.text, written);
-      assertStringIncludes(copy.text, pictureUrl(this, name, origin));
+      expectIncludesAll(copy.text, [written, pictureUrl(this, name, origin)]);
       // The HTML part shows the code as code too. The reference inside it
       // keeps the owner's words, so no picture appears inside the code
       // there.
-      assertStringIncludes(copy.html, `<code>${insideTheCode}</code>`);
-      assertStringIncludes(
-        copy.html,
+      expectIncludesAll(copy.html, [
+        `<code>${insideTheCode}</code>`,
         pictureTag(pictureUrl(this, name, origin), name),
-      );
+      ]);
     }
   },
 );

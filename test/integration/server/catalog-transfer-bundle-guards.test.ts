@@ -9,6 +9,7 @@ import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
 import { loadCatalogNameIndex, matchName } from "#db/name-registry.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import type { CatalogBundle } from "#routes/admin/catalog-transfer/schema.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -68,8 +69,7 @@ describeWithEnv("catalog bundle import guard parity", { db: true }, () => {
     );
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("unreachable");
-    assertStringIncludes(result.error, "Legacy Plan");
-    assertStringIncludes(result.error, "assigns its own site");
+    expectIncludesAll(result.error, ["Legacy Plan", "assigns its own site"]);
     await expectNoListing("Plan Joiner");
   });
 
@@ -113,8 +113,7 @@ describeWithEnv("catalog bundle import guard parity", { db: true }, () => {
     });
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("unreachable");
-    assertStringIncludes(result.error, '"Doc Kid"');
-    assertStringIncludes(result.error, "itself a child");
+    expectIncludesAll(result.error, ['"Doc Kid"', "itself a child"]);
     await expectNoListing("Doc Kid");
   });
 

@@ -1,3 +1,4 @@
+// effects: pure
 /**
  * Pure projections over a slice of transfers — the unit-testable heart of the
  * ledger. A site has one currency, fixed at setup and never changed, so every

@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -16,8 +15,6 @@ import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 import { checkoutSessionEvent } from "#test-utils/webhooks.ts";
 
-// jscpd:ignore-end
-
 /** Find the "Automatic refund" activity log entry for `listingId` and assert
  *  it's tagged to that listing — the shared lookup both refund-logging tests
  *  end with, before checking their own message substring. */
@@ -27,8 +24,7 @@ const findRefundActivityEntry = async (listingId: number) => {
   const refundEntry = entries.find((e) =>
     e.message.includes("Automatic refund"),
   );
-  expect(refundEntry).toBeDefined();
-  expect(refundEntry!.listing_id).toBe(listingId);
+  expect(refundEntry?.listing_id).toBe(listingId);
   return refundEntry!;
 };
 
@@ -78,10 +74,9 @@ describeWithEnv("server webhooks > refund logging", { db: true }, () => {
       ]);
 
       // Verify refund success was logged to console
-      const refundLog = debugLogs.find((log) =>
-        log.includes("Refund completed"),
+      expect(debugLogs).toContainEqual(
+        expect.stringContaining("Refund completed"),
       );
-      expect(refundLog).toBeDefined();
 
       // Verify refund was logged to activity log tagged to listing
       const refundEntry = await findRefundActivityEntry(listing.id);

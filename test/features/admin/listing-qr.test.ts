@@ -14,7 +14,7 @@ import { EMPTY_QR_VALUES } from "#routes/admin/listing-qr.ts";
 import { addDays } from "#shared/dates.ts";
 import { verifyQrBookToken } from "#shared/qr-token.ts";
 import { todayInTz } from "#shared/timezone.ts";
-import { testRequiresAuth } from "#test-utils/assertions.ts";
+import { expectIncludesAll, testRequiresAuth } from "#test-utils/assertions.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -82,13 +82,15 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
       const response = await adminGet(`/admin/listing/${listing.id}/qr`);
       expect(response.status).toBe(200);
       const body = await response.text();
-      assertStringIncludes(body, 'name="customer_name"');
-      // The customer name input carries the contact-field cap, like every
-      // other hand-rendered contact input.
-      assertStringIncludes(body, 'maxlength="250"');
-      assertStringIncludes(body, 'name="value"');
-      assertStringIncludes(body, 'name="quantity"');
-      assertStringIncludes(body, 'value="1"');
+      expectIncludesAll(body, [
+        'name="customer_name"',
+        // The customer name input carries the contact-field cap, like every
+        // other hand-rendered contact input.
+        'maxlength="250"',
+        'name="value"',
+        'name="quantity"',
+        'value="1"',
+      ]);
     });
 
     test("shows green indicator for listing with no extra fields, red when extra fields required", async () => {
@@ -125,10 +127,12 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
       });
       const response = await adminGet(`/admin/listing/${listing.id}/qr`);
       const body = await response.text();
-      assertStringIncludes(body, 'name="date"');
-      // A date one day before the window edge supports a single day even though
-      // it can't fit the 2-day maximum — single-day availability still offers it.
-      assertStringIncludes(body, addDays(testDate(todayInTz("UTC")), 60));
+      expectIncludesAll(body, [
+        'name="date"',
+        // A date one day before the window edge supports a single day even though
+        // it can't fit the 2-day maximum — single-day availability still offers it.
+        addDays(testDate(todayInTz("UTC")), 60),
+      ]);
     });
 
     test("offers only child-servable dates for a daily parent", async () => {

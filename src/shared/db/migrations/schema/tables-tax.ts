@@ -1,9 +1,7 @@
-/* jscpd:ignore-start -- imports */
 import { TAX_STATE_KINDS } from "#shared/tax/transitions.ts";
 import { attendeeIdColumn } from "./columns.ts";
 import { checked, oneOf, text, wholeNumber } from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
-/* jscpd:ignore-end */
 
 export const taxTables: [string, Table][] = [
   [

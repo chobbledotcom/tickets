@@ -1,8 +1,9 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import { buildForest, buildNavModel } from "#shared/site-pages/core.ts";
 import { sitePagePage } from "#templates/public/site-page.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import {
   navKey,
   navPage as page,
@@ -42,12 +43,11 @@ describe("sitePagePage (nav-model race)", () => {
       },
       "",
     );
-    assertStringIncludes(html, "<h1>Racy Page</h1>");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "<h1>Racy Page</h1>",
       '</nav></div><div class="page-regions public-page"><h1>Racy Page</h1>',
-    );
-    assertStringIncludes(html, "<strong>here</strong>");
+      "<strong>here</strong>",
+    ]);
     assert(!html.includes('class="page-items"'));
   });
 });

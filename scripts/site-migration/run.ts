@@ -3,7 +3,6 @@ import type {
   MainInstance,
   SiteWithHost,
 } from "#scripts/site-migration/sites.ts";
-/* jscpd:ignore-start -- imports */
 import {
   configuredOrAsked,
   configuredValue,
@@ -18,7 +17,6 @@ import {
 import { tursoDatabaseSlug } from "#shared/config.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import type { TursoApi } from "#shared/turso-api.ts";
-/* jscpd:ignore-end */
 
 export const MIGRATE_SITES_USAGE = "Usage: deno task migrate:sites";
 

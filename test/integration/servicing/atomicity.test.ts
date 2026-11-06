@@ -9,7 +9,6 @@
  * — the created attendee is deleted (create), or the pre-edit state is restored
  * (update) — so no half-saved service event ever remains.
  */
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
@@ -27,8 +26,6 @@ import {
   servicingRowsForListing,
   updateServicingEvent,
 } from "#test-utils/servicing.ts";
-
-// jscpd:ignore-end
 
 /** Fail the FIRST `attendee_answers` write (the answer save), so the
  *  create/update compensation runs. */

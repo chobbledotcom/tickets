@@ -9,6 +9,7 @@ import type {
   BatchMessageOutcome,
   BulkBatchResponse,
 } from "#shared/email/bulk.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 const TOOK_ALL: BatchMessageOutcome = {
   reasons: [],
@@ -171,8 +172,7 @@ describe("summarizeProviderResponse", () => {
       reply(200, "[]", { reasons, refused: 40, unconfirmed: 0 }),
     ]);
 
-    assertStringIncludes(summary, "It refused 40 messages.");
-    assertStringIncludes(summary, "...");
+    expectIncludesAll(summary, ["It refused 40 messages.", "..."]);
     assert(!summary.includes(reasons.join("; ")));
   });
 });

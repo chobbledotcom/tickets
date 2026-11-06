@@ -5,6 +5,7 @@ import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { EmailNotificationsForm } from "#templates/admin/settings/email.tsx";
 import { advancedDefaultState } from "#test/ui/templates/admin/settings-advanced/state.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 describe("EmailNotificationsForm", () => {
   beforeAll(setupAdminPageTest);
@@ -18,17 +19,13 @@ describe("EmailNotificationsForm", () => {
       }),
     );
 
-    assertStringIncludes(html, "Email Provider");
-    assertStringIncludes(html, '<select name="email_provider">');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "Email Provider",
+      '<select name="email_provider">',
       '<option selected value="resend">Resend</option>',
-    );
-    assertStringIncludes(html, '<option value="">Host email</option>');
-    assertStringIncludes(
-      html,
+      '<option value="">Host email</option>',
       '<option value="mailgun-eu">Mailgun (EU)</option>',
-    );
+    ]);
   });
 
   test("falls back to the none option when no host email exists", () => {
@@ -50,29 +47,21 @@ describe("EmailNotificationsForm", () => {
       }),
     );
 
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="email_api_key" placeholder="Enter API key" type="password" value="${MASK_SENTINEL}">`,
-    );
-    assertStringIncludes(
-      html,
       `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="email_from_address" placeholder="owner@site.example" type="email" value="tickets@site.example">`,
-    );
-    assertStringIncludes(html, "API Key");
-    assertStringIncludes(html, "From Address");
+      "API Key",
+      "From Address",
+    ]);
   });
 
   test("leaves the API key blank and hints the from address fallback", () => {
     const html = String(EmailNotificationsForm(advancedDefaultState));
 
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="email_api_key" placeholder="Enter API key" type="password">`,
-    );
-    assertStringIncludes(
-      html,
       `name="email_from_address" placeholder="tickets@yourdomain.com" type="email" value=""`,
-    );
+    ]);
   });
 
   test("offers the send-test form only once a provider is chosen", () => {
@@ -85,18 +74,22 @@ describe("EmailNotificationsForm", () => {
         emailProvider: "postmark",
       }),
     );
-    assertStringIncludes(on, 'action="/admin/settings/email/test"');
-    assertStringIncludes(on, 'id="settings-email-test"');
-    assertStringIncludes(on, "Send Test Email");
+    expectIncludesAll(on, [
+      'action="/admin/settings/email/test"',
+      'id="settings-email-test"',
+      "Send Test Email",
+    ]);
   });
 
   test("posts to the email settings route with its save button", () => {
     const html = String(EmailNotificationsForm(advancedDefaultState));
 
-    assertStringIncludes(html, "Email Notifications");
-    assertStringIncludes(html, 'action="/admin/settings/email"');
-    assertStringIncludes(html, 'id="settings-email"');
-    assertStringIncludes(html, "Save Email Settings");
-    assertStringIncludes(html, 'href="/admin/guide#email"');
+    expectIncludesAll(html, [
+      "Email Notifications",
+      'action="/admin/settings/email"',
+      'id="settings-email"',
+      "Save Email Settings",
+      'href="/admin/guide#email"',
+    ]);
   });
 });

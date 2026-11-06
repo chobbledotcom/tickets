@@ -10,11 +10,9 @@
  */
 
 import * as v from "valibot";
-/* jscpd:ignore-start -- imports */
 import { defineSignedToken } from "#crypto/define-signed-token.ts";
 import { expiresIn } from "#shared/now.ts";
 import { parseOrNull } from "#shared/validation/parse.ts";
-/* jscpd:ignore-end */
 
 /** QR token expiry in seconds from generation */
 export const QR_TOKEN_MAX_AGE_S = 300;

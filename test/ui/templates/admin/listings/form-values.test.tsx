@@ -16,6 +16,7 @@ import {
   showUseDefaultsToggle,
 } from "#templates/admin/listings/form-values.tsx";
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 describe("renderDayPricesFieldset", () => {
@@ -23,8 +24,7 @@ describe("renderDayPricesFieldset", () => {
     const html = renderDayPricesFieldset(
       testListingWithCount({ duration_days: 2 }),
     );
-    assertStringIncludes(html, 'name="day_price_1"');
-    assertStringIncludes(html, 'name="day_price_2"');
+    expectIncludesAll(html, ['name="day_price_1"', 'name="day_price_2"']);
     assert(!html.includes('name="day_price_3"'));
   });
 
@@ -42,14 +42,13 @@ describe("renderDayPricesFieldset", () => {
     const html = renderDayPricesFieldset(
       testListingWithCount({ duration_days: 2 }),
     );
-    assertStringIncludes(html, "</fieldset>");
-    // Every day's row is one label with its box inside it, labeled by the
-    // day it prices and closed before the next day's row starts.
-    assertStringIncludes(html, "</label><label>");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "</fieldset>",
+      // Every day's row is one label with its box inside it, labeled by the
+      // day it prices and closed before the next day's row starts.
+      "</label><label>",
       `${t("listings_table.day_price_row_label", { n: 1 })}<input`,
-    );
+    ]);
   });
 
   test("a fresh form offers a single day", () => {

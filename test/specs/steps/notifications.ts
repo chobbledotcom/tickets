@@ -5,7 +5,6 @@
  */
 
 import { Given, Then, When } from "@cucumber/cucumber";
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
@@ -27,10 +26,9 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { setPendingNotificationFlags } from "#test-utils/db-helpers/attendees.ts";
 import { adminGet } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 /** The email badge's own words, as the site prints them. */
 const emailNotice = () => t("attendees.badge.email_not_sent");
@@ -202,8 +200,7 @@ Then(
   "the list says {word}'s email and webhooks never went out",
   function (this: TicketsWorld, who: string): void {
     const row = rowOnTheList(this, who);
-    assertStringIncludes(row, emailNotice());
-    assertStringIncludes(row, webhooksNotice());
+    expectIncludesAll(row, [emailNotice(), webhooksNotice()]);
   },
 );
 

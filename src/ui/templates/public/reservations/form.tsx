@@ -4,7 +4,6 @@
 
 import type { AttributeWithOptions } from "#db/attributes.ts";
 import type { AddOnOption } from "#db/modifier-resolve.ts";
-/* jscpd:ignore-start */
 import type { QuestionWithAnswers } from "#db/question-types.ts";
 import type { QuestionListingMap } from "#db/questions/queries.ts";
 import { t } from "#i18n";
@@ -33,7 +32,6 @@ import {
 } from "./controls.ts";
 import { renderQuestions } from "./questions.tsx";
 import type { BookingPrefill } from "./types.ts";
-/* jscpd:ignore-end */
 
 /** Header block shown above the form with listing/group details */
 export const TicketPageHeader = ({

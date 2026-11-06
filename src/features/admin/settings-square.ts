@@ -7,12 +7,10 @@
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { squareConnectionAnswer } from "#routes/admin/settings-connection-lines.ts";
-/* jscpd:ignore-start */
 import { settingsSecret } from "#routes/admin/settings-helpers.ts";
 import { defineProviderCredentialsRoute } from "#routes/admin/settings-provider-credentials.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
 import { squareApi } from "#shared/square/api.ts";
-/* jscpd:ignore-end */
 import {
   validateSquareAccessToken,
   validateSquareLocationId,

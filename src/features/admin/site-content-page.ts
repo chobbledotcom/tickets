@@ -6,7 +6,6 @@
  * drifting.
  */
 
-/* jscpd:ignore-start */
 import {
   defineEntityPage,
   deleteActionTab,
@@ -20,8 +19,6 @@ import { contentGuideFooter } from "#templates/admin/site-content.tsx";
 import type { ImageUseItemType } from "#types";
 import { writeFormTab } from "./entity-write-tab.ts";
 import { loadItemImagesPanel } from "./item-images.ts";
-
-/* jscpd:ignore-end */
 
 /** The Edit (and Items) tabs mutate the entity, so they hide in read-only
  * mode. Their POSTs bounce to /read-only there, so a bare-URL default must

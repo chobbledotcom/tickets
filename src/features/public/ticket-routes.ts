@@ -4,12 +4,10 @@
 
 import { hmacHash } from "#crypto/hashing.ts";
 import { getGroupBySlugIndex } from "#db/groups.ts";
-/* jscpd:ignore-start -- imports */
 import { getListingWithCountBySlug } from "#db/listings/records.ts";
 import { notFoundResponse, publicPageResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { verifyTokensWithRealLine } from "#routes/tickets/token-utils.ts";
-/* jscpd:ignore-end */
 import { getEffectiveDomain } from "#shared/config.ts";
 import { getEmailConfig, hostEmail } from "#shared/email.ts";
 import { generateQrSvg } from "#shared/qr.ts";

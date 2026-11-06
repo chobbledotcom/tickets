@@ -22,6 +22,7 @@ import {
   PAYMENT_PROVIDER_IDS,
   providerCheckoutFormOrigins,
 } from "#shared/payment-providers.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { disablePublicSite, enablePublicSite } from "#test-utils/settings.ts";
 
@@ -107,15 +108,19 @@ describe("buildCspHeader", () => {
 
   test("uses Square production domains", () => {
     const csp = buildCspHeader(true, { provider: "square", sandbox: false });
-    assertStringIncludes(csp, "https://connect.squareup.com");
-    assertStringIncludes(csp, "https://api.squareup.com");
+    expectIncludesAll(csp, [
+      "https://connect.squareup.com",
+      "https://api.squareup.com",
+    ]);
     assert(!csp.includes("squareupsandbox.com"));
   });
 
   test("uses Square sandbox domains", () => {
     const csp = buildCspHeader(true, { provider: "square", sandbox: true });
-    assertStringIncludes(csp, "https://connect.squareupsandbox.com");
-    assertStringIncludes(csp, "https://api.squareupsandbox.com");
+    expectIncludesAll(csp, [
+      "https://connect.squareupsandbox.com",
+      "https://api.squareupsandbox.com",
+    ]);
     assert(!csp.includes("https://connect.squareup.com"));
   });
 

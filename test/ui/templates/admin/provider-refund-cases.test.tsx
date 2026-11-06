@@ -5,7 +5,7 @@ import type {
   ProviderRefundCasePage,
 } from "#db/provider-refund-cases.ts";
 import { ensureMessageGroups } from "#i18n";
-import { MESSAGE_GROUPS } from "#locales/manifest.ts";
+import { MESSAGE_GROUPS } from "#locales/message-groups.generated.ts";
 import { money } from "#payment/money.ts";
 import {
   adminProviderRefundCasePage,
@@ -15,6 +15,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 
 const captured = money(2_500, "GBP")!;
@@ -68,36 +69,28 @@ describe("provider refund recovery templates", () => {
   test("renders a bounded blind queue with a detail link and opaque cursor", () => {
     const html = String(<ProviderRefundCaseQueue page={queue} />);
 
-    assertStringIncludes(html, "Refunds needing attention");
-    assertStringIncludes(html, '<section id="refund-recovery">');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "Refunds needing attention",
+      '<section id="refund-recovery">',
       '<div class="prose"><h2>Refunds needing attention</h2>',
-    );
-    assertStringIncludes(html, "SumUp");
-    assertStringIncludes(html, "£25");
-    assertStringIncludes(html, 'href="/admin/privacy/refunds/17"');
-    assertStringIncludes(
-      html,
+      "SumUp",
+      "£25",
+      'href="/admin/privacy/refunds/17"',
       'href="/admin/privacy?refund_after=opaque-next-page"',
-    );
+    ]);
     assert(!html.includes("charge-17"));
   });
 
   test("requires an explicit owner choice and posts the seen revision", () => {
     const html = adminProviderRefundCasePage(OWNER_SESSION, detail, {});
 
-    assertStringIncludes(html, "charge-17");
-    assertStringIncludes(html, 'action="/admin/privacy/refunds/17"');
-    assertStringIncludes(html, 'name="revision" type="hidden" value="4"');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "charge-17",
+      'action="/admin/privacy/refunds/17"',
+      'name="revision" type="hidden" value="4"',
       'name="choice" required type="radio" value="provider_confirmed_returned"',
-    );
-    assertStringIncludes(
-      html,
       'name="choice" required type="radio" value="provider_confirmed_not_sent"',
-    );
+    ]);
     assert(!html.includes("checked"));
   });
 
@@ -213,12 +206,11 @@ describe("provider refund recovery templates", () => {
       {},
     );
 
-    assertStringIncludes(html, 'id="refund-check-conflict"');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'id="refund-check-conflict"',
       'name="choice" type="hidden" value="check_again"',
-    );
-    assertStringIncludes(html, "Check the provider again");
+      "Check the provider again",
+    ]);
     assert(!html.includes('type="radio"'));
   });
 
@@ -247,13 +239,12 @@ describe("provider refund recovery templates", () => {
         {},
       );
 
-      assertStringIncludes(html, 'action="/admin/privacy/refunds/17"');
-      assertStringIncludes(html, 'name="revision" type="hidden" value="4"');
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        'action="/admin/privacy/refunds/17"',
+        'name="revision" type="hidden" value="4"',
         'name="choice" type="hidden" value="check_again"',
-      );
-      assertStringIncludes(html, "Check the provider again");
+        "Check the provider again",
+      ]);
       assert(!html.includes("Send this refund"));
       assert(!html.includes('type="radio"'));
     }
@@ -266,13 +257,12 @@ describe("provider refund recovery templates", () => {
       {},
     );
 
-    assertStringIncludes(html, 'id="refund-send-ready"');
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      'id="refund-send-ready"',
       'name="choice" type="hidden" value="check_again"',
-    );
-    assertStringIncludes(html, '<button class="danger" type="submit">');
-    assertStringIncludes(html, "Send this refund");
+      '<button class="danger" type="submit">',
+      "Send this refund",
+    ]);
     assert(!html.includes("Check the provider again"));
   });
 
@@ -304,11 +294,10 @@ describe("provider refund recovery templates", () => {
       {},
     );
 
-    assertStringIncludes(html, "matching entry in Money is still due");
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
+      "matching entry in Money is still due",
       'name="choice" required type="radio" value="money_recorded"',
-    );
+    ]);
     assert(!html.includes("provider_confirmed_returned"));
     assert(!html.includes("check_again"));
     assert(!html.includes("Why this needs attention"));

@@ -1,4 +1,3 @@
-// jscpd:ignore-start -- imports
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
@@ -44,8 +43,6 @@ import {
   withRefundMock,
 } from "#test-utils/refund-routes.ts";
 import { testCookie } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
 
 const EXPECTED_REFUND_ALL_PAGE_SIZE = 1;
 const REVIEWED_SET_SIZE = 3;

@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -27,8 +26,6 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
-
-/* jscpd:ignore-end */
 
 const makePage = (name: string, slug: string) =>
   createTestSitePage(slug, { name });

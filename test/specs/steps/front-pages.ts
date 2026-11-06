@@ -1,5 +1,3 @@
-// jscpd:ignore-start
-
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -12,8 +10,6 @@ import {
 } from "#test/specs/support/front-pages.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
-
-// jscpd:ignore-end
 
 When(
   "the owner writes a homepage called {string} saying {string}",

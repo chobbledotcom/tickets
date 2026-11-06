@@ -2,7 +2,6 @@
  *  data set per failure mode. Each corruption throws when its victim fact is
  *  missing, and the facts are injectable so the tests can reach the throws. */
 
-/* jscpd:ignore-start -- imports */
 import {
   type CompositionFacts,
   checkoutCompositionData,
@@ -12,8 +11,6 @@ import {
   corruptOneFact,
   type ModelDataSource,
 } from "#scripts/verify-models/data.ts";
-
-/* jscpd:ignore-end */
 
 /** The two-discount order whose second pass the compounding corruption
  *  rewrites to read the reduced subtotal. */

@@ -4,13 +4,10 @@
  * row comes back with is its own and nobody else's.
  */
 
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { rowsOnList } from "#test/specs/support/form-controls/reading.ts";
-
-// jscpd:ignore-end
 
 describe("reading a list into its rows", () => {
   const LIST = "/admin/settings/statuses";

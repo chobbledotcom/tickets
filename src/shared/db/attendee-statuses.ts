@@ -8,7 +8,6 @@
  * encrypted at rest.
  */
 
-/* jscpd:ignore-start -- imports */
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { logActivity } from "#db/activity-log.ts";
@@ -28,7 +27,6 @@ import { requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import { requireValue } from "#shared/required-value.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
-/* jscpd:ignore-end */
 
 /** Name of the status seeded on first run so there is always at least one. */
 export const DEFAULT_ATTENDEE_STATUS_NAME = "Confirmed";

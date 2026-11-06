@@ -1,4 +1,3 @@
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { type ClaimRequest, decideClaim } from "#payment/claim.ts";
@@ -15,8 +14,6 @@ import {
 } from "#payment/row-transitions.ts";
 import { members, records } from "#test-utils/tla-data.ts";
 import { registeredModel } from "./registered-model.ts";
-
-/* jscpd:ignore-end */
 
 const { data: twoWorkersModelData, controls } = registeredModel("TwoWorkers");
 

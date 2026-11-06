@@ -1,14 +1,11 @@
 import { countRows } from "#db/client.ts";
 import { nowMs } from "#shared/now.ts";
 import { getExistingColumns, runMigration } from "./schema-sync.ts";
-/* jscpd:ignore-start */
 import type {
   Migration,
   MigrationContext,
   SchemaRequirement,
 } from "./types.ts";
-
-/* jscpd:ignore-end */
 
 const requires: SchemaRequirement = {
   absentTables: ["email_preferences"],

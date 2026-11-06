@@ -6,7 +6,6 @@
  * quantity-0 placeholder instead of dropping a paid customer.
  */
 
-/* jscpd:ignore-start */
 import { lineGroupId } from "#booking/signed-metadata.ts";
 import type {
   AttendeeInput,
@@ -31,17 +30,14 @@ import {
   paidBookingTail,
 } from "#routes/api/payment-processing/tail.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
-/* jscpd:ignore-end */
 import { refusedOrderItem } from "#shared/attendee-failures.ts";
 import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
-/* jscpd:ignore-start */
 import {
   bookingsForOrder,
   checkoutBookingLines,
 } from "#shared/booking-lines.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
-/* jscpd:ignore-end */
 import type { FreeTextAnswers } from "#shared/email/answers.ts";
 import type {
   CheckoutIntent,

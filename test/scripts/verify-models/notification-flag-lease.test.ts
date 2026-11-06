@@ -2,7 +2,6 @@
  *  supply every fact, and the negative controls keep the safety verdicts
  *  honest. */
 
-/* jscpd:ignore-start -- imports */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -20,8 +19,6 @@ import {
 } from "#scripts/verify-models/notification-flag-lease.ts";
 import { records } from "#test-utils/tla-data.ts";
 import { registeredModel } from "./registered-model.ts";
-
-/* jscpd:ignore-end */
 
 const { data: notificationFlagLeaseModelData, controls } = registeredModel(
   "NotificationFlagLease",

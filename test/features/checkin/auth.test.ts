@@ -6,6 +6,7 @@ import { settings } from "#db/settings.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
@@ -91,8 +92,7 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       );
       expect(mixed.status).toBe(200);
       const mixedBody = await mixed.text();
-      assertStringIncludes(mixedBody, "Assigned Person");
-      assertStringIncludes(mixedBody, "assigned@example.com");
+      expectIncludesAll(mixedBody, ["Assigned Person", "assigned@example.com"]);
       assert(!mixedBody.includes("Other Person"));
       assert(!mixedBody.includes("other@example.com"));
       assert(!mixedBody.includes(`href="/admin/attendees/${own.attendee.id}"`));
@@ -207,10 +207,12 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       const body = await readTicketPage(token, cookie);
 
       // The agent owns only Row A, so only its quantity appears.
-      assertStringIncludes(body, "Multi Row Person");
-      assertStringIncludes(body, "multirow@example.com");
-      // Row A's quantity (2) is visible; Row B's quantity (3) never is.
-      assertStringIncludes(body, ">2<");
+      expectIncludesAll(body, [
+        "Multi Row Person",
+        "multirow@example.com",
+        // Row A's quantity (2) is visible; Row B's quantity (3) never is.
+        ">2<",
+      ]);
       assert(!body.includes(">3<"));
       // Row A's date label is visible; Row B's later date must not leak.
       assertStringIncludes(body, formatDateLabel(today));
@@ -275,8 +277,7 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
 
       const body = await readTicketPage(token, cookie);
 
-      assertStringIncludes(body, "Door Guest");
-      assertStringIncludes(body, "Check In All");
+      expectIncludesAll(body, ["Door Guest", "Check In All"]);
       // The admin pages behind these links stay shut for a scanner login, so
       // the page must not promise them (never render a forbidden link).
       assert(!body.includes('href="/admin/attendees/'));

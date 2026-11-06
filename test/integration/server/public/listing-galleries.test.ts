@@ -8,8 +8,6 @@
  * could state in a visitor's words.
  */
 
-// jscpd:ignore-start
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { appendImageToItem, imagesTable } from "#db/images.ts";
@@ -18,13 +16,12 @@ import { nonEmptyString } from "#shared/validation/string.ts";
 import {
   assertPublicHtml,
   expectHtmlResponse,
+  expectIncludesAll,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
-
-// jscpd:ignore-end
 
 /** Two pictures on one thing: the first with words describing it, the second
  * without, so a missing description cannot take the gallery down with it. */
@@ -61,15 +58,14 @@ describeWithEnv(
       );
       expect(response.headers.get("x-robots-tag")).toBe("index, follow");
       const html = await expectHtmlResponse(response, 200);
-      assertStringIncludes(html, 'class="news-gallery"');
-      assertStringIncludes(html, "gallery-one.webp");
-      assertStringIncludes(html, 'alt="First alt"');
-      // Each thumbnail is a label for the radio input that shows its picture,
-      // so the gallery works with no script at all.
-      assertStringIncludes(
-        html,
+      expectIncludesAll(html, [
+        'class="news-gallery"',
+        "gallery-one.webp",
+        'alt="First alt"',
+        // Each thumbnail is a label for the radio input that shows its picture,
+        // so the gallery works with no script at all.
         '<label class="news-gallery-thumb" for="news-gallery-1">',
-      );
+      ]);
     });
 
     test("a group's own page carries the group's pictures", async () => {
@@ -82,8 +78,7 @@ describeWithEnv(
       await twoPictures("group", group.id);
 
       const html = await assertPublicHtml(`/ticket/${group.slug}`);
-      assertStringIncludes(html, 'class="news-gallery"');
-      assertStringIncludes(html, "gallery-one.webp");
+      expectIncludesAll(html, ['class="news-gallery"', "gallery-one.webp"]);
     });
   },
 );

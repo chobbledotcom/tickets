@@ -5,10 +5,11 @@
  * never sees one of the section's controls.
  */
 
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createGroupWithListings } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -56,13 +57,12 @@ describeWithEnv("the Public URL rows", { db: true }, () => {
         const response = await get(path, session);
         expect(response.status).toBe(200);
         const html = await response.text();
-        assertStringIncludes(html, "data-share-url");
-        // Embed opens the page's own embed code rows, so it is a label for
-        // the hidden toggle, not a link into the guide.
-        assertStringIncludes(
-          html,
+        expectIncludesAll(html, [
+          "data-share-url",
+          // Embed opens the page's own embed code rows, so it is a label for
+          // the hidden toggle, not a link into the guide.
           '<label class="small-action" for="embed-toggle-',
-        );
+        ]);
         assert(!html.includes('href="/admin/guide#embed_booking_form"'));
       }
     });

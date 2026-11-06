@@ -4,7 +4,6 @@
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { builtSites, builtSitesCrudTable } from "#db/built-sites.ts";
 import { addPageImageUrls } from "#db/image-urls.ts";
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { PageCtx } from "#routes/admin/entity-pages.ts";
 import {
@@ -33,8 +32,6 @@ import { renewalPanelFor } from "#templates/admin/built-sites/renewal-panels.tsx
 import { SupportMessagePanel } from "#templates/admin/built-sites/support-message.tsx";
 import { BuiltSiteEditPanel } from "#templates/admin/built-sites.tsx";
 import { Icon, type IconName } from "#templates/components/actions.tsx";
-
-/* jscpd:ignore-end */
 
 const renewalTab = panelTab<BuiltSite>(
   "renewal",

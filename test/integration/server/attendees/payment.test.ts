@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -8,12 +7,12 @@ import { getNotesFor } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
 import { settings } from "#db/settings.ts";
 import { paymentsApi } from "#shared/payments.ts";
-// jscpd:ignore-end
 import { createRefundableAttendee } from "#test/features/admin/refunds-helpers.ts";
 import {
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
+  expectIncludesAll,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import {
@@ -131,8 +130,7 @@ describeWithEnv(
         const html = await response.text();
         expect(response.status).toBe(200);
         // Both badges render, separated by the space between them.
-        assertStringIncludes(html, "Checked in");
-        assertStringIncludes(html, "Refunded");
+        expectIncludesAll(html, ["Checked in", "Refunded"]);
       });
 
       test("shows success message when flash cookie present", async () => {

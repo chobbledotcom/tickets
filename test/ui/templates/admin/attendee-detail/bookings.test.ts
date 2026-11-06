@@ -4,7 +4,10 @@ import { describe, it as test } from "@std/testing/bdd";
 import type { AttendeeBooking } from "#routes/admin/attendee-form-dates.ts";
 import { formatDateRangeLabel } from "#shared/date-labels.ts";
 import { AttendeeBookingsTable } from "#templates/admin/attendee-detail.tsx";
-import { expectListingRowQuantity } from "#test-utils/assertions.ts";
+import {
+  expectIncludesAll,
+  expectListingRowQuantity,
+} from "#test-utils/assertions.ts";
 
 const booking = (
   overrides: Partial<AttendeeBooking> = {},
@@ -40,18 +43,22 @@ describe("AttendeeBookingsTable", () => {
       booking({ listingId: 7, listingName: "Kayak", quantity: 2 }),
       booking({ listingId: 8, listingName: "Canoe", quantity: 3 }),
     ]);
-    assertStringIncludes(html, "Bookings");
-    assertStringIncludes(html, 'href="/admin/listing/7"');
-    assertStringIncludes(html, "Kayak");
-    assertStringIncludes(html, 'href="/admin/listing/8"');
-    assertStringIncludes(html, "Canoe");
+    expectIncludesAll(html, [
+      "Bookings",
+      'href="/admin/listing/7"',
+      "Kayak",
+      'href="/admin/listing/8"',
+      "Canoe",
+    ]);
     // Each listing's row shows its own quantity (Kayak→2, Canoe→3), so a
     // swapped grouping fails here, not just a wrong sum...
     expectListingRowQuantity(html, 7, 2);
     expectListingRowQuantity(html, 8, 3);
     // ...and the footer totals them (2 + 3); only the total cell holds 5.
-    assertStringIncludes(html, '<th colspan="2" scope="row">Total</th>');
-    assertStringIncludes(html, '<td class="col-quantity">5</td>');
+    expectIncludesAll(html, [
+      '<th colspan="2" scope="row">Total</th>',
+      '<td class="col-quantity">5</td>',
+    ]);
   });
 
   test("formats the date range for a dated (daily) booking", () => {
@@ -71,8 +78,7 @@ describe("AttendeeBookingsTable", () => {
     // A standard (fixed-date) booking carries no start date; the status badge
     // proves the only em dash present is the date fallback.
     const html = renderBookings([booking({ checkedIn: 1, startAt: null })]);
-    assertStringIncludes(html, "Checked in");
-    assertStringIncludes(html, "—");
+    expectIncludesAll(html, ["Checked in", "—"]);
   });
 
   test("marks an inactive listing", () => {
@@ -159,15 +165,11 @@ describe("AttendeeBookingsTable", () => {
       booking({ listingId: 8, listingName: "Paddle", parentListingId: 1 }),
       booking({ listingId: 9, listingName: "Helmet", parentListingId: 1 }),
     ]);
-    assertStringIncludes(
-      html,
+    expectIncludesAll(html, [
       '<div class="muted small">Includes add-on: Paddle, Helmet</div>',
-    );
-    // The children still show their own "chosen under" annotation.
-    assertStringIncludes(
-      html,
+      // The children still show their own "chosen under" annotation.
       '<div class="muted small">Add-on chosen under Base unit</div>',
-    );
+    ]);
   });
 
   test("falls back to the parent id when its row is absent from the order", () => {

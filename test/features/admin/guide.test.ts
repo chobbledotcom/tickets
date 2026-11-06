@@ -2,6 +2,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { hostEmail } from "#shared/email.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { validEmail } from "#test-utils/email.ts";
 import { adminGet } from "#test-utils/session.ts";
@@ -41,8 +42,7 @@ describeWithEnv("admin guide routes", { db: true }, () => {
       provider: "resend",
     });
     const html = await guideHtml();
-    assertStringIncludes(html, "host@example.com");
-    assertStringIncludes(html, "Resend");
+    expectIncludesAll(html, ["host@example.com", "Resend"]);
   });
 
   test("turns an unauthenticated visitor away", async () => {

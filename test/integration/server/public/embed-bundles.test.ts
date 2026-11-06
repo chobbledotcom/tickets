@@ -1,4 +1,3 @@
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -7,8 +6,6 @@ import {
   expectLongCacheHeaders,
   expectStaticFile,
 } from "#test-utils/public/static-route-checks.ts";
-
-// jscpd:ignore-end
 
 describeWithEnv(
   "server public > embed bundles",
