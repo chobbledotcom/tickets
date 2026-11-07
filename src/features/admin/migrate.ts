@@ -17,7 +17,7 @@ import {
 import { t } from "#i18n";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
-import { authResponsePageAt } from "#routes/route-gates.ts";
+import { authResponsePageRoute } from "#routes/route-gates.ts";
 import { formHandlerAt } from "#shared/app-forms.ts";
 import { encodedAfter } from "#shared/encoded-after.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -59,7 +59,7 @@ const rowsNeedingProvider = (
   page: readonly LegacyPaymentReferencePreview[],
 ): LegacyPaymentReferencePreview[] => page.filter((row) => !row.alreadyTagged);
 
-const handleRebuildGet = authResponsePageAt(REBUILD_PATH)(
+const rebuildGetRoute = authResponsePageRoute(REBUILD_PATH)(
   async (session, _request, flash) => {
     const [remaining, page] = await Promise.all([
       countLegacyPaymentReferences(),
@@ -118,6 +118,6 @@ const handleRebuildPost = formHandlerAt(REBUILD_PATH)(async ({ form }) => {
 });
 
 export const adminHandlers = defineAdminRoutes({
-  "GET /admin/migrate/rebuild-payment-references": handleRebuildGet,
+  ...rebuildGetRoute,
   "POST /admin/migrate/rebuild-payment-references": handleRebuildPost,
 });

@@ -33,7 +33,7 @@ import {
   handleTemplateSavePost,
   templateDelete,
 } from "#routes/admin/bulk-email-templates.ts";
-import { formPolicyFor, gatedPost } from "#routes/auth.ts";
+import { gatedPost } from "#routes/auth.ts";
 import { idRouteFor } from "#routes/entity.ts";
 import {
   errorRedirect,
@@ -41,8 +41,8 @@ import {
   notFoundResponse,
   redirectResponse,
 } from "#routes/response.ts";
-import { authResponsePageAt } from "#routes/route-gates.ts";
-import { adminDestinationAt } from "#shared/admin-surface.ts";
+import { authResponsePageRoute, formPolicyAt } from "#routes/route-gates.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 import {
   absoluteEmailImageUrls,
   buildBulkPayload,
@@ -204,7 +204,7 @@ const decryptTemplateSubjects = async (
 
 /** The flash itself is rendered by the targeted form or the Layout backstop,
  * not threaded here. */
-const handleComposeGet = authResponsePageAt("/admin/emails")(
+const composeGetRoute = authResponsePageRoute(COMPOSE_PATH)(
   async (session, request) => {
     const params = new URL(request.url).searchParams;
     const target = await targetFromQuery(params);
@@ -268,121 +268,123 @@ const handlePreviewPost = validatedEmailPost(
 );
 
 /** GET /admin/emails/preview — render the saved draft for confirmation. */
-const handlePreviewGet = authResponsePageAt("/admin/emails/preview")(
-  async (session) => {
-    const privateKey = await requireRequestPrivateKey();
-    const draft = await parseSavedDraft(privateKey);
-    if (!draft) return redirectResponse(COMPOSE_PATH);
-    const { recipients, canBulkSend, disabledReason, config } =
-      await loadSendContext(draft.target);
-    const { sendable, skipped } = await partitionRecipients(
-      recipients,
-      draft.marketing,
-    );
-    const { targetLabel, audienceDescription } = await describeTarget(
+const previewGetRoute = authResponsePageRoute(PREVIEW_PATH)(async (session) => {
+  const privateKey = await requireRequestPrivateKey();
+  const draft = await parseSavedDraft(privateKey);
+  if (!draft) return redirectResponse(COMPOSE_PATH);
+  const { recipients, canBulkSend, disabledReason, config } =
+    await loadSendContext(draft.target);
+  const { sendable, skipped } = await partitionRecipients(
+    recipients,
+    draft.marketing,
+  );
+  const { targetLabel, audienceDescription } = await describeTarget(
+    draft.target,
+    recipients,
+  );
+  const counts = await getContactCounts(await hashAll(sendable), privateKey);
+  // The draft body can carry the editor's img#N references. The page slot
+  // renders them for the preview. The mailto draft rewrites them with the
+  // absolute table, because the owner's email app reads it away from the site.
+  const imageUrls = await imageUrlsFor([draft.body]);
+  mergePageImageUrls(imageUrls);
+  const draftText = resolveImageReferences(
+    draft.body,
+    absoluteEmailImageUrls(imageUrls),
+  );
+  return htmlResponse(
+    bulkEmailPreviewPage(session, {
+      audienceDescription,
+      canBulkSend,
+      contactSummary: contactFrequencySummary(counts),
+      disabledReason,
+      draft,
+      mailtoLink: buildMailtoLink(
+        sendable,
+        draft.subject,
+        draftText,
+        settings.businessEmail,
+      ),
+      providerLabel:
+        canBulkSend && config ? EMAIL_PROVIDER_LABELS[config.provider] : "",
+      recipientCount: recipients.length,
+      sendableCount: sendable.length,
+      sendableEmails: sendable,
+      skippedCount: skipped,
+      targetLabel,
+    }),
+  );
+});
+
+/** POST /admin/emails/send — send the saved draft via the bulk provider. */
+const handleSendPost = gatedPost(formPolicyAt(adminPattern("emailSend")))(
+  async (_session, _form) => {
+    const draft = await parseSavedDraft(await requireRequestPrivateKey());
+    if (!draft) {
+      return errorRedirect(COMPOSE_PATH, t("bulk_email.no_draft"));
+    }
+    const { privateKey, recipients, config } = await loadSendContext(
       draft.target,
+    );
+    if (!config) {
+      return errorRedirect(PREVIEW_PATH, t("bulk_email.no_provider"));
+    }
+    if (recipients.length === 0) {
+      return errorRedirect(PREVIEW_PATH, t("bulk_email.no_recipients"));
+    }
+    const unsubscribed = draft.marketing
+      ? await getUnsubscribedHashSet()
+      : new Set<string>();
+    // Email clients cannot read root-relative sources, so the sent render's
+    // table maps the referenced ids to absolute URLs. It merges into the page
+    // slot immediately before the render, and nothing else renders markdown in
+    // this request. The text part rewrites its references from the same table,
+    // because a text-only reader cannot render the picture.
+    const emailImageUrls = absoluteEmailImageUrls(
+      await imageUrlsFor([draft.body]),
+    );
+    mergePageImageUrls(emailImageUrls);
+    const payload = await buildBulkPayload({
+      bodyHtml: renderMarkdown(draft.body),
+      bodyText: resolveImageReferences(draft.body, emailImageUrls),
+      marketing: draft.marketing,
       recipients,
+      subject: draft.subject,
+      unsubscribed,
+    });
+    if (payload.recipients.length === 0) {
+      return errorRedirect(PREVIEW_PATH, t("bulk_email.all_unsubscribed"));
+    }
+    const result = await sendBulkEmails(config, payload);
+    // The send is done, so the draft must go now. If a step below fails, the
+    // leftover draft lets a resubmit send the email again.
+    await settings.update.bulkEmailDraft("");
+    // Only the people the provider took were contacted, so only they belong
+    // in the contact history. A later count cannot recover who really got it.
+    await recordContacts(
+      await hashAll(result.taken),
+      draft.subject,
+      privateKey,
     );
-    const counts = await getContactCounts(await hashAll(sendable), privateKey);
-    // The draft body can carry the editor's img#N references. The page slot
-    // renders them for the preview. The mailto draft rewrites them with the
-    // absolute table, because the owner's email app reads it away from the site.
-    const imageUrls = await imageUrlsFor([draft.body]);
-    mergePageImageUrls(imageUrls);
-    const draftText = resolveImageReferences(
-      draft.body,
-      absoluteEmailImageUrls(imageUrls),
+    const providerSummary = summarizeProviderResponse(result.responses);
+    const sent = result.taken.length;
+    await logActivity(
+      `Sent bulk email "${draft.subject}" to ${recipientLabel(sent, result.attempted)}. ${providerSummary}`,
+      targetLogListingId(draft.target),
     );
-    return htmlResponse(
-      bulkEmailPreviewPage(session, {
-        audienceDescription,
-        canBulkSend,
-        contactSummary: contactFrequencySummary(counts),
-        disabledReason,
-        draft,
-        mailtoLink: buildMailtoLink(
-          sendable,
-          draft.subject,
-          draftText,
-          settings.businessEmail,
-        ),
-        providerLabel:
-          canBulkSend && config ? EMAIL_PROVIDER_LABELS[config.provider] : "",
-        recipientCount: recipients.length,
-        sendableCount: sendable.length,
-        sendableEmails: sendable,
-        skippedCount: skipped,
-        targetLabel,
-      }),
+    return sendOutcome(
+      sent,
+      result.failed,
+      result.attempted,
+      config,
+      providerSummary,
     );
   },
 );
 
-/** POST /admin/emails/send — send the saved draft via the bulk provider. */
-const handleSendPost = gatedPost(
-  formPolicyFor(adminDestinationAt("/admin/emails/send")),
-)(async (_session, _form) => {
-  const draft = await parseSavedDraft(await requireRequestPrivateKey());
-  if (!draft) {
-    return errorRedirect(COMPOSE_PATH, t("bulk_email.no_draft"));
-  }
-  const { privateKey, recipients, config } = await loadSendContext(
-    draft.target,
-  );
-  if (!config) {
-    return errorRedirect(PREVIEW_PATH, t("bulk_email.no_provider"));
-  }
-  if (recipients.length === 0) {
-    return errorRedirect(PREVIEW_PATH, t("bulk_email.no_recipients"));
-  }
-  const unsubscribed = draft.marketing
-    ? await getUnsubscribedHashSet()
-    : new Set<string>();
-  // Email clients cannot read root-relative sources, so the sent render's
-  // table maps the referenced ids to absolute URLs. It merges into the page
-  // slot immediately before the render, and nothing else renders markdown in
-  // this request. The text part rewrites its references from the same table,
-  // because a text-only reader cannot render the picture.
-  const emailImageUrls = absoluteEmailImageUrls(
-    await imageUrlsFor([draft.body]),
-  );
-  mergePageImageUrls(emailImageUrls);
-  const payload = await buildBulkPayload({
-    bodyHtml: renderMarkdown(draft.body),
-    bodyText: resolveImageReferences(draft.body, emailImageUrls),
-    marketing: draft.marketing,
-    recipients,
-    subject: draft.subject,
-    unsubscribed,
-  });
-  if (payload.recipients.length === 0) {
-    return errorRedirect(PREVIEW_PATH, t("bulk_email.all_unsubscribed"));
-  }
-  const result = await sendBulkEmails(config, payload);
-  // The send is done, so the draft must go now. If a step below fails, the
-  // leftover draft lets a resubmit send the email again.
-  await settings.update.bulkEmailDraft("");
-  // Only the people the provider took were contacted, so only they belong
-  // in the contact history. A later count cannot recover who really got it.
-  await recordContacts(await hashAll(result.taken), draft.subject, privateKey);
-  const providerSummary = summarizeProviderResponse(result.responses);
-  const sent = result.taken.length;
-  await logActivity(
-    `Sent bulk email "${draft.subject}" to ${recipientLabel(sent, result.attempted)}. ${providerSummary}`,
-    targetLogListingId(draft.target),
-  );
-  return sendOutcome(
-    sent,
-    result.failed,
-    result.attempted,
-    config,
-    providerSummary,
-  );
-});
-
 export const adminHandlers = defineAdminRoutes({
-  "GET /admin/emails": handleComposeGet,
-  "GET /admin/emails/preview": handlePreviewGet,
+  ...composeGetRoute,
+  ...previewGetRoute,
   "GET /admin/emails/templates/:id/delete": idRouteFor(templateDelete.get),
   "POST /admin/emails/preview": handlePreviewPost,
   "POST /admin/emails/send": handleSendPost,
