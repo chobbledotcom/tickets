@@ -229,8 +229,8 @@ src/features/router.ts::routeSpecificity.paramCount~1806jrr  ?? → || audited:0
 src/features/router.ts::compileRoutes.methodRoutes~02urywu  ?? → || audited:0x4xesr # Map.get returns an array or undefined, and an array is always truthy
 src/features/router.ts::routeSpecificity.literalLength~0au8fma   → "mutated" audited:0x4xesr # literal length is only ever compared between two routes with the SAME parameter count, so replacing each parameter with a fixed word adds the same amount to both sides and the comparison is unchanged
 src/features/admin/bulk-email.ts::getBulkAvailability.disabledReason~0ah9p7f   → "mutated" audited:0zb1kuu # this reason belongs to the configured case, and both pages render disabledReason only when canBulkSend is false
-src/features/admin/bulk-email.ts::handlePreviewGet.providerLabel~0tea227   → "mutated" audited:0zb1kuu # this label belongs to the unavailable case, and the preview page renders providerLabel only inside its canBulkSend branch
-src/features/admin/bulk-email.ts::handleComposeGet.draft.marketing~0aepv7o  ?? → || audited:0zb1kuu # marketing is a boolean, whose only falsy value is the false the fallback supplies, so no draft distinguishes the two operators
+src/features/admin/bulk-email.ts::previewGetRoute.providerLabel~0tea227    → "mutated" audited:0zb1kuu # this label belongs to the unavailable case, and the preview page renders providerLabel only inside its canBulkSend branch
+src/features/admin/bulk-email.ts::composeGetRoute.draft.marketing~0aepv7o  ?? → || audited:0zb1kuu # marketing is a boolean, whose only falsy value is the false the fallback supplies, so no draft distinguishes the two operators
 
 # Form-quantity fallbacks: the parser answers a whole number or null, and the
 # fallback for null is the same 0 that the literal "0" parses to, so no posted
