@@ -13,6 +13,7 @@ import {
   type AuthPolicy,
   type AuthSession,
   authPage,
+  authResponsePage,
   formGuard,
   formPolicyFor,
   type Guard,
@@ -45,3 +46,8 @@ export const pageGuardRun = (
 /** A GET page at a declared route pattern, guarded by the roles that route
  * declares. */
 export const authPageAt = (pattern: string) => authPage(pageGuardAt(pattern));
+
+/** A GET page at a declared route pattern whose builder returns the full
+ * Response. The page can then 404 or redirect instead of rendering one. */
+export const authResponsePageAt = (pattern: string) =>
+  authResponsePage(pageGuardAt(pattern));

@@ -10,18 +10,14 @@ import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 
 import { addPageImageUrls } from "#db/image-urls.ts";
 import { t } from "#i18n";
-import {
-  authResponsePage,
-  formPolicyFor,
-  formPost,
-  pageGuardFor,
-} from "#routes/auth.ts";
+import { formPolicyFor, formPost } from "#routes/auth.ts";
 import { requireMessageField } from "#routes/csrf.ts";
 import {
   adminRedirect,
   htmlResponse,
   notFoundResponse,
 } from "#routes/response.ts";
+import { authResponsePageAt } from "#routes/route-gates.ts";
 import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { MESSAGE_SEND_FAILED } from "#shared/inbound-message.ts";
@@ -38,23 +34,23 @@ import { adminSupportPage } from "#templates/admin/support.tsx";
 const SUPPORT_PATH = adminPattern("support");
 
 /** GET /admin/support — render the support page (404 when the feature is off). */
-const handleSupportGet = authResponsePage(
-  pageGuardFor(adminDestinationAt("/admin/support")),
-)(async (session, _request, flash) => {
-  if (!isSupportEnabled()) return notFoundResponse();
-  const supportText = getSupportPageText();
-  await addPageImageUrls([supportText]);
-  return htmlResponse(
-    adminSupportPage({
-      error: flash.error,
-      formActive: isSupportFormActive(),
-      nagLabel: supportNagLabel(),
-      session,
-      success: flash.success,
-      supportText,
-    }),
-  );
-});
+const handleSupportGet = authResponsePageAt(SUPPORT_PATH)(
+  async (session, _request, flash) => {
+    if (!isSupportEnabled()) return notFoundResponse();
+    const supportText = getSupportPageText();
+    await addPageImageUrls([supportText]);
+    return htmlResponse(
+      adminSupportPage({
+        error: flash.error,
+        formActive: isSupportFormActive(),
+        nagLabel: supportNagLabel(),
+        session,
+        success: flash.success,
+        supportText,
+      }),
+    );
+  },
+);
 
 /** Validate the message, deliver to the host (from the site's business email),
  * then record the submission for the nag. The endpoint 404s when the form is

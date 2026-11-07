@@ -33,12 +33,7 @@ import {
   handleTemplateSavePost,
   templateDelete,
 } from "#routes/admin/bulk-email-templates.ts";
-import {
-  authResponsePage,
-  formPolicyFor,
-  gatedPost,
-  pageGuardFor,
-} from "#routes/auth.ts";
+import { formPolicyFor, gatedPost } from "#routes/auth.ts";
 import { idRouteFor } from "#routes/entity.ts";
 import {
   errorRedirect,
@@ -46,6 +41,7 @@ import {
   notFoundResponse,
   redirectResponse,
 } from "#routes/response.ts";
+import { authResponsePageAt } from "#routes/route-gates.ts";
 import { adminDestinationAt } from "#shared/admin-surface.ts";
 import {
   absoluteEmailImageUrls,
@@ -208,59 +204,59 @@ const decryptTemplateSubjects = async (
 
 /** The flash itself is rendered by the targeted form or the Layout backstop,
  * not threaded here. */
-const handleComposeGet = authResponsePage(
-  pageGuardFor(adminDestinationAt("/admin/emails")),
-)(async (session, request) => {
-  const params = new URL(request.url).searchParams;
-  const target = await targetFromQuery(params);
-  if (!target) return notFoundResponse();
-  const { recipients, privateKey, canBulkSend, disabledReason } =
-    await loadSendContext(target);
-  // A listing or attendee target with no emailable recipient has nothing to
-  // send to. An unknown attendee token, or nobody with an email on file, is
-  // the usual cause. Treat it as not found rather than rendering an empty
-  // compose page. Named audiences are allowed to be empty, because they can
-  // fill up later.
-  if (!targetAllowsEmpty(target) && recipients.length === 0) {
-    return notFoundResponse();
-  }
-  const { targetLabel } = await describeTarget(target, recipients);
-  const templates = await decryptTemplateSubjects(privateKey);
-
-  const templateParam = params.get("template");
-  const selectedTemplateId = templateParam
-    ? parsePositiveIntId(templateParam)
-    : null;
-  let draft = await parseSavedDraft(privateKey);
-
-  if (selectedTemplateId !== null) {
-    const raw = await getRawEmailTemplate(selectedTemplateId);
-    if (raw) {
-      draft = {
-        body: await decryptWithOwnerKey(raw.body, privateKey),
-        marketing: draft?.marketing ?? false,
-        subject: await decryptWithOwnerKey(raw.subject, privateKey),
-        target,
-      };
+const handleComposeGet = authResponsePageAt("/admin/emails")(
+  async (session, request) => {
+    const params = new URL(request.url).searchParams;
+    const target = await targetFromQuery(params);
+    if (!target) return notFoundResponse();
+    const { recipients, privateKey, canBulkSend, disabledReason } =
+      await loadSendContext(target);
+    // A listing or attendee target with no emailable recipient has nothing to
+    // send to. An unknown attendee token, or nobody with an email on file, is
+    // the usual cause. Treat it as not found rather than rendering an empty
+    // compose page. Named audiences are allowed to be empty, because they can
+    // fill up later.
+    if (!targetAllowsEmpty(target) && recipients.length === 0) {
+      return notFoundResponse();
     }
-  }
+    const { targetLabel } = await describeTarget(target, recipients);
+    const templates = await decryptTemplateSubjects(privateKey);
 
-  return htmlResponse(
-    bulkEmailComposePage(session, {
-      canBulkSend,
-      control: targetComposeControl(target),
-      copy: targetComposeCopy(target),
-      disabledReason,
-      draft,
-      recipientCount: recipients.length,
-      selectedTemplateId,
-      single: targetIsSingleRecipient(target),
-      targetLabel,
-      templateLinkBase: `${COMPOSE_PATH}${targetQuery(target)}`,
-      templates,
-    }),
-  );
-});
+    const templateParam = params.get("template");
+    const selectedTemplateId = templateParam
+      ? parsePositiveIntId(templateParam)
+      : null;
+    let draft = await parseSavedDraft(privateKey);
+
+    if (selectedTemplateId !== null) {
+      const raw = await getRawEmailTemplate(selectedTemplateId);
+      if (raw) {
+        draft = {
+          body: await decryptWithOwnerKey(raw.body, privateKey),
+          marketing: draft?.marketing ?? false,
+          subject: await decryptWithOwnerKey(raw.subject, privateKey),
+          target,
+        };
+      }
+    }
+
+    return htmlResponse(
+      bulkEmailComposePage(session, {
+        canBulkSend,
+        control: targetComposeControl(target),
+        copy: targetComposeCopy(target),
+        disabledReason,
+        draft,
+        recipientCount: recipients.length,
+        selectedTemplateId,
+        single: targetIsSingleRecipient(target),
+        targetLabel,
+        templateLinkBase: `${COMPOSE_PATH}${targetQuery(target)}`,
+        templates,
+      }),
+    );
+  },
+);
 
 /** POST /admin/emails/preview — validate, persist the draft, redirect to preview. */
 const handlePreviewPost = validatedEmailPost(
@@ -272,55 +268,55 @@ const handlePreviewPost = validatedEmailPost(
 );
 
 /** GET /admin/emails/preview — render the saved draft for confirmation. */
-const handlePreviewGet = authResponsePage(
-  pageGuardFor(adminDestinationAt("/admin/emails/preview")),
-)(async (session) => {
-  const privateKey = await requireRequestPrivateKey();
-  const draft = await parseSavedDraft(privateKey);
-  if (!draft) return redirectResponse(COMPOSE_PATH);
-  const { recipients, canBulkSend, disabledReason, config } =
-    await loadSendContext(draft.target);
-  const { sendable, skipped } = await partitionRecipients(
-    recipients,
-    draft.marketing,
-  );
-  const { targetLabel, audienceDescription } = await describeTarget(
-    draft.target,
-    recipients,
-  );
-  const counts = await getContactCounts(await hashAll(sendable), privateKey);
-  // The draft body can carry the editor's img#N references. The page slot
-  // renders them for the preview. The mailto draft rewrites them with the
-  // absolute table, because the owner's email app reads it away from the site.
-  const imageUrls = await imageUrlsFor([draft.body]);
-  mergePageImageUrls(imageUrls);
-  const draftText = resolveImageReferences(
-    draft.body,
-    absoluteEmailImageUrls(imageUrls),
-  );
-  return htmlResponse(
-    bulkEmailPreviewPage(session, {
-      audienceDescription,
-      canBulkSend,
-      contactSummary: contactFrequencySummary(counts),
-      disabledReason,
-      draft,
-      mailtoLink: buildMailtoLink(
-        sendable,
-        draft.subject,
-        draftText,
-        settings.businessEmail,
-      ),
-      providerLabel:
-        canBulkSend && config ? EMAIL_PROVIDER_LABELS[config.provider] : "",
-      recipientCount: recipients.length,
-      sendableCount: sendable.length,
-      sendableEmails: sendable,
-      skippedCount: skipped,
-      targetLabel,
-    }),
-  );
-});
+const handlePreviewGet = authResponsePageAt("/admin/emails/preview")(
+  async (session) => {
+    const privateKey = await requireRequestPrivateKey();
+    const draft = await parseSavedDraft(privateKey);
+    if (!draft) return redirectResponse(COMPOSE_PATH);
+    const { recipients, canBulkSend, disabledReason, config } =
+      await loadSendContext(draft.target);
+    const { sendable, skipped } = await partitionRecipients(
+      recipients,
+      draft.marketing,
+    );
+    const { targetLabel, audienceDescription } = await describeTarget(
+      draft.target,
+      recipients,
+    );
+    const counts = await getContactCounts(await hashAll(sendable), privateKey);
+    // The draft body can carry the editor's img#N references. The page slot
+    // renders them for the preview. The mailto draft rewrites them with the
+    // absolute table, because the owner's email app reads it away from the site.
+    const imageUrls = await imageUrlsFor([draft.body]);
+    mergePageImageUrls(imageUrls);
+    const draftText = resolveImageReferences(
+      draft.body,
+      absoluteEmailImageUrls(imageUrls),
+    );
+    return htmlResponse(
+      bulkEmailPreviewPage(session, {
+        audienceDescription,
+        canBulkSend,
+        contactSummary: contactFrequencySummary(counts),
+        disabledReason,
+        draft,
+        mailtoLink: buildMailtoLink(
+          sendable,
+          draft.subject,
+          draftText,
+          settings.businessEmail,
+        ),
+        providerLabel:
+          canBulkSend && config ? EMAIL_PROVIDER_LABELS[config.provider] : "",
+        recipientCount: recipients.length,
+        sendableCount: sendable.length,
+        sendableEmails: sendable,
+        skippedCount: skipped,
+        targetLabel,
+      }),
+    );
+  },
+);
 
 /** POST /admin/emails/send — send the saved draft via the bulk provider. */
 const handleSendPost = gatedPost(

@@ -16,9 +16,8 @@ import {
 } from "#db/payment-reference-rebuild.ts";
 import { t } from "#i18n";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
-import { authResponsePage, pageGuardFor } from "#routes/auth.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
-import { adminDestinationAt } from "#shared/admin-surface.ts";
+import { authResponsePageAt } from "#routes/route-gates.ts";
 import { formHandlerAt } from "#shared/app-forms.ts";
 import { encodedAfter } from "#shared/encoded-after.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -60,23 +59,23 @@ const rowsNeedingProvider = (
   page: readonly LegacyPaymentReferencePreview[],
 ): LegacyPaymentReferencePreview[] => page.filter((row) => !row.alreadyTagged);
 
-const handleRebuildGet = authResponsePage(
-  pageGuardFor(adminDestinationAt(REBUILD_PATH)),
-)(async (session, _request, flash) => {
-  const [remaining, page] = await Promise.all([
-    countLegacyPaymentReferences(),
-    legacyPaymentReferencePage(await requireRequestPrivateKey()),
-  ]);
-  return htmlResponse(
-    adminMigrateRebuildPaymentsPage(session, {
-      error: flash.error,
-      info: flash.info,
-      page,
-      remaining,
-      success: flash.success,
-    }),
-  );
-});
+const handleRebuildGet = authResponsePageAt(REBUILD_PATH)(
+  async (session, _request, flash) => {
+    const [remaining, page] = await Promise.all([
+      countLegacyPaymentReferences(),
+      legacyPaymentReferencePage(await requireRequestPrivateKey()),
+    ]);
+    return htmlResponse(
+      adminMigrateRebuildPaymentsPage(session, {
+        error: flash.error,
+        info: flash.info,
+        page,
+        remaining,
+        success: flash.success,
+      }),
+    );
+  },
+);
 
 const handleRebuildPost = formHandlerAt(REBUILD_PATH)(async ({ form }) => {
   const privateKey = await requireRequestPrivateKey();
