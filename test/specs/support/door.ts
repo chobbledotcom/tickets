@@ -10,6 +10,7 @@
 import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
 import { handleRequest } from "#routes";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
+import { jsonWrite } from "#test/specs/support/api-request.ts";
 import { personBookedOnListing } from "#test/specs/support/booked-person.ts";
 import {
   expectAccepted,
@@ -196,13 +197,11 @@ export const sendDoorJson = async (
 ): Promise<DoorAnswer> => {
   const response = await handleRequest(
     new Request(`http://localhost${scanPath}`, {
-      body: JSON.stringify(body),
-      headers: {
-        "content-type": "application/json",
+      ...jsonWrite(body, {
         cookie: cookiesOf(browser),
         host: "localhost",
         "x-csrf-token": codeOnPage(browser),
-      },
+      }),
       method: "POST",
     }),
   );

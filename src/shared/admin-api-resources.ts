@@ -12,6 +12,13 @@
 import * as v from "valibot";
 
 import { QuestionDisplayTypeSchema } from "#db/question-types.ts";
+import {
+  CreateExternalLinkBodySchema,
+  CreateExternalSourceBodySchema,
+  ExternalSourceLinkRowSchema,
+  ExternalSourceRowSchema,
+  UpdateExternalSourceBodySchema,
+} from "#shared/admin-api-external-sources.ts";
 
 /* ===========================================================================
  * Row schemas — the shapes the JSON API answers with. The client validates
@@ -353,6 +360,35 @@ export const ADMIN_API_RESOURCES = {
     path: "attributes",
     singleSchema: attributeEnvelope,
     updateBodySchema: UpdateAttributeBodySchema,
+  },
+  "external-sources": {
+    children: {
+      links: {
+        bodySchema: CreateExternalLinkBodySchema,
+        idParam: "linkId",
+        path: "links",
+        responseSchema: v.looseObject({
+          link: ExternalSourceLinkRowSchema,
+        }),
+      },
+    },
+    createBodySchema: CreateExternalSourceBodySchema,
+    // The read of one source's links, which a filter narrows by external id
+    // or by the record they point at.
+    custom: {
+      // The read of every source's links for one record, then the read of one
+      // source's links. The literal paths win over the id segment.
+      linkLookup: { method: "GET", subpath: "lookup" },
+      linkSearch: { method: "GET", subpath: "links" },
+      links: { method: "GET", subpath: ":sourceId/links" },
+    },
+    label: "Source",
+    listSchema: v.looseObject({
+      "external-sources": v.array(ExternalSourceRowSchema),
+    }),
+    path: "external-sources",
+    singleSchema: v.looseObject({ source: ExternalSourceRowSchema }),
+    updateBodySchema: UpdateExternalSourceBodySchema,
   },
   groups: {
     label: "Group",

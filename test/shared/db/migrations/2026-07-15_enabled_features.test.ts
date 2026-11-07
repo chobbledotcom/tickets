@@ -111,6 +111,25 @@ describeWithEnv(
       expect(await storedFeatures()).toEqual(enabled);
     });
 
+    test("reads a setting written before a later feature existed", async () => {
+      const { externalSources: _newFeature, ...previousFeatures } =
+        DEFAULT_ENABLED_FEATURES;
+      await execute(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+        [
+          CONFIG_KEYS.ENABLED_FEATURES,
+          JSON.stringify({ ...previousFeatures, money: true }),
+        ],
+      );
+
+      await runMigration();
+
+      expect(await storedFeatures()).toEqual({
+        ...DEFAULT_ENABLED_FEATURES,
+        money: true,
+      });
+    });
+
     test("keeps its recorded marker identity", () => {
       const migration = enabledFeaturesMigration(context);
       expect(migration.id).toBe("2026-07-15_enabled_features");

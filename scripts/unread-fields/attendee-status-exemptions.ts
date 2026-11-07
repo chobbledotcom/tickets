@@ -2,7 +2,7 @@
  *  They live apart from exemptions.ts, which stays under its length limit. */
 
 import {
-  exemptionsAt,
+  exemptFieldsUnder,
   type FindingExemption,
 } from "#scripts/unread-fields/policy.ts";
 
@@ -14,9 +14,8 @@ export const ATTENDEE_STATUS_EXEMPTIONS: readonly FindingExemption[] = [
     { name: "AdminApiCreateAttendeeStatusBody" },
     { name: "AdminApiUpdateAttendeeStatusBody" },
   ].flatMap((path) =>
-    exemptionsAt(
-      SOURCE,
-      [path],
+    exemptFieldsUnder(
+      [[SOURCE, [path]]],
       [
         "is_paid_default",
         "is_public_default",
@@ -31,9 +30,8 @@ export const ATTENDEE_STATUS_EXEMPTIONS: readonly FindingExemption[] = [
       },
     ),
   ),
-  ...exemptionsAt(
-    SOURCE,
-    [{ name: "AdminApiAttendeeStatus" }],
+  ...exemptFieldsUnder(
+    [[SOURCE, [{ name: "AdminApiAttendeeStatus" }]]],
     [
       "id",
       "is_paid_default",

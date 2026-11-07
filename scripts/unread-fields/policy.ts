@@ -25,6 +25,16 @@ export interface FindingExemption {
 
 export type FieldSnapshotChoice = "check" | "exempt";
 
+/** Exempt one set of fields under one or more owner paths with one reason. The
+ *  open counterpart of {@link exemptFieldsAt}, for the fields the scan reports
+ *  on their own rather than as a closed shape. */
+export const exemptFieldsUnder = (
+  owners: readonly [string, readonly Step[]][],
+  fields: readonly string[],
+  reason: ExemptionReason,
+): FindingExemption[] =>
+  identitiesAt(owners)(fields).map((identity) => ({ identity, reason }));
+
 /** A finite string-key shape whose every field needs an explicit choice. */
 export type ClosedFieldSnapshot<Shape> = string extends keyof Shape
   ? never
@@ -33,18 +43,6 @@ export type ClosedFieldSnapshot<Shape> = string extends keyof Shape
         readonly [Field in keyof Shape]-?: FieldSnapshotChoice;
       }
     : never;
-
-/** Exempt one set of fields under one owner with one reason. */
-export const exemptionsAt = (
-  exportedFrom: string,
-  path: readonly Step[],
-  fields: readonly string[],
-  reason: ExemptionReason,
-): FindingExemption[] =>
-  identitiesAt([[exportedFrom, path]])(fields).map((identity) => ({
-    identity,
-    reason,
-  }));
 
 /** Classify every field of one finite exported type. New fields stop the type
  * check until their policy is explicit. */
@@ -55,9 +53,8 @@ export const exemptFieldsAt =
     reason: ExemptionReason,
   ): ((snapshot: ClosedFieldSnapshot<Shape>) => FindingExemption[]) =>
   (snapshot) =>
-    exemptionsAt(
-      exportedFrom,
-      path,
+    exemptFieldsUnder(
+      [[exportedFrom, path]],
       Object.entries(snapshot)
         .filter(([, choice]) => choice === "exempt")
         .map(([field]) => field),

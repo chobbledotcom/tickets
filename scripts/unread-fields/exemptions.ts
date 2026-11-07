@@ -6,7 +6,7 @@ import { compareFindingIdentities } from "#scripts/unread-fields/identity.ts";
 import {
   type ExemptionReason,
   exemptFieldsAt,
-  exemptionsAt,
+  exemptFieldsUnder,
   type FindingExemption,
 } from "#scripts/unread-fields/policy.ts";
 import type {
@@ -243,7 +243,7 @@ const exactFieldExemptions = (
   groups: readonly ExactFieldGroup[],
 ): FindingExemption[] =>
   groups.flatMap(({ fields, path, reason, source }) =>
-    exemptionsAt(source, path, fields, reason),
+    exemptFieldsUnder([[source, path]], fields, reason),
   );
 
 /** One exemption reason carrying the evidence for its kind. */
@@ -454,9 +454,8 @@ const exactExemptions = exactFieldExemptions([
 
 /** The modifier resource hands its input to the table, which reads one input
  * key per column at run time. */
-const modifierInputFields = exemptionsAt(
-  "src/shared/db/modifiers.ts",
-  [{ name: "ModifierInput" }],
+const modifierInputFields = exemptFieldsUnder(
+  [["src/shared/db/modifiers.ts", [{ name: "ModifierInput" }]]],
   [
     "calcKind",
     "calcValue",

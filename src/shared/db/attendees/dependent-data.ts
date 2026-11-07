@@ -1,5 +1,7 @@
 /** How stored rows tied to an attendee behave when that attendee is deleted. */
 
+import type { ExternalLinkKind } from "#db/external-sources/types.ts";
+
 export type AttendeeDataRule =
   | {
       action: "delete";
@@ -27,6 +29,15 @@ export type AttendeeDataRule =
       kind: "through";
       table: string;
       tableField: string;
+    }
+  | {
+      /** A row that names its record with a kind column and an id column.
+       *  A merge moves it to the surviving record. A delete removes it,
+       *  because a row with no record names nothing. */
+      action: "repoint";
+      kind: "external-links";
+      table: string;
+      target: ExternalLinkKind;
     }
   | {
       action: "delete";
@@ -92,6 +103,15 @@ export const ATTENDEE_DATA_RULES: readonly AttendeeDataRule[] = [
   // A built site's assignment follows the person through a merge. A deletion
   // clears only that live link. The provisioned site keeps its own lifecycle.
   direct("repoint")("built_sites", "assigned_attendee_id"),
+  // An external id follows the person through a merge, and goes when the
+  // attendee goes. The link names the attendee by kind and id, so it cannot
+  // ride a plain attendee-id delete.
+  {
+    action: "repoint",
+    kind: "external-links",
+    table: "external_source_links",
+    target: "attendee",
+  },
   // A durable payment session has a lifecycle of its own. Its eventual
   // detach/redaction rule must not be guessed by an attendee purge.
   direct("retain")("payment_sessions"),

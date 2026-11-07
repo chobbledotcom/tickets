@@ -22,6 +22,7 @@ import {
   resetDatabase,
   SCHEMA_HASH,
 } from "#db/migrations.ts";
+import { parseEnabledFeatures } from "#shared/admin-features.ts";
 import { insertBrokenImage } from "#test-utils/admin-images.ts";
 import {
   markCurrentSchemaMigrationPending,
@@ -38,6 +39,7 @@ import {
   schemaMarkerKeys,
   settingsTableExists,
   settingsValueOrNull,
+  simulateUpgradeFromRelease,
   tableExists,
 } from "#test-utils/migrations.ts";
 import { stubNtfyFetch } from "#test-utils/mocks.ts";
@@ -102,24 +104,6 @@ describeWithEnv("db > migrations", { db: true }, () => {
       getDb().execute(
         "CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
       );
-
-    /** "Site upgrading from an older release": the stored marker is that
-     * release's, `migrationId` has not run, and both differ from current. */
-    const simulateUpgradeFromRelease = async (
-      previousMarker: string,
-      migrationId: string,
-    ): Promise<void> => {
-      expect(previousMarker).not.toBe(LATEST_UPDATE);
-      await getDb().execute({
-        args: [previousMarker],
-        sql: "UPDATE settings SET value = ? WHERE key = 'latest_db_update'",
-      });
-      await getDb().execute({
-        args: [migrationId],
-        sql: "DELETE FROM schema_migrations WHERE id = ?",
-      });
-      invalidateInitDbCache();
-    };
 
     /** The migration id is recorded in schema_migrations. */
     const assertMigrationApplied = async (id: string): Promise<void> => {
@@ -308,14 +292,9 @@ describeWithEnv("db > migrations", { db: true }, () => {
 
       const stored = await settingValue("enabled_features");
       expect(JSON.parse(stored)).toEqual({
-        apiKeys: false,
-        attributes: false,
-        invoices: false,
+        ...parseEnabledFeatures(""),
         logistics: true,
         modifiers: true,
-        money: false,
-        questions: false,
-        servicing: false,
         site: true,
       });
       expect(await settingsValueOrNull("has_logistics")).toBeNull();

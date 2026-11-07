@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   type ClosedFieldSnapshot,
   exemptFieldsAt,
+  exemptFieldsUnder,
 } from "#scripts/unread-fields/policy.ts";
 
 type Sample = { kept: string; optional?: number };
@@ -44,6 +45,52 @@ describe("unread-field policy", () => {
           exportedFrom: "src/sample.ts",
           field: "optional",
           path: [{ name: "Sample" }],
+        },
+        reason,
+      },
+    ]);
+  });
+
+  test("names every open field under every owner", () => {
+    const exemptions = exemptFieldsUnder(
+      [
+        ["src/first.ts", [{ name: "First" }]],
+        ["src/second.ts", [{ name: "Second" }, { way: "[]" }]],
+      ],
+      ["alpha", "beta"],
+      reason,
+    );
+
+    expect(exemptions).toEqual([
+      {
+        identity: {
+          exportedFrom: "src/first.ts",
+          field: "alpha",
+          path: [{ name: "First" }],
+        },
+        reason,
+      },
+      {
+        identity: {
+          exportedFrom: "src/first.ts",
+          field: "beta",
+          path: [{ name: "First" }],
+        },
+        reason,
+      },
+      {
+        identity: {
+          exportedFrom: "src/second.ts",
+          field: "alpha",
+          path: [{ name: "Second" }, { way: "[]" }],
+        },
+        reason,
+      },
+      {
+        identity: {
+          exportedFrom: "src/second.ts",
+          field: "beta",
+          path: [{ name: "Second" }, { way: "[]" }],
         },
         reason,
       },

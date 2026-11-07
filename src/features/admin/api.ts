@@ -21,6 +21,7 @@ import {
 import { mapById, requiredMapValue } from "#fp";
 import { attendeeStatusApiRoutes } from "#routes/admin/api-attendee-statuses.ts";
 import { attributeApiRoutes } from "#routes/admin/api-attributes.ts";
+import { externalSourceApiRoutes } from "#routes/admin/api-external-sources.ts";
 import { groupApiRoutes } from "#routes/admin/api-groups.ts";
 import { holidayApiRoutes } from "#routes/admin/api-holidays.ts";
 import { questionApiRoutes } from "#routes/admin/api-questions.ts";
@@ -244,6 +245,7 @@ export const adminApiRoutes = {
   ...attendeeStatusApiRoutes,
   "POST /api/admin/attendees": handleCreateAttendee,
   ...attributeApiRoutes,
+  ...externalSourceApiRoutes,
   ...holidayApiRoutes,
   ...groupApiRoutes,
   ...questionApiRoutes,

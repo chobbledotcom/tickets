@@ -73,6 +73,13 @@ describe("admin features", () => {
         slug: "money",
       },
       {
+        descriptionKey: "features.external_sources.description",
+        inUseSql: null,
+        key: "externalSources",
+        labelKey: "features.external_sources.name",
+        slug: "external-sources",
+      },
+      {
         descriptionKey: "features.invoices.description",
         inUseSql: "EXISTS (SELECT 1 FROM invoices AS invoice)",
         key: "invoices",
@@ -86,6 +93,7 @@ describe("admin features", () => {
     expect(DEFAULT_ENABLED_FEATURES).toEqual({
       apiKeys: false,
       attributes: false,
+      externalSources: false,
       invoices: false,
       logistics: false,
       modifiers: false,

@@ -43,6 +43,7 @@ import {
   json,
   renameOneText,
 } from "./admin-api-example/endpoint-doc.ts";
+import { EXTERNAL_SOURCE_ENDPOINTS } from "./admin-api-example/external-sources.ts";
 import { QUESTION_ENDPOINTS } from "./admin-api-example/questions.ts";
 import { SITE_PAGE_ENDPOINTS } from "./admin-api-example/site-pages.ts";
 
@@ -489,4 +490,5 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
   },
   ...QUESTION_ENDPOINTS,
   ...SITE_PAGE_ENDPOINTS,
+  ...EXTERNAL_SOURCE_ENDPOINTS,
 ];

@@ -7,6 +7,7 @@
 import { assertStringIncludes } from "@std/assert";
 import { t } from "#i18n";
 import { handleRequest } from "#routes";
+import { askedAsKey } from "#test/specs/support/api-request.ts";
 import {
   findsTheWayInFrom,
   opensAdminPageAt,
@@ -90,15 +91,6 @@ export const keysNamedOnList = async (world: TicketsWorld): Promise<string[]> =>
     .filter(({ href }) => KEY_LINK.test(href))
     .map(({ text }) => text);
 
-/** What the site answers something carrying a key and nothing else — no
- * session, no cookie. Every request another system makes goes through here. */
-const askedAsKey = (
-  carrying: string,
-  path: string,
-  sending: RequestInit = {},
-): Promise<Response> => handleRequest(requestAsApiKey(path, carrying, sending));
-
-/** What the site answers a caller asking what it sells, and what it said. */
 /** How the site answered another system, and what it sent back. Not a
  * PageRead: nobody landed anywhere, because no visitor was ever here. */
 interface ApiAnswer {

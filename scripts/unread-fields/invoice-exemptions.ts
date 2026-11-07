@@ -4,7 +4,7 @@
 import type { Step } from "#scripts/unread-fields/fields/steps.ts";
 import {
   type ExemptionReason,
-  exemptionsAt,
+  exemptFieldsUnder,
   type FindingExemption,
 } from "#scripts/unread-fields/policy.ts";
 
@@ -38,16 +38,19 @@ const BODY_FIELD_GROUPS: readonly {
 
 export const INVOICE_EXEMPTIONS: readonly FindingExemption[] = [
   ...BODY_FIELD_GROUPS.flatMap(({ fields, path }) =>
-    exemptionsAt(
-      BODY_SOURCE,
-      [{ name: "InvoiceBodyData" }, ...path],
+    exemptFieldsUnder(
+      [[BODY_SOURCE, [{ name: "InvoiceBodyData" }, ...path]]],
       fields,
       liquidReason,
     ),
   ),
-  ...exemptionsAt(ROW_SOURCE, [{ name: "InvoiceRow" }], ["share_token_index"], {
-    evidence:
-      "getInvoiceByShareToken passes the blind index as the table reader's query key, which becomes the lookup WHERE clause",
-    kind: "schema-driven",
-  }),
+  ...exemptFieldsUnder(
+    [[ROW_SOURCE, [{ name: "InvoiceRow" }]]],
+    ["share_token_index"],
+    {
+      evidence:
+        "getInvoiceByShareToken passes the blind index as the table reader's query key, which becomes the lookup WHERE clause",
+      kind: "schema-driven",
+    },
+  ),
 ];

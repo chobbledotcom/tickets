@@ -5,6 +5,7 @@ import { attendeeTables } from "./tables-attendees.ts";
 import { catalogTables } from "./tables-catalog.ts";
 import { contentTables } from "./tables-content.ts";
 import { coreTables } from "./tables-core.ts";
+import { externalSourceTables } from "./tables-external-sources.ts";
 import { invoiceTables } from "./tables-invoices.ts";
 import { questionTables } from "./tables-questions.ts";
 import { taxTables } from "./tables-tax.ts";
@@ -24,6 +25,7 @@ export const SCHEMA: [name: string, table: Table][] = [
   ...paymentTables,
   ...invoiceTables,
   ...taxTables,
+  ...externalSourceTables,
 ];
 
 /** Ordered table names — matches FK dependency order (parents before children) */

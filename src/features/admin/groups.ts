@@ -14,6 +14,10 @@ import { adminPattern } from "#shared/admin-surface.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import { executeBatch } from "#db/client.ts";
 import {
+  clearExternalLinksStatement,
+  externalLinkTargets,
+} from "#db/external-sources/target.ts";
+import {
   readPackageFlagsTxOrNull,
   writePackageMembersTx,
 } from "#db/groups/membership/package-writes.ts";
@@ -176,6 +180,7 @@ export const deleteGroup = async (id: InValue) => {
   await executeBatch([
     clearItemEdgesStatement(sitePageItemTargets.of("group")(groupId)),
     clearImageUsesForItemStatement(imageUseTargets.of("group")(groupId)),
+    clearExternalLinksStatement(externalLinkTargets.of("group")(groupId)),
     noteDeleteStatement("group", { args: [groupId], sql: "?" }),
     { args: [groupId], sql: "DELETE FROM groups WHERE id = ?" },
   ]);

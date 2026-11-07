@@ -66,6 +66,13 @@ export const ADMIN_FEATURES = [
     slug: "money",
   },
   {
+    descriptionKey: "features.external_sources.description",
+    inUseSql: null,
+    key: "externalSources",
+    labelKey: "features.external_sources.name",
+    slug: "external-sources",
+  },
+  {
     descriptionKey: "features.invoices.description",
     inUseSql: "EXISTS (SELECT 1 FROM invoices AS invoice)",
     key: "invoices",

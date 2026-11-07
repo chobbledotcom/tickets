@@ -103,6 +103,7 @@ describe("Cucumber story catalog", () => {
       "records.backup-and-restore",
       "records.filling-the-site-with-example-data",
       "records.keeping-only-what-is-needed",
+      "records.where-a-record-appears-elsewhere",
       "servicing.hold-and-cost",
       "servicing.the-work-coming-up",
       "settings.connecting-an-email-provider",

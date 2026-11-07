@@ -42,6 +42,7 @@ export const ADMIN_API_MESSAGE_GROUPS = [
   "attendees",
   "common",
   "entity-pages",
+  "features",
   "groups",
   "holidays",
   "images",

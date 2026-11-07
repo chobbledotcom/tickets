@@ -8,6 +8,10 @@ import {
   type SqlStatement,
   withTransaction,
 } from "#db/client.ts";
+import {
+  clearExternalLinksForIdsStatement,
+  repointExternalLinksStatement,
+} from "#db/external-sources/target.ts";
 import { ticketCountSumExpr } from "#db/migrations/schema/listing-aggregates.ts";
 import { noteDeleteStatement } from "#db/notes/queries.ts";
 import { assertRowsFreeToMove } from "#db/payment-admit-move.ts";
@@ -87,13 +91,18 @@ const deleteRules = (): DeleteRule[] =>
     (rule): rule is DeleteRule => rule.action === "delete",
   );
 
-const clearAssignmentStatement = (
+/** What one repoint rule leaves behind when the attendee is deleted: a cleared
+ *  assignment for a single-column rule, and no row for a record-target rule. */
+const repointRuleStatement = (
   rule: RepointRule,
   attendeeIds: SqlStatement,
-): SqlStatement => ({
-  args: attendeeIds.args,
-  sql: `UPDATE ${rule.table} SET ${rule.field} = NULL WHERE ${rule.field} IN (${attendeeIds.sql})`,
-});
+): SqlStatement =>
+  rule.kind === "external-links"
+    ? clearExternalLinksForIdsStatement(rule.target, attendeeIds)
+    : {
+        args: attendeeIds.args,
+        sql: `UPDATE ${rule.table} SET ${rule.field} = NULL WHERE ${rule.field} IN (${attendeeIds.sql})`,
+      };
 
 /** Remove or detach every dependent row for one or many attendee ids. */
 export const attendeeRemovalStatements = (
@@ -104,7 +113,7 @@ export const attendeeRemovalStatements = (
       return [dependentDeleteStatement(rule, attendeeIds)];
     }
     return rule.action === "repoint"
-      ? [clearAssignmentStatement(rule, attendeeIds)]
+      ? [repointRuleStatement(rule, attendeeIds)]
       : [];
   });
 
@@ -124,10 +133,12 @@ export const repointAttendeeDependents = (
   ATTENDEE_DATA_RULES.flatMap((rule) =>
     rule.action === "repoint"
       ? [
-          {
-            args: [targetId, sourceId],
-            sql: `UPDATE ${rule.table} SET ${rule.field} = ? WHERE ${rule.field} = ?`,
-          },
+          rule.kind === "external-links"
+            ? repointExternalLinksStatement(rule.target, sourceId, targetId)
+            : {
+                args: [targetId, sourceId],
+                sql: `UPDATE ${rule.table} SET ${rule.field} = ? WHERE ${rule.field} = ?`,
+              },
         ]
       : [],
   );

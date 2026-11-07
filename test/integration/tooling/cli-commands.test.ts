@@ -66,6 +66,7 @@ describe("CLI describe", () => {
       "attendee-statuses",
       "attendees",
       "attributes",
+      "external-sources",
       "groups",
       "holidays",
       "listings",
@@ -165,6 +166,12 @@ describe("CLI describe", () => {
     const parts = doc.resources.gadgets!.children.parts!;
     expect(parts).toMatchObject({ idParam: "partId", path: "parts" });
     expect(Object.keys(parts.verbs)).toEqual(["create", "delete", "update"]);
+    expect(parts.verbs.create).toEqual({
+      body: {
+        fields: [{ name: "label", required: true, type: "string" }],
+        kind: "fields",
+      },
+    });
     expect(doc.resources.gadgets!.customRoutes.recalibrate).toEqual({
       method: "POST",
       subpath: ":gadgetId/recalibrate",
