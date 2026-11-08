@@ -327,11 +327,17 @@ const credentialField = (
 
 /** The key + id pair a credentials form asks for: the provider's secret or
  * key field first, then one plain-text id field. */
-const providerCredentialFields = (
-  provider: keyof typeof PAYMENT_PROVIDERS,
-  secretKeyLabel: string,
-  idField: { keyLabel: string; name: string },
-): Field[] => [
+type CredentialPair = {
+  idField: { keyLabel: string; name: string };
+  provider: keyof typeof PAYMENT_PROVIDERS;
+  secretKeyLabel: string;
+};
+
+const providerCredentialFields = ({
+  idField,
+  provider,
+  secretKeyLabel,
+}: CredentialPair): Field[] => [
   credentialField(
     `fields.${provider}.${secretKeyLabel}`,
     PAYMENT_PROVIDERS[provider].secretField,
@@ -340,6 +346,27 @@ const providerCredentialFields = (
     type: "text",
   }),
 ];
+
+/** The same pair as the per-request builder a settings record holds, so the
+ *  labels are read when the form renders. */
+const providerCredentialFieldBuilder =
+  (pair: CredentialPair): (() => Field[]) =>
+  () =>
+    providerCredentialFields(pair);
+
+/** The Square access-token and location fields. */
+export const squareAccessTokenFields = providerCredentialFieldBuilder({
+  idField: { keyLabel: "location_id", name: "square_location_id" },
+  provider: "square",
+  secretKeyLabel: "access_token",
+});
+
+/** The SumUp API-key and merchant-code fields. */
+export const sumupFields = providerCredentialFieldBuilder({
+  idField: { keyLabel: "merchant_code", name: "sumup_merchant_code" },
+  provider: "sumup",
+  secretKeyLabel: "api_key",
+});
 
 /**
  * Stripe key settings form field definitions (per-request builder)
@@ -352,15 +379,6 @@ export const getStripeKeyFields = (): Field[] => [
 ];
 
 /**
- * Square access token and location form field definitions (per-request builder)
- */
-export const getSquareAccessTokenFields = (): Field[] =>
-  providerCredentialFields("square", "access_token", {
-    keyLabel: "location_id",
-    name: "square_location_id",
-  });
-
-/**
  * Square webhook settings form field definitions (per-request builder)
  */
 export const getSquareWebhookFields = (): Field[] => [
@@ -368,15 +386,6 @@ export const getSquareWebhookFields = (): Field[] => [
     noPlaceholder: true,
   }),
 ];
-
-/**
- * SumUp API key and merchant code form field definitions (per-request builder)
- */
-export const getSumupFields = (): Field[] =>
-  providerCredentialFields("sumup", "api_key", {
-    keyLabel: "merchant_code",
-    name: "sumup_merchant_code",
-  });
 
 /**
  * Invite user form field definitions (per-request builder)

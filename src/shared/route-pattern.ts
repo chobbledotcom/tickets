@@ -15,13 +15,12 @@ export const SLUG_PARAM_PATTERN = "[a-z0-9]+(?:[-_+][a-z0-9]+)*";
 
 // JS `$` also matches before one final newline. URL parsing drops that
 // newline, so the emitted location cannot identify the stored page. The
-// lookahead makes the match end at the true end of the input.
-const SLUG_PARAM_SERVES = new RegExp(`^(?:${SLUG_PARAM_PATTERN})$(?![\\s\\S])`);
-
-/** Whether a public route serves this slug: the route's own `:slug` pattern
- *  decides, so a slug it rejects never reaches a caller that names URLs. */
-export const routeServesSlug = (slug: string): boolean =>
-  SLUG_PARAM_SERVES.test(slug);
+// lookahead makes the match end at the true end of the input. A public route
+// serves a slug only when it matches this pattern. A slug it rejects never
+// reaches a caller that names URLs.
+export const SLUG_PARAM_SERVES = new RegExp(
+  `^(?:${SLUG_PARAM_PATTERN})$(?![\\s\\S])`,
+);
 
 const routeParamPattern = (name: string): string => {
   if (isNumericRouteParam(name)) return "\\d+";

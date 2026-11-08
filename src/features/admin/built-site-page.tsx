@@ -22,7 +22,6 @@ import { loadSiteSecretsStatus } from "#shared/site-secrets.ts";
 import { loadSiteSupportMessage } from "#shared/site-support-message.ts";
 import { loadBuiltSiteUpdateState } from "#shared/site-update.ts";
 import { uptimeKumaMonitorService } from "#shared/uptime-kuma/monitors.ts";
-import { BuiltSitesGuideFooter } from "#templates/admin/built-sites/list-parts.tsx";
 import {
   MaintenancePanel,
   SecretsPanel,
@@ -31,7 +30,11 @@ import {
 import { renewalPanelFor } from "#templates/admin/built-sites/renewal-panels.tsx";
 import { SupportMessagePanel } from "#templates/admin/built-sites/support-message.tsx";
 import { BuiltSiteEditPanel } from "#templates/admin/built-sites.tsx";
-import { Icon, type IconName } from "#templates/components/actions.tsx";
+import {
+  guideFooterSlot,
+  Icon,
+  type IconName,
+} from "#templates/components/actions.tsx";
 
 const renewalTab = panelTab<BuiltSite>(
   "renewal",
@@ -171,7 +174,10 @@ export const builtSitePage: EditEntityPage<BuiltSite> = defineEditEntityPage({
     updateTab,
     supportMessageTab,
   ],
-  guideFooter: () => Promise.resolve(<BuiltSitesGuideFooter />),
+  guideFooter: guideFooterSlot(
+    "/admin/guide#built-sites",
+    "built_sites.guide_link",
+  ),
   load: (id) => builtSitesCrudTable.read.one({ id }),
   navActive: adminPattern("builtSites"),
   recordId: (site) => site.id,

@@ -22,14 +22,10 @@ import { ErrorCode, logError } from "#shared/logger.ts";
 import { hasNamedBookingPath } from "#shared/package-privacy.ts";
 import { successPage } from "#templates/payment.tsx";
 
-/** The `session_id` query param of a payment callback, or "" when absent. */
-export const paymentSessionId = (request: Request): string =>
-  getSearchParam(request, "session_id");
-
 /** The payment session id from a success redirect: Stripe's `session_id`, or
  * Square's `orderId` when `session_id` is absent. "" when neither is present. */
 const redirectSessionId = (request: Request): string =>
-  paymentSessionId(request) || getSearchParam(request, "orderId");
+  getSearchParam(request, "session_id") || getSearchParam(request, "orderId");
 
 /** Render the paid success page, drawing the sender email from settings. Shared
  * by the direct-render redirect path and the verified-tokens render path. */

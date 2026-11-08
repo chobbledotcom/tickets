@@ -7,7 +7,7 @@
  * themselves against missing DOM elements so they are safe to run on
  * every admin page. */
 
-import { initAddressLookup } from "./admin/address-lookup.ts";
+import { setupPanel } from "./admin/address-lookup.ts";
 import { initAttendeeDates } from "./admin/attendee-dates.ts";
 import { initAvailabilityChecker } from "./admin/availability-checker.ts";
 import { initCharCounters } from "./admin/char-counter.ts";
@@ -38,6 +38,7 @@ import { initSchemaAtlas } from "./admin/schema-atlas.ts";
 import { initSelectOnClick } from "./admin/select-on-click.ts";
 import { initShareButtons } from "./admin/share-button.ts";
 import { initTicketQuantityRequired } from "./admin/ticket-quantity-required.ts";
+import { forEachMatch } from "./dom.ts";
 
 initSelectOnClick();
 initShareButtons();
@@ -70,5 +71,5 @@ initDuplicatePreview();
 initDurationWarning();
 initPairedControls();
 initTicketQuantityRequired();
-initAddressLookup();
+forEachMatch<HTMLElement>("[data-address-lookup]", setupPanel);
 initSchemaAtlas();

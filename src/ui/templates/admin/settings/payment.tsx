@@ -20,10 +20,10 @@ import { SubmitButton } from "#templates/components/actions.tsx";
 import { RadioOption } from "#templates/components/radio-option.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import {
-  getSquareAccessTokenFields,
   getSquareWebhookFields,
   getStripeKeyFields,
-  getSumupFields,
+  squareAccessTokenFields,
+  sumupFields,
 } from "#templates/fields/admin.ts";
 import type { PaymentProviderType } from "#types";
 
@@ -101,10 +101,10 @@ type CredentialsView = {
 const CREDENTIALS_VIEW: Record<PaymentProviderType, CredentialsView> = {
   square: {
     extraControl: SquareSandboxToggle,
-    fields: getSquareAccessTokenFields,
+    fields: squareAccessTokenFields,
   },
   stripe: { fields: getStripeKeyFields },
-  sumup: { fields: getSumupFields },
+  sumup: { fields: sumupFields },
 };
 
 /** What the notice says about each estate, or nothing when the stored

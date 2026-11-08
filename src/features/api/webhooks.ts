@@ -17,13 +17,11 @@ import {
 import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
 import { paymentSessionErrorLogger } from "#routes/api/payment-processing/classify.ts";
 import { answerRejectedSession } from "#routes/api/payment-processing/rejected-target.ts";
-import {
-  handlePaymentSuccess,
-  paymentSessionId,
-} from "#routes/api/payment-success.ts";
+import { handlePaymentSuccess } from "#routes/api/payment-success.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
 import { jsonResponse, plainResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
+import { getSearchParam } from "#routes/url.ts";
 import {
   ErrorCode,
   type ErrorCodeType,
@@ -55,7 +53,7 @@ const getPaymentProviderOrLog = async (
 const withSessionId =
   (handler: (sessionId: string) => Promise<Response>) =>
   (request: Request): Promise<Response> => {
-    const sessionId = paymentSessionId(request);
+    const sessionId = getSearchParam(request, "session_id");
     if (!sessionId) {
       logError({
         code: ErrorCode.PAYMENT_SESSION,

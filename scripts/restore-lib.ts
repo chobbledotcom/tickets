@@ -14,8 +14,6 @@ import { countLabel, formatBytes } from "#shared/format-units.ts";
 
 export const RESTORE_CONFIRMATION = "RESTORE";
 export const RESTORE_USAGE = "Usage: deno task restore <backup.zip>";
-const isFullCommitSha = (commit: string): boolean =>
-  /^[0-9a-f]{40}$/.test(commit);
 const REMOTE_DB_URL_PREFIXES = ["https://", "libsql://"];
 
 export interface RestoreCliDeps extends ScriptIo {
@@ -187,7 +185,7 @@ export const runRestoreCli = async (deps: RestoreCliDeps): Promise<number> => {
     );
     return 1;
   }
-  if (isFullCommitSha(commit)) {
+  if (/^[0-9a-f]{40}$/.test(commit)) {
     deps.stdout(`The backup was running commit ${commit}.`);
     deps.stdout(
       "Run the restore-deploy workflow with this commit if the app code must also be restored to that point in time.",

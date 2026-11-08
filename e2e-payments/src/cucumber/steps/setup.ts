@@ -47,7 +47,7 @@ const publishListing = async (
   await world.prepareOwner();
   if (fields.renewalTierMonths === undefined) {
     const path = await createListing(world.resources.owner, fields);
-    world.rememberListing(path);
+    world.listingPath = path;
   } else {
     await submitListingForm(world.resources.owner, fields);
   }
@@ -110,7 +110,7 @@ Given(
     });
     // The plan sells three units on this scenario, so the expected income is
     // the three-unit total.
-    this.rememberBookingPrice(config.unitPrice * 3);
+    this.bookingPriceMinor = config.unitPrice * 3;
   },
 );
 

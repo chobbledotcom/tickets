@@ -16,7 +16,6 @@ import { parsePositiveInt } from "#shared/validation/number.ts";
 import { attendeeCheckinQuantityPage } from "#templates/admin/attendees/checkin-quantity.tsx";
 import {
   attendeeBookingFormAction,
-  getReturnUrl,
   withAttendeeBooking,
 } from "./attendees-route-helpers.ts";
 /** Return a redirect response when the attendee has no active booking line, or null otherwise. */
@@ -54,7 +53,7 @@ export const handleAttendeeCheckinGet = (
           attendee,
           filter: getSearchParam(request, "return_filter"),
           listingName: listing.name,
-          returnUrl: getReturnUrl(request),
+          returnUrl: getSearchParam(request, "return_url"),
           session,
         }),
       ),

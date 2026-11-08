@@ -23,8 +23,8 @@ import { requestScopedHandler } from "#routes/request-scopes.ts";
 import {
   databaseBusyResponse,
   migrationInProgressResponse,
+  publicPageResponse,
   redirectResponse,
-  siteNotActivatedResponse,
   temporaryErrorResponse,
   withCookie,
 } from "#routes/response.ts";
@@ -58,6 +58,7 @@ import { redactPath } from "#shared/redact-path.ts";
 import { detectIframeMode } from "#shared/request-context.ts";
 import { SessionKeyError } from "#shared/session-private-key.ts";
 import { getRethrowErrors } from "#shared/test-overrides.ts";
+import { siteNotActivatedPage } from "#templates/public/errors.tsx";
 import { defineAppRoute, routeMainApp, servesBodyRequests } from "./routes.ts";
 import {
   bufferRequestIfNeeded,
@@ -98,7 +99,7 @@ const handleRequestInternal = defineAppRoute(
     if (!(await settings.setup.isComplete())) {
       return isSetupPath(path)
         ? redirectResponse("/setup")
-        : await siteNotActivatedResponse();
+        : await publicPageResponse(siteNotActivatedPage, 503);
     }
 
     return routeMainApp({ method, path, request });
@@ -114,7 +115,7 @@ const initializeDatabaseForPath = async (
     return null;
   } catch (error) {
     if (error instanceof MissingSettingsTableError) {
-      return await siteNotActivatedResponse();
+      return await publicPageResponse(siteNotActivatedPage, 503);
     }
     if (error instanceof MigrationInProgressError) {
       return await migrationInProgressResponse();

@@ -71,7 +71,7 @@ Given(
     await owner.clickButton(
       await catalogWords("built-sites", "built_sites.create_built_site_button"),
     );
-    world.rememberPoolSite(site);
+    world.registeredSite = site;
     world.recordPhase("pooled-site-registered");
   }),
 );

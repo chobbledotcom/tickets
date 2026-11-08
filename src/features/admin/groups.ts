@@ -12,7 +12,7 @@ import { adminPattern } from "#shared/admin-surface.ts";
  */
 
 import { hmacHash } from "#crypto/hashing.ts";
-import { executeBatch } from "#db/client.ts";
+import { executeBatch, rowExists } from "#db/client.ts";
 import {
   clearExternalLinksStatement,
   externalLinkTargets,
@@ -26,7 +26,6 @@ import {
   getGroupById,
   getListingsByGroupId,
   groups,
-  hasPackageBookings,
   isGroupSlugTaken,
   packageMembersError,
   resetGroupListings,
@@ -112,9 +111,14 @@ const validatePackageCompatibility = async (
 export const soldHiddenPackageError = (id: number): Promise<string | null> =>
   withGroupOrNull(id, async (group) => {
     if (!group.is_package || !group.hide_package_listings) return null;
-    return (await hasPackageBookings(id))
-      ? t("error.sold_hidden_package")
-      : null;
+    // A sold booking row carries this package's group id. Refund
+    // placeholders (quantity 0) do not count.
+    const sold = await rowExists(
+      `SELECT 1 FROM listing_attendees
+        WHERE package_group_id = ? AND quantity > 0 LIMIT 1`,
+      [id],
+    );
+    return sold ? t("error.sold_hidden_package") : null;
   });
 
 /** Combined validation: slug uniqueness plus the package invariant. On create

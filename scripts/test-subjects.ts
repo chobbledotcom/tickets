@@ -89,11 +89,6 @@ export type TestSubjects = {
   subjects: string[];
 };
 
-/** The specifiers that name the app: its entry point (`#routes`) and the
- * route modules beneath it (`#routes/…`). */
-const isRoutesSpecifier = (spec: string): boolean =>
-  /^#routes(\/|$)/.test(spec);
-
 export const collectTestSubjects = async (
   testFile: string,
   readText: ReadText,
@@ -158,7 +153,10 @@ const foldIntoWalk = (
   namesSubjects: boolean,
   spec: string,
 ): void => {
-  if (file !== walk.testFile && isRoutesSpecifier(spec)) walk.loadsApp = true;
+  // `#routes` names the app entry point; `#routes/…` are its route modules.
+  if (file !== walk.testFile && /^#routes(\/|$)/.test(spec)) {
+    walk.loadsApp = true;
+  }
   const resolved = resolveProjectImportOrNull(spec, walk.importMap, file);
   if (resolved === null) return;
   if (resolved.startsWith("src/")) {

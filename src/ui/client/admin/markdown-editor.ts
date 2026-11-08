@@ -13,7 +13,6 @@
  */
 
 import { EditorView } from "prosemirror-view";
-import { forEachMatch } from "#src/ui/client/dom.ts";
 import { createImageToolbarItem } from "./markdown-editor-images.ts";
 import {
   createEditorState,
@@ -132,10 +131,3 @@ export const enhanceMarkdownTextarea = (
 
   return { setMode, view };
 };
-
-/** Enhance every markdown-authored textarea on the page. */
-export const initMarkdownEditor = (): void =>
-  forEachMatch<HTMLTextAreaElement>(
-    "textarea[data-markdown-preview]",
-    enhanceMarkdownTextarea,
-  );

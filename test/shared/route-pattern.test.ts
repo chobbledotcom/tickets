@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   compileRoutePathPattern,
   routePathPatternToRegex,
-  routeServesSlug,
+  SLUG_PARAM_SERVES,
 } from "#shared/route-pattern.ts";
 
 describe("compileRoutePathPattern", () => {
@@ -33,17 +33,17 @@ describe("compileRoutePathPattern", () => {
   });
 });
 
-describe("routeServesSlug", () => {
+describe("SLUG_PARAM_SERVES", () => {
   test("serves the slug shapes the public routes match", () => {
-    expect(routeServesSlug("summer-sale")).toBe(true);
-    expect(routeServesSlug("plans+pricing")).toBe(true);
+    expect(SLUG_PARAM_SERVES.test("summer-sale")).toBe(true);
+    expect(SLUG_PARAM_SERVES.test("plans+pricing")).toBe(true);
   });
 
   test("rejects a trailing line terminator the URL parsing drops", () => {
     // JS `$` matches before one final newline. URL parsing drops the
     // newline, so the location cannot name the stored page.
-    expect(routeServesSlug("plans\n")).toBe(false);
-    expect(routeServesSlug("plans\r\n")).toBe(false);
-    expect(routeServesSlug("")).toBe(false);
+    expect(SLUG_PARAM_SERVES.test("plans\n")).toBe(false);
+    expect(SLUG_PARAM_SERVES.test("plans\r\n")).toBe(false);
+    expect(SLUG_PARAM_SERVES.test("")).toBe(false);
   });
 });

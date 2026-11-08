@@ -3,10 +3,10 @@ import { t } from "#i18n";
 import { effectiveMaxLength, type Field } from "#shared/forms/field.ts";
 import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
-  getSquareAccessTokenFields,
   getSquareWebhookFields,
   getStripeKeyFields,
-  getSumupFields,
+  squareAccessTokenFields,
+  sumupFields,
 } from "#templates/fields/admin.ts";
 
 const text = (
@@ -93,10 +93,10 @@ export const CUSTOM_SETTINGS_FIELDS: Record<string, () => readonly Field[]> = {
     secret("sms_gateway_passphrase", "sms.settings.passphrase"),
     secret("sms_gateway_webhook_secret", "sms.settings.webhook_secret"),
   ],
-  "settings-square": getSquareAccessTokenFields,
+  "settings-square": squareAccessTokenFields,
   "settings-square-webhook": getSquareWebhookFields,
   "settings-stripe": getStripeKeyFields,
-  "settings-sumup": getSumupFields,
+  "settings-sumup": sumupFields,
 };
 
 export const emailTemplateSettingsFields = (): readonly Field[] => [

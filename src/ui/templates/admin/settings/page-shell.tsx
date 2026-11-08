@@ -7,7 +7,7 @@
 
 import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import type { NavActive } from "#templates/admin/nav.tsx";
-import { SettingsGuideFooter } from "#templates/admin/settings/guide-footer.tsx";
+import { guideFooterFor } from "#templates/components/actions.tsx";
 import type { AdminSession, Theme } from "#types";
 
 /** Open a settings page: pass the title (and optional nav path), then the
@@ -23,7 +23,7 @@ export const settingsPage =
       body: (
         <>
           {body}
-          <SettingsGuideFooter />
+          {guideFooterFor("/admin/guide#settings", "settings.guide_link")}
         </>
       ),
       session,

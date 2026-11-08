@@ -7,7 +7,8 @@
 
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { initAddressLookup } from "#src/ui/client/admin/address-lookup.ts";
+import { setupPanel } from "#src/ui/client/admin/address-lookup.ts";
+import { forEachMatch } from "#src/ui/client/dom.ts";
 import {
   addressFormSpec,
   flushLookup as flush,
@@ -36,7 +37,7 @@ type Parts = {
 /** Install the DOM, run the enhancement, and hand back the pieces. */
 const setup = (): Parts => {
   const [form] = installFakeDom([addressFormSpec()]);
-  initAddressLookup();
+  forEachMatch<HTMLElement>("[data-address-lookup]", setupPanel);
   const one = oneIn(form!);
   return {
     findButton: one("[data-address-find]"),
@@ -59,7 +60,7 @@ const initPanelInForm = (panel: ElementSpec): FakeElement => {
   const [form] = installFakeDom([
     { children: [panel, { name: "address", tag: "textarea" }], tag: "form" },
   ]);
-  initAddressLookup();
+  forEachMatch<HTMLElement>("[data-address-lookup]", setupPanel);
   return form!;
 };
 
@@ -82,13 +83,15 @@ describe("address lookup client", () => {
 
   test("does nothing on a page without a panel", () => {
     const [textarea] = installFakeDom([{ name: "address", tag: "textarea" }]);
-    expect(() => initAddressLookup()).not.toThrow();
+    expect(() => {
+      forEachMatch<HTMLElement>("[data-address-lookup]", setupPanel);
+    }).not.toThrow();
     expect(textarea!.readOnly).toBe(false);
   });
 
   test("leaves the panel hidden when the address textarea is missing", () => {
     const [panel] = installFakeDom([panelSpec()]);
-    initAddressLookup();
+    forEachMatch<HTMLElement>("[data-address-lookup]", setupPanel);
     expect(panel!.hidden).toBe(true);
   });
 
@@ -232,33 +235,44 @@ describe("address lookup client", () => {
     expect(resultsLabel.hidden).toBe(true);
   });
 
-  /** Run a search with the current fetch stub and assert the shown status. */
-  const searchExpectingStatus = async (expected: string): Promise<void> => {
+  /** Run a search with the current fetch stub and report what the status shows. */
+  const searchStatus = async (): Promise<{
+    hidden: boolean;
+    text: string;
+  }> => {
     const { findButton, searchInput, status } = setup();
     searchInput.value = "SW1A 2AA";
 
     findButton.dispatch("click");
     await flush();
 
-    expect(status.textContent).toBe(expected);
-    expect(status.hidden).toBe(false);
+    return { hidden: status.hidden, text: status.textContent };
   };
 
   test("a server error shows the server's message", async () => {
     using _fetch = stubFetch(
       jsonResponse({ error: "Not a valid postcode" }, 400),
     );
-    await searchExpectingStatus("Not a valid postcode");
+    expect(await searchStatus()).toEqual({
+      hidden: false,
+      text: "Not a valid postcode",
+    });
   });
 
   test("a 200 with no address list falls back to the panel's error copy", async () => {
     using _fetch = stubFetch(jsonResponse({}));
-    await searchExpectingStatus("Lookup failed");
+    expect(await searchStatus()).toEqual({
+      hidden: false,
+      text: "Lookup failed",
+    });
   });
 
   test("a network failure falls back to the panel's error copy", async () => {
     using _fetch = stubFetch(new Error("offline"));
-    await searchExpectingStatus("Lookup failed");
+    expect(await searchStatus()).toEqual({
+      hidden: false,
+      text: "Lookup failed",
+    });
   });
 
   test("a panel missing a copy attribute falls back to empty text", async () => {
@@ -270,7 +284,7 @@ describe("address lookup client", () => {
     const [form] = installFakeDom([
       { children: [bare, { name: "address", tag: "textarea" }], tag: "form" },
     ]);
-    initAddressLookup();
+    forEachMatch<HTMLElement>("[data-address-lookup]", setupPanel);
     const searchInput = form!.querySelector("[data-address-search]")!;
     searchInput.value = "SW1A 2AA";
 

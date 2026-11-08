@@ -18,8 +18,6 @@ import {
   MIGRATION_IN_PROGRESS_REFRESH_SECONDS,
   migrationInProgressPage,
   notFoundPage,
-  rateLimitedPage,
-  siteNotActivatedPage,
   TEMPORARY_ERROR_REFRESH_SECONDS,
   temporaryErrorPage,
 } from "#templates/public/errors.tsx";
@@ -85,14 +83,6 @@ export const publicPageResponse = async (
 export const notFoundResponse = (): Promise<Response> =>
   publicPageResponse(notFoundPage, 404);
 
-/**
- * Create 429 rate limited response for token URLs.
- * No Retry-After: exposing the lockout duration would give brute-force
- * clients a ready-made backoff schedule.
- */
-export const rateLimitedResponse = (): Promise<Response> =>
-  publicPageResponse(rateLimitedPage, 429);
-
 type RequestErrorResponse = (method: string) => Promise<Response>;
 
 // A refresh loads the URL as GET. It cannot preserve a submitted form.
@@ -117,14 +107,6 @@ export const databaseBusyResponse: RequestErrorResponse = requestErrorResponse(
   databaseBusyPage,
   TEMPORARY_ERROR_REFRESH_SECONDS,
 );
-
-/**
- * Create "site not activated" response for sites whose database has not
- * been set up yet. 503 like temporaryErrorResponse, but without the
- * auto-refresh — the state only changes once someone completes /setup.
- */
-export const siteNotActivatedResponse = (): Promise<Response> =>
-  publicPageResponse(siteNotActivatedPage, 503);
 
 /**
  * Create "migration in progress" response, shown while another isolate runs a

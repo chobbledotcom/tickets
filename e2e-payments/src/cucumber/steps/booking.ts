@@ -84,7 +84,7 @@ export const payStripeWithHeldReturn = async (
 ): Promise<void> => {
   const held = holdFirstAppReturn(world.resources.visitor);
   await payHosted(world);
-  world.rememberHeldReturn(await held.capturedUrl());
+  world.heldReturnUrl = await held.capturedUrl();
 };
 
 /** The return-confirmed providers share one step body: submit the booking,
@@ -416,8 +416,8 @@ When(
 When(
   "forged, oversized, empty and missing callback ids are delivered",
   async function (this: LiveWorld): Promise<void> {
-    this.rememberRefusalProbes(
-      await deliverRefusalProbes(callbackTargetOf(this)),
+    this.refusalProbeReport = await deliverRefusalProbes(
+      callbackTargetOf(this),
     );
   },
 );

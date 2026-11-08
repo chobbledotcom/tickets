@@ -42,7 +42,6 @@ import {
   queryBatch,
   requireOne,
   resultRows,
-  rowExists,
   type TxScope,
 } from "#db/client.ts";
 import {
@@ -164,20 +163,6 @@ export const orderModifierLines = async (
     }),
   )(rows);
 };
-
-/**
- * True when the ledger already holds at least one leg for this business event.
- * It is the cheap existence probe a money move runs as a PREFLIGHT before
- * acting. The transfers ledger is the durable record of what already happened
- * (unlike the prunable processed_payments idempotency row). Booking a paid
- * session, settling a balance, or refunding one all consult this first. An
- * event the ledger already records is replayed, never double-posted or
- * refunded again.
- */
-export const eventGroupHasLegs = (eventGroup: string): Promise<boolean> =>
-  rowExists("SELECT 1 FROM transfers WHERE event_group = ? LIMIT 1", [
-    eventGroup,
-  ]);
 
 /** The whole ledger. For tests and small reports. Scoped reads are preferred on
  *  hot paths. */

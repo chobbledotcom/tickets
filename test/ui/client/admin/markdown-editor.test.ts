@@ -16,14 +16,12 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { TextSelection } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
-import {
-  enhanceMarkdownTextarea,
-  initMarkdownEditor,
-} from "#src/ui/client/admin/markdown-editor.ts";
+import { enhanceMarkdownTextarea } from "#src/ui/client/admin/markdown-editor.ts";
 import {
   editorKeymap,
   serializeMarkdown,
 } from "#src/ui/client/admin/markdown-editor-setup.ts";
+import { forEachMatch } from "#src/ui/client/dom.ts";
 import { fireEvent, requireElement } from "#test-utils/happy-dom.ts";
 import {
   cleanup,
@@ -410,18 +408,24 @@ describe("markdown editor maxlength", () => {
   });
 });
 
-describe("initMarkdownEditor", () => {
+describe("booting the markdown editor", () => {
   test("enhances every markdown textarea on the page", () => {
     const window = installDom(
       "<textarea data-markdown-preview>one</textarea><textarea data-markdown-preview>two</textarea>",
     );
-    initMarkdownEditor();
+    forEachMatch<HTMLTextAreaElement>(
+      "textarea[data-markdown-preview]",
+      enhanceMarkdownTextarea,
+    );
     expect(window.document.querySelectorAll(".md-editor").length).toBe(2);
   });
 
   test("leaves plain textareas alone", () => {
     const window = installDom("<textarea></textarea>");
-    initMarkdownEditor();
+    forEachMatch<HTMLTextAreaElement>(
+      "textarea[data-markdown-preview]",
+      enhanceMarkdownTextarea,
+    );
     expect(window.document.querySelector(".md-editor")).toBeNull();
   });
 });

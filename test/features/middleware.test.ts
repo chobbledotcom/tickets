@@ -6,9 +6,9 @@ import {
   applySecurityHeaders,
   buildCspHeader,
   contentTypeRejectionResponse,
+  EMBEDDABLE_PATH,
   getCleanUrl,
   getSecurityHeaders,
-  isEmbeddablePath,
   isJsonApiPath,
   isValidContentType,
   isWebhookPath,
@@ -175,15 +175,15 @@ describe("JSON paths", () => {
   });
 });
 
-describe("isEmbeddablePath", () => {
+describe("EMBEDDABLE_PATH", () => {
   test("accepts one or more valid ticket slugs", () => {
-    expect(isEmbeddablePath("/ticket/one")).toBe(true);
-    expect(isEmbeddablePath("/ticket/one-two+three_4")).toBe(true);
+    expect(EMBEDDABLE_PATH.test("/ticket/one")).toBe(true);
+    expect(EMBEDDABLE_PATH.test("/ticket/one-two+three_4")).toBe(true);
   });
 
   test("rejects malformed ticket paths", () => {
-    expect(isEmbeddablePath("/ticket/UPPERCASE")).toBe(false);
-    expect(isEmbeddablePath("/ticket/two--hyphens")).toBe(false);
+    expect(EMBEDDABLE_PATH.test("/ticket/UPPERCASE")).toBe(false);
+    expect(EMBEDDABLE_PATH.test("/ticket/two--hyphens")).toBe(false);
   });
 });
 

@@ -173,7 +173,7 @@ export const titleWithSiteName = (
 ): string => (websiteTitle ? `${base} - ${websiteTitle}` : base);
 
 /** One `<link rel="alternate">` feed-discovery tag for the shared head. */
-const feedDiscoveryTag = (
+export const feedDiscoveryTag = (
   type: string,
   titleKey: string,
   href: string,
@@ -195,24 +195,23 @@ const feedDiscoveryTag = (
  * isolate's first `IntlMessageFormat` at import time, which loads ~13ms of ICU
  * locale data. This module is eager (the public layout imports it), so a
  * module-level `t()` here paid that ICU init on every cold boot — before the
- * request was even routed. As functions the cost lands only when a page renders,
+ * request was even routed. As a function the cost lands only when a page renders,
  * so requests that render nothing (feeds, webhooks, redirects) never pay it.
  */
-export const rssDiscoveryTag = (): string =>
-  feedDiscoveryTag(
-    "application/rss+xml",
-    "terms.listings",
-    "/feeds/listings.rss",
-  );
-
-export const icsDiscoveryTag = (): string =>
-  feedDiscoveryTag("text/calendar", "terms.listings", "/feeds/listings.ics");
-
-const newsRssDiscoveryTag = (): string =>
-  feedDiscoveryTag("application/rss+xml", "nav.public.news", "/feeds/news.rss");
-
 export const feedDiscoveryTags = (): string =>
-  `${rssDiscoveryTag()}\n${newsRssDiscoveryTag()}\n${icsDiscoveryTag()}`;
+  [
+    feedDiscoveryTag(
+      "application/rss+xml",
+      "terms.listings",
+      "/feeds/listings.rss",
+    ),
+    feedDiscoveryTag(
+      "application/rss+xml",
+      "nav.public.news",
+      "/feeds/news.rss",
+    ),
+    feedDiscoveryTag("text/calendar", "terms.listings", "/feeds/listings.ics"),
+  ].join("\n");
 
 /** The `<title>` and head extras for an operator-authored page with SEO
  * fields: the title prefers `meta_title` over the display name (suffixed with

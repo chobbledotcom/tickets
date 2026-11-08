@@ -91,14 +91,6 @@ const continueOpenRun = (line: string, state: SideState): Kind | null => {
   return null;
 };
 
-/** A line begins a re-export: `export {` / `export * ` / `export type {` /
- * `export type *`. Requiring `*` or `{` right after `export` (optionally
- * `type`) is what keeps ordinary exported code out — `export const note =
- * 'from "x"'` starts with `const`, so it never counts as a re-export even
- * though it contains the word `from`. */
-const startsReExport = (line: string): boolean =>
-  /^export\s+(type\s+)?[*{]/.test(line);
-
 /** True when a changed line is (or opens) an import / re-export statement:
  *  - a static `import` declaration — `import x from …`, `import { … } from …`,
  *    `import * as …`, a side-effect `import "…"`, or `import type …`. The
@@ -112,10 +104,13 @@ const startsReExport = (line: string): boolean =>
  *    by the open-run handler, so the opener only needs to start the run). A
  *    multi-line *local* `export { … }` with no `from` is indistinguishable from
  *    a barrel opener without lookahead, so it also counts as import — see the
- *    module docstring's known blind spots. */
+ *    module docstring's known blind spots. Requiring `*` or `{` right after
+ *    `export` (optionally `type`) keeps ordinary exported code out: `export
+ *    const note = 'from "x"'` starts with `const`, so it never counts.
+ */
 const isImportLine = (line: string): boolean =>
   (/^import\b/.test(line) && !/^import\s*[.(]/.test(line)) ||
-  (startsReExport(line) &&
+  (/^export\s+(type\s+)?[*{]/.test(line) &&
     (/\bfrom\s+["']/.test(line) || opensBlock(line, "{", "}")));
 
 /** Classify one changed line, advancing `state` for multi-line constructs. */

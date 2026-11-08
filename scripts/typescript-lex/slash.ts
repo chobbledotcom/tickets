@@ -1,13 +1,8 @@
 /** Whether a character can begin a word. The `#` is for private names. */
-export const isWordStart = (character: string): boolean =>
-  /[#$_\p{ID_Start}]/u.test(character);
+export const WORD_START = /[#$_\p{ID_Start}]/u;
 
-export const isWordPart = (character: string): boolean =>
-  /(?:[$_\p{ID_Continue}]|\u200C|\u200D)/u.test(character);
-
-/** Whether a character doubles into `++` or `--`. */
-export const isStepChange = (character: string): boolean =>
-  character === "+" || character === "-";
+/** Whether a character can be part of a word. */
+export const WORD_PART = /(?:[$_\p{ID_Continue}]|\u200C|\u200D)/u;
 
 const ENDS_A_VALUE = new Set(
   ") ++ -- ] } ID NUM RE STR false null this true undefined".split(" "),

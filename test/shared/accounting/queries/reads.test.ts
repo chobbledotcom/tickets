@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { type BookingFacts, mapBooking } from "#accounting/mappers.ts";
 import {
-  eventGroupHasLegs,
   orderModifierLines,
   recentTransfers,
   transfersByEventGroup,
@@ -56,15 +55,6 @@ describe("db > accounting > transfer reads", () => {
       "x-pay",
       "x-sale",
     ]);
-  });
-
-  test("eventGroupHasLegs distinguishes stored and missing events", async () => {
-    await postTransfers([
-      tx({ eventGroup: "evt-stored", reference: "stored" }),
-    ]);
-
-    expect(await eventGroupHasLegs("evt-stored")).toBe(true);
-    expect(await eventGroupHasLegs("evt-missing")).toBe(false);
   });
 
   test("orderModifierLines returns nothing for no event groups", async () => {

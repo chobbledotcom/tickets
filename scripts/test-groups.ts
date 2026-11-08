@@ -19,6 +19,7 @@
  */
 
 import { isAbsolute, join, relative } from "node:path";
+import { isOneOf } from "#fp";
 import { rethrowUnlessNotFound } from "./not-found.ts";
 import { isSourcePath, isTestPath } from "./unit-tests-report-lib.ts";
 import { collectFiles } from "./walk-files.ts";
@@ -102,11 +103,9 @@ const skipCommentOrString = (source: string, index: number): number | null => {
   return null;
 };
 
-const isOpener = (char: string): boolean =>
-  char === "(" || char === "[" || char === "{";
+const isOpener = isOneOf(["(", "[", "{"]);
 
-const isCloser = (char: string): boolean =>
-  char === ")" || char === "]" || char === "}";
+const isCloser = isOneOf([")", "]", "}"]);
 
 /** The arrow-body state after one code character: a braceless arrow opens a
  *  body, and the statement's `;` closes it. */
