@@ -8,6 +8,7 @@ import {
   adminExternalSourcesPage,
   type ExternalSourceEntry,
 } from "#templates/admin/external-sources.tsx";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { featureSetting, useSetting } from "#test-utils/settings.ts";
 
@@ -96,5 +97,12 @@ describeWithEnv("external sources page", { encryptionKey: true }, () => {
 
   test("says when one source holds no links", () => {
     assertStringIncludes(pageOf([{ links: [], source }]), "No links yet.");
+  });
+
+  test("links to the guide section that explains the directory", () => {
+    expectIncludesAll(pageOf([{ links: [link()], source }]), [
+      '<a class="guide-link" href="/admin/guide#external-sources">',
+      "<span>External sources guide</span>",
+    ]);
   });
 });

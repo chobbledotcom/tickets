@@ -16,6 +16,7 @@ import { adminPath } from "#shared/admin-surface.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { flashDataPage } from "#templates/admin/admin-page.tsx";
+import { guideFooterFor } from "#templates/components/actions.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 /* jscpd:ignore-end */
@@ -112,11 +113,17 @@ const sourceSection = ({ links, source }: ExternalSourceEntry): Child => (
 export const adminExternalSourcesPage = flashDataPage<
   readonly ExternalSourceEntry[]
 >("features.external_sources.name", "/admin/external-sources", (entries) => (
-  <div class="prose">
-    {entries.length === 0 ? (
-      <p>{t("features.external_sources.empty")}</p>
-    ) : (
-      entries.map(sourceSection)
+  <>
+    <div class="prose">
+      {entries.length === 0 ? (
+        <p>{t("features.external_sources.empty")}</p>
+      ) : (
+        entries.map(sourceSection)
+      )}
+    </div>
+    {guideFooterFor(
+      "/admin/guide#external-sources",
+      "features.external_sources.guide_link",
     )}
-  </div>
+  </>
 ));

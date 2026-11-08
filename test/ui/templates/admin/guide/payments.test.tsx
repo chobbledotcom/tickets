@@ -63,4 +63,12 @@ describe("payments guide schema", () => {
       `up to ${MAX_DURATION_DAYS} days`,
     ]);
   });
+
+  test("names the invoice preview button the invoice page shows", () => {
+    const html = String(renderGuideSections([sectionByTitle("invoices")]));
+    expectIncludesAll(html, [
+      t("guide.q.invoices_how_they_work"),
+      "<strong>Update preview</strong>",
+    ]);
+  });
 });

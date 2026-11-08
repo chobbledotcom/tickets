@@ -30,6 +30,17 @@ describeWithEnv("admin guide routes", { db: true }, () => {
     );
   });
 
+  test("serves the Tax and External sources sections", async () => {
+    expectIncludesAll(await guideHtml(), [
+      '<h3 id="tax">Tax</h3>',
+      '<a href="/admin/settings">Settings</a> and find <strong>Tax</strong>',
+      '<h3 id="external-sources">External sources</h3>',
+      '<a href="/admin/external-sources">External sources</a>',
+      "<code>https://diary.example/events/{external_id}</code>",
+      '<h3 id="admin-api">Admin API</h3>',
+    ]);
+  });
+
   test("shows nothing about host email when the host has none", async () => {
     hostEmail.setOverride(null);
     assert(!(await guideHtml()).includes("host@example.com"));

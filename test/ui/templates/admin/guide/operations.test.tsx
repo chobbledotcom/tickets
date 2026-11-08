@@ -107,4 +107,24 @@ describe("operations guide schema", () => {
     assertStringIncludes(listingAnswer, "<code>{{name}}</code>");
     assertStringIncludes(attendeeAnswer, "<code>{{email}}</code>");
   });
+
+  test("states the run sheet's template link and its service events", () => {
+    const html = String(renderGuideSections(sections));
+    expectIncludesAll(html, [
+      "A service event that uses an agent also shows on the sheet",
+      "<strong>Edit template</strong> at the top of the sheet",
+      '<a href="/admin/settings-advanced#settings-logistics-run-sheet">',
+      "The day heading and the day body take Liquid tags",
+      "A blank box uses the built-in wording.",
+    ]);
+  });
+
+  test("states the image library's order", () => {
+    const html = String(renderGuideSections([imagesSection()]));
+    expectIncludesAll(html, [
+      "lists images by name, A to Z",
+      "the older upload first",
+      "the image menu in the editors uses the same order",
+    ]);
+  });
 });

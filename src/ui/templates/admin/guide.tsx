@@ -15,6 +15,7 @@ import {
 } from "#templates/admin/guide/components.tsx";
 import { domainsSections } from "#templates/admin/guide/domains.tsx";
 import { emailSections } from "#templates/admin/guide/email.tsx";
+import { externalSourcesSection } from "#templates/admin/guide/external-sources.tsx";
 import { gettingStartedSections } from "#templates/admin/guide/getting-started.tsx";
 import { importExportSections } from "#templates/admin/guide/import-export.tsx";
 import { integrationsSections } from "#templates/admin/guide/integrations.tsx";
@@ -24,6 +25,7 @@ import {
 } from "#templates/admin/guide/listings.tsx";
 import { operationsSections } from "#templates/admin/guide/operations.tsx";
 import { paymentsSections } from "#templates/admin/guide/payments.tsx";
+import { taxSection } from "#templates/admin/guide/tax.tsx";
 import { ticketsSections } from "#templates/admin/guide/tickets.tsx";
 import type { AdminSession } from "#types";
 
@@ -33,11 +35,13 @@ export const guideSections = (hostConfig?: GuideHostConfig): GuideSection[] => [
   ...listingsSections(),
   ...importExportSections(),
   ...paymentsSections(),
+  taxSection,
   ...ticketsSections(hostConfig),
   ...accountsSections(),
   ...emailSections(hostConfig),
   ...domainsSections(hostConfig),
   ...integrationsSections(),
+  externalSourcesSection,
   ...operationsSections(),
 ];
 

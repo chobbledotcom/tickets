@@ -35,6 +35,7 @@
   "features.external_sources.url_pattern": "URL pattern",
   "features.external_sources.record": "Record",
   "features.external_sources.external_id": "External ID",
+  "features.external_sources.guide_link": "External sources guide",
   "features.external_sources.address": "Address",
   "features.external_sources.created": "Added",
   "features.external_sources.empty": "No sources yet.",
