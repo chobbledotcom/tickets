@@ -33,12 +33,7 @@ import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { refundEvidenceActionAllowed } from "#payment/refund-authority-lifecycle.ts";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
-import {
-  authResponsePage,
-  formPolicyFor,
-  pageGuardFor,
-  withAuth,
-} from "#routes/auth.ts";
+import { withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import {
   adminRedirect,
@@ -48,8 +43,13 @@ import {
   notFoundResponse,
   redirect,
 } from "#routes/response.ts";
+import {
+  authResponsePageRoute,
+  formPolicyAt,
+  pageGuardAt,
+} from "#routes/route-gates.ts";
 import { getSearchParam } from "#routes/url.ts";
-import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 import { formHandlerAt } from "#shared/app-forms.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 import {
@@ -71,6 +71,7 @@ import { adminPrivacyPage } from "#templates/admin/privacy.tsx";
 import { adminProviderRefundCasePage } from "#templates/admin/provider-refund-cases.tsx";
 
 const PRIVACY_PATH = adminPattern("privacy");
+const REFUND_CASE_PATTERN = adminPattern("privacyRefund");
 const refundCasePath = (id: number): string => `${PRIVACY_PATH}/refunds/${id}`;
 const refundCaseChanged = (id: number): Response =>
   errorRedirect(refundCasePath(id), t("privacy.refunds.changed"));
@@ -84,36 +85,36 @@ const paymentWorkCursor = (request: Request) => {
   return {};
 };
 
-const handlePrivacyGet = authResponsePage(
-  pageGuardFor(adminDestinationAt("/admin/privacy")),
-)(async (session, request, flash) => {
-  const refundCursor = new URL(request.url).searchParams.get("refund_after");
-  const refundAfter =
-    refundCursor === null
-      ? undefined
-      : await readProviderRefundCursor(refundCursor);
-  if (refundAfter === null) {
-    return htmlResponse(t("privacy.refunds.invalid_cursor"), 400);
-  }
-  const [purgeableOrphanCount, paymentWorkPage, providerRefundCases] =
-    await Promise.all([
-      countPurgeableOrphanedAttendees(nowIso()),
-      getOrphanPaymentWorkPage(paymentWorkCursor(request)),
-      listProviderRefundCases(refundAfter),
-    ]);
-  return htmlResponse(
-    adminPrivacyPage(session, {
-      autoPurgeOrphans: settings.autoPurgeOrphans,
-      error: flash.error,
-      info: flash.info,
-      orphanRetention: settings.orphanPurgeRetention,
-      paymentWorkPage,
-      providerRefundCases,
-      purgeableOrphanCount,
-      success: flash.success,
-    }),
-  );
-});
+const privacyGetRoute = authResponsePageRoute(PRIVACY_PATH)(
+  async (session, request, flash) => {
+    const refundCursor = new URL(request.url).searchParams.get("refund_after");
+    const refundAfter =
+      refundCursor === null
+        ? undefined
+        : await readProviderRefundCursor(refundCursor);
+    if (refundAfter === null) {
+      return htmlResponse(t("privacy.refunds.invalid_cursor"), 400);
+    }
+    const [purgeableOrphanCount, paymentWorkPage, providerRefundCases] =
+      await Promise.all([
+        countPurgeableOrphanedAttendees(nowIso()),
+        getOrphanPaymentWorkPage(paymentWorkCursor(request)),
+        listProviderRefundCases(refundAfter),
+      ]);
+    return htmlResponse(
+      adminPrivacyPage(session, {
+        autoPurgeOrphans: settings.autoPurgeOrphans,
+        error: flash.error,
+        info: flash.info,
+        orphanRetention: settings.orphanPurgeRetention,
+        paymentWorkPage,
+        providerRefundCases,
+        purgeableOrphanCount,
+        success: flash.success,
+      }),
+    );
+  },
+);
 
 type RefundCaseRoute = (
   request: Request,
@@ -121,24 +122,17 @@ type RefundCaseRoute = (
 ) => Promise<Response>;
 
 const handleRefundCaseGet: RefundCaseRoute = (request, { id }) =>
-  pageGuardFor(adminDestinationAt("/admin/privacy/refunds/:id"))(
-    request,
-    async (session) => {
-      const refundCase = await loadProviderRefundCase(
-        id,
-        await requireRequestPrivateKey(),
-      );
-      return refundCase === null
-        ? notFoundResponse()
-        : htmlResponse(
-            adminProviderRefundCasePage(
-              session,
-              refundCase,
-              applyFlash(request),
-            ),
-          );
-    },
-  );
+  pageGuardAt(REFUND_CASE_PATTERN)(request, async (session) => {
+    const refundCase = await loadProviderRefundCase(
+      id,
+      await requireRequestPrivateKey(),
+    );
+    return refundCase === null
+      ? notFoundResponse()
+      : htmlResponse(
+          adminProviderRefundCasePage(session, refundCase, applyFlash(request)),
+        );
+  });
 
 const OWNER_CHOICE_LOG = {
   money_recorded: "privacy.refunds.log_money_recorded",
@@ -246,7 +240,7 @@ const checkProviderAgain = async (
 const handleRefundCasePost: RefundCaseRoute = (request, { id }) =>
   withAuth(
     request,
-    formPolicyFor(adminDestinationAt("/admin/privacy/refunds/:id")),
+    formPolicyAt(REFUND_CASE_PATTERN),
     async (_session, form) => {
       const choice = form.getString("choice");
       const revision = parsePositiveInt(form.getString("revision"));
@@ -342,7 +336,7 @@ const handleErasePost = formHandlerAt("/admin/privacy/erase")(
 
 /** Privacy routes */
 export const adminHandlers = defineAdminRoutes({
-  "GET /admin/privacy": handlePrivacyGet,
+  ...privacyGetRoute,
   "GET /admin/privacy/refunds/:id": handleRefundCaseGet,
   "POST /admin/privacy/erase": handleErasePost,
   "POST /admin/privacy/orphans": handleOrphansPost,
