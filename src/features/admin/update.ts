@@ -8,10 +8,9 @@ import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import { hasRecentBackup } from "#db/backup-storage.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
-import { gatedPost } from "#routes/auth.ts";
 import { authFlashPage } from "#routes/auth-flash-page.ts";
 import { adminRedirect } from "#routes/response.ts";
-import { formPolicyAt, pageGuardAt } from "#routes/route-gates.ts";
+import { gatedPostAt, pageGuardAt } from "#routes/route-gates.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#shared/build-info.ts";
 import {
@@ -114,8 +113,8 @@ const deployUpdate = async (): Promise<Response> => {
 
 export const adminHandlers = defineAdminRoutes({
   "GET /admin/update": handleUpdateGet,
-  "POST /admin/update": gatedPost(formPolicyAt(UPDATE_PATH))(deployUpdate),
-  "POST /admin/update/check": gatedPost(formPolicyAt(`${UPDATE_PATH}/check`))(
+  "POST /admin/update": gatedPostAt(UPDATE_PATH)(deployUpdate),
+  "POST /admin/update/check": gatedPostAt(`${UPDATE_PATH}/check`)(
     checkForUpdate,
   ),
 });

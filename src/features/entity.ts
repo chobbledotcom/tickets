@@ -2,12 +2,8 @@
  * Entity loading patterns for route handlers
  */
 
-import {
-  type AuthSession,
-  formPolicyFor,
-  type Guard,
-  pageGuardFor,
-} from "#routes/auth.ts";
+import { type AuthSession, formPolicyFor, type Guard } from "#routes/auth.ts";
+import { pageGuardAt } from "#routes/route-gates.ts";
 import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -117,10 +113,7 @@ export const entityPageById = <T>(
   pattern: string,
   load: EntityLoader<T>,
   render: ResponseHandler<[entity: T, session: AuthSession]>,
-): IdRouteHandler =>
-  createIdEntityHandler(load)(pageGuardFor(adminDestinationAt(pattern)))(
-    render,
-  );
+): IdRouteHandler => createIdEntityHandler(load)(pageGuardAt(pattern))(render);
 
 /** Record POST-by-ID route: the route's declared form policy gates it, CSRF
  * check included. */

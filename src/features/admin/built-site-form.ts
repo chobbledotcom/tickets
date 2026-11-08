@@ -7,7 +7,6 @@ import { builtSitesCrudTable } from "#db/built-sites.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import { createIdEntityHandler, type IdParam } from "#routes/entity.ts";
 import { formGuardAt } from "#routes/route-gates.ts";
-import { adminPattern } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 
@@ -27,4 +26,4 @@ export type BuiltSitePost = ResponseHandler<
  * gate is the one they share. */
 export const builtSiteFormPost = createIdEntityHandler<BuiltSite>((id) =>
   builtSitesCrudTable.read.one({ id }),
-)(formGuardAt(adminPattern("builtSite")));
+)(formGuardAt("builtSite"));

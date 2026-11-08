@@ -11,13 +11,7 @@ import { databaseHostFor } from "#db/host.ts";
 import { SCHEMA_HASH } from "#db/migrations.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
-import {
-  authPage,
-  formPolicyFor,
-  gatedPost,
-  pageGuardFor,
-} from "#routes/auth.ts";
-import { adminDestinationAt } from "#shared/admin-surface.ts";
+import { authPageAt, gatedPostAt } from "#routes/route-gates.ts";
 import {
   isValidAppleCertificate,
   isValidCertificate,
@@ -304,8 +298,8 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
 /**
  * Handle GET /admin/debug - owner only
  */
-const handleAdminDebugGet: TypedRouteHandler<"GET /admin/debug"> = authPage(
-  pageGuardFor(adminDestinationAt("/admin/debug")),
+const handleAdminDebugGet: TypedRouteHandler<"GET /admin/debug"> = authPageAt(
+  "/admin/debug",
 )(async (session) => {
   const state = await getDebugPageState();
   return adminDebugPage(session, state);
@@ -313,18 +307,16 @@ const handleAdminDebugGet: TypedRouteHandler<"GET /admin/debug"> = authPage(
 
 /** Send an owner-requested Sentry test and report whether it was delivered. */
 const handleSentryTestPost: TypedRouteHandler<"POST /admin/debug/sentry"> =
-  gatedPost(formPolicyFor(adminDestinationAt("/admin/debug/sentry")))(
-    async () => {
-      const sent = await sendSentryTest();
-      return sent
-        ? ok("/admin/debug", t("debug.sentry_test_sent"), {
-            formId: SENTRY_TEST_FORM_ID,
-          })
-        : fail("/admin/debug", t("debug.sentry_test_failed"), {
-            formId: SENTRY_TEST_FORM_ID,
-          });
-    },
-  );
+  gatedPostAt("/admin/debug/sentry")(async () => {
+    const sent = await sendSentryTest();
+    return sent
+      ? ok("/admin/debug", t("debug.sentry_test_sent"), {
+          formId: SENTRY_TEST_FORM_ID,
+        })
+      : fail("/admin/debug", t("debug.sentry_test_failed"), {
+          formId: SENTRY_TEST_FORM_ID,
+        });
+  });
 
 /** Debug routes */
 export const adminHandlers = defineAdminRoutes({

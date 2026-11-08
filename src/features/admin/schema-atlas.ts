@@ -6,13 +6,10 @@ import { scanSchemaAnomalies } from "#db/schema-anomaly-scan.ts";
 import { settings } from "#db/settings.ts";
 import { listUnansweredSumupMoney } from "#db/sumup-recovery.ts";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
-import { authPage, pageGuardFor } from "#routes/auth.ts";
-import { adminDestinationAt } from "#shared/admin-surface.ts";
+import { authPageAt } from "#routes/route-gates.ts";
 import { adminSchemaAtlasPage } from "#templates/admin/schema-atlas.tsx";
 
-const handleSchemaAtlasGet = authPage(
-  pageGuardFor(adminDestinationAt("/admin/schema")),
-)(async (session) => {
+const handleSchemaAtlasGet = authPageAt("/admin/schema")(async (session) => {
   const [anomalies, unanswered] = await Promise.all([
     scanSchemaAnomalies(),
     listUnansweredSumupMoney(),

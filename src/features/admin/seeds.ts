@@ -6,22 +6,22 @@ import type { TypedRouteHandler } from "#routes/router.ts";
  */
 
 import { t } from "#i18n";
-import { formPolicyFor, formPost, pageGuardFor } from "#routes/auth.ts";
+import { formPost } from "#routes/auth.ts";
 import { authFlashPage } from "#routes/auth-flash-page.ts";
 import { adminRedirect } from "#routes/response.ts";
-import { adminDestinationAt } from "#shared/admin-surface.ts";
+import { formPolicyAt, pageGuardAt } from "#routes/route-gates.ts";
 import { createSeeds } from "#shared/seeds.ts";
 import { adminSeedsPage } from "#templates/admin/seeds.tsx";
 import { seedsForm } from "#templates/fields/seeds.ts";
 
 /** Handle GET /admin/seeds (show seed form) */
 const handleSeedsGet: TypedRouteHandler<"GET /admin/seeds"> = authFlashPage(
-  pageGuardFor(adminDestinationAt("/admin/seeds")),
+  pageGuardAt("/admin/seeds"),
   (session, error, success) => adminSeedsPage(session, error, success),
 );
 
 const handleSeedsPost: TypedRouteHandler<"POST /admin/seeds"> = formPost(
-  formPolicyFor(adminDestinationAt("/admin/seeds")),
+  formPolicyAt("/admin/seeds"),
 )(async (form) => {
   const parsed = seedsForm.validate(form);
   if (!parsed.valid) {

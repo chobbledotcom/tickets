@@ -15,10 +15,10 @@ import {
   defineAdminRoutes,
   entityTabRoutes,
 } from "#routes/admin/route-tables.ts";
-import { authPage, pageGuardFor } from "#routes/auth.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
+import { authPageAt } from "#routes/route-gates.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
-import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 import {
   inBuiltSitesOrder,
   readBuiltSitesSort,
@@ -242,22 +242,22 @@ const handleAddSecrets = builtSiteFormPost(
 
 /** Overrides the CRUD list: the renewal-tier summary sits beside the table,
  * and the address names the row order. */
-const handleBuiltSitesListGet = authPage(
-  pageGuardFor(adminDestinationAt("/admin/built-sites")),
-)(async (session, request) => {
-  const sortOrder = readBuiltSitesSort(new URL(request.url).searchParams);
-  const [sites, tiers] = await Promise.all([
-    builtSites.getAll(),
-    getQualifyingTierListings(),
-  ]);
-  return adminBuiltSitesPage(
-    inBuiltSitesOrder(sortOrder)(sites),
-    session,
-    getFlash().success,
-    tiers,
-    sortOrder,
-  );
-});
+const handleBuiltSitesListGet = authPageAt("/admin/built-sites")(
+  async (session, request) => {
+    const sortOrder = readBuiltSitesSort(new URL(request.url).searchParams);
+    const [sites, tiers] = await Promise.all([
+      builtSites.getAll(),
+      getQualifyingTierListings(),
+    ]);
+    return adminBuiltSitesPage(
+      inBuiltSitesOrder(sortOrder)(sites),
+      session,
+      getFlash().success,
+      tiers,
+      sortOrder,
+    );
+  },
+);
 
 /** The whole built-sites section is hidden from the nav when CAN_BUILD_SITES
  * is off, so its routes must not be reachable either. We never serve a page

@@ -24,9 +24,10 @@ import {
   defineEntityPage,
   type EntityPage,
 } from "#routes/admin/entity-pages.ts";
-import { formPolicyFor, withAuth } from "#routes/auth.ts";
+import { withAuth } from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
-import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
+import { formPolicyAt } from "#routes/route-gates.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -114,7 +115,7 @@ const handleContactHistoryPost: TypedRouteHandler<
 > = (request, { hmac }) =>
   withAuth(
     request,
-    formPolicyFor(adminDestinationAt("/admin/history/:hmac")),
+    formPolicyAt("/admin/history/:hmac"),
     async (session, form) => {
       const pk = await requireRequestPrivateKey();
       const hash = fromContactHashParam(hmac);

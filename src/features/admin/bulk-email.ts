@@ -33,7 +33,6 @@ import {
   handleTemplateSavePost,
   templateDelete,
 } from "#routes/admin/bulk-email-templates.ts";
-import { gatedPost } from "#routes/auth.ts";
 import { idRouteFor } from "#routes/entity.ts";
 import {
   errorRedirect,
@@ -41,8 +40,7 @@ import {
   notFoundResponse,
   redirectResponse,
 } from "#routes/response.ts";
-import { authResponsePageRoute, formPolicyAt } from "#routes/route-gates.ts";
-import { adminPattern } from "#shared/admin-surface.ts";
+import { authResponsePageRoute, gatedPostAt } from "#routes/route-gates.ts";
 import {
   absoluteEmailImageUrls,
   buildBulkPayload,
@@ -317,70 +315,64 @@ const previewGetRoute = authResponsePageRoute(PREVIEW_PATH)(async (session) => {
 });
 
 /** POST /admin/emails/send — send the saved draft via the bulk provider. */
-const handleSendPost = gatedPost(formPolicyAt(adminPattern("emailSend")))(
-  async (_session, _form) => {
-    const draft = await parseSavedDraft(await requireRequestPrivateKey());
-    if (!draft) {
-      return errorRedirect(COMPOSE_PATH, t("bulk_email.no_draft"));
-    }
-    const { privateKey, recipients, config } = await loadSendContext(
-      draft.target,
-    );
-    if (!config) {
-      return errorRedirect(PREVIEW_PATH, t("bulk_email.no_provider"));
-    }
-    if (recipients.length === 0) {
-      return errorRedirect(PREVIEW_PATH, t("bulk_email.no_recipients"));
-    }
-    const unsubscribed = draft.marketing
-      ? await getUnsubscribedHashSet()
-      : new Set<string>();
-    // Email clients cannot read root-relative sources, so the sent render's
-    // table maps the referenced ids to absolute URLs. It merges into the page
-    // slot immediately before the render, and nothing else renders markdown in
-    // this request. The text part rewrites its references from the same table,
-    // because a text-only reader cannot render the picture.
-    const emailImageUrls = absoluteEmailImageUrls(
-      await imageUrlsFor([draft.body]),
-    );
-    mergePageImageUrls(emailImageUrls);
-    const payload = await buildBulkPayload({
-      bodyHtml: renderMarkdown(draft.body),
-      bodyText: resolveImageReferences(draft.body, emailImageUrls),
-      marketing: draft.marketing,
-      recipients,
-      subject: draft.subject,
-      unsubscribed,
-    });
-    if (payload.recipients.length === 0) {
-      return errorRedirect(PREVIEW_PATH, t("bulk_email.all_unsubscribed"));
-    }
-    const result = await sendBulkEmails(config, payload);
-    // The send is done, so the draft must go now. If a step below fails, the
-    // leftover draft lets a resubmit send the email again.
-    await settings.update.bulkEmailDraft("");
-    // Only the people the provider took were contacted, so only they belong
-    // in the contact history. A later count cannot recover who really got it.
-    await recordContacts(
-      await hashAll(result.taken),
-      draft.subject,
-      privateKey,
-    );
-    const providerSummary = summarizeProviderResponse(result.responses);
-    const sent = result.taken.length;
-    await logActivity(
-      `Sent bulk email "${draft.subject}" to ${recipientLabel(sent, result.attempted)}. ${providerSummary}`,
-      targetLogListingId(draft.target),
-    );
-    return sendOutcome(
-      sent,
-      result.failed,
-      result.attempted,
-      config,
-      providerSummary,
-    );
-  },
-);
+const handleSendPost = gatedPostAt("emailSend")(async (_session, _form) => {
+  const draft = await parseSavedDraft(await requireRequestPrivateKey());
+  if (!draft) {
+    return errorRedirect(COMPOSE_PATH, t("bulk_email.no_draft"));
+  }
+  const { privateKey, recipients, config } = await loadSendContext(
+    draft.target,
+  );
+  if (!config) {
+    return errorRedirect(PREVIEW_PATH, t("bulk_email.no_provider"));
+  }
+  if (recipients.length === 0) {
+    return errorRedirect(PREVIEW_PATH, t("bulk_email.no_recipients"));
+  }
+  const unsubscribed = draft.marketing
+    ? await getUnsubscribedHashSet()
+    : new Set<string>();
+  // Email clients cannot read root-relative sources, so the sent render's
+  // table maps the referenced ids to absolute URLs. It merges into the page
+  // slot immediately before the render, and nothing else renders markdown in
+  // this request. The text part rewrites its references from the same table,
+  // because a text-only reader cannot render the picture.
+  const emailImageUrls = absoluteEmailImageUrls(
+    await imageUrlsFor([draft.body]),
+  );
+  mergePageImageUrls(emailImageUrls);
+  const payload = await buildBulkPayload({
+    bodyHtml: renderMarkdown(draft.body),
+    bodyText: resolveImageReferences(draft.body, emailImageUrls),
+    marketing: draft.marketing,
+    recipients,
+    subject: draft.subject,
+    unsubscribed,
+  });
+  if (payload.recipients.length === 0) {
+    return errorRedirect(PREVIEW_PATH, t("bulk_email.all_unsubscribed"));
+  }
+  const result = await sendBulkEmails(config, payload);
+  // The send is done, so the draft must go now. If a step below fails, the
+  // leftover draft lets a resubmit send the email again.
+  await settings.update.bulkEmailDraft("");
+  // Only the people the provider took were contacted, so only they belong
+  // in the contact history. A later count cannot recover who really got it.
+  await recordContacts(await hashAll(result.taken), draft.subject, privateKey);
+  const providerSummary = summarizeProviderResponse(result.responses);
+  const sent = result.taken.length;
+  await logActivity(
+    `Sent bulk email "${draft.subject}" to ${recipientLabel(sent, result.attempted)}. ${providerSummary}`,
+    targetLogListingId(draft.target),
+  );
+  return sendOutcome(
+    sent,
+    result.failed,
+    result.attempted,
+    config,
+    providerSummary,
+  );
+});
 
 export const adminHandlers = defineAdminRoutes({
   ...composeGetRoute,
