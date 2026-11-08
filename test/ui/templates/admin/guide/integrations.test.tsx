@@ -1,6 +1,9 @@
 import { assertStringIncludes } from "@std/assert";
+import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
+import { adminApiRoutes } from "#routes/admin/api.ts";
+import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import {
   API_BOOK_FREE_EXAMPLE_JSON,
   API_BOOK_PAID_EXAMPLE_JSON,
@@ -17,6 +20,41 @@ import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 /** What a `<code>` body shows: JSX escapes double quotes as entities. */
 const shown = (code: string): string => code.replaceAll('"', "&quot;");
+
+/** The answers that describe the admin JSON API. External sources have their
+ *  own section, and the two answers together must cover the resource table. */
+const ADMIN_API_ANSWERS = [
+  "what_admin_endpoints_are_available",
+  "external_sources_api",
+] as const;
+
+const adminApiAnswer = (): string =>
+  ADMIN_API_ANSWERS.map((id) => t(`guide.a.${id}`)).join("");
+
+/** One path with every parameter name flattened, so the guide's generic `:id`
+ *  and the table's resource-named `:listingId` compare equal. */
+const flatParams = (path: string): string =>
+  path.replace(/:[A-Za-z0-9_]+/g, ":id");
+
+/** Every path the admin route table serves, parameter names flattened. */
+const servedPaths = (): Set<string> =>
+  new Set(
+    Object.keys(adminApiRoutes).map((route) =>
+      flatParams(route.slice(route.indexOf(" ") + 1)),
+    ),
+  );
+
+/** Every `/api/admin` path one answer names, with the query string dropped. The
+ *  two generalised forms (`/api/admin/<name>` and its `:id` form) name no one
+ *  resource, so they are not paths a route serves. */
+const namedPaths = (answer: string): string[] => [
+  ...new Set(
+    [...answer.matchAll(/\/api\/admin\/[^"'\s<&]*/g)]
+      .map((match) => match[0].split("?")[0]!)
+      .filter((path) => path !== "/api/admin/")
+      .map(flatParams),
+  ),
+];
 
 describe("guide integrations section", () => {
   test("the booking example answers are labelled and code-fenced", () => {
@@ -87,18 +125,30 @@ describe("guide integrations section", () => {
     ]);
   });
 
-  test("lists every admin API resource the route table serves", () => {
-    const html = String(renderGuideSections(integrationsSections()));
-    expectIncludesAll(html, [
-      t("guide.q.what_admin_endpoints_are_available"),
-      "<strong>Attendee statuses</strong>",
-      "<code>/api/admin/attributes/:id/options</code>",
-      "<code>/api/admin/questions/:id/answers</code>",
-      "<code>GET /api/admin/questions/:id/bookings</code>",
-      "GET</code> and <code>PUT /api/admin/site-pages/home</code>",
+  test("names the same paths the admin API route table serves", () => {
+    const named = namedPaths(adminApiAnswer());
+    const roots = Object.values(ADMIN_API_RESOURCES).map(
+      (resource) => `/api/admin/${resource.path}`,
+    );
+    // The extractor reads every resource root the table declares, so the check
+    // below cannot pass on an empty reading.
+    expect(named.filter((path) => roots.includes(path)).toSorted()).toEqual(
+      roots.toSorted(),
+    );
+    const served = servedPaths();
+    expect(named.filter((path) => !served.has(path))).toEqual([]);
+  });
+
+  test("names the one attendee route the table serves", () => {
+    const attendeeRoutes = Object.keys(adminApiRoutes).filter((route) =>
+      route.includes("/api/admin/attendees"),
+    );
+    expect(attendeeRoutes).toEqual(["POST /api/admin/attendees"]);
+  });
+
+  test("the Admin API answer links its own section", () => {
+    expectIncludesAll(adminApiAnswer(), [
       '<a href="#external-sources">External sources</a>',
-      "<code>POST /api/admin/attendees</code> makes one booking",
-      "<code>confirm_identifier</code> field",
     ]);
   });
 });

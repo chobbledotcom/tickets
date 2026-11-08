@@ -1,8 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type {
-  GuideEntry,
-  GuideSection,
+import {
+  type GuideEntry,
+  type GuideSection,
+  renderGuideSections,
 } from "#templates/admin/guide/components.tsx";
 import { guideSections } from "#templates/admin/guide.tsx";
 import { walkSourceFiles } from "#test-utils/walk-src.ts";
@@ -73,5 +74,14 @@ describe("guide anchor links", () => {
     const ids = sectionIds();
     const stale = [...PENDING_SECTIONS].filter((anchor) => ids.has(anchor));
     expect(stale).toEqual([]);
+  });
+
+  test("every in-page #anchor inside the guide resolves", () => {
+    const ids = new Set([...sectionIds(), ...entryIds()]);
+    const html = String(renderGuideSections(sections()));
+    const broken = [...html.matchAll(/href="#([a-z0-9_-]+)"/g)]
+      .map((match) => match[1]!)
+      .filter((anchor) => !ids.has(anchor));
+    expect(broken).toEqual([]);
   });
 });
