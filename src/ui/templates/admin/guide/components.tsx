@@ -116,15 +116,15 @@ export const custom = (id: string, body: JSX.Element): GuideCustom => ({
 });
 
 /** Author a section whose every entry is a data-driven FAQ: its heading key,
- * its entry ids, and its optional anchor id. */
+ * its entry ids, and its anchor id. */
 export const faqSection = (
   titleKey: string,
   ids: readonly string[],
-  id?: string,
+  id: string,
 ): GuideSection => ({
   entries: ids.map(faq),
+  id,
   titleKey,
-  ...(id === undefined ? {} : { id }),
 });
 
 const renderEntry = (entry: GuideEntry): JSX.Element =>
