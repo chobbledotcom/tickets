@@ -92,18 +92,17 @@ export const createRecalculatePageRenderer =
     );
 
 /** The GET + POST handlers one aggregate-recalculation route record exposes. */
-export type RecalculateHandlers<ID> = {
+type RecalculateHandlers<ID> = {
   get: (request: Request, id: ID) => Promise<Response>;
   post: (request: Request, id: ID) => Promise<Response>;
 };
 
-/** One recalculate route handler: the handlers record's method, fed the id
- *  the route names. */
+/** One recalculate route handler, fed the id its route names. */
 export const recalculateRoute =
-  <ID>(handlers: RecalculateHandlers<ID>, method: "get" | "post") =>
+  <ID>(handler: (request: Request, id: ID) => Promise<Response>) =>
   <Param extends string>(param: Param) =>
   (request: Request, params: Record<Param, ID>): Promise<Response> =>
-    handlers[method](request, params[param]);
+    handler(request, params[param]);
 
 /**
  * Build the GET + POST route handlers for one entity's aggregate-recalculation

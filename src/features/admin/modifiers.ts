@@ -345,10 +345,10 @@ const modifierRecalculateHandlers = createRecalculateHandlers({
 });
 
 const handleModifierRecalculateGet: TypedRouteHandler<"GET /admin/modifiers/recalculate/:modifierId"> =
-  recalculateRoute(modifierRecalculateHandlers, "get")("modifierId");
+  recalculateRoute(modifierRecalculateHandlers.get)("modifierId");
 
 const handleModifierRecalculatePost: TypedRouteHandler<"POST /admin/modifiers/recalculate/:modifierId"> =
-  recalculateRoute(modifierRecalculateHandlers, "post")("modifierId");
+  recalculateRoute(modifierRecalculateHandlers.post)("modifierId");
 
 /** Modifier routes. The edit POST restates the standard key with its own
  * handler. */

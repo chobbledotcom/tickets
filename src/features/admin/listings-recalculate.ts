@@ -43,7 +43,7 @@ const listingRecalculateHandlers = createRecalculateHandlers({
 });
 
 export const handleListingRecalculateGet: TypedRouteHandler<"GET /admin/listings/recalculate/:listingId"> =
-  recalculateRoute(listingRecalculateHandlers, "get")("listingId");
+  recalculateRoute(listingRecalculateHandlers.get)("listingId");
 
 export const handleListingRecalculatePost: TypedRouteHandler<"POST /admin/listings/recalculate/:listingId"> =
-  recalculateRoute(listingRecalculateHandlers, "post")("listingId");
+  recalculateRoute(listingRecalculateHandlers.post)("listingId");

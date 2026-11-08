@@ -106,21 +106,21 @@ describe("fields contracts", () => {
       const confirm = byName(setup, "admin_password_confirm");
       expect(confirm.required).toBe(true);
       // The confirm field must NOT carry a minlength — it only has to match.
-      expect(confirm.minlength).toBeUndefined();
+      expect("minlength" in confirm).toBe(false);
     });
 
     test("change-password reuses the same new-password rules", () => {
       const fields = getChangePasswordForm().fields;
       expect(byName(fields, "current_password").required).toBe(true);
       expect(byName(fields, "new_password").minlength).toBe(8);
-      expect(byName(fields, "new_password_confirm").minlength).toBeUndefined();
+      expect("minlength" in byName(fields, "new_password_confirm")).toBe(false);
     });
 
     test("caps chosen passwords but not the credential being checked", () => {
       const login = byName(getLoginForm().fields, "password");
-      expect(login.maxlength).toBeUndefined();
+      expect("maxlength" in login).toBe(false);
       const change = getChangePasswordForm().fields;
-      expect(byName(change, "current_password").maxlength).toBeUndefined();
+      expect("maxlength" in byName(change, "current_password")).toBe(false);
       expect(byName(change, "new_password").maxlength).toBe(MAX_INPUT_LENGTH);
       const setup = getSetupForm().fields;
       expect(byName(setup, "admin_password").maxlength).toBe(MAX_INPUT_LENGTH);

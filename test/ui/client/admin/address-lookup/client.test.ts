@@ -235,33 +235,44 @@ describe("address lookup client", () => {
     expect(resultsLabel.hidden).toBe(true);
   });
 
-  /** Run a search with the current fetch stub and assert the shown status. */
-  const searchExpectingStatus = async (expected: string): Promise<void> => {
+  /** Run a search with the current fetch stub and report what the status shows. */
+  const searchStatus = async (): Promise<{
+    hidden: boolean;
+    text: string;
+  }> => {
     const { findButton, searchInput, status } = setup();
     searchInput.value = "SW1A 2AA";
 
     findButton.dispatch("click");
     await flush();
 
-    expect(status.textContent).toBe(expected);
-    expect(status.hidden).toBe(false);
+    return { hidden: status.hidden, text: status.textContent };
   };
 
   test("a server error shows the server's message", async () => {
     using _fetch = stubFetch(
       jsonResponse({ error: "Not a valid postcode" }, 400),
     );
-    await searchExpectingStatus("Not a valid postcode");
+    expect(await searchStatus()).toEqual({
+      hidden: false,
+      text: "Not a valid postcode",
+    });
   });
 
   test("a 200 with no address list falls back to the panel's error copy", async () => {
     using _fetch = stubFetch(jsonResponse({}));
-    await searchExpectingStatus("Lookup failed");
+    expect(await searchStatus()).toEqual({
+      hidden: false,
+      text: "Lookup failed",
+    });
   });
 
   test("a network failure falls back to the panel's error copy", async () => {
     using _fetch = stubFetch(new Error("offline"));
-    await searchExpectingStatus("Lookup failed");
+    expect(await searchStatus()).toEqual({
+      hidden: false,
+      text: "Lookup failed",
+    });
   });
 
   test("a panel missing a copy attribute falls back to empty text", async () => {

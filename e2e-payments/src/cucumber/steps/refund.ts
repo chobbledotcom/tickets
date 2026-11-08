@@ -262,7 +262,7 @@ Then(
 const submitScenarioRefundForm = async (world: LiveWorld): Promise<void> => {
   await openRefundForm(world);
   await submitRefundForm(world, "refund-submitted");
-  world.runJournal.refundMayHaveLanded = true;
+  world.markRefundMayHaveLanded();
 };
 
 When(

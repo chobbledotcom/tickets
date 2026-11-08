@@ -109,8 +109,9 @@ export class LiveWorld extends World {
     return required(this.identity, "the scenario identity");
   }
 
-  get runJournal(): ScenarioJournal {
-    return required(this.journal, "the scenario journal");
+  /** Note that the provider may have taken a refund after this step. */
+  markRefundMayHaveLanded(): void {
+    this.journal!.refundMayHaveLanded = true;
   }
 
   /** Everything the scenario acquired, failing loudly before it exists. */
