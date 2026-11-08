@@ -16,6 +16,7 @@ import { t } from "#i18n";
 import {
   createRecalculateHandlers,
   createRecalculatePageRenderer,
+  recalculateRoute,
 } from "#routes/admin/aggregate-recalculation.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { adminListingRecalculatePage } from "#templates/admin/listings/aggregates.tsx";
@@ -41,12 +42,8 @@ const listingRecalculateHandlers = createRecalculateHandlers({
     withEntityFromParam(id, getListingWithCount, handler),
 });
 
-export const handleListingRecalculateGet: TypedRouteHandler<
-  "GET /admin/listings/recalculate/:listingId"
-> = (request, { listingId }) =>
-  listingRecalculateHandlers.get(request, listingId);
+export const handleListingRecalculateGet: TypedRouteHandler<"GET /admin/listings/recalculate/:listingId"> =
+  recalculateRoute(listingRecalculateHandlers, "get")("listingId");
 
-export const handleListingRecalculatePost: TypedRouteHandler<
-  "POST /admin/listings/recalculate/:listingId"
-> = (request, { listingId }) =>
-  listingRecalculateHandlers.post(request, listingId);
+export const handleListingRecalculatePost: TypedRouteHandler<"POST /admin/listings/recalculate/:listingId"> =
+  recalculateRoute(listingRecalculateHandlers, "post")("listingId");

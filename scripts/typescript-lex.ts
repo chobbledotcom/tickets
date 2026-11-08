@@ -2,9 +2,8 @@ import { isOneOf } from "#fp";
 import { SYNTAX_WORDS } from "#scripts/syntax-words.ts";
 import {
   endsAValue,
-  isStepChange,
-  isWordPart,
-  isWordStart,
+  WORD_PART,
+  WORD_START,
 } from "#scripts/typescript-lex/slash.ts";
 
 /** The character at `index` as one whole letter, so a wider one is one item
@@ -15,7 +14,7 @@ const charAt = (content: string, index: number): string =>
 /** Whether `character` belongs to the word an apostrophe may close. A
  * surrogate half belongs, so a wider letter joins its word too. */
 const isWordUnit = (character: string): boolean =>
-  isWordPart(character) || (character >= "\uD800" && character <= "\uDFFF");
+  WORD_PART.test(character) || (character >= "\uD800" && character <= "\uDFFF");
 
 /** In TSX text, a word's apostrophe is punctuation, not a string
  * delimiter. The one exception is a keyword a literal can start after:
@@ -31,6 +30,9 @@ const isQuoteAt = (content: string, index: number): boolean => {
 };
 
 const isLineTerminator = isOneOf(["\n", "\r", "\u2028", "\u2029"]);
+
+/** A character that doubles into `++` or `--`. */
+const STEP_CHANGE = isOneOf(["+", "-"]);
 
 /** Skip a comment at `start`, or return `start` when none starts there. */
 export const skipComment = (content: string, start: number): number => {
@@ -187,7 +189,7 @@ const wordStep = (
   let index = start;
   while (index < content.length) {
     const character = charAt(content, index);
-    if (index > start && !isWordPart(character)) break;
+    if (index > start && !WORD_PART.test(character)) break;
     index += character.length;
   }
   const word = content.slice(start, index);
@@ -275,11 +277,11 @@ const stepAt: StepReader<Step> = (content, index, context) => {
     stringStep(content, index);
   if (lexical !== null) return lexical;
   if (startsNumber(content, index)) return numberStep(content, index);
-  if (isWordStart(character)) return wordStep(content, index, context);
+  if (WORD_START.test(character)) return wordStep(content, index, context);
   if (character === "=" && content[index + 1] === ">") {
     return { next: index + 2, tokens: ["=>"] };
   }
-  if (isStepChange(character) && content[index + 1] === character) {
+  if (STEP_CHANGE(character) && content[index + 1] === character) {
     return { next: index + 2, tokens: [character + character] };
   }
   return { next: index + character.length, tokens: [character] };

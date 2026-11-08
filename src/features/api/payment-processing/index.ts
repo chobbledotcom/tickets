@@ -8,9 +8,9 @@
  * HTTP redirect and webhook handling lives in `webhooks.ts`.
  */
 
-import { eventGroupHasLegs } from "#accounting/queries.ts";
 import { generateTicketToken } from "#crypto/utils.ts";
 import { balanceEventGroup } from "#db/attendees/balance.ts";
+import { rowExists } from "#db/client.ts";
 import {
   finalizeSessionIfUnresolved,
   markSessionFailed,
@@ -319,7 +319,13 @@ const processReservedSession: SessionProcessor = async (sessionId, data) => {
     // A balance session whose payment leg is already in the ledger is a replay
     // even if its idempotency row was pruned or lost. Settling it again finds
     // nothing owed and refunds a balance that is already paid.
-    if (await eventGroupHasLegs(await balanceEventGroup(sessionId))) {
+    // The transfers ledger is the durable record of what happened (unlike the
+    // prunable processed_payments row), so one leg here means a replay.
+    const alreadySettled = await rowExists(
+      "SELECT 1 FROM transfers WHERE event_group = ? LIMIT 1",
+      [await balanceEventGroup(sessionId)],
+    );
+    if (alreadySettled) {
       return replaySuccess(
         sessionId,
         intent.balanceAttendeeId,

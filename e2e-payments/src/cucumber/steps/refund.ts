@@ -202,7 +202,7 @@ for (const [text, expected, what] of MONEY_REFUND_STEPS) {
 When(
   "Money accepts refund transfers again",
   async function (this: LiveWorld): Promise<void> {
-    const fault = this.installedFault;
+    const fault = this.fault;
     if (fault === null) {
       throw new Error("no Money fault is installed to remove");
     }
@@ -338,7 +338,7 @@ Then(
   "destructive actions are unavailable while observation is unfinished",
   async function (this: LiveWorld): Promise<void> {
     await attendeeTabOf(this, "actions");
-    if (this.refundResult?.outcome === "refund_recorded") {
+    if (this.refundState?.outcome === "refund_recorded") {
       // Recorded: the send is gone (its own step proves that). Delete may or
       // may not be back yet — a provider-side-completed refund whose
       // retirement has not caught up safely blocks Delete for a while, which

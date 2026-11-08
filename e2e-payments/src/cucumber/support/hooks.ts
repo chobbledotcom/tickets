@@ -110,13 +110,13 @@ const acquireInfra = async (
     acquired.push({ name: "tunnel", run: () => tunnel.stop() });
     const browser = await launchAppBrowser(tunnel.publicBaseUrl);
     acquired.push({ name: "browser", run: () => browser.stop() });
-    world.attachInfra({
+    world.infra = {
       browser,
       owner: await browser.session(`${world.scenario.caseId}-owner`),
       server,
       tunnel,
       visitor: await browser.session(`${world.scenario.caseId}-visitor`),
-    });
+    };
   } catch (error) {
     const unwound = await attemptEveryCleanup(acquired.toReversed());
     for (const failure of unwound.errors) {
@@ -162,7 +162,7 @@ After(
   { timeout: config.teardownTimeoutMs },
   async function (this: LiveWorld, hook: ITestCaseHookParameter) {
     const caseId = caseIdOf(hook);
-    const infra = this.infraMaybe;
+    const infra = this.infra;
     if (infra === null) {
       // Startup itself failed: nothing to sweep but the journal.
       await this.saveJournal().catch(() => {
@@ -218,7 +218,7 @@ After(
     ]);
     const captured = await capture;
 
-    const fault = this.installedFault;
+    const fault = this.fault;
     const paid = this.target === "free" ? null : this.paidProvider;
     const teardownSteps: NamedCleanup[] = [
       ...(fault ? [{ name: "database fault", run: () => fault.remove() }] : []),

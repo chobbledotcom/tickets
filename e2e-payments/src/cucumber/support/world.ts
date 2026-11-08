@@ -71,24 +71,24 @@ export class LiveWorld extends World {
   /** Set by the AfterStep hook so teardown knows the scenario's fate. */
   stepFailed = false;
   private checkout: PaidSandboxCheckout | null = null;
-  private fault: InstalledFault | null = null;
+  fault: InstalledFault | null = null;
   private identity: ScenarioIdentity | null = null;
-  private infra: ScenarioInfra | null = null;
+  infra: ScenarioInfra | null = null;
   private journal: ScenarioJournal | null = null;
-  private listingPath: string | null = null;
-  private registeredSite: { name: string; url: string } | null = null;
+  listingPath: string | null = null;
+  registeredSite: { name: string; url: string } | null = null;
   private provider: PaymentProvider | null = null;
-  private refundState: RefundState | null = null;
+  refundState: RefundState | null = null;
   private secondOwner: BrowserSession | null = null;
   private secrets: Record<string, string> | null = null;
   private ownerPrepared = false;
   private builtOrder: BuiltOrderCatalog | null = null;
-  private heldReturnUrl: string | null = null;
+  heldReturnUrl: string | null = null;
   private pendingReturnTab: Page | null = null;
   private pendingReturnTarget: string | null = null;
-  private refusalProbeReport: RefusalProbeReport | null = null;
+  refusalProbeReport: RefusalProbeReport | null = null;
   private orderNames: OrderCatalog | null = null;
-  private bookingPriceMinor: number | null = null;
+  bookingPriceMinor: number | null = null;
 
   /** Which provider this run targets ("free" for no provider). */
   readonly target = parseLiveTarget(process.env.E2E_PROVIDER);
@@ -116,11 +116,6 @@ export class LiveWorld extends World {
   /** Everything the scenario acquired, failing loudly before it exists. */
   get resources(): ScenarioInfra {
     return required(this.infra, "the scenario's server, tunnel and browser");
-  }
-
-  /** The same infrastructure, or null when startup never got that far. */
-  get infraMaybe(): ScenarioInfra | null {
-    return this.infra;
   }
 
   /** The paid driver for this target — absent only for the free target. */
@@ -160,25 +155,10 @@ export class LiveWorld extends World {
     return required(this.listingPath, "the published listing's booking path");
   }
 
-  rememberListing(path: string): void {
-    this.listingPath = path;
-  }
-
   /** The pooled site this scenario's owner registered, for every admin-side
    * built-sites assertion. */
   get pooledSite(): { name: string; url: string } {
     return required(this.registeredSite, "the registered pooled built site");
-  }
-
-  rememberPoolSite(site: { name: string; url: string }): void {
-    this.registeredSite = site;
-  }
-
-  /** What the scenario's booking cost in total, for the admin income
-   * assertion: the configured unit price, unless a step states the plan's
-   * multiple. */
-  rememberBookingPrice(minor: number): void {
-    this.bookingPriceMinor = minor;
   }
 
   /** The booking this scenario is about, for every admin-side assertion. */
@@ -188,10 +168,6 @@ export class LiveWorld extends World {
       listingName: this.scenario.listingName,
       priceMinor: this.bookingPriceMinor ?? config.unitPrice,
     };
-  }
-
-  attachInfra(infra: ScenarioInfra): void {
-    this.infra = infra;
   }
 
   /** The second independently signed-in owner window (the stale-form race). */
@@ -210,18 +186,10 @@ export class LiveWorld extends World {
     this.journal!.refundMayHaveLanded = true;
   }
 
-  get installedFault(): InstalledFault | null {
-    return this.fault;
-  }
-
   recordRefundState(state: RefundState): void {
     this.refundState = state;
     this.journal!.finalLocalState = state.outcome;
     this.journal!.pendingObserved = state.outcome === "refund_observing";
-  }
-
-  get refundResult(): RefundState | null {
-    return this.refundState;
   }
 
   /** First-run setup + admin login, run once per scenario by whichever Given
@@ -267,10 +235,6 @@ export class LiveWorld extends World {
     };
   }
 
-  rememberHeldReturn(url: string): void {
-    this.heldReturnUrl = url;
-  }
-
   /** The exact intercepted return URL, before the replay step uses it. */
   get heldReturn(): string {
     return required(
@@ -301,10 +265,6 @@ export class LiveWorld extends World {
       this.pendingReturnTarget,
       "the pending return URL (the visitor never opened it)",
     );
-  }
-
-  rememberRefusalProbes(report: RefusalProbeReport): void {
-    this.refusalProbeReport = report;
   }
 
   get refusalProbes(): RefusalProbeReport {

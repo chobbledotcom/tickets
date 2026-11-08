@@ -148,11 +148,17 @@ const perDayClause = (
      )}
   )`;
 
-const listingCapSql = (idSql: SqlParameterToken): string =>
-  `(SELECT max_attendees FROM listings WHERE id = ${idSql} AND active = 1)`;
+/** The cap a bucket is counted against, read from the table that holds it. A
+ * listing carries a cap only while it is active, so the filter is part of the
+ * subquery. */
+const capSqlFor =
+  (table: "listings" | "groups", activeFilter: string) =>
+  (idSql: SqlParameterToken): string =>
+    `(SELECT max_attendees FROM ${table} WHERE id = ${idSql}${activeFilter})`;
 
-const groupCapSql = (idSql: SqlParameterToken): string =>
-  `(SELECT max_attendees FROM groups WHERE id = ${idSql})`;
+const listingCapSql = capSqlFor("listings", " AND active = 1");
+
+const groupCapSql = capSqlFor("groups", "");
 
 /** One per-day clause builder per bucket kind: each brings its own cap, its
  * own counting subquery, and its own cap rule; the refusal shape is shared. */

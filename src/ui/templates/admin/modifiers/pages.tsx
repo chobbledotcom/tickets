@@ -1,6 +1,6 @@
 import type { ModifierRow } from "#db/modifiers.ts";
 import { t } from "#i18n";
-import { Raw, type SafeHtml } from "#jsx/jsx-runtime.ts";
+import { Raw } from "#jsx/jsx-runtime.ts";
 import { adminDestinationAllowed, adminPath } from "#shared/admin-surface.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { isReadOnly } from "#shared/env.ts";
@@ -43,9 +43,6 @@ const renderModifierFormFields = (
   const form = getModifierForm();
   return form.render(values ?? modifierToFieldValues(modifier, form.fields));
 };
-
-export const ModifiersGuideFooter = (): SafeHtml =>
-  guideFooterFor("/admin/guide#modifiers", "modifiers.guide_link");
 
 const ModifierRevenueAdjustSection = ({
   modifier,
@@ -147,7 +144,10 @@ export const adminModifiersPage = successListPage<Modifier, AdminSession>(
     columns: modifierColumns,
     context: session,
     empty: <p>{t("modifiers.no_modifiers")}</p>,
-    guideFooter: ModifiersGuideFooter(),
+    guideFooter: guideFooterFor(
+      "/admin/guide#modifiers",
+      "modifiers.guide_link",
+    ),
     items: modifiers,
   }),
 );
@@ -165,7 +165,7 @@ export const adminModifierNewPage = flashFormPage(
         <h1>{t("modifiers.add.heading")}</h1>
         <Raw html={renderModifierFormFields()} />
       </SaveForm>
-      <ModifiersGuideFooter />
+      {guideFooterFor("/admin/guide#modifiers", "modifiers.guide_link")}
     </>
   ),
 );

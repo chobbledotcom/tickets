@@ -5,7 +5,7 @@ import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
-import { icsDiscoveryTag, rssDiscoveryTag } from "#templates/public/shared.tsx";
+import { feedDiscoveryTag } from "#templates/public/shared.tsx";
 import { assertPublicHtml, expectIncludesAll } from "#test-utils/assertions.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -309,8 +309,16 @@ describeWithEnv(
         await enablePublicSite();
         await assertPublicHtml(
           "/listings",
-          rssDiscoveryTag(),
-          icsDiscoveryTag(),
+          feedDiscoveryTag(
+            "application/rss+xml",
+            "terms.listings",
+            "/feeds/listings.rss",
+          ),
+          feedDiscoveryTag(
+            "text/calendar",
+            "terms.listings",
+            "/feeds/listings.ics",
+          ),
         );
       });
     });

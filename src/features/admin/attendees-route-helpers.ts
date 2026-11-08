@@ -292,7 +292,7 @@ const scopedAction =
       load,
       page: (pattern, prepare) =>
         actionHandler(pageGuardAt(pattern))(async (data, session, request) => {
-          const returnUrl = getReturnUrl(request);
+          const returnUrl = getSearchParam(request, "return_url");
           const page = await prepare(data);
           if (page.reason !== null) {
             return htmlResponse(
@@ -366,9 +366,6 @@ export const attendeeFormPost =
   (pattern: string, handle: IdFormHandler) =>
   (request: Request, params: AttendeeIdRouteParams): Promise<Response> =>
     entityFormById(pattern, handle)(request, { id: params.attendeeId });
-
-export const getReturnUrl = (request: Request): string =>
-  getSearchParam(request, "return_url");
 
 type AttendeeFormAction = ResponseHandler<
   [

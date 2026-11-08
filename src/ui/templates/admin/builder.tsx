@@ -8,7 +8,7 @@ import { getDefaultDbProvider } from "#shared/config.ts";
 import { siteBaseUrl } from "#shared/site-address.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
-import { BuiltSitesGuideFooter } from "#templates/admin/built-sites/list-parts.tsx";
+import { guideFooterFor } from "#templates/components/actions.tsx";
 import { NewTabUrl } from "#templates/components/new-tab-link.tsx";
 import { ProseSection } from "#templates/components/prose-section.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
@@ -84,7 +84,7 @@ const renderBody = (sites: BuiltSiteDisplay[]): JSX.Element => (
       title={t("builder.built_sites_title")}
     />
 
-    <BuiltSitesGuideFooter />
+    {guideFooterFor("/admin/guide#built-sites", "built_sites.guide_link")}
   </>
 );
 

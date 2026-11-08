@@ -9,10 +9,10 @@ import {
   getInviteUserForm,
   getLoginForm,
   getSetupForm,
-  getSquareAccessTokenFields,
   getSquareWebhookFields,
   getStripeKeyFields,
-  getSumupFields,
+  squareAccessTokenFields,
+  sumupFields,
 } from "#templates/fields/admin.ts";
 import { fieldShape as shape } from "#test-utils/field-shape.ts";
 
@@ -242,7 +242,7 @@ describe("admin field schemas", () => {
   });
 
   test("the Square access fields serves exactly its declared fields", () => {
-    expect(getSquareAccessTokenFields().map(shape)).toEqual([
+    expect(squareAccessTokenFields().map(shape)).toEqual([
       {
         autocomplete: "off",
         hint: "Your Square application's access token",
@@ -278,7 +278,7 @@ describe("admin field schemas", () => {
   });
 
   test("the SumUp fields serves exactly its declared fields", () => {
-    expect(getSumupFields().map(shape)).toEqual([
+    expect(sumupFields().map(shape)).toEqual([
       {
         autocomplete: "off",
         hint: "Your SumUp secret API key, from me.sumup.com → For Developers → API Keys",

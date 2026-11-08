@@ -13,7 +13,7 @@ import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
  */
 
 import { logActivity } from "#db/activity-log.ts";
-import { groupExists } from "#db/groups.ts";
+import { rowExists } from "#db/client.ts";
 import { getNonStandaloneChildIds } from "#db/listing-parents.ts";
 import { getListingOfferFlags } from "#db/listings/catalog.ts";
 import {
@@ -221,7 +221,10 @@ const isEligibleTarget = async (
     ]);
     return flags !== undefined && offerableListing(itemId, flags, childIds);
   }
-  if (type === "group") return groupExists(itemId);
+  if (type === "group") {
+    // Single-row check: no name decryption, never the whole table.
+    return rowExists("SELECT 1 FROM groups WHERE id = ? LIMIT 1", [itemId]);
+  }
   return eligibleChildPages((await loadPageForest()).forest, pageId).some(
     (p) => p.id === itemId,
   );

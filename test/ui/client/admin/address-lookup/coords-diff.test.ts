@@ -6,7 +6,8 @@
 
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { initAddressLookup } from "#src/ui/client/admin/address-lookup.ts";
+import { setupPanel } from "#src/ui/client/admin/address-lookup.ts";
+import { forEachMatch } from "#src/ui/client/dom.ts";
 import {
   addressFormSpec,
   diffSpec,
@@ -51,7 +52,7 @@ describe("address lookup fills the pin inputs", () => {
   ): Promise<{ form: FakeElement; lat: FakeElement; lng: FakeElement }> => {
     using _fetch = stubFetch(new Response(JSON.stringify(body)));
     const [form] = installFakeDom([page]);
-    initAddressLookup();
+    forEachMatch<HTMLElement>("[data-address-lookup]", setupPanel);
     const one = oneIn(form!);
     one("textarea").value = typed;
     one("[data-address-search]").value = "SW1A 2AA";

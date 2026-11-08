@@ -8,10 +8,10 @@ import {
   getInviteUserForm,
   getLoginForm,
   getSetupForm,
-  getSquareAccessTokenFields,
   getSquareWebhookFields,
   getStripeKeyFields,
-  getSumupFields,
+  squareAccessTokenFields,
+  sumupFields,
 } from "#templates/fields/admin.ts";
 import {
   extractContact,
@@ -134,9 +134,9 @@ describe("fields contracts", () => {
       ["login", getLoginForm().fields],
       ["setup", getSetupForm().fields],
       ["stripe key", getStripeKeyFields()],
-      ["square token", getSquareAccessTokenFields()],
+      ["square token", squareAccessTokenFields()],
       ["square webhook", getSquareWebhookFields()],
-      ["sumup", getSumupFields()],
+      ["sumup", sumupFields()],
       ["invite user", getInviteUserForm().fields],
     ];
     for (const [label, fields] of cases) {

@@ -7,7 +7,8 @@
 
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { initAddressLookup } from "#src/ui/client/admin/address-lookup.ts";
+import { setupPanel } from "#src/ui/client/admin/address-lookup.ts";
+import { forEachMatch } from "#src/ui/client/dom.ts";
 import {
   addressFormSpec,
   flushLookup as flush,
@@ -36,7 +37,7 @@ type Parts = {
 /** Install the DOM, run the enhancement, and hand back the pieces. */
 const setup = (): Parts => {
   const [form] = installFakeDom([addressFormSpec()]);
-  initAddressLookup();
+  forEachMatch<HTMLElement>("[data-address-lookup]", setupPanel);
   const one = oneIn(form!);
   return {
     findButton: one("[data-address-find]"),
@@ -59,7 +60,7 @@ const initPanelInForm = (panel: ElementSpec): FakeElement => {
   const [form] = installFakeDom([
     { children: [panel, { name: "address", tag: "textarea" }], tag: "form" },
   ]);
-  initAddressLookup();
+  forEachMatch<HTMLElement>("[data-address-lookup]", setupPanel);
   return form!;
 };
 
@@ -82,13 +83,15 @@ describe("address lookup client", () => {
 
   test("does nothing on a page without a panel", () => {
     const [textarea] = installFakeDom([{ name: "address", tag: "textarea" }]);
-    expect(() => initAddressLookup()).not.toThrow();
+    expect(() => {
+      forEachMatch<HTMLElement>("[data-address-lookup]", setupPanel);
+    }).not.toThrow();
     expect(textarea!.readOnly).toBe(false);
   });
 
   test("leaves the panel hidden when the address textarea is missing", () => {
     const [panel] = installFakeDom([panelSpec()]);
-    initAddressLookup();
+    forEachMatch<HTMLElement>("[data-address-lookup]", setupPanel);
     expect(panel!.hidden).toBe(true);
   });
 
@@ -270,7 +273,7 @@ describe("address lookup client", () => {
     const [form] = installFakeDom([
       { children: [bare, { name: "address", tag: "textarea" }], tag: "form" },
     ]);
-    initAddressLookup();
+    forEachMatch<HTMLElement>("[data-address-lookup]", setupPanel);
     const searchInput = form!.querySelector("[data-address-search]")!;
     searchInput.value = "SW1A 2AA";
 

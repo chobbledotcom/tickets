@@ -11,10 +11,11 @@ import { handleRequest } from "#routes";
 import {
   databaseBusyResponse,
   migrationInProgressResponse,
-  siteNotActivatedResponse,
+  publicPageResponse,
   temporaryErrorResponse,
 } from "#routes/response.ts";
 import { MAX_TOKEN_404S } from "#shared/limits.ts";
+import { siteNotActivatedPage } from "#templates/public/errors.tsx";
 import {
   createReserved,
   getPayPage,
@@ -286,7 +287,9 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
     for (const response of [
       await withRequestContext(() => temporaryErrorResponse("GET")),
       await withRequestContext(() => databaseBusyResponse("POST")),
-      await withRequestContext(() => siteNotActivatedResponse()),
+      await withRequestContext(() =>
+        publicPageResponse(siteNotActivatedPage, 503),
+      ),
       await withRequestContext(() => migrationInProgressResponse()),
     ]) {
       const html = await expectHtmlResponse(

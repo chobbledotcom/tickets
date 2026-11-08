@@ -21,10 +21,6 @@ import {
 } from "#shared/storage.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
 
-/** Return a 403 forbidden response */
-const forbiddenResponse = (): Response =>
-  new Response("Forbidden", { status: 403 });
-
 /**
  * Sanitize an attachment name for use in the Content-Disposition header.
  * Strips characters that can be used for HTTP header injection or path traversal.
@@ -73,14 +69,16 @@ const handleAttachmentDownload: TypedRouteHandler<
   const attendeeIdStr = url.searchParams.get("a");
   const exp = url.searchParams.get("exp");
   const sig = url.searchParams.get("sig");
-  if (!attendeeIdStr || !exp || !sig) return forbiddenResponse();
+  if (!attendeeIdStr || !exp || !sig) {
+    return new Response("Forbidden", { status: 403 });
+  }
 
   const attendeeId = parsePositiveInt(attendeeIdStr);
-  if (attendeeId === null) return forbiddenResponse();
+  if (attendeeId === null) return new Response("Forbidden", { status: 403 });
 
   // Verify signature and expiry
   const valid = await verifyAttachmentUrl(id, attendeeId, exp, sig);
-  if (!valid) return forbiddenResponse();
+  if (!valid) return new Response("Forbidden", { status: 403 });
 
   // Look up listing and verify it has an attachment
   const listing = await getListingWithCount(id);
@@ -89,7 +87,9 @@ const handleAttachmentDownload: TypedRouteHandler<
   // Authorize against the EXACT (attendee, listing) booking row with a real
   // (quantity > 0) line — not a left-joined sibling row. A line later marked
   // no-quantity stops authorizing the protected attachment.
-  if (!(await hasActiveBookingLine(attendeeId, id))) return forbiddenResponse();
+  if (!(await hasActiveBookingLine(attendeeId, id))) {
+    return new Response("Forbidden", { status: 403 });
+  }
 
   // Download and decrypt from CDN
   const data = await downloadImage(listing.attachment_url);

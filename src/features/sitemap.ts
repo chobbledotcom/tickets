@@ -22,7 +22,7 @@ import {
   publicCacheResponse,
 } from "#routes/public-origin.ts";
 import { isPublicListing } from "#shared/listing-visibility.ts";
-import { routeServesSlug } from "#shared/route-pattern.ts";
+import { SLUG_PARAM_SERVES } from "#shared/route-pattern.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 import { escapeXml } from "#shared/xml.ts";
 
@@ -68,9 +68,6 @@ const urlEntry = (path: string, domain: string): string => {
   return `  <url><loc>${loc}</loc></url>`;
 };
 
-const sitemapNotFound = (): Response =>
-  new Response("Not found", { status: 404 });
-
 /** Every public URL the site serves, one <loc> per line. The slugs are stored
  *  sealed, so the reads go through the entity caches that decrypt them. Each
  *  catalog entry passes the checks its own page applies. A listing is
@@ -98,21 +95,21 @@ const publicPaths = async (): Promise<string[]> => {
   return [
     ...fixedPublicPaths(navFlags(), posts.length > 0),
     ...pages
-      .filter((page) => !page.hidden && routeServesSlug(page.slug))
+      .filter((page) => !page.hidden && SLUG_PARAM_SERVES.test(page.slug))
       .map((page) => `/page/${page.slug}`),
     ...posts
-      .filter((post) => routeServesSlug(post.slug))
+      .filter((post) => SLUG_PARAM_SERVES.test(post.slug))
       .map((post) => `/news/${post.slug}`),
     ...listings
       .filter(
         (listing) =>
           isPublicListing(listing) &&
-          routeServesSlug(listing.slug) &&
+          SLUG_PARAM_SERVES.test(listing.slug) &&
           !nonStandaloneChildIds.has(listing.id),
       )
       .map((listing) => `/ticket/${listing.slug}`),
     ...groups
-      .filter(({ group }) => routeServesSlug(group.slug))
+      .filter(({ group }) => SLUG_PARAM_SERVES.test(group.slug))
       .map(({ group }) => `/ticket/${group.slug}`),
   ];
 };
@@ -124,9 +121,11 @@ export const handleSitemapXml = async (request: Request): Promise<Response> => {
     await settings.loadKeys(SITEMAP_SETTINGS_KEYS);
   } catch (error) {
     if (!isMissingSettingsTableError(error)) throw error;
-    return sitemapNotFound();
+    return new Response("Not found", { status: 404 });
   }
-  if (!settings.features.site) return sitemapNotFound();
+  if (!settings.features.site) {
+    return new Response("Not found", { status: 404 });
+  }
 
   const domain = await loadPublicDomain(new URL(request.url).hostname);
   const paths = await publicPaths();

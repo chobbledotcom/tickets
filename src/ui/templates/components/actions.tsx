@@ -264,3 +264,9 @@ export const guideFooterFor = (
     {t(labelKey)}
   </GuideFooter>
 );
+
+/** The same footer as the loader an entity page spec holds, so the page
+ *  renders it when it renders the page. */
+export const guideFooterSlot =
+  (href: string, labelKey: string) => (): Promise<SafeHtml> =>
+    Promise.resolve(guideFooterFor(href, labelKey));

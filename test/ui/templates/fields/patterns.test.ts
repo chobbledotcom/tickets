@@ -9,10 +9,10 @@ import {
   getInviteUserForm,
   getLoginForm,
   getSetupForm,
-  getSquareAccessTokenFields,
   getSquareWebhookFields,
   getStripeKeyFields,
-  getSumupFields,
+  squareAccessTokenFields,
+  sumupFields,
 } from "#templates/fields/admin.ts";
 import { getGroupCreateForm, getGroupForm } from "#templates/fields/group.ts";
 import { getListingForm } from "#templates/fields/listing.ts";
@@ -57,9 +57,9 @@ const fieldGroups: { label: string; fields: readonly Field[] }[] = [
   { fields: getGroupForm().fields, label: "group" },
   { fields: [getSlugField()], label: "slug" },
   { fields: getStripeKeyFields(), label: "stripe" },
-  { fields: getSquareAccessTokenFields(), label: "squareToken" },
+  { fields: squareAccessTokenFields(), label: "squareToken" },
   { fields: getSquareWebhookFields(), label: "squareWebhook" },
-  { fields: getSumupFields(), label: "sumup" },
+  { fields: sumupFields(), label: "sumup" },
   { fields: getTicketFields("phone", false), label: "ticket:phone" },
 ];
 

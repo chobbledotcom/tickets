@@ -3,7 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { icsDiscoveryTag, rssDiscoveryTag } from "#templates/public/shared.tsx";
+import { feedDiscoveryTag } from "#templates/public/shared.tsx";
 import { assertPublicHtml, expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
@@ -40,7 +40,19 @@ describeWithEnv(
       test("includes RSS and ICS feed discovery tags", async () => {
         await enablePublicSite();
         await settings.update.terms("Some terms");
-        await assertPublicHtml("/terms", rssDiscoveryTag(), icsDiscoveryTag());
+        await assertPublicHtml(
+          "/terms",
+          feedDiscoveryTag(
+            "application/rss+xml",
+            "terms.listings",
+            "/feeds/listings.rss",
+          ),
+          feedDiscoveryTag(
+            "text/calendar",
+            "terms.listings",
+            "/feeds/listings.ics",
+          ),
+        );
       });
     });
 
@@ -92,8 +104,16 @@ describeWithEnv(
         await settings.update.contactPageText("Contact us");
         await assertPublicHtml(
           "/contact",
-          rssDiscoveryTag(),
-          icsDiscoveryTag(),
+          feedDiscoveryTag(
+            "application/rss+xml",
+            "terms.listings",
+            "/feeds/listings.rss",
+          ),
+          feedDiscoveryTag(
+            "text/calendar",
+            "terms.listings",
+            "/feeds/listings.ics",
+          ),
         );
       });
     });

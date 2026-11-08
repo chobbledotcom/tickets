@@ -211,11 +211,6 @@ export const getListingsByGroupId = async (
     "Missing group listing membership",
   );
 
-/** Does a group row exist? The add-item revalidation's single-row check — no
- * name decryption, never the whole table. */
-export const groupExists = (id: number): Promise<boolean> =>
-  rowExists("SELECT 1 FROM groups WHERE id = ? LIMIT 1", [id]);
-
 /** Whether any of the given group ids satisfies the extra SQL `condition`.
  * Empty input → false (no query). */
 const anyGroupMatching = async (
@@ -299,16 +294,6 @@ export const packageMembersError = async (
 /** Package-group display info for grouping a booking's lines under the package
  * name on tickets/emails. */
 export type PackageDisplay = { name: string; hideListings: boolean };
-
-/** Whether any booking row is stamped with this package's group id — sold
- * tickets whose display (and hidden-member concealment) resolves through the
- * live package row. Refund placeholders (quantity 0) don't count. */
-export const hasPackageBookings = (groupId: number): Promise<boolean> =>
-  rowExists(
-    `SELECT 1 FROM listing_attendees
-      WHERE package_group_id = ? AND quantity > 0 LIMIT 1`,
-    [groupId],
-  );
 
 /** Transaction-local recheck: whether any sold booking still holds this
  *  group's package id. Used inside the group write transaction so a checkout

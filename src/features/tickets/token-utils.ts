@@ -17,7 +17,7 @@ import {
   recordTokenFailure,
 } from "#db/token-attempts.ts";
 import { compact, unique } from "#fp";
-import { notFoundResponse, rateLimitedResponse } from "#routes/response.ts";
+import { notFoundResponse, publicPageResponse } from "#routes/response.ts";
 import type { PathMethodRoute } from "#routes/types.ts";
 import type { WalletPassData } from "#shared/apple-wallet.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
@@ -27,6 +27,7 @@ import { getRequestClientIp } from "#shared/request-context.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { splitParts } from "#shared/split.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";
+import { rateLimitedPage } from "#templates/public/errors.tsx";
 import {
   type Attendee,
   hasTicketQuantity,
@@ -95,8 +96,8 @@ export const lookupSingleTokenPassData = async (
   const entry = entries[0];
   if (!entry) return { ok: false, response: await notFoundResponse() };
   // A wallet pass is built from a single member listing, so for a package
-  // booking it would misrepresent the bundle as one member — and for a HIDDEN
-  // package it would leak that member's name/location to anyone with the token.
+  // booking it misrepresents the bundle as one member — and for a HIDDEN
+  // package it leaks that member's name/location to anyone with the token.
   // The ticket page already omits wallet links for package cards; 404 the direct
   // pass endpoints to match. Check EVERY booking under the token, not just the
   // first: a merge can leave one token with both a standalone and a package row,
@@ -283,7 +284,11 @@ export const withTokenRateLimit = async (
   run: ResponseHandler,
 ): Promise<Response> => {
   const ip = getRequestClientIp();
-  if (await isTokenRateLimited(ip)) return rateLimitedResponse();
+  // No Retry-After: exposing the lockout duration would give brute-force
+  // clients a ready-made backoff schedule.
+  if (await isTokenRateLimited(ip)) {
+    return publicPageResponse(rateLimitedPage, 429);
+  }
 
   const response = await run();
   if (response.status === 404 && tokens.length > 0) {

@@ -1,10 +1,10 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import {
-  BuiltSitesGuideFooter,
   BuiltSitesListActions,
   BuiltSitesListBody,
 } from "#templates/admin/built-sites/list-parts.tsx";
+import { guideFooterFor } from "#templates/components/actions.tsx";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testBuiltSite } from "#test-utils/factories.ts";
 
@@ -106,7 +106,9 @@ test("renders the list actions and guide destination", () => {
     'href="/admin/builder"',
   ]);
   assertStringIncludes(
-    String(BuiltSitesGuideFooter()),
+    String(
+      guideFooterFor("/admin/guide#built-sites", "built_sites.guide_link"),
+    ),
     'href="/admin/guide#built-sites"',
   );
 });

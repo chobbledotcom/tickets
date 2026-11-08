@@ -91,6 +91,20 @@ export const createRecalculatePageRenderer =
       error ? 400 : 200,
     );
 
+/** The GET + POST handlers one aggregate-recalculation route record exposes. */
+export type RecalculateHandlers<ID> = {
+  get: (request: Request, id: ID) => Promise<Response>;
+  post: (request: Request, id: ID) => Promise<Response>;
+};
+
+/** One recalculate route handler: the handlers record's method, fed the id
+ *  the route names. */
+export const recalculateRoute =
+  <ID>(handlers: RecalculateHandlers<ID>, method: "get" | "post") =>
+  <Param extends string>(param: Param) =>
+  (request: Request, params: Record<Param, ID>): Promise<Response> =>
+    handlers[method](request, params[param]);
+
 /**
  * Build the GET + POST route handlers for one entity's aggregate-recalculation
  * page, identical for listings and modifiers. GET loads the entity and renders
@@ -118,10 +132,7 @@ export const createRecalculateHandlers = <T, F extends string, ID>(config: {
   successPath: (entity: T) => string;
   successMessage: string;
   chooseMessage: string;
-}): {
-  get: (request: Request, id: ID) => Promise<Response>;
-  post: (request: Request, id: ID) => Promise<Response>;
-} => ({
+}): RecalculateHandlers<ID> => ({
   get: (request, id) =>
     pageGuardFor(adminDestinationAt(config.pattern))(request, (session) =>
       config.withEntity(id)((entity) => {

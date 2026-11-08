@@ -96,15 +96,15 @@ export const buildCspHeader = (
  */
 export const getSecurityHeaders = (
   path: string,
-  csp = buildCspHeader(isEmbeddablePath(path)),
+  csp = buildCspHeader(EMBEDDABLE_PATH.test(path)),
 ): Record<string, string> => {
-  const embeddable = isEmbeddablePath(path);
+  const embeddable = EMBEDDABLE_PATH.test(path);
   // The indexability read sits behind the path check. A path the public site
   // never serves (a static asset, an admin page) skips it. The custom-CSS
   // read in applySecurityHeaders has no such gate: every page the layout
   // renders links /custom.css, so every routed response needs the same rule.
   const indexable =
-    embeddable || (isPublicSitePath(path) && settings.features.site);
+    embeddable || (PUBLIC_SITE_PATH.test(path) && settings.features.site);
   return {
     ...BASE_SECURITY_HEADERS,
     ...(!embeddable && { "x-frame-options": "DENY" }),
@@ -120,30 +120,20 @@ export const getSecurityHeaders = (
 /** One slug: letter/number runs joined by single hyphens or underscores. */
 const SLUG = "[a-z0-9]+(?:[-_][a-z0-9]+)*";
 
-/** Matches /ticket/ with one or more slugs separated by + */
-const EMBEDDABLE_PATH = new RegExp(`^/ticket/${SLUG}(?:\\+${SLUG})*$`);
-
-/**
- * Check if a path is embeddable (public ticket pages only)
- * Paths are normalized to strip trailing slashes
- */
-export const isEmbeddablePath = (path: string): boolean =>
-  EMBEDDABLE_PATH.test(path);
+/** Matches /ticket/ with one or more slugs separated by +. Only a public
+ *  ticket page is embeddable. Paths are normalized to strip trailing
+ *  slashes. */
+export const EMBEDDABLE_PATH = new RegExp(`^/ticket/${SLUG}(?:\\+${SLUG})*$`);
 
 /** The paths the public site serves when its feature is on. They are the
  *  home page, the listings page, the terms, the news pages, the custom
  *  pages, the contact page, and the order page. The x-robots-tag follows
- *  this list. A new public page joins this list to be indexable. */
-const PUBLIC_SITE_PATH = new RegExp(
+ *  this list. A new public page joins this list to be indexable. Only one
+ *  visitor-facing page the site feature serves matches. The paths are
+ *  normalized to strip trailing slashes. */
+export const PUBLIC_SITE_PATH = new RegExp(
   `^(?:/|/listings|/terms|/contact|/order|/news(?:/${SLUG})?|/page/${SLUG})$`,
 );
-
-/**
- * Check if a path is a public site page: a visitor-facing page the site
- * feature serves. Paths are normalized to strip trailing slashes.
- */
-export const isPublicSitePath = (path: string): boolean =>
-  PUBLIC_SITE_PATH.test(path);
 
 /**
  * Check if path is a webhook endpoint that accepts JSON
@@ -269,7 +259,7 @@ export const applySecurityHeaders = async (
   response: Response,
   path: string,
 ): Promise<Response> => {
-  const embeddable = isEmbeddablePath(path);
+  const embeddable = EMBEDDABLE_PATH.test(path);
   const provider = settings.paymentProvider;
   const sandbox = provider !== null && paymentProviderUsesSandbox(provider);
   // Every page the layout renders links /custom.css, so the policy must

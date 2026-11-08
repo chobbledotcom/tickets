@@ -1,6 +1,6 @@
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { t } from "#i18n";
-import type { Child, SafeHtml } from "#jsx/jsx-runtime.ts";
+import type { Child } from "#jsx/jsx-runtime.ts";
 import type { BuiltSitesSort } from "#shared/built-sites-list.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import { formatDeadlineLabel } from "#shared/renewal-helpers.ts";
@@ -9,19 +9,12 @@ import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { RenewalTierSummary } from "#templates/admin/built-sites/renewal-summary.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
-import {
-  ActionButton,
-  guideFooterFor,
-} from "#templates/components/actions.tsx";
+import { ActionButton } from "#templates/components/actions.tsx";
 import { linkCell } from "#templates/components/link-cell.tsx";
 import { NewTabUrl } from "#templates/components/new-tab-link.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import type { ListingWithCount } from "#types";
-
-/** The "read more" footer link shared by the built-sites list and builder pages. */
-export const BuiltSitesGuideFooter = (): SafeHtml =>
-  guideFooterFor("/admin/guide#built-sites", "built_sites.guide_link");
 
 export const BuiltSitesListActions = (): JSX.Element | null =>
   WritableOnly({

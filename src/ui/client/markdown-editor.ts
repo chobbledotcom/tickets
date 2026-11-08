@@ -10,6 +10,10 @@
  * out the footer strips the editor's toggle buttons join.
  */
 
-import { initMarkdownEditor } from "./admin/markdown-editor.ts";
+import { enhanceMarkdownTextarea } from "./admin/markdown-editor.ts";
+import { forEachMatch } from "./dom.ts";
 
-initMarkdownEditor();
+forEachMatch<HTMLTextAreaElement>(
+  "textarea[data-markdown-preview]",
+  enhanceMarkdownTextarea,
+);

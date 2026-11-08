@@ -12,17 +12,20 @@ import {
   migrationInProgressResponse,
   notFoundResponse,
   plainResponse,
-  rateLimitedResponse,
+  publicPageResponse,
   redirect,
   redirectResponse,
   rssResponse,
-  siteNotActivatedResponse,
   temporaryErrorResponse,
   withCookie,
   withHeaders,
 } from "#routes/response.ts";
 import { detectIframeMode } from "#shared/request-context.ts";
 import { UpdatePageCheckError } from "#shared/update-guard.ts";
+import {
+  rateLimitedPage,
+  siteNotActivatedPage,
+} from "#templates/public/errors.tsx";
 import {
   expectHtmlResponse,
   expectRedirectWithFlash,
@@ -270,7 +273,7 @@ describeWithEnv("route responses", { db: true }, () => {
 
     test("returns the rate-limit page with status 429", async () => {
       await expectHtmlResponse(
-        await rateLimitedResponse(),
+        await publicPageResponse(rateLimitedPage, 429),
         429,
         "<h1>Too Many Requests</h1>",
       );
@@ -310,7 +313,7 @@ describeWithEnv("route responses", { db: true }, () => {
 
     test("renders the not-activated page without reloading", async () => {
       const html = await expectHtmlResponse(
-        await siteNotActivatedResponse(),
+        await publicPageResponse(siteNotActivatedPage, 503),
         503,
         "This site has not been activated yet",
       );
@@ -358,12 +361,14 @@ describeWithEnv("route responses", { db: true }, () => {
 
     test("sends no Retry-After while the site is not activated", async () => {
       expect(
-        (await siteNotActivatedResponse()).headers.get("retry-after"),
+        (await publicPageResponse(siteNotActivatedPage, 503)).headers.get(
+          "retry-after",
+        ),
       ).toBeNull();
     });
 
     test("sends no Retry-After on the token rate-limit page", async () => {
-      const response = await rateLimitedResponse();
+      const response = await publicPageResponse(rateLimitedPage, 429);
       expect(response.headers.get("retry-after")).toBeNull();
     });
   });

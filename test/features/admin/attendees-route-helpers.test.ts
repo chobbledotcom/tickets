@@ -11,9 +11,9 @@ import {
   attendeeActions,
   attendeeActionUrlWithReturn,
   emailPendingForAdminLines,
-  getReturnUrl,
   loadAttendeeForListing,
 } from "#routes/admin/attendees-route-helpers.ts";
+import { getSearchParam } from "#routes/url.ts";
 import { setupRefundTest } from "#test/features/admin/refunds-helpers.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { attendeeFormLine } from "#test-utils/attendee-form-factories.ts";
@@ -33,10 +33,11 @@ describeWithEnv("admin attendee action loaders", { db: true }, () => {
       "/admin/attendees/7/refund",
     );
     expect(
-      getReturnUrl(
+      getSearchParam(
         new Request(
           "https://example.test/admin?return_url=%2Fadmin%2Fcalendar",
         ),
+        "return_url",
       ),
     ).toBe("/admin/calendar");
   });

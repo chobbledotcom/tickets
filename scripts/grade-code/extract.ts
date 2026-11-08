@@ -6,6 +6,7 @@
  * `deno task precommit` would say about the file.
  */
 
+import { isNotNullish } from "#fp";
 import { readComments } from "#scripts/check-comments/rules.ts";
 import { countLines } from "#scripts/check-file-lengths/rules.ts";
 import { topLevelImports } from "#scripts/check-imports/rules.ts";
@@ -120,10 +121,6 @@ const assertionHits = (
   return { assertions, casts };
 };
 
-/** A missing annotation, which the parser writes as null or undefined. */
-const absent = (value: unknown): boolean =>
-  value === undefined || value === null;
-
 /** A function the file declares at the top level, and where it starts. The
  * name is null for an anonymous `export default function`. */
 interface DeclaredFunction {
@@ -140,7 +137,7 @@ const functionsDeclaredBy = (node: ParsedStatement): DeclaredFunction[] => {
       {
         name: node.id === null ? null : node.id.name,
         start: node.start,
-        typed: !absent(node.returnType),
+        typed: isNotNullish(node.returnType),
       },
     ];
   }
@@ -159,7 +156,8 @@ const functionsDeclaredBy = (node: ParsedStatement): DeclaredFunction[] => {
       {
         name: one.id.name,
         start: node.start,
-        typed: !absent(init.returnType) || !absent(one.id.typeAnnotation),
+        typed:
+          isNotNullish(init.returnType) || isNotNullish(one.id.typeAnnotation),
       },
     ];
   });
@@ -194,7 +192,7 @@ const untypedObjectStarts = (
     if (
       (value.type === "ArrowFunctionExpression" ||
         value.type === "FunctionExpression") &&
-      absent(value.returnType)
+      !isNotNullish(value.returnType)
     ) {
       return [value.start as number];
     }
@@ -222,7 +220,7 @@ const untypedExportStarts = (
           // rule an annotated `const f: T = () => ...` follows.
           one.init !== null &&
           one.init.type === "ObjectExpression" &&
-          absent(one.id.typeAnnotation)
+          !isNotNullish(one.id.typeAnnotation)
             ? untypedObjectStarts(one.init, local)
             : [],
         )
@@ -254,7 +252,9 @@ const untypedExportStarts = (
   const isFunction =
     declaration.type === "ArrowFunctionExpression" ||
     declaration.type === "FunctionExpression";
-  return isFunction && absent(declaration.returnType) ? [statement.start] : [];
+  return isFunction && !isNotNullish(declaration.returnType)
+    ? [statement.start]
+    : [];
 };
 
 /** Exported functions whose return type the file never states. */

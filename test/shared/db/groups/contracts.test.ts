@@ -8,7 +8,6 @@ import {
   getGroupPackagePrices,
   getListingsByGroupId,
   getListingsByGroupIds,
-  groupExists,
   groups,
   packageMembersError,
   setGroupListingsActive,
@@ -75,13 +74,6 @@ describeWithEnv("db > group storage contracts", { db: true }, () => {
     expect(() => listingGroups.idsFor(new Map(), 42)).toThrow(
       "Missing listing group membership",
     );
-  });
-
-  test("groupExists distinguishes stored and missing groups", async () => {
-    const group = await createTestGroup({ name: "Existing Group" });
-
-    expect(await groupExists(group.id)).toBe(true);
-    expect(await groupExists(group.id + 1)).toBe(false);
   });
 });
 

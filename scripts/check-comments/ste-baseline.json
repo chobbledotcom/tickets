@@ -172,8 +172,8 @@
     "banned-modal": 1
   },
   "src/features/response.ts": {
-    "banned-modal": 4,
     "contraction": 1,
+    "banned-modal": 3,
     "semicolon": 1,
     "long-sentence": 2,
     "present-perfect": 1,
@@ -194,9 +194,9 @@
   },
   "src/features/tickets/token-utils.ts": {
     "long-sentence": 4,
-    "banned-modal": 3,
     "semicolon": 1,
-    "contraction": 2
+    "contraction": 2,
+    "banned-modal": 2
   },
   "src/fp.ts": {
     "participle": 5,
@@ -587,7 +587,7 @@
     "present-perfect": 1,
     "wordy": 2,
     "semicolon": 12,
-    "contraction": 9
+    "contraction": 8
   },
   "src/shared/db/groups/candidates.ts": {
     "long-sentence": 2,

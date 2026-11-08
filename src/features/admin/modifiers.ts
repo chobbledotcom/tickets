@@ -25,6 +25,7 @@ import {
   createRecalculateHandlers,
   createRecalculatePageRenderer,
   parseEditableAggregateForm,
+  recalculateRoute,
 } from "#routes/admin/aggregate-recalculation.ts";
 import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
 import {
@@ -57,8 +58,8 @@ import {
   adminModifierNewPage,
   adminModifiersPage,
   ModifierEditPanel,
-  ModifiersGuideFooter,
 } from "#templates/admin/modifiers/pages.tsx";
+import { guideFooterSlot } from "#templates/components/actions.tsx";
 import { getModifierAggregateFields } from "#templates/fields/aggregate.ts";
 import {
   getModifierForm,
@@ -242,7 +243,10 @@ const modifierPage: EditEntityPage<Modifier> = defineEditEntityPage({
       rejected?.error,
       rejected?.form.toRenderValues(),
     ),
-  guideFooter: () => Promise.resolve(ModifiersGuideFooter()),
+  guideFooter: guideFooterSlot(
+    "/admin/guide#modifiers",
+    "modifiers.guide_link",
+  ),
   load: (id) => getModifier(id),
   navActive: { section: adminPattern("modifiers") },
   recordId: (modifier) => modifier.id,
@@ -340,15 +344,11 @@ const modifierRecalculateHandlers = createRecalculateHandlers({
   withEntity: withModifier,
 });
 
-const handleModifierRecalculateGet: TypedRouteHandler<
-  "GET /admin/modifiers/recalculate/:modifierId"
-> = (request, { modifierId }) =>
-  modifierRecalculateHandlers.get(request, modifierId);
+const handleModifierRecalculateGet: TypedRouteHandler<"GET /admin/modifiers/recalculate/:modifierId"> =
+  recalculateRoute(modifierRecalculateHandlers, "get")("modifierId");
 
-const handleModifierRecalculatePost: TypedRouteHandler<
-  "POST /admin/modifiers/recalculate/:modifierId"
-> = (request, { modifierId }) =>
-  modifierRecalculateHandlers.post(request, modifierId);
+const handleModifierRecalculatePost: TypedRouteHandler<"POST /admin/modifiers/recalculate/:modifierId"> =
+  recalculateRoute(modifierRecalculateHandlers, "post")("modifierId");
 
 /** Modifier routes. The edit POST restates the standard key with its own
  * handler. */

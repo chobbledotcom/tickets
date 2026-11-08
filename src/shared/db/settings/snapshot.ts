@@ -141,9 +141,7 @@ const testOverrideStore = (() => {
 export const getTestOverrides = (): Record<string, unknown> =>
   testOverrideStore.get();
 
-export const clearTestOverrides = (): void => {
-  testOverrideStore.clear();
-};
+export const clearTestOverrides = testOverrideStore.clear;
 
 /**
  * Snapshot fields that derive from a different config key, for the read audit.
