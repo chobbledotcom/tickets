@@ -25,9 +25,10 @@ import {
   defineAdminRoutes,
   entityTabRoutes,
 } from "#routes/admin/route-tables.ts";
-import { authPage, formPolicyFor, pageGuardFor } from "#routes/auth.ts";
+import { formPolicyFor } from "#routes/auth.ts";
 import { entityFormById, idRouteFor } from "#routes/entity.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
+import { authPageAt } from "#routes/route-gates.ts";
 import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 import {
   createAuthedFormRoute,
@@ -61,9 +62,7 @@ import {
 import { questionTextForm } from "./questions/forms.ts";
 
 /** Handle GET /admin/questions */
-const handleQuestionsGet = authPage(
-  pageGuardFor(adminDestinationAt("/admin/questions")),
-)(async (session) => {
+const handleQuestionsGet = authPageAt("/admin/questions")(async (session) => {
   const flash = getFlash();
   const [questions, allListings] = await Promise.all([
     getAllQuestionsWithAnswers(),

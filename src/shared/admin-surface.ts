@@ -54,12 +54,12 @@ export const adminPath = <Id extends AdminDestinationId>(
     (_, name: keyof AdminPathParams<Id>) => String(params[name]),
   );
 
-/** The route declared at a path, named by the path itself. A route table key
- * is a path, so this is how a handler asks what its own route declares. */
-export const adminDestinationAt = (pattern: string): AdminDestinationDef => {
-  const destination = folded.byPattern[pattern];
+/** The route declared at a path or under an id. A route table key is a path.
+ * A handler that knows its declaration passes the id. */
+export const adminDestinationAt = (route: string): AdminDestinationDef => {
+  const destination = folded.byPattern[route] ?? folded.destinations[route];
   if (!destination) {
-    throw new Error(`No admin route is declared at "${pattern}"`);
+    throw new Error(`No admin route is declared at "${route}"`);
   }
   return destination;
 };

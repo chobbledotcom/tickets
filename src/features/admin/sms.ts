@@ -16,13 +16,9 @@ import { countRows } from "#db/client.ts";
 import { hashPhone, recordContacts } from "#db/contact-preferences.ts";
 import { recordSmsMessage } from "#db/sms-messages.ts";
 import { t } from "#i18n";
-import {
-  type AuthSession,
-  formPolicyFor,
-  pageGuardFor,
-  withAuth,
-} from "#routes/auth.ts";
+import { type AuthSession, pageGuardFor, withAuth } from "#routes/auth.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
+import { formPolicyAt } from "#routes/route-gates.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { getFlash } from "#shared/flash-context.ts";
@@ -173,7 +169,7 @@ const sendSms = (
 
 /** POST /admin/sms */
 const handleSmsPost = (request: Request): Promise<Response> =>
-  withAuth(request, formPolicyFor(adminDestinationAt("/admin/sms")), sendSms);
+  withAuth(request, formPolicyAt("/admin/sms"), sendSms);
 
 export const adminHandlers = defineAdminRoutes({
   "GET /admin/sms": handleSmsGet,

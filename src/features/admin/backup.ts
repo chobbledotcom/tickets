@@ -13,8 +13,9 @@ import {
 import { t } from "#i18n";
 import { createActionHandler } from "#routes/admin/actions.ts";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
-import { authPage, pageGuardFor } from "#routes/auth.ts";
+import { pageGuardFor } from "#routes/auth.ts";
 import { downloadResponse, htmlResponse } from "#routes/response.ts";
+import { authPageAt } from "#routes/route-gates.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 import { formatDatetimeLabel } from "#shared/dates.ts";
@@ -89,8 +90,8 @@ const getBackupPageState = async (): Promise<BackupPageState> => {
   }
 };
 
-const handleBackupGet: TypedRouteHandler<"GET /admin/backup"> = authPage(
-  pageGuardFor(adminDestinationAt("/admin/backup")),
+const handleBackupGet: TypedRouteHandler<"GET /admin/backup"> = authPageAt(
+  "/admin/backup",
 )(async (session, _request, flash) =>
   adminBackupPage(
     session,

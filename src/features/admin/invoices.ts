@@ -44,7 +44,7 @@ import {
 } from "#routes/route-gates.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
-import { adminPath, adminPattern } from "#shared/admin-surface.ts";
+import { adminPath } from "#shared/admin-surface.ts";
 import { getActiveEmailConfig } from "#shared/email.ts";
 import { sendEmailOk } from "#shared/email-ok.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -101,7 +101,7 @@ const createdMessage = (number: number, delivered: boolean): string =>
     { number },
   );
 
-const handleInvoicesGet = authPageAt(adminPattern("invoices"))(
+const handleInvoicesGet = authPageAt("invoices")(
   async (session, _request, flash) => {
     const privateKey = await requireRequestPrivateKey();
     const invoices = await getInvoices();
@@ -114,7 +114,7 @@ const handleInvoicesGet = authPageAt(adminPattern("invoices"))(
 );
 
 const handleInvoiceNewGet: TypedRouteHandler<"GET /admin/invoices/new"> =
-  authPageAt(adminPattern("invoiceNew"))(async (session, request, flash) => {
+  authPageAt("invoiceNew")(async (session, request, flash) => {
     const attendee = new URL(request.url).searchParams.get("attendee");
     return adminInvoiceNewPage({
       attendeeId: attendee === null ? null : parsePositiveInt(attendee),
@@ -222,79 +222,73 @@ const withInvoiceForm = async (
 const handleInvoicePreviewPost: TypedRouteHandler<
   "POST /admin/invoices/preview"
 > = (request) =>
-  withAuth(
-    request,
-    formPolicyAt(adminPattern("invoicePreview")),
-    async (session, form) =>
-      withInvoiceForm(
-        form,
-        settings.invoiceBodyTemplate === ""
-          ? INVOICE_BODY_TEMPLATE
-          : settings.invoiceBodyTemplate,
-        async (draft, template) => {
-          const data = await draftBodyData(draft);
-          return htmlResponse(
-            adminInvoicePreviewPage({
-              attendeeEmail: draft.attendee.email,
-              attendeeId: draft.attendeeId,
-              attendeeName: draft.attendee.name,
-              // Only a configured provider with a usable address sends.
-              delivered:
-                getActiveEmailConfig() !== null &&
-                parseEmail(draft.attendee.email) !== null,
-              number: draft.number,
-              previewHtml: renderInvoiceBody(
-                await renderInvoiceText(data, template),
-              ),
-              session,
-              template,
-            }),
-          );
-        },
-      ),
+  withAuth(request, formPolicyAt("invoicePreview"), async (session, form) =>
+    withInvoiceForm(
+      form,
+      settings.invoiceBodyTemplate === ""
+        ? INVOICE_BODY_TEMPLATE
+        : settings.invoiceBodyTemplate,
+      async (draft, template) => {
+        const data = await draftBodyData(draft);
+        return htmlResponse(
+          adminInvoicePreviewPage({
+            attendeeEmail: draft.attendee.email,
+            attendeeId: draft.attendeeId,
+            attendeeName: draft.attendee.name,
+            // Only a configured provider with a usable address sends.
+            delivered:
+              getActiveEmailConfig() !== null &&
+              parseEmail(draft.attendee.email) !== null,
+            number: draft.number,
+            previewHtml: renderInvoiceBody(
+              await renderInvoiceText(data, template),
+            ),
+            session,
+            template,
+          }),
+        );
+      },
+    ),
   );
 
 /** Store the edited invoice, email it, and redirect to its page. */
 const handleInvoiceNewPost: TypedRouteHandler<"POST /admin/invoices/new"> = (
   request,
 ) =>
-  withAuth(
-    request,
-    formPolicyAt(adminPattern("invoiceNew")),
-    async (_session, form) =>
-      // Clearing the text returns to the built-in template, and so does a
-      // template identical to it. The site keeps anything else for the next
-      // invoice.
-      withInvoiceForm(form, INVOICE_BODY_TEMPLATE, async (draft, template) => {
-        await settings.update.invoiceBodyTemplate(
-          template === INVOICE_BODY_TEMPLATE ? "" : template,
-        );
-        const bodyHtml = renderInvoiceBody(
-          await renderInvoiceText(await draftBodyData(draft), template),
-        );
-        const { invoice, shareToken } = await createInvoice({
-          attendeeId: draft.attendeeId,
-          bodyHtml,
-          created: nowIso(),
-          id: draft.number,
-        });
-        const shareUrl = invoiceShareUrl(shareToken);
-        const email = parseEmail(draft.attendee.email);
-        const delivered =
-          email !== null &&
-          (await sendInvoiceEmail(invoice, bodyHtml, shareUrl, email));
-        return adminRedirect(
-          "invoice",
-          { id: invoice.id },
-          createdMessage(draft.number, delivered),
-          true,
-        );
-      }),
+  withAuth(request, formPolicyAt("invoiceNew"), async (_session, form) =>
+    // Clearing the text returns to the built-in template, and so does a
+    // template identical to it. The site keeps anything else for the next
+    // invoice.
+    withInvoiceForm(form, INVOICE_BODY_TEMPLATE, async (draft, template) => {
+      await settings.update.invoiceBodyTemplate(
+        template === INVOICE_BODY_TEMPLATE ? "" : template,
+      );
+      const bodyHtml = renderInvoiceBody(
+        await renderInvoiceText(await draftBodyData(draft), template),
+      );
+      const { invoice, shareToken } = await createInvoice({
+        attendeeId: draft.attendeeId,
+        bodyHtml,
+        created: nowIso(),
+        id: draft.number,
+      });
+      const shareUrl = invoiceShareUrl(shareToken);
+      const email = parseEmail(draft.attendee.email);
+      const delivered =
+        email !== null &&
+        (await sendInvoiceEmail(invoice, bodyHtml, shareUrl, email));
+      return adminRedirect(
+        "invoice",
+        { id: invoice.id },
+        createdMessage(draft.number, delivered),
+        true,
+      );
+    }),
   );
 
 /** One invoice page, loaded and gated by the shared record-page factory. */
 const invoicePageFor = createIdEntityHandler(getInvoice)(
-  pageGuardAt(adminPattern("invoice")),
+  pageGuardAt("invoice"),
 );
 
 const handleInvoiceGet: TypedRouteHandler<"GET /admin/invoices/:id"> =
@@ -325,7 +319,7 @@ const handleInvoiceGet: TypedRouteHandler<"GET /admin/invoices/:id"> =
 
 /** A command route on one stored invoice, gated by its route declaration. */
 const invoiceCommand = (pattern: AdminDestinationId) =>
-  createIdEntityHandler(getInvoice)(formGuardAt(adminPattern(pattern)));
+  createIdEntityHandler(getInvoice)(formGuardAt(pattern));
 
 /** A command on one stored invoice answers 404 when its row is gone. */
 const handleInvoiceCancelPost: TypedRouteHandler<"POST /admin/invoices/:id/cancel"> =

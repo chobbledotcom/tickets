@@ -14,8 +14,9 @@ import {
 } from "#db/built-sites.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
-import { authPage, formPolicyFor, pageGuardFor } from "#routes/auth.ts";
+import { formPolicyFor } from "#routes/auth.ts";
 import { adminRedirect, notFoundResponse } from "#routes/response.ts";
+import { authPageAt } from "#routes/route-gates.ts";
 import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { builderApi } from "#shared/builder.ts";
@@ -46,15 +47,14 @@ const toDisplay = (
     siteUrl: s.siteUrl,
   }));
 
-const renderBuilderPage = authPage(
-  pageGuardFor(adminDestinationAt("/admin/builder")),
-)(async (session, _request, flash) =>
-  adminBuilderPage(
-    session,
-    toDisplay(await builtSites.getAll()),
-    flash.error,
-    flash.success,
-  ),
+const renderBuilderPage = authPageAt("/admin/builder")(
+  async (session, _request, flash) =>
+    adminBuilderPage(
+      session,
+      toDisplay(await builtSites.getAll()),
+      flash.error,
+      flash.success,
+    ),
 );
 
 /** GET /admin/builder — show builder form and built sites list */
