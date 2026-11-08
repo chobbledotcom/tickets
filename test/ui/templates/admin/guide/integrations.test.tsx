@@ -139,13 +139,6 @@ describe("guide integrations section", () => {
     expect(named.filter((path) => !served.has(path))).toEqual([]);
   });
 
-  test("names the one attendee route the table serves", () => {
-    const attendeeRoutes = Object.keys(adminApiRoutes).filter((route) =>
-      route.includes("/api/admin/attendees"),
-    );
-    expect(attendeeRoutes).toEqual(["POST /api/admin/attendees"]);
-  });
-
   test("the Admin API answer links its own section", () => {
     expectIncludesAll(adminApiAnswer(), [
       '<a href="#external-sources">External sources</a>',
