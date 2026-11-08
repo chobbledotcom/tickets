@@ -1,5 +1,6 @@
 import { assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import {
   API_BOOK_FREE_EXAMPLE_JSON,
   API_BOOK_PAID_EXAMPLE_JSON,
@@ -83,6 +84,21 @@ describe("guide integrations section", () => {
       // The daily-listing parameter note joins its inline code the same way.
       "For daily listings, add <code>&amp;date=YYYY-MM-DD</code> to check",
       "(use a date from <code>availableDates</code>)",
+    ]);
+  });
+
+  test("lists every admin API resource the route table serves", () => {
+    const html = String(renderGuideSections(integrationsSections()));
+    expectIncludesAll(html, [
+      t("guide.q.what_admin_endpoints_are_available"),
+      "<strong>Attendee statuses</strong>",
+      "<code>/api/admin/attributes/:id/options</code>",
+      "<code>/api/admin/questions/:id/answers</code>",
+      "<code>GET /api/admin/questions/:id/bookings</code>",
+      "GET</code> and <code>PUT /api/admin/site-pages/home</code>",
+      '<a href="#external-sources">External sources</a>',
+      "<code>POST /api/admin/attendees</code> makes one booking",
+      "<code>confirm_identifier</code> field",
     ]);
   });
 });
