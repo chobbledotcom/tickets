@@ -1,5 +1,6 @@
-import { formPolicyFor, pageGuardFor, withAuth } from "#routes/auth.ts";
+import { pageGuardFor, withAuth } from "#routes/auth.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
+import { formPolicyAt } from "#routes/route-gates.ts";
 import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -129,22 +130,18 @@ export const createRecalculateHandlers = <T, F extends string, ID>(config: {
       }),
     ),
   post: (request, id) =>
-    withAuth(
-      request,
-      formPolicyFor(adminDestinationAt(config.pattern)),
-      (session, form) =>
-        config.withEntity(id)((entity) =>
-          runRecalculatePost({
-            fields: config.fields,
-            form,
-            log: () => config.log(entity),
-            renderChoose: () =>
-              config.render(entity, session, config.chooseMessage),
-            reset: (selected) =>
-              config.reset(config.entityId(entity), selected),
-            successMessage: config.successMessage,
-            successPath: config.successPath(entity),
-          }),
-        ),
+    withAuth(request, formPolicyAt(config.pattern), (session, form) =>
+      config.withEntity(id)((entity) =>
+        runRecalculatePost({
+          fields: config.fields,
+          form,
+          log: () => config.log(entity),
+          renderChoose: () =>
+            config.render(entity, session, config.chooseMessage),
+          reset: (selected) => config.reset(config.entityId(entity), selected),
+          successMessage: config.successMessage,
+          successPath: config.successPath(entity),
+        }),
+      ),
     ),
 });

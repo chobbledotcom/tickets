@@ -29,12 +29,7 @@ import {
   verifiedDelete,
 } from "#routes/admin/confirmation.ts";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
-import {
-  authPage,
-  formGuard,
-  formPolicyFor,
-  pageGuardFor,
-} from "#routes/auth.ts";
+import { formGuard, formPolicyFor, pageGuardFor } from "#routes/auth.ts";
 import {
   createEntityHandler,
   entityPageById,
@@ -47,6 +42,7 @@ import {
   htmlResponse,
   redirectToDetail,
 } from "#routes/response.ts";
+import { authPageAt } from "#routes/route-gates.ts";
 import { adminDestinationAt } from "#shared/admin-surface.ts";
 import {
   createAuthedFormRoute,
@@ -75,9 +71,7 @@ import {
   confirmDeleteWithLog,
 } from "./logged-actions.ts";
 
-const handleAttributesGet = authPage(
-  pageGuardFor(adminDestinationAt("/admin/attributes")),
-)(async (session) => {
+const handleAttributesGet = authPageAt("/admin/attributes")(async (session) => {
   const flash = getFlash();
   return adminAttributesPage(
     await getAllAttributesWithOptions(),

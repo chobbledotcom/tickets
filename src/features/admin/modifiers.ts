@@ -37,10 +37,11 @@ import {
   defineAdminRoutes,
   entityTabRoutes,
 } from "#routes/admin/route-tables.ts";
-import { formPolicyFor, withAuth } from "#routes/auth.ts";
+import { withAuth } from "#routes/auth.ts";
 import { adminRedirect, notFoundResponse } from "#routes/response.ts";
+import { formPolicyAt } from "#routes/route-gates.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { matchKey } from "#shared/keys.ts";
 import { validateCalcValue } from "#shared/price-modifier.ts";
@@ -270,7 +271,7 @@ const handleEditPost: TypedRouteHandler<"POST /admin/modifiers/:id/edit"> = (
 ) =>
   withAuth(
     request,
-    formPolicyFor(adminDestinationAt("/admin/modifiers/:id/edit")),
+    formPolicyAt("/admin/modifiers/:id/edit"),
     async (_session, form) => {
       const modifier = await getModifier(id);
       if (!modifier) return notFoundResponse();

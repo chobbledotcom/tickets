@@ -5,8 +5,8 @@ import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
  */
 
 import { settings } from "#db/settings.ts";
-import { authPage, contentPage, pageGuardFor } from "#routes/auth.ts";
-import { adminDestinationAt } from "#shared/admin-surface.ts";
+import { contentPage } from "#routes/auth.ts";
+import { authPageAt } from "#routes/route-gates.ts";
 import { isBuilderEnabled } from "#shared/config.ts";
 import { EMAIL_PROVIDER_LABELS, hostEmail } from "#shared/email.ts";
 import {
@@ -17,9 +17,7 @@ import {
 /**
  * Handle GET /admin/guide
  */
-const handleAdminGuideGet = authPage(
-  pageGuardFor(adminDestinationAt("/admin/guide")),
-)((session) => {
+const handleAdminGuideGet = authPageAt("/admin/guide")((session) => {
   const hostEmailConfig = hostEmail.getHostConfig();
   return adminGuidePage(session, {
     builderEnabled: isBuilderEnabled(),

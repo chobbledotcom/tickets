@@ -34,14 +34,10 @@ import {
   summarySection,
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
-import {
-  type AuthSession,
-  authPage,
-  formPolicyFor,
-  pageGuardFor,
-} from "#routes/auth.ts";
+import { type AuthSession, formPolicyFor, pageGuardFor } from "#routes/auth.ts";
 import { entityFormById, idRouteFor } from "#routes/entity.ts";
 import { adminRedirect, htmlResponse, redirect } from "#routes/response.ts";
+import { authPageAt } from "#routes/route-gates.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
@@ -281,9 +277,7 @@ const handleUserManageGet: TypedRouteHandler<"GET /admin/users/:id"> =
 /**
  * Handle GET /admin/user/new - show invite user form
  */
-const handleUserNewGet = authPage(
-  pageGuardFor(adminDestinationAt("/admin/user/new")),
-)(async (session) =>
+const handleUserNewGet = authPageAt("/admin/user/new")(async (session) =>
   adminUserNewPage(session, await loadAssignableAgents(), getFlash().error),
 );
 

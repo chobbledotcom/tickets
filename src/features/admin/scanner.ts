@@ -14,6 +14,7 @@ import {
   jsonResponse,
   notFoundResponse,
 } from "#routes/response.ts";
+import { pageGuardAt } from "#routes/route-gates.ts";
 import { adminDestination } from "#shared/admin-surface.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
 import type { RequestRoute } from "#shared/response-steps.ts";
@@ -82,7 +83,7 @@ const manualCheckinOptions = (
 
 /** Handle GET /admin/listing/:id/scanner - render scanner page */
 const handleScannerGet: IdRouteHandler = listingWithCountHandler(
-  pageGuardFor(adminDestination("listingScanner")),
+  pageGuardAt("listingScanner"),
 )(async (listing, session) => {
   // A "No check-in" listing has no door: the doors list hides it, and a
   // guessed URL meets the same answer as an unknown listing.
@@ -108,7 +109,7 @@ const handleScannerGet: IdRouteHandler = listingWithCountHandler(
 /** Handle GET /admin/groups/:id/scanner - render the group scanner page */
 const handleGroupScannerGet: IdRouteHandler = createIdEntityHandler<Group>(
   getGroupById,
-)(pageGuardFor(adminDestination("groupScanner")))(async (group, session) => {
+)(pageGuardAt("groupScanner"))(async (group, session) => {
   const scope = await groupScope(group);
   const attendees = await scopeAttendees(scope);
   // A door that spans several listings names the listing each place is for.

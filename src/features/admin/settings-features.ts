@@ -6,7 +6,7 @@ import {
 } from "#db/admin-features.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
-import { formPolicyFor, pageGuardFor, withAuth } from "#routes/auth.ts";
+import { pageGuardFor, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import {
   errorRedirect,
@@ -14,6 +14,7 @@ import {
   notFoundResponse,
   redirect,
 } from "#routes/response.ts";
+import { formPolicyAt } from "#routes/route-gates.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import {
   type AdminFeatureDefinition,
@@ -88,9 +89,6 @@ export const handleFeatureGet: TypedRouteHandler<
 export const handleFeaturePost: TypedRouteHandler<
   "POST /admin/features/:slug"
 > = (request, { slug }) =>
-  withAuth(
-    request,
-    formPolicyFor(adminDestinationAt("/admin/features/:slug")),
-    (_session, form) =>
-      withAdminFeature(slug, (feature) => saveFeatureChoice(feature, form)),
+  withAuth(request, formPolicyAt("/admin/features/:slug"), (_session, form) =>
+    withAdminFeature(slug, (feature) => saveFeatureChoice(feature, form)),
   );

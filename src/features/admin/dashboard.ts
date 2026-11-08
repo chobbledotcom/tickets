@@ -30,15 +30,14 @@ import {
 import { generateListingsCsv } from "#routes/admin/listings-csv.ts";
 import { returnPathFromQuery } from "#routes/admin/login-return.ts";
 import {
-  authPage,
   contentPage,
-  formPolicyFor,
   formPost,
   pageGuardFor,
   withSession,
 } from "#routes/auth.ts";
 import { flashForPage } from "#routes/flash-for-page.ts";
 import { htmlResponse, redirect, redirectResponse } from "#routes/response.ts";
+import { authPageAt, formPolicyAt } from "#routes/route-gates.ts";
 import { adminLandingPath } from "#shared/admin-pages.ts";
 import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { getFlash } from "#shared/flash-context.ts";
@@ -265,8 +264,8 @@ const loadActivityLogRefs = (
     idsOf(entries, (entry) => entry.listing_id),
   );
 
-const handleAdminLog: TypedRouteHandler<"GET /admin/log"> = authPage(
-  pageGuardFor(adminDestinationAt("/admin/log")),
+const handleAdminLog: TypedRouteHandler<"GET /admin/log"> = authPageAt(
+  "/admin/log",
 )(async (session) => {
   const entries = await getAllActivityLog(LOG_DISPLAY_LIMIT + 1);
   const truncated = entries.length > LOG_DISPLAY_LIMIT;
@@ -278,12 +277,12 @@ const handleAdminLog: TypedRouteHandler<"GET /admin/log"> = authPage(
 /** The owner chose "Got it": store the welcome flag as off for the site, so no
  *  later login shows the message again. Owner-only, with the form CSRF check
  *  in `formPost`. */
-const handleWelcomeDismiss = formPost(
-  formPolicyFor(adminDestinationAt("/admin/welcome/dismiss")),
-)(async () => {
-  await settings.update.welcomeEnabled(false);
-  return redirect("/admin", t("admin.dashboard.welcome.dismissed"), true);
-});
+const handleWelcomeDismiss = formPost(formPolicyAt("/admin/welcome/dismiss"))(
+  async () => {
+    await settings.update.welcomeEnabled(false);
+    return redirect("/admin", t("admin.dashboard.welcome.dismissed"), true);
+  },
+);
 
 export const adminHandlers = defineAdminRoutes({
   "GET /admin": handleAdminGet,

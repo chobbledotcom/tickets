@@ -12,10 +12,10 @@ import {
   type TaggedRefundPaymentReference,
 } from "#db/payment-references.ts";
 import { t } from "#i18n";
-import { formPolicyFor, withAuth } from "#routes/auth.ts";
+import { withAuth } from "#routes/auth.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
+import { formPolicyAt } from "#routes/route-gates.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { adminDestinationAt } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { reportRefundNotRecorded } from "#shared/invariant-errors.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -125,9 +125,7 @@ export const handleRefreshPayment: TypedRouteHandler<
 > = (request, { attendeeId }) =>
   withAuth(
     request,
-    formPolicyFor(
-      adminDestinationAt("/admin/attendees/:attendeeId/refresh-payment"),
-    ),
+    formPolicyAt("/admin/attendees/:attendeeId/refresh-payment"),
     async (_session, _form) => {
       const form = _form as FormParams;
       const state = await loadRefreshState(attendeeId, form);

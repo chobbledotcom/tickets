@@ -4,9 +4,10 @@
  */
 
 import { t } from "#i18n";
-import { formPolicyFor, formPost } from "#routes/auth.ts";
+import { formPost } from "#routes/auth.ts";
 import { errorRedirect } from "#routes/response.ts";
-import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
+import { formPolicyAt } from "#routes/route-gates.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 import { validateDraftInput } from "#shared/bulk-email.ts";
 import {
   targetFromForm,
@@ -61,7 +62,7 @@ export const validatedEmailPost = (
   pattern: string,
   next: (fields: ValidatedEmailForm, form: FormParams) => Promise<Response>,
 ): RequestRoute =>
-  formPost(formPolicyFor(adminDestinationAt(pattern)))(async (form) => {
+  formPost(formPolicyAt(pattern))(async (form) => {
     const result = await validateFormBody(form);
     return result instanceof Response ? result : next(result, form);
   });
