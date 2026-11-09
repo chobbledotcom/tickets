@@ -73,9 +73,13 @@ export interface TursoApi {
   ): Promise<Result<TursoDatabaseCredentials>>;
   databaseExists(organization: string, name: string): Promise<Result<boolean>>;
   deleteDatabase(organization: string, name: string): Promise<Result<void>>;
-  listDatabases(organization: string): Promise<Result<ListedDatabase[]>>;
   listGroups(organization: string): Promise<Result<string[]>>;
   listOrganizations(): Promise<Result<string[]>>;
+}
+
+/** The calls that replace one database's key. Only key rotation asks them. */
+interface TursoDatabaseKeyApi {
+  listDatabases(organization: string): Promise<Result<ListedDatabase[]>>;
   /** Replace every token for one database with one new full-access token. */
   rotateDatabaseKey: DatabaseTokenFn;
 }
@@ -112,7 +116,7 @@ const namesFrom = <Entry>(
 export const createTursoApi = (
   apiToken: string,
   signal?: AbortSignal,
-): TursoApi => {
+): TursoApi & TursoDatabaseKeyApi => {
   const client = defineApiClient({
     baseUrl: TURSO_API_BASE,
     headers: () => jsonHeaders({ Authorization: `Bearer ${apiToken}` }),

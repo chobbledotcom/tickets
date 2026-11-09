@@ -10,7 +10,8 @@
 
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { databaseHostFor } from "#db/host.ts";
-import { type ScriptIo, taskWithoutArguments } from "#scripts/script-runner.ts";
+import { taskWithoutArguments } from "#scripts/no-argument-task.ts";
+import type { ScriptIo } from "#scripts/script-runner.ts";
 import { numberedLines, readMenuChoice } from "#scripts/site-migration/menu.ts";
 import { databaseKeyRotationAccess } from "#shared/database-key-rotation.ts";
 import { errorMessage } from "#shared/error-message.ts";

@@ -4,7 +4,8 @@ import {
   type SnapshotProgressWriter,
   type SnapshotRequest,
 } from "#scripts/database-snapshot-lib.ts";
-import { type ScriptIo, taskWithoutArguments } from "#scripts/script-runner.ts";
+import { taskWithoutArguments } from "#scripts/no-argument-task.ts";
+import type { ScriptIo } from "#scripts/script-runner.ts";
 import { tursoDatabaseSlug } from "#shared/config.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { requireSuccess } from "#shared/result.ts";

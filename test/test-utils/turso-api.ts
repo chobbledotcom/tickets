@@ -20,13 +20,7 @@ export const fakeTursoApi = (overrides: Partial<TursoApi> = {}): TursoApi => ({
     Promise.resolve(okResult(false)),
   deleteDatabase: (_organization: string, _name: string) =>
     Promise.resolve(okResult(undefined)),
-  listDatabases: (_organization: string) =>
-    Promise.resolve(
-      okResult([{ host: "destination.turso.io", id: "destination-database" }]),
-    ),
   listGroups: (_organization: string) => Promise.resolve(okResult(["default"])),
   listOrganizations: () => Promise.resolve(okResult(["personal"])),
-  rotateDatabaseKey: (_organization: string, _name: string) =>
-    Promise.resolve(okResult("rotated-token")),
   ...overrides,
 });
