@@ -404,17 +404,15 @@ export const adminGet = async (path: string): Promise<Response> => {
   return awaitTestRequest(path, { cookie });
 };
 
-/** Curried helper for bulk-action GET pages: returns a function that fetches
- *  `/admin/groups/:id/bulk-actions/<action>`, asserts 200, and returns the
- *  HTML body. The two concrete actions (duplicate, deactivate) share this
- *  structure — curry with the action name to create each specialisation. */
-export const getBulkActionForm =
+/** Curried helper for group-action GET pages: returns a function that fetches
+ *  `/admin/groups/:id/<action>`, asserts 200, and returns the HTML body. The
+ *  two concrete actions (duplicate, deactivate) share this structure — curry
+ *  with the action name to create each specialisation. */
+export const getGroupActionForm =
   (action: string) =>
   async (groupId: number): Promise<string> => {
     const { expect } = await import("@std/expect");
-    const response = await adminGet(
-      `/admin/groups/${groupId}/bulk-actions/${action}`,
-    );
+    const response = await adminGet(`/admin/groups/${groupId}/${action}`);
     const html = await response.text();
     expect(response.status).toBe(200);
     return html;

@@ -59,8 +59,9 @@ describeWithEnv("the group page", { db: true }, () => {
     assertStringIncludes(html, `<a class="active" href="/admin/groups">`);
   });
 
-  test("offers staff the export, bulk actions, and delete", async () => {
+  test("offers staff the export, the group actions, and delete", async () => {
     const group = await createTestGroup({ name: "Full Actions" });
+    await createTestListing({ groupId: group.id, name: "On sale member" });
 
     const html = await (
       await adminGet(`/admin/groups/${group.id}/actions`)
@@ -68,14 +69,15 @@ describeWithEnv("the group page", { db: true }, () => {
 
     expectIncludesAll(html, [
       `href="/admin/groups/${group.id}/export.json"`,
-      `href="/admin/groups/${group.id}/bulk-actions"`,
+      `href="/admin/groups/${group.id}/duplicate"`,
+      `href="/admin/groups/${group.id}/deactivate"`,
       `href="/admin/groups/${group.id}/delete"`,
     ]);
   });
 
   test("offers an editor the export alone", async () => {
-    // Bulk actions and delete are staff-only routes, so an editor is shown
-    // neither link rather than one that answers 403.
+    // The group-wide actions and delete are staff-only routes, so an editor
+    // is shown none of their links rather than one that answers 403.
     const group = await createTestGroup({ name: "Editor Actions" });
 
     const cookie = await editorCookie();
@@ -84,8 +86,9 @@ describeWithEnv("the group page", { db: true }, () => {
     ).text();
 
     assertStringIncludes(html, `href="/admin/groups/${group.id}/export.json"`);
-    assert(!html.includes(`href="/admin/groups/${group.id}/bulk-actions"`));
-    assert(!html.includes(`href="/admin/groups/${group.id}/delete"`));
+    for (const action of ["duplicate", "deactivate", "delete"]) {
+      assert(!html.includes(`href="/admin/groups/${group.id}/${action}"`));
+    }
   });
 
   test("opens an editor on edit and keeps the attendee tabs shut", async () => {

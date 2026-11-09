@@ -10,8 +10,8 @@ import {
 } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
-  bulkActionPath,
   findOrCreateGroup,
+  groupActionPath,
   groupNamed,
 } from "#test/specs/support/groups.ts";
 import { rememberListing } from "#test/specs/support/listings.ts";
@@ -22,12 +22,12 @@ import type { TestBrowser } from "#test-utils/test-browser.ts";
 /** The duplicate form's URL, built from the group's id. The form's fields are
  * read off the served page in `fillInAndSend`, so a form that stopped rendering
  * any field fails there instead of the send going through. */
-const DUPLICATE_PATH = bulkActionPath("duplicate");
+const DUPLICATE_PATH = groupActionPath("duplicate");
 
 /** The submit button the duplicate form carries — the production i18n key, not
  * a copied wording, so a rename in the catalog reaches the story too. Looked up
  * at call time, because the catalog is not loaded at module-import time. */
-const duplicateButton = (): string => t("bulk_actions.submit_duplicate");
+const duplicateButton = (): string => t("group_actions.submit_duplicate");
 
 /** Set up a group with one member, both remembered by the names the story uses.
  * The member's date is what the form will shift; storing the listing under its

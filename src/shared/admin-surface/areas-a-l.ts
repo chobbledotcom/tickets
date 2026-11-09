@@ -149,15 +149,6 @@ export const AREAS_A_L = {
       builtSiteUpdate: "/admin/built-sites/:id/update",
     },
   },
-  bulkActions: {
-    audience: STAFF_ADMIN_LEVELS,
-    write: {
-      bulkActions: "/admin/groups/:id/bulk-actions",
-      bulkDeactivate: "/admin/groups/:id/bulk-actions/deactivate",
-      bulkDuplicate: "/admin/groups/:id/bulk-actions/duplicate",
-      bulkReactivate: "/admin/groups/:id/bulk-actions/reactivate",
-    },
-  },
   bulkEmail: {
     audience: OWNER_AUDIENCE,
     view: {
@@ -243,6 +234,16 @@ export const AREAS_A_L = {
     audience: OWNER_AUDIENCE,
     view: {
       externalSources: "/admin/external-sources",
+    },
+  },
+  // The group-wide actions the group page's Actions tab links to. Each writes
+  // the group's member listings, so each stays staff-only.
+  groupActions: {
+    audience: STAFF_ADMIN_LEVELS,
+    write: {
+      groupDeactivate: "/admin/groups/:id/deactivate",
+      groupDuplicate: "/admin/groups/:id/duplicate",
+      groupReactivate: "/admin/groups/:id/reactivate",
     },
   },
   groups: {

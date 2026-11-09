@@ -13,7 +13,7 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
-describeWithEnv("Admin bulk actions — reactivate", { db: true }, () => {
+describeWithEnv("Group actions — reactivate", { db: true }, () => {
   const createInactiveListGroup = async (name: string) => {
     const group = await createTestGroup({ name });
     const a = await createTestListing({ groupId: group.id, name: "A" });
@@ -23,7 +23,7 @@ describeWithEnv("Admin bulk actions — reactivate", { db: true }, () => {
     return { a, b, group };
   };
 
-  describe("GET /admin/groups/:id/bulk-actions/reactivate", () => {
+  describe("GET /admin/groups/:id/reactivate", () => {
     test("renders the reactivate confirmation form with a singular listing count", async () => {
       const group = await createTestGroup({ name: "Solo Off" });
       const listing = await createTestListing({
@@ -32,40 +32,35 @@ describeWithEnv("Admin bulk actions — reactivate", { db: true }, () => {
       });
       await listingsTable.update(listing.id, { active: false });
 
-      await expectHtml(
-        await adminGet(`/admin/groups/${group.id}/bulk-actions/reactivate`),
-        {
-          contains: [
-            "Reactivate Group",
-            'name="confirm_identifier"',
-            "reactivate 1 listing",
-          ],
-          notContains: ["reactivate 1 listings"],
-          status: 200,
-        },
-      );
+      await expectHtml(await adminGet(`/admin/groups/${group.id}/reactivate`), {
+        contains: [
+          "Reactivate Group",
+          'name="confirm_identifier"',
+          "reactivate 1 listing",
+        ],
+        notContains: ["reactivate 1 listings"],
+        status: 200,
+      });
     });
 
     test("renders the reactivate form with a plural listing count", async () => {
       const { group } = await createInactiveListGroup("Many Off");
 
-      await expectHtml(
-        await adminGet(`/admin/groups/${group.id}/bulk-actions/reactivate`),
-        { contains: ["reactivate 2 listings"], status: 200 },
-      );
+      await expectHtml(await adminGet(`/admin/groups/${group.id}/reactivate`), {
+        contains: ["reactivate 2 listings"],
+        status: 200,
+      });
     });
 
     test("returns 404 when the group does not exist", async () => {
       // Not-found boundary — a story cannot reach this path (it sets up a
       // real group first), so it stays as a direct technical contract.
-      const response = await adminGet(
-        "/admin/groups/999999/bulk-actions/reactivate",
-      );
+      const response = await adminGet("/admin/groups/999999/reactivate");
       expect(response.status).toBe(404);
     });
   });
 
-  describe("POST /admin/groups/:id/bulk-actions/reactivate", () => {
+  describe("POST /admin/groups/:id/reactivate", () => {
     test("reactivates every listing in the group when the name is confirmed", async () => {
       // Pins the reactivate success branch for the coverage gate: the toggle
       // skips the deactivation-only orphan guard, `setGroupListingsActive`
@@ -75,7 +70,7 @@ describeWithEnv("Admin bulk actions — reactivate", { db: true }, () => {
       const { group, a, b } = await createInactiveListGroup("Bring Back");
 
       const { response } = await adminFormPost(
-        `/admin/groups/${group.id}/bulk-actions/reactivate`,
+        `/admin/groups/${group.id}/reactivate`,
         { confirm_identifier: "Bring Back" },
       );
 
@@ -104,14 +99,14 @@ describeWithEnv("Admin bulk actions — reactivate", { db: true }, () => {
       await listingsTable.update(listing.id, { active: false });
 
       const { response } = await adminFormPost(
-        `/admin/groups/${group.id}/bulk-actions/reactivate`,
+        `/admin/groups/${group.id}/reactivate`,
         { confirm_identifier: "Different" },
       );
 
       expect(response.status).toBe(302);
       assertStringIncludes(
         response.headers.get("location") ?? "",
-        `/admin/groups/${group.id}/bulk-actions/reactivate`,
+        `/admin/groups/${group.id}/reactivate`,
       );
       // The mismatch error names the field to type.
       expectErrorFlash(response, "Group name does not match");

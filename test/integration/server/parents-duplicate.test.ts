@@ -102,7 +102,7 @@ const duplicateGroup = async (
   nameFind: string,
   nameReplace: string,
 ): Promise<Awaited<ReturnType<typeof getListingsByGroupId>>> => {
-  await adminFormPost(`/admin/groups/${groupId}/bulk-actions/duplicate`, {
+  await adminFormPost(`/admin/groups/${groupId}/duplicate`, {
     date_find: "",
     date_replace: "",
     name_find: nameFind,
@@ -126,7 +126,7 @@ const duplicateGroupResponse = async (
   nameReplace: string,
 ): Promise<Response> => {
   const { response } = await adminFormPost(
-    `/admin/groups/${groupId}/bulk-actions/duplicate`,
+    `/admin/groups/${groupId}/duplicate`,
     {
       date_find: "",
       date_replace: "",

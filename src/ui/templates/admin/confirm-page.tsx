@@ -24,7 +24,7 @@ export type ConfirmPageProps = {
   session: AdminSession;
   error?: string | undefined;
   /** Optional content rendered between AdminPage's header and the Flash/error
-   *  notice — used by bulk-actions to render its "back to bulk-actions" link. */
+   *  notice — used by group-actions to render its back-link to the group page. */
   prefix?: Child;
   /** The ConfirmForm action URL. */
   action: string;

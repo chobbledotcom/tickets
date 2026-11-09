@@ -57,24 +57,31 @@ describeWithEnv(
         ]);
       });
 
-      test("Actions tab shows the export, bulk-actions, and delete links", async () => {
+      test("Actions tab shows the export, group actions, and delete links", async () => {
         const group = await createTestGroup({
           name: "Actions Group",
           slug: "actions-group",
+        });
+        await createTestListing({
+          groupId: group.id,
+          name: "On sale member",
         });
         const html = await (
           await adminGet(`/admin/groups/${group.id}/actions`)
         ).text();
         expectIncludesAll(html, [
           `/admin/groups/${group.id}/export.json`,
-          `/admin/groups/${group.id}/bulk-actions`,
+          `/admin/groups/${group.id}/duplicate`,
+          `/admin/groups/${group.id}/deactivate`,
           `/admin/groups/${group.id}/delete`,
           // Each action carries its icon (an empty icon name drops the <use> ref);
           // the nav renders none of these, so the refs are unique to the buttons.
           "#save",
-          "#hammer",
+          "#plus",
+          "#x",
           "#trash-2",
-          // Delete is destructive, so it renders inside the danger zone (danger: true).
+          // Deactivate and Delete are destructive, so they render inside the
+          // danger zone (danger: true).
           "entity-danger-zone",
         ]);
       });

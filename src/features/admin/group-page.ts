@@ -3,7 +3,7 @@
  * notes, so a note never hides behind one tab. Overview is staff-only because
  * it decrypts attendee PII. Content editors reach Edit, Images, and the safe
  * entries on Actions. Sub-action POST handlers keep their own routes in
- * groups.ts, so this file owns only the GET surface.
+ * group-actions.ts, so this file owns only the GET surface.
  */
 
 import {
@@ -25,6 +25,7 @@ import {
 } from "#types";
 import { groupNoteFeature } from "./catalog-notes.ts";
 import {
+  type LoadedGroup,
   loadGroupAttendeesPanel,
   loadGroupEditPanel,
   loadGroupForPage,
@@ -39,19 +40,42 @@ const staffOnly = (_group: Group, session: AuthSession): boolean =>
 /** The Actions tab entries. Each destination's declaration gives the action
  * its audience and its address. A route that narrows also hides its link.
  * The tab is open to content roles. Export is the only button an editor can
- * use, because the bulk and delete routes keep staff audiences. */
-const GROUP_ACTIONS: readonly ActionDef<Group>[] = [
+ * use, because the group-wide actions and delete keep staff audiences.
+ * `visible` keeps only the data-dependent gates the declaration cannot
+ * express. */
+const GROUP_ACTIONS: readonly ActionDef<LoadedGroup>[] = [
   {
-    // A JSON export download (see catalog-transfer). A read, so — unlike bulk
-    // actions and delete — it stays available in read-only mode.
+    // A JSON export download (see catalog-transfer). A read, so — unlike the
+    // group-wide actions and delete — it stays available in read-only mode.
     destination: "groupExportJson",
     icon: "save",
     labelKey: "catalog_transfer.export_link",
   },
   {
-    destination: "bulkActions",
-    icon: "hammer",
-    labelKey: "groups.detail.bulk_actions",
+    descriptionKey: "group_actions.action_duplicate_group_desc",
+    destination: "groupDuplicate",
+    icon: "plus",
+    labelKey: "group_actions.action_duplicate_group",
+  },
+  {
+    // At least one listing is still on sale, so taking the group off sale
+    // changes something.
+    danger: true,
+    descriptionKey: "group_actions.action_deactivate_group_desc",
+    destination: "groupDeactivate",
+    icon: "x",
+    labelKey: "group_actions.action_deactivate_group",
+    visible: (group) => group.saleState.activeCount > 0,
+  },
+  {
+    descriptionKey: "group_actions.action_reactivate_group_desc",
+    // Every listing is off sale, and there is at least one, so bringing the
+    // group back changes something.
+    destination: "groupReactivate",
+    icon: "rotate-ccw",
+    labelKey: "group_actions.action_reactivate_group",
+    visible: (group) =>
+      group.saleState.activeCount === 0 && group.saleState.listingCount > 0,
   },
   {
     danger: true,
@@ -68,10 +92,10 @@ const GROUP_ACTIONS: readonly ActionDef<Group>[] = [
 const editVisible = (): boolean => true;
 const imagesVisible = (): boolean => isStorageEnabled();
 
-/** The Actions tab: the plain export/bulk links plus the delete danger zone.
- * Open to editors too — they can only use Export, since Bulk actions and
- * Delete each carry their own `staffOnly` check. */
-const actionsTab = (): TabDef<Group> => ({
+/** The Actions tab: the export and group-wide links plus the delete danger
+ * zone. Open to editors too — they can only use Export, since the group-wide
+ * actions and Delete each carry their own `staffOnly` check. */
+const actionsTab = (): TabDef<LoadedGroup> => ({
   labelKey: "entity.tab.actions",
   sections: [
     { actions: GROUP_ACTIONS, kind: "actions", titleKey: "entity.tab.actions" },
@@ -81,51 +105,58 @@ const actionsTab = (): TabDef<Group> => ({
 });
 
 /** The tabbed group page. */
-export const groupPage: EntityPage<Group> = defineEntityPage({
-  audience: CONTENT_ADMIN_LEVELS,
-  banner: groupNoteFeature.page.banner,
-  destination: "group",
-  load: (id) => loadGroupForPage(id),
-  // A single group is a page *within* the Groups section — highlight the top
-  // link, no "Add" sub-nav (see attendee-page.ts).
-  navActive: { section: adminPattern("groups") },
-  proseExtra: groupNoteFeature.page.proseExtra,
-  recordId: (group) => group.id,
-  tabs: [
-    panelTab(
-      "",
-      "entity.tab.overview",
-      (group, ctx) =>
-        loadGroupOverviewPanel(group, isOwnerRole(ctx.session.adminLevel)),
-      staffOnly,
-    ),
-    panelTab(
-      "attendees",
-      "entity.tab.attendees",
-      (group) => loadGroupAttendeesPanel(group),
-      staffOnly,
-    ),
-    {
-      // The scanner is served by its own route (GET /admin/groups/:id/
-      // scanner, scanner.ts), not by this tab framework's section loaders.
-      // The router tries literal paths before this page's /:tab wildcard, so
-      // that route always wins. This tab renders no content of its own. Its
-      // entry here exists only to promote the link into the top-level tab
-      // strip, the same promotion the listing page's scanner tab uses. The
-      // gate matches the staff-only gate its route enforces.
-      labelKey: "groups.detail.scanner",
-      sections: [],
-      slug: "scanner",
-      visible: staffOnly,
-    },
-    writeFormTab("edit", "entity.tab.edit", loadGroupEditPanel, editVisible),
-    writeFormTab(
-      "images",
-      "entity.tab.images",
-      loadGroupImagesPanel,
-      imagesVisible,
-    ),
-    actionsTab(),
-  ],
-  titleOf: (group) => group.name,
-});
+export const groupPage: EntityPage<LoadedGroup> = defineEntityPage<LoadedGroup>(
+  {
+    audience: CONTENT_ADMIN_LEVELS,
+    banner: groupNoteFeature.page.banner,
+    destination: "group",
+    load: (id) => loadGroupForPage(id),
+    // A single group is a page *within* the Groups section — highlight the top
+    // link, no "Add" sub-nav (see attendee-page.ts).
+    navActive: { section: adminPattern("groups") },
+    proseExtra: groupNoteFeature.page.proseExtra,
+    recordId: (group) => group.id,
+    tabs: [
+      panelTab<LoadedGroup>(
+        "",
+        "entity.tab.overview",
+        (group, ctx) =>
+          loadGroupOverviewPanel(group, isOwnerRole(ctx.session.adminLevel)),
+        staffOnly,
+      ),
+      panelTab<LoadedGroup>(
+        "attendees",
+        "entity.tab.attendees",
+        (group) => loadGroupAttendeesPanel(group),
+        staffOnly,
+      ),
+      {
+        // The scanner is served by its own route (GET /admin/groups/:id/
+        // scanner, scanner.ts), not by this tab framework's section loaders.
+        // The router tries literal paths before this page's /:tab wildcard, so
+        // that route always wins. This tab renders no content of its own. Its
+        // entry here exists only to promote the link into the top-level tab
+        // strip, the same promotion the listing page's scanner tab uses. The
+        // gate matches the staff-only gate its route enforces.
+        labelKey: "groups.detail.scanner",
+        sections: [],
+        slug: "scanner",
+        visible: staffOnly,
+      },
+      writeFormTab<LoadedGroup>(
+        "edit",
+        "entity.tab.edit",
+        loadGroupEditPanel,
+        editVisible,
+      ),
+      writeFormTab<LoadedGroup>(
+        "images",
+        "entity.tab.images",
+        loadGroupImagesPanel,
+        imagesVisible,
+      ),
+      actionsTab(),
+    ],
+    titleOf: (group) => group.name,
+  },
+);

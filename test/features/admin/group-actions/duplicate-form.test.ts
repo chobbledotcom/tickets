@@ -17,14 +17,14 @@ import { withEnv } from "#test-utils/env.ts";
 import type { TestFormValues } from "#test-utils/form-values.ts";
 import {
   adminFormPost,
-  getBulkActionForm,
+  getGroupActionForm,
   testCookie,
 } from "#test-utils/session.ts";
 
-const getDuplicateForm = getBulkActionForm("duplicate");
+const getDuplicateForm = getGroupActionForm("duplicate");
 
-describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
-  describe("GET /admin/groups/:id/bulk-actions/duplicate", () => {
+describeWithEnv("Group actions — duplicate", { db: true }, () => {
+  describe("GET /admin/groups/:id/duplicate", () => {
     test("shows an empty-state message when the group has no listings", async () => {
       const group = await createTestGroup({ name: "Empty" });
 
@@ -49,7 +49,7 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
     });
   });
 
-  describe("POST /admin/groups/:id/bulk-actions/duplicate", () => {
+  describe("POST /admin/groups/:id/duplicate", () => {
     test("refuses a duplicate whose generated names pass the catalog length cap", async () => {
       // Regression: the batch insert bypasses the create-path validators, so
       // the duplicate flow re-checks the catalog-name rules itself. Without
@@ -62,7 +62,7 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       });
 
       const overLongGroup = await adminFormPost(
-        `/admin/groups/${group.id}/bulk-actions/duplicate`,
+        `/admin/groups/${group.id}/duplicate`,
         {
           name_find: "Lengthy",
           name_replace: "Long",
@@ -76,7 +76,7 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       );
 
       const overLongClone = await adminFormPost(
-        `/admin/groups/${group.id}/bulk-actions/duplicate`,
+        `/admin/groups/${group.id}/duplicate`,
         {
           name_find: "Lengthy",
           name_replace: "L".repeat(251),
@@ -95,7 +95,7 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
 
     test("returns 404 when the source group does not exist", async () => {
       const { response } = await adminFormPost(
-        "/admin/groups/999999/bulk-actions/duplicate",
+        "/admin/groups/999999/duplicate",
         { new_name: "Orphan" },
       );
       expect(response.status).toBe(404);
@@ -113,7 +113,7 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       await setListingGroups(plan.id, [group.id]);
 
       const { response } = await adminFormPost(
-        `/admin/groups/${group.id}/bulk-actions/duplicate`,
+        `/admin/groups/${group.id}/duplicate`,
         {
           name_find: "Duplicated",
           name_replace: "Cloned",
@@ -137,7 +137,7 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       values: TestFormValues,
     ): Promise<string> => {
       const { response } = await adminFormPost(
-        `/admin/groups/${groupId}/bulk-actions/duplicate`,
+        `/admin/groups/${groupId}/duplicate`,
         values,
       );
       expectErrorFlash(response, "already exists");

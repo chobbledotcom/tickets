@@ -3,13 +3,12 @@ import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 
 /**
- * Bulk actions for groups.
+ * The group-wide actions the group page's Actions tab links to.
  *
- * Provides a landing page listing available bulk operations for a group's
- * listings, and per-action form + handler pairs. The first action is
- * "Duplicate Group": create a new group and clone every listing into it.
- * The clone applies a shared find/replace on the listing name and a date
- * shift derived from two reference dates.
+ * Each action has its own form page and handler. "Duplicate Group" creates a
+ * new group and clones every listing into it. The clone applies a shared
+ * find/replace on the listing name and a date shift derived from two reference
+ * dates. "Deactivate Group" and "Reactivate Group" flip every member listing.
  */
 
 import { logActivity } from "#db/activity-log.ts";
@@ -62,24 +61,26 @@ import { sitePlanMemberError } from "#shared/package-membership.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 import {
-  adminBulkActionsPage,
   adminDeactivateGroupPage,
   adminDuplicateGroupPage,
   adminReactivateGroupPage,
-} from "#templates/admin/bulk-actions.tsx";
+} from "#templates/admin/group-actions.tsx";
 import type { AdminSession, Group, ListingWithCount } from "#types";
 import { remapDuplicatedGroupEdges } from "./listings-parents.ts";
 
+/** A GET handler for a group action page. The group id is its only param. */
+type GroupActionGet = TypedRouteHandler<`GET /admin/groups/:id/${string}`>;
+
 const groupListingsPage =
   (
-    pattern: string,
+    pattern: `/admin/groups/:id/${string}`,
     render: (
       group: Group,
       listings: ListingWithCount[],
       session: AdminSession,
       error?: string,
     ) => string,
-  ): TypedRouteHandler<"GET /admin/groups/:id/bulk-actions"> =>
+  ): GroupActionGet =>
   (request, { id }) =>
     pageGuardFor(adminDestinationAt(pattern))(request, (session) =>
       withGroup(id)(async (group) => {
@@ -89,34 +90,26 @@ const groupListingsPage =
       }),
     );
 
-const handleBulkActionsGet = groupListingsPage(
-  "/admin/groups/:id/bulk-actions",
-  adminBulkActionsPage,
-);
-
 const handleDuplicateGroupGet = groupListingsPage(
-  "/admin/groups/:id/bulk-actions/duplicate",
+  "/admin/groups/:id/duplicate",
   adminDuplicateGroupPage,
 );
 
 const handleDeactivateGroupGet = groupListingsPage(
-  "/admin/groups/:id/bulk-actions/deactivate",
+  "/admin/groups/:id/deactivate",
   adminDeactivateGroupPage,
 );
 
 const handleReactivateGroupGet = groupListingsPage(
-  "/admin/groups/:id/bulk-actions/reactivate",
+  "/admin/groups/:id/reactivate",
   adminReactivateGroupPage,
 );
 
 const groupTogglePost = (opts: { active: boolean; action: string }) => {
-  const pageUrl = (group: Group) =>
-    `/admin/groups/${group.id}/bulk-actions/${opts.action}`;
+  const pageUrl = (group: Group) => `/admin/groups/${group.id}/${opts.action}`;
   return createVerifiedFormRoute<{ id: number }, Group>({
     actionLabel: `${opts.action}ion`,
-    auth: formPolicyFor(
-      adminDestinationAt(`/admin/groups/:id/bulk-actions/${opts.action}`),
-    ),
+    auth: formPolicyFor(adminDestinationAt(`/admin/groups/:id/${opts.action}`)),
     ...groupConfirmBase(pageUrl),
     onConfirm: async ({ context: group }) => {
       // A bulk DEACTIVATE marks every group member inactive at once, which can
@@ -148,8 +141,8 @@ const groupTogglePost = (opts: { active: boolean; action: string }) => {
         `/admin/groups/${group.id}`,
         t(
           opts.active
-            ? "bulk_actions.group_reactivated"
-            : "bulk_actions.group_deactivated",
+            ? "group_actions.group_reactivated"
+            : "group_actions.group_deactivated",
           { count: xCount(affected) },
         ),
         true,
@@ -200,12 +193,12 @@ const firstDuplicateNameError = async (
 };
 
 const handleDuplicateGroupPost = groupFormPost(
-  "/admin/groups/:id/bulk-actions/duplicate",
+  "/admin/groups/:id/duplicate",
   async (group, form) => {
-    const formUrl = `/admin/groups/${group.id}/bulk-actions/duplicate`;
+    const formUrl = `/admin/groups/${group.id}/duplicate`;
     const newName = form.getString("new_name").trim();
     if (!newName) {
-      return errorRedirect(formUrl, t("bulk_actions.new_name_required"));
+      return errorRedirect(formUrl, t("group_actions.new_name_required"));
     }
 
     const nameFind = form.getString("name_find");
@@ -418,11 +411,10 @@ const handleDuplicateGroupPost = groupFormPost(
 );
 
 export const adminHandlers = defineAdminRoutes({
-  "GET /admin/groups/:id/bulk-actions": handleBulkActionsGet,
-  "GET /admin/groups/:id/bulk-actions/deactivate": handleDeactivateGroupGet,
-  "GET /admin/groups/:id/bulk-actions/duplicate": handleDuplicateGroupGet,
-  "GET /admin/groups/:id/bulk-actions/reactivate": handleReactivateGroupGet,
-  "POST /admin/groups/:id/bulk-actions/deactivate": handleDeactivateGroupPost,
-  "POST /admin/groups/:id/bulk-actions/duplicate": handleDuplicateGroupPost,
-  "POST /admin/groups/:id/bulk-actions/reactivate": handleReactivateGroupPost,
+  "GET /admin/groups/:id/deactivate": handleDeactivateGroupGet,
+  "GET /admin/groups/:id/duplicate": handleDuplicateGroupGet,
+  "GET /admin/groups/:id/reactivate": handleReactivateGroupGet,
+  "POST /admin/groups/:id/deactivate": handleDeactivateGroupPost,
+  "POST /admin/groups/:id/duplicate": handleDuplicateGroupPost,
+  "POST /admin/groups/:id/reactivate": handleReactivateGroupPost,
 });
