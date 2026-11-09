@@ -46,7 +46,7 @@ import { withGroup } from "#routes/admin/groups.ts";
 import { formPolicyFor, pageGuardFor } from "#routes/auth.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { deactivationOrphanedAddOnError } from "#shared/add-on-reachability.ts";
-import { adminDestinationAt } from "#shared/admin-surface.ts";
+import { adminDestination, adminPath } from "#shared/admin-surface.ts";
 import {
   applyNameReplacement,
   computeDayOffset,
@@ -71,9 +71,17 @@ import { remapDuplicatedGroupEdges } from "./listings-parents.ts";
 /** A GET handler for a group action page. The group id is its only param. */
 type GroupActionGet = TypedRouteHandler<`GET /admin/groups/:id/${string}`>;
 
+/** The three group action routes this module serves. Each names what its own
+ *  form page and POST handler do. A page, its guard, and its form action then
+ *  read the address from the same declaration. */
+type GroupActionDestination =
+  | "groupDeactivate"
+  | "groupDuplicate"
+  | "groupReactivate";
+
 const groupListingsPage =
   (
-    pattern: `/admin/groups/:id/${string}`,
+    destination: GroupActionDestination,
     render: (
       group: Group,
       listings: ListingWithCount[],
@@ -82,7 +90,7 @@ const groupListingsPage =
     ) => string,
   ): GroupActionGet =>
   (request, { id }) =>
-    pageGuardFor(adminDestinationAt(pattern))(request, (session) =>
+    pageGuardFor(adminDestination(destination))(request, (session) =>
       withGroup(id)(async (group) => {
         const listings = sortListings(await getListingsByGroupId(group.id), []);
         const flash = getFlash();
@@ -91,25 +99,30 @@ const groupListingsPage =
     );
 
 const handleDuplicateGroupGet = groupListingsPage(
-  "/admin/groups/:id/duplicate",
+  "groupDuplicate",
   adminDuplicateGroupPage,
 );
 
 const handleDeactivateGroupGet = groupListingsPage(
-  "/admin/groups/:id/deactivate",
+  "groupDeactivate",
   adminDeactivateGroupPage,
 );
 
 const handleReactivateGroupGet = groupListingsPage(
-  "/admin/groups/:id/reactivate",
+  "groupReactivate",
   adminReactivateGroupPage,
 );
 
-const groupTogglePost = (opts: { active: boolean; action: string }) => {
-  const pageUrl = (group: Group) => `/admin/groups/${group.id}/${opts.action}`;
+const groupTogglePost = (opts: {
+  action: "deactivate" | "reactivate";
+  active: boolean;
+  destination: "groupDeactivate" | "groupReactivate";
+}) => {
+  const pageUrl = (group: Group) =>
+    adminPath(opts.destination, { id: group.id });
   return createVerifiedFormRoute<{ id: number }, Group>({
     actionLabel: `${opts.action}ion`,
-    auth: formPolicyFor(adminDestinationAt(`/admin/groups/:id/${opts.action}`)),
+    auth: formPolicyFor(adminDestination(opts.destination)),
     ...groupConfirmBase(pageUrl),
     onConfirm: async ({ context: group }) => {
       // A bulk DEACTIVATE marks every group member inactive at once, which can
@@ -138,7 +151,7 @@ const groupTogglePost = (opts: { active: boolean; action: string }) => {
         `Group '${group.name}' ${opts.action}d (${xCount(affected)} listings)`,
       );
       return redirect(
-        `/admin/groups/${group.id}`,
+        adminPath("group", { id: group.id }),
         t(
           opts.active
             ? "group_actions.group_reactivated"
@@ -154,11 +167,13 @@ const groupTogglePost = (opts: { active: boolean; action: string }) => {
 const handleDeactivateGroupPost = groupTogglePost({
   action: "deactivate",
   active: false,
+  destination: "groupDeactivate",
 });
 
 const handleReactivateGroupPost = groupTogglePost({
   action: "reactivate",
   active: true,
+  destination: "groupReactivate",
 });
 
 /** The first generated name that breaks the cross-entity name invariant. The
@@ -195,7 +210,7 @@ const firstDuplicateNameError = async (
 const handleDuplicateGroupPost = groupFormPost(
   "/admin/groups/:id/duplicate",
   async (group, form) => {
-    const formUrl = `/admin/groups/${group.id}/duplicate`;
+    const formUrl = adminPath("groupDuplicate", { id: group.id });
     const newName = form.getString("new_name").trim();
     if (!newName) {
       return errorRedirect(formUrl, t("group_actions.new_name_required"));

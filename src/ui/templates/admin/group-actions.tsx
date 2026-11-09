@@ -8,6 +8,7 @@
 
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
+import { adminPath } from "#shared/admin-surface.ts";
 import {
   buildDuplicatePreview,
   type DuplicatePreviewRow,
@@ -42,7 +43,7 @@ type GroupActionPage = (
  *  tab links these pages from. */
 const BackToGroupLink = ({ group }: { group: Group }): JSX.Element => (
   <p>
-    <a href={`/admin/groups/${group.id}`}>&larr; {group.name}</a>
+    <a href={adminPath("group", { id: group.id })}>&larr; {group.name}</a>
   </p>
 );
 
@@ -172,7 +173,7 @@ export const adminDuplicateGroupPage: GroupActionPage = (
       </div>
 
       <SaveForm
-        action={`/admin/groups/${group.id}/duplicate`}
+        action={adminPath("groupDuplicate", { id: group.id })}
         data-duplicate-preview
         data-timezone={tz}
         id="duplicate-group-form"
@@ -248,7 +249,7 @@ export const adminDuplicateGroupPage: GroupActionPage = (
 
 /** Config object passed to {@link groupConfirmPage} (and built by
  *  {@link activateConfirmPage}). The caller supplies everything except the
- *  `action` URL — the page factory injects that from its `actionSegment` arg. */
+ *  `action` URL — the page factory injects that from its destination id. */
 type GroupActionConfirmConfig = {
   action: string;
   buttonText: string;
@@ -305,7 +306,7 @@ type ActivateConfig = Omit<GroupActionConfirmConfig, "action" | "children"> & {
  *  live here once, so each page only declares the words that differ. */
 const activateConfirmPage =
   (
-    actionSegment: string,
+    destination: "groupDeactivate" | "groupReactivate",
     {
       impactKey,
       impactLead,
@@ -318,7 +319,7 @@ const activateConfirmPage =
   (group, listings, session, error) =>
     groupConfirmPage(group, listings, session, error, {
       ...confirmConfig,
-      action: `/admin/groups/${group.id}/${actionSegment}`,
+      action: adminPath(destination, { id: group.id }),
       children: (count, g) => (
         <>
           <ImpactParagraph
@@ -338,7 +339,7 @@ const activateConfirmPage =
     });
 
 /** Admin deactivate-group confirmation page */
-export const adminDeactivateGroupPage = activateConfirmPage("deactivate", {
+export const adminDeactivateGroupPage = activateConfirmPage("groupDeactivate", {
   body: (
     <DeactivationEffects
       effect404={t("group_actions.deactivate_consequence_404")}
@@ -363,7 +364,7 @@ export const adminDeactivateGroupPage = activateConfirmPage("deactivate", {
 });
 
 /** Admin reactivate-group confirmation page */
-export const adminReactivateGroupPage = activateConfirmPage("reactivate", {
+export const adminReactivateGroupPage = activateConfirmPage("groupReactivate", {
   body: <p>{t("group_actions.reactivate_benefits")}</p>,
   buttonText: t("group_actions.reactivate_confirm_button"),
   confirmPromptKey: "group_actions.reactivate_confirm_prompt",

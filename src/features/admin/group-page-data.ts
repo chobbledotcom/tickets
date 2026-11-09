@@ -1,7 +1,8 @@
 /**
  * Data loaders for the group entity page's tabs — Overview, Attendees, and
- * Edit. Each gathers exactly what its own tab renders (per-tab loading). So
- * the decrypted-attendee fetch runs only for the two tabs that show roster
+ * Edit. The page-wide load carries the stored group and its member sale state
+ * (see {@link LoadedGroup}). Every other tab gathers exactly what it renders.
+ * So the decrypted-attendee fetch runs only for the two tabs that show roster
  * data, never for a bare Edit render. The gathering mirrors the pre-migration
  * detail and edit handlers (groups.ts) so the tabs render the same data those
  * separate pages used to.
