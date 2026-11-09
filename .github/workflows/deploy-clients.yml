@@ -4,9 +4,8 @@ name: Deploy to Clients
 #
 # The main instance holds each site's DB credentials — each site's own
 # full-access token, so although this workflow only reads (to take backups),
-# treat them as write-capable production secrets. This workflow therefore
-# no longer needs BUNNY_SCRIPT_DATA: it asks the main instance for the sites on
-# the published tier (a `tier` run input — alpha by default, or beta/release; the
+# treat them as write-capable production secrets. The workflow asks the main
+# instance for the sites on the published tier (a `tier` run input — alpha by default, or beta/release; the
 # master returns only the sites at that channel or more eager), backs each one up
 # to our Bunny storage, then deploys the freshly built script to it. A release
 # deploy reaches every site; beta reaches beta + alpha sites; alpha only alpha

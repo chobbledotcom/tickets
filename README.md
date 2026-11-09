@@ -691,8 +691,6 @@ before deploying to it (the staging push-to-`main` trigger is the one exception
   that authorizes the credentials endpoint is a **repository secret** (set the
   same value as the main instance's `MAIN_INSTANCE_KEY` env). It is never a
   run input, because GitHub writes run inputs to the public job log.
-  `BUNNY_SCRIPT_DATA` is no longer needed — the script ids come from the
-  endpoint.
 - **`.github/workflows/bunny-deploy.yml`** (staging) and
   **`.github/workflows/production-deploy.yml`** — same flow narrowed to the
   single site whose script id matches `BUNNY_STAGING_SCRIPT_ID` /
