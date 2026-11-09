@@ -2005,7 +2005,7 @@
   },
   "src/ui/templates/public/shared.tsx": {
     "banned-modal": 2,
-    "long-sentence": 11,
+    "long-sentence": 10,
     "present-perfect": 1,
     "semicolon": 1,
     "contraction": 2
