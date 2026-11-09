@@ -12,6 +12,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestNewsPost } from "#test-utils/db-helpers/misc.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { createTestApiKeyFull, requestAsApiKey } from "#test-utils/session.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
@@ -116,6 +117,7 @@ describeWithEnv("listing feed contracts", { db: true }, () => {
 describeWithEnv("news feed contracts", { db: true }, () => {
   test("uses News when the site has no title", async () => {
     await enablePublicSite();
+    await createTestNewsPost("Feed title post");
 
     const body = await feedBody("/feeds/news.rss");
     expectIncludesAll(body, [

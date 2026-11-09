@@ -94,9 +94,10 @@ export const contactPage = (options: {
     ? `${contactTitle} - ${websiteTitle}`
     : contactTitle;
   const loadWidget = formActive && botpoisonPublicKey !== "";
+  const feedTags = feedDiscoveryTags(options.nav.hasNews);
   const headExtra = loadWidget
-    ? `${feedDiscoveryTags()}\n<script defer src="${CONTACT_JS_PATH}"></script>`
-    : feedDiscoveryTags();
+    ? `${feedTags}\n<script defer src="${CONTACT_JS_PATH}"></script>`
+    : feedTags;
 
   return publicPage(
     pageTitle,

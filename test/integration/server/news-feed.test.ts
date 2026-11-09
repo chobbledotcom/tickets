@@ -18,23 +18,21 @@ describeWithEnv("server (news RSS feed)", { db: true }, () => {
     expect(response.headers.get("location")).toBe("/admin/login");
   });
 
-  test("returns an empty RSS channel when no posts exist", async () => {
+  test("answers 404 with the site's not-found page when no posts exist", async () => {
     await enablePublicSite();
     const response = await fetchNewsRss();
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(404);
     expect(response.headers.get("content-type")).toBe(
-      "application/rss+xml; charset=utf-8",
+      "text/html; charset=utf-8",
     );
     const body = await response.text();
-    expectIncludesAll(body, [
-      '<rss version="2.0">',
-      "<link>https://localhost/news</link>",
-    ]);
-    assert(!body.includes("<item>"));
+    expectIncludesAll(body, ["<title>Not Found</title>", "<h1>Not Found</h1>"]);
+    assert(!body.includes("<rss"));
   });
 
   test("channel uses the website title, defaulting to News", async () => {
     await enablePublicSite();
+    await createTestNewsPost("Feed title post");
     let body = await (await fetchNewsRss()).text();
     expectIncludesAll(body, [
       "<title>News</title>",

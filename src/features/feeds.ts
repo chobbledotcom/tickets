@@ -22,7 +22,11 @@ import {
   loadBookablePackages,
   publicGroupSummary,
 } from "#routes/public/group-liveness.ts";
-import { icsResponse, rssResponse } from "#routes/response.ts";
+import {
+  icsResponse,
+  notFoundResponse,
+  rssResponse,
+} from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { isPublicListing } from "#shared/listing-visibility.ts";
@@ -354,11 +358,16 @@ const buildCalendarFeed = async (request: Request): Promise<Response> => {
 };
 /* jscpd:ignore-end */
 
-/** A feed route: build the body, then send it, but only on a public site. */
+/** A feed route: build the body, then send it, but only on a public site. A
+ * builder with nothing to syndicate returns `null`, and the route sends the
+ * site's not-found page instead. */
 const feedRoute =
-  (send: (body: string) => Response, build: () => Promise<string>) =>
+  (send: (body: string) => Response, build: () => Promise<string | null>) =>
   (): Promise<Response> =>
-    requirePublicSite(async () => send(await build())) as Promise<Response>;
+    requirePublicSite(async () => {
+      const body = await build();
+      return body === null ? notFoundResponse() : send(body);
+    }) as Promise<Response>;
 
 /** Handle GET /feeds/listings.ics */
 const handleIcs = feedRoute(icsResponse, async () =>
@@ -370,10 +379,12 @@ const handleRss = feedRoute(rssResponse, async () =>
   buildRss(await loadFeedData()),
 );
 
-/** Handle GET /feeds/news.rss */
-const handleNewsRss = feedRoute(rssResponse, async () =>
-  buildNewsRss(await getNewsPostSummaries(), getEffectiveDomain()),
-);
+/** Handle GET /feeds/news.rss — a site with no posts has no news feed, the
+ * same answer `/news` gives. */
+const handleNewsRss = feedRoute(rssResponse, async () => {
+  const posts = await getNewsPostSummaries();
+  return posts.length === 0 ? null : buildNewsRss(posts, getEffectiveDomain());
+});
 
 /** Feed routes */
 export const routeFeed = createRouter(

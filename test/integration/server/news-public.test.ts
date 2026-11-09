@@ -89,12 +89,22 @@ describeWithEnv("server (public news)", { db: true }, () => {
       );
     });
 
-    test("every public page advertises the news RSS feed", async () => {
+    test("every public page advertises the news RSS feed once a post exists", async () => {
+      await createTestNewsPost("Feed-worthy");
       const html = await assertPublicHtml("/");
       assertStringIncludes(
         html,
         '<link rel="alternate" type="application/rss+xml" title="News" href="/feeds/news.rss" />',
       );
+    });
+
+    test("no public page advertises the news RSS feed while no post exists", async () => {
+      const html = await assertPublicHtml("/");
+      expectIncludesAll(html, [
+        'href="/feeds/listings.rss"',
+        'href="/feeds/listings.ics"',
+      ]);
+      assert(!html.includes('href="/feeds/news.rss"'));
     });
   });
 

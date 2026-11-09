@@ -197,19 +197,27 @@ export const feedDiscoveryTag = (
  * module-level `t()` here paid that ICU init on every cold boot — before the
  * request was even routed. As a function the cost lands only when a page renders,
  * so requests that render nothing (feeds, webhooks, redirects) never pay it.
+ *
+ * The news tag appears only when the site has a post. `/news` and the news
+ * feed both answer 404 until one exists, so the head never advertises a feed
+ * that answers 404.
  */
-export const feedDiscoveryTags = (): string =>
+export const feedDiscoveryTags = (hasNews: boolean): string =>
   [
     feedDiscoveryTag(
       "application/rss+xml",
       "terms.listings",
       "/feeds/listings.rss",
     ),
-    feedDiscoveryTag(
-      "application/rss+xml",
-      "nav.public.news",
-      "/feeds/news.rss",
-    ),
+    ...(hasNews
+      ? [
+          feedDiscoveryTag(
+            "application/rss+xml",
+            "nav.public.news",
+            "/feeds/news.rss",
+          ),
+        ]
+      : []),
     feedDiscoveryTag("text/calendar", "terms.listings", "/feeds/listings.ics"),
   ].join("\n");
 
@@ -220,13 +228,14 @@ export const feedDiscoveryTags = (): string =>
 const seoPageHead = (
   page: { name: string; meta_title: string; meta_description: string },
   websiteTitle: string,
+  hasNews: boolean,
 ): { title: string; headExtra: string } => {
   const base = page.meta_title || page.name;
   const metaTag = page.meta_description
     ? `\n<meta name="description" content="${escapeHtml(page.meta_description)}" />`
     : "";
   return {
-    headExtra: feedDiscoveryTags() + metaTag,
+    headExtra: feedDiscoveryTags(hasNews) + metaTag,
     title: titleWithSiteName(base, websiteTitle),
   };
 };
@@ -270,7 +279,7 @@ export const publicSeoPage =
     { showHeading = true }: { showHeading?: boolean } = {},
   ) =>
   (body: Child): string => {
-    const { title, headExtra } = seoPageHead(page, websiteTitle);
+    const { title, headExtra } = seoPageHead(page, websiteTitle, nav.hasNews);
     return String(
       <PublicLayout
         beforeContent={<PublicNav {...nav} />}
@@ -327,7 +336,7 @@ export const publicPage =
     websiteTitle: string,
     nav: PublicNavProps,
     showLoginFooter = false,
-    headExtra: string = feedDiscoveryTags(),
+    headExtra: string = feedDiscoveryTags(nav.hasNews),
   ) =>
   (body: Child): string =>
     String(
