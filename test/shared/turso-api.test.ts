@@ -5,8 +5,14 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { Stub } from "@std/testing/mock";
-import { createTursoApi } from "#shared/turso-api.ts";
-import { type FetchReply, stubFetch } from "#test-utils/fetch-stub.ts";
+import { errorResult, okResult } from "#shared/result.ts";
+import { createTursoApi, tursoDbProvider } from "#shared/turso-api.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  type FetchReply,
+  requestLines,
+  stubFetch,
+} from "#test-utils/fetch-stub.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 
 const client = () => createTursoApi("direct-token");
@@ -161,3 +167,89 @@ describe("turso-api", () => {
     );
   });
 });
+
+const ORG_DATABASES = "https://api.turso.tech/v1/organizations/org/databases";
+const ROTATE_LINE = `POST ${DATABASE_URL}/auth/rotate`;
+const TOKEN_LINE = `POST ${DATABASE_URL}/auth/tokens?authorization=full-access`;
+const refused = (): Response => new Response("refused", { status: 500 });
+
+/** Answer the database list with `databases`, then both key endpoints. */
+const platformReply =
+  (databases: unknown[]): FetchReply =>
+  (url) => {
+    if (url.endsWith("/databases")) return Response.json({ databases });
+    return url.endsWith("/auth/rotate")
+      ? deleteOk()
+      : Response.json({ jwt: "fresh-token" });
+  };
+
+describeWithEnv(
+  "turso-api database keys",
+  { env: { TURSO_API_TOKEN: "platform-token", TURSO_ORGANIZATION: "org" } },
+  () => {
+    const cases: {
+      name: string;
+      reply: () => FetchReply;
+      run: () => Promise<unknown>;
+      result: unknown;
+      requests: string[];
+    }[] = [
+      {
+        name: "lists every database with the host it answers on",
+        reply: () => platformReply([goodDatabase]),
+        requests: [`GET ${ORG_DATABASES}`],
+        result: okResult([{ host: "example.turso.io", id: "direct-test" }]),
+        run: () => client().listDatabases("org"),
+      },
+      {
+        name: "reports a refused database list",
+        reply: refused,
+        requests: [`GET ${ORG_DATABASES}`],
+        result: errorResult("List Turso databases failed (500): refused"),
+        run: () => client().listDatabases("org"),
+      },
+      {
+        name: "invalidates every key before it makes the new one",
+        reply: () => platformReply([]),
+        requests: [ROTATE_LINE, TOKEN_LINE],
+        result: okResult("fresh-token"),
+        run: () => client().rotateDatabaseKey("org", "direct-test"),
+      },
+      {
+        name: "stops before making a key when the invalidation is refused",
+        reply: refused,
+        requests: [ROTATE_LINE],
+        result: errorResult("Rotate database key failed (500): refused"),
+        run: () => client().rotateDatabaseKey("org", "direct-test"),
+      },
+      {
+        name: "rotates the key of the database at the site's address",
+        reply: () =>
+          platformReply([
+            { DbId: "db_1", Hostname: "other.turso.io", Name: "other" },
+            goodDatabase,
+          ]),
+        requests: [`GET ${ORG_DATABASES}`, ROTATE_LINE, TOKEN_LINE],
+        result: okResult("fresh-token"),
+        run: () =>
+          tursoDbProvider.rotateDatabaseKey("libsql://example.turso.io"),
+      },
+      {
+        name: "refuses an address the organization does not list",
+        reply: () => platformReply([goodDatabase]),
+        requests: [`GET ${ORG_DATABASES}`],
+        result: errorResult("No Turso database has the address gone.turso.io."),
+        run: () => tursoDbProvider.rotateDatabaseKey("libsql://gone.turso.io"),
+      },
+    ];
+
+    for (const { name, reply, run, result, requests } of cases) {
+      test(name, async () => {
+        using fetchStub = stubFetch(reply());
+
+        expect(await run()).toEqual(result);
+        expect(requestLines(fetchStub)).toEqual(requests);
+      });
+    }
+  },
+);

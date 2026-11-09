@@ -7,6 +7,11 @@
  */
 
 import * as v from "valibot";
+import {
+  addressHost,
+  type ListedDatabase,
+  requireListedDatabase,
+} from "#db/host.ts";
 import { defineApiClient } from "#shared/api-client.ts";
 import { bunnyDryRunFetch } from "#shared/bunny-api.ts";
 import { getBunnyApiKey } from "#shared/config.ts";
@@ -14,7 +19,8 @@ import { jsonHeaders } from "#shared/fetch.ts";
 import {
   type CreateDatabaseFn,
   type DatabaseProviderApi,
-  databaseCredentialsFromResponse,
+  databaseTokenFromResponse,
+  type RotateDatabaseKeyFn,
 } from "#shared/provider-types.ts";
 import { okResult, type Result } from "#shared/result.ts";
 
@@ -57,6 +63,18 @@ const GetDbResponseSchema = v.object({
   }),
 });
 
+/** One page of the account's databases, with the address each one answers on. */
+const ListDbResponseSchema = v.object({
+  databases: v.array(v.object({ id: v.string(), url: v.string() })),
+  page_info: v.object({ has_more_items: v.boolean() }),
+});
+
+/** Databases per page the list walk asks for. */
+const LIST_PAGE_SIZE = 50;
+
+/** The first page a list walk asks for. */
+const FIRST_PAGE = 1;
+
 /** Just the node IDs from a list of regions Bunny reported. */
 const regionIds = (regions: RegionConfig[]): string[] =>
   regions.map((region) => region.id);
@@ -81,6 +99,46 @@ const getAllRegions = async (): Promise<
     primaryRegions: regionIds(config.value.primary_regions),
     replicaRegions: regionIds(config.value.replica_regions),
   });
+};
+
+/** Ask Bunny for one new full-access token for a database. A reply that
+ * carries no token throws, as the provider broke its own contract. */
+const generateToken = async (dbId: string): Promise<Result<string>> => {
+  const tokenRes = await dbClient.fetch(
+    `/v2/databases/${encodeURIComponent(dbId)}/auth/generate`,
+    {
+      body: JSON.stringify({ authorization: "full-access", expires_at: null }),
+      method: "PUT",
+    },
+    "Generate database token",
+  );
+  return tokenRes.ok
+    ? okResult(databaseTokenFromResponse(tokenRes.value.text, "token"))
+    : tokenRes;
+};
+
+/** Every database on the account, walked page by page. */
+const listDatabases = async (
+  page = FIRST_PAGE,
+  earlier: ListedDatabase[] = [],
+): Promise<Result<ListedDatabase[]>> => {
+  const listed = await dbClient.request(
+    `/v2/databases?page=${page}&per_page=${LIST_PAGE_SIZE}`,
+    { method: "GET" },
+    ListDbResponseSchema,
+    "List databases",
+  );
+  if (!listed.ok) return listed;
+  const found = [
+    ...earlier,
+    ...listed.value.databases.map((database) => ({
+      host: addressHost(database.url),
+      id: database.id,
+    })),
+  ];
+  return listed.value.page_info.has_more_items
+    ? listDatabases(page + 1, found)
+    : okResult(found);
 };
 
 /**
@@ -123,24 +181,26 @@ const createDatabaseImpl: CreateDatabaseFn = async (name) => {
   const dbUrl = details.value.db.url;
 
   // 4. Generate a full-access token
-  const tokenRes = await dbClient.fetch(
-    `/v2/databases/${encodeURIComponent(dbId)}/auth/generate`,
-    {
-      body: JSON.stringify({ authorization: "full-access", expires_at: null }),
-      method: "PUT",
-    },
-    "Generate database token",
-  );
-  if (!tokenRes.ok) return tokenRes;
+  const token = await generateToken(dbId);
+  if (!token.ok) return token;
 
-  return databaseCredentialsFromResponse(
-    dbId,
-    dbUrl,
-    tokenRes.value.text,
-    "token",
+  return okResult({ dbId, dbToken: token.value, dbUrl });
+};
+
+const rotateDatabaseKeyImpl: RotateDatabaseKeyFn = async (dbUrl) => {
+  const database = requireListedDatabase(await listDatabases(), dbUrl, "Bunny");
+  if (!database.ok) return database;
+  const id = encodeURIComponent(database.value.id);
+  const revoked = await dbClient.send(
+    `/v2/databases/${id}/auth/revoke`,
+    { method: "POST" },
+    "Revoke database tokens",
   );
+  if (!revoked.ok) return revoked;
+  return generateToken(database.value.id);
 };
 
 export const bunnyDbProvider: DatabaseProviderApi = {
   createDatabase: createDatabaseImpl,
+  rotateDatabaseKey: rotateDatabaseKeyImpl,
 };

@@ -22,6 +22,7 @@ import { loadSiteSecretsStatus } from "#shared/site-secrets.ts";
 import { loadSiteSupportMessage } from "#shared/site-support-message.ts";
 import { loadBuiltSiteUpdateState } from "#shared/site-update.ts";
 import { uptimeKumaMonitorService } from "#shared/uptime-kuma/monitors.ts";
+import { DatabaseKeySection } from "#templates/admin/built-sites/database-key.tsx";
 import {
   MaintenancePanel,
   SecretsPanel,
@@ -58,7 +59,12 @@ const secretsTab = loadedPanelTab(
   "secrets",
   "built_sites.secrets_title",
   loadSiteSecretsStatus,
-  (site, view) => <SecretsPanel site={site} view={view} />,
+  (site, view) => (
+    <>
+      <SecretsPanel site={site} view={view} />
+      <DatabaseKeySection site={site} />
+    </>
+  ),
 );
 
 const updateTab = loadedPanelTab(

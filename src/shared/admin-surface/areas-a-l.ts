@@ -138,6 +138,7 @@ export const AREAS_A_L = {
       builtSiteProvisionRenewal: "/admin/built-sites/:id/provision-renewal",
       builtSiteProvisionScheduler: "/admin/built-sites/:id/provision-scheduler",
       builtSiteReSyncDeadline: "/admin/built-sites/:id/re-sync-deadline",
+      builtSiteRotateDatabaseKey: "/admin/built-sites/:id/rotate-database-key",
       builtSiteRotateRenewalToken:
         "/admin/built-sites/:id/rotate-renewal-token",
       builtSiteSupportMessage: {

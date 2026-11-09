@@ -4,7 +4,7 @@ import {
   type SnapshotProgressWriter,
   type SnapshotRequest,
 } from "#scripts/database-snapshot-lib.ts";
-import type { ScriptIo } from "#scripts/script-runner.ts";
+import { type ScriptIo, taskWithoutArguments } from "#scripts/script-runner.ts";
 import { tursoDatabaseSlug } from "#shared/config.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { requireSuccess } from "#shared/result.ts";
@@ -278,21 +278,9 @@ export const migrateDatabase = async (
  * Run one migration task: refuse arguments, then turn any failure into a
  * console message and an exit code.
  */
-export const runMigrationTask = async (
-  deps: TursoMigrationDeps,
-  usage: string,
-  run: () => Promise<number>,
-): Promise<number> => {
-  if (deps.args.length !== 0) {
-    deps.stderr(usage);
-    return 1;
-  }
-  try {
-    return await run();
-  } catch (error) {
-    return reportMigrationFailure(deps, error);
-  }
-};
+export const runMigrationTask = taskWithoutArguments<TursoMigrationDeps>(
+  (deps, error) => reportMigrationFailure(deps, error),
+);
 
 /** Report leftover temporary files, and say whether the task should fail. */
 export const reportCleanupError = (
