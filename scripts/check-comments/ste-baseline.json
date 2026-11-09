@@ -1655,7 +1655,7 @@
     "wordy": 4,
     "semicolon": 1
   },
-  "src/ui/templates/admin/bulk-actions.tsx": {
+  "src/ui/templates/admin/group-actions.tsx": {
     "long-sentence": 4,
     "semicolon": 2
   },

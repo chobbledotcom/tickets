@@ -1,15 +1,14 @@
 /**
- * Admin bulk-action page templates for groups.
- *
- * Renders the bulk-actions landing page (a list of available operations)
- * and each per-action form page. The duplicate-group form embeds a JSON
- * payload of the source group's listings plus the timezone; the client-side
- * admin bundle uses the shared `#shared/bulk-replace.ts` helpers to recompute
- * the preview as the user types.
+ * Form-page templates for the group-wide actions: Duplicate Group, Deactivate
+ * Group, and Reactivate Group. The duplicate-group form embeds a JSON payload
+ * of the source group's listings plus the timezone; the client-side admin
+ * bundle uses the shared `#shared/bulk-replace.ts` helpers to recompute the
+ * preview as the user types.
  */
 
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
+import { adminPath } from "#shared/admin-surface.ts";
 import {
   buildDuplicatePreview,
   type DuplicatePreviewRow,
@@ -20,7 +19,6 @@ import { savedFormValueOrNull } from "#shared/forms/saved-data.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
-import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { DeactivationEffects } from "#templates/components/deactivation-effects.tsx";
 import { JsonScript } from "#templates/components/json-script.tsx";
@@ -32,22 +30,20 @@ import { TextFields } from "#templates/components/text-fields.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import type { AdminSession, Group, ListingWithCount } from "#types";
 
-/** A group bulk-action page: rendered from the group, its listings, the
- * signed-in admin, and an optional error from a failed submit. */
-type BulkActionPage = (
+/** A group action page: rendered from the group, its listings, the signed-in
+ * admin, and an optional error from a failed submit. */
+type GroupActionPage = (
   group: Group,
   listings: ListingWithCount[],
   session: AdminSession,
   error?: string,
 ) => string;
 
-/** The "← Bulk actions" back-link rendered at the top of the
- *  deactivate/reactivate confirmation pages. */
-const bulkActionsBackLink = (group: Group): JSX.Element => (
+/** The "← <group>" back-link to the group page, which is where the Actions
+ *  tab links these pages from. */
+const BackToGroupLink = ({ group }: { group: Group }): JSX.Element => (
   <p>
-    <a href={`/admin/groups/${group.id}/bulk-actions`}>
-      &larr; {t("bulk_actions.page_title")}
-    </a>
+    <a href={adminPath("group", { id: group.id })}>&larr; {group.name}</a>
   </p>
 );
 
@@ -90,83 +86,6 @@ const ImpactParagraph = ({
   </p>
 );
 
-/** A back-link paragraph to the group's bulk-actions landing or its parent. */
-const BackToGroupLink = ({
-  group,
-  toBulkActions = true,
-}: {
-  group: Group;
-  toBulkActions?: boolean;
-}): JSX.Element => (
-  <p>
-    {toBulkActions ? (
-      <a href={`/admin/groups/${group.id}/bulk-actions`}>
-        &larr; {t("bulk_actions.page_title")}
-      </a>
-    ) : (
-      <a href={`/admin/groups/${group.id}`}>&larr; {group.name}</a>
-    )}
-  </p>
-);
-
-/** Admin bulk-actions landing page: lists available operations for a group. */
-export const adminBulkActionsPage = (
-  group: Group,
-  listings: ListingWithCount[],
-  session: AdminSession,
-): string => {
-  const hasActive = listings.some((e) => e.active);
-  const allDeactivated = listings.length > 0 && !hasActive;
-  return renderAdminPageSpec({
-    active: { section: "/admin/groups" },
-    body: (
-      <>
-        <BackToGroupLink group={group} toBulkActions={false} />
-        <div class="prose">
-          <h1>{t("bulk_actions.page_title")}</h1>
-          <p>
-            <CountThenGroup
-              count={listings.length}
-              group={group}
-              messageKey="bulk_actions.landing_description"
-            />
-          </p>
-        </div>
-
-        <ul>
-          <li>
-            <a href={`/admin/groups/${group.id}/bulk-actions/duplicate`}>
-              {t("bulk_actions.action_duplicate_group")}
-            </a>
-            {" — "}
-            {t("bulk_actions.action_duplicate_group_desc")}
-          </li>
-          {hasActive && (
-            <li>
-              <a href={`/admin/groups/${group.id}/bulk-actions/deactivate`}>
-                {t("bulk_actions.action_deactivate_group")}
-              </a>
-              {" — "}
-              {t("bulk_actions.action_deactivate_group_desc")}
-            </li>
-          )}
-          {allDeactivated && (
-            <li>
-              <a href={`/admin/groups/${group.id}/bulk-actions/reactivate`}>
-                {t("bulk_actions.action_reactivate_group")}
-              </a>
-              {" — "}
-              {t("bulk_actions.action_reactivate_group_desc")}
-            </li>
-          )}
-        </ul>
-      </>
-    ),
-    session,
-    title: t("bulk_actions.title_bulk", { name: group.name }),
-  });
-};
-
 /** One duplicate-preview column. The client-side preview recomputation reads
  *  each cell through its data attribute, which spells the column key with
  *  hyphens instead of underscores. */
@@ -182,22 +101,22 @@ const previewTableColumn = <TRow, const TKey extends string>(
 const previewColumns: readonly TableColumn<DuplicatePreviewRow, string>[] = [
   previewTableColumn(
     "original_name",
-    "bulk_actions.preview_col_original_name",
+    "group_actions.preview_col_original_name",
     (row) => row.originalName,
   ),
   previewTableColumn(
     "new_name",
-    "bulk_actions.preview_col_new_name",
+    "group_actions.preview_col_new_name",
     (row) => row.newName,
   ),
   previewTableColumn(
     "original_date",
-    "bulk_actions.preview_col_original_date",
+    "group_actions.preview_col_original_date",
     (row, timezone) => formatIsoForPreview(row.originalDate, timezone),
   ),
   previewTableColumn(
     "new_date",
-    "bulk_actions.preview_col_new_date",
+    "group_actions.preview_col_new_date",
     (row, timezone) => formatIsoForPreview(row.newDate, timezone),
   ),
 ];
@@ -206,9 +125,9 @@ const duplicatePreviewTable = defineTable(previewColumns);
 
 /**
  * Admin duplicate-group page: form with live preview.
- * The form submits to POST /admin/groups/:id/bulk-actions/duplicate.
+ * The form submits to POST /admin/groups/:id/duplicate.
  */
-export const adminDuplicateGroupPage: BulkActionPage = (
+export const adminDuplicateGroupPage: GroupActionPage = (
   group,
   listings,
   session,
@@ -236,7 +155,7 @@ export const adminDuplicateGroupPage: BulkActionPage = (
   }));
 
   return errorAdminPage(
-    t("bulk_actions.title_duplicate", { name: group.name }),
+    t("group_actions.title_duplicate", { name: group.name }),
     "/admin/groups",
   )(
     session,
@@ -245,26 +164,26 @@ export const adminDuplicateGroupPage: BulkActionPage = (
     <>
       <BackToGroupLink group={group} />
       <div class="prose">
-        <h1>{t("bulk_actions.duplicate_form_title")}</h1>
+        <h1>{t("group_actions.duplicate_form_title")}</h1>
         <p>
-          {t("bulk_actions.duplicate_form_description", {
+          {t("group_actions.duplicate_form_description", {
             groupName: group.name,
           })}
         </p>
       </div>
 
       <SaveForm
-        action={`/admin/groups/${group.id}/bulk-actions/duplicate`}
+        action={adminPath("groupDuplicate", { id: group.id })}
         data-duplicate-preview
         data-timezone={tz}
         id="duplicate-group-form"
         submitIcon="plus"
-        submitLabel={t("bulk_actions.submit_duplicate")}
+        submitLabel={t("group_actions.submit_duplicate")}
       >
         <TextField
           autofocus
           duplicate
-          label={t("bulk_actions.form_new_group_name")}
+          label={t("group_actions.form_new_group_name")}
           name="new_name"
           required
           type="text"
@@ -274,14 +193,14 @@ export const adminDuplicateGroupPage: BulkActionPage = (
           duplicate
           fields={[
             {
-              label: t("bulk_actions.form_find_in_names"),
+              label: t("group_actions.form_find_in_names"),
               name: "name_find",
-              placeholder: t("bulk_actions.form_find_placeholder"),
+              placeholder: t("group_actions.form_find_placeholder"),
               type: "text",
               value: restored.nameFind,
             },
             {
-              label: t("bulk_actions.form_replace_with"),
+              label: t("group_actions.form_replace_with"),
               name: "name_replace",
               type: "text",
               value: restored.nameReplace,
@@ -289,19 +208,19 @@ export const adminDuplicateGroupPage: BulkActionPage = (
           ]}
         />
         <p>
-          <small>{t("bulk_actions.form_date_shift_help")}</small>
+          <small>{t("group_actions.form_date_shift_help")}</small>
         </p>
         <TextFields
           duplicate
           fields={[
             {
-              label: t("bulk_actions.form_reference_date"),
+              label: t("group_actions.form_reference_date"),
               name: "date_find",
               type: "date",
               value: restored.dateFind,
             },
             {
-              label: t("bulk_actions.form_target_date"),
+              label: t("group_actions.form_target_date"),
               name: "date_replace",
               type: "date",
               value: restored.dateReplace,
@@ -309,10 +228,10 @@ export const adminDuplicateGroupPage: BulkActionPage = (
           ]}
         />
 
-        <h2>{t("bulk_actions.preview_heading")}</h2>
+        <h2>{t("group_actions.preview_heading")}</h2>
         {listings.length === 0 ? (
           <p>
-            <em>{t("bulk_actions.preview_empty")}</em>
+            <em>{t("group_actions.preview_empty")}</em>
           </p>
         ) : (
           renderTable(duplicatePreviewTable, initialRows, {
@@ -328,10 +247,10 @@ export const adminDuplicateGroupPage: BulkActionPage = (
   );
 };
 
-/** Config object passed to {@link bulkConfirmPage} (and built by
+/** Config object passed to {@link groupConfirmPage} (and built by
  *  {@link activateConfirmPage}). The caller supplies everything except the
- *  `action` URL — the page factory injects that from its `actionSegment` arg. */
-type BulkConfirmConfig = {
+ *  `action` URL — the page factory injects that from its destination id. */
+type GroupActionConfirmConfig = {
   action: string;
   buttonText: string;
   children: (count: number, group: Group) => JSX.Element;
@@ -340,19 +259,19 @@ type BulkConfirmConfig = {
   titleKey: string;
 };
 
-/** Shared ConfirmPage shell for the deactivate/reactivate bulk-action pages:
+/** Shared ConfirmPage shell for the deactivate/reactivate group action pages:
  *  counts the listings matching `countPredicate`, then renders a ConfirmPage
- *  with the bulk-actions back-link, the standard confirm-form label/name, and
+ *  with the back-link to the group, the standard confirm-form label/name, and
  *  the caller's `children` body (which receives the computed count for its
  *  i18n placeholders). */
 // Calls ConfirmPage directly: the page is built from a group AND its listings,
 // not the single (entity, session, error?) shape entityDeletePage builds.
-const bulkConfirmPage = (
+const groupConfirmPage = (
   group: Group,
   listings: ListingWithCount[],
   session: AdminSession,
   error: string | undefined,
-  config: BulkConfirmConfig,
+  config: GroupActionConfirmConfig,
 ): string => {
   const count = listings.filter(config.countPredicate).length;
   return ConfirmPage({
@@ -362,9 +281,9 @@ const bulkConfirmPage = (
     children: config.children(count, group),
     danger: config.danger,
     error,
-    label: t("bulk_actions.confirm_form_label"),
+    label: t("group_actions.confirm_form_label"),
     name: group.name,
-    prefix: bulkActionsBackLink(group),
+    prefix: <BackToGroupLink group={group} />,
     session,
     title: t(config.titleKey, { name: group.name }),
   });
@@ -373,7 +292,7 @@ const bulkConfirmPage = (
 /** The pieces an activate-flipping confirm page supplies as data: the impact
  *  line's message + optional lead/trail, the body between the impact line and
  *  the confirm prompt, and the confirm-prompt message key. */
-type ActivateConfig = Omit<BulkConfirmConfig, "action" | "children"> & {
+type ActivateConfig = Omit<GroupActionConfirmConfig, "action" | "children"> & {
   impactKey: string;
   impactLead?: JSX.Element;
   impactTrail?: JSX.Element;
@@ -382,12 +301,12 @@ type ActivateConfig = Omit<BulkConfirmConfig, "action" | "children"> & {
 };
 
 /** Both the deactivate and reactivate group pages are built from one config:
- *  the shared `({ group, listings, session, error }) => bulkConfirmPage(...)`
+ *  the shared `({ group, listings, session, error }) => groupConfirmPage(...)`
  *  wrapper AND the shared "impact paragraph → body → confirm prompt" layout
  *  live here once, so each page only declares the words that differ. */
 const activateConfirmPage =
   (
-    actionSegment: string,
+    destination: "groupDeactivate" | "groupReactivate",
     {
       impactKey,
       impactLead,
@@ -396,11 +315,11 @@ const activateConfirmPage =
       confirmPromptKey,
       ...confirmConfig
     }: ActivateConfig,
-  ): BulkActionPage =>
+  ): GroupActionPage =>
   (group, listings, session, error) =>
-    bulkConfirmPage(group, listings, session, error, {
+    groupConfirmPage(group, listings, session, error, {
       ...confirmConfig,
-      action: `/admin/groups/${group.id}/bulk-actions/${actionSegment}`,
+      action: adminPath(destination, { id: group.id }),
       children: (count, g) => (
         <>
           <ImpactParagraph
@@ -420,37 +339,37 @@ const activateConfirmPage =
     });
 
 /** Admin deactivate-group confirmation page */
-export const adminDeactivateGroupPage = activateConfirmPage("deactivate", {
+export const adminDeactivateGroupPage = activateConfirmPage("groupDeactivate", {
   body: (
     <DeactivationEffects
-      effect404={t("bulk_actions.deactivate_consequence_404")}
-      effectPayments={t("bulk_actions.deactivate_consequence_payments")}
+      effect404={t("group_actions.deactivate_consequence_404")}
+      effectPayments={t("group_actions.deactivate_consequence_payments")}
       effectRegistrations={t(
-        "bulk_actions.deactivate_consequence_registrations",
+        "group_actions.deactivate_consequence_registrations",
       )}
-      existingAttendeesNote={t("bulk_actions.deactivate_existing_attendees")}
+      existingAttendeesNote={t("group_actions.deactivate_existing_attendees")}
     />
   ),
-  buttonText: t("bulk_actions.deactivate_confirm_button"),
-  confirmPromptKey: "bulk_actions.deactivate_confirm_prompt",
+  buttonText: t("group_actions.deactivate_confirm_button"),
+  confirmPromptKey: "group_actions.deactivate_confirm_prompt",
   countPredicate: (e) => e.active,
-  impactKey: "bulk_actions.deactivate_impact",
+  impactKey: "group_actions.deactivate_impact",
   impactLead: (
     <>
-      <strong>{t("bulk_actions.deactivate_warning")}</strong>{" "}
+      <strong>{t("group_actions.deactivate_warning")}</strong>{" "}
     </>
   ),
-  impactTrail: <>{t("bulk_actions.deactivate_consequences_intro")}</>,
-  titleKey: "bulk_actions.title_deactivate",
+  impactTrail: <>{t("group_actions.deactivate_consequences_intro")}</>,
+  titleKey: "group_actions.title_deactivate",
 });
 
 /** Admin reactivate-group confirmation page */
-export const adminReactivateGroupPage = activateConfirmPage("reactivate", {
-  body: <p>{t("bulk_actions.reactivate_benefits")}</p>,
-  buttonText: t("bulk_actions.reactivate_confirm_button"),
-  confirmPromptKey: "bulk_actions.reactivate_confirm_prompt",
+export const adminReactivateGroupPage = activateConfirmPage("groupReactivate", {
+  body: <p>{t("group_actions.reactivate_benefits")}</p>,
+  buttonText: t("group_actions.reactivate_confirm_button"),
+  confirmPromptKey: "group_actions.reactivate_confirm_prompt",
   countPredicate: (e) => !e.active,
   danger: false,
-  impactKey: "bulk_actions.reactivate_impact",
-  titleKey: "bulk_actions.title_reactivate",
+  impactKey: "group_actions.reactivate_impact",
+  titleKey: "group_actions.title_reactivate",
 });

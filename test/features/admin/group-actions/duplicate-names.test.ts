@@ -21,13 +21,13 @@ const expectDuplicateRejected = async (
   const groupsBefore = (await groups.cache.getAll()).length;
   const listingsBefore = (await getAllListings()).length;
   const { response } = await adminFormPost(
-    `/admin/groups/${groupId}/bulk-actions/duplicate`,
+    `/admin/groups/${groupId}/duplicate`,
     body,
   );
   expect(response.status).toBe(302);
   assertStringIncludes(
     response.headers.get("location") ?? "",
-    `/admin/groups/${groupId}/bulk-actions/duplicate`,
+    `/admin/groups/${groupId}/duplicate`,
   );
   expectErrorFlash(response, refusal);
   expect((await groups.cache.getAll()).length).toBe(groupsBefore);
@@ -46,7 +46,7 @@ const duplicateForm = (
 });
 
 describeWithEnv(
-  "Admin bulk actions — duplicate name invariant",
+  "Group actions — duplicate name invariant",
   { db: true },
   () => {
     test("rejects a new group name already used by another entity", async () => {
@@ -124,7 +124,7 @@ describeWithEnv(
       const groupCountBefore = (await groups.cache.getAll()).length;
 
       const { response } = await adminFormPost(
-        `/admin/groups/${group.id}/bulk-actions/duplicate`,
+        `/admin/groups/${group.id}/duplicate`,
         duplicateForm({ new_name: "" }),
       );
 
@@ -132,7 +132,7 @@ describeWithEnv(
       // Redirect back to the form, not on to a new group page
       assertStringIncludes(
         response.headers.get("location") ?? "",
-        `/admin/groups/${group.id}/bulk-actions/duplicate`,
+        `/admin/groups/${group.id}/duplicate`,
       );
       // The refusal names the missing field.
       expectErrorFlash(response, "New group name is required");

@@ -208,7 +208,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       );
 
       // The group Actions tab is open to an editor too, but only Export —
-      // Bulk actions and Delete are staff-only.
+      // the group-wide actions and Delete are staff-only.
       const groupActions = await getAs(
         `/admin/groups/${group.id}/actions`,
         cookie,
@@ -219,10 +219,11 @@ describeWithEnv("server (editor role)", { db: true }, () => {
         groupActionsHtml,
         `/admin/groups/${group.id}/export.json`,
       );
-      assert(
-        !groupActionsHtml.includes(`/admin/groups/${group.id}/bulk-actions`),
-      );
-      assert(!groupActionsHtml.includes(`/admin/groups/${group.id}/delete`));
+      for (const action of ["duplicate", "deactivate", "delete"]) {
+        assert(
+          !groupActionsHtml.includes(`/admin/groups/${group.id}/${action}`),
+        );
+      }
     });
 
     test("editor POSTs to forbidden actions are rejected", async () => {

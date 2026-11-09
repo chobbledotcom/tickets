@@ -9,6 +9,7 @@ import {
 } from "#db/groups.ts";
 import { getStoredListingWithCount } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -18,9 +19,17 @@ import {
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost } from "#test-utils/session.ts";
+import type { Group } from "#types";
 
-describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
-  describe("POST /admin/groups/:id/bulk-actions/duplicate", () => {
+/** The group a duplicate created, found by the name the test gave it. */
+const duplicatedGroupNamed = async (name: string): Promise<Group> =>
+  requireValue(
+    (await groups.cache.getAll()).find((group) => group.name === name),
+    `The duplicated group "${name}" is missing`,
+  );
+
+describeWithEnv("Group actions — duplicate", { db: true }, () => {
+  describe("POST /admin/groups/:id/duplicate", () => {
     test("syncs listing_prices for cloned listings", async () => {
       // Clones are inserted via insertStatement in a batch (bypassing the
       // listingsTable wrapper), so the duplicate flow must sync their price rows.
@@ -32,7 +41,7 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       });
 
       const { response } = await adminFormPost(
-        `/admin/groups/${group.id}/bulk-actions/duplicate`,
+        `/admin/groups/${group.id}/duplicate`,
         {
           name_find: "Priced",
           name_replace: "Cloned",
@@ -72,7 +81,7 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
         useDefaults: true,
       });
 
-      await adminFormPost(`/admin/groups/${group.id}/bulk-actions/duplicate`, {
+      await adminFormPost(`/admin/groups/${group.id}/duplicate`, {
         name_find: "Inheriting",
         name_replace: "Cloned",
         new_name: "Inherits copy",
@@ -105,7 +114,7 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       // not keep the source's name — but an empty date replacement leaves the
       // date verbatim.
       const { response } = await adminFormPost(
-        `/admin/groups/${group.id}/bulk-actions/duplicate`,
+        `/admin/groups/${group.id}/duplicate`,
         {
           date_find: "",
           date_replace: "",
@@ -116,11 +125,8 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      const newGroup = (await groups.cache.getAll()).find(
-        (g) => g.name === "Verbatim Copy",
-      );
-      expect(newGroup).toBeDefined();
-      const newListings = await getListingsByGroupId(newGroup!.id);
+      const newGroup = await duplicatedGroupNamed("Verbatim Copy");
+      const newListings = await getListingsByGroupId(newGroup.id);
       expect(newListings[0]!.name).toBe("Renamed");
       expect(newListings[0]!.date).toBe(sourceListing.date);
     });
@@ -140,7 +146,7 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       });
 
       const { response } = await adminFormPost(
-        `/admin/groups/${group.id}/bulk-actions/duplicate`,
+        `/admin/groups/${group.id}/duplicate`,
         {
           date_find: "2026-04-16",
           date_replace: "2026-04-23",
@@ -151,11 +157,8 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      const newGroup = (await groups.cache.getAll()).find(
-        (g) => g.name === "Shift Copy",
-      );
-      expect(newGroup).toBeDefined();
-      const clone = (await getListingsByGroupId(newGroup!.id))[0]!;
+      const newGroup = await duplicatedGroupNamed("Shift Copy");
+      const clone = (await getListingsByGroupId(newGroup.id))[0]!;
       expect(clone.name).toBe("Moved Me");
       // 7 days forward, same time-of-day — the stored date is the shifted
       // UTC ISO, not the source's unchanged value.
@@ -173,7 +176,7 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       }
 
       const { response } = await adminFormPost(
-        `/admin/groups/${group.id}/bulk-actions/duplicate`,
+        `/admin/groups/${group.id}/duplicate`,
         {
           date_find: "",
           date_replace: "",
@@ -185,11 +188,8 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      const newGroup = (await groups.cache.getAll()).find(
-        (g) => g.name === "Big Copy",
-      );
-      expect(newGroup).toBeDefined();
-      expect((await getListingsByGroupId(newGroup!.id)).length).toBe(16);
+      const newGroup = await duplicatedGroupNamed("Big Copy");
+      expect((await getListingsByGroupId(newGroup.id)).length).toBe(16);
     });
 
     test("copies the package flag, hide option, and remapped member overrides", async () => {
@@ -226,7 +226,7 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       });
 
       const { response } = await adminFormPost(
-        `/admin/groups/${group.id}/bulk-actions/duplicate`,
+        `/admin/groups/${group.id}/duplicate`,
         {
           name_find: "Member",
           name_replace: "Cloned Member",

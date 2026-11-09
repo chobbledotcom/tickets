@@ -275,10 +275,10 @@ export const adminHandlers = defineAdminRoutes({
   // The detail + edit pages are one tabbed entity page now: `/admin/groups/:id`
   // is its Overview, `/admin/groups/:id/:tab` its other tabs (attendees, edit,
   // actions). Per-tab authorization lives in the page definition (group-page.ts).
-  // Literal sub-routes below (add-listings, and delete/export/bulk-actions in
-  // their own files) are matched ahead of the `:tab` wildcard. The edit POST is
-  // still the generic CRUD route — groupsResource handles package prices + the
-  // invariant via validate/afterWrite.
+  // Literal sub-routes below (add-listings, and delete/export/group actions
+  // in their own files) are matched ahead of the `:tab` wildcard. The edit POST
+  // is still the generic CRUD route — groupsResource handles package prices +
+  // the invariant via validate/afterWrite.
   ...entityTabRoutes(adminPattern("group"), groupPage),
   ...bindNoteRoutes("/admin/groups", "id", groupNoteFeature.routes),
   "GET /admin/groups/:id/delete": crud.deleteGet,

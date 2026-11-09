@@ -12,19 +12,17 @@ import { optInAddOnForListings } from "#test-utils/modifiers.ts";
 import {
   adminFormPost,
   adminGet,
-  getBulkActionForm,
+  getGroupActionForm,
 } from "#test-utils/session.ts";
 
-const getDeactivateForm = getBulkActionForm("deactivate");
+const getDeactivateForm = getGroupActionForm("deactivate");
 
-describeWithEnv("Admin bulk actions — deactivate", { db: true }, () => {
-  describe("GET /admin/groups/:id/bulk-actions/deactivate", () => {
+describeWithEnv("Group actions — deactivate", { db: true }, () => {
+  describe("GET /admin/groups/:id/deactivate", () => {
     test("returns 404 when the group does not exist", async () => {
       // Not-found boundary — a story cannot reach this path (it sets up a
       // real group first), so it stays as a direct technical contract.
-      const response = await adminGet(
-        "/admin/groups/999999/bulk-actions/deactivate",
-      );
+      const response = await adminGet("/admin/groups/999999/deactivate");
       expect(response.status).toBe(404);
     });
 
@@ -49,7 +47,7 @@ describeWithEnv("Admin bulk actions — deactivate", { db: true }, () => {
     });
   });
 
-  describe("POST /admin/groups/:id/bulk-actions/deactivate", () => {
+  describe("POST /admin/groups/:id/deactivate", () => {
     test("deactivates every listing in the group and redirects to the group page on success", async () => {
       // Pins the success branch for the coverage gate: `setGroupListingsActive`
       // runs, the 302 redirect to the group page is returned, and every member
@@ -59,7 +57,7 @@ describeWithEnv("Admin bulk actions — deactivate", { db: true }, () => {
       const b = await createTestListing({ groupId: group.id, name: "B" });
 
       const { response } = await adminFormPost(
-        `/admin/groups/${group.id}/bulk-actions/deactivate`,
+        `/admin/groups/${group.id}/deactivate`,
         { confirm_identifier: "Shutdown" },
       );
 
@@ -100,14 +98,14 @@ describeWithEnv("Admin bulk actions — deactivate", { db: true }, () => {
       ]);
 
       const { response } = await adminFormPost(
-        `/admin/groups/${group.id}/bulk-actions/deactivate`,
+        `/admin/groups/${group.id}/deactivate`,
         { confirm_identifier: "Rescue Group" },
       );
 
       expect(response.status).toBe(302);
       assertStringIncludes(
         response.headers.get("location") ?? "",
-        `/admin/groups/${group.id}/bulk-actions/deactivate`,
+        `/admin/groups/${group.id}/deactivate`,
       );
       // No listing was deactivated — the batch was blocked entirely.
       expect((await getListingWithCount(rescuingPage.id))?.active).toBe(true);

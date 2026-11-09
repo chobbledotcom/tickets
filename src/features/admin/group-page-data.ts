@@ -1,7 +1,8 @@
 /**
  * Data loaders for the group entity page's tabs — Overview, Attendees, and
- * Edit. Each gathers exactly what its own tab renders (per-tab loading). So
- * the decrypted-attendee fetch runs only for the two tabs that show roster
+ * Edit. The page-wide load carries the stored group and its member sale state
+ * (see {@link LoadedGroup}). Every other tab gathers exactly what it renders.
+ * So the decrypted-attendee fetch runs only for the two tabs that show roster
  * data, never for a bare Edit render. The gathering mirrors the pre-migration
  * detail and edit handlers (groups.ts) so the tabs render the same data those
  * separate pages used to.
@@ -13,6 +14,10 @@ import { linePair } from "#booking/ticket-moves.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getPairBookings } from "#db/attendees/ticket-lines.ts";
 import { getListingsNotInGroup } from "#db/groups/candidates.ts";
+import {
+  type GroupSaleState,
+  getGroupSaleState,
+} from "#db/groups/sale-state.ts";
 import {
   getGroupById,
   getGroupPackagePrices,
@@ -39,11 +44,20 @@ import { GroupOverviewPanel } from "#templates/admin/groups/overview.tsx";
 import { type Group, isPaidListing, type ListingWithCount } from "#types";
 import { loadItemImagesPanel } from "./item-images.ts";
 
-/** The group entity page's loaded row is just the stored group. Every tab's
- * remaining data is fetched by its own loader below. So a bare page frame
- * never decrypts a roster it is not about to show. */
-export const loadGroupForPage = (id: number): Promise<Group | null> =>
-  getGroupById(id);
+/** The group page's loaded row: the stored group plus the member sale state
+ *  its Actions tab reads. The sale state is one aggregate query, so every tab
+ *  gets it without decrypting a listing. */
+export type LoadedGroup = Group & { readonly saleState: GroupSaleState };
+
+export const loadGroupForPage = async (
+  id: number,
+): Promise<LoadedGroup | null> => {
+  const [group, saleState] = await Promise.all([
+    getGroupById(id),
+    getGroupSaleState(id),
+  ]);
+  return group === null ? null : { ...group, saleState };
+};
 
 /** Whether a group's roster has any paid attendee data to decrypt. A package
  * member can carry a `package_price` override while its own `unit_price` is 0,

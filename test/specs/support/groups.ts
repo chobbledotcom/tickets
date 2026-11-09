@@ -25,12 +25,17 @@ export const groupNamed = async (name: string): Promise<Group> => {
   return found;
 };
 
-/** Build a bulk-action URL for a group id. Curried with the action segment
- *  (`"deactivate"`, `"duplicate"`, `"reactivate"`, or `""` for the landing). */
-export const bulkActionPath =
-  (action: string): ((groupId: number) => string) =>
+/** The group's Actions tab URL. */
+export const groupActionsPath = (groupId: number): string =>
+  `/admin/groups/${groupId}/actions`;
+
+/** A group action's own form-page URL. */
+export const groupActionPath =
+  (
+    action: "deactivate" | "duplicate" | "reactivate",
+  ): ((groupId: number) => string) =>
   (groupId) =>
-    `/admin/groups/${groupId}/bulk-actions/${action}`;
+    `/admin/groups/${groupId}/${action}`;
 
 /** The listing names each group was set up with, recorded at Given time so the
  *  `Then` steps assert on the exact listing ids the story created — not a

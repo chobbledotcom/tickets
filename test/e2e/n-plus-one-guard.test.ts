@@ -219,7 +219,7 @@ describeWithEnv("e2e: N+1 guard protection", { db: true }, () => {
       `/admin/attendees/${attendeeId}`,
       `/admin/attendees/${fixture.multiBookingAttendeeId}`,
       `/admin/groups/${fixture.groupId}`,
-      `/admin/groups/${fixture.groupId}/bulk-actions`,
+      `/admin/groups/${fixture.groupId}/actions`,
       "/admin/calendar",
       "/admin/calendar/export",
       "/admin/questions",

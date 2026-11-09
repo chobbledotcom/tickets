@@ -4,11 +4,10 @@ import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { FormParams } from "#shared/form-data.ts";
 import { setSavedFormData } from "#shared/forms/saved-data.ts";
 import {
-  adminBulkActionsPage,
   adminDeactivateGroupPage,
   adminDuplicateGroupPage,
   adminReactivateGroupPage,
-} from "#templates/admin/bulk-actions.tsx";
+} from "#templates/admin/group-actions.tsx";
 import {
   OWNER_SESSION,
   setupAdminPageTest,
@@ -34,61 +33,11 @@ const embeddedListingsJson = (html: string): string => {
   return json;
 };
 
-describe("admin bulk action templates", () => {
+describe("admin group action templates", () => {
   beforeAll(setupAdminPageTest);
   // The parent build always showed the Invoices link. The switch now controls
   // it, so name it as an input of these frozen pages.
   useSetting({ ...featureSetting("invoices"), timezone: "UTC" });
-
-  test("offers deactivation when the group has an active listing", () => {
-    const html = adminBulkActionsPage(GROUP, [ACTIVE, INACTIVE], OWNER_SESSION);
-
-    expectIncludesAll(html, [
-      'href="/admin/groups/17/bulk-actions/duplicate"',
-      'href="/admin/groups/17/bulk-actions/deactivate"',
-    ]);
-    assert(!html.includes('href="/admin/groups/17/bulk-actions/reactivate"'));
-    expectIncludesAll(html, [
-      "2 listings in <strong>Summer &lt;Crew&gt;</strong>.",
-      // The landing links back to the group itself and highlights the Groups nav.
-      'href="/admin/groups/17">← Summer &lt;Crew&gt;</a>',
-      '<a class="active" href="/admin/groups"',
-      // Each landing action names what it does after its link, and the prose
-      // block heads the page copy.
-      '<div class="prose"><h1>Bulk Actions</h1>',
-      "Deactivate Group</a> — ",
-      "Duplicate Group</a> — Create a new group",
-    ]);
-  });
-
-  test("offers reactivation only when every listing is inactive", () => {
-    const html = adminBulkActionsPage(GROUP, [INACTIVE], OWNER_SESSION);
-
-    assertStringIncludes(
-      html,
-      'href="/admin/groups/17/bulk-actions/reactivate"',
-    );
-    assert(!html.includes('href="/admin/groups/17/bulk-actions/deactivate"'));
-    // The reactivate action keeps the landing's link — description join too.
-    assertStringIncludes(html, "Reactivate Group</a> — ");
-    // The deactivate join is hidden along with its link.
-    assert(!html.includes("Deactivate Group</a> — "));
-  });
-
-  test("offers neither activation change for an empty group", () => {
-    const html = adminBulkActionsPage(GROUP, [], OWNER_SESSION);
-
-    assertStringIncludes(
-      html,
-      'href="/admin/groups/17/bulk-actions/duplicate"',
-    );
-    assert(!html.includes("/bulk-actions/deactivate"));
-    assert(!html.includes("/bulk-actions/reactivate"));
-    assertStringIncludes(
-      html,
-      "0 listings in <strong>Summer &lt;Crew&gt;</strong>.",
-    );
-  });
 
   test("renders the duplicate form and its initial preview", () => {
     const listing = testListingWithCount({
@@ -112,16 +61,16 @@ describe("admin bulk action templates", () => {
 
     expectIncludesAll(html, [
       "Try again.",
-      'action="/admin/groups/17/bulk-actions/duplicate"',
+      'action="/admin/groups/17/duplicate"',
       'data-duplicate-preview data-timezone="UTC"',
     ]);
     expect(html).toMatch(
       /<input(?=[^>]*name="new_name")(?=[^>]*required)(?=[^>]*type="text")(?=[^>]*value="Summer &lt;Crew&gt; \(copy\)")[^>]*>/,
     );
-    // The duplicate page's back-link lands on the bulk-actions landing, not
-    // the group page, and its copy heads a prose block.
+    // The duplicate page's back-link lands on the group page, which is where
+    // the Actions tab links it from, and its copy heads a prose block.
     expectIncludesAll(html, [
-      'href="/admin/groups/17/bulk-actions">← Bulk Actions</a>',
+      'href="/admin/groups/17">← Summer &lt;Crew&gt;</a>',
       // The find field starts empty (its own name_find input shows no value).
       "<td data-preview-original-name>",
       '<div class="prose"><h1>Duplicate Group</h1>',
@@ -309,7 +258,7 @@ describe("admin bulk action templates", () => {
 
     expectIncludesAll(html, [
       "Name did not match.",
-      'action="/admin/groups/17/bulk-actions/deactivate"',
+      'action="/admin/groups/17/deactivate"',
       "1 active listing",
       "Warning:",
       '<button class="danger" type="submit">',
@@ -335,7 +284,7 @@ describe("admin bulk action templates", () => {
     );
 
     expectIncludesAll(html, [
-      'action="/admin/groups/17/bulk-actions/reactivate"',
+      'action="/admin/groups/17/reactivate"',
       "1 listing in <strong>Summer &lt;Crew&gt;</strong>.",
       "public ticket pages will be accessible",
     ]);
@@ -349,17 +298,8 @@ describe("admin bulk action templates", () => {
     ]);
   });
 
-  describe("the bulk-actions page shells", () => {
-    test("renders the landing page identically to the parent build", () => {
-      const html = adminBulkActionsPage(GROUP, [ACTIVE], OWNER_SESSION);
-
-      assertPageMatchesSnapshot(
-        new URL("./bulk-landing.snapshot.html", import.meta.url),
-        html,
-      );
-    });
-
-    test("renders the duplicate page identically to the parent build", () => {
+  describe("the group action page shells", () => {
+    test("renders the duplicate page as frozen markup", () => {
       const html = adminDuplicateGroupPage(
         GROUP,
         [ACTIVE],
@@ -368,7 +308,7 @@ describe("admin bulk action templates", () => {
       );
 
       assertPageMatchesSnapshot(
-        new URL("./bulk-duplicate.snapshot.html", import.meta.url),
+        new URL("./group-duplicate.snapshot.html", import.meta.url),
         html,
       );
     });

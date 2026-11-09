@@ -120,10 +120,6 @@ export const ADMIN_AREA_LOADERS: Record<AdminAreaId, AdminAreaLoader> = {
     () => import("#routes/admin/built-sites.ts"),
     ["builder", "built-sites", "entity-pages", "validation"],
   ),
-  bulkActions: area(
-    () => import("#routes/admin/bulk-actions.ts"),
-    ["bulk-actions", "groups", "listings-table", "validation"],
-  ),
   bulkEmail: area(
     () => import("#routes/admin/bulk-email.ts"),
     ["attendees", "bulk-email", "validation"],
@@ -173,6 +169,10 @@ export const ADMIN_AREA_LOADERS: Record<AdminAreaId, AdminAreaLoader> = {
     () => import("#routes/admin/external-sources-page.ts"),
     ["features"],
   ),
+  groupActions: area(
+    () => import("#routes/admin/group-actions.ts"),
+    ["group-actions", "groups", "listings-table", "validation"],
+  ),
   groups: area(
     () => import("#routes/admin/groups.ts"),
     [
@@ -180,6 +180,7 @@ export const ADMIN_AREA_LOADERS: Record<AdminAreaId, AdminAreaLoader> = {
       "capacity",
       "detail-rows",
       "entity-pages",
+      "group-actions",
       "groups",
       "images",
       "listings-table",

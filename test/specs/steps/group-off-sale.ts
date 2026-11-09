@@ -10,8 +10,8 @@ import {
 } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
-  bulkActionPath,
   findOrCreateGroup,
+  groupActionPath,
   groupNamed,
   memberIdsOf,
   memberNamesOf,
@@ -36,13 +36,13 @@ const formSnapshots = new WeakMap<TicketsWorld, string>();
 type SaleSwitch = { path: (groupId: number) => string; button: () => string };
 
 const OFF_SALE: SaleSwitch = {
-  button: () => t("bulk_actions.deactivate_confirm_button"),
-  path: bulkActionPath("deactivate"),
+  button: () => t("group_actions.deactivate_confirm_button"),
+  path: groupActionPath("deactivate"),
 };
 
 const BACK_ON_SALE: SaleSwitch = {
-  button: () => t("bulk_actions.reactivate_confirm_button"),
-  path: bulkActionPath("reactivate"),
+  button: () => t("group_actions.reactivate_confirm_button"),
+  path: groupActionPath("reactivate"),
 };
 
 Given(
