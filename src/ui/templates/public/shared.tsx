@@ -194,13 +194,12 @@ export const feedDiscoveryTag = (
  * module scope. Each calls `t()`, and a module-level `t()` would construct the
  * isolate's first `IntlMessageFormat` at import time, which loads ~13ms of ICU
  * locale data. This module is eager (the public layout imports it), so a
- * module-level `t()` here paid that ICU init on every cold boot — before the
- * request was even routed. As a function the cost lands only when a page renders,
- * so requests that render nothing (feeds, webhooks, redirects) never pay it.
+ * module-level `t()` here paid that ICU init on every cold boot. As a function
+ * the cost lands only when a page renders, so requests that render nothing
+ * (feeds, webhooks, redirects) never pay it.
  *
- * The news tag appears only when the site has a post. `/news` and the news
- * feed both answer 404 until one exists, so the head never advertises a feed
- * that answers 404.
+ * The news tag appears only when the site has a post. `/news` and the feed
+ * both answer 404 until one exists, so the head never advertises a dead feed.
  */
 export const feedDiscoveryTags = (hasNews: boolean): string =>
   [
