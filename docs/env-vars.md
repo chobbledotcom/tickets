@@ -50,16 +50,17 @@ the Storage API hostname shown on Bunny's Storage **Access** page for
   callers only read, but must treat the response as write-capable production
   secrets. The caller passes the release tier it is publishing as
   `?tier=alpha|beta|release` (a tier-less call defaults to `release` ⇒ the whole
-  fleet, which is what the single-site `backup-site` action relies on); each
+  fleet, which is what the single-site `backup-site` action relies on). Each
   site carries an `updates` channel and only the sites at that tier or more
   eager are returned (a `release` deploy reaches every site, `beta` reaches
   beta + alpha sites, `alpha` only alpha sites — an unknown tier is a 400). The
   response echoes the applied `tier` so a caller can confirm the server actually
-  filtered: a pre-tier build ignores the query string and omits it, letting the
-  canary workflow fail closed instead of fanning a non-release deploy out to the
-  whole fleet. Unset `MAIN_INSTANCE_KEY` ⇒ the endpoint is disabled (404). The
-  upgrade workflow receives the key as a run-time input, not a stored GitHub
-  secret.
+  filtered: a pre-tier build ignores the query string and omits it. The
+  canary workflow then fails closed and does not send a non-release deploy to
+  the whole fleet. Unset `MAIN_INSTANCE_KEY` ⇒ the endpoint is disabled (404). The
+  upgrade workflows read the key from the `MAIN_INSTANCE_KEY` repository
+  secret. Do not pass it as a run input: GitHub writes run inputs to the
+  public job log.
 - `DENO_DEPLOY_TOKEN` - Deno Deploy organization access token. Required with
   `DENO_DEPLOY_ORG_ID` and `DENO_DEPLOY_ORG_SLUG` to build sites on Deno Deploy.
 - `UPDATE_IN_PROGRESS` - Update write-stop. The deploy workflows set this

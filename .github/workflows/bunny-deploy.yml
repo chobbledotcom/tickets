@@ -9,10 +9,6 @@ on:
         description: "Override Bunny staging script ID (defaults to BUNNY_STAGING_SCRIPT_ID secret)"
         required: false
         type: string
-      main_instance_key:
-        description: "MAIN_INSTANCE_KEY (optional; falls back to the secret). Only used by the backup step on manual runs."
-        required: false
-        type: string
       run_backup:
         description: "Back up the database before deploying (uncheck only if the backup is broken)"
         required: false
@@ -28,7 +24,7 @@ jobs:
     # Step conditions cannot read the secrets context, so the key's presence
     # is derived here once. The key itself stays in secrets and step inputs.
     env:
-      HAS_MAIN_INSTANCE_KEY: ${{ (inputs.main_instance_key || secrets.MAIN_INSTANCE_KEY) != '' }}
+      HAS_MAIN_INSTANCE_KEY: ${{ secrets.MAIN_INSTANCE_KEY != '' }}
 
     steps:
       - name: Checkout repository
@@ -50,15 +46,14 @@ jobs:
 
       # Back up the staging site's database before deploying (it migrates on its
       # next request). Only manual runs back up: a push to main (a merge) skips
-      # the backup, so it needs no MAIN_INSTANCE_KEY. A manual run pastes the key
-      # (or falls back to the secret) and can uncheck run_backup to skip the
-      # backup too (e.g. if backups are broken).
+      # the backup. A manual run can uncheck run_backup to skip the backup too
+      # (e.g. if backups are broken).
       - name: Back up the staging site
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_backup }}
         uses: ./.github/actions/backup-site
         with:
           main_instance: ${{ secrets.MAIN_INSTANCE }}
-          main_instance_key: ${{ inputs.main_instance_key || secrets.MAIN_INSTANCE_KEY }}
+          main_instance_key: ${{ secrets.MAIN_INSTANCE_KEY }}
           script_id: ${{ inputs.script_id || secrets.BUNNY_STAGING_SCRIPT_ID }}
           storage_zone_name: ${{ secrets.STORAGE_ZONE_NAME }}
           storage_zone_key: ${{ secrets.STORAGE_ZONE_KEY }}
@@ -73,18 +68,17 @@ jobs:
           release: chobble-tickets@${{ github.sha }}
 
       # Resolve the staging site's own public origin for the selected script
-      # when a main instance key was supplied (manual runs). Push deploys
-      # carry no key, and MAIN_INSTANCE_KEY is deliberately not stored, so
-      # they take the staging origin from the STAGING_SITE_URL variable
-      # instead. Either way the update-mode wait polls the deployed site,
-      # never the main instance that serves the fleet's credentials.
+      # when the MAIN_INSTANCE_KEY secret is set. Without it, the run takes
+      # the staging origin from the STAGING_SITE_URL variable instead. Either
+      # way the update-mode wait polls the deployed site, never the main
+      # instance that serves the fleet's credentials.
       - name: Resolve the staging site's URL
         id: resolve-site
         if: ${{ env.HAS_MAIN_INSTANCE_KEY == 'true' }}
         uses: ./.github/actions/resolve-site-credentials
         with:
           main_instance: ${{ secrets.MAIN_INSTANCE }}
-          main_instance_key: ${{ inputs.main_instance_key || secrets.MAIN_INSTANCE_KEY }}
+          main_instance_key: ${{ secrets.MAIN_INSTANCE_KEY }}
           script_id: ${{ inputs.script_id || secrets.BUNNY_STAGING_SCRIPT_ID }}
 
       # A keyless run takes the staging origin from STAGING_SITE_URL. It fails
@@ -101,8 +95,8 @@ jobs:
           SCRIPT_ID_OVERRIDE: ${{ inputs.script_id }}
         run: |
           if [ -n "$SCRIPT_ID_OVERRIDE" ]; then
-            echo "A script id override needs a main instance key, so its own site" >&2
-            echo "URL can be resolved. Paste the key on this manual run." >&2
+            echo "A script id override needs the MAIN_INSTANCE_KEY secret, so its" >&2
+            echo "own site URL can be resolved." >&2
             exit 1
           fi
           url=$(printf '%s' "$STAGING_SITE_URL" | tr -d '[:space:]')
@@ -126,8 +120,8 @@ jobs:
             printf '%s' "$host" | tr '.' '\n' | grep -Eq '.{64,}'; then
             echo "STAGING_SITE_URL is not an https origin (https://host[:port]): '$STAGING_SITE_URL'." >&2
             echo "Host labels must be 1-63 characters and the host at most 253." >&2
-            echo "Set it to the staging site's public origin, or paste a main" >&2
-            echo "instance key on a manual run." >&2
+            echo "Set it to the staging site's public origin, or set the" >&2
+            echo "MAIN_INSTANCE_KEY secret." >&2
             exit 1
           fi
           echo "site_url=$url" >> "$GITHUB_OUTPUT"
