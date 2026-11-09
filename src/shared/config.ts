@@ -242,9 +242,8 @@ export const isBotpoisonEnabled = allEnvSet(
 
 /**
  * Whether the inter-instance site-credentials endpoint is enabled. Off unless
- * MAIN_INSTANCE_KEY is set, so a non-builder instance never exposes it. The key
- * is a high-entropy shared secret the operator passes to the upgrade workflow at
- * trigger time (it is never stored in GitHub).
+ * MAIN_INSTANCE_KEY is set, so a non-builder instance never exposes it. The
+ * upgrade workflows read the same value from a GitHub secret.
  */
 export const isInstanceApiEnabled = allEnvSet("MAIN_INSTANCE_KEY");
 

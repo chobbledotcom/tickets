@@ -684,27 +684,25 @@ before deploying to it (the staging push-to-`main` trigger is the one exception
   whole fleet is the deliberate `release` choice. For a canary (`alpha`/`beta`)
   the workflow **fails closed** unless the main instance echoes the tier back in
   its response, so running it against a master that predates tier filtering
-  (which would ignore the filter and return the whole fleet) cannot silently
+  (which ignores the filter and returns the whole fleet) cannot silently
   deploy to everyone — upgrade the master first. It needs the `MAIN_INSTANCE`
-  URL secret plus `STORAGE_ZONE_*` and `BUNNY_ACCESS_KEY`; CDN-enabled builds
+  URL secret plus `STORAGE_ZONE_*` and `BUNNY_ACCESS_KEY`. CDN-enabled builds
   additionally need the five optional CDN secrets below. The `MAIN_INSTANCE_KEY`
-  that authorizes the credentials endpoint is **pasted in as a run input each
-  time, never stored** (set the same value as the main instance's
-  `MAIN_INSTANCE_KEY` env). `BUNNY_SCRIPT_DATA` is no longer needed — the script
-  ids come from the endpoint.
+  that authorizes the credentials endpoint is a **repository secret** (set the
+  same value as the main instance's `MAIN_INSTANCE_KEY` env). It is never a
+  run input, because GitHub writes run inputs to the public job log.
 - **`.github/workflows/bunny-deploy.yml`** (staging) and
   **`.github/workflows/production-deploy.yml`** — same flow narrowed to the
   single site whose script id matches `BUNNY_STAGING_SCRIPT_ID` /
   `BUNNY_SCRIPT_ID` (the deploy **fails unless exactly one** fleet site
-  matches), via the shared `backup-site` action. They take `MAIN_INSTANCE_KEY`
-  as a run input but fall back to the stored secret. **Only manual runs back
-  up:** the staging push-to-`main` trigger (a merge) deploys without a backup,
-  so it needs no `MAIN_INSTANCE_KEY` / `MAIN_INSTANCE` / `STORAGE_ZONE_*`
+  matches), via the shared `backup-site` action. They read the
+  `MAIN_INSTANCE_KEY` secret. **Only manual runs back up:** the staging
+  push-to-`main` trigger (a merge) deploys without a backup, so it needs no `MAIN_INSTANCE_KEY` / `MAIN_INSTANCE` / `STORAGE_ZONE_*`
   secrets — just `BUNNY_STAGING_SCRIPT_ID` and `BUNNY_ACCESS_KEY`, the
   `STAGING_SITE_URL` repository variable (the staging site's https origin,
   which the update-mode wait polls), plus the optional CDN secrets when CDN
   publishing is enabled. A manual run backs up by
-  default (needing those backup secrets, or the key pasted in) and can untick
+  default (needing those backup secrets) and can untick
   **Back up the database before deploying** to skip it — the escape hatch for
   when the backup itself is broken. Production's update-mode wait polls the
   `MAIN_SITE_URL` secret (the production site's https origin) when the run

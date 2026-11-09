@@ -4,9 +4,8 @@ name: Deploy to Clients
 #
 # The main instance holds each site's DB credentials — each site's own
 # full-access token, so although this workflow only reads (to take backups),
-# treat them as write-capable production secrets. This workflow therefore
-# no longer needs BUNNY_SCRIPT_DATA: it asks the main instance for the sites on
-# the published tier (a `tier` run input — alpha by default, or beta/release; the
+# treat them as write-capable production secrets. The workflow asks the main
+# instance for the sites on the published tier (a `tier` run input — alpha by default, or beta/release; the
 # master returns only the sites at that channel or more eager), backs each one up
 # to our Bunny storage, then deploys the freshly built script to it. A release
 # deploy reaches every site; beta reaches beta + alpha sites; alpha only alpha
@@ -16,22 +15,16 @@ name: Deploy to Clients
 # master (which would ignore the filter and return everyone) can't be deployed to
 # by surprise.
 #
-# The MAIN_INSTANCE_KEY is pasted in at run time (a workflow input), never stored
-# as a GitHub secret — so the shared secret lives only on the main app and with
-# whoever triggers a deploy. It is masked out of the logs immediately. Note that
-# workflow_dispatch input values are visible in the run's metadata to anyone who
-# can view Actions, so treat it like a password you rotate if exposed.
+# MAIN_INSTANCE_KEY is a stored secret, never a run input: GitHub prints a
+# step's env before any mask applies, so a pasted input lands in the public log.
 #
-# Stored secrets: MAIN_INSTANCE (url), BUNNY_ACCESS_KEY, STORAGE_ZONE_NAME,
-# STORAGE_ZONE_KEY, plus the optional CDN_URL and CDN_BUNNY_* build secrets.
+# Stored secrets: MAIN_INSTANCE (url), MAIN_INSTANCE_KEY, BUNNY_ACCESS_KEY,
+# STORAGE_ZONE_NAME, STORAGE_ZONE_KEY, plus the optional CDN_URL and CDN_BUNNY_*
+# build secrets.
 
 on:
   workflow_dispatch:
     inputs:
-      main_instance_key:
-        description: "MAIN_INSTANCE_KEY (pasted per run; not stored)"
-        required: true
-        type: string
       tier:
         description: "Release tier to publish (only sites on this channel or more eager are upgraded). Defaults to alpha — the smallest blast radius; choose release to reach the whole fleet."
         required: true
@@ -69,7 +62,7 @@ jobs:
         shell: devenv --profile ci shell bash -- -e {0}
         env:
           MAIN_INSTANCE: ${{ secrets.MAIN_INSTANCE }}
-          MAIN_INSTANCE_KEY: ${{ inputs.main_instance_key }}
+          MAIN_INSTANCE_KEY: ${{ secrets.MAIN_INSTANCE_KEY }}
           TIER: ${{ inputs.tier }}
           BUNNY_ACCESS_KEY: ${{ secrets.BUNNY_ACCESS_KEY }}
           BUILD_TAG: ${{ steps.build.outputs.build_tag }}
@@ -77,9 +70,6 @@ jobs:
           STORAGE_ZONE_KEY: ${{ secrets.STORAGE_ZONE_KEY }}
         run: |
           set -euo pipefail
-          # Keep the pasted key out of the logs.
-          echo "::add-mask::$MAIN_INSTANCE_KEY"
-
           jq -Rs '{"Code": .}' bunny-script.ts > /tmp/code-payload.json
 
           # Ask the main instance for the credentials of the sites that accept a

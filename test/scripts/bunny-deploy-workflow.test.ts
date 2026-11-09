@@ -9,6 +9,10 @@ const BUNNY_DEPLOY_WORKFLOW_PATHS = [
   ".github/workflows/bunny-deploy.yml",
   ".github/workflows/production-deploy.yml",
 ] as const;
+const MAIN_INSTANCE_KEY_WORKFLOW_PATHS = [
+  ...BUNNY_DEPLOY_WORKFLOW_PATHS,
+  ".github/workflows/deploy-clients.yml",
+] as const;
 const RESTORE_WORKFLOW_PATH = ".github/workflows/restore-deploy.yml";
 const SHA = "[a-f0-9]{40}";
 /** The quoted path the action grants read permission for. */
@@ -75,6 +79,28 @@ describe("Bunny deploy workflow", () => {
     // path — otherwise a padded `file:` input leaves Deno denying its own read.
     expect(allowRead).not.toMatch(/BUNNY_SCRIPT_FILE/);
     expect(scriptFileArg).toBe(allowRead);
+  });
+
+  // GitHub writes a step's env, run inputs included, to the public job log
+  // before any mask applies. Only a secret stays masked.
+  test("every deploy workflow reads MAIN_INSTANCE_KEY from secrets only", async () => {
+    const workflows = await Promise.all(
+      MAIN_INSTANCE_KEY_WORKFLOW_PATHS.map(readText),
+    );
+
+    const checks = map((workflow: string) => ({
+      readsKeyFromInputs: workflow.includes("inputs.main_instance_key"),
+      readsKeyFromSecrets: workflow.includes(
+        githubValue("secrets.MAIN_INSTANCE_KEY"),
+      ),
+    }))(workflows);
+
+    expect(checks).toEqual(
+      workflows.map(() => ({
+        readsKeyFromInputs: false,
+        readsKeyFromSecrets: true,
+      })),
+    );
   });
 
   test("restore deploy pins the external Bunny action to a commit SHA", async () => {
