@@ -2,6 +2,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { appendImageToItem, imagesTable } from "#db/images.ts";
+import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
@@ -12,13 +13,32 @@ import {
   expectStatus,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestNewsPost } from "#test-utils/db-helpers/misc.ts";
+import {
+  createTestNewsPost,
+  createTestSitePage,
+} from "#test-utils/db-helpers/misc.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import {
   featureSetting,
   useSetting,
   withSetting,
 } from "#test-utils/settings.ts";
+
+/** Every public page that renders the shared head, once {@link serveHeadPages}
+ *  has given the content-gated ones their content. The news link each page
+ *  carries must match the feed's own answer. */
+const HEAD_PAGES = ["/", "/listings", "/page/about", "/contact", "/terms"];
+
+/** The news feed link the shared head carries. */
+const NEWS_FEED_LINK =
+  '<link rel="alternate" type="application/rss+xml" title="News" href="/feeds/news.rss" />';
+
+/** Turn on the pages that need content before they serve. */
+const serveHeadPages = async (): Promise<void> => {
+  await settings.update.terms("Some terms");
+  await settings.update.contactPageText("Contact us");
+  await createTestSitePage("about");
+};
 
 describeWithEnv("server (public news)", { db: true }, () => {
   describe("gate + resolution", () => {
@@ -90,21 +110,25 @@ describeWithEnv("server (public news)", { db: true }, () => {
     });
 
     test("every public page advertises the news RSS feed once a post exists", async () => {
-      await createTestNewsPost("Feed-worthy");
-      const html = await assertPublicHtml("/");
-      assertStringIncludes(
-        html,
-        '<link rel="alternate" type="application/rss+xml" title="News" href="/feeds/news.rss" />',
-      );
+      const post = await createTestNewsPost("Feed-worthy");
+      await serveHeadPages();
+      expectStatus(200)(await handleRequest(mockRequest("/feeds/news.rss")));
+      for (const path of [...HEAD_PAGES, "/news", `/news/${post.slug}`]) {
+        assertStringIncludes(await assertPublicHtml(path), NEWS_FEED_LINK);
+      }
     });
 
     test("no public page advertises the news RSS feed while no post exists", async () => {
-      const html = await assertPublicHtml("/");
-      expectIncludesAll(html, [
-        'href="/feeds/listings.rss"',
-        'href="/feeds/listings.ics"',
-      ]);
-      assert(!html.includes('href="/feeds/news.rss"'));
+      await serveHeadPages();
+      expectStatus(404)(await handleRequest(mockRequest("/feeds/news.rss")));
+      for (const path of HEAD_PAGES) {
+        const html = await assertPublicHtml(path);
+        expectIncludesAll(html, [
+          'href="/feeds/listings.rss"',
+          'href="/feeds/listings.ics"',
+        ]);
+        assert(!html.includes('href="/feeds/news.rss"'));
+      }
     });
   });
 

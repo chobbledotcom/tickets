@@ -1,9 +1,12 @@
-import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
-import { expectIncludesAll } from "#test-utils/assertions.ts";
+import {
+  expectHtml,
+  expectIncludesAll,
+  expectRedirect,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestNewsPost } from "#test-utils/db-helpers/misc.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
@@ -13,21 +16,20 @@ const fetchNewsRss = () => handleRequest(mockRequest("/feeds/news.rss"));
 
 describeWithEnv("server (news RSS feed)", { db: true }, () => {
   test("redirects to admin when public site is disabled", async () => {
-    const response = await fetchNewsRss();
-    expect(response.status).toBe(302);
-    expect(response.headers.get("location")).toBe("/admin/login");
+    expectRedirect(await fetchNewsRss(), /^\/admin\/login$/);
   });
 
   test("answers 404 with the site's not-found page when no posts exist", async () => {
     await enablePublicSite();
     const response = await fetchNewsRss();
-    expect(response.status).toBe(404);
     expect(response.headers.get("content-type")).toBe(
       "text/html; charset=utf-8",
     );
-    const body = await response.text();
-    expectIncludesAll(body, ["<title>Not Found</title>", "<h1>Not Found</h1>"]);
-    assert(!body.includes("<rss"));
+    await expectHtml(response, {
+      contains: ["<title>Not Found</title>", "<h1>Not Found</h1>"],
+      notContains: ["<rss"],
+      status: 404,
+    });
   });
 
   test("channel uses the website title, defaulting to News", async () => {
