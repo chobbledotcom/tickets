@@ -17,6 +17,7 @@ import { nowIso, nowMs, parseDateMs } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { generateRenewalToken } from "#shared/renewal-token.ts";
 import type { Outcome } from "#shared/result.ts";
+import { serialQueue } from "#shared/serial-queue.ts";
 import { resolveHostingProvider } from "#shared/site-hosting.ts";
 import { tokenUrl } from "#shared/token-url.ts";
 
@@ -157,33 +158,18 @@ export const provisionSiteRenewal = async (
   return false;
 };
 
-/** Rotations serialize here: each reads the freshest token, pushes, and
- * persists before the next begins, so two concurrent rotations cannot land
- * out-of-order responses that leave the hosting provider and the database
- * holding different tokens. (Cross-isolate callers keep the whole-row
- * revision fence, which retries over a concurrent write rather than clobbering
- * its blob.) */
-const rotationTail: { current: Promise<unknown> } = {
-  current: Promise.resolve(),
-};
-const serializeRotation = <T>(run: () => Promise<T>): Promise<T> => {
-  const result = (async () => {
-    try {
-      await rotationTail.current;
-    } catch {
-      // A failed rotation must not stop the queue behind it.
-    }
-    return run();
-  })();
-  rotationTail.current = result;
-  return result;
-};
+const serializeRotation = serialQueue();
 
 /**
  * Rotate a site's renewal token. Pushes the new RENEWAL_URL only — the
  * READ_ONLY_FROM cutoff is independent of token identity and is not
  * re-pushed here. Persists the new token on push success, and returns
- * whether the push landed.
+ * whether the push landed. Rotations queue here, so each reads the freshest
+ * token, pushes it, and persists before the next begins: two concurrent
+ * rotations cannot land out-of-order responses that leave the hosting provider
+ * and the database holding different tokens. (Cross-isolate callers keep the
+ * whole-row revision fence, which retries over a concurrent write rather than
+ * clobbering its blob.)
  */
 export const rotateRenewalToken = (
   site: BuiltSite,

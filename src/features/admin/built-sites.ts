@@ -48,6 +48,7 @@ import {
   adminBuiltSitesPage,
 } from "#templates/admin/built-sites.tsx";
 import { getBuiltSiteForm } from "#templates/fields/admin.ts";
+import { databaseKeyRoutes } from "./built-site-database-key.ts";
 import { builtSiteFormPost } from "./built-site-form.ts";
 import { builtSitePage } from "./built-site-page.tsx";
 import { answerRenewalPush } from "./built-site-push.ts";
@@ -291,5 +292,6 @@ export const adminHandlers = gateOnBuilder(
     "POST /admin/built-sites/:id/rotate-renewal-token": handleRotateToken,
     "POST /admin/built-sites/:id/support-message": handleSaveSiteSupportMessage,
     "POST /admin/built-sites/:id/update": handleUpdateSite,
+    ...databaseKeyRoutes,
   }),
 );

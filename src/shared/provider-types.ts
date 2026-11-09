@@ -1,5 +1,5 @@
 // effects: pure
-import { okResult, type Result } from "#shared/result.ts";
+import type { Result } from "#shared/result.ts";
 
 export interface DatabaseCredentials {
   dbId: string;
@@ -7,17 +7,17 @@ export interface DatabaseCredentials {
   dbUrl: string;
 }
 
-export const databaseCredentialsFromResponse = (
-  dbId: string,
-  dbUrl: string,
+/** The token out of one provider reply. A reply that carries no token breaks
+ * the provider's contract, so it throws rather than returning a blank token. */
+export const databaseTokenFromResponse = (
   text: string,
   tokenKey: string,
-): Result<DatabaseCredentials> => {
+): string => {
   const token = JSON.parse(text)[tokenKey];
   if (typeof token !== "string") {
     throw new Error(`Database response is missing ${tokenKey}`);
   }
-  return okResult({ dbId, dbToken: token, dbUrl });
+  return token;
 };
 
 export type PrepareSiteFn = (
@@ -44,6 +44,12 @@ export type CreateDatabaseFn = (
   name: string,
 ) => Promise<Result<DatabaseCredentials>>;
 
+/** Replace every access key for the database a site reaches at `dbUrl` with one
+ * new full-access key, and return it. Every old key stops working. Declared
+ * once so every provider implementation shares the exact same signature. */
+export type RotateDatabaseKeyFn = (dbUrl: string) => Promise<Result<string>>;
+
 export interface DatabaseProviderApi {
   createDatabase: CreateDatabaseFn;
+  rotateDatabaseKey: RotateDatabaseKeyFn;
 }

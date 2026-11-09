@@ -6,7 +6,7 @@ import { bunnyDbProvider as bunnyDbApi } from "#shared/bunny-db.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
-import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { requestLines, stubFetch } from "#test-utils/fetch-stub.ts";
 
 /** Bunny's live region config, as returned by GET /database/v1/config. */
 const CONFIG_RESPONSE = {
@@ -297,3 +297,106 @@ describeWithEnv("bunny-db", { env: { BUNNY_API_KEY: "test-api-key" } }, () => {
     }
   });
 });
+
+/** One page of the account's database list: the databases, and whether another
+ * page follows. */
+type DatabasePage = [databases: { id: string; url: string }[], more: boolean];
+
+const BUNNY_API = "https://api.bunny.net/database/v2/databases";
+const listLine = (page: number): string =>
+  `GET ${BUNNY_API}?page=${page}&per_page=50`;
+const SITE_DB = { id: "db_site", url: "libsql://site.lite.bunnydb.net" };
+const OTHER_DB = { id: "db_other", url: "libsql://other.lite.bunnydb.net" };
+
+describeWithEnv(
+  "bunny-db key rotation",
+  { env: { BUNNY_API_KEY: "test-api-key" } },
+  () => {
+    const cases: {
+      name: string;
+      pages: DatabasePage[];
+      revokeStatus: number;
+      result: unknown;
+      requests: string[];
+    }[] = [
+      {
+        name: "rotates the key of the database at the site's address",
+        pages: [[[OTHER_DB, SITE_DB], false]],
+        requests: [
+          listLine(1),
+          `POST ${BUNNY_API}/db_site/auth/revoke`,
+          `PUT ${BUNNY_API}/db_site/auth/generate`,
+        ],
+        result: { ok: true, value: "bunny-rotated-token" },
+        revokeStatus: 204,
+      },
+      {
+        name: "walks every page to find the database",
+        pages: [
+          [[OTHER_DB], true],
+          [[SITE_DB], false],
+        ],
+        requests: [
+          listLine(1),
+          listLine(2),
+          `POST ${BUNNY_API}/db_site/auth/revoke`,
+          `PUT ${BUNNY_API}/db_site/auth/generate`,
+        ],
+        result: { ok: true, value: "bunny-rotated-token" },
+        revokeStatus: 204,
+      },
+      {
+        name: "refuses an address the account does not list",
+        pages: [[[OTHER_DB], false]],
+        requests: [listLine(1)],
+        result: {
+          error: "No Bunny database has the address site.lite.bunnydb.net.",
+          ok: false,
+        },
+        revokeStatus: 204,
+      },
+      {
+        name: "stops before generating a key when the revoke is refused",
+        pages: [[[SITE_DB], false]],
+        requests: [listLine(1), `POST ${BUNNY_API}/db_site/auth/revoke`],
+        result: {
+          error: "Revoke database tokens failed (500): refused",
+          ok: false,
+        },
+        revokeStatus: 500,
+      },
+    ];
+
+    test("reports a refused database list", async () => {
+      using _fetch = stubFetch(new Response("refused", { status: 500 }));
+
+      expect(await bunnyDbApi.rotateDatabaseKey(SITE_DB.url)).toEqual({
+        error: "List databases failed (500): refused",
+        ok: false,
+      });
+    });
+
+    for (const { name, pages, revokeStatus, result, requests } of cases) {
+      test(name, async () => {
+        const remaining = [...pages];
+        using fetchStub = stubFetch((url) => {
+          if (url.includes("/databases?")) {
+            const [databases, more] = remaining.shift()!;
+            return Response.json({
+              databases,
+              page_info: { has_more_items: more },
+            });
+          }
+          return url.endsWith("/auth/revoke")
+            ? new Response(revokeStatus === 204 ? null : "refused", {
+                status: revokeStatus,
+              })
+            : Response.json({ token: "bunny-rotated-token" });
+        });
+
+        expect(await bunnyDbApi.rotateDatabaseKey(SITE_DB.url)).toEqual(result);
+        expect(requestLines(fetchStub)).toEqual(requests);
+      });
+    }
+  },
+);

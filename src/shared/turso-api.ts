@@ -1,6 +1,7 @@
 /** Turso platform API client used by site provisioning and database migration. */
 
 import * as v from "valibot";
+import { type ListedDatabase, requireListedDatabase } from "#db/host.ts";
 import { type ApiRequestInit, defineApiClient } from "#shared/api-client.ts";
 import {
   getTursoApiToken,
@@ -14,6 +15,7 @@ import type {
   CreateDatabaseFn,
   DatabaseCredentials,
   DatabaseProviderApi,
+  RotateDatabaseKeyFn,
 } from "#shared/provider-types.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { NonEmptyTextSchema } from "#shared/validation/string.ts";
@@ -41,6 +43,9 @@ const TursoTokenSchema = v.object({ jwt: NonEmptyTextSchema });
 const TursoOrganizationsSchema = v.array(
   v.object({ slug: NonEmptyTextSchema }),
 );
+const TursoDatabaseListSchema = v.object({
+  databases: v.array(TursoDatabaseSchema),
+});
 const TursoGroupsSchema = v.object({
   groups: v.array(v.object({ name: NonEmptyTextSchema })),
 });
@@ -56,6 +61,12 @@ export interface TursoDatabaseCredentials extends DatabaseCredentials {
   name: string;
 }
 
+/** Answer one full-access token for the named database. */
+type DatabaseTokenFn = (
+  organization: string,
+  name: string,
+) => Promise<Result<string>>;
+
 export interface TursoApi {
   createDatabase(
     request: CreateTursoDatabaseRequest,
@@ -64,6 +75,13 @@ export interface TursoApi {
   deleteDatabase(organization: string, name: string): Promise<Result<void>>;
   listGroups(organization: string): Promise<Result<string[]>>;
   listOrganizations(): Promise<Result<string[]>>;
+}
+
+/** The calls that replace one database's key. Only key rotation asks them. */
+interface TursoDatabaseKeyApi {
+  listDatabases(organization: string): Promise<Result<ListedDatabase[]>>;
+  /** Replace every token for one database with one new full-access token. */
+  rotateDatabaseKey: DatabaseTokenFn;
 }
 
 const parseResponse = <Output>(
@@ -98,7 +116,7 @@ const namesFrom = <Entry>(
 export const createTursoApi = (
   apiToken: string,
   signal?: AbortSignal,
-): TursoApi => {
+): TursoApi & TursoDatabaseKeyApi => {
   const client = defineApiClient({
     baseUrl: TURSO_API_BASE,
     headers: () => jsonHeaders({ Authorization: `Bearer ${apiToken}` }),
@@ -159,6 +177,42 @@ export const createTursoApi = (
       method: "POST",
     });
 
+  /** Fetch one Turso list and answer its entries, or report the refusal. */
+  const readList = async <Output, Entry>(
+    path: string,
+    schema: v.GenericSchema<unknown, Output>,
+    label: string,
+    entriesOf: (output: Output) => Entry[],
+  ): Promise<Result<Entry[]>> => {
+    const response = await fetchApi(path);
+    return response.ok
+      ? okResult(entriesOf(parseResponse(schema, response.text, label)))
+      : parseApiError(response, label);
+  };
+
+  /** Ask the platform for one new full-access token for a database. */
+  const generateToken: DatabaseTokenFn = async (organization, name) => {
+    try {
+      const tokenResponse = await fetchApi(
+        `${databasePath(organization, name)}/auth/tokens?authorization=full-access`,
+        { method: "POST" },
+      );
+      if (!tokenResponse.ok) {
+        return parseApiError(tokenResponse, "Generate database token");
+      }
+      const { jwt } = parseResponse(
+        TursoTokenSchema,
+        tokenResponse.text,
+        "Generate database token",
+      );
+      return okResult(jwt);
+    } catch (error) {
+      return errorResult(
+        `Generate database token failed: ${errorMessage(error)}`,
+      );
+    }
+  };
+
   const createDatabase = async (
     request: CreateTursoDatabaseRequest,
   ): Promise<Result<TursoDatabaseCredentials>> => {
@@ -191,37 +245,16 @@ export const createTursoApi = (
       );
     }
     const dbUrl = `libsql://${database.Hostname}`;
-    try {
-      const tokenResponse = await fetchApi(
-        `${databasePath(request.organization, name)}/auth/tokens?authorization=full-access`,
-        { method: "POST" },
-      );
-      if (!tokenResponse.ok) {
-        const failure = parseApiError(tokenResponse, "Generate database token");
-        return await cleanUpFailedCreate(
-          request.organization,
-          name,
-          failure.error,
-        );
-      }
-      const { jwt: dbToken } = parseResponse(
-        TursoTokenSchema,
-        tokenResponse.text,
-        "Generate database token",
-      );
-      return okResult({
-        dbId: database.DbId,
-        dbToken,
-        dbUrl,
-        name,
-      });
-    } catch (error) {
-      return await cleanUpFailedCreate(
-        request.organization,
-        name,
-        `Generate database token failed: ${errorMessage(error)}`,
-      );
+    const token = await generateToken(request.organization, name);
+    if (!token.ok) {
+      return await cleanUpFailedCreate(request.organization, name, token.error);
     }
+    return okResult({
+      dbId: database.DbId,
+      dbToken: token.value,
+      dbUrl,
+      name,
+    });
   };
 
   return {
@@ -235,33 +268,39 @@ export const createTursoApi = (
       return parseApiError(response, "Check database");
     },
     deleteDatabase,
-    listGroups: async (organization) => {
-      const response = await fetchApi(
+    listDatabases: (organization) =>
+      readList(
+        databasePath(organization),
+        TursoDatabaseListSchema,
+        "List Turso databases",
+        ({ databases }) =>
+          databases.map((database) => ({
+            host: database.Hostname,
+            id: database.Name,
+          })),
+      ),
+    listGroups: (organization) =>
+      readList(
         `/v1/organizations/${encodeURIComponent(organization)}/groups`,
-      );
-      if (!response.ok) {
-        return parseApiError(response, "List Turso groups");
-      }
-      const { groups } = parseResponse(
         TursoGroupsSchema,
-        response.text,
         "List Turso groups",
-      );
-      return okResult(namesFrom(groups, (group) => group.name));
-    },
-    listOrganizations: async () => {
-      const response = await fetchApi("/v1/organizations");
-      if (!response.ok) {
-        return parseApiError(response, "List Turso organizations");
-      }
-      const organizations = parseResponse(
+        ({ groups }) => namesFrom(groups, (group) => group.name),
+      ),
+    listOrganizations: () =>
+      readList(
+        "/v1/organizations",
         TursoOrganizationsSchema,
-        response.text,
         "List Turso organizations",
+        (organizations) =>
+          namesFrom(organizations, (organization) => organization.slug),
+      ),
+    rotateDatabaseKey: async (organization, name) => {
+      const rotated = await fetchApi(
+        `${databasePath(organization, name)}/auth/rotate`,
+        { method: "POST" },
       );
-      return okResult(
-        namesFrom(organizations, (organization) => organization.slug),
-      );
+      if (!rotated.ok) return parseApiError(rotated, "Rotate database key");
+      return generateToken(organization, name);
     },
   };
 };
@@ -273,6 +312,19 @@ const createDatabaseImpl: CreateDatabaseFn = (name) =>
     organization: getTursoOrganization(),
   });
 
+const rotateDatabaseKeyImpl: RotateDatabaseKeyFn = async (dbUrl) => {
+  const organization = getTursoOrganization();
+  const api = createTursoApi(getTursoApiToken());
+  const database = requireListedDatabase(
+    await api.listDatabases(organization),
+    dbUrl,
+    "Turso",
+  );
+  if (!database.ok) return database;
+  return api.rotateDatabaseKey(organization, database.value.id);
+};
+
 export const tursoDbProvider: DatabaseProviderApi = {
   createDatabase: createDatabaseImpl,
+  rotateDatabaseKey: rotateDatabaseKeyImpl,
 };

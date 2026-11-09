@@ -70,3 +70,11 @@ export const stubFetchEachTest = (
     },
   };
 };
+
+/** Every request a fetch stub took, as "METHOD url", in order. A request with
+ * no method is a GET. */
+export const requestLines = (fetchStub: Stub): string[] =>
+  fetchStub.calls.map((call) => {
+    const init: RequestInit | undefined = call.args[1];
+    return `${init?.method ?? "GET"} ${String(call.args[0])}`;
+  });
