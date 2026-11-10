@@ -30,6 +30,8 @@ defaults:
 jobs:
   backup:
     runs-on: ubicloud-standard-4
+    # The secrets this job reads live in this environment, which only main can use.
+    environment: production
 
     steps:
       - name: Checkout repository

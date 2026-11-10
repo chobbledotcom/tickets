@@ -21,6 +21,8 @@ permissions:
 jobs:
   deploy:
     runs-on: ubicloud-standard-4
+    # The secrets this job reads live in this environment, which only main can use.
+    environment: staging
     # Step conditions cannot read the secrets context, so the key's presence
     # is derived here once. The key itself stays in secrets and step inputs.
     env:

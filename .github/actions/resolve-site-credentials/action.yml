@@ -56,9 +56,13 @@ runs:
           exit 1
         fi
 
+        # GitHub prints a step's env, so an unmasked output lands in the public
+        # log of the step that reads it.
+        db_url=$(jq -r '.[0].dbUrl' <<<"$match")
         db_token=$(jq -r '.[0].dbToken' <<<"$match")
+        echo "::add-mask::$db_url"
         echo "::add-mask::$db_token"
         echo "site_url=$(jq -r '.[0].siteUrl' <<<"$match")" >> "$GITHUB_OUTPUT"
         echo "site_name=$(jq -r '.[0].name' <<<"$match")" >> "$GITHUB_OUTPUT"
-        echo "db_url=$(jq -r '.[0].dbUrl' <<<"$match")" >> "$GITHUB_OUTPUT"
+        echo "db_url=$db_url" >> "$GITHUB_OUTPUT"
         echo "db_token=$db_token" >> "$GITHUB_OUTPUT"
