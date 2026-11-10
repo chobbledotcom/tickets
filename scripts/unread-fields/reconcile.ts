@@ -29,6 +29,9 @@ interface PlainProblem {
 }
 
 interface StaleRuleProblem {
+  /** How many reported fields under the rule's owner the baseline already
+   *  holds. The repair differs when this is not zero. */
+  heldByBaseline: number;
   kind: "stale rule";
   owner: string;
   reason: ExemptionReason;
@@ -100,8 +103,15 @@ export const reconcileUnreadFields =
     const reported = unread.filter(
       (finding) => !baselineKeys.has(findingIdentityKey(finding)),
     );
+    // A rule that grants nothing either lost its reported field or finds only
+    // baseline debt under its owner, and the two repairs differ.
     const covered = rules.map((rule) => ({
       exemptions: exemptionsOf(reported)(rule),
+      heldByBaseline: new Set(
+        exemptionsOf(unread)(rule)
+          .map(({ identity }) => findingIdentityKey(identity))
+          .filter((key) => baselineKeys.has(key)),
+      ).size,
       rule,
     }));
     const exemptions = covered.flatMap((covered) => covered.exemptions);
@@ -123,7 +133,8 @@ export const reconcileUnreadFields =
         .map((identity) => problem("stale baseline", identity)),
       ...covered
         .filter(({ exemptions }) => exemptions.length === 0)
-        .map(({ rule }) => ({
+        .map(({ heldByBaseline, rule }) => ({
+          heldByBaseline,
           kind: "stale rule" as const,
           owner: ruleOwnerText(rule),
           reason: rule.reason,
@@ -155,7 +166,10 @@ export const formatUnreadFieldProblem = (
     return `${problem.kind} [${problem.verdict}]: ${findingIdentityText(problem.identity)} -- declared in ${problem.file}`;
   }
   if (problem.kind === "stale rule") {
-    return `${problem.kind}: ${problem.owner} -- ${problem.reason.kind}: ${problem.reason.evidence}`;
+    const named = `${problem.kind}: ${problem.owner} -- ${problem.reason.kind}: ${problem.reason.evidence}`;
+    return problem.heldByBaseline === 0
+      ? named
+      : `${named}. The baseline already holds the unread fields here. Remove this rule or its baseline entry.`;
   }
   return `${problem.kind}: ${findingIdentityText(problem.identity)}`;
 };

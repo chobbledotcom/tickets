@@ -39,7 +39,9 @@ rule never hides debt.
 The gate fails for:
 
 - a reported field with no policy.
-- a rule that covers no reported field.
+- a rule that covers no reported field. The message names the repair. A rule
+  whose every field is already baseline debt fails here too, and its message
+  says to remove the rule or the baseline entry.
 - duplicate rule owners or duplicate finding identities.
 
 The identity contains the file that exports it, each typed path step, and the

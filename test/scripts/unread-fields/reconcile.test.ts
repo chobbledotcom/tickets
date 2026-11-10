@@ -74,8 +74,10 @@ describe("unread-field reconciliation", () => {
   });
 
   test("lets baseline debt win over a rule on the same owner", () => {
-    expect(kindsOf([finding()], [identity()], [rule()])).toEqual([
-      "stale rule",
+    const problems = reconcileUnreadFields([identity()], [rule()])([finding()]);
+
+    expect(problems.map(formatUnreadFieldProblem)).toEqual([
+      "stale rule: src/sum.ts :: Sum -- external-output: sendSum serialises the complete value. The baseline already holds the unread fields here. Remove this rule or its baseline entry.",
     ]);
   });
 
