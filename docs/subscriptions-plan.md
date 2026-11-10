@@ -1,0 +1,325 @@
+# Subscriptions plan
+
+Status: draft. A human must approve this plan before any test or code exists.
+This plan follows [the pull request workflow](pr-workflow.md).
+
+## Goal
+
+A site that uses Stripe can sell a ticket with a recurring price. Stripe takes
+each recurring payment. The site shows each subscription, keeps its status
+current, records every recurring payment in the ledger, and lets an owner cancel.
+
+The feature set is small on purpose. The plan adds no pause, no plan change, no
+refund of a recurring payment from the site, and no email about a failed payment.
+
+## Decisions the owner made
+
+1. The buyer pays the price of the ticket on the first day. The first recurring
+   payment is one period later.
+2. The ledger must record every recurring payment accurately. This is a hard
+   requirement.
+3. A cancellation is immediate. It refunds nothing, and the booking stays.
+4. A recurring payment is the recurring price times the quantity, plus VAT by
+   the tax settings of the site. It carries no booking fee and no discount.
+5. An order can hold one subscription ticket at most. The price of that ticket
+   must be above zero. The site refuses to delete a booking while its
+   subscription is live.
+6. Only an owner can cancel a subscription.
+
+## Current-system value
+
+A buyer on a Stripe site can subscribe through the ticket page, and the owner
+sees the subscription and its recurring income on the site.
+
+The production callers are:
+
+- the listing form, which saves the recurring price and frequency
+- `createCheckoutSession` in `src/shared/stripe.ts`
+- the payment completion path behind `POST /payment/webhook` and
+  `GET /payment/success`
+- `POST /scheduled`, through one new maintenance task
+- two new admin routes under `/admin/subscriptions`
+
+## Providers
+
+Stripe is the only provider in this plan. On a site that uses Square or SumUp,
+the listing form hides the recurring fields, and the checkout refuses a
+subscription ticket.
+
+### SumUp: not possible
+
+The SumUp documentation gave these facts on 2026-11-10:
+
+- The API has no subscription, plan, or schedule resource.
+- SumUp can save a card, but only through its Payment Widget. This site uses
+  the hosted checkout page, which has no documented way to save a card.
+- The card save is a separate checkout. SumUp authorises its amount and
+  reverses it at once, so it cannot take the first payment.
+- The site must start every later charge itself: one call to create a checkout
+  and one call to process it with the saved token.
+- The only webhook is `CHECKOUT_STATUS_CHANGED`.
+
+SumUp support means that this site becomes the billing engine: schedule,
+retries, failed cards, and customer authentication. That is a different
+product.
+
+### Square: possible, but a different and larger feature
+
+The Square documentation gave these facts on 2026-11-10:
+
+- A payment link can start a subscription, but only for a plan variation that
+  exists in the Square catalogue. No price can go inline.
+- The site must create one catalogue plan and one plan variation for each
+  ticket price. Square never deletes a plan, and the phases of a variation
+  cannot change.
+- A cancellation takes effect at the end of the paid period. Square has no
+  immediate cancellation, so decision 3 cannot hold.
+- The payment link does not return the subscription. The site must search by
+  customer or handle a `subscription.created` webhook.
+- Square reports each renewal through invoice webhooks. Those need token
+  permissions for subscriptions, invoices, customers, and catalogue items.
+- The minimum charge is 1.00, and the documentation says that subscription
+  items must be shipped.
+- The documentation does not say that a subscription link can carry other
+  order lines.
+
+Square needs a catalogue sync, new webhooks, new token permissions, and
+different cancellation behaviour. It is a separate plan if the owner wants it.
+
+## Shared contract
+
+### Where each fact lives
+
+| Fact | Home |
+| --- | --- |
+| Feature switch | A `subscriptions` entry in `ADMIN_FEATURES` |
+| Recurring price and frequency of a ticket | One `listing_prices` row: `price_type = "recurring"`, the frequency in `price_id`, the price in `unit_price` |
+| Plan of one subscriber | Five new columns on `listing_attendees` |
+| Each recurring payment | Ledger transfers, one event group for each Stripe invoice |
+
+The frequency is `week`, `month`, or `year`. A ticket with no `recurring` row is
+an ordinary ticket.
+
+The new `listing_attendees` columns are:
+
+| Column | Value |
+| --- | --- |
+| `recurring_price` | Minor units that Stripe charges each period, for the whole quantity, VAT included. `0` means no subscription. |
+| `recurring_tax` | The VAT part of `recurring_price`, in minor units |
+| `recurring_interval` | `week`, `month`, `year`, or blank |
+| `subscription_id` | The Stripe subscription id, or blank |
+| `subscription_status` | The last status that Stripe reported, or blank |
+
+The owner asked for the plan on this row. Five plain columns keep the task
+query and the guarded writes in SQL, and a later change to the listing cannot
+reach them.
+
+### Trusted facts
+
+| Fact | Trusted | Basis |
+| --- | --- | --- |
+| Recurring price and frequency on the listing | Expected | The owner typed them. The listing can change at any time. |
+| Tax policy | Expected | The checkout freezes the policy when it starts, as it does today. |
+| Signed order total | Expected | The current price proof. The recurring line adds nothing to the first payment, so the proof does not change. |
+| Subscription id, status, amount, and frequency | Observed | A Stripe read of the subscription with the secret key of the site |
+| Listing id of the subscription | Observed | The site writes it to the subscription metadata, and the Stripe read returns it |
+| Paid invoice: id, amount, currency, paid time, reason | Observed | A Stripe list of the paid invoices of one subscription |
+| Cancel form | Untrusted | The owner session and the CSRF token authorise it |
+
+The plan on the booking row comes from the Stripe subscription, never from the
+listing. `recurring_tax` comes from the frozen tax policy and the observed
+amount.
+
+### Checkout
+
+When the order holds a subscription ticket, the Stripe session changes in three
+ways:
+
+- `mode` is `subscription`.
+- One recurring line joins the current one-time lines. Its amount is the
+  recurring price plus VAT under the `add_to_total` mode, and the recurring
+  price alone under the other modes.
+- `subscription_data` carries a `trial_end` one period after now, and the
+  listing id in its metadata.
+
+The one-time lines stay exactly as they are. The first payment is the signed
+order total, with its booking fee, discounts, and tax.
+
+### Valid states
+
+`subscription_status` holds the Stripe status word. One exhaustive record maps
+each word to a label and to a group.
+
+| Group | Stripe status | Facts on the row |
+| --- | --- | --- |
+| None | blank | All five columns at their defaults |
+| Live | `trialing`, `active`, `past_due`, `unpaid`, `paused`, `incomplete` | Plan, id, and status all present |
+| Ended | `canceled`, `incomplete_expired` | Plan, id, and status all present |
+
+Declare the machine once in `src/shared/payment/subscription-machine-spec.ts`,
+in the shape of `machine-spec.ts`. The tables below are projections of it.
+
+### Commands and events
+
+| Start | Command or event | Result |
+| --- | --- | --- |
+| None | A paid checkout completes with a subscription | The row gets the plan, the id, and the observed status |
+| Live | Scheduled check | The row gets the observed status. The ledger gets each paid renewal invoice that it does not hold. |
+| Live | Owner cancels | Stripe cancels. The row gets `canceled`. |
+| Ended | Scheduled check | The task records the remaining paid invoices once, then leaves the row |
+| Ended | Owner cancels | Refused |
+| Live | Delete the booking | Refused: "Cancel the subscription first." |
+
+Each command has one implementation. The scheduled task is the only writer of
+recurring money. The site adds no new Stripe webhook event, so no site needs a
+new webhook endpoint.
+
+### Ledger entry for one recurring payment
+
+One paid Stripe invoice with the reason `subscription_cycle` posts one event
+group. The invoice id is the stable identity.
+
+| Leg | From | To | Amount |
+| --- | --- | --- | --- |
+| `payment` | `external:world` | `attendee:<id>` | The amount that Stripe says the buyer paid |
+| `sale` | `attendee:<id>` | `revenue:<listing id>` | The paid amount minus the VAT share |
+| `vat` | `attendee:<id>` | `tax:vat` | The VAT share |
+
+- `occurredAt` is the paid time of the invoice, so the income lands on the day
+  of payment.
+- The VAT share is `recurring_tax` when the paid amount equals
+  `recurring_price`. For any other amount, the share keeps the same ratio.
+- The cash leg always uses the observed amount, never the expected amount.
+- The first invoice has the reason `subscription_create`. The current booking
+  path records that payment, so the task skips it.
+- An invoice in a currency other than the site currency posts nothing. The
+  task logs an error, and the page shows a warning on that subscription.
+
+### Scheduled task
+
+`subscription_status_check` joins `MAINTENANCE_TASKS`.
+
+- It is enabled when Stripe has a key and the feature is on.
+- Its wake policy is `scheduled_only`, because it calls Stripe.
+- It walks the live rows in id order from the task checkpoint, a small batch
+  for each run. A full batch asks for a follow-up run.
+- For each row it reads the subscription, lists the newest paid invoices, posts
+  the ledger groups, and writes the status if the status changed.
+- A row that moves to an ended status gets one last invoice pass in the same
+  run.
+
+### Failure table
+
+| Work complete | Failure | Result | Retry owner |
+| --- | --- | --- | --- |
+| Nothing | Stripe refuses the session | The current checkout error. No booking. | The buyer |
+| Stripe took the first payment | The subscription read fails at completion | The current retry answer. No booking yet. | Webhook redelivery and the success redirect |
+| Stripe took the first payment | The booking write fails | The current payment recovery path | The current path |
+| Nothing | The scheduled read fails for one row | That row keeps its status. The batch continues. | The next run |
+| Stripe took a renewal | The ledger write fails | Nothing recorded. The error reaches the log. | The next run posts the same invoice id |
+| Ledger write | The status write fails | The status is stale | The next run |
+| Nothing | The Stripe cancel call fails | No local change. The owner sees an error. | The owner |
+| Stripe cancelled | The status write fails | The status is stale | The scheduled check |
+
+### Retry and replay table
+
+| Command | Stable identity | Exact replay | Protection against two workers |
+| --- | --- | --- | --- |
+| Completion | Payment session id | The current two-phase claim returns the same booking | The current claim |
+| Renewal entry | Stripe invoice id, as event group and leg references | The ledger store finds the same legs and inserts nothing | The maintenance task claim, then the ledger references |
+| Status write | Subscription id | The same status again | A write guarded on the status that the task read |
+| Cancel | Subscription id | Stripe refuses a second cancel. The site then reads the subscription and stores what it finds. | A write guarded on a live status |
+
+No failure is permanent for the queue. One row that fails cannot stop later
+rows.
+
+### Concurrency table
+
+| Operation A | Operation B | Result | Protection |
+| --- | --- | --- | --- |
+| Webhook | Success redirect | One booking, one plan | The current two-phase claim |
+| Scheduled check | Scheduled check | One ledger group for each invoice | The task claim and the ledger references |
+| Owner cancel | Scheduled check | `canceled` stays | The task writes only where the status still equals the status that it read |
+| Owner cancel | Owner cancel | One Stripe cancel takes effect | The guarded write, and the read after a refused cancel |
+| Listing edit | Checkout in progress | The buyer gets the plan that Stripe holds | The row copies the observed plan |
+
+### Owner choices
+
+None in the site. A payment that differs from the plan still posts at its
+observed amount. Two cases stay with the owner:
+
+- A change that a person makes in the Stripe dashboard. The site records the
+  money that Stripe reports and shows the status that Stripe reports.
+- A refund of a recurring payment. The owner makes it in Stripe and records it
+  with the current manual ledger entry.
+
+### Security and privacy
+
+- Owners and editors can open the Subscriptions page. Only an owner sees the
+  Cancel button, and the cancel route refuses every other role.
+- The menu link, the page, and the route share the feature gate.
+- The page decrypts the name of each subscriber at render time, and nothing
+  else.
+- The Stripe subscription id is not personal data. It stays in plain text.
+- The cancel route takes a booking row id. The site reads the subscription id
+  from its own row, so a form cannot name a foreign subscription.
+
+## Self-challenge
+
+| Question | Answer |
+| --- | --- |
+| The Stripe call succeeds and the local write fails? | The failure table covers the first payment, each renewal, and the cancel. Each has a retry owner. |
+| A callback arrives twice? | The current claim handles the completion. No new webhook event exists. |
+| The amount or currency is wrong? | The first payment keeps the current price proof. A renewal posts the observed amount. A foreign currency posts nothing and warns. |
+| The task stops for a long time? | The invoice list is newest first, a page at a time. A full page of new invoices asks for the next page. |
+| The owner turns the feature off? | The site refuses while a live subscription or a recurring price exists, through `inUseSql`. |
+| The owner changes provider? | Live subscriptions stay with Stripe. The task still runs while the Stripe key exists. The page warns when the key is absent. |
+| The owner changes the tax settings? | A live subscription keeps its frozen plan. Only a new subscription uses the new policy. |
+| Someone merges or moves the booking? | The plan columns move with the row. The merge refuses two live subscriptions on one target row. |
+
+## Facts to prove before pull request 1
+
+The Stripe documentation does not answer these points. Prove each one in Stripe
+test mode first. If one fails, return to this plan.
+
+1. A session in `subscription` mode with a trial charges its one-time lines at
+   once and starts the recurring line at the end of the trial.
+2. The completed session then reports `payment_status: "paid"` and an
+   `amount_total` equal to the one-time lines.
+3. Stripe copies `subscription_data.metadata` to the subscription.
+4. `expand[]=latest_invoice.payments` on the subscription returns the payment
+   intent of the first payment, for refunds.
+5. `trial_end` must be 48 hours or more ahead. All three frequencies pass.
+6. stripe-mock at the pinned version can serve these calls, or the tests need
+   fixtures.
+
+## Pull requests
+
+One stack of four. Each layer is green and useful alone.
+
+| Layer | Behaviour | Story | Source budget |
+| --- | --- | --- | --- |
+| 1 | The feature switch, the recurring price on a ticket, the Stripe subscription checkout, and the plan on the booking row | "Buying a subscription ticket" | 450 lines |
+| 2 | The Subscriptions menu and page | "Seeing who subscribed" | 200 lines |
+| 3 | The scheduled check: status and recurring payments in the ledger, with VAT | "Recurring payments reach the books" | 350 lines |
+| 4 | The owner cancels, and the site refuses to delete a live booking | "Cancelling a subscription" | 200 lines |
+
+Layer 1 replaces no old path. No layer adds a compatibility surface.
+
+The Stripe call budget is:
+
+- completion: one more read
+- scheduled check: two reads for each row
+- cancel: one call, and one read after a refusal
+
+Direct tests cover every branch. The stories prove the journeys and are never
+the only coverage. The tests for each layer are:
+
+- Layer 1: listing validation, the session parameters for each tax mode, the
+  completion write, and the refusals in decision 5.
+- Layer 2: the page for each role, the feature gate, and the label for every
+  status.
+- Layer 3: the machine laws, the ledger legs for each tax mode, replay of one
+  invoice, the stale status guard, and one fault test for each failure row.
+- Layer 4: the cancel for each start state, the role refusal, the race with the
+  check, and the delete refusal.
