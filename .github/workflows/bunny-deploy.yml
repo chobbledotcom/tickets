@@ -34,6 +34,43 @@ jobs:
         with:
           persist-credentials: false
 
+      # A missing secret must stop the run here, not after the build or part
+      # of the way through a deploy.
+      - name: Check the secrets this run needs
+        shell: bash
+        env:
+          BUNNY_ACCESS_KEY: ${{ secrets.BUNNY_ACCESS_KEY }}
+          BUNNY_STAGING_SCRIPT_ID: ${{ inputs.script_id || secrets.BUNNY_STAGING_SCRIPT_ID }}
+          SCRIPT_ID_OVERRIDE: ${{ inputs.script_id }}
+          RUN_BACKUP: ${{ github.event_name == 'workflow_dispatch' && inputs.run_backup && 'yes' || '' }}
+          STAGING_SITE_URL: ${{ vars.STAGING_SITE_URL }}
+          SCRIPT_ID: ${{ inputs.script_id || secrets.BUNNY_STAGING_SCRIPT_ID }}
+          SITE_URL: ${{ secrets.MAIN_INSTANCE_KEY == '' && vars.STAGING_SITE_URL || '' }}
+          BACKUP_CHECK: ${{ github.event_name == 'workflow_dispatch' && inputs.run_backup && 'backup-zone' || '' }}
+          MAIN_INSTANCE: ${{ secrets.MAIN_INSTANCE }}
+          MAIN_INSTANCE_KEY: ${{ secrets.MAIN_INSTANCE_KEY }}
+          STORAGE_ZONE_NAME: ${{ secrets.STORAGE_ZONE_NAME }}
+          STORAGE_ZONE_KEY: ${{ secrets.STORAGE_ZONE_KEY }}
+          CDN_URL: ${{ secrets.CDN_URL }}
+          CDN_BUNNY_STORAGE_ZONE_NAME: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_NAME }}
+          CDN_BUNNY_STORAGE_ZONE_KEY: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_KEY }}
+          CDN_BUNNY_STORAGE_HOST: ${{ secrets.CDN_BUNNY_STORAGE_HOST }}
+          CDN_BUNNY_PULL_ZONE_ID: ${{ secrets.CDN_BUNNY_PULL_ZONE_ID }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_CLI_URL: ${{ secrets.SENTRY_CLI_URL }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+        run: |
+          scripts/ci/require-env.sh BUNNY_ACCESS_KEY BUNNY_STAGING_SCRIPT_ID \
+            --if RUN_BACKUP MAIN_INSTANCE,MAIN_INSTANCE_KEY,STORAGE_ZONE_NAME,STORAGE_ZONE_KEY \
+            --if MAIN_INSTANCE_KEY MAIN_INSTANCE \
+            --if SCRIPT_ID_OVERRIDE MAIN_INSTANCE_KEY \
+            --unless MAIN_INSTANCE_KEY STAGING_SITE_URL \
+            --together CDN_URL,CDN_BUNNY_STORAGE_ZONE_NAME,CDN_BUNNY_STORAGE_ZONE_KEY,CDN_BUNNY_STORAGE_HOST,CDN_BUNNY_PULL_ZONE_ID \
+            --if SENTRY_AUTH_TOKEN SENTRY_CLI_URL,SENTRY_ORG,SENTRY_PROJECT
+          # shellcheck disable=SC2086 -- an empty value must add no check.
+          scripts/ci/check-credentials.sh bunny main-instance cdn-zone site $BACKUP_CHECK
+
       - name: Build Bunny edge script
         id: build
         uses: ./.github/actions/build-bunny-script
