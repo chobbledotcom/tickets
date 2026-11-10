@@ -9,6 +9,7 @@ const BUILT_SITE_ROUTES = [
   "GET /admin/built-sites/:id",
   "GET /admin/built-sites/:id/:tab",
   "GET /admin/built-sites/:id/delete",
+  "GET /admin/built-sites/:id/rotate-database-key/complete",
   "GET /admin/built-sites/new",
   "POST /admin/built-sites",
   "POST /admin/built-sites/:id/add-secrets",

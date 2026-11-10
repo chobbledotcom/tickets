@@ -2,10 +2,11 @@
  * The command-line walk through rotating one built site's database key: show
  * the sites, take one, make the person type its name, then rotate.
  *
- * Rotation replaces every key the database's provider issued for that database,
- * so the site cannot reach its database until it receives the new key. That
- * makes the typed confirmation the point of the walk: one wrong pick would take
- * a live site down.
+ * Rotation removes every key the database's provider issued for that database,
+ * so the site cannot reach its database until it receives the new key. The
+ * provider needs a short downtime to finish removing the old keys, so the walk
+ * waits before it asks for the new one. That makes the typed confirmation the
+ * point of the walk: one wrong pick would take a live site down.
  */
 
 import type { BuiltSite } from "#db/built-sites/types.ts";
@@ -13,7 +14,10 @@ import { databaseHostFor } from "#db/host.ts";
 import { taskWithoutArguments } from "#scripts/no-argument-task.ts";
 import type { ScriptIo } from "#scripts/script-runner.ts";
 import { numberedLines, readMenuChoice } from "#scripts/site-migration/menu.ts";
-import { databaseKeyRotationAccess } from "#shared/database-key-rotation.ts";
+import {
+  DATABASE_KEY_PAUSE_SECONDS,
+  databaseKeyRotationAccess,
+} from "#shared/database-key-rotation.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import type { Outcome } from "#shared/result.ts";
 
@@ -21,9 +25,11 @@ const ROTATE_DATABASE_KEY_USAGE = "Usage: deno task rotate:db-key";
 
 /** Everything the walk needs from the outside world, so a test can stand in. */
 export interface RotateDatabaseKeyCliDeps extends ScriptIo {
+  invalidateKey: (site: BuiltSite) => Promise<Outcome>;
+  issueKey: (site: BuiltSite) => Promise<Outcome>;
   listSites: () => Promise<BuiltSite[]>;
   prompt: (message: string) => string | null;
-  rotateKey: (site: BuiltSite) => Promise<Outcome>;
+  wait: (seconds: number) => Promise<void>;
 }
 
 /** Show the sites and let the person pick one, or stop. A closed prompt (the
@@ -49,7 +55,7 @@ const chooseSite = (
 /** Make the person type the site name before anything is changed. */
 const confirmSite = (deps: RotateDatabaseKeyCliDeps, site: BuiltSite): void => {
   deps.stdout(
-    "The site cannot reach its database until it receives the new key. Run this when the site is quiet.",
+    "The site cannot reach its database for about a minute, until it receives the new key. Run this when the site is quiet.",
   );
   const typed = deps.prompt(`Type the site name to confirm (${site.name}):`);
   if (typed === null) throw new Error("Cancelled.");
@@ -61,7 +67,8 @@ const confirmSite = (deps: RotateDatabaseKeyCliDeps, site: BuiltSite): void => {
   }
 };
 
-/** One round: pick a site, confirm it, and rotate its key. */
+/** One round: pick a site, confirm it, remove the old key, wait, then make and
+ * send the new one. */
 const rotateOneRound = async (
   deps: RotateDatabaseKeyCliDeps,
 ): Promise<number> => {
@@ -73,8 +80,14 @@ const rotateOneRound = async (
   // Refuse before the warning, so nobody confirms work this host cannot finish.
   if (!access.ok) throw new Error(access.error);
   confirmSite(deps, site);
-  const outcome = await deps.rotateKey(site);
-  if (!outcome.ok) throw new Error(outcome.error);
+  const invalidated = await deps.invalidateKey(site);
+  if (!invalidated.ok) throw new Error(invalidated.error);
+  deps.stdout(
+    `Waiting ${DATABASE_KEY_PAUSE_SECONDS} seconds for the database to remove every old key.`,
+  );
+  await deps.wait(DATABASE_KEY_PAUSE_SECONDS);
+  const issued = await deps.issueKey(site);
+  if (!issued.ok) throw new Error(issued.error);
   deps.stdout(`${site.name} now uses a new database key.`);
   return 0;
 };

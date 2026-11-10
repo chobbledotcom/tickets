@@ -575,7 +575,7 @@ deno task backup         # Dump the database out-of-band (uploads to storage; --
 deno task restore <backup.zip> # Restore the database at DB_URL from a local backup using DB_TOKEN from .env
 deno task snapshot --out <path.sqlite> # Copy the complete remote database to a local SQLite file
 deno task migrate:turso   # Copy a remote database into a new Turso database
-deno task rotate:db-key   # Replace one built site's database key through Turso or Bunny and send the new key to the site
+deno task rotate:db-key   # Replace one built site's database key through Turso or Bunny, wait a minute, then send the new key to the site
 deno task precommit      # All checks (typecheck, lint, cpd, build:edge, test:coverage)
 ```
 

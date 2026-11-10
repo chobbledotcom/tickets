@@ -22,42 +22,55 @@ const bunnySite = (id: number, name: string): BuiltSite =>
 
 interface CliState {
   deps: RotateDatabaseKeyCliDeps;
+  invalidated: string[];
+  issued: string[];
   prompts: string[];
-  rotated: string[];
   stderr: string[];
   stdout: string[];
+  waited: number[];
 }
 
-/** A script run whose prompts answer in order and whose rotations are faked. */
+/** A script run whose prompts answer in order and whose key steps are faked. */
 const cliState = (
   options: {
     answers?: (string | null)[];
     args?: string[];
-    outcome?: Outcome;
+    invalidate?: Outcome;
+    issue?: Outcome;
     sites?: BuiltSite[];
   } = {},
 ): CliState => {
   const answers = [...(options.answers ?? [])];
   const state = {
+    invalidated: [] as string[],
+    issued: [] as string[],
     prompts: [] as string[],
-    rotated: [] as string[],
     stderr: [] as string[],
     stdout: [] as string[],
+    waited: [] as number[],
   };
   const deps: RotateDatabaseKeyCliDeps = {
     args: options.args ?? [],
     getEnv: (key) => Deno.env.get(key),
+    invalidateKey: (site) => {
+      state.invalidated.push(site.name);
+      return Promise.resolve(options.invalidate ?? okResult(undefined));
+    },
+    issueKey: (site) => {
+      state.issued.push(site.name);
+      return Promise.resolve(options.issue ?? okResult(undefined));
+    },
     listSites: () => Promise.resolve(options.sites ?? [bunnySite(1, "one")]),
     prompt: (message) => {
       state.prompts.push(message);
       return answers.shift() ?? null;
     },
-    rotateKey: (site) => {
-      state.rotated.push(site.name);
-      return Promise.resolve(options.outcome ?? okResult(undefined));
-    },
     stderr: (line) => state.stderr.push(line),
     stdout: (line) => state.stdout.push(line),
+    wait: (seconds) => {
+      state.waited.push(seconds);
+      return Promise.resolve();
+    },
   };
   return { deps, ...state };
 };
@@ -71,27 +84,33 @@ const SITES = {
 
 /* jscpd:ignore-start -- a list of strings, not code */
 /** Each walk that rotates nothing, or fails: the arguments, the sites, the
- * answers typed in order (a prompt past the last answer closes), the error the
- * rotation answers, the error line the person reads, and the site rotated. A
- * blank error line is a clean stop. */
+ * answers typed in order (a prompt past the last answer closes), the errors the
+ * two key steps answer, the error line the person reads, and the sites each
+ * step reached. A blank error line is a clean stop. */
 const STOPPED_WALKS: [
   name: string,
   args: string,
   sites: keyof typeof SITES,
   answers: string,
-  rotateError: string,
+  invalidateError: string,
+  issueError: string,
   stderr: string,
-  rotated: string,
+  invalidated: string,
+  issued: string,
+  waited: string,
 ][] = [
-  ["stops when the person quits", "", "one", "q", "", "", ""],
-  ["stops when the menu prompt closes", "", "one", "", "", "", ""],
+  ["stops when the person quits", "", "one", "q", "", "", "", "", "", ""],
+  ["stops when the menu prompt closes", "", "one", "", "", "", "", "", "", ""],
   [
     "refuses arguments and asks nothing",
     "one",
     "one",
     "",
     "",
+    "",
     "Usage: deno task rotate:db-key",
+    "",
+    "",
     "",
   ],
   [
@@ -100,7 +119,10 @@ const STOPPED_WALKS: [
     "none",
     "",
     "",
+    "",
     "No built sites recorded.",
+    "",
+    "",
     "",
   ],
   [
@@ -109,7 +131,10 @@ const STOPPED_WALKS: [
     "local",
     "1",
     "",
+    "",
     "This site's database is a local file, so its key cannot be changed.",
+    "",
+    "",
     "",
   ],
   [
@@ -118,7 +143,10 @@ const STOPPED_WALKS: [
     "one",
     "1|Other",
     "",
+    "",
     "Site name does not match. Please type the exact name to confirm.",
+    "",
+    "",
     "",
   ],
   [
@@ -127,7 +155,10 @@ const STOPPED_WALKS: [
     "one",
     "1|   ",
     "",
+    "",
     "Site name is required.",
+    "",
+    "",
     "",
   ],
   [
@@ -136,17 +167,35 @@ const STOPPED_WALKS: [
     "one",
     "1",
     "",
+    "",
     "Cancelled.",
+    "",
+    "",
     "",
   ],
   [
-    "reports a rotation that failed",
+    "reports a refused key removal and asks for no new key",
     "",
     "one",
     "1|one",
     "Revoke database tokens failed (500)",
+    "",
     "Revoke database tokens failed (500)",
     "one",
+    "",
+    "",
+  ],
+  [
+    "reports a refused new key after the wait",
+    "",
+    "one",
+    "1|one",
+    "",
+    "Rotate database key failed (500)",
+    "Rotate database key failed (500)",
+    "one",
+    "one",
+    "60",
   ],
 ];
 /* jscpd:ignore-end */
@@ -161,7 +210,7 @@ describeWithEnv(
   "rotate database key CLI",
   { env: { BUNNY_API_KEY: "bunny-key" } },
   () => {
-    test("rotates the chosen site after the typed confirmation", async () => {
+    test("removes the old key, waits a minute, then makes the new one", async () => {
       const state = cliState({
         answers: ["2", "Second"],
         sites: [bunnySite(1, "First"), bunnySite(2, "Second")],
@@ -170,36 +219,57 @@ describeWithEnv(
       expect(await runRotateDatabaseKeyCli(state.deps)).toBe(0);
 
       expect(state).toMatchObject({
+        invalidated: ["Second"],
+        issued: ["Second"],
         prompts: [MENU_PROMPT, "Type the site name to confirm (Second):"],
-        rotated: ["Second"],
         stdout: [
           "\nSites:",
           "  1. First — bunny database (script 11)",
           "  2. Second — bunny database (script 12)",
-          "The site cannot reach its database until it receives the new key. Run this when the site is quiet.",
+          "The site cannot reach its database for about a minute, until it receives the new key. Run this when the site is quiet.",
+          "Waiting 60 seconds for the database to remove every old key.",
           "Second now uses a new database key.",
         ],
+        waited: [60],
       });
     });
 
     for (const walk of STOPPED_WALKS) {
-      const [name, args, sites, answers, rotateError, stderr, rotated] = walk;
+      const [
+        name,
+        args,
+        sites,
+        answers,
+        invalidateError,
+        issueError,
+        stderr,
+        invalidated,
+        issued,
+        waited,
+      ] = walk;
       test(name, async () => {
         const state = cliState({
           answers: listOf(answers, "|"),
           args: listOf(args, " "),
-          outcome: rotateError ? errorResult(rotateError) : okResult(undefined),
+          invalidate: invalidateError
+            ? errorResult(invalidateError)
+            : okResult(undefined),
+          issue: issueError ? errorResult(issueError) : okResult(undefined),
           sites: SITES[sites],
         });
 
         expect([
           await runRotateDatabaseKeyCli(state.deps),
           state.stderr,
-          state.rotated,
+          state.invalidated,
+          state.issued,
+          state.waited,
         ]).toEqual([
           stderr ? 1 : 0,
           listOf(stderr, "\n"),
-          listOf(rotated, "|"),
+          listOf(invalidated, "|"),
+          listOf(issued, "|"),
+          listOf(waited, "|").map(Number),
         ]);
       });
     }

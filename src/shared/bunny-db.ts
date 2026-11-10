@@ -20,7 +20,8 @@ import {
   type CreateDatabaseFn,
   type DatabaseProviderApi,
   databaseTokenFromResponse,
-  type RotateDatabaseKeyFn,
+  type InvalidateDatabaseTokensFn,
+  type IssueDatabaseTokenFn,
 } from "#shared/provider-types.ts";
 import { okResult, type Result } from "#shared/result.ts";
 
@@ -187,20 +188,35 @@ const createDatabaseImpl: CreateDatabaseFn = async (name) => {
   return okResult({ dbId, dbToken: token.value, dbUrl });
 };
 
-const rotateDatabaseKeyImpl: RotateDatabaseKeyFn = async (dbUrl) => {
-  const database = requireListedDatabase(await listDatabases(), dbUrl, "Bunny");
+/** The database a site reaches, as Bunny lists it. */
+const databaseAt = async (dbUrl: string): Promise<Result<ListedDatabase>> =>
+  requireListedDatabase(await listDatabases(), dbUrl, "Bunny");
+
+/** Run one key step against the database a site reaches, found in this
+ * account. */
+const keyStep = async <Value>(
+  dbUrl: string,
+  run: (databaseId: string) => Promise<Result<Value>>,
+): Promise<Result<Value>> => {
+  const database = await databaseAt(dbUrl);
   if (!database.ok) return database;
-  const id = encodeURIComponent(database.value.id);
-  const revoked = await dbClient.send(
-    `/v2/databases/${id}/auth/revoke`,
-    { method: "POST" },
-    "Revoke database tokens",
-  );
-  if (!revoked.ok) return revoked;
-  return generateToken(database.value.id);
+  return run(database.value.id);
 };
+
+const invalidateDatabaseTokensImpl: InvalidateDatabaseTokensFn = (dbUrl) =>
+  keyStep(dbUrl, (id) =>
+    dbClient.send(
+      `/v2/databases/${encodeURIComponent(id)}/auth/revoke`,
+      { method: "POST" },
+      "Revoke database tokens",
+    ),
+  );
+
+const issueDatabaseTokenImpl: IssueDatabaseTokenFn = (dbUrl) =>
+  keyStep(dbUrl, generateToken);
 
 export const bunnyDbProvider: DatabaseProviderApi = {
   createDatabase: createDatabaseImpl,
-  rotateDatabaseKey: rotateDatabaseKeyImpl,
+  invalidateDatabaseTokens: invalidateDatabaseTokensImpl,
+  issueDatabaseToken: issueDatabaseTokenImpl,
 };

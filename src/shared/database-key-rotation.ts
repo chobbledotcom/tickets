@@ -1,29 +1,42 @@
 /**
  * Rotating a built site's database key. The key is the site's full-access
  * database token. The database provider replaces every key it issued for that
- * database with one new key. The host stores the new key on the site record,
- * and the site receives it as DB_TOKEN.
+ * database with one new key. The change needs a short downtime at the
+ * provider. The work therefore runs in two steps: remove every old key, wait,
+ * then make the new key. The host stores the new key on the site record. The
+ * site receives it as DB_TOKEN.
  */
 
+import { hmacHash } from "#crypto/hashing.ts";
+import { verifySignedValue } from "#crypto/signed-value.ts";
+import { base64ToBase64Url } from "#crypto/utils.ts";
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { updateBuiltSite } from "#db/built-sites.ts";
 import { databaseHostFor } from "#db/host.ts";
 import { t } from "#i18n";
+import { adminRecordPath } from "#shared/admin-surface.ts";
 import { bunnyDbProvider } from "#shared/bunny-db.ts";
 import { getEnv } from "#shared/env.ts";
+import { nowSeconds } from "#shared/now.ts";
 import type { DatabaseProviderApi } from "#shared/provider-types.ts";
-import { errorResult, type Outcome, type Result } from "#shared/result.ts";
-import { serialQueue } from "#shared/serial-queue.ts";
+import { errorResult, type Outcome } from "#shared/result.ts";
 import {
   resolveHostingProvider,
   siteHostingAccess,
 } from "#shared/site-hosting.ts";
 import { tursoDbProvider } from "#shared/turso-api.ts";
 
-/** Rotations queue here. Each one stores and pushes its key before the next
- * rotation begins. Two overlapping rotations then cannot leave the site with a
- * key that the database already replaced. */
-const serializeRotation = serialQueue();
+/** Seconds the database needs after it removes every key, before a new key
+ * stays valid. The provider needs a short downtime for the change, so the web
+ * flow waits on its timer page and the command-line flow waits too. */
+export const DATABASE_KEY_PAUSE_SECONDS = 60;
+
+/** Seconds a rotation link stays open: the timer page's own wait, plus time to
+ * reload it. A later link is refused, and the operator starts again. */
+const ROTATION_LINK_MAX_AGE_S = 600;
+
+/** Seconds of clock skew a rotation link allows. */
+const ROTATION_LINK_CLOCK_SKEW_S = 60;
 
 /** The two databases a host can change the key of through a provider API. */
 export type DatabaseKeyProvider = "bunny" | "turso";
@@ -92,37 +105,95 @@ export const databaseKeyRotationAccess = (
   return { hostingId: access.hostingId, ok: true, provider: host };
 };
 
-/** The provider's replacement key for this database. */
-const rotateAtProvider = (
-  provider: DatabaseKeyProvider,
-  dbUrl: string,
-): Promise<Result<string>> =>
-  DATABASE_PROVIDERS[provider].rotateDatabaseKey(dbUrl);
-
-/**
- * Replace the site's database key and send it to the site. The provider
- * invalidates every key it issued for the database, so the stored key changes
- * before the push. Until the push lands, the site cannot reach its database.
- * A second rotation completes the work.
- */
-export const rotateDatabaseKey = (site: BuiltSite): Promise<Outcome> =>
-  serializeRotation(async () => {
+/** One rotation step, ready to run for a site. Every step first checks the
+ * access. It then runs the provider call with the hosting id the new key
+ * goes to. */
+const stepFor =
+  (
+    run: (
+      site: BuiltSite,
+      provider: DatabaseProviderApi,
+      hostingId: string,
+    ) => Promise<Outcome>,
+  ) =>
+  async (site: BuiltSite): Promise<Outcome> => {
     const access = databaseKeyRotationAccess(site);
     if (!access.ok) return access;
-    const rotated = await rotateAtProvider(access.provider, site.dbUrl);
-    if (!rotated.ok) return rotated;
-    // The new key is the only live one, so it is the truth to store now, even
-    // if the push then fails.
-    await updateBuiltSite(site.id, () => ({ dbToken: rotated.value }));
-    const pushed = await resolveHostingProvider(
-      site.hostingProvider,
-    ).setSecrets(access.hostingId, [["DB_TOKEN", rotated.value]]);
-    return pushed.ok
-      ? pushed
-      : {
-          error: t("built_sites.database_key_push_failed", {
-            error: pushed.error,
-          }),
-          ok: false,
-        };
-  });
+    return run(site, DATABASE_PROVIDERS[access.provider], access.hostingId);
+  };
+
+/** Ask for one new key, store it, and send it to the site. The new key is the
+ * only live one, so it is the truth to store now, even if the push then fails.
+ * A second rotation completes the work. */
+const issueAndPush = async (
+  site: BuiltSite,
+  provider: DatabaseProviderApi,
+  hostingId: string,
+): Promise<Outcome> => {
+  const issued = await provider.issueDatabaseToken(site.dbUrl);
+  if (!issued.ok) return issued;
+  await updateBuiltSite(site.id, () => ({ dbToken: issued.value }));
+  const pushed = await resolveHostingProvider(site.hostingProvider).setSecrets(
+    hostingId,
+    [["DB_TOKEN", issued.value]],
+  );
+  return pushed.ok
+    ? pushed
+    : {
+        error: t("built_sites.database_key_push_failed", {
+          error: pushed.error,
+        }),
+        ok: false,
+      };
+};
+
+/**
+ * Step one: make every key the database issued for this site stop working.
+ * The site cannot reach its database after this until step two sends it a new
+ * key. A provider refusal leaves the stored key alone.
+ */
+export const invalidateDatabaseKey = stepFor((site, provider) =>
+  provider.invalidateDatabaseTokens(site.dbUrl),
+);
+
+/** Step two: make the new key and send it to the site. */
+export const issueDatabaseKey = stepFor((site, provider, hostingId) =>
+  issueAndPush(site, provider, hostingId),
+);
+
+/** What a rotation link signs: the site, and the second it stops opening. */
+const rotationMessage = (siteId: number, expiry: number): string =>
+  ["database-key", siteId, expiry].join(":");
+
+/**
+ * The signed path that runs step two. The timer page's meta refresh opens it
+ * when the pause ends. The signature stops a stranger from sending this write
+ * under an owner's session, because a GET carries no form token.
+ */
+export const databaseKeyIssueUrl = async (siteId: number): Promise<string> => {
+  const expiry = nowSeconds() + ROTATION_LINK_MAX_AGE_S;
+  const signature = base64ToBase64Url(
+    await hmacHash(rotationMessage(siteId, expiry)),
+  );
+  const query = new URLSearchParams({ exp: String(expiry), sig: signature });
+  const path = adminRecordPath("builtSiteCompleteDatabaseKeyRotation", siteId);
+  return `${path}?${query.toString()}`;
+};
+
+/** Whether a rotation link carries this host's signature for the site, and
+ * has not run out of time. A missing field never opens it. */
+export const databaseKeyIssueAllowed = (
+  siteId: number,
+  expiry: string | null,
+  signature: string | null,
+): Promise<boolean> => {
+  if (expiry === null || signature === null) return Promise.resolve(false);
+  return verifySignedValue(
+    expiry,
+    signature,
+    (value, now) =>
+      now <= value &&
+      value - now <= ROTATION_LINK_MAX_AGE_S + ROTATION_LINK_CLOCK_SKEW_S,
+    (value) => rotationMessage(siteId, value),
+  );
+};

@@ -128,6 +128,12 @@ export const AREAS_A_L = {
       builtSiteAddSecrets: "/admin/built-sites/:id/add-secrets",
       builtSiteAddUptimeMonitor: "/admin/built-sites/:id/add-uptime-monitor",
       builtSiteBumpDeadline: "/admin/built-sites/:id/bump-deadline",
+      builtSiteCompleteDatabaseKeyRotation: {
+        // The timer page's meta refresh opens this GET, so read-only mode
+        // keeps serving it instead of redirecting it.
+        pattern: "/admin/built-sites/:id/rotate-database-key/complete",
+        readOnlyGet: true,
+      },
       builtSiteDelete: "/admin/built-sites/:id/delete",
       builtSiteEdit: {
         afterSave: "builtSite",

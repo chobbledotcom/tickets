@@ -15,7 +15,6 @@ import type {
   CreateDatabaseFn,
   DatabaseCredentials,
   DatabaseProviderApi,
-  RotateDatabaseKeyFn,
 } from "#shared/provider-types.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { NonEmptyTextSchema } from "#shared/validation/string.ts";
@@ -61,11 +60,11 @@ export interface TursoDatabaseCredentials extends DatabaseCredentials {
   name: string;
 }
 
-/** Answer one full-access token for the named database. */
-type DatabaseTokenFn = (
+/** One key call that names a database in an organization. */
+type DatabaseKeyFn<Value> = (
   organization: string,
   name: string,
-) => Promise<Result<string>>;
+) => Promise<Result<Value>>;
 
 export interface TursoApi {
   createDatabase(
@@ -79,9 +78,11 @@ export interface TursoApi {
 
 /** The calls that replace one database's key. Only key rotation asks them. */
 interface TursoDatabaseKeyApi {
+  /** Make every token for one database stop working. */
+  invalidateDatabaseTokens: DatabaseKeyFn<void>;
+  /** One new full-access token for one database. */
+  issueDatabaseToken: DatabaseKeyFn<string>;
   listDatabases(organization: string): Promise<Result<ListedDatabase[]>>;
-  /** Replace every token for one database with one new full-access token. */
-  rotateDatabaseKey: DatabaseTokenFn;
 }
 
 const parseResponse = <Output>(
@@ -191,7 +192,7 @@ export const createTursoApi = (
   };
 
   /** Ask the platform for one new full-access token for a database. */
-  const generateToken: DatabaseTokenFn = async (organization, name) => {
+  const generateToken: DatabaseKeyFn<string> = async (organization, name) => {
     try {
       const tokenResponse = await fetchApi(
         `${databasePath(organization, name)}/auth/tokens?authorization=full-access`,
@@ -268,6 +269,16 @@ export const createTursoApi = (
       return parseApiError(response, "Check database");
     },
     deleteDatabase,
+    invalidateDatabaseTokens: async (organization, name) => {
+      const rotated = await fetchApi(
+        `${databasePath(organization, name)}/auth/rotate`,
+        { method: "POST" },
+      );
+      return rotated.ok
+        ? okResult(undefined)
+        : parseApiError(rotated, "Rotate database key");
+    },
+    issueDatabaseToken: generateToken,
     listDatabases: (organization) =>
       readList(
         databasePath(organization),
@@ -294,14 +305,6 @@ export const createTursoApi = (
         (organizations) =>
           namesFrom(organizations, (organization) => organization.slug),
       ),
-    rotateDatabaseKey: async (organization, name) => {
-      const rotated = await fetchApi(
-        `${databasePath(organization, name)}/auth/rotate`,
-        { method: "POST" },
-      );
-      if (!rotated.ok) return parseApiError(rotated, "Rotate database key");
-      return generateToken(organization, name);
-    },
   };
 };
 
@@ -312,7 +315,21 @@ const createDatabaseImpl: CreateDatabaseFn = (name) =>
     organization: getTursoOrganization(),
   });
 
-const rotateDatabaseKeyImpl: RotateDatabaseKeyFn = async (dbUrl) => {
+/** One call on the database a site's address reaches, with the client, the
+ * organization, and the database's own id. */
+type ListedDatabaseCall<Value> = (
+  api: TursoApi & TursoDatabaseKeyApi,
+  organization: string,
+  databaseId: string,
+) => Promise<Result<Value>>;
+
+/** Run one key call against the database a site reaches, found in this
+ * organization. Each step finds it again, because the two steps are separate
+ * requests. */
+const databaseKeyCall = async <Value>(
+  dbUrl: string,
+  run: ListedDatabaseCall<Value>,
+): Promise<Result<Value>> => {
   const organization = getTursoOrganization();
   const api = createTursoApi(getTursoApiToken());
   const database = requireListedDatabase(
@@ -321,10 +338,23 @@ const rotateDatabaseKeyImpl: RotateDatabaseKeyFn = async (dbUrl) => {
     "Turso",
   );
   if (!database.ok) return database;
-  return api.rotateDatabaseKey(organization, database.value.id);
+  return run(api, organization, database.value.id);
 };
+
+/** One provider step: the key call for the database a site's address reaches.
+ * Each step finds the database again, because the two steps are separate
+ * requests. */
+const providerKeyStep =
+  <Value>(run: ListedDatabaseCall<Value>) =>
+  (dbUrl: string): Promise<Result<Value>> =>
+    databaseKeyCall(dbUrl, run);
 
 export const tursoDbProvider: DatabaseProviderApi = {
   createDatabase: createDatabaseImpl,
-  rotateDatabaseKey: rotateDatabaseKeyImpl,
+  invalidateDatabaseTokens: providerKeyStep((api, organization, id) =>
+    api.invalidateDatabaseTokens(organization, id),
+  ),
+  issueDatabaseToken: providerKeyStep((api, organization, id) =>
+    api.issueDatabaseToken(organization, id),
+  ),
 };

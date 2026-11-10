@@ -183,6 +183,34 @@ const platformReply =
       : Response.json({ jwt: "fresh-token" });
   };
 
+const SITE_URL = "libsql://example.turso.io";
+
+/** The site's database, listed after another one. */
+const SITE_LISTING = platformReply([
+  { DbId: "db_1", Hostname: "other.turso.io", Name: "other" },
+  goodDatabase,
+]);
+
+/** Run one call against its own stubbed platform, and answer its result and
+ * the requests that went out. */
+const callOf = async (
+  reply: FetchReply,
+  run: () => Promise<unknown>,
+): Promise<{ requests: string[]; result: unknown }> => {
+  const answer: { requests: string[]; result: unknown } = {
+    requests: [],
+    result: undefined,
+  };
+  await withMocks(
+    () => stubFetch(reply),
+    async (fetchStub) => {
+      answer.result = await run();
+      answer.requests.push(...requestLines(fetchStub));
+    },
+  );
+  return answer;
+};
+
 describeWithEnv(
   "turso-api database keys",
   { env: { TURSO_API_TOKEN: "platform-token", TURSO_ORGANIZATION: "org" } },
@@ -209,47 +237,71 @@ describeWithEnv(
         run: () => client().listDatabases("org"),
       },
       {
-        name: "invalidates every key before it makes the new one",
-        reply: () => platformReply([]),
-        requests: [ROTATE_LINE, TOKEN_LINE],
-        result: okResult("fresh-token"),
-        run: () => client().rotateDatabaseKey("org", "direct-test"),
-      },
-      {
-        name: "stops before making a key when the invalidation is refused",
-        reply: refused,
-        requests: [ROTATE_LINE],
-        result: errorResult("Rotate database key failed (500): refused"),
-        run: () => client().rotateDatabaseKey("org", "direct-test"),
-      },
-      {
-        name: "rotates the key of the database at the site's address",
-        reply: () =>
-          platformReply([
-            { DbId: "db_1", Hostname: "other.turso.io", Name: "other" },
-            goodDatabase,
-          ]),
-        requests: [`GET ${ORG_DATABASES}`, ROTATE_LINE, TOKEN_LINE],
-        result: okResult("fresh-token"),
-        run: () =>
-          tursoDbProvider.rotateDatabaseKey("libsql://example.turso.io"),
-      },
-      {
         name: "refuses an address the organization does not list",
         reply: () => platformReply([goodDatabase]),
         requests: [`GET ${ORG_DATABASES}`],
         result: errorResult("No Turso database has the address gone.turso.io."),
-        run: () => tursoDbProvider.rotateDatabaseKey("libsql://gone.turso.io"),
+        run: () => tursoDbProvider.issueDatabaseToken("libsql://gone.turso.io"),
       },
     ];
 
     for (const { name, reply, run, result, requests } of cases) {
       test(name, async () => {
-        using fetchStub = stubFetch(reply());
+        const call = await callOf(reply(), run);
 
-        expect(await run()).toEqual(result);
-        expect(requestLines(fetchStub)).toEqual(requests);
+        expect(call.result).toEqual(result);
+        expect(call.requests).toEqual(requests);
       });
     }
+
+    test("runs both key steps at the named database and at the site's address", async () => {
+      const named = [
+        await callOf(platformReply([]), () =>
+          client().invalidateDatabaseTokens("org", "direct-test"),
+        ),
+        await callOf(platformReply([]), () =>
+          client().issueDatabaseToken("org", "direct-test"),
+        ),
+      ];
+      const addressed = [
+        await callOf(SITE_LISTING, () =>
+          tursoDbProvider.invalidateDatabaseTokens(SITE_URL),
+        ),
+        await callOf(SITE_LISTING, () =>
+          tursoDbProvider.issueDatabaseToken(SITE_URL),
+        ),
+      ];
+
+      expect(named.map((call) => call.result)).toEqual([
+        okResult(undefined),
+        okResult("fresh-token"),
+      ]);
+      expect(addressed.map((call) => call.result)).toEqual([
+        okResult(undefined),
+        okResult("fresh-token"),
+      ]);
+      expect(named.map((call) => call.requests)).toEqual([
+        [ROTATE_LINE],
+        [TOKEN_LINE],
+      ]);
+      expect(addressed.map((call) => call.requests)).toEqual([
+        [`GET ${ORG_DATABASES}`, ROTATE_LINE],
+        [`GET ${ORG_DATABASES}`, TOKEN_LINE],
+      ]);
+    });
+
+    test("reports a refused key removal and a refused new key", async () => {
+      const invalidated = await callOf(refused, () =>
+        client().invalidateDatabaseTokens("org", "direct-test"),
+      );
+      const issued = await callOf(refused, () =>
+        client().issueDatabaseToken("org", "direct-test"),
+      );
+
+      expect([invalidated.result, issued.result]).toEqual([
+        errorResult("Rotate database key failed (500): refused"),
+        errorResult("Generate database token failed (500): refused"),
+      ]);
+    });
   },
 );
