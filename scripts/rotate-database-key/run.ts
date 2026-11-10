@@ -19,16 +19,16 @@ import {
   databaseKeyRotationAccess,
 } from "#shared/database-key-rotation.ts";
 import { errorMessage } from "#shared/error-message.ts";
-import type { Outcome } from "#shared/result.ts";
+import type { Outcome, Result } from "#shared/result.ts";
 
 const ROTATE_DATABASE_KEY_USAGE = "Usage: deno task rotate:db-key";
 
 /** Everything the walk needs from the outside world, so a test can stand in. */
 export interface RotateDatabaseKeyCliDeps extends ScriptIo {
-  invalidateKey: (site: BuiltSite) => Promise<Outcome>;
-  issueKey: (site: BuiltSite) => Promise<Outcome>;
+  completeRotation: (site: BuiltSite, started: number) => Promise<Outcome>;
   listSites: () => Promise<BuiltSite[]>;
   prompt: (message: string) => string | null;
+  startRotation: (site: BuiltSite) => Promise<Result<number>>;
   wait: (seconds: number) => Promise<void>;
 }
 
@@ -80,14 +80,14 @@ const rotateOneRound = async (
   // Refuse before the warning, so nobody confirms work this host cannot finish.
   if (!access.ok) throw new Error(access.error);
   confirmSite(deps, site);
-  const invalidated = await deps.invalidateKey(site);
-  if (!invalidated.ok) throw new Error(invalidated.error);
+  const started = await deps.startRotation(site);
+  if (!started.ok) throw new Error(started.error);
   deps.stdout(
     `Waiting ${DATABASE_KEY_PAUSE_SECONDS} seconds for the database to remove every old key.`,
   );
   await deps.wait(DATABASE_KEY_PAUSE_SECONDS);
-  const issued = await deps.issueKey(site);
-  if (!issued.ok) throw new Error(issued.error);
+  const completed = await deps.completeRotation(site, started.value);
+  if (!completed.ok) throw new Error(completed.error);
   deps.stdout(`${site.name} now uses a new database key.`);
   return 0;
 };

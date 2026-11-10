@@ -172,6 +172,10 @@ export const questionTables: [name: string, table: Table][] = [
         ["assigned_attendee_id", wholeNumberStartingAtNull],
         ["assigned_listing_id", wholeNumberStartingAtNull],
         ["created", text],
+        // The second the latest database key rotation removed every old key,
+        // or 0 when none waits. Operational metadata, not PII: a timer link
+        // opens only for the latest rotation.
+        ["database_key_rotation_started", wholeNumberStartingAtZero],
         ["renewal_token_index", textStartingAtNull],
         ["read_only_from", textStartingBlank],
         ["site_data_revision", wholeNumberStartingAtZero],

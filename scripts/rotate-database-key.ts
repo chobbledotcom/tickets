@@ -21,18 +21,18 @@ import { builtSites } from "#db/built-sites.ts";
 import { runRotateDatabaseKeyCli } from "#scripts/rotate-database-key/run.ts";
 import { runDenoScript } from "#scripts/script-runner.ts";
 import {
-  invalidateDatabaseKey,
-  issueDatabaseKey,
+  completeDatabaseKeyRotation,
+  startDatabaseKeyRotation,
 } from "#shared/database-key-rotation.ts";
 import { delay } from "#shared/now.ts";
 
 await runDenoScript((io) =>
   runRotateDatabaseKeyCli({
     ...io,
-    invalidateKey: invalidateDatabaseKey,
-    issueKey: issueDatabaseKey,
+    completeRotation: completeDatabaseKeyRotation,
     listSites: () => builtSites.getAll(),
     prompt,
+    startRotation: startDatabaseKeyRotation,
     wait: (seconds) => delay(seconds * 1000),
   }),
 );

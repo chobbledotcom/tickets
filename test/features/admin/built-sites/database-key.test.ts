@@ -13,11 +13,11 @@ import { bunnyDbProvider } from "#shared/bunny-db.ts";
 import { DATABASE_KEY_PAUSE_SECONDS } from "#shared/database-key-rotation.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
-import { expectErrorFlash } from "#test-utils/assertions/redirect.ts";
 import {
+  expectErrorFlash,
   expectFlashRedirect,
-  expectIncludesAll,
-} from "#test-utils/assertions.ts";
+} from "#test-utils/assertions/redirect.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 import { withMocks } from "#test-utils/mocks.ts";
@@ -29,8 +29,13 @@ const LOCAL_DB_URL = "file:local.db";
 
 const ROTATION_STARTED = "Rotated database";
 
+const ROTATED = "Database key rotated.";
+
 const LINK_EXPIRED =
   "This rotation link is no longer valid. Start the rotation again.";
+
+const NO_ROTATION_WAITS =
+  "No rotation waits for this database. Start the rotation again.";
 
 const LOCAL_DB_MESSAGE =
   "This site's database is a local file, so its key cannot be changed.";
@@ -72,14 +77,25 @@ const keySite = (name = "Key Route"): Promise<{ id: number }> =>
     name,
   });
 
+/** The timer page one site's path serves. */
+const timerPagePath = (siteId: number): string =>
+  `/admin/built-sites/${siteId}/rotate-database-key`;
+
 /** Step one of a rotation for one site: its answer. */
 const postRotation = async (siteId: number): Promise<Response> =>
-  (await adminFormPost(`/admin/built-sites/${siteId}/rotate-database-key`))
-    .response;
+  (await adminFormPost(timerPagePath(siteId))).response;
 
-/** The signed step-two link a started rotation answers. */
+/** The timer page a started rotation redirects to. */
+const timerPageOf = async (siteId: number): Promise<Response> => {
+  const post = await postRotation(siteId);
+  expect(post.status).toBe(302);
+  expect(post.headers.get("location")).toBe(timerPagePath(siteId));
+  return await adminGet(timerPagePath(siteId));
+};
+
+/** The signed step-two link the timer page carries. */
 const timerPageLink = async (siteId: number): Promise<string> =>
-  finishUrlOf(await (await postRotation(siteId)).text());
+  finishUrlOf(await (await timerPageOf(siteId)).text());
 
 /** Open one rotation link as the timer page does, once the pause has passed.
  * The request runs inside the faked clock, so its answer comes back before the
@@ -135,6 +151,16 @@ const withKeyAnswers = (
   );
 };
 
+/** Run one route test for a site whose key the host manages, with its provider
+ * calls and secret push faked. */
+const withKeySite = (
+  answers: KeyAnswers,
+  run: (site: { id: number }, calls: RotationCalls) => Promise<void>,
+): Promise<void> =>
+  withKeyAnswers(answers, async (calls) => {
+    await run(await caseSite("bunny"), calls);
+  });
+
 /** Check a refused rotation link made no new key: the site keeps the one it
  * had. */
 const expectLinkRefused = async (
@@ -183,7 +209,7 @@ const expectCaseFlash = async (
   }
   await expectFlashRedirect(
     `/admin/built-sites/${siteId}/secrets`,
-    "Database key rotated.",
+    ROTATED,
   )(response);
 };
 
@@ -335,41 +361,85 @@ describeWithEnv(
       });
     }
 
-    test("answers the timer page with its one-minute reload", async () => {
-      const site = await caseSite("bunny");
-
-      await withKeyAnswers({}, async ({ invalidate, issue }) => {
+    test("answers the POST with a redirect to the timer page", async () => {
+      await withKeySite({}, async (site, { invalidate, issue }) => {
         const response = await postRotation(site.id);
+
+        expect(response.status).toBe(302);
+        expect(response.headers.get("location")).toBe(timerPagePath(site.id));
+        expect(invalidate.calls.map((call) => call.args[0])).toEqual([
+          BUNNY_DB_URL,
+        ]);
+        // The new key waits for the timer.
+        expect(issue.calls.length).toBe(0);
+        expect(await storedKey(site.id)).toBe("old-key");
+      });
+    });
+
+    test("serves the timer page with its one-minute reload", async () => {
+      await withKeySite({}, async (site) => {
+        const response = await timerPageOf(site.id);
 
         expect(response.status).toBe(200);
         expectIncludesAll(await response.text(), [
           "Rotating the database key",
           "It needs a short pause before it can make the new key.",
           "This page waits one minute.",
-          `content="${DATABASE_KEY_PAUSE_SECONDS};url=/admin/built-sites/${site.id}/rotate-database-key/complete?exp=`,
+          `content="${DATABASE_KEY_PAUSE_SECONDS};url=/admin/built-sites/${site.id}/rotate-database-key/complete?`,
         ]);
-        expect(invalidate.calls.map((call) => call.args[0])).toEqual([
-          BUNNY_DB_URL,
-        ]);
-        // The new key waits for the timer.
-        expect(issue.calls.length).toBe(0);
       });
-      expect(await storedKey(site.id)).toBe("old-key");
     });
 
-    test("refuses the timer link until the pause has passed", async () => {
+    test("keeps the same link when the timer page reloads", async () => {
+      await withKeySite({}, async (site) => {
+        const first = await timerPageLink(site.id);
+        const second = finishUrlOf(
+          await (await adminGet(timerPagePath(site.id))).text(),
+        );
+
+        expect(second).toBe(first);
+      });
+    });
+
+    test("opens a timer link once, after its pause, and never for an older start", async () => {
+      await withKeySite({}, async (site, calls) => {
+        using time = new FakeTime(Date.now());
+        const first = await timerPageLink(site.id);
+
+        // The pause is not over yet.
+        await expectLinkRefused(await adminGet(first), calls, site.id);
+
+        // A second start replaces the first, whose pause is still running when
+        // it opens. It must not make a key during the newer start's pause.
+        time.tick(30_000);
+        const second = await timerPageLink(site.id);
+        time.tick(30_000);
+        await expectLinkRefused(await adminGet(first), calls, site.id);
+
+        // The newer start's own pause ends, and its link makes one key.
+        time.tick(30_000);
+        await expectFlashRedirect(
+          `/admin/built-sites/${site.id}/secrets`,
+          ROTATED,
+        )(await adminGet(second));
+        expectErrorFlash(await adminGet(second), LINK_EXPIRED);
+        expect(calls.issue.calls.length).toBe(1);
+      });
+    });
+
+    test("refuses the timer page when no rotation waits", async () => {
       const site = await caseSite("bunny");
 
-      await withKeyAnswers({}, async (calls) => {
-        const link = await timerPageLink(site.id);
-
-        await expectLinkRefused(await adminGet(link), calls, site.id);
-      });
+      expectErrorFlash(
+        await adminGet(timerPagePath(site.id)),
+        NO_ROTATION_WAITS,
+      );
     });
 
-    test("keeps the timer link served in read-only mode", () => {
-      // The operator cannot start a rotation then, and the link that finishes
-      // one still opens: a blocked GET would leave the site with no key.
+    test("keeps the timer routes served in read-only mode", () => {
+      // The operator cannot start a rotation then, and the links that finish
+      // one still open: a blocked GET would leave the site with no key.
+      expect(readOnlyBlock(timerPagePath(42), "GET", false)).toBeNull();
       expect(
         readOnlyBlock(
           "/admin/built-sites/42/rotate-database-key/complete",

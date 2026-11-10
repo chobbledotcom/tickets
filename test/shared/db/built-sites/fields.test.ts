@@ -100,6 +100,7 @@ test("converts plain database values back to site fields", () => {
     assignable: 1,
     assigned_attendee_id: 42,
     assigned_listing_id: 7,
+    database_key_rotation_started: 1,
     read_only_from: "date",
     renewal_token_index: "index",
     site_data_revision: 3,
@@ -115,6 +116,7 @@ test("converts plain database values back to site fields", () => {
     assignable: true,
     assignedAttendeeId: 42,
     assignedListingId: 7,
+    databaseKeyRotationStarted: 1,
     readOnlyFrom: "date",
     renewalTokenIndex: "index",
     siteDataRevision: 3,
@@ -139,6 +141,10 @@ test("defines exact plain defaults and blob mappings", () => {
     siteDataRevision: 0,
     updates: "release",
   });
+  // A site that predates the two-step rotation has none waiting.
+  expect(builtSitePlainSchema.database_key_rotation_started.default?.()).toBe(
+    0,
+  );
   expect(builtSiteBlobColumns).toEqual([
     {
       blobKey: "n",

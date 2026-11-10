@@ -1,27 +1,27 @@
 /** Direct tests for database-key-rotation.ts: which sites this host can change
- *  the key of, what each of the two steps does, and which rotation links it
- *  opens. */
+ *  the key of, and what each of the two steps does. The signed links that
+ *  finish a rotation have their own file beside this one. */
 
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
-import { findBuiltSiteByIdPrimary, insertBuiltSite } from "#db/built-sites.ts";
+import {
+  findBuiltSiteByIdPrimary,
+  insertBuiltSite,
+  requireBuiltSiteByIdPrimary,
+  updateBuiltSite,
+} from "#db/built-sites.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { bunnyDbProvider } from "#shared/bunny-db.ts";
 import {
-  DATABASE_KEY_PAUSE_SECONDS,
-  databaseKeyIssueAllowed,
-  databaseKeyIssueUrl,
+  completeDatabaseKeyRotation,
   databaseKeyRotationAccess,
-  invalidateDatabaseKey,
-  issueDatabaseKey,
+  startDatabaseKeyRotation,
 } from "#shared/database-key-rotation.ts";
-import type { DatabaseProviderApi } from "#shared/provider-types.ts";
-import { errorResult, okResult } from "#shared/result.ts";
-import { tursoDbProvider } from "#shared/turso-api.ts";
+import { errorResult, type Outcome, okResult } from "#shared/result.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { testBuiltSite } from "#test-utils/factories.ts";
 
 const BUNNY_DB_URL = "libsql://site-key.lite.bunnydb.net";
@@ -33,7 +33,6 @@ const HOST_SETTINGS = {
   TURSO_ORGANIZATION: "org",
 };
 
-const PROVIDERS = { bunny: bunnyDbProvider, turso: tursoDbProvider };
 const DB_URLS = {
   bunny: BUNNY_DB_URL,
   local: "file:local.db",
@@ -42,9 +41,75 @@ const DB_URLS = {
   turso: TURSO_DB_URL,
 };
 
+/** The clock every rotation test runs on, and the second it names. */
+const START_MS = 1_700_000_000_000;
+const START_S = START_MS / 1000;
+
 /** A blank answer is a success. Any other text is the error. */
 const outcomeOf = (error: string) =>
   error ? errorResult(error) : { ok: true as const };
+
+/** Stand in for the provider calls one test makes: each answers its own error,
+ * and otherwise removes the keys or makes "new-key". */
+const stubProviderCalls = (
+  provider: typeof bunnyDbProvider,
+  answers: { invalidate?: string; issue?: string },
+) => {
+  const invalidate = stub(provider, "invalidateDatabaseTokens", () =>
+    Promise.resolve(
+      answers.invalidate
+        ? errorResult(answers.invalidate)
+        : okResult(undefined),
+    ),
+  );
+  const issue = stub(provider, "issueDatabaseToken", () =>
+    Promise.resolve(
+      answers.issue ? errorResult(answers.issue) : okResult("new-key"),
+    ),
+  );
+  return {
+    [Symbol.dispose]: () => {
+      invalidate.restore();
+      issue.restore();
+    },
+    invalidate,
+    issue,
+  };
+};
+
+/** Stand in for the secret push, and keep every value it sent. */
+const stubSecretPush = (error = "") => {
+  const pushes: unknown[][] = [];
+  const push = stub(bunnyCdnApi, "setEdgeScriptSecret", (...sent) => {
+    pushes.push(sent);
+    return Promise.resolve(outcomeOf(error));
+  });
+  return {
+    [Symbol.dispose]: () => push.restore(),
+    pushes,
+  };
+};
+
+/** One site whose database key the host manages. */
+const keySite = async (dbUrl = BUNNY_DB_URL): Promise<number> =>
+  (
+    await insertBuiltSite(
+      "Key Site",
+      "https://key.test",
+      dbUrl,
+      "old-key",
+      false,
+      "9100",
+    )
+  ).id;
+
+/** The second the site's rotation began, or 0 when none waits. */
+const claimOf = async (id: number): Promise<number> =>
+  (await findBuiltSiteByIdPrimary(id))!.databaseKeyRotationStarted;
+
+/** The key the site record holds now. */
+const storedKeyOf = async (id: number): Promise<string> =>
+  (await findBuiltSiteByIdPrimary(id))!.dbToken;
 
 /* jscpd:ignore-start -- a list of strings, not code */
 /** Each refusal: the database, the hosting ID, the host settings that are
@@ -101,125 +166,6 @@ const ACCESS_REFUSALS: [
 ];
 /* jscpd:ignore-end */
 
-/** The two steps of a rotation. */
-const STEPS = {
-  invalidate: invalidateDatabaseKey,
-  issue: issueDatabaseKey,
-} as const;
-
-/** Stand in for one provider step: a blank error answers the key the host
- * stores, and any other text is the provider's refusal. */
-const stubStep = (
-  provider: DatabaseProviderApi,
-  step: keyof typeof STEPS,
-  error: string,
-) =>
-  step === "invalidate"
-    ? stub(provider, "invalidateDatabaseTokens", () =>
-        Promise.resolve(error ? errorResult(error) : okResult(undefined)),
-      )
-    : stub(provider, "issueDatabaseToken", () =>
-        Promise.resolve(error ? errorResult(error) : okResult("new-key")),
-      );
-
-/* jscpd:ignore-start -- a list of strings, not code */
-/** Each step: which one runs, the site's database, the provider, the error the
- * provider answers, the error the site's secret store answers, the error the
- * caller reads, and the key the site record holds afterwards. A blank error is
- * a success. */
-const STEPS_UNDER_TEST: [
-  name: string,
-  step: keyof typeof STEPS,
-  database: keyof typeof DB_URLS,
-  provider: keyof typeof PROVIDERS,
-  providerError: string,
-  pushError: string,
-  outcomeError: string,
-  stored: string,
-][] = [
-  [
-    "removes every old Bunny key and stores nothing",
-    "invalidate",
-    "bunny",
-    "bunny",
-    "",
-    "",
-    "",
-    "old-key",
-  ],
-  [
-    "removes every old Turso key and stores nothing",
-    "invalidate",
-    "turso",
-    "turso",
-    "",
-    "",
-    "",
-    "old-key",
-  ],
-  [
-    "reports a refused key removal and keeps the stored key",
-    "invalidate",
-    "bunny",
-    "bunny",
-    "Revoke database tokens failed (500)",
-    "",
-    "Revoke database tokens failed (500)",
-    "old-key",
-  ],
-  [
-    "refuses a database this host does not manage",
-    "invalidate",
-    "local",
-    "bunny",
-    "",
-    "",
-    "This site's database is a local file, so its key cannot be changed.",
-    "old-key",
-  ],
-  [
-    "stores the new Bunny key and sends it to the site",
-    "issue",
-    "bunny",
-    "bunny",
-    "",
-    "",
-    "",
-    "new-key",
-  ],
-  [
-    "stores the new Turso key and sends it to the site",
-    "issue",
-    "turso",
-    "turso",
-    "",
-    "",
-    "",
-    "new-key",
-  ],
-  [
-    "leaves the stored key alone when the provider refuses a new key",
-    "issue",
-    "bunny",
-    "bunny",
-    "Rotate database key failed (500)",
-    "",
-    "Rotate database key failed (500)",
-    "old-key",
-  ],
-  [
-    "keeps the new key stored when the push fails, so a retry can finish",
-    "issue",
-    "bunny",
-    "bunny",
-    "",
-    "Set secret DB_TOKEN failed (500)",
-    "The database key changed, but the site did not receive it. Rotate the key again to retry. Set secret DB_TOKEN failed (500)",
-    "new-key",
-  ],
-];
-/* jscpd:ignore-end */
-
 describeWithEnv("database key rotation access", { env: HOST_SETTINGS }, () => {
   for (const [name, database, hostingId, unset, error] of ACCESS_REFUSALS) {
     test(name, () => {
@@ -248,117 +194,278 @@ describeWithEnv("database key rotation access", { env: HOST_SETTINGS }, () => {
   });
 });
 
-describeWithEnv("database key steps", { db: true, env: HOST_SETTINGS }, () => {
-  for (const [
-    name,
-    step,
-    database,
-    provider,
-    providerError,
-    pushError,
-    outcomeError,
-    stored,
-  ] of STEPS_UNDER_TEST) {
-    test(name, async () => {
-      const { id } = await insertBuiltSite(
-        "Key Site",
-        "https://key.test",
-        DB_URLS[database],
-        "old-key",
-        false,
-        "9100",
-      );
-      const pushed: unknown[][] = [];
-      using stepStub = stubStep(PROVIDERS[provider], step, providerError);
-      using _push = stub(bunnyCdnApi, "setEdgeScriptSecret", (...sent) => {
-        pushed.push(sent);
-        return Promise.resolve(outcomeOf(pushError));
-      });
+/* jscpd:ignore-start -- a list of strings, not code */
+/** Each refused start: the site's database, the error the provider answers, the
+ * message the caller reads, and the provider calls it made. */
+const START_REFUSALS: [
+  name: string,
+  dbUrl: string,
+  invalidate: string,
+  error: string,
+  calls: number,
+][] = [
+  [
+    "records no pause when the provider refuses the key removal",
+    BUNNY_DB_URL,
+    "Revoke database tokens failed (500)",
+    "Revoke database tokens failed (500)",
+    1,
+  ],
+  [
+    "refuses a database this host does not manage, and reaches no provider",
+    "file:local.db",
+    "",
+    "This site's database is a local file, so its key cannot be changed.",
+    0,
+  ],
+];
+/* jscpd:ignore-end */
 
-      const site = (await findBuiltSiteByIdPrimary(id))!;
-      expect(await STEPS[step](site)).toEqual(outcomeOf(outcomeError));
-      // A refused site never reaches the provider.
-      expect(stepStub.calls.length).toBe(database === "local" ? 0 : 1);
-      const issued = step === "issue" && !providerError;
-      expect(pushed).toEqual(issued ? [[9100, "DB_TOKEN", "new-key"]] : []);
-      expect((await findBuiltSiteByIdPrimary(id))!.dbToken).toBe(stored);
+describeWithEnv("database key start", { db: true, env: HOST_SETTINGS }, () => {
+  test("removes every old key, records the pause, and stores no key", async () => {
+    using _time = new FakeTime(START_MS);
+    const site = (await findBuiltSiteByIdPrimary(await keySite()))!;
+    using calls = stubProviderCalls(bunnyDbProvider, {});
+
+    expect(await startDatabaseKeyRotation(site)).toEqual({
+      ok: true,
+      value: START_S,
+    });
+    expect(calls.invalidate.calls.map((call) => call.args[0])).toEqual([
+      BUNNY_DB_URL,
+    ]);
+    expect(calls.issue.calls.length).toBe(0);
+    expect(await storedKeyOf(site.id)).toBe("old-key");
+    expect(await claimOf(site.id)).toBe(START_S);
+  });
+
+  test("replaces the start a rotation was already waiting on", async () => {
+    using time = new FakeTime(START_MS);
+    const site = (await findBuiltSiteByIdPrimary(await keySite()))!;
+    using _calls = stubProviderCalls(bunnyDbProvider, {});
+
+    await startDatabaseKeyRotation(site);
+    time.tick(30_000);
+    expect(await startDatabaseKeyRotation(site)).toEqual({
+      ok: true,
+      value: START_S + 30,
+    });
+    expect(await claimOf(site.id)).toBe(START_S + 30);
+  });
+
+  for (const [name, dbUrl, invalidate, error, calls] of START_REFUSALS) {
+    test(name, async () => {
+      const site = (await findBuiltSiteByIdPrimary(await keySite(dbUrl)))!;
+      using provider = stubProviderCalls(bunnyDbProvider, { invalidate });
+
+      expect(await startDatabaseKeyRotation(site)).toEqual({
+        error,
+        ok: false,
+      });
+      expect(provider.invalidate.calls.length).toBe(calls);
+      expect(await claimOf(site.id)).toBe(0);
+      expect(await storedKeyOf(site.id)).toBe("old-key");
     });
   }
 });
 
-/** Seconds a rotation link stays open. */
-const LINK_SECONDS = 600;
+/** Start a rotation on the faked clock and answer its start second. */
+const startedClaim = async (site: number): Promise<number> => {
+  const result = await startDatabaseKeyRotation(
+    await requireBuiltSiteByIdPrimary(site),
+  );
+  if (!result.ok) throw new Error(result.error);
+  return result.value;
+};
 
-/** The pause a link waits out before it opens. */
-const PAUSE_MS = DATABASE_KEY_PAUSE_SECONDS * 1000;
+/** The fakes one completion test needs, live until the test ends. */
+interface WaitingRotation extends Disposable {
+  calls: ReturnType<typeof stubProviderCalls>;
+  id: number;
+  pushes: unknown[][];
+  started: number;
+}
 
-/** The clock every link test signs on. */
-const START_MS = 1_700_000_000_000;
-
-describe("database key rotation links", () => {
-  let fakeTime: FakeTime;
-
-  beforeEach(() => {
-    setupTestEncryptionKey();
-    fakeTime = new FakeTime(START_MS);
-  });
-
-  afterEach(() => fakeTime.restore());
-
-  const signedLink = async (
-    siteId = 7,
-  ): Promise<{ exp: string | null; sig: string | null }> => {
-    const params = new URL(`http://x${await databaseKeyIssueUrl(siteId)}`)
-      .searchParams;
-    return { exp: params.get("exp"), sig: params.get("sig") };
+/** One site whose rotation waits, with the provider calls and the secret push
+ * faked. A step a test leaves out answers success. */
+const waitingRotation = async (
+  answers: { invalidate?: string; issue?: string; push?: string } = {},
+): Promise<WaitingRotation> => {
+  const id = await keySite();
+  const calls = stubProviderCalls(bunnyDbProvider, answers);
+  const push = stubSecretPush(answers.push);
+  const started = await startedClaim(id);
+  return {
+    [Symbol.dispose]: () => {
+      push[Symbol.dispose]();
+      calls[Symbol.dispose]();
+    },
+    calls,
+    id,
+    pushes: push.pushes,
+    started,
   };
+};
 
-  test("signs the site's own completion route for ten minutes", async () => {
-    const url = await databaseKeyIssueUrl(7);
-    expect(
-      url.startsWith("/admin/built-sites/7/rotate-database-key/complete?exp="),
-    ).toBe(true);
-    const expiry = Number.parseInt(
-      new URL(`http://x${url}`).searchParams.get("exp") ?? "",
-      10,
-    );
-    expect(expiry - Math.floor(START_MS / 1000)).toBe(LINK_SECONDS);
-  });
+/** Complete the rotation one waiting site holds, as its timer link does. */
+const completeWaitingRotation = async (
+  rotation: WaitingRotation,
+): Promise<Outcome> =>
+  completeDatabaseKeyRotation(
+    await requireBuiltSiteByIdPrimary(rotation.id),
+    rotation.started,
+  );
 
-  test("opens a link for its own site once the pause has passed", async () => {
-    const { exp, sig } = await signedLink(7);
-    fakeTime.tick(PAUSE_MS);
-    expect(await databaseKeyIssueAllowed(7, exp, sig)).toBe(true);
-    expect(await databaseKeyIssueAllowed(8, exp, sig)).toBe(false);
-  });
+/* jscpd:ignore-start -- a list of strings, not code */
+/** Each completion answer: the faked answers, the outcome the caller reads, the
+ * key the record holds, the pushes it sent, and the start it leaves waiting. */
+const COMPLETION_CASES: [
+  name: string,
+  answers: { issue?: string; push?: string },
+  outcome: Outcome,
+  stored: string,
+  pushes: unknown[][],
+  claim: number,
+][] = [
+  [
+    "makes, stores and sends the key",
+    {},
+    { ok: true },
+    "new-key",
+    [[9100, "DB_TOKEN", "new-key"]],
+    0,
+  ],
+  [
+    "leaves the stored key alone when the provider refuses a new key",
+    { issue: "Rotate database key failed (500)" },
+    { error: "Rotate database key failed (500)", ok: false },
+    "old-key",
+    [],
+    0,
+  ],
+  [
+    "keeps the new key stored when the push fails, so a retry can finish",
+    { push: "Set secret DB_TOKEN failed (500)" },
+    {
+      error:
+        "The database key changed, but the site did not receive it. Rotate the key again to retry. Set secret DB_TOKEN failed (500)",
+      ok: false,
+    },
+    "new-key",
+    [[9100, "DB_TOKEN", "new-key"]],
+    0,
+  ],
+];
+/* jscpd:ignore-end */
 
-  test("refuses a link opened before the pause ends", async () => {
-    const link = await signedLink(7);
-    fakeTime.tick(PAUSE_MS - 1000);
-    expect(await databaseKeyIssueAllowed(7, link.exp, link.sig)).toBe(false);
-    fakeTime.tick(1000);
-    expect(await databaseKeyIssueAllowed(7, link.exp, link.sig)).toBe(true);
-  });
+describeWithEnv(
+  "database key completion",
+  { db: true, env: HOST_SETTINGS },
+  () => {
+    for (const [
+      name,
+      answers,
+      outcome,
+      stored,
+      pushes,
+      claim,
+    ] of COMPLETION_CASES) {
+      test(name, async () => {
+        using _time = new FakeTime(START_MS);
+        using rotation = await waitingRotation(answers);
 
-  test("refuses a link after ten minutes", async () => {
-    const link = await signedLink(7);
-    fakeTime.tick((LINK_SECONDS + 1) * 1000);
-    expect(await databaseKeyIssueAllowed(7, link.exp, link.sig)).toBe(false);
-  });
+        expect(await completeWaitingRotation(rotation)).toEqual(outcome);
+        expect(rotation.calls.issue.calls.length).toBe(1);
+        expect(rotation.pushes).toEqual(pushes);
+        expect(await storedKeyOf(rotation.id)).toBe(stored);
+        expect(await claimOf(rotation.id)).toBe(claim);
+      });
+    }
 
-  test("refuses a link with no expiry or no signature", async () => {
-    const { exp, sig } = await signedLink(7);
-    expect(await databaseKeyIssueAllowed(7, null, sig)).toBe(false);
-    expect(await databaseKeyIssueAllowed(7, exp, null)).toBe(false);
-  });
+    test("refuses an older start, and one it already used", async () => {
+      using time = new FakeTime(START_MS);
+      using rotation = await waitingRotation();
+      time.tick(30_000);
+      const newer = await startedClaim(rotation.id);
 
-  test("refuses an altered link", async () => {
-    const { exp, sig } = await signedLink(7);
-    const farFuture = String(Math.floor(START_MS / 1000) + LINK_SECONDS + 61);
-    expect(await databaseKeyIssueAllowed(7, farFuture, sig)).toBe(false);
-    expect(await databaseKeyIssueAllowed(7, "notanumber", sig)).toBe(false);
-    expect(await databaseKeyIssueAllowed(7, exp, `${sig ?? ""}XXXX`)).toBe(
-      false,
-    );
-  });
-});
+      expect(await completeWaitingRotation(rotation)).toEqual({
+        error:
+          "This rotation link is no longer valid. Start the rotation again.",
+        ok: false,
+      });
+      expect(await claimOf(rotation.id)).toBe(newer);
+
+      expect(
+        await completeDatabaseKeyRotation(
+          await requireBuiltSiteByIdPrimary(rotation.id),
+          newer,
+        ),
+      ).toEqual({ ok: true });
+      expect(
+        await completeDatabaseKeyRotation(
+          await requireBuiltSiteByIdPrimary(rotation.id),
+          newer,
+        ),
+      ).toEqual({
+        error:
+          "This rotation link is no longer valid. Start the rotation again.",
+        ok: false,
+      });
+      expect(rotation.calls.issue.calls.length).toBe(1);
+    });
+
+    test("drops the key it made when another rotation starts meanwhile", async () => {
+      using _time = new FakeTime(START_MS);
+      const id = await keySite();
+      using _invalidate = stub(
+        bunnyDbProvider,
+        "invalidateDatabaseTokens",
+        () => Promise.resolve(okResult(undefined)),
+      );
+      const started = await startedClaim(id);
+      using push = stubSecretPush();
+      // The provider call takes long enough for a second start to land.
+      using _issue = stub(bunnyDbProvider, "issueDatabaseToken", async () => {
+        await updateBuiltSite(id, () => ({
+          databaseKeyRotationStarted: started + 1,
+        }));
+        return okResult("new-key");
+      });
+
+      expect(
+        await completeDatabaseKeyRotation(
+          await requireBuiltSiteByIdPrimary(id),
+          started,
+        ),
+      ).toEqual({
+        error:
+          "Another rotation started for this database. Finish it from its timer page, or start the rotation again.",
+        ok: false,
+      });
+      expect(push.pushes).toEqual([]);
+      expect(await storedKeyOf(id)).toBe("old-key");
+      expect(await claimOf(id)).toBe(started + 1);
+    });
+
+    test("keeps the waiting start when this host cannot finish the rotation", async () => {
+      const id = await keySite("file:local.db");
+      await updateBuiltSite(id, () => ({
+        databaseKeyRotationStarted: START_S,
+      }));
+      using calls = stubProviderCalls(bunnyDbProvider, {});
+
+      expect(
+        await completeDatabaseKeyRotation(
+          await requireBuiltSiteByIdPrimary(id),
+          START_S,
+        ),
+      ).toEqual({
+        error:
+          "This site's database is a local file, so its key cannot be changed.",
+        ok: false,
+      });
+      expect(calls.issue.calls.length).toBe(0);
+      expect(await claimOf(id)).toBe(START_S);
+    });
+  },
+);

@@ -144,7 +144,12 @@ export const AREAS_A_L = {
       builtSiteProvisionRenewal: "/admin/built-sites/:id/provision-renewal",
       builtSiteProvisionScheduler: "/admin/built-sites/:id/provision-scheduler",
       builtSiteReSyncDeadline: "/admin/built-sites/:id/re-sync-deadline",
-      builtSiteRotateDatabaseKey: "/admin/built-sites/:id/rotate-database-key",
+      builtSiteRotateDatabaseKey: {
+        // The POST's redirect opens this GET, which carries the timer page's
+        // signed link, so read-only mode keeps serving it.
+        pattern: "/admin/built-sites/:id/rotate-database-key",
+        readOnlyGet: true,
+      },
       builtSiteRotateRenewalToken:
         "/admin/built-sites/:id/rotate-renewal-token",
       builtSiteSupportMessage: {

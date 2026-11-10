@@ -8,7 +8,12 @@ import {
   type RotateDatabaseKeyCliDeps,
   runRotateDatabaseKeyCli,
 } from "#scripts/rotate-database-key/run.ts";
-import { errorResult, type Outcome, okResult } from "#shared/result.ts";
+import {
+  errorResult,
+  type Outcome,
+  okResult,
+  type Result,
+} from "#shared/result.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { testBuiltSite } from "#test-utils/factories.ts";
 
@@ -20,11 +25,14 @@ const bunnySite = (id: number, name: string): BuiltSite =>
     name,
   });
 
+/** The second a walk's start answers, which the completion receives. */
+const START_S = 1_700_000_000;
+
 interface CliState {
+  completed: { name: string; started: number }[];
   deps: RotateDatabaseKeyCliDeps;
-  invalidated: string[];
-  issued: string[];
   prompts: string[];
+  started: string[];
   stderr: string[];
   stdout: string[];
   waited: number[];
@@ -35,35 +43,35 @@ const cliState = (
   options: {
     answers?: (string | null)[];
     args?: string[];
-    invalidate?: Outcome;
-    issue?: Outcome;
+    complete?: Outcome;
     sites?: BuiltSite[];
+    start?: Result<number>;
   } = {},
 ): CliState => {
   const answers = [...(options.answers ?? [])];
   const state = {
-    invalidated: [] as string[],
-    issued: [] as string[],
+    completed: [] as { name: string; started: number }[],
     prompts: [] as string[],
+    started: [] as string[],
     stderr: [] as string[],
     stdout: [] as string[],
     waited: [] as number[],
   };
   const deps: RotateDatabaseKeyCliDeps = {
     args: options.args ?? [],
+    completeRotation: (site, started) => {
+      state.completed.push({ name: site.name, started });
+      return Promise.resolve(options.complete ?? okResult(undefined));
+    },
     getEnv: (key) => Deno.env.get(key),
-    invalidateKey: (site) => {
-      state.invalidated.push(site.name);
-      return Promise.resolve(options.invalidate ?? okResult(undefined));
-    },
-    issueKey: (site) => {
-      state.issued.push(site.name);
-      return Promise.resolve(options.issue ?? okResult(undefined));
-    },
     listSites: () => Promise.resolve(options.sites ?? [bunnySite(1, "one")]),
     prompt: (message) => {
       state.prompts.push(message);
       return answers.shift() ?? null;
+    },
+    startRotation: (site) => {
+      state.started.push(site.name);
+      return Promise.resolve(options.start ?? okResult(START_S));
     },
     stderr: (line) => state.stderr.push(line),
     stdout: (line) => state.stdout.push(line),
@@ -92,11 +100,11 @@ const STOPPED_WALKS: [
   args: string,
   sites: keyof typeof SITES,
   answers: string,
-  invalidateError: string,
-  issueError: string,
+  startError: string,
+  completeError: string,
   stderr: string,
-  invalidated: string,
-  issued: string,
+  started: string,
+  completed: string,
   waited: string,
 ][] = [
   ["stops when the person quits", "", "one", "q", "", "", "", "", "", ""],
@@ -219,9 +227,9 @@ describeWithEnv(
       expect(await runRotateDatabaseKeyCli(state.deps)).toBe(0);
 
       expect(state).toMatchObject({
-        invalidated: ["Second"],
-        issued: ["Second"],
+        completed: [{ name: "Second", started: START_S }],
         prompts: [MENU_PROMPT, "Type the site name to confirm (Second):"],
+        started: ["Second"],
         stdout: [
           "\nSites:",
           "  1. First — bunny database (script 11)",
@@ -240,35 +248,35 @@ describeWithEnv(
         args,
         sites,
         answers,
-        invalidateError,
-        issueError,
+        startError,
+        completeError,
         stderr,
-        invalidated,
-        issued,
+        started,
+        completed,
         waited,
       ] = walk;
       test(name, async () => {
         const state = cliState({
           answers: listOf(answers, "|"),
           args: listOf(args, " "),
-          invalidate: invalidateError
-            ? errorResult(invalidateError)
+          complete: completeError
+            ? errorResult(completeError)
             : okResult(undefined),
-          issue: issueError ? errorResult(issueError) : okResult(undefined),
           sites: SITES[sites],
+          start: startError ? errorResult(startError) : okResult(START_S),
         });
 
         expect([
           await runRotateDatabaseKeyCli(state.deps),
           state.stderr,
-          state.invalidated,
-          state.issued,
+          state.started,
+          state.completed.map((one) => one.name),
           state.waited,
         ]).toEqual([
           stderr ? 1 : 0,
           listOf(stderr, "\n"),
-          listOf(invalidated, "|"),
-          listOf(issued, "|"),
+          listOf(started, "|"),
+          listOf(completed, "|"),
           listOf(waited, "|").map(Number),
         ]);
       });
