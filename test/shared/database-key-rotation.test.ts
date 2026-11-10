@@ -44,7 +44,6 @@ const DB_URLS = {
 
 /** The fixed clock shared by the provider-step tests. */
 const START_MS = 1_700_000_000_000;
-const ROTATION_STARTED_MS = START_MS;
 
 /** A blank answer is a success. Any other text is the error. */
 const outcomeOf = (error: string) =>
@@ -230,14 +229,14 @@ describeWithEnv("database key start", { db: true, env: HOST_SETTINGS }, () => {
 
     expect(await startDatabaseKeyRotation(site)).toEqual({
       ok: true,
-      value: ROTATION_STARTED_MS,
+      value: START_MS,
     });
     expect(calls.invalidate.calls.map((call) => call.args[0])).toEqual([
       BUNNY_DB_URL,
     ]);
     expect(calls.issue.calls.length).toBe(0);
     expect(await storedKeyOf(site.id)).toBe("old-key");
-    expect(await claimOf(site.id)).toBe(ROTATION_STARTED_MS);
+    expect(await claimOf(site.id)).toBe(START_MS);
   });
 
   test("replaces the start a rotation was already waiting on", async () => {
@@ -249,9 +248,9 @@ describeWithEnv("database key start", { db: true, env: HOST_SETTINGS }, () => {
     time.tick(30_000);
     expect(await startDatabaseKeyRotation(site)).toEqual({
       ok: true,
-      value: ROTATION_STARTED_MS + 30_000,
+      value: START_MS + 30_000,
     });
-    expect(await claimOf(site.id)).toBe(ROTATION_STARTED_MS + 30_000);
+    expect(await claimOf(site.id)).toBe(START_MS + 30_000);
   });
 
   for (const [name, dbUrl, invalidate, error, calls] of START_REFUSALS) {
@@ -408,14 +407,14 @@ describeWithEnv(
     test("keeps the waiting start when this host cannot finish the rotation", async () => {
       const id = await keySite("file:local.db");
       await updateBuiltSite(id, () => ({
-        databaseKeyRotationStarted: ROTATION_STARTED_MS,
+        databaseKeyRotationStarted: START_MS,
       }));
       using calls = stubProviderCalls(bunnyDbProvider, {});
 
       expect(
         await completeDatabaseKeyRotation(
           await requireBuiltSiteByIdPrimary(id),
-          ROTATION_STARTED_MS,
+          START_MS,
         ),
       ).toEqual({
         error:
@@ -423,7 +422,7 @@ describeWithEnv(
         ok: false,
       });
       expect(calls.issue.calls.length).toBe(0);
-      expect(await claimOf(id)).toBe(ROTATION_STARTED_MS);
+      expect(await claimOf(id)).toBe(START_MS);
     });
   },
 );
