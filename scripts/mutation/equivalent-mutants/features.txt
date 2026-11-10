@@ -236,8 +236,7 @@ src/features/admin/bulk-email.ts::composeGetRoute.draft.marketing~0aepv7o  ?? �
 # fallback for null is the same 0 that the literal "0" parses to, so no posted
 # value tells the operators or the spellings apart.
 src/features/public/ticket-form.ts::collectValuesByListing.list~0zcnvvx  ?? → || audited:1ws6dyl # the answer bucket is an array or absent, and an array is always truthy
-src/features/public/ticket-form.ts::parseQuantities.raw~11sglfa  0 → "" audited:1ws6dyl # "" parses to null then the minimum supplies 0; the literal "0" parses to 0 directly
-src/features/public/ticket-form.ts::parseAddOnSelections.quantity~1ksz3r2  0 → "" audited:1ws6dyl # both spellings parse to zero add-ons, which the caller drops
+src/features/public/ticket-form.ts::positiveQuantities.quantity~0hh8mew  0 → "" audited:1cgbyrq # "" parses to null and the minimum supplies 0, so a blank ticket quantity and a blank add-on both read as zero
 src/features/public/ticket-submit/parse.ts::quantityRefusal.selectedQty~1av017t  ?? → || audited:0b6yobx # the parser answers a whole number or null, and 0 is the fallback, so 0 || 0 = 0 ?? 0
 src/features/public/ticket-submit/parse.ts::quantityRefusal.selectedQty~1bh9sz0  ?? → || audited:0b6yobx # form.get answers a string or absent; "" parses to null and falls to the same 0 the "0" literal parses to
 src/features/public/ticket-submit/parse.ts::quantityRefusal.selectedQty~1bh9sz0  0 → "" audited:0b6yobx # "" parses to null then the outer fallback supplies 0; the literal "0" parses to 0 directly
