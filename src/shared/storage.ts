@@ -318,7 +318,7 @@ const collectStream = async (
   for await (const value of streamChunks(stream)) {
     chunks.push(value);
   }
-  return concatBytes(...chunks);
+  return concatBytes(chunks);
 };
 
 /** Check if an error is a storage SDK "file not found" error */

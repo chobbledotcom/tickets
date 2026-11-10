@@ -35,12 +35,12 @@ export const encodeDer = (
   ) {
     throw new Error(`Unsupported DER tag: ${tag}`);
   }
-  const contents = concatBytes(...parts);
-  return concatBytes(
+  const contents = concatBytes(parts);
+  return concatBytes([
     new Uint8Array([tag]),
     encodeLength(contents.length),
     contents,
-  );
+  ]);
 };
 
 export const encodeSequence = (parts: readonly Uint8Array[]): Uint8Array =>
