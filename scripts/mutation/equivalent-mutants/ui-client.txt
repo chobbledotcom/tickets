@@ -104,7 +104,13 @@ src/ui/client/admin/schema-atlas.ts::buildMachine.badge%2etextContent~0ipfp2l = 
 src/ui/client/admin/schema-atlas.ts::buildMachine.detail%2etextContent~18i836f = → += audited:1lklx5e # same: the <title> is fresh, so append equals assign
 src/ui/client/quantity-select.ts::showQuantitySelect.option%2evalue~0vl4jmp =→+= audited:1e7mtm9 # a fresh option starts with an empty value, so appending writes the same string
 src/ui/client/quantity-select.ts::showQuantitySelect.option%2etextContent~0c55drx =→+= audited:1e7mtm9 # a fresh option starts with empty text, so appending writes the same string
-src/ui/client/confirm-dialog.ts::queue.wait~0a69ai3  ?? → || audited:1157i3i # the stored turn is a Promise or undefined, and a Promise is truthy even when it later rejects, so both operators answer the same turn
+src/ui/client/confirm-dialog.ts::queue.wait~0a69ai3  ?? → || audited:1xcl2go # the stored turn is a Promise or undefined, and a Promise is truthy even when it later rejects, so both operators answer the same turn
+
+# One answer takes the overlay's handlers away through the abort signal. A
+# handler left behind can only answer a question already settled: the resolve
+# is a no-op and hiding the hidden overlay is idempotent, so the live dialog
+# still answers exactly as it does with the removal in place.
+src/ui/client/confirm-dialog.ts::askOverlay.finish~1vwbyrm listeners.abort();→(removed) audited:1xcl2go # every answer already hid the overlay and resolved its own promise, so a surviving click or Escape handler reaches the next dialog as one more no-op beside the live handler
 
 # The camera page renders data-message-camera-denied with the same words as
 # the script's fallback, and server-rendered markup never sets an empty
@@ -196,5 +202,5 @@ src/ui/client/embed.ts::initEmbed.iframe%2estyle%2eborder~0jzb6gh  =→+= audite
 src/ui/client/embed.ts::initEmbed.iframe%2estyle%2ewidth~1dq2brj  =→+= audited:12lmnd9 # a fresh element's style declaration is empty, so "" + "100%" === "100%"
 
 # --- Admin attendee merge additions ---------------------------------------------
-src/features/admin/attendees-merge.ts::loadMergeSource~1um054e  false→true audited:0z1zcf7 # decryptPiiBlob's paidListing arg only fills payment_id, and no merge reader reads the source's payment_id
-src/features/admin/attendees-merge.ts::oneChoiceOf~16ss0cv  ??→|| audited:0z1zcf7 # find returns a member of a non-empty known list or undefined; both fallbacks agree
+src/features/admin/attendees-merge.ts::loadMergeSource~1um054e  false→true audited:0zk5c3l # decryptPiiBlob's paidListing arg only fills payment_id, and no merge reader reads the source's payment_id
+src/features/admin/attendees-merge.ts::oneChoiceOf~16ss0cv  ??→|| audited:0zk5c3l # find returns a member of a non-empty known list or undefined; both fallbacks agree

@@ -49,9 +49,9 @@ src/features/tickets/token-utils.ts::verifyTokensWithRealLine.verified.realBooki
 # Ticket form parsing (ticket-form.ts): `?? → ||` where the operand is an array,
 # an object, a Map.get number (only falsy-non-null is 0, 0??0===0||0), or a
 # string that is never the empty string — so the two operators always agree.
-src/features/public/ticket-form.ts::collectValuesByListing.listingIds~0go5ifo  ?? → || audited:1ws6dyl # questionListingMap.get(): number[]|undefined — arrays always truthy
-src/features/public/ticket-form.ts::ticketFormErrorResponse.url~0i79mbu  ?? → || audited:1ws6dyl # ctx.actionUrl: string|undefined, only ever a real URL or undefined (never ""), so ?? and || agree
-src/features/public/ticket-form.ts::listingsWithQuantity.withQty.qty~0q3jgeq  ?? → || audited:1ws6dyl # quantities.get(): number|undefined; the only falsy number is 0, 0??0===0||0
+src/features/public/ticket-form.ts::collectValuesByListing.listingIds~0go5ifo  ?? → || audited:1cgbyrq # questionListingMap.get(): number[]|undefined — arrays always truthy
+src/features/public/ticket-form.ts::ticketFormErrorResponse.url~0i79mbu  ?? → || audited:1cgbyrq # ctx.actionUrl: string|undefined, only ever a real URL or undefined (never ""), so ?? and || agree
+src/features/public/ticket-form.ts::listingsWithQuantity.withQty.qty~0q3jgeq  ?? → || audited:1cgbyrq # quantities.get(): number|undefined; the only falsy number is 0, 0??0===0||0
 
 # attendee entity page: `?? → ||` where the operand's only falsy-non-null
 # value equals the "" fallback.
@@ -93,7 +93,7 @@ src/features/admin/group-page-data.ts::loadGroupEditPanel.members.dayPrices~1i7v
 
 # Admin attendee-merge routes (src/features/admin/attendees-merge.ts) — mutants
 # with no observable effect through any reachable caller or input.
-src/features/admin/attendees-merge.ts::updateTargetPiiFromDecision.keptIsPinned~18lqcgb  && → || audited:0za963m # keptIsPinned = Boolean(kept.lat && kept.lng): lat/lng are always both non-empty or both "" (parseCoordinatePair requires both-or-neither, and every write path — the logistics route, the attendee-form addressUnchanged branch, and the merge's own addressFrom — preserves that pair), so `&&` and `||` agree on every reachable value
+src/features/admin/attendees-merge.ts::updateTargetPiiFromDecision.keptIsPinned~18lqcgb  && → || audited:0zk5c3l # keptIsPinned = Boolean(kept.lat && kept.lng): lat/lng are always both non-empty or both "" (parseCoordinatePair requires both-or-neither, and every write path — the logistics route, the attendee-form addressUnchanged branch, and the merge's own addressFrom — preserves that pair), so `&&` and `||` agree on every reachable value
 # contact-tokens.ts — `?? → ||` sites whose operand can never be a
 # falsy-but-non-null value.
 src/shared/db/contact-tokens.ts::loadTokenBlob~0hgbweg  ?? → || audited:0sppv7e # loadTokenBlob's `row?.attendee_tokens_blob ?? null`: attendee_tokens_blob is string|undefined; the only falsy-non-null is "" and tokenLinesFrom("") === tokenLinesFrom(null) === [], so ?? and || agree
@@ -235,7 +235,7 @@ src/features/admin/bulk-email.ts::composeGetRoute.draft.marketing~0aepv7o  ?? �
 # Form-quantity fallbacks: the parser answers a whole number or null, and the
 # fallback for null is the same 0 that the literal "0" parses to, so no posted
 # value tells the operators or the spellings apart.
-src/features/public/ticket-form.ts::collectValuesByListing.list~0zcnvvx  ?? → || audited:1ws6dyl # the answer bucket is an array or absent, and an array is always truthy
+src/features/public/ticket-form.ts::collectValuesByListing.list~0zcnvvx  ?? → || audited:1cgbyrq # the answer bucket is an array or absent, and an array is always truthy
 src/features/public/ticket-form.ts::positiveQuantities.quantity~0hh8mew  0 → "" audited:1cgbyrq # "" parses to null and the minimum supplies 0, so a blank ticket quantity and a blank add-on both read as zero
 src/features/public/ticket-submit/parse.ts::quantityRefusal.selectedQty~1av017t  ?? → || audited:0b6yobx # the parser answers a whole number or null, and 0 is the fallback, so 0 || 0 = 0 ?? 0
 src/features/public/ticket-submit/parse.ts::quantityRefusal.selectedQty~1bh9sz0  ?? → || audited:0b6yobx # form.get answers a string or absent; "" parses to null and falls to the same 0 the "0" literal parses to
