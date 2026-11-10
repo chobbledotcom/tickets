@@ -58,6 +58,11 @@ export const crudDocs = (c: {
   /** Fields a brand-new record always has, whatever the caller sent — the
    * running totals that only bookings can move. */
   freshRecord?: Record<string, number>;
+  /** The record a create answers with. The default merges the create body over
+   *  the example, which is right when every body field is a stored field. A
+   *  body that carries something else — a file's bytes, for one — passes its
+   *  own answer. */
+  createResponse?: Record<string, unknown>;
   /** What the stored defaults give a new record where the create body is
    * silent, for fields whose default differs from the example record. */
   newRecordDefaults?: Record<string, unknown>;
@@ -71,11 +76,10 @@ export const crudDocs = (c: {
   // the record as just stored: what the caller sent, over the defaults, with
   // nothing yet booked against it.
   const updated = answerWith(c.updateBody);
-  const created = answerWith(
-    c.newRecordDefaults ?? {},
-    c.createBody,
-    c.freshRecord ?? {},
-  );
+  const created =
+    c.createResponse === undefined
+      ? answerWith(c.newRecordDefaults ?? {}, c.createBody, c.freshRecord ?? {})
+      : json({ [c.singular]: c.createResponse });
   const [list, get, create, update, del] = c.desc;
   return [
     {

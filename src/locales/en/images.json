@@ -7,6 +7,7 @@
   "images.delete.link": "Delete image",
   "images.delete.mismatch": "Confirmation did not match the image name",
   "images.news_gated": "This image is used by public site content — only site editors can manage it.",
+  "images.news_target_gated": "Only an owner or editor can link an image to a news post or a page.",
   "images.delete.storage_failed": "Could not delete the image files from storage. The image was kept so you can try again.",
   "images.delete.submit": "Delete image",
   "images.edit.heading": "Edit {name}",

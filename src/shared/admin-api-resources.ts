@@ -19,6 +19,11 @@ import {
   ExternalSourceRowSchema,
   UpdateExternalSourceBodySchema,
 } from "#shared/admin-api-external-sources.ts";
+import {
+  CreateImageBodySchema,
+  ImageRowSchema,
+  UpdateImageBodySchema,
+} from "#shared/admin-api-images.ts";
 
 /* ===========================================================================
  * Row schemas — the shapes the JSON API answers with. The client validates
@@ -403,6 +408,14 @@ export const ADMIN_API_RESOURCES = {
     path: "holidays",
     singleSchema: v.looseObject({ holiday: HolidayRowSchema }),
     updateBodySchema: UpdateHolidayBodySchema,
+  },
+  images: {
+    createBodySchema: CreateImageBodySchema,
+    label: "Image",
+    listSchema: v.looseObject({ images: v.array(ImageRowSchema) }),
+    path: "images",
+    singleSchema: v.looseObject({ image: ImageRowSchema }),
+    updateBodySchema: UpdateImageBodySchema,
   },
   listings: {
     custom: {

@@ -107,6 +107,13 @@ export const apiPutAs = (
   cookie: string,
 ): Promise<Response> => apiRequestAs(path, "PUT", body, cookie);
 
+/** DELETE the JSON route with an explicit session cookie. */
+export const apiDeleteAs = (
+  path: string,
+  body: Record<string, unknown>,
+  cookie: string,
+): Promise<Response> => apiRequestAs(path, "DELETE", body, cookie);
+
 /** Pins that an API update refuses a non-string name with the field
  *  message. Creates the entity through the same API first, so the pin
  *  reads one resource shape per call. */

@@ -1116,7 +1116,7 @@
     },
     {
       "path": [{ "name": "ImageUse" }],
-      "fields": ["image_id", "sort_order"]
+      "fields": ["sort_order"]
     },
     {
       "path": [{ "name": "Modifier" }],

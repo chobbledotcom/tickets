@@ -40,7 +40,11 @@ import {
 } from "#routes/response.ts";
 import { adminPath } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { compareByName, sortByName } from "#shared/name-order.ts";
+import {
+  byNameThenUpload,
+  isSiteContentImageType,
+} from "#shared/images/library.ts";
+import { sortByName } from "#shared/name-order.ts";
 import { featureGate } from "#shared/response-steps.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import { deleteImageStorageFilesStrict } from "#shared/storage-cleanup.ts";
@@ -64,11 +68,6 @@ import { imageMetadataFromForm, withUploadedImage } from "./image-upload.ts";
 
 /** The image's edit page: where a create and a save both land. */
 const imagePath = (id: number): string => adminPath("imageEdit", { id });
-
-/** The image library's order: name ascending, then upload order. A row id
- * grows as records are created, so the lower id is the older upload. */
-const byNameThenUpload = (first: Image, second: Image): number =>
-  compareByName(first, second) || first.id - second.id;
 
 const withStorageEnabled = featureGate(isStorageEnabled, () =>
   adminRedirect("images", {}, t("images.storage_off"), false),
@@ -194,12 +193,6 @@ const parseImageTargets = (form: FormParams): ImageUseTarget[] =>
         : null;
     })
     .filter((target): target is ImageUseTarget => target !== null);
-
-/** The image-use item types that are public Site content (owner + editor):
- * news posts and pages. An image on either surfaces publicly, so a manager
- * cannot manage it. */
-const isSiteContentImageType = (type: ImageUseItemType): boolean =>
-  type === "news" || type === "page";
 
 /** Does this image sit on any Site content (a news post or a page)? Its
  * metadata (name/alt_text) and its presence render on that public surface, so

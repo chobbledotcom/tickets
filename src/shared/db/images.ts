@@ -24,7 +24,9 @@ import {
 import { settingsVersionIncrement } from "#db/settings/cache.ts";
 import { type ColumnDef, col, writeTableRow } from "#db/table.ts";
 import { readById } from "#db/table-reader.ts";
-import { equals } from "#db/where-clauses.ts";
+import { txIdSetInTable } from "#db/transaction.ts";
+import { equals, inList } from "#db/where-clauses.ts";
+import { groupToMap, unique } from "#fp";
 import { decryptImageFilename } from "#shared/images/broken.ts";
 import type { NonEmptyString } from "#shared/validation/string.ts";
 import {
@@ -45,18 +47,21 @@ export type ImageInput = {
 /** One record an image can be attached to. */
 export type ImageUseTarget = RecordTarget<ImageUseItemType>;
 
+/** The table each kind of record images hang off lives in. */
+export const imageUseTables: Readonly<Record<ImageUseItemType, string>> = {
+  group: "groups",
+  listing: "listings",
+  news: "news_posts",
+  page: "site_pages",
+};
+
 /** How to name and ask for the records images hang off. Each kind lists its
  * table so an attach can insist the record is really there. */
 export const imageUseTargets: RecordTargets<ImageUseItemType> =
   defineRecordTarget({
     columns: ITEM_TARGET_COLUMNS,
     kinds: ImageUseItemTypeSchema.options,
-    tables: {
-      group: "groups",
-      listing: "listings",
-      news: "news_posts",
-      page: "site_pages",
-    },
+    tables: imageUseTables,
   });
 
 export type OrderedImage = Image & { sort_order: number };
@@ -190,6 +195,26 @@ export const getImagesForItem = async (
   }));
 };
 
+/** The item links of several images, keyed by image id. One query covers the
+ *  whole list. An image with no links has no entry. The links of one image
+ *  stay in the order the image's own read answers them. */
+export const getImageUsesForImages = async (
+  imageIds: readonly number[],
+): Promise<Map<number, ImageUse[]>> => {
+  if (imageIds.length === 0) return new Map();
+  const rows = await readRows<ImageUse>({
+    columns: "image_id, item_type, item_id, sort_order",
+    from: "image_uses",
+    order: "image_id ASC, item_type ASC, item_id ASC",
+    where: inList("image_id", [...imageIds]),
+  });
+  return groupToMap(
+    (use: ImageUse) => use.image_id,
+    (use: ImageUse) => use,
+  )(rows);
+};
+
+/** The item links of one image, in the order its own read answers them. */
 export const getImageUsesForImage = (imageId: number): Promise<ImageUse[]> =>
   readRows<ImageUse>({
     columns: "image_id, item_type, item_id, sort_order",
@@ -197,6 +222,23 @@ export const getImageUsesForImage = (imageId: number): Promise<ImageUse[]> =>
     order: "item_type ASC, item_id ASC",
     where: equals("image_id", imageId),
   });
+
+/** The links a write submits that name no stored record of their kind. The
+ *  check runs inside the write's transaction, so a record deleted between the
+ *  parse and the write cannot leave a link to nothing. */
+export const missingImageUseTargets = async (
+  tx: TxScope,
+  targets: readonly ImageUseTarget[],
+): Promise<ImageUseTarget[]> => {
+  const found = new Map<ImageUseItemType, Set<number>>();
+  for (const kind of unique(targets.map((target) => target.kind))) {
+    const ids = targets
+      .filter((target) => target.kind === kind)
+      .map((target) => target.id);
+    found.set(kind, await txIdSetInTable(imageUseTables[kind])(tx, ids));
+  }
+  return targets.filter((target) => !found.get(target.kind)!.has(target.id));
+};
 
 const imageUseOrder = defineOrderedCollection({
   key: "image_id",
@@ -279,19 +321,25 @@ const clearStaleImageUseTargetsStatement = (
   };
 };
 
+/** Set one image's links to exactly the records named. Naming none of them
+ *  drops all of its links. Pass an open transaction so the row write and the
+ *  links commit together. */
 export const setItemsForImage = (
   imageId: number,
   targets: readonly ImageUseTarget[],
+  transaction?: TxScope,
 ): Promise<void> => {
-  const unique = imageUseTargets.unique(targets);
-  return useTransaction(undefined, async (transaction) => {
+  const uniqueTargets = imageUseTargets.unique(targets);
+  return useTransaction(transaction, async (tx) => {
     const sortOrders = await imageUseOrder.nextMany({
-      items: unique.map((target) => ({ scope: [target.kind, target.id] })),
-      transaction,
+      items: uniqueTargets.map((target) => ({
+        scope: [target.kind, target.id],
+      })),
+      transaction: tx,
     });
-    await transaction.batch([
-      clearStaleImageUseTargetsStatement(imageId, unique),
-      ...unique.map((target, index) =>
+    await tx.batch([
+      clearStaleImageUseTargetsStatement(imageId, uniqueTargets),
+      ...uniqueTargets.map((target, index) =>
         linkImageStatement(imageId, target, sortOrders[index]!),
       ),
     ]);
@@ -302,10 +350,11 @@ export const setItemsForImage = (
  * transaction. */
 const withImageVersionBump = <T>(
   write: (transaction: TxScope) => Promise<T>,
+  transaction?: TxScope,
 ): Promise<T> =>
-  useTransaction(undefined, async (transaction) => {
-    const result = await write(transaction);
-    await transaction.execute(settingsVersionIncrement());
+  useTransaction(transaction, async (tx) => {
+    const result = await write(tx);
+    await tx.execute(settingsVersionIncrement());
     return result;
   });
 
@@ -319,16 +368,19 @@ export const insertImageRecord = async (input: ImageInput): Promise<Image> =>
 /** Update one image record's metadata. Returns null when the id names no
  * row. The update takes its SET clause from the provided columns alone. An
  * input with no defined value names no column to write: it throws here
- * instead of wiping a stored field or failing at the database. */
+ * instead of wiping a stored field or failing at the database. Pass an open
+ * transaction so the row and its links commit together. */
 export const updateImageRecord = async (
   id: number,
   input: Partial<ImageInput>,
+  transaction?: TxScope,
 ): Promise<Image | null> => {
   if (Object.values(input).every((value) => value === undefined)) {
     throw new Error(`Image ${id} update names no column to write`);
   }
-  return withImageVersionBump((transaction) =>
-    writeTableRow(transaction, imagesTable, { id, input, kind: "update" }),
+  return withImageVersionBump(
+    (tx) => writeTableRow(tx, imagesTable, { id, input, kind: "update" }),
+    transaction,
   );
 };
 
