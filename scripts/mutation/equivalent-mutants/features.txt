@@ -375,3 +375,10 @@ src/features/admin/calendar.ts::handleAdminCalendarGet.agentFilter~1oxpbil  all 
 src/features/admin/update.ts::getUpdatePageState.buildCommit~1ctso8l  0 → 1 audited:0gwflcg # BUILD_COMMIT is a build-injected constant committed as "" in src/shared/build-info.ts, so every test run reads the same empty string and slice(0, 12) and slice(1, 12) render the same empty commit
 src/features/admin/update.ts::getUpdatePageState.buildCommit~1ctso8l  12 → 0 audited:0gwflcg # same committed-"" constant: slice(0, 12) and slice(0, 0) both read the empty string in every test environment, and no test can give BUILD_COMMIT a longer value
 src/features/admin/update.ts::getUpdatePageState.updateAvailable~0epdwt1  → "mutated" audited:0gwflcg # the comparison differs only when latestVersion is "" or "mutated", and parseReleaseTag's vYYYY-MM-DD-HHMMSS pattern rejects both, so isNewerVersion answers false and updateAvailable stays false either way
+
+# Inter-instance site credentials (features/instance.ts): the bearer token is
+# compared with the configured key, which is a secret. A fallback token that the
+# mutator renames can never match it, so the call stays refused.
+src/features/instance.ts::bearerToken.auth~0yc6k1g  ?? → ||  audited:1quf6dy   # headers.get answers a string or null, and the only falsy string is the empty fallback itself, so both operators answer the same token
+src/features/instance.ts::bearerToken.auth~0yc6k1g  → "mutated"  audited:1quf6dy   # the fallback runs only on an absent header. The configured key is a secret that never equals the literal "mutated", so constantTimeEqual refuses both
+src/features/instance.ts::bearerToken~1gzl3wl  → "mutated"  audited:1quf6dy   # a header without the Bearer scheme sends the fallback into the key comparison. The configured key never equals the literal "mutated", so both values are refused

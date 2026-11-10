@@ -9,12 +9,19 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { Stub } from "@std/testing/mock";
 import type { UpdateTier } from "#db/built-sites/types.ts";
 import { insertBuiltSite } from "#db/built-sites.ts";
 import { handleRequest } from "#routes";
+import { ErrorCode } from "#shared/logger.ts";
+import { initSentry } from "#shared/sentry.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { resetSentry } from "#test-utils/sentry.ts";
 
 const KEY = "instance-key-0123456789abcdef0123456789abcdef";
 
@@ -212,5 +219,240 @@ describeWithEnv("server (instance site-credentials)", { db: true }, () => {
         const fallback = (await (await post(auth)).json()) as { tier: string };
         expect(fallback.tier).toBe("release");
       }));
+  });
+
+  describe("call reporting", () => {
+    const errorSpy = setupErrorSpy();
+
+    const NTFY_URL = "https://ntfy.example.test/site-credentials";
+    const SENTRY_HOST = "bugs.example.test";
+    /** A bearer token that never matches, so a report must never repeat it. */
+    const GUESSED_KEY = "guessed-key-0123456789abcdef0123456789abcdef";
+    /** A tier no build accepts, so the caller's own text is never echoed. */
+    const UNKNOWN_TIER = "stable-marker";
+
+    /** Run `fn` with the endpoint and both report channels live. */
+    const withReports = async <T>(
+      env: Record<string, string | undefined>,
+      fn: (fetchStub: Stub) => Promise<T>,
+    ): Promise<T> => {
+      using _env = withEnv({
+        NTFY_URL,
+        SENTRY_URL: `https://key@${SENTRY_HOST}/2`,
+        ...env,
+      });
+      using fetchStub = stubFetch(() => new Response("{}"));
+      await initSentry();
+      try {
+        return await fn(fetchStub);
+      } finally {
+        resetSentry();
+      }
+    };
+
+    /** One call to the endpoint, the unchanged answer, and its one report. */
+    type CallCase = {
+      /** The test name, which says what the call does. */
+      name: string;
+      /** The key the site is configured with. Absent ⇒ the endpoint is off. */
+      key: string | undefined;
+      /** The Authorization header the caller presents. Absent ⇒ no header. */
+      authorization?: string | undefined;
+      /** The tier the caller names, if any. */
+      tier?: string | undefined;
+      /** Seed the one-per-channel fleet before the call. */
+      fleet?: boolean | undefined;
+      /** The answer's status, and either its error code or text it carries. */
+      answer:
+        | { status: number; error: string }
+        | { status: number; carries: readonly string[] };
+      /** The report the operator receives. Null ⇒ the call reports nothing. */
+      report: { code: string; detail: string } | null;
+      /** Values that no report may repeat. */
+      secrets: readonly string[];
+    };
+
+    const CALL_CASES: readonly CallCase[] = [
+      {
+        answer: { error: "unauthorized", status: 401 },
+        key: KEY,
+        name: "reports a refused call that presented no bearer token",
+        report: {
+          code: ErrorCode.INSTANCE_CREDENTIALS_REFUSED,
+          detail: "bearer token missing or wrong",
+        },
+        secrets: [KEY, "MAIN_INSTANCE_KEY"],
+      },
+      {
+        answer: { error: "unauthorized", status: 401 },
+        authorization: `Bearer ${GUESSED_KEY}`,
+        key: KEY,
+        name: "reports a refused call with a wrong bearer token",
+        report: {
+          code: ErrorCode.INSTANCE_CREDENTIALS_REFUSED,
+          detail: "bearer token missing or wrong",
+        },
+        secrets: [KEY, GUESSED_KEY, "MAIN_INSTANCE_KEY"],
+      },
+      {
+        answer: { carries: ["libsql://beta", "tok-beta"], status: 200 },
+        authorization: `Bearer ${KEY}`,
+        fleet: true,
+        key: KEY,
+        name: "reports an accepted call with its tier and site count",
+        report: {
+          code: ErrorCode.INSTANCE_CREDENTIALS_ACCEPTED,
+          detail: "tier=beta sites=2",
+        },
+        secrets: [
+          KEY,
+          "MAIN_INSTANCE_KEY",
+          "libsql://alpha",
+          "tok-alpha",
+          "libsql://beta",
+          "tok-beta",
+        ],
+        tier: "beta",
+      },
+      {
+        answer: { error: "invalid_tier", status: 400 },
+        authorization: `Bearer ${KEY}`,
+        key: KEY,
+        name: "reports an accepted call that named an unknown tier, without echoing it",
+        report: {
+          code: ErrorCode.INSTANCE_CREDENTIALS_ACCEPTED,
+          detail: "unknown tier requested, no sites returned",
+        },
+        secrets: [KEY, UNKNOWN_TIER],
+        tier: UNKNOWN_TIER,
+      },
+      {
+        answer: { error: "not_found", status: 404 },
+        authorization: `Bearer ${KEY}`,
+        key: undefined,
+        name: "reports nothing while the endpoint is disabled",
+        report: null,
+        secrets: [KEY],
+      },
+    ];
+
+    /** What one call produced, as the test compares it. */
+    type CallOutcome = {
+      status: number;
+      /** The answer body as text. */
+      body: string;
+      /** The console report lines, without the request-id prefix. */
+      lines: string[];
+      /** The ntfy message bodies, in order. */
+      ntfy: string[];
+      /** The Sentry envelope bodies, in order. */
+      sentry: string[];
+      /** Everything those reports carried, as one searchable string. */
+      reportText: string;
+    };
+
+    /** A fetch call's request body, whether the stub passed text or bytes. */
+    const requestBody = (init: RequestInit | undefined): string => {
+      const body = init?.body;
+      return typeof body === "string"
+        ? body
+        : new TextDecoder().decode(body as Uint8Array);
+    };
+
+    /** Make one call under live reporting and record what came back and out. */
+    const observeCall = (callCase: CallCase): Promise<CallOutcome> =>
+      withReports({ MAIN_INSTANCE_KEY: callCase.key }, async (fetchStub) => {
+        if (callCase.fleet) await seedTieredFleet();
+        const response = await post(
+          callCase.authorization === undefined
+            ? undefined
+            : { authorization: callCase.authorization },
+          callCase.tier,
+        );
+        const body = await response.text();
+
+        const ntfyCalls = fetchStub.calls.filter(
+          (call) => String(call.args[0]) === NTFY_URL,
+        );
+        const sentryCalls = fetchStub.calls.filter((call) =>
+          String(call.args[0]).includes(SENTRY_HOST),
+        );
+        const lines = errorSpy.calls
+          .map((call) => String(call.args[0]))
+          .filter((line) => line.includes("E_INSTANCE_CREDENTIALS_"))
+          .map((line) => line.replace(/^\[[0-9a-f]{4}\] /, ""));
+        const ntfy = ntfyCalls.map((call) =>
+          requestBody(call.args[1] as RequestInit | undefined),
+        );
+        const sentry = sentryCalls.map((call) =>
+          requestBody(call.args[1] as RequestInit | undefined),
+        );
+
+        return {
+          body,
+          lines,
+          ntfy,
+          reportText: [
+            ...lines,
+            ...ntfyCalls.map((call) => JSON.stringify(call.args)),
+            ...sentry,
+          ].join("\n"),
+          sentry,
+          status: response.status,
+        };
+      });
+
+    /** Assert the report reached every sink, or that none went out. */
+    const expectReport = (
+      outcome: CallOutcome,
+      report: CallCase["report"],
+    ): void => {
+      const expectedLines =
+        report === null
+          ? []
+          : [`[Error] ${report.code} detail="${report.detail}"`];
+      expect(outcome.lines).toEqual(expectedLines);
+      expect(outcome.ntfy).toEqual(report === null ? [] : [report.code]);
+      expect(outcome.sentry).toHaveLength(report === null ? 0 : 1);
+      if (report !== null) {
+        // The document promises that the code, the tier, and the site count
+        // reach Sentry too.
+        expectIncludesAll(outcome.sentry.join("\n"), [
+          report.code,
+          report.detail,
+        ]);
+      }
+    };
+
+    /** Assert no report repeated a value the operator must never see. */
+    const expectNoSecrets = (
+      outcome: CallOutcome,
+      secrets: readonly string[],
+    ): void => {
+      for (const secret of secrets) {
+        expect(outcome.reportText).not.toContain(secret);
+      }
+    };
+
+    for (const callCase of CALL_CASES) {
+      test(callCase.name, async () => {
+        const outcome = await observeCall(callCase);
+
+        expect(outcome.status).toBe(callCase.answer.status);
+        if ("error" in callCase.answer) {
+          expect(JSON.parse(outcome.body)).toEqual({
+            error: callCase.answer.error,
+          });
+        } else {
+          // Control: the answer itself does carry the fleet's secrets.
+          for (const fragment of callCase.answer.carries) {
+            expect(outcome.body).toContain(fragment);
+          }
+        }
+
+        expectReport(outcome, callCase.report);
+        expectNoSecrets(outcome, callCase.secrets);
+      });
+    }
   });
 });

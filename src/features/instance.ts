@@ -1,14 +1,14 @@
 /**
- * `POST /instance/site-credentials` exists so the upgrade Action can back each
- * built site up before it deploys, without GitHub holding per-site tokens.
+ * `POST /instance/site-credentials` backs each built site up before its
+ * deploy, without GitHub holding per-site tokens. Every call on an enabled
+ * instance reports itself through the error path under its own code.
+ * The key leaked once through a public workflow log.
  *
- * `?tier=alpha|beta|release` returns only sites whose own channel accepts that
- * tier: release reaches every site, beta reaches beta and alpha, alpha only
- * alpha.
- *
+ * `?tier=alpha|beta|release` returns only sites whose channel accepts that
+ * tier: release reaches every site, beta reaches beta and alpha, alpha only alpha.
  * Each token returned is that site's own FULL-ACCESS credential, so treat the
- * response as write-capable production secrets. DB_ENCRYPTION_KEY is never
- * included, which leaves PII unreadable to whoever holds one.
+ * response as write-capable production secrets. It never holds
+ * DB_ENCRYPTION_KEY, so the personal data stays unreadable.
  */
 
 import { constantTimeEqual } from "#crypto/utils.ts";
@@ -22,6 +22,7 @@ import { apiErrorResponse } from "#routes/api/cors.ts";
 import { jsonResponse } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { getMainInstanceKey, isInstanceApiEnabled } from "#shared/config.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
 
 /** Extract the bearer token from the Authorization header (empty if absent). */
 const bearerToken = (request: Request): string => {
@@ -46,6 +47,10 @@ const handleSiteCredentials = async (request: Request): Promise<Response> => {
   if (!isInstanceApiEnabled()) return apiErrorResponse("not_found", 404);
 
   if (!constantTimeEqual(bearerToken(request), getMainInstanceKey())) {
+    logError({
+      code: ErrorCode.INSTANCE_CREDENTIALS_REFUSED,
+      detail: "bearer token missing or wrong",
+    });
     return apiErrorResponse("unauthorized", 401);
   }
 
@@ -55,6 +60,12 @@ const handleSiteCredentials = async (request: Request): Promise<Response> => {
   const deployTier =
     new URL(request.url).searchParams.get("tier") || DEFAULT_UPDATE_TIER;
   if (!isUpdateTier(deployTier)) {
+    // The key matched, so the call is accepted. The caller's own tier text
+    // stays out of the report, because nothing bounds or escapes it.
+    logError({
+      code: ErrorCode.INSTANCE_CREDENTIALS_ACCEPTED,
+      detail: "unknown tier requested, no sites returned",
+    });
     return apiErrorResponse("invalid_tier");
   }
 
@@ -75,6 +86,15 @@ const handleSiteCredentials = async (request: Request): Promise<Response> => {
       scriptId: site.hostingId,
       siteUrl: site.siteUrl,
     }));
+
+  // The operator learns which tier was served and how many sites it reached.
+  // The report hands ntfy and Sentry delivery to the request's pending work,
+  // so the answer waits for neither. The detail carries no token, key, URL, or
+  // site name.
+  logError({
+    code: ErrorCode.INSTANCE_CREDENTIALS_ACCEPTED,
+    detail: `tier=${deployTier} sites=${credentials.length}`,
+  });
 
   // Echo the applied tier so a caller can confirm the server actually filtered:
   // a pre-tier build ignores ?tier= and omits this, letting the canary workflow

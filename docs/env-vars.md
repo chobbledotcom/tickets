@@ -57,10 +57,17 @@ the Storage API hostname shown on Bunny's Storage **Access** page for
   response echoes the applied `tier` so a caller can confirm the server actually
   filtered: a pre-tier build ignores the query string and omits it. The
   canary workflow then fails closed and does not send a non-release deploy to
-  the whole fleet. Unset `MAIN_INSTANCE_KEY` ⇒ the endpoint is disabled (404). The
-  upgrade workflows read the key from the `MAIN_INSTANCE_KEY` repository
-  secret. Do not pass it as a run input: GitHub writes run inputs to the
-  public job log.
+  the whole fleet. Unset `MAIN_INSTANCE_KEY` ⇒ the endpoint is disabled (404). A
+  disabled endpoint reports nothing, so a stranger cannot make a non-builder
+  site send notifications. A configured endpoint reports every call through the
+  error path. The code is `E_INSTANCE_CREDENTIALS_REFUSED` when the bearer token
+  is absent or wrong. The code is `E_INSTANCE_CREDENTIALS_ACCEPTED` when the key
+  matches. An accepted report names the tier and the number of sites returned,
+  or it says that the caller named an unknown tier.
+  No report carries the key, the bearer token, a database URL, or a database
+  token. The upgrade workflows read the key from the `MAIN_INSTANCE_KEY`
+  repository secret. Do not pass it as a run input: GitHub writes run inputs to
+  the public job log.
 - `DENO_DEPLOY_TOKEN` - Deno Deploy organization access token. Required with
   `DENO_DEPLOY_ORG_ID` and `DENO_DEPLOY_ORG_SLUG` to build sites on Deno Deploy.
 - `UPDATE_IN_PROGRESS` - Update write-stop. The deploy workflows set this
@@ -86,7 +93,9 @@ the Storage API hostname shown on Bunny's Storage **Access** page for
   example `.tickets`)
 - `NTFY_URL` - Ntfy endpoint URL for error notifications (for example
   `https://ntfy.sh/your-topic`). Sends domain and error code only, no personal
-  or encrypted data.
+  or encrypted data. A call to `POST /instance/site-credentials` also sends its
+  error code only. Its tier and site count stay in the console line, in Sentry,
+  and in the encrypted activity log.
 - `SENTRY_URL` - Sentry DSN for server-side error reporting (for example a
   self-hosted Bugsink: `https://<key>@bugs.example.com/<project>`). When set,
   the same classified server errors that log to the console and ping ntfy are
