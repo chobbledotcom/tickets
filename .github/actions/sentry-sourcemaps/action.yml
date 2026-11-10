@@ -67,17 +67,19 @@ runs:
     - name: Inject debug IDs
       if: ${{ inputs.command == 'inject' && inputs.auth_token != '' }}
       shell: devenv --profile ci shell bash -- -e {0}
+      env:
+        BUNDLE_FILE: ${{ inputs.file }}
       run: |
         js="$(deno run --allow-read --allow-write \
-          scripts/sentry-debug-ids.ts prepare "${{ inputs.file }}")"
+          scripts/sentry-debug-ids.ts prepare "$BUNDLE_FILE")"
         sentry-cli sourcemaps inject "$js" "$js.map"
         grep -q "_sentryDebugIds" "$js" || {
           echo "::error::sentry-cli injected no debug ID into $js"
           exit 1
         }
         deno run --allow-read --allow-write \
-          scripts/sentry-debug-ids.ts adopt "${{ inputs.file }}"
-        grep -q "_sentryDebugIds" "${{ inputs.file }}" || {
+          scripts/sentry-debug-ids.ts adopt "$BUNDLE_FILE"
+        grep -q "_sentryDebugIds" "$BUNDLE_FILE" || {
           echo "::error::the deployed bundle carries no debug ID"
           exit 1
         }
@@ -92,9 +94,11 @@ runs:
         SENTRY_URL: ${{ inputs.sentry_url }}
         SENTRY_ORG: ${{ inputs.org }}
         SENTRY_PROJECT: ${{ inputs.project }}
+        BUNDLE_FILE: ${{ inputs.file }}
+        RELEASE: ${{ inputs.release }}
       run: |
         js="$(deno run --allow-read scripts/sentry-debug-ids.ts \
-          js-path "${{ inputs.file }}")"
+          js-path "$BUNDLE_FILE")"
         sentry-cli sourcemaps upload \
-          --release "${{ inputs.release }}" \
+          --release "$RELEASE" \
           "$js" "$js.map"

@@ -16,6 +16,8 @@ jobs:
     permissions:
       contents: write
     runs-on: ubicloud-standard-4
+    # The secrets this job reads live in this environment, which only main can use.
+    environment: production
     outputs:
       tag: ${{ steps.create-release.outputs.tag }}
 
@@ -38,9 +40,10 @@ jobs:
         id: create-release
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_NAME: ${{ inputs.release_name }}
         run: |
           TAG="$(cat .build-tag)"
-          TITLE="$(date -u +%Y-%m-%d) - ${{ inputs.release_name }}"
+          TITLE="$(date -u +%Y-%m-%d) - $RELEASE_NAME"
           git tag "$TAG"
           git push origin "$TAG"
           gh release create "$TAG" \
