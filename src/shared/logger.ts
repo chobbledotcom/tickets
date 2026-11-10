@@ -45,6 +45,7 @@ const getLogPrefix = (): string => {
  * Error code definitions: each key maps to [wire code, human-readable label].
  * Single source of truth — ErrorCode and errorCodeLabel are derived from this.
  */
+/* jscpd:ignore-start -- a list of strings, not code */
 const ERROR_DEFS = {
   // Address lookup provider errors
   ADDRESS_LOOKUP: ["E_ADDRESS_LOOKUP", "Address lookup failed"],
@@ -82,6 +83,17 @@ const ERROR_DEFS = {
   EMAIL_SEND: ["E_EMAIL_SEND", "Email send failed"],
   // Broken image records/files (fallback red pixel served instead)
   IMAGE_BROKEN: ["E_IMAGE_BROKEN", "Broken image"],
+
+  // Calls to the inter-instance site-credentials endpoint. The operator must
+  // learn about every call, because the key that authorizes it leaked once.
+  INSTANCE_CREDENTIALS_ACCEPTED: [
+    "E_INSTANCE_CREDENTIALS_ACCEPTED",
+    "Site credentials call accepted",
+  ],
+  INSTANCE_CREDENTIALS_REFUSED: [
+    "E_INSTANCE_CREDENTIALS_REFUSED",
+    "Site credentials call refused",
+  ],
 
   // A promise our own system makes was broken and an operator was told to
   // repair the data by hand (see #shared/invariant-errors.ts)
@@ -156,6 +168,7 @@ const ERROR_DEFS = {
     "Webhook price signature invalid, missing, or charge differs from it",
   ],
 } as const;
+/* jscpd:ignore-end */
 
 type ErrorDefs = typeof ERROR_DEFS;
 
