@@ -31,14 +31,17 @@ export const validatorFor =
     return result.success ? null : result.issues[0].message;
   };
 
-/** Parse with a schema or throw the caller's domain-specific error. */
+/** Parse with a schema or throw the caller's domain-specific error. The
+ *  caller receives the issues, for an error that names them. */
 export const parseOrThrow = <TSchema extends v.GenericSchema>(
   schema: TSchema,
   input: unknown,
-  invalid: () => Error,
+  invalid: (
+    issues: [v.InferIssue<TSchema>, ...v.InferIssue<TSchema>[]],
+  ) => Error,
 ): v.InferOutput<TSchema> => {
   const result = v.safeParse(schema, input);
-  if (!result.success) throw invalid();
+  if (!result.success) throw invalid(result.issues);
   return result.output;
 };
 

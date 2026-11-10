@@ -6,6 +6,7 @@ import {
   type Rule,
   type Scenario,
 } from "@cucumber/messages";
+import { allUnique } from "#shared/all-unique.ts";
 import { invalidSpec } from "./errors.ts";
 import { parseGherkinSource } from "./gherkin.ts";
 import {
@@ -131,7 +132,7 @@ const casesFromExamples = (
     );
   }
   const names = header.cells.map((cell) => cell.value);
-  if (new Set(names).size !== names.length) {
+  if (!allUnique(names)) {
     invalidSpec(
       state.uri,
       header.location.line,

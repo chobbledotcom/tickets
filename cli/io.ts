@@ -1,3 +1,4 @@
+import { concatBytes } from "#crypto/utils.ts";
 import { CliError } from "./errors.ts";
 
 const encoder = new TextEncoder();
@@ -33,12 +34,5 @@ export const readStdin = async (
     if (read === null) break;
     chunks.push(buffer.slice(0, read));
   }
-  const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-  const all = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    all.set(chunk, offset);
-    offset += chunk.length;
-  }
-  return new TextDecoder().decode(all);
+  return new TextDecoder().decode(concatBytes(chunks));
 };

@@ -16,6 +16,7 @@ import * as v from "valibot";
 import { sort } from "#fp";
 import { SCHEMA_ATLAS_MACHINES } from "#shared/schema-atlas/index.ts";
 import type { AtlasMachine } from "#shared/schema-atlas/types.ts";
+import { parseOrThrow } from "#shared/validation/parse.ts";
 
 /** One way a stored record can move, as the drift report names it. */
 export const DumpedEdgeSchema = v.object({
@@ -97,13 +98,14 @@ export const declaredTableOrNone = async (
     }
     return;
   }
-  const parsed = v.safeParse(DumpedDeclaredMovesSchema, table);
-  if (!parsed.success) {
-    throw new Error(
-      `Machine ${machineId}'s declared table is not the dumped shape`,
-    );
-  }
-  return parsed.output;
+  return parseOrThrow(
+    DumpedDeclaredMovesSchema,
+    table,
+    () =>
+      new Error(
+        `Machine ${machineId}'s declared table is not the dumped shape`,
+      ),
+  );
 };
 
 /** One machine's declared contract pieces: its events beside its declared

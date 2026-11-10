@@ -27,6 +27,19 @@ describe("schema parsing", () => {
     expect(error).toBe(expected);
   });
 
+  test("hands the issues to the error the caller builds", () => {
+    const error = thrownError(() =>
+      parseOrThrow(
+        pointSchema,
+        { x: "two" },
+        ([first]) => new Error(`${v.getDotPath(first)}: ${first.message}`),
+      ),
+    );
+    expect(error.message).toBe(
+      'x: Invalid type: Expected number but received "two"',
+    );
+  });
+
   test("returns null for an invalid value", () => {
     expect(parseOrNull(trimmedText, 3)).toBeNull();
   });

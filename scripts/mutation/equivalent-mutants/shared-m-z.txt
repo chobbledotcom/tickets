@@ -108,7 +108,7 @@ src/shared/sort-listings.ts::compareDaily.byDate~17fwox0  ?? → || audited:07on
 # decimal digit strings ("0","182","365",...) that never start with "0x"/"0o"/
 # "0b". Radix 0 (auto-detect) and radix 10 agree on every value in that set
 # (confirmed directly), so no input safeValue can ever take distinguishes them.
-src/shared/orphan-retention.ts::orphanRetentionCutoffIso.days~0npvuhc  10 → 0 audited:14j8bki # safeValue is a closed set of plain decimal strings; radix 0 and 10 agree on all of them
+src/shared/orphan-retention.ts::orphanRetentionCutoffIso.days~0npvuhc  10 → 0 audited:1sk2j91 # safeValue is a closed set of plain decimal strings; radix 0 and 10 agree on all of them
 
 # renewal-helpers.ts's formatDeadlineLabel: `diffMs < 0` is only reached when
 # diffDays !== 0 (the line above already returns "today" otherwise), and
@@ -131,7 +131,7 @@ src/shared/renewal-helpers.ts::formatDeadlineLabel~0giqb8e  0 → -1 audited:01t
 # step — non-string, empty, too long, uppercase, spaces, symbols, a leading or
 # trailing separator, and two separators in a row — gives the same first
 # message under both true and false.
-src/shared/validation/parse.ts::validatorFor.result.abortPipeEarly~0d98clm  true → false audited:1hv7rrt # abortPipeEarly: issues[0] is the first failing step's message either way, for any pipe schema
+src/shared/validation/parse.ts::validatorFor.result.abortPipeEarly~0d98clm  true → false audited:1svmz0v # abortPipeEarly: issues[0] is the first failing step's message either way, for any pipe schema
 
 # url-safety.ts: isInternalHostname and isIpLiteral are private helpers only
 # ever called (via isSafeServerFetchUrl) with `url.hostname` from an already

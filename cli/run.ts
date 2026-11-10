@@ -1,4 +1,4 @@
-import * as v from "valibot";
+import type * as v from "valibot";
 import {
   type AdminApiTransport,
   adminApiChildCall,
@@ -8,6 +8,7 @@ import {
   adminApiList,
   adminApiWrite,
 } from "#shared/admin-api-client.ts";
+import { parseOrThrow } from "#shared/validation/parse.ts";
 import {
   bodySchemaFor,
   type ParsedCommand,
@@ -64,15 +65,16 @@ const validatedBody = async (
       ? undefined
       : await parseBodyJson(command.body, readStdin);
   if (schema === undefined) return raw;
-  const result = v.safeParse(schema, raw ?? {});
-  if (!result.success) {
-    throw new CliError(
-      "validation",
-      "The body failed validation. It was not sent.",
-      fieldProblems(result.issues),
-    );
-  }
-  return result.output;
+  return parseOrThrow(
+    schema,
+    raw ?? {},
+    (issues) =>
+      new CliError(
+        "validation",
+        "The body failed validation. It was not sent.",
+        fieldProblems(issues),
+      ),
+  );
 };
 
 /** Run one request command against the typed client. */

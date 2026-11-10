@@ -3,6 +3,7 @@ import {
   type SpecCatalog,
   specCasesWithContext,
 } from "#scripts/specs/types.ts";
+import { allUnique } from "#shared/all-unique.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 
 const STABLE_ID_PATTERN = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
@@ -34,10 +35,7 @@ const EvidencePresentationSchema = v.picklist([
 const EvidenceProfilesSchema = v.pipe(
   v.array(EvidenceProfileNameSchema, "Invalid evidence profile"),
   v.minLength(1, "At least one evidence profile is required"),
-  v.check(
-    (profiles) => new Set(profiles).size === profiles.length,
-    "Evidence profiles must be unique",
-  ),
+  v.check(allUnique, "Evidence profiles must be unique"),
 );
 
 /** A whole page address, ready to open. Placeholders are refused: a capture
@@ -131,10 +129,7 @@ const uniqueList = <Item>(
   v.pipe(
     v.array(member),
     v.minLength(1),
-    v.check(
-      (items: Item[]) => new Set(items.map(nameOf)).size === items.length,
-      saidWhenTwoShare,
-    ),
+    v.check((items: Item[]) => allUnique(items.map(nameOf)), saidWhenTwoShare),
   );
 
 const EvidenceAssetsSchema = uniqueList(
@@ -175,12 +170,13 @@ const EvidenceCapturesSchema = v.pipe(
     ({ id }) => id,
     "Evidence capture ids must be unique",
   ),
-  v.check((captures) => {
-    const paths = captures.flatMap(({ assets }) =>
-      assets.map(({ path }) => path),
-    );
-    return new Set(paths).size === paths.length;
-  }, "Evidence asset paths must be unique"),
+  v.check(
+    (captures) =>
+      allUnique(
+        captures.flatMap(({ assets }) => assets.map(({ path }) => path)),
+      ),
+    "Evidence asset paths must be unique",
+  ),
 );
 
 export const EvidenceManifestSchema = v.strictObject({

@@ -11,6 +11,7 @@ import {
 } from "#scripts/not-found.ts";
 import { secureUrlCheck } from "#scripts/secure-url.ts";
 import { getEnv } from "#shared/env.ts";
+import { parseOrThrow } from "#shared/validation/parse.ts";
 
 export const SNAPSHOT_USAGE = "Usage: deno task snapshot --out <path.sqlite>";
 
@@ -243,7 +244,7 @@ const verifyRows = (
   result: SnapshotQueryResult,
   message: string,
 ): void => {
-  if (!v.safeParse(schema, result.rows).success) throw new Error(message);
+  parseOrThrow(schema, result.rows, () => new Error(message));
 };
 
 const snapshotQueryCheck = (
