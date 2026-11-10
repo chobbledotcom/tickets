@@ -454,5 +454,18 @@ describeWithEnv("server (instance site-credentials)", { db: true }, () => {
         expectNoSecrets(outcome, callCase.secrets);
       });
     }
+
+    test("keeps the answer when the notification cannot be sent", async () => {
+      using _env = withEnv({ MAIN_INSTANCE_KEY: KEY, NTFY_URL });
+      using fetchStub = stubFetch(new Error("notification delivery failed"));
+
+      const response = await post({ authorization: `Bearer ${KEY}` });
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ sites: [], tier: "release" });
+      expect(fetchStub.calls.map((call) => String(call.args[0]))).toEqual([
+        NTFY_URL,
+      ]);
+    });
   });
 });
