@@ -102,41 +102,27 @@ const demandOf = (option: OrderOption, pools: OrderPools): Demand =>
  * without a limit are not tracked (unlimited). */
 type Ledger = Map<string, Map<string, number>>;
 
-/** Adds each pool's remaining stock to the ledger: its undated amount, then
- * every dated day. */
-const fillRemaining = (
-  put: (pool: string, day: string, remaining: number) => void,
-  poolOf: (id: number) => string,
-  remainingById: ReadonlyMap<number, number>,
-  remainingByDay: ReadonlyMap<number, ReadonlyMap<string, number>>,
-): void => {
-  for (const [id, remaining] of remainingById) {
-    put(poolOf(id), UNDATED, remaining);
-  }
-  for (const [id, byDay] of remainingByDay) {
-    for (const [day, remaining] of byDay) {
-      put(poolOf(id), day, remaining);
-    }
-  }
-};
-
 const openLedger = (pools: OrderPools): Ledger => {
   const ledger: Ledger = new Map();
   const put = (pool: string, day: string, remaining: number) => {
     dayMapOf(ledger, pool).set(day, remaining);
   };
-  fillRemaining(
-    put,
-    listingPool,
-    pools.remainingByListingId,
-    pools.remainingByListingDay,
-  );
-  fillRemaining(
-    put,
-    groupPool,
-    pools.remainingByGroupId,
-    pools.remainingByGroupDay,
-  );
+  for (const [listingId, remaining] of pools.remainingByListingId) {
+    put(listingPool(listingId), UNDATED, remaining);
+  }
+  for (const [groupId, remaining] of pools.remainingByGroupId) {
+    put(groupPool(groupId), UNDATED, remaining);
+  }
+  for (const [listingId, byDay] of pools.remainingByListingDay) {
+    for (const [day, remaining] of byDay) {
+      put(listingPool(listingId), day, remaining);
+    }
+  }
+  for (const [groupId, byDay] of pools.remainingByGroupDay) {
+    for (const [day, remaining] of byDay) {
+      put(groupPool(groupId), day, remaining);
+    }
+  }
   return ledger;
 };
 

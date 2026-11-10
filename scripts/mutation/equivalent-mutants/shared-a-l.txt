@@ -46,6 +46,7 @@ src/shared/accounting/store.ts::planGroup.existing~1qc9xlq  ?? → || audited:1n
 src/shared/accounting/store.ts::newLegConflict~1dordwu  ?? → || audited:1n9la3z # newLegConflict originalsById.get(id): Transfer|undefined — a Transfer object is always truthy
 src/shared/accounting/store.ts::eventGroupOf~004j2p7  Ledger event cannot be empty → "" audited:1n9la3z # every caller drops empty groups first (postTransfersTx returns early, assertUniqueGroups and loadBatchSnapshot take nonEmpty, planTransferBatch skips them), so requireValue never throws and no test can read its message
 src/shared/accounting/store.ts::postTransfers~0by69o5  Ledger post omitted its event → "" audited:1n9la3z # postTransferGroups returns one PostResult per group, so a one-group post always has a [0] and this message is unreachable
+src/shared/accounting/store.ts::postTransferGroupBatches.inserts~0v7qb7d  ?? → || audited:1n9la3z # companionStatements[index]: SqlStatement[]|undefined — an array is always truthy
 src/shared/accounting/rows.ts::legColumns~1u7xtcf  ?? → || audited:1q09ha1 # insertStatement kind: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
 src/shared/accounting/rows.ts::legColumns~12222gj  ?? → || audited:1q09ha1 # insertStatement memo: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
 src/shared/accounting/rows.ts::renderInsert.args~06yrdj4  ?? → || audited:1q09ha1 # renderInsert guard?.args: InValue[]|undefined — an array is always truthy

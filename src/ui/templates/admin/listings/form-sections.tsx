@@ -150,25 +150,6 @@ export const ListingFormSections = ({
       {after}
     </>
   );
-  /** One checkbox that opens a group of fields, with the hint beside it. */
-  const toggleField = ({
-    checked,
-    hintKey,
-    id,
-    labelKey,
-    name,
-  }: {
-    checked: boolean;
-    hintKey: string;
-    id: string;
-    labelKey: string;
-    name: string;
-  }): JSX.Element => (
-    <label>
-      <input checked={checked} id={id} name={name} type="checkbox" value="1" />
-      {t(labelKey)} <small>{t(hintKey)}</small>
-    </label>
-  );
   const sections: FormSection[] = [
     {
       children: (
@@ -211,22 +192,32 @@ export const ListingFormSections = ({
     <>
       {(isTemplated || showUseDefaults) && (
         <fieldset class="checkboxes">
-          {isTemplated &&
-            toggleField({
-              checked: customiseOpen,
-              hintKey: "listings_table.customise_hint",
-              id: "customise-listing",
-              labelKey: "listings_table.customise",
-              name: "customise",
-            })}
-          {showUseDefaults &&
-            toggleField({
-              checked: useDefaultsChecked,
-              hintKey: "listing_defaults.use_defaults_hint",
-              id: "use-defaults",
-              labelKey: "listing_defaults.use_defaults_toggle",
-              name: "use_defaults",
-            })}
+          {isTemplated && (
+            <label>
+              <input
+                checked={customiseOpen}
+                id="customise-listing"
+                name="customise"
+                type="checkbox"
+                value="1"
+              />
+              {t("listings_table.customise")}{" "}
+              <small>{t("listings_table.customise_hint")}</small>
+            </label>
+          )}
+          {showUseDefaults && (
+            <label>
+              <input
+                checked={useDefaultsChecked}
+                id="use-defaults"
+                name="use_defaults"
+                type="checkbox"
+                value="1"
+              />
+              {t("listing_defaults.use_defaults_toggle")}{" "}
+              <small>{t("listing_defaults.use_defaults_hint")}</small>
+            </label>
+          )}
         </fieldset>
       )}
 

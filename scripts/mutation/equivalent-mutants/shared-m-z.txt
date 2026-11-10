@@ -407,3 +407,7 @@ src/shared/square/limits.ts::SQUARE_LINK_EXPIRY_BATCH~1mbbncc  1 → 0 audited:1
 # order-line-items.ts: a package display name comes from the groups table, and
 # every writer there rejects an empty name, so the ?? never sees "".
 src/shared/order-line-items.ts::orderLineItems.name~0am8pen  ??→|| audited:04chtsp # a package display name comes from the groups table, where every writer rejects an empty name
+
+# crud-api.ts: a resource declares its children and custom routes as an object
+# or leaves them out.
+src/shared/rest/crud-api.ts::declaredRecords~1k64ef7  ?? → || audited:17gpx11 # records: an object or undefined — an object is always truthy

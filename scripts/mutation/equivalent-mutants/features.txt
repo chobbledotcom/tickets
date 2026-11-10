@@ -91,9 +91,6 @@ src/features/middleware.ts::buildCspHeader.provider~130hma6 ??→|| audited:1eag
 src/features/admin/group-page-data.ts::groupHasPaidListing~154y783  ?? → || audited:0mafcyy # (row.package_price ?? 0): number|null, only falsy-non-null is 0 and 0 ?? 0 === 0 || 0
 src/features/admin/group-page-data.ts::loadGroupEditPanel.members.dayPrices~1i7vpix  ?? → || audited:0mafcyy # dayPrices.get(): DayPrices (a Map) | undefined — a Map is always truthy
 
-# Admin attendee-merge routes (src/features/admin/attendees-merge.ts) — mutants
-# with no observable effect through any reachable caller or input.
-src/features/admin/attendees-merge.ts::updateTargetPiiFromDecision.keptIsPinned~18lqcgb  && → || audited:0zk5c3l # keptIsPinned = Boolean(kept.lat && kept.lng): lat/lng are always both non-empty or both "" (parseCoordinatePair requires both-or-neither, and every write path — the logistics route, the attendee-form addressUnchanged branch, and the merge's own addressFrom — preserves that pair), so `&&` and `||` agree on every reachable value
 # contact-tokens.ts — `?? → ||` sites whose operand can never be a
 # falsy-but-non-null value.
 src/shared/db/contact-tokens.ts::loadTokenBlob~0hgbweg  ?? → || audited:0sppv7e # loadTokenBlob's `row?.attendee_tokens_blob ?? null`: attendee_tokens_blob is string|undefined; the only falsy-non-null is "" and tokenLinesFrom("") === tokenLinesFrom(null) === [], so ?? and || agree

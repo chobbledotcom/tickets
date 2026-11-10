@@ -378,6 +378,23 @@ describeWithEnv("ticket responses", { db: true }, () => {
     assertStringIncludes(await response.text(), "No room");
   });
 
+  test("counts months on a renewal page and tickets on a plain page", async () => {
+    const tier = (monthsPerUnit: number) =>
+      createTestListing({
+        hidden: true,
+        maxAttendees: 100,
+        monthsPerUnit,
+        purchaseOnly: true,
+        unitPrice: 500 * monthsPerUnit,
+      });
+    const ctx = await ticketContext([(await tier(1)).id, (await tier(12)).id]);
+    const monthsOption = '<option value="1">12 months</option>';
+
+    const renewal = ticketResponse({ ...ctx, siteToken: "site-token" })();
+    assertStringIncludes(await renewal.text(), monthsOption);
+    expect(await ticketResponse(ctx)().text()).not.toContain(monthsOption);
+  });
+
   test("redirects a form error back to the page the form lives on", async () => {
     const { ctx, first, second } = await twoListingContext();
 

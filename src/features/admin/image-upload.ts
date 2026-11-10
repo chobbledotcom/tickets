@@ -7,7 +7,6 @@ import { t } from "#i18n";
 import { formDataToParams } from "#routes/csrf.ts";
 import { redirect } from "#routes/response.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import type { DecodableMime } from "#shared/images/formats.ts";
 import {
   FULL_IMAGE_TARGET,
   THUMB_IMAGE_TARGET,
@@ -65,18 +64,6 @@ const imageFileFromForm = (formData: FormData): Result<File> => {
     : errorResult(t("images.error.file_required"));
 };
 
-/** The uploaded file's bytes and sniffed type, or the message a form shows
- * when the picture is not one this site serves. */
-export const checkedImageBytes = async (
-  file: File,
-): Promise<Result<{ data: Uint8Array; detectedType: DecodableMime }>> => {
-  const data = new Uint8Array(await file.arrayBuffer());
-  const validation = validateImage(data, file.type);
-  return validation.valid
-    ? okResult({ data, detectedType: validation.detectedType })
-    : errorResult(IMAGE_ERROR_MESSAGES[validation.error]);
-};
-
 const uploadedFilenames = async (
   file: File,
 ): Promise<
@@ -85,12 +72,15 @@ const uploadedFilenames = async (
   if (!isStorageEnabled()) {
     return errorResult(t("images.storage_off"));
   }
-  const checked = await checkedImageBytes(file);
-  if (!checked.ok) return checked;
+  const data = new Uint8Array(await file.arrayBuffer());
+  const validation = validateImage(data, file.type);
+  if (!validation.valid) {
+    return errorResult(IMAGE_ERROR_MESSAGES[validation.error]);
+  }
   try {
     const [filename, filenameThumb] = await uploadImageTargets(
-      checked.value.data,
-      checked.value.detectedType,
+      data,
+      validation.detectedType,
       [FULL_IMAGE_TARGET, THUMB_IMAGE_TARGET],
     );
     return okResult({

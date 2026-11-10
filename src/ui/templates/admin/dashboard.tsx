@@ -5,7 +5,7 @@
 import type { ActiveListingStats } from "#db/attendee-types.ts";
 import type { ServicingEventSummary } from "#db/attendees/servicing.ts";
 import type { Holiday } from "#db/holidays.ts";
-import { compact, filter, joinStrings, map, pipe, unique } from "#fp";
+import { filter, joinStrings, map, pipe, unique } from "#fp";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { groupAttendeeRows } from "#shared/attendee-table-rows.ts";
@@ -271,24 +271,6 @@ export const adminDashboardPage = (
   );
   const filterHtml = `${typeFilterHtml}${attributeFilterHtml}`;
 
-  /** The sections below the listing table, each present only when it holds
-   * something. */
-  const extraSections = compact([
-    stats ? activeListingStatsSection(stats) : null,
-    pendingNotifications > 0
-      ? pendingNotificationsSection(pendingNotifications)
-      : null,
-    upcomingHolidays.length > 0
-      ? upcomingHolidaysSection(upcomingHolidays)
-      : null,
-    upcomingServicingEvents.length > 0
-      ? upcomingServicingSection(upcomingServicingEvents)
-      : null,
-    newestAttendees.length > 0
-      ? newestAttendeesSection(newestAttendees, listings)
-      : null,
-  ]);
-
   return renderAdminPageSpec({
     active: "/admin/",
     body: (
@@ -304,7 +286,23 @@ export const adminDashboardPage = (
           listings={shownListings}
         />
 
-        {map((html: string) => <Raw html={html} />)(extraSections)}
+        {stats && <Raw html={activeListingStatsSection(stats)} />}
+
+        {pendingNotifications > 0 && (
+          <Raw html={pendingNotificationsSection(pendingNotifications)} />
+        )}
+
+        {upcomingHolidays.length > 0 && (
+          <Raw html={upcomingHolidaysSection(upcomingHolidays)} />
+        )}
+
+        {upcomingServicingEvents.length > 0 && (
+          <Raw html={upcomingServicingSection(upcomingServicingEvents)} />
+        )}
+
+        {newestAttendees.length > 0 && (
+          <Raw html={newestAttendeesSection(newestAttendees, listings)} />
+        )}
 
         <GuideFooter href="/admin/guide#dashboard">
           {t("admin.dashboard.guide_link")}

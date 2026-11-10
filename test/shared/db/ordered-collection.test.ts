@@ -36,6 +36,12 @@ const pageItems = defineOrderedCollection({
   table: "site_page_items",
 });
 
+const itemsOfOneType = defineOrderedCollection({
+  key: "item_id",
+  scope: ["page_id", "item_type"] as const,
+  table: "site_page_items",
+});
+
 const insertStatus = async (sortOrder: number): Promise<number> => {
   const statement = insert("attendee_statuses", {
     name: "status",
@@ -102,6 +108,14 @@ describeWithEnv("db > ordered collection", { db: true }, () => {
       [10],
     );
     expect(rows.map((row) => row.sort_order)).toEqual([2, 3]);
+  });
+
+  test("reads the next order inside a scope of two columns", async () => {
+    await insertPageItem(3, "listing", 1, 4);
+    await insertPageItem(3, "page", 2, 9);
+    await insertPageItem(5, "listing", 3, 7);
+
+    expect(await itemsOfOneType.next({ scope: [3, "listing"] })).toBe(5);
   });
 
   test("starts an empty default collection at zero", async () => {

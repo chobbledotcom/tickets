@@ -284,3 +284,8 @@ src/shared/db/built-sites/claims.ts::assignedBuiltSiteExistsStatement.tail~0nk25
 # slot pin (attendee, listing, old start, parent, package group) and never
 # reads the line's exists flag.
 src/shared/db/listings/daily-switch.ts::moveStatement.line.exists~1w8epkj true→false audited:0c2maua # updateStatementFor builds its UPDATE from the line's range and the caller's slot pin; nothing in the move path reads exists, so no input distinguishes the flag
+
+# Ordered collection (ordered-collection.ts): a collection without a scope
+# opens each where clause with "1 = 1 AND ". The text after it is always one
+# complete predicate, so the clause selects the same rows without the opener.
+src/shared/db/ordered-collection.ts::defineOrderedCollection.scopeWhere~1z0ithz 1 = 1 AND%20→"" audited:0ucohlv # "1 = 1 AND X" and "X" are the same SQL predicate, and every caller appends one complete predicate X
