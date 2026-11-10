@@ -378,6 +378,17 @@ describeWithEnv("ticket responses", { db: true }, () => {
     assertStringIncludes(await response.text(), "No room");
   });
 
+  test("redirects a form error back to the page the form lives on", async () => {
+    const { ctx, first, second } = await twoListingContext();
+
+    const response = ticketFormErrorResponse(ctx)("Pick one");
+    // Two listings share one page address, joined by a plus.
+    assertStringIncludes(
+      response.headers.get("Location") ?? "",
+      `/ticket/${first.slug}+${second.slug}`,
+    );
+  });
+
   test("counts months on a renewal page and tickets on a plain page", async () => {
     const tier = (monthsPerUnit: number) =>
       createTestListing({
@@ -393,16 +404,5 @@ describeWithEnv("ticket responses", { db: true }, () => {
     const renewal = ticketResponse({ ...ctx, siteToken: "site-token" })();
     assertStringIncludes(await renewal.text(), monthsOption);
     expect(await ticketResponse(ctx)().text()).not.toContain(monthsOption);
-  });
-
-  test("redirects a form error back to the page the form lives on", async () => {
-    const { ctx, first, second } = await twoListingContext();
-
-    const response = ticketFormErrorResponse(ctx)("Pick one");
-    // Two listings share one page address, joined by a plus.
-    assertStringIncludes(
-      response.headers.get("Location") ?? "",
-      `/ticket/${first.slug}+${second.slug}`,
-    );
   });
 });
