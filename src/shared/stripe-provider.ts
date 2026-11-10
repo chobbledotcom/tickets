@@ -28,6 +28,7 @@ import {
   type StripeCheckoutSession,
   StripeCheckoutSessionSchema,
 } from "#shared/stripe/schemas.ts";
+import { subscriptionStartOf } from "#shared/stripe/subscription.ts";
 import { verifyWebhookSignature } from "#shared/stripe/webhook.ts";
 import {
   isoFromUnixSeconds,
@@ -40,15 +41,34 @@ type StripeCheckoutCompletedEvent = Pick<
   "data" | "id" | "type"
 >;
 
-const toValidatedSession = (
+/** The charge a session paid with. A subscription-mode session names no
+ * payment intent of its own, so its subscription is read for the intent that
+ * paid the first invoice. An unreadable subscription stops the callback, so
+ * the provider asks again. */
+const sessionCharge = async (
   session: StripeCheckoutSession,
-): RetrieveSessionResult => {
+): Promise<Pick<ValidatedSessionFields, "paymentReference" | "subscription">> => {
+  if (session.mode !== "subscription" || session.subscription === null) {
+    return { paymentReference: session.payment_intent ?? "" };
+  }
+  const read = await stripeApi.readSubscription(session.subscription);
+  if (read.status !== "found") {
+    throw new Error(`Stripe subscription could not be read (${read.status})`);
+  }
+  const { paymentReference, start } = subscriptionStartOf(read.resource);
+  return { paymentReference, subscription: start };
+};
+
+type ValidatedSessionFields = Parameters<typeof validatedPaymentSession>[0];
+
+const toValidatedSession = async (
+  session: StripeCheckoutSession,
+): Promise<RetrieveSessionResult> => {
   const {
     amount_total,
     currency,
     id,
     metadata,
-    payment_intent,
     payment_status,
     status,
   } = session;
@@ -59,7 +79,7 @@ const toValidatedSession = (
     currency,
     id,
     metadata,
-    paymentReference: payment_intent ?? "",
+    ...(await sessionCharge(session)),
     // An expired session cannot take payment again, so a buyer returning to
     // one gets the cancel page with its try-again link, not the waiting page.
     paymentStatus: status === "expired" ? "failed" : payment_status,
@@ -126,7 +146,7 @@ export const stripePaymentProvider: PaymentProvider = {
     if (typeof id !== "string" || id.length === 0) return null;
 
     const session = v.parse(StripeCheckoutSessionSchema, obj);
-    const validated = toValidatedSession(session);
+    const validated = await toValidatedSession(session);
     return validated === null ? await this.retrieveSession(id) : validated;
   },
 

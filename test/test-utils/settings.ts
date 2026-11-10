@@ -143,6 +143,7 @@ export const SEEDED_FEATURE_RECORDS: EnabledFeatures = {
   questions: true,
   servicing: true,
   site: false,
+  subscriptions: false,
 };
 
 /** Run an action while every attempt to persist the feature setting fails. */

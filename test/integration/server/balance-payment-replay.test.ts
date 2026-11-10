@@ -37,9 +37,11 @@ const balanceSession = (
     },
     amount,
   ),
+  mode: "payment",
   payment_intent: `pi_${sessionId}`,
   payment_status: "paid",
   status: "complete",
+  subscription: null,
   url: null,
 });
 

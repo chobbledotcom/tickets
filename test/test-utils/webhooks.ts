@@ -41,12 +41,14 @@ export const checkoutSessionEvent = (opts: {
       expires_at: (opts.created ?? 1_700_000_000) + 3_600,
       id: opts.sessionId,
       metadata: opts.metadata,
+      mode: "payment",
       payment_intent:
         opts.paymentIntent === undefined
           ? `pi_${opts.sessionId}`
           : opts.paymentIntent,
       payment_status: opts.paymentStatus ?? "paid",
       status: "complete",
+      subscription: null,
       url: null,
     },
   },

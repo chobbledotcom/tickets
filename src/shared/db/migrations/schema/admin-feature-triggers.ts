@@ -124,6 +124,22 @@ const FEATURE_WRITE_SOURCES: FeatureWriteSource[] = [
     table: "attendees",
     when: "NEW.kind = 'servicing'",
   },
+  {
+    columns: ["recurring_price"],
+    event: "INSERT",
+    feature: "subscriptions",
+    name: "trg_admin_feature_subscriptions_listings_insert",
+    table: "listings",
+    when: "NEW.recurring_price > 0",
+  },
+  {
+    columns: ["recurring_price"],
+    event: "UPDATE",
+    feature: "subscriptions",
+    name: "trg_admin_feature_subscriptions_listings_update",
+    table: "listings",
+    when: "NEW.recurring_price > 0",
+  },
 ];
 
 const initialFeaturesFor = (feature: AdminFeatureKey): string =>

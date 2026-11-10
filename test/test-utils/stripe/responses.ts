@@ -3,7 +3,10 @@ import type {
   StripeCheckoutSession,
   StripeExpandedPaymentIntent,
 } from "#shared/stripe/schemas.ts";
-import { stripeRefund } from "#test-utils/stripe/fixtures.ts";
+import {
+  stripeRefund,
+  stripeSubscription,
+} from "#test-utils/stripe/fixtures.ts";
 
 const checkout = {
   amount_total: 1000,
@@ -12,9 +15,11 @@ const checkout = {
   expires_at: 456,
   id: "cs_1",
   metadata: {},
+  mode: "payment",
   payment_intent: "pi_1",
   payment_status: "paid",
   status: "complete",
+  subscription: null,
   url: "https://checkout.stripe.com/c/pay/cs_1",
 };
 
@@ -72,6 +77,9 @@ export const stripeResponseFor = (path: string, method: string): Response => {
   if (path === "/v1/balance") return Response.json({ livemode: false });
   if (path === "/v1/refunds") {
     return Response.json(stripeRefund());
+  }
+  if (path.startsWith("/v1/subscriptions/")) {
+    return Response.json(stripeSubscription());
   }
   if (path.startsWith("/v1/payment_intents/")) {
     return Response.json(stripeIntentWithCharge());

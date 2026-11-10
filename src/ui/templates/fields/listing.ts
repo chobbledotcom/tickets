@@ -25,6 +25,7 @@ import {
 } from "#shared/forms/field.ts";
 import { MAX_ATTACHMENT_SIZE } from "#shared/limits.ts";
 import { parseSignedInt } from "#shared/validation/number.ts";
+import { RecurringIntervalSchema } from "#shared/subscriptions/plan.ts";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
 import { moneyPattern } from "#templates/components/price-input.tsx";
 import { checkboxField } from "#templates/fields/checkbox-field.ts";
@@ -52,6 +53,7 @@ export interface ListingFormView {
   logistics?: boolean;
   nameAutofocus?: boolean;
   storage?: boolean;
+  subscriptions?: boolean;
   webhook?: boolean;
 }
 
@@ -247,6 +249,34 @@ const listingFields = (view: ListingFormView = {}) =>
       ],
       section: "tickets",
       type: "checkbox-group",
+    },
+    {
+      hint: t("fields.listing.recurring_price_hint"),
+      inputmode: "decimal",
+      label: t("fields.listing.recurring_price"),
+      name: "recurring_price",
+      pattern: moneyPattern(),
+      placeholder: t("fields.listing.price_placeholder"),
+      section: "tickets",
+      title: t("fields.listing.price_title"),
+      type: "text",
+      validate: validateNonNegativePrice,
+      visible: view.subscriptions === true,
+    },
+    {
+      hint: t("fields.listing.recurring_interval_hint"),
+      label: t("fields.listing.recurring_interval"),
+      name: "recurring_interval",
+      options: [
+        { label: t("fields.listing.recurring_interval_none"), value: "" },
+        ...picklistOptions(
+          RecurringIntervalSchema,
+          "fields.listing.recurring_interval",
+        ),
+      ],
+      section: "tickets",
+      type: "select",
+      visible: view.subscriptions === true,
     },
     {
       // 100 currency units, formatted to the currency's decimals so the default

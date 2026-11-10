@@ -64,6 +64,8 @@ export const testListing = (overrides: Partial<Listing> = {}): Listing => ({
   name: "Test Listing",
   non_transferable: false,
   purchase_only: false,
+  recurring_interval: "",
+  recurring_price: 0,
   slug: "ab12c",
   // Hand-crafted fixture stand-in for the stored blind index — test cast.
   slug_index: "test-listing-index" as BlindIndex,

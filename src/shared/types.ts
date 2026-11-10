@@ -20,6 +20,7 @@ import type {
 } from "#shared/price-modifier.ts";
 import { guardFor } from "#shared/validation/guard.ts";
 import { clampInteger, integerAtLeast } from "#shared/validation/number.ts";
+import type { RecurringIntervalChoice } from "#shared/subscriptions/plan.ts";
 import type { NonEmptyString } from "#shared/validation/string.ts";
 
 /** Type guard: a non-null, non-array object (a Record shape). */
@@ -309,6 +310,10 @@ export interface Listing extends ItemImageColumns {
   name: string;
   non_transferable: boolean;
   purchase_only: boolean;
+  recurring_interval: RecurringIntervalChoice;
+  /** Minor units before VAT that a new subscriber pays each period. 0 means
+   *  an ordinary ticket. */
+  recurring_price: number;
   slug: string;
   slug_index: BlindIndex;
   thank_you_url: string;

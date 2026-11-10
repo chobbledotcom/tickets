@@ -194,9 +194,11 @@ export const balanceSession = (
     ),
     ...meta,
   },
+  mode: "payment",
   payment_intent: id.replace(/^cs_/, "pi_"),
   payment_status: "paid",
   status: "complete",
+  subscription: null,
   url: null,
   ...over,
 });

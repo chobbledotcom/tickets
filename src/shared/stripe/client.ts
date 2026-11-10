@@ -1,5 +1,6 @@
 import type Stripe from "stripe";
 import type * as v from "valibot";
+import type { RecurringInterval } from "#shared/subscriptions/plan.ts";
 import type { StripeFormValue } from "./form.ts";
 import {
   createStripeRequest,
@@ -19,6 +20,8 @@ import {
   StripeExpandedPaymentIntentSchema,
   type StripeRefund,
   StripeRefundSchema,
+  type StripeSubscription,
+  StripeSubscriptionSchema,
   type StripeWebhookEndpointList,
   StripeWebhookEndpointListSchema,
 } from "./schemas.ts";
@@ -43,6 +46,12 @@ interface StripePriceDataParams
   extends Readonly<Record<string, StripeFormValue>> {
   currency: StripePriceData["currency"];
   product_data: StripeProductDataParams;
+  recurring?: {
+    interval: Extract<
+      NonNullable<StripePriceData["recurring"]>["interval"],
+      RecurringInterval
+    >;
+  };
   unit_amount: NonNullable<StripePriceData["unit_amount"]>;
 }
 
@@ -60,11 +69,17 @@ export interface StripeCheckoutSessionCreateParams {
   expires_at: NonNullable<OfficialCheckoutParams["expires_at"]>;
   line_items: readonly StripeCheckoutLineItemParams[];
   metadata: Readonly<Record<string, string>>;
-  mode: Extract<OfficialCheckoutParams["mode"], "payment">;
+  mode: Extract<OfficialCheckoutParams["mode"], "payment" | "subscription">;
   payment_method_types: readonly [
     "card" &
       NonNullable<OfficialCheckoutParams["payment_method_types"]>[number],
   ];
+  /** Only in subscription mode. The trial holds the recurring price back
+   *  for one period, while the one-time lines charge at once. */
+  subscription_data?: {
+    metadata: Readonly<Record<string, string>>;
+    trial_end: number;
+  };
   success_url: NonNullable<OfficialCheckoutParams["success_url"]>;
 }
 
@@ -94,6 +109,11 @@ export interface StripeClient {
         id: Stripe.Checkout.Session["id"],
       ) => Promise<StripeCheckoutSession>;
     };
+  };
+  subscriptions: {
+    retrieveWithFirstPayment: (
+      id: Stripe.Subscription["id"],
+    ) => Promise<StripeSubscription>;
   };
   paymentIntents: {
     retrieveWithLatestCharge: (
@@ -157,6 +177,15 @@ export const createStripeClient = (
           StripeCheckoutSessionSchema,
         ),
       },
+    },
+    subscriptions: {
+      retrieveWithFirstPayment: (id) =>
+        call(
+          "GET",
+          idPath("subscriptions", id),
+          { expand: ["latest_invoice.payments"] },
+          StripeSubscriptionSchema,
+        ),
     },
     paymentIntents: {
       retrieveWithLatestCharge: (id, options) =>

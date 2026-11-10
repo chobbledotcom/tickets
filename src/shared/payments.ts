@@ -19,6 +19,11 @@ import {
   type PurchaseUnitFacts,
   resolvePurchaseUnit,
 } from "#shared/purchase-unit.ts";
+import type {
+  RecurringInterval,
+  RecurringIntervalChoice,
+  SubscriptionStart,
+} from "#shared/subscriptions/plan.ts";
 import type { TaxPolicy } from "#shared/tax/types.ts";
 import type { ContactInfo, PaymentProviderType } from "#types";
 
@@ -49,11 +54,28 @@ export type CheckoutItem = {
    *  beside a "(1 Month)" plan buys three months of one site, not three
    *  sites. Display only: fulfilment reads its own facts. */
   purchaseUnit?: PurchaseUnit | undefined;
+  /** The recurring price before VAT for one unit, and how often Stripe
+   *  charges it. Absent for an ordinary ticket. */
+  recurring?: { interval: RecurringInterval; price: number } | undefined;
 };
 
 /** Only a months unit adds a field; the plain unit is the absent default. */
 const unitFields = (unit: PurchaseUnit): Partial<CheckoutItem> =>
   unit.kind === "months" ? { purchaseUnit: unit } : {};
+
+/** A listing with a recurring price and a frequency sells a subscription. */
+const recurringFields = (
+  listing: RecurringListingFacts,
+): Partial<CheckoutItem> => {
+  const interval = listing.recurring_interval ?? "";
+  const price = listing.recurring_price ?? 0;
+  return interval !== "" && price > 0 ? { recurring: { interval, price } } : {};
+};
+
+type RecurringListingFacts = {
+  recurring_interval?: RecurringIntervalChoice | undefined;
+  recurring_price?: number | undefined;
+};
 
 /** Build a {@link CheckoutItem} for one listing — the one constructor every
  *  real-listing checkout line is built from. `purchase` carries the purchase
@@ -63,6 +85,7 @@ const unitFields = (unit: PurchaseUnit): Partial<CheckoutItem> =>
  *  the result. */
 export const checkoutItem = (
   listing: PurchaseUnitFacts &
+    RecurringListingFacts &
     Pick<CheckoutItem, "name" | "slug"> & {
       id: number;
     },
@@ -71,6 +94,7 @@ export const checkoutItem = (
   purchase: PurchaseContext = { renewal: false },
 ): CheckoutItem => ({
   ...unitFields(resolvePurchaseUnit(listing, purchase)),
+  ...recurringFields(listing),
   listingId: listing.id,
   name: listing.name,
   quantity,
@@ -224,6 +248,9 @@ export type ValidatedPaymentSession = {
    * was paid, not the day we happened to process it.
    */
   createdAt?: string | undefined;
+  /** The subscription this checkout started, as the provider reported it.
+   *  Absent for an ordinary checkout. */
+  subscription?: SubscriptionStart | undefined;
 };
 
 /** Result of webhook signature verification */

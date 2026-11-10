@@ -146,6 +146,14 @@ export const attendeeTables: [name: string, table: Table][] = [
         // persisted id, so a standalone order of the same listings is not
         // mistaken for the package by membership equality.
         ["package_group_id", wholeNumberStartingAtZero],
+        // The plan Stripe reported when this person subscribed, so a later
+        // listing edit never changes it. recurring_price is minor units for
+        // the whole quantity, VAT included, and 0 means no subscription.
+        ["recurring_price", wholeNumberStartingAtZero],
+        ["recurring_tax", wholeNumberStartingAtZero],
+        ["recurring_interval", textStartingBlank],
+        ["subscription_id", textStartingBlank],
+        ["subscription_status", textStartingBlank],
       ],
       // FKs omitted — libsql's FK enforcement causes issues during table
       // recreation migrations. Referential integrity is enforced by application

@@ -86,6 +86,14 @@ describe("admin features", () => {
         labelKey: "features.invoices.name",
         slug: "invoices",
       },
+      {
+        descriptionKey: "features.subscriptions.description",
+        inUseSql:
+          "EXISTS (SELECT 1 FROM listings AS listing WHERE listing.recurring_price > 0) OR EXISTS (SELECT 1 FROM listing_attendees AS listingAttendee WHERE listingAttendee.subscription_id != '')",
+        key: "subscriptions",
+        labelKey: "features.subscriptions.name",
+        slug: "subscriptions",
+      },
     ]);
   });
 
@@ -101,6 +109,7 @@ describe("admin features", () => {
       questions: false,
       servicing: false,
       site: false,
+      subscriptions: false,
     });
   });
 

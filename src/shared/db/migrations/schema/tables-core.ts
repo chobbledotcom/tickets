@@ -115,6 +115,10 @@ export const coreTables: [name: string, table: Table][] = [
         ["uses_logistics", wholeNumberStartingAtZero],
         ["use_defaults", wholeNumberStartingAtZero],
         ["bookable_alone", wholeNumberStartingAtZero],
+        // The plan a new subscriber gets: minor units before VAT, and week,
+        // month, or year. A price of 0 means an ordinary ticket.
+        ["recurring_price", wholeNumberStartingAtZero],
+        ["recurring_interval", textStartingBlank],
         // Precomputed counts over listing_attendees, maintained by the
         // LISTING_AGGREGATE_TRIGGERS so listing reads and the active-listing
         // stats never COUNT the listing_attendees table. booked_quantity is

@@ -44,6 +44,7 @@ import type {
   ModifierSpec,
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
+import { withSubscriptionPlan } from "#shared/subscriptions/booking-plan.ts";
 import type { ListingWithCount } from "#types";
 
 /** The listing id + package path every booking row we build from a signed
@@ -211,13 +212,17 @@ export const createAttendeeForSession = async (
     const listingById = new Map(
       validatedItems.map(({ listing }) => [listing.id, listing]),
     );
-    const bookings = bookingsForOrder(
-      {
-        allocations: intent.allocations,
-        date: intent.date,
-        dayCount: intent.dayCount,
-      },
-      checkoutBookingLines(pricingIntent.items, listingById, paidByIntentItem),
+    const bookings = withSubscriptionPlan(
+      bookingsForOrder(
+        {
+          allocations: intent.allocations,
+          date: intent.date,
+          dayCount: intent.dayCount,
+        },
+        checkoutBookingLines(pricingIntent.items, listingById, paidByIntentItem),
+      ),
+      session.subscription,
+      pricedOrder.tax.policy,
     );
     const remainingBalance =
       intent.reservationAmount === undefined

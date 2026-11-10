@@ -69,9 +69,11 @@ export const stubRetrieveCheckoutSession = (
     expires_at: 1_700_003_600,
     id: session.sessionId,
     metadata,
+    mode: "payment",
     payment_intent: session.paymentIntent,
     payment_status: session.paymentStatus ?? "paid",
     status: session.status ?? "complete",
+    subscription: null,
     url: null,
   };
   return stub(stripeApi, "retrieveCheckoutSession", () =>

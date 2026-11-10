@@ -4,6 +4,7 @@ import type { BlindIndex } from "#crypto/sealed.ts";
 import { col } from "#db/table.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { storedListingFields } from "#shared/listing-fields.ts";
+import type { RecurringIntervalChoice } from "#shared/subscriptions/plan.ts";
 import {
   clampDurationDays,
   type DayPrices,
@@ -122,6 +123,12 @@ export const listingCatalogFields = {
     CATALOG_API_FORM,
   ],
   purchaseOnly: ["purchase_only", falseColumn, "boolean", CATALOG_FORM],
+  recurringInterval: [
+    "recurring_interval",
+    col.withDefault<RecurringIntervalChoice>(() => ""),
+    "string",
+  ],
+  recurringPrice: ["recurring_price", zeroColumn, "price"],
   thankYouUrl: [
     "thank_you_url",
     encryptedTextColumn,

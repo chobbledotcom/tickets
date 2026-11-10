@@ -49,6 +49,7 @@ import {
 } from "#shared/package-membership.ts";
 import { parseUpdateSlug } from "#shared/rest/crud-parsers.ts";
 import { generateUniqueSlug, normalizeSlug } from "#shared/slug.ts";
+import { recurringPlanError } from "#shared/subscriptions/listing-rules.ts";
 import { deleteListingAttachmentFile } from "#shared/storage-cleanup.ts";
 
 import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";
@@ -321,7 +322,8 @@ export const validateListingInput = async (
       input.webhookUrl,
       "Webhook URL must be a public https:// domain",
     ) ??
-    validateRenewalConfig(input)
+    validateRenewalConfig(input) ??
+    recurringPlanError(input)
   );
 };
 

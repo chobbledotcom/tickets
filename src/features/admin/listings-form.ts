@@ -6,6 +6,7 @@
  * dynamic `day_price_*` inputs can be read alongside the validated values.
  */
 
+import * as v from "valibot";
 import { hmacHash } from "#crypto/hashing.ts";
 import { listingAttributeOptions } from "#db/attributes.ts";
 import type { TxScope } from "#db/client.ts";
@@ -48,6 +49,8 @@ import {
 import { defineResource } from "#shared/rest/resource.ts";
 import { normalizeSlug } from "#shared/slug.ts";
 import { commaParts } from "#shared/split.ts";
+import { subscriptionsOffered } from "#shared/subscriptions/offered.ts";
+import { RecurringIntervalChoiceSchema } from "#shared/subscriptions/plan.ts";
 import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
 import {
   getListingEditForm,
@@ -195,6 +198,22 @@ const normalizeOptionalDatetime = (raw: string, field: string): string =>
 const enabledChoice = (enabled: boolean, value: string): boolean =>
   enabled && value === "1";
 
+/** The recurring price and frequency, read only while the form offers them,
+ * so a save with them hidden keeps the stored plan. The listing save rule
+ * judges the pair. */
+const recurringPlanFields = (
+  values: ListingFormValues,
+): Pick<ListingInput, "recurringInterval" | "recurringPrice"> => {
+  if (!subscriptionsOffered()) return {};
+  return {
+    recurringInterval: v.parse(
+      RecurringIntervalChoiceSchema,
+      values.recurring_interval,
+    ),
+    recurringPrice: parseOptionalMinorUnits(values.recurring_price) ?? 0,
+  };
+};
+
 const extractCommonFields = (
   values: ListingFormValues,
   form: FormParams,
@@ -226,6 +245,7 @@ const extractCommonFields = (
     groupIds: form.getNumberArray("group_ids"),
     listingType,
     maxPrice: toMinorUnits(Number.parseFloat(values.max_price)),
+    ...recurringPlanFields(values),
     unitPrice,
     useDefaults: form.getFlag("use_defaults"),
     usesLogistics: enabledChoice(

@@ -98,6 +98,7 @@ export default schemaMigration(
       questions: configured.questions || asBoolean(row.questions),
       servicing: configured.servicing || asBoolean(row.servicing),
       site: configured.site || asBoolean(row.site),
+      subscriptions: configured.subscriptions,
     };
     await getDb().batch([
       {

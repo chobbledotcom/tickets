@@ -17,6 +17,7 @@ import {
   getListingForm,
   type ListingFormView,
 } from "#templates/fields/listing.ts";
+import { subscriptionsOffered } from "#shared/subscriptions/offered.ts";
 import type { AdminSession, Group, ListingWithCount } from "#types";
 import {
   renderDayPricesFieldset,
@@ -265,6 +266,7 @@ export const listingFormPageState = (
     logistics: settings.features.logistics,
     ...(fields.nameAutofocus ? { nameAutofocus: true } : {}),
     storage: isStorageEnabled(),
+    subscriptions: subscriptionsOffered(),
     webhook: session.adminLevel !== "editor",
   };
   const renderSection: ListingSectionRenderer = fields.includeSlug

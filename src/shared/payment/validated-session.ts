@@ -136,6 +136,7 @@ export const validatedPaymentSession = (fields: {
   paymentReference: string;
   paymentStatus: ValidatedPaymentSession["paymentStatus"];
   provider: PaymentProviderType;
+  subscription?: ValidatedPaymentSession["subscription"];
 }): ValidatedPaymentSession | SessionRejection => {
   if (!isResourceId(fields.id)) {
     throw new Error("Payment session has an invalid provider resource id");
@@ -181,5 +182,8 @@ export const validatedPaymentSession = (fields: {
     paymentReference: fields.paymentReference,
     paymentStatus: fields.paymentStatus,
     provider: fields.provider,
+    ...(fields.subscription === undefined
+      ? {}
+      : { subscription: fields.subscription }),
   };
 };

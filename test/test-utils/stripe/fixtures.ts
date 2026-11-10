@@ -21,6 +21,7 @@ import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
 import type {
   StripeCheckoutSession,
   StripeRefund,
+  StripeSubscription,
 } from "#shared/stripe/schemas.ts";
 import { checkoutItem } from "#test-utils/checkout-items.ts";
 import { withMocks } from "#test-utils/mocks.ts";
@@ -50,10 +51,39 @@ export const stripeCheckoutSession = (
   expires_at: 456,
   id: "cs_test",
   metadata: {},
+  mode: "payment",
   payment_intent: "pi_test",
   payment_status: "paid",
   status: "complete",
+  subscription: null,
   url: "https://checkout.stripe.com/c/pay/cs_test",
+  ...overrides,
+});
+
+/** A subscription answer with its first invoice paid by one intent, with
+ * per-test fields overridden. */
+export const stripeSubscription = (
+  overrides: Partial<StripeSubscription> = {},
+): StripeSubscription => ({
+  currency: "gbp",
+  id: "sub_test",
+  items: {
+    data: [
+      { price: { recurring: { interval: "month" }, unit_amount: 500 }, quantity: 1 },
+    ],
+  },
+  latest_invoice: {
+    payments: {
+      data: [
+        {
+          payment: { payment_intent: "pi_first", type: "payment_intent" },
+          status: "paid",
+        },
+      ],
+    },
+  },
+  metadata: { listing_id: "1" },
+  status: "trialing",
   ...overrides,
 });
 

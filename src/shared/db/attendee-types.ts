@@ -8,6 +8,7 @@ import type { PendingNotificationFlag } from "#db/attendees/notification-flags.t
 import type { BookingSource } from "#db/contact-tokens.ts";
 import type { AttendeeCreationFailureReason } from "#shared/attendee-failures.ts";
 import type { Attendee, ContactFields, ContactInfo } from "#types";
+import type { SubscriptionPlan } from "#shared/subscriptions/plan.ts";
 
 /** Per-(child, parent) unit allocation from the booking fold: the quantity of
  * `childId` chosen under `parentId` in one order. An order where the same child
@@ -99,6 +100,9 @@ export type ListingBooking = {
    * can carry several packages — so tickets/emails group each line under the
    * right bundle by this id. */
   packageGroupId?: number | undefined;
+  /** The plan of the subscription this row bought. Absent for an ordinary
+   *  ticket. */
+  subscription?: SubscriptionPlan | undefined;
 };
 
 /** A concrete booking line — every field resolved (unlike the optional-field

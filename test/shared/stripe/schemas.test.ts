@@ -20,9 +20,11 @@ const checkout = () => ({
   expires_at: 456,
   id: "cs_1",
   metadata: { booking: "signed" },
+  mode: "payment",
   payment_intent: "pi_1",
   payment_status: "paid",
   status: "complete" as const,
+  subscription: null,
   url: "https://checkout.stripe.com/c/pay/cs_1",
 });
 
@@ -59,9 +61,11 @@ describe("Stripe schemas", () => {
       expires_at: 456,
       id: "cs_1",
       metadata: { booking: "signed" },
+      mode: "payment",
       payment_intent: "pi_1",
       payment_status: "paid",
       status: "complete",
+      subscription: null,
       url: "https://checkout.stripe.com/c/pay/cs_1",
     });
   });
@@ -98,7 +102,13 @@ describe("Stripe schemas", () => {
     });
   }
 
-  for (const field of ["amount_total", "metadata", "payment_intent", "url"]) {
+  for (const field of [
+    "amount_total",
+    "metadata",
+    "payment_intent",
+    "subscription",
+    "url",
+  ]) {
     test(`accepts null for nullable checkout field ${field}`, () => {
       expect(
         v.parse(StripeCheckoutSessionSchema, {
@@ -109,7 +119,7 @@ describe("Stripe schemas", () => {
     });
   }
 
-  for (const field of ["id", "payment_intent", "url"]) {
+  for (const field of ["id", "payment_intent", "subscription", "url"]) {
     test(`rejects an empty checkout ${field}`, () => {
       expect(() =>
         v.parse(StripeCheckoutSessionSchema, {
