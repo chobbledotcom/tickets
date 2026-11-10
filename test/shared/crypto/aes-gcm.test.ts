@@ -6,6 +6,7 @@ import {
   aesGcmDecryptRaw,
   aesGcmEncryptBytes,
   aesGcmEncryptRaw,
+  importAesKeyBytes,
 } from "#crypto/aes-gcm.ts";
 import { getRandomBytes } from "#crypto/utils.ts";
 // The standard runners preload this, but the payloads below are large enough
@@ -211,5 +212,15 @@ describe("aesGcmEncryptBytes / aesGcmDecryptBytes", () => {
     expect(ciphertext.length).toBe(await tagLength());
 
     expect((await aesGcmDecryptBytes(iv, ciphertext, keyBytes)).length).toBe(0);
+  });
+});
+
+describe("importAesKeyBytes", () => {
+  // The key seals invoice share tokens, so its raw bytes must never leave.
+  it("imports a key that seals and opens but cannot be read back", async () => {
+    const key = await importAesKeyBytes(getRandomBytes(AES_KEY_BYTES));
+
+    expect(key.usages).toEqual(["encrypt", "decrypt"]);
+    await expect(crypto.subtle.exportKey("raw", key)).rejects.toThrow();
   });
 });

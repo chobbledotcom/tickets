@@ -63,7 +63,7 @@ src/shared/builder.ts::getDbCredentials.dbProvider~07qz5jj  ?? → || audited:0a
 src/shared/builder.ts::getDbCredentials.provider~07qz5jj  ?? → || audited:0a9ijwm # dbProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
 src/shared/builder.ts::buildSite~1ql9xrg  ?? → || audited:0a9ijwm # hostingProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
 src/features/url.ts::getSearchParam~075toi8  ?? → || audited:1lc1b4d # URLSearchParams.get returns null or a string; its only falsy string is already the empty fallback
-src/shared/storage.ts::uploadRaw.contentType~1aiucvn  application/octet-stream → "" audited:02ppx4o # the pinned Bunny SDK normalizes an empty contentType to application/octet-stream, as the request-level upload test proves
+src/shared/storage.ts::uploadRaw.contentType~1aiucvn  application/octet-stream → "" audited:0lx3e4y # the pinned Bunny SDK normalizes an empty contentType to application/octet-stream, as the request-level upload test proves
 src/shared/site-build.ts::buildRetainedSite.result.retainedId~1yhgu6i  = → += audited:04b1nhh # retainedId starts at 0 and buildSite invokes retain exactly once, so both assignments store row.id
 src/shared/db/built-site-scheduler.ts::ensureBuiltSiteSchedulerKey.updated.key~0z0c2lu  ?? → || audited:075dffi # scheduledTaskKey is null or a non-empty canonical key, so both operators select the candidate only when no key exists
 src/shared/deno-deploy-api.ts::revisionOutcome~0hg2lm6  ?? → || audited:0k0dsia # failure_reason is null or a non-empty picklist value, so both use the status only for null
@@ -93,8 +93,8 @@ src/shared/largest-remainder.ts::largestRemainderIndexes.tieBreaker~07p6b0t  ?? 
 
 # crypto/utils: Uint8Array indexing yields number|undefined; fallback is 0, and
 # the only falsy non-null byte is 0, so `byte ?? 0` and `byte || 0` agree.
-src/shared/crypto/utils.ts::constantTimeEqual~1sr6g7q  ?? → || audited:0jjy7kr # bufA[i]: number|undefined, 0 ?? 0 === 0 || 0
-src/shared/crypto/utils.ts::constantTimeEqual~0nflsgj  ?? → || audited:0jjy7kr # bufB[i]: number|undefined, 0 ?? 0 === 0 || 0
+src/shared/crypto/utils.ts::constantTimeEqual~1sr6g7q  ?? → || audited:0knxekc # bufA[i]: number|undefined, 0 ?? 0 === 0 || 0
+src/shared/crypto/utils.ts::constantTimeEqual~0nflsgj  ?? → || audited:0knxekc # bufB[i]: number|undefined, 0 ?? 0 === 0 || 0
 
 # savedFormValue: form?.getString(name) is string|undefined; the only falsy
 # non-null string is "" which equals the "" fallback, so ?? and || agree.
@@ -199,13 +199,13 @@ src/shared/logistics-filter.ts::parseAgentFilter.n~03f157n   → "mutated" audit
 # is only asked past the end of one string when the lengths differ — and that
 # seed already forces "not equal". Whatever the short side reads there cannot
 # change the answer.
-src/shared/crypto/utils.ts::constantTimeEqual~1sr6g7q  0 → 1 audited:0jjy7kr # only read past the end of the shorter string, where the length XOR has already decided the result
-src/shared/crypto/utils.ts::constantTimeEqual~0nflsgj  0 → 1 audited:0jjy7kr # same reader for the other side, reached only when the lengths already differ
+src/shared/crypto/utils.ts::constantTimeEqual~1sr6g7q  0 → 1 audited:0knxekc # only read past the end of the shorter string, where the length XOR has already decided the result
+src/shared/crypto/utils.ts::constantTimeEqual~0nflsgj  0 → 1 audited:0knxekc # same reader for the other side, reached only when the lengths already differ
 
 # crypto/der.ts — this value is written into a Uint8Array element. Adding or
 # subtracting 128 produces the same low eight bits, and Uint8Array discards all
 # higher bits.
-src/shared/crypto/der.ts::encodeLength~0ikcwcz  128 → -128 audited:1a1tq54 # DER long-length marker: 128+n and -128+n have identical low eight bits
+src/shared/crypto/der.ts::encodeLength~0ikcwcz  128 → -128 audited:1p2b1tg # DER long-length marker: 128+n and -128+n have identical low eight bits
 
 # dates.ts — provably-equivalent survivors from the whole-file run over the
 # dates suites. Each is unobservable through every export that reaches the line.
