@@ -41,6 +41,11 @@ describe("unread-field rule manifest", () => {
   // A manifest entry the gate cannot read back is an error at its own place.
   const malformed: [string, unknown, string][] = [
     [
+      "a manifest that is not an object",
+      null,
+      "the top of the manifest: Invalid type: Expected Object but received null",
+    ],
+    [
       "a rule with no owner path step",
       { "src/shared/api.ts": [{ ...rule, path: [] }] },
       "src/shared/api.ts / 0 / path: A rule must name at least one owner path step",
