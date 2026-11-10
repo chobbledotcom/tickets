@@ -31,12 +31,10 @@ import { tursoDbProvider } from "#shared/turso-api.ts";
  * flow waits on its timer page and the command-line flow waits too. */
 export const DATABASE_KEY_PAUSE_SECONDS = 60;
 
-/** Seconds a rotation link stays open: the timer page's own wait, plus time to
- * reload it. A later link is refused, and the operator starts again. */
+/** Seconds a rotation link stays open, counted from the second step one signs
+ * it: the timer page's own wait, plus time to reload it. A later link is
+ * refused, and the operator starts again. */
 const ROTATION_LINK_MAX_AGE_S = 600;
-
-/** Seconds of clock skew a rotation link allows. */
-const ROTATION_LINK_CLOCK_SKEW_S = 60;
 
 /** The two databases a host can change the key of through a provider API. */
 export type DatabaseKeyProvider = "bunny" | "turso";
@@ -168,7 +166,8 @@ const rotationMessage = (siteId: number, expiry: number): string =>
 /**
  * The signed path that runs step two. The timer page's meta refresh opens it
  * when the pause ends. The signature stops a stranger from sending this write
- * under an owner's session, because a GET carries no form token.
+ * under an owner's session, because a GET carries no form token. Step one
+ * signs the link when it ends, so the expiry dates the pause as well.
  */
 export const databaseKeyIssueUrl = async (siteId: number): Promise<string> => {
   const expiry = nowSeconds() + ROTATION_LINK_MAX_AGE_S;
@@ -180,8 +179,9 @@ export const databaseKeyIssueUrl = async (siteId: number): Promise<string> => {
   return `${path}?${query.toString()}`;
 };
 
-/** Whether a rotation link carries this host's signature for the site, and
- * has not run out of time. A missing field never opens it. */
+/** Whether a rotation link carries this host's signature for the site, comes
+ * after the pause, and has not run out of time. A missing field never opens
+ * it. */
 export const databaseKeyIssueAllowed = (
   siteId: number,
   expiry: string | null,
@@ -191,9 +191,12 @@ export const databaseKeyIssueAllowed = (
   return verifySignedValue(
     expiry,
     signature,
+    // Step one signs the link when it ends, so a link opens one pause before
+    // its window runs out. A link opened sooner is refused, because the
+    // database still removes the old keys.
     (value, now) =>
-      now <= value &&
-      value - now <= ROTATION_LINK_MAX_AGE_S + ROTATION_LINK_CLOCK_SKEW_S,
+      now >= value - ROTATION_LINK_MAX_AGE_S + DATABASE_KEY_PAUSE_SECONDS &&
+      now <= value,
     (value) => rotationMessage(siteId, value),
   );
 };

@@ -5,9 +5,12 @@ import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { FakeTime } from "@std/testing/time";
 import { findBuiltSiteByIdPrimary } from "#db/built-sites.ts";
+import { readOnlyBlock } from "#routes/app/read-only.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { bunnyDbProvider } from "#shared/bunny-db.ts";
+import { DATABASE_KEY_PAUSE_SECONDS } from "#shared/database-key-rotation.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { expectErrorFlash } from "#test-utils/assertions/redirect.ts";
@@ -52,7 +55,9 @@ const rotationLogs = async (): Promise<number> =>
 
 /** The signed link out of the timer page's meta refresh. */
 const finishUrlOf = (html: string): string => {
-  const match = /content="60;url=([^"]+)"/.exec(html);
+  const match = new RegExp(
+    `content="${DATABASE_KEY_PAUSE_SECONDS};url=([^"]+)"`,
+  ).exec(html);
   const url = match?.[1];
   if (url === undefined) throw new Error("The timer page carries no link");
   return url.replaceAll("&amp;", "&");
@@ -76,9 +81,19 @@ const postRotation = async (siteId: number): Promise<Response> =>
 const timerPageLink = async (siteId: number): Promise<string> =>
   finishUrlOf(await (await postRotation(siteId)).text());
 
+/** Open one rotation link as the timer page does, once the pause has passed.
+ * The request runs inside the faked clock, so its answer comes back before the
+ * clock is restored. */
+const openLink = async (url: string): Promise<Response> => {
+  using time = new FakeTime(Date.now());
+  time.tick(DATABASE_KEY_PAUSE_SECONDS * 1000);
+  const response = await adminGet(url);
+  return response;
+};
+
 /** Step two for one site: the timer page's link, opened. */
 const finishRotation = async (siteId: number): Promise<Response> =>
-  adminGet(await timerPageLink(siteId));
+  openLink(await timerPageLink(siteId));
 
 /** The calls a rotation test can read after its faked answers ran. */
 interface RotationCalls {
@@ -118,6 +133,18 @@ const withKeyAnswers = (
       await run({ invalidate, issue, pushes });
     },
   );
+};
+
+/** Check a refused rotation link made no new key: the site keeps the one it
+ * had. */
+const expectLinkRefused = async (
+  response: Response,
+  calls: RotationCalls,
+  siteId: number,
+): Promise<void> => {
+  expectErrorFlash(response, LINK_EXPIRED);
+  expect(calls.issue.calls.length).toBe(0);
+  expect(await storedKey(siteId)).toBe("old-key");
 };
 
 /** The one site a route case changes, with its key before the rotation. */
@@ -319,7 +346,7 @@ describeWithEnv(
           "Rotating the database key",
           "It needs a short pause before it can make the new key.",
           "This page waits one minute.",
-          `content="60;url=/admin/built-sites/${site.id}/rotate-database-key/complete?exp=`,
+          `content="${DATABASE_KEY_PAUSE_SECONDS};url=/admin/built-sites/${site.id}/rotate-database-key/complete?exp=`,
         ]);
         expect(invalidate.calls.map((call) => call.args[0])).toEqual([
           BUNNY_DB_URL,
@@ -328,6 +355,28 @@ describeWithEnv(
         expect(issue.calls.length).toBe(0);
       });
       expect(await storedKey(site.id)).toBe("old-key");
+    });
+
+    test("refuses the timer link until the pause has passed", async () => {
+      const site = await caseSite("bunny");
+
+      await withKeyAnswers({}, async (calls) => {
+        const link = await timerPageLink(site.id);
+
+        await expectLinkRefused(await adminGet(link), calls, site.id);
+      });
+    });
+
+    test("keeps the timer link served in read-only mode", () => {
+      // The operator cannot start a rotation then, and the link that finishes
+      // one still opens: a blocked GET would leave the site with no key.
+      expect(
+        readOnlyBlock(
+          "/admin/built-sites/42/rotate-database-key/complete",
+          "GET",
+          false,
+        ),
+      ).toBeNull();
     });
 
     test("keeps the old key when the link has no signature", async () => {
@@ -348,15 +397,13 @@ describeWithEnv(
       const first = await keySite("First");
       const second = await keySite("Second");
 
-      await withKeyAnswers({}, async ({ issue }) => {
+      await withKeyAnswers({}, async (calls) => {
         const moved = (await timerPageLink(first.id)).replace(
           `/admin/built-sites/${first.id}/`,
           `/admin/built-sites/${second.id}/`,
         );
 
-        expectErrorFlash(await adminGet(moved), LINK_EXPIRED);
-        expect(issue.calls.length).toBe(0);
-        expect(await storedKey(second.id)).toBe("old-key");
+        await expectLinkRefused(await openLink(moved), calls, second.id);
       });
     });
   },

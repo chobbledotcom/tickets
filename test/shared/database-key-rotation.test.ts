@@ -10,6 +10,7 @@ import { findBuiltSiteByIdPrimary, insertBuiltSite } from "#db/built-sites.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { bunnyDbProvider } from "#shared/bunny-db.ts";
 import {
+  DATABASE_KEY_PAUSE_SECONDS,
   databaseKeyIssueAllowed,
   databaseKeyIssueUrl,
   databaseKeyRotationAccess,
@@ -288,6 +289,9 @@ describeWithEnv("database key steps", { db: true, env: HOST_SETTINGS }, () => {
 /** Seconds a rotation link stays open. */
 const LINK_SECONDS = 600;
 
+/** The pause a link waits out before it opens. */
+const PAUSE_MS = DATABASE_KEY_PAUSE_SECONDS * 1000;
+
 /** The clock every link test signs on. */
 const START_MS = 1_700_000_000_000;
 
@@ -321,10 +325,19 @@ describe("database key rotation links", () => {
     expect(expiry - Math.floor(START_MS / 1000)).toBe(LINK_SECONDS);
   });
 
-  test("opens a fresh link for its own site, and not for another", async () => {
+  test("opens a link for its own site once the pause has passed", async () => {
     const { exp, sig } = await signedLink(7);
+    fakeTime.tick(PAUSE_MS);
     expect(await databaseKeyIssueAllowed(7, exp, sig)).toBe(true);
     expect(await databaseKeyIssueAllowed(8, exp, sig)).toBe(false);
+  });
+
+  test("refuses a link opened before the pause ends", async () => {
+    const link = await signedLink(7);
+    fakeTime.tick(PAUSE_MS - 1000);
+    expect(await databaseKeyIssueAllowed(7, link.exp, link.sig)).toBe(false);
+    fakeTime.tick(1000);
+    expect(await databaseKeyIssueAllowed(7, link.exp, link.sig)).toBe(true);
   });
 
   test("refuses a link after ten minutes", async () => {
