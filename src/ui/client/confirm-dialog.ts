@@ -50,18 +50,18 @@ export const askOverlay = <T>(
     if (event.key === "Escape") finish(escaped);
   };
   const { promise, resolve } = Promise.withResolvers<T>();
+  // One abort signal owns every handler this overlay adds, so the answer takes
+  // them all away and the next open starts clean.
+  const listeners = new AbortController();
   const finish = (value: T) => {
-    for (const [button, onClick] of buttons) {
-      button.removeEventListener("click", onClick);
-    }
-    document.removeEventListener("keydown", onKeydown);
+    listeners.abort();
     overlay.classList.add("hidden");
     resolve(value);
   };
   for (const [button, onClick] of buttons) {
-    button.addEventListener("click", onClick);
+    button.addEventListener("click", onClick, { signal: listeners.signal });
   }
-  document.addEventListener("keydown", onKeydown);
+  document.addEventListener("keydown", onKeydown, { signal: listeners.signal });
   overlay.classList.remove("hidden");
   return promise;
 };

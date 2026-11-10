@@ -1,22 +1,12 @@
 /** Minimal DER TLV codec for the RSA, X.509, and CMS shapes used here. */
 
+import { concatBytes } from "#crypto/utils.ts";
+
 export interface DerValue {
   contents: Uint8Array;
   encoded: Uint8Array;
   tag: number;
 }
-
-export const joinBytes = (parts: readonly Uint8Array[]): Uint8Array => {
-  const output = new Uint8Array(
-    parts.reduce((total, part) => total + part.length, 0),
-  );
-  let offset = 0;
-  for (const part of parts) {
-    output.set(part, offset);
-    offset += part.length;
-  }
-  return output;
-};
 
 /** Big-endian bytes of a non-negative whole number; zero is no bytes. Each
  * step shrinks the value 256-fold, so the recursion always bottoms out. */
@@ -45,8 +35,8 @@ export const encodeDer = (
   ) {
     throw new Error(`Unsupported DER tag: ${tag}`);
   }
-  const contents = joinBytes(parts);
-  return joinBytes([
+  const contents = concatBytes(parts);
+  return concatBytes([
     new Uint8Array([tag]),
     encodeLength(contents.length),
     contents,

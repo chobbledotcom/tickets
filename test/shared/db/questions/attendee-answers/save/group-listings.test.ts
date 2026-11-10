@@ -48,3 +48,18 @@ test("uses no answers when listing maps and entries are empty", () => {
   ).toEqual(new Map());
   expect(groupListingAnswerSets([], {})).toEqual(new Map());
 });
+
+test("keeps one stored text answer that arrives as a string id", () => {
+  expect(
+    groupListingAnswerSets(
+      [{ attendee: { id: 10 }, listing: { id: 1 } }],
+      {},
+      {},
+      { "1": [{ questionId: 7, stringId: 70 }] },
+    ),
+  ).toEqual(
+    new Map([
+      [10, { answerIds: [], textAnswerIds: [{ questionId: 7, stringId: 70 }] }],
+    ]),
+  );
+});

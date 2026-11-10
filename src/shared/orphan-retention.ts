@@ -17,6 +17,7 @@ import { DAY_MS } from "#shared/now.ts";
  * cut-off is plain subtraction; "0" means "any age" (delete every orphan
  * immediately).
  */
+/* jscpd:ignore-start -- a list of strings, not code */
 export const ORPHAN_RETENTION_OPTIONS: readonly ChoiceOption[] = [
   { labelKey: "privacy.retention.immediately", value: "0" },
   { labelKey: "privacy.retention.6_months", value: "182" },
@@ -26,6 +27,7 @@ export const ORPHAN_RETENTION_OPTIONS: readonly ChoiceOption[] = [
   { labelKey: "privacy.retention.4_years", value: "1460" },
   { labelKey: "privacy.retention.5_years", value: "1825" },
 ];
+/* jscpd:ignore-end */
 
 /** Default retention when nothing is configured: 6 months. */
 export const DEFAULT_ORPHAN_RETENTION = "182";

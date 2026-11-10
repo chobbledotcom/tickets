@@ -23,6 +23,16 @@ const noExternalRequests = {
   total: 50,
 };
 
+const streamedResponse = (chunks: Uint8Array[]): Response =>
+  new Response(
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const chunk of chunks) controller.enqueue(chunk);
+        controller.close();
+      },
+    }),
+  );
+
 const expectBlockedOperation = async (
   label: string,
   action: () => Promise<unknown>,
@@ -69,18 +79,31 @@ describeWithEnv("Bunny storage", STORAGE_TEST_ENV, () => {
   });
 
   test("downloadRaw joins every response chunk", async () => {
-    const stream = new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.enqueue(new Uint8Array([1, 2]));
-        controller.enqueue(new Uint8Array([3, 4, 5]));
-        controller.close();
-      },
-    });
     await withBunnyStorageStub(
-      () => new Response(stream),
+      () =>
+        streamedResponse([new Uint8Array([1, 2]), new Uint8Array([3, 4, 5])]),
       async () => {
         expect(await downloadRaw("chunked.bin")).toEqual(
           new Uint8Array([1, 2, 3, 4, 5]),
+        );
+      },
+    );
+  });
+
+  // A response can arrive in any number of chunks, and a spread call hits the
+  // engine limit near 130,000 arguments. 200,000 one-byte chunks exceed it
+  // while staying small in bytes.
+  test("downloadRaw joins a response of many small chunks", async () => {
+    const chunkCount = 200_000;
+    const chunks = Array.from(
+      { length: chunkCount },
+      (_, index) => new Uint8Array([index & 0xff]),
+    );
+    await withBunnyStorageStub(
+      () => streamedResponse(chunks),
+      async () => {
+        expect(await downloadRaw("many-chunks.bin")).toEqual(
+          Uint8Array.from({ length: chunkCount }, (_, index) => index & 0xff),
         );
       },
     );

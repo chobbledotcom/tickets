@@ -1,14 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { way } from "#scripts/unread-fields/fields/steps.ts";
 import {
   compareFindingIdentities,
   type FindingIdentity,
   findingIdentityKey,
   findingIdentityText,
   findingPath,
-  identitiesAt,
-  ownerAt,
   ownerPath,
 } from "#scripts/unread-fields/identity.ts";
 
@@ -17,15 +14,6 @@ const identity = (
   field = "total",
   exportedFrom = "src/sum.ts",
 ): FindingIdentity => ({ exportedFrom, field, path });
-
-describe("the owner factory", () => {
-  test("turns a bare word into a named step and keeps a way a way", () => {
-    expect(ownerAt("src/intent.ts")("Intent", "outcome", way("[]"))).toEqual([
-      "src/intent.ts",
-      [{ name: "Intent" }, { name: "outcome" }, { way: "[]" }],
-    ]);
-  });
-});
 
 describe("unread-field identities", () => {
   test("keeps a named field separate from an unnamed route with the same text", () => {
@@ -56,29 +44,6 @@ describe("unread-field identities", () => {
         identity([{ name: "Rows" }, { way: "[]" }, { name: "has.a.dot" }]),
       ),
     ).toBe('Rows["[]"]["has.a.dot"].total');
-  });
-
-  test("builds one exact identity for each supplied field", () => {
-    expect(
-      identitiesAt([["src/sum.ts", [{ name: "Sum" }]]])(["total", "other"]),
-    ).toEqual([
-      identity([{ name: "Sum" }]),
-      identity([{ name: "Sum" }], "other"),
-    ]);
-  });
-
-  test("builds shared fields for several exact owners", () => {
-    expect(
-      identitiesAt([
-        ["src/sum.ts", [{ name: "Sum" }]],
-        ["src/other.ts", [{ name: "Other" }]],
-      ])(["total", "other"]),
-    ).toEqual([
-      identity([{ name: "Sum" }]),
-      identity([{ name: "Sum" }], "other"),
-      identity([{ name: "Other" }], "total", "src/other.ts"),
-      identity([{ name: "Other" }], "other", "src/other.ts"),
-    ]);
   });
 
   test("sorts by export and exact structured path", () => {

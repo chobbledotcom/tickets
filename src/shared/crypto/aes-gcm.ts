@@ -48,11 +48,11 @@ const nodeAesGcmEncrypt = (
 ): AesGcmEncrypted => {
   const iv = getRandomBytes(IV_BYTES);
   const cipher = createCipheriv("aes-256-gcm", keyBytes, iv);
-  const ciphertext = concatBytes(
+  const ciphertext = concatBytes([
     cipher.update(data),
     cipher.final(),
     cipher.getAuthTag(),
-  );
+  ]);
   return { ciphertext, iv };
 };
 
@@ -66,7 +66,7 @@ const nodeAesGcmDecrypt = (
   const body = ciphertext.subarray(0, ciphertext.length - GCM_TAG_BYTES);
   const decipher = createDecipheriv("aes-256-gcm", keyBytes, iv);
   decipher.setAuthTag(tag);
-  return concatBytes(decipher.update(body), decipher.final());
+  return concatBytes([decipher.update(body), decipher.final()]);
 };
 
 /** AES-GCM encrypt raw data with an imported key, returning IV and ciphertext */

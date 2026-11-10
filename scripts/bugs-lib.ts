@@ -10,6 +10,7 @@ import { fetchText } from "#scripts/fetch-text.ts";
 import { parseJsonWith } from "#scripts/read-json.ts";
 import type { ScriptIo } from "#scripts/script-runner.ts";
 import { isLocalHttpHost } from "#shared/local-host.ts";
+import { parseOrThrow } from "#shared/validation/parse.ts";
 
 export interface BugsConfig {
   apiKey: string;
@@ -112,15 +113,16 @@ const getJson = async <S extends v.GenericSchema>(
   schema: S,
 ): Promise<v.InferOutput<S>> => {
   const raw = await apiGet(config, url);
-  const parsed = v.safeParse(schema, raw);
-  if (!parsed.success) {
-    const first = parsed.issues[0]!;
-    throw new Error(
-      `Bugsink sent an unexpected shape for ${url}: ${first.message} at ${
-        v.getDotPath(first) ?? "root"
-      }`,
-    );
-  }
+  parseOrThrow(
+    schema,
+    raw,
+    ([first]) =>
+      new Error(
+        `Bugsink sent an unexpected shape for ${url}: ${first.message} at ${
+          v.getDotPath(first) ?? "root"
+        }`,
+      ),
+  );
   return raw as v.InferOutput<S>;
 };
 

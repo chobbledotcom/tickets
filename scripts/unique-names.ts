@@ -2,6 +2,7 @@
  * unique: the required-checks manifest, the spec registry's tag lists. */
 
 import * as v from "valibot";
+import { allUnique } from "#shared/all-unique.ts";
 
 /** A list of names with no blank entry and no duplicate. An entry is
  * trimmed first, so stray whitespace reads as formatting, not as a
@@ -12,8 +13,5 @@ export const uniqueNamesSchema = (
 ): v.GenericSchema<unknown, string[]> =>
   v.pipe(
     v.array(v.pipe(v.string(), v.trim(), v.nonEmpty())),
-    v.check(
-      (names) => new Set(names).size === names.length,
-      `${listName} must list every name once`,
-    ),
+    v.check(allUnique, `${listName} must list every name once`),
   );

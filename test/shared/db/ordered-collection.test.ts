@@ -222,4 +222,21 @@ describeWithEnv("db > ordered collection", { db: true }, () => {
     expect(await statusOrder(first)).toBe(9);
     expect(await statusOrder(second)).toBe(8);
   });
+
+  test("reads the next order inside a scope of two columns", async () => {
+    const itemsOfOneType = defineOrderedCollection({
+      key: "item_id",
+      scope: ["page_id", "item_type"] as const,
+      table: "site_page_items",
+    });
+    const otherType = insertPageItem(3, "page", 2, 9);
+    const otherPage = insertPageItem(5, "listing", 3, 7);
+    await Promise.all([
+      insertPageItem(3, "listing", 1, 4),
+      otherType,
+      otherPage,
+    ]);
+
+    expect(await itemsOfOneType.next({ scope: [3, "listing"] })).toBe(5);
+  });
 });

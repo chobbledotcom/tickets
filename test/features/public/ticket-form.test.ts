@@ -388,4 +388,21 @@ describeWithEnv("ticket responses", { db: true }, () => {
       `/ticket/${first.slug}+${second.slug}`,
     );
   });
+
+  test("counts months on a renewal page and tickets on a plain page", async () => {
+    const tier = (monthsPerUnit: number) =>
+      createTestListing({
+        hidden: true,
+        maxAttendees: 100,
+        monthsPerUnit,
+        purchaseOnly: true,
+        unitPrice: 500 * monthsPerUnit,
+      });
+    const ctx = await ticketContext([(await tier(1)).id, (await tier(12)).id]);
+    const monthsOption = '<option value="1">12 months</option>';
+
+    const renewal = ticketResponse({ ...ctx, siteToken: "site-token" })();
+    assertStringIncludes(await renewal.text(), monthsOption);
+    expect(await ticketResponse(ctx)().text()).not.toContain(monthsOption);
+  });
 });

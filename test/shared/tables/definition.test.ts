@@ -54,6 +54,14 @@ describe("defineTable", () => {
     );
   });
 
+  test("rejects a configurable layout that holds no column", () => {
+    const layout = defineTableLayout(v.picklist([]), []);
+
+    expect(() =>
+      attachTableRenderers<Row, undefined, never>(layout, {}),
+    ).toThrow("defineTable: columns cannot be empty");
+  });
+
   test("rejects duplicate fixed-table keys", () => {
     expect(() =>
       defineTable<Row>([

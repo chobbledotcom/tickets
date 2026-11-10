@@ -1,6 +1,7 @@
 import { toFileUrl } from "@std/path";
 import type { Page } from "playwright";
 import * as v from "valibot";
+import { parseOrThrow } from "#shared/validation/parse.ts";
 import { optionalStringThat } from "#shared/validation/string.ts";
 
 export interface ScreenshotScenarioContext {
@@ -30,14 +31,15 @@ export const loadScreenshotScenario = async (
   path: string,
 ): Promise<ScreenshotScenario> => {
   const loaded = await import(toFileUrl(path).href);
-  const parsed = v.safeParse(ScreenshotScenarioSchema, loaded.default);
-  if (!parsed.success) {
-    throw new Error(`Invalid screenshot scenario: ${path}`);
-  }
-  if (parsed.output.elementSelector && parsed.output.fullPage) {
+  const scenario = parseOrThrow(
+    ScreenshotScenarioSchema,
+    loaded.default,
+    () => new Error(`Invalid screenshot scenario: ${path}`),
+  );
+  if (scenario.elementSelector && scenario.fullPage) {
     throw new Error(
       "A screenshot scenario cannot use elementSelector and fullPage together.",
     );
   }
-  return parsed.output;
+  return scenario;
 };

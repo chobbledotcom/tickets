@@ -14,7 +14,6 @@ import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import {
   type AdminApiChild,
-  type AdminApiCustomRoute,
   type AdminApiResource,
   adminApiIdParam,
 } from "#shared/admin-api-resources.ts";
@@ -66,6 +65,17 @@ const addChildRoutes = (
   routes[`PUT ${base}/:${child.idParam}`] = childApi.update;
   routes[`DELETE ${base}/:${child.idParam}`] = childApi.delete;
 };
+
+/** The records a resource declares for one kind of route, read back with the
+ *  key the table declares. The record is typed against the entry's declared
+ *  keys, so every declared child and custom route finds its handler. */
+const declaredRecords = <Records>(
+  records: Partial<Records> | undefined,
+): [keyof Records & string, Records[keyof Records]][] =>
+  Object.entries(records ?? {}) as [
+    keyof Records & string,
+    Records[keyof Records],
+  ][];
 
 export const defineCrudApi = <
   Entry extends AdminApiResource,
@@ -359,15 +369,12 @@ export const defineCrudApi = <
    *  verbs: nested child writes, then the server-side custom routes. */
   const declaredRoutes = (): Record<string, RouteHandlerFn> => {
     const routes: Record<string, RouteHandlerFn> = {};
-    // The handler records are typed against the entry's declared keys, so
-    // every child and custom route the table declares finds its handler; the
-    // loops read them back with the key the table declares, and the
-    // non-null assertions only restate what CrudApiHandlers proves at each
+    // The non-null assertions only restate what CrudApiHandlers proves at each
     // call site.
-    for (const [childKey, child] of Object.entries(entry.children ?? {}) as [
-      keyof NonNullable<Entry["children"]> & string,
-      AdminApiChild,
-    ][]) {
+    const children = declaredRecords<NonNullable<Entry["children"]>>(
+      entry.children,
+    );
+    for (const [childKey, child] of children) {
       addChildRoutes(
         routes,
         name,
@@ -376,10 +383,10 @@ export const defineCrudApi = <
         config.childHandlers![childKey],
       );
     }
-    for (const [customKey, custom] of Object.entries(entry.custom ?? {}) as [
-      keyof NonNullable<Entry["custom"]> & string,
-      AdminApiCustomRoute,
-    ][]) {
+    const customRoutes = declaredRecords<NonNullable<Entry["custom"]>>(
+      entry.custom,
+    );
+    for (const [customKey, custom] of customRoutes) {
       routes[`${custom.method} /api/admin/${name}/${custom.subpath}`] =
         config.customHandlers![customKey];
     }

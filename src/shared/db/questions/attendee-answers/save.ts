@@ -117,6 +117,29 @@ const answerRowsInsert = <Row extends { attendeeId: number }>(
       ) ${afterValues}`,
 });
 
+/** Adds the insert for these rows, or nothing when there are none. */
+const pushAnswerRows = <Row extends { attendeeId: number }>(
+  statements: SqlStatement[],
+  ref: AttendeeRef,
+  insert: {
+    columns: string;
+    rows: readonly Row[];
+    rowValues: (row: Row) => { binds: (string | number)[]; slots: string[] };
+    afterValues: string;
+  },
+): void => {
+  if (insert.rows.length === 0) return;
+  statements.push(
+    answerRowsInsert(
+      ref,
+      insert.columns,
+      insert.rows,
+      insert.rowValues,
+      insert.afterValues,
+    ),
+  );
+};
+
 /** The whole save as plain statements: delete the attendees' previous answers,
  * intern the prepared free-text strings, then re-insert the surviving choices
  * and texts. Deleted answers and questions drop out through the SQL joins, so
@@ -144,19 +167,10 @@ const answerSaveStatements = (
       position,
     })),
   );
-  if (choiceRows.length > 0) {
-    statements.push(
-      answerRowsInsert(
-        ref,
-        "attendee_id, answer_id, position",
-        choiceRows,
-        (row) => ({
-          binds: [row.answerId, row.position],
-          slots: ["?", "?"],
-        }),
-        // Last answer per question wins: the row numbers rank each question's
-        // answers by position, descending, and only the first survives.
-        `, ranked AS (
+  pushAnswerRows(statements, ref, {
+    // Last answer per question wins: the row numbers rank each question's
+    // answers by position, descending, and only the first survives.
+    afterValues: `, ranked AS (
         SELECT selected.attendee_id, selected.answer_id, answer.question_id,
           ROW_NUMBER() OVER (
             PARTITION BY selected.attendee_id, answer.question_id
@@ -169,9 +183,13 @@ const answerSaveStatements = (
       SELECT attendee_id, answer_id, question_id
       FROM ranked
       WHERE choice_order = 1`,
-      ),
-    );
-  }
+    columns: "attendee_id, answer_id, position",
+    rows: choiceRows,
+    rowValues: (row) => ({
+      binds: [row.answerId, row.position],
+      slots: ["?", "?"],
+    }),
+  });
   const textIndexByText = new Map(
     preparedStringRows.map((row) => [row.text, row.textIndex]),
   );
@@ -201,30 +219,25 @@ const answerSaveStatements = (
   const textRows = [...normalized].flatMap(([attendeeId, set]) =>
     textRowsByQuestion(set).map((row) => ({ attendeeId, ...row })),
   );
-  if (textRows.length > 0) {
-    statements.push(
-      answerRowsInsert(
-        ref,
-        "attendee_id, question_id, string_id",
-        textRows,
-        (row) => ({
-          binds: [row.questionId, row.value],
-          slots: [
-            "?",
-            typeof row.value === "string"
-              ? "(SELECT id FROM strings WHERE text_index = ?)"
-              : "?",
-          ],
-        }),
-        // The questions join drops a question deleted between checkout and
-        // finalize instead of inserting an orphan row.
-        `INSERT INTO attendee_answers (attendee_id, question_id, string_id)
+  pushAnswerRows(statements, ref, {
+    // The questions join drops a question deleted between checkout and
+    // finalize instead of inserting an orphan row.
+    afterValues: `INSERT INTO attendee_answers (attendee_id, question_id, string_id)
         SELECT selected.attendee_id, selected.question_id, selected.string_id
         FROM selected
         INNER JOIN questions AS question ON question.id = selected.question_id`,
-      ),
-    );
-  }
+    columns: "attendee_id, question_id, string_id",
+    rows: textRows,
+    rowValues: (row) => ({
+      binds: [row.questionId, row.value],
+      slots: [
+        "?",
+        typeof row.value === "string"
+          ? "(SELECT id FROM strings WHERE text_index = ?)"
+          : "?",
+      ],
+    }),
+  });
   return [...statements, ...alongside];
 };
 

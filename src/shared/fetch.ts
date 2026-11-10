@@ -49,7 +49,7 @@ const responseText = async (
     }
     throw error;
   }
-  return new TextDecoder().decode(concatBytes(...chunks));
+  return new TextDecoder().decode(concatBytes(chunks));
 };
 
 /**

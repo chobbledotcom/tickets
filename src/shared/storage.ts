@@ -6,6 +6,7 @@
  */
 
 import { decryptBytes, encryptBytes } from "#crypto/encryption.ts";
+import { concatBytes } from "#crypto/utils.ts";
 import { lazyRef, once } from "#fp";
 import { getEnv } from "#shared/env.ts";
 import { formatBytes } from "#shared/format-units.ts";
@@ -314,18 +315,10 @@ const collectStream = async (
   stream: ReadableStream<Uint8Array>,
 ): Promise<Uint8Array> => {
   const chunks: Uint8Array[] = [];
-  let totalLength = 0;
   for await (const value of streamChunks(stream)) {
     chunks.push(value);
-    totalLength += value.length;
   }
-  const result = new Uint8Array(totalLength);
-  let offset = 0;
-  for (const chunk of chunks) {
-    result.set(chunk, offset);
-    offset += chunk.length;
-  }
-  return result;
+  return concatBytes(chunks);
 };
 
 /** Check if an error is a storage SDK "file not found" error */

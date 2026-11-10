@@ -9,7 +9,6 @@ import {
   encodeSequence,
   encodeSet,
   encodeTime,
-  joinBytes,
   readDer,
   readDerChildren,
   readDerSequence,
@@ -22,12 +21,6 @@ import { thrownError } from "#test-utils/errors.ts";
 const bytes = (...values: number[]): Uint8Array => new Uint8Array(values);
 
 describe("DER", () => {
-  test("joins byte arrays in order", () => {
-    expect(joinBytes([bytes(1, 2), new Uint8Array(), bytes(3)])).toEqual(
-      bytes(1, 2, 3),
-    );
-  });
-
   test("compares complete byte arrays", () => {
     expect(sameOrder(bytes(1, 2), bytes(1, 2))).toBe(true);
     expect(sameOrder(bytes(1, 2), bytes(1))).toBe(false);

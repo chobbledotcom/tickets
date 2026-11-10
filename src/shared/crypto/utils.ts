@@ -53,9 +53,9 @@ export const getRandomBytes = (length: number): Uint8Array => {
   return bytes;
 };
 
-/** Concatenate byte arrays into one array. */
+/** Concatenate byte arrays into one array, in the given order. */
 export const concatBytes = (
-  ...parts: Uint8Array[]
+  parts: readonly Uint8Array[],
 ): Uint8Array<ArrayBuffer> => {
   let total = 0;
   for (const part of parts) total += part.length;
