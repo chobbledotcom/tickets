@@ -219,7 +219,11 @@ export const createAttendeeForSession = async (
           date: intent.date,
           dayCount: intent.dayCount,
         },
-        checkoutBookingLines(pricingIntent.items, listingById, paidByIntentItem),
+        checkoutBookingLines(
+          pricingIntent.items,
+          listingById,
+          paidByIntentItem,
+        ),
       ),
       session.subscription,
       pricedOrder.tax.policy,

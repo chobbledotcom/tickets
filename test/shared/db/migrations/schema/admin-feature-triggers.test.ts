@@ -12,6 +12,22 @@ const triggerContract = (trigger: (typeof ADMIN_FEATURE_TRIGGERS)[number]) => ({
   uses: trigger.uses,
 });
 
+/** The insert and update triggers of a listing column that puts a feature in
+ * use. */
+const listingTriggers = (feature: string, column: string, inUse: string) =>
+  (
+    [
+      ["insert", "AFTER INSERT ON listings"],
+      ["update", `AFTER UPDATE OF ${column} ON listings`],
+    ] as const
+  ).map(([event, sql]) => ({
+    condition: `NEW.${column} ${inUse}`,
+    event: sql,
+    name: `trg_admin_feature_${feature}_listings_${event}`,
+    table: "listings",
+    uses: { listings: [column], ...SETTINGS_USE },
+  }));
+
 test("declares every feature trigger source and dependency", () => {
   expect(ADMIN_FEATURE_TRIGGERS.map(triggerContract)).toEqual([
     {
@@ -92,20 +108,7 @@ test("declares every feature trigger source and dependency", () => {
       table: "logistics_agents",
       uses: { logistics_agents: ["name"], ...SETTINGS_USE },
     },
-    {
-      condition: "NEW.uses_logistics = 1",
-      event: "AFTER INSERT ON listings",
-      name: "trg_admin_feature_logistics_listings_insert",
-      table: "listings",
-      uses: { listings: ["uses_logistics"], ...SETTINGS_USE },
-    },
-    {
-      condition: "NEW.uses_logistics = 1",
-      event: "AFTER UPDATE OF uses_logistics ON listings",
-      name: "trg_admin_feature_logistics_listings_update",
-      table: "listings",
-      uses: { listings: ["uses_logistics"], ...SETTINGS_USE },
-    },
+    ...listingTriggers("logistics", "uses_logistics", "= 1"),
     {
       condition: null,
       event: "AFTER INSERT ON api_keys",
@@ -127,19 +130,6 @@ test("declares every feature trigger source and dependency", () => {
       table: "attendees",
       uses: { attendees: ["kind", "pii_blob"], ...SETTINGS_USE },
     },
-    {
-      condition: "NEW.recurring_price > 0",
-      event: "AFTER INSERT ON listings",
-      name: "trg_admin_feature_subscriptions_listings_insert",
-      table: "listings",
-      uses: { listings: ["recurring_price"], ...SETTINGS_USE },
-    },
-    {
-      condition: "NEW.recurring_price > 0",
-      event: "AFTER UPDATE OF recurring_price ON listings",
-      name: "trg_admin_feature_subscriptions_listings_update",
-      table: "listings",
-      uses: { listings: ["recurring_price"], ...SETTINGS_USE },
-    },
+    ...listingTriggers("subscriptions", "recurring_price", "> 0"),
   ]);
 });

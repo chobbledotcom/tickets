@@ -32,7 +32,10 @@ describe("subscription checkout rules", () => {
 
   test("lets an ordinary order through on any provider", () => {
     expect(
-      subscriptionCheckoutError("square", checkoutIntent({ items: [ordinary] })),
+      subscriptionCheckoutError(
+        "square",
+        checkoutIntent({ items: [ordinary] }),
+      ),
     ).toBeNull();
   });
 
@@ -49,7 +52,10 @@ describe("subscription checkout rules", () => {
   test("refuses a subscription on any provider but Stripe", () => {
     for (const provider of ["square", "sumup"] as const) {
       expect(
-        subscriptionCheckoutError(provider, checkoutIntent({ items: [monthly] })),
+        subscriptionCheckoutError(
+          provider,
+          checkoutIntent({ items: [monthly] }),
+        ),
       ).toBe(t("payment.error.subscription_needs_stripe"));
     }
   });

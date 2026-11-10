@@ -7,8 +7,8 @@ import type { AttendeeKind } from "#db/attendees/kind.ts";
 import type { PendingNotificationFlag } from "#db/attendees/notification-flags.ts";
 import type { BookingSource } from "#db/contact-tokens.ts";
 import type { AttendeeCreationFailureReason } from "#shared/attendee-failures.ts";
-import type { Attendee, ContactFields, ContactInfo } from "#types";
 import type { SubscriptionPlan } from "#shared/subscriptions/plan.ts";
+import type { Attendee, ContactFields, ContactInfo } from "#types";
 
 /** Per-(child, parent) unit allocation from the booking fold: the quantity of
  * `childId` chosen under `parentId` in one order. An order where the same child

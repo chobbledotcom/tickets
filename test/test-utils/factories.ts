@@ -9,6 +9,7 @@ import type {
 import type { AttendeeQuestionData } from "#db/questions/attendee-answers/reads.ts";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import type { EmailEntry, EmailListing } from "#shared/email.ts";
 import { signPrice } from "#shared/payment-signature.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
@@ -28,15 +29,7 @@ export const testListing = (overrides: Partial<Listing> = {}): Listing => ({
   attachment_name: "",
   attachment_url: "",
   bookable_alone: false,
-  bookable_days: [
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday",
-    "Sunday",
-  ],
+  bookable_days: [...VALID_DAY_NAMES],
   can_pay_more: false,
   closes_at: null,
   created: "2024-01-01T00:00:00Z",

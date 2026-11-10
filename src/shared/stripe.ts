@@ -135,7 +135,12 @@ const createCheckoutSession = async (
     metadata,
     ...(subscription === null
       ? {}
-      : subscriptionParams(subscription, currency, order.tax.policy, lineItems)),
+      : subscriptionParams(
+          subscription,
+          currency,
+          order.tax.policy,
+          lineItems,
+        )),
   };
   const session = await stripeClientRuntime.runCheckout(
     (client) => client.checkout.sessions.create(params),

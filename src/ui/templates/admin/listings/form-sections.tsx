@@ -6,6 +6,7 @@ import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
 import type { FieldValues } from "#shared/forms/values.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
+import { subscriptionsOffered } from "#shared/subscriptions/offered.ts";
 import { ListingGroupSelect } from "#templates/admin/group-select.tsx";
 import {
   type FormSection,
@@ -17,7 +18,6 @@ import {
   getListingForm,
   type ListingFormView,
 } from "#templates/fields/listing.ts";
-import { subscriptionsOffered } from "#shared/subscriptions/offered.ts";
 import type { AdminSession, Group, ListingWithCount } from "#types";
 import {
   renderDayPricesFieldset,

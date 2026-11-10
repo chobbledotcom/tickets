@@ -110,11 +110,6 @@ export interface StripeClient {
       ) => Promise<StripeCheckoutSession>;
     };
   };
-  subscriptions: {
-    retrieveWithFirstPayment: (
-      id: Stripe.Subscription["id"],
-    ) => Promise<StripeSubscription>;
-  };
   paymentIntents: {
     retrieveWithLatestCharge: (
       id: Stripe.PaymentIntent["id"],
@@ -127,6 +122,11 @@ export interface StripeClient {
       idempotencyKey?: string,
       options?: StripeRetryOptions,
     ) => Promise<StripeRefund>;
+  };
+  subscriptions: {
+    retrieveWithFirstPayment: (
+      id: Stripe.Subscription["id"],
+    ) => Promise<StripeSubscription>;
   };
   webhookEndpoints: {
     create: (
@@ -178,15 +178,6 @@ export const createStripeClient = (
         ),
       },
     },
-    subscriptions: {
-      retrieveWithFirstPayment: (id) =>
-        call(
-          "GET",
-          idPath("subscriptions", id),
-          { expand: ["latest_invoice.payments"] },
-          StripeSubscriptionSchema,
-        ),
-    },
     paymentIntents: {
       retrieveWithLatestCharge: (id, options) =>
         call(
@@ -203,6 +194,15 @@ export const createStripeClient = (
           ...options,
           idempotencyKey,
         }),
+    },
+    subscriptions: {
+      retrieveWithFirstPayment: (id) =>
+        call(
+          "GET",
+          idPath("subscriptions", id),
+          { expand: ["latest_invoice.payments"] },
+          StripeSubscriptionSchema,
+        ),
     },
     webhookEndpoints: {
       create: (params) =>

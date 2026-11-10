@@ -19,89 +19,69 @@ type FeatureWriteSourceBase = {
 type FeatureWriteSource = FeatureWriteSourceBase &
   ({ event: "INSERT" } | { columns: readonly string[]; event: "UPDATE" });
 
+/** Any saved row of `table` puts `feature` in use: a new row, or an edit of
+ * one of `columns`. */
+const recordSources = (
+  feature: AdminFeatureKey,
+  table: string,
+  columns: readonly string[],
+): FeatureWriteSource[] => [
+  {
+    event: "INSERT",
+    feature,
+    name: `trg_admin_feature_${table}_insert`,
+    table,
+  },
+  {
+    columns,
+    event: "UPDATE",
+    feature,
+    name: `trg_admin_feature_${table}_update`,
+    table,
+  },
+];
+
+/** A listing saved with `column` set puts `feature` in use, on create and on
+ * edit. */
+const listingColumnSources = (
+  feature: AdminFeatureKey,
+  column: string,
+  inUse: string,
+): FeatureWriteSource[] =>
+  (["INSERT", "UPDATE"] as const).map((event) => ({
+    columns: [column],
+    event,
+    feature,
+    name: `trg_admin_feature_${feature}_listings_${event.toLowerCase()}`,
+    table: "listings",
+    when: `NEW.${column} ${inUse}`,
+  }));
+
 const FEATURE_WRITE_SOURCES: FeatureWriteSource[] = [
-  {
-    event: "INSERT",
-    feature: "attributes",
-    name: "trg_admin_feature_attributes_insert",
-    table: "attributes",
-  },
-  {
-    columns: ["name", "sort_order"],
-    event: "UPDATE",
-    feature: "attributes",
-    name: "trg_admin_feature_attributes_update",
-    table: "attributes",
-  },
-  {
-    event: "INSERT",
-    feature: "questions",
-    name: "trg_admin_feature_questions_insert",
-    table: "questions",
-  },
-  {
-    columns: ["text", "sort_order", "display_type", "assign_all"],
-    event: "UPDATE",
-    feature: "questions",
-    name: "trg_admin_feature_questions_update",
-    table: "questions",
-  },
-  {
-    event: "INSERT",
-    feature: "modifiers",
-    name: "trg_admin_feature_modifiers_insert",
-    table: "modifiers",
-  },
-  {
-    columns: [
-      "name",
-      "calc_kind",
-      "calc_value",
-      "direction",
-      "active",
-      "trigger",
-      "code",
-      "code_index",
-      "scope",
-      "stock",
-      "max_per_order",
-      "min_subtotal",
-      "min_visits",
-    ],
-    event: "UPDATE",
-    feature: "modifiers",
-    name: "trg_admin_feature_modifiers_update",
-    table: "modifiers",
-  },
-  {
-    event: "INSERT",
-    feature: "logistics",
-    name: "trg_admin_feature_logistics_agents_insert",
-    table: "logistics_agents",
-  },
-  {
-    columns: ["name"],
-    event: "UPDATE",
-    feature: "logistics",
-    name: "trg_admin_feature_logistics_agents_update",
-    table: "logistics_agents",
-  },
-  {
-    columns: ["uses_logistics"],
-    event: "INSERT",
-    feature: "logistics",
-    name: "trg_admin_feature_logistics_listings_insert",
-    table: "listings",
-    when: "NEW.uses_logistics = 1",
-  },
-  {
-    columns: ["uses_logistics"],
-    event: "UPDATE",
-    feature: "logistics",
-    name: "trg_admin_feature_logistics_listings_update",
-    table: "listings",
-    when: "NEW.uses_logistics = 1",
-  },
+  ...recordSources("attributes", "attributes", ["name", "sort_order"]),
+  ...recordSources("questions", "questions", [
+    "text",
+    "sort_order",
+    "display_type",
+    "assign_all",
+  ]),
+  ...recordSources("modifiers", "modifiers", [
+    "name",
+    "calc_kind",
+    "calc_value",
+    "direction",
+    "active",
+    "trigger",
+    "code",
+    "code_index",
+    "scope",
+    "stock",
+    "max_per_order",
+    "min_subtotal",
+    "min_visits",
+  ]),
+  ...recordSources("logistics", "logistics_agents", ["name"]),
+  ...listingColumnSources("logistics", "uses_logistics", "= 1"),
   {
     event: "INSERT",
     feature: "apiKeys",
@@ -124,22 +104,7 @@ const FEATURE_WRITE_SOURCES: FeatureWriteSource[] = [
     table: "attendees",
     when: "NEW.kind = 'servicing'",
   },
-  {
-    columns: ["recurring_price"],
-    event: "INSERT",
-    feature: "subscriptions",
-    name: "trg_admin_feature_subscriptions_listings_insert",
-    table: "listings",
-    when: "NEW.recurring_price > 0",
-  },
-  {
-    columns: ["recurring_price"],
-    event: "UPDATE",
-    feature: "subscriptions",
-    name: "trg_admin_feature_subscriptions_listings_update",
-    table: "listings",
-    when: "NEW.recurring_price > 0",
-  },
+  ...listingColumnSources("subscriptions", "recurring_price", "> 0"),
 ];
 
 const initialFeaturesFor = (feature: AdminFeatureKey): string =>

@@ -1,0 +1,84 @@
+import { expect } from "@std/expect";
+import { it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
+import { buildCreateListingResource } from "#routes/admin/listings-form.ts";
+import {
+  createListing,
+  listingForm,
+  updateListing,
+} from "#test/features/admin/listings-form/helpers.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  featureSetting,
+  setupStripe,
+  withSetting,
+} from "#test-utils/settings.ts";
+
+const MONTHLY = {
+  recurring_interval: "month",
+  recurring_price: "5.00",
+  unit_price: "10.00",
+};
+
+/** Run `body` while the site offers subscriptions: the feature is on and
+ * Stripe takes payments. */
+const whileOffered = async (body: () => Promise<void>): Promise<void> => {
+  await setupStripe();
+  await withSetting(featureSetting("subscriptions"), body);
+};
+
+describeWithEnv("listings form subscriptions", { db: true }, () => {
+  test("keeps a recurring price and frequency while subscriptions are offered", () =>
+    whileOffered(async () => {
+      const row = await createListing(MONTHLY);
+      expect([row.recurring_price, row.recurring_interval]).toEqual([
+        500,
+        "month",
+      ]);
+    }));
+
+  test("clears the plan when the operator chooses Never", () =>
+    whileOffered(async () => {
+      const row = await createListing(MONTHLY);
+      const cleared = await updateListing(row.id, {
+        recurring_interval: "",
+        recurring_price: "",
+        unit_price: "10.00",
+      });
+      expect([cleared.recurring_price, cleared.recurring_interval]).toEqual([
+        0,
+        "",
+      ]);
+    }));
+
+  test("ignores the plan boxes while subscriptions are not offered", async () => {
+    await withSetting(featureSetting("subscriptions"), async () => {
+      const row = await createListing(MONTHLY);
+      expect([row.recurring_price, row.recurring_interval]).toEqual([0, ""]);
+    });
+    await setupStripe();
+    const row = await createListing({ ...MONTHLY, name: "Feature off" });
+    expect([row.recurring_price, row.recurring_interval]).toEqual([0, ""]);
+  });
+
+  test("keeps the stored plan when a save does not offer the boxes", async () => {
+    let id = 0;
+    await whileOffered(async () => {
+      id = (await createListing(MONTHLY)).id;
+    });
+    const saved = await updateListing(id, { unit_price: "10.00" });
+    expect([saved.recurring_price, saved.recurring_interval]).toEqual([
+      500,
+      "month",
+    ]);
+  });
+
+  test("refuses a recurring price without a frequency", () =>
+    whileOffered(async () => {
+      const form = listingForm({ ...MONTHLY, recurring_interval: "" });
+      expect(await buildCreateListingResource(form).create(form)).toEqual({
+        error: t("error.recurring_interval_required"),
+        ok: false,
+      });
+    }));
+});

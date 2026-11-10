@@ -47,13 +47,17 @@ type StripeCheckoutCompletedEvent = Pick<
  * the provider asks again. */
 const sessionCharge = async (
   session: StripeCheckoutSession,
-): Promise<Pick<ValidatedSessionFields, "paymentReference" | "subscription">> => {
+): Promise<
+  Pick<ValidatedSessionFields, "paymentReference" | "subscription">
+> => {
   if (session.mode !== "subscription" || session.subscription === null) {
     return { paymentReference: session.payment_intent ?? "" };
   }
   const read = await stripeApi.readSubscription(session.subscription);
   if (read.status !== "found") {
-    throw new Error(`Stripe subscription could not be read (${read.status})`);
+    throw new Error(
+      `Stripe subscription ${session.subscription} could not be read: ${JSON.stringify(read)}`,
+    );
   }
   const { paymentReference, start } = subscriptionStartOf(read.resource);
   return { paymentReference, subscription: start };
@@ -64,14 +68,8 @@ type ValidatedSessionFields = Parameters<typeof validatedPaymentSession>[0];
 const toValidatedSession = async (
   session: StripeCheckoutSession,
 ): Promise<RetrieveSessionResult> => {
-  const {
-    amount_total,
-    currency,
-    id,
-    metadata,
-    payment_status,
-    status,
-  } = session;
+  const { amount_total, currency, id, metadata, payment_status, status } =
+    session;
   if (!hasRequiredSessionMetadata(metadata)) return null;
   return validatedPaymentSession({
     amountTotal: amount_total,

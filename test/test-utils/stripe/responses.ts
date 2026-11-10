@@ -4,24 +4,16 @@ import type {
   StripeExpandedPaymentIntent,
 } from "#shared/stripe/schemas.ts";
 import {
+  stripeCheckoutSession,
   stripeRefund,
   stripeSubscription,
 } from "#test-utils/stripe/fixtures.ts";
 
-const checkout = {
-  amount_total: 1000,
-  created: 123,
-  currency: "gbp",
-  expires_at: 456,
+const checkout = stripeCheckoutSession({
   id: "cs_1",
-  metadata: {},
-  mode: "payment",
   payment_intent: "pi_1",
-  payment_status: "paid",
-  status: "complete",
-  subscription: null,
   url: "https://checkout.stripe.com/c/pay/cs_1",
-};
+});
 
 /**
  * A checkout session as `retrieveCheckoutSession` hands it back. Stripe's real

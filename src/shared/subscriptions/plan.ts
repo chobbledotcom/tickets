@@ -22,6 +22,13 @@ export type RecurringIntervalChoice = v.InferOutput<
   typeof RecurringIntervalChoiceSchema
 >;
 
+/** The plan a listing offers a new subscriber. `recurring_price` is minor
+ * units before VAT each period, and 0 means an ordinary ticket. */
+export type RecurringListingColumns = {
+  recurring_interval: RecurringIntervalChoice;
+  recurring_price: number;
+};
+
 const PERIOD_OF: Record<RecurringInterval, Temporal.DurationLike> = {
   month: { months: 1 },
   week: { weeks: 1 },
@@ -81,7 +88,9 @@ export const recurringCharge = (
 ): number =>
   assessTax(
     {
-      lines: [{ gross: listing.recurringPrice * quantity, listingId: listing.id }],
+      lines: [
+        { gross: listing.recurringPrice * quantity, listingId: listing.id },
+      ],
       modifiers: [],
     },
     policy,

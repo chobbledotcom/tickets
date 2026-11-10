@@ -206,9 +206,10 @@ const recurringPlanFields = (
 ): Pick<ListingInput, "recurringInterval" | "recurringPrice"> => {
   if (!subscriptionsOffered()) return {};
   return {
+    // The form reads the blank "Never" choice as null.
     recurringInterval: v.parse(
       RecurringIntervalChoiceSchema,
-      values.recurring_interval,
+      values.recurring_interval ?? "",
     ),
     recurringPrice: parseOptionalMinorUnits(values.recurring_price) ?? 0,
   };

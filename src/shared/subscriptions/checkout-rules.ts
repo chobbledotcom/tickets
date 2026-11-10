@@ -14,14 +14,13 @@ const isSubscriptionItem = (item: CheckoutItem): item is SubscriptionItem =>
 /** The one subscription line of an order, or null for an ordinary order. */
 export const subscriptionItemOrNull = (
   intent: CheckoutIntent,
-): SubscriptionItem | null =>
-  intent.items.find(isSubscriptionItem) ?? null;
+): SubscriptionItem | null => intent.items.find(isSubscriptionItem) ?? null;
 
 /**
  * Why the order cannot start a subscription, or null when it can. Stripe is
  * the only provider that charges again for this site. One booking row keeps
- * the plan, so the order holds one subscription line, booked on its own: not
- * through a package, not as an add-on, and not as a deposit or a balance.
+ * the plan, so the order holds one subscription line, booked on its own. A
+ * package, an add-on, a deposit and a balance cannot carry it.
  */
 export const subscriptionCheckoutError = (
   provider: PaymentProviderType,
@@ -30,7 +29,8 @@ export const subscriptionCheckoutError = (
   const items = intent.items.filter(isSubscriptionItem);
   const [item] = items;
   if (item === undefined) return null;
-  if (provider !== "stripe") return t("payment.error.subscription_needs_stripe");
+  if (provider !== "stripe")
+    return t("payment.error.subscription_needs_stripe");
   const childIds = new Set(
     (intent.allocations ?? []).map((allocation) => allocation.childId),
   );

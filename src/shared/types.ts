@@ -18,9 +18,9 @@ import type {
   ModifierScope,
   ModifierTrigger,
 } from "#shared/price-modifier.ts";
+import type { RecurringListingColumns } from "#shared/subscriptions/plan.ts";
 import { guardFor } from "#shared/validation/guard.ts";
 import { clampInteger, integerAtLeast } from "#shared/validation/number.ts";
-import type { RecurringIntervalChoice } from "#shared/subscriptions/plan.ts";
 import type { NonEmptyString } from "#shared/validation/string.ts";
 
 /** Type guard: a non-null, non-array object (a Record shape). */
@@ -273,7 +273,7 @@ export type ItemImageColumns = {
   image_alt_text: string;
 };
 
-export interface Listing extends ItemImageColumns {
+export interface Listing extends ItemImageColumns, RecurringListingColumns {
   active: boolean;
   assign_built_site: boolean;
   attachment_name: string;
@@ -302,18 +302,13 @@ export interface Listing extends ItemImageColumns {
   max_price: number;
   max_quantity: number;
   maximum_days_after: number;
-  /** The smallest quantity above none that one purchase can book. 1 is the
-   *  identity: the choice set is then exactly today's 0..max_quantity. */
+  /** The smallest quantity above none that one purchase can book. */
   min_quantity: number;
   minimum_days_before: number;
   months_per_unit: number;
   name: string;
   non_transferable: boolean;
   purchase_only: boolean;
-  recurring_interval: RecurringIntervalChoice;
-  /** Minor units before VAT that a new subscriber pays each period. 0 means
-   *  an ordinary ticket. */
-  recurring_price: number;
   slug: string;
   slug_index: BlindIndex;
   thank_you_url: string;

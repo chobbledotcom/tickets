@@ -24,38 +24,36 @@ const revealing = (names: string[]): Record<string, unknown>[] =>
     names.includes(field.name) ? { ...field, visible: true } : field,
   );
 
+/** Each view flag, and the boxes it alone makes visible. */
+const REVEALING_VIEWS: [
+  string,
+  NonNullable<Parameters<typeof getListingForm>[0]>,
+  string[],
+][] = [
+  ["logistics", { logistics: true }, ["uses_logistics"]],
+  ["storage", { storage: true }, ["attachment"]],
+  [
+    "builder",
+    { builder: true },
+    ["months_per_unit", "initial_site_months", "assign_built_site"],
+  ],
+  [
+    "subscriptions",
+    { subscriptions: true },
+    ["recurring_price", "recurring_interval"],
+  ],
+];
+
 describe("listing field schemas", () => {
   test("the listing form serves exactly its declared fields", () => {
     expect(getListingForm().fields.map(shape)).toEqual(LISTING_FIELDS);
   });
 
-  test("the logistics view only reveals the agent assignment box", () => {
-    expect(getListingForm({ logistics: true }).fields.map(shape)).toEqual(
-      revealing(["uses_logistics"]),
-    );
-  });
-
-  test("the subscriptions view only reveals the recurring price boxes", () => {
-    expect(getListingForm({ subscriptions: true }).fields.map(shape)).toEqual(
-      revealing(["recurring_price", "recurring_interval"]),
-    );
-  });
-
-  test("the storage view only reveals the image box", () => {
-    expect(getListingForm({ storage: true }).fields.map(shape)).toEqual(
-      revealing(["attachment"]),
-    );
-  });
-
-  test("the builder view only reveals the built-site boxes", () => {
-    expect(getListingForm({ builder: true }).fields.map(shape)).toEqual(
-      revealing([
-        "months_per_unit",
-        "initial_site_months",
-        "assign_built_site",
-      ]),
-    );
-  });
+  for (const [what, view, names] of REVEALING_VIEWS) {
+    test(`the ${what} view only reveals ${names.join(", ")}`, () => {
+      expect(getListingForm(view).fields.map(shape)).toEqual(revealing(names));
+    });
+  }
 
   test("the autofocus view puts the cursor in the name box and changes nothing else", () => {
     const focused = LISTING_FIELDS.map((field) =>

@@ -137,6 +137,9 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
   ),
   // A ticket can carry a recurring price, and a booking row keeps the Stripe
   // subscription plan of the person who bought it.
-  entry("2026-11-10_subscriptions", () => import("./2026-11-10_subscriptions.ts")),
+  entry(
+    "2026-11-10_subscriptions",
+    () => import("./2026-11-10_subscriptions.ts"),
+  ),
 ];
 /* jscpd:ignore-end */

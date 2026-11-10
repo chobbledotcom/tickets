@@ -12,7 +12,10 @@ import { NO_TAX } from "#shared/tax/types.ts";
 
 const seedArgs = { numRuns: 500, seed: 20261110 } as const;
 const ADDED = { mode: "add_to_total", rateBasisPoints: 2000 } as const;
-const INCLUDED = { mode: "calculate_from_total", rateBasisPoints: 2000 } as const;
+const INCLUDED = {
+  mode: "calculate_from_total",
+  rateBasisPoints: 2000,
+} as const;
 const unixSeconds = (iso: string): number => Date.parse(iso) / 1000;
 
 const start: SubscriptionStart = {
@@ -41,22 +44,22 @@ describe("subscription plan", () => {
   });
 
   test("recovers exactly the VAT that an added-VAT charge carries", () => {
+    const plans = fc.record({
+      price: fc.integer({ max: 10_000_000, min: 0 }),
+      quantity: fc.integer({ max: 5000, min: 1 }),
+      rateBasisPoints: fc.integer({ max: 10_000, min: 0 }),
+    });
     fc.assert(
-      fc.property(
-        fc.integer({ max: 10_000_000, min: 0 }),
-        fc.integer({ max: 5000, min: 1 }),
-        fc.integer({ max: 10_000, min: 0 }),
-        (price, quantity, rateBasisPoints) => {
-          const policy = { mode: "add_to_total", rateBasisPoints } as const;
-          const charge = recurringCharge(
-            { id: 1, recurringPrice: price },
-            quantity,
-            policy,
-          );
-          const added = charge - price * quantity;
-          expect(vatInRecurringPayment(1, charge, policy)).toBe(added);
-        },
-      ),
+      fc.property(plans, ({ price, quantity, rateBasisPoints }) => {
+        const policy = { mode: "add_to_total", rateBasisPoints } as const;
+        const charge = recurringCharge(
+          { id: 1, recurringPrice: price },
+          quantity,
+          policy,
+        );
+        const added = charge - price * quantity;
+        expect(vatInRecurringPayment(1, charge, policy)).toBe(added);
+      }),
       seedArgs,
     );
   });

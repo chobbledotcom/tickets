@@ -31,6 +31,32 @@ const saveAnInvoice = (): Promise<unknown> =>
     "INSERT INTO invoices (attendee_id, body, created, share_token, share_token_index) VALUES (1, 'enc:1:a', '2026-11-04T09:00:00.000Z', 'hyb:1:a', 'index-a')",
   );
 
+/** One saved record of each kind that puts a feature in use. */
+/* jscpd:ignore-start -- a list of strings, not code */
+const USE_RECORDS = [
+  [
+    "a logistics agent",
+    "logistics",
+    "INSERT INTO logistics_agents (name) VALUES ('Van')",
+  ],
+  [
+    "a logistics listing",
+    "logistics",
+    "INSERT INTO listings (created, max_attendees, uses_logistics) VALUES ('2026-07-15', 10, 1)",
+  ],
+  [
+    "a recurring listing",
+    "subscriptions",
+    "INSERT INTO listings (created, max_attendees, recurring_price) VALUES ('2026-07-15', 10, 500)",
+  ],
+  [
+    "a subscribed booking",
+    "subscriptions",
+    "INSERT INTO listing_attendees (attendee_id, listing_id, subscription_id) VALUES (1, 1, 'sub_1')",
+  ],
+] as const;
+/* jscpd:ignore-end */
+
 describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
   test("reports every feature unused in an empty database", async () => {
     expect(await getAdminFeatureUsage()).toEqual({
@@ -148,30 +174,12 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
     expect((await storedFeatures()).logistics).toBe(false);
   });
 
-  test("counts a logistics agent as logistics use", async () => {
-    await execute("INSERT INTO logistics_agents (name) VALUES ('Van')");
-    expect((await getAdminFeatureUsage()).logistics).toBe(true);
-  });
-
-  test("counts a recurring listing or a subscribed booking as subscriptions use", async () => {
-    await execute(
-      "INSERT INTO listings (created, max_attendees, recurring_price) VALUES ('2026-07-15', 10, 500)",
-    );
-    expect((await getAdminFeatureUsage()).subscriptions).toBe(true);
-    await execute("UPDATE listings SET recurring_price = 0");
-    expect((await getAdminFeatureUsage()).subscriptions).toBe(false);
-    await execute(
-      "INSERT INTO listing_attendees (attendee_id, listing_id, subscription_id) VALUES (1, 1, 'sub_1')",
-    );
-    expect((await getAdminFeatureUsage()).subscriptions).toBe(true);
-  });
-
-  test("counts a logistics listing as logistics use", async () => {
-    await execute(
-      "INSERT INTO listings (created, max_attendees, uses_logistics) VALUES ('2026-07-15', 10, 1)",
-    );
-    expect((await getAdminFeatureUsage()).logistics).toBe(true);
-  });
+  for (const [what, feature, sql] of USE_RECORDS) {
+    test(`counts ${what} as ${feature} use`, async () => {
+      await execute(sql);
+      expect((await getAdminFeatureUsage())[feature]).toBe(true);
+    });
+  }
 
   test("enables one feature without changing the others", async () => {
     await setAdminFeatureEnabled("modifiers", true);

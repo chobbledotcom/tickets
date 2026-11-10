@@ -1,16 +1,17 @@
 // effects: pure
 /** What a Stripe subscription read tells a completed checkout. */
 
+import type { SubscriptionStart } from "#shared/subscriptions/plan.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
 import type { StripeSubscription } from "./schemas.ts";
-import type { SubscriptionStart } from "#shared/subscriptions/plan.ts";
 
 /** The payment intent that paid the first invoice. Refunds and charge reads
  * of the first payment use it, as they use the intent of a one-off checkout.
  * An unpaid first invoice names none. */
 const firstPaymentIntent = (subscription: StripeSubscription): string =>
   subscription.latest_invoice.payments.data.find(
-    (entry) => entry.status === "paid" && entry.payment.type === "payment_intent",
+    (entry) =>
+      entry.status === "paid" && entry.payment.type === "payment_intent",
   )?.payment.payment_intent ?? "";
 
 /** The listing whose booking row keeps the plan. The checkout wrote it, so a

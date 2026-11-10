@@ -69,7 +69,10 @@ export const stripeSubscription = (
   id: "sub_test",
   items: {
     data: [
-      { price: { recurring: { interval: "month" }, unit_amount: 500 }, quantity: 1 },
+      {
+        price: { recurring: { interval: "month" }, unit_amount: 500 },
+        quantity: 1,
+      },
     ],
   },
   latest_invoice: {
