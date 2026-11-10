@@ -1,26 +1,17 @@
-/**
- * Rotating a built site's database key. The key is the site's full-access
- * database token. The database provider replaces every key it issued for that
- * database with one new key. The change needs a short downtime at the
- * provider. The work therefore runs in two steps: remove every old key, wait,
- * then make the new key. The host stores the new key on the site record. The
- * site receives it as DB_TOKEN.
- */
+/** Rotate a built site's database key in two steps. A durable claim prevents
+ * a later invalidation from overtaking token creation or the hosting push. */
 
 import { hmacHash } from "#crypto/hashing.ts";
 import { verifySignedValue } from "#crypto/signed-value.ts";
 import { base64ToBase64Url } from "#crypto/utils.ts";
 import type { BuiltSite } from "#db/built-sites/types.ts";
-import {
-  requireBuiltSiteByIdPrimary,
-  updateBuiltSite,
-} from "#db/built-sites.ts";
+import { updateBuiltSite } from "#db/built-sites.ts";
 import { databaseHostFor } from "#db/host.ts";
 import { t } from "#i18n";
 import { adminRecordPath } from "#shared/admin-surface.ts";
 import { bunnyDbProvider } from "#shared/bunny-db.ts";
 import { getEnv } from "#shared/env.ts";
-import { nowSeconds } from "#shared/now.ts";
+import { nowMs } from "#shared/now.ts";
 import type { DatabaseProviderApi } from "#shared/provider-types.ts";
 import {
   errorResult,
@@ -39,10 +30,8 @@ import { tursoDbProvider } from "#shared/turso-api.ts";
  * flow waits on its timer page and the command-line flow waits too. */
 export const DATABASE_KEY_PAUSE_SECONDS = 60;
 
-/** Seconds a rotation link stays open, counted from the second the rotation
- * recorded its start: the timer page's own wait, plus time to reload it. A
- * later link is refused, and the operator starts again. */
-const ROTATION_LINK_MAX_AGE_S = 600;
+/** A timer link expires ten minutes after its recorded start. */
+const ROTATION_LINK_MAX_AGE_MS = 600_000;
 
 /** The two databases a host can change the key of through a provider API. */
 export type DatabaseKeyProvider = "bunny" | "turso";
@@ -71,8 +60,6 @@ export type DatabaseKeyRotationAccess =
   | { ok: true; hostingId: string; provider: DatabaseKeyProvider }
   | { ok: false; error: string };
 
-/** The settings this provider's rotation is missing, or null when it holds
- * them all. */
 const missingProviderSettings = (provider: DatabaseKeyProvider): string[] =>
   PROVIDER_ENV_KEYS[provider].filter((name) => !getEnv(name));
 
@@ -136,73 +123,97 @@ const stepFor =
     );
   };
 
-/**
- * Step one: make every key the database issued for this site stop working,
- * and record when the pause began. The site cannot reach its database after
- * this until step two sends it a new key. A provider refusal leaves the stored
- * key alone. The new start replaces any older one, so a link for an earlier
- * rotation stops working.
- */
-export const startDatabaseKeyRotation = stepFor(
-  async (site, provider): Promise<Result<number>> => {
-    const invalidated = await provider.invalidateDatabaseTokens(site.dbUrl);
-    if (!invalidated.ok) return invalidated;
-    const started = nowSeconds();
-    await updateBuiltSite(site.id, () => ({
-      databaseKeyRotationStarted: started,
-    }));
-    return okResult(started);
-  },
-);
-
-/** Take one rotation's start, and clear it. Only the rotation that still holds
- * the start takes it, so two completions of one link cannot both make a key. */
-const takeRotationStart = async (
+/** Change the rotation state through the site's revision fence. A negative
+ * start owns the provider operation. Zero is idle, and a positive start waits. */
+const changeRotation = async (
   siteId: number,
-  started: number,
-): Promise<boolean> => {
-  let taken = false;
-  await updateBuiltSite(siteId, (existing) => {
-    taken = existing.databaseKeyRotationStarted === started;
-    return taken ? { databaseKeyRotationStarted: 0 } : null;
+  change: (current: number) => number | null,
+): Promise<number | null> => {
+  let next: number | null = null;
+  await updateBuiltSite(siteId, (site) => {
+    next = change(site.databaseKeyRotationStarted);
+    return next === null ? null : { databaseKeyRotationStarted: next };
   });
-  return taken;
+  return next;
 };
 
-/**
- * Step two: make the new key and send it to the site, for the one rotation
- * that still waits. A newer rotation's pause governs, so a key this step makes
- * while another rotation starts is dropped. The new key is the only live one,
- * so it is the truth to store, even if the push then fails. A second rotation
- * completes the work.
- */
-export const completeDatabaseKeyRotation = stepFor(
-  async (site, provider, hostingId, started: number): Promise<Outcome> => {
-    if (!(await takeRotationStart(site.id, started))) {
-      return errorResult(t("built_sites.database_key_link_expired"));
-    }
-    const issued = await provider.issueDatabaseToken(site.dbUrl);
-    if (!issued.ok) return issued;
-    const current = await requireBuiltSiteByIdPrimary(site.id);
-    if (current.databaseKeyRotationStarted !== 0) {
-      return errorResult(t("built_sites.database_key_rotation_superseded"));
-    }
-    await updateBuiltSite(site.id, () => ({ dbToken: issued.value }));
-    const pushed = await resolveHostingProvider(
-      site.hostingProvider,
-    ).setSecrets(hostingId, [["DB_TOKEN", issued.value]]);
-    return pushed.ok
-      ? pushed
-      : {
-          error: t("built_sites.database_key_push_failed", {
-            error: pushed.error,
-          }),
-          ok: false,
-        };
-  },
+/** The shared deadline check for both web and command-line completion. */
+const rotationReady = (started: number): boolean => {
+  const elapsed = nowMs() - started;
+  return (
+    started > 0 &&
+    elapsed >= DATABASE_KEY_PAUSE_SECONDS * 1000 &&
+    elapsed <= ROTATION_LINK_MAX_AGE_MS
+  );
+};
+
+/** Own one provider operation and release it on every ordinary exit. Step one
+ * can leave a positive start for the timer. Every other exit leaves idle. */
+const withRotationClaim = async <Answer>(
+  siteId: number,
+  reserve: (current: number) => number | null,
+  refusal: string,
+  run: (reserved: number, wait: (started: number) => void) => Promise<Answer>,
+): Promise<StepAnswer<Answer>> => {
+  const reserved = await changeRotation(siteId, reserve);
+  if (reserved === null) return errorResult(refusal);
+  let waiting = 0;
+  try {
+    return await run(reserved, (started) => {
+      waiting = started;
+    });
+  } finally {
+    await updateBuiltSite(siteId, () => ({
+      databaseKeyRotationStarted: waiting,
+    }));
+  }
+};
+
+/** Remove every old key while the site owns the provider operation. A later
+ * waiting start gets a distinct timestamp, even within the same millisecond. */
+export const startDatabaseKeyRotation = stepFor((site, provider) =>
+  withRotationClaim(
+    site.id,
+    (current) => (current < 0 ? null : -Math.max(nowMs(), current + 1)),
+    t("built_sites.database_key_rotation_busy"),
+    async (reserved, wait): Promise<Result<number>> => {
+      const invalidated = await provider.invalidateDatabaseTokens(site.dbUrl);
+      if (!invalidated.ok) return invalidated;
+      const started = Math.max(nowMs(), -reserved);
+      wait(started);
+      return okResult(started);
+    },
+  ),
 );
 
-/** What a rotation link signs: the site, and the second its rotation began. */
+/** Keep the claim through token creation, storage, and the hosting push. No
+ * other start or completion can change the provider during those steps. */
+export const completeDatabaseKeyRotation = stepFor(
+  (site, provider, hostingId, started: number) =>
+    withRotationClaim(
+      site.id,
+      (current) =>
+        current === started && rotationReady(started) ? -started : null,
+      t("built_sites.database_key_link_expired"),
+      async (): Promise<Outcome> => {
+        const issued = await provider.issueDatabaseToken(site.dbUrl);
+        if (!issued.ok) return issued;
+        await updateBuiltSite(site.id, () => ({ dbToken: issued.value }));
+        const pushed = await resolveHostingProvider(
+          site.hostingProvider,
+        ).setSecrets(hostingId, [["DB_TOKEN", issued.value]]);
+        return pushed.ok
+          ? pushed
+          : errorResult(
+              t("built_sites.database_key_push_failed", {
+                error: pushed.error,
+              }),
+            );
+      },
+    ),
+);
+
+/** The signature binds the site and its unique start in epoch milliseconds. */
 const rotationMessage = (siteId: number, started: number): string =>
   ["database-key", siteId, started].join(":");
 
@@ -235,9 +246,7 @@ export const databaseKeyLinkStartOrNull = async (
   const opens = await verifySignedValue(
     startField,
     signature,
-    (start, now) =>
-      now >= start + DATABASE_KEY_PAUSE_SECONDS &&
-      now <= start + ROTATION_LINK_MAX_AGE_S,
+    rotationReady,
     (start) => rotationMessage(siteId, start),
   );
   return opens ? Number.parseInt(startField, 10) : null;

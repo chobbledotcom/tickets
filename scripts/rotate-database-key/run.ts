@@ -19,6 +19,7 @@ import {
   databaseKeyRotationAccess,
 } from "#shared/database-key-rotation.ts";
 import { errorMessage } from "#shared/error-message.ts";
+import { nowMs } from "#shared/now.ts";
 import type { Outcome, Result } from "#shared/result.ts";
 
 const ROTATE_DATABASE_KEY_USAGE = "Usage: deno task rotate:db-key";
@@ -85,7 +86,12 @@ const rotateOneRound = async (
   deps.stdout(
     `Waiting ${DATABASE_KEY_PAUSE_SECONDS} seconds for the database to remove every old key.`,
   );
-  await deps.wait(DATABASE_KEY_PAUSE_SECONDS);
+  await deps.wait(
+    Math.max(
+      DATABASE_KEY_PAUSE_SECONDS,
+      (started.value - nowMs()) / 1000 + DATABASE_KEY_PAUSE_SECONDS,
+    ),
+  );
   const completed = await deps.completeRotation(site, started.value);
   if (!completed.ok) throw new Error(completed.error);
   deps.stdout(`${site.name} now uses a new database key.`);

@@ -45,7 +45,6 @@ export const refuseTab = (
 /** What a tab write leaves when it worked, and what its tab shows either way. */
 export type LoggedTabLines = {
   activity: string;
-  failure?: ((error: string) => string) | undefined;
   success: string;
 };
 
@@ -55,8 +54,8 @@ export const answerLoggedTab = async (
   tab: BuiltSiteTab,
   id: number,
   outcome: Outcome,
-  { activity, failure, success }: LoggedTabLines,
+  { activity, success }: LoggedTabLines,
 ): Promise<Response> => {
   if (outcome.ok) await logActivity(activity);
-  return answerTab(tab, id, outcome, success, failure);
+  return answerTab(tab, id, outcome, success);
 };

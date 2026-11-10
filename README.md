@@ -579,6 +579,36 @@ deno task rotate:db-key   # Replace one built site's database key through Turso 
 deno task precommit      # All checks (typecheck, lint, cpd, build:edge, test:coverage)
 ```
 
+### Database key rotation
+
+Use the Secrets tab of a built site, or run `deno task rotate:db-key`.
+The host removes every old key, waits one minute, then stores and sends the new key.
+The timer page uses a GET, so a page reload does not remove the keys again.
+A new start replaces an older timer link, but cannot interrupt a provider request or secret push.
+The host refuses completion during a code update. Open the timer page again after the update ends.
+
+The `built_sites.database_key_rotation_started` column holds the rotation claim:
+
+- A positive value is the unique start in epoch milliseconds. Completion requires a full minute after this start.
+- A negative value owns a provider operation. The host refuses other rotations until the operation ends.
+- Zero means that no rotation waits.
+
+An error remains visible and releases the claim. A refused removal does not restore an older timer link.
+The provider can remove keys before it reports an error. Start again to allow a full pause after that request.
+
+If the runtime stops before it releases a claim, the negative value remains.
+Do not clear this value while a request still runs. Concurrent rotations can leave the site with an invalid key.
+After you confirm that the request stopped, clear the claim for that site on the host database:
+
+```sql
+UPDATE built_sites
+SET database_key_rotation_started = 0,
+    site_data_revision = site_data_revision + 1
+WHERE id = :site_id AND database_key_rotation_started < 0;
+```
+
+Start a new rotation after you clear the claim. The new rotation waits the full minute.
+
 ### Environment variables
 
 | Variable            | Required | Description                              |

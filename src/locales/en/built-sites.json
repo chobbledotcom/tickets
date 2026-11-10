@@ -88,7 +88,7 @@
   "built_sites.database_key_rotating_body": "The database for {site} removed every old key. It needs a short pause before it can make the new key.",
   "built_sites.database_key_rotating_wait": "This page waits one minute. Then it saves the new key and sends it to the site. Do not close this page.",
   "built_sites.database_key_link_expired": "This rotation link is no longer valid. Start the rotation again.",
-  "built_sites.database_key_rotation_superseded": "Another rotation started for this database. Finish it from its timer page, or start the rotation again.",
+  "built_sites.database_key_rotation_busy": "A database key change is already running. Wait for it to finish before you try again.",
   "built_sites.database_key_rotation_not_pending": "No rotation waits for this database. Start the rotation again.",
   "built_sites.database_key_push_failed": "The database key changed, but the site did not receive it. Rotate the key again to retry. {error}",
   "built_sites.database_key_no_address": "This site has no database address, so its key cannot be changed.",

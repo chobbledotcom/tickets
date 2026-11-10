@@ -55,8 +55,8 @@ export interface BuiltSite {
   assignedAttendeeId: number | null;
   assignedListingId: number | null;
   created: string;
-  /** The second the latest database key rotation removed every old key, or 0
-   * when none waits. A timer link opens only for this one. */
+  /** Epoch milliseconds for a waiting rotation. Negative means a provider
+   * operation owns the claim. Zero is idle. */
   databaseKeyRotationStarted: number;
   dbProvider: DbProvider;
   dbToken: string;

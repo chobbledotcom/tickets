@@ -14,6 +14,7 @@ import {
   databaseKeyLinkStartOrNull,
   startDatabaseKeyRotation,
 } from "#shared/database-key-rotation.ts";
+import { isUpdateInProgress } from "#shared/env.ts";
 import { DatabaseKeyRotationPage } from "#templates/admin/built-sites/database-key.tsx";
 import { builtSiteFormPost } from "./built-site-form.ts";
 import { answerLoggedTab, refuseTab } from "./built-site-tab.ts";
@@ -39,11 +40,15 @@ const handleShowDatabaseKeyRotation = createIdEntityHandler<BuiltSite>(
   findBuiltSiteByIdPrimary,
 )(pageGuardAt(ROTATION_PATTERN))(async (site, session) => {
   const started = site.databaseKeyRotationStarted;
-  if (started === 0) {
+  if (started <= 0) {
     return refuseTab(
       "secrets",
       site.id,
-      t("built_sites.database_key_rotation_not_pending"),
+      t(
+        started < 0
+          ? "built_sites.database_key_rotation_busy"
+          : "built_sites.database_key_rotation_not_pending",
+      ),
     );
   }
   return htmlResponse(
@@ -60,6 +65,7 @@ const handleShowDatabaseKeyRotation = createIdEntityHandler<BuiltSite>(
 const handleCompleteDatabaseKeyRotation = createIdEntityHandler<BuiltSite>(
   findBuiltSiteByIdPrimary,
 )(pageGuardAt(COMPLETE_ROTATION_PATTERN))(async (site, _session, request) => {
+  if (isUpdateInProgress()) return redirectResponse("/read-only");
   const search = new URL(request.url).searchParams;
   const started = await databaseKeyLinkStartOrNull(
     site.id,

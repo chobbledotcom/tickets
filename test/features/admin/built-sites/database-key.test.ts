@@ -6,8 +6,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
-import { findBuiltSiteByIdPrimary } from "#db/built-sites.ts";
-import { readOnlyBlock } from "#routes/app/read-only.ts";
+import { findBuiltSiteByIdPrimary, updateBuiltSite } from "#db/built-sites.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { bunnyDbProvider } from "#shared/bunny-db.ts";
 import { DATABASE_KEY_PAUSE_SECONDS } from "#shared/database-key-rotation.ts";
@@ -20,6 +19,7 @@ import {
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
@@ -69,10 +69,13 @@ const finishUrlOf = (html: string): string => {
 };
 
 /** One site whose database key the host manages. */
-const keySite = (name = "Key Route"): Promise<{ id: number }> =>
+const keySite = (
+  name = "Key Route",
+  dbUrl = BUNNY_DB_URL,
+): Promise<{ id: number }> =>
   createTestBuiltSite({
     dbToken: "old-key",
-    dbUrl: BUNNY_DB_URL,
+    dbUrl,
     hostingId: "8400",
     name,
   });
@@ -175,12 +178,7 @@ const expectLinkRefused = async (
 
 /** The one site a route case changes, with its key before the rotation. */
 const caseSite = (database: "bunny" | "local"): Promise<{ id: number }> =>
-  createTestBuiltSite({
-    dbToken: "old-key",
-    dbUrl: database === "local" ? LOCAL_DB_URL : BUNNY_DB_URL,
-    hostingId: "8400",
-    name: "Key Route",
-  });
+  keySite("Key Route", database === "local" ? LOCAL_DB_URL : BUNNY_DB_URL);
 
 /** The faked answers one route case hands the provider steps and the push. */
 const answersOf = (
@@ -427,27 +425,42 @@ describeWithEnv(
       });
     });
 
-    test("refuses the timer page when no rotation waits", async () => {
-      const site = await caseSite("bunny");
+    for (const [state, error] of [
+      [0, NO_ROTATION_WAITS],
+      [
+        -1,
+        "A database key change is already running. Wait for it to finish before you try again.",
+      ],
+    ] as const) {
+      test(`refuses the timer page for rotation state ${state}`, async () => {
+        const site = await caseSite("bunny");
+        await updateBuiltSite(site.id, () => ({
+          databaseKeyRotationStarted: state,
+        }));
+        expectErrorFlash(await adminGet(timerPagePath(site.id)), error);
+      });
+    }
 
-      expectErrorFlash(
-        await adminGet(timerPagePath(site.id)),
-        NO_ROTATION_WAITS,
-      );
-    });
-
-    test("keeps the timer routes served in read-only mode", () => {
-      // The operator cannot start a rotation then, and the links that finish
-      // one still open: a blocked GET would leave the site with no key.
-      expect(readOnlyBlock(timerPagePath(42), "GET", false)).toBeNull();
-      expect(
-        readOnlyBlock(
-          "/admin/built-sites/42/rotate-database-key/complete",
-          "GET",
-          false,
-        ),
-      ).toBeNull();
-    });
+    for (const updating of [false, true]) {
+      test(`only update mode blocks completion: ${updating}`, async () => {
+        await withKeySite({}, async (site, calls) => {
+          const link = await timerPageLink(site.id);
+          using _mode = withEnv({
+            READ_ONLY_FROM: "2020-01-01T00:00:00Z",
+            UPDATE_IN_PROGRESS: updating ? "review" : undefined,
+          });
+          const response = await openLink(link);
+          expect(calls.issue.calls.length).toBe(updating ? 0 : 1);
+          if (updating)
+            expect(response.headers.get("location")).toBe("/read-only");
+          else
+            await expectFlashRedirect(
+              `/admin/built-sites/${site.id}/secrets`,
+              ROTATED,
+            )(response);
+        });
+      });
+    }
 
     test("keeps the old key when the link has no signature", async () => {
       const { id } = await keySite();

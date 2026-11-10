@@ -341,9 +341,7 @@ const databaseKeyCall = async <Value>(
   return run(api, organization, database.value.id);
 };
 
-/** One provider step: the key call for the database a site's address reaches.
- * Each step finds the database again, because the two steps are separate
- * requests. */
+/** Bind a provider step to the shared database lookup. */
 const providerKeyStep =
   <Value>(run: ListedDatabaseCall<Value>) =>
   (dbUrl: string): Promise<Result<Value>> =>
