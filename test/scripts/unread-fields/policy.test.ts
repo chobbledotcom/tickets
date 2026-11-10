@@ -1,49 +1,46 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { FindingIdentity } from "#scripts/unread-fields/identity.ts";
 import {
-  type ClosedFieldSnapshot,
-  exemptFieldsAt,
-  exemptFieldsUnder,
+  type ExemptionRule,
+  exemptionsOf,
+  reasonFor,
 } from "#scripts/unread-fields/policy.ts";
 
-type Sample = { kept: string; optional?: number };
+const reason = reasonFor("external-output")(
+  "sendSample serialises the complete value",
+);
 
-const reason = {
-  evidence: "sendSample serialises the complete value",
-  kind: "external-output",
-} as const;
+const reported: readonly FindingIdentity[] = [
+  { exportedFrom: "src/sample.ts", field: "kept", path: [{ name: "Sample" }] },
+  {
+    exportedFrom: "src/sample.ts",
+    field: "nested",
+    path: [{ name: "Sample" }, { name: "inner" }],
+  },
+  { exportedFrom: "src/other.ts", field: "kept", path: [{ name: "Sample" }] },
+];
 
 describe("unread-field policy", () => {
-  test("requires optional fields in a closed snapshot", () => {
-    const complete: ClosedFieldSnapshot<Sample> = {
-      kept: "check",
-      optional: "exempt",
-    };
-    expect(complete.optional).toBe("exempt");
-
-    // @ts-expect-error A closed snapshot must classify every optional field.
-    const missing: ClosedFieldSnapshot<Sample> = { kept: "check" };
-    expect(missing.kept).toBe("check");
+  test("builds a reason of one kind", () => {
+    expect(reason).toEqual({
+      evidence: "sendSample serialises the complete value",
+      kind: "external-output",
+    });
   });
 
-  test("refuses an open string-key type", () => {
-    // @ts-expect-error An open key domain cannot be a closed snapshot.
-    const open: ClosedFieldSnapshot<Record<string, string>> = {};
-    expect(open).toEqual({});
-  });
-
-  test("emits only fields marked exempt", () => {
-    const exemptions = exemptFieldsAt<Sample>(
-      "src/sample.ts",
-      [{ name: "Sample" }],
+  test("covers only the reported fields under the rule's exact owner path", () => {
+    const rule: ExemptionRule = {
+      exportedFrom: "src/sample.ts",
+      path: [{ name: "Sample" }],
       reason,
-    )({ kept: "check", optional: "exempt" });
+    };
 
-    expect(exemptions).toEqual([
+    expect(exemptionsOf(reported)(rule)).toEqual([
       {
         identity: {
           exportedFrom: "src/sample.ts",
-          field: "optional",
+          field: "kept",
           path: [{ name: "Sample" }],
         },
         reason,
@@ -51,49 +48,13 @@ describe("unread-field policy", () => {
     ]);
   });
 
-  test("names every open field under every owner", () => {
-    const exemptions = exemptFieldsUnder(
-      [
-        ["src/first.ts", [{ name: "First" }]],
-        ["src/second.ts", [{ name: "Second" }, { way: "[]" }]],
-      ],
-      ["alpha", "beta"],
-      reason,
-    );
-
-    expect(exemptions).toEqual([
-      {
-        identity: {
-          exportedFrom: "src/first.ts",
-          field: "alpha",
-          path: [{ name: "First" }],
-        },
+  test("covers nothing when the rule's owner holds no reported field", () => {
+    expect(
+      exemptionsOf(reported)({
+        exportedFrom: "src/sample.ts",
+        path: [{ name: "Absent" }],
         reason,
-      },
-      {
-        identity: {
-          exportedFrom: "src/first.ts",
-          field: "beta",
-          path: [{ name: "First" }],
-        },
-        reason,
-      },
-      {
-        identity: {
-          exportedFrom: "src/second.ts",
-          field: "alpha",
-          path: [{ name: "Second" }, { way: "[]" }],
-        },
-        reason,
-      },
-      {
-        identity: {
-          exportedFrom: "src/second.ts",
-          field: "beta",
-          path: [{ name: "Second" }, { way: "[]" }],
-        },
-        reason,
-      },
-    ]);
+      }),
+    ).toEqual([]);
   });
 });

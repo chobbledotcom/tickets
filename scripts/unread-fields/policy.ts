@@ -1,15 +1,19 @@
 import type { Step } from "#scripts/unread-fields/fields/steps.ts";
 import {
   type FindingIdentity,
-  identitiesAt,
+  ownerKey,
 } from "#scripts/unread-fields/identity.ts";
 
-export type ExemptionKind =
-  | "dynamic-read"
-  | "external-output"
-  | "persisted-format"
-  | "provider-input"
-  | "schema-driven";
+/** The five mechanisms a reviewed false positive can name. */
+export const EXEMPTION_KINDS = [
+  "dynamic-read",
+  "external-output",
+  "persisted-format",
+  "provider-input",
+  "schema-driven",
+] as const;
+
+export type ExemptionKind = (typeof EXEMPTION_KINDS)[number];
 
 /** Why a field has a real reader that the TypeScript reference scan cannot
  * see. Evidence names the production boundary or consumer. */
@@ -23,40 +27,33 @@ export interface FindingExemption {
   reason: ExemptionReason;
 }
 
-export type FieldSnapshotChoice = "check" | "exempt";
+/** One reviewed false positive: every reported field under this exact owner
+ * path has a real reader that the scan cannot see. The report names those
+ * fields, so a rule never lists them, and a field the scan reads needs no
+ * rule. */
+export interface ExemptionRule {
+  exportedFrom: string;
+  path: readonly Step[];
+  reason: ExemptionReason;
+}
 
-/** Exempt one set of fields under one or more owner paths with one reason. The
- *  open counterpart of {@link exemptFieldsAt}, for the fields the scan reports
- *  on their own rather than as a closed shape. */
-export const exemptFieldsUnder = (
-  owners: readonly [string, readonly Step[]][],
-  fields: readonly string[],
-  reason: ExemptionReason,
-): FindingExemption[] =>
-  identitiesAt(owners)(fields).map((identity) => ({ identity, reason }));
+/** One reason of a kind, carrying the evidence that kind needs. */
+export const reasonFor =
+  (kind: ExemptionKind) =>
+  (evidence: string): ExemptionReason => ({ evidence, kind });
 
-/** A finite string-key shape whose every field needs an explicit choice. */
-export type ClosedFieldSnapshot<Shape> = string extends keyof Shape
-  ? never
-  : Exclude<keyof Shape, string> extends never
-    ? {
-        readonly [Field in keyof Shape]-?: FieldSnapshotChoice;
-      }
-    : never;
-
-/** Classify every field of one finite exported type. New fields stop the type
- * check until their policy is explicit. */
-export const exemptFieldsAt =
-  <Shape>(
-    exportedFrom: string,
-    path: readonly Step[],
-    reason: ExemptionReason,
-  ): ((snapshot: ClosedFieldSnapshot<Shape>) => FindingExemption[]) =>
-  (snapshot) =>
-    exemptFieldsUnder(
-      [[exportedFrom, path]],
-      Object.entries(snapshot)
-        .filter(([, choice]) => choice === "exempt")
-        .map(([field]) => field),
-      reason,
-    );
+/** The exemptions one rule covers: the reported fields it owns, each with the
+ * rule's reason. */
+export const exemptionsOf =
+  (reported: readonly FindingIdentity[]) =>
+  (rule: ExemptionRule): FindingExemption[] => {
+    const owner = ownerKey(rule.exportedFrom, rule.path);
+    return reported
+      .filter(
+        (identity) => ownerKey(identity.exportedFrom, identity.path) === owner,
+      )
+      .map(({ exportedFrom, field, path }) => ({
+        identity: { exportedFrom, field, path },
+        reason: rule.reason,
+      }));
+  };

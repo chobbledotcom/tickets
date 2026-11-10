@@ -62,6 +62,8 @@ concurrency:
 jobs:
   e2e:
     runs-on: ubuntu-latest
+    # The secrets this job reads live in this environment, which only main can use.
+    environment: sandbox
     # A healthy run finishes in well under a minute. The worst case — five
     # stalled legs at two minutes each, plus setup and reporting — still
     # fits, so the harness reports every leg before this limit can strike.

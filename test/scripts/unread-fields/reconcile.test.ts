@@ -3,7 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { Finding } from "#scripts/unread-fields/findings.ts";
 import type { FindingIdentity } from "#scripts/unread-fields/identity.ts";
-import type { FindingExemption } from "#scripts/unread-fields/policy.ts";
+import type { ExemptionRule } from "#scripts/unread-fields/policy.ts";
 import {
   formatUnreadFieldProblem,
   reconcileUnreadFields,
@@ -25,8 +25,11 @@ const finding = (
   verdict,
 });
 
-const exemption = (field = "total"): FindingExemption => ({
-  identity: identity(field),
+const rule = (
+  path: FindingIdentity["path"] = [{ name: "Sum" }],
+): ExemptionRule => ({
+  exportedFrom: "src/sum.ts",
+  path,
   reason: {
     evidence: "sendSum serialises the complete value",
     kind: "external-output",
@@ -36,17 +39,17 @@ const exemption = (field = "total"): FindingExemption => ({
 const kindsOf = (
   findings: readonly Finding[],
   baseline: readonly FindingIdentity[] = [],
-  exemptions: readonly FindingExemption[] = [],
+  rules: readonly ExemptionRule[] = [],
 ): string[] =>
-  reconcileUnreadFields(baseline, exemptions)(findings).map(({ kind }) => kind);
+  reconcileUnreadFields(baseline, rules)(findings).map(({ kind }) => kind);
 
 describe("unread-field reconciliation", () => {
-  test("accepts exact baseline debt and reviewed exemptions", () => {
+  test("accepts exact baseline debt and a current rule", () => {
     expect(
       kindsOf(
         [finding(), finding("external")],
         [identity()],
-        [exemption("external")],
+        [rule([{ name: "Sum" }])],
       ),
     ).toEqual([]);
   });
@@ -63,26 +66,31 @@ describe("unread-field reconciliation", () => {
 
   test("calls a removed or newly read entry stale", () => {
     expect(
-      kindsOf(
-        [finding("baseline", "read"), finding("exemption", "read")],
-        [identity("baseline")],
-        [exemption("exemption")],
-      ),
-    ).toEqual(["stale baseline", "stale exemption"]);
+      kindsOf([finding("baseline", "read")], [identity("baseline")]),
+    ).toEqual(["stale baseline"]);
+    expect(kindsOf([finding("read", "read")], [], [rule()])).toEqual([
+      "stale rule",
+    ]);
   });
 
-  test("reports duplicates and policy overlap without hiding other problems", () => {
-    expect(
-      kindsOf(
-        [finding(), finding()],
-        [identity(), identity()],
-        [exemption(), exemption()],
-      ),
-    ).toEqual([
+  test("lets baseline debt win over a rule on the same owner", () => {
+    const problems = reconcileUnreadFields([identity()], [rule()])([finding()]);
+
+    expect(problems.map(formatUnreadFieldProblem)).toEqual([
+      "stale rule: src/sum.ts :: Sum -- external-output: sendSum serialises the complete value. The baseline already holds the unread fields here. Remove this rule or its baseline entry.",
+    ]);
+  });
+
+  test("reports duplicate findings and baseline entries", () => {
+    expect(kindsOf([finding(), finding()], [identity(), identity()])).toEqual([
       "duplicate finding",
       "duplicate baseline",
+    ]);
+  });
+
+  test("reports one duplicate exemption for two rules on one owner", () => {
+    expect(kindsOf([finding("external")], [], [rule(), rule()])).toEqual([
       "duplicate exemption",
-      "policy overlap",
     ]);
   });
 
@@ -96,12 +104,34 @@ describe("unread-field reconciliation", () => {
   test("sorts problem kinds before exact identities", () => {
     const problems = reconcileUnreadFields(
       [identity("z")],
-      [],
+      [{ ...rule(), path: [{ name: "Absent" }] }],
     )([finding("b"), finding("a")]);
 
     expect(
-      problems.map(({ kind, identity }) => `${kind}:${identity.field}`),
-    ).toEqual(["stale baseline:z", "new unread field:a", "new unread field:b"]);
+      problems.map((problem) =>
+        problem.kind === "stale rule"
+          ? problem.kind
+          : `${problem.kind}:${problem.identity.field}`,
+      ),
+    ).toEqual([
+      "stale baseline:z",
+      "stale rule",
+      "new unread field:a",
+      "new unread field:b",
+    ]);
+  });
+
+  test("sorts two stale rules by the owner they name", () => {
+    const problems = reconcileUnreadFields(
+      [],
+      [rule([{ name: "Zed" }]), rule([{ name: "Alpha" }])],
+    )([]);
+
+    expect(
+      problems.map((problem) =>
+        problem.kind === "stale rule" ? problem.owner : problem.kind,
+      ),
+    ).toEqual(["src/sum.ts :: Alpha", "src/sum.ts :: Zed"]);
   });
 
   test("formats enough evidence to repair a new field", () => {
@@ -113,12 +143,11 @@ describe("unread-field reconciliation", () => {
     );
   });
 
-  test("keeps the exemption reason in a stale diagnostic", () => {
-    const [problem] = reconcileUnreadFields([], [exemption()])([]);
+  test("keeps the rule's reason in a stale diagnostic", () => {
+    const [problem] = reconcileUnreadFields([], [rule()])([]);
 
-    assertStringIncludes(
-      formatUnreadFieldProblem(problem!),
-      "external-output: sendSum serialises the complete value",
+    expect(formatUnreadFieldProblem(problem!)).toBe(
+      "stale rule: src/sum.ts :: Sum -- external-output: sendSum serialises the complete value",
     );
   });
 
@@ -128,5 +157,14 @@ describe("unread-field reconciliation", () => {
     expect(formatUnreadFieldProblem(problem!)).toBe(
       'stale baseline: src/sum.ts :: name("Sum") / name("total")',
     );
+  });
+
+  test("names the readable path of a nested stale rule", () => {
+    const [problem] = reconcileUnreadFields(
+      [],
+      [rule([{ name: "Sum" }, { name: "inner" }, { way: "[]" }])],
+    )([]);
+
+    assertStringIncludes(formatUnreadFieldProblem(problem!), 'Sum.inner["[]"]');
   });
 });

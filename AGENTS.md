@@ -56,7 +56,9 @@ devenv shell -- deno --version
 `nixpkgs` and `nixpkgs-deno` are pinned to commits in `devenv.yaml`. Edit the
 SHA there, then run `devenv update`. CI uses the same environment through
 `.github/actions/setup-devenv`. CI jobs that never launch a browser evaluate it
-with `devenv --profile ci shell`.
+with `devenv --profile ci shell`. That profile leaves out Apalache and Java. The
+step that checks the machine safety models uses `devenv --profile models shell`.
+The default shell on a development machine carries both.
 
 ## stripe-mock
 
