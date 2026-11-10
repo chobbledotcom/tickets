@@ -1,18 +1,14 @@
 /**
- * `POST /instance/site-credentials` exists so the upgrade Action can back each
- * built site up before it deploys, without GitHub holding per-site tokens.
+ * `POST /instance/site-credentials` backs each built site up before its
+ * deploy, without GitHub holding per-site tokens. Every call on an enabled
+ * instance reports itself through the error path under its own code.
+ * The key leaked once through a public workflow log.
  *
- * `?tier=alpha|beta|release` returns only sites whose own channel accepts that
- * tier: release reaches every site, beta reaches beta and alpha, alpha only
- * alpha.
- *
+ * `?tier=alpha|beta|release` returns only sites whose channel accepts that
+ * tier: release reaches every site, beta reaches beta and alpha, alpha only alpha.
  * Each token returned is that site's own FULL-ACCESS credential, so treat the
- * response as write-capable production secrets. DB_ENCRYPTION_KEY is never
- * included, which leaves PII unreadable to whoever holds one.
- *
- * Every call on an enabled instance reports itself to the operator through the
- * shared error path, under its own code. The key leaked once through a public
- * workflow log, so a stranger using it must not be silent.
+ * response as write-capable production secrets. It never holds
+ * DB_ENCRYPTION_KEY, so the personal data stays unreadable.
  */
 
 import { constantTimeEqual } from "#crypto/utils.ts";
