@@ -699,9 +699,19 @@ The deploy workflows back a site up (via `POST /instance/site-credentials`)
 before deploying to it (the staging push-to-`main` trigger is the one exception
 — see below):
 
+Each job that reads a secret names a GitHub environment. Store each secret in
+its environment, not at the repository level, and let only the `main` branch
+use the environment. Every branch that a person pushes can read a repository
+secret.
+
+- `staging`: the staging deploy.
+- `production`: the production, client, and restore deploys, the release, and
+  the backup.
+- `sandbox`: the payment and email sandbox runs.
+
 - **`.github/workflows/backup.yml`** (manual) — backs up the main instance's own
   database with `DB_URL` / `DB_TOKEN` / `STORAGE_ZONE_NAME` / `STORAGE_ZONE_KEY`
-  repository secrets.
+  secrets.
 - **`.github/workflows/deploy-clients.yml`** (manual) — upgrades the built
   client sites that accept the published tier. It asks the main instance for the
   DB credentials of the sites on that tier (each site's own full-access token —
@@ -719,7 +729,7 @@ before deploying to it (the staging push-to-`main` trigger is the one exception
   deploy to everyone — upgrade the master first. It needs the `MAIN_INSTANCE`
   URL secret plus `STORAGE_ZONE_*` and `BUNNY_ACCESS_KEY`. CDN-enabled builds
   additionally need the five optional CDN secrets below. The `MAIN_INSTANCE_KEY`
-  that authorizes the credentials endpoint is a **repository secret** (set the
+  that authorizes the credentials endpoint is a **stored secret** (set the
   same value as the main instance's `MAIN_INSTANCE_KEY` env). It is never a
   run input, because GitHub writes run inputs to the public job log.
 - **`.github/workflows/bunny-deploy.yml`** (staging) and

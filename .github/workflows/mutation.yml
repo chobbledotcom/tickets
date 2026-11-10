@@ -42,7 +42,7 @@ env:
 
 defaults:
   run:
-    shell: devenv shell bash -- -e {0}
+    shell: devenv --profile ci shell bash -- -e {0}
 
 jobs:
   mutation:
@@ -56,6 +56,8 @@ jobs:
 
       - name: Set up devenv
         uses: ./.github/actions/setup-devenv
+        with:
+          profile: ci
 
       # Only needed under --harness, but caching .bin is harmless otherwise and
       # saves re-downloading stripe-mock when the harness is used.

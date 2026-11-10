@@ -10,6 +10,7 @@ let
   # Deno stays at the supported Bunny runtime floor.
   deno = (import inputs.nixpkgs-deno { system = pkgs.stdenv.hostPlatform.system; }).deno;
   browserTools = config.ticketsBrowserTools && pkgs.stdenv.isLinux;
+  modelTools = config.ticketsModelTools;
   checkTools = with pkgs; [
     biome
     curl
@@ -64,11 +65,18 @@ in
     description = "Include Chromium for browser tests.";
   };
 
+  options.ticketsModelTools = lib.mkOption {
+    type = lib.types.bool;
+    default = true;
+    description = "Include Apalache and Java for the machine safety models.";
+  };
+
   config = {
     # CI runs each check itself, so the commit-time Git hook must not run. Every
     # shell entry otherwise runs `deno task precommit` before the command.
     profiles.ci.module = {
       ticketsBrowserTools = false;
+      ticketsModelTools = false;
       git-hooks.enable = false;
     };
 
@@ -76,6 +84,14 @@ in
     # must not run the commit-time Git hook.
     profiles.browser.module = {
       ticketsBrowserTools = true;
+      ticketsModelTools = false;
+      git-hooks.enable = false;
+    };
+
+    # Only `deno task verify:models` runs Apalache. Its CI step uses this
+    # profile, so no other CI job downloads Apalache and Java.
+    profiles.models.module = {
+      ticketsBrowserTools = false;
       git-hooks.enable = false;
     };
 
@@ -87,7 +103,8 @@ in
     packages =
       checkTools
       ++ lib.optionals (!config.container.isBuilding) (
-        [ pkgs.gh apalache ]
+        [ pkgs.gh ]
+        ++ lib.optionals modelTools [ apalache ]
         ++ lib.optionals browserTools [ pkgs.chromium ]
       );
 

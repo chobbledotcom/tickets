@@ -152,7 +152,9 @@ jobs:
       - name: Check TLA model standards
         run: deno task check:tla
 
+      # Only the models profile carries Apalache and Java.
       - name: Check machine safety models
+        shell: devenv --profile models shell bash -- -e {0}
         run: deno task verify:models
 
       - name: Build edge bundle

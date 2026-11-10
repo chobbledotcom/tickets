@@ -1,0 +1,328 @@
+{
+  "src/features/admin/api-attributes.ts": [
+    {
+      "path": [{ "name": "CreateAttributeBody" }],
+      "kind": "dynamic-read",
+      "evidence": "toAttributeInput on a create body reads the field by key off the raw JSON body record"
+    },
+    {
+      "path": [{ "name": "UpdateAttributeBody" }],
+      "kind": "dynamic-read",
+      "evidence": "toAttributeInput on an update body reads the field by key off the raw JSON body record"
+    }
+  ],
+  "src/features/admin/api-listing-body.ts": [
+    {
+      "path": [{ "name": "CreateListingBody" }],
+      "kind": "dynamic-read",
+      "evidence": "withParsedJoinIds reads the field by key off the raw JSON body record"
+    }
+  ],
+  "src/features/admin/api-site-pages-input.ts": [
+    {
+      "path": [{ "name": "CreateSitePageBody" }],
+      "kind": "dynamic-read",
+      "evidence": "toPageWrite on a create body reads the field by key off the raw JSON body record"
+    },
+    {
+      "path": [{ "name": "UpdateSitePageBody" }],
+      "kind": "dynamic-read",
+      "evidence": "handleUpdate's parent plan on an update body reads the field by key off the raw JSON body record"
+    }
+  ],
+  "src/features/admin/scan-cache.ts": [
+    {
+      "path": [{ "name": "TicketCacheEntry" }],
+      "kind": "external-output",
+      "evidence": "jsonResponse serialises the entries into the scan-cache GET body; the scanner page's hand-written browser JS (scanner-offline.js, scanner-offline-ui.js) validates and reads tickets for the offline quantity ask"
+    }
+  ],
+  "src/features/api/public-listing.ts": [
+    {
+      "path": [{ "name": "PublicListing" }],
+      "kind": "external-output",
+      "evidence": "apiResponse serialises the complete public listing"
+    }
+  ],
+  "src/shared/admin-api-external-sources.ts": [
+    {
+      "path": [{ "name": "AdminApiCreateExternalSourceBody" }],
+      "kind": "dynamic-read",
+      "evidence": "the route reads each field by key off the raw JSON body record"
+    },
+    {
+      "path": [{ "name": "AdminApiUpdateExternalSourceBody" }],
+      "kind": "dynamic-read",
+      "evidence": "the route reads each field by key off the raw JSON body record"
+    },
+    {
+      "path": [{ "name": "AdminApiCreateExternalLinkBody" }],
+      "kind": "dynamic-read",
+      "evidence": "the route reads each field by key off the raw JSON body record"
+    },
+    {
+      "path": [{ "name": "AdminApiExternalSource" }],
+      "kind": "external-output",
+      "evidence": "jsonResponse serialises the complete row every directory answer carries"
+    },
+    {
+      "path": [{ "name": "AdminApiExternalSourceLink" }],
+      "kind": "external-output",
+      "evidence": "jsonResponse serialises the complete row every directory answer carries"
+    }
+  ],
+  "src/shared/admin-api-resources.ts": [
+    {
+      "path": [{ "name": "AdminApiServes" }],
+      "kind": "schema-driven",
+      "evidence": "the CLI's servesVerb, the describe verb filter, and the route-derivation test read entry.serves[verb] by key, which the reader cannot trace to named fields"
+    },
+    {
+      "path": [{ "name": "AdminApiSitePage" }],
+      "kind": "external-output",
+      "evidence": "jsonResponse serialises the complete site-page row"
+    },
+    {
+      "path": [{ "name": "AdminApiCreateAttendeeStatusBody" }],
+      "kind": "dynamic-read",
+      "evidence": "statusInputFrom reads the field by key off the raw JSON body record"
+    },
+    {
+      "path": [{ "name": "AdminApiUpdateAttendeeStatusBody" }],
+      "kind": "dynamic-read",
+      "evidence": "statusInputFrom reads the field by key off the raw JSON body record"
+    },
+    {
+      "path": [{ "name": "AdminApiAttendeeStatus" }],
+      "kind": "external-output",
+      "evidence": "jsonResponse serialises the complete attendee-status row"
+    }
+  ],
+  "src/shared/bulk-email-targets/types.ts": [
+    {
+      "path": [{ "name": "TargetSpec" }],
+      "kind": "dynamic-read",
+      "evidence": "targetFlag reads the spec flag by key"
+    }
+  ],
+  "src/shared/db/attendees/pii.ts": [
+    {
+      "path": [{ "name": "DecryptedAttendeeRow" }],
+      "kind": "schema-driven",
+      "evidence": "the conditional type preserves each selected money column"
+    }
+  ],
+  "src/shared/db/built-sites/blob.ts": [
+    {
+      "path": [{ "name": "SiteDataBlob" }],
+      "kind": "persisted-format",
+      "evidence": "SiteDataBlobSchema reads the stored versioned object"
+    }
+  ],
+  "src/shared/db/built-sites/types.ts": [
+    {
+      "path": [{ "name": "BuiltSiteRow" }],
+      "kind": "schema-driven",
+      "evidence": "builtSitePlainColumns maps each site field to its plain column by key at run time"
+    },
+    {
+      "path": [{ "name": "BuiltSitePlainInput" }],
+      "kind": "schema-driven",
+      "evidence": "builtSitePlainColumns maps each site field to its plain column by key at run time"
+    }
+  ],
+  "src/shared/db/external-sources/types.ts": [
+    {
+      "path": [{ "name": "ExternalSourceInput" }],
+      "kind": "schema-driven",
+      "evidence": "defineTable's toDbValues reads each input field through the table's input key map"
+    }
+  ],
+  "src/shared/db/invoices.ts": [
+    {
+      "path": [{ "name": "InvoiceRow" }],
+      "kind": "schema-driven",
+      "evidence": "getInvoiceByShareToken passes the blind index as the table reader's query key, which becomes the lookup WHERE clause"
+    }
+  ],
+  "src/shared/db/modifiers.ts": [
+    {
+      "path": [{ "name": "ModifierInput" }],
+      "kind": "schema-driven",
+      "evidence": "table.insert and table.update read the input by each column's key at run time"
+    }
+  ],
+  "src/shared/db/settings/snapshot.ts": [
+    {
+      "path": [{ "name": "SettingsData" }],
+      "kind": "dynamic-read",
+      "evidence": "the settings namespace getter reads the field through snap()"
+    }
+  ],
+  "src/shared/email-renderer.ts": [
+    {
+      "path": [{ "name": "TemplateData" }, { "name": "entries" }, { "way": "[]" }],
+      "kind": "dynamic-read",
+      "evidence": "Liquid reads each template entry field by its template name"
+    },
+    {
+      "path": [
+        { "name": "TemplateData" },
+        { "name": "entries" },
+        { "way": "[]" },
+        { "name": "attendee" }
+      ],
+      "kind": "dynamic-read",
+      "evidence": "Liquid reads each attendee field by its template name"
+    },
+    {
+      "path": [
+        { "name": "TemplateData" },
+        { "name": "entries" },
+        { "way": "[]" },
+        { "name": "listing" }
+      ],
+      "kind": "dynamic-read",
+      "evidence": "Liquid reads each listing field by its template name"
+    }
+  ],
+  "src/shared/invoices/body.ts": [
+    {
+      "path": [{ "name": "InvoiceBodyData" }],
+      "kind": "dynamic-read",
+      "evidence": "renderInvoiceBody renders each invoice body field by its Liquid template name"
+    },
+    {
+      "path": [{ "name": "InvoiceBodyData" }, { "name": "customer" }],
+      "kind": "dynamic-read",
+      "evidence": "renderInvoiceBody renders each invoice body field by its Liquid template name"
+    },
+    {
+      "path": [{ "name": "InvoiceBodyData" }, { "name": "invoice" }],
+      "kind": "dynamic-read",
+      "evidence": "renderInvoiceBody renders each invoice body field by its Liquid template name"
+    },
+    {
+      "path": [{ "name": "InvoiceBodyData" }, { "name": "labels" }],
+      "kind": "dynamic-read",
+      "evidence": "renderInvoiceBody renders each invoice body field by its Liquid template name"
+    },
+    {
+      "path": [{ "name": "InvoiceBodyData" }, { "name": "totals" }],
+      "kind": "dynamic-read",
+      "evidence": "renderInvoiceBody renders each invoice body field by its Liquid template name"
+    }
+  ],
+  "src/shared/request-context.ts": [
+    {
+      "path": [{ "name": "RequestStore" }],
+      "kind": "dynamic-read",
+      "evidence": "storeSlot reads and writes the slot field by key"
+    }
+  ],
+  "src/shared/rest/resource.ts": [
+    {
+      "path": [
+        { "name": "Resource" },
+        { "name": "delete" },
+        { "way": "()" },
+        { "way": "result" }
+      ],
+      "kind": "schema-driven",
+      "evidence": "operationResponse reads notFound through OperationFailure"
+    },
+    {
+      "path": [
+        { "name": "Resource" },
+        { "name": "update" },
+        { "way": "()" },
+        { "way": "result" }
+      ],
+      "kind": "schema-driven",
+      "evidence": "operationResponse reads notFound through OperationFailure"
+    }
+  ],
+  "src/shared/settings/form-schema.ts": [
+    {
+      "path": [
+        { "name": "SelectFieldSpec" },
+        { "name": "options" },
+        { "way": "()" },
+        { "way": "result" },
+        { "way": "[]" }
+      ],
+      "kind": "schema-driven",
+      "evidence": "SelectField reads each built option through its structural type"
+    }
+  ],
+  "src/shared/stripe/client.ts": [
+    {
+      "path": [
+        { "name": "StripeCheckoutLineItemParams" },
+        { "name": "price_data" }
+      ],
+      "kind": "provider-input",
+      "evidence": "createStripeRequest serialises the complete Stripe request"
+    },
+    {
+      "path": [
+        { "name": "StripeCheckoutLineItemParams" },
+        { "name": "price_data" },
+        { "name": "product_data" }
+      ],
+      "kind": "provider-input",
+      "evidence": "createStripeRequest serialises the complete Stripe request"
+    },
+    {
+      "path": [
+        { "name": "StripeClient" },
+        { "name": "refunds" },
+        { "name": "create" },
+        { "way": "()" },
+        { "way": "params" }
+      ],
+      "kind": "provider-input",
+      "evidence": "createStripeRequest serialises the complete Stripe request"
+    }
+  ],
+  "src/shared/sumup/transport.ts": [
+    {
+      "path": [{ "name": "SumupCheckoutRequest" }],
+      "kind": "provider-input",
+      "evidence": "sumupInit serialises the complete checkout request"
+    },
+    {
+      "path": [{ "name": "SumupCheckoutRequest" }, { "name": "hosted_checkout" }],
+      "kind": "provider-input",
+      "evidence": "sumupInit serialises the nested hosted checkout request"
+    }
+  ],
+  "src/shared/types.ts": [
+    {
+      "path": [{ "name": "Attendee" }],
+      "kind": "dynamic-read",
+      "evidence": "the same per-line fact is read off the structurally identical ListingAttendeeRow in the tickets page, token views, and the merge tables; an attendee row carries it through the shared conditional row type"
+    }
+  ],
+  "src/shared/webhook.ts": [
+    {
+      "path": [{ "name": "WebhookPayload" }],
+      "kind": "external-output",
+      "evidence": "sendWebhook serialises the payload into the registration POST body; the reader is the operator's external integration"
+    }
+  ],
+  "src/ui/templates/admin/confirm-page.tsx": [
+    {
+      "path": [{ "name": "WarningDeleteProps" }],
+      "kind": "dynamic-read",
+      "evidence": "warningDeletePage spreads the remaining props into ConfirmPage"
+    }
+  ],
+  "src/ui/templates/admin/settings.tsx": [
+    {
+      "path": [{ "name": "SettingsPageState" }],
+      "kind": "schema-driven",
+      "evidence": "settingsForm reads state fields through each form definition"
+    }
+  ]
+}

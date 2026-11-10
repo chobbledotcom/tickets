@@ -16,12 +16,31 @@ jobs:
     permissions:
       contents: write
     runs-on: ubicloud-standard-4
+    # The secrets this job reads live in this environment, which only main can use.
+    environment: production
     outputs:
       tag: ${{ steps.create-release.outputs.tag }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # A missing secret must stop the run here, not after the build or part
+      # of the way through a deploy.
+      - name: Check the secrets this run needs
+        shell: bash
+        env:
+          BUNNY_ACCESS_KEY: ${{ secrets.BUNNY_ACCESS_KEY }}
+          CDN_URL: ${{ secrets.CDN_URL }}
+          CDN_BUNNY_STORAGE_ZONE_NAME: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_NAME }}
+          CDN_BUNNY_STORAGE_ZONE_KEY: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_KEY }}
+          CDN_BUNNY_STORAGE_HOST: ${{ secrets.CDN_BUNNY_STORAGE_HOST }}
+          CDN_BUNNY_PULL_ZONE_ID: ${{ secrets.CDN_BUNNY_PULL_ZONE_ID }}
+        run: |
+          scripts/ci/require-env.sh \
+            --together CDN_URL,CDN_BUNNY_STORAGE_ZONE_NAME,CDN_BUNNY_STORAGE_ZONE_KEY,CDN_BUNNY_STORAGE_HOST,CDN_BUNNY_PULL_ZONE_ID \
+            --if CDN_URL BUNNY_ACCESS_KEY
+          scripts/ci/check-credentials.sh bunny cdn-zone
 
       - name: Build Bunny edge script
         uses: ./.github/actions/build-bunny-script
@@ -38,9 +57,10 @@ jobs:
         id: create-release
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_NAME: ${{ inputs.release_name }}
         run: |
           TAG="$(cat .build-tag)"
-          TITLE="$(date -u +%Y-%m-%d) - ${{ inputs.release_name }}"
+          TITLE="$(date -u +%Y-%m-%d) - $RELEASE_NAME"
           git tag "$TAG"
           git push origin "$TAG"
           gh release create "$TAG" \

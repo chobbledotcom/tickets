@@ -30,12 +30,27 @@ defaults:
 jobs:
   backup:
     runs-on: ubicloud-standard-4
+    # The secrets this job reads live in this environment, which only main can use.
+    environment: production
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+
+      # A missing secret must stop the run here, not after the build or part
+      # of the way through a deploy.
+      - name: Check the secrets this run needs
+        shell: bash
+        env:
+          DB_URL: ${{ secrets.DB_URL }}
+          DB_TOKEN: ${{ secrets.DB_TOKEN }}
+          STORAGE_ZONE_NAME: ${{ secrets.STORAGE_ZONE_NAME }}
+          STORAGE_ZONE_KEY: ${{ secrets.STORAGE_ZONE_KEY }}
+        run: |
+          scripts/ci/require-env.sh DB_URL DB_TOKEN STORAGE_ZONE_NAME STORAGE_ZONE_KEY
+          scripts/ci/check-credentials.sh backup-zone
 
       - name: Set up devenv
         uses: ./.github/actions/setup-devenv

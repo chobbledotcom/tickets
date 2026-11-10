@@ -41,10 +41,35 @@ permissions:
 jobs:
   deploy:
     runs-on: ubicloud-standard-4
+    # The secrets this job reads live in this environment, which only main can use.
+    environment: production
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      # A missing secret must stop the run here, not after the build or part
+      # of the way through a deploy.
+      - name: Check the secrets this run needs
+        shell: bash
+        env:
+          BUNNY_ACCESS_KEY: ${{ secrets.BUNNY_ACCESS_KEY }}
+          MAIN_INSTANCE: ${{ secrets.MAIN_INSTANCE }}
+          MAIN_INSTANCE_KEY: ${{ secrets.MAIN_INSTANCE_KEY }}
+          STORAGE_ZONE_NAME: ${{ secrets.STORAGE_ZONE_NAME }}
+          STORAGE_ZONE_KEY: ${{ secrets.STORAGE_ZONE_KEY }}
+          CDN_URL: ${{ secrets.CDN_URL }}
+          CDN_BUNNY_STORAGE_ZONE_NAME: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_NAME }}
+          CDN_BUNNY_STORAGE_ZONE_KEY: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_KEY }}
+          CDN_BUNNY_STORAGE_HOST: ${{ secrets.CDN_BUNNY_STORAGE_HOST }}
+          CDN_BUNNY_PULL_ZONE_ID: ${{ secrets.CDN_BUNNY_PULL_ZONE_ID }}
+        run: |
+          scripts/ci/require-env.sh BUNNY_ACCESS_KEY \
+            MAIN_INSTANCE MAIN_INSTANCE_KEY STORAGE_ZONE_NAME STORAGE_ZONE_KEY \
+            --together CDN_URL,CDN_BUNNY_STORAGE_ZONE_NAME,CDN_BUNNY_STORAGE_ZONE_KEY,CDN_BUNNY_STORAGE_HOST,CDN_BUNNY_PULL_ZONE_ID
+          scripts/ci/check-credentials.sh bunny main-instance backup-zone cdn-zone
 
       - name: Build Bunny edge script
         id: build
@@ -103,7 +128,8 @@ jobs:
             db_url=$(jq -r ".sites[$i].dbUrl" <<<"$sites_json")
             db_token=$(jq -r ".sites[$i].dbToken" <<<"$sites_json")
             site_url=$(jq -r ".sites[$i].siteUrl" <<<"$sites_json")
-            # The returned tokens are credentials — keep them out of the logs.
+            # The returned URL and token are credentials. Keep them out of the logs.
+            echo "::add-mask::$db_url"
             echo "::add-mask::$db_token"
 
             echo "Backing up Script ${script_id}.."

@@ -10,6 +10,10 @@ export interface FindingIdentity {
 const stepKey = (step: Step): readonly ["name" | "way", string] =>
   "name" in step ? ["name", step.name] : ["way", step.way];
 
+/** The machine key for one owner: its file and each step a reader takes. */
+export const ownerKey = (exportedFrom: string, path: readonly Step[]): string =>
+  JSON.stringify([exportedFrom, path.map(stepKey)]);
+
 /** The machine key for one field. Tagged steps keep a name such as `[]`
  * separate from the unnamed route through an array element. */
 export const findingIdentityKey = (identity: FindingIdentity): string =>

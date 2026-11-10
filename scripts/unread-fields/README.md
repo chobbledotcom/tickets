@@ -16,26 +16,33 @@ Precommit runs the policy gate instead:
 devenv shell deno task check:unread-fields
 ```
 
-The gate compares each reported field with two exact registries:
+The gate compares each reported field with two registries:
 
 - `baseline.ts` holds accepted debt. An entry does not say that the field is
   valid. Do not add new entries. Remove an entry when production reads the field
   or the field is deleted.
-- `exemptions.ts` holds reviewed false positives. Each entry names its
-  production evidence. Each entry uses one of five mechanisms: an external
-  output, a provider input, a schema-driven read, a persisted format, or a
-  dynamic read.
+- `exemptions.json` holds reviewed false positives, one rule per owner. A rule
+  names the file, the owner path, the reason, and the production evidence. The
+  rule uses one of five mechanisms: an external output, a provider input, a
+  schema-driven read, a persisted format, or a dynamic read. The gate reads the
+  manifest as data, so no rule lists a field.
 
-A finite exported type uses a closed snapshot. The snapshot classifies every
-field as `check` or `exempt`. A new field stops typecheck until its policy is
-explicit. Open type, folder, and file wildcards are not available.
+The gate builds the exempted fields from the rules and the report. A rule covers
+every reported field under its exact owner path. A rule never lists a field, and
+a field that the scan reads needs no rule. A field that a later change adds
+under a rule's owner path is exempt with no edit. A field that a later change
+adds anywhere else still fails the gate.
+
+The baseline wins over a rule. A field in the baseline stays accepted debt, so a
+rule never hides debt.
 
 The gate fails for:
 
 - a reported field with no policy.
-- a policy entry that no current finding matches.
-- duplicate policy or finding identities.
-- a field in both registries.
+- a rule that covers no reported field. The message names the repair. A rule
+  whose every field is already baseline debt fails here too, and its message
+  says to remove the rule or the baseline entry.
+- duplicate rule owners or duplicate finding identities.
 
 The identity contains the file that exports it, each typed path step, and the
 field. Thus, a field named `"[]"` stays separate from the unnamed array element

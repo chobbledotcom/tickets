@@ -50,7 +50,9 @@ runs:
     - name: Resolve the Deno version
       shell: bash
       id: deno-version
-      run: bash scripts/ci/resolve-deno-version.sh "${{ inputs.profile }}"
+      env:
+        PROFILE: ${{ inputs.profile }}
+      run: bash scripts/ci/resolve-deno-version.sh "$PROFILE"
 
     - name: Cache Deno dependencies
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
@@ -65,7 +67,9 @@ runs:
     - name: Install Deno dependencies
       if: inputs.install_dependencies == 'true'
       shell: bash
+      env:
+        PROFILE: ${{ inputs.profile }}
       run: |
         profile=""
-        [ -n "${{ inputs.profile }}" ] && profile="--profile ${{ inputs.profile }}"
+        [ -n "$PROFILE" ] && profile="--profile $PROFILE"
         devenv $profile shell -- bash scripts/ci/deno-install.sh

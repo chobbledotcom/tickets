@@ -1,491 +1,76 @@
-import type { SiteDataBlob } from "#db/built-sites/blob.ts";
-import type { TicketCacheEntry } from "#routes/admin/scan-cache.ts";
-import type { PublicListing } from "#routes/api/public-listing.ts";
-import type { Step } from "#scripts/unread-fields/fields/steps.ts";
-import { compareFindingIdentities } from "#scripts/unread-fields/identity.ts";
+/** The reviewed false positives. A rule names one file, one owner path, the
+ *  mechanism, and the production evidence the scan cannot follow. The gate
+ *  builds the field exemptions from the rules and the report, so no rule lists
+ *  a field. */
+
+import * as v from "valibot";
 import {
-  type ExemptionReason,
-  exemptFieldsAt,
-  exemptFieldsUnder,
-  type FindingExemption,
+  EXEMPTION_KINDS,
+  type ExemptionRule,
+  reasonFor,
 } from "#scripts/unread-fields/policy.ts";
-import type {
-  AdminApiResource,
-  AdminApiServes,
-} from "#shared/admin-api-resources.ts";
-import type { SumupCheckoutRequest } from "#shared/sumup/transport.ts";
-import type { WebhookPayload } from "#shared/webhook.ts";
-import type { WarningDeleteProps } from "#templates/admin/confirm-page.tsx";
-import type { SettingsPageState } from "#templates/admin/settings.tsx";
+import rulesJson from "./exemptions.json" with { type: "json" };
 
-const adminApiResources = exemptFieldsAt<AdminApiResource>(
-  "src/shared/admin-api-resources.ts",
-  [{ name: "AdminApiResource" }],
-  {
-    evidence:
-      "the CLI's bodySchemaFor reads the declared body schemas at run time; the client's CreateBody and UpdateBody conditionals read them at compile time",
-    kind: "schema-driven",
-  },
-)({
-  children: "check",
-  createBodySchema: "check",
-  custom: "check",
-  label: "check",
-  listSchema: "check",
-  path: "check",
-  serves: "check",
-  singleSchema: "check",
-  updateBodySchema: "check",
-});
-
-const adminApiServes = exemptFieldsAt<AdminApiServes>(
-  "src/shared/admin-api-resources.ts",
-  [{ name: "AdminApiServes" }],
-  {
-    evidence:
-      "the CLI's servesVerb, the describe verb filter, and the route-derivation test read entry.serves[verb] by key, which the reader cannot trace to named fields",
-    kind: "schema-driven",
-  },
-)({
-  create: "exempt",
-  delete: "exempt",
-  get: "exempt",
-  list: "exempt",
-  update: "exempt",
-});
-
-const publicListings = exemptFieldsAt<PublicListing>(
-  "src/features/api/public-listing.ts",
-  [{ name: "PublicListing" }],
-  {
-    evidence: "apiResponse serialises the complete public listing",
-    kind: "external-output",
-  },
-)({
-  availableDates: "exempt",
-  canPayMore: "exempt",
-  children: "exempt",
-  customisableDays: "exempt",
-  date: "check",
-  dayPrices: "exempt",
-  description: "check",
-  fields: "exempt",
-  imageAltText: "exempt",
-  imageUrl: "exempt",
-  isClosed: "exempt",
-  isSoldOut: "exempt",
-  listingType: "exempt",
-  location: "exempt",
-  maxPrice: "exempt",
-  maxPurchasable: "exempt",
-  name: "check",
-  nonTransferable: "exempt",
-  purchaseOnly: "exempt",
-  slug: "check",
-  unitPrice: "exempt",
-});
-
-const sumupCheckoutRequests = exemptFieldsAt<SumupCheckoutRequest>(
-  "src/shared/sumup/transport.ts",
-  [{ name: "SumupCheckoutRequest" }],
-  {
-    evidence: "sumupInit serialises the complete checkout request",
-    kind: "provider-input",
-  },
-)({
-  amount: "exempt",
-  checkout_reference: "exempt",
-  currency: "exempt",
-  description: "exempt",
-  hosted_checkout: "exempt",
-  merchant_code: "exempt",
-  redirect_url: "exempt",
-  return_url: "exempt",
-});
-
-const ticketCacheEntries = exemptFieldsAt<TicketCacheEntry>(
-  "src/features/admin/scan-cache.ts",
-  [{ name: "TicketCacheEntry" }],
-  {
-    evidence:
-      "jsonResponse serialises the entries into the scan-cache GET body; the scanner page's hand-written browser JS (scanner-offline.js, scanner-offline-ui.js) validates and reads tickets for the offline quantity ask",
-    kind: "external-output",
-  },
-)({
-  hash: "check",
-  tickets: "exempt",
-});
-
-const sumupHostedCheckout: FindingExemption = {
-  identity: {
-    exportedFrom: "src/shared/sumup/transport.ts",
-    field: "enabled",
-    path: [{ name: "SumupCheckoutRequest" }, { name: "hosted_checkout" }],
-  },
-  reason: {
-    evidence: "sumupInit serialises the nested hosted checkout request",
-    kind: "provider-input",
-  },
-};
-
-const siteDataBlobs = exemptFieldsAt<SiteDataBlob>(
-  "src/shared/db/built-sites/blob.ts",
-  [{ name: "SiteDataBlob" }],
-  {
-    evidence: "SiteDataBlobSchema reads the stored versioned object",
-    kind: "persisted-format",
-  },
-)({
-  d: "exempt",
-  dp: "exempt",
-  hp: "exempt",
-  n: "exempt",
-  rt: "exempt",
-  s: "exempt",
-  sk: "exempt",
-  t: "exempt",
-  u: "exempt",
-  v: "exempt",
-});
-
-const settingsPageStates = exemptFieldsAt<SettingsPageState>(
-  "src/ui/templates/admin/settings.tsx",
-  [{ name: "SettingsPageState" }],
-  {
-    evidence: "settingsForm reads state fields through each form definition",
-    kind: "schema-driven",
-  },
-)({
-  bookingFee: "exempt",
-  businessEmail: "exempt",
-  calendarFeedsEnabled: "exempt",
-  calendarFeedsGroupBy: "exempt",
-  currency: "check",
-  embedHosts: "exempt",
-  enabledFeatures: "check",
-  expectedTax: "exempt",
-  headerImageUrl: "check",
-  paymentProvider: "check",
-  paymentProviderRecoveryChoices: "check",
-  shownPaymentProvider: "check",
-  siteFooter: "exempt",
-  squareWebhookConfigured: "check",
-  storageEnabled: "check",
-  superuser: "check",
-  taxMode: "exempt",
-  taxRate: "exempt",
-  termsAndConditions: "exempt",
-  theme: "check",
-  underlineLinks: "exempt",
-  webhookUrl: "check",
-});
-
-const webhookPayloads = exemptFieldsAt<WebhookPayload>(
-  "src/shared/webhook.ts",
-  [{ name: "WebhookPayload" }],
-  {
-    evidence:
-      "sendWebhook serialises the payload into the registration POST body; the reader is the operator's external integration",
-    kind: "external-output",
-  },
-)({
-  address: "check",
-  amount_owed: "check",
-  business_email: "check",
-  currency: "check",
-  email: "check",
-  name: "check",
-  notification_type: "check",
-  payment_id: "check",
-  phone: "check",
-  price_paid: "check",
-  source: "exempt",
-  special_instructions: "check",
-  ticket_url: "check",
-  tickets: "check",
-  timestamp: "check",
-});
-
-const warningDeleteProps = exemptFieldsAt<WarningDeleteProps>(
-  "src/ui/templates/admin/confirm-page.tsx",
-  [{ name: "WarningDeleteProps" }],
-  {
-    evidence: "warningDeletePage spreads the remaining props into ConfirmPage",
-    kind: "dynamic-read",
-  },
-)({
-  action: "exempt",
-  buttonText: "exempt",
-  heading: "check",
-  label: "exempt",
-  name: "exempt",
-  prompt: "exempt",
-  title: "check",
-  warning: "exempt",
-});
-
-interface ExactFieldGroup {
-  fields: readonly string[];
-  path: readonly Step[];
-  reason: ExemptionReason;
-  source: string;
-}
-
-const exactFieldsFrom =
-  (source: string) =>
-  (
-    path: readonly Step[],
-    fields: readonly string[],
-    reason: ExemptionReason,
-  ): ExactFieldGroup => ({ fields, path, reason, source });
-
-const exactFieldExemptions = (
-  groups: readonly ExactFieldGroup[],
-): FindingExemption[] =>
-  groups.flatMap(({ fields, path, reason, source }) =>
-    exemptFieldsUnder([[source, path]], fields, reason),
-  );
-
-/** One exemption reason carrying the evidence for its kind. */
-const reasonFor =
-  (kind: ExemptionReason["kind"]) =>
-  (evidence: string): ExemptionReason => ({ evidence, kind });
-
-const schemaReason = reasonFor("schema-driven");
-
-const stripeReason: ExemptionReason = {
-  evidence: "createStripeRequest serialises the complete Stripe request",
-  kind: "provider-input",
-};
-
-/** A field a handler reads by key off a raw record. */
-const dynamicReason = reasonFor("dynamic-read");
-
-const settingsSnapshotFields = exactFieldsFrom(
-  "src/shared/db/settings/snapshot.ts",
+/** A step is a field's name or the way a reader reaches through a member with
+ *  no name. Both carry exactly one of the two words. */
+const stepSchema = v.union(
+  [v.strictObject({ name: v.string() }), v.strictObject({ way: v.string() })],
+  "A step must name a field or the way a reader reaches through it",
 );
 
-const attendeeFields = exactFieldsFrom("src/shared/db/attendees/pii.ts");
-const liquidFields = exactFieldsFrom("src/shared/email-renderer.ts");
-const resourceFields = exactFieldsFrom("src/shared/rest/resource.ts");
-const adminApiRowFields = exactFieldsFrom("src/shared/admin-api-resources.ts");
-const selectFields = exactFieldsFrom("src/shared/settings/form-schema.ts");
-const stripeFields = exactFieldsFrom("src/shared/stripe/client.ts");
+/** The manifest entry of one rule. An unknown key is an error, never a rule
+ *  that quietly covers more than its reviewer saw. */
+const ruleSchema = v.strictObject({
+  evidence: v.pipe(
+    v.string(),
+    v.trim(),
+    v.nonEmpty("A rule must name the production evidence that the scan misses"),
+  ),
+  kind: v.picklist(EXEMPTION_KINDS),
+  path: v.pipe(
+    v.array(stepSchema),
+    v.nonEmpty("A rule must name at least one owner path step"),
+  ),
+});
 
-const templateEntryPath = (...tail: Step[]): Step[] => [
-  { name: "TemplateData" },
-  { name: "entries" },
-  { way: "[]" },
-  ...tail,
-];
-
-/** The JSON body fields the admin API reads by key, with the reader that
- * touches each: one row per exempted field, folded into exemptions below. */
-const bodyFieldExemptions: readonly [
-  source: string,
-  path: readonly Step[],
-  fields: readonly string[],
-  reader: string,
-][] = [
-  [
-    "src/features/admin/api-attributes.ts",
-    [{ name: "CreateAttributeBody" }],
-    ["name"],
-    "toAttributeInput on a create body",
-  ],
-  [
-    "src/features/admin/api-attributes.ts",
-    [{ name: "UpdateAttributeBody" }],
-    ["name"],
-    "toAttributeInput on an update body",
-  ],
-  [
-    "src/features/admin/api-listing-body.ts",
-    [{ name: "CreateListingBody" }],
-    ["attribute_option_ids"],
-    "withParsedJoinIds",
-  ],
-  [
-    "src/features/admin/api-site-pages-input.ts",
-    [{ name: "CreateSitePageBody" }],
-    ["content", "hidden", "meta_description", "meta_title", "name", "slug"],
-    "toPageWrite on a create body",
-  ],
-  [
-    "src/features/admin/api-site-pages-input.ts",
-    [{ name: "UpdateSitePageBody" }],
-    ["parent"],
-    "handleUpdate's parent plan on an update body",
-  ],
-];
-
-const bodyExemptions = exactFieldExemptions(
-  bodyFieldExemptions.map(([source, path, fields, reader]) => ({
-    fields,
-    path,
-    reason: dynamicReason(
-      `${reader} reads the field by key off the raw JSON body record`,
-    ),
-    source,
-  })),
+/** The manifest: each production source file, with the owner paths it
+ *  exports. */
+const rulesSchema = v.record(
+  v.pipe(
+    v.string(),
+    v.startsWith("src/", "A rule file must be a path under src/"),
+  ),
+  v.pipe(v.array(ruleSchema), v.nonEmpty("A file must name at least one rule")),
 );
 
-const attendeeTypeInTypes = [{ name: "Attendee" }];
+/** Where in the manifest an issue sits, so a reader can go to it. */
+const issuePlace = (issue: v.BaseIssue<unknown>): string => {
+  const place = (issue.path ?? []).map((item) => String(item.key)).join(" / ");
+  return place === "" ? "the top of the manifest" : place;
+};
 
-const exactExemptions = exactFieldExemptions([
-  adminApiRowFields(
-    [{ name: "AdminApiSitePage" }],
-    [
-      "content",
-      "hidden",
-      "id",
-      "meta_description",
-      "meta_title",
-      "name",
-      "parent",
-      "slug",
-    ],
-    {
-      evidence: "jsonResponse serialises the complete site-page row",
-      kind: "external-output",
-    },
-  ),
-  exactFieldsFrom("src/shared/types.ts")(
-    attendeeTypeInTypes,
-    ["attachment_downloads"],
-    {
-      evidence:
-        "the same per-line fact is read off the structurally identical ListingAttendeeRow in the tickets page, token views, and the merge tables; an attendee row carries it through the shared conditional row type",
-      kind: "dynamic-read",
-    },
-  ),
-  attendeeFields(
-    [{ name: "DecryptedAttendeeRow" }],
-    ["price_paid"],
-    schemaReason("the conditional type preserves each selected money column"),
-  ),
-  liquidFields(
-    templateEntryPath(),
-    ["listing"],
-    dynamicReason(
-      "Liquid reads each template entry field by its template name",
-    ),
-  ),
-  liquidFields(
-    templateEntryPath({ name: "attendee" }),
-    ["answers", "price_paid", "quantity"],
-    dynamicReason("Liquid reads each attendee field by its template name"),
-  ),
-  liquidFields(
-    templateEntryPath({ name: "listing" }),
-    ["is_paid", "name", "slug"],
-    dynamicReason("Liquid reads each listing field by its template name"),
-  ),
-  selectFields(
-    [
-      { name: "SelectFieldSpec" },
-      { name: "options" },
-      { way: "()" },
-      { way: "result" },
-      { way: "[]" },
-    ],
-    ["label", "value"],
-    schemaReason(
-      "SelectField reads each built option through its structural type",
-    ),
-  ),
-  ...["delete", "update"].map((method) =>
-    resourceFields(
+/** Read one manifest into the rules the gate uses. A malformed manifest fails
+ *  here, before the scan, and names the entry to repair. */
+export const parseExemptionRules = (manifest: unknown): ExemptionRule[] => {
+  const result = v.safeParse(rulesSchema, manifest);
+  if (!result.success) {
+    throw new Error(
       [
-        { name: "Resource" },
-        { name: method },
-        { way: "()" },
-        {
-          way: "result",
-        },
-      ],
-      ["notFound"],
-      schemaReason("operationResponse reads notFound through OperationFailure"),
-    ),
-  ),
-  settingsSnapshotFields(
-    [{ name: "SettingsData" }],
-    ["custom_css_bunny_fonts", "welcome_enabled"],
-    dynamicReason(
-      "the settings namespace getter reads the field through snap()",
-    ),
-  ),
-  stripeFields(
-    [{ name: "StripeCheckoutLineItemParams" }, { name: "price_data" }],
-    ["currency", "product_data", "unit_amount"],
-    stripeReason,
-  ),
-  stripeFields(
-    [
-      { name: "StripeCheckoutLineItemParams" },
-      { name: "price_data" },
-      { name: "product_data" },
-    ],
-    ["description", "name"],
-    stripeReason,
-  ),
-  stripeFields(
-    [
-      { name: "StripeClient" },
-      { name: "refunds" },
-      { name: "create" },
-      { way: "()" },
-      { way: "params" },
-    ],
-    ["amount", "payment_intent"],
-    stripeReason,
-  ),
-  exactFieldsFrom("src/shared/bulk-email-targets/types.ts")(
-    [{ name: "TargetSpec" }],
-    ["allowEmpty", "singleRecipient"],
-    dynamicReason("targetFlag reads the spec flag by key"),
-  ),
-  exactFieldsFrom("src/shared/request-context.ts")(
-    [{ name: "RequestStore" }],
-    ["settingsAudit"],
-    dynamicReason("storeSlot reads and writes the slot field by key"),
-  ),
-]);
+        "The unread-field rule manifest is not valid:",
+        ...result.issues.map(
+          (issue) => `  ${issuePlace(issue)}: ${issue.message}`,
+        ),
+      ].join("\n"),
+    );
+  }
+  return Object.entries(result.output).flatMap(([exportedFrom, rules]) =>
+    rules.map((rule) => ({
+      exportedFrom,
+      path: rule.path,
+      reason: reasonFor(rule.kind)(rule.evidence),
+    })),
+  );
+};
 
-/** The modifier resource hands its input to the table, which reads one input
- * key per column at run time. */
-const modifierInputFields = exemptFieldsUnder(
-  [["src/shared/db/modifiers.ts", [{ name: "ModifierInput" }]]],
-  [
-    "calcKind",
-    "calcValue",
-    "codeIndex",
-    "direction",
-    "maxPerOrder",
-    "minSubtotal",
-    "stock",
-  ],
-  {
-    evidence:
-      "table.insert and table.update read the input by each column's key at run time",
-    kind: "schema-driven",
-  },
-);
-
-export const UNREAD_FIELD_EXEMPTIONS: readonly FindingExemption[] = [
-  ...adminApiResources,
-  ...adminApiServes,
-  ...bodyExemptions,
-  ...exactExemptions,
-  ...modifierInputFields,
-  ...publicListings,
-  ...settingsPageStates,
-  ...siteDataBlobs,
-  ...sumupCheckoutRequests,
-  ...ticketCacheEntries,
-  ...webhookPayloads,
-  sumupHostedCheckout,
-  ...warningDeleteProps,
-].toSorted((left, right) =>
-  compareFindingIdentities(left.identity, right.identity),
-);
+export const UNREAD_FIELD_EXEMPTION_RULES: readonly ExemptionRule[] =
+  parseExemptionRules(rulesJson);

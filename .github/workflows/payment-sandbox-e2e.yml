@@ -43,7 +43,7 @@ permissions:
 
 defaults:
   run:
-    shell: devenv shell bash -- -e {0}
+    shell: devenv --profile browser shell bash -- -e {0}
 
 concurrency:
   group: payment-sandbox-e2e
@@ -52,6 +52,8 @@ concurrency:
 jobs:
   e2e:
     runs-on: ubuntu-latest
+    # The secrets this job reads live in this environment, which only main can use.
+    environment: sandbox
     # The harness bounds every step, scenario, and teardown internally, so a
     # healthy leg finishes well inside this. The limit stops a stalled runner
     # step (for example a hung apt mirror) from holding a leg for hours.
@@ -70,6 +72,8 @@ jobs:
 
       - name: Set up devenv
         uses: ./.github/actions/setup-devenv
+        with:
+          profile: browser
 
       - name: Install cloudflared
         env:
