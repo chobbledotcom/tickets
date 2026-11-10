@@ -6,7 +6,11 @@ import { bunnyDbProvider as bunnyDbApi } from "#shared/bunny-db.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
-import { requestLines, stubFetch } from "#test-utils/fetch-stub.ts";
+import {
+  type FetchReply,
+  requestLines,
+  stubFetch,
+} from "#test-utils/fetch-stub.ts";
 
 /** Bunny's live region config, as returned by GET /database/v1/config. */
 const CONFIG_RESPONSE = {
@@ -308,27 +312,59 @@ const listLine = (page: number): string =>
 const SITE_DB = { id: "db_site", url: "libsql://site.lite.bunnydb.net" };
 const OTHER_DB = { id: "db_other", url: "libsql://other.lite.bunnydb.net" };
 
+/** Answer one key-rotation request: the next database page, the revoke answer,
+ * or the token answer. */
+const keyReply =
+  (
+    remaining: DatabasePage[],
+    revokeStatus: number,
+    tokenStatus: number,
+  ): FetchReply =>
+  (url) => {
+    if (url.includes("/databases?")) {
+      const [databases, more] = remaining.shift()!;
+      return Response.json({ databases, page_info: { has_more_items: more } });
+    }
+    if (url.endsWith("/auth/revoke")) {
+      return new Response(revokeStatus === 204 ? null : "refused", {
+        status: revokeStatus,
+      });
+    }
+    return new Response(
+      tokenStatus === 200
+        ? JSON.stringify({ token: "bunny-rotated-token" })
+        : "refused",
+      { status: tokenStatus },
+    );
+  };
+
 describeWithEnv(
   "bunny-db key rotation",
   { env: { BUNNY_API_KEY: "test-api-key" } },
   () => {
+    /** The two steps of a rotation, each asking the provider for itself. */
+    const STEPS = {
+      invalidate: (dbUrl: string) => bunnyDbApi.invalidateDatabaseTokens(dbUrl),
+      issue: (dbUrl: string) => bunnyDbApi.issueDatabaseToken(dbUrl),
+    } as const;
+
     const cases: {
       name: string;
+      step: keyof typeof STEPS;
       pages: DatabasePage[];
       revokeStatus: number;
+      tokenStatus: number;
       result: unknown;
       requests: string[];
     }[] = [
       {
-        name: "rotates the key of the database at the site's address",
+        name: "removes every key of the database at the site's address",
         pages: [[[OTHER_DB, SITE_DB], false]],
-        requests: [
-          listLine(1),
-          `POST ${BUNNY_API}/db_site/auth/revoke`,
-          `PUT ${BUNNY_API}/db_site/auth/generate`,
-        ],
-        result: { ok: true, value: "bunny-rotated-token" },
+        requests: [listLine(1), `POST ${BUNNY_API}/db_site/auth/revoke`],
+        result: { ok: true },
         revokeStatus: 204,
+        step: "invalidate",
+        tokenStatus: 200,
       },
       {
         name: "walks every page to find the database",
@@ -340,10 +376,11 @@ describeWithEnv(
           listLine(1),
           listLine(2),
           `POST ${BUNNY_API}/db_site/auth/revoke`,
-          `PUT ${BUNNY_API}/db_site/auth/generate`,
         ],
-        result: { ok: true, value: "bunny-rotated-token" },
+        result: { ok: true },
         revokeStatus: 204,
+        step: "invalidate",
+        tokenStatus: 200,
       },
       {
         name: "refuses an address the account does not list",
@@ -354,9 +391,11 @@ describeWithEnv(
           ok: false,
         },
         revokeStatus: 204,
+        step: "issue",
+        tokenStatus: 200,
       },
       {
-        name: "stops before generating a key when the revoke is refused",
+        name: "reports a refused key removal",
         pages: [[[SITE_DB], false]],
         requests: [listLine(1), `POST ${BUNNY_API}/db_site/auth/revoke`],
         result: {
@@ -364,37 +403,57 @@ describeWithEnv(
           ok: false,
         },
         revokeStatus: 500,
+        step: "invalidate",
+        tokenStatus: 200,
+      },
+      {
+        name: "asks for one new key of the database at the site's address",
+        pages: [[[OTHER_DB, SITE_DB], false]],
+        requests: [listLine(1), `PUT ${BUNNY_API}/db_site/auth/generate`],
+        result: { ok: true, value: "bunny-rotated-token" },
+        revokeStatus: 204,
+        step: "issue",
+        tokenStatus: 200,
+      },
+      {
+        name: "reports a refused new key",
+        pages: [[[SITE_DB], false]],
+        requests: [listLine(1), `PUT ${BUNNY_API}/db_site/auth/generate`],
+        result: {
+          error: "Generate database token failed (401): refused",
+          ok: false,
+        },
+        revokeStatus: 204,
+        step: "issue",
+        tokenStatus: 401,
       },
     ];
 
     test("reports a refused database list", async () => {
       using _fetch = stubFetch(new Response("refused", { status: 500 }));
 
-      expect(await bunnyDbApi.rotateDatabaseKey(SITE_DB.url)).toEqual({
+      expect(await bunnyDbApi.invalidateDatabaseTokens(SITE_DB.url)).toEqual({
         error: "List databases failed (500): refused",
         ok: false,
       });
     });
 
-    for (const { name, pages, revokeStatus, result, requests } of cases) {
+    for (const {
+      name,
+      step,
+      pages,
+      revokeStatus,
+      tokenStatus,
+      result,
+      requests,
+    } of cases) {
       test(name, async () => {
         const remaining = [...pages];
-        using fetchStub = stubFetch((url) => {
-          if (url.includes("/databases?")) {
-            const [databases, more] = remaining.shift()!;
-            return Response.json({
-              databases,
-              page_info: { has_more_items: more },
-            });
-          }
-          return url.endsWith("/auth/revoke")
-            ? new Response(revokeStatus === 204 ? null : "refused", {
-                status: revokeStatus,
-              })
-            : Response.json({ token: "bunny-rotated-token" });
-        });
+        using fetchStub = stubFetch(
+          keyReply(remaining, revokeStatus, tokenStatus),
+        );
 
-        expect(await bunnyDbApi.rotateDatabaseKey(SITE_DB.url)).toEqual(result);
+        expect(await STEPS[step](SITE_DB.url)).toEqual(result);
         expect(requestLines(fetchStub)).toEqual(requests);
       });
     }

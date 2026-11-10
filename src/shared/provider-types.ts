@@ -44,12 +44,19 @@ export type CreateDatabaseFn = (
   name: string,
 ) => Promise<Result<DatabaseCredentials>>;
 
-/** Replace every access key for the database a site reaches at `dbUrl` with one
- * new full-access key, and return it. Every old key stops working. Declared
- * once so every provider implementation shares the exact same signature. */
-export type RotateDatabaseKeyFn = (dbUrl: string) => Promise<Result<string>>;
+/** Make every access key for the database a site reaches at `dbUrl` stop
+ * working. The provider needs a short downtime to finish the change, so the
+ * new key is asked for later, as its own step. */
+export type InvalidateDatabaseTokensFn = (
+  dbUrl: string,
+) => Promise<Result<void>>;
+
+/** One new full-access key for the database a site reaches at `dbUrl`.
+ * Declared once so every provider implementation shares the signature. */
+export type IssueDatabaseTokenFn = (dbUrl: string) => Promise<Result<string>>;
 
 export interface DatabaseProviderApi {
   createDatabase: CreateDatabaseFn;
-  rotateDatabaseKey: RotateDatabaseKeyFn;
+  invalidateDatabaseTokens: InvalidateDatabaseTokensFn;
+  issueDatabaseToken: IssueDatabaseTokenFn;
 }

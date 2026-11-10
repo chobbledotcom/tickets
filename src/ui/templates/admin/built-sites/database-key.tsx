@@ -5,11 +5,15 @@
 
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { t } from "#i18n";
+import { escapeHtml } from "#jsx/escape-html.ts";
 import {
+  DATABASE_KEY_PAUSE_SECONDS,
   DATABASE_PROVIDER_LABEL_KEYS,
   databaseKeyRotationAccess,
 } from "#shared/database-key-rotation.ts";
+import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import { ConfirmActionButton } from "#templates/admin/built-sites/action-forms.tsx";
+import type { AdminSession } from "#types";
 
 export const DatabaseKeySection = ({
   site,
@@ -41,3 +45,36 @@ export const DatabaseKeySection = ({
     </div>
   );
 };
+
+/**
+ * The page the rotate route answers. The database needs a short pause after it
+ * removes every key. A meta refresh therefore opens the step that makes the
+ * new key when the pause ends. Until then the site cannot reach its database,
+ * which the page says.
+ */
+export const DatabaseKeyRotationPage = ({
+  finishUrl,
+  session,
+  site,
+}: {
+  finishUrl: string;
+  session: AdminSession;
+  site: BuiltSite;
+}): string =>
+  renderAdminPageSpec({
+    active: "/admin/built-sites",
+    body: (
+      <div class="prose">
+        <h1>{t("built_sites.database_key_rotating_title")}</h1>
+        <p>
+          {t("built_sites.database_key_rotating_body", { site: site.name })}
+        </p>
+        <p>{t("built_sites.database_key_rotating_wait")}</p>
+      </div>
+    ),
+    headExtra: `<meta http-equiv="refresh" content="${DATABASE_KEY_PAUSE_SECONDS};url=${escapeHtml(
+      finishUrl,
+    )}">`,
+    session,
+    title: t("built_sites.database_key_rotating_title"),
+  });

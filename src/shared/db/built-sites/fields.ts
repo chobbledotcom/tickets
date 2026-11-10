@@ -69,6 +69,7 @@ export const builtSitePlainColumns = [
     siteKey: "assignedListingId",
     toInput: nullable<number>,
   },
+  plainColumn("database_key_rotation_started", "databaseKeyRotationStarted", 0),
   plainColumn("read_only_from", "readOnlyFrom", ""),
   {
     dbKey: "renewal_token_index",

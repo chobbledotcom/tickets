@@ -12,30 +12,17 @@ import {
 } from "#db/built-sites.ts";
 import { mustReadFromPrimary } from "#db/primary-reads.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { testBuiltSite } from "#test-utils/factories.ts";
 import { statementSql, wrapDbClient } from "#test-utils/record-queries.ts";
 import { builtSiteFormInput } from "./fixtures.ts";
 
-const siteFixture = (overrides: Partial<BuiltSite> = {}): BuiltSite => ({
-  assignable: false,
-  assignedAttendeeId: null,
-  assignedListingId: null,
-  created: "2026-01-01",
-  dbProvider: "bunny",
-  dbToken: "",
-  dbUrl: "",
-  hostingId: "",
-  hostingProvider: "bunny",
-  id: 1,
-  name: "Test",
-  readOnlyFrom: "",
-  renewalToken: null,
-  renewalTokenIndex: null,
-  scheduledTaskKey: null,
-  siteDataRevision: 0,
-  siteUrl: "test.bunny.run",
-  updates: "release",
-  ...overrides,
-});
+const siteFixture = (overrides: Partial<BuiltSite> = {}): BuiltSite =>
+  testBuiltSite({
+    created: "2026-01-01",
+    name: "Test",
+    siteUrl: "test.bunny.run",
+    ...overrides,
+  });
 
 describeWithEnv("built-sites CRUD table", { db: true }, () => {
   test("reads back every built site", async () => {

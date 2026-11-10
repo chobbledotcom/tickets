@@ -29,6 +29,7 @@ export interface BuiltSiteRow {
   assigned_attendee_id: number | null;
   assigned_listing_id: number | null;
   created: string;
+  database_key_rotation_started: number;
   id: number;
   read_only_from: string;
   renewal_token_index: string | null;
@@ -41,6 +42,7 @@ export type BuiltSitePlainInput = {
   assignable?: number;
   assignedAttendeeId?: number | null;
   assignedListingId?: number | null;
+  databaseKeyRotationStarted?: number;
   readOnlyFrom?: string;
   renewalTokenIndex?: string | null;
   updates?: UpdateTier;
@@ -53,6 +55,9 @@ export interface BuiltSite {
   assignedAttendeeId: number | null;
   assignedListingId: number | null;
   created: string;
+  /** Epoch milliseconds for a waiting rotation. Negative means a provider
+   * operation owns the claim. Zero is idle. */
+  databaseKeyRotationStarted: number;
   dbProvider: DbProvider;
   dbToken: string;
   dbUrl: string;
@@ -83,6 +88,7 @@ export type BuiltSitePlainFields = Pick<
   | "assignable"
   | "assignedAttendeeId"
   | "assignedListingId"
+  | "databaseKeyRotationStarted"
   | "readOnlyFrom"
   | "renewalTokenIndex"
   | "siteDataRevision"
