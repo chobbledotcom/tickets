@@ -36,22 +36,24 @@ describe("unread-field check", () => {
     const seen = output();
     const code = await runUnreadFieldsCheck("/repo", seen.value, {
       baseline: [finding],
-      exemptions: [],
+      rules: [],
       scan: () => Promise.resolve([finding]),
     });
 
-    expect(code).toBe(0);
-    expect(seen.lines).toEqual([
-      "Every reported unread field matches one exact policy entry, and every policy entry is current.",
-    ]);
-    expect(seen.errors).toEqual([]);
+    expect({ code, errors: seen.errors, lines: seen.lines }).toEqual({
+      code: 0,
+      errors: [],
+      lines: [
+        "Every reported unread field is accepted debt or sits under a current exemption rule.",
+      ],
+    });
   });
 
   test("reports every reconciliation problem and returns failure", async () => {
     const seen = output();
     const code = await runUnreadFieldsCheck("/repo", seen.value, {
       baseline: [],
-      exemptions: [],
+      rules: [],
       scan: () => Promise.resolve([finding]),
     });
 
@@ -68,7 +70,7 @@ describe("unread-field check", () => {
     await expect(
       runUnreadFieldsCheck("/repo", output().value, {
         baseline: [],
-        exemptions: [],
+        rules: [],
         scan: () => Promise.reject(failure),
       }),
     ).rejects.toBe(failure);
