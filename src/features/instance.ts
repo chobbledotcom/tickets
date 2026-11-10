@@ -24,10 +24,13 @@ import { defineRoutes } from "#routes/router.ts";
 import { getMainInstanceKey, isInstanceApiEnabled } from "#shared/config.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 
-/** Extract the bearer token from the Authorization header (empty if absent). */
-const bearerToken = (request: Request): string => {
-  const auth = request.headers.get("authorization") ?? "";
-  return auth.startsWith("Bearer ") ? auth.slice(7) : "";
+/** True when the request presents the configured site key as a bearer token. */
+const presentsInstanceKey = (request: Request): boolean => {
+  const authorization = request.headers.get("authorization");
+  return (
+    authorization !== null &&
+    constantTimeEqual(authorization, `Bearer ${getMainInstanceKey()}`)
+  );
 };
 
 /** One built site's machine-readable upgrade credentials. `siteUrl` is the
@@ -46,7 +49,7 @@ const handleSiteCredentials = async (request: Request): Promise<Response> => {
   // even reveal that the endpoint exists.
   if (!isInstanceApiEnabled()) return apiErrorResponse("not_found", 404);
 
-  if (!constantTimeEqual(bearerToken(request), getMainInstanceKey())) {
+  if (!presentsInstanceKey(request)) {
     logError({
       code: ErrorCode.INSTANCE_CREDENTIALS_REFUSED,
       detail: "bearer token missing or wrong",
@@ -88,9 +91,9 @@ const handleSiteCredentials = async (request: Request): Promise<Response> => {
     }));
 
   // The operator learns which tier was served and how many sites it reached.
-  // The report hands ntfy and Sentry delivery to the request's pending work,
-  // so the answer waits for neither. The detail carries no token, key, URL, or
-  // site name.
+  // Delivery joins the request's pending work, as every report does: it runs
+  // inside the request, and a failed send never fails the answer. The detail
+  // carries no token, key, URL, or site name.
   logError({
     code: ErrorCode.INSTANCE_CREDENTIALS_ACCEPTED,
     detail: `tier=${deployTier} sites=${credentials.length}`,
