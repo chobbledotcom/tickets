@@ -39,6 +39,17 @@ jobs:
         with:
           persist-credentials: false
 
+      # A missing secret must stop the run here, not after the build or part
+      # of the way through a deploy.
+      - name: Check the secrets this run needs
+        shell: bash
+        env:
+          DB_URL: ${{ secrets.DB_URL }}
+          DB_TOKEN: ${{ secrets.DB_TOKEN }}
+          STORAGE_ZONE_NAME: ${{ secrets.STORAGE_ZONE_NAME }}
+          STORAGE_ZONE_KEY: ${{ secrets.STORAGE_ZONE_KEY }}
+        run: scripts/ci/require-env.sh DB_URL DB_TOKEN STORAGE_ZONE_NAME STORAGE_ZONE_KEY
+
       - name: Set up devenv
         uses: ./.github/actions/setup-devenv
         with:

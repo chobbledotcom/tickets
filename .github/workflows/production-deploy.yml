@@ -26,6 +26,37 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
+      # A missing secret must stop the run here, not after the build or part
+      # of the way through a deploy.
+      - name: Check the secrets this run needs
+        shell: bash
+        env:
+          BUNNY_ACCESS_KEY: ${{ secrets.BUNNY_ACCESS_KEY }}
+          BUNNY_SCRIPT_ID: ${{ inputs.script_id || secrets.BUNNY_SCRIPT_ID }}
+          SCRIPT_ID_OVERRIDE: ${{ inputs.script_id }}
+          RUN_BACKUP: ${{ inputs.run_backup && 'yes' || '' }}
+          MAIN_SITE_URL: ${{ secrets.MAIN_SITE_URL }}
+          MAIN_INSTANCE: ${{ secrets.MAIN_INSTANCE }}
+          MAIN_INSTANCE_KEY: ${{ secrets.MAIN_INSTANCE_KEY }}
+          STORAGE_ZONE_NAME: ${{ secrets.STORAGE_ZONE_NAME }}
+          STORAGE_ZONE_KEY: ${{ secrets.STORAGE_ZONE_KEY }}
+          CDN_URL: ${{ secrets.CDN_URL }}
+          CDN_BUNNY_STORAGE_ZONE_NAME: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_NAME }}
+          CDN_BUNNY_STORAGE_ZONE_KEY: ${{ secrets.CDN_BUNNY_STORAGE_ZONE_KEY }}
+          CDN_BUNNY_STORAGE_HOST: ${{ secrets.CDN_BUNNY_STORAGE_HOST }}
+          CDN_BUNNY_PULL_ZONE_ID: ${{ secrets.CDN_BUNNY_PULL_ZONE_ID }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_CLI_URL: ${{ secrets.SENTRY_CLI_URL }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+        run: |
+          scripts/ci/require-env.sh BUNNY_ACCESS_KEY BUNNY_SCRIPT_ID \
+            --if RUN_BACKUP MAIN_INSTANCE,MAIN_INSTANCE_KEY,STORAGE_ZONE_NAME,STORAGE_ZONE_KEY \
+            --if SCRIPT_ID_OVERRIDE MAIN_INSTANCE,MAIN_INSTANCE_KEY \
+            --unless SCRIPT_ID_OVERRIDE MAIN_SITE_URL \
+            --together CDN_URL,CDN_BUNNY_STORAGE_ZONE_NAME,CDN_BUNNY_STORAGE_ZONE_KEY,CDN_BUNNY_STORAGE_HOST,CDN_BUNNY_PULL_ZONE_ID \
+            --if SENTRY_AUTH_TOKEN SENTRY_CLI_URL,SENTRY_ORG,SENTRY_PROJECT
+
       - name: Build Bunny edge script
         id: build
         uses: ./.github/actions/build-bunny-script

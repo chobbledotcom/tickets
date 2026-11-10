@@ -56,6 +56,21 @@ jobs:
             exit 1
           fi
 
+      # The check script comes from the commit of this workflow, not from the
+      # requested commit, which can be old or untrusted.
+      - name: Checkout the workflow commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      # A missing secret must stop the run here, not after the build.
+      - name: Check the secrets this run needs
+        shell: bash
+        env:
+          BUNNY_ACCESS_KEY: ${{ secrets.BUNNY_ACCESS_KEY }}
+          BUNNY_SCRIPT_ID: ${{ inputs.script_id || secrets.BUNNY_SCRIPT_ID }}
+        run: scripts/ci/require-env.sh BUNNY_ACCESS_KEY BUNNY_SCRIPT_ID
+
       - name: Checkout the requested commit
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:

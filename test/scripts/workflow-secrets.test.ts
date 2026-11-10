@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { filter, flatMap, map } from "#fp";
+import { filter, flatMap, map, unique } from "#fp";
 
 const WORKFLOW_DIR = ".github/workflows";
 const ACTION_DIR = ".github/actions";
@@ -98,6 +98,84 @@ const secretJobsWithoutEnvironment = ({ path, text }: YamlFile): string[] =>
     .filter((job) => readsSecrets(job) && !hasEnvironment(job))
     .map((job) => `${path}: ${jobName(job)}`);
 
+const secretNames = (text: string): string[] =>
+  unique([...text.matchAll(/\bsecrets\.([A-Z_]+)/g)].map(([, name]) => name!));
+
+const isDeployJob = (job: string): boolean =>
+  /^ {4}environment: (staging|production)$/m.test(job);
+
+/** The steps of a job, each without the `- ` that starts it. */
+const jobSteps = (job: string): string[] => job.split(/^ {6}- /m).slice(1);
+
+const isSecretCheck = (step: string): boolean =>
+  step.startsWith("name: Check the secrets this run needs\n");
+
+const usesRepositoryAction = (step: string): boolean =>
+  step.includes("uses: ./.github/actions/");
+
+/** Says what is wrong with the secret check of one deploy job. */
+const secretCheckProblems = (job: string): string[] => {
+  const steps = jobSteps(job);
+  const checkAt = steps.findIndex(isSecretCheck);
+  if (checkAt < 0) return ["has no secret check"];
+  const firstAction = steps.findIndex(usesRepositoryAction);
+  const checked = secretNames(steps[checkAt]!);
+  const order =
+    firstAction >= 0 && firstAction < checkAt
+      ? ["runs a repository action before the secret check"]
+      : [];
+  return order.concat(
+    secretNames(job)
+      .filter((name) => !checked.includes(name))
+      .map((name) => `does not check ${name}`),
+  );
+};
+
+const problemsOfJob =
+  (path: string) =>
+  (job: string): string[] =>
+    secretCheckProblems(job).map(
+      (problem) => `${path}: ${jobName(job)} ${problem}`,
+    );
+
+/** Names each deploy job whose secret check is absent, late, or incomplete. */
+const deploySecretCheckProblems = ({ path, text }: YamlFile): string[] =>
+  flatMap(problemsOfJob(path))(jobBlocks(text).filter(isDeployJob));
+
+const DEPLOY_JOBS_FIXTURE = `jobs:
+  unchecked:
+    environment: production
+    steps:
+      - run: deploy
+        env:
+          KEY: \${{ secrets.DEPLOY_KEY }}
+  late:
+    environment: staging
+    steps:
+      - uses: ./.github/actions/build
+        with:
+          zone: \${{ secrets.ZONE }}
+      - name: Check the secrets this run needs
+        env:
+          KEY: \${{ secrets.DEPLOY_KEY }}
+        run: scripts/ci/require-env.sh KEY
+  complete:
+    environment: production
+    steps:
+      - name: Check the secrets this run needs
+        env:
+          KEY: \${{ secrets.DEPLOY_KEY }}
+        run: scripts/ci/require-env.sh KEY
+      - uses: ./.github/actions/build
+        with:
+          key: \${{ secrets.DEPLOY_KEY }}
+  sandbox:
+    environment: sandbox
+    steps:
+      - run: test
+        env:
+          KEY: \${{ secrets.SANDBOX_KEY }}`;
+
 const SCRIPT_FIXTURE = `      - name: Example
         env:
           NAME: \${{ inputs.name }}
@@ -137,6 +215,26 @@ describe("workflow secrets", () => {
   // environment secret is open only to the branches the environment allows.
   test("every job that reads a secret names an environment", () => {
     expect(flatMap(secretJobsWithoutEnvironment)(workflowFiles())).toEqual([]);
+  });
+
+  // A deploy that finds a missing secret part of the way through leaves a
+  // site in update mode. The check runs before the build and names every
+  // secret the job reads, so a new secret cannot skip it.
+  test("every deploy job checks each secret it reads before the build", () => {
+    expect(flatMap(deploySecretCheckProblems)(workflowFiles())).toEqual([]);
+  });
+
+  test("the scan names a deploy job with an absent, late, or partial check", () => {
+    const found = deploySecretCheckProblems({
+      path: "example.yml",
+      text: DEPLOY_JOBS_FIXTURE,
+    });
+
+    expect(found).toEqual([
+      "example.yml: unchecked has no secret check",
+      "example.yml: late runs a repository action before the secret check",
+      "example.yml: late does not check ZONE",
+    ]);
   });
 
   // GitHub writes a run input to the public job log. Only a secret is masked.
