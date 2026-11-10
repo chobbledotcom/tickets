@@ -44,6 +44,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
       questions: false,
       servicing: false,
       site: false,
+      subscriptions: false,
     });
   });
 
@@ -61,6 +62,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
       questions: true,
       servicing: true,
       site: false,
+      subscriptions: false,
     });
   });
 
@@ -94,6 +96,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
     await execute("UPDATE logistics_agents SET name = 'After'");
     await execute("UPDATE attendees SET pii_blob = 'after'");
     await execute("UPDATE listings SET uses_logistics = 1");
+    await execute("UPDATE listings SET recurring_price = 500");
 
     expect(await storedFeatures()).toEqual({
       apiKeys: false,
@@ -106,6 +109,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
       questions: true,
       servicing: true,
       site: false,
+      subscriptions: true,
     });
   });
 
@@ -149,6 +153,19 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
     expect((await getAdminFeatureUsage()).logistics).toBe(true);
   });
 
+  test("counts a recurring listing or a subscribed booking as subscriptions use", async () => {
+    await execute(
+      "INSERT INTO listings (created, max_attendees, recurring_price) VALUES ('2026-07-15', 10, 500)",
+    );
+    expect((await getAdminFeatureUsage()).subscriptions).toBe(true);
+    await execute("UPDATE listings SET recurring_price = 0");
+    expect((await getAdminFeatureUsage()).subscriptions).toBe(false);
+    await execute(
+      "INSERT INTO listing_attendees (attendee_id, listing_id, subscription_id) VALUES (1, 1, 'sub_1')",
+    );
+    expect((await getAdminFeatureUsage()).subscriptions).toBe(true);
+  });
+
   test("counts a logistics listing as logistics use", async () => {
     await execute(
       "INSERT INTO listings (created, max_attendees, uses_logistics) VALUES ('2026-07-15', 10, 1)",
@@ -169,6 +186,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
       questions: false,
       servicing: false,
       site: false,
+      subscriptions: false,
     });
     const stored = await settingValue(CONFIG_KEYS.ENABLED_FEATURES);
     expect(stored.startsWith("{")).toBe(true);
@@ -191,6 +209,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
       questions: false,
       servicing: false,
       site: false,
+      subscriptions: false,
     });
   });
 
@@ -232,6 +251,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
       questions: false,
       servicing: false,
       site: false,
+      subscriptions: false,
     });
   });
 

@@ -315,7 +315,7 @@
   "error.listing_fields_unknown": "The fields list has a field we do not know. Use only these contact fields. Separate them with commas: email, phone, address, special_instructions.",
   "error.listing_min_quantity_whole": "Min tickets per purchase must be a whole number of 1 or more.",
   "error.listing_min_quantity_above_max": "Min tickets per purchase must not be more than Max tickets per purchase.",
-  "error.recurring_price_required": "Enter a recurring price above zero, or choose no subscription.",
+  "error.recurring_price_required": "Enter a recurring price above zero, or choose Never.",
   "error.recurring_interval_required": "Choose how often the subscription charges.",
   "error.recurring_needs_ticket_price": "A subscription ticket needs a ticket price above zero. The buyer pays the ticket price on the first day.",
   "success.listing_created": "Listing created",

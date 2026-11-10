@@ -7,7 +7,7 @@ import { jsonHash } from "#test-utils/hash.ts";
 
 test("keeps the complete attendee schema declaration exact", async () => {
   expect(await jsonHash(attendeeTables)).toBe(
-    "7cf8a6c93eccf79b5a9ec47f1079ec805150ec9d86a683a0aa2878b0af159767",
+    "163b6aa0ed861d87a6eb03360b3ed15f7b93646694b32b864852ac6203d8ce29",
   );
 });
 

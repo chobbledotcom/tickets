@@ -127,5 +127,19 @@ test("declares every feature trigger source and dependency", () => {
       table: "attendees",
       uses: { attendees: ["kind", "pii_blob"], ...SETTINGS_USE },
     },
+    {
+      condition: "NEW.recurring_price > 0",
+      event: "AFTER INSERT ON listings",
+      name: "trg_admin_feature_subscriptions_listings_insert",
+      table: "listings",
+      uses: { listings: ["recurring_price"], ...SETTINGS_USE },
+    },
+    {
+      condition: "NEW.recurring_price > 0",
+      event: "AFTER UPDATE OF recurring_price ON listings",
+      name: "trg_admin_feature_subscriptions_listings_update",
+      table: "listings",
+      uses: { listings: ["recurring_price"], ...SETTINGS_USE },
+    },
   ]);
 });

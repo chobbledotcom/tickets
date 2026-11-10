@@ -35,6 +35,12 @@ describe("listing field schemas", () => {
     );
   });
 
+  test("the subscriptions view only reveals the recurring price boxes", () => {
+    expect(getListingForm({ subscriptions: true }).fields.map(shape)).toEqual(
+      revealing(["recurring_price", "recurring_interval"]),
+    );
+  });
+
   test("the storage view only reveals the image box", () => {
     expect(getListingForm({ storage: true }).fields.map(shape)).toEqual(
       revealing(["attachment"]),
