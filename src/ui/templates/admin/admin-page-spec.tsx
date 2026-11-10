@@ -39,6 +39,9 @@ export type AdminPageProps = {
    *  Pass a `<Flash .../>` element — or use `flashProps(error, success)` to
    *  build its props. */
   flash?: Child;
+  /** Optional head markup, for a page that reloads itself or carries a meta
+   *  tag of its own. */
+  headExtra?: string | undefined;
   /** Optional page action row, rendered as `<p class="actions">…</p>` right
    *  after the flash (before the body). Pass the action *contents* (for
    *  example an `<ActionButton>` and a `<GuideLink>`). AdminPage wraps them so
@@ -57,6 +60,7 @@ export const AdminPage = ({
   contentClassName = "admin-page",
   theme,
   flash,
+  headExtra,
   actions,
   children,
 }: AdminPageProps): JSX.Element => (
@@ -65,6 +69,7 @@ export const AdminPage = ({
     {...(bodyClass !== undefined ? { bodyClass } : {})}
     contentClassName={contentClassName}
     family="admin"
+    headExtra={headExtra}
     {...(theme !== undefined ? { theme } : {})}
     title={title}
   >
@@ -154,6 +159,8 @@ export type AdminPageSpec<TItem = never, TContext = undefined> = {
   bodyClass?: string | undefined;
   /** The notice right after the nav, when the page carries one. */
   flash?: FlashFields;
+  /** Head markup of the page's own, such as a meta refresh. */
+  headExtra?: string;
   /** Top action row contents. AdminPage renders the scaffold around them. */
   actions?: Child;
   list?: AdminPageListPart<TItem, TContext>;
@@ -245,6 +252,7 @@ export const renderAdminPageSpec = <TItem, TContext = undefined>(
         : {})}
       {...(spec.bodyClass !== undefined ? { bodyClass: spec.bodyClass } : {})}
       flash={spec.flash === undefined ? null : flashNotice(spec.flash)}
+      headExtra={spec.headExtra}
       {...(spec.actions !== undefined ? { actions: spec.actions } : {})}
     >
       {body}

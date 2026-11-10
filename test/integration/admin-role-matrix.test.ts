@@ -323,7 +323,7 @@ describeWithEnv("admin role matrix", { db: true }, () => {
     // write's own form page, or a view page whose POST the walks ask too.
     // The refusal walk asks those GETs like the writes, so this pins their
     // number too.
-    expect(formPageRoutes().length).toBe(80);
+    expect(formPageRoutes().length).toBe(81);
   });
 });
 

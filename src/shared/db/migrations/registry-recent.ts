@@ -129,5 +129,11 @@ export const ENTRIES_RECENT: MigrationRegistryEntry[] = [
   // Invoices: a frozen rendered body, a status, and a non-expiring share
   // token.
   entry("2026-11-03_invoices", () => import("./2026-11-03_invoices.ts")),
+  // The second each site's latest database key rotation removed every old key,
+  // so only that rotation's timer link makes the new key.
+  entry(
+    "2026-11-10_database_key_rotation_started",
+    () => import("./2026-11-10_database_key_rotation_started.ts"),
+  ),
 ];
 /* jscpd:ignore-end */

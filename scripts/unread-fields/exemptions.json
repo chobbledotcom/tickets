@@ -119,6 +119,18 @@
       "evidence": "SiteDataBlobSchema reads the stored versioned object"
     }
   ],
+  "src/shared/db/built-sites/types.ts": [
+    {
+      "path": [{ "name": "BuiltSiteRow" }],
+      "kind": "schema-driven",
+      "evidence": "builtSitePlainColumns maps each site field to its plain column by key at run time"
+    },
+    {
+      "path": [{ "name": "BuiltSitePlainInput" }],
+      "kind": "schema-driven",
+      "evidence": "builtSitePlainColumns maps each site field to its plain column by key at run time"
+    }
+  ],
   "src/shared/db/external-sources/types.ts": [
     {
       "path": [{ "name": "ExternalSourceInput" }],

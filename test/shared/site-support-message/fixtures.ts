@@ -11,31 +11,21 @@ import {
   type SupportMessageResult,
   supportMessageApi,
 } from "#shared/site-support-message.ts";
+import { testBuiltSite } from "#test-utils/factories.ts";
 import { type FetchReply, stubFetch } from "#test-utils/fetch-stub.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 
 /** A readable bunny site record for the module-level paths. */
-export const bunnySite = (overrides: Partial<BuiltSite> = {}): BuiltSite => ({
-  assignable: false,
-  assignedAttendeeId: null,
-  assignedListingId: null,
-  created: "2026-01-01T00:00:00Z",
-  dbProvider: "bunny",
-  dbToken: "tok",
-  dbUrl: "libsql://db",
-  hostingId: "501",
-  hostingProvider: "bunny",
-  id: 1,
-  name: "Bunny Site",
-  readOnlyFrom: "",
-  renewalToken: null,
-  renewalTokenIndex: null,
-  scheduledTaskKey: null,
-  siteDataRevision: 1,
-  siteUrl: "https://site.b-cdn.net",
-  updates: "release",
-  ...overrides,
-});
+export const bunnySite = (overrides: Partial<BuiltSite> = {}): BuiltSite =>
+  testBuiltSite({
+    dbToken: "tok",
+    dbUrl: "libsql://db",
+    hostingId: "501",
+    name: "Bunny Site",
+    siteDataRevision: 1,
+    siteUrl: "https://site.b-cdn.net",
+    ...overrides,
+  });
 
 /** A GET /compute/script/{id} body holding a variable list. */
 export const scriptWithVariables = (

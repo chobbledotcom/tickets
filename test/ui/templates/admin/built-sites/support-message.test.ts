@@ -8,28 +8,17 @@ import type { SupportMessageResult } from "#shared/site-support-message.ts";
 import { SupportMessagePanel } from "#templates/admin/built-sites/support-message.tsx";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { testBuiltSite } from "#test-utils/factories.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
-const site: BuiltSite = {
-  assignable: false,
-  assignedAttendeeId: null,
-  assignedListingId: null,
-  created: "2026-01-01T00:00:00Z",
-  dbProvider: "bunny",
+const site: BuiltSite = testBuiltSite({
   dbToken: "tok",
   dbUrl: "libsql://db",
   hostingId: "6200",
-  hostingProvider: "bunny",
-  id: 1,
   name: "Panel Site",
-  readOnlyFrom: "",
-  renewalToken: null,
-  renewalTokenIndex: null,
-  scheduledTaskKey: null,
   siteDataRevision: 1,
   siteUrl: "https://panel-site.b-cdn.net",
-  updates: "release",
-};
+});
 
 /** The panel's HTML for one read outcome. */
 const panelHtml = (state: SupportMessageResult): string =>

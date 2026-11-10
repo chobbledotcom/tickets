@@ -1,6 +1,8 @@
-/** Where a built-site tab lives, and the one way a tab write answers back:
- * its success line, or its failure line, on that tab. */
+/** Where a built-site tab lives, and the one way a tab write answers back. A
+ * write that worked answers its success line and leaves an activity line. A
+ * write that failed answers its failure line, on that tab. */
 
+import { logActivity } from "#db/activity-log.ts";
 import { identity } from "#fp";
 import { errorRedirect, redirect } from "#routes/response.ts";
 import { adminPath } from "#shared/admin-surface.ts";
@@ -39,3 +41,21 @@ export const refuseTab = (
   id: number,
   message: string,
 ): Response => errorRedirect(builtSiteTabPath(id, tab), message);
+
+/** What a tab write leaves when it worked, and what its tab shows either way. */
+export type LoggedTabLines = {
+  activity: string;
+  success: string;
+};
+
+/** Log a tab write's activity line when it worked, then answer its tab. The
+ * one place a tab write sends its work to the activity log. */
+export const answerLoggedTab = async (
+  tab: BuiltSiteTab,
+  id: number,
+  outcome: Outcome,
+  { activity, success }: LoggedTabLines,
+): Promise<Response> => {
+  if (outcome.ok) await logActivity(activity);
+  return answerTab(tab, id, outcome, success);
+};

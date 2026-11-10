@@ -227,11 +227,10 @@ export const testAnswer = (overrides: Partial<Answer> = {}): Answer => ({
 });
 
 /** Factory for a {@link QuestionWithAnswers}: `display_type` defaults to
- *  `"radio"` (the overwhelmingly common case in tests) with no answers, so a
- *  radio/dropdown/free-text question is built by overriding `display_type` and
- *  passing `answers`. The returned type keeps `display_type` as the literal
- *  {@link QuestionDisplayType}, so callers no longer need `… as const` on the
- *  field. */
+ *  `"radio"` with no answers, so a radio/dropdown/free-text question is built by
+ *  overriding `display_type` and passing `answers`. The returned type keeps
+ *  `display_type` as the literal {@link QuestionDisplayType}, so callers need no
+ *  `… as const`. */
 export const testQuestion = (
   overrides: Partial<QuestionWithAnswers> = {},
 ): QuestionWithAnswers => ({
@@ -250,6 +249,7 @@ export const testBuiltSite = (
   assignedAttendeeId: null,
   assignedListingId: null,
   created: "2026-01-01T00:00:00Z",
+  databaseKeyRotationStarted: 0,
   dbProvider: "bunny",
   dbToken: "",
   dbUrl: "",

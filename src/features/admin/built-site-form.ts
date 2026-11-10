@@ -3,7 +3,7 @@
  * policy that the route declares, CSRF check included. */
 
 import type { BuiltSite } from "#db/built-sites/types.ts";
-import { builtSitesCrudTable } from "#db/built-sites.ts";
+import { findBuiltSiteByIdPrimary } from "#db/built-sites.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import { createIdEntityHandler, type IdParam } from "#routes/entity.ts";
 import { formGuardAt } from "#routes/route-gates.ts";
@@ -24,6 +24,6 @@ export type BuiltSitePost = ResponseHandler<
 
 /** Every built-sites route declares the same audience, so the record page's
  * gate is the one they share. */
-export const builtSiteFormPost = createIdEntityHandler<BuiltSite>((id) =>
-  builtSitesCrudTable.read.one({ id }),
+export const builtSiteFormPost = createIdEntityHandler<BuiltSite>(
+  findBuiltSiteByIdPrimary,
 )(formGuardAt("builtSite"));
