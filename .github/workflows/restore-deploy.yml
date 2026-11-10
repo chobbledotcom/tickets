@@ -69,7 +69,10 @@ jobs:
         env:
           BUNNY_ACCESS_KEY: ${{ secrets.BUNNY_ACCESS_KEY }}
           BUNNY_SCRIPT_ID: ${{ inputs.script_id || secrets.BUNNY_SCRIPT_ID }}
-        run: scripts/ci/require-env.sh BUNNY_ACCESS_KEY BUNNY_SCRIPT_ID
+          SCRIPT_ID: ${{ inputs.script_id || secrets.BUNNY_SCRIPT_ID }}
+        run: |
+          scripts/ci/require-env.sh BUNNY_ACCESS_KEY BUNNY_SCRIPT_ID
+          scripts/ci/check-credentials.sh bunny
 
       - name: Checkout the requested commit
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

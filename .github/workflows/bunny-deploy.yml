@@ -44,6 +44,9 @@ jobs:
           SCRIPT_ID_OVERRIDE: ${{ inputs.script_id }}
           RUN_BACKUP: ${{ github.event_name == 'workflow_dispatch' && inputs.run_backup && 'yes' || '' }}
           STAGING_SITE_URL: ${{ vars.STAGING_SITE_URL }}
+          SCRIPT_ID: ${{ inputs.script_id || secrets.BUNNY_STAGING_SCRIPT_ID }}
+          SITE_URL: ${{ secrets.MAIN_INSTANCE_KEY == '' && vars.STAGING_SITE_URL || '' }}
+          BACKUP_CHECK: ${{ github.event_name == 'workflow_dispatch' && inputs.run_backup && 'backup-zone' || '' }}
           MAIN_INSTANCE: ${{ secrets.MAIN_INSTANCE }}
           MAIN_INSTANCE_KEY: ${{ secrets.MAIN_INSTANCE_KEY }}
           STORAGE_ZONE_NAME: ${{ secrets.STORAGE_ZONE_NAME }}
@@ -65,6 +68,8 @@ jobs:
             --unless MAIN_INSTANCE_KEY STAGING_SITE_URL \
             --together CDN_URL,CDN_BUNNY_STORAGE_ZONE_NAME,CDN_BUNNY_STORAGE_ZONE_KEY,CDN_BUNNY_STORAGE_HOST,CDN_BUNNY_PULL_ZONE_ID \
             --if SENTRY_AUTH_TOKEN SENTRY_CLI_URL,SENTRY_ORG,SENTRY_PROJECT
+          # shellcheck disable=SC2086 -- an empty value must add no check.
+          scripts/ci/check-credentials.sh bunny main-instance cdn-zone site $BACKUP_CHECK
 
       - name: Build Bunny edge script
         id: build

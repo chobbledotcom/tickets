@@ -113,18 +113,28 @@ const isSecretCheck = (step: string): boolean =>
 const usesRepositoryAction = (step: string): boolean =>
   step.includes("uses: ./.github/actions/");
 
+/** The check for values that are not set, then the check for wrong values. */
+const CHECK_SCRIPTS = [
+  "scripts/ci/require-env.sh",
+  "scripts/ci/check-credentials.sh",
+];
+
 /** Says what is wrong with the secret check of one deploy job. */
 const secretCheckProblems = (job: string): string[] => {
   const steps = jobSteps(job);
   const checkAt = steps.findIndex(isSecretCheck);
   if (checkAt < 0) return ["has no secret check"];
   const firstAction = steps.findIndex(usesRepositoryAction);
-  const checked = secretNames(steps[checkAt]!);
+  const check = steps[checkAt]!;
+  const checked = secretNames(check);
   const order =
     firstAction >= 0 && firstAction < checkAt
       ? ["runs a repository action before the secret check"]
       : [];
   return order.concat(
+    CHECK_SCRIPTS.filter((script) => !check.includes(script)).map(
+      (script) => `does not run ${script}`,
+    ),
     secretNames(job)
       .filter((name) => !checked.includes(name))
       .map((name) => `does not check ${name}`),
@@ -165,7 +175,9 @@ const DEPLOY_JOBS_FIXTURE = `jobs:
       - name: Check the secrets this run needs
         env:
           KEY: \${{ secrets.DEPLOY_KEY }}
-        run: scripts/ci/require-env.sh KEY
+        run: |
+          scripts/ci/require-env.sh KEY
+          scripts/ci/check-credentials.sh bunny
       - uses: ./.github/actions/build
         with:
           key: \${{ secrets.DEPLOY_KEY }}
@@ -233,6 +245,7 @@ describe("workflow secrets", () => {
     expect(found).toEqual([
       "example.yml: unchecked has no secret check",
       "example.yml: late runs a repository action before the secret check",
+      "example.yml: late does not run scripts/ci/check-credentials.sh",
       "example.yml: late does not check ZONE",
     ]);
   });

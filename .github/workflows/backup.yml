@@ -48,7 +48,9 @@ jobs:
           DB_TOKEN: ${{ secrets.DB_TOKEN }}
           STORAGE_ZONE_NAME: ${{ secrets.STORAGE_ZONE_NAME }}
           STORAGE_ZONE_KEY: ${{ secrets.STORAGE_ZONE_KEY }}
-        run: scripts/ci/require-env.sh DB_URL DB_TOKEN STORAGE_ZONE_NAME STORAGE_ZONE_KEY
+        run: |
+          scripts/ci/require-env.sh DB_URL DB_TOKEN STORAGE_ZONE_NAME STORAGE_ZONE_KEY
+          scripts/ci/check-credentials.sh backup-zone
 
       - name: Set up devenv
         uses: ./.github/actions/setup-devenv

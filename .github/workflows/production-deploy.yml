@@ -36,6 +36,10 @@ jobs:
           SCRIPT_ID_OVERRIDE: ${{ inputs.script_id }}
           RUN_BACKUP: ${{ inputs.run_backup && 'yes' || '' }}
           MAIN_SITE_URL: ${{ secrets.MAIN_SITE_URL }}
+          SCRIPT_ID: ${{ inputs.script_id || secrets.BUNNY_SCRIPT_ID }}
+          SITE_URL: ${{ inputs.script_id == '' && secrets.MAIN_SITE_URL || '' }}
+          MAIN_INSTANCE_CHECK: ${{ (inputs.run_backup || inputs.script_id != '') && 'main-instance' || '' }}
+          BACKUP_CHECK: ${{ inputs.run_backup && 'backup-zone' || '' }}
           MAIN_INSTANCE: ${{ secrets.MAIN_INSTANCE }}
           MAIN_INSTANCE_KEY: ${{ secrets.MAIN_INSTANCE_KEY }}
           STORAGE_ZONE_NAME: ${{ secrets.STORAGE_ZONE_NAME }}
@@ -56,6 +60,8 @@ jobs:
             --unless SCRIPT_ID_OVERRIDE MAIN_SITE_URL \
             --together CDN_URL,CDN_BUNNY_STORAGE_ZONE_NAME,CDN_BUNNY_STORAGE_ZONE_KEY,CDN_BUNNY_STORAGE_HOST,CDN_BUNNY_PULL_ZONE_ID \
             --if SENTRY_AUTH_TOKEN SENTRY_CLI_URL,SENTRY_ORG,SENTRY_PROJECT
+          # shellcheck disable=SC2086 -- an empty value must add no check.
+          scripts/ci/check-credentials.sh bunny cdn-zone site $MAIN_INSTANCE_CHECK $BACKUP_CHECK
 
       - name: Build Bunny edge script
         id: build

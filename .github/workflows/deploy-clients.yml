@@ -69,6 +69,7 @@ jobs:
           scripts/ci/require-env.sh BUNNY_ACCESS_KEY \
             MAIN_INSTANCE MAIN_INSTANCE_KEY STORAGE_ZONE_NAME STORAGE_ZONE_KEY \
             --together CDN_URL,CDN_BUNNY_STORAGE_ZONE_NAME,CDN_BUNNY_STORAGE_ZONE_KEY,CDN_BUNNY_STORAGE_HOST,CDN_BUNNY_PULL_ZONE_ID
+          scripts/ci/check-credentials.sh bunny main-instance backup-zone cdn-zone
 
       - name: Build Bunny edge script
         id: build

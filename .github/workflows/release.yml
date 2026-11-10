@@ -40,6 +40,7 @@ jobs:
           scripts/ci/require-env.sh \
             --together CDN_URL,CDN_BUNNY_STORAGE_ZONE_NAME,CDN_BUNNY_STORAGE_ZONE_KEY,CDN_BUNNY_STORAGE_HOST,CDN_BUNNY_PULL_ZONE_ID \
             --if CDN_URL BUNNY_ACCESS_KEY
+          scripts/ci/check-credentials.sh bunny cdn-zone
 
       - name: Build Bunny edge script
         uses: ./.github/actions/build-bunny-script
