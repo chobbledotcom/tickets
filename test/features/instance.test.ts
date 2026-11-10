@@ -15,6 +15,7 @@ import { insertBuiltSite } from "#db/built-sites.ts";
 import { handleRequest } from "#routes";
 import { ErrorCode } from "#shared/logger.ts";
 import { initSentry } from "#shared/sentry.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
@@ -255,8 +256,8 @@ describeWithEnv("server (instance site-credentials)", { db: true }, () => {
       name: string;
       /** The key the site is configured with. Absent ⇒ the endpoint is off. */
       key: string | undefined;
-      /** The Authorization header the caller presents. */
-      authorization: string;
+      /** The Authorization header the caller presents. Absent ⇒ no header. */
+      authorization?: string | undefined;
       /** The tier the caller names, if any. */
       tier?: string | undefined;
       /** Seed the one-per-channel fleet before the call. */
@@ -274,9 +275,19 @@ describeWithEnv("server (instance site-credentials)", { db: true }, () => {
     const CALL_CASES: readonly CallCase[] = [
       {
         answer: { error: "unauthorized", status: 401 },
+        key: KEY,
+        name: "reports a refused call that presented no bearer token",
+        report: {
+          code: ErrorCode.INSTANCE_CREDENTIALS_REFUSED,
+          detail: "bearer token missing or wrong",
+        },
+        secrets: [KEY, "MAIN_INSTANCE_KEY"],
+      },
+      {
+        answer: { error: "unauthorized", status: 401 },
         authorization: `Bearer ${GUESSED_KEY}`,
         key: KEY,
-        name: "reports a refused call under its own code",
+        name: "reports a refused call with a wrong bearer token",
         report: {
           code: ErrorCode.INSTANCE_CREDENTIALS_REFUSED,
           detail: "bearer token missing or wrong",
@@ -334,8 +345,8 @@ describeWithEnv("server (instance site-credentials)", { db: true }, () => {
       lines: string[];
       /** The ntfy message bodies, in order. */
       ntfy: string[];
-      /** How many Sentry events went out. */
-      sentryEvents: number;
+      /** The Sentry envelope bodies, in order. */
+      sentry: string[];
       /** Everything those reports carried, as one searchable string. */
       reportText: string;
     };
@@ -353,7 +364,9 @@ describeWithEnv("server (instance site-credentials)", { db: true }, () => {
       withReports({ MAIN_INSTANCE_KEY: callCase.key }, async (fetchStub) => {
         if (callCase.fleet) await seedTieredFleet();
         const response = await post(
-          { authorization: callCase.authorization },
+          callCase.authorization === undefined
+            ? undefined
+            : { authorization: callCase.authorization },
           callCase.tier,
         );
         const body = await response.text();
@@ -384,7 +397,7 @@ describeWithEnv("server (instance site-credentials)", { db: true }, () => {
             ...ntfyCalls.map((call) => JSON.stringify(call.args)),
             ...sentry,
           ].join("\n"),
-          sentryEvents: sentryCalls.length,
+          sentry,
           status: response.status,
         };
       });
@@ -400,7 +413,15 @@ describeWithEnv("server (instance site-credentials)", { db: true }, () => {
           : [`[Error] ${report.code} detail="${report.detail}"`];
       expect(outcome.lines).toEqual(expectedLines);
       expect(outcome.ntfy).toEqual(report === null ? [] : [report.code]);
-      expect(outcome.sentryEvents).toBe(report === null ? 0 : 1);
+      expect(outcome.sentry).toHaveLength(report === null ? 0 : 1);
+      if (report !== null) {
+        // The document promises that the code, the tier, and the site count
+        // reach Sentry too.
+        expectIncludesAll(outcome.sentry.join("\n"), [
+          report.code,
+          report.detail,
+        ]);
+      }
     };
 
     /** Assert no report repeated a value the operator must never see. */
