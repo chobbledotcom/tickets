@@ -608,26 +608,21 @@ export const syncCurrentSchema = async (
     await repairLegacySchemaRenames();
   }
 
-  logDebug("Migration", "Step 1: applying schema changes...");
-  await applySchemaChanges();
-  logDebug("Migration", "Step 2: syncing indexes...");
-  await syncIndexes();
-
-  logDebug("Migration", "Step 3: backfilling listing_attendees...");
-  await backfillListingAttendees();
-
-  logDebug("Migration", "Step 4: dropping deprecated attendee columns...");
-  await dropDeprecatedAttendeeColumns();
-
-  logDebug("Migration", "Step 5: syncing triggers...");
-  await syncTriggers();
-
-  logDebug("Migration", "Step 6: backfilling listing aggregates...");
-  await backfillListingAggregates();
-
-  logDebug("Migration", "Step 7: backfilling modifier aggregates...");
-  await backfillModifierAggregates();
-
-  logDebug("Migration", "Step 8: backfilling answer aggregates...");
-  await backfillAnswerAggregates();
+  const steps: readonly [string, () => Promise<void>][] = [
+    ["Step 1: applying schema changes...", applySchemaChanges],
+    ["Step 2: syncing indexes...", syncIndexes],
+    ["Step 3: backfilling listing_attendees...", backfillListingAttendees],
+    [
+      "Step 4: dropping deprecated attendee columns...",
+      dropDeprecatedAttendeeColumns,
+    ],
+    ["Step 5: syncing triggers...", syncTriggers],
+    ["Step 6: backfilling listing aggregates...", backfillListingAggregates],
+    ["Step 7: backfilling modifier aggregates...", backfillModifierAggregates],
+    ["Step 8: backfilling answer aggregates...", backfillAnswerAggregates],
+  ];
+  for (const [message, run] of steps) {
+    logDebug("Migration", message);
+    await run();
+  }
 };

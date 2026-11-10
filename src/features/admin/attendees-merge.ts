@@ -35,8 +35,6 @@ import {
 import type {
   AttendeeMergeDecisionInput,
   AttendeeMergeDiff,
-  MergeAnswerChoice,
-  MergeValueChoice,
 } from "#shared/merge/attendee-merge-types.ts";
 import type { ParamsRoute } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -346,36 +344,35 @@ const oneChoiceOf =
 /** Which side a PII field takes. Anything but "source" keeps the target. */
 const toPiiChoice = oneChoiceOf(["source", "target"], "target");
 
+/** One decision per key, read from the form field `prefix` plus the key names. */
+const keyedDecisions =
+  <Choice>(prefix: string, toChoice: (raw: string) => Choice) =>
+  (form: FormParams, keys: readonly string[]): Record<string, Choice> => {
+    const decisions: Record<string, Choice> = {};
+    for (const key of keys) {
+      decisions[key] = toChoice(form.getString(`${prefix}${key}`));
+    }
+    return decisions;
+  };
+
 /** Parse PII decisions from form (each field: "source" or "target") */
-const parsePiiDecisions = (
-  form: FormParams,
-  diff: AttendeeMergeDiff,
-): Record<string, MergeValueChoice> => {
-  const pii: Record<string, MergeValueChoice> = {};
-  for (const field of diff.piiFields) {
-    const val = form.getString(`pii_${field.field}`);
-    pii[field.field] = toPiiChoice(val);
-  }
-  return pii;
-};
+const parsePiiDecisions = (form: FormParams, diff: AttendeeMergeDiff) =>
+  keyedDecisions("pii_", toPiiChoice)(
+    form,
+    diff.piiFields.map((field) => field.field),
+  );
 
 /** Normalize a raw answer choice string into a MergeAnswerChoice */
 const toAnswerChoice = oneChoiceOf(["source", "clear", "target"], "target");
 
 /** Parse answer decisions from form (only conflicting items) */
-const parseAnswerDecisions = (
-  form: FormParams,
-  diff: AttendeeMergeDiff,
-): Record<string, MergeAnswerChoice> => {
-  const answers: Record<string, MergeAnswerChoice> = {};
-  for (const item of diff.answerItems) {
-    if (item.conflict) {
-      const val = form.getString(`answer_${item.questionId}`);
-      answers[String(item.questionId)] = toAnswerChoice(val);
-    }
-  }
-  return answers;
-};
+const parseAnswerDecisions = (form: FormParams, diff: AttendeeMergeDiff) =>
+  keyedDecisions("answer_", toAnswerChoice)(
+    form,
+    diff.answerItems
+      .filter((item) => item.conflict)
+      .map((item) => String(item.questionId)),
+  );
 
 /** Normalize a raw booking choice string into a MergeBookingChoice */
 const toBookingChoice = oneChoiceOf(

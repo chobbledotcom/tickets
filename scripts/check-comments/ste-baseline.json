@@ -1229,8 +1229,8 @@
     "semicolon": 2
   },
   "src/shared/rest/crud-api.ts": {
-    "long-sentence": 3,
-    "semicolon": 4,
+    "long-sentence": 2,
+    "semicolon": 3,
     "wordy": 1
   },
   "src/shared/rest/crud-parsers.ts": {

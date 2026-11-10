@@ -14,12 +14,11 @@ import { ErrorCode, logError } from "#shared/logger.ts";
 import { fail, ok } from "#shared/response.ts";
 import {
   deleteFile,
-  IMAGE_ERROR_MESSAGES,
   isStorageEnabled,
   uploadImageTargets,
-  validateImage,
 } from "#shared/storage.ts";
 import { tryDeleteFile } from "#shared/storage-cleanup.ts";
+import { checkedImageBytes } from "./image-upload.ts";
 
 /** Handle POST /admin/settings/header-image - owner only (multipart) */
 export const handleHeaderImagePost = (request: Request): Promise<Response> =>
@@ -41,12 +40,11 @@ export const handleHeaderImagePost = (request: Request): Promise<Response> =>
       );
     }
 
-    const data = new Uint8Array(await entry.arrayBuffer());
-    const validation = validateImage(data, entry.type);
-    if (!validation.valid) {
+    const checked = await checkedImageBytes(entry);
+    if (!checked.ok) {
       return errorRedirect(
         "/admin/settings",
-        IMAGE_ERROR_MESSAGES[validation.error],
+        checked.error,
         "settings-header-image",
       );
     }
@@ -63,7 +61,9 @@ export const handleHeaderImagePost = (request: Request): Promise<Response> =>
     }
 
     const [uploadResult] = await Promise.allSettled([
-      uploadImageTargets(data, validation.detectedType, [FULL_IMAGE_TARGET]),
+      uploadImageTargets(checked.value.data, checked.value.detectedType, [
+        FULL_IMAGE_TARGET,
+      ]),
     ]);
     if (uploadResult.status === "fulfilled") {
       await settings.update.headerImageUrl(uploadResult.value[0] as string);

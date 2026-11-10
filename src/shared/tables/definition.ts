@@ -7,6 +7,7 @@
  * pure so settings code can parse them without importing any JSX.
  */
 
+import { allUnique } from "#shared/all-unique.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import type { TableLayoutDefinition } from "#shared/tables/layout.ts";
 
@@ -43,7 +44,7 @@ const validateColumns = <TRow, TContext, TKey extends string>(
     throw new Error("defineTable: columns cannot be empty");
   }
   const keys = columns.map((column) => column.key);
-  if (new Set(keys).size !== keys.length) {
+  if (!allUnique(keys)) {
     throw new Error("defineTable: column keys must be unique");
   }
 };

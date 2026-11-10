@@ -139,25 +139,34 @@ export const ticketFormErrorResponse = (ctx: TicketCtx) => {
   return (error: string) => errorRedirect(url, error);
 };
 
+/** The positive quantities the form holds for these fields, keyed by the
+ * record each field names. A blank or zero field is left out. */
+const positiveQuantities = (
+  form: FormParams,
+  entries: readonly { field: string; id: number }[],
+): Map<number, number> => {
+  const quantities = new Map<number, number>();
+  for (const { field, id } of entries) {
+    const quantity = parseQuantityValue(form.get(field) || "0", 0);
+    if (quantity > 0) quantities.set(id, quantity);
+  }
+  return quantities;
+};
+
 /** Parse quantity values from ticket form */
 export const parseQuantities = (
   form: FormParams,
   listings: TicketListing[],
-): Map<number, number> => {
-  const quantities = new Map<number, number>();
-
-  for (const { listing, isSoldOut, isClosed } of listings) {
-    if (isSoldOut || isClosed) continue;
-
-    const raw = form.get(quantityFieldName(listing.id)) || "0";
-    const quantity = parseQuantityValue(raw, 0);
-    if (quantity > 0) {
-      quantities.set(listing.id, quantity);
-    }
-  }
-
-  return quantities;
-};
+): Map<number, number> =>
+  positiveQuantities(
+    form,
+    filter(({ isSoldOut, isClosed }: TicketListing) => !isSoldOut && !isClosed)(
+      listings,
+    ).map(({ listing }) => ({
+      field: quantityFieldName(listing.id),
+      id: listing.id,
+    })),
+  );
 
 /** Filter listings to those with selected quantity, returning listing and quantity */
 export const listingsWithQuantity = (
@@ -177,16 +186,10 @@ export const listingsWithQuantity = (
 export const parseAddOnSelections = (
   form: FormParams,
   addOns: AddOnOption[],
-): Map<number, number> => {
-  const selections = new Map<number, number>();
-  for (const addOn of addOns) {
-    const quantity = parseQuantityValue(
-      form.get(`addon_${addOn.id}`) || "0",
-      0,
-    );
-    if (quantity > 0) selections.set(addOn.id, quantity);
-  }
-  return selections;
-};
+): Map<number, number> =>
+  positiveQuantities(
+    form,
+    addOns.map((addOn) => ({ field: `addon_${addOn.id}`, id: addOn.id })),
+  );
 
 export { extractContact };

@@ -3,6 +3,7 @@
  * page carrying the item manager), and the delete confirmation.
  */
 
+import { map } from "#fp";
 import { t } from "#i18n";
 import {
   sitePageEditForm,
@@ -202,6 +203,9 @@ export const sitePageEditPanel = contentEntityEditPanel(
   sitePageToValues,
 );
 
+/** One add-item picker: the item type and the records it can add. */
+type ItemPickerEntry = { options: PickerOption[]; type: SitePageItemType };
+
 /** The Items tab's panel: the page's current contents (reorderable, each
  * removable) plus the add-item pickers. Pickers with nothing to offer are
  * hidden, and the whole "Add" section disappears when nothing can be added. */
@@ -209,10 +213,12 @@ export const sitePageItemsPanel = (model: EditModel): JSX.Element => {
   const { page, items } = model;
   const itemBase = (item: ResolvedItem): string =>
     `${LIST}/${page.id}/items/${item.type}/${item.id}`;
-  const anyOptions =
-    model.listingOptions.length > 0 ||
-    model.groupOptions.length > 0 ||
-    model.pageOptions.length > 0;
+  const pickers: readonly ItemPickerEntry[] = [
+    { options: model.listingOptions, type: "listing" },
+    { options: model.groupOptions, type: "group" },
+    { options: model.pageOptions, type: "page" },
+  ];
+  const anyOptions = pickers.some(({ options }) => options.length > 0);
   return (
     <>
       {items.length === 0 ? (
@@ -250,24 +256,14 @@ export const sitePageItemsPanel = (model: EditModel): JSX.Element => {
       {anyOptions && (
         <>
           <h3>{t("site.pages.add_item_heading")}</h3>
-          <ItemPicker
-            label={t("site.pages.type.listing")}
-            options={model.listingOptions}
-            pageId={page.id}
-            type="listing"
-          />
-          <ItemPicker
-            label={t("site.pages.type.group")}
-            options={model.groupOptions}
-            pageId={page.id}
-            type="group"
-          />
-          <ItemPicker
-            label={t("site.pages.type.page")}
-            options={model.pageOptions}
-            pageId={page.id}
-            type="page"
-          />
+          {map(({ options, type }: ItemPickerEntry) => (
+            <ItemPicker
+              label={t(`site.pages.type.${type}`)}
+              options={options}
+              pageId={page.id}
+              type={type}
+            />
+          ))(pickers)}
         </>
       )}
     </>

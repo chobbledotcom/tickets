@@ -31,6 +31,7 @@ import {
 } from "#db/client.ts";
 import { inList } from "#db/where-clauses.ts";
 import { identity, mapById, mapNotNullish, unique } from "#fp";
+import { allUnique } from "#shared/all-unique.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import { assertValidTransfer } from "#shared/ledger/validate.ts";
 import { nowIso } from "#shared/now.ts";
@@ -85,7 +86,7 @@ export const assertPostable = (inputs: TransferInput[]): void => {
     inputs.map((t) => t.eventGroup),
   );
   const references = inputs.map((t) => t.reference);
-  if (new Set(references).size !== references.length) {
+  if (!allUnique(references)) {
     throw new Error("postTransfers: duplicate reference within one event");
   }
 };

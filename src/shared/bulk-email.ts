@@ -111,6 +111,21 @@ type DraftValidation =
   | { valid: true; draft: BulkEmailDraft }
   | { valid: false; error: string };
 
+/** The trimmed text of one required field, or the refusal that names it as
+ * missing or as longer than its cap. */
+const checkedText = (
+  raw: string,
+  field: string,
+  max: number,
+): { ok: true; text: string } | { ok: false; error: string } => {
+  const text = raw.trim();
+  if (!text) return { error: `${field} is required`, ok: false };
+  if (text.length > max) {
+    return { error: `${field} must be ${max} characters or fewer`, ok: false };
+  }
+  return { ok: true, text };
+};
+
 /** Validate composed form values into a draft (subject + body required, length-capped). */
 export const validateDraftInput = (input: {
   subject: string;
@@ -118,26 +133,19 @@ export const validateDraftInput = (input: {
   marketing: boolean;
   target: BulkEmailTarget;
 }): DraftValidation => {
-  const subject = input.subject.trim();
-  if (!subject) return { error: "Subject is required", valid: false };
-  if (subject.length > MAX_INPUT_LENGTH) {
-    return {
-      error: `Subject must be ${MAX_INPUT_LENGTH} characters or fewer`,
-      valid: false,
-    };
-  }
+  const subject = checkedText(input.subject, "Subject", MAX_INPUT_LENGTH);
+  if (!subject.ok) return { error: subject.error, valid: false };
 
-  const body = input.body.trim();
-  if (!body) return { error: "Message body is required", valid: false };
-  if (body.length > MAX_TEXTAREA_LENGTH) {
-    return {
-      error: `Message body must be ${MAX_TEXTAREA_LENGTH} characters or fewer`,
-      valid: false,
-    };
-  }
+  const body = checkedText(input.body, "Message body", MAX_TEXTAREA_LENGTH);
+  if (!body.ok) return { error: body.error, valid: false };
 
   return {
-    draft: { body, marketing: input.marketing, subject, target: input.target },
+    draft: {
+      body: body.text,
+      marketing: input.marketing,
+      subject: subject.text,
+      target: input.target,
+    },
     valid: true,
   };
 };
