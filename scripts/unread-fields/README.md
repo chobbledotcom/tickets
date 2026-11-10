@@ -18,9 +18,10 @@ devenv shell deno task check:unread-fields
 
 The gate compares each reported field with two registries:
 
-- `baseline.ts` holds accepted debt. An entry does not say that the field is
-  valid. Do not add new entries. Remove an entry when production reads the field
-  or the field is deleted.
+- `baseline.json` holds accepted debt, one entry per owner. An entry names the
+  file, the owner path, and the unread fields under that path. An entry does
+  not say that a field is valid. Do not add new entries or fields. Remove a
+  field when production reads it or the field is deleted.
 - `exemptions.json` holds reviewed false positives, one rule per owner. A rule
   names the file, the owner path, the reason, and the production evidence. The
   rule uses one of five mechanisms: an external output, a provider input, a

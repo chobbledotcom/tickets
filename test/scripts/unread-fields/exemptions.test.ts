@@ -5,6 +5,7 @@ import {
   UNREAD_FIELD_EXEMPTION_RULES,
 } from "#scripts/unread-fields/exemptions.ts";
 import { ownerKey } from "#scripts/unread-fields/identity.ts";
+import { testRefusedEntries } from "#test-utils/unread-field-policy.ts";
 
 const rule = {
   evidence: "the route reads each field by key",
@@ -38,57 +39,25 @@ describe("unread-field rule manifest", () => {
     ).toEqual([{ way: "[]" }, { name: "[]" }]);
   });
 
-  // A manifest entry the gate cannot read back is an error at its own place.
-  const malformed: [string, unknown, string][] = [
-    [
-      "a manifest that is not an object",
-      null,
-      "the top of the manifest: Invalid type: Expected Object but received null",
-    ],
+  // A rule the gate cannot read back is an error at its own place.
+  testRefusedEntries(parseExemptionRules, rule, [
     [
       "a rule with no owner path step",
-      { "src/shared/api.ts": [{ ...rule, path: [] }] },
-      "src/shared/api.ts / 0 / path: A rule must name at least one owner path step",
+      { path: [] },
+      "path: A rule must name at least one owner path step",
     ],
     [
       "a leftover field name, which would widen the rule",
-      { "src/shared/api.ts": [{ ...rule, field: "total" }] },
-      'src/shared/api.ts / 0 / field: Invalid key: Expected never but received "field"',
+      { field: "total" },
+      'field: Invalid key: Expected never but received "field"',
     ],
     [
       "evidence that names nothing",
-      { "src/shared/api.ts": [{ ...rule, evidence: "   " }] },
-      "src/shared/api.ts / 0 / evidence: A rule must name the production evidence that the scan misses",
+      { evidence: "   " },
+      "evidence: A rule must name the production evidence that the scan misses",
     ],
-    [
-      "a file outside src/",
-      { "./src/shared/api.ts": [rule] },
-      "./src/shared/api.ts: A rule file must be a path under src/",
-    ],
-    [
-      "a mechanism outside the five",
-      { "src/shared/api.ts": [{ ...rule, kind: "guessed" }] },
-      "src/shared/api.ts / 0 / kind: Invalid type",
-    ],
-    [
-      "a step that carries a name and a way at once",
-      {
-        "src/shared/api.ts": [{ ...rule, path: [{ name: "Body", way: "[]" }] }],
-      },
-      "src/shared/api.ts / 0 / path / 0: A step must name a field or the way a reader reaches through it",
-    ],
-    [
-      "a file entry with no rule",
-      { "src/shared/api.ts": [] },
-      "src/shared/api.ts: A file must name at least one rule",
-    ],
-  ];
-
-  for (const [name, bad, message] of malformed) {
-    test(`refuses ${name}`, () => {
-      expect(() => parseExemptionRules(bad)).toThrow(message);
-    });
-  }
+    ["a mechanism outside the five", { kind: "guessed" }, "kind: Invalid type"],
+  ]);
 
   test("names each owner path once, so no field gains two reasons", () => {
     const keys = UNREAD_FIELD_EXEMPTION_RULES.map((rule) =>

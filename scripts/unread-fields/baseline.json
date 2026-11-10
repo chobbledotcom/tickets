@@ -1,0 +1,1252 @@
+{
+  "src/features/admin/api-groups.ts": [
+    {
+      "path": [{ "name": "CreateGroupBody" }],
+      "fields": ["name", "package_members"]
+    },
+    {
+      "path": [{ "name": "PackageMemberBody" }],
+      "fields": ["day_prices", "listing_id", "price", "quantity"]
+    },
+    {
+      "path": [{ "name": "UpdateGroupBody" }],
+      "fields": ["slug"]
+    }
+  ],
+  "src/features/admin/api-holidays.ts": [
+    {
+      "path": [{ "name": "CreateHolidayBody" }],
+      "fields": ["end_date", "name", "start_date"]
+    }
+  ],
+  "src/features/admin/api-listing-body.ts": [
+    {
+      "path": [{ "name": "CreateListingBody" }],
+      "fields": ["child_listing_ids", "date", "day_prices", "group_ids", "max_attendees", "max_price", "name"]
+    },
+    {
+      "path": [{ "name": "UpdateListingBody" }],
+      "fields": ["slug"]
+    }
+  ],
+  "src/features/admin/attendee-form-validation.ts": [
+    {
+      "path": [{ "name": "AttendeeFieldError" }],
+      "fields": ["field"]
+    },
+    {
+      "path": [{ "name": "ValidationResult" }],
+      "fields": ["lineErrors"]
+    }
+  ],
+  "src/features/admin/attendee-logistics.ts": [
+    {
+      "path": [{ "name": "LogisticsFormErrors" }],
+      "fields": ["addressError", "locationError"]
+    }
+  ],
+  "src/features/admin/catalog-transfer/schema.ts": [
+    {
+      "path": [{ "name": "CatalogBundle" }],
+      "fields": ["version"]
+    }
+  ],
+  "src/features/admin/refunds/budget.ts": [
+    {
+      "path": [{ "name": "RefundBudgetCandidate" }],
+      "fields": ["references"]
+    },
+    {
+      "path": [{ "name": "RefundSendBudgetReference" }],
+      "fields": ["index"]
+    }
+  ],
+  "src/features/admin/refunds/claim.ts": [
+    {
+      "path": [{ "name": "RefundRunBlock" }],
+      "fields": ["reason"]
+    }
+  ],
+  "src/features/admin/refunds/ledger-findings.ts": [
+    {
+      "path": [{ "name": "AppliedRefundLedgerFindings" }],
+      "fields": ["needsReview"]
+    }
+  ],
+  "src/features/admin/refunds/provider.ts": [
+    {
+      "path": [{ "name": "RefundBatchResult" }],
+      "fields": ["reason"]
+    }
+  ],
+  "src/features/admin/refunds/readiness.ts": [
+    {
+      "path": [{ "name": "RefundReadinessRead" }],
+      "fields": ["index"]
+    },
+    {
+      "path": [{ "name": "RefundReadinessResult" }],
+      "fields": ["reads"]
+    }
+  ],
+  "src/features/admin/refunds/refresh.ts": [
+    {
+      "path": [{ "name": "RefreshPaymentResult" }],
+      "fields": ["reason"]
+    }
+  ],
+  "src/features/admin/servicing/form-model.ts": [
+    {
+      "path": [{ "name": "ServicingCreateInput" }],
+      "fields": ["bookings", "kind", "name"]
+    }
+  ],
+  "src/features/admin/settings-connection-lines.ts": [
+    {
+      "path": [{ "name": "ConnectionAnswer" }],
+      "fields": ["lines", "ok"]
+    }
+  ],
+  "src/features/api/payment-callback.ts": [
+    {
+      "path": [{ "name": "CallbackOutcome" }],
+      "fields": ["result"]
+    }
+  ],
+  "src/features/api/payment-processing/create.ts": [
+    {
+      "path": [{ "name": "AttendeeBaseFields" }],
+      "fields": ["paymentId", "statusId"]
+    }
+  ],
+  "src/features/api/payment-processing/placeholder-resume.ts": [
+    {
+      "path": [{ "name": "PlaceholderFailureResult" }],
+      "fields": ["status"]
+    }
+  ],
+  "src/features/api/webhook-types.ts": [
+    {
+      "path": [{ "name": "ListingValidation" }],
+      "fields": ["error", "status"]
+    },
+    {
+      "path": [{ "name": "PaymentResult" }],
+      "fields": ["attendee"]
+    }
+  ],
+  "src/features/auth.ts": [
+    {
+      "path": [{ "name": "AuthSession" }],
+      "fields": ["settingsNagItems"]
+    }
+  ],
+  "src/features/entity.ts": [
+    {
+      "path": [{ "name": "AttendeeListingRouteParams" }],
+      "fields": ["attendeeId", "listingId"]
+    }
+  ],
+  "src/features/public/types.ts": [
+    {
+      "path": [{ "name": "TicketCtx" }],
+      "fields": ["attributesByListing", "baseUrl", "nav", "prefill"]
+    },
+    {
+      "path": [{ "name": "TicketSharedContext" }],
+      "fields": ["cartDateItems", "childDatesById", "galleryImages", "groupDescription", "groupImage", "groupName", "promoCodesEnabled"]
+    }
+  ],
+  "src/shared/accounting/store.ts": [
+    {
+      "path": [{ "name": "PostResult" }],
+      "fields": ["inserted", "skipped"]
+    }
+  ],
+  "src/shared/admin-api-resources.ts": [
+    {
+      "path": [{ "name": "AdminApiCreateAttributeBody" }],
+      "fields": ["name"]
+    },
+    {
+      "path": [{ "name": "AdminApiCreateHolidayBody" }],
+      "fields": ["end_date", "name", "start_date"]
+    },
+    {
+      "path": [{ "name": "AdminApiCreateQuestionBody" }],
+      "fields": ["assign_all", "display_type", "text"]
+    },
+    {
+      "path": [{ "name": "AdminApiDeleteAnswer" }],
+      "fields": ["status"]
+    },
+    {
+      "path": [{ "name": "AdminApiDeleteBody" }],
+      "fields": ["confirm_identifier"]
+    },
+    {
+      "path": [{ "name": "AdminApiHoliday" }],
+      "fields": ["end_date", "id", "name", "start_date"]
+    },
+    {
+      "path": [{ "name": "AdminApiOptionBody" }],
+      "fields": ["text"]
+    },
+    {
+      "path": [{ "name": "AdminApiUpdateAttributeBody" }],
+      "fields": ["name"]
+    },
+    {
+      "path": [{ "name": "AdminApiUpdateHolidayBody" }],
+      "fields": ["end_date", "name", "start_date"]
+    },
+    {
+      "path": [{ "name": "AdminApiUpdateQuestionBody" }],
+      "fields": ["assign_all", "display_type", "text"]
+    }
+  ],
+  "src/shared/admin-surface/definitions.ts": [
+    {
+      "path": [{ "name": "AdminSurfaceContext" }],
+      "fields": ["active"]
+    }
+  ],
+  "src/shared/admin-surface/sections.ts": [
+    {
+      "path": [{ "name": "AdminNavEntry" }],
+      "fields": ["kind"]
+    },
+    {
+      "path": [{ "name": "AdminSectionDef" }],
+      "fields": ["id"]
+    }
+  ],
+  "src/shared/balance-link.ts": [
+    {
+      "path": [{ "name": "BalancePayload" }],
+      "fields": ["e"]
+    }
+  ],
+  "src/shared/booking-intent.ts": [
+    {
+      "path": [{ "name": "BookingIntent" }, { "name": "allocations" }, { "way": "[]" }],
+      "fields": ["qty"]
+    },
+    {
+      "path": [{ "name": "ListingAnswerRefs" }],
+      "fields": ["listingAnswerIds", "listingTextAnswerIds"]
+    },
+    {
+      "path": [{ "name": "TextAnswerRef" }],
+      "fields": ["s"]
+    }
+  ],
+  "src/shared/booking/cart-conflicts.ts": [
+    {
+      "path": [{ "name": "CartDateItem" }],
+      "fields": ["name"]
+    },
+    {
+      "path": [{ "name": "CartLengthItem" }],
+      "fields": ["name"]
+    }
+  ],
+  "src/shared/booking/fold-tree.ts": [
+    {
+      "path": [{ "name": "FoldChildrenResult" }],
+      "fields": ["priceRuleByListingId"]
+    }
+  ],
+  "src/shared/booking/option-demand.ts": [
+    {
+      "path": [{ "name": "OptionVerdict" }, { "name": "outcome" }, { "name": "alternatives" }, { "way": "[]" }],
+      "fields": ["dayCount"]
+    },
+    {
+      "path": [{ "name": "OptionVerdict" }, { "name": "outcome" }],
+      "fields": ["bookableDayCounts"]
+    }
+  ],
+  "src/shared/booking/page-packages.ts": [
+    {
+      "path": [{ "name": "PagePackage" }],
+      "fields": ["slug"]
+    }
+  ],
+  "src/shared/booking/tree.ts": [
+    {
+      "path": [{ "name": "BookingNode" }],
+      "fields": ["dateSpan"]
+    },
+    {
+      "path": [{ "name": "BookingTree" }],
+      "fields": ["rootRef"]
+    },
+    {
+      "path": [{ "name": "DateSpan" }],
+      "fields": ["date", "durationDays", "kind"]
+    },
+    {
+      "path": [{ "name": "PriceRule" }],
+      "fields": ["maxMinor", "minMinor"]
+    },
+    {
+      "path": [{ "name": "QuantityRule" }],
+      "fields": ["max", "min"]
+    },
+    {
+      "path": [{ "name": "RootRef" }],
+      "fields": ["kind", "slugs"]
+    }
+  ],
+  "src/shared/boot-checks.ts": [
+    {
+      "path": [{ "name": "BootCheck" }],
+      "fields": ["name"]
+    }
+  ],
+  "src/shared/bunny-edge-script.ts": [
+    {
+      "path": [{ "name": "EdgeScriptSecret" }],
+      "fields": ["Id", "LastModified"]
+    }
+  ],
+  "src/shared/catalog-fields/fields.ts": [
+    {
+      "path": [{ "name": "ListingInput" }],
+      "fields": ["attachmentName", "attachmentUrl", "maxAttendees"]
+    },
+    {
+      "path": [{ "name": "PackageMemberInput" }],
+      "fields": ["dayPrices", "price"]
+    }
+  ],
+  "src/shared/checkout-pricing.ts": [
+    {
+      "path": [{ "name": "ModifierApplication" }],
+      "fields": ["amountApplied", "quantity"]
+    }
+  ],
+  "src/shared/db/activity-log.ts": [
+    {
+      "path": [{ "name": "ActivityLogEntry" }],
+      "fields": ["id"]
+    },
+    {
+      "path": [{ "name": "ActivityLogInput" }],
+      "fields": ["attendeeId", "listingId", "message"]
+    },
+    {
+      "path": [{ "name": "ListingWithActivityLog" }],
+      "fields": ["listing"]
+    }
+  ],
+  "src/shared/db/attendees/atomic-update.ts": [
+    {
+      "path": [{ "name": "UpdateAttendeeAtomicResult" }],
+      "fields": ["listingIds"]
+    }
+  ],
+  "src/shared/db/attendees/balance.ts": [
+    {
+      "path": [{ "name": "SettleBalanceResult" }],
+      "fields": ["amount", "listingId"]
+    }
+  ],
+  "src/shared/db/attendees/capacity/range.ts": [
+    {
+      "path": [{ "name": "IntervalRow" }],
+      "fields": ["quantity"]
+    }
+  ],
+  "src/shared/db/attendees/pii.ts": [
+    {
+      "path": [{ "name": "DecryptedAttendeeRow" }],
+      "fields": ["checked_in", "split_logistics_agents"]
+    }
+  ],
+  "src/shared/db/attendees/select.ts": [
+    {
+      "path": [{ "name": "GetAttendeesQuery" }],
+      "fields": ["order"]
+    }
+  ],
+  "src/shared/db/attendees/servicing.ts": [
+    {
+      "path": [{ "name": "ServicingBookingSummary" }],
+      "fields": ["listingId"]
+    },
+    {
+      "path": [{ "name": "ServicingEvent" }],
+      "fields": ["kind"]
+    }
+  ],
+  "src/shared/db/attributes.ts": [
+    {
+      "path": [{ "name": "AttributeOption" }],
+      "fields": ["attribute_id"]
+    }
+  ],
+  "src/shared/db/backup.ts": [
+    {
+      "path": [{ "name": "BackupInspection" }],
+      "fields": ["manifest", "statementCount"]
+    },
+    {
+      "path": [{ "name": "BackupManifest" }],
+      "fields": ["latestUpdate"]
+    }
+  ],
+  "src/shared/db/built-sites/types.ts": [
+    {
+      "path": [{ "name": "BuiltSite" }],
+      "fields": ["assignedListingId"]
+    },
+    {
+      "path": [{ "name": "BuiltSiteBlobInput" }],
+      "fields": ["renewalToken"]
+    },
+    {
+      "path": [{ "name": "BuiltSiteFormInput" }],
+      "fields": ["dbProvider", "hostingProvider", "updates"]
+    },
+    {
+      "path": [{ "name": "BuiltSiteInput" }],
+      "fields": ["siteData"]
+    },
+    {
+      "path": [{ "name": "BuiltSitePlainInput" }],
+      "fields": ["assignable", "assignedAttendeeId", "assignedListingId", "readOnlyFrom", "renewalTokenIndex", "updates"]
+    },
+    {
+      "path": [{ "name": "BuiltSiteRow" }],
+      "fields": ["assignable", "assigned_attendee_id", "assigned_listing_id", "read_only_from", "renewal_token_index", "site_data_revision", "updates"]
+    }
+  ],
+  "src/shared/db/common-schema.ts": [
+    {
+      "path": [{ "name": "AggregateRecalculation" }, { "way": "[]" }],
+      "fields": ["recalculated"]
+    },
+    {
+      "path": [{ "name": "NamedSortOrderInput" }],
+      "fields": ["name", "sortOrder"]
+    }
+  ],
+  "src/shared/db/contact-tokens.ts": [
+    {
+      "path": [{ "name": "BookingToken" }],
+      "fields": ["token"]
+    }
+  ],
+  "src/shared/db/groups/candidates.ts": [
+    {
+      "path": [{ "name": "GroupListingCandidate" }],
+      "fields": ["active"]
+    }
+  ],
+  "src/shared/db/holidays.ts": [
+    {
+      "path": [{ "name": "HolidayInput" }],
+      "fields": ["name"]
+    }
+  ],
+  "src/shared/db/images.ts": [
+    {
+      "path": [{ "name": "ImageInput" }],
+      "fields": ["altText", "filename", "filenameThumb", "name"]
+    },
+    {
+      "path": [{ "name": "OrderedImage" }],
+      "fields": ["sort_order"]
+    }
+  ],
+  "src/shared/db/listing-parents.ts": [
+    {
+      "path": [{ "name": "HydratedListingLinks" }],
+      "fields": ["idsByKey"]
+    },
+    {
+      "path": [{ "name": "ParentAndChildLinkMaps" }],
+      "fields": ["childIdsByParent"]
+    }
+  ],
+  "src/shared/db/listings/select.ts": [
+    {
+      "path": [{ "name": "GetListingsQuery" }],
+      "fields": ["order"]
+    }
+  ],
+  "src/shared/db/logistics-agents.ts": [
+    {
+      "path": [{ "name": "LogisticsAgentInput" }],
+      "fields": ["name"]
+    }
+  ],
+  "src/shared/db/modifier-resolve.ts": [
+    {
+      "path": [{ "name": "ListingGroupMembership" }],
+      "fields": ["active"]
+    }
+  ],
+  "src/shared/db/news-posts.ts": [
+    {
+      "path": [{ "name": "NewsPostInput" }],
+      "fields": ["created"]
+    }
+  ],
+  "src/shared/db/notes/types.ts": [
+    {
+      "path": [{ "name": "SystemNote" }],
+      "fields": ["entity_type"]
+    }
+  ],
+  "src/shared/db/numbered-statement.ts": [
+    {
+      "path": [{ "name": "SqlParameterToken" }],
+      "fields": ["sql"]
+    }
+  ],
+  "src/shared/db/ordered-collection.ts": [
+    {
+      "path": [{ "name": "OrderedCollection" }, { "name": "nextMany" }, { "way": "()" }, { "way": "operation" }],
+      "fields": ["transaction"]
+    }
+  ],
+  "src/shared/db/payment-reference-rows.ts": [
+    {
+      "path": [{ "name": "PaymentReferenceRow" }],
+      "fields": ["payment_reference", "payment_reference_index"]
+    }
+  ],
+  "src/shared/db/payment-review.ts": [
+    {
+      "path": [{ "name": "PaymentReviewState" }],
+      "fields": ["allAcknowledged"]
+    }
+  ],
+  "src/shared/db/processed-payments.ts": [
+    {
+      "path": [{ "name": "ProcessedPayment" }],
+      "fields": ["payment_reference", "payment_session_id", "processed_at"]
+    }
+  ],
+  "src/shared/db/provider-refund-authority.ts": [
+    {
+      "path": [{ "name": "RefundAuthorityRow" }],
+      "fields": ["provider"]
+    }
+  ],
+  "src/shared/db/provider-refund-cases.ts": [
+    {
+      "path": [{ "name": "ProviderRefundCase" }],
+      "fields": ["decision"]
+    },
+    {
+      "path": [{ "name": "ProviderRefundCaseSummary" }],
+      "fields": ["updatedAt"]
+    }
+  ],
+  "src/shared/db/question-types.ts": [
+    {
+      "path": [{ "name": "Answer" }],
+      "fields": ["question_id", "sort_order"]
+    }
+  ],
+  "src/shared/db/questions/tables.ts": [
+    {
+      "path": [{ "name": "QuestionInput" }],
+      "fields": ["assignAll", "displayType", "text"]
+    }
+  ],
+  "src/shared/db/refund-all-candidates.ts": [
+    {
+      "path": [{ "name": "RefundAllCandidateAttendee" }],
+      "fields": ["id", "quantity", "refunded"]
+    }
+  ],
+  "src/shared/db/settings/snapshot.ts": [
+    {
+      "path": [{ "name": "SettingsData" }],
+      "fields": ["auto_purge_orphans", "booking_fee", "calendar_feeds_enabled", "calendar_feeds_group_by", "contact_form_enabled", "country", "currency", "external_order_enabled", "order_enabled", "orphan_purge_retention", "payment_provider", "payment_provider_setting", "phone_prefix", "show_public_api", "square_sandbox", "superuser_choice", "theme", "timezone", "underline_links"]
+    }
+  ],
+  "src/shared/db/site-pages.ts": [
+    {
+      "path": [{ "name": "SitePageInput" }],
+      "fields": ["sortOrder"]
+    }
+  ],
+  "src/shared/db/slugged-content-input.ts": [
+    {
+      "path": [{ "name": "SluggedContentInput" }],
+      "fields": ["slugIndex"]
+    }
+  ],
+  "src/shared/db/sms-messages.ts": [
+    {
+      "path": [{ "name": "SmsMessageRow" }],
+      "fields": ["created", "provider_id"]
+    }
+  ],
+  "src/shared/email-renderer.ts": [
+    {
+      "path": [{ "name": "TemplateData" }],
+      "fields": ["amount_owed", "attendee", "currency", "entries", "listing_names", "ticket_url"]
+    }
+  ],
+  "src/shared/email.ts": [
+    {
+      "path": [{ "name": "EmailListing" }],
+      "fields": ["active", "hidden", "listing_type"]
+    }
+  ],
+  "src/shared/email/bulk.ts": [
+    {
+      "path": [{ "name": "BulkBatchResponse" }],
+      "fields": ["ok"]
+    },
+    {
+      "path": [{ "name": "BulkSendResult" }],
+      "fields": ["batches", "unconfirmed"]
+    }
+  ],
+  "src/shared/external-order.ts": [
+    {
+      "path": [{ "name": "Catalog" }],
+      "fields": ["generatedAt"]
+    },
+    {
+      "path": [{ "name": "CatalogSourceListing" }],
+      "fields": ["active", "hidden"]
+    }
+  ],
+  "src/shared/forms/definition.ts": [
+    {
+      "path": [{ "name": "FormDefinition" }],
+      "fields": ["sections"]
+    }
+  ],
+  "src/shared/forms/field.ts": [
+    {
+      "path": [{ "name": "ChoiceField" }],
+      "fields": ["accept", "markdown"]
+    },
+    {
+      "path": [{ "name": "FileField" }],
+      "fields": ["markdown", "options"]
+    },
+    {
+      "path": [{ "name": "InputField" }],
+      "fields": ["accept", "markdown", "options"]
+    },
+    {
+      "path": [{ "name": "TextareaField" }],
+      "fields": ["accept", "options"]
+    }
+  ],
+  "src/shared/jsx/jsx-runtime.ts": [
+    {
+      "path": [{ "name": "SafeHtml" }],
+      "fields": ["toString"]
+    }
+  ],
+  "src/shared/ledger/reconcile.ts": [
+    {
+      "path": [{ "name": "LegDiscrepancy" }],
+      "fields": ["eventGroup", "missing", "unexpected"]
+    },
+    {
+      "path": [{ "name": "ReconcileResult" }],
+      "fields": ["actual", "diff", "expected", "ok"]
+    }
+  ],
+  "src/shared/ledger/types.ts": [
+    {
+      "path": [{ "name": "LedgerError" }],
+      "fields": ["code"]
+    },
+    {
+      "path": [{ "name": "Transfer" }],
+      "fields": ["recordedAt"]
+    }
+  ],
+  "src/shared/listing-attribute-filter.ts": [
+    {
+      "path": [{ "name": "AttributeFilterGroup" }],
+      "fields": ["sort_order"]
+    }
+  ],
+  "src/shared/listing-defaults.ts": [
+    {
+      "path": [{ "name": "ListingDefaults" }],
+      "fields": ["bookableDays", "maximumDaysAfter", "minimumDaysBefore", "thankYouUrl", "webhookUrl"]
+    }
+  ],
+  "src/shared/listing-parents-rules.ts": [
+    {
+      "path": [{ "name": "EdgeListing" }],
+      "fields": ["day_prices"]
+    }
+  ],
+  "src/shared/listing-templates.ts": [
+    {
+      "path": [{ "name": "ListingTemplate" }],
+      "fields": ["requiresDate"]
+    }
+  ],
+  "src/shared/listings-actions.ts": [
+    {
+      "path": [{ "name": "ToggleActiveResult" }],
+      "fields": ["noChange"]
+    }
+  ],
+  "src/shared/maintenance/definition.ts": [
+    {
+      "path": [{ "name": "MaintenanceTaskBudget" }, { "name": "remaining" }, { "way": "()" }, { "way": "result" }],
+      "fields": ["database", "external", "total"]
+    },
+    {
+      "path": [{ "name": "MaintenanceTaskBudget" }],
+      "fields": ["remaining"]
+    },
+    {
+      "path": [{ "name": "MaintenanceTaskContext" }],
+      "fields": ["budget", "deadline"]
+    }
+  ],
+  "src/shared/merge/attendee-merge-types.ts": [
+    {
+      "path": [{ "name": "ApplyAttendeeMergeInput" }, { "name": "targetPii" }],
+      "fields": ["payment_id", "ticket_token"]
+    },
+    {
+      "path": [{ "name": "AttendeeMergeApplyResult" }],
+      "fields": ["success"]
+    },
+    {
+      "path": [{ "name": "AttendeeMergeApplySummary" }],
+      "fields": ["answersKept", "piiFieldsFromSource"]
+    },
+    {
+      "path": [{ "name": "AttendeeMergeDiff" }],
+      "fields": ["sourceId", "targetId"]
+    }
+  ],
+  "src/shared/order/options.ts": [
+    {
+      "path": [{ "name": "OrderOptionState" }],
+      "fields": ["byKey"]
+    }
+  ],
+  "src/shared/payment-providers.ts": [
+    {
+      "path": [{ "name": "PaymentProviderMeta" }, { "name": "webhook" }],
+      "fields": ["signatureHeader"]
+    },
+    {
+      "path": [{ "name": "PaymentProviderMeta" }],
+      "fields": ["currencies", "label", "metadata", "refundCapability", "secretField", "webhook"]
+    }
+  ],
+  "src/shared/payment/admit-move.ts": [
+    {
+      "path": [{ "name": "PaymentWork" }],
+      "fields": ["recoveryAction"]
+    }
+  ],
+  "src/shared/payment/admit-refund.ts": [
+    {
+      "path": [{ "name": "ObservedRefundAdmission" }],
+      "fields": ["request"]
+    }
+  ],
+  "src/shared/payment/checkout-failure.ts": [
+    {
+      "path": [{ "name": "ProviderCheckoutError" }],
+      "fields": ["provider", "reason", "statusCode"]
+    }
+  ],
+  "src/shared/payment/claim.ts": [
+    {
+      "path": [{ "name": "ClaimDecision" }],
+      "fields": ["resuming"]
+    },
+    {
+      "path": [{ "name": "HeldPaymentRow" }],
+      "fields": ["attendeeId"]
+    },
+    {
+      "path": [{ "name": "HeldRefundCommand" }],
+      "fields": ["commandId", "held", "heldSince"]
+    },
+    {
+      "path": [{ "name": "IndexedRefundClaimDecision" }],
+      "fields": ["indexes", "kind"]
+    },
+    {
+      "path": [{ "name": "RefundClaimChanged" }],
+      "fields": ["kind"]
+    }
+  ],
+  "src/shared/payment/refund-attempt.ts": [
+    {
+      "path": [{ "name": "RefundActionResult" }],
+      "fields": ["admission"]
+    },
+    {
+      "path": [{ "name": "RefundAttemptResult" }],
+      "fields": ["proof"]
+    },
+    {
+      "path": [{ "name": "RefundProof" }],
+      "fields": ["charge", "kind", "refund"]
+    }
+  ],
+  "src/shared/payment/refund-authority-lifecycle.ts": [
+    {
+      "path": [{ "name": "RefundLifecycle" }],
+      "fields": ["blocks", "refusal", "requiresChoice"]
+    }
+  ],
+  "src/shared/payment/refund-authority-state.ts": [
+    {
+      "path": [{ "name": "CompletedRefundState" }, { "name": "local" }],
+      "fields": ["recordedAt"]
+    },
+    {
+      "path": [{ "name": "CompletedRefundState" }],
+      "fields": ["proof"]
+    },
+    {
+      "path": [{ "name": "ObservingRefundState" }],
+      "fields": ["lastObservedAt"]
+    },
+    {
+      "path": [{ "name": "RefundAuthorityState" }, { "name": "local" }],
+      "fields": ["recordedAt"]
+    },
+    {
+      "path": [{ "name": "RefundAuthorityState" }],
+      "fields": ["lastObservedAt", "proof"]
+    },
+    {
+      "path": [{ "name": "RefundLocalState" }],
+      "fields": ["recordedAt"]
+    }
+  ],
+  "src/shared/payment/refund-authority.ts": [
+    {
+      "path": [{ "name": "ActiveSentRefundState" }],
+      "fields": ["lastObservedAt"]
+    }
+  ],
+  "src/shared/payment/refund-machine-spec.ts": [
+    {
+      "path": [{ "name": "RefundMachineEvent" }, { "name": "run" }, { "way": "()" }, { "way": "result" }, { "name": "local" }],
+      "fields": ["recordedAt"]
+    },
+    {
+      "path": [{ "name": "RefundMachineEvent" }, { "name": "run" }, { "way": "()" }, { "way": "result" }],
+      "fields": ["lastObservedAt", "proof"]
+    },
+    {
+      "path": [{ "name": "RefundMachineEvent" }, { "name": "run" }, { "way": "()" }, { "way": "state" }, { "name": "local" }],
+      "fields": ["recordedAt"]
+    },
+    {
+      "path": [{ "name": "RefundMachineEvent" }, { "name": "run" }, { "way": "()" }, { "way": "state" }],
+      "fields": ["lastObservedAt", "proof"]
+    },
+    {
+      "path": [{ "name": "RefundNode" }, { "name": "reps" }, { "way": "[]" }, { "name": "state" }, { "name": "local" }],
+      "fields": ["recordedAt"]
+    },
+    {
+      "path": [{ "name": "RefundNode" }, { "name": "reps" }, { "way": "[]" }, { "name": "state" }],
+      "fields": ["lastObservedAt", "proof"]
+    },
+    {
+      "path": [{ "name": "RefundRepresentative" }, { "name": "state" }, { "name": "local" }],
+      "fields": ["recordedAt"]
+    },
+    {
+      "path": [{ "name": "RefundRepresentative" }, { "name": "state" }],
+      "fields": ["lastObservedAt", "proof"]
+    }
+  ],
+  "src/shared/payment/resources.ts": [
+    {
+      "path": [{ "name": "ChargeMoney" }, { "name": "refunds" }, { "way": "[]" }, { "name": "refund" }],
+      "fields": ["id", "kind", "parentId", "provider"]
+    },
+    {
+      "path": [{ "name": "ChargeMoney" }, { "name": "refunds" }, { "way": "[]" }],
+      "fields": ["reason"]
+    },
+    {
+      "path": [{ "name": "ProviderRefundResource" }],
+      "fields": ["id", "kind", "parentId", "provider"]
+    },
+    {
+      "path": [{ "name": "RefundObservation" }, { "name": "refund" }],
+      "fields": ["id", "kind", "parentId", "provider"]
+    },
+    {
+      "path": [{ "name": "RefundObservation" }],
+      "fields": ["reason"]
+    },
+    {
+      "path": [{ "name": "RefundResolution" }, { "name": "refund" }],
+      "fields": ["id", "kind", "parentId", "provider"]
+    }
+  ],
+  "src/shared/payment/row-machine-spec.ts": [
+    {
+      "path": [{ "name": "RowMachineEvent" }, { "name": "run" }, { "way": "()" }, { "way": "result" }, { "name": "claim" }],
+      "fields": ["scope"]
+    },
+    {
+      "path": [{ "name": "RowMachineEvent" }, { "name": "run" }, { "way": "()" }, { "way": "state" }, { "name": "claim" }],
+      "fields": ["scope"]
+    },
+    {
+      "path": [{ "name": "RowNode" }, { "name": "reps" }, { "way": "[]" }, { "name": "state" }, { "name": "claim" }],
+      "fields": ["scope"]
+    }
+  ],
+  "src/shared/payment/row-state.ts": [
+    {
+      "path": [{ "name": "PaymentRowState" }, { "name": "claim" }],
+      "fields": ["scope"]
+    },
+    {
+      "path": [{ "name": "RefundClaim" }],
+      "fields": ["scope"]
+    }
+  ],
+  "src/shared/payment/row-transitions.ts": [
+    {
+      "path": [{ "name": "PaymentRowSettlement" }],
+      "fields": ["claim"]
+    }
+  ],
+  "src/shared/payment/transport-error.ts": [
+    {
+      "path": [{ "name": "ProviderTransportError" }],
+      "fields": ["provider"]
+    }
+  ],
+  "src/shared/payments.ts": [
+    {
+      "path": [{ "name": "CheckoutIntent" }],
+      "fields": ["balanceAttendeeId", "date", "dayCount"]
+    },
+    {
+      "path": [{ "name": "PaymentProvider" }],
+      "fields": ["setupWebhookEndpoint"]
+    },
+    {
+      "path": [{ "name": "SessionMetadata" }],
+      "fields": ["_origin"]
+    }
+  ],
+  "src/shared/provider-refunds.ts": [
+    {
+      "path": [{ "name": "ProviderRefundResult" }],
+      "fields": ["state"]
+    }
+  ],
+  "src/shared/provider-types.ts": [
+    {
+      "path": [{ "name": "DatabaseCredentials" }],
+      "fields": ["dbId"]
+    }
+  ],
+  "src/shared/qr-token.ts": [
+    {
+      "path": [{ "name": "QrBookPayload" }],
+      "fields": ["e"]
+    }
+  ],
+  "src/shared/reservation-amount.ts": [
+    {
+      "path": [{ "name": "ReservationDepositAllocation" }],
+      "fields": ["perItemTotals", "total"]
+    }
+  ],
+  "src/shared/rest/crud-parsers.ts": [
+    {
+      "path": [{ "name": "DeleteBody" }],
+      "fields": ["confirm_identifier"]
+    }
+  ],
+  "src/shared/rest/resource.ts": [
+    {
+      "path": [{ "name": "DeleteResult" }],
+      "fields": ["notFound"]
+    },
+    {
+      "path": [{ "name": "Resource" }],
+      "fields": ["fields", "table"]
+    },
+    {
+      "path": [{ "name": "UpdateResult" }],
+      "fields": ["notFound"]
+    }
+  ],
+  "src/shared/schema-atlas/machine-spec.ts": [
+    {
+      "path": [{ "name": "DerivedNodeIds" }],
+      "fields": ["terminal"]
+    },
+    {
+      "path": [{ "name": "MachineMovesReader" }],
+      "fields": ["splitTags"]
+    },
+    {
+      "path": [{ "name": "MachineNode" }],
+      "fields": ["awaits"]
+    }
+  ],
+  "src/shared/schema-atlas/types.ts": [
+    {
+      "path": [{ "name": "AtlasState" }, { "name": "layout" }],
+      "fields": ["x", "y"]
+    }
+  ],
+  "src/shared/settings/form-schema.ts": [
+    {
+      "path": [{ "name": "BooleanSettingsFormConfig" }],
+      "fields": ["key", "name"]
+    },
+    {
+      "path": [{ "name": "FieldsSettingsFormConfig" }],
+      "fields": ["name"]
+    },
+    {
+      "path": [{ "name": "SettingsFormConfig" }],
+      "fields": ["key", "name"]
+    },
+    {
+      "path": [{ "name": "TextSettingsFormConfig" }],
+      "fields": ["key", "name"]
+    },
+    {
+      "path": [{ "name": "TextareaSettingsFormConfig" }],
+      "fields": ["key", "name"]
+    }
+  ],
+  "src/shared/site-pages/types.ts": [
+    {
+      "path": [{ "name": "NavLevel" }],
+      "fields": ["label", "nodes"]
+    },
+    {
+      "path": [{ "name": "NavModel" }],
+      "fields": ["activeRootId"]
+    },
+    {
+      "path": [{ "name": "NavNode" }],
+      "fields": ["active", "children", "href", "key", "label", "live"]
+    }
+  ],
+  "src/shared/sms/gateway.ts": [
+    {
+      "path": [{ "name": "EncryptedMessagePayload" }, { "name": "textMessage" }],
+      "fields": ["text"]
+    },
+    {
+      "path": [{ "name": "EncryptedMessagePayload" }],
+      "fields": ["isEncrypted", "phoneNumbers", "textMessage", "withDeliveryReport"]
+    }
+  ],
+  "src/shared/square/client.ts": [
+    {
+      "path": [{ "name": "SquareClient" }, { "name": "checkout" }, { "name": "paymentLinks" }, { "name": "create" }, { "way": "()" }, { "way": "result" }],
+      "fields": ["createdAt", "linkId", "orderId", "url"]
+    }
+  ],
+  "src/shared/square/wire.ts": [
+    {
+      "path": [{ "name": "SquareOrder" }, { "name": "tenders" }, { "way": "[]" }],
+      "fields": ["id"]
+    },
+    {
+      "path": [{ "name": "SquareRefund" }],
+      "fields": ["id"]
+    }
+  ],
+  "src/shared/stripe/client.ts": [
+    {
+      "path": [{ "name": "StripeCheckoutLineItemParams" }],
+      "fields": ["price_data", "quantity"]
+    },
+    {
+      "path": [{ "name": "StripeCheckoutSessionCreateParams" }],
+      "fields": ["cancel_url", "customer_email", "expires_at", "line_items", "metadata", "mode", "payment_method_types", "success_url"]
+    },
+    {
+      "path": [{ "name": "StripeWebhookEndpointCreateParams" }],
+      "fields": ["api_version", "enabled_events", "url"]
+    }
+  ],
+  "src/shared/superuser.ts": [
+    {
+      "path": [{ "name": "SuperuserState" }],
+      "fields": ["reason"]
+    }
+  ],
+  "src/shared/svg-ticket.ts": [
+    {
+      "path": [{ "name": "SvgTicketData" }],
+      "fields": ["currency"]
+    }
+  ],
+  "src/shared/tables/column.ts": [
+    {
+      "path": [{ "name": "ReorderColumnOptions" }, { "name": "titles" }],
+      "fields": ["down", "up"]
+    }
+  ],
+  "src/shared/types.ts": [
+    {
+      "path": [{ "name": "ApiKey" }],
+      "fields": ["created", "key_index", "last_used", "name"]
+    },
+    {
+      "path": [{ "name": "ImageUse" }],
+      "fields": ["image_id", "sort_order"]
+    },
+    {
+      "path": [{ "name": "Modifier" }],
+      "fields": ["code"]
+    },
+    {
+      "path": [{ "name": "NagItem" }],
+      "fields": ["id"]
+    },
+    {
+      "path": [{ "name": "PiiBlob" }],
+      "fields": ["v"]
+    },
+    {
+      "path": [{ "name": "Session" }],
+      "fields": ["csrf_token"]
+    },
+    {
+      "path": [{ "name": "Settings" }],
+      "fields": ["key", "value"]
+    },
+    {
+      "path": [{ "name": "UserLogisticsAgent" }],
+      "fields": ["agent_id", "id", "user_id"]
+    }
+  ],
+  "src/shared/update.ts": [
+    {
+      "path": [{ "name": "ReleaseInfo" }],
+      "fields": ["publishedAt"]
+    }
+  ],
+  "src/shared/uptime-kuma/socket.ts": [
+    {
+      "path": [{ "name": "UptimeKumaWebSocket" }],
+      "fields": ["onclose", "onerror", "onmessage"]
+    }
+  ],
+  "src/shared/wallets/wallet-settings-types.ts": [
+    {
+      "path": [{ "name": "WalletReadSettings" }],
+      "fields": ["dbConfig", "resetHostConfig", "setHostConfigForTest"]
+    }
+  ],
+  "src/shared/webhook.ts": [
+    {
+      "path": [{ "name": "WebhookListing" }],
+      "fields": ["attendee_count", "can_pay_more", "day_prices", "max_attendees", "unit_price"]
+    },
+    {
+      "path": [{ "name": "WebhookPayload" }],
+      "fields": ["amount_owed", "business_email", "currency", "notification_type", "payment_id", "price_paid", "ticket_url", "tickets", "timestamp"]
+    },
+    {
+      "path": [{ "name": "WebhookTicket" }],
+      "fields": ["date", "listing_name", "listing_slug", "quantity", "ticket_token", "unit_price"]
+    }
+  ],
+  "src/shared/webhook/delivery.ts": [
+    {
+      "path": [{ "name": "WebhookDelivery" }],
+      "fields": ["delivered", "reason"]
+    }
+  ],
+  "src/ui/client/admin/markdown-editor.ts": [
+    {
+      "path": [{ "name": "MarkdownEditorHandle" }],
+      "fields": ["setMode", "view"]
+    }
+  ],
+  "src/ui/templates/admin/backup.tsx": [
+    {
+      "path": [{ "name": "BackupPageState" }, { "name": "createBlocked" }],
+      "fields": ["available", "needed"]
+    }
+  ],
+  "src/ui/templates/admin/bulk-email.tsx": [
+    {
+      "path": [{ "name": "BulkEmailPreviewState" }],
+      "fields": ["recipientCount"]
+    }
+  ],
+  "src/ui/templates/admin/calendar.tsx": [
+    {
+      "path": [{ "name": "CalendarAttendeeRow" }],
+      "fields": ["listingDate", "listingLocation"]
+    }
+  ],
+  "src/ui/templates/admin/debug-state.ts": [
+    {
+      "path": [{ "name": "DebugPageState" }, { "name": "appleWallet" }],
+      "fields": ["dbConfigured", "envConfigured", "source"]
+    },
+    {
+      "path": [{ "name": "DebugPageState" }, { "name": "googleWallet" }],
+      "fields": ["dbConfigured", "envConfigured", "source"]
+    }
+  ],
+  "src/ui/templates/admin/entity-pages.tsx": [
+    {
+      "path": [{ "name": "ResolvedAction" }],
+      "fields": ["danger"]
+    }
+  ],
+  "src/ui/templates/admin/listings/types.ts": [
+    {
+      "path": [{ "name": "ListingPanelOptions" }],
+      "fields": ["hasEmailableAttendees"]
+    }
+  ],
+  "src/ui/templates/admin/modifiers/links.tsx": [
+    {
+      "path": [{ "name": "AnswerLinks" }, { "name": "options" }, { "way": "[]" }],
+      "fields": ["id", "name"]
+    },
+    {
+      "path": [{ "name": "ScopeLinks" }, { "name": "options" }, { "way": "[]" }],
+      "fields": ["active", "id", "name"]
+    }
+  ],
+  "src/ui/templates/admin/settings-advanced.tsx": [
+    {
+      "path": [{ "name": "AdvancedSettingsPageState" }],
+      "fields": ["addressLookupApiKeyConfigured", "addressLookupProvider", "attendeeColumnOrder", "customCss", "existingPaymentProvider", "externalOrderEnabled", "listingColumnOrder", "showPublicApi"]
+    }
+  ],
+  "src/ui/templates/admin/users.tsx": [
+    {
+      "path": [{ "name": "UsersPageOpts" }],
+      "fields": ["currentUserId", "error", "success"]
+    }
+  ]
+}

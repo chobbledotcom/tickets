@@ -67,33 +67,3 @@ export const findingIdentityText = (identity: FindingIdentity): string =>
     ),
     `name(${JSON.stringify(identity.field)})`,
   ].join(" / ")}`;
-
-type FindingOwner = readonly [exportedFrom: string, path: readonly Step[]];
-
-/** Build exact identities for fields under one or more exported owners. */
-export const identitiesAt =
-  (
-    owners: readonly FindingOwner[],
-  ): ((fields: readonly string[]) => FindingIdentity[]) =>
-  (fields) =>
-    owners.flatMap(([exportedFrom, path]) =>
-      fields.map((field) => ({ exportedFrom, field, path: [...path] })),
-    );
-
-/** The owner of unread fields in one exported file: the shape it exports,
- * then the steps a reader takes to reach them. A bare word is a member's
- * name; a `way()` call is the reach through a member with no name. */
-export const ownerAt =
-  (exportedFrom: string) =>
-  (
-    shape: string,
-    ...through: readonly (Step | string)[]
-  ): readonly [string, readonly Step[]] => [
-    exportedFrom,
-    [
-      { name: shape },
-      ...through.map((step) =>
-        typeof step === "string" ? { name: step } : step,
-      ),
-    ],
-  ];
