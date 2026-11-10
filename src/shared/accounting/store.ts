@@ -271,13 +271,13 @@ const assertUniqueGroups = (groups: TransferInput[][]): void => {
   const nonEmpty = groups.filter((inputs) => inputs.length > 0);
   for (const inputs of nonEmpty) assertPostable(inputs);
   const eventGroups = nonEmpty.map(eventGroupOf);
-  if (new Set(eventGroups).size !== eventGroups.length) {
+  if (!allUnique(eventGroups)) {
     throw new Error(
       "postTransferGroups: duplicate eventGroup across the batch",
     );
   }
   const allRefs = allReferences(nonEmpty);
-  if (new Set(allRefs).size !== allRefs.length) {
+  if (!allUnique(allRefs)) {
     throw new Error("postTransferGroups: duplicate reference across the batch");
   }
 };
