@@ -119,6 +119,19 @@ describe("unread-field reconciliation", () => {
     ]);
   });
 
+  test("sorts two stale rules by the owner they name", () => {
+    const problems = reconcileUnreadFields(
+      [],
+      [rule([{ name: "Zed" }]), rule([{ name: "Alpha" }])],
+    )([]);
+
+    expect(
+      problems.map((problem) =>
+        problem.kind === "stale rule" ? problem.owner : problem.kind,
+      ),
+    ).toEqual(["src/sum.ts :: Alpha", "src/sum.ts :: Zed"]);
+  });
+
   test("formats enough evidence to repair a new field", () => {
     const [problem] = reconcileUnreadFields([], [])([finding()]);
 
