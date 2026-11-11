@@ -10,10 +10,7 @@ import {
   DayPricesSchema,
   type ListingType,
 } from "#types";
-import type {
-  CatalogFieldSet,
-  OptionalCatalogFieldValues,
-} from "./definition.ts";
+import type { OptionalCatalogFieldValues } from "./definition.ts";
 
 const [CATALOG_API, CATALOG_FORM, CATALOG_API_FORM] = [1, 2, 3] as const;
 const encryptedTextColumn = col.encryptedText(encrypt, decrypt);
@@ -21,15 +18,6 @@ const falseColumn = col.boolean(false);
 const trueColumn = col.boolean(true);
 const zeroColumn = col.withDefault(() => 0);
 const oneColumn = col.withDefault(() => 1);
-
-/** The holiday's body and form fields. The name rides the form mask only: the
- *  JSON create reads it through requireStrings, the update through
- *  requireEntityField. The name rules live with the field parser, not here. */
-export const holidayFields = {
-  endDate: ["end_date", col.simple<string>(), "string", CATALOG_API_FORM],
-  name: ["name", undefined, "string", CATALOG_FORM],
-  startDate: ["start_date", col.simple<string>(), "string", CATALOG_API_FORM],
-} as const satisfies CatalogFieldSet;
 
 export const listingCatalogFields = {
   active: ["active", col.boolean(true), "boolean", CATALOG_API],

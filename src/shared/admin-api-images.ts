@@ -6,7 +6,6 @@
  */
 
 import * as v from "valibot";
-import { t } from "#i18n";
 import {
   apiBodyPair,
   nonEmptyTextField,
@@ -46,7 +45,7 @@ export const ImageRowSchema = v.looseObject({
 const imageBodies = apiBodyPair(
   {
     alt_text: optionalTextField("alt_text"),
-    name: textField("name", t("images.error.name_required")),
+    name: textField("name", "Image name is required"),
   },
   {
     createOnly: {
