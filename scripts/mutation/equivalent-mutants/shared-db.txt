@@ -64,9 +64,9 @@ src/shared/db/capacity-batch.ts::addDemandToBucket~1bo0bmf  ?? → || audited:1a
 
 # Atomic line values use non-empty timestamps and numeric package ids. The
 # delete pin reads the same stored timestamp domain as the line key.
-src/shared/db/attendees/atomic-update.ts::lineBooking.packageGroupId~0djpbjh  ?? → || audited:049scuh # packageGroupId is undefined or a number; zero and the zero fallback produce the same value
-src/shared/db/attendees/atomic-update.ts::lineKeyFromBooking~08fp1gg  ?? → || audited:049scuh # start_at is null or a non-empty stored timestamp, so both operators produce the timestamp or an empty key part
-src/shared/db/attendees/atomic-update.ts::buildAttendeeEditBatch.args~16je2gx  ?? → || audited:049scuh # booking.start_at has the same null-or-non-empty timestamp domain when it becomes the delete pin
+src/shared/db/attendees/atomic-update.ts::lineBooking.packageGroupId~0djpbjh  ?? → || audited:1a3yd3h # packageGroupId is undefined or a number; zero and the zero fallback produce the same value
+src/shared/db/attendees/atomic-update.ts::lineKeyFromBooking~08fp1gg  ?? → || audited:1a3yd3h # start_at is null or a non-empty stored timestamp, so both operators produce the timestamp or an empty key part
+src/shared/db/attendees/atomic-update.ts::buildAttendeeEditBatch.statements.args~16je2gx  ?? → || audited:1a3yd3h # booking.start_at has the same null-or-non-empty timestamp domain when it becomes the delete pin
 
 # Attendee creation receives validated non-empty discriminators, dates, tokens,
 # and finite money values. Empty optional contact fields use empty fallbacks.
@@ -169,7 +169,8 @@ src/shared/db/refund-all-candidates.ts::refundCandidateCtes~195soyi payment.→"
 src/shared/db/refund-all-candidates.ts::refundCandidateCtes~0uj3b4g payment.→"" audited:0488fap # only processed_payments carries protected_state in that query
 src/shared/db/refund-all-candidates.ts::refundCandidateCtes~1unwmuv payment.→"" audited:0488fap # only processed_payments carries protected_state in that query
 
-src/shared/db/payment-admit-move.ts::moveSnapshot.refusalFor~1l6lh30  ?? → || audited:09i9h9a # every refusal is a declared sentence, never the empty string, so only null reaches the second reader
+src/shared/db/payment-admit-move.ts::moveSnapshot.refusalFor~0ghm19h  ?? → || audited:18q8npu # the subscription refusal is a declared sentence or null, never the empty string
+src/shared/db/payment-admit-move.ts::moveSnapshot.refusalFor~1pgo14j  ?? → || audited:18q8npu # every refusal is a declared sentence, never the empty string, so only null reaches the second reader
 
 # backup dump (shared/db/backup-snapshot.ts) — exportTable internals whose
 # intermediate values are overwritten or type-guaranteed before any read.
