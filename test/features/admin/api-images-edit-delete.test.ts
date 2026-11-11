@@ -5,10 +5,12 @@ import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  deleteImageRecord,
   getImageById,
   getImagesForItem,
   getImageUsesForImage,
 } from "#db/images.ts";
+import { writeImageUpdate } from "#routes/admin/api-images.ts";
 import {
   type ApiImageRow,
   deleteImage,
@@ -28,7 +30,11 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
-import { withStorageDisabled, withStorageMock } from "#test-utils/mocks.ts";
+import {
+  withCdnRejecting,
+  withStorageDisabled,
+  withStorageMock,
+} from "#test-utils/mocks.ts";
 import {
   createTestEditorSession,
   createTestManagerSession,
@@ -187,8 +193,39 @@ describeWithEnv(
         );
       });
 
+      test("refuses a body field of the wrong type", async () => {
+        const image = await makeImage("Wrong type");
+        const cases = [
+          { body: { name: 7 }, error: "name must be a string" },
+          { body: { alt_text: 7 }, error: "alt_text must be a string" },
+          { body: { items: "listing:1" }, error: "items must be an array" },
+        ];
+        for (const { body, error } of cases) {
+          await expectApiError(putImage(image.id, body), 400, error);
+        }
+      });
+
       test("answers 404 for an id the library does not hold", async () => {
         await expectImageNotFound(putImage(9999, { name: "Gone" }));
+      });
+    });
+
+    describe("the update transaction", () => {
+      test("refuses an image deleted before the commit", async () => {
+        const image = await makeImage("Vanished");
+        await deleteImageRecord(image.id);
+
+        const outcome = await writeImageUpdate(image, {
+          items: null,
+          metadata: { altText: "Alt Vanished", name: "Vanished" },
+        });
+        if ("row" in outcome) {
+          throw new Error("the vanished row did not refuse the update");
+        }
+        expect(outcome.refusal.status).toBe(404);
+        expect(await outcome.refusal.json()).toEqual({
+          error: "Image not found",
+        });
       });
     });
 
@@ -231,6 +268,18 @@ describeWithEnv(
             "File storage is not configured.",
           ),
         );
+        expect(await getImageById(image.id)).not.toBeNull();
+      });
+
+      test("keeps the image when its stored files cannot be deleted", async () => {
+        const image = await makeImage("Storage failure");
+        await withCdnRejecting(new Error("delete down"), async () => {
+          await expectApiError(
+            deleteImage(image.id, { confirm_identifier: image.name }),
+            500,
+            "Could not delete the image files from storage. The image was kept so you can try again.",
+          );
+        });
         expect(await getImageById(image.id)).not.toBeNull();
       });
 

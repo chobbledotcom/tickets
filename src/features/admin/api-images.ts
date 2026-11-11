@@ -292,7 +292,7 @@ const updateInTransaction = async (
  *  it. */
 type UpdateOutcome = { refusal: Response } | { row: Image };
 
-const writeImageUpdate = async (
+export const writeImageUpdate = async (
   image: Image,
   input: ImageUpdate,
 ): Promise<UpdateOutcome> => {

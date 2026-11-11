@@ -29,6 +29,14 @@ import { apiRequest } from "#test-utils/session.ts";
 
 describeWithEnv("Admin API - Images", { db: true, storage: "cdn" }, () => {
   describe("GET /api/admin/images", () => {
+    test("lists nothing when the library is empty", async () => {
+      const body = await assertJson<{ images: unknown[] }>(
+        apiRequest(IMAGE_API_ROOT),
+        200,
+      );
+      expect(body.images).toEqual([]);
+    });
+
     test("lists every image in the library order with the records that show it", async () => {
       // Uploaded out of name order: the list sorts by name, then by upload.
       const zebra = await makeImage("Zebra");
@@ -180,6 +188,22 @@ describeWithEnv("Admin API - Images", { db: true, storage: "cdn" }, () => {
         },
       ];
       for (const { body, error } of bodies) {
+        await expectApiError(
+          apiRequest(IMAGE_API_ROOT, { body, method: "POST" }),
+          400,
+          error,
+        );
+      }
+    });
+
+    test("refuses a text field that is not text", async () => {
+      const nameBody = await imageUploadBody("Not text", { name: 7 });
+      const altBody = await imageUploadBody("Not text", { alt_text: 7 });
+      const cases = [
+        { body: nameBody, error: "name must be a string" },
+        { body: altBody, error: "alt_text must be a string" },
+      ];
+      for (const { body, error } of cases) {
         await expectApiError(
           apiRequest(IMAGE_API_ROOT, { body, method: "POST" }),
           400,
