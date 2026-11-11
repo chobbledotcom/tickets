@@ -7,7 +7,7 @@
  * never point somewhere its target refuses.
  */
 
-import type { EnabledFeatures } from "#shared/admin-features.ts";
+import type { AdminFeatureKey } from "#shared/admin-features.ts";
 import {
   type AdminNavKind,
   type AdminSurfaceContext,
@@ -42,22 +42,36 @@ export type AdminSectionDef = {
   readonly visible?: (ctx: AdminSurfaceContext) => boolean;
 };
 
-/** A section that opens on its own first link, shown while one feature is on.
- * Any further links follow the landing link. */
-const featureSection = (
-  id: AdminDestinationId,
-  labelKey: string,
-  feature: keyof EnabledFeatures,
-  more: readonly AdminNavEntry[] = [],
-): AdminSectionDef => ({
-  id,
-  labelKey,
-  landing: id,
-  nav: [{ id, kind: "landing", labelKey }, ...more],
-  visible: featureVisible(feature),
-});
+/** A site fact that hides a section or link, on top of the role check. */
+type SiteCondition = "builder" | "scanner" | "storage" | "support";
 
-export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
+/** When a section or link shows: while a feature is on, or while a site fact
+ * holds. */
+type NavCondition = { readonly feature: AdminFeatureKey } | SiteCondition;
+
+const SITE_CONDITIONS: Record<
+  SiteCondition,
+  (ctx: AdminSurfaceContext) => boolean
+> = {
+  builder: (ctx) => ctx.builder,
+  // Staff open a door from its listing or group page. The doors list is a
+  // scanner login's whole job, so only that role sees it in the nav.
+  scanner: (ctx) => ctx.adminLevel === "scanner",
+  storage: (ctx) => ctx.storage,
+  support: (ctx) => ctx.support,
+};
+
+type NavRow = Omit<AdminNavEntry, "visible"> & {
+  readonly visible?: NavCondition;
+};
+
+type SectionRow = Omit<AdminSectionDef, "nav" | "visible"> & {
+  readonly nav: readonly NavRow[];
+  readonly visible?: NavCondition;
+};
+
+/* jscpd:ignore-start -- a list of strings, not code */
+const SECTION_ROWS: readonly SectionRow[] = [
   {
     id: "home",
     labelKey: "nav.public.home",
@@ -69,9 +83,7 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
     labelKey: "nav.doors",
     landing: "doors",
     nav: [{ id: "doors", kind: "landing", labelKey: "nav.doors" }],
-    // Staff open a door from its listing or group page. The doors list is a
-    // scanner login's whole job, so only that role sees it in the nav.
-    visible: (ctx) => ctx.adminLevel === "scanner",
+    visible: "scanner",
   },
   {
     detail: "listing",
@@ -97,13 +109,20 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
         id: "deliveries",
         kind: "link",
         labelKey: "nav.deliveries",
-        visible: featureVisible("logistics"),
+        visible: { feature: "logistics" },
       },
     ],
   },
-  featureSection("servicing", "nav.servicing", "servicing", [
-    { id: "servicingNew", kind: "create", labelKey: "nav.sub.add" },
-  ]),
+  {
+    id: "servicing",
+    labelKey: "nav.servicing",
+    landing: "servicing",
+    nav: [
+      { id: "servicing", kind: "landing", labelKey: "nav.servicing" },
+      { id: "servicingNew", kind: "create", labelKey: "nav.sub.add" },
+    ],
+    visible: { feature: "servicing" },
+  },
   {
     id: "attendees",
     labelKey: "terms.attendees",
@@ -113,8 +132,22 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
       { id: "attendeeNew", kind: "create", labelKey: "nav.sub.add" },
     ],
   },
-  featureSection("invoices", "nav.invoices", "invoices"),
-  featureSection("subscriptions", "nav.subscriptions", "subscriptions"),
+  {
+    id: "invoices",
+    labelKey: "nav.invoices",
+    landing: "invoices",
+    nav: [{ id: "invoices", kind: "landing", labelKey: "nav.invoices" }],
+    visible: { feature: "invoices" },
+  },
+  {
+    id: "subscriptions",
+    labelKey: "nav.subscriptions",
+    landing: "subscriptions",
+    nav: [
+      { id: "subscriptions", kind: "landing", labelKey: "nav.subscriptions" },
+    ],
+    visible: { feature: "subscriptions" },
+  },
   {
     id: "users",
     labelKey: "terms.users",
@@ -127,7 +160,7 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
         id: "apiKeys",
         kind: "link",
         labelKey: "nav.sub.api_keys",
-        visible: featureVisible("apiKeys"),
+        visible: { feature: "apiKeys" },
       },
     ],
   },
@@ -149,12 +182,25 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
       { id: "images", kind: "landing", labelKey: "terms.images" },
       { id: "imageNew", kind: "create", labelKey: "nav.sub.add" },
     ],
-    visible: (ctx) => ctx.storage,
+    visible: "storage",
   },
-  featureSection("modifiers", "terms.modifiers", "modifiers", [
-    { id: "modifierNew", kind: "create", labelKey: "nav.sub.add" },
-  ]),
-  featureSection("ledger", "nav.ledger", "money"),
+  {
+    id: "modifiers",
+    labelKey: "terms.modifiers",
+    landing: "modifiers",
+    nav: [
+      { id: "modifiers", kind: "landing", labelKey: "terms.modifiers" },
+      { id: "modifierNew", kind: "create", labelKey: "nav.sub.add" },
+    ],
+    visible: { feature: "modifiers" },
+  },
+  {
+    id: "ledger",
+    labelKey: "nav.ledger",
+    landing: "ledger",
+    nav: [{ id: "ledger", kind: "landing", labelKey: "nav.ledger" }],
+    visible: { feature: "money" },
+  },
   {
     id: "site",
     labelKey: "nav.site",
@@ -166,7 +212,7 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
       { id: "sitePages", kind: "link", labelKey: "nav.site.pages" },
       { id: "news", kind: "link", labelKey: "nav.site.news" },
     ],
-    visible: featureVisible("site"),
+    visible: { feature: "site" },
   },
   {
     detail: "builtSite",
@@ -174,7 +220,7 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
     labelKey: "nav.built_sites",
     landing: "builtSites",
     nav: [{ id: "builtSites", kind: "landing", labelKey: "nav.built_sites" }],
-    visible: (ctx) => ctx.builder,
+    visible: "builder",
   },
   {
     id: "settings",
@@ -193,25 +239,25 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
         id: "attributes",
         kind: "link",
         labelKey: "terms.attributes",
-        visible: featureVisible("attributes"),
+        visible: { feature: "attributes" },
       },
       {
         id: "questions",
         kind: "link",
         labelKey: "terms.questions",
-        visible: featureVisible("questions"),
+        visible: { feature: "questions" },
       },
       {
         id: "externalSources",
         kind: "link",
         labelKey: "nav.sub.external_sources",
-        visible: featureVisible("externalSources"),
+        visible: { feature: "externalSources" },
       },
       {
         id: "logistics",
         kind: "link",
         labelKey: "nav.logistics",
-        visible: featureVisible("logistics"),
+        visible: { feature: "logistics" },
       },
       { id: "emails", kind: "link", labelKey: "nav.emails" },
       { id: "holidays", kind: "link", labelKey: "terms.holidays" },
@@ -231,8 +277,35 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
         id: "support",
         kind: "link",
         labelKey: "nav.support",
-        visible: (ctx) => ctx.support,
+        visible: "support",
       },
     ],
   },
 ];
+/* jscpd:ignore-end */
+
+const conditionCheck = (
+  condition: NavCondition,
+): ((ctx: AdminSurfaceContext) => boolean) =>
+  typeof condition === "string"
+    ? SITE_CONDITIONS[condition]
+    : featureVisible(condition.feature);
+
+/** Turn a row's condition into the check the nav runs for each viewer. */
+const withCheck = <Row extends { readonly visible?: NavCondition }>(
+  row: Row,
+): Omit<Row, "visible"> & {
+  readonly visible?: (ctx: AdminSurfaceContext) => boolean;
+} => {
+  const { visible, ...rest } = row;
+  if (visible === undefined) return rest;
+  return { ...rest, visible: conditionCheck(visible) };
+};
+
+const sectionDef = (row: SectionRow): AdminSectionDef => ({
+  ...withCheck(row),
+  nav: row.nav.map(withCheck),
+});
+
+export const ADMIN_SECTIONS: readonly AdminSectionDef[] =
+  SECTION_ROWS.map(sectionDef);

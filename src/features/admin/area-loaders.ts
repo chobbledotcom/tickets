@@ -55,6 +55,14 @@ const guideMessageGroups = messageGroupsBySegment({
   ],
 });
 
+/** The areas that `onePageAreas` declares after the sorted areas. */
+const ONE_PAGE_AREA_LOADERS = {
+  subscriptions: area(
+    () => import("#routes/admin/subscriptions.ts"),
+    ["subscriptions"],
+  ),
+};
+
 // Import specifiers stay literal so esbuild can bundle every target.
 export const ADMIN_AREA_LOADERS: Record<AdminAreaId, AdminAreaLoader> = {
   apiKeys: area(
@@ -341,10 +349,6 @@ export const ADMIN_AREA_LOADERS: Record<AdminAreaId, AdminAreaLoader> = {
     () => import("#routes/admin/sms.ts"),
     ["attendees", "sms", "validation"],
   ),
-  subscriptions: area(
-    () => import("#routes/admin/subscriptions.ts"),
-    ["subscriptions"],
-  ),
   support: area(
     () => import("#routes/admin/support.ts"),
     ["support", "validation"],
@@ -354,4 +358,5 @@ export const ADMIN_AREA_LOADERS: Record<AdminAreaId, AdminAreaLoader> = {
     () => import("#routes/admin/users.ts"),
     ["deliveries", "entity-pages", "login", "users", "validation"],
   ),
+  ...ONE_PAGE_AREA_LOADERS,
 };

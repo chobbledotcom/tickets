@@ -4,7 +4,10 @@
  * means, and join a new area to the half its name sorts into.
  */
 
-import { OWNER_AUDIENCE } from "#shared/admin-surface/definitions.ts";
+import {
+  OWNER_AUDIENCE,
+  onePageAreas,
+} from "#shared/admin-surface/definitions.ts";
 import {
   CONTENT_ADMIN_LEVELS,
   DOOR_ADMIN_LEVELS,
@@ -265,12 +268,6 @@ export const AREAS_M_Z = {
       sms: "/admin/sms",
     },
   },
-  subscriptions: {
-    audience: STAFF_ADMIN_LEVELS,
-    view: {
-      subscriptions: "/admin/subscriptions",
-    },
-  },
   support: {
     audience: OWNER_AUDIENCE,
     view: {
@@ -298,4 +295,7 @@ export const AREAS_M_Z = {
       userNew: "/admin/user/new",
     },
   },
+  ...onePageAreas(STAFF_ADMIN_LEVELS, {
+    subscriptions: "/admin/subscriptions",
+  }),
 } as const;

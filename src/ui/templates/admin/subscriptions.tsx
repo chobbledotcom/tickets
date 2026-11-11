@@ -15,6 +15,7 @@ import type {
 } from "#shared/subscriptions/plan.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
+import { linkCell } from "#templates/components/link-cell.tsx";
 import {
   labelColumn,
   translatedTableColumn,
@@ -36,10 +37,9 @@ const subscriberTable = defineTable<SubscriberRow>([
   translatedTableColumn(
     "subscriber",
     "subscriptions.column.subscriber",
-    (row) => (
-      <a href={adminPath("attendee", { attendeeId: row.attendeeId })}>
-        {row.name}
-      </a>
+    linkCell(
+      (row) => adminPath("attendee", { attendeeId: row.attendeeId }),
+      (row) => row.name,
     ),
   ),
   translatedTableColumn(
