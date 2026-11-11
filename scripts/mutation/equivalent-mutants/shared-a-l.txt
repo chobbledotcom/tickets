@@ -29,9 +29,7 @@ src/shared/config.ts::envGetter~1lnpo3e  ?? → || audited:1izqa2z # getEnv(): s
 src/shared/qr-token.ts::buildQrBookPayload.d~1ywzxp9  ?? → || audited:1tggeae # input.date?: string, only falsy string "" === fallback ""
 src/shared/qr-token.ts::buildQrBookPayload.n~1tn44vm  ?? → || audited:1tggeae # input.name?: string, only falsy string "" === fallback ""
 src/shared/site-renewal.ts::renewalDeadlineBaseMs~00cywnq  ?? → || audited:1kq4bqb # parseReadOnlyFromMs(): number|null, 0 ?? 0 === 0 || 0
-src/shared/site-assignment.ts::sendSiteAssignmentEmail.config~0yvlh8h  ?? → || audited:17snbhm # getEmailConfig(): EmailConfig|null
 src/shared/site-assignment.ts::sendSiteAssignmentEmail.replyTo~195nl86  ?? → || audited:17snbhm # parseEmail(): ValidEmail|null, always truthy or null
-src/shared/site-assignment-failure.ts::reportOutOfStockBuyers.config~0yvlh8h  ?? → || audited:0v0in80 # getEmailConfig(): EmailConfig|null, same shape as sendSiteAssignmentEmail.config above
 
 src/shared/ledger/project.ts::allBalances.add~0gr4ng6  ?? → || audited:0s83ytm # allBalances: Map<string,number>.get; the only falsy-non-null number is 0, and 0 ?? 0 === 0 || 0
 src/shared/ledger/project.ts::balanceOf~128hnl9  ?? → || audited:0s83ytm # balanceOf: same Map<string,number>.get fallback; 0 ?? 0 === 0 || 0
