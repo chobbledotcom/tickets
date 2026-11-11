@@ -30,7 +30,7 @@ import { CONTENT_API, withAuth } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import {
-  CreateImageBodyParseSchema,
+  CreateImageBodySchema,
   UpdateImageBodySchema,
 } from "#shared/admin-api-images.ts";
 import {
@@ -49,7 +49,6 @@ import {
   apiEntityGate,
   type EntityHandler,
   parseApiBody,
-  requireStrings,
   withApiEntity,
 } from "#shared/rest/crud-parsers.ts";
 import { transactionValidationMessageOrRethrow } from "#shared/rest/write-error.ts";
@@ -113,19 +112,17 @@ const base64Bytes = (text: string): Result<Uint8Array> => {
 const createImageInput = (
   body: Record<string, unknown>,
 ): Result<{ file: ImageFile; metadata: ImageMetadata }> => {
-  const parsed = parseApiBody(CreateImageBodyParseSchema, body);
+  const parsed = parseApiBody(CreateImageBodySchema, body);
   if (!parsed.ok) return parsed;
-  const required = requireStrings(parsed.value, ["content_type", "file"]);
-  if (!required.ok) return required;
   const metadata = imageMetadata(
-    parsed.value.name ?? "",
+    parsed.value.name,
     parsed.value.alt_text ?? "",
   );
   if (!metadata.ok) return metadata;
-  const bytes = base64Bytes(required.value.file);
+  const bytes = base64Bytes(parsed.value.file);
   if (!bytes.ok) return bytes;
   return okResult({
-    file: { bytes: bytes.value, contentType: required.value.content_type },
+    file: { bytes: bytes.value, contentType: parsed.value.content_type },
     metadata: metadata.value,
   });
 };

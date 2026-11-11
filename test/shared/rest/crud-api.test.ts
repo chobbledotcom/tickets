@@ -13,6 +13,7 @@ import { defineCrudApi } from "#shared/rest/crud-api.ts";
 import type {
   CrudApiConfig,
   CrudApiHandlers,
+  CrudWriteMappers,
 } from "#shared/rest/crud-api-types.ts";
 import { okResult } from "#shared/result.ts";
 import {
@@ -61,6 +62,7 @@ const nameInputs = {
 const makeRoutes = <State = never>(
   table: Table<Row, Input>,
   config: Partial<CrudApiConfig<Row, Input, Row, void, State>> &
+    Partial<CrudWriteMappers<typeof WIDGET_ENTRY, Input, Row>> &
     Partial<CrudApiHandlers<typeof WIDGET_ENTRY>> = {},
 ): Record<string, unknown> =>
   defineCrudApi<typeof WIDGET_ENTRY, Row, Input, Row, void, State>(
@@ -428,5 +430,26 @@ describeWithEnv("defineCrudApi", { db: true }, () => {
 
     expect(response.status).toBe(404);
     expect(await response.json()).toEqual({ error: "Widget not found" });
+  });
+
+  test("refuses a body the resource schema rejects before the mapper runs", async () => {
+    let mapped = false;
+    const routes = makeRoutes(makeTable(), {
+      toCreateInput: (body) => {
+        mapped = true;
+        return okResult({ name: body.name });
+      },
+    });
+
+    const response = await callRoute(
+      routes,
+      "POST /api/admin/widgets",
+      "POST",
+      { name: 7 },
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "name must be a string" });
+    expect(mapped).toBe(false);
   });
 });

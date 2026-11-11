@@ -1225,7 +1225,7 @@
     "banned-modal": 2,
     "present-perfect": 2,
     "wordy": 7,
-    "long-sentence": 5,
+    "long-sentence": 4,
     "semicolon": 2
   },
   "src/shared/rest/crud-api.ts": {

@@ -4,6 +4,8 @@ import * as v from "valibot";
 import { isNotNullish, reduce } from "#fp";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { type AuthPolicy, withAuth } from "#routes/auth.ts";
+import { objectEntries } from "#shared/rest/api-body-fields.ts";
+import type { WriteMapper } from "#shared/rest/crud-api-types.ts";
 import {
   errorResult,
   okResult,
@@ -159,6 +161,36 @@ export const requireEntityField = <Field extends string>(
     : okResult(trimmed);
 };
 
+/** Read the display name a create or an update stores: the supplied text, else
+ *  the stored name, trimmed. A create and an update answer an empty name with
+ *  their own message. */
+export const writeEntityName = (
+  supplied: string | undefined,
+  stored: string | null,
+): Result<string> => {
+  const name = (supplied ?? stored ?? "").trim();
+  return name === "" ? errorResult("name cannot be empty") : okResult(name);
+};
+
+/** Wrap a write mapper with the shared name read. The name refusal answers
+ *  before the mapper runs. */
+export const withWriteName =
+  <
+    Body extends { name?: string | undefined },
+    Row extends { name: string },
+    Input,
+  >(
+    build: (
+      name: string,
+      body: Body,
+      existing: Row | null,
+    ) => Result<Input> | Promise<Result<Input>>,
+  ): WriteMapper<Input, Body, Row | null> =>
+  (body, existing) => {
+    const name = writeEntityName(body.name, existing?.name ?? null);
+    return name.ok ? build(name.value, body, existing) : name;
+  };
+
 /** Read the required entity text field every catalog resource names `name`.
  *  The entity-name rule over the shared field label keeps the stored row's
  *  name on an update. */
@@ -222,20 +254,6 @@ const optionalTypedField = <T>(
 };
 
 /**
- * Read one optional boolean switch from a JSON body. The form posts a
- * checkbox, the API takes a real boolean. Absent keeps the stored value. A
- * supplied non-boolean is refused with the field-named message.
- */
-export const optionalBoolean = (
-  body: Record<string, unknown>,
-  field: string,
-  stored: boolean,
-): Result<boolean> =>
-  optionalTypedField(body, field, stored, "boolean", (raw) =>
-    typeof raw === "boolean" ? raw : undefined,
-  );
-
-/**
  * Read one optional text field from a JSON body. An absent key keeps the stored
  * value. A supplied value must be a string, and a non-string answers the
  * field-named message.
@@ -288,12 +306,19 @@ export const parseOptionalArray = <T>(
 
 /** Parse one write body with the schema the resource table declares, so the
  *  server, the client, and the docs read one shape. The first valibot issue
- *  carries the wire message the caller answers. */
+ *  carries the wire message the caller answers. Valibot names a missing object
+ *  key itself. Every declared key is present before the parse, so a missing
+ *  required field answers with the message its schema declares. */
 export const parseApiBody = <Schema extends v.GenericSchema>(
   schema: Schema,
   body: Record<string, unknown>,
 ): Result<v.InferOutput<Schema>> => {
-  const parsed = v.safeParse(schema, body);
+  const entries = objectEntries(schema);
+  const supplied =
+    entries === null
+      ? body
+      : Object.fromEntries(Object.keys(entries).map((key) => [key, body[key]]));
+  const parsed = v.safeParse(schema, supplied);
   return parsed.success
     ? okResult(parsed.output)
     : errorResult(parsed.issues[0].message);

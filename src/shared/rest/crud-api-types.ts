@@ -2,6 +2,7 @@
  *  stays under the line target. See {@link crud-api.ts} for the factory itself. */
 
 import type { InValue } from "@libsql/client";
+import type * as v from "valibot";
 import type { TransactionStateReader, TxScope } from "#db/client.ts";
 import type { Table } from "#db/table.ts";
 import type { AuthPolicy } from "#routes/auth.ts";
@@ -82,16 +83,33 @@ export type CheckTxHook<Input> = (
   input: Input,
 ) => Promise<string | null>;
 
-/** Convert a resource's JSON body to its typed input. `existing` is null on
- *  create and the stored row on update. The session rides along so a
- *  field-level gate (an owner-only field) can refuse per actor. Production
- *  routes always pass it. A direct call without one counts as non-owner
- *  for any gated field. */
-export type InputParser<Input, Existing> = (
-  body: Record<string, unknown>,
+/** The body a resource's declared schema validates. A resource without a
+ *  declared schema keeps the server's own parser and the raw body. */
+export type WriteBody<Schema> = Schema extends v.GenericSchema
+  ? v.InferOutput<Schema>
+  : Record<string, unknown>;
+
+/** One write mapper: the validated body and the stored row in, the table input
+ *  out. */
+export type WriteMapper<Input, Body, Existing> = (
+  body: Body,
   existing: Existing,
   session?: AdminSession,
 ) => Result<Input> | Promise<Result<Input>>;
+
+/** The mappers a resource supplies for its two write verbs. The create body
+ *  is complete. The update body is partial: an absent key keeps the stored
+ *  value. `session` rides along so a field-level gate can refuse per actor.
+ *  Production routes always pass it, and a direct call without one counts as
+ *  non-owner for any gated field. */
+export type CrudWriteMappers<Entry extends AdminApiResource, Input, FullRow> = {
+  toCreateInput: WriteMapper<Input, WriteBody<Entry["createBodySchema"]>, null>;
+  toUpdateInput: WriteMapper<
+    Input,
+    WriteBody<Entry["updateBodySchema"]>,
+    FullRow
+  >;
+};
 
 /** The handlers a resource supplies for one declared child surface. The keys
  *  of the generated routes come from the resource table. The handler record
@@ -197,13 +215,6 @@ export interface CrudApiConfig<
   stripKeys?: string[];
   /** Table with CRUD operations */
   table: Table<Row, Input>;
-  /** Convert a JSON body to Input. `existing` is null on create and the
-   *  stored row on update. The session rides along so a field-level gate (an
-   *  owner-only field) can refuse per actor: production routes always pass
-   *  it, and a direct call without one counts as non-owner for any gated
-   *  field. */
-  toCreateInput: InputParser<Input, null>;
-  toUpdateInput: InputParser<Input, FullRow>;
   /** Optional validation (return error message or null) */
   validate?: (input: Input, id?: number) => Promise<string | null>;
   /** Optional delete guard: a returned message blocks the deletion with a 400

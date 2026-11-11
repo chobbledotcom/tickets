@@ -21,22 +21,19 @@ import { OWNER_API } from "#routes/auth.ts";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { validateReservationAmount } from "#shared/reservation-amount.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
-import {
-  optionalBoolean,
-  optionalTextField,
-  requireEntityName,
-} from "#shared/rest/crud-parsers.ts";
+import { withWriteName } from "#shared/rest/crud-parsers.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 
 const ENTRY = ADMIN_API_RESOURCES["attendee-statuses"];
 
-/** The three owner flags a status write carries: their wire names and the
- *  input keys they map to. */
-const FLAG_FIELDS = [
-  ["is_public_default", "isPublicDefault"],
-  ["is_paid_default", "isPaidDefault"],
-  ["is_reservation", "isReservation"],
-] as const;
+/** One status write body after the resource table's schema validates it. */
+type StatusWriteBody = {
+  is_paid_default?: boolean | undefined;
+  is_public_default?: boolean | undefined;
+  is_reservation?: boolean | undefined;
+  name?: string | undefined;
+  reservation_amount?: string | undefined;
+};
 
 /** The refusal for an amount on a write whose status is not a reservation.
  *  The form stores an amount only beside the reservation flag. A body that
@@ -48,7 +45,7 @@ const AMOUNT_WITHOUT_RESERVATION =
  *  validated value for a reservation. An amount sent for a non-reservation
  *  is refused, never dropped. */
 const reservationAmountFrom = (
-  body: Record<string, unknown>,
+  body: StatusWriteBody,
   isReservation: boolean,
   stored: string,
 ): Result<string> => {
@@ -58,36 +55,28 @@ const reservationAmountFrom = (
       ? okResult("0")
       : errorResult(AMOUNT_WITHOUT_RESERVATION);
   }
-  const amount = optionalTextField(body, "reservation_amount", stored);
-  if (!amount.ok) return amount;
-  const amountError = validateReservationAmount(amount.value);
-  return amountError === null ? amount : errorResult(amountError);
+  const amount = raw ?? stored;
+  const amountError = validateReservationAmount(amount);
+  return amountError === null ? okResult(amount) : errorResult(amountError);
 };
 
 /** Parse one status write body into the shared write input. A create answers
  *  the stored defaults for a silent field (off flags, "0" amount). An update
  *  keeps the stored value. */
-const statusInputFrom = (
-  body: Record<string, unknown>,
-  existing: AttendeeStatus | null,
-): Result<AttendeeStatusWriteInput> => {
-  const name = requireEntityName(body, existing);
-  if (!name.ok) return name;
-  const nameLengthError = catalogNameLengthError(name.value);
+const statusInputFrom = withWriteName<
+  StatusWriteBody,
+  AttendeeStatus,
+  AttendeeStatusWriteInput
+>((name, body, existing) => {
+  const nameLengthError = catalogNameLengthError(name);
   if (nameLengthError) return errorResult(nameLengthError);
 
-  // Each flag reads as a real boolean. An absent key keeps the stored value
-  // (off on create). The first refusal answers the whole parse.
-  const flags: {
-    isPaidDefault: boolean;
-    isPublicDefault: boolean;
-    isReservation: boolean;
-  } = { isPaidDefault: false, isPublicDefault: false, isReservation: false };
-  for (const [field, inputKey] of FLAG_FIELDS) {
-    const flag = optionalBoolean(body, field, existing?.[field] ?? false);
-    if (!flag.ok) return flag;
-    flags[inputKey] = flag.value;
-  }
+  const flags = {
+    isPaidDefault: body.is_paid_default ?? existing?.is_paid_default ?? false,
+    isPublicDefault:
+      body.is_public_default ?? existing?.is_public_default ?? false,
+    isReservation: body.is_reservation ?? existing?.is_reservation ?? false,
+  };
 
   // The form's rule: a paid status is never a reservation.
   if (flags.isReservation && flags.isPaidDefault) {
@@ -102,10 +91,10 @@ const statusInputFrom = (
 
   return okResult({
     ...flags,
-    name: name.value,
+    name,
     reservationAmount: amount.value,
   });
-};
+});
 
 /** The one delete the API refuses beyond the shared confirm-by-name check: a
  *  status the write boundary or a booking still depends on. */

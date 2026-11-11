@@ -29,7 +29,6 @@ import {
   type AdminApiAttendeeStatus,
   type AdminApiCreateAttendeeStatusBody,
   type AdminApiOptionBody,
-  type AdminApiUpdateAttendeeStatusBody,
 } from "#shared/admin-api-resources.ts";
 import { API_EXAMPLE_LISTING } from "#shared/api-example.ts";
 import { listingCatalogFields } from "#shared/catalog-fields/fields.ts";
@@ -190,7 +189,7 @@ const ADMIN_API_ATTENDEE_STATUS_CREATE_BODY = {
 
 const ADMIN_API_ATTENDEE_STATUS_UPDATE_BODY = {
   name: "Reserved seat",
-} satisfies AdminApiUpdateAttendeeStatusBody;
+} satisfies Partial<AdminApiCreateAttendeeStatusBody>;
 
 const ADMIN_API_ATTENDEE_STATUS_DELETE_BODY = {
   confirm_identifier: "Reserved",

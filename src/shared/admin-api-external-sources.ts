@@ -13,10 +13,16 @@ import {
   ExternalLinkKindSchema,
   ExternalUrlPatternSchema,
 } from "#db/external-sources/types.ts";
+import {
+  type ApiBody,
+  apiBodyPair,
+  textField,
+} from "#shared/rest/api-body-fields.ts";
 
-/** The writable fields of one source: the name an admin reads, and the URL
- *  pattern the source uses for one external id. */
-const ExternalSourceWriteFields = {
+/** The writable fields of one source as an answer carries them. They are the
+ *  name an admin reads and the URL pattern the source uses for one external
+ *  id. */
+const ExternalSourceRowFields = {
   name: v.string(),
   url_pattern: ExternalUrlPatternSchema,
 };
@@ -24,7 +30,7 @@ const ExternalSourceWriteFields = {
 /** One source as the admin API answers with it. The row schema stays open —
  *  the server owns the rest of the stored row (its created stamp). */
 export const ExternalSourceRowSchema = v.looseObject({
-  ...ExternalSourceWriteFields,
+  ...ExternalSourceRowFields,
   created: v.string(),
   id: v.number(),
 });
@@ -51,19 +57,15 @@ export type AdminApiExternalSourceLink = v.InferOutput<
 >;
 
 /** The body a source create carries. */
-export const CreateExternalSourceBodySchema = v.object(
-  ExternalSourceWriteFields,
-);
-export type AdminApiCreateExternalSourceBody = v.InferOutput<
+export const {
+  create: CreateExternalSourceBodySchema,
+  update: UpdateExternalSourceBodySchema,
+} = apiBodyPair({
+  name: textField("name"),
+  url_pattern: textField("url_pattern"),
+});
+export type AdminApiCreateExternalSourceBody = ApiBody<
   typeof CreateExternalSourceBodySchema
->;
-
-/** The body a source update carries: every writable field optional. */
-export const UpdateExternalSourceBodySchema = v.partial(
-  v.object(ExternalSourceWriteFields),
-);
-export type AdminApiUpdateExternalSourceBody = v.InferOutput<
-  typeof UpdateExternalSourceBodySchema
 >;
 
 /** The body a link write carries: the kind of record, which one, and its id at

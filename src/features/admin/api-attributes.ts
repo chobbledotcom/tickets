@@ -19,18 +19,15 @@ import {
   deleteAttributeOptionWithLog,
   renameAttributeOptionWithLog,
 } from "#routes/admin/attributes.ts";
-import { OWNER_API } from "#routes/auth.ts";
 import { reReadResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
-import { apiChildSurface } from "#shared/rest/child-surface.ts";
+import { ownerChildSurface } from "#shared/rest/child-surface.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
-import {
-  requireEntityField,
-  withRequiredText,
-} from "#shared/rest/crud-parsers.ts";
+import { ownerCatalogConfig } from "#shared/rest/crud-config.ts";
+import { withRequiredText, withWriteName } from "#shared/rest/crud-parsers.ts";
 import { appendOnCreate } from "#shared/rest/crud-side-effects.ts";
-import { okResult, type Result } from "#shared/result.ts";
+import { okResult } from "#shared/result.ts";
 
 /** JSON body accepted by POST /api/admin/attributes */
 export type CreateAttributeBody = { name: string };
@@ -43,30 +40,26 @@ export type UpdateAttributeBody = { name?: string };
 // DELETE /api/admin/attributes/:attributeId/options/:optionId take the shared
 // DeleteBody the crud-parsers module exports.
 
-/** The attribute's input for a create or an update. The name goes through
- *  the shared entity-name rule, which refuses a supplied non-string with
- *  the field-named message. */
-const toAttributeInput = (
-  body: Record<string, unknown>,
-  existing: Attribute | null,
-): Result<{ name: string }> => {
-  const name = requireEntityField(body, "name", existing?.name ?? null);
-  return name.ok ? okResult({ name: name.value }) : name;
-};
+/** The attribute's input for a create or an update. The schema proves the
+ *  supplied value is text. An update without one keeps the stored name. */
+const toAttributeInput = withWriteName<
+  { name?: string | undefined },
+  Attribute,
+  { name: string }
+>((name) => okResult({ name }));
 
 /** The option write routes' parent-and-child gate. The importer creates an
  *  attribute and immediately posts its first option, so the parent read pins
  *  to the primary. A lagging replica must not 404 the row the create just
  *  made. */
-const optionSurface = apiChildSurface({
-  childIdParam: "optionId",
-  childLabel: "Attribute option",
-  childrenOf: (attribute: AttributeWithOptions) => attribute.options,
-  lookup: getAttributeWithOptionsOnPrimary,
-  parentIdParam: "attributeId",
-  parentLabel: "Attribute",
-  policy: OWNER_API,
-});
+const optionSurface = ownerChildSurface(
+  "attributeId",
+  "Attribute",
+  "optionId",
+  "Attribute option",
+  getAttributeWithOptionsOnPrimary,
+  (attribute: AttributeWithOptions) => attribute.options,
+);
 
 /** The write response: the written attribute re-read from the primary. */
 const attributeResponse = reReadResponse(
@@ -113,17 +106,15 @@ export const attributeApiRoutes = defineCrudApi<
       update: handleOptionUpdate,
     },
   },
-  getAll: getAllAttributesWithOptions,
-  lookup: getAttributeWithOptions,
-  // Read-your-writes: the create/update response re-reads the row and its
-  // options from the primary. A lagging replica cannot answer without the
-  // row the write just made.
-  lookupAfterWrite: getAttributeWithOptionsOnPrimary,
-  nameField: "name",
-  onDelete: (id) => deleteAttribute(Number(id)),
-  policy: OWNER_API,
+  ...ownerCatalogConfig(
+    getAllAttributesWithOptions,
+    getAttributeWithOptions,
+    getAttributeWithOptionsOnPrimary,
+    "name",
+    (id) => deleteAttribute(Number(id)),
+    attributesTable,
+  ),
   sideEffect: appendOnCreate(attributesOrder),
-  table: attributesTable,
   toCreateInput: (body) => toAttributeInput(body, null),
   toUpdateInput: toAttributeInput,
 });

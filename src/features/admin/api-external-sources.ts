@@ -74,24 +74,30 @@ import { validatorFor } from "#shared/validation/parse.ts";
  *  two cannot drift apart. */
 const LINK_KIND_VALUES = EXTERNAL_LINK_KINDS.join(", ");
 
+/** One source write body after the resource table's schema validates it. */
+type SourceWriteBody = {
+  name?: string | undefined;
+  url_pattern?: string | undefined;
+};
+
 /** One source's own fields: the name and the URL pattern, each trimmed, not
  *  empty, and no longer than a short input. */
 const sourceField = (
-  body: Record<string, unknown>,
+  body: SourceWriteBody,
   field: "name" | "url_pattern",
   existing: string | null,
 ): Result<string> => {
-  const parsed = requireEntityField(body, field, existing);
-  if (!parsed.ok) return parsed;
-  return parsed.value.length > MAX_INPUT_LENGTH
+  const value = (body[field] ?? existing ?? "").trim();
+  if (value === "") return errorResult(`${field} cannot be empty`);
+  return value.length > MAX_INPUT_LENGTH
     ? errorResult(`${field} must be ${MAX_INPUT_LENGTH} characters or fewer`)
-    : okResult(parsed.value);
+    : okResult(value);
 };
 
 /** The source input a create or an update stores. A silent field keeps the
  *  stored value on an update. */
 const sourceInput = (
-  body: Record<string, unknown>,
+  body: SourceWriteBody,
   existing: ExternalSource | null,
 ): Result<ExternalSourceInput> => {
   const name = sourceField(

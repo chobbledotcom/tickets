@@ -7,6 +7,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import * as v from "valibot";
 import { ADMIN_API } from "#routes/auth.ts";
+import { textField } from "#shared/rest/api-body-fields.ts";
 import {
   bodyNumber,
   optionalDateString,
@@ -117,7 +118,7 @@ test("parseOptionalArray names a refused entry's index", () => {
 /** One body schema, so every parseApiBody case reads one shape. */
 const NAME_BODY_SCHEMA = v.object({
   alt_text: v.optional(v.string()),
-  name: v.string("name must be a string"),
+  name: textField("name").create,
 });
 
 test("parseApiBody answers the schema's own message for a wrong type", () => {
@@ -125,11 +126,10 @@ test("parseApiBody answers the schema's own message for a wrong type", () => {
     error: "name must be a string",
     ok: false,
   });
-  // Valibot names a missing required key in its own words before the entry
-  // schema runs. A route with a friendlier message parses a partial view and
-  // reads the required fields with the shared readers.
+  // Valibot names a missing object key itself. parseApiBody fills every
+  // declared key in first, so the field's schema answers instead.
   expect(parseApiBody(NAME_BODY_SCHEMA, {})).toEqual({
-    error: 'Invalid key: Expected "name" but received undefined',
+    error: "name is required",
     ok: false,
   });
 });

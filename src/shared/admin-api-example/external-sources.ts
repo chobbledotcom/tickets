@@ -5,7 +5,6 @@ import type {
   AdminApiCreateExternalSourceBody,
   AdminApiExternalSource,
   AdminApiExternalSourceLink,
-  AdminApiUpdateExternalSourceBody,
 } from "#shared/admin-api-external-sources.ts";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import {
@@ -43,7 +42,7 @@ const CREATE_SOURCE_BODY = {
 const UPDATE_SOURCE_BODY = {
   name: "Stripe invoices",
   url_pattern: "https://dashboard.stripe.com/invoices/{external_id}",
-} satisfies AdminApiUpdateExternalSourceBody;
+} satisfies Partial<AdminApiCreateExternalSourceBody>;
 
 const CREATE_LINK_BODY = {
   external_id: ADMIN_API_EXAMPLE_EXTERNAL_SOURCE_LINK.external_id,
