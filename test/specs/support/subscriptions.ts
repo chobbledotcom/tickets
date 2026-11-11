@@ -9,6 +9,7 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import { queryAll } from "#db/client.ts";
+import { settings } from "#db/settings.ts";
 import { sumOf } from "#fp";
 import { nowSeconds } from "#shared/now.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -16,6 +17,7 @@ import type {
   StripeCheckoutLineItemParams,
   StripeCheckoutSessionCreateParams,
 } from "#shared/stripe/client.ts";
+import type { StripeSubscription } from "#shared/stripe/schemas.ts";
 import {
   CUSTOMER,
   openAsNewcomer,
@@ -31,10 +33,12 @@ import type { TicketsWorld } from "#test/specs/support/world.ts";
 import {
   stripeCheckoutSession,
   stripeClient,
+  stripePaidInvoice,
   subscriptionItems,
 } from "#test-utils/stripe/fixtures.ts";
 import {
   type StartedSubscription,
+  stubStripeRenewals,
   withSubscriptionStarted,
 } from "#test-utils/stripe/subscription-checkout.ts";
 
@@ -43,16 +47,21 @@ const SESSION_ID = "cs_subscription_story";
 /** The name the subscribing customer books under. */
 const SUBSCRIBER = "Member";
 
+/** Where the Subscriptions menu leads. */
+export const SUBSCRIPTIONS_PAGE = "/admin/subscriptions";
+
+/** Whether a page's menu links to the Subscriptions page. */
+export const menuOffersSubscriptions = (html: string): boolean =>
+  html.includes(`href="${SUBSCRIPTIONS_PAGE}"`);
+
+/** The single item of `items`. A story that found none or several went
+ * wrong. */
 const onlyOne = <Item>(items: readonly Item[]): Item => {
   expect(items.length).toBe(1);
   return items[0]!;
 };
 
-export const SUBSCRIPTIONS_PAGE = "/admin/subscriptions";
-
-export const menuOffersSubscriptions = (html: string): boolean =>
-  html.includes(`href="${SUBSCRIPTIONS_PAGE}"`);
-
+/** The one table row on the Subscriptions page that names `who`. */
 export const subscriberRow = (html: string, who: string): string =>
   onlyOne(
     [...html.matchAll(/<tr>[\s\S]*?<\/tr>/g)]
@@ -176,3 +185,36 @@ export const plansOnBookings = (world: TicketsWorld, name: string) =>
       WHERE booking.listing_id = ?`,
     [listingNamed(world, name).id],
   );
+
+/** Stripe reports `status` for the story's subscription, and one paid
+ * renewal of `paid` on `day`. The stubs stay until the story ends. */
+export const stripeRenews = (
+  world: TicketsWorld,
+  status: StripeSubscription["status"],
+  paid: number,
+  day: string,
+): void => {
+  const invoice = stripePaidInvoice({
+    amount_paid: paid,
+    currency: settings.currency.toLowerCase(),
+    id: "in_story",
+    status_transitions: { paid_at: Date.parse(day) / 1000 },
+  });
+  const stubs = stubStripeRenewals(status, [invoice]);
+  world.cleanup.add(() => {
+    for (const each of Object.values(stubs)) each.restore();
+  });
+};
+
+/** The one booking on a listing, as the customer's id. */
+export const subscriberOn = async (
+  world: TicketsWorld,
+  name: string,
+): Promise<number> =>
+  onlyOne(
+    await queryAll<{ attendee_id: number }>(
+      "SELECT booking.attendee_id FROM listing_attendees AS booking WHERE booking.listing_id = ?",
+      [listingNamed(world, name).id],
+    ),
+  ).attendee_id;
+

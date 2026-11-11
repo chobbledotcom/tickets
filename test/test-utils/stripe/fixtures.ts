@@ -21,6 +21,7 @@ import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
 import type {
   StripeCheckoutSession,
   StripeInvoicePayments,
+  StripePaidInvoice,
   StripeRefund,
   StripeSubscription,
 } from "#shared/stripe/schemas.ts";
@@ -101,6 +102,18 @@ export const stripeFirstInvoice = (
       },
     ],
   },
+});
+
+/** One paid renewal invoice, paid on 1 March 2026. */
+export const stripePaidInvoice: StripeFixture<StripePaidInvoice> = (
+  overrides = {},
+) => ({
+  amount_paid: 600,
+  billing_reason: "subscription_cycle",
+  currency: "gbp",
+  id: "in_renewal",
+  status_transitions: { paid_at: 1_772_323_200 },
+  ...overrides,
 });
 
 /** A complete Stripe refund answer with per-test fields overridden. */

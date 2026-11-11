@@ -47,6 +47,7 @@ import type {
   StripeCheckoutSession,
   StripeExpandedPaymentIntent,
   StripeInvoicePayments,
+  StripePaidInvoice,
   StripeRefund,
   StripeSubscription,
 } from "#shared/stripe/schemas.ts";
@@ -196,6 +197,9 @@ export interface StripeApi {
   readInvoicePayments: (
     id: string,
   ) => Promise<ProviderRead<StripeInvoicePayments>>;
+  readPaidInvoices: (
+    subscriptionId: string,
+  ) => Promise<ProviderRead<readonly StripePaidInvoice[]>>;
   readPaymentIntent: (
     id: string,
   ) => Promise<ProviderRead<StripeExpandedPaymentIntent>>;
@@ -258,6 +262,24 @@ const cancelSubscription = oneResource((client, id) =>
 const readInvoicePayments = oneResource((client, id) =>
   client.invoices.retrieveWithPayments(id),
 );
+
+/** The paid invoices of one subscription. The site sets the currency of every
+ * price it creates, so an invoice in another currency is a refused read. */
+const readPaidInvoices = (
+  subscriptionId: string,
+): Promise<ProviderRead<readonly StripePaidInvoice[]>> =>
+  readStripeResource(
+    (client) => client.invoices.listPaid(subscriptionId),
+    judgedBy([
+      refuseUnless(
+        "mismatched_money",
+        (invoices: readonly StripePaidInvoice[]) =>
+          invoices.every(
+            (invoice) => invoice.currency === settings.currency.toLowerCase(),
+          ),
+      ),
+    ]),
+  );
 
 type StripeRefundStatus = Exclude<StripeRefund["status"], null>;
 type StripeRefundAnswer = (
@@ -369,6 +391,7 @@ export const stripeApi: StripeApi = {
   cleanupOldWebhookEndpoints,
   createCheckoutSession,
   readInvoicePayments,
+  readPaidInvoices,
   readPaymentIntent,
   readSubscription,
   refundCharge,
