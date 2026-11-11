@@ -25,7 +25,7 @@ import type {
   ExternalSourceLink,
 } from "#db/external-sources/types.ts";
 import { externalLinkUrl } from "#db/external-sources/url.ts";
-import { okValue } from "#test-utils/assertions.ts";
+import { requireSuccess } from "#shared/result.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -60,7 +60,7 @@ const addListingLink = async (
   name = `Listing ${sourceId} ${externalId}`,
 ): Promise<ExternalSourceLink> => {
   const listing = await createTestListing({ name });
-  return okValue(
+  return requireSuccess(
     await createExternalSourceLink(sourceId, {
       externalId,
       linkId: listing.id,
