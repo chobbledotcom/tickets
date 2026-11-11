@@ -1,9 +1,12 @@
 // Contract tests for the image library's admin JSON API writes: the metadata
 // and link update, the roles that may change a Site image, and the delete.
 // Technical surface — direct Deno tests (docs/e2e-tests.md).
+import type { InStatement } from "@libsql/client";
 import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
+import { getDb } from "#db/client.ts";
 import {
   deleteImageRecord,
   getImageById,
@@ -28,6 +31,7 @@ import {
   expectApiError,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
 import {
@@ -104,6 +108,32 @@ describeWithEnv(
           expect(body.image.items).toEqual([]),
         );
         expect(await getImageUsesForImage(image.id)).toEqual([]);
+      });
+
+      test("answers with the links the primary holds, not a lagging replica", async () => {
+        const { image, listingId } = await imageOnListing("Replica lag");
+
+        const db = getDb();
+        const realExecute = db.execute.bind(db);
+        // A replica that has not caught up with the links the write replaced.
+        using _replica = stub(db, "execute", (statement: InStatement) =>
+          (typeof statement === "string" ? statement : statement.sql).includes(
+              "FROM image_uses",
+            )
+            ? Promise.resolve(emptyResultSet())
+            : realExecute(statement),
+        );
+        await assertJson<{ image: ApiImageRow }>(
+          putImage(image.id, {
+            items: [{ item_id: listingId, item_type: "listing" }],
+          }),
+          200,
+          (body) => {
+            expect(body.image.items).toEqual([
+              { item_id: listingId, item_type: "listing" },
+            ]);
+          },
+        );
       });
 
       test("refuses an image a page shows, for a manager", async () => {

@@ -15,6 +15,7 @@ import {
   getAllImages,
   getImageById,
   getImageUsesForImage,
+  getImageUsesForImageOnPrimary,
   getImageUsesForImages,
   type ImageUseTarget,
   imageUseTargets,
@@ -337,7 +338,7 @@ const handleUpdate: RouteHandlerFn = withWritableImage(
     return jsonResponse({
       [RESPONSE_KEY]: toImageRow(
         outcome.row,
-        await getImageUsesForImage(outcome.row.id),
+        await getImageUsesForImageOnPrimary(outcome.row.id),
       ),
     });
   },

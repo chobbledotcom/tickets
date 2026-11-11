@@ -7,6 +7,7 @@ import { decrypt, encrypt } from "#crypto/encryption.ts";
 import type { StoredRowOf } from "#db/chosen-columns.ts";
 import {
   executeBatch,
+  queryAllPrimary,
   type SqlStatement,
   type TxScope,
   useTransaction,
@@ -14,7 +15,12 @@ import {
 import { defineIdTable } from "#db/define-id-table.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
-import { type Read, readOneRow, readRows } from "#db/read.ts";
+import {
+  type Read,
+  readOneRow,
+  readRows,
+  readStatement,
+} from "#db/read.ts";
 import {
   defineRecordTarget,
   ITEM_TARGET_COLUMNS,
@@ -214,14 +220,27 @@ export const getImageUsesForImages = async (
   )(rows);
 };
 
-/** The item links of one image, in the order its own read answers them. */
-export const getImageUsesForImage = (imageId: number): Promise<ImageUse[]> =>
-  readRows<ImageUse>({
-    columns: "image_id, item_type, item_id, sort_order",
-    from: "image_uses",
-    order: "item_type ASC, item_id ASC",
-    where: equals("image_id", imageId),
-  });
+/** One image's links, on the replica (normal reads) or the primary (the
+ *  answer to a write that just committed them). */
+const imageUsesForImage =
+  (primary: boolean) =>
+  (imageId: number): Promise<ImageUse[]> => {
+    const read: Read = {
+      columns: "image_id, item_type, item_id, sort_order",
+      from: "image_uses",
+      order: "item_type ASC, item_id ASC",
+      where: equals("image_id", imageId),
+    };
+    return primary
+      ? queryAllPrimary<ImageUse>(readStatement(read))
+      : readRows<ImageUse>(read);
+  };
+
+export const getImageUsesForImage = imageUsesForImage(false);
+
+/** The same links from the primary, so a lagging replica cannot answer a
+ *  write with the links it replaced. */
+export const getImageUsesForImageOnPrimary = imageUsesForImage(true);
 
 /** The links a write submits that name no stored record of their kind. The
  *  check runs inside the write's transaction, so a record deleted between the
