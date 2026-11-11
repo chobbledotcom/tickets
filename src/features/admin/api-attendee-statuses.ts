@@ -23,6 +23,7 @@ import { validateReservationAmount } from "#shared/reservation-amount.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
 import {
   optionalBoolean,
+  optionalTextField,
   requireEntityName,
 } from "#shared/rest/crud-parsers.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
@@ -57,12 +58,10 @@ const reservationAmountFrom = (
       ? okResult("0")
       : errorResult(AMOUNT_WITHOUT_RESERVATION);
   }
-  if (raw !== undefined && typeof raw !== "string") {
-    return errorResult("reservation_amount must be a string");
-  }
-  const amount = typeof raw === "string" ? raw : stored;
-  const amountError = validateReservationAmount(amount);
-  return amountError === null ? okResult(amount) : errorResult(amountError);
+  const amount = optionalTextField(body, "reservation_amount", stored);
+  if (!amount.ok) return amount;
+  const amountError = validateReservationAmount(amount.value);
+  return amountError === null ? amount : errorResult(amountError);
 };
 
 /** Parse one status write body into the shared write input. A create answers

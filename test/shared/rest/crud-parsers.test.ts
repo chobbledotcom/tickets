@@ -5,10 +5,13 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import * as v from "valibot";
 import { ADMIN_API } from "#routes/auth.ts";
 import {
   bodyNumber,
   optionalDateString,
+  optionalTextField,
+  parseApiBody,
   parseOptionalArray,
   parseUpdateSlug,
   requireDateString,
@@ -81,10 +84,61 @@ test("optionalDateString stops loudly on an unusable stored fallback", () => {
   );
 });
 
+test("optionalTextField reads an optional text field", () => {
+  expect(optionalTextField({}, "alt_text", "Stored alt")).toEqual({
+    ok: true,
+    value: "Stored alt",
+  });
+  expect(
+    optionalTextField({ alt_text: " New alt " }, "alt_text", "Old"),
+  ).toEqual({ ok: true, value: " New alt " });
+  expect(optionalTextField({ name: 7 }, "name", "Stored")).toEqual({
+    error: "name must be a string",
+    ok: false,
+  });
+});
+
 test("parseOptionalArray maps each entry through the parser", () => {
   expect(
     parseOptionalArray([1, 2], "items", (item) => okResult(Number(item))),
   ).toEqual({ ok: true, value: [1, 2] });
+});
+
+test("parseOptionalArray names a refused entry's index", () => {
+  expect(
+    parseOptionalArray([1, "two"], "items", (item, index) =>
+      typeof item === "number"
+        ? okResult(item)
+        : { error: `items[${index}] must be a number`, ok: false },
+    ),
+  ).toEqual({ error: "items[1] must be a number", ok: false });
+});
+
+/** One body schema, so every parseApiBody case reads one shape. */
+const NAME_BODY_SCHEMA = v.object({
+  alt_text: v.optional(v.string()),
+  name: v.string("name must be a string"),
+});
+
+test("parseApiBody answers the schema's own message for a wrong type", () => {
+  expect(parseApiBody(NAME_BODY_SCHEMA, { name: 7 })).toEqual({
+    error: "name must be a string",
+    ok: false,
+  });
+  // Valibot names a missing required key in its own words before the entry
+  // schema runs. A route with a friendlier message parses a partial view and
+  // reads the required fields with the shared readers.
+  expect(parseApiBody(NAME_BODY_SCHEMA, {})).toEqual({
+    error: 'Invalid key: Expected "name" but received undefined',
+    ok: false,
+  });
+});
+
+test("parseApiBody returns the parsed body", () => {
+  expect(parseApiBody(NAME_BODY_SCHEMA, { name: "Poster" })).toEqual({
+    ok: true,
+    value: { name: "Poster" },
+  });
 });
 
 test("parseUpdateSlug trims and lowercases the slug, deriving its index", async () => {

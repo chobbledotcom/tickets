@@ -16,6 +16,7 @@ import { t } from "#i18n";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import {
   optionalBoolean,
+  optionalTextField,
   requireEntityField,
 } from "#shared/rest/crud-parsers.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
@@ -63,35 +64,21 @@ const storedText = (
   meta_title: existing?.meta_title ?? "",
 });
 
-/** Run `clean` over one supplied field's raw value: absent keeps the stored
- *  value, and a supplied non-string is refused with the field-named
- *  message. */
-const withSupplied = (
-  body: Record<string, unknown>,
-  key: string,
-  stored: string,
-  clean: (value: string) => Result<string>,
-): Result<string> => {
-  const raw = body[key];
-  if (raw === undefined) return clean(stored);
-  if (typeof raw !== "string") return errorResult(`${key} must be a string`);
-  return clean(raw);
-};
-
 /** One writable text field: a value past the field's cap gets the form's own
  *  length refusal. The form reads submitted values trimmed, so the API trims
  *  too. */
-const optionalTextField = (
+const cleanedTextField = (
   body: Record<string, unknown>,
   key: keyof typeof FIELD_LABELS,
   stored: string,
-): Result<string> =>
-  withSupplied(body, key, stored, (raw) => {
-    const value = raw.trim();
-    const max = CONTENT_FIELD_LIMITS[key];
-    if (value.length > max) return tooLong(FIELD_LABELS[key](), max);
-    return okResult(value);
-  });
+): Result<string> => {
+  const field = optionalTextField(body, key, stored);
+  if (!field.ok) return field;
+  const value = field.value.trim();
+  const max = CONTENT_FIELD_LIMITS[key];
+  if (value.length > max) return tooLong(FIELD_LABELS[key](), max);
+  return okResult(value);
+};
 
 /** The "longer than the field's cap" refusal, in the form's own words. The
  *  slug, the page name, and the text fields all refuse with the same message,
@@ -108,20 +95,21 @@ const tooLong = (label: string, max: number): Result<never> =>
  *  validates through the same rule the form's slug field runs, then the
  *  reserved-word check the form's handler runs. The write itself refuses a
  *  slug a listing, group, or page already owns. */
-const optionalSlug = (body: Record<string, unknown>, stored: string) =>
-  withSupplied(body, "slug", stored, (raw) => {
-    const slug = normalizeSlug(raw);
-    const invalid = validateSlug(slug);
-    if (invalid) return errorResult(invalid);
-    // The form's slug field refuses a value past the input cap, after the
-    // format check and before the reserved words. The same refusal here.
-    if (slug.length > MAX_INPUT_LENGTH)
-      return tooLong(t("common.slug"), MAX_INPUT_LENGTH);
-    if (isReservedSlug(slug)) {
-      return errorResult(t("site.pages.error.reserved"));
-    }
-    return okResult(slug);
-  });
+const optionalSlug = (body: Record<string, unknown>, stored: string) => {
+  const field = optionalTextField(body, "slug", stored);
+  if (!field.ok) return field;
+  const slug = normalizeSlug(field.value);
+  const invalid = validateSlug(slug);
+  if (invalid) return errorResult(invalid);
+  // The form's slug field refuses a value past the input cap, after the
+  // format check and before the reserved words. The same refusal here.
+  if (slug.length > MAX_INPUT_LENGTH)
+    return tooLong(t("common.slug"), MAX_INPUT_LENGTH);
+  if (isReservedSlug(slug)) {
+    return errorResult(t("site.pages.error.reserved"));
+  }
+  return okResult(slug);
+};
 
 /** The page name's read: the shared entity field rule, then the form's
  *  length cap with the form's own words. */
@@ -154,7 +142,7 @@ export const toPageWrite = (
     meta_title: "",
   };
   for (const key of textFields) {
-    const field = optionalTextField(body, key, stored[key]);
+    const field = cleanedTextField(body, key, stored[key]);
     if (!field.ok) return field;
     text[key] = field.value;
   }
@@ -201,7 +189,7 @@ export const toFixedPageContent = (
     }
   }
   if (body.content === undefined) return okResult(stored);
-  return optionalTextField(body, "content", stored);
+  return cleanedTextField(body, "content", stored);
 };
 
 /** The tx step both parent writes share: drop the page's current parent

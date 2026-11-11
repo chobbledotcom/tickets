@@ -23,6 +23,7 @@ import {
   bodyNumber,
   parseOptionalArray,
   requireEntityField,
+  requireStrings,
 } from "#shared/rest/crud-parsers.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { isUtcInstantOfRealDay } from "#shared/validation/date-string.ts";
@@ -221,21 +222,23 @@ const withParsedJoinIds = (
     : Promise.resolve(attributeOptionIds);
 };
 
+/** The answer both listing write mappers give. */
+type ListingWriteResult = Promise<Result<ListingInput>>;
+
 /** Convert JSON body to ListingInput for create (auto-generates slug) */
-export const bodyToCreateInput = (
+export const bodyToCreateInput = async (
   body: Record<string, unknown>,
   _existing: null = null,
   session?: AdminSession,
-): Promise<Result<ListingInput>> => {
-  if (typeof body.name !== "string" || body.name.trim() === "") {
-    return Promise.resolve({ error: "name is required", ok: false });
-  }
+): ListingWriteResult => {
+  const nameField = requireStrings(body, ["name"]);
+  if (!nameField.ok) return nameField;
   // Requiredness only. A supplied value's range is the field kind's declared
   // minimum, refused by the shared catalog field check in withParsedJoinIds.
   if (typeof body.max_attendees !== "number") {
-    return Promise.resolve({ error: "max_attendees is required", ok: false });
+    return { error: "max_attendees is required", ok: false };
   }
-  const name = body.name.trim();
+  const name = nameField.value.name;
   const maxAttendees = body.max_attendees;
 
   return withParsedJoinIds(session, body, async (joinIds) => {
@@ -263,7 +266,7 @@ export const bodyToUpdateInput = async (
   body: Record<string, unknown>,
   resolved: ListingWithCount,
   session?: AdminSession,
-): Promise<Result<ListingInput>> => {
+): ListingWriteResult => {
   const stored = await getStoredListingWithCount(resolved.id);
   const existing = stored === null ? resolved : stored;
   const parsedName = requireEntityField(body, "name", existing.name);

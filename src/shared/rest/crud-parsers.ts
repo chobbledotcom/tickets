@@ -1,5 +1,6 @@
 /** JSON body parsing and validation helpers for CRUD API modules. */
 
+import * as v from "valibot";
 import { isNotNullish, reduce } from "#fp";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { type AuthPolicy, withAuth } from "#routes/auth.ts";
@@ -31,17 +32,24 @@ const requireString = (
     ? body[key].trim()
     : null;
 
-/** Parse every item with one shared first-error traversal. */
+/** Parse every item with one shared first-error traversal. The parser sees the
+ *  item's index, so a refusal can name its place. */
 const parseEach =
-  <Input, Output>(parseItem: (item: Input) => Result<Output>) =>
+  <Input, Output>(parseItem: (item: Input, index: number) => Result<Output>) =>
   (items: readonly Input[]): Result<Output[]> =>
-    reduce((result: Result<Output[]>, item: Input): Result<Output[]> => {
-      if (!result.ok) return result;
-      const parsed = parseItem(item);
-      if (!parsed.ok) return parsed;
-      result.value.push(parsed.value);
-      return result;
-    }, okResult<Output[]>([]))([...items]);
+    reduce(
+      (
+        result: Result<Output[]>,
+        [index, item]: readonly [number, Input],
+      ): Result<Output[]> => {
+        if (!result.ok) return result;
+        const parsed = parseItem(item, index);
+        if (!parsed.ok) return parsed;
+        result.value.push(parsed.value);
+        return result;
+      },
+      okResult<Output[]>([]),
+    )([...items.entries()]);
 
 /**
  * Read several required non-empty string fields from a JSON body in one call.
@@ -139,20 +147,16 @@ export const requireEntityField = <Field extends string>(
   field: Field,
   existing: string | null,
 ): Result<string> => {
-  const raw = body[field];
-  if (raw !== undefined && typeof raw !== "string") {
-    return errorResult(`${field} must be a string`);
+  const supplied = optionalTextField(body, field, existing ?? "");
+  if (!supplied.ok) return supplied;
+  if (existing === null) {
+    const required = requireStrings(body, [field]);
+    return required.ok ? okResult(required.value[field]) : required;
   }
-  if (existing !== null) {
-    // The non-string refusal above has run, so a present value is a string.
-    const value = typeof raw === "string" ? raw : existing;
-    const trimmed = value.trim();
-    return trimmed === ""
-      ? errorResult(`${field} cannot be empty`)
-      : okResult(trimmed);
-  }
-  const required = requireStrings(body, [field]);
-  return required.ok ? okResult(required.value[field]) : required;
+  const trimmed = supplied.value.trim();
+  return trimmed === ""
+    ? errorResult(`${field} cannot be empty`)
+    : okResult(trimmed);
 };
 
 /** Read the required entity text field every catalog resource names `name`.
@@ -199,6 +203,24 @@ export const bodyNumber = (
   fallback: number,
 ): number => (typeof body[key] === "number" ? body[key] : fallback);
 
+/** Read one optional field of a named type. An absent key keeps the stored
+ *  value. A supplied value of another type is refused with the field-named
+ *  message. */
+const optionalTypedField = <T>(
+  body: Record<string, unknown>,
+  field: string,
+  stored: T,
+  kind: string,
+  read: (raw: unknown) => T | undefined,
+): Result<T> => {
+  const raw = body[field];
+  if (raw === undefined) return okResult(stored);
+  const value = read(raw);
+  return value === undefined
+    ? errorResult(`${field} must be a ${kind}`)
+    : okResult(value);
+};
+
 /**
  * Read one optional boolean switch from a JSON body. The form posts a
  * checkbox, the API takes a real boolean. Absent keeps the stored value. A
@@ -208,14 +230,24 @@ export const optionalBoolean = (
   body: Record<string, unknown>,
   field: string,
   stored: boolean,
-): Result<boolean> => {
-  const raw = body[field];
-  if (raw === undefined) return okResult(stored);
-  if (typeof raw !== "boolean") {
-    return errorResult(`${field} must be a boolean`);
-  }
-  return okResult(raw);
-};
+): Result<boolean> =>
+  optionalTypedField(body, field, stored, "boolean", (raw) =>
+    typeof raw === "boolean" ? raw : undefined,
+  );
+
+/**
+ * Read one optional text field from a JSON body. An absent key keeps the stored
+ * value. A supplied value must be a string, and a non-string answers the
+ * field-named message.
+ */
+export const optionalTextField = (
+  body: Record<string, unknown>,
+  field: string,
+  stored: string,
+): Result<string> =>
+  optionalTypedField(body, field, stored, "string", (raw) =>
+    typeof raw === "string" ? raw : undefined,
+  );
 
 /** The shape the required-text readers share: the raw body in, one run with
  *  the cleaned text. */
@@ -237,14 +269,15 @@ export const withRequiredText: RequiredTextReader = (body, run) => {
 
 /**
  * Parse an optional JSON-array field with partial-update semantics, failing
- * closed. `undefined` → ok with `undefined` (caller leaves existing data
- * untouched); a non-array → error; otherwise every element runs through
- * `parseItem` and the first rejection fails the whole parse.
+ * closed. `undefined` answers ok with `undefined`, so the caller leaves
+ * existing data untouched. A non-array answers an error. Otherwise every
+ * element runs through `parseItem` with its index. The first rejection fails
+ * the whole parse.
  */
 export const parseOptionalArray = <T>(
   raw: unknown,
   label: string,
-  parseItem: (item: unknown) => Result<T>,
+  parseItem: (item: unknown, index: number) => Result<T>,
 ): Result<T[] | undefined> =>
   parseOptionalResult(raw, (value) => {
     if (!Array.isArray(value)) {
@@ -252,6 +285,19 @@ export const parseOptionalArray = <T>(
     }
     return parseEach(parseItem)(value);
   });
+
+/** Parse one write body with the schema the resource table declares, so the
+ *  server, the client, and the docs read one shape. The first valibot issue
+ *  carries the wire message the caller answers. */
+export const parseApiBody = <Schema extends v.GenericSchema>(
+  schema: Schema,
+  body: Record<string, unknown>,
+): Result<v.InferOutput<Schema>> => {
+  const parsed = v.safeParse(schema, body);
+  return parsed.success
+    ? okResult(parsed.output)
+    : errorResult(parsed.issues[0].message);
+};
 
 /** Result of parsing + validating: either the input or a pre-built error response */
 export type ValidatedInput<Input> =
