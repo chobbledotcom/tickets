@@ -19,8 +19,8 @@ import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
   adminFormPost,
   adminGet,
-  createTestEditorSession,
   createTestManagerSession,
+  editorGetStatus,
   postFormAs,
 } from "#test-utils/session.ts";
 import { settingsAsStored } from "#test-utils/settings.ts";
@@ -292,11 +292,7 @@ describeWithEnv("server (admin invoices)", { db: true }, () => {
   });
 
   test("an editor cannot reach invoices", async () => {
-    const editor = await createTestEditorSession();
-    const response = await awaitTestRequest("/admin/invoices", {
-      cookie: editor.cookie,
-    });
-    expect(response.status).toBe(403);
+    expect(await editorGetStatus("/admin/invoices")).toBe(403);
   });
 
   test("an unknown invoice is not found for view, cancel, or delete", async () => {
