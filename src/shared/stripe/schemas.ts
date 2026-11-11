@@ -75,7 +75,6 @@ export type StripeCheckoutSession = StripeCheckoutSessionFields;
  * site starts each subscription with one item, so the item's price is the
  * charge each period. */
 export const StripeSubscriptionSchema = v.object({
-  currency: NonEmptyTextSchema,
   id: ResourceIdSchema,
   items: v.object({
     data: v.tuple([

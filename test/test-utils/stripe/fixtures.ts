@@ -65,7 +65,6 @@ export const stripeCheckoutSession = (
 export const stripeSubscription = (
   overrides: Partial<StripeSubscription> = {},
 ): StripeSubscription => ({
-  currency: "gbp",
   id: "sub_test",
   items: {
     data: [

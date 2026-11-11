@@ -21,7 +21,7 @@ import {
 } from "#shared/purchase-unit.ts";
 import type {
   RecurringInterval,
-  RecurringIntervalChoice,
+  RecurringListingColumns,
   SubscriptionStart,
 } from "#shared/subscriptions/plan.ts";
 import type { TaxPolicy } from "#shared/tax/types.ts";
@@ -64,18 +64,11 @@ const unitFields = (unit: PurchaseUnit): Partial<CheckoutItem> =>
   unit.kind === "months" ? { purchaseUnit: unit } : {};
 
 /** A listing with a recurring price and a frequency sells a subscription. */
-const recurringFields = (
-  listing: RecurringListingFacts,
-): Partial<CheckoutItem> => {
-  const interval = listing.recurring_interval ?? "";
-  const price = listing.recurring_price ?? 0;
-  return interval !== "" && price > 0 ? { recurring: { interval, price } } : {};
-};
-
-type RecurringListingFacts = {
-  recurring_interval?: RecurringIntervalChoice | undefined;
-  recurring_price?: number | undefined;
-};
+const recurringFields = ({
+  recurring_interval: interval,
+  recurring_price: price,
+}: RecurringListingColumns): Partial<CheckoutItem> =>
+  interval !== "" && price > 0 ? { recurring: { interval, price } } : {};
 
 /** Build a {@link CheckoutItem} for one listing — the one constructor every
  *  real-listing checkout line is built from. `purchase` carries the purchase
@@ -85,7 +78,7 @@ type RecurringListingFacts = {
  *  the result. */
 export const checkoutItem = (
   listing: PurchaseUnitFacts &
-    RecurringListingFacts &
+    RecurringListingColumns &
     Pick<CheckoutItem, "name" | "slug"> & {
       id: number;
     },

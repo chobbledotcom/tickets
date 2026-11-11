@@ -57,7 +57,8 @@ const listingColumnSources = (
     when: `NEW.${column} ${inUse}`,
   }));
 
-const FEATURE_WRITE_SOURCES: FeatureWriteSource[] = [
+/** The sources that the 2026-07-15 migration made triggers for. */
+const FIRST_SOURCES: FeatureWriteSource[] = [
   ...recordSources("attributes", "attributes", ["name", "sort_order"]),
   ...recordSources("questions", "questions", [
     "text",
@@ -104,8 +105,17 @@ const FEATURE_WRITE_SOURCES: FeatureWriteSource[] = [
     table: "attendees",
     when: "NEW.kind = 'servicing'",
   },
-  ...listingColumnSources("subscriptions", "recurring_price", "> 0"),
 ];
+
+/** These read listing columns that the 2026-11-10 migration adds, so that
+ * migration owns their triggers. */
+const SUBSCRIPTION_SOURCES = listingColumnSources(
+  "subscriptions",
+  "recurring_price",
+  "> 0",
+);
+
+const FEATURE_WRITE_SOURCES = [...FIRST_SOURCES, ...SUBSCRIPTION_SOURCES];
 
 const initialFeaturesFor = (feature: AdminFeatureKey): string =>
   serializeEnabledFeatures(
@@ -146,6 +156,9 @@ END`,
 export const ADMIN_FEATURE_TRIGGERS =
   FEATURE_WRITE_SOURCES.map(featureWriteTrigger);
 
-export const ADMIN_FEATURE_TRIGGER_NAMES = ADMIN_FEATURE_TRIGGERS.map(
-  ({ name }) => name,
-);
+const namesOf = (sources: FeatureWriteSource[]): string[] =>
+  sources.map(({ name }) => name);
+
+export const FIRST_FEATURE_TRIGGER_NAMES = namesOf(FIRST_SOURCES);
+
+export const SUBSCRIPTION_TRIGGER_NAMES = namesOf(SUBSCRIPTION_SOURCES);

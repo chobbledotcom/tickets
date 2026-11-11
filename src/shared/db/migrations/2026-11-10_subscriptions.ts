@@ -1,4 +1,5 @@
 import { schemaMigration } from "./define.ts";
+import { SUBSCRIPTION_TRIGGER_NAMES } from "./schema/admin-feature-triggers.ts";
 
 export default schemaMigration(
   "2026-11-10_subscriptions",
@@ -14,9 +15,6 @@ export default schemaMigration(
       ],
       listings: ["recurring_price", "recurring_interval"],
     },
-    triggers: [
-      "trg_admin_feature_subscriptions_listings_insert",
-      "trg_admin_feature_subscriptions_listings_update",
-    ],
+    triggers: SUBSCRIPTION_TRIGGER_NAMES,
   },
 );
