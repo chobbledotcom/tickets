@@ -51,11 +51,6 @@
       "evidence": "the route reads each field by key off the raw JSON body record"
     },
     {
-      "path": [{ "name": "AdminApiUpdateExternalSourceBody" }],
-      "kind": "dynamic-read",
-      "evidence": "the route reads each field by key off the raw JSON body record"
-    },
-    {
       "path": [{ "name": "AdminApiCreateExternalLinkBody" }],
       "kind": "dynamic-read",
       "evidence": "the route reads each field by key off the raw JSON body record"
@@ -88,11 +83,6 @@
       "evidence": "statusInputFrom reads the field by key off the raw JSON body record"
     },
     {
-      "path": [{ "name": "AdminApiUpdateAttendeeStatusBody" }],
-      "kind": "dynamic-read",
-      "evidence": "statusInputFrom reads the field by key off the raw JSON body record"
-    },
-    {
       "path": [{ "name": "AdminApiAttendeeStatus" }],
       "kind": "external-output",
       "evidence": "jsonResponse serialises the complete attendee-status row"
@@ -103,6 +93,13 @@
       "path": [{ "name": "TargetSpec" }],
       "kind": "dynamic-read",
       "evidence": "targetFlag reads the spec flag by key"
+    }
+  ],
+  "src/shared/rest/api-body-fields.ts": [
+    {
+      "path": [{ "name": "BodyField" }],
+      "kind": "dynamic-read",
+      "evidence": "fieldViews reads the create or update view by key when it assembles a body"
     }
   ],
   "src/shared/db/attendees/pii.ts": [

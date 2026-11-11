@@ -165,18 +165,6 @@
   ],
   "src/shared/admin-api-resources.ts": [
     {
-      "path": [{ "name": "AdminApiCreateAttributeBody" }],
-      "fields": ["name"]
-    },
-    {
-      "path": [{ "name": "AdminApiCreateHolidayBody" }],
-      "fields": ["end_date", "name", "start_date"]
-    },
-    {
-      "path": [{ "name": "AdminApiCreateQuestionBody" }],
-      "fields": ["assign_all", "display_type", "text"]
-    },
-    {
       "path": [{ "name": "AdminApiDeleteAnswer" }],
       "fields": ["status"]
     },
@@ -191,18 +179,6 @@
     {
       "path": [{ "name": "AdminApiOptionBody" }],
       "fields": ["text"]
-    },
-    {
-      "path": [{ "name": "AdminApiUpdateAttributeBody" }],
-      "fields": ["name"]
-    },
-    {
-      "path": [{ "name": "AdminApiUpdateHolidayBody" }],
-      "fields": ["end_date", "name", "start_date"]
-    },
-    {
-      "path": [{ "name": "AdminApiUpdateQuestionBody" }],
-      "fields": ["assign_all", "display_type", "text"]
     }
   ],
   "src/shared/admin-surface/definitions.ts": [
