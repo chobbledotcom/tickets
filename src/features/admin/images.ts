@@ -5,7 +5,6 @@ import type { TypedRouteHandler } from "#routes/router.ts";
  * First-class image library admin routes.
  */
 
-import { logActivity } from "#db/activity-log.ts";
 import { groups } from "#db/groups.ts";
 import {
   deleteImageRecord,
@@ -14,6 +13,7 @@ import {
   getImageUsesForImage,
   type ImageUseTarget,
   imageUseTargets,
+  logImageAction,
   setItemsForImage,
   updateImageRecord,
 } from "#db/images.ts";
@@ -43,6 +43,7 @@ import type { FormParams } from "#shared/form-data.ts";
 import {
   byNameThenUpload,
   isSiteContentImageType,
+  siteContentBlocksManager,
 } from "#shared/images/library.ts";
 import { sortByName } from "#shared/name-order.ts";
 import { featureGate } from "#shared/response-steps.ts";
@@ -108,7 +109,7 @@ const handleImageCreatePost: TypedRouteHandler<"POST /admin/images"> = (
   withAuth(request, CONTENT_MULTIPART, (_session, formData) =>
     withStorageEnabled(() =>
       withUploadedImage(formData, "/admin/images/new", async (image) => {
-        await logActivity(`Image '${image.name}' uploaded`);
+        await logImageAction("uploaded", image.name);
         return adminRedirect(
           "imageEdit",
           { id: image.id },
@@ -194,14 +195,6 @@ const parseImageTargets = (form: FormParams): ImageUseTarget[] =>
     })
     .filter((target): target is ImageUseTarget => target !== null);
 
-/** Does this image sit on any Site content (a news post or a page)? Its
- * metadata (name/alt_text) and its presence render on that public surface, so
- * changing or removing it is a Site-gated action a manager cannot take. */
-const imageHasSiteContentUse = async (imageId: number): Promise<boolean> =>
-  (await getImageUsesForImage(imageId)).some((use) =>
-    isSiteContentImageType(use.item_type),
-  );
-
 /** Block a non-Site session (a manager) from a save that changes an image
  * a news post or page uses. That image's metadata and links both surface as
  * public Site content. Returns the bounce-back response, or null when the
@@ -211,7 +204,7 @@ const siteContentImageGate = async (
   imageId: number,
   redirectTo: string,
 ): Promise<Response | null> =>
-  !isSiteRole(adminLevel) && (await imageHasSiteContentUse(imageId))
+  (await siteContentBlocksManager(adminLevel, imageId))
     ? redirect(redirectTo, t("images.news_gated"), false)
     : null;
 
@@ -250,7 +243,7 @@ const handleImageEditPost: TypedRouteHandler<"POST /admin/images/:id/edit"> =
       image.id,
       allowedImageTargets(adminLevel, parseImageTargets(form)),
     );
-    await logActivity(`Image '${metadata.value.name}' updated`);
+    await logImageAction("updated", metadata.value.name);
     return adminRedirect(
       "imageEdit",
       { id: image.id },
@@ -301,7 +294,7 @@ const handleImageDeletePost: TypedRouteHandler<"POST /admin/images/:id/delete"> 
       );
     }
     await deleteImageRecord(image.id);
-    await logActivity(`Image '${image.name}' deleted`);
+    await logImageAction("deleted", image.name);
     return adminRedirect("images", {}, t("images.deleted"), true);
   });
 

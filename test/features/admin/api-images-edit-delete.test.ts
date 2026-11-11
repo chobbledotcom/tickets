@@ -8,22 +8,28 @@ import {
   getImageById,
   getImagesForItem,
   getImageUsesForImage,
-  setItemsForImage,
 } from "#db/images.ts";
 import {
   type ApiImageRow,
+  deleteImage,
+  expectImageNotFound,
   imageApiPath,
+  imageOnListing,
+  imageOnPage,
   loggedMessages,
   makeImage,
+  putImage,
 } from "#test-utils/admin-images.ts";
-import { assertJson } from "#test-utils/assertions.ts";
+import {
+  assertApiDeleteOk,
+  assertJson,
+  expectApiError,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
 import { withStorageDisabled, withStorageMock } from "#test-utils/mocks.ts";
 import {
-  apiRequest,
   createTestEditorSession,
   createTestManagerSession,
 } from "#test-utils/session.ts";
@@ -35,19 +41,14 @@ describeWithEnv(
   () => {
     describe("PUT /api/admin/images/:imageId", () => {
       test("renames the image and replaces the records that show it", async () => {
-        const image = await makeImage("Before");
-        const listing = await createTestListing({ name: "Summer" });
+        const { image, listingId } = await imageOnListing("Before");
         const group = await createTestGroup({ name: "Series" });
-        await setItemsForImage(image.id, [{ id: listing.id, kind: "listing" }]);
 
         await assertJson<{ image: ApiImageRow }>(
-          apiRequest(imageApiPath(image.id), {
-            body: {
-              alt_text: "A poster",
-              items: [{ item_id: group.id, item_type: "group" }],
-              name: "After",
-            },
-            method: "PUT",
+          putImage(image.id, {
+            alt_text: "A poster",
+            items: [{ item_id: group.id, item_type: "group" }],
+            name: "After",
           }),
           200,
           (body) => {
@@ -71,24 +72,19 @@ describeWithEnv(
           },
         ]);
         // The listing lost the image when the links were replaced.
-        expect(await getImagesForItem("listing", listing.id)).toEqual([]);
+        expect(await getImagesForItem("listing", listingId)).toEqual([]);
         assertArrayIncludes(await loggedMessages(), ["Image 'After' updated"]);
       });
 
       test("leaves the links alone when the body names none", async () => {
-        const image = await makeImage("Keeps links");
-        const listing = await createTestListing({ name: "Summer" });
-        await setItemsForImage(image.id, [{ id: listing.id, kind: "listing" }]);
+        const { image, listingId } = await imageOnListing("Keeps links");
 
         await assertJson(
-          apiRequest(imageApiPath(image.id), {
-            body: { name: "Renamed only" },
-            method: "PUT",
-          }),
+          putImage(image.id, { name: "Renamed only" }),
           200,
           (body) => {
             expect(body.image.items).toEqual([
-              { item_id: listing.id, item_type: "listing" },
+              { item_id: listingId, item_type: "listing" },
             ]);
           },
         );
@@ -96,25 +92,16 @@ describeWithEnv(
       });
 
       test("clears every link when the body names an empty list", async () => {
-        const image = await makeImage("Unlinked");
-        const listing = await createTestListing({ name: "Summer" });
-        await setItemsForImage(image.id, [{ id: listing.id, kind: "listing" }]);
+        const { image } = await imageOnListing("Unlinked");
 
-        await assertJson(
-          apiRequest(imageApiPath(image.id), {
-            body: { items: [] },
-            method: "PUT",
-          }),
-          200,
-          (body) => expect(body.image.items).toEqual([]),
+        await assertJson(putImage(image.id, { items: [] }), 200, (body) =>
+          expect(body.image.items).toEqual([]),
         );
         expect(await getImageUsesForImage(image.id)).toEqual([]);
       });
 
       test("refuses an image a page shows, for a manager", async () => {
-        const image = await makeImage("On a page");
-        const page = await createTestSitePage("visit", { name: "Visit" });
-        await setItemsForImage(image.id, [{ id: page.id, kind: "page" }]);
+        const image = await imageOnPage("On a page", "visit", "Visit");
 
         const response = await apiPutAs(
           imageApiPath(image.id),
@@ -167,20 +154,13 @@ describeWithEnv(
         const image = await makeImage("Kept");
         const missingId = 4242;
 
-        await assertJson(
-          apiRequest(imageApiPath(image.id), {
-            body: {
-              items: [{ item_id: missingId, item_type: "listing" }],
-              name: "Renamed",
-            },
-            method: "PUT",
+        await expectApiError(
+          putImage(image.id, {
+            items: [{ item_id: missingId, item_type: "listing" }],
+            name: "Renamed",
           }),
           400,
-          (body) => {
-            expect(body.error).toBe(
-              `items must name existing records: listing:${missingId}`,
-            );
-          },
+          `items must name existing records: listing:${missingId}`,
         );
         expect((await getImageById(image.id))?.name).toBe("Kept");
         expect(await getImageUsesForImage(image.id)).toEqual([]);
@@ -189,59 +169,35 @@ describeWithEnv(
       test("refuses a malformed link", async () => {
         const image = await makeImage("Malformed");
 
-        await assertJson(
-          apiRequest(imageApiPath(image.id), {
-            body: { items: [{ item_id: 4, item_type: "attendee" }] },
-            method: "PUT",
+        await expectApiError(
+          putImage(image.id, {
+            items: [{ item_id: 4, item_type: "attendee" }],
           }),
           400,
-          (body) => {
-            expect(body.error).toBe(
-              "items[0] needs an item_type of listing, group, news, page, and a whole item_id",
-            );
-          },
+          "items[0] needs an item_type of listing, group, news, page, and a whole item_id",
         );
       });
 
       test("refuses an empty name", async () => {
         const image = await makeImage("Named");
-        await assertJson(
-          apiRequest(imageApiPath(image.id), {
-            body: { name: " " },
-            method: "PUT",
-          }),
+        await expectApiError(
+          putImage(image.id, { name: " " }),
           400,
-          (body) => expect(body.error).toBe("Image name is required"),
+          "Image name is required",
         );
       });
 
       test("answers 404 for an id the library does not hold", async () => {
-        await assertJson(
-          apiRequest(imageApiPath(9999), {
-            body: { name: "Gone" },
-            method: "PUT",
-          }),
-          404,
-          (body) => expect(body.error).toBe("Image not found"),
-        );
+        await expectImageNotFound(putImage(9999, { name: "Gone" }));
       });
     });
 
     describe("DELETE /api/admin/images/:imageId", () => {
       test("deletes the stored files, the links, and the record", async () => {
-        const image = await makeImage("Discard");
-        const listing = await createTestListing({ name: "Summer" });
-        await setItemsForImage(image.id, [{ id: listing.id, kind: "listing" }]);
+        const { image } = await imageOnListing("Discard");
 
         await withStorageMock(async (fetchCalls) => {
-          await assertJson(
-            apiRequest(imageApiPath(image.id), {
-              body: { confirm_identifier: "Discard" },
-              method: "DELETE",
-            }),
-            200,
-            (body) => expect(body).toEqual({ status: "ok" }),
-          );
+          await assertApiDeleteOk(imageApiPath(image.id), "Discard");
           expect(fetchCalls.some((url) => url.includes("discard.webp"))).toBe(
             true,
           );
@@ -258,17 +214,10 @@ describeWithEnv(
 
       test("refuses a confirmation that is not the image name", async () => {
         const image = await makeImage("Keep me");
-        await assertJson(
-          apiRequest(imageApiPath(image.id), {
-            body: { confirm_identifier: "wrong" },
-            method: "DELETE",
-          }),
+        await expectApiError(
+          deleteImage(image.id, { confirm_identifier: "wrong" }),
           400,
-          (body) => {
-            expect(body.error).toBe(
-              "Image name does not match. Please provide the exact image name in confirm_identifier.",
-            );
-          },
+          "Image name does not match. Please provide the exact image name in confirm_identifier.",
         );
         expect(await getImageById(image.id)).not.toBeNull();
       });
@@ -276,23 +225,17 @@ describeWithEnv(
       test("refuses deleting an image when storage is off", async () => {
         const image = await makeImage("No storage");
         await withStorageDisabled(() =>
-          assertJson(
-            apiRequest(imageApiPath(image.id), {
-              body: { confirm_identifier: image.name },
-              method: "DELETE",
-            }),
+          expectApiError(
+            deleteImage(image.id, { confirm_identifier: image.name }),
             400,
-            (body) =>
-              expect(body.error).toBe("File storage is not configured."),
+            "File storage is not configured.",
           ),
         );
         expect(await getImageById(image.id)).not.toBeNull();
       });
 
       test("refuses deleting an image a page shows, for a manager", async () => {
-        const image = await makeImage("Page image");
-        const page = await createTestSitePage("visit", { name: "Visit" });
-        await setItemsForImage(image.id, [{ id: page.id, kind: "page" }]);
+        const image = await imageOnPage("Page image", "visit", "Visit");
 
         const response = await apiDeleteAs(
           imageApiPath(image.id),
@@ -304,13 +247,8 @@ describeWithEnv(
       });
 
       test("answers 404 for an id the library does not hold", async () => {
-        await assertJson(
-          apiRequest(imageApiPath(9999), {
-            body: { confirm_identifier: "Gone" },
-            method: "DELETE",
-          }),
-          404,
-          (body) => expect(body.error).toBe("Image not found"),
+        await expectImageNotFound(
+          deleteImage(9999, { confirm_identifier: "Gone" }),
         );
       });
     });

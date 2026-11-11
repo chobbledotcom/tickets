@@ -328,17 +328,39 @@ export type AdminApiResource = {
   updateBodySchema?: v.GenericSchema;
 };
 
-const attributeEnvelope = v.looseObject({ attribute: AttributeRowSchema });
+/** One entry's shared table fields: its label, its path, and the two envelopes
+ *  the server answers with. The list envelope is keyed by the path and the
+ *  single envelope by the lowercased label, which is also how the id param is
+ *  named. */
+const resourceTableRow = <
+  const Label extends string,
+  const Path extends string,
+  Row extends v.GenericSchema,
+>(
+  label: Label,
+  path: Path,
+  row: Row,
+) => ({
+  label,
+  listSchema: v.looseObject({ [path]: v.array(row) } as {
+    [K in Path]: v.ArraySchema<Row, undefined>;
+  }),
+  path,
+  singleSchema: v.looseObject({ [label.toLowerCase()]: row } as {
+    [K in Lowercase<Label>]: Row;
+  }),
+});
+
+const attributeTableRow = resourceTableRow(
+  "Attribute",
+  "attributes",
+  AttributeRowSchema,
+);
 
 export const ADMIN_API_RESOURCES = {
   "attendee-statuses": {
     createBodySchema: CreateAttendeeStatusBodySchema,
-    label: "Status",
-    listSchema: v.looseObject({
-      "attendee-statuses": v.array(AttendeeStatusRowSchema),
-    }),
-    path: "attendee-statuses",
-    singleSchema: v.looseObject({ status: AttendeeStatusRowSchema }),
+    ...resourceTableRow("Status", "attendee-statuses", AttendeeStatusRowSchema),
     updateBodySchema: UpdateAttendeeStatusBodySchema,
   },
   attendees: {
@@ -356,14 +378,11 @@ export const ADMIN_API_RESOURCES = {
         bodySchema: OptionBodySchema,
         idParam: "optionId",
         path: "options",
-        responseSchema: attributeEnvelope,
+        responseSchema: attributeTableRow.singleSchema,
       },
     },
     createBodySchema: CreateAttributeBodySchema,
-    label: "Attribute",
-    listSchema: v.looseObject({ attributes: v.array(AttributeRowSchema) }),
-    path: "attributes",
-    singleSchema: attributeEnvelope,
+    ...attributeTableRow,
     updateBodySchema: UpdateAttributeBodySchema,
   },
   "external-sources": {
@@ -387,34 +406,20 @@ export const ADMIN_API_RESOURCES = {
       linkSearch: { method: "GET", subpath: "links" },
       links: { method: "GET", subpath: ":sourceId/links" },
     },
-    label: "Source",
-    listSchema: v.looseObject({
-      "external-sources": v.array(ExternalSourceRowSchema),
-    }),
-    path: "external-sources",
-    singleSchema: v.looseObject({ source: ExternalSourceRowSchema }),
+    ...resourceTableRow("Source", "external-sources", ExternalSourceRowSchema),
     updateBodySchema: UpdateExternalSourceBodySchema,
   },
   groups: {
-    label: "Group",
-    listSchema: v.looseObject({ groups: v.array(GroupRowSchema) }),
-    path: "groups",
-    singleSchema: v.looseObject({ group: GroupRowSchema }),
+    ...resourceTableRow("Group", "groups", GroupRowSchema),
   },
   holidays: {
     createBodySchema: HolidayWriteSchema,
-    label: "Holiday",
-    listSchema: v.looseObject({ holidays: v.array(HolidayRowSchema) }),
-    path: "holidays",
-    singleSchema: v.looseObject({ holiday: HolidayRowSchema }),
+    ...resourceTableRow("Holiday", "holidays", HolidayRowSchema),
     updateBodySchema: UpdateHolidayBodySchema,
   },
   images: {
     createBodySchema: CreateImageBodySchema,
-    label: "Image",
-    listSchema: v.looseObject({ images: v.array(ImageRowSchema) }),
-    path: "images",
-    singleSchema: v.looseObject({ image: ImageRowSchema }),
+    ...resourceTableRow("Image", "images", ImageRowSchema),
     updateBodySchema: UpdateImageBodySchema,
   },
   listings: {
@@ -436,12 +441,7 @@ export const ADMIN_API_RESOURCES = {
         subpath: ":listingId/reactivate",
       },
     },
-    label: "Listing",
-    listSchema: v.looseObject({
-      listings: v.array(ListingRowSchema),
-    }),
-    path: "listings",
-    singleSchema: v.looseObject({ listing: ListingRowSchema }),
+    ...resourceTableRow("Listing", "listings", ListingRowSchema),
   },
   questions: {
     children: {
@@ -458,10 +458,7 @@ export const ADMIN_API_RESOURCES = {
       // attendee-answers link, newest booking first.
       bookings: { method: "GET", subpath: ":questionId/bookings" },
     },
-    label: "Question",
-    listSchema: v.looseObject({ questions: v.array(QuestionRowSchema) }),
-    path: "questions",
-    singleSchema: v.looseObject({ question: QuestionRowSchema }),
+    ...resourceTableRow("Question", "questions", QuestionRowSchema),
     updateBodySchema: UpdateQuestionBodySchema,
   },
   "site-pages": {
@@ -484,12 +481,7 @@ export const ADMIN_API_RESOURCES = {
       "terms-post": { method: "POST", subpath: "terms" },
       "terms-put": { method: "PUT", subpath: "terms" },
     },
-    label: "Page",
-    listSchema: v.looseObject({
-      "site-pages": v.array(SitePageRowSchema),
-    }),
-    path: "site-pages",
-    singleSchema: v.looseObject({ page: SitePageRowSchema }),
+    ...resourceTableRow("Page", "site-pages", SitePageRowSchema),
     updateBodySchema: UpdateSitePageBodySchema,
   },
 } as const satisfies Record<string, AdminApiResource>;

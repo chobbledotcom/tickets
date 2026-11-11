@@ -9,7 +9,6 @@
  */
 
 import * as v from "valibot";
-import { logActivity } from "#db/activity-log.ts";
 import { type TxScope, withTransaction } from "#db/client.ts";
 import {
   deleteImageRecord,
@@ -19,6 +18,7 @@ import {
   getImageUsesForImages,
   type ImageUseTarget,
   imageUseTargets,
+  logImageAction,
   missingImageUseTargets,
   setItemsForImage,
   updateImageRecord,
@@ -39,16 +39,20 @@ import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
 import {
   byNameThenUpload,
   isSiteContentImageType,
+  siteContentBlocksManager,
 } from "#shared/images/library.ts";
 import { sortByName } from "#shared/name-order.ts";
-import { apiEntityGate, withApiEntity } from "#shared/rest/crud-parsers.ts";
+import {
+  apiEntityGate,
+  type EntityHandler,
+  withApiEntity,
+} from "#shared/rest/crud-parsers.ts";
 import { transactionValidationMessageOrRethrow } from "#shared/rest/write-error.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import { deleteImageStorageFilesStrict } from "#shared/storage-cleanup.ts";
 import {
   type AdminLevel,
-  type AdminSession,
   type Image,
   type ImageUse,
   ImageUseItemTypeSchema,
@@ -217,10 +221,7 @@ const siteContentRefusal = async (
   adminLevel: AdminLevel,
   imageId: number,
 ): Promise<Response | null> =>
-  !isSiteRole(adminLevel) &&
-  (await getImageUsesForImage(imageId)).some((use) =>
-    isSiteContentImageType(use.item_type),
-  )
+  (await siteContentBlocksManager(adminLevel, imageId))
     ? apiErrorResponse(t("images.news_gated"), 403)
     : null;
 
@@ -250,7 +251,7 @@ const handleCreate: RouteHandlerFn = (request) =>
     if (!input.ok) return apiErrorResponse(input.error);
     const stored = await storeImage(input.value.metadata, input.value.file);
     if (!stored.ok) return apiErrorResponse(stored.error);
-    await logActivity(`Image '${stored.value.name}' uploaded`);
+    await logImageAction("uploaded", stored.value.name);
     return jsonResponse({ [RESPONSE_KEY]: toImageRow(stored.value, []) }, 201);
   });
 
@@ -312,13 +313,7 @@ const writeImageUpdate = async (
 /** One id-addressed write: load the image, then refuse it to a manager when a
  *  news post or a page shows it. */
 const withWritableImage =
-  (
-    handler: (
-      image: Image,
-      session: AdminSession,
-      body: Record<string, unknown>,
-    ) => Promise<Response>,
-  ): RouteHandlerFn =>
+  (handler: EntityHandler<Image>): RouteHandlerFn =>
   (request, params) =>
     withApiEntity(
       request,
@@ -338,7 +333,7 @@ const handleUpdate: RouteHandlerFn = withWritableImage(
     if ("refusal" in input) return input.refusal;
     const outcome = await writeImageUpdate(image, input.update);
     if ("refusal" in outcome) return outcome.refusal;
-    await logActivity(`Image '${outcome.row.name}' updated`);
+    await logImageAction("updated", outcome.row.name);
     return jsonResponse({
       [RESPONSE_KEY]: toImageRow(
         outcome.row,
@@ -367,7 +362,7 @@ const handleDelete: RouteHandlerFn = withWritableImage(
       return apiErrorResponse(t("images.delete.storage_failed"), 500);
     }
     await deleteImageRecord(image.id);
-    await logActivity(`Image '${image.name}' deleted`);
+    await logImageAction("deleted", image.name);
     return jsonResponse({ status: "ok" });
   },
 );

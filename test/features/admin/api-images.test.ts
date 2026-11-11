@@ -9,13 +9,14 @@ import { getImageById, setItemsForImage } from "#db/images.ts";
 import { handleRequest } from "#routes";
 import {
   type ApiImageRow,
+  expectImageNotFound,
   IMAGE_API_ROOT,
   imageApiPath,
   imageUploadBody,
   loggedMessages,
   makeImage,
 } from "#test-utils/admin-images.ts";
-import { assertJson } from "#test-utils/assertions.ts";
+import { assertJson, expectApiError } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -93,9 +94,7 @@ describeWithEnv("Admin API - Images", { db: true, storage: "cdn" }, () => {
     });
 
     test("answers 404 for an id the library does not hold", async () => {
-      await assertJson(apiRequest(imageApiPath(9999)), 404, (body) => {
-        expect(body.error).toBe("Image not found");
-      });
+      await expectImageNotFound(apiRequest(imageApiPath(9999)));
     });
   });
 
@@ -135,20 +134,20 @@ describeWithEnv("Admin API - Images", { db: true, storage: "cdn" }, () => {
     test("refuses an upload when storage is off", async () => {
       const body = await imageUploadBody("No storage");
       await withStorageDisabled(() =>
-        assertJson(
+        expectApiError(
           apiRequest(IMAGE_API_ROOT, { body, method: "POST" }),
           400,
-          (body) => expect(body.error).toBe("File storage is not configured."),
+          "File storage is not configured.",
         ),
       );
     });
 
     test("refuses a file that is not base64 text", async () => {
       const body = await imageUploadBody("Not base64", { file: "not base64!" });
-      await assertJson(
+      await expectApiError(
         apiRequest(IMAGE_API_ROOT, { body, method: "POST" }),
         400,
-        (answered) => expect(answered.error).toBe("file must be base64 text"),
+        "file must be base64 text",
       );
     });
 
@@ -158,32 +157,33 @@ describeWithEnv("Admin API - Images", { db: true, storage: "cdn" }, () => {
         content_type: "image/gif",
         file: toBase64(gif),
       });
-      await assertJson(
+      await expectApiError(
         apiRequest(IMAGE_API_ROOT, { body, method: "POST" }),
         400,
-        (answered) =>
-          expect(answered.error).toBe(
-            "Image must be a JPEG, PNG, or WebP file",
-          ),
+        "Image must be a JPEG, PNG, or WebP file",
       );
     });
 
     test("names the required fields it is missing", async () => {
       const bodies = [
-        { content_type: "image/png", file: "AAAA" },
-        { file: "AAAA", name: "No type" },
-        { content_type: "image/png", name: "No file" },
+        {
+          body: { content_type: "image/png", file: "AAAA" },
+          error: "Image name is required",
+        },
+        {
+          body: { file: "AAAA", name: "No type" },
+          error: "content_type is required",
+        },
+        {
+          body: { content_type: "image/png", name: "No file" },
+          error: "file is required",
+        },
       ];
-      const errors = [
-        "Image name is required",
-        "content_type is required",
-        "file is required",
-      ];
-      for (const [index, body] of bodies.entries()) {
-        await assertJson(
+      for (const { body, error } of bodies) {
+        await expectApiError(
           apiRequest(IMAGE_API_ROOT, { body, method: "POST" }),
           400,
-          (answered) => expect(answered.error).toBe(errors[index]),
+          error,
         );
       }
     });

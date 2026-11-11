@@ -1,13 +1,16 @@
 import { encrypt } from "#crypto/encryption.ts";
 import { toBase64 } from "#crypto/utils.ts";
 import { execute } from "#db/client.ts";
-import { getImagesForItem, imagesTable } from "#db/images.ts";
+import { getImagesForItem, imagesTable, setItemsForImage } from "#db/images.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
+import { expectApiError } from "#test-utils/assertions.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
 import { mockMultipartRequest, mockRequest } from "#test-utils/mocks.ts";
-import { testCookie } from "#test-utils/session.ts";
+import { apiRequest, testCookie } from "#test-utils/session.ts";
 import { makeTestPng } from "#test-utils/test-image.ts";
 import type { Image, ImageUseItemType } from "#types";
 
@@ -18,6 +21,30 @@ export const makeImage = (name: string): Promise<Image> =>
     filenameThumb: nonEmptyString(`${name.toLowerCase()}-thumb.webp`),
     name,
   });
+
+/** A stored image shown on one listing. Returns the image and the listing's
+ *  id, which the tests read back through. */
+export const imageOnListing = async (
+  imageName: string,
+  listingName = "Summer",
+): Promise<{ image: Image; listingId: number }> => {
+  const image = await makeImage(imageName);
+  const listing = await createTestListing({ name: listingName });
+  await setItemsForImage(image.id, [{ id: listing.id, kind: "listing" }]);
+  return { image, listingId: listing.id };
+};
+
+/** A stored image shown on one site page. */
+export const imageOnPage = async (
+  imageName: string,
+  slug: string,
+  pageName: string,
+): Promise<Image> => {
+  const image = await makeImage(imageName);
+  const page = await createTestSitePage(slug, { name: pageName });
+  await setItemsForImage(image.id, [{ id: page.id, kind: "page" }]);
+  return image;
+};
 
 /** Store an image row whose filename is an encrypted empty string — the broken
  * shape the first-class images migration copied from a legacy listing whose
@@ -95,6 +122,23 @@ export const imageNamesForItem = async (
 export const IMAGE_API_ROOT = "/api/admin/images";
 
 export const imageApiPath = (id: number): string => `${IMAGE_API_ROOT}/${id}`;
+
+/** A JSON route write on one image, bound to the method the route answers. */
+const imageWrite =
+  (method: string) =>
+  (id: number, body: Record<string, unknown>): Promise<Response> =>
+    apiRequest(imageApiPath(id), { body, method });
+
+/** PUT one image's JSON route as an owner API key. */
+export const putImage = imageWrite("PUT");
+
+/** DELETE one image's JSON route as an owner API key. */
+export const deleteImage = imageWrite("DELETE");
+
+/** Assert the image library answers its 404 for this request. */
+export const expectImageNotFound = (
+  request: Promise<Response>,
+): Promise<unknown> => expectApiError(request, 404, "Image not found");
 
 /** One image row as the JSON API answers with it. */
 export type ApiImageRow = {

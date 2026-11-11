@@ -144,11 +144,9 @@ export const QUESTION_ENDPOINTS: EndpointDoc[] = [
     ],
     entry: ADMIN_API_RESOURCES.questions,
     example: ADMIN_API_EXAMPLE_QUESTION,
-    listResponse: { questions: [ADMIN_API_EXAMPLE_QUESTION] },
     // A brand-new question has no answers yet, whatever the example record
     // shows for the get/list answers.
     newRecordDefaults: { answers: [] },
-    singular: "question",
     updateBody: ADMIN_API_QUESTION_UPDATE_BODY,
   }),
   {

@@ -78,7 +78,5 @@ export const IMAGE_ENDPOINTS: EndpointDoc[] = crudDocs({
   ],
   entry: ADMIN_API_RESOURCES.images,
   example: ADMIN_API_EXAMPLE_IMAGE,
-  listResponse: { images: [ADMIN_API_EXAMPLE_IMAGE] },
-  singular: "image",
   updateBody: ADMIN_API_IMAGE_UPDATE_BODY,
 });

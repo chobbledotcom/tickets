@@ -345,11 +345,9 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
     ],
     entry: ADMIN_API_RESOURCES.attributes,
     example: ADMIN_API_EXAMPLE_ATTRIBUTE,
-    listResponse: { attributes: [ADMIN_API_EXAMPLE_ATTRIBUTE] },
     // A brand-new attribute has no options yet, whatever the example record
     // shows for the get/list answers.
     newRecordDefaults: { options: [] },
-    singular: "attribute",
     updateBody: ADMIN_API_ATTRIBUTE_UPDATE_BODY,
   }),
   {
@@ -405,7 +403,6 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
       bookable_days: [...VALID_DAY_NAMES],
       maximum_days_after: LISTING_DEFAULT_DAYS_AFTER,
     },
-    singular: "listing",
     updateBody: ADMIN_API_UPDATE_BODY,
   }),
   {
@@ -443,8 +440,6 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
     ],
     entry: ADMIN_API_RESOURCES.groups,
     example: ADMIN_API_EXAMPLE_GROUP,
-    listResponse: { groups: [ADMIN_API_EXAMPLE_GROUP] },
-    singular: "group",
     updateBody: ADMIN_API_GROUP_UPDATE_BODY,
   }),
   ...crudDocs({
@@ -459,8 +454,6 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
     ],
     entry: ADMIN_API_RESOURCES.holidays,
     example: ADMIN_API_EXAMPLE_HOLIDAY,
-    listResponse: { holidays: [ADMIN_API_EXAMPLE_HOLIDAY] },
-    singular: "holiday",
     updateBody: ADMIN_API_HOLIDAY_UPDATE_BODY,
   }),
   ...crudDocs({
@@ -475,10 +468,6 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
     ],
     entry: ADMIN_API_RESOURCES["attendee-statuses"],
     example: ADMIN_API_EXAMPLE_ATTENDEE_STATUS,
-    listResponse: {
-      "attendee-statuses": [ADMIN_API_EXAMPLE_ATTENDEE_STATUS],
-    },
-    singular: "status",
     updateBody: ADMIN_API_ATTENDEE_STATUS_UPDATE_BODY,
   }),
   {

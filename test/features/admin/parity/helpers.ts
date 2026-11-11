@@ -91,28 +91,27 @@ export const ownerApiDelete = (
 export const apiGetAs = (path: string, cookie: string): Promise<Response> =>
   apiRequestAs(path, "GET", undefined, cookie);
 
+/** A JSON route write bound to one HTTP method, for a session cookie of a role
+ *  below the owner. */
+const apiWriteAs =
+  (method: string) =>
+  (
+    path: string,
+    body: Record<string, unknown>,
+    cookie: string,
+  ): Promise<Response> =>
+    apiRequestAs(path, method, body, cookie);
+
 /** POST the JSON route with an explicit session cookie (a role below the
  *  owner). */
-export const apiPostAs = (
-  path: string,
-  body: Record<string, unknown>,
-  cookie: string,
-): Promise<Response> => apiRequestAs(path, "POST", body, cookie);
+export const apiPostAs = apiWriteAs("POST");
 
 /** PUT the JSON route with an explicit session cookie (a role below the
  *  owner). */
-export const apiPutAs = (
-  path: string,
-  body: Record<string, unknown>,
-  cookie: string,
-): Promise<Response> => apiRequestAs(path, "PUT", body, cookie);
+export const apiPutAs = apiWriteAs("PUT");
 
 /** DELETE the JSON route with an explicit session cookie. */
-export const apiDeleteAs = (
-  path: string,
-  body: Record<string, unknown>,
-  cookie: string,
-): Promise<Response> => apiRequestAs(path, "DELETE", body, cookie);
+export const apiDeleteAs = apiWriteAs("DELETE");
 
 /** Pins that an API update refuses a non-string name with the field
  *  message. Creates the entity through the same API first, so the pin

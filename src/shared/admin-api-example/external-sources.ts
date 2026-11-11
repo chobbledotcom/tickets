@@ -93,10 +93,6 @@ export const EXTERNAL_SOURCE_ENDPOINTS: EndpointDoc[] = [
     ],
     entry: ADMIN_API_RESOURCES["external-sources"],
     example: ADMIN_API_EXAMPLE_EXTERNAL_SOURCE,
-    listResponse: {
-      "external-sources": [ADMIN_API_EXAMPLE_EXTERNAL_SOURCE],
-    },
-    singular: "source",
     updateBody: UPDATE_SOURCE_BODY,
   }),
   {
