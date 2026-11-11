@@ -7,7 +7,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import * as v from "valibot";
 import { ADMIN_API } from "#routes/auth.ts";
-import { textField } from "#shared/rest/api-body-fields.ts";
+import { dateField, textField } from "#shared/rest/api-body-fields.ts";
 import {
   bodyNumber,
   optionalDateString,
@@ -19,6 +19,8 @@ import {
   requireEntityField,
   requireStrings,
   withApiEntity,
+  withWriteName,
+  writeEntityName,
 } from "#shared/rest/crud-parsers.ts";
 import { okResult } from "#shared/result.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -139,6 +141,53 @@ test("parseApiBody returns the parsed body", () => {
     ok: true,
     value: { name: "Poster" },
   });
+});
+
+test("parseApiBody passes a schema that has no object entries", () => {
+  expect(parseApiBody(v.unknown(), { name: "Poster" })).toEqual({
+    ok: true,
+    value: { name: "Poster" },
+  });
+});
+
+test("dateField names a missing date", () => {
+  const schema = v.object({ start_date: dateField("start_date").create });
+  expect(parseApiBody(schema, {})).toEqual({
+    error: "start_date is required",
+    ok: false,
+  });
+});
+
+test("writeEntityName trims a supplied name", () => {
+  expect(writeEntityName(" New ", "Stored")).toEqual({
+    ok: true,
+    value: "New",
+  });
+});
+
+test("writeEntityName refuses an empty name", () => {
+  expect(writeEntityName("  ", "Stored")).toEqual({
+    error: "name cannot be empty",
+    ok: false,
+  });
+});
+
+test("withWriteName refuses an empty name before the mapper runs", () => {
+  let mapped = false;
+  const mapper = withWriteName<
+    { name?: string | undefined },
+    { name: string },
+    { name: string }
+  >((name) => {
+    mapped = true;
+    return okResult({ name });
+  });
+
+  expect(mapper({ name: "  " }, { name: "Stored" })).toEqual({
+    error: "name cannot be empty",
+    ok: false,
+  });
+  expect(mapped).toBe(false);
 });
 
 test("parseUpdateSlug trims and lowercases the slug, deriving its index", async () => {

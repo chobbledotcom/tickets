@@ -16,12 +16,28 @@ export type BodyField = {
 /** The wire body one schema accepts: the type a caller sends. */
 export type ApiBody<Schema extends v.GenericSchema> = v.InferOutput<Schema>;
 
-const fieldTypeMessage =
-  (field: string, kind: string, requiredMessage: string) =>
+/** One field's message: the required message when the key is absent, and the
+ *  refused message otherwise. */
+const issueMessage =
+  (requiredMessage: string, refusedMessage: string) =>
   (issue: v.BaseIssue<unknown>): string =>
-    issue.received === "undefined"
-      ? requiredMessage
-      : `${field} must be a ${kind}`;
+    issue.received === "undefined" ? requiredMessage : refusedMessage;
+
+const fieldTypeMessage = (
+  field: string,
+  kind: string,
+  requiredMessage: string,
+) => issueMessage(requiredMessage, `${field} must be a ${kind}`);
+
+/** The message for a date field: a missing value is required. Any other
+ *  refusal is the field's invalid-value message. */
+const dateMessage = (field: string) =>
+  issueMessage(`${field} is required`, `${field} has an invalid value`);
+
+/** The message for a picklist field: a missing value is required. Any other
+ *  refusal answers the rule's own message. */
+const picklistMessage = (field: string, refusedMessage: string) =>
+  issueMessage(`${field} is required`, refusedMessage);
 
 /** A required text field. The create view is non-empty and trimmed. The
  *  update view leaves an empty value to the mapper, which answers the update's
@@ -60,11 +76,7 @@ export const switchField = (field: string) => ({
  *  answers the field's invalid-value message on both views. */
 export const dateField = (field: string) => ({
   create: v.pipe(
-    v.string((issue) =>
-      issue.received === "undefined"
-        ? `${field} is required`
-        : `${field} has an invalid value`,
-    ),
+    v.string(dateMessage(field)),
     v.trim(),
     v.nonEmpty(`${field} is required`),
   ),
@@ -79,9 +91,7 @@ export const picklistField = <const Options extends readonly string[]>(
   options: Options,
   refusedMessage: string,
 ) => ({
-  create: v.picklist(options, (issue) =>
-    issue.received === "undefined" ? `${field} is required` : refusedMessage,
-  ),
+  create: v.picklist(options, picklistMessage(field, refusedMessage)),
   update: v.optional(v.picklist(options, refusedMessage)),
 });
 
@@ -90,11 +100,8 @@ export const objectEntries = (
   schema: v.GenericSchema,
 ): Record<string, v.GenericSchema> | null => {
   if (!("entries" in schema)) return null;
-  const { entries } = schema;
-  if (typeof entries !== "object" || entries === null) return null;
-  // Valibot types ObjectEntries as a record of schemas. The `in` check
-  // narrowed the value to object.
-  return entries as Record<string, v.GenericSchema>;
+  // A valibot object schema carries its entries as a record of schemas.
+  return schema.entries as Record<string, v.GenericSchema>;
 };
 
 /** One view of every field: `create` for the complete body, `update` for the
