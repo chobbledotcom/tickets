@@ -15,12 +15,7 @@ import {
 import { defineIdTable } from "#db/define-id-table.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
-import {
-  type Read,
-  readOneRow,
-  readRows,
-  readStatement,
-} from "#db/read.ts";
+import { type Read, readOneRow, readRows, readStatement } from "#db/read.ts";
 import {
   defineRecordTarget,
   ITEM_TARGET_COLUMNS,

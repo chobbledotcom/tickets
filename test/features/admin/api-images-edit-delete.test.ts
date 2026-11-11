@@ -31,9 +31,9 @@ import {
   expectApiError,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
+import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import {
   withCdnRejecting,
   withStorageDisabled,
@@ -118,8 +118,8 @@ describeWithEnv(
         // A replica that has not caught up with the links the write replaced.
         using _replica = stub(db, "execute", (statement: InStatement) =>
           (typeof statement === "string" ? statement : statement.sql).includes(
-              "FROM image_uses",
-            )
+            "FROM image_uses",
+          )
             ? Promise.resolve(emptyResultSet())
             : realExecute(statement),
         );
