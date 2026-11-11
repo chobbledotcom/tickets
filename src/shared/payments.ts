@@ -64,11 +64,13 @@ const unitFields = (unit: PurchaseUnit): Partial<CheckoutItem> =>
   unit.kind === "months" ? { purchaseUnit: unit } : {};
 
 /** A listing with a recurring price and a frequency sells a subscription. */
-const recurringFields = ({
-  recurring_interval: interval,
-  recurring_price: price,
-}: RecurringListingColumns): Partial<CheckoutItem> =>
-  interval !== "" && price > 0 ? { recurring: { interval, price } } : {};
+const recurringFields = (
+  listing: RecurringListingColumns,
+): Partial<CheckoutItem> => {
+  const { recurring_interval: interval, recurring_price: price } = listing;
+  if (interval === "" || price <= 0) return {};
+  return { recurring: { interval, price } };
+};
 
 /** Build a {@link CheckoutItem} for one listing — the one constructor every
  *  real-listing checkout line is built from. `purchase` carries the purchase

@@ -1,10 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
-import { buildCreateListingResource } from "#routes/admin/listings-form.ts";
 import {
   createListing,
-  listingForm,
   updateListing,
 } from "#test/features/admin/listings-form/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -73,12 +71,22 @@ describeWithEnv("listings form subscriptions", { db: true }, () => {
     ]);
   });
 
-  test("refuses a recurring price without a frequency", () =>
+  test("refuses a new listing with a recurring price and no frequency", () =>
     whileOffered(async () => {
-      const form = listingForm({ ...MONTHLY, recurring_interval: "" });
-      expect(await buildCreateListingResource(form).create(form)).toEqual({
-        error: t("error.recurring_interval_required"),
-        ok: false,
-      });
+      await expect(
+        createListing({ ...MONTHLY, recurring_interval: "" }),
+      ).rejects.toThrow(
+        `create failed: ${t("error.recurring_interval_required")}`,
+      );
+    }));
+
+  test("refuses an edit that keeps a recurring price and chooses Never", () =>
+    whileOffered(async () => {
+      const row = await createListing(MONTHLY);
+      await expect(
+        updateListing(row.id, { ...MONTHLY, recurring_interval: "" }),
+      ).rejects.toThrow(
+        `update failed: ${t("error.recurring_interval_required")}`,
+      );
     }));
 });

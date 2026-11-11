@@ -51,6 +51,32 @@ describe("checkoutItem terms", () => {
     });
   });
 
+  test("carries a listing's recurring price and frequency", () => {
+    const club = testListing({
+      name: "Club",
+      recurring_interval: "month",
+      recurring_price: 500,
+      slug: "club",
+    });
+    expect(checkoutItem(club, 2, 1000)).toEqual({
+      listingId: club.id,
+      name: "Club",
+      quantity: 2,
+      recurring: { interval: "month", price: 500 },
+      slug: "club",
+      unitPrice: 1000,
+    });
+  });
+
+  test("sells no subscription without both a recurring price and a frequency", () => {
+    const noFrequency = testListing({ recurring_price: 500 });
+    const noPrice = testListing({ recurring_interval: "week" });
+    expect([
+      Object.hasOwn(checkoutItem(noFrequency, 1, 1000), "recurring"),
+      Object.hasOwn(checkoutItem(noPrice, 1, 1000), "recurring"),
+    ]).toEqual([false, false]);
+  });
+
   test("prices a renewal purchase by the tier's months per unit", () => {
     const tier = testListing({
       hidden: true,

@@ -73,18 +73,18 @@ describe("listingToFieldValues", () => {
     expect(values.hidden).toBe("");
   });
 
-  test("a free listing leaves its price box empty rather than typing 0.00", () => {
-    const values = listingToFieldValues(
-      testListingWithCount({ unit_price: 0 }),
+  test("a money box types its price, and leaves a free price empty rather than typing 0.00", () => {
+    const typedPrices = (field: "recurring_price" | "unit_price") =>
+      [0, 1, 500].map(
+        (price) =>
+          listingToFieldValues(testListingWithCount({ [field]: price }))[field],
+      );
+    expect([typedPrices("unit_price"), typedPrices("recurring_price")]).toEqual(
+      [
+        ["", "0.01", "5.00"],
+        ["", "0.01", "5.00"],
+      ],
     );
-    expect(values.unit_price).toBe("");
-  });
-
-  test("a one-penny price still fills the box", () => {
-    const values = listingToFieldValues(
-      testListingWithCount({ unit_price: 1 }),
-    );
-    expect(values.unit_price).toBe("0.01");
   });
 
   test("carries a dated listing's own day in the datetime box's shape", () => {
