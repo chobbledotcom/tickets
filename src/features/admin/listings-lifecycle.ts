@@ -15,7 +15,7 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { deactivationOrphanedAddOnError } from "#shared/add-on-reachability.ts";
 import {
-  deleteOrphanedAddOnError,
+  listingDeleteError,
   performListingDelete,
   toggleListingActive,
 } from "#shared/listings-actions.ts";
@@ -123,7 +123,7 @@ const deleteListingThen = async <T>(
  * blocks before deleting. */
 export const listingDelete = createConfirmedHandlers<ListingWithCount>({
   ...listingConfirmBase,
-  guardError: (_listing, id) => deleteOrphanedAddOnError(id),
+  guardError: (_listing, id) => listingDeleteError(id),
   // performListingDelete re-runs the guard inside the write transaction, so
   // the framework skips its own POST-time check.
   guardInTx: true,

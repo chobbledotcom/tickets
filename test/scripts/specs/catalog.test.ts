@@ -75,6 +75,7 @@ const EVERY_STORY_ID = [
   "payments.a-payment-with-no-callback",
   "payments.booking-with-a-discount-code",
   "payments.buying-a-subscription-ticket",
+  "payments.cancelling-a-subscription",
   "payments.capacity-after-payment",
   "payments.checking-before-a-refund",
   "payments.correcting-the-books",

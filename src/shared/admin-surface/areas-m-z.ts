@@ -276,8 +276,16 @@ export const AREAS_M_Z = {
     seeds: "/admin/seeds",
     sessions: "/admin/sessions",
   }),
-  ...onePageAreas(STAFF_ADMIN_LEVELS, {
-    sms: "/admin/sms",
-    subscriptions: "/admin/subscriptions",
-  }),
+  ...onePageAreas(STAFF_ADMIN_LEVELS, { sms: "/admin/sms" }),
+  // Staff see who subscribed. Only an owner can cancel a subscription.
+  subscriptions: {
+    audience: STAFF_ADMIN_LEVELS,
+    view: { subscriptions: "/admin/subscriptions" },
+    write: {
+      subscriptionCancel: {
+        audience: OWNER_AUDIENCE,
+        pattern: "/admin/subscriptions/:id/cancel",
+      },
+    },
+  },
 } as const;

@@ -6,8 +6,15 @@
  * claim arrives between the check and the write.
  */
 
-import { queryAllPrimary, resultRows, type TxScope } from "#db/client.ts";
+import {
+  type BatchExecutor,
+  queryBatchPrimary,
+  resultRows,
+  type TxScope,
+} from "#db/client.ts";
 import { idListStatement } from "#db/id-list-statement.ts";
+import { liveBookingOfAttendees } from "#db/subscriptions.ts";
+import { t } from "#i18n";
 import {
   mirroredMoveRefusalOrNull,
   type PaymentWork,
@@ -23,6 +30,7 @@ import {
   readRefundAuthorityState,
 } from "#payment/refund-authority-state.ts";
 import { namedError } from "#shared/named-error.ts";
+import { requireValue } from "#shared/required-value.ts";
 
 interface StoredMoveWork {
   readonly protected_state: string;
@@ -49,7 +57,10 @@ const moveWorkStatement = idListStatement(
 const admissionFor = (reason: string | null): PaymentMoveAdmission =>
   reason === null ? { kind: "available" } : { kind: "blocked", reason };
 
-const moveSnapshot = (rows: readonly StoredMoveWork[]): PaymentMoveSnapshot => {
+const moveSnapshot = (
+  rows: readonly StoredMoveWork[],
+  holdsLiveSubscription: boolean,
+): PaymentMoveSnapshot => {
   const mirrors = rows.map((row) => row.protected_state);
   const storedAuthorityStates = new Set(
     rows.flatMap((row) =>
@@ -61,7 +72,12 @@ const moveSnapshot = (rows: readonly StoredMoveWork[]): PaymentMoveSnapshot => {
   ].map((state) =>
     readRefundAuthorityState(state, "payment_charges.refund_state"),
   );
+  // A merge copies the plan to the kept attendee. A delete loses it.
+  const subscriptionRefusal = holdsLiveSubscription
+    ? t("error.subscription_live")
+    : null;
   const refusalFor = (move: RowMove): string | null =>
+    (move === "delete" ? subscriptionRefusal : null) ??
     mirroredMoveRefusalOrNull(mirrors, move) ??
     refundMoveRefusalOrNull(authorityStates, move);
   return {
@@ -76,25 +92,27 @@ const moveSnapshot = (rows: readonly StoredMoveWork[]): PaymentMoveSnapshot => {
   };
 };
 
-const snapshotFrom = async (
-  read: ReturnType<TxScope["execute"]>,
-): Promise<PaymentMoveSnapshot> =>
-  moveSnapshot(resultRows<StoredMoveWork>(await read));
+/** The reads a move decision rests on: the payment work of the attendees, and
+ * any of their bookings whose subscription still charges. */
+/** Read the payment-move decision with `runReads`: the primary for a page,
+ * or the transaction of the writer. The rows contain no attendee PII and are
+ * bounded by attendee id. */
+const snapshotReadBy =
+  (runReads: BatchExecutor) =>
+  async (attendeeIds: readonly number[]): Promise<PaymentMoveSnapshot> => {
+    const [work, live] = await runReads([
+      moveWorkStatement(attendeeIds),
+      liveBookingOfAttendees(attendeeIds),
+    ]);
+    return moveSnapshot(
+      resultRows<StoredMoveWork>(
+        requireValue(work, "Payment work read is missing"),
+      ),
+      requireValue(live, "Subscription read is missing").rows.length > 0,
+    );
+  };
 
-const readPaymentMoveSnapshot = (
-  tx: TxScope,
-  attendeeIds: readonly number[],
-): Promise<PaymentMoveSnapshot> =>
-  snapshotFrom(tx.execute(moveWorkStatement(attendeeIds)));
-
-/** Read the same payment-move decision as the transactional writer from the
- * primary. The rows contain no attendee PII and are bounded by attendee id. */
-export const loadPaymentMoveSnapshot = async (
-  attendeeIds: readonly number[],
-): Promise<PaymentMoveSnapshot> =>
-  moveSnapshot(
-    await queryAllPrimary<StoredMoveWork>(moveWorkStatement(attendeeIds)),
-  );
+export const loadPaymentMoveSnapshot = snapshotReadBy(queryBatchPrimary);
 
 /** Raised when payment rows are in the middle of work the operator has to
  *  settle first. The message is written for whoever asked for the merge or the
@@ -109,9 +127,8 @@ export const assertRowsFreeToMove = async (
   attendeeIds: readonly number[],
   move: RowMove,
 ): Promise<void> => {
-  const admission = (await readPaymentMoveSnapshot(tx, attendeeIds)).admission[
-    move
-  ];
+  const snapshot = await snapshotReadBy(tx.batch)(attendeeIds);
+  const admission = snapshot.admission[move];
   if (admission.kind === "blocked") {
     throw new PaymentRowsBusyError(admission.reason);
   }

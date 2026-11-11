@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { isOneOf } from "#fp";
 import type {
   ProviderInvalidReason,
   ProviderRead,
@@ -41,8 +42,7 @@ const TransactionSchema = v.object({
 
 const CAPTURED_STATUSES = ["REFUNDED", "SUCCESSFUL"] as const;
 
-const isCapturedStatus = (status: string): boolean =>
-  CAPTURED_STATUSES.some((captured) => captured === status);
+const isCapturedStatus = isOneOf(CAPTURED_STATUSES);
 
 type TransactionFacts = {
   merchantCode: string;

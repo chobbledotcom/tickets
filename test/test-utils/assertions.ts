@@ -12,6 +12,7 @@ import { assert, assertExists, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import type { Result } from "#shared/result.ts";
 import {
   awaitTestRequest,
   mockFormRequest,
@@ -23,6 +24,13 @@ import { expectAdminRedirect } from "./assertions/redirect.ts";
 
 export * from "./assertions/html.ts";
 export * from "./assertions/redirect.ts";
+
+/** The value of a result that the test needs to succeed. A failed result
+ * throws its own error. */
+export const okValue = <T>(result: Result<T>): T => {
+  if (!result.ok) throw new Error(result.error);
+  return result.value;
+};
 
 export const expectStatus =
   (status: number) =>
