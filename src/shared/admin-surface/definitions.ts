@@ -34,7 +34,7 @@ export type ReadOnlyWrite = "always" | "read-only";
 export const OWNER_AUDIENCE = ["owner"] as const;
 
 /** Areas that each serve one page, keyed by the page id they share. */
-export type OnePageAreas<
+type OnePageAreas<
   Audience extends AdminAudience,
   Pages extends Readonly<Record<string, string>>,
 > = {
