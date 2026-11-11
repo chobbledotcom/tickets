@@ -5,7 +5,6 @@ import type { TypedRouteHandler } from "#routes/router.ts";
  * First-class image library admin routes.
  */
 
-import { logActivity } from "#db/activity-log.ts";
 import { groups } from "#db/groups.ts";
 import {
   deleteImageRecord,
@@ -40,7 +39,13 @@ import {
 } from "#routes/response.ts";
 import { adminPath } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { compareByName, sortByName } from "#shared/name-order.ts";
+import { logImageAction } from "#shared/images/activity.ts";
+import {
+  byNameThenUpload,
+  isSiteContentImageType,
+  siteContentBlocksManager,
+} from "#shared/images/library.ts";
+import { sortByName } from "#shared/name-order.ts";
 import { featureGate } from "#shared/response-steps.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import { deleteImageStorageFilesStrict } from "#shared/storage-cleanup.ts";
@@ -64,11 +69,6 @@ import { imageMetadataFromForm, withUploadedImage } from "./image-upload.ts";
 
 /** The image's edit page: where a create and a save both land. */
 const imagePath = (id: number): string => adminPath("imageEdit", { id });
-
-/** The image library's order: name ascending, then upload order. A row id
- * grows as records are created, so the lower id is the older upload. */
-const byNameThenUpload = (first: Image, second: Image): number =>
-  compareByName(first, second) || first.id - second.id;
 
 const withStorageEnabled = featureGate(isStorageEnabled, () =>
   adminRedirect("images", {}, t("images.storage_off"), false),
@@ -109,7 +109,7 @@ const handleImageCreatePost: TypedRouteHandler<"POST /admin/images"> = (
   withAuth(request, CONTENT_MULTIPART, (_session, formData) =>
     withStorageEnabled(() =>
       withUploadedImage(formData, "/admin/images/new", async (image) => {
-        await logActivity(`Image '${image.name}' uploaded`);
+        await logImageAction("uploaded", image.name);
         return adminRedirect(
           "imageEdit",
           { id: image.id },
@@ -195,20 +195,6 @@ const parseImageTargets = (form: FormParams): ImageUseTarget[] =>
     })
     .filter((target): target is ImageUseTarget => target !== null);
 
-/** The image-use item types that are public Site content (owner + editor):
- * news posts and pages. An image on either surfaces publicly, so a manager
- * cannot manage it. */
-const isSiteContentImageType = (type: ImageUseItemType): boolean =>
-  type === "news" || type === "page";
-
-/** Does this image sit on any Site content (a news post or a page)? Its
- * metadata (name/alt_text) and its presence render on that public surface, so
- * changing or removing it is a Site-gated action a manager cannot take. */
-const imageHasSiteContentUse = async (imageId: number): Promise<boolean> =>
-  (await getImageUsesForImage(imageId)).some((use) =>
-    isSiteContentImageType(use.item_type),
-  );
-
 /** Block a non-Site session (a manager) from a save that changes an image
  * a news post or page uses. That image's metadata and links both surface as
  * public Site content. Returns the bounce-back response, or null when the
@@ -218,7 +204,7 @@ const siteContentImageGate = async (
   imageId: number,
   redirectTo: string,
 ): Promise<Response | null> =>
-  !isSiteRole(adminLevel) && (await imageHasSiteContentUse(imageId))
+  (await siteContentBlocksManager(adminLevel, imageId))
     ? redirect(redirectTo, t("images.news_gated"), false)
     : null;
 
@@ -257,7 +243,7 @@ const handleImageEditPost: TypedRouteHandler<"POST /admin/images/:id/edit"> =
       image.id,
       allowedImageTargets(adminLevel, parseImageTargets(form)),
     );
-    await logActivity(`Image '${metadata.value.name}' updated`);
+    await logImageAction("updated", metadata.value.name);
     return adminRedirect(
       "imageEdit",
       { id: image.id },
@@ -308,7 +294,7 @@ const handleImageDeletePost: TypedRouteHandler<"POST /admin/images/:id/delete"> 
       );
     }
     await deleteImageRecord(image.id);
-    await logActivity(`Image '${image.name}' deleted`);
+    await logImageAction("deleted", image.name);
     return adminRedirect("images", {}, t("images.deleted"), true);
   });
 

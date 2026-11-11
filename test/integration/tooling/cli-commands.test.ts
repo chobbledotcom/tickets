@@ -69,6 +69,7 @@ describe("CLI describe", () => {
       "external-sources",
       "groups",
       "holidays",
+      "images",
       "listings",
       "questions",
       "site-pages",

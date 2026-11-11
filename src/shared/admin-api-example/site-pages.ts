@@ -79,8 +79,6 @@ export const SITE_PAGE_ENDPOINTS: EndpointDoc[] = [
     ],
     entry: ADMIN_API_RESOURCES["site-pages"],
     example: ADMIN_API_EXAMPLE_SITE_PAGE,
-    listResponse: { "site-pages": [ADMIN_API_EXAMPLE_SITE_PAGE] },
-    singular: "page",
     updateBody: UPDATE_SITE_PAGE_BODY,
   }),
   // The three fixed pages: home, contact and terms. Each is read and its

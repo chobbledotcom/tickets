@@ -29,17 +29,29 @@ import {
 } from "#shared/validation/string.ts";
 import type { Image } from "#types";
 
-type ImageMetadata = {
+/** The name and alt text one image record carries. */
+export type ImageMetadata = {
   name: string;
   altText: string;
 };
 
-export const imageMetadataFromForm = (
-  form: FormParams,
+/** The file bytes a new image is made from, and the type its uploader
+ *  declared. */
+export type ImageFile = {
+  bytes: Uint8Array;
+  contentType: string;
+};
+
+/** The name and alt text a write carries, checked by the rules both surfaces
+ *  share. A name is required. The rendered inputs' length caps hold for a
+ *  crafted request too. */
+export const imageMetadata = (
+  submittedName: string,
+  submittedAltText: string,
 ): Result<ImageMetadata> => {
-  const name = form.getString("name");
+  const name = submittedName.trim();
   if (name === "") return errorResult(t("images.error.name_required"));
-  const altText = form.getString("alt_text");
+  const altText = submittedAltText.trim();
   // The rendered inputs cap length in the browser, but a crafted POST skips
   // the browser, so the parser carries the same limit for both fields.
   const overLong = [
@@ -57,6 +69,11 @@ export const imageMetadataFromForm = (
   return okResult({ altText, name });
 };
 
+export const imageMetadataFromForm = (
+  form: FormParams,
+): Result<ImageMetadata> =>
+  imageMetadata(form.getString("name"), form.getString("alt_text"));
+
 const imageFileFromForm = (formData: FormData): Result<File> => {
   const entry = formData.get("image");
   return entry instanceof File && entry.size > 0
@@ -65,21 +82,20 @@ const imageFileFromForm = (formData: FormData): Result<File> => {
 };
 
 const uploadedFilenames = async (
-  file: File,
+  file: ImageFile,
 ): Promise<
   Result<{ filename: NonEmptyString; filenameThumb: NonEmptyString }>
 > => {
   if (!isStorageEnabled()) {
     return errorResult(t("images.storage_off"));
   }
-  const data = new Uint8Array(await file.arrayBuffer());
-  const validation = validateImage(data, file.type);
+  const validation = validateImage(file.bytes, file.contentType);
   if (!validation.valid) {
     return errorResult(IMAGE_ERROR_MESSAGES[validation.error]);
   }
   try {
     const [filename, filenameThumb] = await uploadImageTargets(
-      data,
+      file.bytes,
       validation.detectedType,
       [FULL_IMAGE_TARGET, THUMB_IMAGE_TARGET],
     );
@@ -97,18 +113,18 @@ const uploadedFilenames = async (
   }
 };
 
-export const createImageFromUpload = async (
-  formData: FormData,
+/** Store one image: its two files, then its record. A record write that fails
+ *  removes the files it just wrote, so no upload is left without a library
+ *  entry. */
+export const storeImage = async (
+  metadata: ImageMetadata,
+  file: ImageFile,
 ): Promise<Result<Image>> => {
-  const metadata = imageMetadataFromForm(formDataToParams(formData));
-  if (!metadata.ok) return metadata;
-  const file = imageFileFromForm(formData);
-  if (!file.ok) return file;
-  const filenames = await uploadedFilenames(file.value);
+  const filenames = await uploadedFilenames(file);
   if (!filenames.ok) return filenames;
   try {
     const image = await insertImageRecord({
-      ...metadata.value,
+      ...metadata,
       ...filenames.value,
     });
     return okResult(image);
@@ -125,6 +141,19 @@ export const createImageFromUpload = async (
     );
     throw err;
   }
+};
+
+export const createImageFromUpload = async (
+  formData: FormData,
+): Promise<Result<Image>> => {
+  const metadata = imageMetadataFromForm(formDataToParams(formData));
+  if (!metadata.ok) return metadata;
+  const file = imageFileFromForm(formData);
+  if (!file.ok) return file;
+  return storeImage(metadata.value, {
+    bytes: new Uint8Array(await file.value.arrayBuffer()),
+    contentType: file.value.type,
+  });
 };
 
 export const withUploadedImage = async (

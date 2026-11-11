@@ -24,6 +24,7 @@ import { attributeApiRoutes } from "#routes/admin/api-attributes.ts";
 import { externalSourceApiRoutes } from "#routes/admin/api-external-sources.ts";
 import { groupApiRoutes } from "#routes/admin/api-groups.ts";
 import { holidayApiRoutes } from "#routes/admin/api-holidays.ts";
+import { imageApiRoutes } from "#routes/admin/api-images.ts";
 import { questionApiRoutes } from "#routes/admin/api-questions.ts";
 import { sitePageApiRoutes } from "#routes/admin/api-site-pages.ts";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
@@ -248,6 +249,7 @@ export const adminApiRoutes = {
   ...externalSourceApiRoutes,
   ...holidayApiRoutes,
   ...groupApiRoutes,
+  ...imageApiRoutes,
   ...questionApiRoutes,
   ...listingApiRoutes,
   ...sitePageApiRoutes,

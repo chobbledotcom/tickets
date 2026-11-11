@@ -223,6 +223,26 @@ describe("documented admin CRUD endpoints", () => {
     }
   });
 
+  test("the image upload answers the stored record, not the request", () => {
+    // The body carries the file's bytes as base64 text, so merging the body
+    // into the answer would document a field no answer ever holds.
+    const endpoint = documented(
+      ADMIN_API_ENDPOINTS,
+      "POST",
+      "/api/admin/images",
+    );
+    const request = JSON.parse(endpoint.request!);
+    const created = JSON.parse(endpoint.response).image;
+
+    expect(created).not.toHaveProperty("file");
+    expect(created).not.toHaveProperty("content_type");
+    expect(created.items).toEqual([]);
+    expect(created.name).toBe(request.name);
+    expect(created.alt_text).toBe(request.alt_text);
+    expect(created.url).toMatch(/^\/image\/[\w-]+\.webp$/);
+    expect(created.thumb_url).not.toBe(created.url);
+  });
+
   test("a created listing keeps the settings it is given by default", () => {
     // The create body says nothing about these, so the answer must show what
     // the stored defaults give it — not what the example record happens to
@@ -264,6 +284,7 @@ describe("documented admin CRUD endpoints", () => {
       ["page"],
       ["source"],
       ["links"],
+      ["image"],
     ]);
   });
 
@@ -272,13 +293,13 @@ describe("documented admin CRUD endpoints", () => {
       (e: EndpointDoc) => e.method === "DELETE",
     );
 
-    // The eleven confirmed content deletes answer with a plain ok. The three
+    // The twelve confirmed content deletes answer with a plain ok. The three
     // fixed-page deletes are refusals, because a fixed page cannot be
     // deleted.
     const okDeletes = deletes.filter(
       (endpoint) => "status" in JSON.parse(endpoint.response),
     );
-    expect(okDeletes.length).toBe(11);
+    expect(okDeletes.length).toBe(12);
     for (const endpoint of okDeletes) {
       expect(JSON.parse(endpoint.response)).toEqual({ status: "ok" });
     }

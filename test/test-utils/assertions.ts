@@ -129,6 +129,17 @@ export const assertJson = async <T = any>(
   return expectJsonResponse<T>(status, assertions)(response);
 };
 
+/** Assert the JSON API refuses this request with a status and one error
+ *  text. */
+export const expectApiError = (
+  request: Promise<Response>,
+  status: number,
+  message: string,
+): Promise<unknown> =>
+  assertJson<{ error: string }>(request, status, (body) =>
+    expect(body.error).toBe(message),
+  );
+
 /** PUT `{ name: "" }` to a JSON API entity endpoint and assert the standard
  *  400 "name cannot be empty" rejection. The PUT-name-empty validation is
  *  shared by every writable-named admin entity (holidays, groups, listings),
