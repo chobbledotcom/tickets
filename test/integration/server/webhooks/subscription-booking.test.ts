@@ -1,17 +1,14 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { queryAll } from "#db/client.ts";
 import { handleRequest } from "#routes";
-import { stripeApi } from "#shared/stripe.ts";
 import { followRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { stripeSubscription } from "#test-utils/stripe/fixtures.ts";
-import { stubCheckoutSession } from "#test-utils/stripe/responses.ts";
+import { withSubscriptionStarted } from "#test-utils/stripe/subscription-checkout.ts";
 
 const INCLUDED_VAT = JSON.stringify({
   mode: "calculate_from_total",
@@ -20,12 +17,11 @@ const INCLUDED_VAT = JSON.stringify({
 
 /** Complete a paid subscription checkout for two tickets of `listingId`
  * through the success redirect, with Stripe reporting the started plan. */
-const completeSubscriptionCheckout = async (listingId: number) => {
-  const retrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-    Promise.resolve(
-      stubCheckoutSession({
+const completeSubscriptionCheckout = (listingId: number) =>
+  withSubscriptionStarted(
+    {
+      session: {
         amount_total: 2000,
-        currency: "gbp",
         id: "cs_sub_booking",
         metadata: signedMeta(
           {
@@ -36,17 +32,8 @@ const completeSubscriptionCheckout = async (listingId: number) => {
           },
           2000,
         ),
-        mode: "subscription",
-        payment_intent: null,
-        payment_status: "paid",
-        status: "complete",
-        subscription: "sub_booking",
-      }),
-    ),
-  );
-  const read = stub(stripeApi, "readSubscription", () =>
-    Promise.resolve({
-      resource: stripeSubscription({
+      },
+      subscription: {
         id: "sub_booking",
         items: {
           data: [
@@ -57,21 +44,16 @@ const completeSubscriptionCheckout = async (listingId: number) => {
           ],
         },
         metadata: { listing_id: String(listingId) },
-      }),
-      status: "found" as const,
-    }),
+      },
+    },
+    async () => {
+      const redirect = await handleRequest(
+        mockRequest("/payment/success?session_id=cs_sub_booking"),
+      );
+      expect(redirect.status).toBe(302);
+      expect((await followRedirect(redirect, handleRequest)).status).toBe(200);
+    },
   );
-  try {
-    const redirect = await handleRequest(
-      mockRequest("/payment/success?session_id=cs_sub_booking"),
-    );
-    expect(redirect.status).toBe(302);
-    expect((await followRedirect(redirect, handleRequest)).status).toBe(200);
-  } finally {
-    retrieve.restore();
-    read.restore();
-  }
-};
 
 describeWithEnv("subscription booking", { db: true }, () => {
   test("keeps the plan Stripe started on the booking row", async () => {

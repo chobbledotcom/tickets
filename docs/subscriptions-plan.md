@@ -93,12 +93,13 @@ different cancellation behaviour. It is a separate plan if the owner wants it.
 | Fact | Home |
 | --- | --- |
 | Feature switch | A `subscriptions` entry in `ADMIN_FEATURES` |
-| Recurring price and frequency of a ticket | One `listing_prices` row: `price_type = "recurring"`, the frequency in `price_id`, the price in `unit_price` |
+| Recurring price and frequency of a ticket | Two new columns on `listings`: `recurring_price` and `recurring_interval` |
 | Plan of one subscriber | Five new columns on `listing_attendees` |
 | Each recurring payment | Ledger transfers, one event group for each Stripe invoice |
 
-The frequency is `week`, `month`, or `year`. A ticket with no `recurring` row is
-an ordinary ticket.
+The frequency is `week`, `month`, or `year`. A ticket with a `recurring_price`
+of `0` is an ordinary ticket. `recurringOfferColumns` declares the two columns
+once, for the listing and for the booking row.
 
 The new `listing_attendees` columns are:
 
@@ -136,9 +137,10 @@ When the order holds a subscription ticket, the Stripe session changes in three
 ways:
 
 - `mode` is `subscription`.
-- One recurring line joins the current one-time lines. Its amount is the
-  recurring price plus VAT under the `add_to_total` mode, and the recurring
-  price alone under the other modes.
+- One recurring line joins the current one-time lines. Its quantity is `1`,
+  and its amount is the recurring price times the ticket quantity. Under the
+  `add_to_total` mode the amount also includes VAT. VAT rounds once, on the
+  whole amount.
 - `subscription_data` carries a `trial_end` one period after now, and the
   listing id in its metadata.
 
@@ -276,6 +278,22 @@ observed amount. Two cases stay with the owner:
 | The owner changes provider? | Live subscriptions stay with Stripe. The task still runs while the Stripe key exists. The page warns when the key is absent. |
 | The owner changes the tax settings? | A live subscription keeps its frozen plan. Only a new subscription uses the new policy. |
 | Someone merges or moves the booking? | The plan columns move with the row. The merge refuses two live subscriptions on one target row. |
+
+## Known gaps after layer 1
+
+- If the booking write fails after Stripe took the first payment, the Stripe
+  subscription stays live. The current recovery path refunds the first payment
+  but does not cancel the subscription. Until layer 4, the owner must cancel it
+  in the Stripe dashboard.
+- On a site with no payment provider, a listing with a recurring price books
+  as an ordinary ticket, with no subscription.
+- The source diff of layer 1 is larger than its budget. The duplication check
+  asked for shared helpers in the listing form fields and in the feature
+  triggers. Those helpers replace older copies, so part of the diff is a
+  reduction of duplicated code.
+- Facts 1 to 5 below need a Stripe test-mode run. The `sandbox` environment
+  that holds the CI Stripe key accepts only `main`. The owner must allow the
+  branch, or the journey must run after the merge.
 
 ## Facts to prove before pull request 1
 
