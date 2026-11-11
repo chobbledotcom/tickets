@@ -7,6 +7,7 @@
  * never point somewhere its target refuses.
  */
 
+import type { EnabledFeatures } from "#shared/admin-features.ts";
 import {
   type AdminNavKind,
   type AdminSurfaceContext,
@@ -40,6 +41,21 @@ export type AdminSectionDef = {
   readonly nav: readonly AdminNavEntry[];
   readonly visible?: (ctx: AdminSurfaceContext) => boolean;
 };
+
+/** A section that opens on its own first link, shown while one feature is on.
+ * Any further links follow the landing link. */
+const featureSection = (
+  id: AdminDestinationId,
+  labelKey: string,
+  feature: keyof EnabledFeatures,
+  more: readonly AdminNavEntry[] = [],
+): AdminSectionDef => ({
+  id,
+  labelKey,
+  landing: id,
+  nav: [{ id, kind: "landing", labelKey }, ...more],
+  visible: featureVisible(feature),
+});
 
 export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
   {
@@ -85,16 +101,9 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
       },
     ],
   },
-  {
-    id: "servicing",
-    labelKey: "nav.servicing",
-    landing: "servicing",
-    nav: [
-      { id: "servicing", kind: "landing", labelKey: "nav.servicing" },
-      { id: "servicingNew", kind: "create", labelKey: "nav.sub.add" },
-    ],
-    visible: featureVisible("servicing"),
-  },
+  featureSection("servicing", "nav.servicing", "servicing", [
+    { id: "servicingNew", kind: "create", labelKey: "nav.sub.add" },
+  ]),
   {
     id: "attendees",
     labelKey: "terms.attendees",
@@ -104,13 +113,8 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
       { id: "attendeeNew", kind: "create", labelKey: "nav.sub.add" },
     ],
   },
-  {
-    id: "invoices",
-    labelKey: "nav.invoices",
-    landing: "invoices",
-    nav: [{ id: "invoices", kind: "landing", labelKey: "nav.invoices" }],
-    visible: featureVisible("invoices"),
-  },
+  featureSection("invoices", "nav.invoices", "invoices"),
+  featureSection("subscriptions", "nav.subscriptions", "subscriptions"),
   {
     id: "users",
     labelKey: "terms.users",
@@ -147,23 +151,10 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
     ],
     visible: (ctx) => ctx.storage,
   },
-  {
-    id: "modifiers",
-    labelKey: "terms.modifiers",
-    landing: "modifiers",
-    nav: [
-      { id: "modifiers", kind: "landing", labelKey: "terms.modifiers" },
-      { id: "modifierNew", kind: "create", labelKey: "nav.sub.add" },
-    ],
-    visible: featureVisible("modifiers"),
-  },
-  {
-    id: "ledger",
-    labelKey: "nav.ledger",
-    landing: "ledger",
-    nav: [{ id: "ledger", kind: "landing", labelKey: "nav.ledger" }],
-    visible: featureVisible("money"),
-  },
+  featureSection("modifiers", "terms.modifiers", "modifiers", [
+    { id: "modifierNew", kind: "create", labelKey: "nav.sub.add" },
+  ]),
+  featureSection("ledger", "nav.ledger", "money"),
   {
     id: "site",
     labelKey: "nav.site",

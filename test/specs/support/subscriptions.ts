@@ -48,6 +48,18 @@ const onlyOne = <Item>(items: readonly Item[]): Item => {
   return items[0]!;
 };
 
+export const SUBSCRIPTIONS_PAGE = "/admin/subscriptions";
+
+export const menuOffersSubscriptions = (html: string): boolean =>
+  html.includes(`href="${SUBSCRIPTIONS_PAGE}"`);
+
+export const subscriberRow = (html: string, who: string): string =>
+  onlyOne(
+    [...html.matchAll(/<tr>[\s\S]*?<\/tr>/g)]
+      .map(([row]) => row)
+      .filter((row) => row.includes(`>${who}</a>`)),
+  );
+
 /** A checkout line Stripe charges again each period. */
 type RecurringLine = {
   interval: "week" | "month" | "year";
@@ -145,6 +157,7 @@ const paysForSubscription = async (
       `/payment/success?session_id=${SESSION_ID}`,
     );
     rememberBrowser(world, CUSTOMER, browser);
+    world.attendeeName = SUBSCRIBER;
     assertStringIncludes(browser.pageText, THANK_YOU);
   });
 };

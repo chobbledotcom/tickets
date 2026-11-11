@@ -1,0 +1,22 @@
+{
+  "subscriptions.title": "Subscriptions",
+  "subscriptions.intro": "Everyone who bought a ticket that charges again each period. Stripe takes each payment.",
+  "subscriptions.empty": "Nobody has bought a subscription ticket yet.",
+  "subscriptions.column.subscriber": "Subscriber",
+  "subscriptions.column.ticket": "Ticket",
+  "subscriptions.column.charge": "Charge",
+  "subscriptions.column.tax": "Tax in each charge",
+  "subscriptions.column.status": "Status",
+  "subscriptions.column.stripe_id": "Stripe subscription",
+  "subscriptions.every.week": "{amount} every week",
+  "subscriptions.every.month": "{amount} every month",
+  "subscriptions.every.year": "{amount} every year",
+  "subscriptions.status.active": "Active",
+  "subscriptions.status.canceled": "Cancelled",
+  "subscriptions.status.incomplete": "Waiting for the first payment",
+  "subscriptions.status.incomplete_expired": "First payment failed",
+  "subscriptions.status.past_due": "Payment overdue",
+  "subscriptions.status.paused": "Paused",
+  "subscriptions.status.trialing": "Paid until the first charge",
+  "subscriptions.status.unpaid": "Unpaid"
+}

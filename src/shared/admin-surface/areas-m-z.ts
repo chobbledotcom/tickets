@@ -265,6 +265,12 @@ export const AREAS_M_Z = {
       sms: "/admin/sms",
     },
   },
+  subscriptions: {
+    audience: STAFF_ADMIN_LEVELS,
+    view: {
+      subscriptions: "/admin/subscriptions",
+    },
+  },
   support: {
     audience: OWNER_AUDIENCE,
     view: {

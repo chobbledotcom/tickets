@@ -94,6 +94,7 @@ const EVERY_STORY_ID = [
   "payments.refunding-from-two-windows",
   "payments.repeated-money-actions",
   "payments.resolving-uncertain-refunds",
+  "payments.seeing-who-subscribed",
   "payments.sending-a-booking-an-invoice",
   "payments.unreadable-payment-kept",
   "payments.vat-added-to-prices",
