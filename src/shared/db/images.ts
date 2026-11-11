@@ -4,7 +4,6 @@
 
 import type { InValue } from "@libsql/client";
 import { decrypt, encrypt } from "#crypto/encryption.ts";
-import { logActivity } from "#db/activity-log.ts";
 import type { StoredRowOf } from "#db/chosen-columns.ts";
 import {
   executeBatch,
@@ -393,13 +392,4 @@ export const deleteImageRecord = async (imageId: number): Promise<void> => {
     // here drops the cached URLs the other isolates still hold.
     settingsVersionIncrement(),
   ]);
-};
-
-/** Record one image library action in the activity log. The library writes
- *  one audit line per action, whichever surface took it. */
-export const logImageAction = async (
-  action: "deleted" | "updated" | "uploaded",
-  name: string,
-): Promise<void> => {
-  await logActivity(`Image '${name}' ${action}`);
 };

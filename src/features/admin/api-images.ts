@@ -18,7 +18,6 @@ import {
   getImageUsesForImages,
   type ImageUseTarget,
   imageUseTargets,
-  logImageAction,
   missingImageUseTargets,
   setItemsForImage,
   updateImageRecord,
@@ -36,6 +35,7 @@ import {
   adminApiIdParam,
 } from "#shared/admin-api-resources.ts";
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
+import { logImageAction } from "#shared/images/activity.ts";
 import {
   byNameThenUpload,
   isSiteContentImageType,

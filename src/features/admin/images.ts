@@ -13,7 +13,6 @@ import {
   getImageUsesForImage,
   type ImageUseTarget,
   imageUseTargets,
-  logImageAction,
   setItemsForImage,
   updateImageRecord,
 } from "#db/images.ts";
@@ -40,6 +39,7 @@ import {
 } from "#routes/response.ts";
 import { adminPath } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { logImageAction } from "#shared/images/activity.ts";
 import {
   byNameThenUpload,
   isSiteContentImageType,
