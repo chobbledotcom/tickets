@@ -124,10 +124,12 @@ export const MAINTENANCE_TASKS = defineMaintenanceTasks([
       maxDatabaseCalls: 1 + SUMUP_RECOVERY_BATCH * 6,
       maxExternalCalls: SUMUP_RECOVERY_BATCH * 2,
       name: "sumup_checkout_recovery",
-      run: askForMoreWhenFull(
-        async () =>
-          (await import("#shared/sumup/recovery-run.ts")).runSumupRecovery,
-      ),
+      run: askForMoreWhenFull(async () => {
+        const { runSumupRecovery } = await import(
+          "#shared/sumup/recovery-run.ts"
+        );
+        return runSumupRecovery;
+      }),
       wakePolicy: "organic_safe",
     },
   ),
@@ -144,11 +146,12 @@ export const MAINTENANCE_TASKS = defineMaintenanceTasks([
       maxDatabaseCalls: 1 + SQUARE_LINK_EXPIRY_BATCH * 2,
       maxExternalCalls: SQUARE_LINK_EXPIRY_BATCH,
       name: "square_link_expiry",
-      run: askForMoreWhenFull(
-        async () =>
-          (await import("#shared/square/link-expiry-run.ts"))
-            .runSquareLinkExpiry,
-      ),
+      run: askForMoreWhenFull(async () => {
+        const { runSquareLinkExpiry } = await import(
+          "#shared/square/link-expiry-run.ts"
+        );
+        return runSquareLinkExpiry;
+      }),
       // Public traffic carries an external allowance of zero, so only
       // POST /scheduled can reach this task.
       wakePolicy: "scheduled_only",
