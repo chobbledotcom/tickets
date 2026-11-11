@@ -83,6 +83,11 @@ describe("subscription rows in an attendee merge", () => {
     expect(copiedBookingColumns(bookingRow(COPIED))).toEqual(COPIED);
   });
 
+  test("a copied booking leaves out a column that only a read computes", () => {
+    const tokenRow = { ...bookingRow(COPIED), email_owed: 1 };
+    expect(copiedBookingColumns(tokenRow)).toEqual(COPIED);
+  });
+
   for (const decision of DECISIONS) {
     test(decision.name, () => {
       expect(
