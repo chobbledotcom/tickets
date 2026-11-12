@@ -244,34 +244,27 @@ describeWithEnv("Admin API - External sources", { db: true }, () => {
       );
     });
 
-    test("refuses a blank name on an update", async () => {
-      const created = await createSource();
-
-      await assertJson(
-        apiRequest(sourcePath(Number(created.source.id)), {
-          body: { name: "  " },
-          method: "PUT",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("name cannot be empty");
-        },
-      );
-    });
-
-    test("refuses a blank URL pattern on an update", async () => {
-      const created = await createSource();
-
-      await assertJson(
-        apiRequest(sourcePath(Number(created.source.id)), {
+    test("refuses a blank field on an update", async () => {
+      const cases = [
+        { body: { name: "  " }, error: "name cannot be empty" },
+        {
           body: { url_pattern: "  " },
-          method: "PUT",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("url_pattern cannot be empty");
+          error: "url_pattern cannot be empty",
         },
-      );
+      ];
+      for (const { body, error } of cases) {
+        const created = await createSource();
+        await assertJson(
+          apiRequest(sourcePath(Number(created.source.id)), {
+            body,
+            method: "PUT",
+          }),
+          400,
+          (refused) => {
+            expect(refused.error).toBe(error);
+          },
+        );
+      }
     });
   });
 

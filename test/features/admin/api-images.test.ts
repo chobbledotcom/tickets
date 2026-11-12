@@ -152,22 +152,6 @@ describeWithEnv("Admin API - Images", { db: true, storage: "cdn" }, () => {
       );
     });
 
-    test("uploads an image with no alt text", async () => {
-      await withStorageMock(async () => {
-        const body = await imageUploadBody("No alt", {
-          alt_text: undefined,
-        });
-        await assertJson<{ image: ApiImageRow }>(
-          apiRequest(IMAGE_API_ROOT, { body, method: "POST" }),
-          201,
-          (created) => {
-            expect(created.image.alt_text).toBe("");
-            expect(created.image.name).toBe("No alt");
-          },
-        );
-      });
-    });
-
     test("refuses a file that is not base64 text", async () => {
       const body = await imageUploadBody("Not base64", { file: "not base64!" });
       await expectApiError(
@@ -240,6 +224,20 @@ describeWithEnv("Admin API - Images", { db: true, storage: "cdn" }, () => {
           max: MAX_INPUT_LENGTH,
         }),
       );
+    });
+
+    test("uploads an image with no alt text", async () => {
+      await withStorageMock(async () => {
+        const body = await imageUploadBody("No alt", { alt_text: undefined });
+        await assertJson<{ image: ApiImageRow }>(
+          apiRequest(IMAGE_API_ROOT, { body, method: "POST" }),
+          201,
+          (created) => {
+            expect(created.image.alt_text).toBe("");
+            expect(created.image.name).toBe("No alt");
+          },
+        );
+      });
     });
   });
 });

@@ -26,19 +26,29 @@ describeWithEnv("Admin API - Site page input refusals", { db: true }, () => {
     );
   });
 
-  test("refuses a missing name with the field message", async () => {
-    await assertJson(
-      apiRequest("/api/admin/site-pages", {
+  test("refuses a missing or empty name with the field message", async () => {
+    const page = await createTestSitePage("renamed", { name: "Renamed" });
+    const cases = [
+      {
         body: { slug: "no-name" },
+        error: "name is required",
         method: "POST",
-      }),
-      400,
-      (body) => {
-        expect(body.error).toBe("name is required");
+        path: "/api/admin/site-pages",
       },
-    );
+      {
+        body: { name: "  " },
+        error: "name cannot be empty",
+        method: "PUT",
+        path: `/api/admin/site-pages/${page.id}`,
+      },
+    ];
+    for (const { body, error, method, path } of cases) {
+      await assertJson(apiRequest(path, { body, method }), 400, (refused) => {
+        expect(refused.error).toBe(error);
+      });
+    }
     const all = await sitePages.getAll();
-    expect(all.find((page) => page.slug === "no-name")).toBeUndefined();
+    expect(all.map((page) => page.slug)).not.toContain("no-name");
   });
 
   test("refuses a missing slug with the slug rule's message", async () => {
@@ -53,10 +63,10 @@ describeWithEnv("Admin API - Site page input refusals", { db: true }, () => {
       },
     );
     const all = await sitePages.getAll();
-    expect(all.find((page) => page.name === "No slug")).toBeUndefined();
+    expect(all.map((page) => page.name)).not.toContain("No slug");
     // The create's silent-slug fallback runs the empty stored slug through
     // the same rule, so nothing may store under the empty slug either.
-    expect(all.find((page) => page.slug === "")).toBeUndefined();
+    expect(all.map((page) => page.slug)).not.toContain("");
   });
 
   test("refuses a non-boolean hidden flag with the field message", async () => {
@@ -150,21 +160,6 @@ describeWithEnv("Admin API - Site page input refusals", { db: true }, () => {
       400,
       (body) => {
         expect(body.error).toBe("content must be a string");
-      },
-    );
-  });
-
-  test("refuses an empty name on update", async () => {
-    const page = await createTestSitePage("renamed", { name: "Renamed" });
-
-    await assertJson(
-      apiRequest(`/api/admin/site-pages/${page.id}`, {
-        body: { name: "  " },
-        method: "PUT",
-      }),
-      400,
-      (body) => {
-        expect(body.error).toBe("name cannot be empty");
       },
     );
   });

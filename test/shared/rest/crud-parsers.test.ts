@@ -144,75 +144,6 @@ test("parseApiBody returns the parsed body", () => {
   });
 });
 
-test("parseApiBody passes a schema that has no object entries", () => {
-  expect(parseApiBody(v.unknown(), { name: "Poster" })).toEqual({
-    ok: true,
-    value: { name: "Poster" },
-  });
-});
-
-test("dateField names a missing date", () => {
-  const schema = v.object({ start_date: dateField("start_date").create });
-  expect(parseApiBody(schema, {})).toEqual({
-    error: "start_date is required",
-    ok: false,
-  });
-});
-
-test("writeEntityName trims a supplied name", () => {
-  expect(writeEntityName(" New ", "Stored")).toEqual({
-    ok: true,
-    value: "New",
-  });
-});
-
-test("writeEntityName falls back to the stored name", () => {
-  expect(writeEntityName(undefined, "Stored")).toEqual({
-    ok: true,
-    value: "Stored",
-  });
-});
-
-test("writeEntityName refuses an empty name", () => {
-  expect(writeEntityName("  ", "Stored")).toEqual({
-    error: "name cannot be empty",
-    ok: false,
-  });
-});
-
-test("writeEntityName refuses a missing name on create", () => {
-  expect(writeEntityName(undefined, null)).toEqual({
-    error: "name cannot be empty",
-    ok: false,
-  });
-});
-
-test("dateRange reports the end date refusal", () => {
-  const start = requireDateString({ start_date: "2026-01-01" }, "start_date");
-  expect(dateRange(start, errorResult("end date bad"))).toEqual({
-    error: "end date bad",
-    ok: false,
-  });
-});
-
-test("withWriteName refuses an empty name before the mapper runs", () => {
-  let mapped = false;
-  const mapper = withWriteName<
-    { name?: string | undefined },
-    { name: string },
-    { name: string }
-  >((name) => {
-    mapped = true;
-    return okResult({ name });
-  });
-
-  expect(mapper({ name: "  " }, { name: "Stored" })).toEqual({
-    error: "name cannot be empty",
-    ok: false,
-  });
-  expect(mapped).toBe(false);
-});
-
 test("parseUpdateSlug trims and lowercases the slug, deriving its index", async () => {
   expect(
     await parseUpdateSlug(
@@ -316,4 +247,64 @@ describeWithEnv("withApiEntity", { db: true }, () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ widget: row });
   });
+});
+
+test("parseApiBody passes a schema that has no object entries", () => {
+  expect(parseApiBody(v.unknown(), { name: "Poster" })).toEqual({
+    ok: true,
+    value: { name: "Poster" },
+  });
+});
+
+test("dateField names a missing date", () => {
+  const schema = v.object({ start_date: dateField("start_date").create });
+  expect(parseApiBody(schema, {})).toEqual({
+    error: "start_date is required",
+    ok: false,
+  });
+});
+
+test("writeEntityName reads the supplied or stored name", () => {
+  expect(writeEntityName(" New ", "Stored")).toEqual({
+    ok: true,
+    value: "New",
+  });
+  expect(writeEntityName(undefined, "Stored")).toEqual({
+    ok: true,
+    value: "Stored",
+  });
+  expect(writeEntityName("  ", "Stored")).toEqual({
+    error: "name cannot be empty",
+    ok: false,
+  });
+  expect(writeEntityName(undefined, null)).toEqual({
+    error: "name cannot be empty",
+    ok: false,
+  });
+});
+
+test("dateRange reports the end date refusal", () => {
+  const start = requireDateString({ start_date: "2026-01-01" }, "start_date");
+  expect(dateRange(start, errorResult("end date bad"))).toEqual({
+    error: "end date bad",
+    ok: false,
+  });
+});
+
+test("withWriteName refuses an empty name before the mapper runs", () => {
+  let mapped = false;
+  const mapper = withWriteName<
+    { name?: string | undefined },
+    { name: string },
+    { name: string }
+  >((name) => {
+    mapped = true;
+    return okResult({ name });
+  });
+
+  expect(mapper({ name: "  " }, { name: "Stored" })).toEqual({
+    error: "name cannot be empty",
+    ok: false,
+  });
+  expect(mapped).toBe(false);
 });
