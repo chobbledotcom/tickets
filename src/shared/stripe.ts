@@ -46,6 +46,7 @@ import {
 import type {
   StripeCheckoutSession,
   StripeExpandedPaymentIntent,
+  StripeInvoicePayments,
   StripeRefund,
   StripeSubscription,
 } from "#shared/stripe/schemas.ts";
@@ -189,8 +190,12 @@ const subscriptionParams = (
 });
 
 export interface StripeApi {
+  cancelSubscription: (id: string) => Promise<ProviderRead<StripeSubscription>>;
   cleanupOldWebhookEndpoints: typeof cleanupOldWebhookEndpoints;
   createCheckoutSession: typeof createCheckoutSession;
+  readInvoicePayments: (
+    id: string,
+  ) => Promise<ProviderRead<StripeInvoicePayments>>;
   readPaymentIntent: (
     id: string,
   ) => Promise<ProviderRead<StripeExpandedPaymentIntent>>;
@@ -218,34 +223,41 @@ const askStripe = async <Answer, Result>(
 ): Promise<Result> =>
   askProvider({ ...call, account: await stripeClientRuntime.get() });
 
-const readPaymentIntent = (
-  id: string,
-): Promise<ProviderRead<StripeExpandedPaymentIntent>> =>
-  readStripeResource(
-    (client) =>
-      client.paymentIntents.retrieveWithLatestCharge(id, {
-        maxNetworkRetries: REFUND_NETWORK_RETRIES.stripe,
-      }),
-    judgedBy([
-      refuseUnless(
-        "mismatched_id",
-        (intent: StripeExpandedPaymentIntent) => intent.id === id,
-      ),
-    ]),
-  );
+/** One Stripe call that answers with the resource `id` names. An answer about
+ * another resource is a refused read. */
+const oneResource =
+  <Resource extends { id: string }>(
+    ask: (client: StripeClient, id: string) => Promise<Resource>,
+  ) =>
+  (id: string): Promise<ProviderRead<Resource>> =>
+    readStripeResource(
+      (client) => ask(client, id),
+      judgedBy([
+        refuseUnless(
+          "mismatched_id",
+          (resource: Resource) => resource.id === id,
+        ),
+      ]),
+    );
 
-const readSubscription = (
-  id: string,
-): Promise<ProviderRead<StripeSubscription>> =>
-  readStripeResource(
-    (client) => client.subscriptions.retrieveWithFirstPayment(id),
-    judgedBy([
-      refuseUnless(
-        "mismatched_id",
-        (subscription: StripeSubscription) => subscription.id === id,
-      ),
-    ]),
-  );
+const readPaymentIntent = oneResource((client, id) =>
+  client.paymentIntents.retrieveWithLatestCharge(id, {
+    maxNetworkRetries: REFUND_NETWORK_RETRIES.stripe,
+  }),
+);
+
+const readSubscription = oneResource((client, id) =>
+  client.subscriptions.retrieve(id),
+);
+
+/** Stripe refuses to cancel a subscription that has already ended. */
+const cancelSubscription = oneResource((client, id) =>
+  client.subscriptions.cancel(id),
+);
+
+const readInvoicePayments = oneResource((client, id) =>
+  client.invoices.retrieveWithPayments(id),
+);
 
 type StripeRefundStatus = Exclude<StripeRefund["status"], null>;
 type StripeRefundAnswer = (
@@ -353,8 +365,10 @@ const retrieveCheckoutSession = (
   });
 
 export const stripeApi: StripeApi = {
+  cancelSubscription,
   cleanupOldWebhookEndpoints,
   createCheckoutSession,
+  readInvoicePayments,
   readPaymentIntent,
   readSubscription,
   refundCharge,

@@ -18,7 +18,11 @@ import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
-import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
+import {
+  bookingRow,
+  testAttendee,
+  testListingWithCount,
+} from "#test-utils/factories.ts";
 
 describeWithEnv("server (admin refund UI)", { db: true }, () => {
   describe("listing page UI", () => {
@@ -26,21 +30,7 @@ describeWithEnv("server (admin refund UI)", { db: true }, () => {
       listingId: number,
       overrides: Partial<ExistingLine["booking"]> = {},
     ): ExistingLine => {
-      const booking = {
-        attachment_downloads: 0,
-        checked_in: 0,
-        end_at: null,
-        ledger_event_group: "",
-        listing_id: listingId,
-        order_token: "",
-        package_group_id: 0,
-        parent_listing_id: 0,
-        price_paid: 0,
-        quantity: 1,
-        refunded: 0,
-        start_at: null,
-        ...overrides,
-      };
+      const booking = bookingRow({ listing_id: listingId, ...overrides });
       return { booking, key: `${booking.listing_id}||0|0` };
     };
 

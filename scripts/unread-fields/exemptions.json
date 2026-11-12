@@ -102,6 +102,13 @@
       "evidence": "fieldViews reads the create or update view by key when it assembles a body"
     }
   ],
+  "src/shared/db/attendee-types.ts": [
+    {
+      "path": [{ "name": "ListingAttendeeRow" }],
+      "kind": "dynamic-read",
+      "evidence": "copiedBookingColumns picks each stored column by name from COPIED_COLUMNS into the merge INSERT in attendee-merge.ts"
+    }
+  ],
   "src/shared/db/attendees/pii.ts": [
     {
       "path": [{ "name": "DecryptedAttendeeRow" }],
@@ -302,6 +309,13 @@
       ],
       "kind": "provider-input",
       "evidence": "createStripeRequest serialises the complete Stripe request"
+    }
+  ],
+  "src/shared/stripe/schemas.ts": [
+    {
+      "path": [{ "name": "StripeInvoicePayments" }],
+      "kind": "dynamic-read",
+      "evidence": "oneResource in stripe.ts compares resource.id with the asked id through its generic { id: string } constraint"
     }
   ],
   "src/shared/sumup/transport.ts": [

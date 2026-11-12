@@ -5,6 +5,7 @@ import type {
 } from "#shared/stripe/schemas.ts";
 import {
   stripeCheckoutSession,
+  stripeFirstInvoice,
   stripeRefund,
   stripeSubscription,
 } from "#test-utils/stripe/fixtures.ts";
@@ -64,17 +65,20 @@ export const foundStripeIntent = (
   status: "found",
 });
 
+const RESOURCE_REPLIES: readonly (readonly [string, () => unknown])[] = [
+  ["/v1/subscriptions/", stripeSubscription],
+  ["/v1/invoices/", stripeFirstInvoice],
+  ["/v1/payment_intents/", stripeIntentWithCharge],
+];
+
 /** Return valid Stripe fixtures for every operation used by the application. */
 export const stripeResponseFor = (path: string, method: string): Response => {
   if (path === "/v1/balance") return Response.json({ livemode: false });
   if (path === "/v1/refunds") {
     return Response.json(stripeRefund());
   }
-  if (path.startsWith("/v1/subscriptions/")) {
-    return Response.json(stripeSubscription());
-  }
-  if (path.startsWith("/v1/payment_intents/")) {
-    return Response.json(stripeIntentWithCharge());
+  for (const [prefix, reply] of RESOURCE_REPLIES) {
+    if (path.startsWith(prefix)) return Response.json(reply());
   }
   if (
     path === "/v1/checkout/sessions" ||

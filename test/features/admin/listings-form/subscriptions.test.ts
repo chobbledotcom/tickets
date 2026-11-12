@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import {
   createListing,
@@ -64,12 +65,28 @@ describeWithEnv("listings form subscriptions", { db: true }, () => {
     await whileOffered(async () => {
       id = (await createListing(MONTHLY)).id;
     });
-    const saved = await updateListing(id, { unit_price: "10.00" });
+    const saved = await updateListing(id, { unit_price: "12.00" });
+    expect(saved.unit_price).toBe(1200);
     expect([saved.recurring_price, saved.recurring_interval]).toEqual([
       500,
       "month",
     ]);
   });
+
+  test("validates and preserves the stored plan after switching away from Stripe", () =>
+    whileOffered(async () => {
+      const row = await createListing(MONTHLY);
+      await settings.update.setPaymentProviderNone();
+      await expect(updateListing(row.id, { unit_price: "0" })).rejects.toThrow(
+        `update failed: ${t("error.recurring_needs_ticket_price")}`,
+      );
+      const saved = await updateListing(row.id, { unit_price: "12.00" });
+      expect([
+        saved.unit_price,
+        saved.recurring_price,
+        saved.recurring_interval,
+      ]).toEqual([1200, 500, "month"]);
+    }));
 
   test("refuses a new listing with a recurring price and no frequency", () =>
     whileOffered(async () => {

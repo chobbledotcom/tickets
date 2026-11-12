@@ -183,6 +183,7 @@ export const balanceSession = (
   currency: "gbp",
   expires_at: 1_700_003_600,
   id,
+  invoice: null,
   metadata: {
     ...signMeta(
       webhookMeta({

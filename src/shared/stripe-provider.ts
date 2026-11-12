@@ -41,10 +41,19 @@ type StripeCheckoutCompletedEvent = Pick<
   "data" | "id" | "type"
 >;
 
+/** The resource of a read the completion cannot go without. A refused read
+ * stops the callback, so the provider asks again. */
+const foundOrThrow = <Resource>(
+  read: ProviderRead<Resource>,
+  name: string,
+): Resource => {
+  if (read.status === "found") return read.resource;
+  throw new Error(`Stripe ${name} could not be read: ${JSON.stringify(read)}`);
+};
+
 /** The charge a session paid with. A subscription-mode session names no
- * payment intent of its own, so its subscription is read for the intent that
- * paid the first invoice. An unreadable subscription stops the callback, so
- * the provider asks again. */
+ * payment intent of its own. The intent that paid the session's own first
+ * invoice is the charge, so a later renewal can never stand in for it. */
 const sessionCharge = async (
   session: StripeCheckoutSession,
 ): Promise<
@@ -53,13 +62,18 @@ const sessionCharge = async (
   if (session.mode !== "subscription" || session.subscription === null) {
     return { paymentReference: session.payment_intent ?? "" };
   }
-  const read = await stripeApi.readSubscription(session.subscription);
-  if (read.status !== "found") {
-    throw new Error(
-      `Stripe subscription ${session.subscription} could not be read: ${JSON.stringify(read)}`,
-    );
+  const invoiceId = session.invoice;
+  if (invoiceId === null) {
+    throw new Error(`Stripe session ${session.id} names no first invoice`);
   }
-  const { paymentReference, start } = subscriptionStartOf(read.resource);
+  const [subscription, invoice] = await Promise.all([
+    stripeApi.readSubscription(session.subscription),
+    stripeApi.readInvoicePayments(invoiceId),
+  ]);
+  const { paymentReference, start } = subscriptionStartOf(
+    foundOrThrow(subscription, `subscription ${session.subscription}`),
+    foundOrThrow(invoice, `invoice ${invoiceId}`),
+  );
   return { paymentReference, subscription: start };
 };
 

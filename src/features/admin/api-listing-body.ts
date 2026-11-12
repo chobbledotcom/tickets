@@ -293,7 +293,7 @@ export const bodyToUpdateInput = async (
         "api",
         withoutEditorLockedFields(body, session),
       ),
-      // The JSON API cannot set these four fields, so fold the stored ones in
+      // The JSON API cannot set these six fields, so fold the stored ones in
       // as the update's final facts. An update that adds groups or children
       // must read them the way the validators do, not as absent-and-false.
       assignBuiltSite: existing.assign_built_site,
@@ -313,6 +313,8 @@ export const bodyToUpdateInput = async (
       monthsPerUnit: existing.months_per_unit,
       name: parsedName.value,
       purchaseOnly: existing.purchase_only,
+      recurringInterval: existing.recurring_interval,
+      recurringPrice: existing.recurring_price,
       slug,
       slugIndex,
       // The validators judge the membership as it will stand after the write:

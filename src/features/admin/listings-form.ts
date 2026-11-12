@@ -315,18 +315,23 @@ const writeCreateListingJoins =
     }
   };
 
-/**
- * Build a per-request listings create resource whose `toInput` closes over the
- * raw form, so the dynamic `day_price_*` inputs can be read alongside the
- * validated fields. The resource only hands `toInput` the validated values.
- */
-/** The listing validation for a request: reject an invalid day price first
- *  (the dynamic fields the static schema cannot see), then the standard input
- *  validation. Closes over the raw `form` so both create and update share it. */
+/** Validate day prices and the recurring plan that the saved row will hold. */
 const listingValidate =
-  (form: FormParams) =>
+  (form: FormParams, stored?: ListingWithCount) =>
   async (input: ListingInput, id?: number): Promise<string | null> =>
-    validateDayPricesFromForm(form) ?? (await validateListingInput(input, id));
+    validateDayPricesFromForm(form) ??
+    (await validateListingInput(
+      stored === undefined
+        ? input
+        : {
+            ...input,
+            recurringInterval:
+              input.recurringInterval ?? stored.recurring_interval,
+            recurringPrice: input.recurringPrice ?? stored.recurring_price,
+            unitPrice: input.unitPrice ?? stored.unit_price,
+          },
+      id,
+    ));
 
 export const buildCreateListingResource = (form: FormParams) =>
   defineResource({
@@ -385,5 +390,5 @@ export const buildUpdateListingResource = (
         date: keepDailyListingDate(input.date, stored, input.listingType),
       };
     },
-    validate: listingValidate(form),
+    validate: listingValidate(form, stored),
   });

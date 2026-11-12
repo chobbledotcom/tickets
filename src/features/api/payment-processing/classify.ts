@@ -22,7 +22,7 @@ import { getSearchParam } from "#routes/url.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import { encodedAfter } from "#shared/encoded-after.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
-import { parsePriceProof, verifyPrice } from "#shared/payment-signature.ts";
+import { verifiedPriceTotalOrNull } from "#shared/payment-signature.ts";
 import {
   getPaymentProviderForExistingPayments,
   type ValidatedPaymentSession,
@@ -106,14 +106,8 @@ const evaluatePriceProof = async (
 ): Promise<null | { valid: false } | { valid: true; total: number }> => {
   const proof = session.metadata.price_proof;
   if (!proof) return null;
-  const parsed = parsePriceProof(proof);
-  if (
-    parsed === null ||
-    !(await verifyPrice(session.metadata, parsed.total, parsed.sig))
-  ) {
-    return { valid: false };
-  }
-  return { total: parsed.total, valid: true };
+  const total = await verifiedPriceTotalOrNull(session.metadata);
+  return total === null ? { valid: false } : { total, valid: true };
 };
 
 /**

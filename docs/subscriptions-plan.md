@@ -1,6 +1,6 @@
 # Subscriptions plan
 
-Status: draft. A human must approve this plan before any test or code exists.
+Status: implementation. Each pull request owns its behaviour, safeguards, and regression tests.
 This plan follows [the pull request workflow](pr-workflow.md).
 
 ## Goal
@@ -147,6 +147,31 @@ ways:
 The one-time lines stay exactly as they are. The first payment is the signed
 order total, with its booking fee, discounts, and tax.
 
+Each booking path refuses an order with a subscription ticket that cannot
+start a Stripe subscription:
+
+- a site with no payment provider, or with a provider other than Stripe
+- a deposit
+- an order with nothing to pay today
+
+The public form, the direct QR checkout, the API, and the admin booking path
+all use `subscriptionOrderError`.
+
+Completion reads the subscription and the first invoice of the session. The
+session names that invoice, so a renewal that Stripe adds later cannot take
+its place. The payment intent that paid the first invoice becomes the payment
+reference.
+
+If the booking cannot proceed, the site keeps the observed plan and frozen VAT
+on a quantity-zero row before it cancels the subscription. A held refund claim
+and the failure marker let a retry finish the same work. Stripe must confirm
+that the subscription ended before the site refunds or acknowledges completion.
+
+The row keeps its original status until the scheduled check records any paid
+renewals and the ended status. A missing charge reference creates no refund
+anchor. Unreadable signed metadata supplies no valid booking slots or tax
+policy. That path confirms cancellation but cannot store those unavailable facts.
+
 ### Valid states
 
 `subscription_status` holds the Stripe status word. One exhaustive record maps
@@ -170,7 +195,8 @@ in the shape of `machine-spec.ts`. The tables below are projections of it.
 | Live | Owner cancels | Stripe cancels. The row gets `canceled`. |
 | Ended | Scheduled check | The task records the remaining paid invoices once, then leaves the row |
 | Ended | Owner cancels | Refused |
-| Live | Delete the booking | Refused: "Cancel the subscription first." |
+| Live | Delete the booking, the attendee, or the listing | Refused: "Cancel the subscription first." |
+| Live | A merge or an edit that removes the booking | Refused with the same message |
 
 Each command has one implementation. The scheduled task is the only writer of
 recurring money. The site adds no new Stripe webhook event, so no site needs a
@@ -195,7 +221,7 @@ group. The invoice id is the stable identity.
 - The first invoice has the reason `subscription_create`. The current booking
   path records that payment, so the task skips it.
 - An invoice in a currency other than the site currency posts nothing. The
-  task logs an error, and the page shows a warning on that subscription.
+  task logs an error and leaves the row as it is. The next run tries again.
 
 ### Scheduled task
 
@@ -205,10 +231,14 @@ group. The invoice id is the stable identity.
 - Its wake policy is `scheduled_only`, because it calls Stripe.
 - It walks the live rows in id order from the task checkpoint, a small batch
   for each run. A full batch asks for a follow-up run.
-- For each row it reads the subscription, lists the newest paid invoices, posts
-  the ledger groups, and writes the status if the status changed.
+- For each row it reads the subscription first. It then lists the newest paid
+  invoices, posts the ledger groups, and writes the status if the status
+  changed. The list comes after the status, so it holds each payment that
+  Stripe took up to that status.
 - A row that moves to an ended status gets one last invoice pass in the same
   run.
+- The subscription and invoice reads ask Stripe once, with no retry. One run
+  then makes a known number of external calls.
 
 ### Failure table
 
@@ -216,6 +246,7 @@ group. The invoice id is the stable identity.
 | --- | --- | --- | --- |
 | Nothing | Stripe refuses the session | The current checkout error. No booking. | The buyer |
 | Stripe took the first payment | The subscription read fails at completion | The current retry answer. No booking yet. | Webhook redelivery and the success redirect |
+| The booking cannot proceed | Stripe does not confirm cancellation | The quantity-zero row keeps the plan. The refund waits. | Webhook redelivery and the success redirect |
 | Stripe took the first payment | The booking write fails | The current payment recovery path | The current path |
 | Nothing | The scheduled read fails for one row | That row keeps its status. The batch continues. | The next run |
 | Stripe took a renewal | The ledger write fails | Nothing recorded. The error reaches the log. | The next run posts the same invoice id |
@@ -228,9 +259,10 @@ group. The invoice id is the stable identity.
 | Command | Stable identity | Exact replay | Protection against two workers |
 | --- | --- | --- | --- |
 | Completion | Payment session id | The current two-phase claim returns the same booking | The current claim |
+| Failed completion | Payment session id | The held claim resumes cancellation before refund. A successful booking never cancels. | The current claim and stored failure marker |
 | Renewal entry | Stripe invoice id, as event group and leg references | The ledger store finds the same legs and inserts nothing | The maintenance task claim, then the ledger references |
-| Status write | Subscription id | The same status again | A write guarded on the status that the task read |
-| Cancel | Subscription id | Stripe refuses a second cancel. The site then reads the subscription and stores what it finds. | A write guarded on a live status |
+| Status write | Subscription id | The same status again | A live status needs the status that was read. An ended status replaces any live status. |
+| Cancel | Subscription id | Stripe refuses a second cancel. The site then reads the subscription and stores what it finds. | The same guarded write |
 
 No failure is permanent for the queue. One row that fails cannot stop later
 rows.
@@ -241,7 +273,7 @@ rows.
 | --- | --- | --- | --- |
 | Webhook | Success redirect | One booking, one plan | The current two-phase claim |
 | Scheduled check | Scheduled check | One ledger group for each invoice | The task claim and the ledger references |
-| Owner cancel | Scheduled check | `canceled` stays | The task writes only where the status still equals the status that it read |
+| Owner cancel | Scheduled check | `canceled` stays | A live status writes only where the row still holds the status that was read. An ended status is final, so the cancel replaces a live status that the check wrote first. |
 | Owner cancel | Owner cancel | One Stripe cancel takes effect | The guarded write, and the read after a refused cancel |
 | Listing edit | Checkout in progress | The buyer gets the plan that Stripe holds | The row copies the observed plan |
 
@@ -257,9 +289,11 @@ observed amount. Two cases stay with the owner:
 
 ### Security and privacy
 
-- Owners and editors can open the Subscriptions page. Only an owner sees the
-  Cancel button, and the cancel route refuses every other role.
-- The menu link, the page, and the route share the feature gate.
+- Owners and managers can open the Subscriptions page, as they can open the
+  attendee pages. An editor cannot, because the page names customers. Only an
+  owner sees the Cancel button, and the cancel route refuses every other role.
+- The menu shows the Subscriptions link only while the feature is on. The page
+  itself follows its audience alone, as the Invoices page does.
 - The page decrypts the name of each subscriber at render time, and nothing
   else.
 - The Stripe subscription id is not personal data. It stays in plain text.
@@ -272,41 +306,44 @@ observed amount. Two cases stay with the owner:
 | --- | --- |
 | The Stripe call succeeds and the local write fails? | The failure table covers the first payment, each renewal, and the cancel. Each has a retry owner. |
 | A callback arrives twice? | The current claim handles the completion. No new webhook event exists. |
-| The amount or currency is wrong? | The first payment keeps the current price proof. A renewal posts the observed amount. A foreign currency posts nothing and warns. |
-| The task stops for a long time? | The invoice list is newest first, a page at a time. A full page of new invoices asks for the next page. |
+| The amount or currency is wrong? | The first payment keeps the current price proof. A renewal posts the observed amount. A foreign currency posts nothing and logs an error. |
+| The task stops for a long time? | The task reads the newest 100 paid invoices of each subscription. That is almost two years of weekly charges. |
 | The owner turns the feature off? | The site refuses while a live subscription or a recurring price exists, through `inUseSql`. |
-| The owner changes provider? | Live subscriptions stay with Stripe. The task still runs while the Stripe key exists. The page warns when the key is absent. |
+| The owner changes provider? | Live subscriptions stay with Stripe. The task runs while the Stripe key exists. The page shows no warning when the key is absent. |
 | The owner changes the tax settings? | A live subscription keeps its frozen plan. Only a new subscription uses the new policy. |
-| Someone merges or moves the booking? | The plan columns move with the row. The merge refuses two live subscriptions on one target row. |
+| Someone merges or moves the booking? | The plan columns move with the row. The merge refuses a decision that throws away a booking whose subscription is live. |
 
-## Known gaps after layer 1
+## Operational limits
 
-- If the booking write fails after Stripe took the first payment, the Stripe
-  subscription stays live. The current recovery path refunds the first payment
-  but does not cancel the subscription. Until layer 4, the owner must cancel it
-  in the Stripe dashboard.
-- On a site with no payment provider, a listing with a recurring price books
-  as an ordinary ticket, with no subscription.
-- The source diff of layer 1 is larger than its budget. The duplication check
-  asked for shared helpers in the listing form fields and in the feature
-  triggers. Those helpers replace older copies, so part of the diff is a
-  reduction of duplicated code.
-- Facts 1 to 5 below need a Stripe test-mode run. The `sandbox` environment
-  that holds the CI Stripe key accepts only `main`. The owner must allow the
-  branch, or the journey must run after the merge.
+- The Subscriptions page shows no warning for an invoice in a foreign
+  currency. The task logs the error.
+- The task reads only the newest 100 paid invoices of a subscription. If the
+  task stops for longer than 100 periods, it does not record older invoices.
+- One run checks five subscriptions. A full batch asks for another run one
+  minute later.
+- Stripe stops automatic collection when the owner cancels. If a person
+  collects an open invoice by hand after cancellation, the owner must record
+  it with a manual ledger entry.
 
-## Facts to prove before pull request 1
+## Stripe test-mode proof
 
-The Stripe documentation does not answer these points. Prove each one in Stripe
-test mode first. If one fails, return to this plan.
+These facts need a real Stripe test-mode run. The `sandbox` environment that
+holds the CI Stripe key accepts only `main`. The owner must permit the branch
+before this proof can run.
+
+
+### Required provider facts
+
+Prove these facts in Stripe test mode before release. If one fails, revise the
+contract and the code together.
 
 1. A session in `subscription` mode with a trial charges its one-time lines at
    once and starts the recurring line at the end of the trial.
 2. The completed session then reports `payment_status: "paid"` and an
    `amount_total` equal to the one-time lines.
 3. Stripe copies `subscription_data.metadata` to the subscription.
-4. `expand[]=latest_invoice.payments` on the subscription returns the payment
-   intent of the first payment, for refunds.
+4. `expand[]=payments` on the first invoice of the session returns the
+   payment intent of the first payment, for refunds.
 5. `trial_end` must be 48 hours or more ahead. All three frequencies pass.
 6. stripe-mock at the pinned version can serve these calls, or the tests need
    fixtures.
@@ -315,20 +352,25 @@ test mode first. If one fails, return to this plan.
 
 One stack of four. Each layer is green and useful alone.
 
-| Layer | Behaviour | Story | Source budget |
-| --- | --- | --- | --- |
-| 1 | The feature switch, the recurring price on a ticket, the Stripe subscription checkout, and the plan on the booking row | "Buying a subscription ticket" | 450 lines |
-| 2 | The Subscriptions menu and page | "Seeing who subscribed" | 200 lines |
-| 3 | The scheduled check: status and recurring payments in the ledger, with VAT | "Recurring payments reach the books" | 350 lines |
-| 4 | The owner cancels, and the site refuses to delete a live booking | "Cancelling a subscription" | 200 lines |
+| Layer | Behaviour | Story |
+| --- | --- | --- |
+| 1 | The feature switch, recurring prices, Stripe checkout, the stored plan, and cancellation before a failed checkout refunds | "Buying a subscription ticket" |
+| 2 | The Subscriptions menu and page | "Seeing who subscribed" |
+| 3 | The scheduled check: status and recurring payments in the ledger, with VAT | "Recurring payments reach the books" |
+| 4 | The owner cancels, and the site refuses to delete a live booking | "Cancelling a subscription" |
 
 Layer 1 replaces no old path. No layer adds a compatibility surface.
 
 The Stripe call budget is:
 
-- completion: one more read
-- scheduled check: two reads for each row
-- cancel: one call, and one read after a refusal
+- completion: two more reads, the subscription and the first invoice, at the
+  same time
+- failed completion: one cancel call, then one read if Stripe refuses the
+  cancel. A subscription that Stripe already reports as ended needs neither.
+- scheduled check: two reads for each row, one after the other
+- cancel: one call, one read after a refusal, and one invoice list
+
+Each subscription and invoice read asks Stripe once, with no retry.
 
 Direct tests cover every branch. The stories prove the journeys and are never
 the only coverage. The tests for each layer are:

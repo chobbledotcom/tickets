@@ -31,6 +31,7 @@ import type { TicketsWorld } from "#test/specs/support/world.ts";
 import {
   stripeCheckoutSession,
   stripeClient,
+  subscriptionItems,
 } from "#test-utils/stripe/fixtures.ts";
 import {
   type StartedSubscription,
@@ -38,6 +39,14 @@ import {
 } from "#test-utils/stripe/subscription-checkout.ts";
 
 const SESSION_ID = "cs_subscription_story";
+
+/** The name the subscribing customer books under. */
+const SUBSCRIBER = "Member";
+
+const onlyOne = <Item>(items: readonly Item[]): Item => {
+  expect(items.length).toBe(1);
+  return items[0]!;
+};
 
 /** A checkout line Stripe charges again each period. */
 type RecurringLine = {
@@ -79,7 +88,7 @@ export const customerSubscribes = async (
   places: number,
 ): Promise<void> => {
   const client = await stripeClient();
-  const choices = { email: "member@example.com", places, who: "Member" };
+  const choices = { email: "member@example.com", places, who: SUBSCRIBER };
   const sentBefore = nowSeconds();
   const create = stub(client.checkout.sessions, "create", () =>
     Promise.resolve(stripeCheckoutSession({ id: SESSION_ID })),
@@ -105,23 +114,14 @@ export const customerSubscribes = async (
 const subscriptionStartedBy = (
   asked: StripeCheckoutSessionCreateParams,
 ): StartedSubscription["subscription"] => {
-  const lines = chargedAgain(asked);
-  expect(lines.length).toBe(1);
-  const [{ interval, quantity, unitAmount }] = lines as [RecurringLine];
+  const { interval, quantity, unitAmount } = onlyOne(chargedAgain(asked));
   const started = requireValue(
     asked.subscription_data,
     "A subscription checkout sent no subscription data",
   );
   return {
     id: "sub_story",
-    items: {
-      data: [
-        {
-          price: { recurring: { interval }, unit_amount: unitAmount },
-          quantity,
-        },
-      ],
-    },
+    items: subscriptionItems(interval, unitAmount, quantity),
     metadata: { ...started.metadata },
   };
 };

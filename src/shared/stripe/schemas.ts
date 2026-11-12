@@ -37,6 +37,9 @@ type StripeCheckoutSessionFields = {
   /** `expired` names a session whose payment window closed; Stripe refuses
    *  payment on it, so it is a terminal non-payment. */
   status: (typeof StripeSessionStatuses)[number];
+  /** The first invoice of a subscription-mode session. A later invoice of
+   *  the same subscription is a renewal, never the checkout. */
+  invoice: string | null;
   /** The subscription a completed subscription-mode session started. */
   subscription: string | null;
   url: string | null;
@@ -60,6 +63,7 @@ export const StripeCheckoutSessionSchema = v.object({
   currency: OptionalNullableStringSchema,
   expires_at: v.nullable(v.number()),
   id: NonEmptyTextSchema,
+  invoice: NonEmptyNullableStringSchema,
   metadata: MetadataSchema,
   mode: v.picklist(StripeSessionModes),
   payment_intent: NonEmptyNullableStringSchema,
@@ -71,9 +75,8 @@ export const StripeCheckoutSessionSchema = v.object({
 
 export type StripeCheckoutSession = StripeCheckoutSessionFields;
 
-/** A subscription with its first invoice and that invoice's payments. The
- * site starts each subscription with one item, so the item's price is the
- * charge each period. */
+/** A subscription. The site starts each subscription with one item, so the
+ * item's price is the charge each period. */
 export const StripeSubscriptionSchema = v.object({
   id: ResourceIdSchema,
   items: v.object({
@@ -87,24 +90,31 @@ export const StripeSubscriptionSchema = v.object({
       }),
     ]),
   }),
-  latest_invoice: v.object({
-    payments: v.object({
-      data: v.array(
-        v.object({
-          payment: v.object({
-            payment_intent: v.optional(NonEmptyNullableStringSchema, null),
-            type: v.string(),
-          }),
-          status: v.string(),
-        }),
-      ),
-    }),
-  }),
   metadata: v.record(v.string(), v.string()),
   status: SubscriptionStatusSchema,
 });
 
 export type StripeSubscription = v.InferOutput<typeof StripeSubscriptionSchema>;
+
+/** One invoice with its payments. A paid entry names the intent that paid it. */
+export const StripeInvoicePaymentsSchema = v.object({
+  id: ResourceIdSchema,
+  payments: v.object({
+    data: v.array(
+      v.object({
+        payment: v.object({
+          payment_intent: v.optional(NonEmptyNullableStringSchema, null),
+          type: v.string(),
+        }),
+        status: v.string(),
+      }),
+    ),
+  }),
+});
+
+export type StripeInvoicePayments = v.InferOutput<
+  typeof StripeInvoicePaymentsSchema
+>;
 
 type StripeExpandedPaymentIntentFields = Pick<Stripe.PaymentIntent, "id"> & {
   latest_charge: null | Pick<

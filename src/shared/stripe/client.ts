@@ -18,6 +18,8 @@ import {
   StripeDeletedWebhookEndpointSchema,
   type StripeExpandedPaymentIntent,
   StripeExpandedPaymentIntentSchema,
+  type StripeInvoicePayments,
+  StripeInvoicePaymentsSchema,
   type StripeRefund,
   StripeRefundSchema,
   type StripeSubscription,
@@ -110,6 +112,11 @@ export interface StripeClient {
       ) => Promise<StripeCheckoutSession>;
     };
   };
+  invoices: {
+    retrieveWithPayments: (
+      id: Stripe.Invoice["id"],
+    ) => Promise<StripeInvoicePayments>;
+  };
   paymentIntents: {
     retrieveWithLatestCharge: (
       id: Stripe.PaymentIntent["id"],
@@ -124,9 +131,9 @@ export interface StripeClient {
     ) => Promise<StripeRefund>;
   };
   subscriptions: {
-    retrieveWithFirstPayment: (
-      id: Stripe.Subscription["id"],
-    ) => Promise<StripeSubscription>;
+    /** Cancel at once, with no refund and no final invoice. */
+    cancel: (id: Stripe.Subscription["id"]) => Promise<StripeSubscription>;
+    retrieve: (id: Stripe.Subscription["id"]) => Promise<StripeSubscription>;
   };
   webhookEndpoints: {
     create: (
@@ -138,6 +145,11 @@ export interface StripeClient {
     list: (startingAfter?: string) => Promise<StripeWebhookEndpointList>;
   };
 }
+
+/** The subscription reads ask once. Each caller asks again on its own: the
+ * scheduled check on its next pass, and a checkout on the next delivery. A
+ * retry inside the call also spends calls that the check does not declare. */
+const ASK_ONCE: StripeRetryOptions = { maxNetworkRetries: 0 };
 
 /** Build the small Stripe API surface used by ticket payments. */
 export const createStripeClient = (
@@ -154,9 +166,11 @@ export const createStripeClient = (
       method: "GET" | "DELETE",
       resource: string,
       schema: Schema,
+      params: Record<string, StripeFormValue> = {},
+      options?: StripeRetryOptions,
     ) =>
     (id: string): Promise<v.InferOutput<Schema>> =>
-      call(method, idPath(resource, id), {}, schema);
+      call(method, idPath(resource, id), params, schema, options);
 
   return {
     balance: {
@@ -178,6 +192,15 @@ export const createStripeClient = (
         ),
       },
     },
+    invoices: {
+      retrieveWithPayments: oneById(
+        "GET",
+        "invoices",
+        StripeInvoicePaymentsSchema,
+        { expand: ["payments"] },
+        ASK_ONCE,
+      ),
+    },
     paymentIntents: {
       retrieveWithLatestCharge: (id, options) =>
         call(
@@ -196,13 +219,14 @@ export const createStripeClient = (
         }),
     },
     subscriptions: {
-      retrieveWithFirstPayment: (id) =>
-        call(
-          "GET",
-          idPath("subscriptions", id),
-          { expand: ["latest_invoice.payments"] },
-          StripeSubscriptionSchema,
-        ),
+      cancel: oneById("DELETE", "subscriptions", StripeSubscriptionSchema),
+      retrieve: oneById(
+        "GET",
+        "subscriptions",
+        StripeSubscriptionSchema,
+        {},
+        ASK_ONCE,
+      ),
     },
     webhookEndpoints: {
       create: (params) =>

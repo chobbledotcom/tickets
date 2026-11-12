@@ -1,10 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
+import { type Stub, stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
 import { t } from "#i18n";
 import type { CheckoutIntent } from "#shared/payments.ts";
-import type { StripeSubscription } from "#shared/stripe/schemas.ts";
+import type {
+  StripeInvoicePayments,
+  StripeSubscription,
+} from "#shared/stripe/schemas.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { firstRecurringChargeAt } from "#shared/subscriptions/plan.ts";
@@ -15,6 +18,7 @@ import { withSetting } from "#test-utils/settings.ts";
 import {
   stripeCheckoutSession,
   stripeClient,
+  stripeFirstInvoice,
   stripeSubscription,
 } from "#test-utils/stripe/fixtures.ts";
 import { describeStripe } from "#test-utils/stripe/harness.ts";
@@ -33,6 +37,7 @@ const monthly = checkoutItem({
 
 const subscriptionSession = stripeCheckoutSession({
   id: "cs_sub",
+  invoice: "in_first",
   metadata: {
     email: "member@example.com",
     items: '[{"e":7,"q":2,"p":2000}]',
@@ -43,17 +48,31 @@ const subscriptionSession = stripeCheckoutSession({
   subscription: "sub_test",
 });
 
-/** Stub the subscription read Stripe answers with `impl`, then run `body`. */
+/** Stub the subscription read Stripe answers with `impl`, and the first
+ * invoice read with `invoice`, then run `body` with the invoice stub. */
 const whileReadingSubscription = async (
   impl: () => Promise<StripeSubscription>,
-  body: () => Promise<void>,
+  body: (invoiceRead: Stub) => Promise<void>,
+  invoice: StripeInvoicePayments = stripeFirstInvoice("pi_checkout"),
 ) => {
   const client = await stripeClient();
   await withMocks(
-    () => stub(client.subscriptions, "retrieveWithFirstPayment", impl),
-    body,
+    () => ({
+      invoice: stub(client.invoices, "retrieveWithPayments", () =>
+        Promise.resolve(invoice),
+      ),
+      read: stub(client.subscriptions, "retrieve", impl),
+    }),
+    ({ invoice: invoiceRead }) => body(invoiceRead),
   );
 };
+
+const resolveSubscriptionSession = (session = subscriptionSession) =>
+  stripePaymentProvider.resolveWebhookSession({
+    data: { object: session },
+    id: "evt_sub",
+    type: "checkout.session.completed",
+  });
 
 /** The parameters a checkout of `intent` sends to Stripe. */
 const sentParams = async (intent: CheckoutIntent) => {
@@ -130,19 +149,16 @@ describeStripe("Stripe subscription checkout", () => {
     }
   });
 
-  test("reads the started plan and its first payment from the webhook", async () => {
+  test("reads the started plan and the payment of the session's own invoice", async () => {
     await whileReadingSubscription(
       () =>
         Promise.resolve(stripeSubscription({ metadata: { listing_id: "7" } })),
-      async () => {
-        const session = asSession(
-          await stripePaymentProvider.resolveWebhookSession({
-            data: { object: subscriptionSession },
-            id: "evt_sub",
-            type: "checkout.session.completed",
-          }),
-        );
-        expect(session.paymentReference).toBe("pi_first");
+      async (invoiceRead) => {
+        const session = asSession(await resolveSubscriptionSession());
+        expect(invoiceRead.calls.map((call) => call.args[0])).toEqual([
+          "in_first",
+        ]);
+        expect(session.paymentReference).toBe("pi_checkout");
         expect(session.subscription).toEqual({
           amount: 500,
           id: "sub_test",
@@ -158,17 +174,29 @@ describeStripe("Stripe subscription checkout", () => {
     await whileReadingSubscription(
       () => Promise.resolve(stripeSubscription({ id: "sub_other" })),
       async () => {
-        await expect(
-          stripePaymentProvider.resolveWebhookSession({
-            data: { object: subscriptionSession },
-            id: "evt_sub",
-            type: "checkout.session.completed",
-          }),
-        ).rejects.toThrow(
+        await expect(resolveSubscriptionSession()).rejects.toThrow(
           'Stripe subscription sub_test could not be read: {"reason":"mismatched_id","status":"invalid"}',
         );
       },
     );
+  });
+
+  test("stops the callback when Stripe answers for another invoice", async () => {
+    await whileReadingSubscription(
+      () => Promise.resolve(stripeSubscription()),
+      async () => {
+        await expect(resolveSubscriptionSession()).rejects.toThrow(
+          'Stripe invoice in_first could not be read: {"reason":"mismatched_id","status":"invalid"}',
+        );
+      },
+      stripeFirstInvoice("pi_checkout", "in_renewal"),
+    );
+  });
+
+  test("stops the callback when the session names no first invoice", async () => {
+    await expect(
+      resolveSubscriptionSession({ ...subscriptionSession, invoice: null }),
+    ).rejects.toThrow("Stripe session cs_sub names no first invoice");
   });
 
   test("reads a payment-mode session without asking for a subscription", async () => {

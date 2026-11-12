@@ -5,6 +5,7 @@ import type { CheckoutIntent } from "#shared/payments.ts";
 import {
   subscriptionCheckoutError,
   subscriptionItemOrNull,
+  subscriptionOrderError,
 } from "#shared/subscriptions/checkout-rules.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout-items.ts";
 
@@ -86,5 +87,37 @@ describe("subscription checkout rules", () => {
     expect(stripeError({ balanceAttendeeId: 4, items: [monthly] })).toBe(
       noDeposit,
     );
+  });
+
+  test("refuses a subscription on a site that takes no payment", () => {
+    expect(
+      subscriptionCheckoutError(null, checkoutIntent({ items: [monthly] })),
+    ).toBe(t("payment.error.subscription_needs_stripe"));
+  });
+});
+
+describe("subscription order rules", () => {
+  const orderError = (items: CheckoutIntent["items"], total: number) =>
+    subscriptionOrderError("stripe", checkoutIntent({ items }), total);
+
+  test("lets an ordinary order book free or paid", () => {
+    expect([orderError([ordinary], 0), orderError([ordinary], 100)]).toEqual([
+      null,
+      null,
+    ]);
+  });
+
+  test("lets a subscription order book through a checkout with money to take", () => {
+    expect(orderError([monthly], 1000)).toBeNull();
+  });
+
+  test("refuses a subscription order with nothing to pay today", () => {
+    expect(orderError([monthly], 0)).toBe(t("payment.error.subscription_free"));
+  });
+
+  test("gives the checkout refusal before the free one", () => {
+    expect(
+      subscriptionOrderError(null, checkoutIntent({ items: [monthly] }), 0),
+    ).toBe(t("payment.error.subscription_needs_stripe"));
   });
 });

@@ -96,8 +96,13 @@ export const bookingRow = (
   parent_listing_id: 0,
   price_paid: 0,
   quantity: 1,
+  recurring_interval: "",
+  recurring_price: 0,
+  recurring_tax: 0,
   refunded: 0,
   start_at: null,
+  subscription_id: "",
+  subscription_status: "",
   ...overrides,
 });
 

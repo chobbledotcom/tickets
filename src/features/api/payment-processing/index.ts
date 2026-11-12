@@ -21,6 +21,7 @@ import {
 } from "#db/processed-payments.ts";
 import { forgetSquareLinkEnd } from "#db/square-link-ends.ts";
 import { t } from "#i18n";
+import { placeholderRefund } from "#payment/placeholder-refund.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import { sessionAnswerOf } from "#payment/row-state.ts";
 import { paymentReferenceOf } from "#payment/validated-session.ts";
@@ -202,12 +203,14 @@ const processNewBookingSession = async (
     // Ghosts are dateless: the deleted line's listing row is gone, so there is
     // nothing to derive date fields from. A foreign instance's 404 (signed by
     // someone else) never reaches here.
-    if (validated.status === 404) {
+    if (validated.status === 404 || session.subscription !== undefined) {
       return storeRefundedBooking(
         session,
         intent,
         datelessGhostBookings(intent.items),
-        deletedListingSpec(session),
+        validated.status === 404
+          ? deletedListingSpec(session)
+          : placeholderRefund("unexpected_error")(validated.error),
         snapshot.publicStatusId,
       );
     }

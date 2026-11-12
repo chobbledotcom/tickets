@@ -59,6 +59,21 @@ export const SubscriptionStatusSchema = v.picklist([
 ]);
 export type SubscriptionStatus = v.InferOutput<typeof SubscriptionStatusSchema>;
 
+/** The state group of each status that Stripe reports. */
+export const SUBSCRIPTION_NODE_OF: Record<
+  SubscriptionStatus,
+  "ended" | "live"
+> = {
+  active: "live",
+  canceled: "ended",
+  incomplete: "live",
+  incomplete_expired: "ended",
+  past_due: "live",
+  paused: "live",
+  trialing: "live",
+  unpaid: "live",
+};
+
 /** What Stripe reported about the subscription a checkout started. `amount`
  * is the charge each period for the whole quantity, VAT included. */
 export type SubscriptionStart = {

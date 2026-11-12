@@ -68,6 +68,7 @@ export const stubRetrieveCheckoutSession = (
     currency: "gbp",
     expires_at: 1_700_003_600,
     id: session.sessionId,
+    invoice: null,
     metadata,
     mode: "payment",
     payment_intent: session.paymentIntent,

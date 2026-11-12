@@ -51,6 +51,7 @@ import type {
 import { ErrorCode, logError } from "#shared/logger.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { recordPlaceholderRefund } from "#shared/refund-ledger/placeholder.ts";
+import { endFailedCheckoutSubscription } from "#shared/subscriptions/failed-checkout.ts";
 
 /**
  * User-facing message when a signed-by-us payment cannot be honoured (price
@@ -152,6 +153,7 @@ export const finishPlaceholderRefund = async (
   session: ValidatedPaymentSession,
   work: PlaceholderMoneyTarget,
 ): Promise<PlaceholderFailureResult> => {
+  await endFailedCheckoutSubscription(session.subscription);
   const refundResult = await requestSessionRefund(session);
   const refunded = providerRefundReturned(refundResult, {
     listingId: work.listingId,
@@ -195,6 +197,15 @@ export interface HeldAnchorSearch {
   readonly rows: readonly AnchorRowWork[];
 }
 
+export type HeldRefundTarget = Pick<
+  PlaceholderMoneyTarget,
+  "attendeeId" | "occurredAt" | "settlement"
+>;
+
+export type RefundResume = Pick<HeldAnchorSearch, "rows"> & {
+  readonly target: HeldRefundTarget | null;
+};
+
 /**
  * The one anchor row still holding a claim for this payment. More than one
  * held anchor is a state no flow can mint — log it and resume nothing rather
@@ -224,6 +235,29 @@ export const findHeldAnchor = async (
   };
 };
 
+export const loadRefundResume = async (
+  payment: TaggedPaymentReference,
+  sessionId: string,
+  occurredAt: (held: NonNullable<HeldAnchorSearch["held"]>) => string,
+): Promise<RefundResume> => {
+  const search = await findHeldAnchor(payment, sessionId);
+  const { held } = search;
+  return {
+    rows: search.rows,
+    target:
+      held === null
+        ? null
+        : {
+            attendeeId: held.record.attendeeId,
+            occurredAt: occurredAt(held),
+            settlement: settlementForHeldClaim(
+              held.record.sessionId,
+              held.claim,
+            ),
+          },
+  };
+};
+
 /**
  * A redelivered session whose stored outcome can carry the completion
  * marker: finish whatever tail is still open and answer with the result.
@@ -240,25 +274,26 @@ export const resumePlaceholderSession = async (
   const spec = placeholderRefund(marker.code)(
     `Resumed after a crashed delivery of session ${session.id}`,
   );
-  const search = await findHeldAnchor(
+  const search = await loadRefundResume(
     paidPaymentReferenceOf(session),
     session.id,
+    () => businessTime(session),
   );
-  if (search.held !== null) {
-    const { claim, record } = search.held;
+  if (search.target !== null) {
     return await finishPlaceholderRefund(session, {
-      attendeeId: record.attendeeId,
+      ...search.target,
       listingId: data.intent.items[0]!.e,
-      // The session's own business time — the same instant every fresh
-      // delivery posts, so a resumed leg replays instead of conflicting.
-      occurredAt: businessTime(session),
       referenceIndexes: [
         await paymentReferenceIndex(paidPaymentReferenceOf(session)),
       ],
       sessionId: session.id,
-      settlement: settlementForHeldClaim(record.sessionId, claim),
       spec,
     });
+  }
+  if (search.rows.length === 0) {
+    // A rejected checkout with no charge identity can keep the plan but no
+    // payment anchor. It must still end before a now-readable replay acks it.
+    await endFailedCheckoutSubscription(session.subscription);
   }
   // No held claim: the tail is done except, possibly, the final words. A
   // crash between the release and the advance leaves the pending outcome on

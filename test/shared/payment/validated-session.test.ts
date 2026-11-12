@@ -9,6 +9,7 @@ import {
 import type { SessionMetadata } from "#shared/payments.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import {
+  asSession,
   BLANK_SESSION_METADATA,
   wireMetadata,
 } from "#test-utils/payment-session.ts";
@@ -50,6 +51,7 @@ describe("validatedPaymentSession", () => {
   it("recognises a session rejection and nothing else", () => {
     expect(
       isSessionRejection({
+        metadata: meta,
         provider: "stripe",
         reason: "blank_reference",
         sessionId: "cs_blank",
@@ -90,24 +92,61 @@ describe("validatedPaymentSession", () => {
     expect(isSessionRejection("skip")).toBe(false);
   });
 
-  it("builds a paid session with a valid charge and resource id", () => {
-    const build = validatedPaymentSession({
-      ...basePaid,
-      amountTotal: 1000,
-      currency: "gbp",
+  for (const reason of ["malformed_charge", "blank_reference"]) {
+    it(`keeps observed subscription facts and ownership metadata on ${reason}`, () => {
+      const subscription = {
+        amount: 1200,
+        id: "sub_rejected",
+        interval: "month" as const,
+        listingId: 1,
+        status: "trialing" as const,
+      };
+      const build = validatedPaymentSession({
+        ...basePaid,
+        amountTotal: reason === "malformed_charge" ? null : 1000,
+        createdAt: "2026-07-19T12:00:00.000Z",
+        currency: "GBP",
+        paymentReference: reason === "blank_reference" ? "" : "pi_123",
+        subscription,
+      });
+      expect(isSessionRejection(build)).toBe(true);
+      expect(build).toEqual(
+        expect.objectContaining({
+          createdAt: "2026-07-19T12:00:00.000Z",
+          metadata: unpackedMeta,
+          reason,
+          subscription,
+        }),
+      );
     });
-    expect(isSessionRejection(build)).toBe(false);
-    if (isSessionRejection(build)) return;
-    expect(build.amountTotal).toBe(1000);
-    expect(build.id).toBe("sess-1");
-    expect(build.paymentReference).toBe("pi_123");
-    expect(build.provider).toBe("stripe");
-    expect(paymentReferenceOf(build)).toEqual({
-      kind: "tagged",
-      provider: "stripe",
-      reference: "pi_123",
+  }
+
+  for (const [currency, expected] of [
+    ["gbp", "GBP"],
+    ["USD", "USD"],
+  ] as const) {
+    it(`builds a valid paid session in ${currency}`, () => {
+      const build = asSession(
+        validatedPaymentSession({
+          ...basePaid,
+          amountTotal: 1000,
+          currency,
+        }),
+      );
+      expect(build).toMatchObject({
+        amountTotal: 1000,
+        currency: expected,
+        id: "sess-1",
+        paymentReference: "pi_123",
+        provider: "stripe",
+      });
+      expect(paymentReferenceOf(build)).toEqual({
+        kind: "tagged",
+        provider: "stripe",
+        reference: "pi_123",
+      });
     });
-  });
+  }
 
   it("keeps a supplied creation time", () => {
     const createdAt = "2026-07-19T12:00:00.000Z";
@@ -345,48 +384,21 @@ describe("validatedPaymentSession", () => {
     });
   });
 
-  // A currency the provider gave that doesn't match the site's is carried on
-  // the session: the callbacks refuse it (classify treats it as a mismatch and
-  // refunds the captured charge) rather than dropping it here, so the money is
-  // never stranded.
-  it("builds a session carrying a non-site currency", () => {
-    const build = validatedPaymentSession({
-      ...basePaid,
-      amountTotal: 1000,
-      currency: "USD",
+  for (const paymentReference of ["", "   "]) {
+    it(`refuses a paid session with provider resource id ${JSON.stringify(paymentReference)}`, () => {
+      expect(
+        validatedPaymentSession({
+          ...basePaid,
+          amountTotal: 1000,
+          currency: "GBP",
+          paymentReference,
+        }),
+      ).toEqual({
+        metadata: unpackedMeta,
+        provider: "stripe",
+        reason: "blank_reference",
+        sessionId: "sess-1",
+      });
     });
-    expect(isSessionRejection(build)).toBe(false);
-    if (isSessionRejection(build)) return;
-    expect(build.currency).toBe("USD");
-  });
-
-  // A paid charge must name the provider resource that captured it; a blank id
-  // names no charge to refund.
-  it("refuses a paid session with a blank provider resource id", () => {
-    expect(
-      validatedPaymentSession({
-        ...basePaid,
-        amountTotal: 1000,
-        currency: "GBP",
-        paymentReference: "",
-      }),
-    ).toEqual({
-      provider: "stripe",
-      reason: "blank_reference",
-      sessionId: "sess-1",
-    });
-    expect(
-      validatedPaymentSession({
-        ...basePaid,
-        amountTotal: 1000,
-        currency: "GBP",
-        paymentReference: "   ",
-      }),
-    ).toEqual({
-      provider: "stripe",
-      reason: "blank_reference",
-      sessionId: "sess-1",
-    });
-    expect(errorSpy.contains("provider resource id")).toBe(true);
-  });
+  }
 });

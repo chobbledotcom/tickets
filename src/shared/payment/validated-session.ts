@@ -14,25 +14,28 @@ import type {
 import { isPaymentProvider, isRecord } from "#types";
 
 /**
- * Why a provider session was refused at the boundary. A `malformed_charge`
- * carries its metadata so the callback can check the price proof before
- * refunding — a session signed by another instance must be left alone. A
- * `blank_reference` names no charge at all, so nothing can be refunded.
+ * Both refusal types retain metadata and the observed subscription. The callback
+ * must prove ownership before it stops future charges. Only a
+ * `malformed_charge` can name captured money to refund.
  */
-export type SessionRejection =
+export type SessionRejection = {
+  metadata: SessionMetadata;
+  createdAt?: string;
+  subscription?: ValidatedPaymentSession["subscription"];
+} & (
   | {
       reason: "malformed_charge";
       paymentReference: string;
       provider: PaymentProviderType;
       refundable: boolean;
-      metadata: SessionMetadata;
       sessionId: string;
     }
   | {
       provider: PaymentProviderType;
       reason: "blank_reference";
       sessionId: string;
-    };
+    }
+);
 
 /** A rejection that still names a real provider charge. */
 export type MalformedRejection = Extract<
@@ -82,7 +85,9 @@ export const isSessionRejection = (
     typeof value.provider !== "string" ||
     !isPaymentProvider(value.provider) ||
     typeof value.sessionId !== "string" ||
-    !isResourceId(value.sessionId)
+    !isResourceId(value.sessionId) ||
+    typeof value.metadata !== "object" ||
+    value.metadata === null
   ) {
     return false;
   }
@@ -90,9 +95,7 @@ export const isSessionRejection = (
   return (
     value.reason === "malformed_charge" &&
     typeof value.paymentReference === "string" &&
-    typeof value.refundable === "boolean" &&
-    typeof value.metadata === "object" &&
-    value.metadata !== null
+    typeof value.refundable === "boolean"
   );
 };
 
@@ -115,6 +118,18 @@ const malformedChargeRejection = (
   refundable: paid && isResourceId(paymentReference),
   sessionId,
 });
+
+const withRejectedSubscription = (
+  rejection: SessionRejection,
+  subscription: ValidatedPaymentSession["subscription"],
+  createdAt: string | undefined,
+): SessionRejection => {
+  if (subscription !== undefined) {
+    rejection.subscription = subscription;
+    if (createdAt !== undefined) rejection.createdAt = createdAt;
+  }
+  return rejection;
+};
 
 /**
  * The one place a provider's raw session becomes a ValidatedPaymentSession, so
@@ -147,12 +162,16 @@ export const validatedPaymentSession = (fields: {
       code: ErrorCode.PAYMENT_SESSION,
       detail: `Session ${fields.id} carries a malformed charge (amount=${fields.amountTotal}, currency=${fields.currency})`,
     });
-    return malformedChargeRejection(
-      fields.id,
-      fields.paymentReference,
-      fields.provider,
-      fields.paymentStatus === "paid",
-      fields.metadata,
+    return withRejectedSubscription(
+      malformedChargeRejection(
+        fields.id,
+        fields.paymentReference,
+        fields.provider,
+        fields.paymentStatus === "paid",
+        fields.metadata,
+      ),
+      fields.subscription,
+      fields.createdAt,
     );
   }
   // A paid charge must name the provider resource that captured it. A blank id
@@ -167,11 +186,16 @@ export const validatedPaymentSession = (fields: {
       code: ErrorCode.PAYMENT_SESSION,
       detail: `Paid session ${fields.id} is missing its provider resource id`,
     });
-    return {
-      provider: fields.provider,
-      reason: "blank_reference",
-      sessionId: fields.id,
-    };
+    return withRejectedSubscription(
+      {
+        metadata: extractSessionMetadata(fields.metadata),
+        provider: fields.provider,
+        reason: "blank_reference",
+        sessionId: fields.id,
+      },
+      fields.subscription,
+      fields.createdAt,
+    );
   }
   return {
     amountTotal: charge.amount,

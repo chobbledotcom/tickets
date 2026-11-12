@@ -8,6 +8,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { subscriptionItems } from "#test-utils/stripe/fixtures.ts";
 import { withSubscriptionStarted } from "#test-utils/stripe/subscription-checkout.ts";
 
 const INCLUDED_VAT = JSON.stringify({
@@ -35,14 +36,7 @@ const completeSubscriptionCheckout = (listingId: number) =>
       },
       subscription: {
         id: "sub_booking",
-        items: {
-          data: [
-            {
-              price: { recurring: { interval: "month" }, unit_amount: 600 },
-              quantity: 2,
-            },
-          ],
-        },
+        items: subscriptionItems("month", 600, 2),
         metadata: { listing_id: String(listingId) },
       },
     },

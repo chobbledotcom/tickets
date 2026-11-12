@@ -51,6 +51,7 @@ export const webhookEvent = (opts: {
       currency: "gbp",
       expires_at: 1_700_003_600,
       id: opts.sessionId,
+      invoice: null,
       metadata: opts.metadata,
       mode: "payment",
       payment_intent: opts.paymentIntent ?? null,

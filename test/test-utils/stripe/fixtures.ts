@@ -20,12 +20,15 @@ import { STRIPE_API_VERSION } from "#shared/stripe/request.ts";
 import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
 import type {
   StripeCheckoutSession,
+  StripeInvoicePayments,
   StripeRefund,
   StripeSubscription,
 } from "#shared/stripe/schemas.ts";
 import { checkoutItem } from "#test-utils/checkout-items.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import type { Listing } from "#types";
+
+type StripeFixture<Reply> = (overrides?: Partial<Reply>) => Reply;
 
 /**
  * Stores a Stripe secret key in the database and hands back the ready client.
@@ -42,14 +45,15 @@ export const stripeClient = async (
 };
 
 /** A complete checkout-session response with per-test fields overridden. */
-export const stripeCheckoutSession = (
-  overrides: Partial<StripeCheckoutSession> = {},
-): StripeCheckoutSession => ({
+export const stripeCheckoutSession: StripeFixture<StripeCheckoutSession> = (
+  overrides = {},
+) => ({
   amount_total: 1000,
   created: 123,
   currency: "gbp",
   expires_at: 456,
   id: "cs_test",
+  invoice: null,
   metadata: {},
   mode: "payment",
   payment_intent: "pi_test",
@@ -60,39 +64,47 @@ export const stripeCheckoutSession = (
   ...overrides,
 });
 
-/** A subscription answer with its first invoice paid by one intent, with
- * per-test fields overridden. */
-export const stripeSubscription = (
-  overrides: Partial<StripeSubscription> = {},
-): StripeSubscription => ({
+/** The one recurring item of a subscription. */
+export const subscriptionItems = (
+  interval: "week" | "month" | "year",
+  unitAmount: number,
+  quantity: number,
+): StripeSubscription["items"] => ({
+  data: [
+    { price: { recurring: { interval }, unit_amount: unitAmount }, quantity },
+  ],
+});
+
+/** A subscription answer with per-test fields overridden. */
+export const stripeSubscription: StripeFixture<StripeSubscription> = (
+  overrides = {},
+) => ({
   id: "sub_test",
-  items: {
-    data: [
-      {
-        price: { recurring: { interval: "month" }, unit_amount: 500 },
-        quantity: 1,
-      },
-    ],
-  },
-  latest_invoice: {
-    payments: {
-      data: [
-        {
-          payment: { payment_intent: "pi_first", type: "payment_intent" },
-          status: "paid",
-        },
-      ],
-    },
-  },
+  items: subscriptionItems("month", 500, 1),
   metadata: { listing_id: "1" },
   status: "trialing",
   ...overrides,
 });
 
+/** The first invoice of a subscription checkout, paid by the intent
+ * `paidBy`. */
+export const stripeFirstInvoice = (
+  paidBy = "pi_first",
+  id = "in_first",
+): StripeInvoicePayments => ({
+  id,
+  payments: {
+    data: [
+      {
+        payment: { payment_intent: paidBy, type: "payment_intent" },
+        status: "paid",
+      },
+    ],
+  },
+});
+
 /** A complete Stripe refund answer with per-test fields overridden. */
-export const stripeRefund = (
-  overrides: Partial<StripeRefund> = {},
-): StripeRefund => ({
+export const stripeRefund: StripeFixture<StripeRefund> = (overrides = {}) => ({
   amount: 1000,
   currency: "gbp",
   id: "re_1",

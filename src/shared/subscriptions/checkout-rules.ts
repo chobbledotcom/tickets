@@ -23,7 +23,7 @@ export const subscriptionItemOrNull = (
  * package, an add-on, a deposit and a balance cannot carry it.
  */
 export const subscriptionCheckoutError = (
-  provider: PaymentProviderType,
+  provider: PaymentProviderType | null,
   intent: CheckoutIntent,
 ): string | null => {
   const items = intent.items.filter(isSubscriptionItem);
@@ -43,4 +43,22 @@ export const subscriptionCheckoutError = (
     intent.reservationAmount !== undefined ||
     intent.balanceAttendeeId !== undefined;
   return partPayment ? t("payment.error.subscription_no_deposit") : null;
+};
+
+/**
+ * Why the order cannot book at all, or null when it can. The booking paths
+ * ask before they choose between a checkout and a free booking. A free
+ * booking starts no subscription, so a subscription order must reach a Stripe
+ * checkout with money to take. `provider` is null on a site that takes no
+ * payment.
+ */
+export const subscriptionOrderError = (
+  provider: PaymentProviderType | null,
+  intent: CheckoutIntent,
+  total: number,
+): string | null => {
+  if (subscriptionItemOrNull(intent) === null) return null;
+  const refusal = subscriptionCheckoutError(provider, intent);
+  if (refusal !== null || total > 0) return refusal;
+  return t("payment.error.subscription_free");
 };

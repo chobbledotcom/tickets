@@ -53,8 +53,13 @@ export const bookingRow = (line: DesiredListingLine): ListingAttendeeRow => ({
   parent_listing_id: line.parentListingId ?? 0,
   price_paid: 0,
   quantity: line.quantity,
+  recurring_interval: "",
+  recurring_price: 0,
+  recurring_tax: 0,
   refunded: 0,
   start_at: null,
+  subscription_id: "",
+  subscription_status: "",
 });
 
 /** The existing rows keyed the way production keys them. */

@@ -3,13 +3,14 @@
 
 import type { SubscriptionStart } from "#shared/subscriptions/plan.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
-import type { StripeSubscription } from "./schemas.ts";
+import type { StripeInvoicePayments, StripeSubscription } from "./schemas.ts";
 
 /** The payment intent that paid the first invoice. Refunds and charge reads
  * of the first payment use it, as they use the intent of a one-off checkout.
- * An unpaid first invoice names none. */
-const firstPaymentIntent = (subscription: StripeSubscription): string =>
-  subscription.latest_invoice.payments.data.find(
+ * An unpaid invoice names none, and the paid checkout then refuses the blank
+ * reference. */
+const firstPaymentIntent = (invoice: StripeInvoicePayments): string =>
+  invoice.payments.data.find(
     (entry) =>
       entry.status === "paid" && entry.payment.type === "payment_intent",
   )?.payment.payment_intent ?? "";
@@ -26,12 +27,15 @@ const subscribedListingId = (subscription: StripeSubscription): number => {
   return listingId;
 };
 
+/** The plan the checkout started, and the intent that paid `firstInvoice`,
+ * the invoice of the checkout itself. */
 export const subscriptionStartOf = (
   subscription: StripeSubscription,
+  firstInvoice: StripeInvoicePayments,
 ): { paymentReference: string; start: SubscriptionStart } => {
   const [item] = subscription.items.data;
   return {
-    paymentReference: firstPaymentIntent(subscription),
+    paymentReference: firstPaymentIntent(firstInvoice),
     start: {
       amount: item.price.unit_amount * item.quantity,
       id: subscription.id,

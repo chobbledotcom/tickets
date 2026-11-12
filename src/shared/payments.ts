@@ -19,6 +19,7 @@ import {
   type PurchaseUnitFacts,
   resolvePurchaseUnit,
 } from "#shared/purchase-unit.ts";
+import { requireValue } from "#shared/required-value.ts";
 import type {
   RecurringInterval,
   RecurringListingColumns,
@@ -407,6 +408,19 @@ export const getActivePaymentProvider = (): Promise<PaymentProvider | null> =>
   resolveProvider(paymentsApi.getConfiguredProvider, "", () =>
     logDebug("Payment", "No payment provider configured in settings"),
   );
+
+/** Start a checkout with the provider of the site. A caller reaches this only
+ * while payments are on, so the provider exists. */
+export const createActiveCheckout = async (
+  intent: CheckoutIntent,
+  baseUrl: string,
+): Promise<CheckoutSessionResult> => {
+  const provider = requireValue(
+    await getActivePaymentProvider(),
+    "Payments are on with no provider",
+  );
+  return provider.createCheckoutSession(intent, baseUrl);
+};
 
 /** Provider implementation for work on an existing payment. */
 export type ExistingPaymentProvider = PaymentProvider | null;
