@@ -2,6 +2,7 @@ import { bookingEventGroup } from "#accounting/mappers.ts";
 import { requirePublicStatusId } from "#db/attendee-statuses.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { queryOnePrimary } from "#db/client.ts";
+import { numberedStatement } from "#db/numbered-statement.ts";
 import {
   advanceSessionFailure,
   type ProcessedPayment,
@@ -81,19 +82,18 @@ type PlanStore = Pick<
 /** A pruned session must not let a malformed replay cancel a real booking. */
 const checkoutWasHonoured = async (sessionId: string): Promise<boolean> => {
   const eventGroup = await bookingEventGroup(sessionId);
-  return (
-    (await queryOnePrimary(
-      `SELECT 1 WHERE EXISTS (
-         SELECT 1 FROM listing_attendees AS booking
-          WHERE booking.ledger_event_group = ? AND booking.quantity > 0
-       ) OR EXISTS (
-         SELECT 1 FROM transfers AS transfer
-          WHERE transfer.event_group = ?
-            AND transfer.kind NOT IN ('payment', 'refund_cash')
-       )`,
-      [eventGroup, eventGroup],
-    )) !== null
-  );
+  const { sql, args } = numberedStatement((bind) => {
+    const group = bind(eventGroup);
+    return `SELECT 1 WHERE EXISTS (
+      SELECT 1 FROM listing_attendees AS booking
+       WHERE booking.ledger_event_group = ${group} AND booking.quantity > 0
+    ) OR EXISTS (
+      SELECT 1 FROM transfers AS transfer
+       WHERE transfer.event_group = ${group}
+         AND transfer.kind NOT IN ('payment', 'refund_cash')
+    )`;
+  });
+  return (await queryOnePrimary(sql, args)) !== null;
 };
 
 const storeNoChargePlan = async (plan: PlanStore): Promise<void> => {
