@@ -41,7 +41,6 @@ export const getSubscribedRows = async (): Promise<SubscribedRow[]> =>
     ),
   );
 
-
 const CheckedRowSchema = v.object({
   ...v.pick(SubscribedRowSchema, [
     "attendee_id",
@@ -101,4 +100,3 @@ export const statusWrite = (
            WHERE id = ? AND subscription_status IN (${inPlaceholders(replaceable)})`,
   };
 };
-

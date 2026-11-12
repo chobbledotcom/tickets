@@ -217,4 +217,3 @@ export const subscriberOn = async (
       [listingNamed(world, name).id],
     ),
   ).attendee_id;
-
