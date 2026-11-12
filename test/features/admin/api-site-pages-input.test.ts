@@ -154,6 +154,21 @@ describeWithEnv("Admin API - Site page input refusals", { db: true }, () => {
     );
   });
 
+  test("refuses an empty name on update", async () => {
+    const page = await createTestSitePage("renamed", { name: "Renamed" });
+
+    await assertJson(
+      apiRequest(`/api/admin/site-pages/${page.id}`, {
+        body: { name: "  " },
+        method: "PUT",
+      }),
+      400,
+      (body) => {
+        expect(body.error).toBe("name cannot be empty");
+      },
+    );
+  });
+
   test("refuses content past the form's length cap with its message", async () => {
     const page = await createTestSitePage("visit", { name: "Visit" });
 

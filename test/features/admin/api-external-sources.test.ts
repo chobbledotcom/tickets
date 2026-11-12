@@ -258,6 +258,21 @@ describeWithEnv("Admin API - External sources", { db: true }, () => {
         },
       );
     });
+
+    test("refuses a blank URL pattern on an update", async () => {
+      const created = await createSource();
+
+      await assertJson(
+        apiRequest(sourcePath(Number(created.source.id)), {
+          body: { url_pattern: "  " },
+          method: "PUT",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe("url_pattern cannot be empty");
+        },
+      );
+    });
   });
 
   describe("DELETE /api/admin/external-sources/:sourceId", () => {

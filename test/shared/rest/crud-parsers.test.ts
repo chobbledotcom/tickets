@@ -10,6 +10,7 @@ import { ADMIN_API } from "#routes/auth.ts";
 import { dateField, textField } from "#shared/rest/api-body-fields.ts";
 import {
   bodyNumber,
+  dateRange,
   optionalDateString,
   optionalTextField,
   parseApiBody,
@@ -22,7 +23,7 @@ import {
   withWriteName,
   writeEntityName,
 } from "#shared/rest/crud-parsers.ts";
-import { okResult } from "#shared/result.ts";
+import { errorResult, okResult } from "#shared/result.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestApiKeyToken, requestAsApiKey } from "#test-utils/session.ts";
 
@@ -165,9 +166,31 @@ test("writeEntityName trims a supplied name", () => {
   });
 });
 
+test("writeEntityName falls back to the stored name", () => {
+  expect(writeEntityName(undefined, "Stored")).toEqual({
+    ok: true,
+    value: "Stored",
+  });
+});
+
 test("writeEntityName refuses an empty name", () => {
   expect(writeEntityName("  ", "Stored")).toEqual({
     error: "name cannot be empty",
+    ok: false,
+  });
+});
+
+test("writeEntityName refuses a missing name on create", () => {
+  expect(writeEntityName(undefined, null)).toEqual({
+    error: "name cannot be empty",
+    ok: false,
+  });
+});
+
+test("dateRange reports the end date refusal", () => {
+  const start = requireDateString({ start_date: "2026-01-01" }, "start_date");
+  expect(dateRange(start, errorResult("end date bad"))).toEqual({
+    error: "end date bad",
     ok: false,
   });
 });

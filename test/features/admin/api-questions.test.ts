@@ -328,6 +328,26 @@ describeWithEnv("Admin API - Questions", { db: true }, () => {
       );
     });
 
+    test("refuses a text past the form's textarea cap", async () => {
+      const created = await questionsApi().create({
+        display_type: "radio",
+        text: "Cap?",
+      });
+
+      await assertJson(
+        apiRequest(`/api/admin/questions/${created.question.id}`, {
+          body: { text: "x".repeat(10_241) },
+          method: "PUT",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe(
+            "Question text must be 10240 characters or fewer",
+          );
+        },
+      );
+    });
+
     test("returns the form's own refusal for an unknown display type", async () => {
       const created = await questionsApi().create({
         display_type: "radio",

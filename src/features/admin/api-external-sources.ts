@@ -85,9 +85,9 @@ type SourceWriteBody = {
 const sourceField = (
   body: SourceWriteBody,
   field: "name" | "url_pattern",
-  existing: string | null,
+  stored: string,
 ): Result<string> => {
-  const value = (body[field] ?? existing ?? "").trim();
+  const value = (body[field] ?? stored).trim();
   if (value === "") return errorResult(`${field} cannot be empty`);
   return value.length > MAX_INPUT_LENGTH
     ? errorResult(`${field} must be ${MAX_INPUT_LENGTH} characters or fewer`)
@@ -100,16 +100,12 @@ const sourceInput = (
   body: SourceWriteBody,
   existing: ExternalSource | null,
 ): Result<ExternalSourceInput> => {
-  const name = sourceField(
-    body,
-    "name",
-    existing === null ? null : existing.name,
-  );
+  const name = sourceField(body, "name", existing?.name ?? "");
   if (!name.ok) return name;
   const urlPattern = sourceField(
     body,
     "url_pattern",
-    existing === null ? null : existing.url_pattern,
+    existing?.url_pattern ?? "",
   );
   if (!urlPattern.ok) return urlPattern;
   const invalidPattern = validatorFor(ExternalUrlPatternSchema)(

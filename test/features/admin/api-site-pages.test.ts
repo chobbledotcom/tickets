@@ -365,6 +365,20 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
       );
     });
 
+    test("refuses a parent that is not a whole page id", async () => {
+      const page = await createTestSitePage("fractional");
+      await assertJson(
+        apiRequest(`/api/admin/site-pages/${page.id}`, {
+          body: { parent: 1.5 },
+          method: "PUT",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe("parent must be a page id or null");
+        },
+      );
+    });
+
     test("refuses a slug a listing owns with the form's message", async () => {
       const page = await createTestSitePage("visit", { name: "Visit" });
       const listing = await createTestListing({ name: "Kayak" });

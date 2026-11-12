@@ -114,10 +114,9 @@ const createImageInput = (
 ): Result<{ file: ImageFile; metadata: ImageMetadata }> => {
   const parsed = parseApiBody(CreateImageBodySchema, body);
   if (!parsed.ok) return parsed;
-  const metadata = imageMetadata(
-    parsed.value.name,
-    parsed.value.alt_text ?? "",
-  );
+  const name = parsed.value.name;
+  const altText = parsed.value.alt_text ?? "";
+  const metadata = imageMetadata(name, altText);
   if (!metadata.ok) return metadata;
   const bytes = base64Bytes(parsed.value.file);
   if (!bytes.ok) return bytes;
