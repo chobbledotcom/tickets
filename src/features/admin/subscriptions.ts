@@ -18,7 +18,7 @@ import { adminRedirect, errorRedirect } from "#routes/response.ts";
 import { authPageAt, formGuardAt } from "#routes/route-gates.ts";
 import { adminPath } from "#shared/admin-surface.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import { cancelOwnerSubscription } from "#shared/subscriptions/cancel.ts";
+import { cancelOwnerSubscription } from "#shared/subscriptions/cancellation.ts";
 import {
   adminSubscriptionsPage,
   type SubscriberRow,

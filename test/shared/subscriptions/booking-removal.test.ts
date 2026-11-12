@@ -4,7 +4,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { deleteAttendee } from "#db/attendees/delete.ts";
-import { queryOne } from "#db/client.ts";
+import { execute, queryOne } from "#db/client.ts";
 import { loadPaymentMoveSnapshot } from "#db/payment-admit-move.ts";
 import { getSubscribedRowOrNull } from "#db/subscriptions.ts";
 import { listingDeleteError } from "#shared/listings-actions.ts";
@@ -64,7 +64,7 @@ describeWithEnv("removing a subscribed booking", { db: true }, () => {
     expect(await listingDeleteError(ada.listingId)).toBeNull();
   });
 
-  test("finds a subscribed booking row by its id, and no other row", async () => {
+  test("keeps a failed checkout's subscription available for cancellation", async () => {
     const ada = await subscribe("Ada", MONTHLY);
     const plain = await bookOwnListing("Bob");
     const idOf = async (attendeeId: number): Promise<number> =>
@@ -73,10 +73,14 @@ describeWithEnv("removing a subscribed booking", { db: true }, () => {
         [attendeeId],
       ))!.id;
     const bookingId = await idOf(ada.attendeeId);
+    await execute("UPDATE listing_attendees SET quantity = 0 WHERE id = ?", [
+      bookingId,
+    ]);
     expect(await getSubscribedRowOrNull(bookingId)).toEqual({
       attendee_id: ada.attendeeId,
       id: bookingId,
       listing_id: ada.listingId,
+      quantity: 0,
       recurring_interval: "month",
       recurring_price: 600,
       recurring_tax: 100,
@@ -85,6 +89,9 @@ describeWithEnv("removing a subscribed booking", { db: true }, () => {
     });
     expect(await getSubscribedRowOrNull(await idOf(plain.attendeeId))).toBe(
       null,
+    );
+    expect((await rejection(deleteAttendee(ada.attendeeId))).message).toBe(
+      LIVE_REFUSAL,
     );
   });
 });
