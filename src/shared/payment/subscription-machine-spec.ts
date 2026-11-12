@@ -23,7 +23,6 @@ export type SubscriptionNodeId = "ended" | "live" | "none";
 
 type StatusNodeId = Exclude<SubscriptionNodeId, "none">;
 
-
 /** The stored column that decides the node: blank before any subscription. */
 type SubscriptionRow = { readonly status: SubscriptionStatus | "" };
 
