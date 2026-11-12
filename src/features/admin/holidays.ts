@@ -1,10 +1,10 @@
 /**
- * Admin holiday management routes - owner only
+ * Admin holiday management routes - owner only. Both doors read the one
+ * holiday record declaration.
  */
 
-import { type HolidayInput, holidays } from "#db/holidays.ts";
+import type { HolidayInput } from "#db/holidays.ts";
 import { t } from "#i18n";
-import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
 import {
   crudRoutes,
   defineAdminRoutes,
@@ -12,11 +12,12 @@ import {
 } from "#routes/admin/route-tables.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 import {
+  applyDemoOverrides,
   HOLIDAY_DEMO_FIELDS,
-  wrapResourceForDemo,
 } from "#shared/demo/overrides.ts";
 import type { FormValues } from "#shared/forms/definition.ts";
-import { defineResource } from "#shared/rest/resource.ts";
+import { holidayRecord } from "#shared/records/holidays.ts";
+import { recordPages } from "#shared/rest/record-pages.ts";
 import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import {
   adminHolidaysPage,
@@ -40,39 +41,19 @@ const extractHolidayInput = (values: HolidayFormValues): HolidayInput => ({
   ),
 });
 
-/** Validate end_date >= start_date */
-export const validateDateRange = (
-  input: HolidayInput,
-): Promise<string | null> =>
-  Promise.resolve(
-    input.endDate < input.startDate ? t("error.end_date_before_start") : null,
-  );
-
-/** Holidays resource for REST create/update operations */
-const holidaysResource = wrapResourceForDemo(
-  defineResource({
-    form: getHolidayForm(),
-    table: holidays.table,
-    toInput: extractHolidayInput,
-    validate: validateDateRange,
-  }),
-  HOLIDAY_DEMO_FIELDS,
-);
-
-export const holidaysCrud = createCrudHandlers({
-  getAll: holidays.getAll,
-  getName: (h) => h.name,
+const pages = recordPages(holidayRecord, {
+  form: getHolidayForm(),
   identifierLabel: t("holidays.name_label"),
-  list: "holidays",
-  operations: holidaysResource,
+  preprocessForm: (form) => applyDemoOverrides(form, HOLIDAY_DEMO_FIELDS),
   renderDelete: (...args) => getHolidayPages().deletePage(...args),
   renderEditError: holidayPage.renderEditError,
   renderList: adminHolidaysPage,
   renderNew: (...args) => getHolidayPages().newPage(...args),
   singular: "Holiday",
+  toInput: extractHolidayInput,
 });
 
 export const adminHandlers = defineAdminRoutes({
-  ...crudRoutes(adminPattern("holidays"), holidaysCrud),
+  ...crudRoutes(adminPattern("holidays"), pages),
   ...entityTabRoutes(adminPattern("holiday"), holidayPage),
 });

@@ -9,7 +9,7 @@ import { listingGroups } from "#db/groups/table.ts";
 import { groups } from "#db/groups.ts";
 import { createOwnerNote, getNoteRows } from "#db/notes/queries.ts";
 import { noteTargets } from "#db/notes/target.ts";
-import { deleteGroup } from "#routes/admin/groups.ts";
+import { deleteGroup } from "#shared/records/groups.ts";
 import {
   imageNamesForItem,
   makeImage,

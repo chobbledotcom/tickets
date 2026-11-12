@@ -8,7 +8,7 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { holidays } from "#db/holidays.ts";
-import { validateDateRange } from "#routes/admin/holidays.ts";
+import { validateDateRange } from "#shared/records/holidays.ts";
 import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -73,35 +73,24 @@ describeWithEnv("holidays", { db: true }, () => {
 });
 
 describeWithEnv("the holiday date rule", { db: true }, () => {
-  test("rejects an end date before the start date", async () => {
-    const error = await validateDateRange({
-      endDate: parseDateStringOrThrow(
-        "2026-01-01",
-        "the backwards-range holiday end date",
-      ),
-      name: "Backwards",
-      startDate: parseDateStringOrThrow(
-        "2026-06-01",
-        "the backwards-range holiday start date",
-      ),
+  const rule = (name: string, start: string, end: string) =>
+    validateDateRange({
+      endDate: parseDateStringOrThrow(end, "the holiday rule end date"),
+      name,
+      startDate: parseDateStringOrThrow(start, "the holiday rule start date"),
     });
 
-    expect(error).toBe("End date must be on or after the start date");
+  test("rejects an end date before the start date", async () => {
+    const error = await rule("Backwards", "2026-06-01", "2026-01-01");
+
+    expect(error.ok ? null : error.error).toBe(
+      "End date must be on or after the start date",
+    );
   });
 
   test("accepts a single day, where the two dates are equal", async () => {
-    const error = await validateDateRange({
-      endDate: parseDateStringOrThrow(
-        "2026-06-01",
-        "the one-day holiday end date",
-      ),
-      name: "One day",
-      startDate: parseDateStringOrThrow(
-        "2026-06-01",
-        "the one-day holiday start date",
-      ),
-    });
+    const error = await rule("One day", "2026-06-01", "2026-06-01");
 
-    expect(error).toBe(null);
+    expect(error.ok).toBe(true);
   });
 });

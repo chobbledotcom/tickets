@@ -7,9 +7,8 @@ import {
   isUpdateTier,
   providerOrBunny,
 } from "#db/built-sites/types.ts";
-import { builtSites, builtSitesCrudTable } from "#db/built-sites.ts";
+import { builtSites } from "#db/built-sites.ts";
 import { t } from "#i18n";
-import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
 import {
   crudRoutes,
   defineAdminRoutes,
@@ -26,9 +25,10 @@ import {
 import { isBuilderEnabled } from "#shared/config.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormValues } from "#shared/forms/definition.ts";
+import { builtSiteRecord } from "#shared/records/built-sites.ts";
 import { isProvisioned, isReservedRenewal } from "#shared/renewal-helpers.ts";
 import { getQualifyingTierListings } from "#shared/renewal-tier.ts";
-import { defineResource } from "#shared/rest/resource.ts";
+import { recordPages } from "#shared/rest/record-pages.ts";
 import { siteHostingAccess } from "#shared/site-hosting.ts";
 import { rotateRenewalToken } from "#shared/site-renewal.ts";
 import { provisionSiteScheduler } from "#shared/site-scheduler.ts";
@@ -92,24 +92,18 @@ const extractBuiltSiteInput = (
   };
 };
 
-const builtSitesResource = defineResource({
+/* jscpd:ignore-start -- declarative record page config */
+const pages = recordPages(builtSiteRecord, {
   form: getBuiltSiteForm(),
-  table: builtSitesCrudTable,
-  toInput: extractBuiltSiteInput,
-});
-
-const crud = createCrudHandlers({
-  getAll: builtSites.getAll,
-  getName: (s) => s.name,
   identifierLabel: t("built_sites.name_label"),
-  list: "builtSites",
-  operations: builtSitesResource,
   renderDelete: adminBuiltSiteDeletePage,
   renderEditError: builtSitePage.renderEditError,
   renderList: adminBuiltSitesPage,
   renderNew: adminBuiltSiteNewPage,
   singular: "Built site",
+  toInput: extractBuiltSiteInput,
 });
+/* jscpd:ignore-end */
 
 const handleProvisionSiteScheduler = builtSiteFormPost(
   async (site, _session, _form, _request) =>
@@ -278,7 +272,8 @@ const gateOnBuilder = <Key extends string>(
  * list GET restates the standard key with its own handler. */
 export const adminHandlers = gateOnBuilder(
   defineAdminRoutes({
-    ...crudRoutes(adminPattern("builtSites"), crud),
+    /* jscpd:ignore-start -- declarative route table */
+    ...crudRoutes(adminPattern("builtSites"), pages),
     ...entityTabRoutes(adminPattern("builtSite"), builtSitePage),
     "GET /admin/built-sites": handleBuiltSitesListGet,
     "POST /admin/built-sites/:id/add-secrets": handleAddSecrets,
@@ -293,5 +288,6 @@ export const adminHandlers = gateOnBuilder(
     "POST /admin/built-sites/:id/support-message": handleSaveSiteSupportMessage,
     "POST /admin/built-sites/:id/update": handleUpdateSite,
     ...databaseKeyRoutes,
+    /* jscpd:ignore-end */
   }),
 );

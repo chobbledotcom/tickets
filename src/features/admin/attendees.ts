@@ -442,6 +442,7 @@ const handleResendNotification = attendeeActions[
  * Refunds: attendee-refunds.ts
  */
 export const adminHandlers = defineAdminRoutes({
+  /* jscpd:ignore-start -- a declared route table */
   ...entityTabRoutes(adminPattern("attendee"), attendeePage),
   ...paymentReviewHandlers,
   "DELETE /admin/attendees/:attendeeId/delete": handleAttendeeDelete,
@@ -466,4 +467,5 @@ export const adminHandlers = defineAdminRoutes({
     handleAttendeeCheckin,
   "POST /admin/listing/:listingId/attendee/:attendeeId/delete-incomplete":
     handleDeleteIncomplete,
+  /* jscpd:ignore-end */
 });

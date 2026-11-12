@@ -461,7 +461,8 @@ export const toggleListingActive = async (
         if (refusal !== null) return { error: refusal };
       }
       // Every table on the transactional write path carries updateStatement
-      // (see crud-api.ts), so the toggle's row write joins the guard's tx. The
+      // (see the record's write path), so the toggle's row write joins the
+      // guard's tx. The
       // price mirror and the activity log join it too: a failure in either
       // rolls the toggle back, so a retry re-runs all three.
       await tx.execute(

@@ -1,30 +1,18 @@
 /**
- * Admin JSON API routes for the attendee-statuses resource. The dashboard's
- * status settings are owner-only, so the JSON API matches (OWNER_API). The
- * writes go through the shared attendeeStatusWrites boundary. The boundary
- * keeps the single-default invariants: one public default, one paid default,
- * and a paid default is never a reservation.
+ * Admin JSON API routes for the attendee-statuses resource. The status
+ * record owns the field rule and the write boundary, and its page route
+ * declares the owner-only audience.
  */
 
-import { attendeeStatusApiTable } from "#db/attendee-status-api-table.ts";
-import {
-  type AttendeeStatus,
-  type AttendeeStatusWriteInput,
-  attendeeStatusDeleteMessage,
-  attendeeStatuses,
-  heldAttendeeCount,
-  statusDeleteProspects,
+import type {
+  AttendeeStatus,
+  AttendeeStatusWriteInput,
 } from "#db/attendee-statuses.ts";
-import { catalogNameLengthError } from "#db/name-registry.ts";
-import { t } from "#i18n";
-import { OWNER_API } from "#routes/auth.ts";
-import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
-import { validateReservationAmount } from "#shared/reservation-amount.ts";
-import { defineCrudApi } from "#shared/rest/crud-api.ts";
+import type { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
+import { statusRecord } from "#shared/records/statuses.ts";
 import { withWriteName } from "#shared/rest/crud-parsers.ts";
+import { recordApi } from "#shared/rest/record-api.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
-
-const ENTRY = ADMIN_API_RESOURCES["attendee-statuses"];
 
 /** One status write body after the resource table's schema validates it. */
 type StatusWriteBody = {
@@ -41,9 +29,9 @@ type StatusWriteBody = {
 const AMOUNT_WITHOUT_RESERVATION =
   "reservation_amount only applies to a reservation. Set is_reservation to true, or leave reservation_amount out.";
 
-/** The amount a status stores: "0" for a non-reservation, the caller's
- *  validated value for a reservation. An amount sent for a non-reservation
- *  is refused, never dropped. */
+/** The amount a status stores: "0" for a non-reservation, the caller's value
+ *  for a reservation. An amount sent for a non-reservation is refused, never
+ *  dropped. The record rule validates a reservation's amount. */
 const reservationAmountFrom = (
   body: StatusWriteBody,
   isReservation: boolean,
@@ -55,40 +43,29 @@ const reservationAmountFrom = (
       ? okResult("0")
       : errorResult(AMOUNT_WITHOUT_RESERVATION);
   }
-  const amount = raw ?? stored;
-  const amountError = validateReservationAmount(amount);
-  return amountError === null ? okResult(amount) : errorResult(amountError);
+  return okResult(raw ?? stored);
 };
 
-/** Parse one status write body into the shared write input. A create answers
- *  the stored defaults for a silent field (off flags, "0" amount). An update
- *  keeps the stored value. */
+/** Parse one status write body into the record's input. A create answers the
+ * stored defaults for a silent field (off flags, "0" amount). An update keeps
+ * the stored value. The record's rule runs after this. */
 const statusInputFrom = withWriteName<
   StatusWriteBody,
   AttendeeStatus,
   AttendeeStatusWriteInput
 >((name, body, existing) => {
-  const nameLengthError = catalogNameLengthError(name);
-  if (nameLengthError) return errorResult(nameLengthError);
-
   const flags = {
     isPaidDefault: body.is_paid_default ?? existing?.is_paid_default ?? false,
     isPublicDefault:
       body.is_public_default ?? existing?.is_public_default ?? false,
     isReservation: body.is_reservation ?? existing?.is_reservation ?? false,
   };
-
-  // The form's rule: a paid status is never a reservation.
-  if (flags.isReservation && flags.isPaidDefault) {
-    return errorResult(t("statuses.error_paid_default_reservation"));
-  }
   const amount = reservationAmountFrom(
     body,
     flags.isReservation,
     existing?.reservation_amount ?? "",
   );
   if (!amount.ok) return amount;
-
   return okResult({
     ...flags,
     name,
@@ -96,31 +73,12 @@ const statusInputFrom = withWriteName<
   });
 });
 
-/** The one delete the API refuses beyond the shared confirm-by-name check: a
- *  status the write boundary or a booking still depends on. */
-const statusDeleteRefusal = async (id: number): Promise<string | null> => {
-  const prospects = await statusDeleteProspects(id);
-  if (prospects.blocker) {
-    return attendeeStatusDeleteMessage(prospects.blocker);
-  }
-  return (await heldAttendeeCount(id)) > 0
-    ? attendeeStatusDeleteMessage("status_in_use")
-    : null;
-};
-
-export const attendeeStatusApiRoutes = defineCrudApi<
+export const attendeeStatusApiRoutes = recordApi<
   (typeof ADMIN_API_RESOURCES)["attendee-statuses"],
   AttendeeStatus,
   AttendeeStatusWriteInput
->(ENTRY, {
-  getAll: attendeeStatuses.getAll,
-  nameField: "name",
-  policy: OWNER_API,
-  // Reordering is a dashboard concern. The API has no verb for it, so the
-  // answer hides the sort order.
+>(statusRecord, {
   stripKeys: ["sort_order"],
-  table: attendeeStatusApiTable,
   toCreateInput: (body) => statusInputFrom(body, null),
   toUpdateInput: (body, existing) => statusInputFrom(body, existing),
-  validateDelete: statusDeleteRefusal,
 });

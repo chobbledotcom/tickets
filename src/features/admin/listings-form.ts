@@ -14,13 +14,11 @@ import {
   validateListingGroupMembershipsTx,
 } from "#db/groups/membership.ts";
 import { copyPackageMemberOverridesTx } from "#db/groups.ts";
-import { syncListingPrices } from "#db/listing-price-sync.ts";
 import {
   type AssignPlan,
   moveUndatedBookingsToDayTx,
   wouldBeStaySpanDays,
 } from "#db/listings/daily-switch.ts";
-import { listingsTable } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
 import { range } from "#fp";
 import { formDataToParams } from "#routes/csrf.ts";
@@ -39,13 +37,15 @@ import {
   LISTING_DEMO_FIELDS,
 } from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { checkedValues } from "#shared/forms/validation.ts";
 import {
   generateUniqueListingSlug,
   keepDailyListingDate,
   refuseUndatedListingSwitch,
-  validateListingInput,
 } from "#shared/listings-actions.ts";
-import { defineResource } from "#shared/rest/resource.ts";
+import { listingRecord } from "#shared/records/listings.ts";
+import type { WriteVerdict } from "#shared/rest/record.ts";
+import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { normalizeSlug } from "#shared/slug.ts";
 import { commaParts } from "#shared/split.ts";
 import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
@@ -300,69 +300,121 @@ const writeCreateListingJoins =
  * validated fields. The resource only hands `toInput` the validated values.
  */
 /** The listing validation for a request: reject an invalid day price first
- *  (the dynamic fields the static schema cannot see), then the standard input
- *  validation. Closes over the raw `form` so both create and update share it. */
-const listingValidate =
-  (form: FormParams) =>
-  async (input: ListingInput, id?: number): Promise<string | null> =>
-    validateDayPricesFromForm(form) ?? (await validateListingInput(input, id));
+ *  (the dynamic fields the static schema cannot see). The record's one rule
+ *  then runs the standard input validation. */
+const dayPriceError = (form: FormParams): string | null =>
+  validateDayPricesFromForm(form);
 
-export const buildCreateListingResource = (form: FormParams) =>
-  defineResource({
-    // Group membership rides the write transaction. listing_prices reconciles
-    // post-commit (afterCommit) since the transactional insertStatement path
-    // bypasses the listingsTable wrapper that syncs direct writes.
-    afterCommit: syncListingPrices,
-    afterWrite: writeCreateListingJoins(form),
-    form: getListingForm(),
-    table: listingsTable,
-    toInput: (values: ListingFormValues) => extractListingInput(values, form),
-    validate: listingValidate(form),
-  });
+export type ListingCreateResult =
+  | { ok: true; row: ListingWithCount }
+  | { ok: false; error: string };
+export type ListingUpdateResult =
+  | { ok: true; row: ListingWithCount }
+  | { ok: false; error: string }
+  | { ok: false; notFound: true };
 
-/** Build a per-request listings update resource (includes the slug field).
+/** One write's success answer, or null for its failure. */
+const writtenResult = <Row>(verdict: WriteVerdict<Row>) =>
+  verdict.kind === "written" ? { ok: true as const, row: verdict.row } : null;
+
+/** One write's refusal answer, or the door's own missing-row answer. */
+const failedResult = <Row, Missing>(
+  verdict: WriteVerdict<Row>,
+  missing: Missing,
+): { error: string; ok: false } | Missing =>
+  verdict.kind === "refused" ? { error: verdict.message, ok: false } : missing;
+
+/** Parse the create form into the record's input, then write through the
+ * record with the create door's join plan. */
+export const buildCreateListingResource = (form: FormParams) => ({
+  create: async (submitted: FormParams): Promise<ListingCreateResult> => {
+    const parsed = checkedValues(getListingForm().validate(submitted));
+    if (!parsed.ok) return { error: parsed.error, ok: false };
+    const dayError = dayPriceError(submitted);
+    if (dayError !== null) return { error: dayError, ok: false };
+    const input = await extractListingInput(parsed.value, submitted);
+    const verdict = await listingRecord.create(input, {
+      persist: (tx, id) => writeCreateListingJoins(form)(tx, id, input),
+    });
+    return (
+      writtenResult(verdict) ??
+      failedResult(verdict, { error: "Listing not found", ok: false })
+    );
+  },
+});
+
+/** Build a per-request listings update command (includes the slug field).
  * `stored` is the row the save must not clobber: a daily listing's hidden date
  * box submits empty, and that empty date keeps the stored one. `assign` is the
  * confirmed switch move: date every undated booking, then let the save commit
  * the type flip. Without it, a bare switch is refused while undated bookings
  * remain. */
 export const buildUpdateListingResource = (
-  form: FormParams,
   stored: ListingWithCount,
   assign?: AssignPlan,
-) =>
-  defineResource({
-    afterCommit: syncListingPrices,
-    afterWrite:
-      assign === undefined
-        ? writeListingJoins
-        : async (tx, id, input) => {
-            await writeListingJoins(tx, id, input);
-            await moveUndatedBookingsToDayTx(
-              tx,
-              id,
-              stored.name,
-              assign.date,
-              wouldBeStaySpanDays(input),
-            );
-          },
-    // The add-on reachability half of the save refuses inside the row write's
-    // transaction, so two concurrent page-removing saves cannot both commit.
-    // Without a confirmed move, a type switch that leaves undated bookings
-    // behind is refused here too. This is the backstop for a booking that
-    // landed between the form's count and this write.
-    checkTx:
-      assign === undefined
-        ? refuseUndatedListingSwitch
-        : listingSaveOrphanedAddOnTx,
-    form: getListingEditForm(),
-    table: listingsTable,
-    toInput: async (values: ListingEditFormValues) => {
-      const input = await extractListingUpdateInput(values, form);
-      return {
-        ...input,
-        date: keepDailyListingDate(input.date, stored, input.listingType),
-      };
+) => {
+  /** The validated edit input, with the stored daily date kept when the form
+   * sends an empty date box. */
+  const parseInput = async (
+    submitted: FormParams,
+  ): Promise<Result<ListingInput>> => {
+    const parsed = checkedValues(getListingEditForm().validate(submitted));
+    if (!parsed.ok) return parsed;
+    const dayError = dayPriceError(submitted);
+    if (dayError !== null) return errorResult(dayError);
+    const input = await extractListingUpdateInput(parsed.value, submitted);
+    return okResult({
+      ...input,
+      date: keepDailyListingDate(input.date, stored, input.listingType),
+    });
+  };
+
+  return {
+    parseInput,
+    update: async (
+      id: number,
+      submitted: FormParams,
+    ): Promise<ListingUpdateResult> => {
+      const parsed = await parseInput(submitted);
+      if (!parsed.ok) return { error: parsed.error, ok: false };
+      const dated = parsed.value;
+      const verdict = await listingRecord.update(id, dated, {
+        // The add-on reachability half of the save refuses inside the row
+        // write's transaction, so two concurrent page-removing saves cannot
+        // both commit. Without a confirmed move, a type switch that leaves
+        // undated bookings behind is refused here too.
+        checkTx:
+          assign === undefined
+            ? (tx, rowId) => refuseUndatedListingSwitch(tx, rowId, dated)
+            : (tx, rowId) => listingSaveOrphanedAddOnTx(tx, rowId, dated),
+        persist: (tx, rowId) =>
+          assign === undefined
+            ? writeListingJoins(tx, rowId, dated)
+            : moveAssignedListing(tx, rowId, dated, stored, assign),
+      });
+      return (
+        writtenResult(verdict) ??
+        failedResult(verdict, { notFound: true, ok: false })
+      );
     },
-    validate: listingValidate(form),
-  });
+  };
+};
+
+/** The update's join write when the operator confirmed a type switch: write
+ *  the edges, then date every undated booking. */
+const moveAssignedListing = async (
+  tx: TxScope,
+  id: number,
+  input: ListingInput,
+  stored: ListingWithCount,
+  assign: AssignPlan,
+): Promise<void> => {
+  await writeListingJoins(tx, id, input);
+  await moveUndatedBookingsToDayTx(
+    tx,
+    id,
+    stored.name,
+    assign.date,
+    wouldBeStaySpanDays(input),
+  );
+};

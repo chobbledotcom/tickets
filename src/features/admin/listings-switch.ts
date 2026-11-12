@@ -130,7 +130,7 @@ export const probeAssignDates = async (
   try {
     return await withTransaction(async (tx) => {
       // `updateStatement` is optional only on the façade type. The REST layer
-      // calls it the same way (see `parseWriteAndCommit` in resource.ts).
+      // calls it the same way (see the record's write path).
       await tx.execute(
         await listingsTable.updateStatement!(stored.id, wouldBe),
       );
@@ -164,9 +164,7 @@ export const planListingTypeSwitch = async (
   const places = rows.reduce((total, row) => total + row.quantity, 0);
   const chosen = form.getString(ASSIGN_UNDATED_FIELD);
 
-  const parsed = await buildUpdateListingResource(form, stored).parseInput(
-    form,
-  );
+  const parsed = await buildUpdateListingResource(stored).parseInput(form);
   if (!parsed.ok) return { error: parsed.error, kind: "invalid" };
   const wouldBe = parsed.value;
 

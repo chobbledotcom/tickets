@@ -16,10 +16,8 @@ import * as v from "valibot";
 import { logActivity } from "#db/activity-log.ts";
 import {
   createExternalSourceLink,
-  deleteExternalSource,
   deleteExternalSourceLink,
   getAllExternalSources,
-  getExternalSource,
   getExternalSourceLink,
   listExternalLinksForTarget,
   listExternalSourceLinks,
@@ -42,7 +40,6 @@ import {
   type ExternalSource,
   type ExternalSourceInput,
   type ExternalSourceLink,
-  ExternalUrlPatternSchema,
 } from "#db/external-sources/types.ts";
 import { externalLinkUrl } from "#db/external-sources/url.ts";
 import { settings } from "#db/settings.ts";
@@ -50,70 +47,29 @@ import { requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
-import { ADMIN_API, withAuth } from "#routes/auth.ts";
+import { withAuth } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
-import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
+import type { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
+import { externalSourceRecord } from "#shared/records/external-sources.ts";
 import { featureGate } from "#shared/response-steps.ts";
-import { defineCrudApi } from "#shared/rest/crud-api.ts";
 import {
   apiEntityGate,
   requireEntityField,
 } from "#shared/rest/crud-parsers.ts";
+import { recordApi, recordJsonPolicy } from "#shared/rest/record-api.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import {
   isPositiveSafeInteger,
   parsePositiveInt,
 } from "#shared/validation/number.ts";
-import { validatorFor } from "#shared/validation/parse.ts";
 
 /* jscpd:ignore-end */
 
 /** The refused link kind message names the values the picklist accepts, so the
  *  two cannot drift apart. */
 const LINK_KIND_VALUES = EXTERNAL_LINK_KINDS.join(", ");
-
-/** One source write body after the resource table's schema validates it. */
-type SourceWriteBody = {
-  name?: string | undefined;
-  url_pattern?: string | undefined;
-};
-
-/** One source's own fields: the name and the URL pattern, each trimmed, not
- *  empty, and no longer than a short input. */
-const sourceField = (
-  body: SourceWriteBody,
-  field: "name" | "url_pattern",
-  stored: string,
-): Result<string> => {
-  const value = (body[field] ?? stored).trim();
-  if (value === "") return errorResult(`${field} cannot be empty`);
-  return value.length > MAX_INPUT_LENGTH
-    ? errorResult(`${field} must be ${MAX_INPUT_LENGTH} characters or fewer`)
-    : okResult(value);
-};
-
-/** The source input a create or an update stores. A silent field keeps the
- *  stored value on an update. */
-const sourceInput = (
-  body: SourceWriteBody,
-  existing: ExternalSource | null,
-): Result<ExternalSourceInput> => {
-  const name = sourceField(body, "name", existing?.name ?? "");
-  if (!name.ok) return name;
-  const urlPattern = sourceField(
-    body,
-    "url_pattern",
-    existing?.url_pattern ?? "",
-  );
-  if (!urlPattern.ok) return urlPattern;
-  const invalidPattern = validatorFor(ExternalUrlPatternSchema)(
-    urlPattern.value,
-  );
-  if (invalidPattern !== null) return errorResult(invalidPattern);
-  return okResult({ name: name.value, urlPattern: urlPattern.value });
-};
 
 /** One link kind, from a body field or a query value. */
 const parseLinkKind = (value: unknown): Result<ExternalLinkKind> => {
@@ -205,7 +161,7 @@ const toLinkResponse = (
 const sourceGate = apiEntityGate(
   externalSourcesTable.findByIdPrimary,
   "Source",
-  ADMIN_API,
+  recordJsonPolicy(externalSourceRecord),
 );
 
 /** Everything one link route receives: its request, the route parameters, the
@@ -256,7 +212,7 @@ const handleLinkList = underSource(async ({ request, source }) => {
 const ownerRead =
   (run: (params: URLSearchParams) => Promise<Response>): RouteHandlerFn =>
   (request) =>
-    withAuth(request, ADMIN_API, async () =>
+    withAuth(request, recordJsonPolicy(externalSourceRecord), async () =>
       run(new URL(request.url).searchParams),
     );
 
@@ -383,11 +339,11 @@ const externalSourcesOnly =
     externalSourcesGate(() => handler(request, params));
 
 export const externalSourceApiRoutes = mapValues(
-  defineCrudApi<
+  recordApi<
     (typeof ADMIN_API_RESOURCES)["external-sources"],
     ExternalSource,
     ExternalSourceInput
-  >(ADMIN_API_RESOURCES["external-sources"], {
+  >(externalSourceRecord, {
     childHandlers: {
       links: {
         create: handleLinkCreate,
@@ -400,17 +356,13 @@ export const externalSourceApiRoutes = mapValues(
       linkSearch: handleLinkSearch,
       links: handleLinkList,
     },
-    getAll: getAllExternalSources,
-    lookup: getExternalSource,
-    // Read-your-writes: the create and update answers re-read the row from the
-    // primary, so a lagging replica cannot miss the row the write just made.
-    lookupAfterWrite: externalSourcesTable.findByIdPrimary,
-    nameField: "name",
-    onDelete: (id) => deleteExternalSource(Number(id)),
-    policy: ADMIN_API,
-    table: externalSourcesTable,
-    toCreateInput: (body) => sourceInput(body, null),
-    toUpdateInput: sourceInput,
+    toCreateInput: (body) =>
+      okResult({ name: body.name, urlPattern: body.url_pattern }),
+    toUpdateInput: (body, existing) =>
+      okResult({
+        name: body.name ?? existing.name,
+        urlPattern: body.url_pattern ?? existing.url_pattern,
+      }),
   }),
   externalSourcesOnly,
 );

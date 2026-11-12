@@ -6,7 +6,6 @@
  * This module wires them to the new/edit/duplicate pages.
  */
 
-import { logActivity } from "#db/activity-log.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { anyHiddenPackageGroup, groups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
@@ -40,6 +39,7 @@ import {
   type ListingTemplate,
   submissionRequiresDate,
 } from "#shared/listing-templates.ts";
+import { operationResponse } from "#shared/rest/operation-response.ts";
 import {
   adminDuplicateListingPage,
   adminListingNewPage,
@@ -50,7 +50,6 @@ import {
   isListingType,
   type ListingWithCount,
 } from "#types";
-import { operationResponse } from "./crud-handlers.ts";
 import { withEntityFromParam } from "./entity-handlers.ts";
 import { getListingAndGroups } from "./listing-page-data.ts";
 import {
@@ -61,6 +60,7 @@ import {
 import {
   buildCreateListingResource,
   buildUpdateListingResource,
+  type ListingUpdateResult,
   parseListingForm,
 } from "./listings-form.ts";
 import { copyDuplicatedChildEdges } from "./listings-parents.ts";
@@ -238,7 +238,6 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> =
         resolveErrorTemplateId(form),
       );
     }
-    await logActivity(`Listing '${result.row.name}' created`, result.row);
     const childWarning = await copyEdgesFromDuplicateSource(
       form,
       result.row.id,
@@ -343,15 +342,14 @@ const saveListingEdit = async (
   const confirmed = step.kind === "assign" ? step : null;
 
   // Build a resource that includes the slug field. Uniqueness is enforced
-  // by validateListingInput when existingId is set.
+  // by the record's rule when the row exists.
   const result = await buildUpdateListingResource(
-    form,
     existing,
     confirmed?.plan,
   ).update(id, form);
   return operationResponse(
     result,
-    (saved) =>
+    (saved: ListingUpdateResult & { ok: true }) =>
       handleListingEditSuccess(
         saved.row,
         existing,

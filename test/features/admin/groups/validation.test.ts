@@ -8,7 +8,7 @@ import { t } from "#i18n";
 import {
   soldHiddenPackageError,
   validateGroupWithPackage,
-} from "#routes/admin/groups.ts";
+} from "#shared/records/groups.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createHiddenPackageGroup,

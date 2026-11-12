@@ -10,14 +10,8 @@
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { listingAttributeOptions } from "#db/attributes.ts";
 import { listingGroups } from "#db/groups/table.ts";
-import { syncListingPrices } from "#db/listing-price-sync.ts";
 import { getListingWithAttendeesRaw } from "#db/listings/attendees.ts";
-import {
-  getAllListings,
-  getListingWithCount,
-  getListingWithCountPrimary,
-  listingsTable,
-} from "#db/listings/records.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
 import { mapById, requiredMapValue } from "#fp";
 import { attendeeStatusApiRoutes } from "#routes/admin/api-attendee-statuses.ts";
 import { attributeApiRoutes } from "#routes/admin/api-attributes.ts";
@@ -29,23 +23,21 @@ import { questionApiRoutes } from "#routes/admin/api-questions.ts";
 import { sitePageApiRoutes } from "#routes/admin/api-site-pages.ts";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
-import { ADMIN_API, CONTENT_API } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
-import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
+import type { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import {
   performListingDelete,
-  refuseUndatedListingSwitch,
   toggleListingActive,
-  validateListingInput,
 } from "#shared/listings-actions.ts";
-import { defineCrudApi } from "#shared/rest/crud-api.ts";
+import { listingRecord } from "#shared/records/listings.ts";
 import type {
   CrudSideEffectValidate,
   HydratedRows,
 } from "#shared/rest/crud-api-types.ts";
 import { apiEntityGate, withApiEntity } from "#shared/rest/crud-parsers.ts";
+import { recordApi, recordJsonDeletePolicy } from "#shared/rest/record-api.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { AdminListing, Listing, ListingWithCount } from "#types";
 import { handleCreateAttendee, toApiAttendee } from "./api-attendees.ts";
@@ -67,7 +59,11 @@ import {
 // The listing delete, deactivate, and reactivate routes are staff-only, the
 // same audience the dashboard's lifecycle controls declare
 // (areas-a-l.ts "listings": listingDelete, deactivate, reactivate).
-const listingGate = apiEntityGate(getListingWithCount, "Listing", ADMIN_API);
+const listingGate = apiEntityGate(
+  getListingWithCount,
+  "Listing",
+  recordJsonDeletePolicy(listingRecord),
+);
 
 /** Custom DELETE handler: performListingDelete runs the orphaned-add-on guard
  * and the DB deletes in one transaction, then cleans up storage and logs */
@@ -164,7 +160,7 @@ const handleListingAttendees: RouteHandlerFn = (request, { listingId }) =>
           )
         ).map(toApiAttendee),
       }),
-    ADMIN_API,
+    recordJsonDeletePolicy(listingRecord),
   );
 
 /** The JSON write's join validation: the base joins come from the input. The
@@ -182,38 +178,21 @@ const prepareApiListingJoins: CrudSideEffectValidate<
   };
 };
 
-const listingApiRoutes = defineCrudApi<
+const listingApiRoutes = recordApi<
   typeof ADMIN_API_RESOURCES.listings,
   Listing,
   ListingInput,
   ListingWithCount,
   PreparedListingJoins
->(ADMIN_API_RESOURCES.listings, {
-  afterCommit: syncListingPrices,
-  // The add-on reachability half of the save refuses inside the row write's
-  // transaction, so two concurrent page-removing saves cannot both commit.
-  // The API has no assign step, so a type switch that leaves undated
-  // bookings behind is refused here outright.
-  checkTx: refuseUndatedListingSwitch,
+>(listingRecord, {
   customHandlers: {
     attendees: handleListingAttendees,
     deactivate: toggleActiveRoute(false),
     delete: handleDeleteListing,
     reactivate: toggleActiveRoute(true),
   },
-  // Role parity with the listing pages: create/edit/duplicate admit content
-  // admins (owner, manager, editor — areas-a-l.ts "listings"). The delete,
-  // deactivate, and reactivate routes are staff-only. An editor therefore
-  // writes through the API exactly as far as the dashboard allows.
-  deletePolicy: ADMIN_API,
-  getAll: getAllListings,
   hydrate: hydrateListingJoins,
-  linkActivityToRow: true,
   listExtras: (session) => ({ admin_level: session.adminLevel }),
-  lookup: getListingWithCount,
-  lookupAfterWrite: getListingWithCountPrimary,
-  nameField: "name",
-  policy: CONTENT_API,
   /** The dashboard's editor table is money-free (listing-table.tsx), so the
    *  editor's API answers hide the staff-only money totals too. The editor
    *  form also hides webhook_url and use_defaults. The write parser freezes
@@ -236,10 +215,8 @@ const listingApiRoutes = defineCrudApi<
     validate: prepareApiListingJoins,
   },
   stripKeys: ["slug_index"],
-  table: listingsTable,
   toCreateInput: bodyToCreateInput,
   toUpdateInput: bodyToUpdateInput,
-  validate: validateListingInput,
 });
 
 export const adminApiRoutes = {

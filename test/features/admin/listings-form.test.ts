@@ -55,11 +55,12 @@ const updateListing = async (
   // a daily listing's effective date is already empty, and the save's date
   // guard must see the value the row still stores.
   const stored = (await getStoredListingWithCount(id))!;
-  const result = await buildUpdateListingResource(form, stored).update(
-    id,
-    form,
-  );
-  if (!result.ok) throw new Error(`update failed: ${result.error}`);
+  const result = await buildUpdateListingResource(stored).update(id, form);
+  if (!result.ok) {
+    throw new Error(
+      "error" in result ? `update failed: ${result.error}` : "update not found",
+    );
+  }
   return result.row;
 };
 
@@ -396,7 +397,6 @@ describeWithEnv("listings form", { db: true }, () => {
         slug: "kept-slug",
       });
       const result = await buildUpdateListingResource(
-        form,
         (await getStoredListingWithCount(created.id))!,
       ).update(created.id, form);
 

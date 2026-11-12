@@ -1,7 +1,6 @@
-/** Direct unit tests for the CRUD API parsers extracted from crud-api.ts.
- *  The defineCrudApi integration tests in crud-api.test.ts exercise the full
- *  request path; these test the parsing helpers directly so mutation testing
- *  has a mirror for crud-parsers.ts. */
+/** Direct unit tests for the admin record parsing helpers. The record API
+ *  integration tests exercise the full request path; these test the parsing
+ *  helpers directly so mutation testing has a mirror for crud-parsers.ts. */
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";

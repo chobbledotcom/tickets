@@ -66,6 +66,7 @@ import {
 
 /** Settings routes */
 export const adminHandlers = defineAdminRoutes({
+  /* jscpd:ignore-start -- a declared route table */
   "GET /admin/features/:slug": handleFeatureGet,
   "GET /admin/listing-defaults": handleListingDefaultsGet,
   "GET /admin/settings": handleAdminSettingsGet,
@@ -114,4 +115,5 @@ export const adminHandlers = defineAdminRoutes({
   "POST /admin/settings/tax": handleTaxPost,
   "POST /admin/settings/terms": handleTermsPost,
   "POST /admin/settings/theme": handleThemePost,
+  /* jscpd:ignore-end */
 });

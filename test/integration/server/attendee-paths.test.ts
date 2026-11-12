@@ -290,7 +290,7 @@ describeWithEnv(
       );
       // Deleting the group leaves the booked row tagged with its id — the
       // label falls back to the id rather than hiding the path.
-      const { deleteGroup } = await import("#routes/admin/groups.ts");
+      const { deleteGroup } = await import("#shared/records/groups.ts");
       await deleteGroup(group.id);
 
       const html = await (

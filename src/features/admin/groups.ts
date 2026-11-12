@@ -1,60 +1,35 @@
-import type { InValue } from "@libsql/client";
-import {
-  defineAdminRoutes,
-  entityTabRoutes,
-} from "#routes/admin/route-tables.ts";
-import { adminPattern } from "#shared/admin-surface.ts";
-
 /**
- * Admin group management routes. Each route declares its own audience in
- * `admin-surface/areas.ts`, so the roles differ across this file. An editor
- * reaches the list and the record page. Only staff can delete.
+ * Admin group management routes. The group record owns the write rule and the
+ * package-member write. Each route declares its own audience in
+ * `admin-surface/areas.ts`. An editor reaches the list, the record page, and
+ * the create/edit routes. Only staff can delete.
  */
 
 import { hmacHash } from "#crypto/hashing.ts";
-import { executeBatch, rowExists } from "#db/client.ts";
-import {
-  clearExternalLinksStatement,
-  externalLinkTargets,
-} from "#db/external-sources/target.ts";
-import {
-  readPackageFlagsTxOrNull,
-  writePackageMembersTx,
-} from "#db/groups/membership/package-writes.ts";
-import {
-  generateUniqueGroupSlug,
-  getGroupById,
-  getListingsByGroupId,
-  groups,
-  isGroupSlugTaken,
-  packageMembersError,
-  resetGroupListings,
-} from "#db/groups.ts";
-import { clearImageUsesForItemStatement, imageUseTargets } from "#db/images.ts";
-import {
-  catalogNameLengthError,
-  isNameTakenAnywhere,
-} from "#db/name-registry.ts";
-import { noteDeleteStatement } from "#db/notes/queries.ts";
-import { clearItemEdgesStatement } from "#db/site-page-items.ts";
+import { generateUniqueGroupSlug, getGroupById } from "#db/groups.ts";
 import { t } from "#i18n";
-import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
 import {
   handleAddListingsToGroup,
   handleRemoveListingsGet,
   handleRemoveListingsPost,
 } from "#routes/admin/group-listing-forms.ts";
+import {
+  defineAdminRoutes,
+  entityTabRoutes,
+} from "#routes/admin/route-tables.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
 import {
   type GroupInput,
   groupCatalogFields,
 } from "#shared/catalog-fields/fields.ts";
 import {
+  applyDemoOverrides,
   GROUP_DEMO_FIELDS,
-  wrapResourceForDemo,
 } from "#shared/demo/overrides.ts";
-import { defineResource } from "#shared/rest/resource.ts";
-import { sitePageItemTargets } from "#shared/site-pages/target.ts";
+import type { FormParams } from "#shared/form-data.ts";
+import { groupRecord, soldHiddenPackageError } from "#shared/records/groups.ts";
+import { recordPages } from "#shared/rest/record-pages.ts";
 import { normalizeSlug } from "#shared/slug.ts";
 import { adminGroupDeletePage } from "#templates/admin/groups/delete.tsx";
 import { adminGroupNewPage } from "#templates/admin/groups/form.tsx";
@@ -65,10 +40,8 @@ import {
   getGroupCreateForm,
   getGroupForm,
 } from "#templates/fields/group.ts";
-import type { Group } from "#types";
 import { groupNoteFeature } from "./catalog-notes.ts";
 import { withEntityLoader } from "./entity-handlers.ts";
-import { withGroupOrNull } from "./find-group.ts";
 import { groupPage } from "./group-page.ts";
 import { createItemImageHandlers } from "./item-images.ts";
 import {
@@ -76,81 +49,6 @@ import {
   validatePackageMemberForm,
 } from "./package-member-rules.ts";
 import { bindNoteRoutes } from "./record-notes.ts";
-
-/** Shared shape of the group validators: an error message, or null when valid.
- * `id` is the group being edited (absent on create). */
-type GroupValidator = (
-  input: GroupInput,
-  id?: number,
-) => Promise<string | null>;
-
-const validateGroupSlug: GroupValidator = async (input, id) => {
-  const taken = await isGroupSlugTaken(input.slug, id);
-  return taken ? t("error.slug_in_use_group") : null;
-};
-
-/** Reject marking a group as a package when a current member cannot be packaged
- * (see {@link packageMembersError}) — including hiding a package whose member
- * gates children. A falsy `isPackage` is always fine. Returns a member-naming
- * error message, or null when valid. */
-const validatePackageCompatibility = async (
-  groupId: number,
-  isPackage: boolean | undefined,
-  hideListings: boolean | undefined,
-): Promise<string | null> => {
-  if (!isPackage) return null;
-  return packageMembersError(await getListingsByGroupId(groupId), hideListings);
-};
-
-/** Error when the group is a HIDDEN package with sold tickets. Booking rows
- * keep its `package_group_id`, and a stale id resolves to NO package display.
- * Existing /t tickets and confirmation emails fall back to per-member
- * cards/rows and reveal the member names the hide flag concealed. Un-packaging
- * or deleting such a group is rejected until the operator clears the hide flag
- * first (an explicit reveal). A VISIBLE package still un-groups freely. */
-export const soldHiddenPackageError = (id: number): Promise<string | null> =>
-  withGroupOrNull(id, async (group) => {
-    if (!group.is_package || !group.hide_package_listings) return null;
-    // A sold booking row carries this package's group id. Refund
-    // placeholders (quantity 0) do not count.
-    const sold = await rowExists(
-      `SELECT 1 FROM listing_attendees
-        WHERE package_group_id = ? AND quantity > 0 LIMIT 1`,
-      [id],
-    );
-    return sold ? t("error.sold_hidden_package") : null;
-  });
-
-/** Combined validation: slug uniqueness plus the package invariant. On create
- * (`id` undefined) the group has no members yet, so only the slug is checked.
- * Deleting or un-packaging a package with sold tickets is allowed for a
- * VISIBLE package: the group's items are un-grouped. The booking rows'
- * stored `package_group_id` stops resolving, and existing tickets fall back to
- * per-member cards. A HIDDEN sold package must not take that fall-back path
- * ({@link soldHiddenPackageError}). */
-export const validateGroupWithPackage: GroupValidator = async (input, id) => {
-  // A group name must be unique across BOTH groups and listings (create and edit
-  // alike), mirroring the listing-side check so the two share one namespace.
-  const nameTaken = await isNameTakenAnywhere(
-    input.name,
-    id === undefined ? undefined : { id: Number(id), kind: "group" },
-  );
-  if (nameTaken) return t("error.name_in_use");
-  const nameLengthError = catalogNameLengthError(input.name);
-  if (nameLengthError) return nameLengthError;
-  const slugError = await validateGroupSlug(input, id);
-  if (slugError) return slugError;
-  if (id === undefined) return null;
-  if (!input.isPackage) {
-    const hiddenError = await soldHiddenPackageError(Number(id));
-    if (hiddenError) return hiddenError;
-  }
-  return validatePackageCompatibility(
-    id,
-    input.isPackage,
-    input.hidePackageListings,
-  );
-};
 
 const sharedGroupFields = (values: GroupCreateFormValues) =>
   projectCatalogFields(groupCatalogFields, "form", values);
@@ -162,101 +60,35 @@ const extractGroupCreateInput = async (
   return { ...sharedGroupFields(values), slug, slugIndex };
 };
 
+/** The edit input carries the submitted slug and the package members read from
+ * the raw form. The record's package write runs on it. */
 const extractGroupEditInput = async (
   values: GroupFormValues,
+  form: FormParams,
 ): Promise<GroupInput> => {
   const slug = normalizeSlug(values.slug);
+  const fields = sharedGroupFields(values);
   return {
-    ...sharedGroupFields(values),
+    ...fields,
+    packageMembers: fields.isPackage ? parsePackageMembers(form) : [],
     slug,
     slugIndex: await hmacHash(slug),
   };
 };
 
-export const deleteGroup = async (id: InValue) => {
-  const groupId = Number(id);
-  await resetGroupListings(groupId);
-  // Clear site-page membership edges atomically with the group row. A failed
-  // delete must never leave a page pointing at a still-present group, nor
-  // strip edges from a group that survives. The group's notes go with it: a
-  // note names the record it is about by entity_type + entity_id, so it
-  // cannot ride a plain group_id delete.
-  await executeBatch([
-    clearItemEdgesStatement(sitePageItemTargets.of("group")(groupId)),
-    clearImageUsesForItemStatement(imageUseTargets.of("group")(groupId)),
-    clearExternalLinksStatement(externalLinkTargets.of("group")(groupId)),
-    noteDeleteStatement("group", { args: [groupId], sql: "?" }),
-    { args: [groupId], sql: "DELETE FROM groups WHERE id = ?" },
-  ]);
-};
-
-/** Shared CRUD handler config. `renderEdit` is omitted because the edit page
- * needs the group's listings and package prices. The entity page's Edit tab
- * loads those (`loadGroupEditPanel`), and the edit POST stays generic. */
-const crudConfig = {
-  deleteGuard: (_group: Group, id: number) => soldHiddenPackageError(id),
-  getAll: () => groups.cache.getAll(),
-  getName: (g: Group) => g.name,
+const pages = recordPages(groupRecord, {
+  deleteGuard: (group) => soldHiddenPackageError(group.id),
+  editForm: getGroupForm(),
+  form: getGroupCreateForm(),
   identifierLabel: t("groups.name_label"),
-  list: "groups",
+  preprocessForm: (form) => applyDemoOverrides(form, GROUP_DEMO_FIELDS),
   renderDelete: adminGroupDeletePage,
   renderList: adminGroupsPage,
   renderNew: adminGroupNewPage,
   singular: "Group",
-} as const;
-
-/** Groups resource for REST create operations (auto-generated slug). Validates
- * with {@link validateGroupWithPackage} so a new group's name uniqueness is
- * enforced on create too. The package checks it runs are no-ops on create (the
- * group has no members yet) and the auto-generated slug is already unique. */
-/** Config shared by both group resources: the same table, delete hook and
- * package validation. The variants accept and read different form fields. */
-const groupResourceBase = {
-  onDelete: deleteGroup,
-  table: groups.table,
-  validate: validateGroupWithPackage,
-  validateForm: validatePackageMemberForm,
-} as const;
-
-const groupsCreateResource = defineResource({
-  ...groupResourceBase,
-  form: getGroupCreateForm(),
+  toEditInput: extractGroupEditInput,
   toInput: extractGroupCreateInput,
-});
-
-/** Groups resource for REST update operations (user-provided slug). Validates
- *  the package invariant and writes the dynamic overrides via afterWrite, so the
- *  generic CRUD edit route handles packages without a bespoke handler.
- *  `afterWrite` reads the `package_price_<id>` / `package_qty_<id>` inputs
- *  from the raw form and clears all overrides when the group is not a
- *  package. It rechecks the sold-hidden invariant. A checkout that committed
- *  between the request-level check and this write rolls the change back. */
-const groupsResource = defineResource({
-  ...groupResourceBase,
-  afterWrite: (tx, id, input, form, flags) =>
-    writePackageMembersTx(
-      tx,
-      id,
-      flags,
-      input,
-      input.isPackage ? parsePackageMembers(form) : [],
-    ),
-  form: getGroupForm(),
-  readState: readPackageFlagsTxOrNull,
-  toInput: extractGroupEditInput,
-});
-
-// The two bundles differ only in which resource writes the row: creating a
-// group generates its slug, editing one does not. Each route takes its own
-// roles from its declaration. Editors reach the create and edit routes, while
-// the destructive delete stays staff-only, from one bundle.
-const create = createCrudHandlers({
-  ...crudConfig,
-  operations: wrapResourceForDemo(groupsCreateResource, GROUP_DEMO_FIELDS),
-});
-const crud = createCrudHandlers({
-  ...crudConfig,
-  operations: wrapResourceForDemo(groupsResource, GROUP_DEMO_FIELDS),
+  validateForm: validatePackageMemberForm,
 });
 
 export const withGroup = withEntityLoader((id: number) => getGroupById(id));
@@ -270,25 +102,17 @@ const groupImageHandlers = createItemImageHandlers({
 });
 
 export const adminHandlers = defineAdminRoutes({
-  "GET /admin/groups": crud.listGet,
+  "GET /admin/groups": pages.listGet,
 
-  // The detail + edit pages are one tabbed entity page now: `/admin/groups/:id`
-  // is its Overview, `/admin/groups/:id/:tab` its other tabs (attendees, edit,
-  // actions). Per-tab authorization lives in the page definition (group-page.ts).
-  // Literal sub-routes below (add-listings, and delete/export/group actions
-  // in their own files) are matched ahead of the `:tab` wildcard. The edit POST
-  // is still the generic CRUD route — groupsResource handles package prices +
-  // the invariant via validate/afterWrite.
   ...entityTabRoutes(adminPattern("group"), groupPage),
   ...bindNoteRoutes("/admin/groups", "id", groupNoteFeature.routes),
-  "GET /admin/groups/:id/delete": crud.deleteGet,
+  "GET /admin/groups/:id/delete": pages.deleteGet,
   "GET /admin/groups/:id/remove-listings": handleRemoveListingsGet,
-  // Create uses the auto-generated-slug resource.
-  "GET /admin/groups/new": create.newGet,
-  "POST /admin/groups": create.createPost,
+  "GET /admin/groups/new": pages.newGet,
+  "POST /admin/groups": pages.createPost,
   "POST /admin/groups/:id/add-listings": handleAddListingsToGroup,
-  "POST /admin/groups/:id/delete": crud.deletePost,
-  "POST /admin/groups/:id/edit": crud.editPost,
+  "POST /admin/groups/:id/delete": pages.deletePost,
+  "POST /admin/groups/:id/edit": pages.editPost,
   "POST /admin/groups/:id/images": groupImageHandlers.set,
   "POST /admin/groups/:id/images/upload": groupImageHandlers.upload,
   "POST /admin/groups/:id/remove-listings": handleRemoveListingsPost,

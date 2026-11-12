@@ -8,28 +8,23 @@ import { entityFormById, type IdRouteHandler } from "#routes/entity.ts";
 /**
  * Admin logistics settings + logistics-agent management — owner only.
  *
- * The logistics page (`/admin/logistics`) carries a simple CRUD list of
- * logistics agents. Agent CRUD reuses the
- * shared owner-CRUD handlers with the logistics page itself as the list view.
+ * The logistics page (`/admin/logistics`) carries the agent list. The agent
+ * record owns the writes and the deletion references. The edit POST restates
+ * the standard key because it also assigns the agent's users.
  */
 
-import type { InValue } from "@libsql/client";
 import { logActivity } from "#db/activity-log.ts";
-import { clearLogisticsAgentReferences } from "#db/logistics.ts";
+import { writeRowInTransaction } from "#db/client.ts";
 import {
   type LogisticsAgentInput,
   logisticsAgents,
 } from "#db/logistics-agents.ts";
 import { agentUsers } from "#db/user-agents.ts";
-import {
-  createCrudHandlers,
-  operationResponse,
-} from "#routes/admin/crud-handlers.ts";
-import { adminRedirect } from "#routes/response.ts";
+import { adminRedirect, notFoundResponse } from "#routes/response.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import type { FormValues } from "#shared/forms/definition.ts";
-import { defineResource } from "#shared/rest/resource.ts";
+import { logisticsAgentRecord } from "#shared/records/logistics-agents.ts";
+import { recordPages } from "#shared/rest/record-pages.ts";
 import { selectedIdsFromForm } from "#shared/selected-ids.ts";
 import {
   adminLogisticsPage,
@@ -43,77 +38,60 @@ import {
 
 /** Extract logistics agent input from validated form values. The `name` field
  * is required, so form validation already rejects blank/whitespace names. */
-const extractLogisticsAgentInput = (
-  values: FormValues<typeof logisticsAgentForm>,
-): LogisticsAgentInput => ({
+const extractLogisticsAgentInput = (values: {
+  name: string;
+}): LogisticsAgentInput => ({
   name: values.name,
 });
 
-/** Logistics agents resource for REST create/update/delete. Deleting an agent
- * first clears any booking references so no attendee points at a missing id. */
-const logisticsAgentsResourceConfig = {
+const pages = recordPages(logisticsAgentRecord, {
   form: logisticsAgentForm,
-  onDelete: async (id: InValue): Promise<void> => {
-    await clearLogisticsAgentReferences(Number(id));
-    await agentUsers.clear(Number(id));
-    await logisticsAgents.table.deleteById(id);
-  },
-  table: logisticsAgents.table,
+  identifierLabel: t("logistics.name_label"),
+  renderDelete: logisticsAgentPages.deletePage,
+  renderList: adminLogisticsPage,
+  renderNew: logisticsAgentPages.newPage,
+  singular: "Logistics agent",
   toInput: extractLogisticsAgentInput,
-} as const;
-
-const logisticsAgentsResource = defineResource(logisticsAgentsResourceConfig);
+});
 
 /** The chosen `user_ids` reduced to ids that are real delivery-eligible users,
  * so a crafted form cannot link an editor (or unknown id) as a driver. */
 const parseAssignedUserIds = async (form: FormParams): Promise<number[]> =>
   selectedIdsFromForm(form, "user_ids", await loadAgentUserOptions());
 
-const logisticsAgentEditResource = defineResource({
-  ...logisticsAgentsResourceConfig,
-  afterWrite: async (tx, id, _input, form, _state): Promise<void> => {
-    await agentUsers.setIdsTx(tx, id, await parseAssignedUserIds(form));
-  },
-});
-
-const crud = createCrudHandlers({
-  getAll: logisticsAgents.getAll,
-  getName: (agent) => agent.name,
-  identifierLabel: t("logistics.name_label"),
-  list: "logistics",
-  operations: logisticsAgentsResource,
-  renderDelete: logisticsAgentPages.deletePage,
-  renderList: adminLogisticsPage,
-  renderNew: logisticsAgentPages.newPage,
-  singular: "Logistics agent",
-});
-
 /** Save the agent and assigned users in one transaction. This stays separate
  * from create so crafted create forms cannot assign users. */
 const handleAgentEditPost: IdRouteHandler = entityFormById(
   "/admin/logistics/:id/edit",
   async (id, session, form) => {
-    const result = await logisticsAgentEditResource.update(id, form);
-    return operationResponse(
-      result,
-      async ({ row }) => {
-        await logActivity(`Logistics agent '${row.name}' updated`);
-        return adminRedirect(
-          "logistics",
-          {},
-          t("logistics.agent_updated"),
-          true,
-        );
-      },
-      (error) => logisticsAgentPage.renderEditError(id, session, form, error),
+    const validation = logisticsAgentForm.validate(form);
+    if (!validation.valid) {
+      return logisticsAgentPage.renderEditError(
+        id,
+        session,
+        form,
+        validation.error,
+      );
+    }
+    const existing = await logisticsAgents.table.read.one({ id });
+    if (existing === null) return notFoundResponse();
+    const userIds = await parseAssignedUserIds(form);
+    await writeRowInTransaction(
+      await logisticsAgents.table.updateStatement!(id, {
+        name: validation.values.name,
+      }),
+      id,
+      (tx) => agentUsers.setIdsTx(tx, id, userIds),
     );
+    await logActivity(`Logistics agent '${validation.values.name}' updated`);
+    return adminRedirect("logistics", {}, t("logistics.agent_updated"), true);
   },
 );
 
 /** Logistics settings + agent routes. The agent edit POST restates the
  * standard key with its own handler. */
 export const adminHandlers = defineAdminRoutes({
-  ...crudRoutes(adminPattern("logistics"), crud),
+  ...crudRoutes(adminPattern("logistics"), pages),
   ...entityTabRoutes(adminPattern("logisticsAgent"), logisticsAgentPage),
   "POST /admin/logistics/:id/edit": handleAgentEditPost,
 });

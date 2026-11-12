@@ -429,10 +429,6 @@
   ],
   "src/shared/db/images.ts": [
     {
-      "path": [{ "name": "ImageInput" }],
-      "fields": ["altText", "filename", "filenameThumb", "name"]
-    },
-    {
       "path": [{ "name": "OrderedImage" }],
       "fields": ["sort_order"]
     }
@@ -532,7 +528,7 @@
   "src/shared/db/questions/tables.ts": [
     {
       "path": [{ "name": "QuestionInput" }],
-      "fields": ["assignAll", "displayType", "text"]
+      "fields": ["assignAll"]
     }
   ],
   "src/shared/db/refund-all-candidates.ts": [
@@ -955,20 +951,6 @@
     {
       "path": [{ "name": "DeleteBody" }],
       "fields": ["confirm_identifier"]
-    }
-  ],
-  "src/shared/rest/resource.ts": [
-    {
-      "path": [{ "name": "DeleteResult" }],
-      "fields": ["notFound"]
-    },
-    {
-      "path": [{ "name": "Resource" }],
-      "fields": ["fields", "table"]
-    },
-    {
-      "path": [{ "name": "UpdateResult" }],
-      "fields": ["notFound"]
     }
   ],
   "src/shared/schema-atlas/machine-spec.ts": [

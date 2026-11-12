@@ -46,11 +46,6 @@
   ],
   "src/shared/admin-api-external-sources.ts": [
     {
-      "path": [{ "name": "AdminApiCreateExternalSourceBody" }],
-      "kind": "dynamic-read",
-      "evidence": "the route reads each field by key off the raw JSON body record"
-    },
-    {
       "path": [{ "name": "AdminApiCreateExternalLinkBody" }],
       "kind": "dynamic-read",
       "evidence": "the route reads each field by key off the raw JSON body record"
@@ -126,13 +121,6 @@
       "path": [{ "name": "BuiltSitePlainInput" }],
       "kind": "schema-driven",
       "evidence": "builtSitePlainColumns maps each site field to its plain column by key at run time"
-    }
-  ],
-  "src/shared/db/external-sources/types.ts": [
-    {
-      "path": [{ "name": "ExternalSourceInput" }],
-      "kind": "schema-driven",
-      "evidence": "defineTable's toDbValues reads each input field through the table's input key map"
     }
   ],
   "src/shared/db/invoices.ts": [
@@ -217,26 +205,171 @@
       "evidence": "storeSlot reads and writes the slot field by key"
     }
   ],
-  "src/shared/rest/resource.ts": [
+  "src/features/admin/listings-form.ts": [
+    {
+      "path": [{ "name": "ListingUpdateResult" }],
+      "kind": "dynamic-read",
+      "evidence": "operationResponse in listings-edit narrows the union and reads row, error, and notFound"
+    }
+  ],
+  "src/shared/db/table.ts": [
+    {
+      "path": [{ "name": "Table" }],
+      "kind": "schema-driven",
+      "evidence": "defineTable's toDbValues reads inputKeyMap and its statement builders read the schema by key"
+    }
+  ],
+  "src/shared/forms/definition.ts": [
+    {
+      "path": [{ "name": "FormSchema" }],
+      "kind": "schema-driven",
+      "evidence": "defineForm's render and validate read the declared fields"
+    }
+  ],
+  "src/shared/rest/crud-api-types.ts": [
     {
       "path": [
-        { "name": "Resource" },
-        { "name": "delete" },
+        { "name": "CrudSideEffectValidate" },
         { "way": "()" },
         { "way": "result" }
       ],
       "kind": "schema-driven",
-      "evidence": "operationResponse reads notFound through OperationFailure"
+      "evidence": "recordApi.writePlan narrows the prepared result to its error or value arm"
+    }
+  ],
+  "src/shared/rest/record.ts": [
+    {
+      "path": [{ "name": "RecordSpec" }],
+      "kind": "schema-driven",
+      "evidence": "recordPages, recordApi, and defineRecord read the declaration through the generic record types"
+    },
+    {
+      "path": [{ "name": "AdminRecord" }],
+      "kind": "schema-driven",
+      "evidence": "recordPages and recordApi read the record through PageRecord and the JSON door"
+    },
+    {
+      "path": [{ "name": "AdminRecord" }, { "name": "table" }, { "name": "schema" }],
+      "kind": "schema-driven",
+      "evidence": "record.ts reads the table schema through the generic Table type"
     },
     {
       "path": [
-        { "name": "Resource" },
-        { "name": "update" },
+        { "name": "AdminRecord" },
+        { "name": "table" },
+        { "name": "read" },
+        { "name": "exists" },
+        { "way": "()" },
+        { "way": "filter" }
+      ],
+      "kind": "schema-driven",
+      "evidence": "record.ts reads the table exists reader through the generic Table type"
+    },
+    {
+      "path": [
+        { "name": "AdminRecord" },
+        { "name": "table" },
+        { "name": "read" },
+        { "name": "many" },
+        { "way": "()" },
+        { "way": "filter" }
+      ],
+      "kind": "schema-driven",
+      "evidence": "record.ts reads the table many reader through the generic Table type"
+    },
+    {
+      "path": [
+        { "name": "AdminRecord" },
+        { "name": "table" },
+        { "name": "read" },
+        { "name": "one" },
+        { "way": "()" },
+        { "way": "filter" }
+      ],
+      "kind": "schema-driven",
+      "evidence": "record.ts reads the table one reader through the generic Table type"
+    },
+    {
+      "path": [
+        { "name": "AdminRecord" },
+        { "name": "table" },
+        { "name": "read" },
+        { "name": "pick" },
+        { "way": "()" },
+        { "way": "result" },
+        { "name": "many" },
+        { "way": "()" },
+        { "way": "filter" }
+      ],
+      "kind": "schema-driven",
+      "evidence": "record.ts reads the projected many reader through the generic Table type"
+    },
+    {
+      "path": [
+        { "name": "AdminRecord" },
+        { "name": "table" },
+        { "name": "read" },
+        { "name": "pick" },
+        { "way": "()" },
+        { "way": "result" },
+        { "name": "one" },
+        { "way": "()" },
+        { "way": "filter" }
+      ],
+      "kind": "schema-driven",
+      "evidence": "record.ts reads the projected one reader through the generic Table type"
+    },
+    {
+      "path": [
+        { "name": "AdminRecord" },
+        { "name": "table" },
+        { "name": "read" },
+        { "name": "pick" },
+        { "way": "()" },
+        { "way": "result" },
+        { "name": "statement" },
+        { "way": "()" },
+        { "way": "filter" }
+      ],
+      "kind": "schema-driven",
+      "evidence": "record.ts reads the projected statement builder through the generic Table type"
+    },
+    {
+      "path": [
+        { "name": "AdminRecord" },
+        { "name": "table" },
+        { "name": "read" },
+        { "name": "statement" },
+        { "way": "()" },
+        { "way": "filter" }
+      ],
+      "kind": "schema-driven",
+      "evidence": "record.ts reads the table statement builder through the generic Table type"
+    },
+    {
+      "path": [{ "name": "RecordSpec" }, { "name": "write" }],
+      "kind": "schema-driven",
+      "evidence": "defineRecord spreads a command record's write functions into the returned record"
+    },
+    {
+      "path": [
+        { "name": "RecordOrder" },
+        { "name": "append" },
+        { "way": "()" },
+        { "way": "args" }
+      ],
+      "kind": "schema-driven",
+      "evidence": "ordered-collection append reads the key and transaction arguments"
+    },
+    {
+      "path": [
+        { "name": "WritePlan" },
+        { "name": "prepare" },
         { "way": "()" },
         { "way": "result" }
       ],
       "kind": "schema-driven",
-      "evidence": "operationResponse reads notFound through OperationFailure"
+      "evidence": "record.ts commitWrite narrows the prepared result to its error or value arm"
     }
   ],
   "src/shared/settings/form-schema.ts": [
