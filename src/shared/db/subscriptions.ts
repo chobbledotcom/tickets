@@ -12,6 +12,7 @@ import {
 const SubscribedRowSchema = v.object({
   attendee_id: v.number(),
   listing_id: v.number(),
+  quantity: v.number(),
   recurring_interval: RecurringIntervalSchema,
   recurring_price: v.number(),
   recurring_tax: v.number(),
@@ -21,15 +22,16 @@ const SubscribedRowSchema = v.object({
 
 export type SubscribedRow = v.InferOutput<typeof SubscribedRowSchema>;
 
+const SUBSCRIBED_COLUMNS = Object.keys(SubscribedRowSchema.entries)
+  .map((column) => `booking.${column}`)
+  .join(", ");
+
 /** Every subscribed booking row, newest first. */
 export const getSubscribedRows = async (): Promise<SubscribedRow[]> =>
   v.parse(
     v.array(SubscribedRowSchema),
     await queryAll(
-      `SELECT booking.attendee_id, booking.listing_id,
-              booking.recurring_interval, booking.recurring_price,
-              booking.recurring_tax, booking.subscription_id,
-              booking.subscription_status
+      `SELECT ${SUBSCRIBED_COLUMNS}
          FROM listing_attendees AS booking
         WHERE booking.subscription_id != ''
         ORDER BY booking.id DESC`,

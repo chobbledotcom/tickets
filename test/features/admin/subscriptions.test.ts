@@ -2,11 +2,14 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute } from "#db/client.ts";
+import { executeBatch } from "#db/client.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  bookOwnListing,
+  MONTHLY,
+  subscribe,
+} from "#test-utils/db-helpers/subscriptions.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
   adminGet,
@@ -14,47 +17,6 @@ import {
   editorGetStatus,
 } from "#test-utils/session.ts";
 import { featureSetting, withSetting } from "#test-utils/settings.ts";
-
-/** A booking for `name` on a new listing of its own. */
-const book = async (name: string): Promise<number> => {
-  const listing = await createTestListing({
-    maxAttendees: 10,
-    name: `${name} Club`,
-    unitPrice: 1000,
-  });
-  const attendee = await createTestAttendee(
-    listing.id,
-    listing.slug,
-    name,
-    `${name.toLowerCase()}@example.com`,
-  );
-  return attendee.id;
-};
-
-/** A booking for `name` that carries a Stripe plan. */
-const subscribe = async (
-  name: string,
-  plan: { interval: string; price: number; status: string; tax: number },
-): Promise<number> => {
-  const attendeeId = await book(name);
-  await execute(
-    `UPDATE listing_attendees
-        SET recurring_interval = ?, recurring_price = ?, recurring_tax = ?,
-            subscription_id = ?, subscription_status = ?
-      WHERE attendee_id = ?`,
-    [
-      plan.interval,
-      plan.price,
-      plan.tax,
-      `sub_${name.toLowerCase()}`,
-      plan.status,
-      attendeeId,
-    ],
-  );
-  return attendeeId;
-};
-
-const MONTHLY = { interval: "month", price: 600, status: "trialing", tax: 100 };
 
 const pageHtml = async (path: string, cookie?: string): Promise<string> => {
   const response =
@@ -78,8 +40,8 @@ describeWithEnv("server (admin subscriptions)", { db: true }, () => {
   });
 
   test("lists each subscriber with the plan and status Stripe reported, newest first", async () => {
-    const ada = await subscribe("Ada", MONTHLY);
-    const bob = await subscribe("Bob", {
+    const { attendeeId: ada } = await subscribe("Ada", MONTHLY);
+    const { attendeeId: bob } = await subscribe("Bob", {
       interval: "year",
       price: 12000,
       status: "past_due",
@@ -106,8 +68,28 @@ describeWithEnv("server (admin subscriptions)", { db: true }, () => {
     ]);
   });
 
+  test("shows a failed checkout after its ticket was removed", async () => {
+    const { attendeeId, listingId } = await subscribe("Ada", MONTHLY);
+    await executeBatch([
+      {
+        args: [attendeeId],
+        sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ?",
+      },
+      {
+        args: [listingId],
+        sql: "DELETE FROM listings WHERE id = ?",
+      },
+    ]);
+    expectIncludesAll(await pageHtml("/admin/subscriptions"), [
+      `href="/admin/attendees/${attendeeId}"`,
+      "Ticket removed",
+      "£6 every month",
+      "sub_ada",
+    ]);
+  });
+
   test("leaves out bookings that never subscribed", async () => {
-    await book("Cy");
+    await bookOwnListing("Cy");
     expect(tableRows(await pageHtml("/admin/subscriptions"))).toEqual([]);
   });
 

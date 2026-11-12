@@ -74,7 +74,7 @@ Then(
   "{word} sees no Subscriptions in the menu and cannot open the page",
   async function (this: TicketsWorld, _who: string): Promise<void> {
     const browser = editorBrowser(this);
-    await browser.visit("/admin/");
+    expect(await browser.visit("/admin/listings")).toBe(200);
     expect(menuOffersSubscriptions(browser.currentHtml)).toBe(false);
     expect(await browser.visit(SUBSCRIPTIONS_PAGE)).toBe(403);
   },

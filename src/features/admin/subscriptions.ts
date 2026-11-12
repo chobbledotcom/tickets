@@ -5,6 +5,7 @@ import { getAttendeeNamesByIds } from "#db/attendees/queries.ts";
 import { listingNames } from "#db/listings/records.ts";
 import { getSubscribedRows, type SubscribedRow } from "#db/subscriptions.ts";
 import { map, requiredMapValue, unique } from "#fp";
+import { t } from "#i18n";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import { authPageAt } from "#routes/route-gates.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -18,8 +19,8 @@ const idsOf = (
   pick: (row: SubscribedRow) => number,
 ): number[] => unique(map(pick)(rows));
 
-/** Pair each row with its decrypted subscriber and ticket names. A booking
- * row always belongs to an attendee and a listing. */
+/** Pair each row with its subscriber and ticket names. A failed checkout can
+ * retain a zero-quantity row after the ticket was removed. */
 const subscriberRows = async (
   rows: SubscribedRow[],
 ): Promise<SubscriberRow[]> => {
@@ -38,7 +39,10 @@ const subscriberRows = async (
     status: row.subscription_status,
     stripeId: row.subscription_id,
     tax: row.recurring_tax,
-    ticket: requiredMapValue(tickets, row.listing_id, "Ticket not found"),
+    ticket:
+      row.quantity === 0 && !tickets.has(row.listing_id)
+        ? t("subscriptions.ticket_removed")
+        : requiredMapValue(tickets, row.listing_id, "Ticket not found"),
   }));
 };
 

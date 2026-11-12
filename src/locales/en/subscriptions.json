@@ -2,6 +2,7 @@
   "subscriptions.title": "Subscriptions",
   "subscriptions.intro": "Everyone who bought a ticket that charges again each period. Stripe takes each payment.",
   "subscriptions.empty": "Nobody has bought a subscription ticket yet.",
+  "subscriptions.ticket_removed": "Ticket removed",
   "subscriptions.column.subscriber": "Subscriber",
   "subscriptions.column.ticket": "Ticket",
   "subscriptions.column.charge": "Charge",
