@@ -6,12 +6,22 @@
  */
 
 import * as v from "valibot";
+import {
+  apiBodyPair,
+  nonEmptyTextField,
+  optionalTextField,
+  textField,
+} from "#shared/rest/api-body-fields.ts";
 import { ImageUseItemTypeSchema } from "#types";
+
+/** One malformed link answers the same sentence, whichever field it names. */
+const ITEM_REFUSAL =
+  "Each link needs an item_type of listing, group, news, page, and a whole item_id";
 
 /** One record an image is linked to: the kind of record and its id. */
 const ImageItemRow = {
-  item_id: v.number(),
-  item_type: ImageUseItemTypeSchema,
+  item_id: v.number(ITEM_REFUSAL),
+  item_type: v.picklist(ImageUseItemTypeSchema.options, ITEM_REFUSAL),
 };
 
 /** One image link, on the answer side and the write side alike. */
@@ -29,22 +39,31 @@ export const ImageRowSchema = v.looseObject({
   url: v.string(),
 });
 
-/** The body an image create carries: the file's bytes as base64 text, the
- *  type the caller declares for them, and the metadata the library shows. */
-export const CreateImageBodySchema = v.object({
-  alt_text: v.optional(v.string()),
-  content_type: v.string(),
-  file: v.string(),
-  name: v.string(),
-});
+/** The body an image create carries. It holds the file bytes as base64 text,
+ *  the type the caller declares, and the metadata the library shows. The
+ *  messages are the wire answers, so the route and the schema cannot drift. */
+const imageBodies = apiBodyPair(
+  {
+    alt_text: optionalTextField("alt_text"),
+    name: textField("name", "Image name is required"),
+  },
+  {
+    createOnly: {
+      content_type: nonEmptyTextField(
+        "content_type",
+        "content_type is required",
+      ),
+      file: nonEmptyTextField("file", "file is required"),
+    },
+    updateOnly: {
+      items: v.array(ImageItemSchema, "items must be an array"),
+    },
+  },
+);
+
+export const CreateImageBodySchema = imageBodies.create;
 
 /** The body an image update carries: every writable field optional. `items`
  *  replaces the records that show the image. An absent key leaves the stored
- *  links alone. */
-export const UpdateImageBodySchema = v.partial(
-  v.object({
-    alt_text: v.string(),
-    items: v.array(ImageItemSchema),
-    name: v.string(),
-  }),
-);
+ *  links alone. The create-only file fields do not belong to an update. */
+export const UpdateImageBodySchema = imageBodies.update;

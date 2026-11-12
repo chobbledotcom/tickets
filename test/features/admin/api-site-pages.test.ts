@@ -353,16 +353,18 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
 
     test("refuses a parent that is not a page id or null", async () => {
       const page = await createTestSitePage("visit");
-      await assertJson(
-        apiRequest(`/api/admin/site-pages/${page.id}`, {
-          body: { parent: "visit" },
-          method: "PUT",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("parent must be a page id or null");
-        },
-      );
+      for (const parent of ["visit", 1.5]) {
+        await assertJson(
+          apiRequest(`/api/admin/site-pages/${page.id}`, {
+            body: { parent },
+            method: "PUT",
+          }),
+          400,
+          (body) => {
+            expect(body.error).toBe("parent must be a page id or null");
+          },
+        );
+      }
     });
 
     test("refuses a slug a listing owns with the form's message", async () => {

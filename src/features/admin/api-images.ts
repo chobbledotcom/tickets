@@ -8,7 +8,6 @@
  * record write through the shared helpers.
  */
 
-import * as v from "valibot";
 import { type TxScope, withTransaction } from "#db/client.ts";
 import {
   deleteImageRecord,
@@ -30,7 +29,10 @@ import { apiErrorResponse } from "#routes/api/cors.ts";
 import { CONTENT_API, withAuth } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
-import { ImageItemSchema } from "#shared/admin-api-images.ts";
+import {
+  CreateImageBodySchema,
+  UpdateImageBodySchema,
+} from "#shared/admin-api-images.ts";
 import {
   ADMIN_API_RESOURCES,
   adminApiIdParam,
@@ -46,6 +48,7 @@ import { sortByName } from "#shared/name-order.ts";
 import {
   apiEntityGate,
   type EntityHandler,
+  parseApiBody,
   withApiEntity,
 } from "#shared/rest/crud-parsers.ts";
 import { transactionValidationMessageOrRethrow } from "#shared/rest/write-error.ts";
@@ -56,7 +59,7 @@ import {
   type AdminLevel,
   type Image,
   type ImageUse,
-  ImageUseItemTypeSchema,
+  type ImageUseItemType,
   isSiteRole,
 } from "#types";
 import {
@@ -71,8 +74,11 @@ const RESPONSE_KEY = "image";
 const ROOT = `/api/admin/${ENTRY.path}`;
 const BY_ID = `${ROOT}/:${adminApiIdParam(ENTRY.label)}`;
 
-/** The link kinds a refusal names, read from the one picklist. */
-const ITEM_KINDS = ImageUseItemTypeSchema.options.join(", ");
+/** One link as an update body spells it, after the schema proves its shape. */
+type SubmittedLink = {
+  item_id: number;
+  item_type: ImageUseItemType;
+};
 
 /** One image as every image endpoint answers with it. */
 const toImageRow = (
@@ -92,32 +98,6 @@ const toImageRow = (
 
 // ─── Body parsing ───────────────────────────────────────────────
 
-/** One optional text field: an absent key keeps the stored value, and a
- *  supplied value must be a string. */
-const textField = (
-  body: Record<string, unknown>,
-  key: string,
-  stored: string,
-): Result<string> => {
-  const raw = body[key];
-  if (raw === undefined) return okResult(stored);
-  return typeof raw === "string"
-    ? okResult(raw)
-    : errorResult(`${key} must be a string`);
-};
-
-/** One required text field: a missing or non-string value is refused with the
- *  field named. */
-const requiredTextField = (
-  body: Record<string, unknown>,
-  key: string,
-): Result<string> => {
-  const raw = body[key];
-  return typeof raw === "string" && raw.trim() !== ""
-    ? okResult(raw.trim())
-    : errorResult(`${key} is required`);
-};
-
 /** The bytes a base64 body names. A value that is not base64 text is a bad
  *  request, so the decoder's throw becomes a refusal here. */
 const base64Bytes = (text: string): Result<Uint8Array> => {
@@ -132,20 +112,16 @@ const base64Bytes = (text: string): Result<Uint8Array> => {
 const createImageInput = (
   body: Record<string, unknown>,
 ): Result<{ file: ImageFile; metadata: ImageMetadata }> => {
-  const name = textField(body, "name", "");
-  if (!name.ok) return name;
-  const altText = textField(body, "alt_text", "");
-  if (!altText.ok) return altText;
-  const metadata = imageMetadata(name.value, altText.value);
+  const parsed = parseApiBody(CreateImageBodySchema, body);
+  if (!parsed.ok) return parsed;
+  const name = parsed.value.name;
+  const altText = parsed.value.alt_text ?? "";
+  const metadata = imageMetadata(name, altText);
   if (!metadata.ok) return metadata;
-  const contentType = requiredTextField(body, "content_type");
-  if (!contentType.ok) return contentType;
-  const file = requiredTextField(body, "file");
-  if (!file.ok) return file;
-  const bytes = base64Bytes(file.value);
+  const bytes = base64Bytes(parsed.value.file);
   if (!bytes.ok) return bytes;
   return okResult({
-    file: { bytes: bytes.value, contentType: contentType.value },
+    file: { bytes: bytes.value, contentType: parsed.value.content_type },
     metadata: metadata.value,
   });
 };
@@ -154,20 +130,11 @@ const createImageInput = (
  *  post or a page, because those surfaces belong to the Site roles. That
  *  refusal answers a forbidden one. */
 const submittedLinks = (
-  raw: readonly unknown[],
+  items: readonly SubmittedLink[],
   adminLevel: AdminLevel,
 ): { links: ImageUseTarget[] } | { refusal: Response } => {
   const links: ImageUseTarget[] = [];
-  for (const [index, entry] of raw.entries()) {
-    const parsed = v.safeParse(ImageItemSchema, entry);
-    if (!parsed.success) {
-      return {
-        refusal: apiErrorResponse(
-          `items[${index}] needs an item_type of ${ITEM_KINDS}, and a whole item_id`,
-        ),
-      };
-    }
-    const { item_id: itemId, item_type: itemType } = parsed.output;
+  for (const { item_id: itemId, item_type: itemType } of items) {
     if (!isSiteRole(adminLevel) && isSiteContentImageType(itemType)) {
       return {
         refusal: apiErrorResponse(t("images.news_target_gated"), 403),
@@ -196,19 +163,15 @@ const updateImageInput = (
   body: Record<string, unknown>,
   adminLevel: AdminLevel,
 ): UpdateParse => {
-  const name = textField(body, "name", image.name);
-  if (!name.ok) return { refusal: apiErrorResponse(name.error) };
-  const altText = textField(body, "alt_text", image.alt_text);
-  if (!altText.ok) return { refusal: apiErrorResponse(altText.error) };
-  const metadata = imageMetadata(name.value, altText.value);
+  const parsed = parseApiBody(UpdateImageBodySchema, body);
+  if (!parsed.ok) return { refusal: apiErrorResponse(parsed.error) };
+  const { alt_text: altText, items, name } = parsed.value;
+  const metadata = imageMetadata(name ?? image.name, altText ?? image.alt_text);
   if (!metadata.ok) return { refusal: apiErrorResponse(metadata.error) };
-  if (body.items === undefined) {
+  if (items === undefined) {
     return { update: { items: null, metadata: metadata.value } };
   }
-  if (!Array.isArray(body.items)) {
-    return { refusal: apiErrorResponse("items must be an array") };
-  }
-  const links = submittedLinks(body.items, adminLevel);
+  const links = submittedLinks(items, adminLevel);
   return "refusal" in links
     ? links
     : { update: { items: links.links, metadata: metadata.value } };

@@ -5,18 +5,25 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import * as v from "valibot";
 import { ADMIN_API } from "#routes/auth.ts";
+import { dateField, textField } from "#shared/rest/api-body-fields.ts";
 import {
   bodyNumber,
+  dateRange,
   optionalDateString,
+  optionalTextField,
+  parseApiBody,
   parseOptionalArray,
   parseUpdateSlug,
   requireDateString,
   requireEntityField,
   requireStrings,
   withApiEntity,
+  withWriteName,
+  writeEntityName,
 } from "#shared/rest/crud-parsers.ts";
-import { okResult } from "#shared/result.ts";
+import { errorResult, okResult } from "#shared/result.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestApiKeyToken, requestAsApiKey } from "#test-utils/session.ts";
 
@@ -81,10 +88,60 @@ test("optionalDateString stops loudly on an unusable stored fallback", () => {
   );
 });
 
+test("optionalTextField reads an optional text field", () => {
+  expect(optionalTextField({}, "alt_text", "Stored alt")).toEqual({
+    ok: true,
+    value: "Stored alt",
+  });
+  expect(
+    optionalTextField({ alt_text: " New alt " }, "alt_text", "Old"),
+  ).toEqual({ ok: true, value: " New alt " });
+  expect(optionalTextField({ name: 7 }, "name", "Stored")).toEqual({
+    error: "name must be a string",
+    ok: false,
+  });
+});
+
 test("parseOptionalArray maps each entry through the parser", () => {
   expect(
     parseOptionalArray([1, 2], "items", (item) => okResult(Number(item))),
   ).toEqual({ ok: true, value: [1, 2] });
+});
+
+test("parseOptionalArray names a refused entry's index", () => {
+  expect(
+    parseOptionalArray([1, "two"], "items", (item, index) =>
+      typeof item === "number"
+        ? okResult(item)
+        : { error: `items[${index}] must be a number`, ok: false },
+    ),
+  ).toEqual({ error: "items[1] must be a number", ok: false });
+});
+
+/** One body schema, so every parseApiBody case reads one shape. */
+const NAME_BODY_SCHEMA = v.object({
+  alt_text: v.optional(v.string()),
+  name: textField("name").create,
+});
+
+test("parseApiBody answers the schema's own message for a wrong type", () => {
+  expect(parseApiBody(NAME_BODY_SCHEMA, { name: 7 })).toEqual({
+    error: "name must be a string",
+    ok: false,
+  });
+  // Valibot names a missing object key itself. parseApiBody fills every
+  // declared key in first, so the field's schema answers instead.
+  expect(parseApiBody(NAME_BODY_SCHEMA, {})).toEqual({
+    error: "name is required",
+    ok: false,
+  });
+});
+
+test("parseApiBody returns the parsed body", () => {
+  expect(parseApiBody(NAME_BODY_SCHEMA, { name: "Poster" })).toEqual({
+    ok: true,
+    value: { name: "Poster" },
+  });
 });
 
 test("parseUpdateSlug trims and lowercases the slug, deriving its index", async () => {
@@ -190,4 +247,64 @@ describeWithEnv("withApiEntity", { db: true }, () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ widget: row });
   });
+});
+
+test("parseApiBody passes a schema that has no object entries", () => {
+  expect(parseApiBody(v.unknown(), { name: "Poster" })).toEqual({
+    ok: true,
+    value: { name: "Poster" },
+  });
+});
+
+test("dateField names a missing date", () => {
+  const schema = v.object({ start_date: dateField("start_date").create });
+  expect(parseApiBody(schema, {})).toEqual({
+    error: "start_date is required",
+    ok: false,
+  });
+});
+
+test("writeEntityName reads the supplied or stored name", () => {
+  expect(writeEntityName(" New ", "Stored")).toEqual({
+    ok: true,
+    value: "New",
+  });
+  expect(writeEntityName(undefined, "Stored")).toEqual({
+    ok: true,
+    value: "Stored",
+  });
+  expect(writeEntityName("  ", "Stored")).toEqual({
+    error: "name cannot be empty",
+    ok: false,
+  });
+  expect(writeEntityName(undefined, null)).toEqual({
+    error: "name cannot be empty",
+    ok: false,
+  });
+});
+
+test("dateRange reports the end date refusal", () => {
+  const start = requireDateString({ start_date: "2026-01-01" }, "start_date");
+  expect(dateRange(start, errorResult("end date bad"))).toEqual({
+    error: "end date bad",
+    ok: false,
+  });
+});
+
+test("withWriteName refuses an empty name before the mapper runs", () => {
+  let mapped = false;
+  const mapper = withWriteName<
+    { name?: string | undefined },
+    { name: string },
+    { name: string }
+  >((name) => {
+    mapped = true;
+    return okResult({ name });
+  });
+
+  expect(mapper({ name: "  " }, { name: "Stored" })).toEqual({
+    error: "name cannot be empty",
+    ok: false,
+  });
+  expect(mapped).toBe(false);
 });

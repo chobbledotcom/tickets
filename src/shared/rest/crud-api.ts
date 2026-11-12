@@ -22,15 +22,21 @@ import type {
   CrudApiConfig,
   CrudApiHandlers,
   CrudChildHandlers,
+  CrudWriteMappers,
+  WriteBody,
 } from "#shared/rest/crud-api-types.ts";
-import { parseAndValidate, withApiEntity } from "#shared/rest/crud-parsers.ts";
+import {
+  parseAndValidate,
+  parseApiBody,
+  withApiEntity,
+} from "#shared/rest/crud-parsers.ts";
 import {
   type JoinWrite,
   refusingCheckTx,
   writeEntity,
 } from "#shared/rest/write-entity.ts";
 import { writeEntityOrValidationResponse } from "#shared/rest/write-error.ts";
-import type { Result } from "#shared/result.ts";
+import { okResult, type Result } from "#shared/result.ts";
 import type { AdminSession } from "#types";
 
 /** Strip internal keys from a row before sending in the response */
@@ -90,6 +96,7 @@ export const defineCrudApi = <
     CrudApiConfig<Row, Input, FullRow, Prepared, State>,
     "name" | "singular"
   > &
+    CrudWriteMappers<Entry, Input, FullRow> &
     CrudApiHandlers<Entry>,
 ): Record<string, RouteHandlerFn> => {
   const {
@@ -278,21 +285,47 @@ export const defineCrudApi = <
     return fn(result.input);
   };
 
+  /** The write input: the table's schema validates the raw body, then the
+   *  resource maps it. A parse refusal answers the schema's first message, and
+   *  the mapper never runs. A resource without a declared schema maps the raw
+   *  body. */
+  const writeInput = (
+    body: Record<string, unknown>,
+    existing: FullRow | null,
+    session: AdminSession,
+  ): Result<Input> | Promise<Result<Input>> => {
+    const schema =
+      existing === null ? entry.createBodySchema : entry.updateBodySchema;
+    const parsed =
+      schema === undefined ? okResult(body) : parseApiBody(schema, body);
+    if (!parsed.ok) return parsed;
+    return existing === null
+      ? config.toCreateInput(
+          // The entry's create schema proves this body's shape.
+          parsed.value as WriteBody<Entry["createBodySchema"]>,
+          null,
+          session,
+        )
+      : config.toUpdateInput(
+          // The entry's update schema proves this body's shape.
+          parsed.value as WriteBody<Entry["updateBodySchema"]>,
+          existing,
+          session,
+        );
+  };
+
   /** Create */
   const handleCreate: RouteHandlerFn = (request) =>
     withAuth(request, policy, (session, body) =>
-      withValidated(
-        config.toCreateInput(body, null, session),
-        undefined,
-        (input) =>
-          checkAndWrite(
-            { body, existing: null, input, session },
-            () => table.insertStatement!(input),
-            () => table.insert(input),
-            null,
-            "created",
-            201,
-          ),
+      withValidated(writeInput(body, null, session), undefined, (input) =>
+        checkAndWrite(
+          { body, existing: null, input, session },
+          () => table.insertStatement!(input),
+          () => table.insert(input),
+          null,
+          "created",
+          201,
+        ),
       ),
     );
 
@@ -330,7 +363,7 @@ export const defineCrudApi = <
 
   /** Update */
   const handleUpdate = entityRoute((existing, session, body, id) =>
-    withValidated(config.toUpdateInput(body, existing, session), id, (input) =>
+    withValidated(writeInput(body, existing, session), id, (input) =>
       checkAndWrite(
         { body, existing, input, session },
         () => table.updateStatement!(existing.id, input),

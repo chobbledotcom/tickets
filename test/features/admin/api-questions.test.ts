@@ -196,21 +196,27 @@ describeWithEnv("Admin API - Questions", { db: true }, () => {
     });
 
     test("refuses a text past the form's textarea cap", async () => {
-      await assertJson(
+      const created = await questionsApi().create({
+        display_type: "radio",
+        text: "Cap?",
+      });
+      const requests = [
         apiRequest("/api/admin/questions", {
-          body: {
-            display_type: "radio",
-            text: "x".repeat(10_241),
-          },
+          body: { display_type: "radio", text: "x".repeat(10_241) },
           method: "POST",
         }),
-        400,
-        (body) => {
+        apiRequest(`/api/admin/questions/${created.question.id}`, {
+          body: { text: "x".repeat(10_241) },
+          method: "PUT",
+        }),
+      ];
+      for (const request of requests) {
+        await assertJson(request, 400, (body) => {
           expect(body.error).toBe(
             "Question text must be 10240 characters or fewer",
           );
-        },
-      );
+        });
+      }
     });
   });
 

@@ -9,7 +9,7 @@
 import { byId } from "#fp";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
-import type { AuthPolicy } from "#routes/auth.ts";
+import { type AuthPolicy, OWNER_API } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
 import {
@@ -98,3 +98,24 @@ export const apiChildSurface = <Parent, Child extends { id: number }>(config: {
       ),
   };
 };
+
+/** One owner-only child surface. The parts are in route order. They are the
+ *  parent id param and label, the child id param and label, the primary-pinned
+ *  parent read, and the parent's children. */
+export const ownerChildSurface = <Parent, Child extends { id: number }>(
+  parentIdParam: string,
+  parentLabel: string,
+  childIdParam: string,
+  childLabel: string,
+  lookup: (id: number) => Promise<Parent | null>,
+  childrenOf: (parent: Parent) => readonly Child[],
+): ApiChildSurface<Parent, Child> =>
+  apiChildSurface({
+    childIdParam,
+    childLabel,
+    childrenOf,
+    lookup,
+    parentIdParam,
+    parentLabel,
+    policy: OWNER_API,
+  });

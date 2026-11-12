@@ -6,7 +6,9 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { toBase64 } from "#crypto/utils.ts";
 import { getImageById, setItemsForImage } from "#db/images.ts";
+import { t } from "#i18n";
 import { handleRequest } from "#routes";
+import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import {
   type ApiImageRow,
   expectImageNotFound,
@@ -210,6 +212,32 @@ describeWithEnv("Admin API - Images", { db: true, storage: "cdn" }, () => {
           error,
         );
       }
+    });
+
+    test("refuses a name past the image input cap", async () => {
+      const body = await imageUploadBody("x".repeat(MAX_INPUT_LENGTH + 1));
+      await expectApiError(
+        apiRequest(IMAGE_API_ROOT, { body, method: "POST" }),
+        400,
+        t("fields.validation.max_length", {
+          label: t("images.field.name"),
+          max: MAX_INPUT_LENGTH,
+        }),
+      );
+    });
+
+    test("uploads an image with no alt text", async () => {
+      await withStorageMock(async () => {
+        const body = await imageUploadBody("No alt", { alt_text: undefined });
+        await assertJson<{ image: ApiImageRow }>(
+          apiRequest(IMAGE_API_ROOT, { body, method: "POST" }),
+          201,
+          (created) => {
+            expect(created.image.alt_text).toBe("");
+            expect(created.image.name).toBe("No alt");
+          },
+        );
+      });
     });
   });
 });

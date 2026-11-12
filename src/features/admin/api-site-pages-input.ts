@@ -5,6 +5,7 @@
  * form.
  */
 
+import type * as v from "valibot";
 import type { TxScope } from "#db/client.ts";
 import {
   addPageItem,
@@ -13,11 +14,12 @@ import {
 } from "#db/site-page-items.ts";
 import type { SitePageWriteInput } from "#db/site-pages.ts";
 import { t } from "#i18n";
-import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import {
-  optionalBoolean,
-  requireEntityField,
-} from "#shared/rest/crud-parsers.ts";
+  CreateSitePageBodySchema,
+  UpdateSitePageBodySchema,
+} from "#shared/admin-api-resources.ts";
+import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
+import { parseApiBody, writeEntityName } from "#shared/rest/crud-parsers.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { isReservedSlug, wouldCreateCycle } from "#shared/site-pages/core.ts";
 import { loadPageForest } from "#shared/site-pages/load.ts";
@@ -27,20 +29,11 @@ import { CONTENT_FIELD_LIMITS } from "./content-form-fields.ts";
 
 /** JSON body accepted by POST /api/admin/site-pages. A new page is always a
  *  root page, so the create body carries no parent. */
-export type CreateSitePageBody = {
-  content?: string;
-  hidden?: boolean;
-  meta_description?: string;
-  meta_title?: string;
-  name: string;
-  slug: string;
-};
+export type CreateSitePageBody = v.InferOutput<typeof CreateSitePageBodySchema>;
 
 /** JSON body accepted by PUT /api/admin/site-pages/:pageId. `parent` names
  *  the page to nest under, or null to move the page to the top level. */
-export type UpdateSitePageBody = Partial<
-  CreateSitePageBody & { parent: number | null }
->;
+export type UpdateSitePageBody = v.InferOutput<typeof UpdateSitePageBodySchema>;
 
 // DELETE /api/admin/site-pages/:pageId takes the shared DeleteBody the
 // crud-parsers module exports.
@@ -63,35 +56,17 @@ const storedText = (
   meta_title: existing?.meta_title ?? "",
 });
 
-/** Run `clean` over one supplied field's raw value: absent keeps the stored
- *  value, and a supplied non-string is refused with the field-named
- *  message. */
-const withSupplied = (
-  body: Record<string, unknown>,
-  key: string,
-  stored: string,
-  clean: (value: string) => Result<string>,
-): Result<string> => {
-  const raw = body[key];
-  if (raw === undefined) return clean(stored);
-  if (typeof raw !== "string") return errorResult(`${key} must be a string`);
-  return clean(raw);
-};
-
 /** One writable text field: a value past the field's cap gets the form's own
  *  length refusal. The form reads submitted values trimmed, so the API trims
  *  too. */
-const optionalTextField = (
-  body: Record<string, unknown>,
+const cleanedText = (
+  value: string,
   key: keyof typeof FIELD_LABELS,
-  stored: string,
-): Result<string> =>
-  withSupplied(body, key, stored, (raw) => {
-    const value = raw.trim();
-    const max = CONTENT_FIELD_LIMITS[key];
-    if (value.length > max) return tooLong(FIELD_LABELS[key](), max);
-    return okResult(value);
-  });
+): Result<string> => {
+  const text = value.trim();
+  const max = CONTENT_FIELD_LIMITS[key];
+  return text.length > max ? tooLong(FIELD_LABELS[key](), max) : okResult(text);
+};
 
 /** The "longer than the field's cap" refusal, in the form's own words. The
  *  slug, the page name, and the text fields all refuse with the same message,
@@ -104,36 +79,33 @@ const tooLong = (label: string, max: number): Result<never> =>
     }),
   );
 
+/** One site-page write body after the resource table's schema validates it. */
+type PageWriteBody = {
+  content?: string | undefined;
+  hidden?: boolean | undefined;
+  meta_description?: string | undefined;
+  meta_title?: string | undefined;
+  name?: string | undefined;
+  parent?: number | null | undefined;
+  slug?: string | undefined;
+};
+
 /** The slug: absent keeps the stored one. A supplied value normalises and
  *  validates through the same rule the form's slug field runs, then the
  *  reserved-word check the form's handler runs. The write itself refuses a
  *  slug a listing, group, or page already owns. */
-const optionalSlug = (body: Record<string, unknown>, stored: string) =>
-  withSupplied(body, "slug", stored, (raw) => {
-    const slug = normalizeSlug(raw);
-    const invalid = validateSlug(slug);
-    if (invalid) return errorResult(invalid);
-    // The form's slug field refuses a value past the input cap, after the
-    // format check and before the reserved words. The same refusal here.
-    if (slug.length > MAX_INPUT_LENGTH)
-      return tooLong(t("common.slug"), MAX_INPUT_LENGTH);
-    if (isReservedSlug(slug)) {
-      return errorResult(t("site.pages.error.reserved"));
-    }
-    return okResult(slug);
-  });
-
-/** The page name's read: the shared entity field rule, then the form's
- *  length cap with the form's own words. */
-const pageName = (
-  body: Record<string, unknown>,
-  stored: string | null,
-): Result<string> => {
-  const name = requireEntityField(body, "name", stored);
-  if (name.ok && name.value.length > MAX_INPUT_LENGTH) {
-    return tooLong(t("site.pages.field.name"), MAX_INPUT_LENGTH);
+const optionalSlug = (body: PageWriteBody, stored: string) => {
+  const slug = normalizeSlug(body.slug ?? stored);
+  const invalid = validateSlug(slug);
+  if (invalid) return errorResult(invalid);
+  // The form's slug field refuses a value past the input cap, after the
+  // format check and before the reserved words. The same refusal here.
+  if (slug.length > MAX_INPUT_LENGTH)
+    return tooLong(t("common.slug"), MAX_INPUT_LENGTH);
+  if (isReservedSlug(slug)) {
+    return errorResult(t("site.pages.error.reserved"));
   }
-  return name;
+  return okResult(slug);
 };
 
 /** The shared input mapping for a page create or update: the same fields,
@@ -143,10 +115,20 @@ export const toPageWrite = (
   body: Record<string, unknown>,
   existing: SitePage | null,
 ): Result<SitePageWriteInput> => {
+  const parsed =
+    existing === null
+      ? parseApiBody(CreateSitePageBodySchema, body)
+      : parseApiBody(UpdateSitePageBodySchema, body);
+  if (!parsed.ok) return parsed;
+  const write: PageWriteBody = parsed.value;
   const stored = storedText(existing);
-  const name = pageName(body, existing?.name ?? null);
-  const hidden = optionalBoolean(body, "hidden", existing?.hidden ?? false);
-  const slug = optionalSlug(body, existing?.slug ?? "");
+  const name = writeEntityName(write.name, existing?.name ?? null);
+  if (!name.ok) return name;
+  if (name.value.length > MAX_INPUT_LENGTH) {
+    return tooLong(t("site.pages.field.name"), MAX_INPUT_LENGTH);
+  }
+  const slug = optionalSlug(write, existing?.slug ?? "");
+  if (!slug.ok) return slug;
   const textFields = ["content", "meta_description", "meta_title"] as const;
   const text: Record<(typeof textFields)[number], string> = {
     content: "",
@@ -154,18 +136,13 @@ export const toPageWrite = (
     meta_title: "",
   };
   for (const key of textFields) {
-    const field = optionalTextField(body, key, stored[key]);
+    const field = cleanedText(write[key] ?? stored[key], key);
     if (!field.ok) return field;
     text[key] = field.value;
   }
-  // The name refuses first: the field order the form's own validation
-  // reports in, then the box, then the slug, then the text fields.
-  if (!name.ok) return name;
-  if (!hidden.ok) return hidden;
-  if (!slug.ok) return slug;
   return okResult({
     content: text.content,
-    hidden: hidden.value,
+    hidden: write.hidden ?? existing?.hidden ?? false,
     metaDescription: text.meta_description,
     metaTitle: text.meta_title,
     name: name.value,
@@ -200,8 +177,11 @@ export const toFixedPageContent = (
       return errorResult(`${field} cannot change on a fixed page`);
     }
   }
-  if (body.content === undefined) return okResult(stored);
-  return optionalTextField(body, "content", stored);
+  const parsed = parseApiBody(UpdateSitePageBodySchema, body);
+  if (!parsed.ok) return parsed;
+  return parsed.value.content === undefined
+    ? okResult(stored)
+    : cleanedText(parsed.value.content, "content");
 };
 
 /** The tx step both parent writes share: drop the page's current parent

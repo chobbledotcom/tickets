@@ -1225,7 +1225,7 @@
     "banned-modal": 2,
     "present-perfect": 2,
     "wordy": 7,
-    "long-sentence": 5,
+    "long-sentence": 4,
     "semicolon": 2
   },
   "src/shared/rest/crud-api.ts": {
@@ -1234,8 +1234,6 @@
     "wordy": 1
   },
   "src/shared/rest/crud-parsers.ts": {
-    "present-perfect": 1,
-    "semicolon": 2,
     "contraction": 1
   },
   "src/shared/rest/resource.ts": {
@@ -1655,10 +1653,6 @@
     "wordy": 4,
     "semicolon": 1
   },
-  "src/ui/templates/admin/group-actions.tsx": {
-    "long-sentence": 4,
-    "semicolon": 2
-  },
   "src/ui/templates/admin/bulk-email.tsx": {
     "long-sentence": 3,
     "semicolon": 2,
@@ -1698,6 +1692,10 @@
     "wordy": 1,
     "semicolon": 1,
     "long-sentence": 2
+  },
+  "src/ui/templates/admin/group-actions.tsx": {
+    "long-sentence": 4,
+    "semicolon": 2
   },
   "src/ui/templates/admin/guide/tickets.tsx": {
     "long-sentence": 1

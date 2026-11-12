@@ -11,7 +11,10 @@
 
 import * as v from "valibot";
 
-import { QuestionDisplayTypeSchema } from "#db/question-types.ts";
+import {
+  QuestionDisplayTypeSchema,
+  questionDisplayTypeError,
+} from "#db/question-types.ts";
 import {
   CreateExternalLinkBodySchema,
   CreateExternalSourceBodySchema,
@@ -24,6 +27,17 @@ import {
   ImageRowSchema,
   UpdateImageBodySchema,
 } from "#shared/admin-api-images.ts";
+import {
+  type ApiBody,
+  apiBodyPair,
+  dateField,
+  fieldViews,
+  idRow,
+  optionalTextField,
+  picklistField,
+  switchField,
+  textField,
+} from "#shared/rest/api-body-fields.ts";
 
 /* ===========================================================================
  * Row schemas — the shapes the JSON API answers with. The client validates
@@ -83,26 +97,16 @@ export type AdminApiGroup = v.InferOutput<typeof GroupRowSchema>;
 
 /** The holiday fields a create or update write carries: the row without its
  *  server-owned id. */
-export const HolidayWriteSchema = v.object({
-  end_date: v.string(),
-  name: v.string(),
-  start_date: v.string(),
-});
-export type AdminApiCreateHolidayBody = v.InferOutput<
-  typeof HolidayWriteSchema
->;
-
-export const UpdateHolidayBodySchema = v.partial(HolidayWriteSchema);
-export type AdminApiUpdateHolidayBody = v.InferOutput<
-  typeof UpdateHolidayBodySchema
->;
+const holidayFields = {
+  end_date: dateField("end_date"),
+  name: textField("name"),
+  start_date: dateField("start_date"),
+};
+const holidayBodies = apiBodyPair(holidayFields);
 
 /** One holiday as the server stores it: the writable fields plus its id. The
  *  row schema stays open — the server owns the rest of the stored row. */
-export const HolidayRowSchema = v.looseObject({
-  ...HolidayWriteSchema.entries,
-  id: v.number(),
-});
+export const HolidayRowSchema = idRow(fieldViews(holidayFields, "create"));
 
 export type AdminApiHoliday = v.InferOutput<typeof HolidayRowSchema>;
 
@@ -118,38 +122,24 @@ export type AdminApiListing = v.InferOutput<typeof ListingRowSchema>;
 /** The fields an attendee-status create carries. The three flags and the
  *  reservation amount answer the stored-column defaults (off, "0") when a
  *  caller leaves them out. */
-export const CreateAttendeeStatusBodySchema = v.object({
-  is_paid_default: v.optional(v.boolean()),
-  is_public_default: v.optional(v.boolean()),
-  is_reservation: v.optional(v.boolean()),
-  name: v.string(),
-  reservation_amount: v.optional(v.string()),
-});
-export type AdminApiCreateAttendeeStatusBody = v.InferOutput<
-  typeof CreateAttendeeStatusBodySchema
->;
-
-/** The body an attendee-status update carries: every writable field optional. */
-export const UpdateAttendeeStatusBodySchema = v.partial(
-  v.object({
-    is_paid_default: v.boolean(),
-    is_public_default: v.boolean(),
-    is_reservation: v.boolean(),
-    name: v.string(),
-    reservation_amount: v.string(),
-  }),
-);
-export type AdminApiUpdateAttendeeStatusBody = v.InferOutput<
-  typeof UpdateAttendeeStatusBodySchema
+const attendeeStatusFields = {
+  is_paid_default: switchField("is_paid_default"),
+  is_public_default: switchField("is_public_default"),
+  is_reservation: switchField("is_reservation"),
+  name: textField("name"),
+  reservation_amount: optionalTextField("reservation_amount"),
+};
+const attendeeStatusBodies = apiBodyPair(attendeeStatusFields);
+export type AdminApiCreateAttendeeStatusBody = ApiBody<
+  typeof attendeeStatusBodies.create
 >;
 
 /** One attendee status as the admin API answers with it: the writable fields
  *  plus its id. The row schema stays open — the server owns the rest of the
  *  stored row (its sort order). */
-export const AttendeeStatusRowSchema = v.looseObject({
-  ...UpdateAttendeeStatusBodySchema.entries,
-  id: v.number(),
-});
+export const AttendeeStatusRowSchema = idRow(
+  fieldViews(attendeeStatusFields, "update"),
+);
 
 export type AdminApiAttendeeStatus = v.InferOutput<
   typeof AttendeeStatusRowSchema
@@ -164,42 +154,42 @@ export const AttendeeRowSchema = v.looseObject({
   quantity: v.number(),
 });
 
-/** The writable fields one site-page update carries, including the parent.
- *  The field list repeats the shape uptime-kuma's own schemas spell. The two
- *  domains share nothing, so the matcher's finding is marked. */
+/** The writable fields one site-page body carries. The field list repeats the
+ *  shape uptime-kuma's own schemas spell. The two domains share nothing, so
+ *  the matcher's finding is marked. */
 /* jscpd:ignore-start */
-const SitePageUpdateFields = {
-  content: v.string(),
-  hidden: v.boolean(),
-  meta_description: v.string(),
-  meta_title: v.string(),
-  name: v.string(),
-  parent: v.nullable(v.number()),
-  slug: v.string(),
+const sitePageFields = {
+  content: optionalTextField("content"),
+  hidden: switchField("hidden"),
+  meta_description: optionalTextField("meta_description"),
+  meta_title: optionalTextField("meta_title"),
+  name: textField("name"),
+  slug: textField("slug", "Slug is required"),
 };
+const sitePageBodies = apiBodyPair(sitePageFields, {
+  updateOnly: {
+    parent: v.nullable(v.number("parent must be a page id or null")),
+  },
+});
 /* jscpd:ignore-end */
 
 /** The body a site-page update accepts: every writable field optional. */
-export const UpdateSitePageBodySchema = v.partial(
-  v.object(SitePageUpdateFields),
-);
+export const UpdateSitePageBodySchema = sitePageBodies.update;
 
 /** The body a site-page create accepts. A new page is always a root page, so
  *  the create body carries no parent. The server stores the form's defaults
  *  for a silent field (empty text, a visible page), so only the name and the
  *  slug are required. */
-export const CreateSitePageBodySchema = v.partial(
-  v.omit(v.object(SitePageUpdateFields), ["parent"]),
-  ["content", "hidden", "meta_description", "meta_title"],
-);
+export const CreateSitePageBodySchema = sitePageBodies.create;
 
 /** One site page as the admin API answers with it. A content page answers
  *  every field. A fixed page (home, contact and terms — not site_pages rows)
  *  answers only its name and its content. `parent` names the page this page
  *  nests under, null at the top level. */
 export const SitePageRowSchema = v.looseObject({
-  ...UpdateSitePageBodySchema.entries,
+  ...fieldViews(sitePageFields, "update"),
   id: v.optional(v.number()),
+  parent: v.nullable(v.number("parent must be a page id or null")),
 });
 
 export type AdminApiSitePage = v.InferOutput<typeof SitePageRowSchema>;
@@ -211,17 +201,9 @@ export type AdminApiSitePage = v.InferOutput<typeof SitePageRowSchema>;
  * vocabulary for a shape the server owns.
  * =========================================================================== */
 
-export const CreateAttributeBodySchema = v.object({ name: v.string() });
-export type AdminApiCreateAttributeBody = v.InferOutput<
-  typeof CreateAttributeBodySchema
->;
-
-export const UpdateAttributeBodySchema = v.partial(
-  v.object({ name: v.string() }),
-);
-export type AdminApiUpdateAttributeBody = v.InferOutput<
-  typeof UpdateAttributeBodySchema
->;
+const attributeBodies = apiBodyPair({
+  name: textField("name"),
+});
 
 /** One choice option's write body, on the attribute-option and answer
  *  surfaces alike. The server parses the same shape for the option's create
@@ -232,26 +214,17 @@ export type AdminApiOptionBody = v.InferOutput<typeof OptionBodySchema>;
 /** The body a question create carries: the text and the display type are
  *  required, the same two fields the question form requires. The assign-all
  *  switch is optional and defaults to off. */
-export const CreateQuestionBodySchema = v.object({
-  assign_all: v.optional(v.boolean()),
-  display_type: QuestionDisplayTypeSchema,
-  text: v.string(),
+const questionBodies = apiBodyPair({
+  assign_all: switchField("assign_all"),
+  display_type: picklistField(
+    "display_type",
+    QuestionDisplayTypeSchema.options,
+    questionDisplayTypeError,
+  ),
+  text: textField("text"),
 });
-export type AdminApiCreateQuestionBody = v.InferOutput<
-  typeof CreateQuestionBodySchema
->;
-
-/** The body a question update carries: every writable field optional. */
-export const UpdateQuestionBodySchema = v.partial(
-  v.object({
-    assign_all: v.boolean(),
-    display_type: QuestionDisplayTypeSchema,
-    text: v.string(),
-  }),
-);
-export type AdminApiUpdateQuestionBody = v.InferOutput<
-  typeof UpdateQuestionBodySchema
->;
+export type AdminApiCreateQuestionBody = ApiBody<typeof questionBodies.create>;
+export type AdminApiUpdateQuestionBody = ApiBody<typeof questionBodies.update>;
 
 /* ===========================================================================
  * The delete contract — one shape for every confirmed delete, root or child.
@@ -359,9 +332,9 @@ const attributeTableRow = resourceTableRow(
 
 export const ADMIN_API_RESOURCES = {
   "attendee-statuses": {
-    createBodySchema: CreateAttendeeStatusBodySchema,
+    createBodySchema: attendeeStatusBodies.create,
     ...resourceTableRow("Status", "attendee-statuses", AttendeeStatusRowSchema),
-    updateBodySchema: UpdateAttendeeStatusBodySchema,
+    updateBodySchema: attendeeStatusBodies.update,
   },
   attendees: {
     // The create is the one standard route this surface serves. A booking
@@ -381,9 +354,9 @@ export const ADMIN_API_RESOURCES = {
         responseSchema: attributeTableRow.singleSchema,
       },
     },
-    createBodySchema: CreateAttributeBodySchema,
+    createBodySchema: attributeBodies.create,
     ...attributeTableRow,
-    updateBodySchema: UpdateAttributeBodySchema,
+    updateBodySchema: attributeBodies.update,
   },
   "external-sources": {
     children: {
@@ -413,9 +386,9 @@ export const ADMIN_API_RESOURCES = {
     ...resourceTableRow("Group", "groups", GroupRowSchema),
   },
   holidays: {
-    createBodySchema: HolidayWriteSchema,
+    createBodySchema: holidayBodies.create,
     ...resourceTableRow("Holiday", "holidays", HolidayRowSchema),
-    updateBodySchema: UpdateHolidayBodySchema,
+    updateBodySchema: holidayBodies.update,
   },
   images: {
     createBodySchema: CreateImageBodySchema,
@@ -452,14 +425,14 @@ export const ADMIN_API_RESOURCES = {
         responseSchema: v.looseObject({ question: QuestionRowSchema }),
       },
     },
-    createBodySchema: CreateQuestionBodySchema,
+    createBodySchema: questionBodies.create,
     custom: {
       // The bookings that answered the question: the read side of the
       // attendee-answers link, newest booking first.
       bookings: { method: "GET", subpath: ":questionId/bookings" },
     },
     ...resourceTableRow("Question", "questions", QuestionRowSchema),
-    updateBodySchema: UpdateQuestionBodySchema,
+    updateBodySchema: questionBodies.update,
   },
   "site-pages": {
     createBodySchema: CreateSitePageBodySchema,

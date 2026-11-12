@@ -9,6 +9,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { UpdateSitePageBodySchema } from "#shared/admin-api-resources.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { objectEntries } from "#shared/rest/api-body-fields.ts";
 import { wasActivityLogged } from "#test-utils/activity-log.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -173,7 +174,9 @@ describeWithEnv("Admin API - Site pages fixed", { db: true }, () => {
     test("refuses every content-page write field except content", async () => {
       // The cases come from the declared update body. A field the schema
       // gains must get the refusal here, or this test fails.
-      for (const field of Object.keys(UpdateSitePageBodySchema.entries)) {
+      for (const field of Object.keys(
+        objectEntries(UpdateSitePageBodySchema) ?? {},
+      )) {
         if (field === "content") continue;
         await assertJson(
           apiRequest("/api/admin/site-pages/home", {

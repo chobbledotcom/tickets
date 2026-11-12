@@ -210,7 +210,7 @@ describeWithEnv(
             items: [{ item_id: 4, item_type: "attendee" }],
           }),
           400,
-          "items[0] needs an item_type of listing, group, news, page, and a whole item_id",
+          "Each link needs an item_type of listing, group, news, page, and a whole item_id",
         );
       });
 
