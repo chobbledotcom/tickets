@@ -117,10 +117,6 @@ export const AREAS_A_L = {
       },
     },
   },
-  builder: {
-    audience: OWNER_AUDIENCE,
-    view: { builder: "/admin/builder" },
-  },
   builtSites: {
     audience: OWNER_AUDIENCE,
     view: {
@@ -412,6 +408,7 @@ export const AREAS_A_L = {
     },
   },
   ...onePageAreas(OWNER_AUDIENCE, {
+    builder: "/admin/builder",
     // The owner's read-only view of where their records also appear. The
     // admin API writes this directory. The page only shows what the database
     // holds.
