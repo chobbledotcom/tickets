@@ -21,11 +21,15 @@ import {
 import { questionsOrder, questionsTable } from "#db/questions/tables.ts";
 import { fieldById, mapNotNullish } from "#fp";
 import { t } from "#i18n";
-import { defineAdminRoutes, recordRoutes } from "#routes/admin/route-tables.ts";
+import {
+  defineAdminRoutes,
+  orderRoutes,
+  recordRoutes,
+} from "#routes/admin/route-tables.ts";
 import { formPolicyFor } from "#routes/auth.ts";
 import { entityFormById } from "#routes/entity.ts";
 import { notFoundResponse, redirect } from "#routes/response.ts";
-import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
 import { createOrderedCollectionHandlers } from "#shared/app-forms.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { questionRecord } from "#shared/records/questions.ts";
@@ -38,17 +42,7 @@ import {
 import type { AdminSession } from "#types";
 import { createListingChoicePost } from "./listing-choice-post.ts";
 import { questionPage } from "./question-page.ts";
-import {
-  answerOrder,
-  handleAddAnswer,
-  handleAnswerRecalculateGet,
-  handleAnswerRecalculatePost,
-  handleDeleteAnswerGet,
-  handleDeleteAnswerPost,
-  handleEditAnswerGet,
-  handleEditAnswerPost,
-  type QuestionIdParams,
-} from "./questions/answers.ts";
+import { answerRoutes, type QuestionIdParams } from "./questions/answers.ts";
 import { questionTextForm } from "./questions/forms.ts";
 
 /** The list renderer also resolves each question's listing ids to their
@@ -84,10 +78,8 @@ const pages = recordPages(questionRecord, {
   editErrorPath: (id) => `/admin/questions/${id}`,
   form: questionTextForm,
   identifier: (question) => questionTextFlat(question.text),
-  identifierLabel: t("questions.name_label"),
   renderDelete: adminQuestionDeletePage,
   renderList,
-  singular: "Question",
   toInput: ({ display_type, text }) => ({
     displayType: requireQuestionDisplayType(display_type),
     text,
@@ -144,28 +136,10 @@ const handleListingQuestionsPost = createListingChoicePost({
 });
 
 /** Questions routes */
-/* jscpd:ignore-start -- a route table is a list of route keys, not code */
 export const adminHandlers = defineAdminRoutes({
-  ...recordRoutes(
-    adminPattern("questions"),
-    adminPattern("question"),
-    pages,
-    questionPage,
-  ),
-  "GET /admin/questions/:id/answers/:answerId/delete": handleDeleteAnswerGet,
-  "GET /admin/questions/:id/answers/:answerId/edit": handleEditAnswerGet,
-  "GET /admin/questions/:id/answers/:answerId/recalculate":
-    handleAnswerRecalculateGet,
+  ...recordRoutes("questions", pages, questionPage),
+  ...answerRoutes,
   "POST /admin/listing/:id/questions": handleListingQuestionsPost,
-  "POST /admin/questions/:id/answers": handleAddAnswer,
-  "POST /admin/questions/:id/answers/:answerId/delete": handleDeleteAnswerPost,
-  "POST /admin/questions/:id/answers/:answerId/edit": handleEditAnswerPost,
-  "POST /admin/questions/:id/answers/:answerId/move-down": answerOrder.down,
-  "POST /admin/questions/:id/answers/:answerId/move-up": answerOrder.up,
-  "POST /admin/questions/:id/answers/:answerId/recalculate":
-    handleAnswerRecalculatePost,
   "POST /admin/questions/:id/listings": handleQuestionListings,
-  "POST /admin/questions/:id/move-down": questionOrder.down,
-  "POST /admin/questions/:id/move-up": questionOrder.up,
+  ...orderRoutes("/admin/questions/:id", questionOrder),
 });
-/* jscpd:ignore-end */

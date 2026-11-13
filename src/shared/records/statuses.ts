@@ -106,12 +106,12 @@ export const statusRecord = defineNamedRowRecord<
 >({
   activityName: "Attendee status",
   api: ADMIN_API_RESOURCES["attendee-statuses"],
-  deleteDestination: "statusDelete",
   getAll: attendeeStatuses.getAll,
-  list: "statuses",
   load: getAttendeeStatus,
   loadAfterWrite: (id) => attendeeStatuses.table.findByIdPrimary!(id),
+  nameLabel: "statuses.name_label",
   rule: statusRule,
+  surface: "settingsStatuses",
   table: attendeeStatuses.table,
   write: statusWrites,
 });

@@ -101,10 +101,8 @@ export const handleTemplateSavePost = validatedEmailPost(
 const pages = recordPages(emailTemplateRecord, {
   deleteSuccessMessage: "Template deleted.",
   deleteSuccessPath: `${COMPOSE_PATH}?audience=active`,
-  identifierLabel: t("bulk_email.name_label"),
   renderDelete: bulkEmailTemplateDeletePage,
   routes: { delete: "emailTemplateDelete" },
-  singular: "Template",
   skip: ["new", "edit"],
 });
 

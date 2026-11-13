@@ -62,10 +62,10 @@ export const builtSiteRecord = defineNamedRowRecord<
   RecordShapeOf<BuiltSite, BuiltSiteFormInput>
 >({
   activityName: "Built site",
-  deleteDestination: "builtSiteDelete",
   getAll: builtSites.getAll,
-  list: "builtSites",
+  nameLabel: "built_sites.name_label",
   rule: builtSiteRule,
+  surface: "builtSites",
   table: builtSitesCrudTable,
   write: builtSiteWrites,
 });

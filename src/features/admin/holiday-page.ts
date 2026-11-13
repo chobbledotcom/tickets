@@ -11,15 +11,15 @@ import {
 import { holidayRecord } from "#shared/records/holidays.ts";
 import { HolidayEditPanel } from "#templates/admin/holidays.tsx";
 
-import { recordEditPageFor } from "./record-edit-page.ts";
+import { recordEditPage } from "./record-edit-page.ts";
 
-export const holidayPage: EditEntityPage<Holiday> = recordEditPageFor(
+export const holidayPage: EditEntityPage<Holiday> = recordEditPage(
   holidayRecord,
-  "holidayDelete",
-  "holidays.delete.submit",
-  "holiday",
-  (holiday, _ctx, rejected) =>
-    Promise.resolve(
-      HolidayEditPanel({ holiday, ...submittedValueProps(rejected) }),
-    ),
+  {
+    deleteLabelKey: "holidays.delete.submit",
+    edit: (holiday, _ctx, rejected) =>
+      Promise.resolve(
+        HolidayEditPanel({ holiday, ...submittedValueProps(rejected) }),
+      ),
+  },
 );

@@ -4,9 +4,7 @@
  */
 
 import type { HolidayInput } from "#db/holidays.ts";
-import { t } from "#i18n";
 import { defineAdminRoutes, recordRoutes } from "#routes/admin/route-tables.ts";
-import { adminPattern } from "#shared/admin-surface.ts";
 import {
   applyDemoOverrides,
   HOLIDAY_DEMO_FIELDS,
@@ -39,21 +37,14 @@ const extractHolidayInput = (values: HolidayFormValues): HolidayInput => ({
 
 const pages = recordPages(holidayRecord, {
   form: getHolidayForm(),
-  identifierLabel: t("holidays.name_label"),
   preprocessForm: (form) => applyDemoOverrides(form, HOLIDAY_DEMO_FIELDS),
   renderDelete: (...args) => getHolidayPages().deletePage(...args),
   renderEditError: holidayPage.renderEditError,
   renderList: adminHolidaysPage,
   renderNew: (...args) => getHolidayPages().newPage(...args),
-  singular: "Holiday",
   toInput: extractHolidayInput,
 });
 
 export const adminHandlers = defineAdminRoutes({
-  ...recordRoutes(
-    adminPattern("holidays"),
-    adminPattern("holiday"),
-    pages,
-    holidayPage,
-  ),
+  ...recordRoutes("holidays", pages, holidayPage),
 });

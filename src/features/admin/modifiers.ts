@@ -37,7 +37,7 @@ import { checkedValues } from "#shared/forms/validation.ts";
 import { matchKey } from "#shared/keys.ts";
 import { validateCalcValue } from "#shared/price-modifier.ts";
 import { modifierRecord } from "#shared/records/modifiers.ts";
-import { standardRecordPages } from "#shared/rest/record-pages.ts";
+import { recordPages } from "#shared/rest/record-pages.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { exceedsCurrencyPrecision } from "#shared/validation/money.ts";
 import { adminModifierRecalculatePage } from "#templates/admin/modifiers/aggregates.tsx";
@@ -176,9 +176,7 @@ const loadModifierEditPanel = async (
 };
 
 const modifierPage: EditEntityPage<Modifier> = recordEditPage(modifierRecord, {
-  deleteDestination: "modifierDelete",
   deleteLabelKey: "modifiers.delete.submit",
-  destination: "modifier",
   edit: (modifier, ctx, rejected) =>
     loadModifierEditPanel(
       modifier,
@@ -195,18 +193,15 @@ const modifierPage: EditEntityPage<Modifier> = recordEditPage(modifierRecord, {
 
 // The list and edit pages load the ledger-projected Modifier. The delete
 // confirmation and every write use the stored ModifierRow.
-const pages = standardRecordPages(
-  modifierRecord,
-  getModifierForm(),
-  t("modifiers.name_label"),
-  adminModifierDeletePage,
-  modifierPage.renderEditError,
-  adminModifiersPage,
-  adminModifierNewPage,
-  "Modifier",
-  extractModifierInput,
-  modifierValuesError,
-);
+const pages = recordPages(modifierRecord, {
+  form: getModifierForm(),
+  renderDelete: adminModifierDeletePage,
+  renderEditError: modifierPage.renderEditError,
+  renderList: adminModifiersPage,
+  renderNew: adminModifierNewPage,
+  toInput: extractModifierInput,
+  validateValues: modifierValuesError,
+});
 
 const withModifier = withEntityLoader(getModifier);
 
@@ -339,14 +334,8 @@ const handleModifierRecalculatePost: TypedRouteHandler<"POST /admin/modifiers/re
 
 /** Modifier routes. The edit POST restates the standard key with its own
  * handler. */
-/* jscpd:ignore-start -- a route table is a list of route keys, not code */
 export const adminHandlers = defineAdminRoutes({
-  ...recordRoutes(
-    adminPattern("modifiers"),
-    adminPattern("modifier"),
-    pages,
-    modifierPage,
-  ),
+  ...recordRoutes("modifiers", pages, modifierPage),
   "GET /admin/modifiers/recalculate/:modifierId": handleModifierRecalculateGet,
   "POST /admin/modifiers/:id/answers": handleAnswerLinks,
   "POST /admin/modifiers/:id/edit": handleEditPost,
@@ -355,4 +344,3 @@ export const adminHandlers = defineAdminRoutes({
   "POST /admin/modifiers/recalculate/:modifierId":
     handleModifierRecalculatePost,
 });
-/* jscpd:ignore-end */

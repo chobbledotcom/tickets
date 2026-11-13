@@ -11,21 +11,22 @@ import type { SqlStatement, TxScope } from "#db/client.ts";
 import type { Table } from "#db/table.ts";
 import { byPrimaryKey } from "#db/table-reader.ts";
 import { refusingTheWriteOn } from "#db/transaction.ts";
-import type {
-  AdminRecord,
-  DeleteCommand,
-  DeleteVerdict,
-  FullRowOf,
-  InputOf,
-  PlannedUpdateCommand,
-  PlannedWriteCommand,
-  RecordActor,
-  RecordShape,
-  RecordSpec,
-  RowOf,
-  StateOf,
-  WritePlan,
-  WriteVerdict,
+import {
+  type AdminRecord,
+  type DeleteCommand,
+  type DeleteVerdict,
+  type FullRowOf,
+  type InputOf,
+  type PlannedUpdateCommand,
+  type PlannedWriteCommand,
+  type RecordActor,
+  type RecordShape,
+  type RecordSpec,
+  type RowOf,
+  recordSurfaceOf,
+  type StateOf,
+  type WritePlan,
+  type WriteVerdict,
 } from "#shared/rest/record-contract.ts";
 import {
   type JoinWrite,
@@ -89,12 +90,13 @@ export const defineRecord = <Shape extends RecordShape>(
   type Input = InputOf<Shape>;
   type FullRow = FullRowOf<Shape>;
   type State = StateOf<Shape>;
+  const surface = recordSurfaceOf(spec.surface);
   const getAll =
     spec.getAll ??
     spec.reads?.all ??
     (() => {
       throw new Error(
-        `The record for ${spec.list} declares no collection read`,
+        `The record for ${surface.list} declares no collection read`,
       );
     });
   const load =
@@ -102,7 +104,9 @@ export const defineRecord = <Shape extends RecordShape>(
     spec.reads?.one ??
     (spec.table === undefined
       ? () => {
-          throw new Error(`The record for ${spec.list} declares no load read`);
+          throw new Error(
+            `The record for ${surface.list} declares no load read`,
+          );
         }
       : defaultLoad(false)<Row, Input, FullRow>(spec.table));
   const loadAfterWrite =
@@ -117,7 +121,7 @@ export const defineRecord = <Shape extends RecordShape>(
   /** The table a generated write needs. A command record can omit it. */
   const requireTable = (): Table<Row, Input> => {
     if (spec.table === undefined) {
-      throw new Error(`The record for ${spec.list} declares no table`);
+      throw new Error(`The record for ${surface.list} declares no table`);
     }
     return spec.table;
   };
@@ -332,6 +336,7 @@ export const defineRecord = <Shape extends RecordShape>(
 
   return {
     ...spec,
+    ...surface,
     ...commands,
     getAll,
     load,

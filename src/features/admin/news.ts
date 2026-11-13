@@ -6,7 +6,6 @@
  */
 
 import { getNewsPostById } from "#db/news-posts.ts";
-import { t } from "#i18n";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import { newsRecord } from "#shared/records/news.ts";
 import { recordPages } from "#shared/rest/record-pages.ts";
@@ -38,11 +37,9 @@ const pages = recordPages(newsRecord, {
   ...contentPagePaths(newsRecord),
   editForm: newsPostEditForm,
   form: newsPostForm,
-  identifierLabel: t("news.name_label"),
   renderDelete: adminNewsDeletePage,
   renderList: adminNewsListPage,
   renderNew: adminNewsNewPage,
-  singular: "News post",
   toEditInput: (values: NewsContentValues & { slug: string }) => ({
     ...newsContentInput(values),
     slug: normalizeSlug(values.slug),
@@ -58,5 +55,5 @@ const images = contentImageHandlers({
 });
 
 export const adminHandlers = defineAdminRoutes({
-  ...contentRecordRoutes("news", "newsPost", pages, images, newsPage),
+  ...contentRecordRoutes("news", pages, images, newsPage),
 });

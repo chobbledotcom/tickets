@@ -92,16 +92,16 @@ export const apiKeyRecord = defineRecord<
   RecordShapeOf<ApiKeyDisplay, ApiKeyInput>
 >({
   activityName: "API key",
-  deleteDestination: "apiKeyDelete",
   getAll: (actor) => getApiKeysForUser(sessionOf(actor).userId),
-  list: "apiKeys",
   load: async (id, actor) => {
     const key = await apiKeyForActor(id, actor);
     return key === null ? null : { ...key, created: "", lastUsed: "" };
   },
   logName: (input) => input.name,
+  nameLabel: "api_keys.name_label",
   nameOf: (key) => key.name,
   rule: apiKeyRule,
+  surface: { deleteDestination: "apiKeyDelete", list: "apiKeys" },
   write: {
     create: createApiKeyCommand,
     remove: async (id, _input, actor) => {

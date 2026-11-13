@@ -31,6 +31,7 @@ import {
   createVerifiedFormRoute,
   verifiedDelete,
 } from "#routes/admin/confirmation.ts";
+import { orderRoutes } from "#routes/admin/route-tables.ts";
 import { formGuard, formPolicyFor, pageGuardFor } from "#routes/auth.ts";
 import { createEntityHandler, throughParent } from "#routes/entity.ts";
 import {
@@ -110,34 +111,36 @@ export const deleteAnswerWithLog = async (
 };
 
 /** Handle POST /admin/questions/:id/answers (add answer) */
-export const handleAddAnswer: ParamsRoute<QuestionIdParams> =
-  createAuthedFormRoute<{ text: string }, QuestionIdParams>({
-    auth: formPolicyFor(adminDestinationAt("/admin/questions/:id/answers")),
-    form: answerTextForm,
-    onInvalid: redirectToQuestion,
-    onValid: async ({ params, values: { text } }) => {
-      const question = await getQuestionWithAnswers(params.id);
-      if (!question) return notFoundResponse();
-      // Free-text questions collect a typed value, never an answer id, so the
-      // request is refused with an error, and any answer-triggered modifiers
-      // never run.
-      if (question.display_type === "free_text") {
-        return errorRedirect(
-          `/admin/questions/${params.id}`,
-          t("questions.answers.free_text_no_options"),
-        );
-      }
-      // One transaction: an answer must never exist without its place in the
-      // order or its log line. The inserted sortOrder is a placeholder the
-      // append overwrites before anything can read it.
-      await addAnswerWithLog(params.id, text);
-      return redirect(
+const handleAddAnswer = createAuthedFormRoute<
+  { text: string },
+  QuestionIdParams
+>({
+  auth: formPolicyFor(adminDestinationAt("/admin/questions/:id/answers")),
+  form: answerTextForm,
+  onInvalid: redirectToQuestion,
+  onValid: async ({ params, values: { text } }) => {
+    const question = await getQuestionWithAnswers(params.id);
+    if (!question) return notFoundResponse();
+    // Free-text questions collect a typed value, never an answer id, so the
+    // request is refused with an error, and any answer-triggered modifiers
+    // never run.
+    if (question.display_type === "free_text") {
+      return errorRedirect(
         `/admin/questions/${params.id}`,
-        t("questions.answer_added"),
-        true,
+        t("questions.answers.free_text_no_options"),
       );
-    },
-  });
+    }
+    // One transaction: an answer must never exist without its place in the
+    // order or its log line. The inserted sortOrder is a placeholder the
+    // append overwrites before anything can read it.
+    await addAnswerWithLog(params.id, text);
+    return redirect(
+      `/admin/questions/${params.id}`,
+      t("questions.answer_added"),
+      true,
+    );
+  },
+});
 
 type AnswerRouteParams = { id: number; answerId: number };
 type AnswerContext = { question: QuestionWithAnswers; answer: Answer };
@@ -185,13 +188,13 @@ const answerFlashRoute = (
   );
 
 /** Handle GET /admin/questions/:id/answers/:answerId/delete */
-export const handleDeleteAnswerGet: ParamsRoute<AnswerRouteParams> =
-  answerFlashRoute((question, answer, session, flash) =>
+const handleDeleteAnswerGet = answerFlashRoute(
+  (question, answer, session, flash) =>
     htmlResponse(adminAnswerDeletePage(question, answer, session, flash.error)),
-  );
+);
 
 /** Handle POST /admin/questions/:id/answers/:answerId/delete */
-export const handleDeleteAnswerPost: ParamsRoute<AnswerRouteParams> =
+const handleDeleteAnswerPost: ParamsRoute<AnswerRouteParams> =
   createVerifiedFormRoute<AnswerRouteParams, AnswerContext>({
     actionLabel: "deletion",
     auth: formPolicyFor(
@@ -221,8 +224,8 @@ const editAnswerPath = ({ id, answerId }: AnswerRouteParams): string =>
   `/admin/questions/${id}/answers/${answerId}/edit`;
 
 /** Handle GET /admin/questions/:id/answers/:answerId/edit */
-export const handleEditAnswerGet: ParamsRoute<AnswerRouteParams> =
-  answerFlashRoute(async (question, answer, session, flash) => {
+const handleEditAnswerGet = answerFlashRoute(
+  async (question, answer, session, flash) => {
     const [aggregateRecalculation, modifiers, modifierId] = await Promise.all([
       getAnswerAggregateRecalculation(answer.id),
       answerTriggerModifiers(),
@@ -239,10 +242,11 @@ export const handleEditAnswerGet: ParamsRoute<AnswerRouteParams> =
         modifierId,
       ),
     );
-  });
+  },
+);
 
 /** Handle POST /admin/questions/:id/answers/:answerId/edit (text + modifier) */
-export const handleEditAnswerPost: ParamsRoute<AnswerRouteParams> =
+const handleEditAnswerPost: ParamsRoute<AnswerRouteParams> =
   createAuthedFormRoute<{ text: string }, AnswerRouteParams, AnswerContext>({
     auth: formPolicyFor(
       adminDestinationAt("/admin/questions/:id/answers/:answerId/edit"),
@@ -310,19 +314,19 @@ const renderAnswerRecalculatePage = createRecalculatePageRenderer(
 );
 
 /** Handle GET /admin/questions/:id/answers/:answerId/recalculate */
-export const handleAnswerRecalculateGet: ParamsRoute<AnswerRouteParams> =
-  answerFlashRoute((question, answer, session, flash) =>
+const handleAnswerRecalculateGet = answerFlashRoute(
+  (question, answer, session, flash) =>
     renderAnswerRecalculatePage(
       { answer, question },
       session,
       flash.error,
       flash.success,
     ),
-  );
+);
 
 /** Handle POST /admin/questions/:id/answers/:answerId/recalculate */
-export const handleAnswerRecalculatePost: ParamsRoute<AnswerRouteParams> =
-  answerHandlers.post(({ answer, question }, session, form, _request, params) =>
+const handleAnswerRecalculatePost = answerHandlers.post(
+  ({ answer, question }, session, form, _request, params) =>
     runRecalculatePost({
       fields: ANSWER_AGGREGATE_FIELDS,
       form,
@@ -340,9 +344,9 @@ export const handleAnswerRecalculatePost: ParamsRoute<AnswerRouteParams> =
       successMessage: t("questions.recalculate.success"),
       successPath: editAnswerPath(params),
     }),
-  );
+);
 
-export const answerOrder: {
+const answerOrder: {
   down: ParamsRoute<AnswerRouteParams>;
   up: ParamsRoute<AnswerRouteParams>;
 } = createOrderedCollectionHandlers({
@@ -359,3 +363,17 @@ export const answerOrder: {
   ),
   target: ({ context }) => context.answer.id,
 });
+
+/** The answer routes, ready to spread into the question route table. */
+export const answerRoutes = {
+  "GET /admin/questions/:id/answers/:answerId/delete": handleDeleteAnswerGet,
+  "GET /admin/questions/:id/answers/:answerId/edit": handleEditAnswerGet,
+  "GET /admin/questions/:id/answers/:answerId/recalculate":
+    handleAnswerRecalculateGet,
+  "POST /admin/questions/:id/answers": handleAddAnswer,
+  "POST /admin/questions/:id/answers/:answerId/delete": handleDeleteAnswerPost,
+  "POST /admin/questions/:id/answers/:answerId/edit": handleEditAnswerPost,
+  ...orderRoutes("/admin/questions/:id/answers/:answerId", answerOrder),
+  "POST /admin/questions/:id/answers/:answerId/recalculate":
+    handleAnswerRecalculatePost,
+};

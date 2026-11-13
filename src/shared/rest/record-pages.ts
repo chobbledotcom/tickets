@@ -7,14 +7,16 @@
  * roles are written once, in `admin-surface/areas.ts`.
  */
 
+import { t } from "#i18n";
 import {
+  confirmedDeleteRoutes,
   createConfirmedHandlers,
   type FormGuard,
 } from "#routes/admin/confirmation.ts";
 import type { EditErrorRenderer } from "#routes/admin/entity-write-tab.ts";
 import type { CrudHandlers } from "#routes/admin/route-tables.ts";
 import { type AuthSession, authPage, type SessionGuard } from "#routes/auth.ts";
-import { type IdRouteHandler, idRouteFor } from "#routes/entity.ts";
+import type { IdRouteHandler } from "#routes/entity.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import { formGuardAt, pageGuardAt } from "#routes/route-gates.ts";
 import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
@@ -102,15 +104,15 @@ export type RecordPagesConfig<
   renderDelete?: RenderDelete<Shape>;
   renderList?: RenderList<Shape>;
   renderNew?: (session: AdminSession, error?: string) => string;
-  /** The noun the flash messages use ("Holiday created"). */
-  singular: string;
+  /** The noun the flash messages use ("Holiday created"), when it is not the
+   * record's activity name. */
+  singular?: string;
   routes?: RouteOverrides;
   skip?: SkippedRoutes;
   /** Handlers that replace a generated standard route. */
   overrides?: Partial<CrudHandlers>;
   /** Render a rejected edit in place. Keep the submitted values. */
   renderEditError?: EditErrorRenderer;
-  identifierLabel?: string | (() => string);
   /** The display name the confirmation must match. Defaults to the record's
    * display name. A page whose input cannot carry newlines uses the flattened
    * form, which is what the operator can type. */
@@ -285,6 +287,11 @@ const resolvePagePaths = (
   };
 };
 
+/** The label of the name a delete confirmation asks for. A record with no
+ * confirmation page declares none. */
+const confirmLabelOf = (key: string | undefined): string | (() => string) =>
+  key === undefined ? "" : () => t(key);
+
 /** Bind a record read to the session the page route hands it. */
 export const loadWithSession =
   <FullRow>(load: LoadCommand<FullRow>) =>
@@ -302,6 +309,7 @@ export const recordPages = <
   config: RecordPagesConfig<Shape, CreateValues, EditValues, DeleteInput>,
 ): CrudHandlers => {
   const listRoute = adminDestination(record.list);
+  const singular = config.singular ?? record.activityName;
   const { createErrorPath, deletePath, editPath, listPath, newPath, savePath } =
     resolvePagePaths(
       listRoute.pattern,
@@ -352,11 +360,7 @@ export const recordPages = <
             return errorRedirect(createErrorPath, refusal);
           }
           return verdict.kind === "written"
-            ? redirect(
-                savePath(verdict.row.id),
-                `${config.singular} created`,
-                true,
-              )
+            ? redirect(savePath(verdict.row.id), `${singular} created`, true)
             : notFoundResponse();
         },
       ),
@@ -388,7 +392,7 @@ export const recordPages = <
     if (verdict.kind === "not-found") return notFoundResponse();
     return redirect(
       (config.updateSavePath ?? savePath)(verdict.row.id),
-      `${config.singular} updated`,
+      `${singular} updated`,
       true,
     );
   };
@@ -425,7 +429,7 @@ export const recordPages = <
       : {}),
     identifier: (row: FullRowOf<Shape>) =>
       config.identifier ? config.identifier(row) : record.nameOf(row),
-    identifierLabel: config.identifierLabel ?? "",
+    identifierLabel: confirmLabelOf(record.nameLabel),
     load: loadWithSession(record.load),
     onConfirm: async (_row, id, session, form) => {
       const verdict = await record.remove(
@@ -441,46 +445,16 @@ export const recordPages = <
     },
     path: deletePath,
     render: config.renderDelete ?? (() => ""),
-    successMessage: config.deleteSuccessMessage ?? `${config.singular} deleted`,
+    successMessage: config.deleteSuccessMessage ?? `${singular} deleted`,
     successRedirect: config.deleteSuccessPath ?? listPath,
   });
 
   return {
     createPost,
-    deleteGet: idRouteFor(confirmedDelete.get),
-    deletePost: idRouteFor(confirmedDelete.post),
+    ...confirmedDeleteRoutes(confirmedDelete),
     editPost,
     listGet,
     newGet,
     ...config.overrides,
   };
 };
-
-/** Build the standard six pages from the parts every table-like record
- *  supplies: its form, its renderers, its noun, and its input mapper. */
-export const standardRecordPages = <Shape extends RecordShape, CreateValues>(
-  record: AdminRecord<Shape>,
-  form: FormSchema<CreateValues>,
-  identifierLabel: string,
-  renderDelete: RenderDelete<Shape>,
-  renderEditError: EditErrorRenderer,
-  renderList: RenderList<Shape>,
-  renderNew: (session: AdminSession, error?: string) => string,
-  singular: string,
-  toInput: (
-    values: CreateValues,
-    form: FormParams,
-  ) => InputOf<Shape> | Promise<InputOf<Shape>>,
-  validateValues?: (values: CreateValues) => string | null,
-): CrudHandlers =>
-  recordPages<Shape, CreateValues, CreateValues, never>(record, {
-    form,
-    identifierLabel,
-    renderDelete,
-    renderEditError,
-    renderList,
-    renderNew,
-    singular,
-    toInput,
-    ...(validateValues === undefined ? {} : { validateValues }),
-  });

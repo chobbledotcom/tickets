@@ -170,9 +170,7 @@ const builtSitePagerNav = async (
 export const builtSitePage: EditEntityPage<BuiltSite> = recordEditPage(
   builtSiteRecord,
   {
-    deleteDestination: "builtSiteDelete",
     deleteLabelKey: "built_sites.delete_this_site",
-    destination: "builtSite",
     edit: (site, _ctx, rejected) =>
       Promise.resolve(
         <BuiltSiteEditPanel site={site} {...submittedValueProps(rejected)} />,

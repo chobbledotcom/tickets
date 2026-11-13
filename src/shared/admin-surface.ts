@@ -13,13 +13,28 @@ import type {
   AdminDestinationId,
   AdminPathParams,
   AdminPatternFor,
+  RecordAreaId,
+  RecordAreaIds,
+  RecordAreaPatterns,
 } from "#shared/admin-surface/ids.ts";
 import { ADMIN_SECTIONS } from "#shared/admin-surface/sections.ts";
 import type { AdminLevel } from "#types";
 
-export type { AdminDestinationId, AdminPathParams, AdminPatternFor };
+export type {
+  AdminDestinationId,
+  AdminPathParams,
+  AdminPatternFor,
+  RecordAreaId,
+  RecordAreaIds,
+  RecordAreaPatterns,
+};
 
 const folded = foldAdminAreas(ADMIN_AREAS);
+
+/** The route ids the record of one record area reads. */
+export const recordAreaIds = (
+  area: RecordAreaId,
+): RecordAreaIds<RecordAreaId> => ADMIN_AREAS[area].record;
 
 /** Look up a declared id, including ids read from the validated table. */
 const destinationFor = (id: string): AdminDestinationDef => {
@@ -152,3 +167,14 @@ export const ADMIN_SURFACE = {
   destinations: folded.destinations,
   sections: ADMIN_SECTIONS,
 } as const;
+
+/** The list path and the record page path a record area declares. */
+export const recordAreaPatterns = <Area extends RecordAreaId>(
+  area: Area,
+): RecordAreaPatterns<Area> => {
+  const ids = recordAreaIds(area);
+  return {
+    detail: adminDestination(ids.detail).pattern,
+    list: adminDestination(ids.list).pattern,
+  } as RecordAreaPatterns<Area>;
+};

@@ -76,11 +76,11 @@ export const modifierRecord = defineNamedRowRecord<
   RecordShapeOf<ModifierRow, ModifierInput, Modifier, never, Modifier>
 >({
   activityName: "Modifier",
-  deleteDestination: "modifierDelete",
   getAll: getAllModifiers,
-  list: "modifiers",
   load: getModifier,
+  nameLabel: "modifiers.name_label",
   rule: modifierRule,
   storedValues: (modifier) => modifier,
+  surface: "modifiers",
   table: modifiersTable,
 });

@@ -24,7 +24,11 @@ import {
   createVerifiedFormRoute,
   verifiedDelete,
 } from "#routes/admin/confirmation.ts";
-import { crudRoutes, defineAdminRoutes } from "#routes/admin/route-tables.ts";
+import {
+  defineAdminRoutes,
+  listCrudRoutes,
+  orderRoutes,
+} from "#routes/admin/route-tables.ts";
 import { formGuard, formPolicyFor, pageGuardFor } from "#routes/auth.ts";
 import {
   createEntityHandler,
@@ -65,11 +69,9 @@ const pages = recordPages(attributeRecord, {
   editErrorPath: (id) => `/admin/attributes/${id}`,
   form: attributeNameForm,
   identifier: (attribute) => attributeNameFlat(attribute.name),
-  identifierLabel: () => t("attributes.name_label"),
   renderDelete: adminAttributeDeletePage,
   renderList: (rows, session) =>
     adminAttributesPage(rows, session, getFlash().error),
-  singular: "Attribute",
   toInput: ({ name }) => ({ name }),
 });
 
@@ -327,16 +329,14 @@ const handleListingAttributesPost = createListingChoicePost({
 });
 
 export const adminHandlers = defineAdminRoutes({
-  ...crudRoutes(adminPattern("attributes"), pages),
+  ...listCrudRoutes(adminPattern("attributes"), pages),
   "GET /admin/attributes/:id": handleAttributeGet,
   "GET /admin/attributes/:id/options/:optionId/delete": handleDeleteOptionGet,
   "GET /admin/attributes/:id/options/:optionId/edit": handleEditOptionGet,
-  "POST /admin/attributes/:id/move-down": attributeOrder.down,
-  "POST /admin/attributes/:id/move-up": attributeOrder.up,
+  ...orderRoutes("/admin/attributes/:id", attributeOrder),
   "POST /admin/attributes/:id/options": handleAddOption,
   "POST /admin/attributes/:id/options/:optionId/delete": handleDeleteOptionPost,
   "POST /admin/attributes/:id/options/:optionId/edit": handleEditOptionPost,
-  "POST /admin/attributes/:id/options/:optionId/move-down": optionOrder.down,
-  "POST /admin/attributes/:id/options/:optionId/move-up": optionOrder.up,
+  ...orderRoutes("/admin/attributes/:id/options/:optionId", optionOrder),
   "POST /admin/listing/:id/attributes": handleListingAttributesPost,
 });

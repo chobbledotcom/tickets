@@ -13,7 +13,15 @@ import {
   type RouteTableFactory,
   type TypedRouteHandler,
 } from "#routes/router.ts";
-import { ADMIN_SURFACE, oneServedPath } from "#shared/admin-surface.ts";
+import {
+  ADMIN_SURFACE,
+  oneServedPath,
+  type RecordAreaId,
+  type RecordAreaIds,
+  type RecordAreaPatterns,
+  recordAreaIds,
+  recordAreaPatterns,
+} from "#shared/admin-surface.ts";
 import type { RequestRoute } from "#shared/response-steps.ts";
 import {
   type RouteParamNames,
@@ -72,16 +80,34 @@ export interface CrudHandlers {
   newGet: RequestRoute;
 }
 
-/** The six routes a standard CRUD section binds. */
-export type CrudRoutes<Base extends string> = {
+/** The five routes of a record that is created on its list page. */
+export type ListCrudRoutes<Base extends string> = {
   [K in
     | `GET ${Base}`
-    | `GET ${Base}/new`
     | `GET ${Base}/:id/delete`
     | `POST ${Base}`
     | `POST ${Base}/:id/delete`
     | `POST ${Base}/:id/edit`]: TypedRouteHandler<K>;
 };
+
+/** The six routes a standard CRUD section binds: the five, and the new page. */
+export type CrudRoutes<Base extends string> = ListCrudRoutes<Base> & {
+  [K in `GET ${Base}/new`]: TypedRouteHandler<K>;
+};
+
+/** Bind a CRUD handler bundle under the five routes of a record that is
+ * created on its list page. */
+export const listCrudRoutes = <Base extends string>(
+  base: Base,
+  crud: CrudHandlers,
+): ListCrudRoutes<Base> =>
+  ({
+    [`GET ${base}`]: crud.listGet,
+    [`GET ${base}/:id/delete`]: crud.deleteGet,
+    [`POST ${base}`]: crud.createPost,
+    [`POST ${base}/:id/delete`]: crud.deletePost,
+    [`POST ${base}/:id/edit`]: crud.editPost,
+  }) as ListCrudRoutes<Base>;
 
 /** Bind a CRUD handler bundle under its section's six standard routes, ready
  * to spread into the route table. */
@@ -90,25 +116,43 @@ export const crudRoutes = <Base extends string>(
   crud: CrudHandlers,
 ): CrudRoutes<Base> =>
   ({
-    [`GET ${base}`]: crud.listGet,
+    ...listCrudRoutes(base, crud),
     [`GET ${base}/new`]: crud.newGet,
-    [`GET ${base}/:id/delete`]: crud.deleteGet,
-    [`POST ${base}`]: crud.createPost,
-    [`POST ${base}/:id/delete`]: crud.deletePost,
-    [`POST ${base}/:id/edit`]: crud.editPost,
   }) as CrudRoutes<Base>;
 
-/** Bind a record's six list routes and its two entity tabs under the paths its
- *  destinations declare, ready to spread into an area's route table. */
-export const recordRoutes = <List extends string, Detail extends string>(
-  listPattern: List,
-  detailPattern: Detail,
+/** Bind an ordered collection's two move routes under the path of the row
+ * they move, ready to spread into the route table. */
+export const orderRoutes = <Base extends string, Handler>(
+  base: Base,
+  order: { down: Handler; up: Handler },
+): Record<`POST ${Base}/move-down` | `POST ${Base}/move-up`, Handler> =>
+  ({
+    [`POST ${base}/move-down`]: order.down,
+    [`POST ${base}/move-up`]: order.up,
+  }) as Record<`POST ${Base}/move-down` | `POST ${Base}/move-up`, Handler>;
+
+/** The routes a record area's list and record page serve. The new page route
+ * is absent when the area declares none. */
+export type RecordRoutes<Area extends RecordAreaId> =
+  (RecordAreaIds<Area>["newPage"] extends false
+    ? ListCrudRoutes<RecordAreaPatterns<Area>["list"]>
+    : CrudRoutes<RecordAreaPatterns<Area>["list"]>) &
+    EntityTabRoutes<RecordAreaPatterns<Area>["detail"]>;
+
+/** Bind a record's list routes and its two entity tabs under the paths its
+ *  area declares, ready to spread into the area's route table. */
+export const recordRoutes = <Area extends RecordAreaId>(
+  area: Area,
   crud: CrudHandlers,
   page: Pick<EntityPage<never>, "renderTab">,
-): CrudRoutes<List> & EntityTabRoutes<Detail> => ({
-  ...crudRoutes(listPattern, crud),
-  ...entityTabRoutes(detailPattern, page),
-});
+): RecordRoutes<Area> => {
+  const patterns = recordAreaPatterns(area);
+  const listRoutes = recordAreaIds(area).newPage ? crudRoutes : listCrudRoutes;
+  return {
+    ...listRoutes(patterns.list, crud),
+    ...entityTabRoutes(patterns.detail, page),
+  } as RecordRoutes<Area>;
+};
 
 /** Define an admin route table. It refuses any route whose path no declared
  * destination serves. A route without a declaration has no audience, so the

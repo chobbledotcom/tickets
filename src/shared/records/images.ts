@@ -260,11 +260,11 @@ export const imageRecord = defineNamedRowRecord<
 >({
   activityName: "Image",
   api: ADMIN_API_RESOURCES.images,
-  deleteDestination: "imageDelete",
   getAll: async () => sortByName(await getAllImages(), byNameThenUpload),
-  list: "images",
   load: getImageById,
+  nameLabel: "images.delete.confirm_label",
   rule: imageRule,
+  surface: { deleteDestination: "imageDelete", list: "images" },
   table: imagesTable,
   write: imageWrites,
 });

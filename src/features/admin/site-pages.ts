@@ -1,4 +1,4 @@
-import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
+import { defineAdminRoutes, orderRoutes } from "#routes/admin/route-tables.ts";
 
 /**
  * Admin CRUD for user-created content Pages, under Site → Pages. Owner +
@@ -94,12 +94,10 @@ const pages = recordPages(sitePageRecord, {
   ...contentPagePaths(sitePageRecord),
   editForm: sitePageEditForm,
   form: sitePageForm,
-  identifierLabel: t("site.pages.name_label"),
   renderDelete: adminSitePageDeletePage,
   renderList: async (_rows, session, successMessage) =>
     adminSitePagesListPage(await buildListModel(), session, successMessage),
   renderNew: adminSitePageNewPage,
-  singular: "Page",
   toEditInput: pageSlugInput,
   toInput: pageSlugInput,
 });
@@ -258,19 +256,12 @@ const pageItemOrder = createOrderedCollectionHandlers({
 // ─── Routes ─────────────────────────────────────────────────────
 
 export const adminHandlers = defineAdminRoutes({
-  ...contentRecordRoutes(
-    "sitePages",
-    "sitePage",
-    pages,
-    images,
-    sitePageEntityPage,
-  ),
+  ...contentRecordRoutes("sitePages", pages, images, sitePageEntityPage),
   "POST /admin/site/pages/:id/items": handleAddItem,
-  "POST /admin/site/pages/:id/items/:itemType/:itemId/move-down":
-    pageItemOrder.down,
-  "POST /admin/site/pages/:id/items/:itemType/:itemId/move-up":
-    pageItemOrder.up,
+  ...orderRoutes(
+    "/admin/site/pages/:id/items/:itemType/:itemId",
+    pageItemOrder,
+  ),
   "POST /admin/site/pages/:id/items/:itemType/:itemId/remove": handleRemoveItem,
-  "POST /admin/site/pages/:id/move-down": rootPageOrder.down,
-  "POST /admin/site/pages/:id/move-up": rootPageOrder.up,
+  ...orderRoutes("/admin/site/pages/:id", rootPageOrder),
 });

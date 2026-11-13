@@ -7,7 +7,6 @@
 
 import { hmacHash } from "#crypto/hashing.ts";
 import { generateUniqueGroupSlug, getGroupById } from "#db/groups.ts";
-import { t } from "#i18n";
 import {
   handleAddListingsToGroup,
   handleRemoveListingsGet,
@@ -80,12 +79,10 @@ const pages = recordPages(groupRecord, {
   deleteGuard: (group) => soldHiddenPackageError(group.id),
   editForm: getGroupForm(),
   form: getGroupCreateForm(),
-  identifierLabel: t("groups.name_label"),
   preprocessForm: (form) => applyDemoOverrides(form, GROUP_DEMO_FIELDS),
   renderDelete: adminGroupDeletePage,
   renderList: adminGroupsPage,
   renderNew: adminGroupNewPage,
-  singular: "Group",
   toEditInput: extractGroupEditInput,
   toInput: extractGroupCreateInput,
   validateForm: validatePackageMemberForm,

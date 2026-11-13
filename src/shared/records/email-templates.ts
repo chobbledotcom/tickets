@@ -56,16 +56,16 @@ export const emailTemplateRecord = defineRecord<
   RecordShapeOf<EmailTemplateRow, EmailTemplateInput>
 >({
   activityName: "Template",
-  deleteDestination: "emailTemplateDelete",
   getAll: () => Promise.resolve([]),
-  list: "emails",
   load: async (id) => {
     const subject = await templateSubjectOrNull(id);
     return subject === null ? null : { id, subject };
   },
   logName: (input) => input.subject,
+  nameLabel: "bulk_email.name_label",
   nameOf: (template) => template.subject,
   rule: (input) => okResult(input),
+  surface: { deleteDestination: "emailTemplateDelete", list: "emails" },
   write: {
     create: (input) => saveTemplate(null, input),
     remove: (id) =>

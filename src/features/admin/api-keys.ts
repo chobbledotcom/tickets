@@ -10,7 +10,10 @@ import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 
 import { t } from "#i18n";
 import { createActionHandler } from "#routes/admin/actions.ts";
-import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
+import {
+  confirmedDeleteRoutes,
+  createConfirmedHandlers,
+} from "#routes/admin/confirmation.ts";
 import {
   defineEntityPage,
   deleteActionTab,
@@ -20,7 +23,6 @@ import {
 } from "#routes/admin/entity-pages.ts";
 import { pageGuardFor } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
-import { idRouteFor } from "#routes/entity.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { PUBLIC_API_ENDPOINTS } from "#shared/admin-api-example/public.ts";
 import { ADMIN_API_ENDPOINTS } from "#shared/admin-api-example.ts";
@@ -137,16 +139,13 @@ const handleApiDocsGet: TypedRouteHandler<"GET /admin/api-keys/docs"> = (
 
 /** The API key page routes, bound from the API key record's declaration. */
 const pages = recordPages(apiKeyRecord, {
-  identifierLabel: t("api_keys.name_label"),
   overrides: {
     createPost: asRequestRoute(handleApiKeysPost),
-    deleteGet: idRouteFor(apiKeyDelete.get),
-    deletePost: idRouteFor(apiKeyDelete.post),
+    ...confirmedDeleteRoutes(apiKeyDelete),
     listGet: asRequestRoute(handleApiKeysGet),
   },
   renderDelete: adminApiKeyDeletePage,
   routes: { delete: "apiKeyDelete" },
-  singular: "API key",
   skip: ["new", "edit"],
 });
 

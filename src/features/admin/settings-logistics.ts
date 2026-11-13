@@ -17,7 +17,6 @@ import {
 } from "#db/logistics-agents.ts";
 import { agentUsers } from "#db/user-agents.ts";
 import { adminRedirect, notFoundResponse } from "#routes/response.ts";
-import { adminPattern } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { logisticsAgentRecord } from "#shared/records/logistics-agents.ts";
 import { recordPages } from "#shared/rest/record-pages.ts";
@@ -42,11 +41,9 @@ const extractLogisticsAgentInput = (values: {
 
 const pages = recordPages(logisticsAgentRecord, {
   form: logisticsAgentForm,
-  identifierLabel: t("logistics.name_label"),
   renderDelete: logisticsAgentPages.deletePage,
   renderList: adminLogisticsPage,
   renderNew: logisticsAgentPages.newPage,
-  singular: "Logistics agent",
   toInput: extractLogisticsAgentInput,
 });
 
@@ -87,11 +84,6 @@ const handleAgentEditPost: IdRouteHandler = entityFormById(
 /** Logistics settings + agent routes. The agent edit POST restates the
  * standard key with its own handler. */
 export const adminHandlers = defineAdminRoutes({
-  ...recordRoutes(
-    adminPattern("logistics"),
-    adminPattern("logisticsAgent"),
-    pages,
-    logisticsAgentPage,
-  ),
+  ...recordRoutes("settingsLogistics", pages, logisticsAgentPage),
   "POST /admin/logistics/:id/edit": handleAgentEditPost,
 });

@@ -13,7 +13,6 @@ import { defineAdminRoutes, recordRoutes } from "#routes/admin/route-tables.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import { authPageAt } from "#routes/route-gates.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
-import { adminPattern } from "#shared/admin-surface.ts";
 import {
   inBuiltSitesOrder,
   readBuiltSitesSort,
@@ -24,7 +23,7 @@ import type { FormValues } from "#shared/forms/definition.ts";
 import { builtSiteRecord } from "#shared/records/built-sites.ts";
 import { isProvisioned, isReservedRenewal } from "#shared/renewal-helpers.ts";
 import { getQualifyingTierListings } from "#shared/renewal-tier.ts";
-import { standardRecordPages } from "#shared/rest/record-pages.ts";
+import { recordPages } from "#shared/rest/record-pages.ts";
 import { siteHostingAccess } from "#shared/site-hosting.ts";
 import { rotateRenewalToken } from "#shared/site-renewal.ts";
 import { provisionSiteScheduler } from "#shared/site-scheduler.ts";
@@ -88,17 +87,14 @@ const extractBuiltSiteInput = (
   };
 };
 
-const pages = standardRecordPages(
-  builtSiteRecord,
-  getBuiltSiteForm(),
-  t("built_sites.name_label"),
-  adminBuiltSiteDeletePage,
-  builtSitePage.renderEditError,
-  adminBuiltSitesPage,
-  adminBuiltSiteNewPage,
-  "Built site",
-  extractBuiltSiteInput,
-);
+const pages = recordPages(builtSiteRecord, {
+  form: getBuiltSiteForm(),
+  renderDelete: adminBuiltSiteDeletePage,
+  renderEditError: builtSitePage.renderEditError,
+  renderList: adminBuiltSitesPage,
+  renderNew: adminBuiltSiteNewPage,
+  toInput: extractBuiltSiteInput,
+});
 
 const handleProvisionSiteScheduler = builtSiteFormPost(
   async (site, _session, _form, _request) =>
@@ -263,30 +259,28 @@ const gateOnBuilder = <Key extends string>(
 ): Record<Key, RouteHandlerFn> =>
   mapValues(routes, (handler) => builderOnly(handler as RouteHandlerFn));
 
+/** The Renewal tab writes: the deadline and the renewal token. */
+const renewalRoutes = {
+  "POST /admin/built-sites/:id/bump-deadline": handleBumpDeadline,
+  "POST /admin/built-sites/:id/override-deadline": handleOverrideDeadline,
+  "POST /admin/built-sites/:id/provision-renewal": handleProvisionRenewal,
+  "POST /admin/built-sites/:id/re-sync-deadline": handleReSyncDeadline,
+  "POST /admin/built-sites/:id/rotate-renewal-token": handleRotateToken,
+};
+
 /** Built site routes (all gated on CAN_BUILD_SITES via gateOnBuilder). The
  * list GET restates the standard key with its own handler. */
-/* jscpd:ignore-start -- a route table is a list of route keys, not code */
 export const adminHandlers = gateOnBuilder(
   defineAdminRoutes({
-    ...recordRoutes(
-      adminPattern("builtSites"),
-      adminPattern("builtSite"),
-      pages,
-      builtSitePage,
-    ),
+    ...recordRoutes("builtSites", pages, builtSitePage),
     "GET /admin/built-sites": handleBuiltSitesListGet,
     "POST /admin/built-sites/:id/add-secrets": handleAddSecrets,
     "POST /admin/built-sites/:id/add-uptime-monitor": handleAddUptimeMonitor,
-    "POST /admin/built-sites/:id/bump-deadline": handleBumpDeadline,
-    "POST /admin/built-sites/:id/override-deadline": handleOverrideDeadline,
-    "POST /admin/built-sites/:id/provision-renewal": handleProvisionRenewal,
     "POST /admin/built-sites/:id/provision-scheduler":
       handleProvisionSiteScheduler,
-    "POST /admin/built-sites/:id/re-sync-deadline": handleReSyncDeadline,
-    "POST /admin/built-sites/:id/rotate-renewal-token": handleRotateToken,
+    ...renewalRoutes,
     "POST /admin/built-sites/:id/support-message": handleSaveSiteSupportMessage,
     "POST /admin/built-sites/:id/update": handleUpdateSite,
     ...databaseKeyRoutes,
   }),
 );
-/* jscpd:ignore-end */

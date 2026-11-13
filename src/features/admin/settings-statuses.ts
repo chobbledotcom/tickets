@@ -1,4 +1,8 @@
-import { defineAdminRoutes, recordRoutes } from "#routes/admin/route-tables.ts";
+import {
+  defineAdminRoutes,
+  orderRoutes,
+  recordRoutes,
+} from "#routes/admin/route-tables.ts";
 import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 
 /**
@@ -19,7 +23,6 @@ import {
   statusDeleteProspects,
 } from "#db/attendee-statuses.ts";
 import { flatCollectionSwap } from "#db/ordered-collection.ts";
-import { t } from "#i18n";
 import { formPolicyFor, pageGuardFor } from "#routes/auth.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { createOrderedCollectionHandlers } from "#shared/app-forms.ts";
@@ -62,7 +65,6 @@ const statusForm: FormSchema<AttendeeStatusWriteInput> = {
 const pages = recordPages(statusRecord, {
   deleteInput: (form) => form.getOptionalInt("reassign_status_id") ?? undefined,
   form: statusForm,
-  identifierLabel: t("statuses.name_label"),
   renderDelete: statusPages.deletePage,
   renderEditError: attendeeStatusPage.renderEditError,
   renderList: (statuses, session, success) =>
@@ -116,14 +118,8 @@ const reassignChoice = async (
 };
 
 export const adminHandlers = defineAdminRoutes({
-  ...recordRoutes(
-    adminPattern("statuses"),
-    adminPattern("status"),
-    pages,
-    attendeeStatusPage,
-  ),
+  ...recordRoutes("settingsStatuses", pages, attendeeStatusPage),
   "GET /admin/settings/statuses/:id/delete": (request, { id }) =>
     statusDeleteGet(request, id),
-  "POST /admin/settings/statuses/:id/move-down": statusOrder.down,
-  "POST /admin/settings/statuses/:id/move-up": statusOrder.up,
+  ...orderRoutes("/admin/settings/statuses/:id", statusOrder),
 });

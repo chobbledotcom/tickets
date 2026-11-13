@@ -340,7 +340,6 @@ const answerImageWrite = async <Row>(
 
 /** The image page routes, all bound from the image record's declaration. */
 const pages = recordPages(imageRecord, {
-  identifierLabel: t("images.delete.confirm_label"),
   overrides: {
     createPost: asRequestRoute(handleImageCreatePost),
     deleteGet: asIdRoute(handleImageDeleteGet),
@@ -352,7 +351,6 @@ const pages = recordPages(imageRecord, {
   },
   renderDelete: adminImageDeletePage,
   renderList: adminImagesPage,
-  singular: "Image",
 });
 
 export const adminHandlers = defineAdminRoutes({

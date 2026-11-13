@@ -5,7 +5,12 @@
  */
 
 import { OWNER_AUDIENCE } from "#shared/admin-surface/definitions.ts";
-import { recordArea } from "#shared/admin-surface/record-area.ts";
+import {
+  childWrites,
+  contentWrites,
+  moveWrites,
+  recordArea,
+} from "#shared/admin-surface/record-area.ts";
 import {
   CONTENT_ADMIN_LEVELS,
   DOOR_ADMIN_LEVELS,
@@ -41,20 +46,16 @@ export const AREAS_M_Z = {
     name: "modifiers",
     singular: "modifier",
   }),
-  /* jscpd:ignore-start -- a route list, not code */
   news: recordArea({
     audience: SITE_ADMIN_LEVELS,
     basePath: "/admin/site/news",
     extraWrites: {
-      newsActions: "/admin/site/news/:id/actions",
-      newsImages: "/admin/site/news/:id/images",
-      newsImagesUpload: "/admin/site/news/:id/images/upload",
+      ...contentWrites("news", "/admin/site/news/:id"),
     },
     name: "news",
     prefix: "news",
     singular: "newsPost",
   }),
-  /* jscpd:ignore-end */
   privacy: {
     audience: OWNER_AUDIENCE,
     view: {
@@ -66,25 +67,19 @@ export const AREAS_M_Z = {
       privacyOrphans: "/admin/privacy/orphans",
     },
   },
-  /* jscpd:ignore-start -- a route list, not code */
   questions: recordArea({
     audience: OWNER_AUDIENCE,
     extraWrites: {
-      answerAdd: "/admin/questions/:id/answers",
-      answerDelete: "/admin/questions/:id/answers/:answerId/delete",
-      answerEdit: "/admin/questions/:id/answers/:answerId/edit",
-      answerMoveDown: "/admin/questions/:id/answers/:answerId/move-down",
-      answerMoveUp: "/admin/questions/:id/answers/:answerId/move-up",
+      ...childWrites("answer", "/admin/questions/:id/answers", "answerId"),
       answerRecalculate: "/admin/questions/:id/answers/:answerId/recalculate",
       questionListings: "/admin/questions/:id/listings",
-      questionMoveDown: "/admin/questions/:id/move-down",
-      questionMoveUp: "/admin/questions/:id/move-up",
+      ...moveWrites("question", "/admin/questions/:id"),
     },
     name: "questions",
+    newPage: false,
     segments: ["listing"],
     singular: "question",
   }),
-  /* jscpd:ignore-end */
   scanner: {
     audience: DOOR_ADMIN_LEVELS,
     view: {
@@ -199,8 +194,7 @@ export const AREAS_M_Z = {
     audience: OWNER_AUDIENCE,
     basePath: "/admin/settings/statuses",
     extraWrites: {
-      statusMoveDown: "/admin/settings/statuses/:id/move-down",
-      statusMoveUp: "/admin/settings/statuses/:id/move-up",
+      ...moveWrites("status", "/admin/settings/statuses/:id"),
     },
     listAfterSave: false,
     name: "statuses",
@@ -220,29 +214,24 @@ export const AREAS_M_Z = {
       siteOrderToggle: "/admin/site/order/toggle",
     },
   },
-  /* jscpd:ignore-start -- a route list, not code */
   sitePages: recordArea({
     audience: SITE_ADMIN_LEVELS,
     basePath: "/admin/site/pages",
     extraWrites: {
-      sitePageActions: "/admin/site/pages/:id/actions",
-      sitePageImages: "/admin/site/pages/:id/images",
-      sitePageImagesUpload: "/admin/site/pages/:id/images/upload",
-      sitePageItemMoveDown:
-        "/admin/site/pages/:id/items/:itemType/:itemId/move-down",
-      sitePageItemMoveUp:
-        "/admin/site/pages/:id/items/:itemType/:itemId/move-up",
+      ...contentWrites("sitePage", "/admin/site/pages/:id"),
+      ...moveWrites(
+        "sitePageItem",
+        "/admin/site/pages/:id/items/:itemType/:itemId",
+      ),
       sitePageItemRemove:
         "/admin/site/pages/:id/items/:itemType/:itemId/remove",
       sitePageItems: "/admin/site/pages/:id/items",
-      sitePageMoveDown: "/admin/site/pages/:id/move-down",
-      sitePageMoveUp: "/admin/site/pages/:id/move-up",
+      ...moveWrites("sitePage", "/admin/site/pages/:id"),
     },
     name: "sitePages",
     prefix: "sitePage",
     singular: "sitePage",
   }),
-  /* jscpd:ignore-end */
   sms: {
     audience: STAFF_ADMIN_LEVELS,
     view: {

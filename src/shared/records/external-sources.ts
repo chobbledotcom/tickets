@@ -58,14 +58,13 @@ export const externalSourceRecord = defineNamedRowRecord<
   // the directory's audience at both doors. The page is read-only and declares
   // no delete route. The JSON delete therefore answers the page's audience too
   // rather than inventing a page the surface does not have.
-  deleteDestination: "externalSources",
   getAll: getAllExternalSources,
-  list: "externalSources",
   load: getExternalSource,
   // Read-your-writes: the create and update answers re-read the row from the
   // primary, so a lagging replica cannot miss the row the write just made.
   loadAfterWrite: externalSourcesTable.findByIdPrimary,
   onDelete: (id) => deleteExternalSource(id),
   rule: sourceRule,
+  surface: { deleteDestination: "externalSources", list: "externalSources" },
   table: externalSourcesTable,
 });

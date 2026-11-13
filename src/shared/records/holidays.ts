@@ -22,9 +22,9 @@ export const holidayRecord = defineNamedRowRecord<
 >({
   activityName: "Holiday",
   api: ADMIN_API_RESOURCES.holidays,
-  deleteDestination: "holidayDelete",
   getAll: holidays.getAll,
-  list: "holidays",
+  nameLabel: "holidays.name_label",
   rule: validateDateRange,
+  surface: "holidays",
   table: holidays.table,
 });

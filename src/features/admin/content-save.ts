@@ -9,8 +9,11 @@ import { type CrudHandlers, recordRoutes } from "#routes/admin/route-tables.ts";
 import { SITE_FORM, SITE_MULTIPART } from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
-import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
-import { adminDestination, adminPattern } from "#shared/admin-surface.ts";
+import {
+  adminDestination,
+  type RecordAreaId,
+  recordAreaPatterns,
+} from "#shared/admin-surface.ts";
 import type { RecordSurface } from "#shared/rest/record.ts";
 import {
   createItemImageHandlers,
@@ -75,24 +78,18 @@ export const contentImageHandlers = <T>(
 /** The ten standard route entries a Site content record binds. They are the
  *  list, the record page and tabs, the delete page, the new page, and the
  *  four writes. */
-export const contentRecordRoutes = <
-  List extends AdminDestinationId,
-  Detail extends AdminDestinationId,
->(
-  list: List,
-  detail: Detail,
+export const contentRecordRoutes = <Area extends RecordAreaId>(
+  area: Area,
   handlers: CrudHandlers,
   images: { set: RouteHandlerFn; upload: RouteHandlerFn },
   entityPage: {
     renderTab: (request: Request, id: number, tab: string) => Promise<Response>;
   },
-) => ({
-  ...recordRoutes(
-    adminPattern(list),
-    adminPattern(detail),
-    handlers,
-    entityPage,
-  ),
-  [`POST ${adminPattern(list)}/:id/images`]: images.set,
-  [`POST ${adminPattern(list)}/:id/images/upload`]: images.upload,
-});
+) => {
+  const { list } = recordAreaPatterns(area);
+  return {
+    ...recordRoutes(area, handlers, entityPage),
+    [`POST ${list}/:id/images`]: images.set,
+    [`POST ${list}/:id/images/upload`]: images.upload,
+  };
+};

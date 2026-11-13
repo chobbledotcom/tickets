@@ -38,9 +38,7 @@ export const loadAgentUserOptions = async (): Promise<AgentUserOption[]> => {
 /** The tabbed logistics-agent page. */
 export const logisticsAgentPage: EditEntityPage<LogisticsAgent> =
   recordEditPage(logisticsAgentRecord, {
-    deleteDestination: "logisticsDelete",
     deleteLabelKey: "logistics.delete_agent",
-    destination: "logisticsAgent",
     edit: async (agent, _ctx, rejected) => {
       const users = await loadAgentUserOptions();
       const selectedIds = rejected

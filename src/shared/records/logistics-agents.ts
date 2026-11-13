@@ -17,13 +17,13 @@ export const logisticsAgentRecord = defineNamedRowRecord<
   RecordShapeOf<LogisticsAgent, LogisticsAgentInput>
 >({
   activityName: "Logistics agent",
-  deleteDestination: "logisticsDelete",
   getAll: logisticsAgents.getAll,
-  list: "logistics",
+  nameLabel: "logistics.name_label",
   onDelete: async (id) => {
     await clearLogisticsAgentReferences(id);
     await agentUsers.clear(id);
     await logisticsAgents.table.deleteById(id);
   },
+  surface: "settingsLogistics",
   table: logisticsAgents.table,
 });

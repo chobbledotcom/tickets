@@ -9,15 +9,16 @@
 import { getNewsPostById } from "#db/news-posts.ts";
 import type { EntityPage } from "#routes/admin/entity-pages.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
+import { newsRecord } from "#shared/records/news.ts";
+import { recordPageIds } from "#shared/rest/record.ts";
 import { newsEditPanel } from "#templates/admin/news.tsx";
 import type { NewsPost } from "#types";
 import { defineSiteContentPage } from "./site-content-page.ts";
 
 /** The tabbed news page. */
 export const newsPage: EntityPage<NewsPost> = defineSiteContentPage<NewsPost>({
-  deleteDestination: "newsDelete",
+  ...recordPageIds(newsRecord),
   deleteLabelKey: "news.delete_submit",
-  destination: "newsPost",
   editPanel: newsEditPanel,
   guideAnchor: "public-site",
   itemType: "news",

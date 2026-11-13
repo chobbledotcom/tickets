@@ -29,6 +29,8 @@ import {
   jsonAudienceFor,
   type RecordShapeOf,
   type RecordSpec,
+  recordPageIds,
+  recordSurfaceOf,
 } from "#shared/rest/record.ts";
 import { errorResult, okResult } from "#shared/result.ts";
 import { wasActivityLogged } from "#test-utils/activity-log.ts";
@@ -48,13 +50,13 @@ const widgetRecord = (
   defineRecord<RecordShapeOf<IdNameRow, IdNameInput>>({
     activityName: "Widget",
     getAll: () => table.read.many({}),
-    list: "holidays",
     logName: (input) => input.name,
     nameOf: (row) => row.name,
     rule: (input) =>
       input.name === ""
         ? errorResult("A widget needs a name")
         : okResult(input),
+    surface: "holidays",
     table,
     ...overrides,
   });
@@ -220,6 +222,26 @@ describe("the record surface law", () => {
         ).audience,
       );
     }
+  });
+
+  test("a record in a record area takes its route ids from the area", () => {
+    expect(recordSurfaceOf("settingsStatuses")).toEqual({
+      deleteDestination: "statusDelete",
+      detail: "status",
+      list: "statuses",
+    });
+    expect(recordPageIds(statusRecord)).toEqual({
+      deleteDestination: "statusDelete",
+      destination: "status",
+    });
+  });
+
+  test("a record outside a record area names its own routes and has no record page", () => {
+    const named = { deleteDestination: "imageDelete", list: "images" } as const;
+    expect(recordSurfaceOf(named)).toBe(named);
+    expect(() => recordPageIds(imageRecord)).toThrow(
+      "The record for images declares no record page",
+    );
   });
 
   test("every record names a page route the surface declares", () => {

@@ -25,7 +25,10 @@ import {
   isUsernameTaken,
 } from "#db/users.ts";
 import { t } from "#i18n";
-import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
+import {
+  confirmedDeleteRoutes,
+  createConfirmedHandlers,
+} from "#routes/admin/confirmation.ts";
 import {
   defineEntityPage,
   deleteActionTab,
@@ -35,7 +38,7 @@ import {
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
 import { type AuthSession, formPolicyFor, pageGuardFor } from "#routes/auth.ts";
-import { entityFormById, idRouteFor } from "#routes/entity.ts";
+import { entityFormById } from "#routes/entity.ts";
 import { adminRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { authPageAt } from "#routes/route-gates.ts";
 import { getSearchParam } from "#routes/url.ts";
@@ -389,27 +392,24 @@ const userDelete = createConfirmedHandlers<DisplayUser>({
  *  that need the inviting session stay as overrides on this declaration. */
 const userRecord = defineRecord<RecordShapeOf<DisplayUser, DisplayUser>>({
   activityName: "User",
-  deleteDestination: "userDelete",
   getAll: loadDisplayUsers,
-  list: "users",
   load: (id) => loadDisplayUser(id),
   logName: (user) => user.username,
   nameOf: (user) => user.username,
   onDelete: (id) => deleteUser(id),
   rule: (input) => okResult(input),
+  surface: { deleteDestination: "userDelete", list: "users" },
 });
 
 /** The user page routes, bound from the user record's declaration. */
 const pages = recordPages(userRecord, {
   overrides: {
     createPost: asRequestRoute(handleUsersPost),
-    deleteGet: idRouteFor(userDelete.get),
-    deletePost: idRouteFor(userDelete.post),
+    ...confirmedDeleteRoutes(userDelete),
     listGet: asRequestRoute(handleUsersGet),
     newGet: asRequestRoute(handleUserNewGet),
   },
   routes: { new: "userNew" },
-  singular: "User",
   skip: ["edit"],
 });
 

@@ -22,11 +22,7 @@ import {
 import { t } from "#i18n";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
-import {
-  defineRecord,
-  type RecordShapeOf,
-  recordHead,
-} from "#shared/rest/record.ts";
+import { defineRecord, type RecordShapeOf } from "#shared/rest/record.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 
 /** The form's length refusal for one question text. */
@@ -61,14 +57,11 @@ export const questionRule = (
 export const questionRecord = defineRecord<
   RecordShapeOf<Question, QuestionInput, QuestionWithAnswers>
 >({
-  ...recordHead(
-    "Question",
-    ADMIN_API_RESOURCES.questions,
-    "questionDelete",
-    "questions",
-  ),
+  activityName: "Question",
+  api: ADMIN_API_RESOURCES.questions,
   logName: (input) => input.text,
   nameField: "text",
+  nameLabel: "questions.name_label",
   nameOf: (question) => question.text,
   onDelete: (id) => deleteQuestion(id),
   order: questionsOrder,
@@ -79,5 +72,6 @@ export const questionRecord = defineRecord<
   },
   rule: questionRule,
   saveLanding: "question",
+  surface: "questions",
   table: questionsTable,
 });

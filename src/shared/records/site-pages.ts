@@ -37,9 +37,10 @@ export const sitePageRecord = defineNamedRowRecord<
   api: ADMIN_API_RESOURCES["site-pages"],
   getAll: () =>
     sitePagesTable.read.many({}, { order: "sort_order ASC, id ASC" }),
-  list: "sitePages",
   load: getSitePageById,
+  nameLabel: "site.pages.name_label",
   rule: sitePageRule,
+  surface: "sitePages",
   write: contentCommands<
     SitePage,
     SitePageWriteInput,

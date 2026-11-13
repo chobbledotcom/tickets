@@ -9,8 +9,15 @@ import type { OrderedCollection } from "#db/ordered-collection.ts";
 import type { Table } from "#db/table.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import type { AdminApiResource } from "#shared/admin-api-resources.ts";
-import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
-import { adminDestination, adminDestinationAt } from "#shared/admin-surface.ts";
+import type {
+  AdminDestinationId,
+  RecordAreaId,
+} from "#shared/admin-surface/ids.ts";
+import {
+  adminDestination,
+  adminDestinationAt,
+  recordAreaIds,
+} from "#shared/admin-surface.ts";
 import type {
   AfterCommitConfig,
   CheckTxHook,
@@ -173,13 +180,26 @@ export type RecordRule<Input, Row> = (
 /** One ordered collection's create-time append. */
 export type RecordOrder = Pick<OrderedCollection<"id", undefined>, "append">;
 
-/** The four facts every record states the same way. */
-export const recordHead = (
-  activityName: string,
-  api: AdminApiResource,
-  deleteDestination: AdminDestinationId,
-  list: AdminDestinationId,
-) => ({ activityName, api, deleteDestination, list });
+/** The route facts a record serves its audience from. */
+export type RecordSurface = {
+  /** The delete page, when it differs from the collection path with
+   * `/:id/delete`. */
+  readonly deleteDestination?: AdminDestinationId;
+  /** The record's own page. A record without one has no Edit tab. */
+  readonly detail?: AdminDestinationId;
+  /** The page route whose declaration gives the record its audience. */
+  readonly list: AdminDestinationId;
+};
+
+/** The route facts of a record: the ids its area declares, or the ids a
+ * record outside a record area names itself. */
+export const recordSurfaceOf = (
+  surface: RecordAreaId | RecordSurface,
+): RecordSurface => {
+  if (typeof surface !== "string") return surface;
+  const ids = recordAreaIds(surface);
+  return { deleteDestination: ids.remove, detail: ids.detail, list: ids.list };
+};
 
 /**
  * The declaration of one admin record.
@@ -206,10 +226,6 @@ export interface RecordSpec<Shape extends RecordShape>
   readonly api?: AdminApiResource;
   /** A guard inside the row write's transaction, before the row statement. */
   readonly checkTx?: CheckTxHook<InputOf<Shape>>;
-  /** The delete page's destination, when it differs from the collection's
-   * route (the group delete page is staff-only while its list admits
-   * editors). Defaults to the collection path with `/:id/delete`. */
-  readonly deleteDestination?: AdminDestinationId;
   /** A refusal the JSON delete answers beyond the confirmation check. The
    * page can declare its own pre-render guard. */
   readonly deleteRefusal?: (
@@ -219,8 +235,6 @@ export interface RecordSpec<Shape extends RecordShape>
   readonly getAll?: GetAllCommand<ListRowOf<Shape>>;
   /** Link create/update log entries to the row (the listing log does). */
   readonly linkActivityToRow?: boolean;
-  /** The page route whose declaration gives the record its audience. */
-  readonly list: AdminDestinationId;
   /** Read one row for a page, the API, and the delete confirmation. */
   readonly load?: LoadCommand<FullRowOf<Shape>>;
   /** Read a just-committed row back. Pinned to the primary by default. */
@@ -233,6 +247,8 @@ export interface RecordSpec<Shape extends RecordShape>
   readonly logName: (input: InputOf<Shape>) => string;
   /** The display-name column, for the JSON delete confirmation. */
   readonly nameField?: keyof FullRowOf<Shape> & string;
+  /** The message key of the name a delete confirmation page asks for. */
+  readonly nameLabel?: string;
   /** The row's display name: the delete confirmation and the activity log. */
   readonly nameOf: (row: RowOf<Shape>) => string;
   /** The delete itself. Defaults to deleting the table row. */
@@ -260,6 +276,9 @@ export interface RecordSpec<Shape extends RecordShape>
   readonly saveLanding?: AdminDestinationId;
   /** What the write rule sees as the stored row. Defaults to the read row. */
   readonly storedValues?: (row: FullRowOf<Shape>) => RowOf<Shape>;
+  /** Where the record lives: the record area that declares its routes and
+   * its audience, or the route ids of a record outside a record area. */
+  readonly surface: RecordAreaId | RecordSurface;
   readonly table?: Table<RowOf<Shape>, InputOf<Shape>>;
   /** A record whose writes go through a domain boundary rather than its table
    * statement gives its three commands here. Each command applies `rule`
@@ -273,7 +292,8 @@ export interface RecordSpec<Shape extends RecordShape>
 
 /** One admin record, with its write commands. */
 export interface AdminRecord<Shape extends RecordShape>
-  extends RecordSpec<Shape> {
+  extends RecordSpec<Shape>,
+    RecordSurface {
   readonly create: PlannedWriteCommand<
     InputOf<Shape>,
     FullRowOf<Shape>,
@@ -297,12 +317,6 @@ export const jsonAudienceFor = (
   id: AdminDestinationId,
 ): readonly AdminLevel[] => adminDestination(id).audience;
 
-/** The route facts a record declares for its audience. */
-export type RecordSurface = {
-  readonly deleteDestination?: AdminDestinationId;
-  readonly list: AdminDestinationId;
-};
-
 /** The delete page's destination: the declared override, else the collection
  * path with `/:id/delete`. */
 const deleteDestinationFor = (spec: RecordSurface): AdminDestinationId => {
@@ -314,3 +328,20 @@ const deleteDestinationFor = (spec: RecordSurface): AdminDestinationId => {
 /** The delete route's audience, for the JSON delete policy. */
 export const deleteAudienceFor = (spec: RecordSurface): readonly AdminLevel[] =>
   jsonAudienceFor(deleteDestinationFor(spec));
+
+/** The record page and the delete page of a record that a record area
+ * declares. A record outside a record area has no such page. */
+export const recordPageIds = (
+  record: RecordSurface,
+): {
+  deleteDestination: AdminDestinationId;
+  destination: AdminDestinationId;
+} => {
+  if (record.detail === undefined || record.deleteDestination === undefined) {
+    throw new Error(`The record for ${record.list} declares no record page`);
+  }
+  return {
+    deleteDestination: record.deleteDestination,
+    destination: record.detail,
+  };
+};

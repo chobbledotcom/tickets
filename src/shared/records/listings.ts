@@ -31,13 +31,12 @@ export const listingRecord = defineNamedRowRecord<
   // The listing delete, deactivate, and reactivate routes are staff-only, the
   // same audience the dashboard's lifecycle controls declare.
   checkTx: refuseUndatedListingSwitch,
-  deleteDestination: "listingDelete",
   getAll: getAllListings,
   linkActivityToRow: true,
-  list: "listings",
   load: getListingWithCount,
   loadAfterWrite: getListingWithCountPrimary,
   logAfterCommit: true,
   rule: ruleFromValidator(validateListingInput),
+  surface: { deleteDestination: "listingDelete", list: "listings" },
   table: listingsTable,
 });

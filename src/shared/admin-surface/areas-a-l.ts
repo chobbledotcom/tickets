@@ -5,7 +5,12 @@
  */
 
 import { OWNER_AUDIENCE } from "#shared/admin-surface/definitions.ts";
-import { recordArea } from "#shared/admin-surface/record-area.ts";
+import {
+  childWrites,
+  imageWrites,
+  moveWrites,
+  recordArea,
+} from "#shared/admin-surface/record-area.ts";
 import {
   ALL_ADMIN_LEVELS,
   CONTENT_ADMIN_LEVELS,
@@ -14,7 +19,6 @@ import {
 } from "#types";
 
 /** The admin areas from `apiKeys` through `listings`. */
-/* jscpd:ignore-start -- the route declaration holds strings and string lists, not code */
 export const AREAS_A_L = {
   apiKeys: {
     audience: OWNER_AUDIENCE,
@@ -78,16 +82,15 @@ export const AREAS_A_L = {
   attributes: recordArea({
     audience: OWNER_AUDIENCE,
     extraWrites: {
-      attributeMoveDown: "/admin/attributes/:id/move-down",
-      attributeMoveUp: "/admin/attributes/:id/move-up",
-      attributeOptionAdd: "/admin/attributes/:id/options",
-      attributeOptionDelete: "/admin/attributes/:id/options/:optionId/delete",
-      attributeOptionEdit: "/admin/attributes/:id/options/:optionId/edit",
-      attributeOptionMoveDown:
-        "/admin/attributes/:id/options/:optionId/move-down",
-      attributeOptionMoveUp: "/admin/attributes/:id/options/:optionId/move-up",
+      ...moveWrites("attribute", "/admin/attributes/:id"),
+      ...childWrites(
+        "attributeOption",
+        "/admin/attributes/:id/options",
+        "optionId",
+      ),
     },
     name: "attributes",
+    newPage: false,
     segments: ["listing"],
     singular: "attribute",
   }),
@@ -118,6 +121,7 @@ export const AREAS_A_L = {
   },
   builtSites: recordArea({
     audience: OWNER_AUDIENCE,
+    basePath: "/admin/built-sites",
     extraWrites: {
       builtSiteAddSecrets: "/admin/built-sites/:id/add-secrets",
       builtSiteAddUptimeMonitor: "/admin/built-sites/:id/add-uptime-monitor",
@@ -254,8 +258,7 @@ export const AREAS_A_L = {
     deleteAudience: STAFF_ADMIN_LEVELS,
     extraWrites: {
       groupAddListings: "/admin/groups/:id/add-listings",
-      groupImages: "/admin/groups/:id/images",
-      groupImagesUpload: "/admin/groups/:id/images/upload",
+      ...imageWrites("group", "/admin/groups/:id"),
       groupNote: {
         audience: STAFF_ADMIN_LEVELS,
         pattern: "/admin/groups/:id/note",
@@ -397,4 +400,3 @@ export const AREAS_A_L = {
     },
   },
 } as const;
-/* jscpd:ignore-end */

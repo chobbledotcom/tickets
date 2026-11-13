@@ -42,8 +42,9 @@ export const newsRecord = defineNamedRowRecord<
 >({
   activityName: "News post",
   getAll: getNewsPostSummaries,
-  list: "news",
   load: getNewsPostById,
+  nameLabel: "news.name_label",
+  surface: "news",
   write: contentCommands<
     NewsPost,
     NewsPostWriteInput & { slug?: string },
