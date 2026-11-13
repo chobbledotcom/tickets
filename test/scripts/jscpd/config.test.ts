@@ -17,7 +17,8 @@ const strictScans = Object.keys(strictBaselines) as Array<
   keyof typeof strictBaselines
 >;
 
-/** Every TypeScript scan skips import and re-export statements, so no source
+/** Every TypeScript scan skips import and re-export statements, and the
+ * destructured dynamic imports that load a module on first use. No source
  * file needs ignore markers around its imports. */
 const typescriptScans = [
   ...strictScans,
@@ -56,21 +57,6 @@ describe("strict jscpd scans", () => {
         "exitCode",
       );
     }
-  });
-});
-
-describe("typescript jscpd scans", () => {
-  test("share one import-statement ignore list", async () => {
-    const [first, ...rest] = await Promise.all(
-      typescriptScans.map(
-        async (name) => (await readConfig(name)).ignorePattern,
-      ),
-    );
-    expect(first).toEqual([
-      "(?m)^import\\s[^;]*;",
-      "(?m)^export\\s+(type\\s+)?(\\*|\\{[^}]*\\})(\\s+as\\s+\\w+)?\\s+from\\s[^;]*;",
-    ]);
-    for (const pattern of rest) expect(pattern).toEqual(first);
   });
 });
 

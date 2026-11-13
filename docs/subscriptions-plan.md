@@ -272,8 +272,9 @@ A failed subscription checkout has three replay rules:
 | Status write | Subscription id | The same status again | A live status needs the status that was read. An ended status replaces any live status. |
 | Cancel | Subscription id | Stripe refuses a second cancel. The site then reads the subscription and stores what it finds. | The same guarded write |
 
-No failure is permanent for the queue. One row that fails cannot stop later
-rows.
+A refused Stripe read leaves that row for a later pass. The batch continues.
+A database write failure or a ledger conflict stops the run. The maintenance
+runner retries from its saved checkpoint.
 
 ### Concurrency table
 
@@ -281,6 +282,7 @@ rows.
 | --- | --- | --- | --- |
 | Webhook | Success redirect | One booking, one plan | The current two-phase claim |
 | Scheduled check | Scheduled check | One ledger group for each invoice | The task claim and the ledger references |
+| Attendee merge | Renewal entry | The old booking cannot post after the merge. A later pass uses the copied booking. | The ledger batch checks the booking identity before it posts money. |
 | Owner cancel | Scheduled check | `canceled` stays | A live status writes only where the row still holds the status that was read. An ended status is final, so the cancel replaces a live status that the check wrote first. |
 | Owner cancel | Owner cancel | One Stripe cancel takes effect | The guarded write, and the read after a refused cancel |
 | Listing edit | Checkout in progress | The buyer gets the plan that Stripe holds | The row copies the observed plan |

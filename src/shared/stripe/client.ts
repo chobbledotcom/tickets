@@ -20,6 +20,8 @@ import {
   StripeExpandedPaymentIntentSchema,
   type StripeInvoicePayments,
   StripeInvoicePaymentsSchema,
+  type StripePaidInvoice,
+  StripePaidInvoiceListSchema,
   type StripeRefund,
   StripeRefundSchema,
   type StripeSubscription,
@@ -113,6 +115,10 @@ export interface StripeClient {
     };
   };
   invoices: {
+    /** Up to 100 paid invoices of one subscription, newest first. */
+    listPaid: (
+      subscription: Stripe.Subscription["id"],
+    ) => Promise<readonly StripePaidInvoice[]>;
     retrieveWithPayments: (
       id: Stripe.Invoice["id"],
     ) => Promise<StripeInvoicePayments>;
@@ -193,6 +199,16 @@ export const createStripeClient = (
       },
     },
     invoices: {
+      listPaid: async (subscription) =>
+        (
+          await call(
+            "GET",
+            "/v1/invoices",
+            { limit: 100, status: "paid", subscription },
+            StripePaidInvoiceListSchema,
+            ASK_ONCE,
+          )
+        ).data,
       retrieveWithPayments: oneById(
         "GET",
         "invoices",

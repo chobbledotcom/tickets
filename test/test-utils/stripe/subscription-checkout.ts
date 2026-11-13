@@ -2,6 +2,7 @@ import { stub } from "@std/testing/mock";
 import type {
   StripeCheckoutSession,
   StripeInvoicePayments,
+  StripePaidInvoice,
   StripeSubscription,
 } from "#shared/stripe/schemas.ts";
 import { stripeApi } from "#shared/stripe.ts";
@@ -55,3 +56,25 @@ export const withSubscriptionStarted = (
     }),
     body,
   );
+
+/** Stub the observed status and paid invoices. The caller restores the stubs. */
+export const stubStripeRenewals = (
+  status: StripeSubscription["status"],
+  invoices: readonly StripePaidInvoice[],
+) => ({
+  invoices: stub(stripeApi, "readPaidInvoices", () =>
+    Promise.resolve({ resource: invoices, status: "found" as const }),
+  ),
+  read: stub(stripeApi, "readSubscription", (id: string) =>
+    Promise.resolve({
+      resource: stripeSubscription({ id, status }),
+      status: "found" as const,
+    }),
+  ),
+});
+
+export const withStripeRenewals = (
+  status: StripeSubscription["status"],
+  invoices: readonly StripePaidInvoice[],
+  body: () => Promise<void>,
+): Promise<void> => withMocks(() => stubStripeRenewals(status, invoices), body);

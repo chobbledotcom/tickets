@@ -146,6 +146,10 @@ const ERROR_DEFS = {
     "E_STRIPE_SIGNATURE",
     "Stripe signature verification failed",
   ],
+  STRIPE_SUBSCRIPTION: [
+    "E_STRIPE_SUBSCRIPTION",
+    "Stripe subscription check failed",
+  ],
   STRIPE_WEBHOOK_SETUP: [
     "E_STRIPE_WEBHOOK_SETUP",
     "Stripe webhook setup failed",

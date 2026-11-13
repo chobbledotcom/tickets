@@ -542,7 +542,8 @@ pair is one merge:
   it on its own with `deno task check:jscpd-baselines`.
 - After each scan, `deno task cpd` names the worst duplication: the code in the
   most places, then the code with the most tokens. Merge that one first.
-- Import and re-export statements are a sanctioned repeat. The
+- Import and re-export statements are a sanctioned repeat. This includes a
+  destructured dynamic import, `const { name } = await import("…");`. The
   `ignorePattern` list in each config skips them, so do not add ignore markers
   around imports.
 - A declared list of strings is the other sanctioned repeat. The strict scans

@@ -50,75 +50,91 @@ const runTask = (
     ...overrides,
   });
 
+/** What a task asked of the runner during one run. */
+type TaskRequests = {
+  checkpoints: (string | null)[];
+  completions: number;
+  followUps: number;
+};
+
+/** Run the declared task `name` and record what it asked of the runner. */
+const runRecorded = async (
+  name: string,
+  overrides: Partial<MaintenanceTaskContext> = {},
+): Promise<TaskRequests> => {
+  const requests: TaskRequests = {
+    checkpoints: [],
+    completions: 0,
+    followUps: 0,
+  };
+  await runTask(taskNamed(name), {
+    completeTask: () => {
+      requests.completions += 1;
+    },
+    requestFollowUp: () => {
+      requests.followUps += 1;
+    },
+    setCheckpoint: (checkpoint) => {
+      requests.checkpoints.push(checkpoint);
+    },
+    ...overrides,
+  });
+  return requests;
+};
+
+/** Run the task `name` over a full batch while `provider` answers for the
+ * provider. A full batch means more can wait behind it, so the task asks for
+ * a follow-up run. */
+const expectFollowUpAfterFullBatch = async (
+  name: string,
+  provider: { calls: unknown[]; restore: () => void },
+  batch: number,
+): Promise<void> => {
+  try {
+    expect((await runRecorded(name)).followUps).toBe(1);
+  } finally {
+    provider.restore();
+  }
+  expect(provider.calls.length).toBe(batch);
+};
+
 describeWithEnv("maintenance registry", { db: true }, () => {
-  test("declares only bounded pruning, activity backfill, SumUp recovery and Square link expiry", () => {
+  test("each provider task is off until its provider is set up", async () => {
+    // With nothing set up there is nothing to ask about, so
+    // syncMaintenanceTaskRows drops each task row.
+    const names = [
+      "sumup_checkout_recovery",
+      "square_link_expiry",
+      "subscription_status_check",
+    ];
     expect(
-      MAINTENANCE_TASKS.map(({ check, run: _run, ...task }) => ({
-        ...task,
-        check: { ...check, enabled: undefined },
-      })),
-    ).toEqual([
-      {
-        check: {
-          enabled: undefined,
-          maxDatabaseCalls: 0,
-          maxExternalCalls: 0,
-          settingsKeys: ["auto_purge_orphans", "orphan_purge_retention"],
-        },
-        deadlineMs: 15_000,
-        failureRetryIntervalMs: 300_000,
-        intervalMs: 86_400_000,
-        maxDatabaseCalls: 2,
-        maxExternalCalls: 0,
-        name: "database_pruning",
-        wakePolicy: "organic_safe",
-      },
-      {
-        check: {
-          enabled: undefined,
-          maxDatabaseCalls: 0,
-          maxExternalCalls: 0,
-          settingsKeys: ["public_key"],
-        },
-        deadlineMs: 10_000,
-        failureRetryIntervalMs: 60_000,
-        intervalMs: 60_000,
-        maxDatabaseCalls: 2,
-        maxExternalCalls: 0,
-        name: "activity_log_backfill",
-        wakePolicy: "organic_safe",
-      },
-      {
-        check: {
-          enabled: undefined,
-          maxDatabaseCalls: 0,
-          maxExternalCalls: 0,
-          settingsKeys: ["sumup_api_key", "sumup_merchant_code"],
-        },
-        deadlineMs: 20_000,
-        failureRetryIntervalMs: 300_000,
-        intervalMs: 1_800_000,
-        maxDatabaseCalls: 19,
-        maxExternalCalls: 6,
-        name: "sumup_checkout_recovery",
-        wakePolicy: "organic_safe",
-      },
-      {
-        check: {
-          enabled: undefined,
-          maxDatabaseCalls: 0,
-          maxExternalCalls: 0,
-          settingsKeys: ["square_access_token", "square_location_id"],
-        },
-        deadlineMs: 20_000,
-        failureRetryIntervalMs: 300_000,
-        intervalMs: 300_000,
-        maxDatabaseCalls: 21,
-        maxExternalCalls: 10,
-        name: "square_link_expiry",
-        wakePolicy: "scheduled_only",
-      },
-    ]);
+      await Promise.all(names.map((name) => taskNamed(name).check.enabled())),
+    ).toEqual([false, false, false]);
+  });
+
+  test("the subscription check needs both a Stripe key and the feature", async () => {
+    const { enableFeature, setupStripe } = await import(
+      "#test-utils/settings.ts"
+    );
+    const { settings } = await import("#db/settings.ts");
+    const { check } = taskNamed("subscription_status_check");
+    // The runner loads the declared keys before it asks.
+    const enabled = async () => {
+      await settings.loadKeys(check.settingsKeys);
+      return check.enabled();
+    };
+    await setupStripe();
+    const withKeyOnly = await enabled();
+    await enableFeature("subscriptions");
+    expect([withKeyOnly, await enabled()]).toEqual([false, true]);
+  });
+
+  test("the subscription check finishes its pass when no subscription waits", async () => {
+    const { checkpoints, followUps } = await runRecorded(
+      "subscription_status_check",
+      { checkpoint: "7" },
+    );
+    expect([checkpoints, followUps]).toEqual([[null], 0]);
   });
 
   test("the SumUp recovery task runs its check and asks for more when full", async () => {
@@ -140,33 +156,11 @@ describeWithEnv("maintenance registry", { db: true }, () => {
         status: "unavailable" as const,
       }),
     );
-    let followUps = 0;
-    try {
-      await runTask(taskNamed("sumup_checkout_recovery"), {
-        requestFollowUp: () => {
-          followUps += 1;
-        },
-      });
-    } finally {
-      read.restore();
-    }
-    expect(read.calls.length).toBe(SUMUP_RECOVERY_BATCH);
-    // A full batch means there may be more waiting behind it.
-    expect(followUps).toBe(1);
-  });
-
-  test("the SumUp recovery task is off until SumUp is connected", async () => {
-    // A site with no SumUp key stages no checkouts, so there is nothing to
-    // ask about and syncMaintenanceTaskRows drops the row entirely.
-    expect(await taskNamed("sumup_checkout_recovery").check.enabled()).toBe(
-      false,
+    await expectFollowUpAfterFullBatch(
+      "sumup_checkout_recovery",
+      read,
+      SUMUP_RECOVERY_BATCH,
     );
-  });
-
-  test("the Square link expiry task is off until Square is connected", async () => {
-    // A site with no Square token makes no payment links, so there is
-    // nothing to end and syncMaintenanceTaskRows drops the task row.
-    expect(await taskNamed("square_link_expiry").check.enabled()).toBe(false);
   });
 
   test("the Square link expiry task runs its check and asks for more when full", async () => {
@@ -195,19 +189,11 @@ describeWithEnv("maintenance registry", { db: true }, () => {
         text: `{"errors":[]}`,
       }),
     );
-    let followUps = 0;
-    try {
-      await runTask(taskNamed("square_link_expiry"), {
-        requestFollowUp: () => {
-          followUps += 1;
-        },
-      });
-    } finally {
-      read.restore();
-    }
-    expect(read.calls.length).toBe(SQUARE_LINK_EXPIRY_BATCH);
-    // A full batch means there may be more waiting behind it.
-    expect(followUps).toBe(1);
+    await expectFollowUpAfterFullBatch(
+      "square_link_expiry",
+      read,
+      SQUARE_LINK_EXPIRY_BATCH,
+    );
   });
 
   test("the pruning task runs one bounded database batch", async () => {
@@ -215,7 +201,8 @@ describeWithEnv("maintenance registry", { db: true }, () => {
     const ipHash = await insertLoginAttempt("192.0.2.10", 1, 0, 0);
     expect(await loginAttemptExists(ipHash)).toBe(true);
 
-    expect(await runTask(taskNamed("database_pruning"))).toBeUndefined();
+    // One login attempt is far from a full batch.
+    expect((await runRecorded("database_pruning")).followUps).toBe(0);
 
     expect(await loginAttemptExists(ipHash)).toBe(false);
   });
@@ -226,15 +213,7 @@ describeWithEnv("maintenance registry", { db: true }, () => {
     ).toISOString();
     await insertStrings("registry-backlog", old, MAINTENANCE_PRUNE_BATCH + 1);
 
-    let followUps = 0;
-
-    await runTask(taskNamed("database_pruning"), {
-      requestFollowUp: () => {
-        followUps += 1;
-      },
-    });
-
-    expect(followUps).toBe(1);
+    expect((await runRecorded("database_pruning")).followUps).toBe(1);
   });
 
   test("the activity task enables and drains legacy rows", async () => {
@@ -252,31 +231,20 @@ describeWithEnv("maintenance registry", { db: true }, () => {
   });
 
   test("a completed activity checkpoint completes without scanning", async () => {
-    let completed = 0;
-
-    await runTask(taskNamed("activity_log_backfill"), {
+    const { completions } = await runRecorded("activity_log_backfill", {
       checkpoint: ACTIVITY_LOG_BACKFILL_COMPLETE,
-      completeTask: () => {
-        completed += 1;
-      },
     });
-
-    expect(completed).toBe(1);
+    expect(completions).toBe(1);
   });
 
   test("the final activity batch saves its completed checkpoint", async () => {
-    const checkpoints: (string | null)[] = [];
-    let completed = 0;
-
-    await runTask(taskNamed("activity_log_backfill"), {
-      completeTask: () => {
-        completed += 1;
-      },
-      setCheckpoint: (checkpoint) => checkpoints.push(checkpoint),
-    });
-
-    expect(checkpoints).toEqual([ACTIVITY_LOG_BACKFILL_COMPLETE]);
-    expect(completed).toBe(1);
+    const { checkpoints, completions } = await runRecorded(
+      "activity_log_backfill",
+    );
+    expect([checkpoints, completions]).toEqual([
+      [ACTIVITY_LOG_BACKFILL_COMPLETE],
+      1,
+    ]);
   });
 
   test("the activity task requests a follow-up after a full batch", async () => {
@@ -289,17 +257,9 @@ describeWithEnv("maintenance registry", { db: true }, () => {
         sql: "INSERT INTO activity_log (message, created, listing_id, attendee_id) VALUES (?, ?, NULL, NULL)",
       })),
     );
-    let followUps = 0;
-    const checkpoints: (string | null)[] = [];
-
-    await runTask(taskNamed("activity_log_backfill"), {
-      requestFollowUp: () => {
-        followUps += 1;
-      },
-      setCheckpoint: (checkpoint) => checkpoints.push(checkpoint),
-    });
-
-    expect(followUps).toBe(1);
-    expect(checkpoints).toEqual([]);
+    const { checkpoints, followUps } = await runRecorded(
+      "activity_log_backfill",
+    );
+    expect([checkpoints, followUps]).toEqual([[], 1]);
   });
 });

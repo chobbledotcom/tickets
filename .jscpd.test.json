@@ -28,6 +28,7 @@
   ],
   "ignorePattern": [
     "(?m)^import\\s[^;]*;",
-    "(?m)^export\\s+(type\\s+)?(\\*|\\{[^}]*\\})(\\s+as\\s+\\w+)?\\s+from\\s[^;]*;"
+    "(?m)^export\\s+(type\\s+)?(\\*|\\{[^}]*\\})(\\s+as\\s+\\w+)?\\s+from\\s[^;]*;",
+    "(?m)^\\s*const\\s+\\{[^}]*\\}\\s*=\\s*await\\s+import\\([^)]*\\);"
   ]
 }

@@ -23,6 +23,11 @@ const ENDPOINT_REQUESTS = [
   {
     body: "",
     method: "GET",
+    path: "/v1/invoices?limit=100&status=paid&subscription=sub_1",
+  },
+  {
+    body: "",
+    method: "GET",
     path: "/v1/invoices/in%2F1?expand[0]=payments",
   },
   {
@@ -66,6 +71,7 @@ test("maps every used Stripe operation to its endpoint", async () => {
       await client.paymentIntents.retrieveWithLatestCharge("pi/1");
       await client.subscriptions.retrieve("sub/1");
       await client.subscriptions.cancel("sub/2");
+      await client.invoices.listPaid("sub_1");
       await client.invoices.retrieveWithPayments("in/1");
       await client.refunds.create({ amount: 1000, payment_intent: "pi_1" });
       await client.webhookEndpoints.list();
@@ -100,6 +106,7 @@ test("asks once for each subscription read, so the check spends what it declares
     async (client, wire) => {
       const reads = [
         () => client.subscriptions.retrieve("sub_1"),
+        () => client.invoices.listPaid("sub_1"),
         () => client.invoices.retrieveWithPayments("in_1"),
       ];
       const counts: number[] = [];
@@ -112,5 +119,5 @@ test("asks once for each subscription read, so the check spends what it declares
     },
     { maxNetworkRetries: 2 },
   );
-  expect(attempts).toEqual([1, 1]);
+  expect(attempts).toEqual([1, 1, 1]);
 });

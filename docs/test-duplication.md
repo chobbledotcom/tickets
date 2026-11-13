@@ -232,7 +232,9 @@ rise. After a merge, run the scan with `--update` to remove the fixed clones,
 and the baseline shrinks.
 
 Each TypeScript scan skips import and re-export statements through its
-`ignorePattern` list. Source files carry no ignore markers around imports.
+`ignorePattern` list. The list also skips a destructured dynamic import,
+`const { name } = await import("…");`. Source files carry no ignore markers
+around imports.
 
 With literals ignored, two long lists of strings match, for example two word
 lists of the band-name generator. A list of strings is data, and no helper can

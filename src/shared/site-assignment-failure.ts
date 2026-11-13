@@ -2,7 +2,7 @@ import { settings } from "#db/settings.ts";
 import { unique } from "#fp";
 import { escapeHtml } from "#jsx/escape-html.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import { getEmailConfig, hostEmail, sendEmail } from "#shared/email.ts";
+import { getActiveEmailConfig, sendEmail } from "#shared/email.ts";
 import { ErrorCode, type ErrorCodeType, logError } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { parseEmail } from "#shared/validation/email.ts";
@@ -79,7 +79,7 @@ export const reportOutOfStockBuyers = async (
   });
   sendNtfyError(ErrorCode.SITE_ASSIGNMENT);
 
-  const config = getEmailConfig() ?? hostEmail.getHostConfig();
+  const config = getActiveEmailConfig();
   const to = parseEmail(settings.businessEmail);
   if (!config || !to) return;
   const sitesUrl = `https://${getEffectiveDomain()}/admin/built-sites`;

@@ -6,6 +6,7 @@ import type {
 import {
   stripeCheckoutSession,
   stripeFirstInvoice,
+  stripePaidInvoice,
   stripeRefund,
   stripeSubscription,
 } from "#test-utils/stripe/fixtures.ts";
@@ -76,6 +77,9 @@ export const stripeResponseFor = (path: string, method: string): Response => {
   if (path === "/v1/balance") return Response.json({ livemode: false });
   if (path === "/v1/refunds") {
     return Response.json(stripeRefund());
+  }
+  if (path === "/v1/invoices") {
+    return Response.json({ data: [stripePaidInvoice()], has_more: false });
   }
   for (const [prefix, reply] of RESOURCE_REPLIES) {
     if (path.startsWith(prefix)) return Response.json(reply());

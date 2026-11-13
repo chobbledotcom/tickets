@@ -116,6 +116,23 @@ export type StripeInvoicePayments = v.InferOutput<
   typeof StripeInvoicePaymentsSchema
 >;
 
+/** The paid invoices of one subscription, newest first. */
+export const StripePaidInvoiceListSchema = v.object({
+  data: v.array(
+    v.object({
+      amount_paid: v.number(),
+      billing_reason: v.nullable(v.string()),
+      currency: v.string(),
+      id: ResourceIdSchema,
+      status_transitions: v.object({ paid_at: v.number() }),
+    }),
+  ),
+});
+
+export type StripePaidInvoice = v.InferOutput<
+  typeof StripePaidInvoiceListSchema
+>["data"][number];
+
 type StripeExpandedPaymentIntentFields = Pick<Stripe.PaymentIntent, "id"> & {
   latest_charge: null | Pick<
     Stripe.Charge,
