@@ -159,6 +159,7 @@ export const handlePublicListings: ResponseHandler<[request: Request]> = (
         soldOutPackages,
         requestedDate,
         attributesByListing,
+        settings.catalogGalleryEnabled,
       ),
     );
   });

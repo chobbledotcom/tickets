@@ -158,6 +158,7 @@ export const AREAS_M_Z = {
       settingsBookingFee: "/admin/settings/booking-fee",
       settingsBusinessEmail: "/admin/settings/business-email",
       settingsCalendarFeeds: "/admin/settings/calendar-feeds",
+      settingsCatalogGallery: "/admin/settings/catalog-gallery",
       settingsCustomCss: "/admin/settings/custom-css",
       settingsCustomDomain: "/admin/settings/custom-domain",
       settingsCustomDomainValidate: "/admin/settings/custom-domain/validate",

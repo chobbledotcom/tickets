@@ -134,7 +134,7 @@ const renderOrderCard =
     });
     const priceHtml =
       listing.unit_price > 0
-        ? `<span class="order-card-price">${
+        ? `<span class="card-price">${
             listing.can_pay_more ? t("availability.from_prefix") : ""
           }${escapeHtml(formatCurrency(listing.unit_price))}</span>`
         : "";
