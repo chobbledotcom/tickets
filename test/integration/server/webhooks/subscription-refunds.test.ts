@@ -3,15 +3,12 @@ import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { parseSessionFailure } from "#db/processed-payments.ts";
 import type { ProviderRead } from "#payment/provider-read.ts";
-import { taggedPaymentReference } from "#payment/provider-reference.ts";
 import { handleRequest } from "#routes";
-import { findHeldAnchor } from "#routes/api/payment-processing/placeholder-resume.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type { StripeSubscription } from "#shared/stripe/schemas.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { pastCloseTime } from "#test-utils/db-helpers/listings.ts";
-import { withEnv } from "#test-utils/env.ts";
 import type { TestListingOverrides } from "#test-utils/factories.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
@@ -24,18 +21,18 @@ import {
   deliver,
   EXPECTED_PLACEHOLDER,
   expectActions,
+  expectHeldPlan,
   expectPlan,
   expectStatuses,
+  heldAnchor,
   observedSubscription,
   placeholderOwner,
   SESSION_ID,
   SUBSCRIPTION_ID,
   startedCheckout,
+  withCheckoutActions,
   withUntouchedSubscription,
 } from "./subscription-refund-helpers.ts";
-
-const heldAnchor = () =>
-  findHeldAnchor(taggedPaymentReference("stripe", "pi_first"), SESSION_ID);
 
 const FAILURES: { reason: string; listing: TestListingOverrides | null }[] = [
   { listing: { maxAttendees: 1 }, reason: "sold out" },
@@ -60,10 +57,7 @@ describeWithEnv("subscription checkout refunds", { db: true }, () => {
       const listingId =
         listing === null ? 999999 : await checkoutListingId(listing);
       using cancel = stub(stripeApi, "cancelSubscription", async (id) => {
-        await expectPlan(listingId);
-        expect((await heldAnchor()).held?.record.attendeeId).toBe(
-          await placeholderOwner(listingId),
-        );
+        await expectHeldPlan(listingId);
         return observedSubscription(id, "canceled");
       });
       using refund = stubRefundPayment("re_failed_subscription", 2000);
@@ -111,40 +105,40 @@ describeWithEnv("subscription checkout refunds", { db: true }, () => {
               )
           : deliver;
       let canEnd = false;
-      using cancel = stub(stripeApi, "cancelSubscription", (id) =>
-        Promise.resolve(
-          canEnd ? observedSubscription(id, "canceled") : firstRead(id),
-        ),
+      await withCheckoutActions(
+        started,
+        (id) =>
+          Promise.resolve(
+            canEnd ? observedSubscription(id, "canceled") : firstRead(id),
+          ),
+        async ({ cancel, refund }) => {
+          await expectStatuses(request, 503);
+          expectActions(cancel, refund, 1, 0);
+          await expectPlan(listingId);
+          const before = (await heldAnchor()).held;
+          expect(before?.record.attendeeId).toBe(
+            await placeholderOwner(listingId),
+          );
+          const failed = requireValue(
+            await getProcessedPayment(SESSION_ID),
+            "Failed checkout session not found",
+          );
+          expect(failed.attendee_id).toBeNull();
+          expect(await parseSessionFailure(failed.failure_data)).toMatchObject({
+            completion: { code: "capacity_full" },
+            status: 200,
+          });
+          canEnd = true;
+          await expectStatuses(request, 200, 200);
+          expectActions(cancel, refund, 2, 1);
+          await expectPlan(listingId);
+          const after = await heldAnchor();
+          expect(after.held).toBeNull();
+          expect(after.rows.map((row) => row.record.attendeeId)).toEqual([
+            before!.record.attendeeId,
+          ]);
+        },
       );
-      using refund = stubRefundPayment("re_retry_subscription", 2000);
-      using _env = withEnv({ TEST_EXPECT_ERROR: "1" });
-      await withSubscriptionStarted(started, async () => {
-        await expectStatuses(request, 503);
-        expectActions(cancel, refund, 1, 0);
-        await expectPlan(listingId);
-        const before = (await heldAnchor()).held;
-        expect(before?.record.attendeeId).toBe(
-          await placeholderOwner(listingId),
-        );
-        const failed = requireValue(
-          await getProcessedPayment(SESSION_ID),
-          "Failed checkout session not found",
-        );
-        expect(failed.attendee_id).toBeNull();
-        expect(await parseSessionFailure(failed.failure_data)).toMatchObject({
-          completion: { code: "capacity_full" },
-          status: 200,
-        });
-        canEnd = true;
-        await expectStatuses(request, 200, 200);
-        expectActions(cancel, refund, 2, 1);
-        await expectPlan(listingId);
-        const after = await heldAnchor();
-        expect(after.held).toBeNull();
-        expect(after.rows.map((row) => row.record.attendeeId)).toEqual([
-          before!.record.attendeeId,
-        ]);
-      });
     });
   }
 

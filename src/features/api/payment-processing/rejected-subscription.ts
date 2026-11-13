@@ -44,9 +44,9 @@ import {
   storeClaimedPlaceholder,
 } from "#routes/api/payment-processing/store-refund.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { withSubscriptionPlan } from "#shared/subscriptions/booking-plan.ts";
 import { endFailedCheckoutSubscription } from "#shared/subscriptions/failed-checkout.ts";
-import { NO_TAX } from "#shared/tax/types.ts";
 
 type RefundTarget = HeldRefundTarget & {
   reference: TaggedPaymentReference;
@@ -54,6 +54,7 @@ type RefundTarget = HeldRefundTarget & {
 
 type RejectedCheckout = {
   intent: BookingIntent;
+  occurredAt: string;
   reference: TaggedPaymentReference | null;
   rejection: SessionRejection;
   spec: PlaceholderRefund;
@@ -123,7 +124,7 @@ const storeRejectedPlan = async (
     bookings: withSubscriptionPlan(
       datelessGhostBookings(intent.items),
       rejection.subscription,
-      intent.taxPolicy ?? NO_TAX,
+      requireValue(intent.taxPolicy, "Parsed booking has no tax policy"),
     ),
     fields: attendeeBaseFields(
       reference === null ? "" : reference.reference,
@@ -148,8 +149,7 @@ const storeRejectedPlan = async (
     kind: "refund",
     target: {
       attendeeId: stored.attendeeId,
-      occurredAt:
-        rejection.createdAt ?? stored.claimedAnchor.settlement.heldSince,
+      occurredAt: work.occurredAt,
       reference,
       settlement: stored.claimedAnchor.settlement,
     },
@@ -165,7 +165,7 @@ const resumeRejectedPlan = async (
   const search = await loadRefundResume(
     reference,
     rejection.sessionId,
-    (held) => rejection.createdAt ?? held.claim.writtenAt,
+    () => work.occurredAt,
   );
   if (search.target !== null) {
     return {
@@ -176,11 +176,14 @@ const resumeRejectedPlan = async (
       },
     };
   }
-  const failure = await parseSessionFailure(existing.failure_data);
+  const failure = requireValue(
+    await parseSessionFailure(existing.failure_data),
+    "Rejected subscription session has no stored failure",
+  );
   const refunded =
-    failure?.refunded === true ||
+    failure.refunded === true ||
     search.rows.some((row) => row.refundStateName === "completed");
-  if (refunded && failure?.refunded !== true) {
+  if (refunded && failure.refunded !== true) {
     await markRejectionRefunded(work);
   }
   if (search.rows.length === 0) {
@@ -228,6 +231,10 @@ const settleOwnedRejection = async (
   }
   const work: RejectedCheckout = {
     intent,
+    occurredAt: requireValue(
+      rejection.createdAt,
+      "Stripe subscription checkout has no creation time",
+    ),
     reference:
       rejection.reason === "malformed_charge" && rejection.refundable
         ? taggedPaymentReference(rejection.provider, rejection.paymentReference)

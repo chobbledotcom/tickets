@@ -1,17 +1,20 @@
 import { expect } from "@std/expect";
-import { stub } from "@std/testing/mock";
+import { returnsNext, stub } from "@std/testing/mock";
 import { queryAll, queryOne } from "#db/client.ts";
 import { listingsTable } from "#db/listings/records.ts";
 import type { ProviderRead } from "#payment/provider-read.ts";
+import { taggedPaymentReference } from "#payment/provider-reference.ts";
 import { handleRequest } from "#routes";
+import { findHeldAnchor } from "#routes/api/payment-processing/placeholder-resume.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type {
   StripeCheckoutSession,
   StripeSubscription,
 } from "#shared/stripe/schemas.ts";
-import { stripeApi } from "#shared/stripe.ts";
+import { type StripeApi, stripeApi } from "#shared/stripe.ts";
 import type { SubscriptionStatus } from "#shared/subscriptions/plan.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withEnv } from "#test-utils/env.ts";
 import {
   signedMeta,
   singleItem,
@@ -106,6 +109,17 @@ export const placeholderOwner = async (listingId: number): Promise<number> => {
   );
   return requireValue(row, "Failed checkout placeholder not found").attendee_id;
 };
+export const heldAnchor = () =>
+  findHeldAnchor(taggedPaymentReference("stripe", "pi_first"), SESSION_ID);
+
+export const expectHeldPlan = async (listingId: number): Promise<void> => {
+  await expectPlan(listingId);
+  const held = requireValue(
+    (await heldAnchor()).held,
+    "Refund claim not found",
+  );
+  expect(held.record.attendeeId).toBe(await placeholderOwner(listingId));
+};
 
 type ActionSpy = { readonly calls: readonly unknown[] };
 
@@ -133,6 +147,16 @@ export const observedSubscription = (
   resource: stripeSubscription({ id, status }),
   status: "found",
 });
+export const withCheckoutActions = async (
+  started: StartedSubscription,
+  cancelSubscription: StripeApi["cancelSubscription"],
+  body: (actions: { cancel: ActionSpy; refund: ActionSpy }) => Promise<void>,
+): Promise<void> => {
+  using cancel = stub(stripeApi, "cancelSubscription", cancelSubscription);
+  using refund = stubRefundPayment("re_failed_subscription", 2000);
+  using _env = withEnv({ TEST_EXPECT_ERROR: "1" });
+  await withSubscriptionStarted(started, () => body({ cancel, refund }));
+};
 
 export const withRejectedCheckout = (
   listingId: number,
@@ -160,8 +184,12 @@ export const withUntouchedSubscription = async (
 ): Promise<void> => {
   await setupStripe();
   const listingId = await checkoutListingId();
-  using cancel = stub(stripeApi, "cancelSubscription", () =>
-    Promise.reject(new Error("A protected subscription must not cancel")),
+  using cancel = stub(
+    stripeApi,
+    "cancelSubscription",
+    returnsNext([
+      Promise.resolve(observedSubscription(SUBSCRIPTION_ID, "canceled")),
+    ]),
   );
   using refund = stubRefundPayment("re_must_not_refund", 2000);
   await body(listingId);

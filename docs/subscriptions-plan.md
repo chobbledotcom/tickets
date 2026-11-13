@@ -256,6 +256,13 @@ group. The invoice id is the stable identity.
 
 ### Retry and replay table
 
+A failed subscription checkout has three replay rules:
+
+- A retry keeps the checkout time from Stripe and the parsed tax policy.
+- A charge that becomes readable does not bypass subscription cancellation.
+- An occupied session reservation returns a retry response without cancellation
+  or refund.
+
 | Command | Stable identity | Exact replay | Protection against two workers |
 | --- | --- | --- | --- |
 | Completion | Payment session id | The current two-phase claim returns the same booking | The current claim |
