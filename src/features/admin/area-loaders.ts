@@ -341,6 +341,10 @@ export const ADMIN_AREA_LOADERS: Record<AdminAreaId, AdminAreaLoader> = {
     () => import("#routes/admin/sms.ts"),
     ["attendees", "sms", "validation"],
   ),
+  subscriptions: area(
+    () => import("#routes/admin/subscriptions.ts"),
+    ["subscriptions"],
+  ),
   support: area(
     () => import("#routes/admin/support.ts"),
     ["support", "validation"],

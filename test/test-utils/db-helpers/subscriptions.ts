@@ -2,6 +2,27 @@
 
 import { execute } from "#db/client.ts";
 import { invalidateListingsCache } from "#db/listings/records.ts";
+import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+
+/** The ids of one booking on a listing of its own. */
+export type TestBooking = { attendeeId: number; listingId: number };
+
+/** A booking for `name` on a new listing of its own. */
+export const bookOwnListing = async (name: string): Promise<TestBooking> => {
+  const listing = await createTestListing({
+    maxAttendees: 10,
+    name: `${name} Club`,
+    unitPrice: 1000,
+  });
+  const attendee = await createTestAttendee(
+    listing.id,
+    listing.slug,
+    name,
+    `${name.toLowerCase()}@example.com`,
+  );
+  return { attendeeId: attendee.id, listingId: listing.id };
+};
 
 /** The plan a subscribed booking row keeps. */
 export type TestPlan = {
@@ -39,6 +60,16 @@ export const givePlan = async (
       attendeeId,
     ],
   );
+};
+
+/** A booking for `name` that carries the Stripe subscription `sub_<name>`. */
+export const subscribe = async (
+  name: string,
+  plan: TestPlan,
+): Promise<TestBooking> => {
+  const booking = await bookOwnListing(name);
+  await givePlan(booking.attendeeId, `sub_${name.toLowerCase()}`, plan);
+  return booking;
 };
 
 /** `listing`, now charging 5.00 each month after its ticket price. The plan

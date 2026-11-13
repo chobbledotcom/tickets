@@ -243,7 +243,7 @@ describeWithEnv("admin role matrix", { db: true }, () => {
     // would otherwise make this suite pass by testing nothing.
     // The scanner's ticket-cache reads are record routes like their scanner
     // pages: the gate runs before the record lookup, so the matrix walks them.
-    expect(roleOnly.length).toBe(52);
+    expect(roleOnly.length).toBe(53);
     expect(recordPages.length).toBe(30);
   });
 

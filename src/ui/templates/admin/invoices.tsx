@@ -22,6 +22,7 @@ import { SaveForm } from "#templates/components/save-form.tsx";
 import { textareaBody } from "#templates/components/textarea.tsx";
 import {
   dateLabelColumn,
+  labelColumn,
   translatedTableColumn,
 } from "#templates/components/translated-table-column.ts";
 import { getInvoiceForm } from "#templates/fields/invoice.ts";
@@ -43,8 +44,11 @@ const invoiceListTable = defineTable<InvoiceListRow>([
     (row) => row.attendeeName,
   ),
   dateLabelColumn("created", "invoices.column.created", (row) => row.created),
-  translatedTableColumn("status", "invoices.column.status", (row) =>
-    t(INVOICE_STATUS_LABEL_KEYS[row.status]),
+  labelColumn(
+    "status",
+    "invoices.column.status",
+    INVOICE_STATUS_LABEL_KEYS,
+    (row) => row.status,
   ),
 ]);
 

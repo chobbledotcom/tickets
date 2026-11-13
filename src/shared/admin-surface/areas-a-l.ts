@@ -4,7 +4,10 @@
  * and join a new area to the half its name sorts into.
  */
 
-import { OWNER_AUDIENCE } from "#shared/admin-surface/definitions.ts";
+import {
+  OWNER_AUDIENCE,
+  onePageAreas,
+} from "#shared/admin-surface/definitions.ts";
 import {
   ALL_ADMIN_LEVELS,
   CONTENT_ADMIN_LEVELS,
@@ -114,10 +117,6 @@ export const AREAS_A_L = {
       },
     },
   },
-  builder: {
-    audience: OWNER_AUDIENCE,
-    view: { builder: "/admin/builder" },
-  },
   builtSites: {
     audience: OWNER_AUDIENCE,
     view: {
@@ -190,12 +189,6 @@ export const AREAS_A_L = {
       catalogImport: "/admin/catalog/import",
     },
   },
-  contactHistory: {
-    audience: STAFF_ADMIN_LEVELS,
-    view: {
-      contactHistory: "/admin/history/:hmac",
-    },
-  },
   dashboard: {
     audience: STAFF_ADMIN_LEVELS,
     // The welcome-dismiss POST renders no page of its own. Its handler gates
@@ -238,14 +231,6 @@ export const AREAS_A_L = {
         pattern: "/admin/deliveries/mark",
         readOnlyWrite: "read-only",
       },
-    },
-  },
-  // The owner's read-only view of where their records also appear. The admin
-  // API writes this directory. The page only shows what the database holds.
-  externalSources: {
-    audience: OWNER_AUDIENCE,
-    view: {
-      externalSources: "/admin/external-sources",
     },
   },
   // The group-wide actions the group page's Actions tab links to. Each writes
@@ -422,4 +407,14 @@ export const AREAS_A_L = {
       listingRecalculate: "/admin/listings/recalculate/:listingId",
     },
   },
+  ...onePageAreas(OWNER_AUDIENCE, {
+    builder: "/admin/builder",
+    // The owner's read-only view of where their records also appear. The
+    // admin API writes this directory. The page only shows what the database
+    // holds.
+    externalSources: "/admin/external-sources",
+  }),
+  ...onePageAreas(STAFF_ADMIN_LEVELS, {
+    contactHistory: "/admin/history/:hmac",
+  }),
 } as const;

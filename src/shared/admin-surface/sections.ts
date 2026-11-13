@@ -7,6 +7,8 @@
  * never point somewhere its target refuses.
  */
 
+import { map } from "#fp";
+import type { AdminFeatureKey } from "#shared/admin-features.ts";
 import {
   type AdminNavKind,
   type AdminSurfaceContext,
@@ -41,207 +43,151 @@ export type AdminSectionDef = {
   readonly visible?: (ctx: AdminSurfaceContext) => boolean;
 };
 
+const navLink = (
+  id: AdminDestinationId,
+  labelKey: string,
+  options: Partial<Pick<AdminNavEntry, "kind" | "visible">> = {},
+): AdminNavEntry => ({ id, kind: "link", labelKey, ...options });
+
+const navLinks = map(([id, labelKey]: readonly [AdminDestinationId, string]) =>
+  navLink(id, labelKey),
+);
+
+const featureLink = (
+  id: AdminDestinationId,
+  labelKey: string,
+  feature: AdminFeatureKey,
+): AdminNavEntry => navLink(id, labelKey, { visible: featureVisible(feature) });
+
+const section = (
+  landing: AdminDestinationId,
+  labelKey: string,
+  more: readonly AdminNavEntry[] = [],
+  {
+    landingLabelKey = labelKey,
+    ...options
+  }: Partial<Pick<AdminSectionDef, "detail" | "landingFor" | "visible">> & {
+    readonly landingLabelKey?: string;
+  } = {},
+): AdminSectionDef => ({
+  id: landing,
+  labelKey,
+  landing,
+  nav: [navLink(landing, landingLabelKey, { kind: "landing" }), ...more],
+  ...options,
+});
+
+/** A section shown while one feature is on. */
+const featureSection = (
+  id: AdminDestinationId,
+  labelKey: string,
+  feature: AdminFeatureKey,
+  more: readonly AdminNavEntry[] = [],
+): AdminSectionDef =>
+  section(id, labelKey, more, { visible: featureVisible(feature) });
+
 export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
-  {
-    id: "home",
-    labelKey: "nav.public.home",
-    landing: "home",
-    nav: [{ id: "home", kind: "landing", labelKey: "nav.public.home" }],
-  },
-  {
-    id: "doors",
-    labelKey: "nav.doors",
-    landing: "doors",
-    nav: [{ id: "doors", kind: "landing", labelKey: "nav.doors" }],
+  section("home", "nav.public.home"),
+  section("doors", "nav.doors", [], {
     // Staff open a door from its listing or group page. The doors list is a
     // scanner login's whole job, so only that role sees it in the nav.
     visible: (ctx) => ctx.adminLevel === "scanner",
-  },
-  {
-    detail: "listing",
-    id: "listings",
-    labelKey: "terms.listings",
-    landing: "listings",
-    nav: [
-      { id: "listings", kind: "landing", labelKey: "terms.listings" },
-      { id: "listingNew", kind: "create", labelKey: "nav.sub.add" },
-      { id: "catalogImport", kind: "import", labelKey: "nav.sub.import" },
+  }),
+  section(
+    "listings",
+    "terms.listings",
+    [
+      navLink("listingNew", "nav.sub.add", { kind: "create" }),
+      navLink("catalogImport", "nav.sub.import", { kind: "import" }),
     ],
-  },
-  {
-    id: "calendar",
-    labelKey: "nav.calendar",
-    landing: "calendar",
-    // The run sheet is an agent's only page, so agents sign in to it instead
-    // of the dashboard.
-    landingFor: { agent: "deliveries" },
-    nav: [
-      { id: "calendar", kind: "landing", labelKey: "nav.calendar" },
-      {
-        id: "deliveries",
-        kind: "link",
-        labelKey: "nav.deliveries",
-        visible: featureVisible("logistics"),
-      },
-    ],
-  },
-  {
-    id: "servicing",
-    labelKey: "nav.servicing",
-    landing: "servicing",
-    nav: [
-      { id: "servicing", kind: "landing", labelKey: "nav.servicing" },
-      { id: "servicingNew", kind: "create", labelKey: "nav.sub.add" },
-    ],
-    visible: featureVisible("servicing"),
-  },
-  {
-    id: "attendees",
-    labelKey: "terms.attendees",
-    landing: "attendees",
-    nav: [
-      { id: "attendees", kind: "landing", labelKey: "terms.attendees" },
-      { id: "attendeeNew", kind: "create", labelKey: "nav.sub.add" },
-    ],
-  },
-  {
-    id: "invoices",
-    labelKey: "nav.invoices",
-    landing: "invoices",
-    nav: [{ id: "invoices", kind: "landing", labelKey: "nav.invoices" }],
-    visible: featureVisible("invoices"),
-  },
-  {
-    id: "users",
-    labelKey: "terms.users",
-    landing: "users",
-    nav: [
-      { id: "users", kind: "landing", labelKey: "terms.users" },
-      { id: "userNew", kind: "create", labelKey: "nav.sub.invite" },
-      { id: "sessions", kind: "link", labelKey: "nav.sub.sessions" },
-      {
-        id: "apiKeys",
-        kind: "link",
-        labelKey: "nav.sub.api_keys",
-        visible: featureVisible("apiKeys"),
-      },
-    ],
-  },
-  {
-    detail: "group",
-    id: "groups",
-    labelKey: "terms.groups",
-    landing: "groups",
-    nav: [
-      { id: "groups", kind: "landing", labelKey: "terms.groups" },
-      { id: "groupNew", kind: "create", labelKey: "nav.sub.add" },
-    ],
-  },
-  {
-    id: "images",
-    labelKey: "terms.images",
-    landing: "images",
-    nav: [
-      { id: "images", kind: "landing", labelKey: "terms.images" },
-      { id: "imageNew", kind: "create", labelKey: "nav.sub.add" },
-    ],
-    visible: (ctx) => ctx.storage,
-  },
-  {
-    id: "modifiers",
-    labelKey: "terms.modifiers",
-    landing: "modifiers",
-    nav: [
-      { id: "modifiers", kind: "landing", labelKey: "terms.modifiers" },
-      { id: "modifierNew", kind: "create", labelKey: "nav.sub.add" },
-    ],
-    visible: featureVisible("modifiers"),
-  },
-  {
-    id: "ledger",
-    labelKey: "nav.ledger",
-    landing: "ledger",
-    nav: [{ id: "ledger", kind: "landing", labelKey: "nav.ledger" }],
-    visible: featureVisible("money"),
-  },
-  {
-    id: "site",
-    labelKey: "nav.site",
-    landing: "site",
-    nav: [
-      { id: "site", kind: "landing", labelKey: "site.sub_nav.homepage" },
-      { id: "siteContact", kind: "link", labelKey: "site.sub_nav.contact" },
-      { id: "siteOrder", kind: "link", labelKey: "site.sub_nav.order" },
-      { id: "sitePages", kind: "link", labelKey: "nav.site.pages" },
-      { id: "news", kind: "link", labelKey: "nav.site.news" },
-    ],
-    visible: featureVisible("site"),
-  },
-  {
+    { detail: "listing" },
+  ),
+  section(
+    "calendar",
+    "nav.calendar",
+    [featureLink("deliveries", "nav.deliveries", "logistics")],
+    {
+      // The run sheet is an agent's only page, so agents sign in to it instead
+      // of the dashboard.
+      landingFor: { agent: "deliveries" },
+    },
+  ),
+  featureSection("servicing", "nav.servicing", "servicing", [
+    navLink("servicingNew", "nav.sub.add", { kind: "create" }),
+  ]),
+  section("attendees", "terms.attendees", [
+    navLink("attendeeNew", "nav.sub.add", { kind: "create" }),
+  ]),
+  featureSection("invoices", "nav.invoices", "invoices"),
+  featureSection("subscriptions", "nav.subscriptions", "subscriptions"),
+  section("users", "terms.users", [
+    navLink("userNew", "nav.sub.invite", { kind: "create" }),
+    ...navLinks([["sessions", "nav.sub.sessions"]]),
+    featureLink("apiKeys", "nav.sub.api_keys", "apiKeys"),
+  ]),
+  section(
+    "groups",
+    "terms.groups",
+    [navLink("groupNew", "nav.sub.add", { kind: "create" })],
+    { detail: "group" },
+  ),
+  section(
+    "images",
+    "terms.images",
+    [navLink("imageNew", "nav.sub.add", { kind: "create" })],
+    { visible: (ctx) => ctx.storage },
+  ),
+  featureSection("modifiers", "terms.modifiers", "modifiers", [
+    navLink("modifierNew", "nav.sub.add", { kind: "create" }),
+  ]),
+  featureSection("ledger", "nav.ledger", "money"),
+  section(
+    "site",
+    "nav.site",
+    navLinks([
+      ["siteContact", "site.sub_nav.contact"],
+      ["siteOrder", "site.sub_nav.order"],
+      ["sitePages", "nav.site.pages"],
+      ["news", "nav.site.news"],
+    ]),
+    {
+      landingLabelKey: "site.sub_nav.homepage",
+      visible: featureVisible("site"),
+    },
+  ),
+  section("builtSites", "nav.built_sites", [], {
     detail: "builtSite",
-    id: "builtSites",
-    labelKey: "nav.built_sites",
-    landing: "builtSites",
-    nav: [{ id: "builtSites", kind: "landing", labelKey: "nav.built_sites" }],
     visible: (ctx) => ctx.builder,
-  },
-  {
-    id: "settings",
-    labelKey: "nav.settings",
-    landing: "settings",
-    nav: [
-      { id: "settings", kind: "landing", labelKey: "nav.sub.settings" },
-      {
-        id: "listingDefaults",
-        kind: "link",
-        labelKey: "nav.sub.listing_defaults",
-      },
-      { id: "statuses", kind: "link", labelKey: "nav.sub.statuses" },
-      { id: "privacy", kind: "link", labelKey: "nav.sub.privacy" },
-      {
-        id: "attributes",
-        kind: "link",
-        labelKey: "terms.attributes",
-        visible: featureVisible("attributes"),
-      },
-      {
-        id: "questions",
-        kind: "link",
-        labelKey: "terms.questions",
-        visible: featureVisible("questions"),
-      },
-      {
-        id: "externalSources",
-        kind: "link",
-        labelKey: "nav.sub.external_sources",
-        visible: featureVisible("externalSources"),
-      },
-      {
-        id: "logistics",
-        kind: "link",
-        labelKey: "nav.logistics",
-        visible: featureVisible("logistics"),
-      },
-      { id: "emails", kind: "link", labelKey: "nav.emails" },
-      { id: "holidays", kind: "link", labelKey: "terms.holidays" },
-      { id: "settingsAdvanced", kind: "link", labelKey: "nav.sub.advanced" },
-      { id: "backup", kind: "link", labelKey: "nav.sub.backups" },
-      { id: "debug", kind: "link", labelKey: "nav.sub.debug" },
-      { id: "schemaAtlas", kind: "link", labelKey: "nav.sub.schema" },
+  }),
+  section(
+    "settings",
+    "nav.settings",
+    [
+      ...navLinks([
+        ["listingDefaults", "nav.sub.listing_defaults"],
+        ["statuses", "nav.sub.statuses"],
+        ["privacy", "nav.sub.privacy"],
+      ]),
+      featureLink("attributes", "terms.attributes", "attributes"),
+      featureLink("questions", "terms.questions", "questions"),
+      featureLink(
+        "externalSources",
+        "nav.sub.external_sources",
+        "externalSources",
+      ),
+      featureLink("logistics", "nav.logistics", "logistics"),
+      ...navLinks([
+        ["emails", "nav.emails"],
+        ["holidays", "terms.holidays"],
+        ["settingsAdvanced", "nav.sub.advanced"],
+        ["backup", "nav.sub.backups"],
+        ["debug", "nav.sub.debug"],
+        ["schemaAtlas", "nav.sub.schema"],
+      ]),
     ],
-  },
-  {
-    id: "guide",
-    labelKey: "nav.guide",
-    landing: "guide",
-    nav: [
-      { id: "guide", kind: "landing", labelKey: "nav.guide" },
-      {
-        id: "support",
-        kind: "link",
-        labelKey: "nav.support",
-        visible: (ctx) => ctx.support,
-      },
-    ],
-  },
+    { landingLabelKey: "nav.sub.settings" },
+  ),
+  section("guide", "nav.guide", [
+    navLink("support", "nav.support", { visible: (ctx) => ctx.support }),
+  ]),
 ];

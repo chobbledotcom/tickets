@@ -8,6 +8,7 @@ import { settings } from "#db/settings.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
+  assertAdminHtmlWithCookie,
   expectFlashRedirect,
   expectIncludesAll,
   expectRedirect,
@@ -15,12 +16,11 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { configureTestEmail, emailTestSandbox } from "#test-utils/email.ts";
-import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
   adminFormPost,
   adminGet,
-  createTestEditorSession,
   createTestManagerSession,
+  editorGetStatus,
   postFormAs,
 } from "#test-utils/session.ts";
 import { settingsAsStored } from "#test-utils/settings.ts";
@@ -286,17 +286,11 @@ describeWithEnv("server (admin invoices)", { db: true }, () => {
     });
     expectRedirect(response, /^\/admin\/invoices\/1(\?|$)/);
 
-    const page = await awaitTestRequest("/admin/invoices/1", { cookie });
-    expect(page.status).toBe(200);
-    assertStringIncludes(await page.text(), "Invoice 1");
+    await assertAdminHtmlWithCookie("/admin/invoices/1", cookie, "Invoice 1");
   });
 
   test("an editor cannot reach invoices", async () => {
-    const editor = await createTestEditorSession();
-    const response = await awaitTestRequest("/admin/invoices", {
-      cookie: editor.cookie,
-    });
-    expect(response.status).toBe(403);
+    expect(await editorGetStatus("/admin/invoices")).toBe(403);
   });
 
   test("an unknown invoice is not found for view, cancel, or delete", async () => {

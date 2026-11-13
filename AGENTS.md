@@ -211,6 +211,12 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
   through a local wrapper. `src/features/admin/built-site-form.ts`,
   `src/features/admin/images.ts` and `src/ui/templates/fields/modifier.ts` are
   the shapes to copy.
+- **Adopt a new pattern everywhere it fits**: When you write a helper or a
+  pattern that improves on the current way, apply it to every other site it
+  fits in the same change. One shape for one job keeps the codebase standard.
+  If a site does not fit, say why in the pull request. A clone that this
+  migration reshapes is not a reason to leave a site behind. Record the
+  baseline change and say so in the pull request.
 - **No alias exports**: Never export a name that only renames an imported
   method. Expose the underlying helper and let callers use it. A thin wrapper
   that adds a default, a transformation, or a guard is fine.

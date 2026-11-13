@@ -69,6 +69,7 @@ export const MESSAGE_GROUPS = [
   "site-pages",
   "sms",
   "statuses",
+  "subscriptions",
   "support",
   "system",
   "tickets",
