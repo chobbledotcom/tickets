@@ -1,10 +1,26 @@
-/** The admin listing-type picker: the card grid on /admin/listing/new. */
+/** The admin listing-type picker: the card grid on /admin/listing/new. The
+ *  grid caps at three cards per line so each box stays large enough to scan
+ *  its label and description at a glance. */
 
 .listing-type-picker {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: var(--space-m);
+  grid-template-columns: 1fr;
   margin-block: var(--space-m);
+}
+
+@media (min-width: 769px) {
+  .listing-type-picker {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Wide screens: the admin sidebar leaves room for three cards without
+   squeezing any below ~330px. */
+@media (min-width: 1200px) {
+  .listing-type-picker {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
 .listing-type-card {
