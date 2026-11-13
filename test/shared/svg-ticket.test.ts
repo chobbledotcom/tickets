@@ -7,9 +7,9 @@ import {
   extractViewBox,
   generateSvgTicket,
   type SvgTicketData,
-  ticketSvgBlock,
+  ticketBodyBlock,
 } from "#shared/svg-ticket.ts";
-import { expectIncludesAll, expectThrows } from "#test-utils/assertions.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const makeTicketData = (
@@ -96,41 +96,41 @@ describeWithEnv("svg-ticket", { db: true }, () => {
     });
   });
 
-  describe("ticketSvgBlock", () => {
-    const declaration = '<?xml version="1.0" encoding="UTF-8"?>\n';
-    const bodyStyle = 'style="display:block;max-width:100%;height:auto"';
-
-    test("keeps the svg element, drops the XML declaration, and fits the screen", () => {
-      const block = ticketSvgBlock(
-        `${declaration}<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>`,
+  describe("ticketBodyBlock", () => {
+    test("draws the ticket facts and the QR picture", () => {
+      const block = ticketBodyBlock(
+        makeTicketData({ listingLocation: "The Venue" }),
+        "ticket.png",
       );
-      expect(block).toBe(
-        `<div style="margin:24px 0;max-width:400px"><svg ${bodyStyle} xmlns="http://www.w3.org/2000/svg"><rect/></svg></div>`,
-      );
-    });
-
-    test("throws when the input does not start with an svg element", () => {
-      expectThrows(
-        () => ticketSvgBlock("<div>not a ticket</div>"),
-        Error,
-        /does not start with an <svg> element/,
-      );
-    });
-
-    test("keeps everything a generated ticket draws", async () => {
-      const svg = await generateSvgTicket(makeTicketData());
-      const block = ticketSvgBlock(svg);
 
       expectIncludesAll(block, [
-        `<svg ${bodyStyle} xmlns="http://www.w3.org/2000/svg"`,
+        '<div style="margin:24px 0;max-width:400px;',
         "Summer Concert",
-        "</svg></div>",
+        "Qty: 1",
+        "The Venue",
+        '<img src="cid:ticket.png" alt="Ticket QR code"',
+        "</div>",
       ]);
-      assertStringIncludes(
-        block,
-        svg.slice(svg.indexOf(">", svg.indexOf("<svg ")) + 1),
+    });
+
+    test("escapes the facts a reader sees", () => {
+      const block = ticketBodyBlock(
+        makeTicketData({
+          listingLocation: "<Hall>",
+          listingName: "A <B> & C",
+        }),
+        null,
       );
-      assert(!block.includes("<?xml"));
+
+      expectIncludesAll(block, ["A &lt;B&gt; &amp; C", "&lt;Hall&gt;"]);
+      assert(!block.includes("<B>"));
+    });
+
+    test("leaves out the picture when the ticket has no QR code", () => {
+      const block = ticketBodyBlock(makeTicketData(), null);
+
+      assert(!block.includes("<img"));
+      assertStringIncludes(block, "Qty: 1");
     });
   });
 

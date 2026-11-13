@@ -1,8 +1,9 @@
 /**
  * Ticket generation: QR codes, SVG tickets, and Apple Wallet passes.
  *
- * - **QR codes** — SVG-based QR code generation for check-in URLs
- * - **SVG tickets** — visual ticket images for email bodies and attachments
+ * - **QR codes** — SVG or PNG QR codes for check-in URLs
+ * - **Tickets** — an SVG ticket file for the attachment, and a QR PNG for the
+ *   email body
  * - **Apple Wallet** — `.pkpass` file generation with PKCS#7 signing
  *
  * @module

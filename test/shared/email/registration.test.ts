@@ -13,7 +13,6 @@ import {
   runWithSubrequestBudget,
   withSubrequestAllowance,
 } from "#shared/subrequest-budget.ts";
-import { ticketSvgBlock } from "#shared/svg-ticket.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -25,7 +24,6 @@ import {
 } from "#test-utils/db-helpers/questions.ts";
 import {
   configureTestEmail,
-  decodeSvgAttachment,
   expectSingleTicketSvg,
 } from "#test-utils/email.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
@@ -39,6 +37,9 @@ const setupAndSendRegistration = async (
   await configureTestEmail(opts);
   return await sendRegistrationEmails(entries ?? [makeEntry()], "GBP");
 };
+
+/** One attachment part as the Resend request carries it. */
+type SentPart = { content: string; content_id?: string; filename: string };
 
 const createHiddenPackage = async (name: string): Promise<number> => {
   const group = await createTestGroup({ isPackage: true, name });
@@ -126,42 +127,60 @@ describeWithEnv(
       expect(recipients).toContainEqual(["admin@business.com"]);
     });
 
-    test("uses business email as reply-to on confirmation", async () => {
+    test("uses each address as the other side's reply-to", async () => {
       await setupAndSendRegistration({ businessEmail: "admin@business.com" });
 
-      const body = fetch.findCallBodyByRecipient("jane@example.com");
-      expect(body.reply_to).toBe("admin@business.com");
+      const buyer = fetch.findCallBodyByRecipient("jane@example.com");
+      const owner = fetch.findCallBodyByRecipient("admin@business.com");
+      expect([buyer.reply_to, owner.reply_to]).toEqual([
+        "admin@business.com",
+        "jane@example.com",
+      ]);
     });
 
-    test("uses attendee email as reply-to on admin notification", async () => {
-      await setupAndSendRegistration({ businessEmail: "admin@business.com" });
-
-      const body = fetch.findCallBodyByRecipient("admin@business.com");
-      expect(body.reply_to).toBe("jane@example.com");
-    });
-
-    test("attaches SVG ticket to confirmation email", async () => {
-      await setupAndSendRegistration();
-
-      const decoded = expectSingleTicketSvg(fetch.getFetchJsonBody());
-      assertStringIncludes(decoded, "<svg");
-    });
-
-    test("embeds the ticket SVG in the confirmation HTML after the message", async () => {
+    test("attaches the SVG ticket and an inline QR picture to the confirmation email", async () => {
       await setupAndSendRegistration();
 
       const body = fetch.getFetchJsonBody();
-      const block = ticketSvgBlock(expectSingleTicketSvg(body));
-      const html = body.html;
-      assertStringIncludes(html, block);
-      expect(html.endsWith(block)).toBe(true);
-      expect(html.indexOf("View your tickets")).toBeLessThan(
-        html.indexOf("<svg"),
+      const parts: SentPart[] = body.attachments;
+      expect(parts.map((part) => part.filename)).toEqual([
+        "ticket.svg",
+        "ticket.png",
+      ]);
+      expect(parts[1]!.content_id).toBe("ticket.png");
+      expect([...Uint8Array.fromBase64(parts[1]!.content).slice(0, 4)]).toEqual(
+        [0x89, 0x50, 0x4e, 0x47],
       );
-      assert(!html.includes("<?xml"));
+      assertStringIncludes(expectSingleTicketSvg(body), "<svg");
     });
 
-    test("embeds every ticket in the HTML of a multi-listing registration", async () => {
+    test("shows the ticket card after the message in the confirmation HTML", async () => {
+      await setupAndSendRegistration();
+
+      const body = fetch.getFetchJsonBody();
+      const html = body.html;
+      expectIncludesAll(html, [
+        '<div style="margin:24px 0;max-width:400px;border:1px solid #ddd',
+        '<img src="cid:ticket.png" alt="Ticket QR code"',
+        "Qty: 1",
+      ]);
+      expect(html.indexOf("View your tickets")).toBeLessThan(
+        html.indexOf("cid:ticket.png"),
+      );
+      assert(!html.includes("<svg"));
+      expect(html.trimEnd().endsWith("</div>")).toBe(true);
+    });
+
+    test("sends a purchase-only ticket without a QR picture", async () => {
+      await setupAndSendRegistration({}, [makeEntry({ purchase_only: true })]);
+
+      const body = fetch.getFetchJsonBody();
+      const parts: SentPart[] = body.attachments;
+      expect(parts.map((part) => part.filename)).toEqual(["ticket.svg"]);
+      assert(!body.html.includes("cid:"));
+    });
+
+    test("shows every ticket of a multi-listing registration", async () => {
       const entries = [
         makeEntry({ name: "Listing A" }, { ticket_token: "tok1" }),
         makeEntry({ name: "Listing B" }, { ticket_token: "tok2" }),
@@ -169,14 +188,24 @@ describeWithEnv(
       await setupAndSendRegistration({}, entries);
 
       const body = fetch.getFetchJsonBody();
-      expect(body.attachments).toHaveLength(2);
-      expect(body.attachments[0].filename).toBe("ticket-1.svg");
-      expect(body.attachments[1].filename).toBe("ticket-2.svg");
-      for (const attachment of body.attachments) {
-        const block = ticketSvgBlock(decodeSvgAttachment(attachment.content));
-        assertStringIncludes(body.html, block);
-      }
-      expect(body.html.match(/<svg /g)).toHaveLength(2);
+      const parts: SentPart[] = body.attachments;
+      expect(parts.map((part) => part.filename)).toEqual([
+        "ticket-1.svg",
+        "ticket-1.png",
+        "ticket-2.svg",
+        "ticket-2.png",
+      ]);
+      expect(parts.map((part) => part.content_id)).toEqual([
+        undefined,
+        "ticket-1.png",
+        undefined,
+        "ticket-2.png",
+      ]);
+      expectIncludesAll(body.html, [
+        '<img src="cid:ticket-1.png"',
+        '<img src="cid:ticket-2.png"',
+      ]);
+      expect(body.html.match(/<img /g)).toHaveLength(2);
     });
 
     test("does not attach tickets to admin notification", async () => {
@@ -185,6 +214,7 @@ describeWithEnv(
       const body = fetch.findCallBodyByRecipient("admin@business.com");
       expect(body.attachments).toBe(undefined);
       assert(!body.html.includes("<svg"));
+      assert(!body.html.includes("cid:"));
     });
 
     test("collapses a hidden package's tickets into one package-level SVG", async () => {
