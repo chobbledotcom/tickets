@@ -27,6 +27,10 @@ The four lower pull requests keep their existing order and scope.
 
 Facts use synthetic customers and one fixed site currency. No producer reads live customer records or contacts Stripe.
 
+An owner cancellation result confirms the provider end, not a completed local invoice pass.
+If the invoice read refuses, the local row stays live for a later pass.
+Observe stored rows and transfers separately from that return value.
+
 ## Valid states and shared identities
 
 The subscription machine remains `src/shared/payment/subscription-machine-spec.ts`.
@@ -53,7 +57,7 @@ TLA sets must not collapse distinct attempts or equal-value invoices.
 | --- | --- | --- |
 | `SubscriptionCheckout` | Checkout admission, Stripe session parameters, `subscriptionStartOf`, `withSubscriptionPlan`, and stored plan columns | Unsupported orders refuse. Ordinary extra tickets remain valid. Exactly the subscribed booking receives the observed plan. Later listing or tax edits do not change it. |
 | `SubscriptionRenewals` | `recordObserved`, `renewalTax`, `mapRenewal`, `postTransferGroups`, `renewalBookingGuard`, and stored transfers | Each eligible invoice posts once to its true attendee and listing. Cash equals the observed amount. Sale plus VAT equals cash. References and paid times remain exact. A stale booking cannot post. |
-| `SubscriptionCancellation` | `cancelOwnerSubscription`, `endFailedCheckoutSubscription`, the failed-checkout refund paths, and `statusWrite` | Stripe must confirm the end before a failed checkout refunds. Successful bookings never enter that refund path. Stale checks cannot overwrite an ended status. The final invoice pass precedes a local ended status. |
+| `SubscriptionCancellation` | `cancelOwnerSubscription`, `endFailedCheckoutSubscription`, the failed-checkout refund paths, and `statusWrite` | Stripe must confirm the end before a failed checkout refunds. Successful bookings never enter that refund path. Stale checks cannot overwrite an ended status. An ended status becomes visible only with its final returned renewals. |
 | `SubscriptionRecords` | The production edit, delete, merge, and subscriber-read paths | No permitted operation loses a live plan. Safe moves preserve it. Subscriber reads include live, ended, and quantity-zero plans exactly once per stored booking. |
 
 Each model has its own law, domain explanation, and named controls.
