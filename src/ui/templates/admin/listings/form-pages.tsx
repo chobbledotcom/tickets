@@ -5,7 +5,11 @@ import { isBuilderEnabled } from "#shared/config.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
 import type { FieldValues } from "#shared/forms/values.ts";
-import { inferTemplate, LISTING_TEMPLATES } from "#shared/listing-templates.ts";
+import {
+  inferTemplate,
+  LISTING_TEMPLATES,
+  type ListingTemplate,
+} from "#shared/listing-templates.ts";
 import { renderAdminPage } from "#templates/admin/admin-page.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import type { ChildProps } from "#templates/components/child-props.ts";
@@ -78,8 +82,94 @@ const createListingPageFromForm = (
     title,
   });
 
-export const adminListingPickerPage = (session: AdminSession): string =>
-  renderAdminPage(
+/** One picker card. A disabled card renders as a non-link div — the feature
+ *  it needs is off, so the operator learns it exists but cannot open it. */
+type PickerCard = {
+  description: string;
+  disabled?: boolean;
+  href: string;
+  label: string;
+};
+
+const pickerCard = (
+  href: string,
+  labelKey: string,
+  descriptionKey: string,
+  disabled = false,
+): PickerCard => ({
+  description: t(descriptionKey),
+  disabled,
+  href,
+  label: t(labelKey),
+});
+
+const listingTypeCard = (card: PickerCard): Child => {
+  const classes = [
+    "listing-type-card",
+    card.disabled ? "listing-type-card--disabled" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return (
+    <a
+      aria-disabled={card.disabled || undefined}
+      class={classes}
+      href={card.disabled ? undefined : card.href}
+    >
+      <strong>{card.label}</strong>
+      <span>{card.description}</span>
+    </a>
+  );
+};
+
+const templateCard = (tmpl: ListingTemplate): PickerCard =>
+  pickerCard(
+    `/admin/listing/new?template=${tmpl.id}`,
+    tmpl.label,
+    tmpl.description,
+  );
+
+export const adminListingPickerPage = (session: AdminSession): string => {
+  // The hireable card needs the logistics agents feature. Without it the
+  // picker shows it as a disabled card so the operator learns it exists.
+  const hireableCardHidden = LISTING_TEMPLATES.some(
+    (tmpl) => tmpl.requiresLogistics && !settings.features.logistics,
+  );
+  const hireableTemplates = settings.features.logistics
+    ? LISTING_TEMPLATES.filter((tmpl) => tmpl.requiresLogistics)
+    : [];
+  const cards: PickerCard[] = [
+    // The card order is the storefront-first order an ecommerce operator
+    // reads: what they sell, then how it is booked. It is deliberately
+    // independent of LISTING_TEMPLATES order, which pins inference
+    // precedence (online-digital must stay first for the shared
+    // purchase-only signature).
+    ...["physical-product", "online-digital", "one-off-event", "weekly-event"]
+      .flatMap((id) => LISTING_TEMPLATES.filter((tmpl) => tmpl.id === id))
+      .map(templateCard),
+    ...(hireableCardHidden
+      ? [
+          pickerCard(
+            "",
+            "listings_table.template_hireable_item",
+            "listings_table.template_requires_logistics",
+            true,
+          ),
+        ]
+      : []),
+    ...hireableTemplates.map(templateCard),
+    pickerCard(
+      "/admin/listing/new?template=custom",
+      "listings_table.listing_type_picker_custom",
+      "listings_table.listing_type_picker_custom_description",
+    ),
+    pickerCard(
+      "/admin/catalog/import",
+      "catalog_transfer.import_button",
+      "listings_table.listing_type_picker_import_description",
+    ),
+  ];
+  return renderAdminPage(
     "/admin/listing/new",
     session,
     t("listings_table.add_listing"),
@@ -89,40 +179,11 @@ export const adminListingPickerPage = (session: AdminSession): string =>
         <p>{t("listings_table.listing_type_picker_subheading")}</p>
       </div>
       <div class="listing-type-picker">
-        {LISTING_TEMPLATES.filter(
-          (tmpl) => !tmpl.requiresLogistics || settings.features.logistics,
-        ).map((tmpl) => (
-          <a
-            class="listing-type-card"
-            href={`/admin/listing/new?template=${tmpl.id}`}
-          >
-            <strong>{t(tmpl.label)}</strong>
-            <span>{t(tmpl.description)}</span>
-          </a>
-        ))}
-        {LISTING_TEMPLATES.some(
-          (tmpl) => tmpl.requiresLogistics && !settings.features.logistics,
-        ) && (
-          <div class="listing-type-card listing-type-card--disabled">
-            <strong>{t("listings_table.template_hireable_item")}</strong>
-            <span>{t("listings_table.template_requires_logistics")}</span>
-          </div>
-        )}
-        <a class="listing-type-card" href="/admin/listing/new?template=custom">
-          <strong>{t("listings_table.listing_type_picker_custom")}</strong>
-          <span>
-            {t("listings_table.listing_type_picker_custom_description")}
-          </span>
-        </a>
-        <a class="listing-type-card" href="/admin/catalog/import">
-          <strong>{t("catalog_transfer.import_button")}</strong>
-          <span>
-            {t("listings_table.listing_type_picker_import_description")}
-          </span>
-        </a>
+        {cards.map((card) => listingTypeCard(card))}
       </div>
     </>,
   );
+};
 
 export const adminListingNewPage = (
   groups: Group[],

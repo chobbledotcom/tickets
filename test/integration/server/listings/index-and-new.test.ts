@@ -59,6 +59,19 @@ describeWithEnv("server listings > index and new", { db: true }, () => {
       expect(html.lastIndexOf('class="listing-type-card"')).toBe(
         html.indexOf('class="listing-type-card" href="/admin/catalog/import"'),
       );
+      // The storefront-first card order: what the operator sells, then how
+      // it is booked. Each card must follow the one before it.
+      let lastCardAt = -1;
+      for (const label of [
+        "Physical product",
+        "Digital product",
+        "Event",
+        "Course or service",
+      ]) {
+        const at = html.indexOf(`>${label}</strong>`);
+        expect(at).toBeGreaterThan(lastCardAt);
+        lastCardAt = at;
+      }
     });
 
     test("renders create listing form with template=custom", async () => {
