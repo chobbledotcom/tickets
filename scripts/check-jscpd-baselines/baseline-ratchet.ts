@@ -9,9 +9,10 @@
  */
 
 import * as v from "valibot";
-import { sort } from "#fp";
+import { flatMap, sort, sortStrings, unique } from "#fp";
 import { formatFinding } from "#scripts/check-report.ts";
 import { parseJsonWith } from "#scripts/read-json.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 
 /** The prefix every jscpd file in the repository root carries. */
@@ -44,6 +45,50 @@ export const baselineFileNames = (names: readonly string[]): string[] =>
       (name) => name.startsWith(JSCPD_PREFIX) && name.endsWith(BASELINE_SUFFIX),
     ),
   );
+
+/** The script a task runs when that task is a jscpd scan. */
+const CPD_SCRIPT = "scripts/cpd.ts";
+
+/** The flag each scan task gives its committed baseline. */
+const BASELINE_FLAG = /--baseline\s+(\S+)/g;
+
+/** The baseline paths the `scripts/cpd.ts` tasks name, sorted and unique. A
+ * scan whose baseline sits outside the names the ratchet reads can raise that
+ * baseline unseen, so the check holds the two lists together. */
+export const baselinePathsNamed = (
+  tasks: Readonly<Record<string, string>>,
+): string[] =>
+  sortStrings(
+    unique(
+      flatMap((command: string) =>
+        Array.from(command.matchAll(BASELINE_FLAG), (match) =>
+          requireValue(
+            match[1],
+            `A cpd task names --baseline with no path: ${match[0]}`,
+          ),
+        ),
+      )(Object.values(tasks).filter((command) => command.includes(CPD_SCRIPT))),
+    ),
+  );
+
+/** The finding lines for the baselines a scan task names that the ratchet does
+ * not read, in path order. The scan would raise such a baseline unseen, so the
+ * baseline must be one the ratchet reads. */
+export const unreadBaselineFindings = (
+  named: readonly string[],
+  read: readonly string[],
+): string[] => {
+  const readPaths = new Set(read);
+  return sortStrings(named.filter((path) => !readPaths.has(path))).map((path) =>
+    formatFinding(path, {
+      fix:
+        "keep the baseline in the repository root, named " +
+        ".jscpd.<scan>-baseline.json",
+      problem: "is a scan baseline that this check cannot read",
+      rule: "unread-baseline",
+    }),
+  );
+};
 
 /** One baseline file's clone counts, read from its text. Text that is not a
  * baseline fails loudly and names the file. */

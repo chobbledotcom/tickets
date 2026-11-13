@@ -1,16 +1,21 @@
+import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   baselineFileNames,
+  baselinePathsNamed,
   fingerprintCounts,
   RATCHET_GUIDE,
   riseFindings,
+  unreadBaselineFindings,
 } from "#scripts/check-jscpd-baselines/baseline-ratchet.ts";
 import {
   type BaselineFile,
   baselineFiles,
   ratchetExit,
+  taskBaselines,
 } from "#scripts/check-jscpd-baselines/ratchet-run.ts";
+import { projectRoot } from "#scripts/project-root.ts";
 import { capturedCheckOutput } from "#test-utils/check-script.ts";
 import {
   type GitStubAnswer,
@@ -46,6 +51,54 @@ describe("baselineFileNames", () => {
 
   test("keeps nothing when the root holds no baseline", () => {
     expect(baselineFileNames(["deno.json", ".jscpd.specs.json"])).toEqual([]);
+  });
+});
+
+describe("baselinePathsNamed", () => {
+  test("reads the baseline of every scan task, once each, in path order", () => {
+    expect(
+      baselinePathsNamed({
+        "check:copy": "deno run -A scripts/check-copy.ts",
+        cpd:
+          "deno run -A scripts/cpd.ts --config .jscpd.json " +
+          "--baseline .jscpd.test-baseline.json && deno run -A scripts/cpd.ts " +
+          "--config .jscpd.test.json --baseline .jscpd.test-baseline.json",
+        "cpd:renamed":
+          "deno run -A scripts/cpd.ts --config .jscpd.renamed.json " +
+          "--baseline .jscpd.baseline.json",
+      }),
+    ).toEqual([".jscpd.baseline.json", ".jscpd.test-baseline.json"]);
+  });
+
+  test("keeps nothing when no task runs a scan", () => {
+    expect(baselinePathsNamed({ test: "deno task test" })).toEqual([]);
+  });
+});
+
+describe("unreadBaselineFindings", () => {
+  test("passes when the scans name only baselines the ratchet reads", () => {
+    expect(
+      unreadBaselineFindings(
+        [".jscpd.baseline.json"],
+        [".jscpd.baseline.json", ".jscpd.test-baseline.json"],
+      ),
+    ).toEqual([]);
+  });
+
+  test("names a scan baseline outside the root pattern, in path order", () => {
+    expect(
+      unreadBaselineFindings(
+        [".jscpd.zzz-baseline.json", "scripts/jscpd/aaa-baseline.json"],
+        [".jscpd.baseline.json"],
+      ),
+    ).toEqual([
+      ".jscpd.zzz-baseline.json [unread-baseline]: is a scan baseline that " +
+        "this check cannot read — keep the baseline in the repository root, " +
+        "named .jscpd.<scan>-baseline.json",
+      "scripts/jscpd/aaa-baseline.json [unread-baseline]: is a scan baseline " +
+        "that this check cannot read — keep the baseline in the repository " +
+        "root, named .jscpd.<scan>-baseline.json",
+    ]);
   });
 });
 
@@ -154,11 +207,13 @@ describe("ratchetExit", () => {
   const exitFor = async (
     files: BaselineFile[],
     base: Record<string, string | undefined>,
+    named: string[] = files.map(({ path }) => path),
   ): Promise<number> => {
     output.lines.length = 0;
     return await ratchetExit({
       output,
       readBaselines: () => Promise.resolve(files),
+      readNamedBaselines: () => Promise.resolve(named),
       run: stubFor(base),
     });
   };
@@ -215,6 +270,22 @@ describe("ratchetExit", () => {
     ]);
   });
 
+  test("fails on a scan baseline the ratchet cannot read", async () => {
+    expect(
+      await exitFor(
+        [{ path: BASELINE, text: baseline({}) }],
+        { [BASELINE]: baseline({}) },
+        [BASELINE, "scripts/jscpd/other-baseline.json"],
+      ),
+    ).toBe(1);
+    expect(output.lines).toEqual([
+      "scripts/jscpd/other-baseline.json [unread-baseline]: is a scan " +
+        "baseline that this check cannot read — keep the baseline in the " +
+        "repository root, named .jscpd.<scan>-baseline.json",
+      `\n1 jscpd-baseline issue(s) found. See ${RATCHET_GUIDE}.`,
+    ]);
+  });
+
   test("fails loudly when origin/main is missing", async () => {
     const run = stubRun({
       "git merge-base HEAD origin/main": {
@@ -227,23 +298,41 @@ describe("ratchetExit", () => {
       ratchetExit({
         output,
         readBaselines: () => Promise.resolve([]),
+        readNamedBaselines: () => Promise.resolve([]),
         run,
       }),
     ).rejects.toThrow(/git fetch origin main/);
   });
 });
 
+/** The file names the repository root holds. */
+const rootNames = async (): Promise<string[]> => {
+  const names: string[] = [];
+  for await (const entry of Deno.readDir(projectRoot)) names.push(entry.name);
+  return names;
+};
+
 describe("baselineFiles", () => {
-  test("reads every committed baseline in the repository root", async () => {
+  test("reads the text of every committed baseline in the root", async () => {
     const files = await baselineFiles();
-    expect(
-      files.filter((file) => file.path === ".jscpd.baseline.json").length,
-    ).toBe(1);
+    expect(files.map(({ path }) => path)).toEqual(
+      baselineFileNames(await rootNames()),
+    );
     for (const { path, text } of files) {
-      expect(path.endsWith("baseline.json")).toBe(true);
-      expect(Object.keys(fingerprintCounts(path, text)).length).toBeGreaterThan(
-        0,
-      );
+      expect(text).toBe(await Deno.readTextFile(join(projectRoot, path)));
     }
+  });
+});
+
+describe("taskBaselines", () => {
+  test("names only baselines that the ratchet reads", async () => {
+    const named = await taskBaselines();
+    expect(named).toContain(".jscpd.baseline.json");
+    expect(
+      unreadBaselineFindings(
+        named,
+        (await baselineFiles()).map(({ path }) => path),
+      ),
+    ).toEqual([]);
   });
 });
