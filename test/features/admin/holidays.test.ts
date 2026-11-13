@@ -8,12 +8,12 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { holidays } from "#db/holidays.ts";
-import { validateDateRange } from "#shared/records/holidays.ts";
+import { holidayRule } from "#shared/records/holidays.ts";
 import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
-import { expectFlashRedirect } from "#test-utils/assertions.ts";
+import { assertJson, expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestHoliday } from "#test-utils/db-helpers/holidays.ts";
-import { adminFormPost, adminGet } from "#test-utils/session.ts";
+import { adminFormPost, adminGet, apiRequest } from "#test-utils/session.ts";
 
 describeWithEnv("holidays", { db: true }, () => {
   test("creates a holiday and shows it on the list page", async () => {
@@ -72,9 +72,9 @@ describeWithEnv("holidays", { db: true }, () => {
   });
 });
 
-describeWithEnv("the holiday date rule", { db: true }, () => {
+describeWithEnv("the holiday rule", { db: true }, () => {
   const rule = (name: string, start: string, end: string) =>
-    validateDateRange({
+    holidayRule({
       endDate: parseDateStringOrThrow(end, "the holiday rule end date"),
       name,
       startDate: parseDateStringOrThrow(start, "the holiday rule start date"),
@@ -85,6 +85,35 @@ describeWithEnv("the holiday date rule", { db: true }, () => {
 
     expect(error.ok ? null : error.error).toBe(
       "End date must be on or after the start date",
+    );
+  });
+
+  test("rejects a name past the text box limit", async () => {
+    const error = await rule("H".repeat(251), "2026-06-01", "2026-06-02");
+
+    expect(error).toEqual({
+      error: "Name must be 250 characters or fewer",
+      ok: false,
+    });
+    expect((await rule("H".repeat(250), "2026-06-01", "2026-06-02")).ok).toBe(
+      true,
+    );
+  });
+
+  test("the API refuses a name that the form cannot save", async () => {
+    await assertJson(
+      apiRequest("/api/admin/holidays", {
+        body: {
+          end_date: "2027-01-02",
+          name: "H".repeat(251),
+          start_date: "2027-01-01",
+        },
+        method: "POST",
+      }),
+      400,
+      (body: { error: string }) => {
+        expect(body.error).toBe("Name must be 250 characters or fewer");
+      },
     );
   });
 

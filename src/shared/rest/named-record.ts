@@ -4,11 +4,13 @@
  * fact on every such record. They are filled here.
  */
 
+import { catalogNameLengthError } from "#db/name-registry.ts";
 import {
   defineRecord,
   type RecordDefiner,
   type RecordShape,
 } from "#shared/rest/record.ts";
+import { errorResult, type Result } from "#shared/result.ts";
 
 /** A record whose row and input both carry its display name. */
 type NamedShape = RecordShape & {
@@ -28,3 +30,12 @@ export const defineNamedRowRecord =
       nameField: "name",
       nameOf: (row) => row.name,
     });
+
+/** Put the name limit before a record rule. A name past the limit of a text
+ *  box gets the message of the form, so the form can save the record again. */
+export const withNameLimit =
+  <Input extends { name: string }>(rule: (input: Input) => Result<Input>) =>
+  (input: Input): Result<Input> => {
+    const nameLengthError = catalogNameLengthError(input.name);
+    return nameLengthError ? errorResult(nameLengthError) : rule(input);
+  };
