@@ -70,14 +70,14 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@v4.4.0
         with:
           # No later step runs an authenticated git command, and the job
           # runs repository code with provider secrets in its environment.
           persist-credentials: false
 
       - name: Set up devenv
-        uses: ./.github/actions/setup-devenv
+        uses: $/.github/actions/setup-devenv
         with:
           profile: ci
 

@@ -22,6 +22,7 @@ const yamlFile = (path: string): YamlFile => ({
 
 const workflowFiles = (): YamlFile[] =>
   [...Deno.readDirSync(WORKFLOW_DIR)]
+    .filter((entry) => /\.ya?ml$/.test(entry.name))
     .map((entry) => yamlFile(`${WORKFLOW_DIR}/${entry.name}`))
     .sort((a, b) => a.path.localeCompare(b.path));
 
@@ -111,7 +112,7 @@ const isSecretCheck = (step: string): boolean =>
   step.startsWith("name: Check the secrets this run needs\n");
 
 const usesRepositoryAction = (step: string): boolean =>
-  step.includes("uses: ./.github/actions/");
+  step.includes("uses: $/.github/actions/");
 
 /** The check for values that are not set, then the check for wrong values. */
 const CHECK_SCRIPTS = [
@@ -162,7 +163,7 @@ const DEPLOY_JOBS_FIXTURE = `jobs:
   late:
     environment: staging
     steps:
-      - uses: ./.github/actions/build
+      - uses: $/.github/actions/build
         with:
           zone: \${{ secrets.ZONE }}
       - name: Check the secrets this run needs
@@ -178,7 +179,7 @@ const DEPLOY_JOBS_FIXTURE = `jobs:
         run: |
           scripts/ci/require-env.sh KEY
           scripts/ci/check-credentials.sh bunny
-      - uses: ./.github/actions/build
+      - uses: $/.github/actions/build
         with:
           key: \${{ secrets.DEPLOY_KEY }}
   sandbox:

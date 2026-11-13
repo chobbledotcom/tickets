@@ -37,7 +37,7 @@ describe("Bunny deploy workflow", () => {
     expect(action).not.toMatch(/uses:\s+BunnyWay\/actions\/deploy-script@/);
   });
 
-  test("staging and production keep the deploy key in the local wrapper", async () => {
+  test("staging and production keep the deploy key in a repository action", async () => {
     const workflows = await Promise.all(
       BUNNY_DEPLOY_WORKFLOW_PATHS.map(readText),
     );
@@ -45,7 +45,7 @@ describe("Bunny deploy workflow", () => {
     const expected = {
       omitsMutableBunnyRef: true,
       passesAccessKey: true,
-      usesLocalAction: true,
+      usesRepositoryAction: true,
     };
 
     const checks = map((workflow: string) => ({
@@ -55,8 +55,8 @@ describe("Bunny deploy workflow", () => {
       passesAccessKey: workflow.includes(
         `api_key: ${githubValue("secrets.BUNNY_ACCESS_KEY")}`,
       ),
-      usesLocalAction: workflow.includes(
-        "uses: ./.github/actions/deploy-bunny-script",
+      usesRepositoryAction: workflow.includes(
+        "uses: $/.github/actions/deploy-bunny-script",
       ),
     }))(workflows);
 

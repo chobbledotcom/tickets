@@ -15,14 +15,15 @@ runs:
   using: composite
   steps:
     # shell: bash on every step — the job-level devenv shell does not exist yet.
-    # Pinned SHAs: these steps run inside secret-bearing workflows.
+    # The lockfile pins these actions, which run inside secret-bearing
+    # workflows.
     - name: Set up Nix
-      uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31
+      uses: cachix/install-nix-action@v31.11.1
 
     # The Nix store closure is ~1.5 GB; restoring it from the Actions cache
     # costs more than the public devenv cache serves it.
     - name: Use the devenv binary cache
-      uses: cachix/cachix-action@3ba601ff5bbb07c7220846facfa2cd81eeee15a1 # v16
+      uses: cachix/cachix-action@v16
       with:
         name: devenv
 
@@ -55,7 +56,7 @@ runs:
       run: bash scripts/ci/resolve-deno-version.sh "$PROFILE"
 
     - name: Cache Deno dependencies
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: actions/cache@v4.3.0
       with:
         path: ~/.cache/deno
         key: deno-${{ runner.os }}-${{ runner.arch }}-${{ steps.deno-version.outputs.version }}-${{ hashFiles('deno.lock', 'deno.json', 'e2e-payments/deno.json') }}

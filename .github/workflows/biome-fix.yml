@@ -51,19 +51,19 @@ jobs:
       # setup action and the devenv definition. A stale target branch
       # has neither, and it is about to replace the workspace.
       - name: Checkout workflow ref
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@v4.4.0
         with:
           persist-credentials: false
 
       - name: Set up devenv
-        uses: ./.github/actions/setup-devenv
+        uses: $/.github/actions/setup-devenv
         with:
           profile: ci
 
       # The target branch lives in a subdirectory so the tooling above
       # stays available; every step below works in ./target.
       - name: Checkout target branch
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@v4.4.0
         with:
           ref: ${{ steps.branches.outputs.target_branch }}
           fetch-depth: 0
