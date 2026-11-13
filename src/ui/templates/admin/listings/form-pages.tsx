@@ -163,11 +163,6 @@ export const adminListingPickerPage = (session: AdminSession): string => {
       "listings_table.listing_type_picker_custom",
       "listings_table.listing_type_picker_custom_description",
     ),
-    pickerCard(
-      "/admin/catalog/import",
-      "catalog_transfer.import_button",
-      "listings_table.listing_type_picker_import_description",
-    ),
   ];
   return renderAdminPage(
     "/admin/listing/new",
@@ -176,7 +171,12 @@ export const adminListingPickerPage = (session: AdminSession): string => {
     <>
       <div class="prose">
         <h1>{t("listings_table.listing_type_picker_heading")}</h1>
-        <p>{t("listings_table.listing_type_picker_subheading")}</p>
+        <div class="listing-type-import">
+          <p>{t("listings_table.listing_type_picker_subheading")}</p>
+          <a class="listing-type-import-button" href="/admin/catalog/import">
+            {t("catalog_transfer.import_button")}
+          </a>
+        </div>
       </div>
       <div class="listing-type-picker">
         {cards.map((card) => listingTypeCard(card))}

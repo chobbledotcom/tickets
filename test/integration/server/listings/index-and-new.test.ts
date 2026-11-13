@@ -49,15 +49,17 @@ describeWithEnv("server listings > index and new", { db: true }, () => {
         "Add Listing",
         "Choose a listing type",
       );
-      // "Import from file" is a card in the picker grid, and the final one —
-      // after every listing-type card (including "Custom / advanced").
-      assertStringIncludes(html, 'href="/admin/catalog/import"');
-      expect(html.indexOf("Custom / advanced")).toBeLessThan(
-        html.indexOf("Import from file"),
+      // The import call-out sits beside the explainer text as a button,
+      // above the card grid — Custom / advanced is the grid's last card.
+      assertStringIncludes(
+        html,
+        '<a class="listing-type-import-button" href="/admin/catalog/import">',
       );
-      // No other picker card follows it.
+      assertStringIncludes(html, "Import from file");
       expect(html.lastIndexOf('class="listing-type-card"')).toBe(
-        html.indexOf('class="listing-type-card" href="/admin/catalog/import"'),
+        html.indexOf(
+          'class="listing-type-card" href="/admin/listing/new?template=custom"',
+        ),
       );
       // The storefront-first card order: what the operator sells, then how
       // it is booked. Each card must follow the one before it.

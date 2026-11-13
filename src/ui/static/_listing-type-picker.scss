@@ -1,0 +1,58 @@
+/** The admin listing-type picker: the card grid on /admin/listing/new, plus
+ *  the import call-out beside the picker's explainer text. */
+
+.listing-type-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-m);
+  margin-block: var(--space-m);
+}
+
+.listing-type-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-s);
+  padding: var(--space-m);
+  border: 1px solid var(--color-bg-secondary);
+  border-radius: 4px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.listing-type-card:hover {
+  border-color: var(--color-link);
+}
+
+.listing-type-card--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* The import call-out: the explainer text with the "Import from file"
+   button to its right. */
+.listing-type-import {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-m);
+  justify-content: space-between;
+
+  p {
+    margin: 0;
+  }
+}
+
+.listing-type-import-button {
+  background: #7c3aed;
+  border-radius: 8px;
+  color: #ffffff;
+  font-weight: bold;
+  padding: var(--space-m) var(--space-l);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.listing-type-import-button:hover {
+  background: #6d28d9;
+  color: #ffffff;
+}
