@@ -10,6 +10,7 @@ import {
   baseEntries,
   ratchetExit,
 } from "#scripts/check-coverage-exclusions/ratchet-run.ts";
+import { capturedCheckOutput } from "#test-utils/check-script.ts";
 import { gitShow, holds, lsTree, stubRun } from "#test-utils/git-stub.ts";
 
 const module = (entries: string[]): string =>
@@ -75,11 +76,7 @@ describe("baseEntries", () => {
 });
 
 describe("ratchetExit", () => {
-  const lines: string[] = [];
-  const output = {
-    log: (line: string) => lines.push(line),
-    logError: (line: string) => lines.push(line),
-  };
+  const output = capturedCheckOutput();
 
   /** Run the ratchet over `head` against a base that holds `base`, with
    * `runtime` as the array the gate imports and the report lines collected
@@ -89,7 +86,7 @@ describe("ratchetExit", () => {
     base: string[],
     runtime: readonly string[] = head,
   ): Promise<number> => {
-    lines.length = 0;
+    output.lines.length = 0;
     const run = stubRun({
       "git merge-base HEAD origin/main": { code: 0, stdout: "base123" },
       [lsTree("base123", EXCLUSIONS_PATH)]: holds(EXCLUSIONS_PATH),
@@ -103,15 +100,15 @@ describe("ratchetExit", () => {
 
   test("exits 0 and reports nothing added on a clean list", async () => {
     expect(await exitFor(["src/a.ts"], ["src/a.ts"])).toBe(0);
-    expect(lines).toEqual([
+    expect(output.lines).toEqual([
       "The coverage exclusion list adds nothing against origin/main.",
     ]);
   });
 
   test("exits 1 and names each added entry", async () => {
     expect(await exitFor(["src/a.ts", "src/new.ts"], ["src/a.ts"])).toBe(1);
-    assertStringIncludes(lines.join("\n"), "src/new.ts");
-    assertStringIncludes(lines.join("\n"), RATCHET_GUIDE);
+    assertStringIncludes(output.lines.join("\n"), "src/new.ts");
+    assertStringIncludes(output.lines.join("\n"), RATCHET_GUIDE);
   });
 
   test("fails loudly when an entry hides from the parser", async () => {
@@ -122,7 +119,7 @@ describe("ratchetExit", () => {
       "];",
       "",
     ].join("\n");
-    lines.length = 0;
+    output.lines.length = 0;
     const run = stubRun({
       "git merge-base HEAD origin/main": { code: 0, stdout: "base123" },
       [gitShow("base123", EXCLUSIONS_PATH)]: {
@@ -136,7 +133,7 @@ describe("ratchetExit", () => {
   });
 
   test("fails loudly when origin/main is missing", async () => {
-    lines.length = 0;
+    output.lines.length = 0;
     const run = stubRun({
       "git merge-base HEAD origin/main": {
         code: 128,
