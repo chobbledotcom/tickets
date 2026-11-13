@@ -21,10 +21,7 @@ import {
 import { questionsOrder, questionsTable } from "#db/questions/tables.ts";
 import { fieldById, mapNotNullish } from "#fp";
 import { t } from "#i18n";
-import {
-  defineAdminRoutes,
-  entityTabRoutes,
-} from "#routes/admin/route-tables.ts";
+import { defineAdminRoutes, recordRoutes } from "#routes/admin/route-tables.ts";
 import { formPolicyFor } from "#routes/auth.ts";
 import { entityFormById } from "#routes/entity.ts";
 import { notFoundResponse, redirect } from "#routes/response.ts";
@@ -148,15 +145,17 @@ const handleListingQuestionsPost = createListingChoicePost({
 
 /** Questions routes */
 export const adminHandlers = defineAdminRoutes({
-  ...entityTabRoutes(adminPattern("question"), questionPage),
-  "GET /admin/questions": pages.listGet,
+  ...recordRoutes(
+    adminPattern("questions"),
+    adminPattern("question"),
+    pages,
+    questionPage,
+  ),
   "GET /admin/questions/:id/answers/:answerId/delete": handleDeleteAnswerGet,
   "GET /admin/questions/:id/answers/:answerId/edit": handleEditAnswerGet,
   "GET /admin/questions/:id/answers/:answerId/recalculate":
     handleAnswerRecalculateGet,
-  "GET /admin/questions/:id/delete": pages.deleteGet,
   "POST /admin/listing/:id/questions": handleListingQuestionsPost,
-  "POST /admin/questions": pages.createPost,
   "POST /admin/questions/:id/answers": handleAddAnswer,
   "POST /admin/questions/:id/answers/:answerId/delete": handleDeleteAnswerPost,
   "POST /admin/questions/:id/answers/:answerId/edit": handleEditAnswerPost,
@@ -164,8 +163,6 @@ export const adminHandlers = defineAdminRoutes({
   "POST /admin/questions/:id/answers/:answerId/move-up": answerOrder.up,
   "POST /admin/questions/:id/answers/:answerId/recalculate":
     handleAnswerRecalculatePost,
-  "POST /admin/questions/:id/delete": pages.deletePost,
-  "POST /admin/questions/:id/edit": pages.editPost,
   "POST /admin/questions/:id/listings": handleQuestionListings,
   "POST /admin/questions/:id/move-down": questionOrder.down,
   "POST /admin/questions/:id/move-up": questionOrder.up,

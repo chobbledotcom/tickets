@@ -5,11 +5,7 @@
 
 import type { HolidayInput } from "#db/holidays.ts";
 import { t } from "#i18n";
-import {
-  crudRoutes,
-  defineAdminRoutes,
-  entityTabRoutes,
-} from "#routes/admin/route-tables.ts";
+import { defineAdminRoutes, recordRoutes } from "#routes/admin/route-tables.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 import {
   applyDemoOverrides,
@@ -54,6 +50,10 @@ const pages = recordPages(holidayRecord, {
 });
 
 export const adminHandlers = defineAdminRoutes({
-  ...crudRoutes(adminPattern("holidays"), pages),
-  ...entityTabRoutes(adminPattern("holiday"), holidayPage),
+  ...recordRoutes(
+    adminPattern("holidays"),
+    adminPattern("holiday"),
+    pages,
+    holidayPage,
+  ),
 });

@@ -14,12 +14,14 @@ import { Raw } from "#jsx/jsx-runtime.ts";
 import { adminPath, adminPattern } from "#shared/admin-surface.ts";
 import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
 import { entityToFieldValues } from "#shared/forms/values.ts";
+import { holidayRecord } from "#shared/records/holidays.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { recordEditPanel } from "#templates/admin/admin-page.tsx";
 import {
+  type AdminResourcePages,
   confirmByName,
-  defineAdminResourcePages,
+  defineRecordPages,
   writableNameColumn,
 } from "#templates/admin/resource-pages.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
@@ -86,12 +88,8 @@ export const HolidayEditPanel = ({
     />,
   );
 
-export const getHolidayPages = (): ReturnType<
-  typeof defineAdminResourcePages<Holiday>
-> =>
-  defineAdminResourcePages<Holiday>({
-    active: adminPattern("holidays"),
-    basePath: adminPattern("holidays"),
+export const getHolidayPages = (): AdminResourcePages<Holiday> =>
+  defineRecordPages(holidayRecord, {
     delete: {
       confirm: (holiday) => ({
         args: {

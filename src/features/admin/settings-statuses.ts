@@ -1,8 +1,4 @@
-import {
-  crudRoutes,
-  defineAdminRoutes,
-  entityTabRoutes,
-} from "#routes/admin/route-tables.ts";
+import { defineAdminRoutes, recordRoutes } from "#routes/admin/route-tables.ts";
 import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 
 /**
@@ -120,8 +116,12 @@ const reassignChoice = async (
 };
 
 export const adminHandlers = defineAdminRoutes({
-  ...crudRoutes(adminPattern("statuses"), pages),
-  ...entityTabRoutes(adminPattern("status"), attendeeStatusPage),
+  ...recordRoutes(
+    adminPattern("statuses"),
+    adminPattern("status"),
+    pages,
+    attendeeStatusPage,
+  ),
   "GET /admin/settings/statuses/:id/delete": (request, { id }) =>
     statusDeleteGet(request, id),
   "POST /admin/settings/statuses/:id/move-down": statusOrder.down,

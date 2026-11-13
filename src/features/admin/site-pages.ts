@@ -258,7 +258,13 @@ const pageItemOrder = createOrderedCollectionHandlers({
 // ─── Routes ─────────────────────────────────────────────────────
 
 export const adminHandlers = defineAdminRoutes({
-  ...contentRecordRoutes(sitePageRecord, pages, images, sitePageEntityPage),
+  ...contentRecordRoutes(
+    "sitePages",
+    "sitePage",
+    pages,
+    images,
+    sitePageEntityPage,
+  ),
   "POST /admin/site/pages/:id/items": handleAddItem,
   "POST /admin/site/pages/:id/items/:itemType/:itemId/move-down":
     pageItemOrder.down,

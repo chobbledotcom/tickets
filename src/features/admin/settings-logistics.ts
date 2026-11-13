@@ -1,9 +1,5 @@
 import { t } from "#i18n";
-import {
-  crudRoutes,
-  defineAdminRoutes,
-  entityTabRoutes,
-} from "#routes/admin/route-tables.ts";
+import { defineAdminRoutes, recordRoutes } from "#routes/admin/route-tables.ts";
 import { entityFormById, type IdRouteHandler } from "#routes/entity.ts";
 /**
  * Admin logistics settings + logistics-agent management — owner only.
@@ -91,7 +87,11 @@ const handleAgentEditPost: IdRouteHandler = entityFormById(
 /** Logistics settings + agent routes. The agent edit POST restates the
  * standard key with its own handler. */
 export const adminHandlers = defineAdminRoutes({
-  ...crudRoutes(adminPattern("logistics"), pages),
-  ...entityTabRoutes(adminPattern("logisticsAgent"), logisticsAgentPage),
+  ...recordRoutes(
+    adminPattern("logistics"),
+    adminPattern("logisticsAgent"),
+    pages,
+    logisticsAgentPage,
+  ),
   "POST /admin/logistics/:id/edit": handleAgentEditPost,
 });

@@ -24,7 +24,7 @@ import {
   createVerifiedFormRoute,
   verifiedDelete,
 } from "#routes/admin/confirmation.ts";
-import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
+import { crudRoutes, defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import { formGuard, formPolicyFor, pageGuardFor } from "#routes/auth.ts";
 import {
   createEntityHandler,
@@ -34,7 +34,7 @@ import {
 } from "#routes/entity.ts";
 import { adminRedirect, htmlResponse } from "#routes/response.ts";
 import type { AdminPathParams } from "#shared/admin-surface/ids.ts";
-import { adminDestinationAt } from "#shared/admin-surface.ts";
+import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 import {
   createAuthedFormRoute,
   createOrderedCollectionHandlers,
@@ -327,14 +327,10 @@ const handleListingAttributesPost = createListingChoicePost({
 });
 
 export const adminHandlers = defineAdminRoutes({
-  "GET /admin/attributes": pages.listGet,
+  ...crudRoutes(adminPattern("attributes"), pages),
   "GET /admin/attributes/:id": handleAttributeGet,
-  "GET /admin/attributes/:id/delete": pages.deleteGet,
   "GET /admin/attributes/:id/options/:optionId/delete": handleDeleteOptionGet,
   "GET /admin/attributes/:id/options/:optionId/edit": handleEditOptionGet,
-  "POST /admin/attributes": pages.createPost,
-  "POST /admin/attributes/:id/delete": pages.deletePost,
-  "POST /admin/attributes/:id/edit": pages.editPost,
   "POST /admin/attributes/:id/move-down": attributeOrder.down,
   "POST /admin/attributes/:id/move-up": attributeOrder.up,
   "POST /admin/attributes/:id/options": handleAddOption,

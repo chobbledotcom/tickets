@@ -58,5 +58,5 @@ const images = contentImageHandlers({
 });
 
 export const adminHandlers = defineAdminRoutes({
-  ...contentRecordRoutes(newsRecord, pages, images, newsPage),
+  ...contentRecordRoutes("news", "newsPost", pages, images, newsPage),
 });

@@ -6,10 +6,12 @@
 import { logActivity } from "#db/activity-log.ts";
 import { type TxScope, withTransaction } from "#db/client.ts";
 import type { CrudHandlers } from "#routes/admin/route-tables.ts";
+import { recordRoutes } from "#routes/admin/route-tables.ts";
 import { SITE_FORM, SITE_MULTIPART } from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
-import { adminDestination } from "#shared/admin-surface.ts";
+import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
+import { adminDestination, adminPattern } from "#shared/admin-surface.ts";
 import type { RecordSurface } from "#shared/rest/record.ts";
 import {
   createItemImageHandlers,
@@ -74,32 +76,24 @@ export const contentImageHandlers = <T>(
 /** The ten standard route entries a Site content record binds. They are the
  *  list, the record page and tabs, the delete page, the new page, and the
  *  four writes. */
-export const contentRecordRoutes = (
-  record: RecordSurface,
+export const contentRecordRoutes = <
+  List extends AdminDestinationId,
+  Detail extends AdminDestinationId,
+>(
+  list: List,
+  detail: Detail,
   handlers: CrudHandlers,
   images: { set: RouteHandlerFn; upload: RouteHandlerFn },
   entityPage: {
     renderTab: (request: Request, id: number, tab: string) => Promise<Response>;
   },
-): Record<string, RouteHandlerFn> => {
-  const path = adminDestination(record.list).pattern;
-  const tabRoute =
-    (tab: (params: Record<string, string | number | undefined>) => string) =>
-    (request: Request, params: Record<string, string | number | undefined>) =>
-      entityPage.renderTab(request, params.id as number, tab(params));
-  return {
-    [`GET ${path}`]: handlers.listGet,
-    [`GET ${path}/:id`]: tabRoute(() => ""),
-    [`GET ${path}/:id/:tab`]: tabRoute((params) => String(params.tab)),
-    [`GET ${path}/:id/delete`]: (request, params) =>
-      handlers.deleteGet(request, { id: params.id as number }),
-    [`GET ${path}/new`]: handlers.newGet,
-    [`POST ${path}`]: handlers.createPost,
-    [`POST ${path}/:id/delete`]: (request, params) =>
-      handlers.deletePost(request, { id: params.id as number }),
-    [`POST ${path}/:id/edit`]: (request, params) =>
-      handlers.editPost(request, { id: params.id as number }),
-    [`POST ${path}/:id/images`]: images.set,
-    [`POST ${path}/:id/images/upload`]: images.upload,
-  };
-};
+) => ({
+  ...recordRoutes(
+    adminPattern(list),
+    adminPattern(detail),
+    handlers,
+    entityPage,
+  ),
+  [`POST ${adminPattern(list)}/:id/images`]: images.set,
+  [`POST ${adminPattern(list)}/:id/images/upload`]: images.upload,
+});

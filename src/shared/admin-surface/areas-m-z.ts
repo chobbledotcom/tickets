@@ -5,6 +5,7 @@
  */
 
 import { OWNER_AUDIENCE } from "#shared/admin-surface/definitions.ts";
+import { recordArea } from "#shared/admin-surface/record-area.ts";
 import {
   CONTENT_ADMIN_LEVELS,
   DOOR_ADMIN_LEVELS,
@@ -26,40 +27,32 @@ export const AREAS_M_Z = {
       migrateRebuildPayments: "/admin/migrate/rebuild-payment-references",
     },
   },
-  modifiers: {
+  modifiers: recordArea({
     audience: STAFF_ADMIN_LEVELS,
-    view: {
-      modifier: "/admin/modifiers/:id",
-      modifiers: "/admin/modifiers",
-    },
-    write: {
+    extraWrites: {
       modifierAnswers: "/admin/modifiers/:id/answers",
-      modifierDelete: "/admin/modifiers/:id/delete",
-      modifierEdit: "/admin/modifiers/:id/edit",
       modifierLinks: "/admin/modifiers/:id/links",
-      modifierNew: "/admin/modifiers/new",
       modifierRecalculate: "/admin/modifiers/recalculate/:modifierId",
       modifierRevenue: {
         audience: OWNER_AUDIENCE,
         pattern: "/admin/modifiers/:id/revenue",
       },
     },
-  },
-  news: {
+    name: "modifiers",
+    singular: "modifier",
+  }),
+  news: recordArea({
     audience: SITE_ADMIN_LEVELS,
-    view: {
-      news: "/admin/site/news",
-      newsPost: "/admin/site/news/:id",
-    },
-    write: {
+    basePath: "/admin/site/news",
+    extraWrites: {
       newsActions: "/admin/site/news/:id/actions",
-      newsDelete: "/admin/site/news/:id/delete",
-      newsEdit: "/admin/site/news/:id/edit",
       newsImages: "/admin/site/news/:id/images",
       newsImagesUpload: "/admin/site/news/:id/images/upload",
-      newsNew: "/admin/site/news/new",
     },
-  },
+    name: "news",
+    prefix: "news",
+    singular: "newsPost",
+  }),
   privacy: {
     audience: OWNER_AUDIENCE,
     view: {
@@ -71,27 +64,23 @@ export const AREAS_M_Z = {
       privacyOrphans: "/admin/privacy/orphans",
     },
   },
-  questions: {
+  questions: recordArea({
     audience: OWNER_AUDIENCE,
-    segments: ["listing"],
-    view: {
-      question: "/admin/questions/:id",
-      questions: "/admin/questions",
-    },
-    write: {
+    extraWrites: {
       answerAdd: "/admin/questions/:id/answers",
       answerDelete: "/admin/questions/:id/answers/:answerId/delete",
       answerEdit: "/admin/questions/:id/answers/:answerId/edit",
       answerMoveDown: "/admin/questions/:id/answers/:answerId/move-down",
       answerMoveUp: "/admin/questions/:id/answers/:answerId/move-up",
       answerRecalculate: "/admin/questions/:id/answers/:answerId/recalculate",
-      questionDelete: "/admin/questions/:id/delete",
-      questionEdit: "/admin/questions/:id/edit",
       questionListings: "/admin/questions/:id/listings",
       questionMoveDown: "/admin/questions/:id/move-down",
       questionMoveUp: "/admin/questions/:id/move-up",
     },
-  },
+    name: "questions",
+    segments: ["listing"],
+    singular: "question",
+  }),
   scanner: {
     audience: DOOR_ADMIN_LEVELS,
     view: {
@@ -194,35 +183,25 @@ export const AREAS_M_Z = {
       settingsTheme: "/admin/settings/theme",
     },
   },
-  settingsLogistics: {
+  settingsLogistics: recordArea({
     audience: OWNER_AUDIENCE,
-    view: {
-      logistics: "/admin/logistics",
-      logisticsAgent: "/admin/logistics/:id",
-    },
-    write: {
-      logisticsDelete: "/admin/logistics/:id/delete",
-      logisticsEdit: "/admin/logistics/:id/edit",
-      logisticsNew: "/admin/logistics/new",
-    },
-  },
-  settingsStatuses: {
+    name: "logistics",
+    prefix: "logistics",
+    singular: "logisticsAgent",
+  }),
+  settingsStatuses: recordArea({
     audience: OWNER_AUDIENCE,
-    view: {
-      status: "/admin/settings/statuses/:id",
-      statuses: "/admin/settings/statuses",
-    },
-    write: {
-      statusDelete: "/admin/settings/statuses/:id/delete",
-      statusEdit: {
-        afterSave: "status",
-        pattern: "/admin/settings/statuses/:id/edit",
-      },
+    basePath: "/admin/settings/statuses",
+    extraWrites: {
       statusMoveDown: "/admin/settings/statuses/:id/move-down",
       statusMoveUp: "/admin/settings/statuses/:id/move-up",
-      statusNew: "/admin/settings/statuses/new",
     },
-  },
+    listAfterSave: false,
+    name: "statuses",
+    prefix: "status",
+    saveToRecord: true,
+    singular: "status",
+  }),
   site: {
     audience: SITE_ADMIN_LEVELS,
     view: {
@@ -235,16 +214,11 @@ export const AREAS_M_Z = {
       siteOrderToggle: "/admin/site/order/toggle",
     },
   },
-  sitePages: {
+  sitePages: recordArea({
     audience: SITE_ADMIN_LEVELS,
-    view: {
-      sitePage: "/admin/site/pages/:id",
-      sitePages: "/admin/site/pages",
-    },
-    write: {
+    basePath: "/admin/site/pages",
+    extraWrites: {
       sitePageActions: "/admin/site/pages/:id/actions",
-      sitePageDelete: "/admin/site/pages/:id/delete",
-      sitePageEdit: "/admin/site/pages/:id/edit",
       sitePageImages: "/admin/site/pages/:id/images",
       sitePageImagesUpload: "/admin/site/pages/:id/images/upload",
       sitePageItemMoveDown:
@@ -256,9 +230,11 @@ export const AREAS_M_Z = {
       sitePageItems: "/admin/site/pages/:id/items",
       sitePageMoveDown: "/admin/site/pages/:id/move-down",
       sitePageMoveUp: "/admin/site/pages/:id/move-up",
-      sitePageNew: "/admin/site/pages/new",
     },
-  },
+    name: "sitePages",
+    prefix: "sitePage",
+    singular: "sitePage",
+  }),
   sms: {
     audience: STAFF_ADMIN_LEVELS,
     view: {
