@@ -1,8 +1,8 @@
 /**
  * SVG ticket generator
  * Composes a QR code SVG with listing and booking data into a standalone SVG ticket.
- * The ticket goes in an email body or an email attachment. It contains no PII: only
- * listing details and booking metadata.
+ * The email attaches the SVG file and shows a block with the facts and a QR
+ * PNG. The ticket contains no PII: only listing details and booking metadata.
  */
 
 import { escapeHtml } from "#jsx/escape-html.ts";
@@ -115,22 +115,21 @@ export const generateSvgTicket = async (
 </svg>`;
 };
 
-/** An XML declaration is valid only at the start of a document. */
-const XML_DECLARATION = /^<\?xml[^>]*\?>\s*/;
-
-/** A body copy must fit the reader's screen. The attached file keeps the
- * document sizes, so the style belongs to the body copy alone. */
-const BODY_SVG_STYLE = "display:block;max-width:100%;height:auto";
-
-/** Turn a generated ticket SVG into its HTML body copy. */
-const bodySvgCopy = (svg: string): string => {
-  const copy = svg.replace(XML_DECLARATION, "");
-  if (!copy.startsWith("<svg ")) {
-    throw new Error("Ticket SVG does not start with an <svg> element");
-  }
-  return copy.replace("<svg ", `<svg style="${BODY_SVG_STYLE}" `);
+/** The ticket block in the buyer's HTML email. A mail reader that cannot draw
+ * SVG (Gmail, Outlook, Yahoo) shows the QR picture in the block instead. */
+export const ticketBodyBlock = (
+  data: SvgTicketData,
+  qrContentId: string | null,
+): string => {
+  const info = buildInfoLines(data)
+    .map(
+      (line) =>
+        `<p style="margin:4px 0;font-size:13px;color:#555">${escapeHtml(line)}</p>`,
+    )
+    .join("");
+  const qr =
+    qrContentId === null
+      ? ""
+      : `<img src="cid:${qrContentId}" alt="Ticket QR code" style="display:block;margin:16px auto 0;max-width:100%;height:auto">`;
+  return `<div style="margin:24px 0;max-width:${WIDTH}px;border:1px solid #ddd;border-radius:8px;padding:16px"><p style="margin:0 0 8px;font-size:18px;font-weight:bold;color:#333">${escapeHtml(data.listingName)}</p>${info}${qr}</div>`;
 };
-
-/** Wrap a generated ticket SVG as a block for an HTML email body. */
-export const ticketSvgBlock = (svg: string): string =>
-  `<div style="margin:24px 0;max-width:${WIDTH}px">${bodySvgCopy(svg)}</div>`;
