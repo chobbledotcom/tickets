@@ -61,8 +61,6 @@ src/ui/templates/admin/attributes.tsx::adminAttributesPage.columns.key~0flrsnk  
 # column keys nothing reads back.
 src/ui/templates/admin/groups/list.tsx::groupColumns~0ixy9zk  name → "" audited:1iejhtb # adminGroupsPage renders these columns with a context and nothing else, so it supplies no columnKeys, no hiddenKeys, and no filters, and groupColumns never reaches renderColumnReference
 src/ui/templates/admin/groups/list.tsx::groupColumns~1bp6sm8  slug → "" audited:1iejhtb # same as the name key above — the groups list supplies only a context, so no reader of a column key is in play
-src/ui/templates/admin/holidays.tsx::holidayColumns.key~1lbn6k9  start_date → "" audited:0bymeb7 # HolidayTable renders these columns with a scroll class and nothing else, so no columnKeys, hiddenKeys, or filters read the key, and holidayColumns never reaches renderColumnReference
-src/ui/templates/admin/holidays.tsx::holidayColumns.key~0mip5xw  end_date → "" audited:0bymeb7 # same as the start_date key above — the holidays table supplies only a scroll class
 src/ui/templates/admin/logistics.tsx::agentColumns~15k9yrk  name → "" audited:1jbcaog # AgentsSection renders these columns with no options at all, so nothing supplies a column-key reader, and agentColumns never reaches renderColumnReference
 src/ui/templates/admin/logistics.tsx::LogisticsAgentEditPanel.html~01ax7pa  ?? → || audited:1jbcaog # values is a form-values object or undefined, and an object is always truthy, so || keeps exactly what ?? keeps
 src/ui/templates/admin/listings/form-values.tsx::renderDayPricesFieldset.prices~02nzxkd  ?? → || audited:1oog4kz # day_prices is a DayPrices object or undefined, and a present object is always truthy, so || reads it exactly as ?? does
