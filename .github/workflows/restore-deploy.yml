@@ -18,9 +18,8 @@ name: Restore code to a commit
 # exfiltrate credentials — the worst it can do is produce a bundle, which is the
 # point of a rebuild). The deploy step that holds BUNNY_ACCESS_KEY runs the
 # external BunnyWay/actions/deploy-script pinned to an immutable commit SHA —
-# never a local `./.github/actions/*` wrapper loaded from the checked-out
-# commit, which could be a tampered historical revision running with the
-# production key. The input is also validated to be a full 40-char SHA.
+# never a `$/` action, whose inputs and steps run with the production key.
+# The input is also validated to be a full 40-char SHA.
 #
 # Stored secrets: BUNNY_ACCESS_KEY (and BUNNY_SCRIPT_ID as the default target).
 
@@ -59,7 +58,7 @@ jobs:
       # The check script comes from the commit of this workflow, not from the
       # requested commit, which can be old or untrusted.
       - name: Checkout the workflow commit
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@v4.4.0
         with:
           persist-credentials: false
 
@@ -75,23 +74,25 @@ jobs:
           scripts/ci/check-credentials.sh bunny
 
       - name: Checkout the requested commit
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@v4.4.0
         with:
           ref: ${{ inputs.commit }}
           # The build runs the checked-out (possibly old/untrusted) commit's
-          # action; don't leave github.token in the git config for it to read.
+          # code; don't leave github.token in the git config for it to read.
           persist-credentials: false
 
       # Builds the requested commit's source. No secrets are available here.
       - name: Build Bunny edge script at that commit
-        uses: ./.github/actions/build-bunny-script
+        uses: $/.github/actions/build-bunny-script
         with:
           build_commit: ${{ inputs.commit }}
 
       # Deploy with the external action pinned to an immutable SHA — NOT a local
       # wrapper from the checked-out (possibly old/untrusted) ref — so the
       # production key only ever flows to a fixed, trusted action revision.
-      # Pinned BunnyWay/actions @ main as of 2026-06-16.
+      # Pinned BunnyWay/actions @ main as of 2026-06-16. The monorepo tags
+      # each action separately, and no deploy-script tag names this commit.
+      # The only tag on it has an `@`, which `uses:` rejects. Keep the SHA.
       - name: Deploy to the target script
         uses: BunnyWay/actions/deploy-script@671d620bdaac002d2aa7f3dd0dda03dd99c5b749
         with:

@@ -68,7 +68,7 @@ describe("CI devenv profile", () => {
       .filter(
         ({ text }) =>
           /shell: devenv shell\b/.test(text) ||
-          count(text, /uses: \.\/\.github\/actions\/setup-devenv\n/g) !==
+          count(text, /uses: (?:\$|\.)\/\.github\/actions\/setup-devenv\n/g) !==
             count(
               text,
               /setup-devenv\n\s+with:\n(\s+install_dependencies: .*\n)?\s+profile: (ci|browser)\n/g,

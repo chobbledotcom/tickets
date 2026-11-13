@@ -27,7 +27,7 @@ runs:
   steps:
     - name: Resolve the matching site
       id: resolve
-      uses: ./.github/actions/resolve-site-credentials
+      uses: $/.github/actions/resolve-site-credentials
       with:
         main_instance: ${{ inputs.main_instance }}
         main_instance_key: ${{ inputs.main_instance_key }}

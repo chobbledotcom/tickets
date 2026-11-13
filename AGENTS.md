@@ -76,6 +76,28 @@ Pin the version the harness expects (`STRIPE_MOCK_VERSION` in
 `scripts/stripe-mock/install.ts`). Once `.bin/stripe-mock` exists, the harness
 uses it as-is.
 
+## Workflow Actions
+
+`.github/workflows/actions.lock` pins every action that a workflow or action
+file uses to a verified commit. The `lockfile` job in
+`.github/workflows/test.yml` runs `gh actions-lock --verify` and fails when the
+lockfile and the workflows disagree.
+
+- Install the tool once with
+  `gh extension install github/gh-actions-lock --pin v0.4.1`. The CI job pins
+  the same version.
+- Name a release tag in a `uses:` line, such as `actions/checkout@v4.4.0`. Run
+  `gh actions-lock` after you add or change a `uses:` line. Commit the lockfile
+  with the workflow. The lockfile records the commit that the runner uses.
+- Reference an action in this repository as `$/path/to/action`, not
+  `./path/to/action`. The `$/` form always runs the workflow's commit, and the
+  lockfile covers the actions that the local action uses. A new local action
+  that uses remote actions is a lockfile error until you rewrite its
+  reference.
+- The deploy step in `.github/workflows/restore-deploy.yml` keeps a bare commit
+  SHA. No deploy-script tag names that commit, and the one tag that does has an
+  `@`, which `uses:` rejects. Let the test that names this pin stop a rewrite.
+
 ## Dependency Install Policy
 
 CI and the container image install dependencies with one command,

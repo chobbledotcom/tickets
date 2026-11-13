@@ -24,7 +24,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@v4.4.0
 
       # A missing secret must stop the run here, not after the build or part
       # of the way through a deploy.
@@ -65,7 +65,7 @@ jobs:
 
       - name: Build Bunny edge script
         id: build
-        uses: ./.github/actions/build-bunny-script
+        uses: $/.github/actions/build-bunny-script
         with:
           build_commit: ${{ github.sha }}
           cdn_url: ${{ secrets.CDN_URL }}
@@ -80,7 +80,7 @@ jobs:
       # Uncheck run_backup to deploy without a backup (e.g. if backups break).
       - name: Back up the production site
         if: ${{ inputs.run_backup }}
-        uses: ./.github/actions/backup-site
+        uses: $/.github/actions/backup-site
         with:
           main_instance: ${{ secrets.MAIN_INSTANCE }}
           main_instance_key: ${{ secrets.MAIN_INSTANCE_KEY }}
@@ -91,7 +91,7 @@ jobs:
       # Inject Sentry debug IDs into the bundle before deploy (no-op without a
       # SENTRY_AUTH_TOKEN secret). Must run before the deploy below.
       - name: Inject Sentry debug IDs
-        uses: ./.github/actions/sentry-sourcemaps
+        uses: $/.github/actions/sentry-sourcemaps
         with:
           command: inject
           auth_token: ${{ secrets.SENTRY_AUTH_TOKEN }}
@@ -106,14 +106,14 @@ jobs:
       - name: Resolve the production site's URL
         id: resolve-site
         if: ${{ inputs.script_id != '' }}
-        uses: ./.github/actions/resolve-site-credentials
+        uses: $/.github/actions/resolve-site-credentials
         with:
           main_instance: ${{ secrets.MAIN_INSTANCE }}
           main_instance_key: ${{ secrets.MAIN_INSTANCE_KEY }}
           script_id: ${{ inputs.script_id || secrets.BUNNY_SCRIPT_ID }}
 
       - name: Deploy to production
-        uses: ./.github/actions/deploy-bunny-script
+        uses: $/.github/actions/deploy-bunny-script
         with:
           script_id: ${{ inputs.script_id || secrets.BUNNY_SCRIPT_ID }}
           api_key: ${{ secrets.BUNNY_ACCESS_KEY }}
@@ -122,7 +122,7 @@ jobs:
 
       # Upload source maps for this release after deploy (no-op without secrets).
       - name: Upload Sentry source maps
-        uses: ./.github/actions/sentry-sourcemaps
+        uses: $/.github/actions/sentry-sourcemaps
         with:
           command: upload
           auth_token: ${{ secrets.SENTRY_AUTH_TOKEN }}

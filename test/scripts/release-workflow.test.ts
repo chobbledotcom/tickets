@@ -77,7 +77,7 @@ describe("Release image publication", () => {
         "    permissions:",
         "      contents: read",
         "      packages: write",
-        "    uses: ./.github/workflows/publish-image.yml",
+        "    uses: $/.github/workflows/publish-image.yml",
         "    with:",
         ["      release_tag: $", "{{ needs.release.outputs.tag }}"].join(""),
       ].join("\n"),
@@ -108,7 +108,7 @@ describe("Release image publication", () => {
       ".yml",
       ".yaml",
     ]).filter((path) =>
-      Deno.readTextFileSync(path).includes(`uses: ./${imagePath}`),
+      Deno.readTextFileSync(path).includes(`uses: $/${imagePath}`),
     );
     expect(callers).toEqual([releasePath]);
   });
