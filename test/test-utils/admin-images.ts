@@ -162,6 +162,13 @@ export const putImage = imageWrite("PUT");
 /** DELETE one image's JSON route as an owner API key. */
 export const deleteImage = imageWrite("DELETE");
 
+/** Assert the admin API refuses an unauthenticated request. */
+export const expectUnauthorized = async (
+  request: Promise<Response>,
+): Promise<void> => {
+  expect((await request).status).toBe(401);
+};
+
 /** Assert the image library answers its 404 for this request. */
 export const expectImageNotFound = (
   request: Promise<Response>,

@@ -12,6 +12,7 @@ import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import {
   type ApiImageRow,
   expectImageNotFound,
+  expectUnauthorized,
   IMAGE_API_ROOT,
   imageApiPath,
   imageOnListingAndGroup,
@@ -69,8 +70,7 @@ describeWithEnv("Admin API - Images", { db: true, storage: "cdn" }, () => {
     });
 
     test("answers 401 without auth", async () => {
-      const response = await handleRequest(mockRequest(IMAGE_API_ROOT));
-      expect(response.status).toBe(401);
+      await expectUnauthorized(handleRequest(mockRequest(IMAGE_API_ROOT)));
     });
   });
 

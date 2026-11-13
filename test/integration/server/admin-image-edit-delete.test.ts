@@ -80,6 +80,19 @@ describeWithEnv(
       };
     };
 
+    /** Run one image delete POST with storage mocked, answering its cookie and
+     *  the route's answer. */
+    const answerImageDelete = async (
+      image: Image,
+    ): Promise<{ cookie: string; response: Response }> => {
+      const { cookie, request } = await deleteRequest(image);
+      let response: Response | undefined;
+      await withStorageMock(async () => {
+        response = await handleRequest(request);
+      });
+      return { cookie, response: response! };
+    };
+
     /** Assert one page write's answer: its status, or its refusal flash. */
     const expectWriteAnswer = async (
       path: string,
@@ -94,49 +107,24 @@ describeWithEnv(
       await expectFlashRedirect(path, expected.flash, false, cookie)(response);
     };
 
-    /** Assert one edit's answer when the record's write answers `verdict`:
-     *  its 404, or its refusal flash. */
-    const expectEditAnswer = async (
+    /** Assert one image page write's answer when the record's command answers
+     *  `verdict`: its 404, or its refusal flash. */
+    const expectImageWriteAnswer = async (
       imageName: string,
-      verdict: WriteVerdict<Image>,
+      write: "remove" | "update",
+      verdict: DeleteVerdict | WriteVerdict<Image>,
       expected: { status: number } | { flash: string },
     ): Promise<void> => {
       const image = await makeImage(imageName);
-      using _update = stub(imageRecord, "update", () =>
-        Promise.resolve(verdict),
+      using _write = stub(imageRecord, write, () =>
+        Promise.resolve(verdict as never),
       );
-      const { cookie, response } = await postImageEdit(image);
-      await expectWriteAnswer(
-        `/admin/images/${image.id}/edit`,
-        cookie,
-        response,
-        expected,
-      );
-      await expectImageName(image.id, imageName);
-    };
-
-    /** Assert one delete's answer when the record's remove answers `verdict`:
-     *  its 404, or its refusal flash. */
-    const expectDeleteAnswer = async (
-      imageName: string,
-      verdict: DeleteVerdict,
-      expected: { status: number } | { flash: string },
-    ): Promise<void> => {
-      const image = await makeImage(imageName);
-      using _remove = stub(imageRecord, "remove", () =>
-        Promise.resolve(verdict),
-      );
-      const { cookie, request } = await deleteRequest(image);
-      let response: Response | undefined;
-      await withStorageMock(async () => {
-        response = await handleRequest(request);
-      });
-      await expectWriteAnswer(
-        `/admin/images/${image.id}/delete`,
-        cookie,
-        response!,
-        expected,
-      );
+      const path = `/admin/images/${image.id}/${write === "update" ? "edit" : "delete"}`;
+      const answer =
+        write === "update"
+          ? await postImageEdit(image)
+          : await answerImageDelete(image);
+      await expectWriteAnswer(path, answer.cookie, answer.response, expected);
       await expectImageName(image.id, imageName);
     };
 
@@ -158,8 +146,9 @@ describeWithEnv(
       ];
 
       for (const { expected, name, verdict } of cases) {
-        await expectEditAnswer(`${name} edit`, verdict, expected);
-        await expectDeleteAnswer(`${name} delete`, verdict, expected);
+        for (const write of ["update", "remove"] as const) {
+          await expectImageWriteAnswer(name, write, verdict, expected);
+        }
       }
     });
 
