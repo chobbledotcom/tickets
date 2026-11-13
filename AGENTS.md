@@ -512,8 +512,9 @@ annotations, so a renamed copy is a clone. The baselines only shrink. The scan
 configs live in `cfg/`. The baselines stay in the repository root, where the
 ratchet reads them. A tool or a platform that must read its config from the
 repository root keeps the file there, as `biome.json`, `deno.json`,
-`devenv.nix`, `fly.toml` and `render.yaml` do. Biome rejects a config in a
-subdirectory, and the platforms look for their file at the root.
+`devenv.nix`, `fly.toml` and `render.yaml` do. Biome refuses a second root
+configuration in a subdirectory, and the platforms look for their file at the
+root.
 
 A flagged pair is one merge:
 
