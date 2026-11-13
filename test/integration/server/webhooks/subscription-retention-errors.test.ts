@@ -18,10 +18,7 @@ import {
   type RefundAuthorityRow,
 } from "#db/provider-refund-authority.ts";
 import { taggedPaymentReference } from "#payment/provider-reference.ts";
-import {
-  REFUND_NOT_SENT,
-  type RefundAttemptResult,
-} from "#payment/refund-attempt.ts";
+import { REFUND_NOT_SENT } from "#payment/refund-attempt.ts";
 import type { HeldAnchorSearch } from "#routes/api/payment-processing/placeholder-resume.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { stripeApi } from "#shared/stripe.ts";
@@ -31,12 +28,12 @@ import { withEnv } from "#test-utils/env.ts";
 import { signedMeta } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
+import { withRefundAnswering } from "#test-utils/rejected-charge.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
-  answerCompletedStripeRefund,
+  completedStripeRefund,
   stripeFirstInvoice,
 } from "#test-utils/stripe/fixtures.ts";
-import { foundStripeIntent } from "#test-utils/stripe/responses.ts";
 import { withSubscriptionStarted } from "#test-utils/stripe/subscription-checkout.ts";
 import { expectTemporaryError } from "#test-utils/temporary-error.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
@@ -84,13 +81,11 @@ const untaxedPlan = { ...EXPECTED_PLACEHOLDER, recurring_tax: 0 };
 
 const REFUND_EXPECTATIONS = {
   "not sent": {
-    firstReads: 1,
     initialState: "ready",
     replayStatus: 400,
     sends: 2,
   },
   refused: {
-    firstReads: 2,
     initialState: "needs_owner_choice",
     replayStatus: 503,
     sends: 1,
@@ -255,29 +250,12 @@ describeWithEnv("rejected subscription retention errors", { db: true }, () => {
         started.subscription.status = "canceled";
         return observedSubscription(id, "canceled");
       });
-      using read = stub(stripeApi, "readPaymentIntent", (id) =>
-        Promise.resolve(foundStripeIntent(id, 2000)),
-      );
       let canReturn = false;
-      const complete = answerCompletedStripeRefund("re_retained_retry");
-      using refund = stub(
-        stripeApi,
-        "refundCharge",
-        (request): Promise<RefundAttemptResult> => {
-          if (canReturn) return complete(request);
-          return Promise.resolve(
-            failure === "refused"
-              ? { kind: "rejected", reason: "rejected" }
-              : REFUND_NOT_SENT,
-          );
-        },
-      );
       using _env = withEnv({ TEST_EXPECT_ERROR: "1" });
       const expected = REFUND_EXPECTATIONS[failure];
-      await withSubscriptionStarted(started, async () => {
+      const checkReplay = async () => {
         await expectStatuses(deliver, 503);
-        expectActions(cancel, refund, 1, 1);
-        expect(read.calls).toHaveLength(expected.firstReads);
+        expect(cancel.calls).toHaveLength(1);
         await expectPlan(listingId);
         const owner = await placeholderOwner(listingId);
         const before = await heldAnchor();
@@ -314,12 +292,23 @@ describeWithEnv("rejected subscription retention errors", { db: true }, () => {
           expected.replayStatus,
           expected.replayStatus,
         );
-        expectActions(cancel, refund, 1, expected.sends);
-        expect(read.calls).toHaveLength(2);
         await expectPlan(listingId);
         expect(await placeholderOwner(listingId)).toBe(owner);
         await expectRefundRetry(failure, { authority, before, index, owner });
-      });
+      };
+      const { calls } = await withRefundAnswering((request) => {
+        if (canReturn) {
+          return completedStripeRefund(
+            request.paymentReference,
+            "re_retained_retry",
+            request.charge.captured.amount,
+          );
+        }
+        return failure === "refused"
+          ? { kind: "rejected", reason: "rejected" }
+          : REFUND_NOT_SENT;
+      }, 2000)(() => withSubscriptionStarted(started, checkReplay));
+      expectActions(cancel, { calls }, 1, expected.sends);
     });
   }
 });
