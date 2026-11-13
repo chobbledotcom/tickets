@@ -3,37 +3,21 @@
  * holiday record declaration.
  */
 
-import type { HolidayInput } from "#db/holidays.ts";
 import { defineAdminRoutes, recordRoutes } from "#routes/admin/route-tables.ts";
 import {
   applyDemoOverrides,
   HOLIDAY_DEMO_FIELDS,
 } from "#shared/demo/overrides.ts";
-import type { FormValues } from "#shared/forms/definition.ts";
+import { HOLIDAY_FIELDS } from "#shared/records/holiday-fields.ts";
 import { holidayRecord } from "#shared/records/holidays.ts";
+import { formInput } from "#shared/rest/field-reads.ts";
 import { recordPages } from "#shared/rest/record-pages.ts";
-import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import {
   adminHolidaysPage,
   getHolidayPages,
 } from "#templates/admin/holidays.tsx";
 import { getHolidayForm } from "#templates/fields/admin.ts";
 import { holidayPage } from "./holiday-page.ts";
-
-/** Extract holiday input from validated form values */
-type HolidayFormValues = FormValues<ReturnType<typeof getHolidayForm>>;
-
-const extractHolidayInput = (values: HolidayFormValues): HolidayInput => ({
-  endDate: parseDateStringOrThrow(
-    values.end_date,
-    "the holiday form's end date",
-  ),
-  name: values.name,
-  startDate: parseDateStringOrThrow(
-    values.start_date,
-    "the holiday form's start date",
-  ),
-});
 
 const pages = recordPages(holidayRecord, {
   form: getHolidayForm(),
@@ -42,7 +26,7 @@ const pages = recordPages(holidayRecord, {
   renderEditError: holidayPage.renderEditError,
   renderList: adminHolidaysPage,
   renderNew: (...args) => getHolidayPages().newPage(...args),
-  toInput: extractHolidayInput,
+  toInput: formInput(HOLIDAY_FIELDS),
 });
 
 export const adminHandlers = defineAdminRoutes({

@@ -27,10 +27,10 @@ import {
   ImageRowSchema,
   UpdateImageBodySchema,
 } from "#shared/admin-api-images.ts";
+import { HOLIDAY_FIELDS } from "#shared/records/holiday-fields.ts";
 import {
   type ApiBody,
   apiBodyPair,
-  dateField,
   fieldViews,
   idRow,
   optionalTextField,
@@ -38,6 +38,7 @@ import {
   switchField,
   textField,
 } from "#shared/rest/api-body-fields.ts";
+import { apiFieldsOf } from "#shared/rest/field-specs.ts";
 
 /* ===========================================================================
  * Row schemas — the shapes the JSON API answers with. The client validates
@@ -97,11 +98,7 @@ export type AdminApiGroup = v.InferOutput<typeof GroupRowSchema>;
 
 /** The holiday fields a create or update write carries: the row without its
  *  server-owned id. */
-const holidayFields = {
-  end_date: dateField("end_date"),
-  name: textField("name"),
-  start_date: dateField("start_date"),
-};
+const holidayFields = apiFieldsOf(HOLIDAY_FIELDS);
 const holidayBodies = apiBodyPair(holidayFields);
 
 /** One holiday as the server stores it: the writable fields plus its id. The

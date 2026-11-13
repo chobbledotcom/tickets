@@ -47,7 +47,7 @@ const requireString = (
 
 /** Parse every item with one shared first-error traversal. The parser sees the
  *  item's index, so a refusal can name its place. */
-const parseEach =
+export const parseEach =
   <Input, Output>(parseItem: (item: Input, index: number) => Result<Output>) =>
   (items: readonly Input[]): Result<Output[]> =>
     reduce(
@@ -201,17 +201,6 @@ export const withWriteName =
     const name = writeEntityName(body.name, existing?.name ?? null);
     return name.ok ? build(name.value, body, existing) : name;
   };
-
-/** Combine the two date results of one range in field order: the start date
- *  reports first, then the end date. */
-export const dateRange = (
-  startDate: Result<DateString>,
-  endDate: Result<DateString>,
-): Result<{ endDate: DateString; startDate: DateString }> => {
-  if (!startDate.ok) return startDate;
-  if (!endDate.ok) return endDate;
-  return okResult({ endDate: endDate.value, startDate: startDate.value });
-};
 
 /**
  * Read one optional real-calendar-date field from a JSON body. An absent key

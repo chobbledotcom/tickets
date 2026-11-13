@@ -14,39 +14,28 @@ import { Raw } from "#jsx/jsx-runtime.ts";
 import { adminPath, adminPattern } from "#shared/admin-surface.ts";
 import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
 import { entityToFieldValues } from "#shared/forms/values.ts";
+import { HOLIDAY_FIELDS } from "#shared/records/holiday-fields.ts";
 import { holidayRecord } from "#shared/records/holidays.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { recordEditPanel } from "#templates/admin/admin-page.tsx";
+import { fieldTableColumns } from "#templates/admin/field-columns.tsx";
 import {
   type AdminResourcePages,
   confirmByName,
   defineRecordPages,
-  writableNameColumn,
 } from "#templates/admin/resource-pages.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { getHolidayForm } from "#templates/fields/admin.ts";
 import type { AdminSession } from "#types";
 
-/** Columns for the holidays table — declared once so the header order and
- *  cell order cannot drift apart. */
-const holidayColumns = (): TableColumn<Holiday>[] => [
-  writableNameColumn(
-    (holiday) => adminPath("holiday", { id: holiday.id }),
-    (holiday) => holiday.name,
-  ),
-  {
-    cell: (h) => h.start_date,
-    header: t("holidays.col.start_date"),
-    key: "start_date",
-  },
-  {
-    cell: (h) => h.end_date,
-    header: t("holidays.col.end_date"),
-    key: "end_date",
-  },
-];
+/** Columns for the holidays table, in the order the holiday fields
+ *  declare. */
+const holidayColumns = (): TableColumn<Holiday>[] =>
+  fieldTableColumns(HOLIDAY_FIELDS, (holiday) =>
+    adminPath("holiday", { id: holiday.id }),
+  );
 
 /** Shared holidays table used by the holiday settings page and dashboard. */
 export const HolidayTable = ({
