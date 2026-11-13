@@ -63,5 +63,60 @@ describeWithEnv("Admin API - listing declared bounds", { db: true }, () => {
         expect(result.value.minQuantity).toBe(1);
       }
     });
+
+    test("rejects a value outside the vocabulary or range its field declares", async () => {
+      const refused: readonly Record<string, unknown>[] = [
+        { unit_price: -100 },
+        { unit_price: 100.5 },
+        { max_price: -1 },
+        { max_price: 0.5 },
+        { listing_type: "daliy" },
+        { bookable_days: ["monday"] },
+      ];
+      for (const value of refused) {
+        const result = await bodyToCreateInput({
+          max_attendees: 10,
+          name: "Test",
+          ...value,
+        });
+        expect(result).toEqual({
+          error: `${Object.keys(value)[0]} has an invalid value`,
+          ok: false,
+        });
+      }
+    });
+
+    test("accepts each declared listing type, weekday and whole price", async () => {
+      const result = await bodyToCreateInput({
+        bookable_days: ["Monday", "Sunday"],
+        listing_type: "daily",
+        max_attendees: 10,
+        max_price: 2000,
+        name: "Test",
+        unit_price: 1250,
+      });
+      expect(result).toMatchObject({
+        ok: true,
+        value: {
+          bookableDays: ["Monday", "Sunday"],
+          listingType: "daily",
+          maxPrice: 2000,
+          unitPrice: 1250,
+        },
+      });
+    });
+
+    test("accepts a price of zero", async () => {
+      const result = await bodyToCreateInput({
+        max_attendees: 10,
+        max_price: 0,
+        name: "Test",
+        unit_price: 0,
+      });
+      expect(result).toMatchObject({
+        ok: true,
+        value: { maxPrice: 0, unitPrice: 0 },
+      });
+    });
   });
 });

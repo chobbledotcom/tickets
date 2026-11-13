@@ -1,6 +1,8 @@
 import type * as v from "valibot";
 import type { ColumnDef } from "#db/table.ts";
 import { isNotNullish } from "#fp";
+import { isValidDayName } from "#shared/day-names.ts";
+import { isListingType } from "#types";
 
 const TRANSFER_KINDS = {
   bookableDays: "array",
@@ -116,16 +118,41 @@ const INTEGER_KIND_MINIMUMS: Partial<Record<TransferName, number>> = {
   requiredPositiveInt: 1,
 };
 
-/** Check an API value's type and the bound named by its catalog field. */
+/** The smallest whole number each kind accepts on the API. The API reads a
+ *  price in minor units. The form reads a price as a decimal amount, so the
+ *  price kinds stay out of the form rule. */
+const API_KIND_MINIMUMS: Partial<Record<TransferName, number>> = {
+  ...INTEGER_KIND_MINIMUMS,
+  maxPrice: 0,
+  price: 0,
+};
+
+/** The kinds that accept only the words of one list. The check runs after
+ *  the type check, so each value already has the type of its kind. */
+const KIND_WORD_CHECKS: Partial<
+  Record<TransferName, (value: unknown) => boolean>
+> = {
+  bookableDays: (value) => (value as unknown[]).every(isValidDayName),
+  listingType: isListingType,
+};
+
+/** True when the value is a whole number of at least the minimum. */
+const isWholeNumberFrom = (minimum: number, value: unknown): boolean =>
+  Number.isSafeInteger(value) && (value as number) >= minimum;
+
+/** Check an API value against the type, the bound, and the words that its
+ *  catalog field kind declares. */
 export const isValidCatalogApiValue = (
   field: CatalogField,
   value: unknown,
 ): boolean => {
-  const minimum = INTEGER_KIND_MINIMUMS[field[2] as TransferName];
+  const kind = field[2] as TransferName;
+  const minimum = API_KIND_MINIMUMS[kind];
+  const hasKnownWords = KIND_WORD_CHECKS[kind];
   return (
-    matchesTransfer(value, field[2] as TransferName) &&
-    (minimum === undefined ||
-      (Number.isSafeInteger(value as number) && (value as number) >= minimum))
+    matchesTransfer(value, kind) &&
+    (minimum === undefined || isWholeNumberFrom(minimum, value)) &&
+    (hasKnownWords === undefined || hasKnownWords(value))
   );
 };
 

@@ -19,3 +19,7 @@ const [sunday, ...mondayFirst] = DAY_NAMES;
 
 /** Valid day names for bookable_days (Monday-first for display) */
 export const VALID_DAY_NAMES = [...mondayFirst, sunday] as const;
+
+/** True when the value is one of the weekday names. */
+export const isValidDayName = (value: unknown): boolean =>
+  (VALID_DAY_NAMES as readonly unknown[]).includes(value);
