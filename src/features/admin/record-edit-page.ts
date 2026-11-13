@@ -23,7 +23,7 @@ import {
 type NamedShape = RecordShape & { row: { name: string } };
 
 /** The facts a record's page module still supplies. */
-export type RecordEditPageConfig<Shape extends NamedShape> = Omit<
+type RecordEditPageConfig<Shape extends NamedShape> = Omit<
   EditEntityPageDef<FullRowOf<Shape>>,
   "deleteDestination" | "destination" | "load" | "navActive" | "recordId"
 > & {

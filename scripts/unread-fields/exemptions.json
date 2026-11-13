@@ -283,11 +283,6 @@
       "evidence": "defineRecord reads the built shape through RowOf, InputOf, FullRowOf, ListRowOf, and StateOf"
     },
     {
-      "path": [{ "name": "RecordSpec" }],
-      "kind": "schema-driven",
-      "evidence": "recordPages, recordApi, and defineRecord read the declaration through the generic record types"
-    },
-    {
       "path": [{ "name": "AdminRecord" }],
       "kind": "schema-driven",
       "evidence": "recordPages and recordApi read the record through the page and JSON doors"

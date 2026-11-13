@@ -24,7 +24,7 @@ type AreaSpec = {
 };
 
 /** One record area's list, detail, and write destinations. */
-export type RecordArea<Spec extends AreaSpec> = AdminAreaBase & {
+type RecordArea<Spec extends AreaSpec> = AdminAreaBase & {
   /** The ids the record that names this area reads its routes from. */
   readonly record: {
     readonly detail: Spec["singular"];
