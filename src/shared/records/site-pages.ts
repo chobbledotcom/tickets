@@ -16,11 +16,7 @@ import { t } from "#i18n";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
 import { logNameActivity, type RecordShapeOf } from "#shared/rest/record.ts";
-import {
-  deleteCommand,
-  transactCommand,
-  updateIfPresent,
-} from "#shared/rest/record-command.ts";
+import { contentCommands } from "#shared/rest/record-command.ts";
 import { errorResult, okResult } from "#shared/result.ts";
 import { isReservedSlug } from "#shared/site-pages/core.ts";
 import type { SitePage } from "#types";
@@ -44,40 +40,19 @@ export const sitePageRecord = defineNamedRowRecord<
   list: "sitePages",
   load: getSitePageById,
   rule: sitePageRule,
-  /* jscpd:ignore-start -- declarative command config, one per content record */
-  write: {
-    create: (input) =>
-      transactCommand<SitePage, SitePageWriteInput, "slugTaken">({
-        input,
-        log: (page, tx) => logPage(page.name, "created", tx),
-        message: () => t("site.pages.error.slug_taken"),
-        rule: sitePageRule,
-        write: (tx, value) => createSitePage(value, tx),
-      }),
-    remove: deleteCommand(
-      getSitePageById,
-      (page) => deleteSitePageWithEdges(page.id),
-      (page) => logPage(page.name, "deleted"),
-    ),
-    update: (id, input) =>
-      updateIfPresent(
-        getSitePageById,
-        () =>
-          transactCommand<
-            SitePage,
-            SitePageWriteInput,
-            "notFound" | "slugTaken"
-          >({
-            input,
-            log: (page, tx) => logPage(page.name, "updated", tx),
-            message: () => t("site.pages.error.slug_taken"),
-            notFound: "notFound",
-            rule: sitePageRule,
-            write: (tx, value) => updateSitePage(id, value, tx),
-          }),
-        id,
-        input,
-      ),
-  },
-  /* jscpd:ignore-end */
+  write: contentCommands<
+    SitePage,
+    SitePageWriteInput,
+    "notFound" | "slugTaken"
+  >({
+    create: createSitePage,
+    load: getSitePageById,
+    log: logPage,
+    message: () => t("site.pages.error.slug_taken"),
+    notFound: "notFound",
+    remove: (page) => deleteSitePageWithEdges(page.id),
+    rule: sitePageRule,
+    update: updateSitePage,
+    updateInput: (input) => input,
+  }),
 });

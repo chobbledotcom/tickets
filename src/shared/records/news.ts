@@ -3,7 +3,6 @@
  * commands. News pages and the Site content editor both read this declaration.
  */
 
-import { withTransaction } from "#db/client.ts";
 import {
   createNewsPost,
   deleteNewsPostWithImages,
@@ -15,15 +14,22 @@ import {
 import { t } from "#i18n";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
 import { logNameActivity, type RecordShapeOf } from "#shared/rest/record.ts";
-import {
-  deleteCommand,
-  transactCommand,
-  updateIfPresent,
-} from "#shared/rest/record-command.ts";
+import { contentCommands } from "#shared/rest/record-command.ts";
 import { okResult } from "#shared/result.ts";
 import type { NewsPost, NewsPostSummary } from "#types";
 
 const logNews = logNameActivity("News post");
+
+/** An update carries the slug the create generated. */
+const newsUpdateInput = (
+  input: NewsPostWriteInput & { slug?: string },
+): NewsPostWriteInput & { slug: string } => {
+  const slug = input.slug;
+  if (slug === undefined) {
+    throw new Error("A news post update must carry its slug");
+  }
+  return { ...input, slug };
+};
 
 export const newsRecord = defineNamedRowRecord<
   RecordShapeOf<
@@ -38,43 +44,19 @@ export const newsRecord = defineNamedRowRecord<
   getAll: getNewsPostSummaries,
   list: "news",
   load: getNewsPostById,
-  /* jscpd:ignore-start -- declarative command config, one per content record */
-  write: {
-    create: (input) =>
-      withTransaction(async (tx) => {
-        const post = await createNewsPost(input, tx);
-        await logNews(post.name, "created", tx);
-        return { kind: "written", row: post };
-      }),
-    remove: deleteCommand(
-      getNewsPostById,
-      (post) => deleteNewsPostWithImages(post.id),
-      (post) => logNews(post.name, "deleted"),
-    ),
-    update: (id, input) =>
-      updateIfPresent(
-        getNewsPostById,
-        () => {
-          const slug = input.slug;
-          if (slug === undefined) {
-            throw new Error("A news post update must carry its slug");
-          }
-          return transactCommand<
-            NewsPost,
-            NewsPostWriteInput & { slug: string },
-            "notFound" | "slugTaken"
-          >({
-            input: { ...input, slug },
-            log: (post, tx) => logNews(post.name, "updated", tx),
-            message: () => t("news.error.slug_taken"),
-            notFound: "notFound",
-            rule: (value) => okResult(value),
-            write: (tx, value) => updateNewsPost(id, value, tx),
-          });
-        },
-        id,
-        input,
-      ),
-  },
-  /* jscpd:ignore-end */
+  write: contentCommands<
+    NewsPost,
+    NewsPostWriteInput & { slug?: string },
+    "notFound" | "slugTaken"
+  >({
+    create: async (input, tx) => okResult(await createNewsPost(input, tx)),
+    load: getNewsPostById,
+    log: logNews,
+    message: () => t("news.error.slug_taken"),
+    notFound: "notFound",
+    remove: (post) => deleteNewsPostWithImages(post.id),
+    rule: (value) => okResult(value),
+    update: (id, input, tx) => updateNewsPost(id, newsUpdateInput(input), tx),
+    updateInput: newsUpdateInput,
+  }),
 });
