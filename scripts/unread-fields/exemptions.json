@@ -374,16 +374,6 @@
       ],
       "kind": "schema-driven",
       "evidence": "record.ts reads the table statement builder through the generic Table type"
-    },
-    {
-      "path": [
-        { "name": "RecordOrder" },
-        { "name": "append" },
-        { "way": "()" },
-        { "way": "args" }
-      ],
-      "kind": "schema-driven",
-      "evidence": "ordered-collection append reads the key and transaction arguments"
     }
   ],
   "src/shared/settings/form-schema.ts": [

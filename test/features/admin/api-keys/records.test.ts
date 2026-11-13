@@ -5,8 +5,8 @@ import { generateSecureToken } from "#crypto/utils.ts";
 import {
   createApiKey,
   deleteApiKey,
+  findApiKeyForUser,
   getApiKeyByToken,
-  getApiKeyForUser,
   getApiKeysForUser,
   touchApiKeyLastUsed,
 } from "#db/api-keys.ts";
@@ -22,7 +22,7 @@ describeWithEnv("API key records", { db: true }, () => {
       const { apiKey, id } = await createTestApiKeyFull();
 
       expect(id).toBeGreaterThan(0);
-      expect(apiKey).toBeTruthy();
+      expect(apiKey).toMatch(/^[\w-]+$/);
 
       const found = await getApiKeyByToken(apiKey);
       expect(found).not.toBeNull();
@@ -108,9 +108,8 @@ describeWithEnv("API key records", { db: true }, () => {
     test("gets a single API key by ID and user", async () => {
       const { id } = await createTestApiKeyFull("Lookup Key");
 
-      const found = await getApiKeyForUser(id, 1);
-      expect(found).not.toBeNull();
-      expect(found!.name).toBe("Lookup Key");
+      const found = await findApiKeyForUser(id, 1);
+      expect(found?.name).toBe("Lookup Key");
     });
 
     test("display reads select only the API key fields they return", async () => {
@@ -119,7 +118,7 @@ describeWithEnv("API key records", { db: true }, () => {
       await withRequestContext(async () => {
         enableQueryLog();
         await getApiKeysForUser(1);
-        await getApiKeyForUser(id, 1);
+        await findApiKeyForUser(id, 1);
         expect(getQueryLog().map((entry) => entry.sql)).toEqual([
           "SELECT id, name, created, last_used FROM api_keys WHERE user_id = ? ORDER BY id ASC",
           "SELECT id, name FROM api_keys WHERE id = ? AND user_id = ? LIMIT ?",
@@ -127,12 +126,10 @@ describeWithEnv("API key records", { db: true }, () => {
       });
     });
 
-    test("getApiKeyForUser throws for wrong user", async () => {
+    test("findApiKeyForUser answers null for another user", async () => {
       const { id } = await createTestApiKeyFull("Wrong User");
 
-      await expect(getApiKeyForUser(id, 999)).rejects.toThrow(
-        `API key ${id} not found for user 999`,
-      );
+      expect(await findApiKeyForUser(id, 999)).toBeNull();
     });
 
     test("lists empty array for user with no keys", async () => {
@@ -152,9 +149,7 @@ describeWithEnv("API key records", { db: true }, () => {
     }
   });
 
-  test("getApiKeyForUser throws a not-found error for an unknown key", async () => {
-    await expect(getApiKeyForUser(999_999, 1)).rejects.toThrow(
-      "API key 999999 not found for user 1",
-    );
+  test("findApiKeyForUser answers null for an unknown key", async () => {
+    expect(await findApiKeyForUser(999_999, 1)).toBeNull();
   });
 });

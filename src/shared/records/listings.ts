@@ -38,6 +38,7 @@ export const listingRecord = defineNamedRowRecord<
   list: "listings",
   load: getListingWithCount,
   loadAfterWrite: getListingWithCountPrimary,
+  logAfterCommit: true,
   rule: ruleFromValidator(validateListingInput),
   table: listingsTable,
 });

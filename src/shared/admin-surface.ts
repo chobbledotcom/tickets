@@ -111,13 +111,15 @@ export const adminRecordPath = (
   record: string | number,
 ): string => recordPath(adminDestination(id), record);
 
-/** A generated CRUD save uses its route's override, or its collection list. */
+/** A generated CRUD save uses its route's override, or its collection list.
+ *  A record can override the landing for its own surface. */
 export const afterSavePath = (
   route: AdminDestinationDef,
   list: AdminDestinationId,
   record: number,
+  landingOverride?: AdminDestinationId,
 ): string => {
-  const landing = destinationFor(route.afterSave ?? list);
+  const landing = destinationFor(landingOverride ?? route.afterSave ?? list);
   return landing.pattern.includes(":")
     ? recordPath(landing, record)
     : landing.pattern;

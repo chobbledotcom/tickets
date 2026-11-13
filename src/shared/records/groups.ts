@@ -68,18 +68,20 @@ const validatePackageCompatibility = async (
  * cards/rows and reveal the member names the hide flag concealed. Un-packaging
  * or deleting such a group is rejected until the operator clears the hide flag
  * first (an explicit reveal). A VISIBLE package still un-groups freely. */
-export const soldHiddenPackageError = (id: number): Promise<string | null> =>
-  getGroupById(id).then(async (group) => {
-    if (!group?.is_package || !group.hide_package_listings) {
-      return null;
-    }
-    const sold = await rowExists(
-      `SELECT 1 FROM listing_attendees
-        WHERE package_group_id = ? AND quantity > 0 LIMIT 1`,
-      [id],
-    );
-    return sold ? t("error.sold_hidden_package") : null;
-  });
+export const soldHiddenPackageError = async (
+  id: number,
+): Promise<string | null> => {
+  const group = await getGroupById(id);
+  if (!group?.is_package || !group.hide_package_listings) {
+    return null;
+  }
+  const sold = await rowExists(
+    `SELECT 1 FROM listing_attendees
+      WHERE package_group_id = ? AND quantity > 0 LIMIT 1`,
+    [id],
+  );
+  return sold ? t("error.sold_hidden_package") : null;
+};
 
 /** Combined validation: slug uniqueness plus the package invariant. On create
  * (`id` undefined) the group has no members yet, so only the slug is checked.

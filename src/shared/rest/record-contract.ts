@@ -5,6 +5,7 @@
  */
 
 import type { TransactionStateReader, TxScope } from "#db/client.ts";
+import type { OrderedCollection } from "#db/ordered-collection.ts";
 import type { Table } from "#db/table.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import type { AdminApiResource } from "#shared/admin-api-resources.ts";
@@ -126,9 +127,7 @@ export type RecordRule<Input, Row> = (
 ) => AsyncResult<Input>;
 
 /** One ordered collection's create-time append. */
-export type RecordOrder = {
-  append: (args: { key: number; transaction: TxScope }) => Promise<void>;
-};
+export type RecordOrder = Pick<OrderedCollection<"id", undefined>, "append">;
 
 /* jscpd:ignore-start -- TypeScript repeats the type parameters on every generic declaration */
 /**
@@ -179,6 +178,9 @@ export interface RecordSpec<
   readonly load?: LoadCommand<FullRow>;
   /** Read a just-committed row back. Pinned to the primary by default. */
   readonly loadAfterWrite?: LoadAfterWriteCommand<FullRow>;
+  /** Log after the row transaction commits. A failed log must not undo a
+   * committed listing. */
+  readonly logAfterCommit?: boolean;
   /** The display name to log, taken from the input the write just made. An
    * update input carries the values the row now holds. */
   readonly logName: (input: Input) => string;

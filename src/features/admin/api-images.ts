@@ -254,12 +254,18 @@ const handleUpdate: RouteHandlerFn = withImageWrite(
           session.adminLevel,
         );
         if (linkRefusal !== null) return linkRefusal;
-        const verdict = await imageRecord.update(existing.id, input.value);
-        if (verdict.kind !== "written") return imageFailure(verdict);
+        const outcome = await writeImageUpdate(existing, {
+          items: input.value.items ?? null,
+          metadata: {
+            altText: input.value.altText ?? existing.alt_text,
+            name: input.value.name,
+          },
+        });
+        if ("refusal" in outcome) return outcome.refusal;
         return jsonResponse({
           image: toImageRow(
-            verdict.row,
-            await getImageUsesForImageOnPrimary(verdict.row.id),
+            outcome.row,
+            await getImageUsesForImageOnPrimary(outcome.row.id),
           ),
         });
       },

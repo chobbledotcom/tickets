@@ -21,7 +21,7 @@ import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
 import {
   adminDestination,
   adminDestinationAtOrNull,
-  adminRecordPath,
+  afterSavePath,
 } from "#shared/admin-surface.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -268,7 +268,6 @@ const resolvePagePaths = (
   list: AdminDestinationId,
   config: PagePathConfig,
 ): PagePaths => {
-  const saveRouteId = (afterSave as AdminDestinationId | undefined) ?? list;
   const skipped = config.skip ?? [];
   const routePath = <T extends "new" | "edit">(
     kind: T,
@@ -293,13 +292,14 @@ const resolvePagePaths = (
     editPath: routePath("edit", `${listPath}/:id/edit`),
     listPath,
     newPath: routePath("new", `${listPath}/new`),
-    savePath: (id) => {
-      if (config.savePath) return config.savePath(id);
-      const route = adminDestination(saveRouteId);
-      return route.pattern.includes(":")
-        ? adminRecordPath(saveRouteId, id)
-        : route.pattern;
-    },
+    savePath: (id) =>
+      config.savePath?.(id) ??
+      afterSavePath(
+        adminDestination(list),
+        list,
+        id,
+        afterSave as AdminDestinationId | undefined,
+      ),
   };
 };
 
@@ -395,7 +395,8 @@ export const recordPages = <
     config.renderEditError
       ? config.renderEditError(id, session, form, message)
       : errorRedirect(
-          config.editErrorPath?.(id) ?? `${editPath}/${id}/edit`,
+          config.editErrorPath?.(id) ??
+            (editPath ?? `${listPath}/:id/edit`).replace(/:[^/]+/, String(id)),
           message,
         );
 

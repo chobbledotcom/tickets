@@ -40,7 +40,7 @@
   },
   "src/features/auth.ts": {
     "long-sentence": 10,
-    "wordy": 5,
+    "wordy": 4,
     "semicolon": 3,
     "contraction": 2,
     "banned-modal": 5

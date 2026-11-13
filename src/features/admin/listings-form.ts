@@ -19,6 +19,7 @@ import {
   moveUndatedBookingsToDayTx,
   wouldBeStaySpanDays,
 } from "#db/listings/daily-switch.ts";
+import { listingsTable } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
 import { range } from "#fp";
 import { formDataToParams } from "#routes/csrf.ts";
@@ -386,6 +387,9 @@ export const buildUpdateListingResource = (
       id: number,
       submitted: FormParams,
     ): Promise<ListingUpdateResult> => {
+      if (!(await listingsTable.read.exists({ id }))) {
+        return { notFound: true, ok: false };
+      }
       const parsed = await parseInput(submitted);
       if (!parsed.ok) return parsed;
       const dated = parsed.value;

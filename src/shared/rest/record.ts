@@ -118,13 +118,15 @@ export const defineRecord = <
   type PlainWriteFor<Row, Input> = (value: Input) => Promise<Row | null>;
 
   /** The activity line every write commits with the row. */
-  const logWrite = (value: Input, verb: string) => (tx: TxScope, id: number) =>
-    logActivity(
-      `${spec.activityName} '${spec.logName(value)}' ${verb}`,
-      spec.linkActivityToRow ? { id } : undefined,
-      undefined,
-      tx,
-    ).then(() => undefined);
+  const logWrite =
+    (value: Input, verb: string) => async (tx: TxScope, id: number) => {
+      await logActivity(
+        `${spec.activityName} '${spec.logName(value)}' ${verb}`,
+        spec.linkActivityToRow ? { id } : undefined,
+        undefined,
+        tx,
+      );
+    };
 
   /** The transaction steps a write runs after its row statement: the per-call
    * side effect, the record's join write, its order append, then its log. */
@@ -144,7 +146,7 @@ export const defineRecord = <
     if (spec.order) {
       writes.push((tx, id) => spec.order!.append({ key: id, transaction: tx }));
     }
-    writes.push(logWrite(value, verb));
+    if (!spec.logAfterCommit) writes.push(logWrite(value, verb));
     return writes;
   };
 
@@ -183,7 +185,7 @@ export const defineRecord = <
     if ("error" in prepared) {
       return { kind: "refused", message: prepared.error };
     }
-    return answerWrite(() =>
+    const verdict = await answerWrite(() =>
       writeEntity<FullRow, State>({
         afterCommit: spec.afterCommit,
         buildStatement: () => Promise.resolve(steps.statementFor(ruled.value)),
@@ -204,18 +206,29 @@ export const defineRecord = <
         tableName: requireTable().name,
       }),
     );
+    if (verdict.kind === "written" && spec.logAfterCommit) {
+      await logActivity(
+        `${spec.activityName} '${spec.logName(ruled.value)}' ${steps.verb}`,
+        spec.linkActivityToRow ? { id: verdict.row.id } : undefined,
+      );
+    }
+    return verdict;
   };
 
   type LoadedRow =
     | { kind: "not-found" }
     | { kind: "loaded"; row: FullRow; table: Table<Row, Input> };
 
-  /** Read the row an update or delete works on, with the table it writes. */
+  /** Read the row an update or delete works on. A table record reads the
+   * primary, so a write sees its own row rather than a stale replica. */
   const loadForWrite = async (
     id: number,
     actor: RecordActor | undefined,
   ): Promise<LoadedRow> => {
-    const row = await load(id, actor);
+    const row =
+      spec.table !== undefined || spec.loadAfterWrite !== undefined
+        ? await loadAfterWrite(id)
+        : await load(id, actor);
     return row === null
       ? { kind: "not-found" }
       : { kind: "loaded", row, table: requireTable() };

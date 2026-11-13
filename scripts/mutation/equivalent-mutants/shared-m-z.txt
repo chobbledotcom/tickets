@@ -371,7 +371,6 @@ src/shared/sumup-provider.ts::sumupWebhookEvent.type~1axukkq  ?? → || audited:
 
 # sumup/money.ts: Array.find gives back a refund read object or nothing.
 src/shared/sumup/money.ts::readSumupRefunds~1yhvyvp  ?? → || audited:0k8nuca # find returns a refund read object or undefined, and every object is truthy
-src/shared/rest/resource.ts::parseAndValidate~0ypp34v  ?? → || audited:0ohr026 # runValidation turns a falsey validation answer into null, so validationError is an ErrorResult or null and never the empty string
 
 src/shared/booking/signed-metadata.ts::bookedPathGroupIds~0zn56vl  ?? → || audited:0bada57 # lineGroupId answers a validated parent id (an integer at least 1) or undefined; never falsy-but-defined
 src/shared/booking/signed-metadata.ts::bookedOutsideParent~0e9f075  ?? → || audited:0bada57 # byChild sums validated quantities of at least 1, so every present value is truthy
@@ -410,4 +409,3 @@ src/shared/order-line-items.ts::orderLineItems.name~0am8pen  ??→|| audited:04c
 
 # crud-api.ts: a resource declares its children and custom routes as an object
 # or leaves them out.
-src/shared/rest/crud-api.ts::declaredRecords~1k64ef7  ?? → || audited:17gpx11 # records: an object or undefined — an object is always truthy

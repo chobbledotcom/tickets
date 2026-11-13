@@ -139,18 +139,6 @@ export const findApiKeyForUser = async (
 ): Promise<ApiKeyName | null> => apiKeyNameColumns.one({ id, user_id: userId });
 
 /**
- * Get a single API key by ID and user, with decrypted name.
- */
-export const getApiKeyForUser = async (
-  id: number,
-  userId: number,
-): Promise<ApiKeyName> => {
-  const decrypted = await findApiKeyForUser(id, userId);
-  if (!decrypted) throw new Error(`API key ${id} not found for user ${userId}`);
-  return decrypted;
-};
-
-/**
  * Delete an API key by ID (must belong to the given user).
  */
 export const deleteApiKey = async (
