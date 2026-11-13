@@ -24,6 +24,7 @@ import {
 } from "#test-utils/db-helpers/questions.ts";
 import {
   configureTestEmail,
+  decodeSvgAttachment,
   expectSingleTicketSvg,
 } from "#test-utils/email.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
@@ -145,11 +146,43 @@ describeWithEnv(
       assertStringIncludes(decoded, "<svg");
     });
 
+    test("embeds the ticket SVG in the confirmation HTML after the message", async () => {
+      await setupAndSendRegistration();
+
+      const body = fetch.getFetchJsonBody();
+      const svg = expectSingleTicketSvg(body);
+      const embedded = svg.slice(svg.indexOf("<svg"));
+      const html = body.html;
+      assertStringIncludes(html, embedded);
+      expect(html.indexOf("View your tickets")).toBeLessThan(
+        html.indexOf("<svg"),
+      );
+      assert(!html.includes("<?xml"));
+    });
+
+    test("embeds every ticket in the HTML of a multi-listing registration", async () => {
+      const entries = [
+        makeEntry({ name: "Listing A" }, { ticket_token: "tok1" }),
+        makeEntry({ name: "Listing B" }, { ticket_token: "tok2" }),
+      ];
+      await setupAndSendRegistration({}, entries);
+
+      const body = fetch.getFetchJsonBody();
+      expect(body.attachments).toHaveLength(2);
+      expect(body.attachments[0].filename).toBe("ticket-1.svg");
+      expect(body.attachments[1].filename).toBe("ticket-2.svg");
+      for (const attachment of body.attachments) {
+        const svg = decodeSvgAttachment(attachment.content);
+        assertStringIncludes(body.html, svg.slice(svg.indexOf("<svg")));
+      }
+    });
+
     test("does not attach tickets to admin notification", async () => {
       await setupAndSendRegistration({ businessEmail: "admin@business.com" });
 
       const body = fetch.findCallBodyByRecipient("admin@business.com");
       expect(body.attachments).toBe(undefined);
+      assert(!body.html.includes("<svg"));
     });
 
     test("collapses a hidden package's tickets into one package-level SVG", async () => {
@@ -249,19 +282,6 @@ describeWithEnv(
         "Choose one: Chosen",
         "Anything else?: Arriving late",
       ]);
-    });
-
-    test("attaches numbered tickets for multi-listing registration", async () => {
-      const entries = [
-        makeEntry({ name: "Listing A" }, { ticket_token: "tok1" }),
-        makeEntry({ name: "Listing B" }, { ticket_token: "tok2" }),
-      ];
-      await setupAndSendRegistration({}, entries);
-
-      const body = fetch.getFetchJsonBody();
-      expect(body.attachments).toHaveLength(2);
-      expect(body.attachments[0].filename).toBe("ticket-1.svg");
-      expect(body.attachments[1].filename).toBe("ticket-2.svg");
     });
 
     test("still sends admin notification when confirmation fetch fails", async () => {
