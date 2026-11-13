@@ -4,8 +4,8 @@
  * one count per accepted clone fingerprint, so the ratchet compares those
  * counts with the base. A fingerprint the base does not hold, and a count
  * above the base's, both fail. A fingerprint that is gone, and a count below
- * the base's, pass: a baseline only shrinks. See "Code Duplication" in
- * AGENTS.md.
+ * the base's, pass: a baseline only shrinks. The one accepted rise is a
+ * re-paired clone (see ./re-pairs.ts). See "Code Duplication" in AGENTS.md.
  */
 
 import { basename } from "node:path";
@@ -68,6 +68,13 @@ export const basePathFor = (
 /** The script a task runs when that task is a jscpd scan. */
 const CPD_SCRIPT = "scripts/cpd.ts";
 
+/** Reads a list out of the repository's tasks: each name and its command. */
+type TaskReader = (tasks: Readonly<Record<string, string>>) => string[];
+
+/** The commands of the tasks that run a jscpd scan. */
+export const scanCommands: TaskReader = (tasks) =>
+  Object.values(tasks).filter((command) => command.includes(CPD_SCRIPT));
+
 /** The flag each scan task gives its committed baseline, in either the
  * `--baseline <path>` or the `--baseline=<path>` form. */
 const BASELINE_FLAG = /--baseline(?:=|\s+)(\S+)/g;
@@ -75,9 +82,7 @@ const BASELINE_FLAG = /--baseline(?:=|\s+)(\S+)/g;
 /** The baseline paths the `scripts/cpd.ts` tasks name, sorted and unique. A
  * scan whose baseline sits outside the names the ratchet reads can raise that
  * baseline unseen, so the check holds the two lists together. */
-export const baselinePathsNamed = (
-  tasks: Readonly<Record<string, string>>,
-): string[] =>
+export const baselinePathsNamed: TaskReader = (tasks) =>
   sortStrings(
     unique(
       flatMap((command: string) =>
@@ -87,7 +92,7 @@ export const baselinePathsNamed = (
             `A cpd task names --baseline with no path: ${match[0]}`,
           ),
         ),
-      )(Object.values(tasks).filter((command) => command.includes(CPD_SCRIPT))),
+      )(scanCommands(tasks)),
     ),
   );
 
@@ -129,22 +134,49 @@ export const fingerprintCounts = (
   return parsed.output.fingerprints;
 };
 
+/** How many clones `head` holds under fingerprints the base does not hold. */
+const addedClones = (
+  head: FingerprintCounts,
+  base: FingerprintCounts,
+): number =>
+  Object.entries(head).reduce(
+    (total, [fingerprint, count]) =>
+      base[fingerprint] === undefined ? total + count : total,
+    0,
+  );
+
+/** How many clones one baseline file holds that its merge base copy does not
+ * hold. The ratchet scans for re-pairs only when this is above zero. */
+export const addedCloneCount = (
+  path: string,
+  headText: string,
+  baseText: string,
+): number =>
+  addedClones(
+    fingerprintCounts(path, headText),
+    fingerprintCounts(path, baseText),
+  );
+
 /** The finding lines for one baseline file's clones above the base's counts,
  * in fingerprint order. A fingerprint the base does not hold is absent from
  * the scan's record, so it counts as zero accepted clones there, and any
- * count above zero is a rise. */
+ * count above zero is a rise. The added clones pass together when the scan
+ * finds at least that many re-pairs. */
 const risenFindings = (
   path: string,
   head: FingerprintCounts,
   base: FingerprintCounts,
-): string[] =>
-  sort((left: [string, number], right: [string, number]) =>
+  rePairs: number,
+): string[] => {
+  const addedPass = addedClones(head, base) <= rePairs;
+  const rises = Object.entries(head).filter(
+    ([fingerprint, count]) =>
+      count > (base[fingerprint] ?? 0) &&
+      !(addedPass && base[fingerprint] === undefined),
+  );
+  return sort((left: [string, number], right: [string, number]) =>
     left[0].localeCompare(right[0]),
-  )(
-    Object.entries(head).filter(
-      ([fingerprint, count]) => count > (base[fingerprint] ?? 0),
-    ),
-  ).map(([fingerprint, count]) => {
+  )(rises).map(([fingerprint, count]) => {
     const recorded = base[fingerprint];
     return recorded === undefined
       ? formatFinding(`${path}:${fingerprint}`, {
@@ -158,17 +190,19 @@ const risenFindings = (
           rule: "raised-clone",
         });
   });
+};
 
 /**
  * One baseline file's rises against the merge base, in fingerprint order.
  * `baseText` is undefined when the merge base holds no such file: a new
  * baseline accepts clones that main never accepted, so it fails unless it
- * holds none.
+ * holds none. `rePairs` is the count of re-paired clones the scan found.
  */
 export const riseFindings = (
   path: string,
   headText: string,
   baseText: string | undefined,
+  rePairs: number,
 ): string[] => {
   const head = fingerprintCounts(path, headText);
   if (baseText === undefined) {
@@ -183,5 +217,6 @@ export const riseFindings = (
           }),
         ];
   }
-  return risenFindings(path, head, fingerprintCounts(path, baseText));
+  const base = fingerprintCounts(path, baseText);
+  return risenFindings(path, head, base, rePairs);
 };

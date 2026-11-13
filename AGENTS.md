@@ -539,7 +539,8 @@ A flagged pair is one merge:
   `cfg/.jscpd.support-baseline.json`. After a merge, remove the fixed clones
   with
   `deno run -A scripts/cpd.ts --config <config> --baseline <baseline> --update`.
-  Never add a clone to these baselines.
+  Never add a clone to these baselines. The one exception is a re-paired
+  clone, which the next item defines.
 - A branch must not raise a baseline. The ratchet in `deno task cpd` fails on
   a clone that the merge base on `origin/main` does not hold, and on a count
   above the base's, so precommit and CI catch both. It reads every
@@ -548,6 +549,13 @@ A flagged pair is one merge:
   new. It fails on a scan task that names another path, so a new scan's
   baseline is compared too. Run it on its own with
   `deno task check:jscpd-baselines`.
+- The ratchet accepts a re-paired clone. A clone pair has one fingerprint.
+  When a branch deletes one side of a pair, the scan pairs the other side
+  with a new partner, and that pair has a new fingerprint. When a baseline
+  holds a fingerprint that the merge base does not hold, the ratchet repeats
+  the scan with the merge base's baseline. An added clone passes when the
+  branch changed neither of its files. The count of added clones must not
+  exceed the count of such re-pairs.
 - After each scan, `deno task cpd` names the worst duplication: the code in the
   most places, then the code with the most tokens. Merge that one first.
 - Import and re-export statements are a sanctioned repeat. The
