@@ -32,6 +32,7 @@ import {
   recordPageIds,
   recordSurfaceOf,
 } from "#shared/rest/record.ts";
+import { deleteIfPresent, writeAndLog } from "#shared/rest/record-command.ts";
 import { errorResult, okResult } from "#shared/result.ts";
 import { wasActivityLogged } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -248,5 +249,64 @@ describe("the record surface law", () => {
     for (const record of API_RECORDS) {
       expect(adminDestination(record.list).pattern).toContain("/admin/");
     }
+  });
+});
+
+describe("the command write answers", () => {
+  test("answers the written row and logs it", async () => {
+    const logged: number[] = [];
+    const verdict = await writeAndLog({
+      log: (row: { id: number }) => {
+        logged.push(row.id);
+        return Promise.resolve();
+      },
+      message: () => "refused",
+      write: () => Promise.resolve(okResult({ id: 4 })),
+    });
+    expect(verdict).toEqual({ kind: "written", row: { id: 4 } });
+    expect(logged).toEqual([4]);
+  });
+
+  test("answers the not-found error as not found", async () => {
+    const verdict = await writeAndLog({
+      log: () => Promise.resolve(),
+      message: () => "refused",
+      notFound: "notFound",
+      write: () => Promise.resolve(errorResult("notFound")),
+    });
+    expect(verdict).toEqual({ kind: "not-found" });
+  });
+
+  test("answers another domain error with its message", async () => {
+    const verdict = await writeAndLog({
+      log: () => Promise.resolve(),
+      message: () => "That name is taken",
+      write: () => Promise.resolve(errorResult("slugTaken")),
+    });
+    expect(verdict).toEqual({
+      kind: "refused",
+      message: "That name is taken",
+    });
+  });
+
+  test("deletes a present row and skips an absent log", async () => {
+    const removed: number[] = [];
+    const verdict = await deleteIfPresent(7, {
+      destroy: (row: { id: number }) => {
+        removed.push(row.id);
+        return Promise.resolve();
+      },
+      load: () => Promise.resolve({ id: 7 }),
+    });
+    expect(verdict).toEqual({ kind: "deleted" });
+    expect(removed).toEqual([7]);
+  });
+
+  test("answers not found for an absent row", async () => {
+    const verdict = await deleteIfPresent(7, {
+      destroy: () => Promise.reject(new Error("must not run")),
+      load: () => Promise.resolve(null),
+    });
+    expect(verdict).toEqual({ kind: "not-found" });
   });
 });
