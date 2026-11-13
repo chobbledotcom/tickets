@@ -176,7 +176,8 @@ export const deleteCommand =
     deleteAndLog(id, { destroy, load, log });
 
 /** The three writes of a content record with a slug: its domain create,
- *  update, and delete, and the words its slug error and activity line use. */
+ *  update, and delete. It also carries the words its slug error and activity
+ *  line use. */
 export const contentCommands = <
   Row extends { id: number; name: string },
   Input,

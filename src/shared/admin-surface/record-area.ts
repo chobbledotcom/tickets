@@ -1,8 +1,8 @@
 /**
- * The destinations every record area declares: the list, the record page,
- * and the edit and delete writes, with the create write unless the record has
- * no new page. The ids and paths derive from
- * the record's names, so a route and its gate cannot name different paths.
+ * The destinations every record area declares. It gives the list, the record
+ * page, the edit and delete writes, and the create write. The create write is
+ * absent when the record has no new page. The ids and paths derive from the
+ * record's names, so a route and its gate cannot name different paths.
  */
 
 import type {
@@ -144,8 +144,8 @@ export const recordArea = <
 /** The path tail of each write, keyed by the suffix its id ends with. */
 type Tails = Readonly<Record<string, string>>;
 
-/** Writes that share one id prefix and one path: each id is the prefix with a
- * suffix, and each path is the shared path with that suffix's tail. */
+/** Writes that share one id prefix and one path. Each id is the prefix with a
+ * suffix. Each path is the shared path with that suffix's tail. */
 export type SuffixWrites<
   Prefix extends string,
   Path extends string,
