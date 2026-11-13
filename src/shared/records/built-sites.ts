@@ -37,12 +37,14 @@ const saveBuiltSite = (
   id: number | null,
   input: BuiltSiteFormInput,
   verb: "created" | "updated",
-): Promise<WriteVerdict<BuiltSite>> =>
-  commitBuiltSite(verb, () =>
+): Promise<WriteVerdict<BuiltSite>> => {
+  builtSiteRule(input);
+  return commitBuiltSite(verb, () =>
     id === null
       ? builtSitesCrudTable.insert(input)
       : builtSitesCrudTable.update(id, input),
   );
+};
 
 const builtSiteWrites = {
   create: (input: BuiltSiteFormInput) => saveBuiltSite(null, input, "created"),
