@@ -10,11 +10,15 @@ import type { EntityPage } from "#routes/admin/entity-pages.ts";
 import type { IdRouteHandler } from "#routes/entity.ts";
 import {
   defineRoutes,
+  type RouteHandlerFn,
   type RouteTableFactory,
   type TypedRouteHandler,
 } from "#routes/router.ts";
 import {
   ADMIN_SURFACE,
+  type AdminDestinationId,
+  type AdminPatternFor,
+  adminDestination,
   oneServedPath,
   type RecordAreaId,
   type RecordAreaIds,
@@ -150,6 +154,45 @@ export const recordRoutes = <Area extends RecordAreaId>(
     ...entityTabRoutes(patterns.detail, page),
   } as RecordRoutes<Area>;
 };
+
+/** The handlers one declared route serves, named by method. */
+type MethodHandlers<Pattern extends string> = {
+  readonly delete?: TypedRouteHandler<`DELETE ${Pattern}`>;
+  readonly get?: TypedRouteHandler<`GET ${Pattern}`>;
+  readonly post?: TypedRouteHandler<`POST ${Pattern}`>;
+};
+
+/** Handlers named by the route they serve. Each route's path stays in the
+ * surface declaration, so a table cannot bind a path the surface lacks. */
+type DestinationHandlers = {
+  readonly [Id in AdminDestinationId]?: MethodHandlers<
+    AdminPatternFor<Id> & string
+  >;
+};
+
+/** The route table entries of one declared route: one for each method it
+ * answers. */
+const routesOfDestination = ([id, handlers]: [string, MethodHandlers<never>]): [
+  string,
+  unknown,
+][] => {
+  const { pattern } = adminDestination(id as AdminDestinationId);
+  const byMethod: [string, unknown][] = [
+    [`DELETE ${pattern}`, handlers.delete],
+    [`GET ${pattern}`, handlers.get],
+    [`POST ${pattern}`, handlers.post],
+  ];
+  return byMethod.filter(([, handler]) => handler !== undefined);
+};
+
+/** Bind handlers under the paths their routes declare, ready to spread into
+ * the area's route table. */
+export const destinationRoutes = (
+  handlers: DestinationHandlers,
+): Record<string, RouteHandlerFn> =>
+  Object.fromEntries(
+    Object.entries(handlers).flatMap(routesOfDestination),
+  ) as Record<string, RouteHandlerFn>;
 
 /** Define an admin route table. It refuses any route whose path no declared
  * destination serves. A route without a declaration has no audience, so the

@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   crudRoutes,
   defineAdminRoutes,
+  destinationRoutes,
   entityTabRoutes,
   orderRoutes,
   recordRoutes,
@@ -202,4 +203,37 @@ describe("recordRoutes", () => {
       expect(Object.keys(routes).toSorted()).toEqual(expected);
     });
   }
+});
+
+describe("destinationRoutes", () => {
+  test("binds each method under the path its route declares", async () => {
+    const answer = (body: string) => () => Promise.resolve(new Response(body));
+    const routes = destinationRoutes({
+      attendeeDelete: {
+        delete: answer("delete"),
+        get: answer("get"),
+        post: answer("post"),
+      },
+      attendees: { get: answer("list") },
+    });
+    expect(Object.keys(routes).toSorted()).toEqual([
+      "DELETE /admin/attendees/:attendeeId/delete",
+      "GET /admin/attendees",
+      "GET /admin/attendees/:attendeeId/delete",
+      "POST /admin/attendees/:attendeeId/delete",
+    ]);
+    const bodies = await Promise.all(
+      [
+        "DELETE /admin/attendees/:attendeeId/delete",
+        "GET /admin/attendees",
+        "GET /admin/attendees/:attendeeId/delete",
+        "POST /admin/attendees/:attendeeId/delete",
+      ].map(async (key) => (await routes[key]!(request, {})).text()),
+    );
+    expect(bodies).toEqual(["delete", "list", "get", "post"]);
+  });
+
+  test("binds nothing for an empty table", () => {
+    expect(destinationRoutes({})).toEqual({});
+  });
 });

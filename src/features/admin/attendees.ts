@@ -13,6 +13,7 @@ import { t } from "#i18n";
 import { emailPendingForAdminLines } from "#routes/admin/attendees-route-helpers.ts";
 import {
   defineAdminRoutes,
+  destinationRoutes,
   entityTabRoutes,
 } from "#routes/admin/route-tables.ts";
 import { formPolicyFor } from "#routes/auth.ts";
@@ -444,26 +445,29 @@ const handleResendNotification = attendeeActions[
 export const adminHandlers = defineAdminRoutes({
   ...entityTabRoutes(adminPattern("attendee"), attendeePage),
   ...paymentReviewHandlers,
-  "DELETE /admin/attendees/:attendeeId/delete": handleAttendeeDelete,
-  "GET /admin/attendees": handleAttendeesListGet,
-  "GET /admin/attendees/:attendeeId/delete": handleAdminAttendeeDeleteGet,
-  "GET /admin/attendees/:attendeeId/resend-notification":
-    handleAdminResendNotificationGet,
-  "GET /admin/attendees/csv": handleAttendeesCsvExport,
-  "GET /admin/attendees/new": handleAttendeeNewGet,
-  "GET /admin/listing/:listingId/attendee/:attendeeId/checkin":
-    handleAttendeeCheckinGet,
-  "POST /admin/attendees/:attendeeId": handleAttendeeEditPost,
-  "POST /admin/attendees/:attendeeId/delete": handleAttendeeDelete,
-  "POST /admin/attendees/:attendeeId/logistics": handleAttendeeLogisticsPost,
-  "POST /admin/attendees/:attendeeId/merge": handleMergePost,
-  "POST /admin/attendees/:attendeeId/refresh-payment": handleRefreshPayment,
-  "POST /admin/attendees/:attendeeId/resend-notification":
-    handleResendNotification,
-  "POST /admin/attendees/new": handleAttendeeNewPost,
-  "POST /admin/listing/:listingId/attendee": handleAddAttendee,
-  "POST /admin/listing/:listingId/attendee/:attendeeId/checkin":
-    handleAttendeeCheckin,
-  "POST /admin/listing/:listingId/attendee/:attendeeId/delete-incomplete":
-    handleDeleteIncomplete,
+  ...destinationRoutes({
+    attendee: { post: handleAttendeeEditPost },
+    attendeeDelete: {
+      delete: handleAttendeeDelete,
+      get: handleAdminAttendeeDeleteGet,
+      post: handleAttendeeDelete,
+    },
+    attendeeLogistics: { post: handleAttendeeLogisticsPost },
+    attendeeMerge: { post: handleMergePost },
+    attendeeNew: { get: handleAttendeeNewGet, post: handleAttendeeNewPost },
+    attendeeRefreshPayment: { post: handleRefreshPayment },
+    attendeeResend: {
+      get: handleAdminResendNotificationGet,
+      post: handleResendNotification,
+    },
+    attendees: { get: handleAttendeesListGet },
+    attendeesCsv: { get: handleAttendeesCsvExport },
+    listingAttendeeAdd: { post: handleAddAttendee },
+    // The check-in page reads `listingId`, the name this route declares.
+    listingAttendeeCheckin: {
+      get: handleAttendeeCheckinGet,
+      post: handleAttendeeCheckin,
+    },
+    listingAttendeeDeleteIncomplete: { post: handleDeleteIncomplete },
+  }),
 });
