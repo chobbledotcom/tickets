@@ -30,7 +30,7 @@ const templateSavedResponse = (
   ok(`${COMPOSE_PATH}${targetQuery(target)}&template=${templateId}`, message);
 
 /** Answer one template save: its flash redirect, or the refusal. The template
- *  was removed between the compose page load and this save; the record's save
+ *  was removed between the compose page load and this save. The record's save
  *  command never refuses a submitted template. */
 const answerTemplateSave = (
   verdict: WriteVerdict<{ id: number }>,
