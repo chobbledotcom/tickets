@@ -24,26 +24,32 @@
 }
 
 .listing-type-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-s);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: var(--space-m);
+  row-gap: var(--space-s);
+  align-items: start;
   padding: var(--space-m);
-  border: 1px solid var(--color-bg-secondary);
-  border-radius: 4px;
+  border: 1px solid var(--color-link);
+  border-radius: 8px;
   text-decoration: none;
   color: inherit;
 }
 
-/* The card's icon: large, in the link colour, so the grid reads at a
-   glance before the labels. */
+/* The card's icon: large, left of the label and description, in the same
+   purple the menu links use (--color-link). */
+.listing-type-card-icon {
+  grid-row: 1 / span 2;
+}
+
 .listing-type-card-icon .icon {
   color: var(--color-link);
-  height: 56px;
-  width: 56px;
+  height: 72px;
+  width: 72px;
 }
 
 .listing-type-card:hover {
-  border-color: var(--color-link);
+  background: var(--color-bg-secondary);
 }
 
 .listing-type-card--disabled {
