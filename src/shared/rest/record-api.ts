@@ -9,7 +9,7 @@
 
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
-import { type AuthPolicy, withAuth } from "#routes/auth.ts";
+import { type AuthPolicy, type AuthSession, withAuth } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import {
@@ -36,6 +36,7 @@ import {
   jsonAudienceFor,
   type RecordSurface,
   type WritePlan,
+  type WriteVerdict,
 } from "#shared/rest/record.ts";
 import type { Result } from "#shared/result.ts";
 import type { AdminLevel, AdminSession } from "#types";
@@ -157,7 +158,8 @@ export const recordApi = <
   if (nameField === undefined) {
     throw new Error(`The ${singular} record names no display-name column`);
   }
-  const lookup = record.load;
+  const lookup = (id: number, session: AuthSession) =>
+    record.load(id, { session });
   const stripKeys = config.stripKeys ?? [];
 
   const responseRow = (
@@ -194,7 +196,7 @@ export const recordApi = <
 
   const handleList: RouteHandlerFn = (request) =>
     withAuth(request, readPolicy, async (session) => {
-      const rows = await record.getAll();
+      const rows = await record.getAll({ session });
       const extras = config.listExtras ? config.listExtras(session) : {};
       return jsonResponse({
         [name]: await listItems(rows, session),
@@ -276,6 +278,16 @@ export const recordApi = <
       ? apiErrorResponse(verdict.message)
       : apiErrorResponse(`${singular} not found`, 404);
 
+  /** Answer one written row, or its failure. */
+  const answerWrite = async (
+    verdict: WriteVerdict<FullRow>,
+    status: number,
+    session: AuthSession,
+  ): Promise<Response> =>
+    verdict.kind === "written"
+      ? respondWithRow(verdict.row, status, session)
+      : failureResponse(verdict);
+
   const handleCreate: RouteHandlerFn = (request) =>
     withAuth(request, readPolicy, async (session, body) => {
       const validated = await validatedInput(writeInput(body, null, session));
@@ -283,9 +295,9 @@ export const recordApi = <
       const verdict = await record.create(
         validated.input,
         writePlan(body, null),
+        { session },
       );
-      if (verdict.kind !== "written") return failureResponse(verdict);
-      return respondWithRow(verdict.row, 201, session);
+      return answerWrite(verdict, 201, session);
     });
 
   const paramName = adminApiIdParam(singular);
@@ -293,7 +305,7 @@ export const recordApi = <
   const entityRoute = (
     handler: (
       row: FullRow,
-      session: AdminSession,
+      session: AuthSession,
       body: Record<string, unknown>,
       id: number,
     ) => Promise<Response>,
@@ -324,19 +336,19 @@ export const recordApi = <
       id,
       validated.input,
       writePlan(body, existing),
+      { session },
     );
-    if (verdict.kind !== "written") return failureResponse(verdict);
-    return respondWithRow(verdict.row, 200, session);
+    return answerWrite(verdict, 200, session);
   });
 
-  const handleDelete = entityRoute(async (existing, _session, body, id) => {
+  const handleDelete = entityRoute(async (existing, session, body, id) => {
     const error = verifyIdentifierOrJsonError(
       String(existing[nameField]),
       body.confirm_identifier,
       `${singular} name`,
     );
     if (error) return apiErrorResponse(error);
-    const verdict = await record.remove(id);
+    const verdict = await record.remove(id, undefined, { session });
     if (verdict.kind !== "deleted") return failureResponse(verdict);
     return jsonResponse({ status: "ok" });
   }, deletePolicy);

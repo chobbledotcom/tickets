@@ -128,15 +128,24 @@ export const getApiKeysForUser = async (
 };
 
 /**
+ * Find one API key by ID and user, with its decrypted name, or null.
+ */
+export const findApiKeyForUser = async (
+  id: number,
+  userId: number,
+): Promise<{ id: number; name: string } | null> =>
+  apiKeyNameColumns.one({ id, user_id: userId });
+
+/**
  * Get a single API key by ID and user, with decrypted name.
  */
 export const getApiKeyForUser = async (
   id: number,
   userId: number,
 ): Promise<{ id: number; name: string }> => {
-  const decrypted = await apiKeyNameColumns.one({ id, user_id: userId });
+  const decrypted = await findApiKeyForUser(id, userId);
   if (!decrypted) throw new Error(`API key ${id} not found for user ${userId}`);
-  return { id: decrypted.id, name: decrypted.name };
+  return decrypted;
 };
 
 /**

@@ -54,6 +54,19 @@ export const writeAndLog = async <Row, Error extends string = string>(
 };
 
 /* jscpd:ignore-start -- the two command runners share one config shape */
+/** Run the record's one rule, then a command that answers its own verdict. */
+export const ruledCommand = async <Row, Input>(config: {
+  input: Input;
+  run: (value: Input) => Promise<WriteVerdict<Row>>;
+  rule: RecordRule<Input, Row>;
+  stored: Row | null;
+}): Promise<WriteVerdict<Row>> => {
+  const ruled = await config.rule(config.input, config.stored);
+  return ruled.ok
+    ? config.run(ruled.value)
+    : { kind: "refused", message: ruled.error };
+};
+
 /** Run the record's one rule, then the command write. */
 export const commitCommand = async <
   Row,

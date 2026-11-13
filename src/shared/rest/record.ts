@@ -17,6 +17,7 @@ import type {
 import type { Table } from "#db/table.ts";
 import { byPrimaryKey } from "#db/table-reader.ts";
 import { refusingTheWriteOn } from "#db/transaction.ts";
+import type { AuthSession } from "#routes/auth.ts";
 import type { AdminApiResource } from "#shared/admin-api-resources.ts";
 import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
 import { adminDestination, adminDestinationAt } from "#shared/admin-surface.ts";
@@ -32,6 +33,10 @@ import {
 import { transactionValidationMessageOrRethrow } from "#shared/rest/write-error.ts";
 import type { Result } from "#shared/result.ts";
 import type { AdminLevel } from "#types";
+
+/** The request actor a door hands a record whose read or write needs it. A
+ * per-user row or a secret read uses the session at its boundary. */
+export type RecordActor = { session: AuthSession };
 
 /** The refusal answer a write or delete command gives. */
 type RefusalVerdict =
@@ -114,14 +119,17 @@ export interface RecordSpec<
   readonly deleteDestination?: AdminDestinationId;
   /** A refusal the JSON delete answers beyond the confirmation check. The
    * page can declare its own pre-render guard. */
-  readonly deleteRefusal?: (id: number) => Promise<string | null>;
-  readonly getAll: () => Promise<ListRow[]>;
+  readonly deleteRefusal?: (
+    id: number,
+    actor?: RecordActor,
+  ) => Promise<string | null>;
+  readonly getAll: (actor?: RecordActor) => Promise<ListRow[]>;
   /** Link create/update log entries to the row (the listing log does). */
   readonly linkActivityToRow?: boolean;
   /** The page route whose declaration gives the record its audience. */
   readonly list: AdminDestinationId;
   /** Read one row for a page, the API, and the delete confirmation. */
-  readonly load?: (id: number) => Promise<FullRow | null>;
+  readonly load?: (id: number, actor?: RecordActor) => Promise<FullRow | null>;
   /** Read a just-committed row back. Pinned to the primary by default. */
   readonly loadAfterWrite?: (id: number) => Promise<FullRow | null>;
   /** The display name to log, taken from the input the write just made. An
@@ -132,7 +140,11 @@ export interface RecordSpec<
   /** The row's display name: the delete confirmation and the activity log. */
   readonly nameOf: (row: Row) => string;
   /** The delete itself. Defaults to deleting the table row. */
-  readonly onDelete?: (id: number, input: unknown) => Promise<void>;
+  readonly onDelete?: (
+    id: number,
+    input: unknown,
+    actor?: RecordActor,
+  ) => Promise<void>;
   /** The create-time order append. Inside the row write's transaction, so a
    * row never exists unplaced. */
   readonly order?: RecordOrder;
@@ -150,12 +162,20 @@ export interface RecordSpec<
    * statement gives its three commands here. Each command applies `rule`
    * itself, so the one rule still holds at both doors. */
   readonly write?: {
-    readonly create: (input: Input) => Promise<WriteVerdict<FullRow>>;
+    readonly create: (
+      input: Input,
+      actor?: RecordActor,
+    ) => Promise<WriteVerdict<FullRow>>;
     readonly update: (
       id: number,
       input: Input,
+      actor?: RecordActor,
     ) => Promise<WriteVerdict<FullRow>>;
-    readonly remove: (id: number, input?: unknown) => Promise<DeleteVerdict>;
+    readonly remove: (
+      id: number,
+      input?: unknown,
+      actor?: RecordActor,
+    ) => Promise<DeleteVerdict>;
   };
 }
 
@@ -170,14 +190,20 @@ export interface AdminRecord<
   readonly create: <Prepared = undefined>(
     input: Input,
     plan?: WritePlan<Prepared, State>,
+    actor?: RecordActor,
   ) => Promise<WriteVerdict<FullRow>>;
-  readonly load: (id: number) => Promise<FullRow | null>;
+  readonly load: (id: number, actor?: RecordActor) => Promise<FullRow | null>;
   readonly loadAfterWrite: (id: number) => Promise<FullRow | null>;
-  readonly remove: (id: number, input?: unknown) => Promise<DeleteVerdict>;
+  readonly remove: (
+    id: number,
+    input?: unknown,
+    actor?: RecordActor,
+  ) => Promise<DeleteVerdict>;
   readonly update: <Prepared = undefined>(
     id: number,
     input: Input,
     plan?: WritePlan<Prepared, State>,
+    actor?: RecordActor,
   ) => Promise<WriteVerdict<FullRow>>;
 }
 
@@ -213,7 +239,7 @@ const defaultLoad =
   <Row extends { id: number }, Input, FullRow extends Row>(
     table: Table<Row, Input>,
   ) =>
-  (id: number): Promise<FullRow | null> =>
+  (id: number, _actor?: RecordActor): Promise<FullRow | null> =>
     primary
       ? (table.findByIdPrimary!(id) as Promise<FullRow | null>)
       : (table.read.one(byPrimaryKey(table, id)) as Promise<FullRow | null>);
@@ -365,6 +391,7 @@ export const defineRecord = <
   const create = <Prepared = undefined>(
     input: Input,
     plan?: WritePlan<Prepared, State>,
+    _actor?: RecordActor,
   ): Promise<WriteVerdict<FullRow>> => {
     const table = requireTable();
     return commitWrite(input, null, {
@@ -379,8 +406,9 @@ export const defineRecord = <
     id: number,
     input: Input,
     plan?: WritePlan<Prepared, State>,
+    actor?: RecordActor,
   ): Promise<WriteVerdict<FullRow>> => {
-    const existing = await load(id);
+    const existing = await load(id, actor);
     if (existing === null) return { kind: "not-found" };
     const table = requireTable();
     return commitWrite(input, existing, {
@@ -394,8 +422,9 @@ export const defineRecord = <
   const remove = async (
     id: number,
     input?: unknown,
+    actor?: RecordActor,
   ): Promise<DeleteVerdict> => {
-    const existing = await load(id);
+    const existing = await load(id, actor);
     if (existing === null) return { kind: "not-found" };
     const table = requireTable();
     // The confirmation page loaded the row earlier. Re-check it here so a row
@@ -403,10 +432,12 @@ export const defineRecord = <
     if (!(await table.read.exists(byPrimaryKey(table, id)))) {
       return { kind: "not-found" };
     }
-    const refusal = spec.deleteRefusal ? await spec.deleteRefusal(id) : null;
+    const refusal = spec.deleteRefusal
+      ? await spec.deleteRefusal(id, actor)
+      : null;
     if (refusal !== null) return { kind: "refused", message: refusal };
     if (spec.onDelete) {
-      await spec.onDelete(id, input);
+      await spec.onDelete(id, input, actor);
     } else {
       await table.deleteById(id);
     }
@@ -419,7 +450,23 @@ export const defineRecord = <
 
   return {
     ...spec,
-    ...(spec.write ?? { create, remove, update }),
+    ...(spec.write
+      ? {
+          create: <Prepared = undefined>(
+            input: Input,
+            _plan?: WritePlan<Prepared, State>,
+            actor?: RecordActor,
+          ) => spec.write!.create(input, actor),
+          remove: (id: number, input?: unknown, actor?: RecordActor) =>
+            spec.write!.remove(id, input, actor),
+          update: <Prepared = undefined>(
+            id: number,
+            input: Input,
+            _plan?: WritePlan<Prepared, State>,
+            actor?: RecordActor,
+          ) => spec.write!.update(id, input, actor),
+        }
+      : { create, remove, update }),
     load,
     loadAfterWrite,
   };

@@ -3,7 +3,7 @@
 import * as v from "valibot";
 import { isNotNullish, reduce } from "#fp";
 import { apiErrorResponse } from "#routes/api/cors.ts";
-import { type AuthPolicy, withAuth } from "#routes/auth.ts";
+import { type AuthPolicy, type AuthSession, withAuth } from "#routes/auth.ts";
 import { objectEntries } from "#shared/rest/api-body-fields.ts";
 import type { WriteMapper } from "#shared/rest/crud-api-types.ts";
 import {
@@ -17,7 +17,6 @@ import {
   parseDateString,
   parseDateStringOrThrow,
 } from "#shared/validation/date-string.ts";
-import type { AdminSession } from "#types";
 
 /** JSON body for confirmed delete endpoints */
 export type DeleteBody = { confirm_identifier: string };
@@ -359,7 +358,7 @@ export const parseUpdateSlug = async <Index extends string>(
 /** Callback receiving an entity row plus auth context */
 export type EntityHandler<Row> = (
   row: Row,
-  session: AdminSession,
+  session: AuthSession,
   body: Record<string, unknown>,
 ) => Promise<Response>;
 
@@ -374,7 +373,7 @@ export type EntityHandler<Row> = (
  */
 export const withApiEntity = <Row>(
   request: Request,
-  lookup: (id: number) => Promise<Row | null>,
+  lookup: (id: number, session: AuthSession) => Promise<Row | null>,
   id: number,
   notFoundLabel: string,
   handler: EntityHandler<Row>,
@@ -383,7 +382,7 @@ export const withApiEntity = <Row>(
     apiErrorResponse(`${notFoundLabel} not found`, 404),
 ): Promise<Response> =>
   withAuth(request, policy, async (session, body) => {
-    const row = await lookup(id);
+    const row = await lookup(id, session);
     if (!row) return notFound();
     return handler(row, session, body);
   });

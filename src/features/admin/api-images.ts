@@ -214,7 +214,7 @@ const withImageWrite =
   (request, params) =>
     withApiEntity(
       request,
-      imageRecord.load,
+      (id, session) => imageRecord.load(id, { session }),
       params[ID_PARAM] as number,
       ENTRY.label,
       async (image, session, body) => {

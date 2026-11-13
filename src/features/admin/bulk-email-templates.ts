@@ -4,27 +4,19 @@
  * confirmation round-trip used for other named resources.
  */
 
-import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/hybrid.ts";
 import { countRows } from "#db/client.ts";
-import {
-  deleteEmailTemplate,
-  getRawEmailTemplate,
-  insertEmailTemplate,
-  updateEmailTemplate,
-} from "#db/email-templates.ts";
-import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import {
   COMPOSE_PATH,
   validatedEmailPost,
 } from "#routes/admin/bulk-email-form.ts";
-import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import { errorRedirect } from "#routes/response.ts";
 import { targetQuery } from "#shared/bulk-email-targets/registry.ts";
 import type { BulkEmailTarget } from "#shared/bulk-email-targets/types.ts";
 import { MAX_EMAIL_TEMPLATES } from "#shared/limits.ts";
+import { emailTemplateRecord } from "#shared/records/email-templates.ts";
 import { ok } from "#shared/response.ts";
-import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
+import { recordPages } from "#shared/rest/record-pages.ts";
 import { parsePositiveInt as parsePositiveIntId } from "#shared/validation/number.ts";
 import { bulkEmailTemplateDeletePage } from "#templates/admin/bulk-email.tsx";
 
@@ -36,12 +28,38 @@ const templateSavedResponse = (
 ): Response =>
   ok(`${COMPOSE_PATH}${targetQuery(target)}&template=${templateId}`, message);
 
+/** The refusal a failed template save flashes, or null for a saved row. */
+const templateFailure = (
+  verdict: { kind: string; message?: string },
+  target: BulkEmailTarget,
+): Response | null =>
+  verdict.kind === "written"
+    ? null
+    : errorRedirect(
+        `${COMPOSE_PATH}${targetQuery(target)}`,
+        verdict.kind === "refused" && verdict.message !== undefined
+          ? verdict.message
+          : t("bulk_email.template_missing"),
+      );
+
+/** Answer one template save: its flash redirect, or the refusal. */
+const answerTemplateSave = (
+  verdict: { kind: string; message?: string; row?: { id: number } },
+  target: BulkEmailTarget,
+  message: string,
+): Response => {
+  const failure = templateFailure(verdict, target);
+  if (failure !== null) return failure;
+  if (verdict.kind !== "written" || verdict.row === undefined) {
+    throw new Error("A saved template answered no row");
+  }
+  return templateSavedResponse(target, verdict.row.id, message);
+};
+
 /** POST /admin/emails/templates — save or update a template. */
 export const handleTemplateSavePost = validatedEmailPost(
   "/admin/emails/templates",
   async ({ subject, body, target }, form) => {
-    const encSubject = await encryptWithOwnerKey(subject, settings.publicKey);
-    const encBody = await encryptWithOwnerKey(body, settings.publicKey);
     const updateExisting = form.getFlag("update_existing");
     const templateIdParam = form.get("template_id");
     const templateId = templateIdParam
@@ -49,17 +67,13 @@ export const handleTemplateSavePost = validatedEmailPost(
       : null;
 
     if (updateExisting && templateId !== null) {
-      const existing = await getRawEmailTemplate(templateId);
-      if (!existing) {
-        return errorRedirect(
-          `${COMPOSE_PATH}${targetQuery(target)}`,
-          t("bulk_email.template_missing"),
-        );
-      }
-      await updateEmailTemplate(templateId, encSubject, encBody);
-      return templateSavedResponse(
+      const verdict = await emailTemplateRecord.update(templateId, {
+        body,
+        subject,
+      });
+      return answerTemplateSave(
+        verdict,
         target,
-        templateId,
         t("bulk_email.template_updated_flash"),
       );
     }
@@ -71,41 +85,30 @@ export const handleTemplateSavePost = validatedEmailPost(
         t("bulk_email.template_limit_reached", { max: MAX_EMAIL_TEMPLATES }),
       );
     }
-    const newId = await insertEmailTemplate(encSubject, encBody);
-    return templateSavedResponse(
+    const verdict = await emailTemplateRecord.create({ body, subject });
+    return answerTemplateSave(
+      verdict,
       target,
-      newId,
       t("bulk_email.template_saved_flash"),
     );
   },
 );
 
 /**
- * Typed-confirmation delete for a template, matching the round-trip flow used
- * for other named resources. The subject is encrypted. The owner's private
- * key decrypts it twice: once to display the confirmation page, once as the
- * identifier the owner must re-type.
+ * The template delete routes, bound from the template record's declaration.
+ * The confirmation page decrypts the subject with the owner's private key.
  */
-export const templateDelete = createConfirmedHandlers<{
-  id: number;
-  subject: string;
-}>({
-  identifier: (template) => template.subject,
+const pages = recordPages(emailTemplateRecord, {
+  deleteSuccessMessage: "Template deleted.",
+  deleteSuccessPath: `${COMPOSE_PATH}?audience=active`,
   identifierLabel: t("bulk_email.name_label"),
-  load: async (id) => {
-    const raw = await getRawEmailTemplate(id);
-    if (!raw) return null;
-    const privateKey = await requireRequestPrivateKey();
-    return {
-      id,
-      subject: await decryptWithOwnerKey(raw.subject, privateKey),
-    };
-  },
-  onConfirm: async (_template, id) => {
-    await deleteEmailTemplate(id);
-  },
-  path: "/admin/emails/templates/:id/delete",
-  render: bulkEmailTemplateDeletePage,
-  successMessage: "Template deleted.",
-  successRedirect: `${COMPOSE_PATH}?audience=active`,
+  renderDelete: bulkEmailTemplateDeletePage,
+  routes: { delete: "emailTemplateDelete" },
+  singular: "Template",
+  skip: ["new", "edit"],
 });
+
+export const templateDelete = {
+  get: pages.deleteGet,
+  post: pages.deletePost,
+};

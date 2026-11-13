@@ -226,6 +226,13 @@
       "evidence": "defineForm's render and validate read the declared fields"
     }
   ],
+  "src/shared/records/email-templates.ts": [
+    {
+      "path": [{ "name": "EmailTemplateRow" }],
+      "kind": "schema-driven",
+      "evidence": "answerTemplateSave reads verdict.row.id, which the scan cannot follow through WriteVerdict"
+    }
+  ],
   "src/shared/rest/record-pages.ts": [
     {
       "path": [{ "name": "RecordPagesConfig" }],
@@ -357,11 +364,6 @@
       ],
       "kind": "schema-driven",
       "evidence": "record.ts reads the table statement builder through the generic Table type"
-    },
-    {
-      "path": [{ "name": "RecordSpec" }, { "name": "write" }],
-      "kind": "schema-driven",
-      "evidence": "defineRecord spreads a command record's write functions into the returned record"
     },
     {
       "path": [

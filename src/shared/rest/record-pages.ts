@@ -27,7 +27,11 @@ import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { FormSchema } from "#shared/forms/definition.ts";
 import { checkedValues } from "#shared/forms/validation.ts";
-import type { DeleteVerdict, WriteVerdict } from "#shared/rest/record.ts";
+import type {
+  DeleteVerdict,
+  RecordActor,
+  WriteVerdict,
+} from "#shared/rest/record.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import type { AdminSession } from "#types";
 
@@ -40,11 +44,24 @@ export type PageRecord<
   FullRow extends Row,
   ListRow = FullRow,
 > = {
-  create: (input: Input) => Promise<WriteVerdict<FullRow>>;
-  update: (id: number, input: Input) => Promise<WriteVerdict<FullRow>>;
-  remove: (id: number, input?: unknown) => Promise<DeleteVerdict>;
-  load: (id: number) => Promise<FullRow | null>;
-  getAll: () => Promise<ListRow[]>;
+  create: (
+    input: Input,
+    plan?: never,
+    actor?: RecordActor,
+  ) => Promise<WriteVerdict<FullRow>>;
+  update: (
+    id: number,
+    input: Input,
+    plan?: never,
+    actor?: RecordActor,
+  ) => Promise<WriteVerdict<FullRow>>;
+  remove: (
+    id: number,
+    input?: unknown,
+    actor?: RecordActor,
+  ) => Promise<DeleteVerdict>;
+  load: (id: number, actor?: RecordActor) => Promise<FullRow | null>;
+  getAll: (actor?: RecordActor) => Promise<ListRow[]>;
   nameOf: (row: Row) => string;
   list: AdminDestinationId;
   saveLanding?: AdminDestinationId;
@@ -96,9 +113,13 @@ export type RecordPagesConfig<
   renderNew?: (session: AdminSession, error?: string) => string;
   /** The noun the flash messages use ("Holiday created"). */
   singular: string;
-  /** The destination ids a surface uses for its new or edit page, when they do
-   * not sit under the collection path. */
-  routes?: { new?: AdminDestinationId; edit?: AdminDestinationId };
+  /** The destination ids a surface uses for its new, edit, or delete route,
+   * when they do not sit under the collection path. */
+  routes?: {
+    delete?: AdminDestinationId;
+    edit?: AdminDestinationId;
+    new?: AdminDestinationId;
+  };
   /** Standard routes this surface does not serve. */
   skip?: readonly ("new" | "edit")[];
   /** Handlers that replace a generated standard route. */
@@ -127,6 +148,10 @@ export type RecordPagesConfig<
   deleteGuard?: (row: FullRow, id: number) => Promise<string | null>;
   /** The choice the delete command reads from the submitted form. */
   deleteInput?: (form: FormParams) => DeleteInput;
+  /** The page a delete lands on, when it is not the collection list. */
+  deleteSuccessPath?: string;
+  /** The flash a delete answers, when it is not "<singular> deleted". */
+  deleteSuccessMessage?: string;
 };
 
 /** The gates the six standard routes run, each from the route it guards. */
@@ -152,10 +177,11 @@ const recordGates = (
   listPath: string,
   newPath: string | null,
   editPath: string | null,
+  deletePath: string,
 ): RecordGates => ({
   create: formGuardAt(listPath),
-  delete: pageGuardAt(`${listPath}/:id/delete`),
-  deleteForm: formGuardAt(`${listPath}/:id/delete`),
+  delete: pageGuardAt(deletePath),
+  deleteForm: formGuardAt(deletePath),
   edit:
     editPath === null
       ? null
@@ -221,7 +247,11 @@ const deleteFailure = async (
  *  the config's route overrides. */
 type PagePathConfig = {
   createErrorPath?: string;
-  routes?: { new?: AdminDestinationId; edit?: AdminDestinationId };
+  routes?: {
+    delete?: AdminDestinationId;
+    edit?: AdminDestinationId;
+    new?: AdminDestinationId;
+  };
   savePath?: (id: number) => string;
   skip?: readonly ("new" | "edit")[];
 };
@@ -260,7 +290,9 @@ const resolvePagePaths = (
       (config.routes?.new
         ? adminDestination(config.routes.new).pattern
         : `${listPath}/new`),
-    deletePath: `${listPath}/:id/delete`,
+    deletePath: config.routes?.delete
+      ? adminDestination(config.routes.delete).pattern
+      : `${listPath}/:id/delete`,
     editPath: routePath("edit", `${listPath}/:id/edit`),
     listPath,
     newPath: routePath("new", `${listPath}/new`),
@@ -304,7 +336,7 @@ export const recordPages = <
       record.list,
       config,
     );
-  const auth = recordGates(listPath, newPath, editPath);
+  const auth = recordGates(listPath, newPath, editPath, deletePath);
 
   const readInput = async (
     form: FormParams,
@@ -316,7 +348,11 @@ export const recordPages = <
 
   const listGet = config.renderList
     ? authPage(auth.list)(async (session) =>
-        config.renderList!(await record.getAll(), session, getFlash().success),
+        config.renderList!(
+          await record.getAll({ session }),
+          session,
+          getFlash().success,
+        ),
       )
     : notFoundResponse;
 
@@ -328,10 +364,12 @@ export const recordPages = <
         );
 
   const createPost = (request: Request): Promise<Response> =>
-    formGuardAt(listPath)(request, async (_session, form) => {
+    formGuardAt(listPath)(request, async (session, form) => {
       const parsed = await readInput(form, false);
       if (!parsed.ok) return errorRedirect(createErrorPath, parsed.error);
-      const verdict = await record.create(parsed.value);
+      const verdict = await record.create(parsed.value, undefined, {
+        session,
+      });
       const refusal = refusalOf(verdict);
       if (refusal !== null) return errorRedirect(createErrorPath, refusal);
       return verdict.kind === "written"
@@ -376,7 +414,12 @@ export const recordPages = <
   ): Promise<Response> => {
     const parsed = await readInput(form, true);
     return parsed.ok
-      ? editVerdict(await record.update(id, parsed.value), id, session, form)
+      ? editVerdict(
+          await record.update(id, parsed.value, undefined, { session }),
+          id,
+          session,
+          form,
+        )
       : rejectEdit(id, session, form, parsed.error);
   };
 
@@ -386,7 +429,7 @@ export const recordPages = <
       : (request, { id }) =>
           auth.edit!(request, (session, form) => applyEdit(id, session, form));
 
-  const confirmedDelete = createConfirmedHandlers<FullRow, AdminSession>({
+  const confirmedDelete = createConfirmedHandlers<FullRow, AuthSession>({
     auth: { requireSession: auth.delete, withForm: auth.deleteForm },
     ...(config.deleteGuard
       ? {
@@ -397,19 +440,23 @@ export const recordPages = <
     identifier: (row: FullRow) =>
       config.identifier ? config.identifier(row) : record.nameOf(row),
     identifierLabel: config.identifierLabel ?? "",
-    load: (id) => record.load(id),
-    onConfirm: async (_row, id, _session, form) => {
+    load: (id, session) => record.load(id, { session }),
+    onConfirm: async (_row, id, session, form) => {
       const verdict = await record.remove(
         id,
         config.deleteInput ? config.deleteInput(form) : undefined,
+        { session },
       );
-      const failure = await deleteFailure(verdict, `${listPath}/${id}/delete`);
+      const failure = await deleteFailure(
+        verdict,
+        deletePath.replace(/:[^/]+/, String(id)),
+      );
       return failure ?? undefined;
     },
     path: deletePath,
     render: config.renderDelete ?? (() => ""),
-    successMessage: `${config.singular} deleted`,
-    successRedirect: listPath,
+    successMessage: config.deleteSuccessMessage ?? `${config.singular} deleted`,
+    successRedirect: config.deleteSuccessPath ?? listPath,
   });
 
   return {

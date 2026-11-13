@@ -32,7 +32,7 @@ import { ErrorCode, logError } from "#shared/logger.ts";
 import { sortByName } from "#shared/name-order.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
 import type { WriteVerdict } from "#shared/rest/record.ts";
-import { deleteAndLog } from "#shared/rest/record-command.ts";
+import { deleteAndLog, ruledCommand } from "#shared/rest/record-command.ts";
 import { transactionValidationMessageOrRethrow } from "#shared/rest/write-error.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import {
@@ -198,13 +198,17 @@ const updateInTransaction = async (
 /** The image's three write commands: the upload boundary on create, the
  *  metadata-and-links transaction on update, and the record delete. */
 const imageWrites = {
-  create: async (input: ImageWriteInput): Promise<WriteVerdict<Image>> => {
-    const ruled = imageRule(input);
-    if (!ruled.ok) return { kind: "refused", message: ruled.error };
-    const image = await insertUploadedImage(ruled.value);
-    await logImageAction("uploaded", image.name);
-    return { kind: "written", row: image };
-  },
+  create: (input: ImageWriteInput): Promise<WriteVerdict<Image>> =>
+    ruledCommand({
+      input,
+      rule: imageRule,
+      run: async (value) => {
+        const image = await insertUploadedImage(value);
+        await logImageAction("uploaded", image.name);
+        return { kind: "written", row: image };
+      },
+      stored: null,
+    }),
   remove: (id: number) =>
     deleteAndLog(id, {
       destroy: (image) => deleteImageRecord(image.id),
