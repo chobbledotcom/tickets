@@ -1,8 +1,9 @@
-/** Whether the site can sell a subscription ticket now. */
+/** Whether the listing form offers the subscription plan boxes. */
 
 import { settings } from "#db/settings.ts";
 
-/** Only Stripe charges a subscription for this site, so the recurring price
- * shows only while the feature is on and Stripe takes new payments. */
+/** The form offers the plan while the feature is on, also after the site
+ * leaves Stripe, so the owner can still choose Never. The save rule refuses a
+ * plan that Stripe cannot charge. */
 export const subscriptionsOffered = (): boolean =>
-  settings.features.subscriptions && settings.paymentProvider === "stripe";
+  settings.features.subscriptions;

@@ -50,15 +50,18 @@ describeWithEnv("listings form subscriptions", { db: true }, () => {
       ]);
     }));
 
-  test("ignores the plan boxes while subscriptions are not offered", async () => {
-    await withSetting(featureSetting("subscriptions"), async () => {
-      const row = await createListing(MONTHLY);
-      expect([row.recurring_price, row.recurring_interval]).toEqual([0, ""]);
-    });
+  test("ignores the plan boxes while the feature is off", async () => {
     await setupStripe();
     const row = await createListing({ ...MONTHLY, name: "Feature off" });
     expect([row.recurring_price, row.recurring_interval]).toEqual([0, ""]);
   });
+
+  test("refuses a plan while Stripe does not take payments", () =>
+    withSetting(featureSetting("subscriptions"), async () => {
+      await expect(createListing(MONTHLY)).rejects.toThrow(
+        `create failed: ${t("error.recurring_needs_stripe")}`,
+      );
+    }));
 
   test("keeps the stored plan when a save does not offer the boxes", async () => {
     let id = 0;
@@ -73,19 +76,19 @@ describeWithEnv("listings form subscriptions", { db: true }, () => {
     ]);
   });
 
-  test("validates and preserves the stored plan after switching away from Stripe", () =>
+  test("lets the owner clear the plan after switching away from Stripe", () =>
     whileOffered(async () => {
       const row = await createListing(MONTHLY);
       await settings.update.setPaymentProviderNone();
-      await expect(updateListing(row.id, { unit_price: "0" })).rejects.toThrow(
-        `update failed: ${t("error.recurring_needs_ticket_price")}`,
-      );
-      const saved = await updateListing(row.id, { unit_price: "12.00" });
+      await expect(
+        updateListing(row.id, { ...MONTHLY, unit_price: "12.00" }),
+      ).rejects.toThrow(`update failed: ${t("error.recurring_needs_stripe")}`);
+      const cleared = await updateListing(row.id, { unit_price: "0" });
       expect([
-        saved.unit_price,
-        saved.recurring_price,
-        saved.recurring_interval,
-      ]).toEqual([1200, 500, "month"]);
+        cleared.unit_price,
+        cleared.recurring_price,
+        cleared.recurring_interval,
+      ]).toEqual([0, 0, ""]);
     }));
 
   test("refuses a new listing with a recurring price and no frequency", () =>

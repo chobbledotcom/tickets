@@ -1,14 +1,21 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { beforeEach, it as test } from "@std/testing/bdd";
+import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { recurringPlanError } from "#shared/subscriptions/listing-rules.ts";
 import { inputFor } from "#test/shared/listings-actions/helpers.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 const withPlan = (overrides: Partial<ListingInput>): string | null =>
   recurringPlanError(inputFor({ unitPrice: 1000, ...overrides }));
 
-describe("recurring plan rule", () => {
+const MONTHLY = { recurringInterval: "month", recurringPrice: 500 } as const;
+
+describeWithEnv("recurring plan rule", { db: true }, () => {
+  beforeEach(() => setupStripe());
+
   test("lets an ordinary ticket through", () => {
     expect(recurringPlanError(inputFor({}))).toBeNull();
     expect(withPlan({ recurringInterval: "", recurringPrice: 0 })).toBeNull();
@@ -16,7 +23,7 @@ describe("recurring plan rule", () => {
 
   test("lets a priced plan with a frequency through", () => {
     expect(
-      withPlan({ recurringInterval: "month", recurringPrice: 500 }),
+      withPlan(MONTHLY),
     ).toBeNull();
   });
 
@@ -44,12 +51,17 @@ describe("recurring plan rule", () => {
   });
 
   test("needs a ticket price for the first payment", () => {
-    const plan = { recurringInterval: "month", recurringPrice: 500 } as const;
-    expect(withPlan({ ...plan, unitPrice: 0 })).toBe(
+    expect(withPlan({ ...MONTHLY, unitPrice: 0 })).toBe(
       t("error.recurring_needs_ticket_price"),
     );
-    expect(recurringPlanError(inputFor(plan))).toBe(
+    expect(recurringPlanError(inputFor(MONTHLY))).toBe(
       t("error.recurring_needs_ticket_price"),
     );
+  });
+
+  test("needs Stripe to charge the plan", async () => {
+    await settings.update.setPaymentProviderNone();
+    expect(withPlan(MONTHLY)).toBe(t("error.recurring_needs_stripe"));
+    expect(withPlan({ recurringInterval: "", recurringPrice: 0 })).toBeNull();
   });
 });
