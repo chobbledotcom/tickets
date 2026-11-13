@@ -15,7 +15,7 @@ import { parseJsonWith } from "#scripts/read-json.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 
-/** The prefix every jscpd file in the repository root carries. */
+/** The prefix every committed jscpd baseline carries. */
 const JSCPD_PREFIX = ".jscpd.";
 
 /** The suffix that marks a committed jscpd baseline in the repository root.

@@ -1,16 +1,17 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { projectRoot } from "#scripts/project-root.ts";
+import { directoryNames } from "#test-utils/files.ts";
 
 /** The strict scans treat names, literals and annotations as noise, so a
  * renamed copy is a clone. jscpd labels it `renamed`, and a `kind` filter
  * would hide it. Each scan holds today's clones in a baseline that only
  * shrinks. */
 const strictBaselines = {
-  ".jscpd.helpers.json": ".jscpd.helpers-baseline.json",
-  ".jscpd.json": ".jscpd.baseline.json",
-  ".jscpd.support.json": ".jscpd.support-baseline.json",
-  ".jscpd.test.json": ".jscpd.test-baseline.json",
+  "cfg/jscpd.helpers.json": ".jscpd.helpers-baseline.json",
+  "cfg/jscpd.json": ".jscpd.baseline.json",
+  "cfg/jscpd.support.json": ".jscpd.support-baseline.json",
+  "cfg/jscpd.test.json": ".jscpd.test-baseline.json",
 } as const;
 
 const strictScans = Object.keys(strictBaselines) as Array<
@@ -21,18 +22,21 @@ const strictScans = Object.keys(strictBaselines) as Array<
  * file needs ignore markers around its imports. */
 const typescriptScans = [
   ...strictScans,
-  ".jscpd.renamed.json",
-  ".jscpd.specs.json",
+  "cfg/jscpd.renamed.json",
+  "cfg/jscpd.specs.json",
 ] as const;
 
 const readConfig = async (name: string): Promise<Record<string, unknown>> =>
   JSON.parse(await Deno.readTextFile(`${projectRoot}/${name}`));
 
-const readCpdTask = async (): Promise<string> => {
+/** The command of every task that runs a jscpd scan, joined into one text. */
+const readScanTasks = async (): Promise<string> => {
   const { tasks } = (await readConfig("deno.json")) as {
-    tasks: { cpd: string };
+    tasks: Record<string, string>;
   };
-  return tasks.cpd;
+  return Object.values(tasks)
+    .filter((command) => command.includes("scripts/cpd.ts"))
+    .join(" ");
 };
 
 describe("strict jscpd scans", () => {
@@ -47,7 +51,7 @@ describe("strict jscpd scans", () => {
   });
 
   test("fail only on clones that their baseline does not carry", async () => {
-    const cpd = await readCpdTask();
+    const cpd = await readScanTasks();
     for (const name of strictScans) {
       expect(cpd, name).toContain(
         `--config ${name} --baseline ${strictBaselines[name]} --fail-on-new-clones`,
@@ -76,10 +80,28 @@ describe("typescript jscpd scans", () => {
 
 describe("every jscpd scan", () => {
   test("names files by absolute path, so the worst-duplication alert can shorten them", async () => {
-    const scans = [...typescriptScans, ".jscpd.css.json"];
+    const scans = [...typescriptScans, "cfg/jscpd.css.json"];
     const absolute = await Promise.all(
       scans.map(async (name) => (await readConfig(name)).absolute),
     );
     expect(absolute).toEqual(scans.map(() => true));
+  });
+});
+
+describe("the scan config directory", () => {
+  test("holds every scan config, so the repository root holds only baselines", async () => {
+    const rootNames = await directoryNames(projectRoot);
+    expect(
+      rootNames.filter(
+        (name) => name.startsWith(".jscpd.") && !name.endsWith("baseline.json"),
+      ),
+    ).toEqual([]);
+  });
+
+  test("has each config named by a cpd task", async () => {
+    const tasks = await readScanTasks();
+    for (const name of await directoryNames(`${projectRoot}/cfg`)) {
+      expect(tasks, name).toContain(`--config cfg/${name}`);
+    }
   });
 });

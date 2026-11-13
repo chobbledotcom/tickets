@@ -508,8 +508,14 @@ for why.
 
 `deno task cpd` runs jscpd, and every scan fails on a clone that its committed
 baseline does not carry. The strict scans ignore names, literals, and
-annotations, so a renamed copy is a clone. The baselines only shrink. A flagged
-pair is one merge:
+annotations, so a renamed copy is a clone. The baselines only shrink. The scan
+configs live in `cfg/`. The baselines stay in the repository root, where the
+ratchet reads them. A tool or a platform that must read its config from the
+repository root keeps the file there, as `biome.json`, `deno.json`,
+`devenv.nix`, `fly.toml` and `render.yaml` do. Biome rejects a config in a
+subdirectory, and the platforms look for their file at the root.
+
+A flagged pair is one merge:
 
 - Write the helper, or give the shared tail its parameter. Two functions that
   differ only in a value, a path, a field name, a message, or a callback are one

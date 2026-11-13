@@ -36,11 +36,11 @@ describe("baselineFileNames", () => {
     expect(
       baselineFileNames([
         ".jscpd.test-baseline.json",
-        ".jscpd.json",
+        "cfg/jscpd.json",
         "deno.json",
         ".jscpd.renamed-baseline.json",
         ".jscpd.baseline.json",
-        ".jscpd.test.json",
+        "cfg/jscpd.test.json",
       ]),
     ).toEqual([
       ".jscpd.baseline.json",
@@ -50,7 +50,9 @@ describe("baselineFileNames", () => {
   });
 
   test("keeps nothing when the root holds no baseline", () => {
-    expect(baselineFileNames(["deno.json", ".jscpd.specs.json"])).toEqual([]);
+    expect(baselineFileNames(["deno.json", "cfg/jscpd.specs.json"])).toEqual(
+      [],
+    );
   });
 });
 
@@ -60,14 +62,14 @@ describe("baselinePathsNamed", () => {
       baselinePathsNamed({
         "check:copy": "deno run -A scripts/check-copy.ts",
         cpd:
-          "deno run -A scripts/cpd.ts --config .jscpd.json " +
+          "deno run -A scripts/cpd.ts --config cfg/jscpd.json " +
           "--baseline .jscpd.test-baseline.json && deno run -A scripts/cpd.ts " +
-          "--config .jscpd.test.json --baseline .jscpd.test-baseline.json",
+          "--config cfg/jscpd.test.json --baseline .jscpd.test-baseline.json",
         "cpd:helpers":
-          "deno run -A scripts/cpd.ts --config .jscpd.helpers.json " +
+          "deno run -A scripts/cpd.ts --config cfg/jscpd.helpers.json " +
           "--baseline=.jscpd.helpers-baseline.json",
         "cpd:renamed":
-          "deno run -A scripts/cpd.ts --config .jscpd.renamed.json " +
+          "deno run -A scripts/cpd.ts --config cfg/jscpd.renamed.json " +
           "--baseline .jscpd.baseline.json",
       }),
     ).toEqual([

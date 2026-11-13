@@ -5,29 +5,29 @@
     "console",
     "json"
   ],
-  "output": ".jscpd-renamed-report",
+  "output": ".jscpd-report-helpers",
   "ignore": [
     "**/node_modules/**",
-    "**/package-lock.json",
-    "**/deno.lock",
     "**/fp.ts",
     "**/db/migrations/2*.ts",
     "**/db/migrations/schema/columns.ts",
+    "**/test-utils/**/*.test.ts",
     "**/*.generated.ts"
   ],
   "format": [
     "typescript",
-    "tsx",
-    "javascript"
+    "tsx"
   ],
   "absolute": true,
+  "gitignore": true,
+  "ignoreIdentifiers": true,
+  "ignoreLiterals": true,
+  "ignoreAnnotations": true,
   "minLines": 1,
-  "minTokens": 20,
-  "similarity": 0.99,
+  "minTokens": 40,
   "path": [
-    "src",
-    "e2e-payments",
-    "scripts"
+    "../src",
+    "../test/test-utils"
   ],
   "ignorePattern": [
     "(?m)^import\\s[^;]*;",

@@ -5,13 +5,12 @@
     "console",
     "json"
   ],
-  "output": ".jscpd-report-helpers",
+  "output": ".jscpd-report-specs",
   "ignore": [
     "**/node_modules/**",
     "**/fp.ts",
     "**/db/migrations/2*.ts",
     "**/db/migrations/schema/columns.ts",
-    "**/test-utils/**/*.test.ts",
     "**/*.generated.ts"
   ],
   "format": [
@@ -20,14 +19,11 @@
   ],
   "absolute": true,
   "gitignore": true,
-  "ignoreIdentifiers": true,
-  "ignoreLiterals": true,
-  "ignoreAnnotations": true,
   "minLines": 1,
-  "minTokens": 40,
+  "minTokens": 18,
   "path": [
-    "src",
-    "test/test-utils"
+    "../src",
+    "../test/specs/support"
   ],
   "ignorePattern": [
     "(?m)^import\\s[^;]*;",
