@@ -5,6 +5,7 @@ import { listingAttributeOptions } from "#db/attributes.ts";
 import { getDb } from "#db/client.ts";
 import { getGroupPackagePrices } from "#db/groups.ts";
 import { getListingDayPrices } from "#db/listing-prices.ts";
+import { deleteListing } from "#db/listings/delete.ts";
 import {
   getListingWithCount,
   getStoredListingWithCount,
@@ -327,6 +328,17 @@ describeWithEnv("listings form", { db: true }, () => {
   });
 
   describe("update", () => {
+    test("answers not found when the row vanished before the update", async () => {
+      const created = await createListing();
+      const stored = (await getStoredListingWithCount(created.id))!;
+      const form = listingForm({ slug: "kept-slug" });
+      await deleteListing(created.id);
+
+      expect(
+        await buildUpdateListingResource(stored).update(created.id, form),
+      ).toEqual({ notFound: true, ok: false });
+    });
+
     test("the slug is normalized and its lookup code recomputed", async () => {
       const created = await createListing();
       const row = await updateListing(created.id, { slug: "  New-Slug  " });
