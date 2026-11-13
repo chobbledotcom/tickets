@@ -5,6 +5,7 @@ import { entityToFieldValues } from "#shared/forms/values.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { flashFormPage } from "#templates/admin/admin-page.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
+import { ProseIntro } from "#templates/components/prose-intro.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
@@ -136,15 +137,17 @@ const PackageMembersTable = ({
   listings,
   members,
 }: PackageMembersProps): JSX.Element => (
-  <div class="package-prices">
-    <h2>{t("groups.package_prices.heading")}</h2>
-    <p>{t("groups.package_prices.hint")}</p>
+  <ProseIntro
+    class="package-prices"
+    heading={t("groups.package_prices.heading")}
+    intro={t("groups.package_prices.hint")}
+  >
     {listings.length === 0 ? (
       <p>{t("groups.package_prices.no_listings")}</p>
     ) : (
       renderTable(packageMembersTable, listings, { context: members })
     )}
-  </div>
+  </ProseIntro>
 );
 
 /** The Edit tab's group fields and per-listing package values. */

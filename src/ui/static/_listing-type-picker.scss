@@ -1,0 +1,58 @@
+/** The admin listing-type picker: the card grid on /admin/listing/new. The
+ *  grid caps at three cards per line so each box stays large enough to scan
+ *  its label and description at a glance. */
+
+.listing-type-picker {
+  display: grid;
+  gap: var(--space-m);
+  grid-template-columns: 1fr;
+  margin-block: var(--space-m);
+}
+
+@media (min-width: 769px) {
+  .listing-type-picker {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Wide screens: the admin sidebar leaves room for three cards without
+   squeezing any below ~330px. */
+@media (min-width: 1200px) {
+  .listing-type-picker {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.listing-type-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: var(--space-m);
+  row-gap: var(--space-s);
+  align-items: start;
+  padding: var(--space-m);
+  border: 1px solid var(--color-link);
+  border-radius: 8px;
+  text-decoration: none;
+  color: inherit;
+}
+
+/* The card's icon: large, left of the label and description, in the same
+   purple the menu links use (--color-link). */
+.listing-type-card-icon {
+  grid-row: 1 / span 2;
+}
+
+.listing-type-card-icon .icon {
+  color: var(--color-link);
+  height: 72px;
+  width: 72px;
+}
+
+.listing-type-card:hover {
+  background: var(--color-bg-secondary);
+}
+
+.listing-type-card--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
