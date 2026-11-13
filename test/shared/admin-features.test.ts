@@ -11,106 +11,87 @@ import {
 
 const DEFAULT_ENABLED_FEATURES = parseEnabledFeatures("");
 
+/** Each feature in display order: key, slug, catalog name, and the SQL that
+ * finds its saved records. A blank SQL means the feature has no records. */
+/* jscpd:ignore-start -- a list of strings, not code */
+const EXPECTED_FEATURES = [
+  ["site", "site", "site", ""],
+  [
+    "attributes",
+    "attributes",
+    "attributes",
+    "EXISTS (SELECT 1 FROM attributes AS attribute)",
+  ],
+  [
+    "questions",
+    "questions",
+    "questions",
+    "EXISTS (SELECT 1 FROM questions AS question)",
+  ],
+  [
+    "modifiers",
+    "modifiers",
+    "modifiers",
+    "EXISTS (SELECT 1 FROM modifiers AS modifier)",
+  ],
+  [
+    "logistics",
+    "logistics",
+    "logistics",
+    "EXISTS (SELECT 1 FROM logistics_agents AS logisticsAgent) OR EXISTS (SELECT 1 FROM listings AS listing WHERE listing.uses_logistics = 1)",
+  ],
+  [
+    "apiKeys",
+    "api-keys",
+    "api_keys",
+    "EXISTS (SELECT 1 FROM api_keys AS apiKey)",
+  ],
+  [
+    "servicing",
+    "servicing",
+    "servicing",
+    "EXISTS (SELECT 1 FROM attendees AS attendee WHERE attendee.kind = 'servicing')",
+  ],
+  ["money", "money", "money", ""],
+  ["externalSources", "external-sources", "external_sources", ""],
+  [
+    "invoices",
+    "invoices",
+    "invoices",
+    "EXISTS (SELECT 1 FROM invoices AS invoice)",
+  ],
+  [
+    "subscriptions",
+    "subscriptions",
+    "subscriptions",
+    "EXISTS (SELECT 1 FROM listings AS listing WHERE listing.recurring_price > 0) OR EXISTS (SELECT 1 FROM listing_attendees AS listingAttendee WHERE listingAttendee.subscription_id != '')",
+  ],
+] as const;
+/* jscpd:ignore-end */
+
+const featureDefinition = ([
+  key,
+  slug,
+  name,
+  sql,
+]: (typeof EXPECTED_FEATURES)[number]) => ({
+  descriptionKey: `features.${name}.description`,
+  inUseSql: sql === "" ? null : sql,
+  key,
+  labelKey: `features.${name}.name`,
+  slug,
+});
+
 describe("admin features", () => {
   test("defines the complete feature list in display order", () => {
-    expect(ADMIN_FEATURES).toEqual([
-      {
-        descriptionKey: "features.site.description",
-        inUseSql: null,
-        key: "site",
-        labelKey: "features.site.name",
-        slug: "site",
-      },
-      {
-        descriptionKey: "features.attributes.description",
-        inUseSql: "EXISTS (SELECT 1 FROM attributes AS attribute)",
-        key: "attributes",
-        labelKey: "features.attributes.name",
-        slug: "attributes",
-      },
-      {
-        descriptionKey: "features.questions.description",
-        inUseSql: "EXISTS (SELECT 1 FROM questions AS question)",
-        key: "questions",
-        labelKey: "features.questions.name",
-        slug: "questions",
-      },
-      {
-        descriptionKey: "features.modifiers.description",
-        inUseSql: "EXISTS (SELECT 1 FROM modifiers AS modifier)",
-        key: "modifiers",
-        labelKey: "features.modifiers.name",
-        slug: "modifiers",
-      },
-      {
-        descriptionKey: "features.logistics.description",
-        inUseSql:
-          "EXISTS (SELECT 1 FROM logistics_agents AS logisticsAgent) OR EXISTS (SELECT 1 FROM listings AS listing WHERE listing.uses_logistics = 1)",
-        key: "logistics",
-        labelKey: "features.logistics.name",
-        slug: "logistics",
-      },
-      {
-        descriptionKey: "features.api_keys.description",
-        inUseSql: "EXISTS (SELECT 1 FROM api_keys AS apiKey)",
-        key: "apiKeys",
-        labelKey: "features.api_keys.name",
-        slug: "api-keys",
-      },
-      {
-        descriptionKey: "features.servicing.description",
-        inUseSql:
-          "EXISTS (SELECT 1 FROM attendees AS attendee WHERE attendee.kind = 'servicing')",
-        key: "servicing",
-        labelKey: "features.servicing.name",
-        slug: "servicing",
-      },
-      {
-        descriptionKey: "features.money.description",
-        inUseSql: null,
-        key: "money",
-        labelKey: "features.money.name",
-        slug: "money",
-      },
-      {
-        descriptionKey: "features.external_sources.description",
-        inUseSql: null,
-        key: "externalSources",
-        labelKey: "features.external_sources.name",
-        slug: "external-sources",
-      },
-      {
-        descriptionKey: "features.invoices.description",
-        inUseSql: "EXISTS (SELECT 1 FROM invoices AS invoice)",
-        key: "invoices",
-        labelKey: "features.invoices.name",
-        slug: "invoices",
-      },
-      {
-        descriptionKey: "features.subscriptions.description",
-        inUseSql:
-          "EXISTS (SELECT 1 FROM listings AS listing WHERE listing.recurring_price > 0) OR EXISTS (SELECT 1 FROM listing_attendees AS listingAttendee WHERE listingAttendee.subscription_id != '')",
-        key: "subscriptions",
-        labelKey: "features.subscriptions.name",
-        slug: "subscriptions",
-      },
-    ]);
+    expect(ADMIN_FEATURES).toEqual(EXPECTED_FEATURES.map(featureDefinition));
   });
 
   test("defaults every feature to disabled", () => {
-    expect(DEFAULT_ENABLED_FEATURES).toEqual({
-      apiKeys: false,
-      attributes: false,
-      externalSources: false,
-      invoices: false,
-      logistics: false,
-      modifiers: false,
-      money: false,
-      questions: false,
-      servicing: false,
-      site: false,
-      subscriptions: false,
-    });
+    expect(Object.keys(DEFAULT_ENABLED_FEATURES)).toEqual(
+      EXPECTED_FEATURES.map(([key]) => key),
+    );
+    expect(Object.values(DEFAULT_ENABLED_FEATURES)).not.toContain(true);
   });
 
   test("uses the defaults when the setting has not been stored", () => {

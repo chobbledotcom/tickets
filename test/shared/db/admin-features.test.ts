@@ -10,6 +10,7 @@ import { parseEnabledFeatures } from "#shared/admin-features.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withDbFault } from "#test-utils/db-fault.ts";
 import {
+  featuresOn,
   SEEDED_FEATURE_RECORDS,
   saveAModifier,
   seedFeatureRecords,
@@ -59,37 +60,21 @@ const USE_RECORDS = [
 
 describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
   test("reports every feature unused in an empty database", async () => {
-    expect(await getAdminFeatureUsage()).toEqual({
-      apiKeys: false,
-      attributes: false,
-      externalSources: false,
-      invoices: false,
-      logistics: false,
-      modifiers: false,
-      money: false,
-      questions: false,
-      servicing: false,
-      site: false,
-      subscriptions: false,
-    });
+    expect(await getAdminFeatureUsage()).toEqual(featuresOn());
   });
 
   test("finds every feature with saved records in one usage result", async () => {
     await seedFeatureRecords(false);
 
-    expect(await getAdminFeatureUsage()).toEqual({
-      apiKeys: true,
-      attributes: true,
-      externalSources: false,
-      invoices: false,
-      logistics: false,
-      modifiers: true,
-      money: false,
-      questions: true,
-      servicing: true,
-      site: false,
-      subscriptions: false,
-    });
+    expect(await getAdminFeatureUsage()).toEqual(
+      featuresOn(
+        "apiKeys",
+        "attributes",
+        "modifiers",
+        "questions",
+        "servicing",
+      ),
+    );
   });
 
   test("record inserts enable every feature backed by saved data", async () => {
@@ -124,19 +109,16 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
     await execute("UPDATE listings SET uses_logistics = 1");
     await execute("UPDATE listings SET recurring_price = 500");
 
-    expect(await storedFeatures()).toEqual({
-      apiKeys: false,
-      attributes: true,
-      externalSources: false,
-      invoices: false,
-      logistics: true,
-      modifiers: true,
-      money: false,
-      questions: true,
-      servicing: true,
-      site: false,
-      subscriptions: true,
-    });
+    expect(await storedFeatures()).toEqual(
+      featuresOn(
+        "attributes",
+        "logistics",
+        "modifiers",
+        "questions",
+        "servicing",
+        "subscriptions",
+      ),
+    );
   });
 
   test("ordinary attendees and listings do not enable optional features", async () => {
@@ -183,19 +165,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
 
   test("enables one feature without changing the others", async () => {
     await setAdminFeatureEnabled("modifiers", true);
-    expect(settings.features).toEqual({
-      apiKeys: false,
-      attributes: false,
-      externalSources: false,
-      invoices: false,
-      logistics: false,
-      modifiers: true,
-      money: false,
-      questions: false,
-      servicing: false,
-      site: false,
-      subscriptions: false,
-    });
+    expect(settings.features).toEqual(featuresOn("modifiers"));
     const stored = await settingValue(CONFIG_KEYS.ENABLED_FEATURES);
     expect(stored.startsWith("{")).toBe(true);
     expect(JSON.parse(stored)).toEqual(settings.features);
@@ -206,19 +176,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
       setAdminFeatureEnabled("money", true),
       setAdminFeatureEnabled("modifiers", true),
     ]);
-    expect(settings.features).toEqual({
-      apiKeys: false,
-      attributes: false,
-      externalSources: false,
-      invoices: false,
-      logistics: false,
-      modifiers: true,
-      money: true,
-      questions: false,
-      servicing: false,
-      site: false,
-      subscriptions: false,
-    });
+    expect(settings.features).toEqual(featuresOn("modifiers", "money"));
   });
 
   test("bumps the settings version when a feature changes", async () => {
@@ -248,19 +206,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
 
     const stored = await settingValue(CONFIG_KEYS.ENABLED_FEATURES);
     expect(settings.getCachedRaw(CONFIG_KEYS.ENABLED_FEATURES)).toBe(stored);
-    expect(settings.features).toEqual({
-      apiKeys: false,
-      attributes: false,
-      externalSources: false,
-      invoices: false,
-      logistics: false,
-      modifiers: false,
-      money: true,
-      questions: false,
-      servicing: false,
-      site: false,
-      subscriptions: false,
-    });
+    expect(settings.features).toEqual(featuresOn("money"));
   });
 
   test("syncs cleaned Logistics defaults into the snapshot", async () => {

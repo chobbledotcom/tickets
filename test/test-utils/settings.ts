@@ -132,19 +132,22 @@ export const seedFeatureRecords = async (
   await saveAModifier();
 };
 
-export const SEEDED_FEATURE_RECORDS: EnabledFeatures = {
-  apiKeys: true,
-  attributes: true,
-  externalSources: false,
-  invoices: false,
-  logistics: true,
-  modifiers: true,
-  money: false,
-  questions: true,
-  servicing: true,
-  site: false,
-  subscriptions: false,
-};
+/** The whole feature setting with only `enabled` on. */
+export const featuresOn = (
+  ...enabled: readonly AdminFeatureKey[]
+): EnabledFeatures => ({
+  ...parseEnabledFeatures(""),
+  ...Object.fromEntries(enabled.map((key) => [key, true])),
+});
+
+export const SEEDED_FEATURE_RECORDS: EnabledFeatures = featuresOn(
+  "apiKeys",
+  "attributes",
+  "logistics",
+  "modifiers",
+  "questions",
+  "servicing",
+);
 
 /** Run an action while every attempt to persist the feature setting fails. */
 export const withFeatureWriteFailure = async <T>(

@@ -137,7 +137,7 @@ describe("fingerprintCounts", () => {
 });
 
 describe("riseFindings", () => {
-  test("passes when every clone count matches the base", () => {
+  test("passes when the clone total matches the base", () => {
     expect(
       riseFindings(BASELINE, baseline({ aaa: 1 }), baseline({ aaa: 1 })),
     ).toEqual([]);
@@ -153,29 +153,27 @@ describe("riseFindings", () => {
     ).toEqual([]);
   });
 
-  test("names a clone the base does not hold", () => {
-    expect(riseFindings(BASELINE, baseline({ aaa: 1 }), baseline({}))).toEqual([
-      `${BASELINE}:aaa [added-clone]: holds 1 clone(s) that the merge base ` +
-        "does not hold — merge the duplicated code, then lower the baseline " +
-        "with --update",
-    ]);
+  test("passes a clone whose fingerprint changed", () => {
+    expect(
+      riseFindings(
+        BASELINE,
+        baseline({ zzz: 2 }),
+        baseline({ aaa: 1, bbb: 1 }),
+      ),
+    ).toEqual([]);
   });
 
-  test("names a clone count above the base's", () => {
+  test("names a clone total above the base's", () => {
     expect(
-      riseFindings(BASELINE, baseline({ aaa: 3 }), baseline({ aaa: 2 })),
+      riseFindings(
+        BASELINE,
+        baseline({ aaa: 2, zzz: 1 }),
+        baseline({ aaa: 2 }),
+      ),
     ).toEqual([
-      `${BASELINE}:aaa [raised-clone]: holds 3 clone(s), up from 2 — merge the ` +
+      `${BASELINE} [raised-clones]: accepts 3 clone(s), up from 2 — merge the ` +
         "duplicated code, then lower the baseline with --update",
     ]);
-  });
-
-  test("reports raised clones in fingerprint order", () => {
-    expect(
-      riseFindings(BASELINE, baseline({ aaa: 1, zzz: 1 }), baseline({})).map(
-        (line) => line.slice(0, line.indexOf(" ")),
-      ),
-    ).toEqual([`${BASELINE}:aaa`, `${BASELINE}:zzz`]);
   });
 
   test("fails a new baseline that accepts clones", () => {
@@ -232,7 +230,7 @@ describe("ratchetExit", () => {
       }),
     ).toBe(0);
     expect(output.lines).toEqual([
-      "No jscpd baseline holds a clone above the merge base on origin/main.",
+      "No jscpd baseline accepts more clones than the merge base on origin/main.",
     ]);
   });
 
@@ -240,7 +238,7 @@ describe("ratchetExit", () => {
     expect(await exitFor([], {})).toBe(0);
   });
 
-  test("fails on a clone the merge base does not hold", async () => {
+  test("fails on a baseline that accepts more clones than the base", async () => {
     expect(
       await exitFor(
         [
@@ -257,9 +255,9 @@ describe("ratchetExit", () => {
       ),
     ).toBe(1);
     expect(output.lines).toEqual([
-      ".jscpd.renamed-baseline.json:bbb [added-clone]: holds 1 clone(s) that " +
-        "the merge base does not hold — merge the duplicated code, then lower " +
-        "the baseline with --update",
+      ".jscpd.renamed-baseline.json [raised-clones]: accepts 1 clone(s), up " +
+        "from 0 — merge the duplicated code, then lower the baseline with " +
+        "--update",
       `\n1 jscpd-baseline issue(s) found. See ${RATCHET_GUIDE}.`,
     ]);
   });

@@ -93,6 +93,6 @@ export const ratchetExit = async ({
     ...output,
     noun: "jscpd-baseline",
     success:
-      "No jscpd baseline holds a clone above the merge base on origin/main.",
+      "No jscpd baseline accepts more clones than the merge base on origin/main.",
   });
 };
