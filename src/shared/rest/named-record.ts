@@ -8,29 +8,24 @@ import {
   type AdminRecord,
   defineRecord,
   type RecordRule,
+  type RecordShape,
   type RecordSpec,
 } from "#shared/rest/record.ts";
 import { okResult } from "#shared/result.ts";
 
-/* jscpd:ignore-start -- TypeScript repeats the type parameters on every generic declaration */
 export const defineNamedRowRecord = <
-  Row extends { id: number; name: string },
-  Input extends { name: string },
-  FullRow extends Row = Row,
-  State = never,
-  ListRow = FullRow,
+  Shape extends RecordShape & {
+    row: { id: number; name: string };
+    input: { name: string };
+  },
 >(
-  /* jscpd:ignore-end */
-  spec: Omit<
-    RecordSpec<Row, Input, FullRow, State, ListRow>,
-    "logName" | "nameField" | "nameOf" | "rule"
-  > & {
+  spec: Omit<RecordSpec<Shape>, "logName" | "nameField" | "nameOf" | "rule"> & {
     /** The one write rule. A record with no domain rule passes nothing and
      *  gets its input back unchanged. */
-    rule?: RecordRule<Input, Row>;
+    rule?: RecordRule<Shape["input"], Shape["row"]>;
   },
-): AdminRecord<Row, Input, FullRow, State, ListRow> =>
-  defineRecord<Row, Input, FullRow, State, ListRow>({
+): AdminRecord<Shape> =>
+  defineRecord<Shape>({
     ...spec,
     logName: (input) => input.name,
     nameField: "name",

@@ -17,6 +17,7 @@ import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import {
   defineRecord,
   type RecordActor,
+  type RecordShapeOf,
   type WriteVerdict,
 } from "#shared/rest/record.ts";
 import { ruledCommand } from "#shared/rest/record-command.ts";
@@ -87,7 +88,9 @@ const createApiKeyCommand = async (
     stored: null,
   });
 
-export const apiKeyRecord = defineRecord<ApiKeyDisplay, ApiKeyInput>({
+export const apiKeyRecord = defineRecord<
+  RecordShapeOf<ApiKeyDisplay, ApiKeyInput>
+>({
   activityName: "API key",
   deleteDestination: "apiKeyDelete",
   getAll: (actor) => getApiKeysForUser(sessionOf(actor).userId),

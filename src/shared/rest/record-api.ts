@@ -33,8 +33,13 @@ import {
 import {
   type AdminRecord,
   deleteAudienceFor,
+  type FullRowOf,
+  type GetAllCommand,
+  type InputOf,
   jsonAudienceFor,
+  type RecordShape,
   type RecordSurface,
+  type StateOf,
   type WritePlan,
   type WriteVerdict,
 } from "#shared/rest/record.ts";
@@ -51,28 +56,31 @@ export type RecordApiOverrides = {
   update?: RouteHandlerFn;
 };
 
-/* jscpd:ignore-start -- TypeScript repeats the type parameters on every generic declaration */
-/** The record's own API config: the two body mappers and the response
- * presentation. Everything about the write lives on the record. */
 export type RecordApiConfig<
   Entry extends AdminApiResource,
-  Row extends { id: number },
-  Input,
-  FullRow extends Row,
+  Shape extends RecordShape,
   Prepared = void,
-  State = never,
 > = CrudApiHandlers<Entry> & {
-  toCreateInput: WriteMapper<Input, WriteBody<Entry["createBodySchema"]>, null>;
+  toCreateInput: WriteMapper<
+    InputOf<Shape>,
+    WriteBody<Entry["createBodySchema"]>,
+    null
+  >;
   toUpdateInput: WriteMapper<
-    Input,
+    InputOf<Shape>,
     WriteBody<Entry["updateBodySchema"]>,
-    FullRow
+    FullRowOf<Shape>
   >;
   /** A side effect run around the row write: its `validate` runs before the
    * write, its `persist` inside it. */
-  sideEffect?: CrudSideEffect<Input, FullRow, Prepared, State>;
-  hydrate?: (rows: FullRow[]) => Promise<HydratedRows>;
-  hydrateAfterWrite?: (rows: FullRow[]) => Promise<HydratedRows>;
+  sideEffect?: CrudSideEffect<
+    InputOf<Shape>,
+    FullRowOf<Shape>,
+    Prepared,
+    StateOf<Shape>
+  >;
+  hydrate?: (rows: FullRowOf<Shape>[]) => Promise<HydratedRows>;
+  hydrateAfterWrite?: (rows: FullRowOf<Shape>[]) => Promise<HydratedRows>;
   listExtras?: (session: AdminSession) => Record<string, unknown>;
   stripKeys?: string[];
   projectResponse?: (
@@ -81,7 +89,6 @@ export type RecordApiConfig<
   ) => Record<string, unknown>;
   overrides?: RecordApiOverrides;
 };
-/* jscpd:ignore-end */
 
 /** A JSON policy from one surface audience: an API key or a cookie session,
  * and exactly the roles the page declares. */
@@ -151,19 +158,25 @@ export const apiHandlerSet = (
   update: RouteHandlerFn,
 ): ApiHandlerSet => ({ create, delete: remove, get, list, update });
 
+/** The API lists full rows: a record whose page list reads a narrower summary
+ * gives the API its full read. */
+type ApiRecord<Shape extends RecordShape> = Omit<
+  AdminRecord<Shape>,
+  "getAll"
+> & {
+  getAll: GetAllCommand<FullRowOf<Shape>>;
+};
+
 /**
  * Build the JSON API routes for one record.
  */
 export const recordApi = <
   Entry extends AdminApiResource,
-  Row extends { id: number },
-  Input,
-  FullRow extends Row = Row,
+  Shape extends RecordShape,
   Prepared = void,
-  State = never,
 >(
-  record: AdminRecord<Row, Input, FullRow, State>,
-  config: RecordApiConfig<Entry, Row, Input, FullRow, Prepared, State>,
+  record: ApiRecord<Shape>,
+  config: RecordApiConfig<Entry, Shape, Prepared>,
 ): Record<string, RouteHandlerFn> => {
   const entry = record.api;
   if (!entry) {
@@ -183,7 +196,7 @@ export const recordApi = <
   const stripKeys = config.stripKeys ?? [];
 
   const responseRow = (
-    row: FullRow,
+    row: FullRowOf<Shape>,
     session: AdminSession,
     extraById?: ReadonlyMap<number, Record<string, unknown>>,
   ): Record<string, unknown> => {
@@ -198,7 +211,7 @@ export const recordApi = <
   };
 
   const toResponse = async (
-    row: FullRow,
+    row: FullRowOf<Shape>,
     session: AdminSession,
     hydrate = config.hydrate,
   ): Promise<Record<string, unknown>> => {
@@ -207,7 +220,7 @@ export const recordApi = <
   };
 
   const listItems = async (
-    rows: FullRow[],
+    rows: FullRowOf<Shape>[],
     session: AdminSession,
   ): Promise<Record<string, unknown>[]> => {
     const extraById = await config.hydrate?.(rows);
@@ -225,7 +238,7 @@ export const recordApi = <
     });
 
   const respondWithRow = async (
-    row: FullRow,
+    row: FullRowOf<Shape>,
     status: number,
     session: AdminSession,
   ): Promise<Response> =>
@@ -236,19 +249,25 @@ export const recordApi = <
       status,
     );
 
+  /** One submitted JSON body and the row it updates, or null on create. */
+  type SubmittedRow = {
+    body: Record<string, unknown>;
+    existing: FullRowOf<Shape> | null;
+  };
+
   /** The per-call plan a record write runs: the side effect's validation
    * before the row statement and its write inside the transaction. */
-  const writePlan = (
-    body: Record<string, unknown>,
-    existing: FullRow | null,
-  ): WritePlan<Prepared, State> | undefined =>
+  const writePlan = ({
+    body,
+    existing,
+  }: SubmittedRow): WritePlan<Prepared, StateOf<Shape>> | undefined =>
     config.sideEffect
       ? {
           persist: (tx, id, value, state) =>
             config.sideEffect!.persist(tx, id, value, state),
           prepare: (input) =>
             config.sideEffect!.validate(
-              input as Input,
+              input as InputOf<Shape>,
               body,
               existing,
             ) as Promise<{ error: string } | { value: Prepared }>,
@@ -258,10 +277,9 @@ export const recordApi = <
   /** The write input: the entry's schema validates the raw body, then the
    *  record's mapper produces the input. */
   const writeInput = (
-    body: Record<string, unknown>,
-    existing: FullRow | null,
+    { body, existing }: SubmittedRow,
     session: AdminSession,
-  ): Result<Input> | Promise<Result<Input>> => {
+  ): Result<InputOf<Shape>> | Promise<Result<InputOf<Shape>>> => {
     const schema =
       existing === null ? entry.createBodySchema : entry.updateBodySchema;
     const parsed: Result<unknown> =
@@ -283,8 +301,8 @@ export const recordApi = <
   };
 
   const validatedInput = async (
-    raw: Result<Input> | Promise<Result<Input>>,
-  ): Promise<{ response: Response } | { input: Input }> => {
+    raw: Result<InputOf<Shape>> | Promise<Result<InputOf<Shape>>>,
+  ): Promise<{ response: Response } | { input: InputOf<Shape> }> => {
     const result = await parseAndValidate(raw);
     if (!result.ok) return { response: result.response };
     return { input: result.input };
@@ -300,7 +318,7 @@ export const recordApi = <
 
   /** Answer one written row, or its failure. */
   const answerWrite = async (
-    verdict: WriteVerdict<FullRow>,
+    verdict: WriteVerdict<FullRowOf<Shape>>,
     status: number,
     session: AuthSession,
   ): Promise<Response> =>
@@ -309,15 +327,14 @@ export const recordApi = <
       : failureResponse(verdict);
 
   const runValidatedWrite = async (
-    request: {
-      body: Record<string, unknown>;
-      existing: FullRow | null;
-      session: AuthSession;
-    },
-    write: (input: Input) => Promise<Response>,
+    request: SubmittedRow & { session: AuthSession },
+    write: (input: InputOf<Shape>) => Promise<Response>,
   ): Promise<Response> => {
     const validated = await validatedInput(
-      writeInput(request.body, request.existing, request.session),
+      writeInput(
+        { body: request.body, existing: request.existing },
+        request.session,
+      ),
     );
     return "response" in validated
       ? validated.response
@@ -327,9 +344,11 @@ export const recordApi = <
   const handleCreate: RouteHandlerFn = (request) =>
     withAuth(request, readPolicy, async (session, body) =>
       runValidatedWrite({ body, existing: null, session }, async (input) => {
-        const verdict = await record.create(input, writePlan(body, null), {
-          session,
-        });
+        const verdict = await record.create(
+          input,
+          writePlan({ body, existing: null }),
+          { session },
+        );
         return answerWrite(verdict, 201, session);
       }),
     );
@@ -338,7 +357,7 @@ export const recordApi = <
 
   const entityRoute = (
     handler: (
-      row: FullRow,
+      row: FullRowOf<Shape>,
       session: AuthSession,
       body: Record<string, unknown>,
       id: number,
@@ -368,7 +387,7 @@ export const recordApi = <
       const verdict = await record.update(
         id,
         input,
-        writePlan(body, existing),
+        writePlan({ body, existing }),
         { session },
       );
       return answerWrite(verdict, 200, session);

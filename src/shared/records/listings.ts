@@ -18,13 +18,12 @@ import {
   validateListingInput,
 } from "#shared/listings-actions.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
+import type { RecordShapeOf } from "#shared/rest/record.ts";
 import { ruleFromValidator } from "#shared/rest/record-command.ts";
 import type { Listing, ListingWithCount } from "#types";
 
 export const listingRecord = defineNamedRowRecord<
-  Listing,
-  ListingInput,
-  ListingWithCount
+  RecordShapeOf<Listing, ListingInput, ListingWithCount>
 >({
   activityName: "Listing",
   afterCommit: syncListingPrices,

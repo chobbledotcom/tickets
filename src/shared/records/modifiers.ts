@@ -16,6 +16,7 @@ import {
 } from "#db/modifiers.ts";
 import { childAddOnSaveError } from "#routes/admin/modifier-add-on-reachability.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
+import type { RecordShapeOf } from "#shared/rest/record.ts";
 import { ruleFromValidator } from "#shared/rest/record-command.ts";
 import type { Modifier } from "#types";
 
@@ -72,11 +73,7 @@ const modifierRule = ruleFromValidator<ModifierInput, ModifierRow>(
 );
 
 export const modifierRecord = defineNamedRowRecord<
-  ModifierRow,
-  ModifierInput,
-  Modifier,
-  never,
-  Modifier
+  RecordShapeOf<ModifierRow, ModifierInput, Modifier, never, Modifier>
 >({
   activityName: "Modifier",
   deleteDestination: "modifierDelete",

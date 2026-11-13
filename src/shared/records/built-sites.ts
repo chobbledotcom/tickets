@@ -10,6 +10,7 @@ import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
 import {
   answerWrite,
   logNameActivity,
+  type RecordShapeOf,
   type WriteVerdict,
 } from "#shared/rest/record.ts";
 import { deleteCommand } from "#shared/rest/record-command.ts";
@@ -58,8 +59,7 @@ const builtSiteWrites = {
 } as const;
 
 export const builtSiteRecord = defineNamedRowRecord<
-  BuiltSite,
-  BuiltSiteFormInput
+  RecordShapeOf<BuiltSite, BuiltSiteFormInput>
 >({
   activityName: "Built site",
   deleteDestination: "builtSiteDelete",

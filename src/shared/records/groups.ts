@@ -33,6 +33,7 @@ import { t } from "#i18n";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import type { GroupInput } from "#shared/catalog-fields/fields.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
+import type { RecordShapeOf } from "#shared/rest/record.ts";
 import { ruleFromValidator } from "#shared/rest/record-command.ts";
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import type { Group } from "#types";
@@ -130,10 +131,7 @@ const groupRule = ruleFromValidator<GroupInput, Group>(
 );
 
 export const groupRecord = defineNamedRowRecord<
-  Group,
-  GroupInput,
-  Group,
-  PackageFlags | null
+  RecordShapeOf<Group, GroupInput, Group, PackageFlags | null>
 >({
   activityName: "Group",
   afterWrite: (tx, id, input, flags) =>

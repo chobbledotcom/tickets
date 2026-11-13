@@ -31,7 +31,7 @@ import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { sortByName } from "#shared/name-order.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
-import type { WriteVerdict } from "#shared/rest/record.ts";
+import type { RecordShapeOf, WriteVerdict } from "#shared/rest/record.ts";
 import { deleteCommand, ruledCommand } from "#shared/rest/record-command.ts";
 import { transactionValidationMessageOrRethrow } from "#shared/rest/write-error.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
@@ -255,7 +255,9 @@ const imageWrites = {
   },
 } as const;
 
-export const imageRecord = defineNamedRowRecord<Image, ImageWriteInput>({
+export const imageRecord = defineNamedRowRecord<
+  RecordShapeOf<Image, ImageWriteInput>
+>({
   activityName: "Image",
   api: ADMIN_API_RESOURCES.images,
   deleteDestination: "imageDelete",

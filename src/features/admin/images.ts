@@ -41,7 +41,7 @@ import { logImageAction } from "#shared/images/activity.ts";
 import {
   byNameThenUpload,
   isSiteContentImageType,
-  siteContentBlocksManager,
+  whenSiteContentBlocksManager,
 } from "#shared/images/library.ts";
 import { sortByName } from "#shared/name-order.ts";
 import { imageRecord } from "#shared/records/images.ts";
@@ -206,9 +206,11 @@ const siteContentImageGate = async (
   imageId: number,
   redirectTo: string,
 ): Promise<Response | null> =>
-  (await siteContentBlocksManager(adminLevel, imageId))
-    ? redirect(redirectTo, t("images.news_gated"), false)
-    : null;
+  whenSiteContentBlocksManager(
+    adminLevel,
+    imageId,
+    redirect(redirectTo, t("images.news_gated"), false),
+  );
 
 /** The link targets a save can apply. A non-Site session (manager) never
  * attaches a Site-content target — any submitted `news:<id>`/`page:<id>` is

@@ -268,6 +268,21 @@
   ],
   "src/shared/rest/record-contract.ts": [
     {
+      "path": [{ "name": "RecordShape" }],
+      "kind": "schema-driven",
+      "evidence": "RowOf, InputOf, FullRowOf, ListRowOf, and StateOf read each member through indexed access"
+    },
+    {
+      "path": [{ "name": "RecordShape" }, { "name": "fullRow" }],
+      "kind": "schema-driven",
+      "evidence": "FullRowOf reads the optional read row through indexed access"
+    },
+    {
+      "path": [{ "name": "RecordShapeOf" }],
+      "kind": "schema-driven",
+      "evidence": "defineRecord reads the built shape through RowOf, InputOf, FullRowOf, ListRowOf, and StateOf"
+    },
+    {
       "path": [{ "name": "RecordSpec" }],
       "kind": "schema-driven",
       "evidence": "recordPages, recordApi, and defineRecord read the declaration through the generic record types"
@@ -275,105 +290,7 @@
     {
       "path": [{ "name": "AdminRecord" }],
       "kind": "schema-driven",
-      "evidence": "recordPages and recordApi read the record through PageRecord and the JSON door"
-    },
-    {
-      "path": [{ "name": "AdminRecord" }, { "name": "table" }, { "name": "schema" }],
-      "kind": "schema-driven",
-      "evidence": "record.ts reads the table schema through the generic Table type"
-    },
-    {
-      "path": [
-        { "name": "AdminRecord" },
-        { "name": "table" },
-        { "name": "read" },
-        { "name": "exists" },
-        { "way": "()" },
-        { "way": "filter" }
-      ],
-      "kind": "schema-driven",
-      "evidence": "record.ts reads the table exists reader through the generic Table type"
-    },
-    {
-      "path": [
-        { "name": "AdminRecord" },
-        { "name": "table" },
-        { "name": "read" },
-        { "name": "many" },
-        { "way": "()" },
-        { "way": "filter" }
-      ],
-      "kind": "schema-driven",
-      "evidence": "record.ts reads the table many reader through the generic Table type"
-    },
-    {
-      "path": [
-        { "name": "AdminRecord" },
-        { "name": "table" },
-        { "name": "read" },
-        { "name": "one" },
-        { "way": "()" },
-        { "way": "filter" }
-      ],
-      "kind": "schema-driven",
-      "evidence": "record.ts reads the table one reader through the generic Table type"
-    },
-    {
-      "path": [
-        { "name": "AdminRecord" },
-        { "name": "table" },
-        { "name": "read" },
-        { "name": "pick" },
-        { "way": "()" },
-        { "way": "result" },
-        { "name": "many" },
-        { "way": "()" },
-        { "way": "filter" }
-      ],
-      "kind": "schema-driven",
-      "evidence": "record.ts reads the projected many reader through the generic Table type"
-    },
-    {
-      "path": [
-        { "name": "AdminRecord" },
-        { "name": "table" },
-        { "name": "read" },
-        { "name": "pick" },
-        { "way": "()" },
-        { "way": "result" },
-        { "name": "one" },
-        { "way": "()" },
-        { "way": "filter" }
-      ],
-      "kind": "schema-driven",
-      "evidence": "record.ts reads the projected one reader through the generic Table type"
-    },
-    {
-      "path": [
-        { "name": "AdminRecord" },
-        { "name": "table" },
-        { "name": "read" },
-        { "name": "pick" },
-        { "way": "()" },
-        { "way": "result" },
-        { "name": "statement" },
-        { "way": "()" },
-        { "way": "filter" }
-      ],
-      "kind": "schema-driven",
-      "evidence": "record.ts reads the projected statement builder through the generic Table type"
-    },
-    {
-      "path": [
-        { "name": "AdminRecord" },
-        { "name": "table" },
-        { "name": "read" },
-        { "name": "statement" },
-        { "way": "()" },
-        { "way": "filter" }
-      ],
-      "kind": "schema-driven",
-      "evidence": "record.ts reads the table statement builder through the generic Table type"
+      "evidence": "recordPages and recordApi read the record through the page and JSON doors"
     }
   ],
   "src/shared/settings/form-schema.ts": [

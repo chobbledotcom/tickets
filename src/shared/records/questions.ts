@@ -22,7 +22,7 @@ import {
 import { t } from "#i18n";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
-import { defineRecord } from "#shared/rest/record.ts";
+import { defineRecord, type RecordShapeOf } from "#shared/rest/record.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 
 /** The form's length refusal for one question text. */
@@ -56,9 +56,7 @@ export const questionRule = (
 
 /* jscpd:ignore-start -- declarative record config */
 export const questionRecord = defineRecord<
-  Question,
-  QuestionInput,
-  QuestionWithAnswers
+  RecordShapeOf<Question, QuestionInput, QuestionWithAnswers>
 >({
   activityName: "Question",
   api: ADMIN_API_RESOURCES.questions,

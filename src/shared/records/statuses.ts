@@ -19,7 +19,11 @@ import { t } from "#i18n";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { validateReservationAmount } from "#shared/reservation-amount.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
-import { logNameActivity, type WriteVerdict } from "#shared/rest/record.ts";
+import {
+  logNameActivity,
+  type RecordShapeOf,
+  type WriteVerdict,
+} from "#shared/rest/record.ts";
 import { commitCommand, updateIfPresent } from "#shared/rest/record-command.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 
@@ -98,8 +102,7 @@ const statusWrites = {
 } as const;
 
 export const statusRecord = defineNamedRowRecord<
-  AttendeeStatus,
-  AttendeeStatusWriteInput
+  RecordShapeOf<AttendeeStatus, AttendeeStatusWriteInput>
 >({
   activityName: "Attendee status",
   api: ADMIN_API_RESOURCES["attendee-statuses"],

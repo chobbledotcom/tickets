@@ -117,6 +117,50 @@ export type InputValidator<Input> = (
   id?: number,
 ) => Promise<string | null>;
 
+/** The stored shapes one record declaration names. A record that omits a
+ * read shape reads its write row. */
+export type RecordShape = {
+  row: { id: number };
+  input: unknown;
+  fullRow?: { id: number };
+  listRow?: unknown;
+  state?: unknown;
+};
+
+/** Build the shape of one record from its row, input, and optional read and
+ * state shapes. */
+export type RecordShapeOf<
+  Row extends { id: number },
+  Input,
+  FullRow extends Row = Row,
+  State = never,
+  ListRow = FullRow,
+> = {
+  row: Row;
+  input: Input;
+  fullRow: FullRow;
+  listRow: ListRow;
+  state: State;
+};
+
+export type RowOf<Shape extends RecordShape> = Shape["row"];
+export type InputOf<Shape extends RecordShape> = Shape["input"];
+export type FullRowOf<Shape extends RecordShape> = Shape extends {
+  fullRow: infer FullRow extends { id: number };
+}
+  ? FullRow
+  : RowOf<Shape>;
+export type ListRowOf<Shape extends RecordShape> = Shape extends {
+  listRow: infer ListRow;
+}
+  ? ListRow
+  : FullRowOf<Shape>;
+export type StateOf<Shape extends RecordShape> = Shape extends {
+  state: infer State;
+}
+  ? State
+  : never;
+
 /** The one write rule. `input` is what the caller sent, already converted to
  * the record's input shape at the door. `stored` is the stored row on update
  * and null on create. The rule normalizes the input, or refuses it with the
@@ -129,21 +173,16 @@ export type RecordRule<Input, Row> = (
 /** One ordered collection's create-time append. */
 export type RecordOrder = Pick<OrderedCollection<"id", undefined>, "append">;
 
-/* jscpd:ignore-start -- TypeScript repeats the type parameters on every generic declaration */
 /**
  * The declaration of one admin record.
  *
- * `Row` is the stored row the table writes. `FullRow` is the row the pages and
- * the API read back. It differs from `Row` only when a read joins extra
- * columns. `State` is the narrow pre-update state a transactional hook needs.
+ * `Shape.row` is the stored row the table writes. `Shape.fullRow` is the row
+ * the pages and the API read back. It differs from the write row only when a
+ * read joins extra columns. `Shape.state` is the narrow pre-update state a
+ * transactional hook needs.
  */
-export interface RecordSpec<
-  Row extends { id: number },
-  Input,
-  FullRow extends Row = Row,
-  State = never,
-  ListRow = FullRow,
-> extends AfterCommitConfig {
+export interface RecordSpec<Shape extends RecordShape>
+  extends AfterCommitConfig {
   /** The words the activity log uses for this record. */
   readonly activityName: string;
   /** A join write inside the row write's transaction. Runs before the order
@@ -151,14 +190,14 @@ export interface RecordSpec<
   readonly afterWrite?: (
     tx: TxScope,
     id: number,
-    input: Input,
-    state: State | null,
+    input: InputOf<Shape>,
+    state: StateOf<Shape> | null,
   ) => Promise<void>;
   /** The admin API entry: its path, envelopes, and wire schemas. Absent for a
    * page-only record. */
   readonly api?: AdminApiResource;
   /** A guard inside the row write's transaction, before the row statement. */
-  readonly checkTx?: CheckTxHook<Input>;
+  readonly checkTx?: CheckTxHook<InputOf<Shape>>;
   /** The delete page's destination, when it differs from the collection's
    * route (the group delete page is staff-only while its list admits
    * editors). Defaults to the collection path with `/:id/delete`. */
@@ -169,25 +208,25 @@ export interface RecordSpec<
     id: number,
     actor?: RecordActor,
   ) => Promise<string | null>;
-  readonly getAll: GetAllCommand<ListRow>;
+  readonly getAll: GetAllCommand<ListRowOf<Shape>>;
   /** Link create/update log entries to the row (the listing log does). */
   readonly linkActivityToRow?: boolean;
   /** The page route whose declaration gives the record its audience. */
   readonly list: AdminDestinationId;
   /** Read one row for a page, the API, and the delete confirmation. */
-  readonly load?: LoadCommand<FullRow>;
+  readonly load?: LoadCommand<FullRowOf<Shape>>;
   /** Read a just-committed row back. Pinned to the primary by default. */
-  readonly loadAfterWrite?: LoadAfterWriteCommand<FullRow>;
+  readonly loadAfterWrite?: LoadAfterWriteCommand<FullRowOf<Shape>>;
   /** Log after the row transaction commits. A failed log must not undo a
    * committed listing. */
   readonly logAfterCommit?: boolean;
   /** The display name to log, taken from the input the write just made. An
    * update input carries the values the row now holds. */
-  readonly logName: (input: Input) => string;
+  readonly logName: (input: InputOf<Shape>) => string;
   /** The display-name column, for the JSON delete confirmation. */
-  readonly nameField?: keyof FullRow & string;
+  readonly nameField?: keyof FullRowOf<Shape> & string;
   /** The row's display name: the delete confirmation and the activity log. */
-  readonly nameOf: (row: Row) => string;
+  readonly nameOf: (row: RowOf<Shape>) => string;
   /** The delete itself. Defaults to deleting the table row. */
   readonly onDelete?: (
     id: number,
@@ -198,40 +237,42 @@ export interface RecordSpec<
    * row never exists unplaced. */
   readonly order?: RecordOrder;
   /** Read the narrow pre-update state `afterWrite` and `checkTx` need. */
-  readonly readState?: TransactionStateReader<State>;
+  readonly readState?: TransactionStateReader<StateOf<Shape>>;
   /** The one write rule. Both doors run it before any write. */
-  readonly rule: RecordRule<Input, Row>;
+  readonly rule: RecordRule<InputOf<Shape>, RowOf<Shape>>;
   /** The record page a save lands on, when it differs from the collection's
    * declared `afterSave`. */
   readonly saveLanding?: AdminDestinationId;
   /** What the write rule sees as the stored row. Defaults to the read row. */
-  readonly storedValues?: (row: FullRow) => Row;
-  readonly table?: Table<Row, Input>;
+  readonly storedValues?: (row: FullRowOf<Shape>) => RowOf<Shape>;
+  readonly table?: Table<RowOf<Shape>, InputOf<Shape>>;
   /** A record whose writes go through a domain boundary rather than its table
    * statement gives its three commands here. Each command applies `rule`
    * itself, so the one rule still holds at both doors. */
   readonly write?: {
-    readonly create: WriteCommand<Input, FullRow>;
-    readonly update: UpdateCommand<Input, FullRow>;
+    readonly create: WriteCommand<InputOf<Shape>, FullRowOf<Shape>>;
+    readonly update: UpdateCommand<InputOf<Shape>, FullRowOf<Shape>>;
     readonly remove: DeleteCommand;
   };
 }
 
 /** One admin record, with its write commands. */
-export interface AdminRecord<
-  Row extends { id: number },
-  Input,
-  FullRow extends Row = Row,
-  State = never,
-  ListRow = FullRow,
-> extends RecordSpec<Row, Input, FullRow, State, ListRow> {
-  readonly create: PlannedWriteCommand<Input, FullRow, State>;
-  readonly load: LoadCommand<FullRow>;
-  readonly loadAfterWrite: LoadAfterWriteCommand<FullRow>;
+export interface AdminRecord<Shape extends RecordShape>
+  extends RecordSpec<Shape> {
+  readonly create: PlannedWriteCommand<
+    InputOf<Shape>,
+    FullRowOf<Shape>,
+    StateOf<Shape>
+  >;
+  readonly load: LoadCommand<FullRowOf<Shape>>;
+  readonly loadAfterWrite: LoadAfterWriteCommand<FullRowOf<Shape>>;
   readonly remove: DeleteCommand;
-  readonly update: PlannedUpdateCommand<Input, FullRow, State>;
+  readonly update: PlannedUpdateCommand<
+    InputOf<Shape>,
+    FullRowOf<Shape>,
+    StateOf<Shape>
+  >;
 }
-/* jscpd:ignore-end */
 
 /** The JSON audience the page route for one destination declares. The surface
  * table is the only place a role is written down, so neither door can name a

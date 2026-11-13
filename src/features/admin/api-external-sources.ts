@@ -58,6 +58,7 @@ import {
   apiEntityGate,
   requireEntityField,
 } from "#shared/rest/crud-parsers.ts";
+import type { RecordShapeOf } from "#shared/rest/record.ts";
 import { recordApi, recordJsonPolicy } from "#shared/rest/record-api.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import {
@@ -341,8 +342,7 @@ const externalSourcesOnly =
 export const externalSourceApiRoutes = mapValues(
   recordApi<
     (typeof ADMIN_API_RESOURCES)["external-sources"],
-    ExternalSource,
-    ExternalSourceInput
+    RecordShapeOf<ExternalSource, ExternalSourceInput>
   >(externalSourceRecord, {
     childHandlers: {
       links: {

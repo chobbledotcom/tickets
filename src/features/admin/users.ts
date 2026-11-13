@@ -45,7 +45,7 @@ import { getEffectiveDomain } from "#shared/config.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { DAY_MS, nowMs } from "#shared/now.ts";
-import { defineRecord } from "#shared/rest/record.ts";
+import { defineRecord, type RecordShapeOf } from "#shared/rest/record.ts";
 import { recordPages } from "#shared/rest/record-pages.ts";
 import { asRequestRoute } from "#shared/rest/route-adapters.ts";
 import { okResult } from "#shared/result.ts";
@@ -387,7 +387,7 @@ const userDelete = createConfirmedHandlers<DisplayUser>({
 
 /** The user record: its display read, its name, and its delete. The routes
  *  that need the inviting session stay as overrides on this declaration. */
-const userRecord = defineRecord<DisplayUser, DisplayUser>({
+const userRecord = defineRecord<RecordShapeOf<DisplayUser, DisplayUser>>({
   activityName: "User",
   deleteDestination: "userDelete",
   getAll: loadDisplayUsers,

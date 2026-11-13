@@ -29,39 +29,16 @@ import type { FormSchema } from "#shared/forms/definition.ts";
 import { checkedValues } from "#shared/forms/validation.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import type {
-  DeleteCommand,
+  AdminRecord,
   DeleteVerdict,
-  GetAllCommand,
-  LoadCommand,
-  RecordActor,
+  FullRowOf,
+  InputOf,
+  ListRowOf,
+  RecordShape,
   WriteVerdict,
 } from "#shared/rest/record.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import type { AdminSession } from "#types";
-
-/** A generated command a page calls: it passes no per-call plan. */
-type PageCommand<Args extends unknown[], FullRow> = (
-  ...args: [...Args, plan?: never, actor?: RecordActor]
-) => Promise<WriteVerdict<FullRow>>;
-
-/** The commands and reads the page door needs from a record. A record with
- * transactional state is still assignable: the extra plan argument is
- * optional. */
-export type PageRecord<
-  Row extends { id: number },
-  Input,
-  FullRow extends Row,
-  ListRow = FullRow,
-> = {
-  create: PageCommand<[input: Input], FullRow>;
-  update: PageCommand<[id: number, input: Input], FullRow>;
-  remove: DeleteCommand;
-  load: LoadCommand<FullRow>;
-  getAll: GetAllCommand<ListRow>;
-  nameOf: (row: Row) => string;
-  list: AdminDestinationId;
-  saveLanding?: AdminDestinationId;
-};
 
 /** The form facts a page config carries, split out so the parser does not
  *  depend on the renderers. */
@@ -102,20 +79,18 @@ type SkippedRoutes = readonly ("new" | "edit")[];
  * confirmation words. `CreateValues` and `EditValues` are separate because an
  * edit form carries a field a create form does not (the group slug). */
 export type RecordPagesConfig<
-  FullRow,
-  Input,
+  Shape extends RecordShape,
   CreateValues,
   EditValues = CreateValues,
   DeleteInput = undefined,
-  ListRow = FullRow,
-> = FormInputConfig<CreateValues, EditValues, Input> & {
+> = FormInputConfig<CreateValues, EditValues, InputOf<Shape>> & {
   renderDelete?: (
-    row: FullRow,
+    row: FullRowOf<Shape>,
     session: AdminSession,
     error?: string,
   ) => string;
   renderList?: (
-    rows: ListRow[],
+    rows: ListRowOf<Shape>[],
     session: AdminSession,
     successMessage?: string,
   ) => string | Promise<string>;
@@ -132,7 +107,7 @@ export type RecordPagesConfig<
   /** The display name the confirmation must match. Defaults to the record's
    * display name. A page whose input cannot carry newlines uses the flattened
    * form, which is what the operator can type. */
-  identifier?: (row: FullRow) => string;
+  identifier?: (row: FullRowOf<Shape>) => string;
   /** The page a refused create returns to. Defaults to the collection's
    * `/new` page. */
   createErrorPath?: string;
@@ -145,7 +120,7 @@ export type RecordPagesConfig<
    * Defaults to the collection's `/edit` page. */
   editErrorPath?: (id: number) => string;
   /** A pre-render delete guard, shown on the confirmation page. */
-  deleteGuard?: (row: FullRow, id: number) => Promise<string | null>;
+  deleteGuard?: (row: FullRowOf<Shape>, id: number) => Promise<string | null>;
   /** The choice the delete command reads from the submitted form. */
   deleteInput?: (form: FormParams) => DeleteInput;
   /** The page a delete lands on, when it is not the collection list. */
@@ -307,23 +282,13 @@ const resolvePagePaths = (
  * Build the six standard HTML routes for one record.
  */
 export const recordPages = <
-  Row extends { id: number },
-  Input,
-  FullRow extends Row,
+  Shape extends RecordShape,
   CreateValues,
   EditValues = CreateValues,
   DeleteInput = undefined,
-  ListRow = FullRow,
 >(
-  record: PageRecord<Row, Input, FullRow, ListRow>,
-  config: RecordPagesConfig<
-    FullRow,
-    Input,
-    CreateValues,
-    EditValues,
-    DeleteInput,
-    ListRow
-  >,
+  record: AdminRecord<Shape>,
+  config: RecordPagesConfig<Shape, CreateValues, EditValues, DeleteInput>,
 ): CrudHandlers => {
   const listRoute = adminDestination(record.list);
   const { createErrorPath, deletePath, editPath, listPath, newPath, savePath } =
@@ -357,7 +322,7 @@ export const recordPages = <
     form: FormParams,
     edit: boolean,
     onError: ResponseHandler<[message: string]>,
-    run: ResponseHandler<[input: Input]>,
+    run: ResponseHandler<[input: InputOf<Shape>]>,
   ): Promise<Response> => {
     const parsed = await parseFormInput(config, form, edit);
     return parsed.ok ? run(parsed.value) : onError(parsed.error);
@@ -401,7 +366,7 @@ export const recordPages = <
         );
 
   const editVerdict = (
-    verdict: WriteVerdict<FullRow>,
+    verdict: WriteVerdict<FullRowOf<Shape>>,
     id: number,
     session: AuthSession,
     form: FormParams,
@@ -436,15 +401,18 @@ export const recordPages = <
             ),
           );
 
-  const confirmedDelete = createConfirmedHandlers<FullRow, AuthSession>({
+  const confirmedDelete = createConfirmedHandlers<
+    FullRowOf<Shape>,
+    AuthSession
+  >({
     auth: { requireSession: auth.delete, withForm: auth.deleteForm },
     ...(config.deleteGuard
       ? {
-          guardError: (row: FullRow, id: number) =>
+          guardError: (row: FullRowOf<Shape>, id: number) =>
             config.deleteGuard!(row, id),
         }
       : {}),
-    identifier: (row: FullRow) =>
+    identifier: (row: FullRowOf<Shape>) =>
       config.identifier ? config.identifier(row) : record.nameOf(row),
     identifierLabel: config.identifierLabel ?? "",
     load: (id, session) => record.load(id, { session }),

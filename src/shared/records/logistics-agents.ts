@@ -10,11 +10,11 @@ import {
 } from "#db/logistics-agents.ts";
 import { agentUsers } from "#db/user-agents.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
+import type { RecordShapeOf } from "#shared/rest/record.ts";
 import type { LogisticsAgent } from "#types";
 
 export const logisticsAgentRecord = defineNamedRowRecord<
-  LogisticsAgent,
-  LogisticsAgentInput
+  RecordShapeOf<LogisticsAgent, LogisticsAgentInput>
 >({
   activityName: "Logistics agent",
   deleteDestination: "logisticsDelete",

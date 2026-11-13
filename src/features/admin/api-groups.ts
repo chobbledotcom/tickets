@@ -33,6 +33,7 @@ import {
   requireEntityField,
   requireStrings,
 } from "#shared/rest/crud-parsers.ts";
+import type { RecordShapeOf } from "#shared/rest/record.ts";
 import { recordApi } from "#shared/rest/record-api.ts";
 import {
   errorResult,
@@ -214,11 +215,7 @@ const toGroupInput = async (
 
 export const groupApiRoutes = recordApi<
   typeof ADMIN_API_RESOURCES.groups,
-  Group,
-  GroupInput,
-  Group,
-  void,
-  PackageFlags | null
+  RecordShapeOf<Group, GroupInput, Group, PackageFlags | null>
 >(groupRecord, {
   // Only package groups appear in the map. Non-package groups hydrate to no
   // extra fields. Single-row responses use this same batch path with one row.

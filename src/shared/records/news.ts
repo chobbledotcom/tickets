@@ -14,7 +14,7 @@ import {
 } from "#db/news-posts.ts";
 import { t } from "#i18n";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
-import { logNameActivity } from "#shared/rest/record.ts";
+import { logNameActivity, type RecordShapeOf } from "#shared/rest/record.ts";
 import {
   deleteCommand,
   transactCommand,
@@ -26,11 +26,13 @@ import type { NewsPost, NewsPostSummary } from "#types";
 const logNews = logNameActivity("News post");
 
 export const newsRecord = defineNamedRowRecord<
-  NewsPost,
-  NewsPostWriteInput & { slug?: string },
-  NewsPost,
-  never,
-  NewsPostSummary
+  RecordShapeOf<
+    NewsPost,
+    NewsPostWriteInput & { slug?: string },
+    NewsPost,
+    never,
+    NewsPostSummary
+  >
 >({
   activityName: "News post",
   getAll: getNewsPostSummaries,

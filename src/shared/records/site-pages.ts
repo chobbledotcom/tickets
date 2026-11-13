@@ -15,7 +15,7 @@ import {
 import { t } from "#i18n";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
-import { logNameActivity } from "#shared/rest/record.ts";
+import { logNameActivity, type RecordShapeOf } from "#shared/rest/record.ts";
 import {
   deleteCommand,
   transactCommand,
@@ -35,9 +35,7 @@ export const sitePageRule = (input: SitePageWriteInput) =>
     : okResult(input);
 
 export const sitePageRecord = defineNamedRowRecord<
-  SitePage,
-  SitePageWriteInput,
-  SitePage
+  RecordShapeOf<SitePage, SitePageWriteInput, SitePage>
 >({
   activityName: "Page",
   api: ADMIN_API_RESOURCES["site-pages"],

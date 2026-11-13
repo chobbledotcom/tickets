@@ -8,6 +8,7 @@ import { holidayInput, readDates } from "#routes/admin/holiday-input.ts";
 import type { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { holidayRecord } from "#shared/records/holidays.ts";
 import { withWriteName } from "#shared/rest/crud-parsers.ts";
+import type { RecordShapeOf } from "#shared/rest/record.ts";
 import { recordApi } from "#shared/rest/record-api.ts";
 import { okResult } from "#shared/result.ts";
 
@@ -42,8 +43,7 @@ const holidayInputFrom = withWriteName<
 
 export const holidayApiRoutes = recordApi<
   typeof ADMIN_API_RESOURCES.holidays,
-  Holiday,
-  HolidayInput
+  RecordShapeOf<Holiday, HolidayInput>
 >(holidayRecord, {
   toCreateInput: (body) => holidayInputFrom(body, null),
   toUpdateInput: (body, existing) => holidayInputFrom(body, existing),

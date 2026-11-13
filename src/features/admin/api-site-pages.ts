@@ -44,6 +44,7 @@ import {
   parseAndValidate,
   type RowBodyHandler,
 } from "#shared/rest/crud-parsers.ts";
+import type { RecordShapeOf } from "#shared/rest/record.ts";
 import {
   apiHandlerSet,
   recordApi,
@@ -344,9 +345,7 @@ const fixedPageHandlers = Object.fromEntries(
 
 export const sitePageApiRoutes = recordApi<
   typeof ENTRY,
-  SitePage,
-  SitePageWriteInput,
-  SitePage
+  RecordShapeOf<SitePage, SitePageWriteInput, SitePage>
 >(sitePageRecord, {
   customHandlers: fixedPageHandlers,
   overrides: apiHandlerSet(

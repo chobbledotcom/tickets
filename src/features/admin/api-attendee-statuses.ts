@@ -11,6 +11,7 @@ import type {
 import type { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { statusRecord } from "#shared/records/statuses.ts";
 import { withWriteName } from "#shared/rest/crud-parsers.ts";
+import type { RecordShapeOf } from "#shared/rest/record.ts";
 import { recordApi } from "#shared/rest/record-api.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 
@@ -75,8 +76,7 @@ const statusInputFrom = withWriteName<
 
 export const attendeeStatusApiRoutes = recordApi<
   (typeof ADMIN_API_RESOURCES)["attendee-statuses"],
-  AttendeeStatus,
-  AttendeeStatusWriteInput
+  RecordShapeOf<AttendeeStatus, AttendeeStatusWriteInput>
 >(statusRecord, {
   stripKeys: ["sort_order"],
   toCreateInput: (body) => statusInputFrom(body, null),

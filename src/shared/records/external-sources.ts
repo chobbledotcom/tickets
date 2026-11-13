@@ -17,6 +17,7 @@ import {
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
+import type { RecordShapeOf } from "#shared/rest/record.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { validatorFor } from "#shared/validation/parse.ts";
 
@@ -49,8 +50,7 @@ const sourceRule = (
 };
 
 export const externalSourceRecord = defineNamedRowRecord<
-  ExternalSource,
-  ExternalSourceInput
+  RecordShapeOf<ExternalSource, ExternalSourceInput>
 >({
   activityName: "Source",
   api: ADMIN_API_RESOURCES["external-sources"],

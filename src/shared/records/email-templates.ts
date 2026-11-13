@@ -12,7 +12,11 @@ import {
   updateEmailTemplate,
 } from "#db/email-templates.ts";
 import { settings } from "#db/settings.ts";
-import { defineRecord, type WriteVerdict } from "#shared/rest/record.ts";
+import {
+  defineRecord,
+  type RecordShapeOf,
+  type WriteVerdict,
+} from "#shared/rest/record.ts";
 import { deleteIfPresent } from "#shared/rest/record-command.ts";
 import { okResult } from "#shared/result.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -49,8 +53,7 @@ const templateSubjectOrNull = async (id: number): Promise<string | null> => {
 };
 
 export const emailTemplateRecord = defineRecord<
-  EmailTemplateRow,
-  EmailTemplateInput
+  RecordShapeOf<EmailTemplateRow, EmailTemplateInput>
 >({
   activityName: "Template",
   deleteDestination: "emailTemplateDelete",

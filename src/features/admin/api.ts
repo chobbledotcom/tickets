@@ -37,6 +37,7 @@ import type {
   HydratedRows,
 } from "#shared/rest/crud-api-types.ts";
 import { apiEntityGate, withApiEntity } from "#shared/rest/crud-parsers.ts";
+import type { RecordShapeOf } from "#shared/rest/record.ts";
 import { recordApi, recordJsonDeletePolicy } from "#shared/rest/record-api.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { AdminListing, Listing, ListingWithCount } from "#types";
@@ -180,9 +181,7 @@ const prepareApiListingJoins: CrudSideEffectValidate<
 
 const listingApiRoutes = recordApi<
   typeof ADMIN_API_RESOURCES.listings,
-  Listing,
-  ListingInput,
-  ListingWithCount,
+  RecordShapeOf<Listing, ListingInput, ListingWithCount>,
   PreparedListingJoins
 >(listingRecord, {
   customHandlers: {

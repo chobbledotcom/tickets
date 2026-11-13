@@ -23,6 +23,7 @@ import {
   recordChildSurface,
 } from "#shared/rest/child-surface.ts";
 import { withRequiredText, withWriteName } from "#shared/rest/crud-parsers.ts";
+import type { RecordShapeOf } from "#shared/rest/record.ts";
 import { recordApi } from "#shared/rest/record-api.ts";
 import { okResult } from "#shared/result.ts";
 
@@ -81,9 +82,7 @@ const optionHandlers = childTextHandlers({
 
 export const attributeApiRoutes = recordApi<
   typeof ADMIN_API_RESOURCES.attributes,
-  Attribute,
-  { name: string },
-  AttributeWithOptions
+  RecordShapeOf<Attribute, { name: string }, AttributeWithOptions>
 >(attributeRecord, {
   childHandlers: { options: optionHandlers },
   toCreateInput: (body) => toAttributeInput(body, null),

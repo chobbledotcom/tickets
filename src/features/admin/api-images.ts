@@ -29,7 +29,7 @@ import {
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
 import {
   isSiteContentImageType,
-  siteContentBlocksManager,
+  whenSiteContentBlocksManager,
 } from "#shared/images/library.ts";
 import {
   type ImageMetadata,
@@ -48,6 +48,7 @@ import {
   parseApiBody,
   withApiEntity,
 } from "#shared/rest/crud-parsers.ts";
+import type { RecordShapeOf } from "#shared/rest/record.ts";
 import {
   recordApi,
   recordJsonDeletePolicy,
@@ -185,9 +186,11 @@ const siteContentRefusal = async (
   adminLevel: AdminLevel,
   imageId: number,
 ): Promise<Response | null> =>
-  (await siteContentBlocksManager(adminLevel, imageId))
-    ? apiErrorResponse(t("images.news_gated"), 403)
-    : null;
+  whenSiteContentBlocksManager(
+    adminLevel,
+    imageId,
+    apiErrorResponse(t("images.news_gated"), 403),
+  );
 
 /** A manager never links an image to a news post or a page, because those
  *  surfaces belong to the Site roles. */
@@ -329,8 +332,7 @@ export const writeImageUpdate = async (
 
 export const imageApiRoutes: Record<string, RouteHandlerFn> = recordApi<
   typeof ADMIN_API_RESOURCES.images,
-  Image,
-  ImageWriteInput
+  RecordShapeOf<Image, ImageWriteInput>
 >(imageRecord, {
   hydrate: hydrateImages,
   hydrateAfterWrite: hydrateImageAfterWrite,

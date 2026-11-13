@@ -37,6 +37,7 @@ import {
   withApiEntity,
   withRequiredText,
 } from "#shared/rest/crud-parsers.ts";
+import type { RecordShapeOf } from "#shared/rest/record.ts";
 import { recordApi, recordJsonPolicy } from "#shared/rest/record-api.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -210,9 +211,7 @@ const handleQuestionBookings: RouteHandlerFn = (request, params) =>
 
 export const questionApiRoutes = recordApi<
   typeof ADMIN_API_RESOURCES.questions,
-  Question,
-  QuestionInput,
-  QuestionWithAnswers
+  RecordShapeOf<Question, QuestionInput, QuestionWithAnswers>
 >(questionRecord, {
   childHandlers: { answers: answerHandlers },
   customHandlers: { bookings: handleQuestionBookings },

@@ -15,10 +15,15 @@ import type {
   AdminRecord,
   DeleteCommand,
   DeleteVerdict,
+  FullRowOf,
+  InputOf,
   PlannedUpdateCommand,
   PlannedWriteCommand,
   RecordActor,
+  RecordShape,
   RecordSpec,
+  RowOf,
+  StateOf,
   WritePlan,
   WriteVerdict,
 } from "#shared/rest/record-contract.ts";
@@ -77,15 +82,13 @@ export const answerWrite = async <Row>(
  * Define one admin record. The returned object carries the single write path
  * both doors call.
  */
-export const defineRecord = <
-  Row extends { id: number },
-  Input,
-  FullRow extends Row = Row,
-  State = never,
-  ListRow = FullRow,
->(
-  spec: RecordSpec<Row, Input, FullRow, State, ListRow>,
-): AdminRecord<Row, Input, FullRow, State, ListRow> => {
+export const defineRecord = <Shape extends RecordShape>(
+  spec: RecordSpec<Shape>,
+): AdminRecord<Shape> => {
+  type Row = RowOf<Shape>;
+  type Input = InputOf<Shape>;
+  type FullRow = FullRowOf<Shape>;
+  type State = StateOf<Shape>;
   const load =
     spec.load ??
     (spec.table === undefined
@@ -307,7 +310,7 @@ export const defineRecord = <
 
   const write = spec.write;
   const commands: Pick<
-    AdminRecord<Row, Input, FullRow, State, ListRow>,
+    AdminRecord<Shape>,
     "create" | "remove" | "update"
   > = write === undefined
     ? { create, remove, update }

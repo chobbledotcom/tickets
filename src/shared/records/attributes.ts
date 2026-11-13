@@ -16,12 +16,11 @@ import {
 import type { NamedSortOrderInput } from "#db/common-schema.ts";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
+import type { RecordShapeOf } from "#shared/rest/record.ts";
 
 /* jscpd:ignore-start -- declarative record config */
 export const attributeRecord = defineNamedRowRecord<
-  Attribute,
-  NamedSortOrderInput,
-  AttributeWithOptions
+  RecordShapeOf<Attribute, NamedSortOrderInput, AttributeWithOptions>
 >({
   activityName: "Attribute",
   api: ADMIN_API_RESOURCES.attributes,

@@ -27,6 +27,7 @@ import {
   defineRecord,
   deleteAudienceFor,
   jsonAudienceFor,
+  type RecordShapeOf,
   type RecordSpec,
 } from "#shared/rest/record.ts";
 import { errorResult, okResult } from "#shared/result.ts";
@@ -42,9 +43,9 @@ const TABLE = "record_widgets";
 const table = makeIdNameTable(TABLE);
 
 const widgetRecord = (
-  overrides: Partial<RecordSpec<IdNameRow, IdNameInput>> = {},
+  overrides: Partial<RecordSpec<RecordShapeOf<IdNameRow, IdNameInput>>> = {},
 ) =>
-  defineRecord<IdNameRow, IdNameInput>({
+  defineRecord<RecordShapeOf<IdNameRow, IdNameInput>>({
     activityName: "Widget",
     getAll: () => table.read.many({}),
     list: "holidays",
