@@ -35,7 +35,11 @@ export const PREFIXES_M_Z = {
       "public-site",
       "tickets",
     ),
-    settings: [...PUBLIC_NAV_SETTINGS, CONFIG_KEYS.COUNTRY],
+    settings: [
+      ...PUBLIC_NAV_SETTINGS,
+      CONFIG_KEYS.COUNTRY,
+      CONFIG_KEYS.CATALOG_GALLERY_ENABLED,
+    ],
   },
   // Public news list + post pages. The full public nav renders, and the
   // published-date display reads the country for its timezone.

@@ -1216,7 +1216,7 @@
   "src/ui/templates/admin/settings-advanced.tsx": [
     {
       "path": [{ "name": "AdvancedSettingsPageState" }],
-      "fields": ["addressLookupApiKeyConfigured", "addressLookupProvider", "attendeeColumnOrder", "customCss", "existingPaymentProvider", "externalOrderEnabled", "listingColumnOrder", "showPublicApi"]
+      "fields": ["addressLookupApiKeyConfigured", "addressLookupProvider", "attendeeColumnOrder", "catalogGalleryEnabled", "customCss", "existingPaymentProvider", "externalOrderEnabled", "listingColumnOrder", "showPublicApi"]
     }
   ],
   "src/ui/templates/admin/users.tsx": [

@@ -127,7 +127,7 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
     test("shows a price for priced listings", async () => {
       await createTestListing({ name: "Priced", unitPrice: 1500 });
       const html = await assertPublicHtml("/order");
-      assertStringIncludes(html, 'class="order-card-price"');
+      assertStringIncludes(html, 'class="card-price"');
     });
 
     test("shows a 'From' price for pay-what-you-want listings", async () => {
