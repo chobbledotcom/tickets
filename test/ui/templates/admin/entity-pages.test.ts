@@ -100,15 +100,22 @@ describe("actions section", () => {
     },
   ];
 
+  type Actions = Extract<
+    Parameters<typeof renderSection>[0],
+    { kind: "actions" }
+  >["plain"];
+
+  /** The actions section of the two halves. */
+  const actionsSection = (plainHalf: Actions, dangerHalf: Actions) =>
+    renderSection({
+      danger: dangerHalf,
+      kind: "actions",
+      plain: plainHalf,
+      titleKey: "entity.tab.actions",
+    });
+
   test("renders plain actions as buttons and danger actions inside the danger zone", () => {
-    const html = String(
-      renderSection({
-        danger,
-        kind: "actions",
-        plain,
-        titleKey: "entity.tab.actions",
-      }),
-    );
+    const html = String(actionsSection(plain, danger));
     expectIncludesAll(html, ["<h3>Actions</h3>", 'href="/admin/x/refund"']);
     const zoneStart = html.indexOf('class="entity-danger-zone"');
     expect(zoneStart).toBeGreaterThan(-1);
@@ -120,49 +127,33 @@ describe("actions section", () => {
 
   test("renders an action's description under its button", () => {
     const html = String(
-      renderSection({
-        danger: [],
-        kind: "actions",
-        plain: [
+      actionsSection(
+        [
           {
             danger: false,
-            descriptionKey: "attendee_form.outstanding_balance_hint",
+            descriptionKey: "attendee_form.price_hint",
             href: "/admin/x/merge",
             icon: undefined,
             labelKey: "attendee_form.action_resend",
           },
         ],
-        titleKey: "entity.tab.actions",
-      }),
+        [],
+      ),
     );
     expectIncludesAll(html, [
-      '<span class="muted small">What the attendee still owes',
+      '<span class="muted small">Optional, in pence or cents.',
       // Each action sits in its own entity-action row.
       '<div class="entity-action">',
     ]);
   });
 
   test("omits the danger zone when no action is dangerous", () => {
-    const html = String(
-      renderSection({
-        danger: [],
-        kind: "actions",
-        plain,
-        titleKey: "entity.tab.actions",
-      }),
-    );
+    const html = String(actionsSection(plain, []));
     assert(!html.includes("entity-danger-zone"));
   });
 
   test("renders nothing at all when both halves are empty", () => {
-    expect(
-      renderSection({
-        danger: [],
-        kind: "actions",
-        plain: [],
-        titleKey: "entity.tab.actions",
-      }),
-    ).toBeNull();
+    expect(actionsSection([], [])).toBeNull();
   });
 });
 

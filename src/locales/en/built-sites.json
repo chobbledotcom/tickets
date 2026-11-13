@@ -19,7 +19,6 @@
   "built_sites.tier_table_units": "Units sold",
   "built_sites.add_site_title": "Add Built Site",
   "built_sites.create_built_site_button": "Create Built Site",
-  "built_sites.edit_site_title": "Edit Built Site",
   "built_sites.renewal_title": "Renewal",
   "built_sites.maintenance_title": "Scheduled maintenance",
   "built_sites.maintenance_intro": "Use this key in the monitor for this site. Each site has its own key.",

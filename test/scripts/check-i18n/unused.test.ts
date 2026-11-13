@@ -1,10 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  keyReferences,
-  unreferencedKeys,
-  unusedKeyFindings,
-} from "#scripts/check-i18n/unused.ts";
+import { keyReferences, unreferencedKeys } from "#scripts/check-i18n/unused.ts";
 
 const dollar = String.fromCodePoint(36);
 
@@ -58,6 +54,25 @@ const SCAN_CASES: readonly ScanCase[] = [
     unreferenced: ["schema.row.outro", "holidays.title"],
   },
   {
+    keys: [
+      "site.home.text_hint",
+      "site.home.text_label",
+      "site.order.text_hint",
+      "site.home.title",
+    ],
+    name: "a quoted start and a template ending refer to the key they join",
+    source: [
+      'box("site.home.text")',
+      `t(\`${dollar}{prefix}_hint\`)`,
+      `\`${dollar}{count}_x\``,
+    ],
+    unreferenced: [
+      "site.home.text_label",
+      "site.order.text_hint",
+      "site.home.title",
+    ],
+  },
+  {
     keys: ["page.title", "a.b"],
     name: "a template that cannot build a key refers to nothing",
     source: [
@@ -77,12 +92,4 @@ describe("unreferencedKeys", () => {
       ).toEqual(scan.unreferenced);
     });
   }
-});
-
-describe("unusedKeyFindings", () => {
-  test("names a new unused key and a recorded key that no longer applies", () => {
-    expect(
-      unusedKeyFindings(["a.dead", "a.new"], ["a.dead", "a.used"]),
-    ).toEqual({ added: ["a.new"], stale: ["a.used"] });
-  });
 });
