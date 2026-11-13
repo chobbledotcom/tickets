@@ -17,7 +17,7 @@ import { type AdminLevel, isStaffRole } from "#types";
  * grid shows above each card label). A subset of {@link IconName}.
  */
 export type PickerIconName =
-  | "calendar-clock"
+  | "calendar-check"
   | "key-round"
   | "package"
   | "party-popper"

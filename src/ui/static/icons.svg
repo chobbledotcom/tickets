@@ -241,14 +241,34 @@
         d="M11 13c1.93 1.93 2.83 4.17 2 5s-3.07-.07-5-2s-2.83-4.17-2-5s3.07.07 5 2"
       />
     </symbol>
-    <symbol id="calendar-clock" viewBox="0 0 24 24">
+    <symbol id="calendar-check" viewBox="0 0 24 24">
       <path
         fill="none"
         stroke="currentColor"
         stroke-linecap="round"
         stroke-linejoin="round"
         stroke-width="2"
-        d="M16 14v2.2l1.6 1M16 2v3m5 2.338V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h2.338M3 9h5.859M8 2v3"
+        d="M8 2v3m8-3v3"
+      />
+      <rect
+        width="18"
+        height="18"
+        x="3"
+        y="3"
+        rx="2"
+        fill="none"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+      />
+      <path
+        fill="none"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        d="M3 9h18M9 15l2 2l4-4"
       />
     </symbol>
     <symbol id="key-round" viewBox="0 0 24 24">

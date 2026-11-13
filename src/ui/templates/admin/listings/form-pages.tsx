@@ -105,7 +105,7 @@ const PICKER_ICONS: Record<TemplateId, PickerIconName> = {
   "one-off-event": "party-popper",
   "online-digital": "ticket",
   "physical-product": "package",
-  "weekly-event": "calendar-clock",
+  "weekly-event": "calendar-check",
 };
 
 const pickerCard = (
