@@ -23,10 +23,7 @@ import {
   parseEditableAggregateForm,
   recalculateRoute,
 } from "#routes/admin/aggregate-recalculation.ts";
-import {
-  defineEditEntityPage,
-  type EditEntityPage,
-} from "#routes/admin/entity-write-tab.ts";
+import type { EditEntityPage } from "#routes/admin/entity-write-tab.ts";
 import { loadAccountLedger } from "#routes/admin/ledger/statements.ts";
 import { defineAdminRoutes, recordRoutes } from "#routes/admin/route-tables.ts";
 import { type AuthSession, withAuth } from "#routes/auth.ts";
@@ -64,6 +61,7 @@ import type { Modifier } from "#types";
 import { withEntityLoader } from "./entity-handlers.ts";
 import { handleAnswerLinks, handleScopeLinks } from "./modifier-links.ts";
 import { makeMoneyAdjustHandler } from "./money-adjust.ts";
+import { recordEditPage } from "./record-edit-page.ts";
 
 /** Build modifier input from validated form values. The value is stored as
  * the positive magnitude the owner typed. The signed engine value is
@@ -177,7 +175,7 @@ const loadModifierEditPanel = async (
   });
 };
 
-const modifierPage: EditEntityPage<Modifier> = defineEditEntityPage({
+const modifierPage: EditEntityPage<Modifier> = recordEditPage(modifierRecord, {
   deleteDestination: "modifierDelete",
   deleteLabelKey: "modifiers.delete.submit",
   destination: "modifier",
@@ -192,9 +190,7 @@ const modifierPage: EditEntityPage<Modifier> = defineEditEntityPage({
     "/admin/guide#modifiers",
     "modifiers.guide_link",
   ),
-  load: (id) => getModifier(id),
   navActive: { section: adminPattern("modifiers") },
-  recordId: (modifier) => modifier.id,
 });
 
 // The list and edit pages load the ledger-projected Modifier. The delete

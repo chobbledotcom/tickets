@@ -2,12 +2,11 @@
  * database checks belong to their own tabs, so ordinary edits do not run them. */
 
 import type { BuiltSite } from "#db/built-sites/types.ts";
-import { builtSites, builtSitesCrudTable } from "#db/built-sites.ts";
+import { builtSites } from "#db/built-sites.ts";
 import { addPageImageUrls } from "#db/image-urls.ts";
 import { t } from "#i18n";
 import type { PageCtx } from "#routes/admin/entity-pages.ts";
 import {
-  defineEditEntityPage,
   type EditEntityPage,
   panelTab,
   submittedValueProps,
@@ -18,6 +17,7 @@ import {
   wrapAroundNeighbours,
 } from "#shared/entity-pages/core.ts";
 import { savedFormValueOrNull } from "#shared/forms/saved-data.ts";
+import { builtSiteRecord } from "#shared/records/built-sites.ts";
 import { loadSiteSecretsStatus } from "#shared/site-secrets.ts";
 import { loadSiteSupportMessage } from "#shared/site-support-message.ts";
 import { loadBuiltSiteUpdateState } from "#shared/site-update.ts";
@@ -36,6 +36,8 @@ import {
   Icon,
   type IconName,
 } from "#templates/components/actions.tsx";
+
+import { recordEditPage } from "./record-edit-page.ts";
 
 const renewalTab = panelTab<BuiltSite>(
   "renewal",
@@ -165,27 +167,28 @@ const builtSitePagerNav = async (
   };
 };
 
-export const builtSitePage: EditEntityPage<BuiltSite> = defineEditEntityPage({
-  deleteDestination: "builtSiteDelete",
-  deleteLabelKey: "built_sites.delete_this_site",
-  destination: "builtSite",
-  edit: (site, _ctx, rejected) =>
-    Promise.resolve(
-      <BuiltSiteEditPanel site={site} {...submittedValueProps(rejected)} />,
+export const builtSitePage: EditEntityPage<BuiltSite> = recordEditPage(
+  builtSiteRecord,
+  {
+    deleteDestination: "builtSiteDelete",
+    deleteLabelKey: "built_sites.delete_this_site",
+    destination: "builtSite",
+    edit: (site, _ctx, rejected) =>
+      Promise.resolve(
+        <BuiltSiteEditPanel site={site} {...submittedValueProps(rejected)} />,
+      ),
+    extraTabs: [
+      renewalTab,
+      maintenanceTab,
+      secretsTab,
+      updateTab,
+      supportMessageTab,
+    ],
+    guideFooter: guideFooterSlot(
+      "/admin/guide#built-sites",
+      "built_sites.guide_link",
     ),
-  extraTabs: [
-    renewalTab,
-    maintenanceTab,
-    secretsTab,
-    updateTab,
-    supportMessageTab,
-  ],
-  guideFooter: guideFooterSlot(
-    "/admin/guide#built-sites",
-    "built_sites.guide_link",
-  ),
-  load: (id) => builtSitesCrudTable.read.one({ id }),
-  navActive: adminPattern("builtSites"),
-  recordId: (site) => site.id,
-  titleNav: builtSitePagerNav,
-});
+    navActive: adminPattern("builtSites"),
+    titleNav: builtSitePagerNav,
+  },
+);

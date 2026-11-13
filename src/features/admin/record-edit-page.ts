@@ -4,7 +4,6 @@
  * supplies only the edit panel and its words.
  */
 
-import type { TabDef } from "#routes/admin/entity-pages.ts";
 import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 import type {
@@ -16,19 +15,27 @@ import type { NavActive } from "#templates/admin/nav.tsx";
 import {
   defineEditEntityPage,
   type EditEntityPage,
+  type EditEntityPageDef,
   type EditPanelLoader,
 } from "./entity-write-tab.ts";
 
 /** The facts a record's page module still supplies. */
 export type RecordEditPageConfig<
   Shape extends RecordShape & { row: { name: string } },
-> = {
+> = Omit<
+  EditEntityPageDef<FullRowOf<Shape>>,
+  | "deleteDestination"
+  | "deleteLabelKey"
+  | "destination"
+  | "edit"
+  | "load"
+  | "navActive"
+  | "recordId"
+> & {
   readonly deleteDestination: AdminDestinationId;
   readonly deleteLabelKey: string;
   readonly destination: AdminDestinationId;
   readonly edit: EditPanelLoader<FullRowOf<Shape>>;
-  readonly editSlug?: string;
-  readonly extraTabs?: readonly TabDef<FullRowOf<Shape>>[];
   readonly navActive?: NavActive;
 };
 
@@ -40,12 +47,7 @@ export const recordEditPage = <
   config: RecordEditPageConfig<Shape>,
 ): EditEntityPage<FullRowOf<Shape>> =>
   defineEditEntityPage({
-    deleteDestination: config.deleteDestination,
-    deleteLabelKey: config.deleteLabelKey,
-    destination: config.destination,
-    edit: config.edit,
-    ...(config.editSlug === undefined ? {} : { editSlug: config.editSlug }),
-    ...(config.extraTabs === undefined ? {} : { extraTabs: config.extraTabs }),
+    ...config,
     load: (id, session) => record.load(id, { session }),
     navActive: config.navActive ?? adminPattern(record.list),
     recordId: (row) => row.id,
