@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { hmacHash } from "#crypto/hashing.ts";
 import { listingAttributeOptions } from "#db/attributes.ts";
 import { getDb } from "#db/client.ts";
@@ -18,6 +19,7 @@ import {
 } from "#routes/admin/listings-form.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
+import { listingRecord } from "#shared/records/listings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   assignTestAttributeOptions,
@@ -337,6 +339,18 @@ describeWithEnv("listings form", { db: true }, () => {
       expect(
         await buildUpdateListingResource(stored).update(created.id, form),
       ).toEqual({ notFound: true, ok: false });
+    });
+
+    test("answers not found when the write loses the row", async () => {
+      const created = await createListing();
+      using _update = stub(listingRecord, "update", () =>
+        Promise.resolve({ kind: "not-found" as const }),
+      );
+
+      expect(await saveListingEdit(created.id, {})).toEqual({
+        notFound: true,
+        ok: false,
+      });
     });
 
     test("answers a record refusal with its message", async () => {
