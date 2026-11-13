@@ -317,6 +317,7 @@
   "admin.attendee_table.column.status.label": "Status",
   "admin.attendee_table.column.status.description": "Shows the check-in action or current state.",
   "error.not_enough_spots": "Not enough spots available",
+  "error.subscription_live": "This booking has a subscription that still charges. Cancel the subscription first.",
   "error.no_payment_to_refund": "This attendee has no payment to refund.",
   "error.payment_history_incomplete": "This attendee has older payment history that cannot be refunded here. Refund it directly through the payment provider. No money was sent.",
   "error.payment_history_too_large": "This attendee has too many separate payments to handle safely in one request. No money was sent; use the provider dashboard.",

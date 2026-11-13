@@ -46,7 +46,7 @@ import {
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { withSubscriptionPlan } from "#shared/subscriptions/booking-plan.ts";
-import { endFailedCheckoutSubscription } from "#shared/subscriptions/failed-checkout.ts";
+import { endFailedCheckoutSubscription } from "#shared/subscriptions/cancellation.ts";
 
 type RefundTarget = HeldRefundTarget & {
   reference: TaggedPaymentReference;

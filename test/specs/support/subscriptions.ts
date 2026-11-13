@@ -18,6 +18,7 @@ import type {
   StripeCheckoutSessionCreateParams,
 } from "#shared/stripe/client.ts";
 import type { StripeSubscription } from "#shared/stripe/schemas.ts";
+import { stripeApi } from "#shared/stripe.ts";
 import {
   CUSTOMER,
   openAsNewcomer,
@@ -34,6 +35,7 @@ import {
   stripeCheckoutSession,
   stripeClient,
   stripePaidInvoice,
+  stripeSubscription,
   subscriptionItems,
 } from "#test-utils/stripe/fixtures.ts";
 import {
@@ -217,3 +219,22 @@ export const subscriberOn = async (
       [listingNamed(world, name).id],
     ),
   ).attendee_id;
+
+/** Stripe ends the story's subscription when the site asks it to, and holds
+ * no renewals. The stubs stay until the story ends. */
+export const stripeCancelsWhenAsked = (world: TicketsWorld): void => {
+  const stubs = [
+    stub(stripeApi, "cancelSubscription", (id: string) =>
+      Promise.resolve({
+        resource: stripeSubscription({ id, status: "canceled" }),
+        status: "found" as const,
+      }),
+    ),
+    stub(stripeApi, "readPaidInvoices", () =>
+      Promise.resolve({ resource: [], status: "found" as const }),
+    ),
+  ];
+  world.cleanup.add(() => {
+    for (const each of stubs) each.restore();
+  });
+};

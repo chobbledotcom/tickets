@@ -29,6 +29,7 @@ import {
   catalogNameLengthError,
   isNameTakenAnywhere,
 } from "#db/name-registry.ts";
+import { type ListingCheck, liveListingRefusal } from "#db/subscriptions.ts";
 import { firstProblem, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import {
@@ -327,15 +328,11 @@ export const validateListingInput = async (
   );
 };
 
-/**
- * A deleted listing no longer serves a page, exactly like a deactivated one,
- * so this reuses {@link deactivationOrphanedAddOnError} with the deleted id in
- * the would-be-removed set.
- */
-export const deleteOrphanedAddOnError = (
-  listingId: number,
-  tx?: TxScope,
-): Promise<string | null> =>
+/** Why the listing cannot be deleted, or null. Its bookings go with it, so a
+ * booking whose subscription still charges refuses. A deleted listing serves
+ * no page, so the deactivation add-on rule applies too. */
+export const listingDeleteError: ListingCheck = async (listingId, tx) =>
+  (await liveListingRefusal(listingId, tx)) ??
   deactivationOrphanedAddOnError(new Set([listingId]), tx);
 
 /**
@@ -366,7 +363,7 @@ export const performListingDelete = async (
   listing: ListingWithCount,
 ): Promise<string | null> => {
   const refusal = await guardedListingWrite(
-    (tx) => deleteOrphanedAddOnError(listing.id, tx),
+    (tx) => listingDeleteError(listing.id, tx),
     (tx) => deleteListing(listing.id, tx),
   );
   if (refusal !== null) return refusal;

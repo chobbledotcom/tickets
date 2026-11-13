@@ -2,7 +2,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { executeBatch } from "#db/client.ts";
+import { executeBatch, queryOne } from "#db/client.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -99,6 +99,36 @@ describeWithEnv("server (admin subscriptions)", { db: true }, () => {
     expect(await pageHtml("/admin/subscriptions", cookie)).toContain(
       ">Ada</a>",
     );
+  });
+
+  test("shows the owner a cancel button only for a subscription that still charges", async () => {
+    const ada = await subscribe("Ada", MONTHLY);
+    await subscribe("Bob", { ...MONTHLY, status: "canceled" });
+    const html = await pageHtml("/admin/subscriptions");
+    const [bob, adaRow] = tableRows(html);
+    const adaBooking = (await queryOne<{ id: number }>(
+      "SELECT id FROM listing_attendees WHERE attendee_id = ?",
+      [ada.attendeeId],
+    ))!.id;
+    expectIncludesAll(html, [
+      "Warning: cancelling stops every later payment at once.",
+      "<th>Cancel</th>",
+    ]);
+    expectIncludesAll(adaRow!, [
+      `action="/admin/subscriptions/${adaBooking}/cancel"`,
+      "Cancel subscription",
+    ]);
+    expect(bob).not.toContain("Cancel subscription");
+  });
+
+  test("shows a manager no cancel button and no warning", async () => {
+    await subscribe("Ada", MONTHLY);
+    const html = await pageHtml(
+      "/admin/subscriptions",
+      await createTestManagerSession(),
+    );
+    expect(html).not.toContain("Cancel subscription");
+    expect(html).not.toContain("Warning: cancelling");
   });
 
   test("an editor cannot reach the page", async () => {

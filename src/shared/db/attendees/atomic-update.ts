@@ -33,6 +33,7 @@ import {
 } from "#db/client.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
 import { requiredMapValue, unique } from "#fp";
+import { isCancellable } from "#payment/subscription-machine-spec.ts";
 import type { AttendeeUpdateFailureReason } from "#shared/attendee-failures.ts";
 
 /**
@@ -285,6 +286,17 @@ export const lineStatementFor = (
   };
 };
 
+/** The stored rows the desired line set no longer names. */
+const removedLines = (
+  desired: readonly DesiredListingLine[],
+  existingByKey: ReadonlyMap<string, ListingAttendeeRow>,
+): ListingAttendeeRow[] => {
+  const desiredKeys = new Set(desired.map((line) => line.key));
+  return [...existingByKey.values()].filter(
+    (row) => !desiredKeys.has(lineKeyFromBooking(row)),
+  );
+};
+
 /** The write statements for one attendee edit: a delete per removed line, then
  * the update and insert statements in line order, each capacity-checked write
  * followed by CAPACITY_GUARD. The caller runs them as one batch, so a refused
@@ -295,13 +307,8 @@ export const buildAttendeeEditBatch = (
   existingByKey: ReadonlyMap<string, ListingAttendeeRow>,
   allowOverbook = false,
 ): SqlStatement[] => {
-  const desiredKeys = new Set(desired.map((line) => line.key));
-  const removed = [...existingByKey.values()].filter(
-    (row) => !desiredKeys.has(lineKeyFromBooking(row)),
-  );
-  const statements: SqlStatement[] = [];
-  for (const booking of removed) {
-    statements.push({
+  const statements = removedLines(desired, existingByKey).map(
+    (booking): SqlStatement => ({
       args: [
         attendeeId,
         booking.listing_id,
@@ -311,8 +318,8 @@ export const buildAttendeeEditBatch = (
       ],
       sql: `DELETE FROM listing_attendees
             WHERE attendee_id = ? AND listing_id = ? AND start_at IS ? AND parent_listing_id = ? AND package_group_id = ?`,
-    });
-  }
+    }),
+  );
   for (const line of [
     ...desired.filter((line) => line.exists),
     ...desired.filter((line) => !line.exists),
@@ -358,6 +365,19 @@ export const applyAttendeeAtomicEdit = async (
 
   const existing = await loadExistingLines(attendeeId);
   const existingByKey = new Map(existing.map((e) => [e.key, e.booking]));
+
+  // A removed line loses its row, and a row with a running subscription must
+  // stay until the owner cancels it.
+  const lostPlans = removedLines(desired, existingByKey).filter((booking) =>
+    isCancellable(booking.subscription_status),
+  );
+  if (lostPlans.length > 0) {
+    return {
+      listingIds: lostPlans.map((booking) => booking.listing_id),
+      reason: "subscription_live",
+      success: false,
+    };
+  }
 
   // Preflight: reject (without writing anything) when any changed line can't
   // fit, before any write happens.

@@ -5,6 +5,7 @@ import { execute, queryOne } from "#db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
+import { givePlan, MONTHLY } from "#test-utils/db-helpers/subscriptions.ts";
 import {
   addLine,
   bookForEdit,
@@ -139,4 +140,32 @@ describeWithEnv("db > attendees > atomic edit guards", { db: true }, () => {
       ),
     ).rejects.toThrow();
   });
+
+  for (const [status, success] of [
+    ["active", false],
+    ["canceled", true],
+  ] as const) {
+    test(`a removed line with a ${status} subscription ${success ? "goes" : "stays"}`, async () => {
+      const { listing1, listing2 } = await twoListings();
+      const { attendee, blob } = await bookForEdit(listing1, {
+        name: "Subscriber",
+        quantity: 1,
+      });
+      await givePlan(attendee.id, "sub_edit", { ...MONTHLY, status });
+
+      const update = await applyAttendeeAtomicEdit(attendee.id, blob, [
+        addLine(listing2.id),
+      ]);
+
+      expect(update).toEqual(
+        success
+          ? expect.objectContaining({ success: true })
+          : {
+              listingIds: [listing1.id],
+              reason: "subscription_live",
+              success: false,
+            },
+      );
+    });
+  }
 });
