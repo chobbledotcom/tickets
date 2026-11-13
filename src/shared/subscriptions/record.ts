@@ -9,8 +9,12 @@
 
 import { mapRenewal } from "#accounting/mappers.ts";
 import { postTransferGroups } from "#accounting/store.ts";
-import { type CheckedRow, statusWrite } from "#db/subscriptions.ts";
-import type { ProviderRead } from "#payment/provider-read.ts";
+import {
+  type CheckedRow,
+  renewalBookingGuard,
+  statusWrite,
+} from "#db/subscriptions.ts";
+import type { ProviderReader } from "#payment/provider-read.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import type { StripePaidInvoice } from "#shared/stripe/schemas.ts";
@@ -43,12 +47,18 @@ const renewalLegs = (
     ),
   });
 
-/** Log a Stripe read that came back without an answer. */
-export const unread = (row: CheckedRow, read: ProviderRead<unknown>): void => {
+/** A refused Stripe read leaves this subscription for a later pass. */
+export const readForSubscriptionOrNull = async <Resource>(
+  row: CheckedRow,
+  read: ProviderReader<Resource>,
+): Promise<Resource | null> => {
+  const answer = await read(row.subscription_id);
+  if (answer.status === "found") return answer.resource;
   logError({
     code: ErrorCode.STRIPE_SUBSCRIPTION,
-    detail: `Subscription ${row.subscription_id} could not be read (${read.status})`,
+    detail: `Subscription ${row.subscription_id} could not be read (${answer.status})`,
   });
+  return null;
 };
 
 /**
@@ -62,15 +72,17 @@ export const recordObserved = async (
   row: CheckedRow,
   observed: SubscriptionStatus,
 ): Promise<void> => {
-  const invoices = await stripeApi.readPaidInvoices(row.subscription_id);
-  if (invoices.status !== "found") return unread(row, invoices);
-  await postTransferGroups(
-    await Promise.all(
-      invoices.resource
-        .filter(isRenewal)
-        .map((invoice) => renewalLegs(row, invoice)),
-    ),
-    observed === row.subscription_status ? [] : [statusWrite(row, observed)],
+  const invoices = await readForSubscriptionOrNull(
+    row,
+    stripeApi.readPaidInvoices,
   );
+  if (invoices === null) return;
+  const groups = await Promise.all(
+    invoices.filter(isRenewal).map((invoice) => renewalLegs(row, invoice)),
+  );
+  const companion = groups.length > 0 ? [renewalBookingGuard(row)] : [];
+  if (observed !== row.subscription_status)
+    companion.push(statusWrite(row, observed));
+  await postTransferGroups(groups, companion);
   logDebug("Stripe", `Subscription ${row.subscription_id} is ${observed}`);
 };

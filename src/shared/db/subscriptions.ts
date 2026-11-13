@@ -76,6 +76,19 @@ export const getCheckedRows = async (
     ),
   );
 
+/** A merge can replace this booking while Stripe answers. Refuse stale money
+ * in the same batch as its ledger legs. */
+export const renewalBookingGuard = (row: CheckedRow): SqlStatement => ({
+  args: [row.id, row.attendee_id, row.listing_id, row.subscription_id],
+  sql: `INSERT INTO listing_attendees (listing_id)
+        SELECT NULL
+         WHERE NOT EXISTS (
+           SELECT 1 FROM listing_attendees AS booking
+            WHERE booking.id = ? AND booking.attendee_id = ?
+              AND booking.listing_id = ? AND booking.subscription_id = ?
+         )`,
+});
+
 /** The stored words that a write of `status` can replace. An ended status is
  * final, so it replaces any live one. A live status needs the row to hold the
  * status that was read, so a cancel that landed first stays. */

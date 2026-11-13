@@ -10,13 +10,19 @@ import type { MaintenanceTaskContext } from "#shared/maintenance/definition.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { SUBSCRIPTION_CHECK_BATCH } from "#shared/subscriptions/limits.ts";
-import { recordObserved, unread } from "#shared/subscriptions/record.ts";
+import {
+  readForSubscriptionOrNull,
+  recordObserved,
+} from "#shared/subscriptions/record.ts";
 
 /** Check one subscription. A refused read leaves the row for the next pass. */
 const checkOne = async (row: CheckedRow): Promise<void> => {
-  const subscription = await stripeApi.readSubscription(row.subscription_id);
-  if (subscription.status !== "found") return unread(row, subscription);
-  const observed = subscription.resource.status;
+  const subscription = await readForSubscriptionOrNull(
+    row,
+    stripeApi.readSubscription,
+  );
+  if (subscription === null) return;
+  const observed = subscription.status;
   checkedStatusNode(row.subscription_status, observed);
   await recordObserved(row, observed);
 };

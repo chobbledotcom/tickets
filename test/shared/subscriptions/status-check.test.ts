@@ -6,13 +6,18 @@ import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { eventGroup } from "#accounting/refs.ts";
 import { selectByEventGroup } from "#accounting/rows.ts";
-import { execute, queryBatch, queryOne } from "#db/client.ts";
+import { execute, queryAll, queryBatch, queryOne } from "#db/client.ts";
 import type { MaintenanceTaskContext } from "#shared/maintenance/definition.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { SUBSCRIPTION_CHECK_BATCH } from "#shared/subscriptions/limits.ts";
 import { runSubscriptionCheck } from "#shared/subscriptions/status-check.ts";
+import {
+  createMergePair,
+  runMerge,
+} from "#test/shared/merge/attendee-merge/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
+  givePlan,
   MONTHLY,
   subscribe,
   type TestBooking,
@@ -186,6 +191,55 @@ describeWithEnv("subscription status check", { db: true }, () => {
       },
     );
     expect(await renewalLegs("in_twice")).toHaveLength(3);
+  });
+
+  test("refuses the first renewal on an attendee merged during the Stripe read", async () => {
+    const { source, target, listing2 } = await createMergePair();
+    await givePlan(source.id, "sub_merged", { ...MONTHLY, status: "active" });
+    let merged = false;
+    await withMocks(
+      () => ({
+        invoices: stub(stripeApi, "readPaidInvoices", async () => {
+          if (!merged) {
+            const { result } = await runMerge({ source, target });
+            expect(result).toMatchObject({
+              success: true,
+              summary: { bookingsMoved: 1 },
+            });
+            merged = true;
+          }
+          return {
+            resource: [stripePaidInvoice({ id: "in_merged" })],
+            status: "found" as const,
+          };
+        }),
+        read: stub(stripeApi, "readSubscription", (id: string) =>
+          Promise.resolve({
+            resource: stripeSubscription({ id, status: "active" }),
+            status: "found" as const,
+          }),
+        ),
+      }),
+      async () => {
+        await expect(runCheck()).rejects.toThrow();
+        expect(await renewalLegs("in_merged")).toEqual([]);
+        await runCheck();
+      },
+    );
+    expect(
+      await queryAll(
+        "SELECT attendee_id, subscription_status FROM listing_attendees WHERE subscription_id = ?",
+        ["sub_merged"],
+      ),
+    ).toEqual([{ attendee_id: target.id, subscription_status: "active" }]);
+    const attendee = `attendee:${target.id}`;
+    expect(
+      (await renewalLegs("in_merged")).map(({ from, to }) => ({ from, to })),
+    ).toEqual([
+      { from: "external:world", to: attendee },
+      { from: attendee, to: `revenue:${listing2.id}` },
+      { from: attendee, to: "tax:vat" },
+    ]);
   });
 
   test("records the last renewals of a subscription that ended", async () => {

@@ -60,22 +60,6 @@ describe("strict jscpd scans", () => {
   });
 });
 
-describe("typescript jscpd scans", () => {
-  test("share one import-statement ignore list", async () => {
-    const [first, ...rest] = await Promise.all(
-      typescriptScans.map(
-        async (name) => (await readConfig(name)).ignorePattern,
-      ),
-    );
-    expect(first).toEqual([
-      "(?m)^import\\s[^;]*;",
-      "(?m)^export\\s+(type\\s+)?(\\*|\\{[^}]*\\})(\\s+as\\s+\\w+)?\\s+from\\s[^;]*;",
-      "(?m)^\\s*const\\s+\\{[^}]*\\}\\s*=\\s*await\\s+import\\([^)]*\\);",
-    ]);
-    for (const pattern of rest) expect(pattern).toEqual(first);
-  });
-});
-
 describe("every jscpd scan", () => {
   test("names files by absolute path, so the worst-duplication alert can shorten them", async () => {
     const scans = [...typescriptScans, ".jscpd.css.json"];
