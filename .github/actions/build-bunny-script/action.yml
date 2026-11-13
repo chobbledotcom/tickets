@@ -30,7 +30,7 @@ runs:
   using: composite
   steps:
     - name: Set up devenv
-      uses: ./.github/actions/setup-devenv
+      uses: $/.github/actions/setup-devenv
       with:
         profile: ci
 

@@ -5,13 +5,12 @@
     "console",
     "json"
   ],
-  "output": ".jscpd-report-specs",
+  "output": ".jscpd-report-test",
   "ignore": [
     "**/node_modules/**",
-    "**/fp.ts",
-    "**/db/migrations/2*.ts",
-    "**/db/migrations/schema/columns.ts",
-    "**/*.generated.ts"
+    "**/package-lock.json",
+    "**/deno.lock",
+    "**/test/specs/support/**"
   ],
   "format": [
     "typescript",
@@ -19,11 +18,13 @@
   ],
   "absolute": true,
   "gitignore": true,
+  "ignoreIdentifiers": true,
+  "ignoreLiterals": true,
+  "ignoreAnnotations": true,
   "minLines": 1,
-  "minTokens": 18,
+  "minTokens": 48,
   "path": [
-    "src",
-    "test/specs/support"
+    "../test"
   ],
   "ignorePattern": [
     "(?m)^import\\s[^;]*;",
