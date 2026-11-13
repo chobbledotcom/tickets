@@ -417,6 +417,12 @@ instead.
 `deno task check:copy` enforces the mechanical rules. The judgement is yours on
 every copy change.
 
+A catalog key must have a reader. `test/scripts/i18n-coverage.test.ts` fails on
+a key that no source file references. When you delete the code that reads a
+key, delete the key in the same change. `scripts/check-i18n/unused-keys.json`
+records the unused keys that the check found at its start. The list only
+shrinks. `scripts/check-i18n/unused.ts` says what counts as a reference.
+
 ## Simplified Technical English — How We Write Documentation
 
 Technical text follows ASD-STE100 Simplified Technical English. It covers
