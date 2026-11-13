@@ -5,8 +5,7 @@
 
 import { logActivity } from "#db/activity-log.ts";
 import { type TxScope, withTransaction } from "#db/client.ts";
-import type { CrudHandlers } from "#routes/admin/route-tables.ts";
-import { recordRoutes } from "#routes/admin/route-tables.ts";
+import { type CrudHandlers, recordRoutes } from "#routes/admin/route-tables.ts";
 import { SITE_FORM, SITE_MULTIPART } from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";

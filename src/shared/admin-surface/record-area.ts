@@ -58,7 +58,10 @@ export const recordArea = <
   const Singular extends string,
   const Prefix extends string = Singular,
   const Path extends string = `/admin/${Name}`,
-  const ExtraWrites extends Record<string, AdminDestinationSpec> = {},
+  const ExtraWrites extends Record<string, AdminDestinationSpec> = Record<
+    never,
+    never
+  >,
   const SaveToRecord extends boolean = false,
   const ListAfterSave extends boolean = SaveToRecord,
 >(config: {
