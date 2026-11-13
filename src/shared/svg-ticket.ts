@@ -118,9 +118,19 @@ export const generateSvgTicket = async (
 /** An XML declaration is valid only at the start of a document. */
 const XML_DECLARATION = /^<\?xml[^>]*\?>\s*/;
 
+/** A body copy must fit the reader's screen. The attached file keeps the
+ * document sizes, so the style belongs to the body copy alone. */
+const BODY_SVG_STYLE = "display:block;max-width:100%;height:auto";
+
+/** Turn a generated ticket SVG into its HTML body copy. */
+const bodySvgCopy = (svg: string): string => {
+  const copy = svg.replace(XML_DECLARATION, "");
+  if (!copy.startsWith("<svg ")) {
+    throw new Error("Ticket SVG does not start with an <svg> element");
+  }
+  return copy.replace("<svg ", `<svg style="${BODY_SVG_STYLE}" `);
+};
+
 /** Wrap a generated ticket SVG as a block for an HTML email body. */
 export const ticketSvgBlock = (svg: string): string =>
-  `<div style="margin:24px 0;max-width:${WIDTH}px">${svg.replace(
-    XML_DECLARATION,
-    "",
-  )}</div>`;
+  `<div style="margin:24px 0;max-width:${WIDTH}px">${bodySvgCopy(svg)}</div>`;

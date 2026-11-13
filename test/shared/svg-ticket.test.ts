@@ -9,7 +9,7 @@ import {
   type SvgTicketData,
   ticketSvgBlock,
 } from "#shared/svg-ticket.ts";
-import { expectIncludesAll } from "#test-utils/assertions.ts";
+import { expectIncludesAll, expectThrows } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const makeTicketData = (
@@ -97,13 +97,40 @@ describeWithEnv("svg-ticket", { db: true }, () => {
   });
 
   describe("ticketSvgBlock", () => {
-    test("keeps the svg element and drops the XML declaration", () => {
+    const declaration = '<?xml version="1.0" encoding="UTF-8"?>\n';
+    const bodyStyle = 'style="display:block;max-width:100%;height:auto"';
+
+    test("keeps the svg element, drops the XML declaration, and fits the screen", () => {
       const block = ticketSvgBlock(
-        '<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>',
+        `${declaration}<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>`,
       );
       expect(block).toBe(
-        '<div style="margin:24px 0;max-width:400px"><svg xmlns="http://www.w3.org/2000/svg"><rect/></svg></div>',
+        `<div style="margin:24px 0;max-width:400px"><svg ${bodyStyle} xmlns="http://www.w3.org/2000/svg"><rect/></svg></div>`,
       );
+    });
+
+    test("throws when the input does not start with an svg element", () => {
+      expectThrows(
+        () => ticketSvgBlock("<div>not a ticket</div>"),
+        Error,
+        /does not start with an <svg> element/,
+      );
+    });
+
+    test("keeps everything a generated ticket draws", async () => {
+      const svg = await generateSvgTicket(makeTicketData());
+      const block = ticketSvgBlock(svg);
+
+      expectIncludesAll(block, [
+        `<svg ${bodyStyle} xmlns="http://www.w3.org/2000/svg"`,
+        "Summer Concert",
+        "</svg></div>",
+      ]);
+      assertStringIncludes(
+        block,
+        svg.slice(svg.indexOf(">", svg.indexOf("<svg ")) + 1),
+      );
+      assert(!block.includes("<?xml"));
     });
   });
 
