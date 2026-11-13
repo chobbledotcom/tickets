@@ -200,6 +200,7 @@ export const adminListingPickerPage = (session: AdminSession): string => {
         intro={
           <>
             {t("listings_table.listing_type_picker_subheading")}{" "}
+            {t("listings_table.listing_type_picker_import_prefix")}{" "}
             <a href="/admin/catalog/import">
               {t("listings_table.listing_type_picker_import_link")}
             </a>
