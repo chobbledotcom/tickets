@@ -6,7 +6,6 @@ import { apiErrorResponse } from "#routes/api/cors.ts";
 import { type AuthPolicy, type AuthSession, withAuth } from "#routes/auth.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { objectEntries } from "#shared/rest/api-body-fields.ts";
-import type { WriteMapper } from "#shared/rest/crud-api-types.ts";
 import type { InputValidator } from "#shared/rest/record.ts";
 import {
   type AsyncResult,
@@ -182,25 +181,6 @@ export const writeEntityName = (
   const name = (supplied ?? stored ?? "").trim();
   return name === "" ? errorResult("name cannot be empty") : okResult(name);
 };
-
-/** Wrap a write mapper with the shared name read. The name refusal answers
- *  before the mapper runs. */
-export const withWriteName =
-  <
-    Body extends { name?: string | undefined },
-    Row extends { name: string },
-    Input,
-  >(
-    build: (
-      name: string,
-      body: Body,
-      existing: Row | null,
-    ) => AsyncResult<Input>,
-  ): WriteMapper<Input, Body, Row | null> =>
-  (body, existing) => {
-    const name = writeEntityName(body.name, existing?.name ?? null);
-    return name.ok ? build(name.value, body, existing) : name;
-  };
 
 /**
  * Read one optional real-calendar-date field from a JSON body. An absent key

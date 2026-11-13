@@ -19,7 +19,6 @@ import {
   requireEntityField,
   requireStrings,
   withApiEntity,
-  withWriteName,
   writeEntityName,
 } from "#shared/rest/crud-parsers.ts";
 import { okResult } from "#shared/result.ts";
@@ -309,22 +308,4 @@ test("writeEntityName reads the supplied or stored name", () => {
     error: "name cannot be empty",
     ok: false,
   });
-});
-
-test("withWriteName refuses an empty name before the mapper runs", () => {
-  let mapped = false;
-  const mapper = withWriteName<
-    { name?: string | undefined },
-    { name: string },
-    { name: string }
-  >((name) => {
-    mapped = true;
-    return okResult({ name });
-  });
-
-  expect(mapper({ name: "  " }, { name: "Stored" })).toEqual({
-    error: "name cannot be empty",
-    ok: false,
-  });
-  expect(mapped).toBe(false);
 });

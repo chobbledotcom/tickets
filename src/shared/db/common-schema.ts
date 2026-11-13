@@ -13,9 +13,10 @@ import {
   registerTableInvalidation,
 } from "#shared/cache-registry.ts";
 import {
-  byFieldKey,
+  byFieldKind,
   type FieldKind,
   type FieldSpecs,
+  type StoredValue,
 } from "#shared/rest/field-specs.ts";
 
 // Re-exported for users.ts, which caches a table-less query and so wires the
@@ -123,20 +124,29 @@ export const idAndEncryptedSlugSchema = withGeneratedId(encryptedSlugSchema);
 /** Shared columns for tables with a generated id plus an encrypted name. */
 export const idAndEncryptedNameSchema = withGeneratedId(encryptedNameSchema);
 
-/** The stored column of each field kind. A display name is encrypted. A date
- *  stays plaintext, so SQL can order and filter by it. */
-const KIND_COLUMNS: Record<
-  FieldKind,
-  (encrypt: EncryptFn, decrypt: DecryptFn) => ColumnDef<string>
-> = {
+/** The stored column each field kind gives. */
+type KindColumns = { [Kind in FieldKind]: ColumnDef<StoredValue[Kind]> };
+
+/** The stored column of each field kind. A display name is encrypted. The
+ *  other kinds stay plaintext, so SQL can order and filter by them. */
+const KIND_COLUMNS: {
+  [Kind in FieldKind]: (
+    encrypt: EncryptFn,
+    decrypt: DecryptFn,
+  ) => KindColumns[Kind];
+} = {
   date: () => col.simple<string>(),
   name: (encrypt, decrypt) => col.encrypted(encrypt, decrypt),
+  switch: () => col.boolean(false),
+  text: () => col.simple<string>(),
 };
 
 /** The columns one field declaration stores, with a generated id. */
 export const fieldColumns = <const Fields extends FieldSpecs>(fields: Fields) =>
   withGeneratedId((encrypt, decrypt) =>
-    byFieldKey(fields, (field) => KIND_COLUMNS[field.kind](encrypt, decrypt)),
+    byFieldKind<Fields, KindColumns>(fields, (field) =>
+      KIND_COLUMNS[field.kind](encrypt, decrypt),
+    ),
   );
 
 /** Shared generated `id` + plaintext `created` stamp columns. `created` stays

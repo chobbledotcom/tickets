@@ -5,6 +5,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { Holiday, HolidayInput } from "#db/holidays.ts";
 import { HOLIDAY_FIELDS } from "#shared/records/holiday-fields.ts";
+import { STATUS_FIELDS } from "#shared/records/status-fields.ts";
 import { bodyMappers, formInput } from "#shared/rest/field-reads.ts";
 import type { DateString } from "#shared/validation/date-string.ts";
 
@@ -102,6 +103,56 @@ describe("field reads", () => {
     expect(toUpdateInput({ name: "  " }, stored)).toEqual({
       error: "name cannot be empty",
       ok: false,
+    });
+  });
+
+  test("a switch and a text default on create and keep on update", () => {
+    const status = bodyMappers(STATUS_FIELDS);
+    const storedStatus = {
+      id: 1,
+      is_paid_default: false,
+      is_public_default: true,
+      is_reservation: true,
+      name: "Reserved",
+      reservation_amount: "10",
+    };
+
+    expect(status.toCreateInput({ is_reservation: true, name: "New" })).toEqual(
+      {
+        ok: true,
+        value: {
+          isPaidDefault: false,
+          isPublicDefault: false,
+          isReservation: true,
+          name: "New",
+          reservationAmount: "",
+        },
+      },
+    );
+    expect(
+      status.toUpdateInput(
+        { is_public_default: false, reservation_amount: "25" },
+        storedStatus,
+      ),
+    ).toEqual({
+      ok: true,
+      value: {
+        isPaidDefault: false,
+        isPublicDefault: false,
+        isReservation: true,
+        name: "Reserved",
+        reservationAmount: "25",
+      },
+    });
+    expect(status.toUpdateInput({}, storedStatus)).toEqual({
+      ok: true,
+      value: {
+        isPaidDefault: false,
+        isPublicDefault: true,
+        isReservation: true,
+        name: "Reserved",
+        reservationAmount: "10",
+      },
     });
   });
 

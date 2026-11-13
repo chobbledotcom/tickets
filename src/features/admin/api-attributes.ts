@@ -17,29 +17,27 @@ import {
 } from "#routes/admin/attributes.ts";
 import { reReadResponse } from "#routes/response.ts";
 import type { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
+import { ATTRIBUTE_FIELDS } from "#shared/records/attribute-fields.ts";
 import { attributeRecord } from "#shared/records/attributes.ts";
+import type { ApiBody } from "#shared/rest/api-body-fields.ts";
 import {
   childTextConfig,
   recordChildSurface,
 } from "#shared/rest/child-surface.ts";
-import { withRequiredText, withWriteName } from "#shared/rest/crud-parsers.ts";
+import { withRequiredText } from "#shared/rest/crud-parsers.ts";
+import { bodyMappers } from "#shared/rest/field-reads.ts";
 import type { RecordShapeOf } from "#shared/rest/record.ts";
 import { recordApi } from "#shared/rest/record-api.ts";
-import { okResult } from "#shared/result.ts";
 
 /** JSON body accepted by POST /api/admin/attributes */
-export type CreateAttributeBody = { name: string };
+export type CreateAttributeBody = ApiBody<
+  typeof ADMIN_API_RESOURCES.attributes.createBodySchema
+>;
 
 /** JSON body accepted by PUT /api/admin/attributes/:attributeId */
-export type UpdateAttributeBody = { name?: string };
-
-/** The attribute's input for a create or an update. The schema proves the
- *  supplied value is text. An update without one keeps the stored name. */
-const toAttributeInput = withWriteName<
-  { name?: string | undefined },
-  Attribute,
-  { name: string }
->((name) => okResult({ name }));
+export type UpdateAttributeBody = ApiBody<
+  typeof ADMIN_API_RESOURCES.attributes.updateBodySchema
+>;
 
 /** The option write routes' parent-and-child gate. The importer creates an
  *  attribute and immediately posts its first option, so the parent read pins
@@ -79,6 +77,5 @@ export const attributeApiRoutes = recordApi<
   RecordShapeOf<Attribute, { name: string }, AttributeWithOptions>
 >(attributeRecord, {
   childHandlers: { options: optionHandlers },
-  toCreateInput: (body) => toAttributeInput(body, null),
-  toUpdateInput: toAttributeInput,
+  ...bodyMappers(ATTRIBUTE_FIELDS),
 });

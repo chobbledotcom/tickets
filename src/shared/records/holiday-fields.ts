@@ -1,7 +1,7 @@
 /** The holiday fields: the stored row, the write input, the API bodies, the
  *  form, and the list columns all derive from this one list. */
 
-import type { FieldSpecs } from "#shared/rest/field-specs.ts";
+import type { ShownField } from "#shared/rest/field-specs.ts";
 
 /* jscpd:ignore-start -- a list of strings, not code */
 export const HOLIDAY_FIELDS = [
@@ -25,5 +25,5 @@ export const HOLIDAY_FIELDS = [
     kind: "date",
     label: "fields.holiday.end_date",
   },
-] as const satisfies FieldSpecs;
+] as const satisfies readonly ShownField[];
 /* jscpd:ignore-end */

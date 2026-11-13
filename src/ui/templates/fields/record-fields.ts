@@ -4,23 +4,23 @@
 import { t } from "#i18n";
 import { defineFieldsForm } from "#shared/forms/definition.ts";
 import type { InputField } from "#shared/forms/field.ts";
-import type { FieldKind, FieldSpecs } from "#shared/rest/field-specs.ts";
+import type { ShownField, ShownKind } from "#shared/rest/field-specs.ts";
 import { validateDate } from "#templates/fields/validators.ts";
 
 /** The box type each kind shows. */
 const BOX_TYPES = { date: "date", name: "text" } as const satisfies Record<
-  FieldKind,
+  ShownKind,
   InputField["type"]
 >;
 
 /** The box one field shows. Every declared field is required. */
 type FieldBox<Key extends string> = InputField<Key> & {
   readonly required: true;
-  readonly type: (typeof BOX_TYPES)[FieldKind];
+  readonly type: (typeof BOX_TYPES)[ShownKind];
 };
 
 /** The rule each kind checks before the record reads the value. */
-const BOX_RULES: Record<FieldKind, Pick<InputField, "validate">> = {
+const BOX_RULES: Record<ShownKind, Pick<InputField, "validate">> = {
   date: { validate: validateDate },
   name: {},
 };
@@ -33,7 +33,7 @@ const boxText = (
   key === undefined ? {} : { [property]: t(key) };
 
 /** The boxes of every field, in declaration order. */
-const fieldBoxes = <const Fields extends FieldSpecs>(
+const fieldBoxes = <const Fields extends readonly ShownField[]>(
   fields: Fields,
 ): readonly FieldBox<Fields[number]["key"]>[] =>
   fields.map(
@@ -49,5 +49,6 @@ const fieldBoxes = <const Fields extends FieldSpecs>(
   );
 
 /** The per-request form of one field declaration. */
-export const fieldsForm = <const Fields extends FieldSpecs>(fields: Fields) =>
-  defineFieldsForm(() => fieldBoxes(fields));
+export const fieldsForm = <const Fields extends readonly ShownField[]>(
+  fields: Fields,
+) => defineFieldsForm(() => fieldBoxes(fields));

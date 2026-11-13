@@ -2,10 +2,9 @@
  *  links to its record. Any other field shows its stored text. */
 
 import type {
-  FieldKind,
-  FieldSpec,
-  FieldSpecs,
   FieldsRow,
+  ShownField,
+  ShownKind,
 } from "#shared/rest/field-specs.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { writableNameColumn } from "#templates/admin/resource-pages.tsx";
@@ -18,9 +17,9 @@ type StoredRow = Readonly<Record<string, string | number>> & { id: number };
 type RowText = (row: StoredRow) => string;
 
 const KIND_COLUMNS: Record<
-  FieldKind,
+  ShownKind,
   (
-    field: FieldSpec,
+    field: ShownField,
     text: RowText,
     editHref: (row: { id: number }) => string,
   ) => TableColumn<StoredRow>
@@ -37,7 +36,7 @@ const KIND_COLUMNS: Record<
 };
 
 /** The columns of every field, for a table of the rows they declare. */
-export const fieldTableColumns = <const Fields extends FieldSpecs>(
+export const fieldTableColumns = <const Fields extends readonly ShownField[]>(
   fields: Fields,
   editHref: (row: { id: number }) => string,
 ): TableColumn<FieldsRow<Fields>>[] =>

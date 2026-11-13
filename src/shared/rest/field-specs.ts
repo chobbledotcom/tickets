@@ -8,47 +8,76 @@
  */
 
 import {
-  type BodyField,
   dateField,
+  optionalTextField,
+  switchField,
   textField,
 } from "#shared/rest/api-body-fields.ts";
 import type { DateString } from "#shared/validation/date-string.ts";
 
 /** One declared field. `key` is its column and its API key. `header`,
  *  `label`, `hint`, and `placeholder` name catalog entries: the list column
- *  header and the form box texts. */
+ *  header and the form box texts. A record with its own form leaves them
+ *  out. */
 export type FieldSpec = {
-  readonly header: string;
+  readonly header?: string;
   readonly hint?: string;
   readonly key: string;
   readonly kind: FieldKind;
-  readonly label: string;
+  readonly label?: string;
   readonly placeholder?: string;
 };
 
 export type FieldSpecs = readonly FieldSpec[];
 
 /** The wire views of each kind. A name is required text. A date is a
- *  calendar date text. */
-const API_FIELDS = { date: dateField, name: textField } as const;
+ *  calendar date text. A switch and a text are optional. */
+const API_FIELDS = {
+  date: dateField,
+  name: textField,
+  switch: switchField,
+  text: optionalTextField,
+} as const;
 
 /** The kinds of field a record can declare. */
 export type FieldKind = keyof typeof API_FIELDS;
 
+/** The kinds the shared form and the shared list can show. */
+export type ShownKind = "date" | "name";
+
+/** A field the shared form and the shared list show, with their texts. */
+export type ShownField = FieldSpec & {
+  readonly header: string;
+  readonly kind: ShownKind;
+  readonly label: string;
+};
+
+/** The value each kind stores. */
+export type StoredValue = {
+  date: string;
+  name: string;
+  switch: boolean;
+  text: string;
+};
+
 /** The value each kind carries into a write: a date is checked first. */
-type InputValue = { date: DateString; name: string };
+export type InputValue = Omit<StoredValue, "date"> & { date: DateString };
 
 /** A stored column name as its input key: `start_date` becomes `startDate`. */
 type InputKey<Key extends string> = Key extends `${infer Head}_${infer Tail}`
   ? `${Head}${Capitalize<InputKey<Tail>>}`
   : Key;
 
-/** The stored text of every declared field, keyed by column. Every kind
- *  stores text. */
-export type FieldsStored<Fields extends FieldSpecs> = Record<
-  Fields[number]["key"],
-  string
->;
+/** The kind of the field that declares one key. */
+type KindOf<Fields extends FieldSpecs, Key> = Extract<
+  Fields[number],
+  { key: Key }
+>["kind"];
+
+/** The stored value of every declared field, keyed by column. */
+export type FieldsStored<Fields extends FieldSpecs> = {
+  [Key in Fields[number]["key"]]: StoredValue[KindOf<Fields, Key>];
+};
 
 /** The stored row the fields declare, with its id. */
 export type FieldsRow<Fields extends FieldSpecs> = FieldsStored<Fields> & {
@@ -62,13 +91,6 @@ export type FieldsInput<Fields extends FieldSpecs> = {
   >]: InputValue[Field["kind"]];
 };
 
-/** The create and update wire views of every field, keyed by column. */
-type ApiFieldsOf<Fields extends FieldSpecs> = {
-  [Key in Fields[number]["key"]]: ReturnType<
-    (typeof API_FIELDS)[Extract<Fields[number], { key: Key }>["kind"]]
-  >;
-};
-
 /** One value per declared field, keyed by its column. */
 export const byFieldKey = <const Fields extends FieldSpecs, Value>(
   fields: Fields,
@@ -79,13 +101,31 @@ export const byFieldKey = <const Fields extends FieldSpecs, Value>(
     fields.map((field: Fields[number]) => [field.key, build(field)]),
   ) as Record<Fields[number]["key"], Value>;
 
-/** The wire views of every field, ready for `apiBodyPair` and `idRow`. */
-export const apiFieldsOf = <const Fields extends FieldSpecs>(
+/** One value per declared field, typed by the kind of each field. `Values`
+ *  names the value each kind gives. */
+export type ByFieldKind<
+  Fields extends FieldSpecs,
+  Values extends Record<FieldKind, unknown>,
+> = { [Key in Fields[number]["key"]]: Values[KindOf<Fields, Key>] };
+
+/** One value per declared field, built from the entry of its own kind. */
+export const byFieldKind = <
+  const Fields extends FieldSpecs,
+  Values extends Record<FieldKind, unknown>,
+>(
   fields: Fields,
-): ApiFieldsOf<Fields> =>
-  // Each key holds the view its own kind builds, so the record is the
-  // mapped type above.
-  byFieldKey(
-    fields,
-    (field): BodyField => API_FIELDS[field.kind](field.key),
-  ) as ApiFieldsOf<Fields>;
+  build: (field: Fields[number]) => Values[FieldKind],
+): ByFieldKind<Fields, Values> =>
+  // Each key holds the value its own kind gives.
+  byFieldKey(fields, build) as ByFieldKind<Fields, Values>;
+
+/** The create and update wire views each kind gives. */
+type ApiViews = {
+  [Kind in FieldKind]: ReturnType<(typeof API_FIELDS)[Kind]>;
+};
+
+/** The wire views of every field, ready for `apiBodyPair` and `idRow`. */
+export const apiFieldsOf = <const Fields extends FieldSpecs>(fields: Fields) =>
+  byFieldKind<Fields, ApiViews>(fields, (field) =>
+    API_FIELDS[field.kind](field.key),
+  );

@@ -1,16 +1,4 @@
 {
-  "src/features/admin/api-attributes.ts": [
-    {
-      "path": [{ "name": "CreateAttributeBody" }],
-      "kind": "dynamic-read",
-      "evidence": "toAttributeInput on a create body reads the field by key off the raw JSON body record"
-    },
-    {
-      "path": [{ "name": "UpdateAttributeBody" }],
-      "kind": "dynamic-read",
-      "evidence": "toAttributeInput on an update body reads the field by key off the raw JSON body record"
-    }
-  ],
   "src/features/admin/api-listing-body.ts": [
     {
       "path": [{ "name": "CreateListingBody" }],
@@ -71,11 +59,6 @@
       "path": [{ "name": "AdminApiSitePage" }],
       "kind": "external-output",
       "evidence": "jsonResponse serialises the complete site-page row"
-    },
-    {
-      "path": [{ "name": "AdminApiCreateAttendeeStatusBody" }],
-      "kind": "dynamic-read",
-      "evidence": "statusInputFrom reads the field by key off the raw JSON body record"
     },
     {
       "path": [{ "name": "AdminApiAttendeeStatus" }],
@@ -245,6 +228,18 @@
       "path": [{ "name": "EmailTemplateRow" }],
       "kind": "schema-driven",
       "evidence": "answerTemplateSave reads verdict.row.id, which the scan cannot follow through WriteVerdict"
+    }
+  ],
+  "src/shared/rest/field-specs.ts": [
+    {
+      "path": [{ "name": "InputValue" }],
+      "kind": "schema-driven",
+      "evidence": "FieldsInput and the body reads take each kind's input value through indexed access"
+    },
+    {
+      "path": [{ "name": "StoredValue" }],
+      "kind": "schema-driven",
+      "evidence": "FieldsStored, the body reads, and the kind columns take each kind's stored value through indexed access"
     }
   ],
   "src/shared/rest/record-pages.ts": [
