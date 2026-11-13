@@ -43,7 +43,7 @@ const createListingThroughChooser = async (
   await browser.visit("/admin/");
   await browser.clickLink("Add Listing");
   expect(browser.containsText("Choose a listing type")).toBe(true);
-  await browser.clickLink("Custom / advanced");
+  await browser.clickLink("Other");
   await browser.submitForm(
     {
       description: "A wonderful summer evening of music",

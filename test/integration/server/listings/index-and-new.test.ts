@@ -50,7 +50,7 @@ describeWithEnv("server listings > index and new", { db: true }, () => {
         "Choose a listing type",
       );
       // The import path reads as a sentence in the picker's intro, linking
-      // to the catalog importer — Custom / advanced is the grid's last card.
+      // to the catalog importer — Other is the grid's last card.
       assertStringIncludes(
         html,
         '<a href="/admin/catalog/import">Alternatively you can import multiple listings from a JSON file.</a>',
@@ -68,7 +68,7 @@ describeWithEnv("server listings > index and new", { db: true }, () => {
         "Physical product",
         "Digital product",
         "Event",
-        "Course or service",
+        "Bookable session",
       ]) {
         const at = html.indexOf(`>${label}</strong>`);
         expect(at).toBeGreaterThan(lastCardAt);
