@@ -14,6 +14,7 @@ import {
 } from "#types";
 
 /** The admin areas from `markdownPreview` through `users`. */
+/* jscpd:ignore-start -- the route declaration holds strings and string lists, not code */
 export const AREAS_M_Z = {
   markdownPreview: {
     audience: CONTENT_ADMIN_LEVELS,
@@ -141,6 +142,7 @@ export const AREAS_M_Z = {
       settingsAdvanced: "/admin/settings-advanced",
     },
     write: {
+      /* jscpd:ignore-start -- a list of strings, not code */
       settingsAddressLookup: "/admin/settings/address-lookup",
       settingsAppleWallet: "/admin/settings/apple-wallet",
       settingsAttendeeColumnOrder: "/admin/settings/attendee-column-order",
@@ -181,6 +183,7 @@ export const AREAS_M_Z = {
       settingsTax: "/admin/settings/tax",
       settingsTerms: "/admin/settings/terms",
       settingsTheme: "/admin/settings/theme",
+      /* jscpd:ignore-end */
     },
   },
   settingsLogistics: recordArea({
@@ -269,3 +272,4 @@ export const AREAS_M_Z = {
     },
   },
 } as const;
+/* jscpd:ignore-end */

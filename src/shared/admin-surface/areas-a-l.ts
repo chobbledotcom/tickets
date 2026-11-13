@@ -14,6 +14,7 @@ import {
 } from "#types";
 
 /** The admin areas from `apiKeys` through `listings`. */
+/* jscpd:ignore-start -- the route declaration holds strings and string lists, not code */
 export const AREAS_A_L = {
   apiKeys: {
     audience: OWNER_AUDIENCE,
@@ -396,3 +397,4 @@ export const AREAS_A_L = {
     },
   },
 } as const;
+/* jscpd:ignore-end */
