@@ -333,8 +333,12 @@ const writtenResult = <Row>(verdict: WriteVerdict<Row>) =>
 const failedResult = <Row, Missing>(
   verdict: WriteVerdict<Row>,
   missing: Missing,
-): { error: string; ok: false } | Missing =>
-  verdict.kind === "refused" ? { error: verdict.message, ok: false } : missing;
+): { error: string; ok: false } | Missing => {
+  if (verdict.kind === "refused") {
+    return { error: verdict.message, ok: false };
+  }
+  return missing;
+};
 
 /** Parse the create form into the record's input, then write through the
  * record with the create door's join plan. */
