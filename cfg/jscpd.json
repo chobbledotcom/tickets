@@ -5,12 +5,19 @@
     "console",
     "json"
   ],
-  "output": ".jscpd-report-support",
+  "output": ".jscpd-report",
   "ignore": [
     "**/node_modules/**",
-    "**/*.test.ts"
+    "**/package-lock.json",
+    "**/deno.lock",
+    "**/fp.ts",
+    "**/db/migrations/2*.ts",
+    "**/db/migrations/schema/columns.ts",
+    "**/*.generated.ts"
   ],
   "format": [
+    "bash",
+    "javascript",
     "typescript",
     "tsx"
   ],
@@ -22,7 +29,9 @@
   "minLines": 1,
   "minTokens": 40,
   "path": [
-    "test/specs/support"
+    "../src",
+    "../e2e-payments",
+    "../scripts"
   ],
   "ignorePattern": [
     "(?m)^import\\s[^;]*;",

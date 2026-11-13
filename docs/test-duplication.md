@@ -4,17 +4,20 @@ This document records the duplication limits for the test helper trees, the
 reason each limit holds, and the cost of the remaining steps.
 
 **Decided and shipped.** The reusable helpers under `test/test-utils` are
-scanned at **40 tokens**, alongside `src/`, by `.jscpd.helpers.json`. The
+scanned at **40 tokens**, alongside `src/`, by `cfg/jscpd.helpers.json`. The
 Cucumber support helpers under `test/specs/support` are scanned twice: at **18
 tokens** alongside `src/`, and at **40 tokens** on their own by
-`.jscpd.support.json`. The 18-token scan holds its accepted clones in the
-committed baseline `.jscpd.specs-baseline.json`, the way the renamed-clone gate
-does. See [What is left](#what-is-left) for the remaining steps.
+`cfg/jscpd.support.json`. The 18-token scan holds its accepted clones in the
+committed baseline `cfg/.jscpd.specs-baseline.json`, the way the renamed-clone
+gate does. See [What is left](#what-is-left) for the remaining steps.
 
 All counts come from commit `ebc7c12` and from jscpd 5.0.12 with `minLines: 1`,
 the setting every config in this repository uses. A count is the number of clone
 pairs the scan reports, not the number of places to edit: one merge usually
 clears several pairs.
+
+The scan configs and the committed baselines live in `cfg/`. The ratchet in
+`deno task cpd` reads each baseline there.
 
 ## The six scans, and why there are six
 
@@ -22,14 +25,14 @@ The 0% threshold is not the number that decides how hard jscpd looks.
 `minTokens` is. It sets the shortest run of tokens that counts as a clone, so a
 lower number is a tighter net.
 
-| Config                | Scans                            | minTokens |
-| --------------------- | -------------------------------- | --------- |
-| `.jscpd.json`         | `src`, `e2e-payments`, `scripts` | 40        |
-| `.jscpd.specs.json`   | `src` + `test/specs/support`     | 18        |
-| `.jscpd.support.json` | `test/specs/support`             | 40        |
-| `.jscpd.helpers.json` | `src` + `test/test-utils`        | 40        |
-| `.jscpd.test.json`    | `test`                           | 48        |
-| `.jscpd.css.json`     | `src/ui/static/style.scss`       | 50        |
+| Config                   | Scans                            | minTokens |
+| ------------------------ | -------------------------------- | --------- |
+| `cfg/jscpd.json`         | `src`, `e2e-payments`, `scripts` | 40        |
+| `cfg/jscpd.specs.json`   | `src` + `test/specs/support`     | 18        |
+| `cfg/jscpd.support.json` | `test/specs/support`             | 40        |
+| `cfg/jscpd.helpers.json` | `src` + `test/test-utils`        | 40        |
+| `cfg/jscpd.test.json`    | `test`                           | 48        |
+| `cfg/jscpd.css.json`     | `src/ui/static/style.scss`       | 50        |
 
 The last one holds no tests, so the rest of this document leaves it out. Its
 number is high because design-token CSS repeats short declaration runs by
@@ -54,9 +57,9 @@ why the helper trees can be held tighter than the tree that contains them.
 
 ## The support helpers held at 15 tokens
 
-The shared scan `.jscpd.specs.json` reads `src/` alongside the support helpers,
-so a helper that reimplements production logic is flagged against the source it
-copied. `src/` is clean at 19 and cannot go below it:
+The shared scan `cfg/jscpd.specs.json` reads `src/` alongside the support
+helpers, so a helper that reimplements production logic is flagged against the
+source it copied. `src/` is clean at 19 and cannot go below it:
 
 | minTokens | Clone pairs in `src/` alone |
 | --------- | --------------------------- |
@@ -65,19 +68,19 @@ copied. `src/` is clean at 19 and cannot go below it:
 | 16        | 961                         |
 
 So a 0% threshold cannot hold _that_ config below 19. The support helpers
-therefore get a second scan of their own, `.jscpd.support.json`, which drops
+therefore get a second scan of their own, `cfg/jscpd.support.json`, which drops
 `src/` and holds them at 15. **18 is where the shared config sits, not where
 the helpers have to stay.**
 
 ### The 18-token shared scan carries a baseline
 
 Below 19 tokens the shared scan reads real signal and coincidence together.
-Dropping `.jscpd.specs.json` to 18 tokens surfaces 220 clone pairs. Most are
+Dropping `cfg/jscpd.specs.json` to 18 tokens surfaces 220 clone pairs. Most are
 the coincidence classes this document already names: import blocks, matching
 signatures and parameter lists, type aliases, schema table data, and support
 test bodies. The scan cannot hold those at zero without a full-band
 classification, so the config carries a committed baseline instead. `deno task
-cpd` runs the specs config with `--baseline .jscpd.specs-baseline.json
+cpd` runs the specs config with `--baseline cfg/.jscpd.specs-baseline.json
 --fail-on-new-clones`, exactly the way the renamed-clone gate does.
 `deno task cpd:specs --update` rewrites the baseline after a merge. A new
 18-token clone anywhere in the scanned trees fails the gate.
@@ -146,8 +149,8 @@ that group of copy.
 
 ## The other helper tree holds at 40 tokens
 
-`.jscpd.helpers.json` reads `test/test-utils` against `src/` at 40 tokens. The
-golden test database is built by `fullSchemaCreateStatements()` from
+`cfg/jscpd.helpers.json` reads `test/test-utils` against `src/` at 40 tokens.
+The golden test database is built by `fullSchemaCreateStatements()` from
 `src/shared/db/migrations/schema-sync.ts`, the one production schema builder. A
 helper that reaches the app goes through `awaitTestRequest` or `testPageHtml`
 in `test/test-utils/mocks.ts`.
@@ -167,13 +170,13 @@ These counts are for the helper files and `src/` at the commit above:
 
 **These are counts, not verdicts.** A sample of the 24-token band showed valibot
 schema fields that match across unrelated schemas, which is the same coincidence
-that exempts `src/shared/db/migrations/schema/columns.ts` from `.jscpd.json`,
-and one-line field builders that match on a signature. A sample is not a
-decision. Classify a whole band, and try the curry, before you call any of it
-unavoidable.
+that exempts `src/shared/db/migrations/schema/columns.ts` from
+`cfg/jscpd.json`, and one-line field builders that match on a signature. A
+sample is not a decision. Classify a whole band, and try the curry, before you
+call any of it unavoidable.
 
-Each step down is a separate job. Take the number in `.jscpd.helpers.json` down,
-bring the tree to it, and repeat, the way the comment caps in
+Each step down is a separate job. Take the number in `cfg/jscpd.helpers.json`
+down, bring the tree to it, and repeat, the way the comment caps in
 `scripts/check-comments/run.ts` come down.
 
 ## The renamed-clone gate: same code with different words
@@ -186,21 +189,21 @@ four spellings of `(slug) => hmacHash(slug)`, each one identifier short of
 detection. All four were deleted and every caller now uses `hmacHash` directly.
 
 Since jscpd 5.2.0 the gate is jscpd's own. `deno task cpd:renamed` runs
-`.jscpd.renamed.json`, which passes `--similarity 0.99`: whole functions,
+`cfg/jscpd.renamed.json`, which passes `--similarity 0.99`: whole functions,
 methods and arrow functions are compared by AST shape, with names and literals
 left out, so a renamed copy scores 1.0 and is reported with kind `similar`. The
 accepted matches live in the committed baseline
-`.jscpd.renamed-baseline.json`. The flag `--fail-on-new-clones` fails the build
-on a pair the baseline does not carry, and `deno task cpd:renamed --update`
-rewrites the baseline after a merge. The baseline records no written reason —
-the merge history carries it.
+`cfg/.jscpd.renamed-baseline.json`. The flag `--fail-on-new-clones` fails the
+build on a pair the baseline does not carry, and
+`deno task cpd:renamed --update` rewrites the baseline after a merge. The
+baseline records no written reason — the merge history carries it.
 
-Since jscpd 5.4.2 the strict scans (`.jscpd.json`, `.jscpd.test.json`,
-`.jscpd.helpers.json`, `.jscpd.support.json`) enable the Type-2 clone options
-`ignoreIdentifiers`, `ignoreLiterals` and `ignoreAnnotations`. jscpd classifies
-each matched window. A window whose raw tokens differ only in names, literal
-values or annotations is a `renamed` clone. A window with identical raw tokens
-is an `exact` clone. The strict scans report both kinds. An earlier
+Since jscpd 5.4.2 the strict scans (`cfg/jscpd.json`, `cfg/jscpd.test.json`,
+`cfg/jscpd.helpers.json`, `cfg/jscpd.support.json`) enable the Type-2 clone
+options `ignoreIdentifiers`, `ignoreLiterals` and `ignoreAnnotations`. jscpd
+classifies each matched window. A window whose raw tokens differ only in names,
+literal values or annotations is a `renamed` clone. A window with identical raw
+tokens is an `exact` clone. The strict scans report both kinds. An earlier
 `kind: ["exact"]` filter removed every `renamed` window, so the strict scans
 reported zero and did not check renamed copies at their `minTokens`.
 
@@ -214,12 +217,12 @@ operation and not a common shape.
 
 At these limits, the strict scans found these clones:
 
-| Scan                  | minTokens | Clones |
-| --------------------- | --------: | -----: |
-| `.jscpd.json`         |        40 |  1,152 |
-| `.jscpd.test.json`    |        48 | 12,202 |
-| `.jscpd.helpers.json` |        40 |    852 |
-| `.jscpd.support.json` |        40 |     17 |
+| Scan                     | minTokens | Clones |
+| ------------------------ | --------: | -----: |
+| `cfg/jscpd.json`         |        40 |  1,152 |
+| `cfg/jscpd.test.json`    |        48 | 12,202 |
+| `cfg/jscpd.helpers.json` |        40 |    852 |
+| `cfg/jscpd.support.json` |        40 |     17 |
 
 Each scan holds these clones in its committed baseline and runs with
 `--fail-on-new-clones`. A new renamed copy fails the gate. The fingerprints do
@@ -277,7 +280,7 @@ very expensive below it:
 The rise is test bodies, not helpers, so a lower number here buys little and
 costs a great deal. 48 stays.
 
-**A carve-out for `test/test-utils` in `.jscpd.test.json`.** The specs config
+**A carve-out for `test/test-utils` in `cfg/jscpd.test.json`.** The specs config
 takes `test/specs/support` out of the ordinary `test/` scan. That hides any
 clone between a support helper and a test body, and today the count of those is
 zero, so nothing is lost. `test/test-utils` is not carved out: it stays in both

@@ -1,25 +1,29 @@
 /**
  * IO shell for the jscpd baseline ratchet: read every committed baseline in
- * the repository root, hold the scan tasks to the baselines it can read, and
- * compare each baseline with the merge base on `origin/main` (see "Code
- * Duplication" in AGENTS.md). Kept thin so the rules stay in
- * ./baseline-ratchet.ts and the entry stays a one-liner.
+ * `cfg/`, hold the scan tasks to the baselines it can read, and compare each
+ * baseline with the merge base on `origin/main` (see "Code Duplication" in
+ * AGENTS.md). Kept thin so the rules stay in ./baseline-ratchet.ts and the
+ * entry stays a one-liner.
  */
 
 import { join } from "node:path";
 import * as v from "valibot";
 import { type CheckOutput, reportCheck } from "#scripts/check-report.ts";
-import { fileAtRevision } from "#scripts/file-at-revision.ts";
+import { fileAtRevision, pathsAtRevision } from "#scripts/file-at-revision.ts";
 import { mergeBaseOrThrow, type RunCommand } from "#scripts/precommit/git.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 import { readJsonOrThrow } from "#scripts/read-json.ts";
 import {
   baselineFileNames,
   baselinePathsNamed,
+  basePathFor,
   RATCHET_GUIDE,
   riseFindings,
   unreadBaselineFindings,
 } from "./baseline-ratchet.ts";
+
+/** The directory that holds every scan config and its committed baseline. */
+const BASELINE_DIR = "cfg";
 
 /** One baseline file the ratchet compares: its repository-root-relative path,
  * and the text the working tree holds. */
@@ -34,13 +38,15 @@ export type BaselineReader = () => Promise<BaselineFile[]>;
 /** The baseline paths the scan tasks name, in path order. */
 export type NamedBaselineReader = () => Promise<string[]>;
 
-/** Every committed jscpd baseline in the repository root, read from the
- * working tree. */
+/** Every committed jscpd baseline in `cfg/`, read from the working tree. */
 export const baselineFiles: BaselineReader = async () => {
   const names: string[] = [];
-  for await (const entry of Deno.readDir(projectRoot)) names.push(entry.name);
+  for await (const entry of Deno.readDir(join(projectRoot, BASELINE_DIR))) {
+    names.push(entry.name);
+  }
   const reads: BaselineFile[] = [];
-  for (const path of baselineFileNames(names)) {
+  for (const name of baselineFileNames(names)) {
+    const path = `${BASELINE_DIR}/${name}`;
     reads.push({
       path,
       text: await Deno.readTextFile(join(projectRoot, path)),
@@ -68,6 +74,20 @@ export interface RatchetInput {
   run: RunCommand;
 }
 
+/** One baseline's text at the merge base, or undefined when the base holds no
+ * file with that name. */
+const baseText = async (
+  run: RunCommand,
+  mergeBase: string,
+  basePaths: readonly string[],
+  headPath: string,
+): Promise<string | undefined> => {
+  const path = basePathFor(basePaths, headPath);
+  return path === undefined
+    ? undefined
+    : await fileAtRevision(run, mergeBase, path);
+};
+
 /** Compare every baseline with the merge base and return the process exit
  * code with the report printed. */
 export const ratchetExit = async ({
@@ -82,9 +102,14 @@ export const ratchetExit = async ({
     await readNamedBaselines(),
     baselines.map(({ path }) => path),
   );
+  const basePaths = await pathsAtRevision(run, mergeBase);
   for (const { path, text } of baselines) {
     found.push(
-      ...riseFindings(path, text, await fileAtRevision(run, mergeBase, path)),
+      ...riseFindings(
+        path,
+        text,
+        await baseText(run, mergeBase, basePaths, path),
+      ),
     );
   }
   return reportCheck({

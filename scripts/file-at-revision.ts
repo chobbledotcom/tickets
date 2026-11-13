@@ -25,3 +25,17 @@ export const fileAtRevision = async (
   }
   return show.stdout;
 };
+
+/** Every path `revision` holds, in git's order. A caller that matches a file
+ * by name reads a file the revision holds at a path it does not know. */
+export const pathsAtRevision = async (
+  run: RunCommand,
+  revision: string,
+): Promise<string[]> => {
+  const args = ["ls-tree", "-r", "--name-only", revision];
+  const tree = await runGit(run, args);
+  if (tree.code !== 0) {
+    throw new Error(`git ${args.join(" ")} failed: ${tree.stderr.trim()}`);
+  }
+  return tree.stdout.split("\n").filter((path) => path !== "");
+};

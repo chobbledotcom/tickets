@@ -130,8 +130,8 @@ describe("rankCloneFamilies", () => {
 
 describe("describeWorstFamily", () => {
   test("says when a scan finds no duplication", () => {
-    expect(describeWorstFamily(".jscpd.json", [], "/r")).toEqual([
-      ".jscpd.json: no duplication found.",
+    expect(describeWorstFamily("cfg/jscpd.json", [], "/r")).toEqual([
+      "cfg/jscpd.json: no duplication found.",
     ]);
   });
 
@@ -140,8 +140,9 @@ describe("describeWorstFamily", () => {
       link("/r/src/a.ts:3-9", "/elsewhere/b.ts:8-14", 41),
       link("/x.ts:1-2", "/y.ts:1-2", 20),
     ]);
-    expect(describeWorstFamily(".jscpd.json", families, "/r")).toEqual([
-      ".jscpd.json: the worst duplication appears in 2 places, with 41 tokens.",
+    expect(describeWorstFamily("cfg/jscpd.json", families, "/r")).toEqual([
+      "cfg/jscpd.json: the worst duplication appears in 2 places, with 41 " +
+        "tokens.",
       "  /elsewhere/b.ts:8-14",
       "  src/a.ts:3-9",
     ]);
