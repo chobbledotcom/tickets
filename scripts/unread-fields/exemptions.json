@@ -278,6 +278,16 @@
       "evidence": "FullRowOf reads the optional read row through indexed access"
     },
     {
+      "path": [{ "name": "AnswersOf" }],
+      "kind": "schema-driven",
+      "evidence": "defineRecord passes the declared answers to AdminRecord, which reads each command answer through indexed access"
+    },
+    {
+      "path": [{ "name": "RecordAnswers" }],
+      "kind": "schema-driven",
+      "evidence": "AdminRecord types its create, update, and remove commands through indexed access on its answers"
+    },
+    {
       "path": [{ "name": "RecordShapeOf" }],
       "kind": "schema-driven",
       "evidence": "defineRecord reads the built shape through RowOf, InputOf, FullRowOf, ListRowOf, and StateOf"
