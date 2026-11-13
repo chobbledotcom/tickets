@@ -13,6 +13,7 @@ import {
   runWithSubrequestBudget,
   withSubrequestAllowance,
 } from "#shared/subrequest-budget.ts";
+import { ticketSvgBlock } from "#shared/svg-ticket.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -150,10 +151,10 @@ describeWithEnv(
       await setupAndSendRegistration();
 
       const body = fetch.getFetchJsonBody();
-      const svg = expectSingleTicketSvg(body);
-      const embedded = svg.slice(svg.indexOf("<svg"));
+      const block = ticketSvgBlock(expectSingleTicketSvg(body));
       const html = body.html;
-      assertStringIncludes(html, embedded);
+      assertStringIncludes(html, block);
+      expect(html.endsWith(block)).toBe(true);
       expect(html.indexOf("View your tickets")).toBeLessThan(
         html.indexOf("<svg"),
       );
@@ -172,9 +173,10 @@ describeWithEnv(
       expect(body.attachments[0].filename).toBe("ticket-1.svg");
       expect(body.attachments[1].filename).toBe("ticket-2.svg");
       for (const attachment of body.attachments) {
-        const svg = decodeSvgAttachment(attachment.content);
-        assertStringIncludes(body.html, svg.slice(svg.indexOf("<svg")));
+        const block = ticketSvgBlock(decodeSvgAttachment(attachment.content));
+        assertStringIncludes(body.html, block);
       }
+      expect(body.html.match(/<svg /g)).toHaveLength(2);
     });
 
     test("does not attach tickets to admin notification", async () => {
