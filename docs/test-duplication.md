@@ -8,16 +8,16 @@ scanned at **40 tokens**, alongside `src/`, by `cfg/jscpd.helpers.json`. The
 Cucumber support helpers under `test/specs/support` are scanned twice: at **18
 tokens** alongside `src/`, and at **40 tokens** on their own by
 `cfg/jscpd.support.json`. The 18-token scan holds its accepted clones in the
-committed baseline `.jscpd.specs-baseline.json`, the way the renamed-clone gate
-does. See [What is left](#what-is-left) for the remaining steps.
+committed baseline `cfg/.jscpd.specs-baseline.json`, the way the renamed-clone
+gate does. See [What is left](#what-is-left) for the remaining steps.
 
 All counts come from commit `ebc7c12` and from jscpd 5.0.12 with `minLines: 1`,
 the setting every config in this repository uses. A count is the number of clone
 pairs the scan reports, not the number of places to edit: one merge usually
 clears several pairs.
 
-The scan configs live in `cfg/`. The committed baselines stay in the repository
-root, where the ratchet in `deno task cpd` reads them.
+The scan configs and the committed baselines live in `cfg/`. The ratchet in
+`deno task cpd` reads each baseline there.
 
 ## The six scans, and why there are six
 
@@ -80,7 +80,7 @@ the coincidence classes this document already names: import blocks, matching
 signatures and parameter lists, type aliases, schema table data, and support
 test bodies. The scan cannot hold those at zero without a full-band
 classification, so the config carries a committed baseline instead. `deno task
-cpd` runs the specs config with `--baseline .jscpd.specs-baseline.json
+cpd` runs the specs config with `--baseline cfg/.jscpd.specs-baseline.json
 --fail-on-new-clones`, exactly the way the renamed-clone gate does.
 `deno task cpd:specs --update` rewrites the baseline after a merge. A new
 18-token clone anywhere in the scanned trees fails the gate.
@@ -193,10 +193,10 @@ Since jscpd 5.2.0 the gate is jscpd's own. `deno task cpd:renamed` runs
 methods and arrow functions are compared by AST shape, with names and literals
 left out, so a renamed copy scores 1.0 and is reported with kind `similar`. The
 accepted matches live in the committed baseline
-`.jscpd.renamed-baseline.json`. The flag `--fail-on-new-clones` fails the build
-on a pair the baseline does not carry, and `deno task cpd:renamed --update`
-rewrites the baseline after a merge. The baseline records no written reason —
-the merge history carries it.
+`cfg/.jscpd.renamed-baseline.json`. The flag `--fail-on-new-clones` fails the
+build on a pair the baseline does not carry, and
+`deno task cpd:renamed --update` rewrites the baseline after a merge. The
+baseline records no written reason — the merge history carries it.
 
 Since jscpd 5.4.2 the strict scans (`cfg/jscpd.json`, `cfg/jscpd.test.json`,
 `cfg/jscpd.helpers.json`, `cfg/jscpd.support.json`) enable the Type-2 clone

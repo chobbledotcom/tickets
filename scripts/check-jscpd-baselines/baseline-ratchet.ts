@@ -8,6 +8,7 @@
  * AGENTS.md.
  */
 
+import { basename } from "node:path";
 import * as v from "valibot";
 import { flatMap, sort, sortStrings, unique } from "#fp";
 import { formatFinding } from "#scripts/check-report.ts";
@@ -18,9 +19,9 @@ import { integerAtLeast } from "#shared/validation/number.ts";
 /** The prefix every committed jscpd baseline carries. */
 const JSCPD_PREFIX = ".jscpd.";
 
-/** The suffix that marks a committed jscpd baseline in the repository root.
- * The strict scans name theirs `<scan>-baseline.json`, and the main scan
- * names its own `.jscpd.baseline.json`. */
+/** The suffix that marks a committed jscpd baseline in `cfg/`. The strict
+ * scans name theirs `<scan>-baseline.json`, and the main scan names its own
+ * `.jscpd.baseline.json`. */
 const BASELINE_SUFFIX = "baseline.json";
 
 /** Where a reader finds the rule and the way out. */
@@ -36,15 +37,33 @@ const BASELINE_SCHEMA = v.object({
   version: v.number(),
 });
 
-/** The baseline file names among `names`: the root's `.jscpd.*baseline.json`
- * files, sorted. A new scan's baseline is found without a second list to
- * keep in step. */
+/** The baseline file names among `names`: the `.jscpd.*baseline.json` files
+ * that `cfg/` holds, sorted. A new scan's baseline is found without a second
+ * list to keep in step. */
 export const baselineFileNames = (names: readonly string[]): string[] =>
   sort((left: string, right: string) => left.localeCompare(right))(
     names.filter(
       (name) => name.startsWith(JSCPD_PREFIX) && name.endsWith(BASELINE_SUFFIX),
     ),
   );
+
+/** The path among `paths` that holds the baseline named like `headPath`, or
+ * undefined when the base holds none. A baseline is identified by its file
+ * name, so a baseline that moves between directories is not a new one. */
+export const basePathFor = (
+  paths: readonly string[],
+  headPath: string,
+): string | undefined => {
+  const name = basename(headPath);
+  const matches = paths.filter((path) => basename(path) === name);
+  if (matches.length > 1) {
+    throw new Error(
+      `The merge base holds more than one file named ${name}: ` +
+        `${matches.join(", ")}.`,
+    );
+  }
+  return matches[0];
+};
 
 /** The script a task runs when that task is a jscpd scan. */
 const CPD_SCRIPT = "scripts/cpd.ts";
@@ -82,9 +101,7 @@ export const unreadBaselineFindings = (
   const readPaths = new Set(read);
   return sortStrings(named.filter((path) => !readPaths.has(path))).map((path) =>
     formatFinding(path, {
-      fix:
-        "keep the baseline in the repository root, named " +
-        ".jscpd.<scan>-baseline.json",
+      fix: "keep the baseline in cfg/, named .jscpd.<scan>-baseline.json",
       problem: "is a scan baseline that this check cannot read",
       rule: "unread-baseline",
     }),

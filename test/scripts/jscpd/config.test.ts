@@ -5,8 +5,7 @@ import * as v from "valibot";
 import { projectRoot } from "#scripts/project-root.ts";
 import { directoryNames, pathExists } from "#test-utils/files.ts";
 
-/** The directory that holds every scan config. The committed baselines stay in
- * the repository root, where the ratchet reads them. */
+/** The directory that holds every scan config and its committed baseline. */
 const CONFIG_DIR = "cfg";
 
 /** What one scan config promises. The test holds this table to the names in
@@ -30,32 +29,32 @@ const scans: Record<string, ScanPromise> = {
     typescript: false,
   },
   "cfg/jscpd.helpers.json": {
-    baseline: ".jscpd.helpers-baseline.json",
+    baseline: "cfg/.jscpd.helpers-baseline.json",
     strict: true,
     typescript: true,
   },
   "cfg/jscpd.json": {
-    baseline: ".jscpd.baseline.json",
+    baseline: "cfg/.jscpd.baseline.json",
     strict: true,
     typescript: true,
   },
   "cfg/jscpd.renamed.json": {
-    baseline: ".jscpd.renamed-baseline.json",
+    baseline: "cfg/.jscpd.renamed-baseline.json",
     strict: false,
     typescript: true,
   },
   "cfg/jscpd.specs.json": {
-    baseline: ".jscpd.specs-baseline.json",
+    baseline: "cfg/.jscpd.specs-baseline.json",
     strict: false,
     typescript: true,
   },
   "cfg/jscpd.support.json": {
-    baseline: ".jscpd.support-baseline.json",
+    baseline: "cfg/.jscpd.support-baseline.json",
     strict: true,
     typescript: true,
   },
   "cfg/jscpd.test.json": {
-    baseline: ".jscpd.test-baseline.json",
+    baseline: "cfg/.jscpd.test-baseline.json",
     strict: true,
     typescript: true,
   },
@@ -92,20 +91,20 @@ const readScanTasks = async (): Promise<string> => {
 };
 
 describe("the scan config directory", () => {
-  test("holds every scan config, so the repository root holds only baselines", async () => {
+  test("holds every scan config and baseline, so the root holds neither", async () => {
     const rootNames = await directoryNames(projectRoot);
-    expect(
-      rootNames.filter(
-        (name) => name.startsWith(".jscpd.") && !name.endsWith("baseline.json"),
-      ),
-    ).toEqual([]);
+    expect(rootNames.filter((name) => name.startsWith(".jscpd."))).toEqual([]);
   });
 
-  test("holds exactly the declared scans, so a new scan joins every check", async () => {
+  test("holds exactly the declared scans and baselines, so a new file joins every check", async () => {
     const names = await directoryNames(join(projectRoot, CONFIG_DIR));
-    expect(names.map((name) => `${CONFIG_DIR}/${name}`)).toEqual(
-      declaredScans.map(([name]) => name),
-    );
+    const expected = [
+      ...declaredScans.map(([name]) => name),
+      ...declaredScans.flatMap(([, { baseline }]) =>
+        baseline === null ? [] : [baseline],
+      ),
+    ].sort();
+    expect(names.map((name) => `${CONFIG_DIR}/${name}`)).toEqual(expected);
   });
 
   test("resolves every path entry from the config's directory, inside the project", async () => {
