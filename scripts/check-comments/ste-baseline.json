@@ -1,6 +1,6 @@
 {
   "src/features/api/payment-processing/refunds.ts": {
-    "long-sentence": 5,
+    "long-sentence": 4,
     "semicolon": 2,
     "banned-modal": 3,
     "present-perfect": 1,
@@ -8,13 +8,13 @@
   },
   "src/features/api/payment-processing/rejected-target.ts": {
     "long-sentence": 2,
-    "semicolon": 4,
-    "banned-modal": 2,
+    "semicolon": 3,
+    "banned-modal": 1,
     "present-perfect": 1
   },
   "src/features/api/payment-processing/store-refund.ts": {
-    "long-sentence": 6,
-    "contraction": 5,
+    "long-sentence": 5,
+    "contraction": 4,
     "banned-modal": 4,
     "semicolon": 2
   },
@@ -1092,11 +1092,11 @@
     "semicolon": 3
   },
   "src/shared/merge/attendee-merge.ts": {
-    "long-sentence": 22,
-    "semicolon": 6,
+    "long-sentence": 18,
+    "semicolon": 5,
     "banned-modal": 3,
     "participle": 1,
-    "contraction": 2
+    "contraction": 1
   },
   "src/shared/order-select.ts": {
     "contraction": 2,

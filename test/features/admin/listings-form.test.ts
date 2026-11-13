@@ -16,6 +16,11 @@ import {
 } from "#routes/admin/listings-form.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
+import {
+  createListing,
+  listingForm,
+  updateListing,
+} from "#test/features/admin/listings-form/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   assignTestAttributeOptions,
@@ -23,45 +28,8 @@ import {
 } from "#test-utils/db-helpers/attributes.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import {
-  type TestFormValues,
-  testFormParams,
-} from "#test-utils/form-values.ts";
 import { adminFormPost, apiRequest } from "#test-utils/session.ts";
 import { featureSetting, withSetting } from "#test-utils/settings.ts";
-import type { Listing } from "#types";
-
-const listingForm = (extra: TestFormValues = {}) =>
-  testFormParams({
-    max_attendees: "50",
-    max_quantity: "5",
-    name: "Parsed listing",
-    ...extra,
-  });
-
-const createListing = async (extra: TestFormValues = {}): Promise<Listing> => {
-  const form = listingForm(extra);
-  const result = await buildCreateListingResource(form).create(form);
-  if (!result.ok) throw new Error(`create failed: ${result.error}`);
-  return result.row;
-};
-
-const updateListing = async (
-  id: number,
-  extra: TestFormValues = {},
-): Promise<Listing> => {
-  const form = listingForm({ slug: "kept-slug", ...extra });
-  // The production edit handler passes the stored row, not the effective one:
-  // a daily listing's effective date is already empty, and the save's date
-  // guard must see the value the row still stores.
-  const stored = (await getStoredListingWithCount(id))!;
-  const result = await buildUpdateListingResource(form, stored).update(
-    id,
-    form,
-  );
-  if (!result.ok) throw new Error(`update failed: ${result.error}`);
-  return result.row;
-};
 
 describeWithEnv("listings form", { db: true }, () => {
   describe("create", () => {

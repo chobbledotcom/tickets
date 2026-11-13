@@ -5,7 +5,7 @@ import { jsonHash } from "#test-utils/hash.ts";
 
 test("keeps the complete core schema declaration exact", async () => {
   expect(await jsonHash(coreTables)).toBe(
-    "57267f1aa147d8ccefaffdf612e538d65833e0ee83e3c9577b533a779eb7b69c",
+    "236952aa4c4b99d1f21e3a39d54df24dd31a8d84138e77712d9b367dbb241a66",
   );
 });
 

@@ -15,7 +15,7 @@ import {
 } from "#shared/limits.ts";
 import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import { checkboxField } from "#templates/fields/checkbox-field.ts";
-import { picklistOptions } from "#templates/fields/picklist-options.ts";
+import { blankThenPicklistOptions } from "#templates/fields/picklist-options.ts";
 import {
   getUsernameFieldBase,
   validateDate,
@@ -405,10 +405,11 @@ const getInviteUserFields = () =>
       invalidMessage: t("error.invalid_role"),
       label: t("fields.user.role"),
       name: "admin_level",
-      options: [
-        { label: t("fields.user.role_placeholder"), value: "" },
-        ...picklistOptions(AdminLevelSchema, "fields.user"),
-      ],
+      options: blankThenPicklistOptions(
+        t("fields.user.role_placeholder"),
+        AdminLevelSchema,
+        "fields.user",
+      ),
       required: true,
       type: "select",
     },

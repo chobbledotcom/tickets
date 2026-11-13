@@ -18,6 +18,7 @@ import type {
   ModifierScope,
   ModifierTrigger,
 } from "#shared/price-modifier.ts";
+import type { RecurringListingColumns } from "#shared/subscriptions/plan.ts";
 import { guardFor } from "#shared/validation/guard.ts";
 import { clampInteger, integerAtLeast } from "#shared/validation/number.ts";
 import type { NonEmptyString } from "#shared/validation/string.ts";
@@ -272,7 +273,7 @@ export type ItemImageColumns = {
   image_alt_text: string;
 };
 
-export interface Listing extends ItemImageColumns {
+export interface Listing extends ItemImageColumns, RecurringListingColumns {
   active: boolean;
   assign_built_site: boolean;
   attachment_name: string;
@@ -301,8 +302,7 @@ export interface Listing extends ItemImageColumns {
   max_price: number;
   max_quantity: number;
   maximum_days_after: number;
-  /** The smallest quantity above none that one purchase can book. 1 is the
-   *  identity: the choice set is then exactly today's 0..max_quantity. */
+  /** The smallest quantity above none that one purchase can book. */
   min_quantity: number;
   minimum_days_before: number;
   months_per_unit: number;

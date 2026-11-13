@@ -46,8 +46,19 @@ import {
 import type {
   StripeCheckoutSession,
   StripeExpandedPaymentIntent,
+  StripeInvoicePayments,
   StripeRefund,
+  StripeSubscription,
 } from "#shared/stripe/schemas.ts";
+import {
+  type SubscriptionItem,
+  subscriptionItemOrNull,
+} from "#shared/subscriptions/checkout-rules.ts";
+import {
+  firstRecurringChargeAt,
+  recurringCharge,
+} from "#shared/subscriptions/plan.ts";
+import type { TaxPolicy } from "#shared/tax/types.ts";
 
 export const isoFromUnixSeconds = (seconds: unknown): string | undefined =>
   typeof seconds === "number"
@@ -109,6 +120,7 @@ const createCheckoutSession = async (
   // Build the signed metadata before the expiry, so the window is measured
   // from just before the request reaches Stripe.
   const metadata = await checkoutMetadata("stripe", intent, order, order.total);
+  const subscription = subscriptionItemOrNull(intent);
   const params: StripeCheckoutSessionCreateParams = {
     cancel_url: `${baseUrl}/payment/cancel?session_id={CHECKOUT_SESSION_ID}`,
     // Stripe ends its own page at this time, so no stored handle and no
@@ -122,6 +134,14 @@ const createCheckoutSession = async (
     success_url: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
     ...(intent.email ? { customer_email: intent.email } : {}),
     metadata,
+    ...(subscription === null
+      ? {}
+      : subscriptionParams(
+          subscription,
+          currency,
+          order.tax.policy,
+          lineItems,
+        )),
   };
   const session = await stripeClientRuntime.runCheckout(
     (client) => client.checkout.sessions.create(params),
@@ -130,12 +150,56 @@ const createCheckoutSession = async (
   return session;
 };
 
+/**
+ * The changes a subscription line makes to a checkout. The recurring line
+ * charges the whole quantity as one unit, so VAT rounds once on the whole
+ * amount. The trial holds it back for one period, and the one-time lines
+ * still charge at once. The metadata names the listing whose booking row
+ * keeps the plan.
+ */
+const subscriptionParams = (
+  item: SubscriptionItem,
+  currency: string,
+  policy: TaxPolicy,
+  lineItems: readonly StripeCheckoutLineItemParams[],
+): Pick<
+  StripeCheckoutSessionCreateParams,
+  "line_items" | "mode" | "subscription_data"
+> => ({
+  line_items: [
+    ...lineItems,
+    {
+      price_data: {
+        currency,
+        product_data: providerLineCopy(item, item.quantity),
+        recurring: { interval: item.recurring.interval },
+        unit_amount: recurringCharge(
+          { id: item.listingId, recurringPrice: item.recurring.price },
+          item.quantity,
+          policy,
+        ),
+      },
+      quantity: 1,
+    },
+  ],
+  mode: "subscription",
+  subscription_data: {
+    metadata: { listing_id: String(item.listingId) },
+    trial_end: firstRecurringChargeAt(nowSeconds(), item.recurring.interval),
+  },
+});
+
 export interface StripeApi {
+  cancelSubscription: (id: string) => Promise<ProviderRead<StripeSubscription>>;
   cleanupOldWebhookEndpoints: typeof cleanupOldWebhookEndpoints;
   createCheckoutSession: typeof createCheckoutSession;
+  readInvoicePayments: (
+    id: string,
+  ) => Promise<ProviderRead<StripeInvoicePayments>>;
   readPaymentIntent: (
     id: string,
   ) => Promise<ProviderRead<StripeExpandedPaymentIntent>>;
+  readSubscription: (id: string) => Promise<ProviderRead<StripeSubscription>>;
   refundCharge: (
     request: AuthorizedRefundRequest<"stripe">,
   ) => Promise<RefundAttemptResult>;
@@ -159,21 +223,41 @@ const askStripe = async <Answer, Result>(
 ): Promise<Result> =>
   askProvider({ ...call, account: await stripeClientRuntime.get() });
 
-const readPaymentIntent = (
-  id: string,
-): Promise<ProviderRead<StripeExpandedPaymentIntent>> =>
-  readStripeResource(
-    (client) =>
-      client.paymentIntents.retrieveWithLatestCharge(id, {
-        maxNetworkRetries: REFUND_NETWORK_RETRIES.stripe,
-      }),
-    judgedBy([
-      refuseUnless(
-        "mismatched_id",
-        (intent: StripeExpandedPaymentIntent) => intent.id === id,
-      ),
-    ]),
-  );
+/** One Stripe call that answers with the resource `id` names. An answer about
+ * another resource is a refused read. */
+const oneResource =
+  <Resource extends { id: string }>(
+    ask: (client: StripeClient, id: string) => Promise<Resource>,
+  ) =>
+  (id: string): Promise<ProviderRead<Resource>> =>
+    readStripeResource(
+      (client) => ask(client, id),
+      judgedBy([
+        refuseUnless(
+          "mismatched_id",
+          (resource: Resource) => resource.id === id,
+        ),
+      ]),
+    );
+
+const readPaymentIntent = oneResource((client, id) =>
+  client.paymentIntents.retrieveWithLatestCharge(id, {
+    maxNetworkRetries: REFUND_NETWORK_RETRIES.stripe,
+  }),
+);
+
+const readSubscription = oneResource((client, id) =>
+  client.subscriptions.retrieve(id),
+);
+
+/** Stripe refuses to cancel a subscription that has already ended. */
+const cancelSubscription = oneResource((client, id) =>
+  client.subscriptions.cancel(id),
+);
+
+const readInvoicePayments = oneResource((client, id) =>
+  client.invoices.retrieveWithPayments(id),
+);
 
 type StripeRefundStatus = Exclude<StripeRefund["status"], null>;
 type StripeRefundAnswer = (
@@ -281,9 +365,12 @@ const retrieveCheckoutSession = (
   });
 
 export const stripeApi: StripeApi = {
+  cancelSubscription,
   cleanupOldWebhookEndpoints,
   createCheckoutSession,
+  readInvoicePayments,
   readPaymentIntent,
+  readSubscription,
   refundCharge,
   retrieveCheckoutSession,
   setupWebhookEndpoint,

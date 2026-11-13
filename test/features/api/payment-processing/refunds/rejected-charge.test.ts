@@ -1,6 +1,7 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
+import type { SessionRejection } from "#payment/validated-session.ts";
 import { refundRejectedCharge } from "#routes/api/payment-processing/refunds.ts";
 import {
   answerRejectedSession,
@@ -8,7 +9,7 @@ import {
 } from "#routes/api/payment-processing/rejected-target.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
-import { signedMeta, webhookMeta } from "#test-utils/factories.ts";
+import { webhookMeta } from "#test-utils/factories.ts";
 import {
   ourRejection,
   withRefundAnswering,
@@ -68,69 +69,51 @@ describeWithEnv("rejected session refunds", { db: true }, () => {
     });
   });
 
-  it("does not refund a rejection whose price proof does not verify", () =>
-    withStripeProvider(async () => {
-      // A foreign instance signed with its own key, so the proof must not
-      // pass and no refund may be issued from here.
-      expect(
-        await refundRejectedCharge({
-          metadata: {
-            ...signedMeta(
-              { email: "a@example.com", items: "[]", name: "A" },
-              500,
-            ),
-            price_proof: "500.deadbeef",
-          },
-          paymentReference: "pi_foreign",
-          provider: "stripe",
-          reason: "malformed_charge",
-          refundable: true,
-          sessionId: "cs_foreign",
-        }),
-      ).toEqual({ refunded: false, returned: null, settled: true });
-    }));
-
-  it("does not refund a rejection whose metadata carries no price proof", () =>
-    withStripeProvider(async () => {
-      // Legacy/unsigned sessions carry an empty proof, so nothing can prove
-      // the charge is ours and no refund may be issued.
-      expect(
-        await refundRejectedCharge({
-          metadata: webhookMeta({
-            email: "a@example.com",
-            items: "[]",
-            name: "A",
-          }),
-          paymentReference: "pi_noproof",
-          provider: "stripe",
-          reason: "malformed_charge",
-          refundable: true,
-          sessionId: "cs_noproof",
-        }),
-      ).toEqual({ refunded: false, returned: null, settled: true });
-    }));
-
-  it("does not refund a blank-reference rejection", () =>
-    withStripeProvider(async () => {
-      expect(
-        await refundRejectedCharge({
-          provider: "stripe",
-          reason: "blank_reference",
-          sessionId: "cs_blank",
-        }),
-      ).toEqual({ refunded: false, returned: null, settled: true });
-    }));
-
-  it("settles a blank-reference rejection without storing a target", () =>
-    withStripeProvider(async () => {
-      expect(
-        await settleRejectedCharge({
-          provider: "stripe",
-          reason: "blank_reference",
-          sessionId: "cs_blank_settle",
-        }),
-      ).toEqual({ refunded: false, returned: null, settled: true });
-    }));
+  for (const [name, operation, proof] of [
+    [
+      "does not refund a rejection whose price proof does not verify",
+      refundRejectedCharge,
+      "500.deadbeef",
+    ],
+    [
+      "does not refund a rejection whose metadata carries no price proof",
+      refundRejectedCharge,
+      "",
+    ],
+    ["does not refund a blank-reference rejection", refundRejectedCharge, null],
+    [
+      "settles a blank-reference rejection without storing a target",
+      settleRejectedCharge,
+      null,
+    ],
+  ] as const) {
+    it(name, () =>
+      withStripeProvider(async () => {
+        const metadata = webhookMeta({ items: "[]", name: "A" });
+        const rejection: SessionRejection =
+          proof === null
+            ? {
+                metadata,
+                provider: "stripe",
+                reason: "blank_reference",
+                sessionId: "cs_blank",
+              }
+            : {
+                metadata: { ...metadata, price_proof: proof },
+                paymentReference: "pi_unowned",
+                provider: "stripe",
+                reason: "malformed_charge",
+                refundable: true,
+                sessionId: "cs_unowned",
+              };
+        expect(await operation(rejection)).toEqual({
+          refunded: false,
+          returned: null,
+          settled: true,
+        });
+      }),
+    );
+  }
 
   /** Run the callbacks' answer for a rejection, collecting what it logged. */
   const answerFor = async (

@@ -6,6 +6,7 @@ import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
 import type { FieldValues } from "#shared/forms/values.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
+import { subscriptionsOffered } from "#shared/subscriptions/offered.ts";
 import { ListingGroupSelect } from "#templates/admin/group-select.tsx";
 import {
   type FormSection,
@@ -265,6 +266,7 @@ export const listingFormPageState = (
     logistics: settings.features.logistics,
     ...(fields.nameAutofocus ? { nameAutofocus: true } : {}),
     storage: isStorageEnabled(),
+    subscriptions: subscriptionsOffered(),
     webhook: session.adminLevel !== "editor",
   };
   const renderSection: ListingSectionRenderer = fields.includeSlug

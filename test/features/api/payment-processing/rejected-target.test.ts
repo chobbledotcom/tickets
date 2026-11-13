@@ -35,7 +35,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
-import { singleItem } from "#test-utils/factories.ts";
+import { singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { withRefundLedgerFault } from "#test-utils/refund-ledger-fault.ts";
 import {
@@ -53,6 +53,7 @@ setupTestEncryptionKey();
 /** A checkout we cannot even name a charge for: the answer needs no money
  *  work, so the test stays on the page the branch renders. */
 const blankReference = (): SessionRejection => ({
+  metadata: webhookMeta({ name: "Blank reference" }),
   provider: "sumup",
   reason: "blank_reference",
   sessionId: "cs_blank",

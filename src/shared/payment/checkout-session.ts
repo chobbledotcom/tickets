@@ -14,6 +14,7 @@ import type {
   CheckoutIntent,
   CheckoutSessionResult,
 } from "#shared/payments.ts";
+import { subscriptionCheckoutError } from "#shared/subscriptions/checkout-rules.ts";
 import type { PaymentProviderType } from "#types";
 
 /** The signed metadata every provider carries. The tax policy is frozen at
@@ -72,6 +73,8 @@ export const makeCreateCheckoutSession =
   ) => Promise<CheckoutSessionResult>) =>
   (intent, baseUrl) =>
     withCheckoutError(async () => {
+      const refusal = subscriptionCheckoutError(provider, intent);
+      if (refusal !== null) return { error: refusal };
       const result = await create(intent, baseUrl);
       if (result === null) return null;
       const { id, linkEndsAt, url } = readResult(result);

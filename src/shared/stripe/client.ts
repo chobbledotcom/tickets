@@ -1,5 +1,6 @@
 import type Stripe from "stripe";
 import type * as v from "valibot";
+import type { RecurringInterval } from "#shared/subscriptions/plan.ts";
 import type { StripeFormValue } from "./form.ts";
 import {
   createStripeRequest,
@@ -17,8 +18,12 @@ import {
   StripeDeletedWebhookEndpointSchema,
   type StripeExpandedPaymentIntent,
   StripeExpandedPaymentIntentSchema,
+  type StripeInvoicePayments,
+  StripeInvoicePaymentsSchema,
   type StripeRefund,
   StripeRefundSchema,
+  type StripeSubscription,
+  StripeSubscriptionSchema,
   type StripeWebhookEndpointList,
   StripeWebhookEndpointListSchema,
 } from "./schemas.ts";
@@ -43,6 +48,12 @@ interface StripePriceDataParams
   extends Readonly<Record<string, StripeFormValue>> {
   currency: StripePriceData["currency"];
   product_data: StripeProductDataParams;
+  recurring?: {
+    interval: Extract<
+      NonNullable<StripePriceData["recurring"]>["interval"],
+      RecurringInterval
+    >;
+  };
   unit_amount: NonNullable<StripePriceData["unit_amount"]>;
 }
 
@@ -60,11 +71,17 @@ export interface StripeCheckoutSessionCreateParams {
   expires_at: NonNullable<OfficialCheckoutParams["expires_at"]>;
   line_items: readonly StripeCheckoutLineItemParams[];
   metadata: Readonly<Record<string, string>>;
-  mode: Extract<OfficialCheckoutParams["mode"], "payment">;
+  mode: Extract<OfficialCheckoutParams["mode"], "payment" | "subscription">;
   payment_method_types: readonly [
     "card" &
       NonNullable<OfficialCheckoutParams["payment_method_types"]>[number],
   ];
+  /** Only in subscription mode. The trial holds the recurring price back
+   *  for one period, while the one-time lines charge at once. */
+  subscription_data?: {
+    metadata: Readonly<Record<string, string>>;
+    trial_end: number;
+  };
   success_url: NonNullable<OfficialCheckoutParams["success_url"]>;
 }
 
@@ -95,6 +112,11 @@ export interface StripeClient {
       ) => Promise<StripeCheckoutSession>;
     };
   };
+  invoices: {
+    retrieveWithPayments: (
+      id: Stripe.Invoice["id"],
+    ) => Promise<StripeInvoicePayments>;
+  };
   paymentIntents: {
     retrieveWithLatestCharge: (
       id: Stripe.PaymentIntent["id"],
@@ -108,6 +130,11 @@ export interface StripeClient {
       options?: StripeRetryOptions,
     ) => Promise<StripeRefund>;
   };
+  subscriptions: {
+    /** Cancel at once, with no refund and no final invoice. */
+    cancel: (id: Stripe.Subscription["id"]) => Promise<StripeSubscription>;
+    retrieve: (id: Stripe.Subscription["id"]) => Promise<StripeSubscription>;
+  };
   webhookEndpoints: {
     create: (
       params: StripeWebhookEndpointCreateParams,
@@ -118,6 +145,11 @@ export interface StripeClient {
     list: (startingAfter?: string) => Promise<StripeWebhookEndpointList>;
   };
 }
+
+/** The subscription reads ask once. Each caller asks again on its own: the
+ * scheduled check on its next pass, and a checkout on the next delivery. A
+ * retry inside the call also spends calls that the check does not declare. */
+const ASK_ONCE: StripeRetryOptions = { maxNetworkRetries: 0 };
 
 /** Build the small Stripe API surface used by ticket payments. */
 export const createStripeClient = (
@@ -134,9 +166,11 @@ export const createStripeClient = (
       method: "GET" | "DELETE",
       resource: string,
       schema: Schema,
+      params: Record<string, StripeFormValue> = {},
+      options?: StripeRetryOptions,
     ) =>
     (id: string): Promise<v.InferOutput<Schema>> =>
-      call(method, idPath(resource, id), {}, schema);
+      call(method, idPath(resource, id), params, schema, options);
 
   return {
     balance: {
@@ -158,6 +192,15 @@ export const createStripeClient = (
         ),
       },
     },
+    invoices: {
+      retrieveWithPayments: oneById(
+        "GET",
+        "invoices",
+        StripeInvoicePaymentsSchema,
+        { expand: ["payments"] },
+        ASK_ONCE,
+      ),
+    },
     paymentIntents: {
       retrieveWithLatestCharge: (id, options) =>
         call(
@@ -174,6 +217,16 @@ export const createStripeClient = (
           ...options,
           idempotencyKey,
         }),
+    },
+    subscriptions: {
+      cancel: oneById("DELETE", "subscriptions", StripeSubscriptionSchema),
+      retrieve: oneById(
+        "GET",
+        "subscriptions",
+        StripeSubscriptionSchema,
+        {},
+        ASK_ONCE,
+      ),
     },
     webhookEndpoints: {
       create: (params) =>

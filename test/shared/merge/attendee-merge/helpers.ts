@@ -4,6 +4,7 @@ import {
   WORLD,
 } from "#accounting/accounts.ts";
 import { postTransfers } from "#accounting/store.ts";
+import type { ListingAttendeeRow } from "#db/attendee-types.ts";
 import { LISTING_ATTENDEE_ROW_COLS } from "#db/attendees/queries.ts";
 import { queryAll } from "#db/client.ts";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
@@ -40,20 +41,7 @@ export const createAttendeeOn = (
 /** Get bookings for an attendee — `refunded` is projected from the ledger, the
  *  same shape production's merge loader returns. */
 export const getBookings = (attendeeId: number) =>
-  queryAll<{
-    listing_id: number;
-    start_at: string | null;
-    end_at: string | null;
-    quantity: number;
-    checked_in: number;
-    refunded: number;
-    price_paid: number;
-    ledger_event_group: string;
-    attachment_downloads: number;
-    order_token: string;
-    parent_listing_id: number;
-    package_group_id: number;
-  }>(
+  queryAll<ListingAttendeeRow>(
     `SELECT ${LISTING_ATTENDEE_ROW_COLS}
      FROM listing_attendees
      WHERE attendee_id = ?

@@ -82,3 +82,17 @@ export const verifyPrice = async (
     constantTimeEqualBytes(expected, provided)
   );
 };
+
+/** The signed total, or null when the proof cannot establish ownership. */
+export const verifiedPriceTotalOrNull = async (
+  metadata: SignedMetadata & { price_proof: string },
+): Promise<number | null> => {
+  const proof = parsePriceProof(metadata.price_proof);
+  if (
+    proof === null ||
+    !(await verifyPrice(metadata, proof.total, proof.sig))
+  ) {
+    return null;
+  }
+  return proof.total;
+};

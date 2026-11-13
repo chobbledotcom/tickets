@@ -527,12 +527,13 @@ pair is one merge:
   merge, remove the fixed clones with
   `deno run -A scripts/cpd.ts --config <config> --baseline <baseline> --update`.
   Never add a clone to these baselines.
-- A branch must not raise a baseline. The ratchet in `deno task cpd` fails on
-  a clone that the merge base on `origin/main` does not hold, and on a count
-  above the base's, so precommit and CI catch both. It reads every
-  `.jscpd.*baseline.json` in the repository root, and fails on a scan task
-  that names another path, so a new scan's baseline is compared too. Run it on
-  its own with `deno task check:jscpd-baselines`.
+- A branch must not raise a baseline. The ratchet in `deno task cpd` fails
+  when a baseline accepts more clones than the same baseline at the merge
+  base on `origin/main`. A clone can get a new fingerprint when other code
+  changes, so the ratchet compares the total, not each fingerprint. It reads
+  every `.jscpd.*baseline.json` in the repository root, and fails on a scan
+  task that names another path, so a new scan's baseline is compared too. Run
+  it on its own with `deno task check:jscpd-baselines`.
 - After each scan, `deno task cpd` names the worst duplication: the code in the
   most places, then the code with the most tokens. Merge that one first.
 - Import and re-export statements are a sanctioned repeat. The

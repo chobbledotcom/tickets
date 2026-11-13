@@ -9,6 +9,7 @@
  */
 
 import { type CleanupTask, runCleanups } from "#scripts/cleanup.ts";
+import type { StripeCheckoutSessionCreateParams } from "#shared/stripe/client.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 import type { Group, Listing } from "#types";
 
@@ -24,6 +25,13 @@ export interface ThingsByKind {
   browser: TestBrowser;
   /** Things sold together under one name. */
   bundle: Group;
+  /** What the site asked Stripe to charge somebody, and the times just before
+   *  and after it asked. */
+  checkout: {
+    asked: StripeCheckoutSessionCreateParams;
+    sentAfter: number;
+    sentBefore: number;
+  };
   /** A calendar day a story pinned down by name — the day a booking holds,
    *  or the day a move gave some bookings. */
   day: string;

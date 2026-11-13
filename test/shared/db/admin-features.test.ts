@@ -10,6 +10,7 @@ import { parseEnabledFeatures } from "#shared/admin-features.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withDbFault } from "#test-utils/db-fault.ts";
 import {
+  featuresOn,
   SEEDED_FEATURE_RECORDS,
   saveAModifier,
   seedFeatureRecords,
@@ -31,37 +32,49 @@ const saveAnInvoice = (): Promise<unknown> =>
     "INSERT INTO invoices (attendee_id, body, created, share_token, share_token_index) VALUES (1, 'enc:1:a', '2026-11-04T09:00:00.000Z', 'hyb:1:a', 'index-a')",
   );
 
+/** One saved record of each kind that puts a feature in use. */
+/* jscpd:ignore-start -- a list of strings, not code */
+const USE_RECORDS = [
+  [
+    "a logistics agent",
+    "logistics",
+    "INSERT INTO logistics_agents (name) VALUES ('Van')",
+  ],
+  [
+    "a logistics listing",
+    "logistics",
+    "INSERT INTO listings (created, max_attendees, uses_logistics) VALUES ('2026-07-15', 10, 1)",
+  ],
+  [
+    "a recurring listing",
+    "subscriptions",
+    "INSERT INTO listings (created, max_attendees, recurring_price) VALUES ('2026-07-15', 10, 500)",
+  ],
+  [
+    "a subscribed booking",
+    "subscriptions",
+    "INSERT INTO listing_attendees (attendee_id, listing_id, subscription_id) VALUES (1, 1, 'sub_1')",
+  ],
+] as const;
+/* jscpd:ignore-end */
+
 describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
   test("reports every feature unused in an empty database", async () => {
-    expect(await getAdminFeatureUsage()).toEqual({
-      apiKeys: false,
-      attributes: false,
-      externalSources: false,
-      invoices: false,
-      logistics: false,
-      modifiers: false,
-      money: false,
-      questions: false,
-      servicing: false,
-      site: false,
-    });
+    expect(await getAdminFeatureUsage()).toEqual(featuresOn());
   });
 
   test("finds every feature with saved records in one usage result", async () => {
     await seedFeatureRecords(false);
 
-    expect(await getAdminFeatureUsage()).toEqual({
-      apiKeys: true,
-      attributes: true,
-      externalSources: false,
-      invoices: false,
-      logistics: false,
-      modifiers: true,
-      money: false,
-      questions: true,
-      servicing: true,
-      site: false,
-    });
+    expect(await getAdminFeatureUsage()).toEqual(
+      featuresOn(
+        "apiKeys",
+        "attributes",
+        "modifiers",
+        "questions",
+        "servicing",
+      ),
+    );
   });
 
   test("record inserts enable every feature backed by saved data", async () => {
@@ -94,19 +107,18 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
     await execute("UPDATE logistics_agents SET name = 'After'");
     await execute("UPDATE attendees SET pii_blob = 'after'");
     await execute("UPDATE listings SET uses_logistics = 1");
+    await execute("UPDATE listings SET recurring_price = 500");
 
-    expect(await storedFeatures()).toEqual({
-      apiKeys: false,
-      attributes: true,
-      externalSources: false,
-      invoices: false,
-      logistics: true,
-      modifiers: true,
-      money: false,
-      questions: true,
-      servicing: true,
-      site: false,
-    });
+    expect(await storedFeatures()).toEqual(
+      featuresOn(
+        "attributes",
+        "logistics",
+        "modifiers",
+        "questions",
+        "servicing",
+        "subscriptions",
+      ),
+    );
   });
 
   test("ordinary attendees and listings do not enable optional features", async () => {
@@ -144,32 +156,16 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
     expect((await storedFeatures()).logistics).toBe(false);
   });
 
-  test("counts a logistics agent as logistics use", async () => {
-    await execute("INSERT INTO logistics_agents (name) VALUES ('Van')");
-    expect((await getAdminFeatureUsage()).logistics).toBe(true);
-  });
-
-  test("counts a logistics listing as logistics use", async () => {
-    await execute(
-      "INSERT INTO listings (created, max_attendees, uses_logistics) VALUES ('2026-07-15', 10, 1)",
-    );
-    expect((await getAdminFeatureUsage()).logistics).toBe(true);
-  });
+  for (const [what, feature, sql] of USE_RECORDS) {
+    test(`counts ${what} as ${feature} use`, async () => {
+      await execute(sql);
+      expect((await getAdminFeatureUsage())[feature]).toBe(true);
+    });
+  }
 
   test("enables one feature without changing the others", async () => {
     await setAdminFeatureEnabled("modifiers", true);
-    expect(settings.features).toEqual({
-      apiKeys: false,
-      attributes: false,
-      externalSources: false,
-      invoices: false,
-      logistics: false,
-      modifiers: true,
-      money: false,
-      questions: false,
-      servicing: false,
-      site: false,
-    });
+    expect(settings.features).toEqual(featuresOn("modifiers"));
     const stored = await settingValue(CONFIG_KEYS.ENABLED_FEATURES);
     expect(stored.startsWith("{")).toBe(true);
     expect(JSON.parse(stored)).toEqual(settings.features);
@@ -180,18 +176,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
       setAdminFeatureEnabled("money", true),
       setAdminFeatureEnabled("modifiers", true),
     ]);
-    expect(settings.features).toEqual({
-      apiKeys: false,
-      attributes: false,
-      externalSources: false,
-      invoices: false,
-      logistics: false,
-      modifiers: true,
-      money: true,
-      questions: false,
-      servicing: false,
-      site: false,
-    });
+    expect(settings.features).toEqual(featuresOn("modifiers", "money"));
   });
 
   test("bumps the settings version when a feature changes", async () => {
@@ -221,18 +206,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
 
     const stored = await settingValue(CONFIG_KEYS.ENABLED_FEATURES);
     expect(settings.getCachedRaw(CONFIG_KEYS.ENABLED_FEATURES)).toBe(stored);
-    expect(settings.features).toEqual({
-      apiKeys: false,
-      attributes: false,
-      externalSources: false,
-      invoices: false,
-      logistics: false,
-      modifiers: false,
-      money: true,
-      questions: false,
-      servicing: false,
-      site: false,
-    });
+    expect(settings.features).toEqual(featuresOn("money"));
   });
 
   test("syncs cleaned Logistics defaults into the snapshot", async () => {

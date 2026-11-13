@@ -2,6 +2,10 @@ import type Stripe from "stripe";
 import * as v from "valibot";
 import { ResourceIdSchema } from "#payment/resource-id.ts";
 import {
+  RecurringIntervalSchema,
+  SubscriptionStatusSchema,
+} from "#shared/subscriptions/plan.ts";
+import {
   NonEmptyTextSchema,
   OptionalNullableStringSchema,
 } from "#shared/validation/string.ts";
@@ -27,13 +31,25 @@ type StripeCheckoutSessionFields = {
   expires_at: number | null;
   id: string;
   metadata: Stripe.Checkout.Session["metadata"];
+  mode: (typeof StripeSessionModes)[number];
   payment_intent: string | null;
   payment_status: (typeof StripePaymentStatuses)[number];
   /** `expired` names a session whose payment window closed; Stripe refuses
    *  payment on it, so it is a terminal non-payment. */
   status: (typeof StripeSessionStatuses)[number];
+  /** The first invoice of a subscription-mode session. A later invoice of
+   *  the same subscription is a renewal, never the checkout. */
+  invoice: string | null;
+  /** The subscription a completed subscription-mode session started. */
+  subscription: string | null;
   url: string | null;
 };
+
+const StripeSessionModes = [
+  "payment",
+  "setup",
+  "subscription",
+] as const satisfies readonly Stripe.Checkout.Session["mode"][];
 
 const StripeSessionStatuses = [
   "complete",
@@ -47,14 +63,58 @@ export const StripeCheckoutSessionSchema = v.object({
   currency: OptionalNullableStringSchema,
   expires_at: v.nullable(v.number()),
   id: NonEmptyTextSchema,
+  invoice: NonEmptyNullableStringSchema,
   metadata: MetadataSchema,
+  mode: v.picklist(StripeSessionModes),
   payment_intent: NonEmptyNullableStringSchema,
   payment_status: StripePaymentStatusSchema,
   status: v.picklist(StripeSessionStatuses),
+  subscription: NonEmptyNullableStringSchema,
   url: NonEmptyNullableStringSchema,
 }) as v.GenericSchema<unknown, StripeCheckoutSessionFields>;
 
 export type StripeCheckoutSession = StripeCheckoutSessionFields;
+
+/** A subscription. The site starts each subscription with one item, so the
+ * item's price is the charge each period. */
+export const StripeSubscriptionSchema = v.object({
+  id: ResourceIdSchema,
+  items: v.object({
+    data: v.tuple([
+      v.object({
+        price: v.object({
+          recurring: v.object({ interval: RecurringIntervalSchema }),
+          unit_amount: v.number(),
+        }),
+        quantity: v.number(),
+      }),
+    ]),
+  }),
+  metadata: v.record(v.string(), v.string()),
+  status: SubscriptionStatusSchema,
+});
+
+export type StripeSubscription = v.InferOutput<typeof StripeSubscriptionSchema>;
+
+/** One invoice with its payments. A paid entry names the intent that paid it. */
+export const StripeInvoicePaymentsSchema = v.object({
+  id: ResourceIdSchema,
+  payments: v.object({
+    data: v.array(
+      v.object({
+        payment: v.object({
+          payment_intent: v.optional(NonEmptyNullableStringSchema, null),
+          type: v.string(),
+        }),
+        status: v.string(),
+      }),
+    ),
+  }),
+});
+
+export type StripeInvoicePayments = v.InferOutput<
+  typeof StripeInvoicePaymentsSchema
+>;
 
 type StripeExpandedPaymentIntentFields = Pick<Stripe.PaymentIntent, "id"> & {
   latest_charge: null | Pick<

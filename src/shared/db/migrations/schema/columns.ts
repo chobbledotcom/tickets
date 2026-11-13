@@ -7,6 +7,7 @@ duplicated column lists that can drift. */
 import {
   rowId,
   text,
+  textStartingBlank,
   wholeNumber,
   wholeNumberStartingAtZero,
 } from "./scalar-columns.ts";
@@ -63,4 +64,12 @@ export const itemLinkColumns: Column[] = [
 export const statefulColumns: Column[] = [
   ["state", text],
   ["created_at", text],
+];
+
+/** A subscription plan: minor units each period, and week, month, or year. A
+ * listing states the plan a new subscriber gets, before VAT. A booking row
+ * keeps the plan Stripe started, VAT included. A price of 0 means none. */
+export const recurringOfferColumns: Column[] = [
+  ["recurring_price", wholeNumberStartingAtZero],
+  ["recurring_interval", textStartingBlank],
 ];

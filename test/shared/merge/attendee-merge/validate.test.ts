@@ -10,23 +10,11 @@ import type {
   AttendeeMergeDiffBookingItem,
 } from "#shared/merge/attendee-merge-types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { bookingRow } from "#test-utils/factories.ts";
 
 /** A listing-attendee booking row on listing 5, overridable per test. */
-const row = (over: Partial<ListingAttendeeRow> = {}): ListingAttendeeRow => ({
-  attachment_downloads: 0,
-  checked_in: 0,
-  end_at: null,
-  ledger_event_group: "",
-  listing_id: 5,
-  order_token: "",
-  package_group_id: 0,
-  parent_listing_id: 0,
-  price_paid: 0,
-  quantity: 1,
-  refunded: 0,
-  start_at: null,
-  ...over,
-});
+const row = (over: Partial<ListingAttendeeRow> = {}): ListingAttendeeRow =>
+  bookingRow({ listing_id: 5, ...over });
 
 /** A same-listing booking conflict item, overridable per test. */
 const bookingItem = (

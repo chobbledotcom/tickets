@@ -16,10 +16,13 @@ import { isRegistrationClosed } from "#routes/format.ts";
 import { publicPageResponse } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { capacityDateFor } from "#shared/capacity-rules.ts";
+import { priceCheckout } from "#shared/checkout-pricing.ts";
+import { saleProviderOrNull } from "#shared/config.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import { type CheckoutIntent, checkoutItem } from "#shared/payments.ts";
 import { listingSupportsDirectCheckout } from "#shared/qr.ts";
 import { type QrBookPayload, verifyQrBookToken } from "#shared/qr-token.ts";
+import { subscriptionOrderError } from "#shared/subscriptions/checkout-rules.ts";
 import {
   qrBookCheckoutErrorPage,
   qrBookErrorPage,
@@ -116,15 +119,22 @@ const skipToCheckout = (
   payload: QrBookPayload,
 ): Promise<Response> => {
   const intent = buildCheckoutIntent(listing, payload);
+  const onError = (msg: string, status: number) =>
+    publicPageResponse(
+      () => qrBookCheckoutErrorPage(listing.slug, msg),
+      status,
+    );
+  const refusal = subscriptionOrderError(
+    saleProviderOrNull(),
+    intent,
+    priceCheckout(intent).total,
+  );
+  if (refusal !== null) return onError(refusal, 400);
   return runCheckoutFlow(
     `qr-book listing=${listing.id}`,
     request,
     intent,
-    (msg, status) =>
-      publicPageResponse(
-        () => qrBookCheckoutErrorPage(listing.slug, msg),
-        status,
-      ),
+    onError,
   );
 };
 

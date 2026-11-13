@@ -4,6 +4,24 @@
  * schema tests instead of moving the expectation along with it.
  */
 
+/** The text input of a ticket money field, with a 10.00 example. */
+const MONEY_TEXT = {
+  inputmode: "decimal",
+  pattern: "\\d+(\\.\\d{1,2})?",
+  placeholder: "e.g. 10.00",
+  title: "A non-negative number (e.g. 10.00)",
+  type: "text",
+} as const;
+
+/* jscpd:ignore-start -- a list of strings, not code */
+const INTERVAL_CHOICES = [
+  ["Never", ""],
+  ["Week", "week"],
+  ["Month", "month"],
+  ["Year", "year"],
+] as const;
+/* jscpd:ignore-end */
+
 // The expected fields are written out literally so a changed name, label,
 // hint, bound, flag, or choice fails here instead of moving along with it.
 export const LISTING_FIELDS = [
@@ -184,14 +202,10 @@ export const LISTING_FIELDS = [
     type: "checkbox-group",
   },
   {
-    inputmode: "decimal",
+    ...MONEY_TEXT,
     label: "Ticket price (leave empty for free)",
     name: "unit_price",
-    pattern: "\\d+(\\.\\d{1,2})?",
-    placeholder: "e.g. 10.00",
     section: "tickets",
-    title: "A non-negative number (e.g. 10.00)",
-    type: "text",
   },
   {
     hint: "Let attendees pay more than the ticket price (the price above becomes a minimum)",
@@ -205,6 +219,23 @@ export const LISTING_FIELDS = [
     ],
     section: "tickets",
     type: "checkbox-group",
+  },
+  {
+    ...MONEY_TEXT,
+    hint: "Stripe charges this again each period, from one period after the first payment. VAT follows your tax settings. The first payment is the ticket price.",
+    label: "Recurring price (leave empty for an ordinary ticket)",
+    name: "recurring_price",
+    section: "tickets",
+    visible: false,
+  },
+  {
+    hint: "How often Stripe charges the recurring price.",
+    label: "Charge again every",
+    name: "recurring_interval",
+    options: INTERVAL_CHOICES.map(([label, value]) => ({ label, value })),
+    section: "tickets",
+    type: "select",
+    visible: false,
   },
   {
     defaultValue: "100.00",

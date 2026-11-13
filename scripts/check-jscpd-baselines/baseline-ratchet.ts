@@ -1,15 +1,15 @@
 /**
- * The jscpd baseline ratchet: a branch must not accept a clone that the merge
- * base on `origin/main` does not accept. Every `.jscpd.*baseline.json` holds
- * one count per accepted clone fingerprint, so the ratchet compares those
- * counts with the base. A fingerprint the base does not hold, and a count
- * above the base's, both fail. A fingerprint that is gone, and a count below
- * the base's, pass: a baseline only shrinks. See "Code Duplication" in
+ * The jscpd baseline ratchet: a branch must not raise the number of clones
+ * that a `.jscpd.*baseline.json` accepts above the merge base on
+ * `origin/main`. Each baseline holds one count per accepted clone
+ * fingerprint, and the ratchet compares the total of those counts with the
+ * base. A fingerprint can change while the clone count stays the same. A
+ * lower total passes: a baseline only shrinks. See "Code Duplication" in
  * AGENTS.md.
  */
 
 import * as v from "valibot";
-import { flatMap, sort, sortStrings, unique } from "#fp";
+import { flatMap, sort, sortStrings, sum, unique } from "#fp";
 import { formatFinding } from "#scripts/check-report.ts";
 import { parseJsonWith } from "#scripts/read-json.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -112,38 +112,33 @@ export const fingerprintCounts = (
   return parsed.output.fingerprints;
 };
 
-/** The finding lines for one baseline file's clones above the base's counts,
- * in fingerprint order. A fingerprint the base does not hold is absent from
- * the scan's record, so it counts as zero accepted clones there, and any
- * count above zero is a rise. */
+/** The number of clones a baseline accepts. */
+const totalClones = (counts: FingerprintCounts): number =>
+  sum(Object.values(counts));
+
+/** The finding for one baseline file that accepts more clones than the base.
+ * jscpd pairs each clone with the first match it finds, so a change in one
+ * file can give a clone in an unchanged file a new fingerprint. The ratchet
+ * therefore holds the total, not each fingerprint. */
 const risenFindings = (
   path: string,
   head: FingerprintCounts,
   base: FingerprintCounts,
-): string[] =>
-  sort((left: [string, number], right: [string, number]) =>
-    left[0].localeCompare(right[0]),
-  )(
-    Object.entries(head).filter(
-      ([fingerprint, count]) => count > (base[fingerprint] ?? 0),
-    ),
-  ).map(([fingerprint, count]) => {
-    const recorded = base[fingerprint];
-    return recorded === undefined
-      ? formatFinding(`${path}:${fingerprint}`, {
+): string[] => {
+  const [accepted, recorded] = [totalClones(head), totalClones(base)];
+  return accepted > recorded
+    ? [
+        formatFinding(path, {
           fix: "merge the duplicated code, then lower the baseline with --update",
-          problem: `holds ${count} clone(s) that the merge base does not hold`,
-          rule: "added-clone",
-        })
-      : formatFinding(`${path}:${fingerprint}`, {
-          fix: "merge the duplicated code, then lower the baseline with --update",
-          problem: `holds ${count} clone(s), up from ${recorded}`,
-          rule: "raised-clone",
-        });
-  });
+          problem: `accepts ${accepted} clone(s), up from ${recorded}`,
+          rule: "raised-clones",
+        }),
+      ]
+    : [];
+};
 
 /**
- * One baseline file's rises against the merge base, in fingerprint order.
+ * One baseline file's rise against the merge base.
  * `baseText` is undefined when the merge base holds no such file: a new
  * baseline accepts clones that main never accepted, so it fails unless it
  * holds none.
@@ -155,7 +150,7 @@ export const riseFindings = (
 ): string[] => {
   const head = fingerprintCounts(path, headText);
   if (baseText === undefined) {
-    const accepted = Object.keys(head).length;
+    const accepted = totalClones(head);
     return accepted === 0
       ? []
       : [

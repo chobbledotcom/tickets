@@ -7,6 +7,7 @@ import type { AttendeeKind } from "#db/attendees/kind.ts";
 import type { PendingNotificationFlag } from "#db/attendees/notification-flags.ts";
 import type { BookingSource } from "#db/contact-tokens.ts";
 import type { AttendeeCreationFailureReason } from "#shared/attendee-failures.ts";
+import type { SubscriptionPlan } from "#shared/subscriptions/plan.ts";
 import type { Attendee, ContactFields, ContactInfo } from "#types";
 
 /** Per-(child, parent) unit allocation from the booking fold: the quantity of
@@ -99,6 +100,9 @@ export type ListingBooking = {
    * can carry several packages — so tickets/emails group each line under the
    * right bundle by this id. */
   packageGroupId?: number | undefined;
+  /** The plan of the subscription this row bought. Absent for an ordinary
+   *  ticket. */
+  subscription?: SubscriptionPlan | undefined;
 };
 
 /** A concrete booking line — every field resolved (unlike the optional-field
@@ -146,6 +150,16 @@ export type AttendeeInput = ContactFields & {
   created?: string;
 };
 
+/** The columns that keep the Stripe subscription plan of a booking row. A
+ *  write that copies a row copies them all, or the plan is lost. */
+export const SUBSCRIPTION_PLAN_COLUMNS = [
+  "recurring_interval",
+  "recurring_price",
+  "recurring_tax",
+  "subscription_id",
+  "subscription_status",
+] as const;
+
 /** Row from listing_attendees — per-listing booking data */
 export type ListingAttendeeRow = {
   listing_id: number;
@@ -164,6 +178,13 @@ export type ListingAttendeeRow = {
   parent_listing_id: number;
   /** The package group this order belongs to; 0 when not a package order. */
   package_group_id: number;
+  /** The Stripe subscription plan of the row. Blank and zero when the row
+   *  started no subscription. */
+  recurring_interval: string;
+  recurring_price: number;
+  recurring_tax: number;
+  subscription_id: string;
+  subscription_status: string;
 };
 
 /** A booking row of the token reads: the shared booking fields plus the

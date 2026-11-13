@@ -5,6 +5,7 @@ import { getDb, queryAll } from "#db/client.ts";
 import { bookingKey } from "#shared/merge/attendee-merge.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { givePlan, MONTHLY } from "#test-utils/db-helpers/subscriptions.ts";
 import {
   bookingChoice,
   createAttendee,
@@ -169,6 +170,31 @@ describeWithEnv("attendee merge service", { db: true }, () => {
           [target.id, listing.id],
         ),
       ).toEqual([{ quantity: 5 }]);
+    });
+
+    test("keeps the subscription plan of a moved booking", async () => {
+      const { listing2, source, target } = await createMergePair();
+      await givePlan(source.id, "sub_bob", MONTHLY);
+
+      const moved = await runMergeAndGetMovedBooking(
+        source,
+        target,
+        listing2.id,
+      );
+
+      expect({
+        interval: moved.recurring_interval,
+        price: moved.recurring_price,
+        status: moved.subscription_status,
+        subscription: moved.subscription_id,
+        tax: moved.recurring_tax,
+      }).toEqual({
+        interval: "month",
+        price: 600,
+        status: "trialing",
+        subscription: "sub_bob",
+        tax: 100,
+      });
     });
   });
 });

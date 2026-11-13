@@ -27,6 +27,21 @@ import { capacityDateFor } from "#shared/capacity-rules.ts";
 import { dateToStartEnd } from "./range.ts";
 import type { ListingCapacityRow } from "./types.ts";
 
+/** The plan columns a subscription row writes. An ordinary row writes none
+ * and keeps the column defaults. */
+const subscriptionPlanColumns = (
+  plan: ListingBooking["subscription"],
+): [column: string, value: InValue][] =>
+  plan === undefined
+    ? []
+    : [
+        ["recurring_price", plan.amount],
+        ["recurring_tax", plan.tax],
+        ["recurring_interval", plan.interval],
+        ["subscription_id", plan.id],
+        ["subscription_status", plan.status],
+      ];
+
 /** Build an INSERT into listing_attendees, capacity-checked by default. A
  * zero-quantity booking carries no capacity or active condition: it demands
  * no places, so it can land on a full or inactive listing too. By default it
@@ -56,8 +71,11 @@ export const buildCapacityCheckedInsert = (
     const startAtSql = bind(startAt);
     const endAtSql = bind(endAt);
     const quantitySql = bind(quantity);
-    const insertSelect = `INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, order_token, parent_listing_id, package_group_id)
-          SELECT ${listingIdSql}, ${attendeeSql}, ${startAtSql}, ${endAtSql}, ${quantitySql}, ${bind(orderToken)}, ${bind(parentListingId)}, ${bind(packageGroupId)}`;
+    const plan = subscriptionPlanColumns(booking.subscription);
+    const planColumns = plan.map(([column]) => `, ${column}`).join("");
+    const planValues = plan.map(([, value]) => `, ${bind(value)}`).join("");
+    const insertSelect = `INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, order_token, parent_listing_id, package_group_id${planColumns})
+          SELECT ${listingIdSql}, ${attendeeSql}, ${startAtSql}, ${endAtSql}, ${quantitySql}, ${bind(orderToken)}, ${bind(parentListingId)}, ${bind(packageGroupId)}${planValues}`;
     if (allowOverbook) {
       if (extraCondition === undefined) return insertSelect;
       return `${insertSelect}\n          WHERE ${extraCondition(bind)}`;

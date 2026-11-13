@@ -3,20 +3,18 @@ import type {
   StripeCheckoutSession,
   StripeExpandedPaymentIntent,
 } from "#shared/stripe/schemas.ts";
-import { stripeRefund } from "#test-utils/stripe/fixtures.ts";
+import {
+  stripeCheckoutSession,
+  stripeFirstInvoice,
+  stripeRefund,
+  stripeSubscription,
+} from "#test-utils/stripe/fixtures.ts";
 
-const checkout = {
-  amount_total: 1000,
-  created: 123,
-  currency: "gbp",
-  expires_at: 456,
+const checkout = stripeCheckoutSession({
   id: "cs_1",
-  metadata: {},
   payment_intent: "pi_1",
-  payment_status: "paid",
-  status: "complete",
   url: "https://checkout.stripe.com/c/pay/cs_1",
-};
+});
 
 /**
  * A checkout session as `retrieveCheckoutSession` hands it back. Stripe's real
@@ -67,14 +65,20 @@ export const foundStripeIntent = (
   status: "found",
 });
 
+const RESOURCE_REPLIES: readonly (readonly [string, () => unknown])[] = [
+  ["/v1/subscriptions/", stripeSubscription],
+  ["/v1/invoices/", stripeFirstInvoice],
+  ["/v1/payment_intents/", stripeIntentWithCharge],
+];
+
 /** Return valid Stripe fixtures for every operation used by the application. */
 export const stripeResponseFor = (path: string, method: string): Response => {
   if (path === "/v1/balance") return Response.json({ livemode: false });
   if (path === "/v1/refunds") {
     return Response.json(stripeRefund());
   }
-  if (path.startsWith("/v1/payment_intents/")) {
-    return Response.json(stripeIntentWithCharge());
+  for (const [prefix, reply] of RESOURCE_REPLIES) {
+    if (path.startsWith(prefix)) return Response.json(reply());
   }
   if (
     path === "/v1/checkout/sessions" ||

@@ -5,6 +5,7 @@
 import { saleLegPredicate } from "#accounting/projection-sql.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
+import { SUBSCRIPTION_PLAN_COLUMNS } from "#db/attendee-types.ts";
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import { decryptAttendeeFields, decryptPiiBlob } from "#db/attendees/pii.ts";
 import {
@@ -48,7 +49,9 @@ export const listingAttendeeRowColumnsFrom = (sourceName: string): string => {
     column("id"),
   )}, ${column("ledger_event_group")}, ${column("attachment_downloads")}, ${column(
     "order_token",
-  )}, ${column("parent_listing_id")}, ${column("package_group_id")}`;
+  )}, ${column("parent_listing_id")}, ${column("package_group_id")}, ${SUBSCRIPTION_PLAN_COLUMNS.map(
+    column,
+  ).join(", ")}`;
 };
 
 export const LISTING_ATTENDEE_ROW_COLS =

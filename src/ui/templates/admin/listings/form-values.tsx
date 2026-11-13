@@ -66,6 +66,8 @@ const listingFieldFormatters: Partial<
     e.initial_site_months ? String(e.initial_site_months) : "",
   max_price: (e) => toMajorUnits(e.max_price),
   months_per_unit: (e) => (e.months_per_unit ? String(e.months_per_unit) : ""),
+  recurring_price: (e) =>
+    e.recurring_price > 0 ? toMajorUnits(e.recurring_price) : "",
   unit_price: (e) => (e.unit_price > 0 ? toMajorUnits(e.unit_price) : ""),
 };
 

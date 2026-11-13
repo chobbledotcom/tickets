@@ -12,24 +12,14 @@
  */
 
 import { requirePublicStatusId } from "#db/attendee-statuses.ts";
-import type { RowSettlement } from "#db/payment-claim.ts";
-import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
 import {
   type ProcessedPayment,
   prepareSessionFailure,
   releaseReservation,
-  reserveSession,
 } from "#db/processed-payments.ts";
-import { loadRefundAuthorityById } from "#db/provider-refund-authority.ts";
 import { t } from "#i18n";
-import {
-  type PlaceholderRefund,
-  placeholderRefund,
-} from "#payment/placeholder-refund.ts";
-import {
-  type TaggedPaymentReference,
-  taggedPaymentReference,
-} from "#payment/provider-reference.ts";
+import { placeholderRefund } from "#payment/placeholder-refund.ts";
+import { taggedPaymentReference } from "#payment/provider-reference.ts";
 import { completedAtOf } from "#payment/refund-authority-state.ts";
 import type {
   MalformedRejection,
@@ -37,16 +27,18 @@ import type {
 } from "#payment/validated-session.ts";
 import { attendeeBaseFields } from "#routes/api/payment-processing/create.ts";
 import { extractIntentFromMetadata } from "#routes/api/payment-processing/metadata.ts";
-import { completePlaceholderMoney } from "#routes/api/payment-processing/placeholder-completion.ts";
+import { loadRefundResume } from "#routes/api/payment-processing/placeholder-resume.ts";
 import {
-  findHeldAnchor,
-  settlementForHeldClaim,
-} from "#routes/api/payment-processing/placeholder-resume.ts";
-import {
-  type RejectionOutcome,
+  type RejectionHandler,
   type ReturnedRejectionReceipt,
   refundRejectedCharge,
 } from "#routes/api/payment-processing/refunds.ts";
+import {
+  completeRejectedMoney,
+  readRejectedAuthority,
+} from "#routes/api/payment-processing/rejected-money.ts";
+import { withRejectedSession } from "#routes/api/payment-processing/rejected-session.ts";
+import { settleRejectedSubscription } from "#routes/api/payment-processing/rejected-subscription.ts";
 import { staffPaymentDiagnostics } from "#routes/api/payment-processing/staff-diagnostics.ts";
 import {
   datelessGhostBookings,
@@ -70,67 +62,26 @@ const STORED_OUTCOME = {
  * Refund a rejected paid charge and, when the money came back, persist its
  * quantity-0 ghost and Money legs so the authority records mechanically.
  */
-export const settleRejectedCharge = async (
-  rejection: SessionRejection,
-): Promise<RejectionOutcome> => {
+export const settleRejectedCharge: RejectionHandler = async (rejection) => {
+  if (rejection.subscription !== undefined) {
+    return settleRejectedSubscription(rejection);
+  }
   const outcome = await refundRejectedCharge(rejection);
+  const returned = outcome.returned;
   // Only a malformed_charge rejection can carry returned money — a blank
   // reference names no charge, so refundRejectedCharge never refunds one.
-  if (rejection.reason !== "malformed_charge" || outcome.returned === null) {
+  if (rejection.reason !== "malformed_charge" || returned === null) {
     return outcome;
   }
-  const reservation = await reserveSession(rejection.sessionId);
-  if (!reservation.reserved) {
-    await resumeRejectedTarget(
-      rejection,
-      outcome.returned,
-      reservation.existing,
-    );
+  return withRejectedSession(rejection.sessionId, async (reservation) => {
+    if (!reservation.reserved) {
+      await resumeRejectedTarget(rejection, returned, reservation.existing);
+    } else {
+      await storeRejectedTarget(rejection, returned);
+    }
     return outcome;
-  }
-  try {
-    await storeRejectedTarget(rejection, outcome.returned);
-  } catch (error) {
-    // A failure before the outcome is stored must give the fence back, or
-    // redelivery collides with the empty hold until it goes stale. Once the
-    // outcome is stored, the release matches no unresolved row and no-ops.
-    await releaseReservation(rejection.sessionId);
-    throw error;
-  }
-  return outcome;
+  });
 };
-
-/** The one completion call the fresh store and a resumed redelivery share;
- * only where the target's facts come from differs. */
-const completeRejectedMoney =
-  (facts: {
-    readonly amount: number;
-    readonly listingId: number;
-    readonly reference: TaggedPaymentReference;
-    readonly returned: ReturnedRejectionReceipt;
-    readonly sessionId: string;
-    readonly spec: PlaceholderRefund;
-  }) =>
-  async (target: {
-    readonly attendeeId: number;
-    readonly occurredAt: string;
-    readonly settlement: RowSettlement;
-  }): Promise<void> => {
-    await completePlaceholderMoney({
-      activityMessage: `Automatic refund (${facts.spec.code}); rejected payment kept at quantity 0`,
-      amount: facts.amount,
-      attendeeId: target.attendeeId,
-      dueAuthority:
-        facts.returned.local === "due" ? facts.returned.authority : null,
-      listingId: facts.listingId,
-      occurredAt: target.occurredAt,
-      onLedgerMiss: "throw",
-      referenceIndexes: [await paymentReferenceIndex(facts.reference)],
-      sessionId: facts.sessionId,
-      settlement: target.settlement,
-      spec: facts.spec,
-    });
-  };
 
 /**
  * A redelivery that lost the fence: when an earlier delivery stored the
@@ -149,20 +100,24 @@ const resumeRejectedTarget = async (
     rejection.provider,
     rejection.paymentReference,
   );
-  const search = await findHeldAnchor(reference, rejection.sessionId);
-  if (search.held === null) return;
-  const { claim, record } = search.held;
+  const search = await loadRefundResume(
+    reference,
+    rejection.sessionId,
+    (held) =>
+      requireValue(
+        held.record.state.unrecorded,
+        `Resumed rejected anchor for session ${rejection.sessionId} lost its return time`,
+      ).returnedAt,
+  );
+  if (search.target === null) return;
   const intent = requireValue(
     extractIntentFromMetadata(rejection.metadata),
     `Resumed rejected session ${rejection.sessionId} lost its readable metadata`,
   );
-  const authority = requireValue(
-    await loadRefundAuthorityById(returned.authority.id),
-    `Resumed rejected session ${rejection.sessionId} lost its refund authority row`,
-  );
+  const authority = await readRejectedAuthority(returned, rejection.sessionId);
   await completeRejectedMoney({
-    amount: authority.captured.amount,
-    listingId: intent.items[0]!.e,
+    authority,
+    intent,
     reference,
     returned,
     sessionId: rejection.sessionId,
@@ -171,16 +126,7 @@ const resumeRejectedTarget = async (
     spec: placeholderRefund("malformed_charge")(
       `Resumed after a crashed delivery of session ${rejection.sessionId}`,
     ),
-  })({
-    attendeeId: record.attendeeId,
-    // The anchor row was born carrying the instant the money came back, so
-    // every resume posts the same legs the first delivery would have.
-    occurredAt: requireValue(
-      record.state.unrecorded,
-      `Resumed rejected anchor for session ${rejection.sessionId} lost its return time`,
-    ).returnedAt,
-    settlement: settlementForHeldClaim(record.sessionId, claim),
-  });
+  })(search.target);
 };
 
 /**
@@ -228,10 +174,7 @@ const storeRejectedTarget = async (
   // The malformed session cannot say what was captured; the authority's own
   // provider-read money can. A returned receipt means the engine recorded a
   // full provider return, so the row's captured sum is the true round-trip.
-  const authority = requireValue(
-    await loadRefundAuthorityById(returned.authority.id),
-    `Refunded rejected session ${rejection.sessionId} lost its refund authority row`,
-  );
+  const authority = await readRejectedAuthority(returned, rejection.sessionId);
   // The moment the provider finished returning the money — durable on the
   // authority row before the fence, so every delivery posts the same legs.
   const returnInstant = new Date(
@@ -243,7 +186,6 @@ const storeRejectedTarget = async (
   const spec = placeholderRefund("malformed_charge")(
     `Provider reported session ${rejection.sessionId} in a form the site could not read`,
   );
-  const listingId = intent.items[0]!.e;
   const paymentReference = taggedPaymentReference(
     rejection.provider,
     rejection.paymentReference,
@@ -270,8 +212,8 @@ const storeRejectedTarget = async (
   // ledger miss throws: the delivery fails, the provider redelivers, and the
   // authority stays due and visible meanwhile.
   await completeRejectedMoney({
-    amount: authority.captured.amount,
-    listingId,
+    authority,
+    intent,
     reference: paymentReference,
     returned,
     sessionId: rejection.sessionId,
