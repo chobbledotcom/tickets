@@ -4,7 +4,6 @@
  * single-default invariants. The rule owns the field checks both doors share.
  */
 
-import { logActivity } from "#db/activity-log.ts";
 import {
   type AttendeeStatus,
   type AttendeeStatusSaveError,
@@ -20,7 +19,7 @@ import { t } from "#i18n";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { validateReservationAmount } from "#shared/reservation-amount.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
-import type { WriteVerdict } from "#shared/rest/record.ts";
+import { logNameActivity, type WriteVerdict } from "#shared/rest/record.ts";
 import { commitCommand, updateIfPresent } from "#shared/rest/record-command.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 
@@ -40,8 +39,7 @@ export const statusRule = (
   return amountError === null ? okResult(input) : errorResult(amountError);
 };
 
-const logStatus = (name: string, verb: string): Promise<unknown> =>
-  logActivity(`Attendee status '${name}' ${verb}`);
+const logStatus = logNameActivity("Attendee status");
 
 /** Save one status with its activity line. The rule runs first. */
 const saveStatus = (
@@ -62,6 +60,10 @@ const saveStatus = (
     write: (value) => attendeeStatusWrites.save(id, value),
   });
 
+/** The status one delete works on, or the verdict a missing one answers. */
+const statusOrNotFound = (status: AttendeeStatus | null) =>
+  status === null ? { kind: "not-found" as const } : status;
+
 const statusWrites = {
   create: (input: AttendeeStatusWriteInput) =>
     saveStatus(null, input, "created"),
@@ -73,8 +75,8 @@ const statusWrites = {
     | { kind: "refused"; message: string }
     | { kind: "not-found" }
   > => {
-    const status = await getAttendeeStatus(id);
-    if (status === null) return { kind: "not-found" };
+    const status = statusOrNotFound(await getAttendeeStatus(id));
+    if ("kind" in status) return status;
     const reassignTo = typeof input === "number" ? input : undefined;
     const deleted = await attendeeStatusWrites.delete(id, reassignTo);
     if (!deleted.ok) {
@@ -88,9 +90,10 @@ const statusWrites = {
   },
   update: (id: number, input: AttendeeStatusWriteInput) =>
     updateIfPresent(
-      id,
-      async (statusId) => (await getAttendeeStatus(statusId)) !== null,
+      getAttendeeStatus,
       () => saveStatus(id, input, "updated"),
+      id,
+      input,
     ),
 } as const;
 

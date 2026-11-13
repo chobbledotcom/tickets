@@ -4,9 +4,12 @@ import * as v from "valibot";
 import { isNotNullish, reduce } from "#fp";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { type AuthPolicy, type AuthSession, withAuth } from "#routes/auth.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import { objectEntries } from "#shared/rest/api-body-fields.ts";
 import type { WriteMapper } from "#shared/rest/crud-api-types.ts";
+import type { InputValidator } from "#shared/rest/record.ts";
 import {
+  type AsyncResult,
   errorResult,
   okResult,
   parseOptionalResult,
@@ -20,6 +23,15 @@ import {
 
 /** JSON body for confirmed delete endpoints */
 export type DeleteBody = { confirm_identifier: string };
+
+/** Answer one parsed JSON body: run the handler, or its error response. */
+export const answerParsed = async <T>(
+  parsed: AsyncResult<T>,
+  run: ResponseHandler<[value: T]>,
+): Promise<Response> => {
+  const result = await parsed;
+  return result.ok ? run(result.value) : apiErrorResponse(result.error);
+};
 
 /**
  * Parse a required non-empty string field from a JSON body.
@@ -183,7 +195,7 @@ export const withWriteName =
       name: string,
       body: Body,
       existing: Row | null,
-    ) => Result<Input> | Promise<Result<Input>>,
+    ) => AsyncResult<Input>,
   ): WriteMapper<Input, Body, Row | null> =>
   (body, existing) => {
     const name = writeEntityName(body.name, existing?.name ?? null);
@@ -324,8 +336,8 @@ export type ValidatedInput<Input> =
  * error response on failure.
  */
 export const parseAndValidate = async <Input>(
-  parsed: Result<Input> | Promise<Result<Input>>,
-  validate?: (input: Input, id?: number) => Promise<string | null>,
+  parsed: AsyncResult<Input>,
+  validate?: InputValidator<Input>,
   id?: number,
 ): Promise<ValidatedInput<Input>> => {
   const result = await parsed;

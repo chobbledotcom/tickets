@@ -27,13 +27,22 @@ import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { FormSchema } from "#shared/forms/definition.ts";
 import { checkedValues } from "#shared/forms/validation.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import type {
+  DeleteCommand,
   DeleteVerdict,
+  GetAllCommand,
+  LoadCommand,
   RecordActor,
   WriteVerdict,
 } from "#shared/rest/record.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import type { AdminSession } from "#types";
+
+/** A generated command a page calls: it passes no per-call plan. */
+type PageCommand<Args extends unknown[], FullRow> = (
+  ...args: [...Args, plan?: never, actor?: RecordActor]
+) => Promise<WriteVerdict<FullRow>>;
 
 /** The commands and reads the page door needs from a record. A record with
  * transactional state is still assignable: the extra plan argument is
@@ -44,24 +53,11 @@ export type PageRecord<
   FullRow extends Row,
   ListRow = FullRow,
 > = {
-  create: (
-    input: Input,
-    plan?: never,
-    actor?: RecordActor,
-  ) => Promise<WriteVerdict<FullRow>>;
-  update: (
-    id: number,
-    input: Input,
-    plan?: never,
-    actor?: RecordActor,
-  ) => Promise<WriteVerdict<FullRow>>;
-  remove: (
-    id: number,
-    input?: unknown,
-    actor?: RecordActor,
-  ) => Promise<DeleteVerdict>;
-  load: (id: number, actor?: RecordActor) => Promise<FullRow | null>;
-  getAll: (actor?: RecordActor) => Promise<ListRow[]>;
+  create: PageCommand<[input: Input], FullRow>;
+  update: PageCommand<[id: number, input: Input], FullRow>;
+  remove: DeleteCommand;
+  load: LoadCommand<FullRow>;
+  getAll: GetAllCommand<ListRow>;
   nameOf: (row: Row) => string;
   list: AdminDestinationId;
   saveLanding?: AdminDestinationId;
@@ -87,7 +83,20 @@ type FormInputConfig<CreateValues, EditValues, Input> = {
   validateValues?: (values: CreateValues | EditValues) => string | null;
   /** Raw-form validation, before the schema parses it. */
   validateForm?: (form: FormParams) => string | null;
+  /** Mutate the form before validation (demo overrides). */
+  preprocessForm?: (form: FormParams) => void;
 };
+
+/** The destination ids a surface uses for its new, edit, or delete route,
+ * when they do not sit under the collection path. */
+type RouteOverrides = {
+  delete?: AdminDestinationId;
+  edit?: AdminDestinationId;
+  new?: AdminDestinationId;
+};
+
+/** The standard routes a surface does not serve. */
+type SkippedRoutes = readonly ("new" | "edit")[];
 
 /** The page-door facts a record supplies: its renderers, its form, and its
  * confirmation words. `CreateValues` and `EditValues` are separate because an
@@ -113,19 +122,10 @@ export type RecordPagesConfig<
   renderNew?: (session: AdminSession, error?: string) => string;
   /** The noun the flash messages use ("Holiday created"). */
   singular: string;
-  /** The destination ids a surface uses for its new, edit, or delete route,
-   * when they do not sit under the collection path. */
-  routes?: {
-    delete?: AdminDestinationId;
-    edit?: AdminDestinationId;
-    new?: AdminDestinationId;
-  };
-  /** Standard routes this surface does not serve. */
-  skip?: readonly ("new" | "edit")[];
+  routes?: RouteOverrides;
+  skip?: SkippedRoutes;
   /** Handlers that replace a generated standard route. */
   overrides?: Partial<CrudHandlers>;
-  /** Mutate the form before validation (demo overrides). */
-  preprocessForm?: (form: FormParams) => void;
   /** Render a rejected edit in place. Keep the submitted values. */
   renderEditError?: EditErrorRenderer;
   identifierLabel?: string | (() => string);
@@ -200,6 +200,7 @@ const parseFormInput = async <CreateValues, EditValues, Input>(
   form: FormParams,
   edit: boolean,
 ): Promise<Result<Input>> => {
+  config.preprocessForm?.(form);
   const formError = config.validateForm?.(form);
   if (formError) return errorResult(formError);
   if (edit && config.editForm !== undefined) {
@@ -247,13 +248,9 @@ const deleteFailure = async (
  *  the config's route overrides. */
 type PagePathConfig = {
   createErrorPath?: string;
-  routes?: {
-    delete?: AdminDestinationId;
-    edit?: AdminDestinationId;
-    new?: AdminDestinationId;
-  };
+  routes?: RouteOverrides;
   savePath?: (id: number) => string;
-  skip?: readonly ("new" | "edit")[];
+  skip?: SkippedRoutes;
 };
 
 type PagePaths = {
@@ -338,14 +335,6 @@ export const recordPages = <
     );
   const auth = recordGates(listPath, newPath, editPath, deletePath);
 
-  const readInput = async (
-    form: FormParams,
-    edit: boolean,
-  ): Promise<Result<Input>> => {
-    config.preprocessForm?.(form);
-    return parseFormInput(config, form, edit);
-  };
-
   const listGet = config.renderList
     ? authPage(auth.list)(async (session) =>
         config.renderList!(
@@ -363,19 +352,39 @@ export const recordPages = <
           config.renderNew!(session, getFlash().error),
         );
 
+  /** Parse one submitted form, then run the handler or answer its error. */
+  const runParsedForm = async (
+    form: FormParams,
+    edit: boolean,
+    onError: ResponseHandler<[message: string]>,
+    run: ResponseHandler<[input: Input]>,
+  ): Promise<Response> => {
+    const parsed = await parseFormInput(config, form, edit);
+    return parsed.ok ? run(parsed.value) : onError(parsed.error);
+  };
+
   const createPost = (request: Request): Promise<Response> =>
-    formGuardAt(listPath)(request, async (session, form) => {
-      const parsed = await readInput(form, false);
-      if (!parsed.ok) return errorRedirect(createErrorPath, parsed.error);
-      const verdict = await record.create(parsed.value, undefined, {
-        session,
-      });
-      const refusal = refusalOf(verdict);
-      if (refusal !== null) return errorRedirect(createErrorPath, refusal);
-      return verdict.kind === "written"
-        ? redirect(savePath(verdict.row.id), `${config.singular} created`, true)
-        : notFoundResponse();
-    });
+    formGuardAt(listPath)(request, (session, form) =>
+      runParsedForm(
+        form,
+        false,
+        (message) => errorRedirect(createErrorPath, message),
+        async (input) => {
+          const verdict = await record.create(input, undefined, { session });
+          const refusal = refusalOf(verdict);
+          if (refusal !== null) {
+            return errorRedirect(createErrorPath, refusal);
+          }
+          return verdict.kind === "written"
+            ? redirect(
+                savePath(verdict.row.id),
+                `${config.singular} created`,
+                true,
+              )
+            : notFoundResponse();
+        },
+      ),
+    );
 
   const rejectEdit = (
     id: number,
@@ -407,27 +416,24 @@ export const recordPages = <
     );
   };
 
-  const applyEdit = async (
-    id: number,
-    session: AuthSession,
-    form: FormParams,
-  ): Promise<Response> => {
-    const parsed = await readInput(form, true);
-    return parsed.ok
-      ? editVerdict(
-          await record.update(id, parsed.value, undefined, { session }),
-          id,
-          session,
-          form,
-        )
-      : rejectEdit(id, session, form, parsed.error);
-  };
-
   const editPost: IdRouteHandler =
     editPath === null || auth.edit === null
       ? () => notFoundResponse()
       : (request, { id }) =>
-          auth.edit!(request, (session, form) => applyEdit(id, session, form));
+          auth.edit!(request, (session, form) =>
+            runParsedForm(
+              form,
+              true,
+              (message) => rejectEdit(id, session, form, message),
+              async (input) =>
+                editVerdict(
+                  await record.update(id, input, undefined, { session }),
+                  id,
+                  session,
+                  form,
+                ),
+            ),
+          );
 
   const confirmedDelete = createConfirmedHandlers<FullRow, AuthSession>({
     auth: { requireSession: auth.delete, withForm: auth.deleteForm },

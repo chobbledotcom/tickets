@@ -22,18 +22,24 @@ export type CrudSideEffectValidate<Input, FullRow, Prepared> = (
   input: Input,
   body: Record<string, unknown>,
   existing: FullRow | null,
-) => Promise<{ error: string } | { value: Prepared }>;
+) => Promise<PreparedResult<Prepared>>;
+
+/** One write step that runs inside the row's transaction. */
+export type PersistStep<Prepared, State> = (
+  tx: TxScope,
+  id: number,
+  value: Prepared,
+  state: State | null,
+) => Promise<void>;
+
+/** One validation step's answer: the prepared value, or the refusal text. */
+export type PreparedResult<Prepared> = { error: string } | { value: Prepared };
 
 /** An atomic body-only side effect (for example relationship edges) for a
  *  create or update: `validate` runs before the write and either rejects or
  *  yields a prepared value, and `persist` runs in the row's transaction. */
 export interface CrudSideEffect<Input, FullRow, Prepared, State = never> {
-  persist: (
-    tx: TxScope,
-    id: number,
-    value: Prepared,
-    state: State | null,
-  ) => Promise<void>;
+  persist: PersistStep<Prepared, State>;
   validate: CrudSideEffectValidate<Input, FullRow, Prepared>;
 }
 

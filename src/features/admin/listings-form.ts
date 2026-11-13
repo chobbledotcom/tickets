@@ -278,9 +278,15 @@ const writeListingJoins = async (
  * source's package overrides and attribute selections onto the new rows in the
  * SAME transaction. The duplicate then never commits as a live package member
  * at the default price when the override copy fails. */
-const writeCreateListingJoins =
-  (form: FormParams) =>
-  async (tx: TxScope, id: number, input: ListingInput): Promise<void> => {
+/** One listing join write, run inside the row's transaction. */
+type ListingJoinWriter = (
+  tx: TxScope,
+  id: number,
+  input: ListingInput,
+) => Promise<void>;
+
+const writeCreateListingJoins: (form: FormParams) => ListingJoinWriter =
+  (form) => async (tx, id, input) => {
     await writeListingJoins(tx, id, input);
     const sourceId = form.getOptionalInt("duplicated_from");
     if (sourceId !== null) {
@@ -305,13 +311,18 @@ const writeCreateListingJoins =
 const dayPriceError = (form: FormParams): string | null =>
   validateDayPricesFromForm(form);
 
-export type ListingCreateResult =
+/** One listing write's answer: the row, or the text that refused it. */
+type ListingWriteResult =
   | { ok: true; row: ListingWithCount }
   | { ok: false; error: string };
+
+export type ListingCreateResult = ListingWriteResult;
 export type ListingUpdateResult =
-  | { ok: true; row: ListingWithCount }
-  | { ok: false; error: string }
+  | ListingWriteResult
   | { ok: false; notFound: true };
+
+/** One rejected form answer. */
+const invalidInput = (error: string) => ({ error, ok: false as const });
 
 /** One write's success answer, or null for its failure. */
 const writtenResult = <Row>(verdict: WriteVerdict<Row>) =>
@@ -329,9 +340,9 @@ const failedResult = <Row, Missing>(
 export const buildCreateListingResource = (form: FormParams) => ({
   create: async (submitted: FormParams): Promise<ListingCreateResult> => {
     const parsed = checkedValues(getListingForm().validate(submitted));
-    if (!parsed.ok) return { error: parsed.error, ok: false };
+    if (!parsed.ok) return invalidInput(parsed.error);
     const dayError = dayPriceError(submitted);
-    if (dayError !== null) return { error: dayError, ok: false };
+    if (dayError !== null) return invalidInput(dayError);
     const input = await extractListingInput(parsed.value, submitted);
     const verdict = await listingRecord.create(input, {
       persist: (tx, id) => writeCreateListingJoins(form)(tx, id, input),
@@ -376,7 +387,7 @@ export const buildUpdateListingResource = (
       submitted: FormParams,
     ): Promise<ListingUpdateResult> => {
       const parsed = await parseInput(submitted);
-      if (!parsed.ok) return { error: parsed.error, ok: false };
+      if (!parsed.ok) return parsed;
       const dated = parsed.value;
       const verdict = await listingRecord.update(id, dated, {
         // The add-on reachability half of the save refuses inside the row

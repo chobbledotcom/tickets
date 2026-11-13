@@ -44,7 +44,11 @@ import {
   parseAndValidate,
   type RowBodyHandler,
 } from "#shared/rest/crud-parsers.ts";
-import { recordApi, recordJsonPolicy } from "#shared/rest/record-api.ts";
+import {
+  apiHandlerSet,
+  recordApi,
+  recordJsonPolicy,
+} from "#shared/rest/record-api.ts";
 import { transactionValidationMessageOrRethrow } from "#shared/rest/write-error.ts";
 import type { Result } from "#shared/result.ts";
 import type { SitePage, SitePageItem } from "#types";
@@ -345,13 +349,13 @@ export const sitePageApiRoutes = recordApi<
   SitePage
 >(sitePageRecord, {
   customHandlers: fixedPageHandlers,
-  overrides: {
-    create: handleCreate,
-    delete: handleDelete,
-    get: handleGet,
-    list: handleList,
-    update: handleUpdate,
-  },
+  overrides: apiHandlerSet(
+    handleCreate,
+    handleDelete,
+    handleGet,
+    handleList,
+    handleUpdate,
+  ),
   toCreateInput: (body) => toPageWrite(body, null),
   toUpdateInput: (body, existing) => toPageWrite(body, existing),
 });

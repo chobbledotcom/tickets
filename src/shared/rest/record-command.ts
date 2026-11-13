@@ -4,6 +4,7 @@
 import { type TxScope, withTransaction } from "#db/client.ts";
 import type {
   DeleteVerdict,
+  InputValidator,
   RecordRule,
   WriteVerdict,
 } from "#shared/rest/record.ts";
@@ -13,7 +14,7 @@ import { errorResult, okResult, type Result } from "#shared/result.ts";
  *  The stored row supplies that id on update. */
 export const ruleFromValidator =
   <Input, Row extends { id: number }>(
-    validate: (input: Input, id?: number) => Promise<string | null>,
+    validate: InputValidator<Input>,
   ): RecordRule<Input, Row> =>
   async (input, stored) => {
     const error = await validate(input, stored?.id);
@@ -118,26 +119,51 @@ export const transactCommand = async <
     }),
   );
 
-/** Run one update only when its row is present. */
-export const updateIfPresent = async <Row>(
+/** Load one command record's row, then save it. A missing row answers
+ * not-found. */
+export const updateIfPresent = async <Row, Input>(
+  load: (id: number) => Promise<Row | null>,
+  save: (row: Row, input: Input) => Promise<WriteVerdict<Row>>,
   id: number,
-  exists: (id: number) => Promise<boolean>,
-  save: () => Promise<WriteVerdict<Row>>,
-): Promise<WriteVerdict<Row>> =>
-  (await exists(id)) ? save() : { kind: "not-found" };
+  input: Input,
+): Promise<WriteVerdict<Row>> => {
+  const row = await load(id);
+  return row === null ? { kind: "not-found" } : save(row, input);
+};
 
-/** Load one command record's row, delete it, and log the deletion. */
-export const deleteAndLog = async <Row>(
+/** The steps one record delete runs. */
+type DeleteSteps<Row> = {
+  load: (id: number) => Promise<Row | null>;
+  destroy: (row: Row) => Promise<unknown>;
+  log?: (row: Row) => Promise<unknown>;
+};
+
+/** Load one present row, delete it, and answer the verdict. */
+export const deleteIfPresent = async <Row>(
   id: number,
-  config: {
-    load: (id: number) => Promise<Row | null>;
-    destroy: (row: Row) => Promise<unknown>;
-    log: (row: Row) => Promise<unknown>;
-  },
+  config: DeleteSteps<Row>,
 ): Promise<DeleteVerdict> => {
   const row = await config.load(id);
   if (row === null) return { kind: "not-found" };
   await config.destroy(row);
-  await config.log(row);
+  if (config.log) await config.log(row);
   return { kind: "deleted" };
 };
+
+/** Load one command record's row, delete it, and log the deletion. */
+export const deleteAndLog = <Row>(
+  id: number,
+  config: DeleteSteps<Row> & {
+    log: (row: Row) => Promise<unknown>;
+  },
+): Promise<DeleteVerdict> => deleteIfPresent(id, config);
+
+/** Build one record's delete command from its load, destroy, and log steps. */
+export const deleteCommand =
+  <Row>(
+    load: (id: number) => Promise<Row | null>,
+    destroy: (row: Row) => Promise<unknown>,
+    log: (row: Row) => Promise<unknown>,
+  ) =>
+  (id: number): Promise<DeleteVerdict> =>
+    deleteAndLog(id, { destroy, load, log });

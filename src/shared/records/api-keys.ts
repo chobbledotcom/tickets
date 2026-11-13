@@ -41,6 +41,10 @@ const sessionOf = (actor?: RecordActor) => {
   return actor.session;
 };
 
+/** The key one request can read: its id and the session's user. */
+const apiKeyForActor = (id: number, actor?: RecordActor) =>
+  findApiKeyForUser(id, sessionOf(actor).userId);
+
 /** The one API-key rule: a name the page can accept. */
 const apiKeyRule = (input: ApiKeyInput): Result<ApiKeyInput> => {
   const name = input.name.trim();
@@ -89,7 +93,7 @@ export const apiKeyRecord = defineRecord<ApiKeyDisplay, ApiKeyInput>({
   getAll: (actor) => getApiKeysForUser(sessionOf(actor).userId),
   list: "apiKeys",
   load: async (id, actor) => {
-    const key = await findApiKeyForUser(id, sessionOf(actor).userId);
+    const key = await apiKeyForActor(id, actor);
     return key === null ? null : { ...key, created: "", lastUsed: "" };
   },
   logName: (input) => input.name,
@@ -98,18 +102,15 @@ export const apiKeyRecord = defineRecord<ApiKeyDisplay, ApiKeyInput>({
   write: {
     create: createApiKeyCommand,
     remove: async (id, _input, actor) => {
-      const session = sessionOf(actor);
-      const key = await findApiKeyForUser(id, session.userId);
+      const key = await apiKeyForActor(id, actor);
       if (key === null) return { kind: "not-found" };
-      return (await deleteApiKey(id, session.userId))
+      return (await deleteApiKey(id, sessionOf(actor).userId))
         ? { kind: "deleted" }
         : { kind: "not-found" };
     },
-    update: async (id, _input, actor) => {
-      const key = await findApiKeyForUser(id, sessionOf(actor).userId);
-      return key === null
+    update: async (id, _input, actor) =>
+      (await apiKeyForActor(id, actor)) === null
         ? { kind: "not-found" }
-        : { kind: "refused", message: "An API key cannot be renamed" };
-    },
+        : { kind: "refused", message: "An API key cannot be renamed" },
   },
 });

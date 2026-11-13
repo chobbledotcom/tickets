@@ -3,8 +3,7 @@
  * commands. News pages and the Site content editor both read this declaration.
  */
 
-import { logActivity } from "#db/activity-log.ts";
-import { type TxScope, withTransaction } from "#db/client.ts";
+import { withTransaction } from "#db/client.ts";
 import {
   createNewsPost,
   deleteNewsPostWithImages,
@@ -15,20 +14,16 @@ import {
 } from "#db/news-posts.ts";
 import { t } from "#i18n";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
+import { logNameActivity } from "#shared/rest/record.ts";
 import {
-  deleteAndLog,
+  deleteCommand,
   transactCommand,
   updateIfPresent,
 } from "#shared/rest/record-command.ts";
 import { okResult } from "#shared/result.ts";
 import type { NewsPost, NewsPostSummary } from "#types";
 
-const logNews = (
-  name: string,
-  verb: string,
-  transaction?: TxScope,
-): Promise<unknown> =>
-  logActivity(`News post '${name}' ${verb}`, undefined, undefined, transaction);
+const logNews = logNameActivity("News post");
 
 export const newsRecord = defineNamedRowRecord<
   NewsPost,
@@ -49,16 +44,14 @@ export const newsRecord = defineNamedRowRecord<
         await logNews(post.name, "created", tx);
         return { kind: "written", row: post };
       }),
-    remove: (id) =>
-      deleteAndLog(id, {
-        destroy: (post) => deleteNewsPostWithImages(post.id),
-        load: getNewsPostById,
-        log: (post) => logNews(post.name, "deleted"),
-      }),
+    remove: deleteCommand(
+      getNewsPostById,
+      (post) => deleteNewsPostWithImages(post.id),
+      (post) => logNews(post.name, "deleted"),
+    ),
     update: (id, input) =>
       updateIfPresent(
-        id,
-        async (postId) => (await getNewsPostById(postId)) !== null,
+        getNewsPostById,
         () => {
           const slug = input.slug;
           if (slug === undefined) {
@@ -77,6 +70,8 @@ export const newsRecord = defineNamedRowRecord<
             write: (tx, value) => updateNewsPost(id, value, tx),
           });
         },
+        id,
+        input,
       ),
   },
   /* jscpd:ignore-end */

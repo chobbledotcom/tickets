@@ -13,6 +13,7 @@ import {
 } from "#db/email-templates.ts";
 import { settings } from "#db/settings.ts";
 import { defineRecord, type WriteVerdict } from "#shared/rest/record.ts";
+import { deleteIfPresent } from "#shared/rest/record-command.ts";
 import { okResult } from "#shared/result.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 
@@ -29,15 +30,22 @@ const saveTemplate = async (
   id: number | null,
   input: EmailTemplateInput,
 ): Promise<WriteVerdict<EmailTemplateRow>> => {
-  if (id !== null) {
-    if ((await getRawEmailTemplate(id)) === null) return { kind: "not-found" };
-    const sealed = await sealedTemplate(input);
-    await updateEmailTemplate(id, sealed.subject, sealed.body);
-    return { kind: "written", row: { id, subject: input.subject } };
+  if (id !== null && (await getRawEmailTemplate(id)) === null) {
+    return { kind: "not-found" };
   }
   const sealed = await sealedTemplate(input);
-  const created = await insertEmailTemplate(sealed.subject, sealed.body);
-  return { kind: "written", row: { id: created, subject: input.subject } };
+  const writtenId =
+    id ?? (await insertEmailTemplate(sealed.subject, sealed.body));
+  if (id !== null) await updateEmailTemplate(id, sealed.subject, sealed.body);
+  return { kind: "written", row: { id: writtenId, subject: input.subject } };
+};
+
+/** Decrypt one template's subject for the delete page, or null when it is
+ *  gone. */
+const templateSubjectOrNull = async (id: number): Promise<string | null> => {
+  const raw = await getRawEmailTemplate(id);
+  if (raw === null) return null;
+  return decryptWithOwnerKey(raw.subject, await requireRequestPrivateKey());
 };
 
 export const emailTemplateRecord = defineRecord<
@@ -49,25 +57,19 @@ export const emailTemplateRecord = defineRecord<
   getAll: () => Promise.resolve([]),
   list: "emails",
   load: async (id) => {
-    const raw = await getRawEmailTemplate(id);
-    if (raw === null) return null;
-    const privateKey = await requireRequestPrivateKey();
-    return {
-      id,
-      subject: await decryptWithOwnerKey(raw.subject, privateKey),
-    };
+    const subject = await templateSubjectOrNull(id);
+    return subject === null ? null : { id, subject };
   },
   logName: (input) => input.subject,
   nameOf: (template) => template.subject,
   rule: (input) => okResult(input),
   write: {
     create: (input) => saveTemplate(null, input),
-    remove: async (id) => {
-      const raw = await getRawEmailTemplate(id);
-      if (raw === null) return { kind: "not-found" };
-      await deleteEmailTemplate(id);
-      return { kind: "deleted" };
-    },
+    remove: (id) =>
+      deleteIfPresent(id, {
+        destroy: () => deleteEmailTemplate(id),
+        load: getRawEmailTemplate,
+      }),
     update: (id, input) => saveTemplate(id, input),
   },
 });

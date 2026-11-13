@@ -18,7 +18,7 @@ import {
   validateListingInput,
 } from "#shared/listings-actions.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
-import { errorResult, okResult } from "#shared/result.ts";
+import { ruleFromValidator } from "#shared/rest/record-command.ts";
 import type { Listing, ListingWithCount } from "#types";
 
 export const listingRecord = defineNamedRowRecord<
@@ -38,9 +38,6 @@ export const listingRecord = defineNamedRowRecord<
   list: "listings",
   load: getListingWithCount,
   loadAfterWrite: getListingWithCountPrimary,
-  rule: async (input, stored) => {
-    const error = await validateListingInput(input, stored?.id);
-    return error === null ? okResult(input) : errorResult(error);
-  },
+  rule: ruleFromValidator(validateListingInput),
   table: listingsTable,
 });

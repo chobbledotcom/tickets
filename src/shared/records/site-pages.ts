@@ -4,8 +4,6 @@
  * update, read, and delete are overrides on this same declaration.
  */
 
-import { logActivity } from "#db/activity-log.ts";
-import type { TxScope } from "#db/client.ts";
 import { deleteSitePageWithEdges } from "#db/site-page-items.ts";
 import {
   createSitePage,
@@ -17,8 +15,9 @@ import {
 import { t } from "#i18n";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
+import { logNameActivity } from "#shared/rest/record.ts";
 import {
-  deleteAndLog,
+  deleteCommand,
   transactCommand,
   updateIfPresent,
 } from "#shared/rest/record-command.ts";
@@ -26,12 +25,7 @@ import { errorResult, okResult } from "#shared/result.ts";
 import { isReservedSlug } from "#shared/site-pages/core.ts";
 import type { SitePage } from "#types";
 
-const logPage = (
-  name: string,
-  verb: string,
-  transaction?: TxScope,
-): Promise<unknown> =>
-  logActivity(`Page '${name}' ${verb}`, undefined, undefined, transaction);
+const logPage = logNameActivity("Page");
 
 /** The one site-page rule: the public site reserves some slugs, so a page
  *  cannot take one. Both doors answer the same refusal. */
@@ -62,16 +56,14 @@ export const sitePageRecord = defineNamedRowRecord<
         rule: sitePageRule,
         write: (tx, value) => createSitePage(value, tx),
       }),
-    remove: (id) =>
-      deleteAndLog(id, {
-        destroy: (page) => deleteSitePageWithEdges(page.id),
-        load: getSitePageById,
-        log: (page) => logPage(page.name, "deleted"),
-      }),
+    remove: deleteCommand(
+      getSitePageById,
+      (page) => deleteSitePageWithEdges(page.id),
+      (page) => logPage(page.name, "deleted"),
+    ),
     update: (id, input) =>
       updateIfPresent(
-        id,
-        async (pageId) => (await getSitePageById(pageId)) !== null,
+        getSitePageById,
         () =>
           transactCommand<
             SitePage,
@@ -85,6 +77,8 @@ export const sitePageRecord = defineNamedRowRecord<
             rule: sitePageRule,
             write: (tx, value) => updateSitePage(id, value, tx),
           }),
+        id,
+        input,
       ),
   },
   /* jscpd:ignore-end */

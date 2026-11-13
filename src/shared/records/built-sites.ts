@@ -4,13 +4,15 @@
  * writes through its insert/update/delete façade rather than a row statement.
  */
 
-import { logActivity } from "#db/activity-log.ts";
 import type { BuiltSite, BuiltSiteFormInput } from "#db/built-sites/types.ts";
 import { builtSites, builtSitesCrudTable } from "#db/built-sites.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
-import type { DeleteVerdict, WriteVerdict } from "#shared/rest/record.ts";
-import { updateIfPresent } from "#shared/rest/record-command.ts";
-import { transactionValidationMessageOrRethrow } from "#shared/rest/write-error.ts";
+import {
+  answerWrite,
+  logNameActivity,
+  type WriteVerdict,
+} from "#shared/rest/record.ts";
+import { deleteCommand } from "#shared/rest/record-command.ts";
 import { okResult, type Result } from "#shared/result.ts";
 
 /** The one built-site rule: the form and the table own the boundary checks,
@@ -18,27 +20,15 @@ import { okResult, type Result } from "#shared/result.ts";
 const builtSiteRule = (input: BuiltSiteFormInput): Result<BuiltSiteFormInput> =>
   okResult(input);
 
-const logBuiltSite = (name: string, verb: string): Promise<unknown> =>
-  logActivity(`Built site '${name}' ${verb}`);
+const logBuiltSite = logNameActivity("Built site");
 
 /** Write the built-site row and its activity line, mapping a validation
  *  failure to the refusal the handler answers. */
-const commitBuiltSite = async (
+const commitBuiltSite = (
   verb: "created" | "updated",
   write: () => Promise<BuiltSite | null>,
-): Promise<WriteVerdict<BuiltSite>> => {
-  try {
-    const row = await write();
-    if (row === null) return { kind: "not-found" };
-    await logBuiltSite(row.name, verb);
-    return { kind: "written", row };
-  } catch (error) {
-    return {
-      kind: "refused",
-      message: transactionValidationMessageOrRethrow(error),
-    };
-  }
-};
+): Promise<WriteVerdict<BuiltSite>> =>
+  answerWrite(write, (row) => logBuiltSite(row.name, verb));
 
 /** Save one built site and its activity line. The rule runs first. */
 const saveBuiltSite = (
@@ -58,19 +48,13 @@ const saveBuiltSite = (
 
 const builtSiteWrites = {
   create: (input: BuiltSiteFormInput) => saveBuiltSite(null, input, "created"),
-  remove: async (id: number): Promise<DeleteVerdict> => {
-    const site = await builtSitesCrudTable.read.one({ id });
-    if (site === null) return { kind: "not-found" };
-    await builtSitesCrudTable.deleteById(id);
-    await logBuiltSite(site.name, "deleted");
-    return { kind: "deleted" };
-  },
+  remove: deleteCommand(
+    (siteId) => builtSitesCrudTable.read.one({ id: siteId }),
+    (site) => builtSitesCrudTable.deleteById(site.id),
+    (site) => logBuiltSite(site.name, "deleted"),
+  ),
   update: (id: number, input: BuiltSiteFormInput) =>
-    updateIfPresent(
-      id,
-      (siteId) => builtSitesCrudTable.read.exists({ id: siteId }),
-      () => saveBuiltSite(id, input, "updated"),
-    ),
+    saveBuiltSite(id, input, "updated"),
 } as const;
 
 export const builtSiteRecord = defineNamedRowRecord<

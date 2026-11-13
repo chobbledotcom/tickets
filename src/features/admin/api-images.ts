@@ -34,7 +34,7 @@ import {
 import {
   type ImageMetadata,
   type ImageWriteInput,
-  imageMetadata,
+  imageMetadataOrError,
   imageRecord,
   uploadImageFiles,
 } from "#shared/records/images.ts";
@@ -43,7 +43,11 @@ import type {
   WriteBody,
   WriteMapper,
 } from "#shared/rest/crud-api-types.ts";
-import { parseApiBody, withApiEntity } from "#shared/rest/crud-parsers.ts";
+import {
+  answerParsed,
+  parseApiBody,
+  withApiEntity,
+} from "#shared/rest/crud-parsers.ts";
 import {
   recordApi,
   recordJsonDeletePolicy,
@@ -66,33 +70,38 @@ const ID_PARAM = adminApiIdParam(ENTRY.label);
 
 type ImageEntry = typeof ADMIN_API_RESOURCES.images;
 
-/** One image as every image endpoint answers with it. */
-const toImageRow = (
-  image: Image,
-  uses: readonly ImageUse[],
-): Record<string, unknown> => ({
-  alt_text: image.alt_text,
-  id: image.id,
-  items: uses.map(({ item_id: itemId, item_type: itemType }) => ({
+/** The links a row carries, as every image endpoint answers with them. */
+const imageItems = (uses: readonly ImageUse[]) =>
+  uses.map(({ item_id: itemId, item_type: itemType }) => ({
     item_id: itemId,
     item_type: itemType,
-  })),
-  name: image.name,
+  }));
+
+/** The two proxy URLs a row carries. */
+const imageUrls = (image: Image) => ({
   thumb_url: getImageProxyUrl(image.filename_thumb),
   url: getImageProxyUrl(image.filename),
 });
 
-/** The row's hydrated fields: the links and the two proxy URLs. */
-const imageExtras = (
+/** The row an image endpoint answers with. */
+type ImageResponseRow = (
   image: Image,
   uses: readonly ImageUse[],
-): Record<string, unknown> => ({
-  items: uses.map(({ item_id: itemId, item_type: itemType }) => ({
-    item_id: itemId,
-    item_type: itemType,
-  })),
-  thumb_url: getImageProxyUrl(image.filename_thumb),
-  url: getImageProxyUrl(image.filename),
+) => Record<string, unknown>;
+
+/** One image as every image endpoint answers with it. */
+const toImageRow: ImageResponseRow = (image, uses) => ({
+  alt_text: image.alt_text,
+  id: image.id,
+  items: imageItems(uses),
+  name: image.name,
+  ...imageUrls(image),
+});
+
+/** The row's hydrated fields: the links and the two proxy URLs. */
+const imageExtras: ImageResponseRow = (image, uses) => ({
+  items: imageItems(uses),
+  ...imageUrls(image),
 });
 
 const hydrateImages = async (rows: Image[]): Promise<HydratedRows> => {
@@ -131,8 +140,8 @@ const toCreateInput: WriteMapper<
   WriteBody<ImageEntry["createBodySchema"]>,
   null
 > = async (body) => {
-  const metadata = imageMetadata(body.name, body.alt_text ?? "");
-  if (!metadata.ok) return errorResult(metadata.error);
+  const metadata = imageMetadataOrError(body.name, body.alt_text ?? "");
+  if (!metadata.ok) return metadata;
   const bytes = base64Bytes(body.file);
   if (!bytes.ok) return bytes;
   const filenames = await uploadImageFiles({
@@ -150,11 +159,11 @@ const toUpdateInput: WriteMapper<
   WriteBody<ImageEntry["updateBodySchema"]>,
   Image
 > = (body, existing) => {
-  const metadata = imageMetadata(
+  const metadata = imageMetadataOrError(
     body.name ?? existing.name,
     body.alt_text ?? existing.alt_text,
   );
-  if (!metadata.ok) return errorResult(metadata.error);
+  if (!metadata.ok) return metadata;
   return okResult({
     ...metadata.value,
     filename: existing.filename,
@@ -234,25 +243,27 @@ const imageFailure = (verdict: {
     : apiErrorResponse(`${ENTRY.label} not found`, 404);
 
 const handleUpdate: RouteHandlerFn = withImageWrite(
-  async (existing, session, body) => {
-    const parsed = parseApiBody(UpdateImageBodySchema, body);
-    if (!parsed.ok) return apiErrorResponse(parsed.error);
-    const input = await toUpdateInput(parsed.value, existing);
-    if (!input.ok) return apiErrorResponse(input.error);
-    const linkRefusal = submittedLinkRefusal(
-      parsed.value.items,
-      session.adminLevel,
-    );
-    if (linkRefusal !== null) return linkRefusal;
-    const verdict = await imageRecord.update(existing.id, input.value);
-    if (verdict.kind !== "written") return imageFailure(verdict);
-    return jsonResponse({
-      image: toImageRow(
-        verdict.row,
-        await getImageUsesForImageOnPrimary(verdict.row.id),
-      ),
-    });
-  },
+  async (existing, session, body) =>
+    answerParsed(
+      parseApiBody(UpdateImageBodySchema, body),
+      async (parsedValue) => {
+        const input = await toUpdateInput(parsedValue, existing);
+        if (!input.ok) return apiErrorResponse(input.error);
+        const linkRefusal = submittedLinkRefusal(
+          parsedValue.items,
+          session.adminLevel,
+        );
+        if (linkRefusal !== null) return linkRefusal;
+        const verdict = await imageRecord.update(existing.id, input.value);
+        if (verdict.kind !== "written") return imageFailure(verdict);
+        return jsonResponse({
+          image: toImageRow(
+            verdict.row,
+            await getImageUsesForImageOnPrimary(verdict.row.id),
+          ),
+        });
+      },
+    ),
   updatePolicy,
 );
 

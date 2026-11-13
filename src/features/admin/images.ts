@@ -45,7 +45,7 @@ import {
 } from "#shared/images/library.ts";
 import { sortByName } from "#shared/name-order.ts";
 import { imageRecord } from "#shared/records/images.ts";
-import { featureGate } from "#shared/response-steps.ts";
+import { featureGate, type ResponseHandler } from "#shared/response-steps.ts";
 import type { DeleteVerdict, WriteVerdict } from "#shared/rest/record.ts";
 import { recordPages } from "#shared/rest/record-pages.ts";
 import { asIdRoute, asRequestRoute } from "#shared/rest/route-adapters.ts";
@@ -251,9 +251,16 @@ const handleImageEditPost: TypedRouteHandler<"POST /admin/images/:id/edit"> =
       () =>
         adminRedirect("imageEdit", { id: image.id }, t("images.updated"), true),
       () => notFoundResponse(),
-      (message) => adminRedirect("imageEdit", { id: image.id }, message, false),
+      (message) => imageRefusalRedirect("imageEdit", image.id, message),
     );
   });
+
+/** Send a refused image write back to its edit or delete page. */
+const imageRefusalRedirect = (
+  destination: "imageEdit" | "imageDelete",
+  id: number,
+  message: string,
+): Response => adminRedirect(destination, { id }, message, false);
 
 const handleImageDeleteGet: TypedRouteHandler<"GET /admin/images/:id/delete"> =
   imageHandlers.get((image, session, request) => {
@@ -281,7 +288,7 @@ const handleImageDeletePost: TypedRouteHandler<"POST /admin/images/:id/delete"> 
     if (blocked) return blocked;
     const mismatch = confirmDelete(form, image);
     if (mismatch) {
-      return adminRedirect("imageDelete", { id: image.id }, mismatch, false);
+      return imageRefusalRedirect("imageDelete", image.id, mismatch);
     }
     // Delete the stored files first. If storage cleanup fails, keep the DB
     // record so the admin can retry. Otherwise the files sit orphaned under
@@ -301,8 +308,7 @@ const handleImageDeletePost: TypedRouteHandler<"POST /admin/images/:id/delete"> 
       verdict,
       () => notFoundResponse(),
       () => adminRedirect("images", {}, t("images.deleted"), true),
-      (message) =>
-        adminRedirect("imageDelete", { id: image.id }, message, false),
+      (message) => imageRefusalRedirect("imageDelete", image.id, message),
     );
   });
 
@@ -319,12 +325,12 @@ const handleImageOptionsGet: TypedRouteHandler<"GET /admin/images/options"> =
   });
 
 /** Answer one image write: its success redirect, its refusal, or a 404. */
-const answerImageWrite = <Row>(
+const answerImageWrite = async <Row>(
   verdict: WriteVerdict<Row> | DeleteVerdict,
-  written: (row: Row) => Response | Promise<Response>,
-  deleted: () => Response | Promise<Response>,
-  refused: (message: string) => Response | Promise<Response>,
-): Response | Promise<Response> => {
+  written: ResponseHandler<[row: Row]>,
+  deleted: ResponseHandler,
+  refused: ResponseHandler<[message: string]>,
+): Promise<Response> => {
   if (verdict.kind === "refused") return refused(verdict.message);
   if (verdict.kind === "not-found") return notFoundResponse();
   return verdict.kind === "written" ? written(verdict.row) : deleted();

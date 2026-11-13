@@ -11,8 +11,10 @@ import { redirect } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import { adminDestination } from "#shared/admin-surface.ts";
 import type { RecordSurface } from "#shared/rest/record.ts";
-import type { ImageUseItemType } from "#types";
-import { createItemImageHandlers } from "./item-images.ts";
+import {
+  createItemImageHandlers,
+  type ImagePanelRecord,
+} from "./item-images.ts";
 
 type SavedContent = {
   flashMessage: string;
@@ -53,12 +55,11 @@ export const contentPagePaths = (record: RecordSurface) => {
 
 /** The image panel handlers a Site content record shares: the site gates, the
  *  Edit tab as the disabled-storage target, and the record's image path. */
-export const contentImageHandlers = <T>(config: {
-  itemType: ImageUseItemType;
-  load: (id: number) => Promise<T | null>;
-  nameOf: (item: T) => string;
-  record: RecordSurface;
-}) => {
+export const contentImageHandlers = <T>(
+  config: {
+    record: RecordSurface;
+  } & ImagePanelRecord<T>,
+) => {
   const path = adminDestination(config.record.list).pattern;
   return createItemImageHandlers({
     auth: { form: SITE_FORM, multipart: SITE_MULTIPART },

@@ -33,6 +33,7 @@ import {
   throughParent,
 } from "#routes/entity.ts";
 import { adminRedirect, htmlResponse } from "#routes/response.ts";
+import type { AdminPathParams } from "#shared/admin-surface/ids.ts";
 import { adminDestinationAt } from "#shared/admin-surface.ts";
 import {
   createAuthedFormRoute,
@@ -164,12 +165,17 @@ export const renameAttributeOptionWithLog = async (
   await logAttributeOptionActivity(text, "updated in", attribute);
 };
 
+/** One option form's refusal, back on the page that submitted it. */
+const optionFormRefusal =
+  <Id extends "attribute" | "attributeOptionEdit">(destination: Id) =>
+  ({ error, params }: { error: string; params: AdminPathParams<Id> }) =>
+    adminRedirect(destination, params, error, false);
+
 const handleAddOption = createAuthedFormRoute<{ text: string }, { id: number }>(
   {
     auth: formPolicyFor(adminDestinationAt("/admin/attributes/:id/options")),
     form: attributeOptionForm,
-    onInvalid: ({ error, params }) =>
-      adminRedirect("attribute", params, error, false),
+    onInvalid: optionFormRefusal("attribute"),
     onValid: ({ params, values: { text } }) =>
       orNotFound(getAttributeWithOptions(params.id), async (attribute) => {
         await addAttributeOptionWithLog(attribute, text);
@@ -271,8 +277,7 @@ const handleEditOptionPost = createAuthedFormRoute<
   ),
   form: attributeOptionForm,
   loadContext: loadAttributeOption,
-  onInvalid: ({ error, params }) =>
-    adminRedirect("attributeOptionEdit", params, error, false),
+  onInvalid: optionFormRefusal("attributeOptionEdit"),
   onValid: async ({ context: { attribute, option }, values: { text } }) => {
     await renameAttributeOptionWithLog(attribute, option, text);
     return adminRedirect(

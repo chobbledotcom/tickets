@@ -32,7 +32,7 @@ import { ErrorCode, logError } from "#shared/logger.ts";
 import { sortByName } from "#shared/name-order.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
 import type { WriteVerdict } from "#shared/rest/record.ts";
-import { deleteAndLog, ruledCommand } from "#shared/rest/record-command.ts";
+import { deleteCommand, ruledCommand } from "#shared/rest/record-command.ts";
 import { transactionValidationMessageOrRethrow } from "#shared/rest/write-error.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import {
@@ -150,14 +150,22 @@ export type ImageWriteInput = ImageInput & {
   items?: ImageUseTarget[] | null;
 };
 
+/** The metadata both doors store, or the refusal they answer. */
+export const imageMetadataOrError = (
+  name: string,
+  altText: string,
+): Result<ImageMetadata> => {
+  const metadata = imageMetadata(name, altText);
+  return metadata.ok ? metadata : errorResult(metadata.error);
+};
+
 /** The one image rule: the name and alt text both doors answer with. */
 const imageRule = (input: ImageWriteInput): Result<ImageWriteInput> => {
-  const metadata = imageMetadata(input.name, input.altText ?? "");
-  if (!metadata.ok) return errorResult(metadata.error);
+  const metadata = imageMetadataOrError(input.name, input.altText ?? "");
+  if (!metadata.ok) return metadata;
   return okResult({
     ...input,
-    altText: metadata.value.altText,
-    name: metadata.value.name,
+    ...metadata.value,
   });
 };
 
@@ -195,45 +203,55 @@ const updateInTransaction = async (
   return { row };
 };
 
+/** Run the image rule, then the write that stores the image. */
+const imageWrite = (
+  input: ImageWriteInput,
+  run: (value: ImageWriteInput) => Promise<WriteVerdict<Image>>,
+  stored: Image | null,
+): Promise<WriteVerdict<Image>> =>
+  ruledCommand({ input, rule: imageRule, run, stored });
+
 /** The image's three write commands: the upload boundary on create, the
  *  metadata-and-links transaction on update, and the record delete. */
 const imageWrites = {
   create: (input: ImageWriteInput): Promise<WriteVerdict<Image>> =>
-    ruledCommand({
+    imageWrite(
       input,
-      rule: imageRule,
-      run: async (value) => {
+      async (value) => {
         const image = await insertUploadedImage(value);
         await logImageAction("uploaded", image.name);
         return { kind: "written", row: image };
       },
-      stored: null,
-    }),
-  remove: (id: number) =>
-    deleteAndLog(id, {
-      destroy: (image) => deleteImageRecord(image.id),
-      load: getImageById,
-      log: (image) => logImageAction("deleted", image.name),
-    }),
+      null,
+    ),
+  remove: deleteCommand(
+    getImageById,
+    (image) => deleteImageRecord(image.id),
+    (image) => logImageAction("deleted", image.name),
+  ),
   update: async (
     id: number,
     input: ImageWriteInput,
   ): Promise<WriteVerdict<Image>> => {
     const stored = await getImageById(id);
     if (stored === null) return { kind: "not-found" };
-    const ruled = imageRule(input);
-    if (!ruled.ok) return { kind: "refused", message: ruled.error };
-    const outcome = await withTransaction((tx) =>
-      updateInTransaction(tx, stored, ruled.value),
-    ).catch((error) => ({
-      conflict: transactionValidationMessageOrRethrow(error),
-    }));
-    if ("conflict" in outcome) {
-      return { kind: "refused", message: outcome.conflict };
-    }
-    if ("notFound" in outcome) return { kind: "not-found" };
-    await logImageAction("updated", outcome.row.name);
-    return { kind: "written", row: outcome.row };
+    return imageWrite(
+      input,
+      async (value) => {
+        const outcome = await withTransaction((tx) =>
+          updateInTransaction(tx, stored, value),
+        ).catch((error) => ({
+          conflict: transactionValidationMessageOrRethrow(error),
+        }));
+        if ("conflict" in outcome) {
+          return { kind: "refused", message: outcome.conflict };
+        }
+        if ("notFound" in outcome) return { kind: "not-found" };
+        await logImageAction("updated", outcome.row.name);
+        return { kind: "written", row: outcome.row };
+      },
+      stored,
+    );
   },
 } as const;
 
