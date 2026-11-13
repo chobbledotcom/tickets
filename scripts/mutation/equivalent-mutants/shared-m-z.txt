@@ -430,3 +430,10 @@ src/shared/rest/record-api.ts::recordApi.%60GET%20%2fapi%2fadmin%2f$%7bname%7d%2
 src/shared/rest/record-api.ts::recordApi.%60POST%20%2fapi%2fadmin%2f$%7bname%7d%60~09o99ta  ??→|| audited:1ffzijz # routes.create is a route handler function or undefined; a function is never falsy
 src/shared/rest/record-api.ts::recordApi.%60PUT%20%2fapi%2fadmin%2f$%7bname%7d%2f%3a$%7bparamName%7d%60~0tnvf8c  ??→|| audited:1ffzijz # routes.update is a route handler function or undefined; a function is never falsy
 src/shared/rest/record-api.ts::recordApi.%60DELETE%20%2fapi%2fadmin%2f$%7bname%7d%2f%3a$%7bparamName%7d%60~1xjrlr0  ??→|| audited:1ffzijz # routes.delete is a route handler function or undefined; a function is never falsy
+
+# svg-ticket.ts: an empty match group and a missing one both become "".
+src/shared/svg-ticket.ts::extractSvgContent~1wmrkda  ??→|| audited:135uwno # innerMatch[1] is a string or undefined, and both fall back to ""
+
+# svg-ticket.ts: the QR section starts empty two lines above and nothing else
+# adds to it, so the first write reads the same with = and +=.
+src/shared/svg-ticket.ts::generateSvgTicket.qrSection~1lgmz55  =→+= audited:135uwno # qrSection is "" at this write, so += adds nothing
