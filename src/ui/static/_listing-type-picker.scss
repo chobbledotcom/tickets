@@ -34,6 +34,14 @@
   color: inherit;
 }
 
+/* The card's icon: large, in the link colour, so the grid reads at a
+   glance before the labels. */
+.listing-type-card-icon .icon {
+  color: var(--color-link);
+  height: 56px;
+  width: 56px;
+}
+
 .listing-type-card:hover {
   border-color: var(--color-link);
 }

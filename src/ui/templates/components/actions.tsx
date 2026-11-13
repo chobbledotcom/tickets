@@ -13,10 +13,23 @@ import { ICONS_PATH } from "#shared/asset-paths.ts";
 import { type AdminLevel, isStaffRole } from "#types";
 
 /**
+ * Icon ids for the listing type picker cards (the sprite symbols the picker
+ * grid shows above each card label). A subset of {@link IconName}.
+ */
+export type PickerIconName =
+  | "calendar-clock"
+  | "key-round"
+  | "package"
+  | "party-popper"
+  | "sliders-horizontal"
+  | "ticket";
+
+/**
  * Icon ids available in the sprite (src/ui/static/icons.svg).
  * Names match their source icons in Lucide (https://lucide.dev).
  */
 export type IconName =
+  | PickerIconName
   | "plus"
   | "book-open"
   | "user-plus"

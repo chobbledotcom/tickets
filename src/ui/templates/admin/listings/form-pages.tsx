@@ -9,9 +9,14 @@ import {
   inferTemplate,
   LISTING_TEMPLATES,
   type ListingTemplate,
+  type TemplateId,
 } from "#shared/listing-templates.ts";
 import { renderAdminPage } from "#templates/admin/admin-page.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
+import {
+  Icon,
+  type PickerIconName,
+  SubmitButton,
+} from "#templates/components/actions.tsx";
 import type { ChildProps } from "#templates/components/child-props.ts";
 import { ProseIntro } from "#templates/components/prose-intro.tsx";
 import type { AdminSession, Group, ListingWithCount } from "#types";
@@ -89,18 +94,31 @@ type PickerCard = {
   description: string;
   disabled?: boolean;
   href: string;
+  icon: PickerIconName;
   label: string;
+};
+
+/** Each card's icon, keyed by the template it stands for. The custom card
+ *  has no template, so it carries its own. */
+const PICKER_ICONS: Record<TemplateId, PickerIconName> = {
+  "hireable-item": "key-round",
+  "one-off-event": "party-popper",
+  "online-digital": "ticket",
+  "physical-product": "package",
+  "weekly-event": "calendar-clock",
 };
 
 const pickerCard = (
   href: string,
   labelKey: string,
   descriptionKey: string,
+  icon: PickerIconName,
   disabled = false,
 ): PickerCard => ({
   description: t(descriptionKey),
   disabled,
   href,
+  icon,
   label: t(labelKey),
 });
 
@@ -117,6 +135,9 @@ const listingTypeCard = (card: PickerCard): Child => {
       class={classes}
       href={card.disabled ? undefined : card.href}
     >
+      <span class="listing-type-card-icon">
+        <Icon name={card.icon} />
+      </span>
       <strong>{card.label}</strong>
       <span>{card.description}</span>
     </a>
@@ -128,6 +149,7 @@ const templateCard = (tmpl: ListingTemplate): PickerCard =>
     `/admin/listing/new?template=${tmpl.id}`,
     tmpl.label,
     tmpl.description,
+    PICKER_ICONS[tmpl.id],
   );
 
 export const adminListingPickerPage = (session: AdminSession): string => {
@@ -154,6 +176,7 @@ export const adminListingPickerPage = (session: AdminSession): string => {
             "",
             "listings_table.template_hireable_item",
             "listings_table.template_requires_logistics",
+            PICKER_ICONS["hireable-item"],
             true,
           ),
         ]
@@ -163,6 +186,7 @@ export const adminListingPickerPage = (session: AdminSession): string => {
       "/admin/listing/new?template=custom",
       "listings_table.listing_type_picker_custom",
       "listings_table.listing_type_picker_custom_description",
+      "sliders-horizontal",
     ),
   ];
   return renderAdminPage(
