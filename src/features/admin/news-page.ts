@@ -7,7 +7,7 @@
  */
 
 import { getNewsPostById } from "#db/news-posts.ts";
-import type { EntityPage } from "#routes/admin/entity-pages.ts";
+import type { EditEntityPage } from "#routes/admin/entity-write-tab.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 import { newsRecord } from "#shared/records/news.ts";
 import { recordPageIds } from "#shared/rest/record.ts";
@@ -16,13 +16,12 @@ import type { NewsPost } from "#types";
 import { defineSiteContentPage } from "./site-content-page.ts";
 
 /** The tabbed news page. */
-export const newsPage: EntityPage<NewsPost> = defineSiteContentPage<NewsPost>({
-  ...recordPageIds(newsRecord),
-  deleteLabelKey: "news.delete_submit",
-  editPanel: newsEditPanel,
-  guideAnchor: "public-site",
-  itemType: "news",
-  load: (id) => getNewsPostById(id),
-  navActive: adminPattern("news"),
-  titleOf: (post) => post.name,
-});
+export const newsPage: EditEntityPage<NewsPost> =
+  defineSiteContentPage<NewsPost>({
+    ...recordPageIds(newsRecord),
+    deleteLabelKey: "news.delete_submit",
+    editPanel: newsEditPanel,
+    itemType: "news",
+    load: (id) => getNewsPostById(id),
+    navActive: adminPattern("news"),
+  });

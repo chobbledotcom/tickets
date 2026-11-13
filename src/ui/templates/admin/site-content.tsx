@@ -5,6 +5,8 @@
 
 import { t } from "#i18n";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
+import type { SubmittedValueProps } from "#shared/form-data.ts";
+import { editPanel } from "#templates/admin/admin-page.tsx";
 import { renderAdminPageSpec } from "#templates/admin/admin-page-spec.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import {
@@ -80,19 +82,22 @@ export const contentEditPanel: RenderedFieldsSaveForm = renderedFieldsSaveForm(
   t("common.save_changes"),
 );
 
-/** The Edit-tab panel for one Site content entity (Pages, News): its form
- * rendered from the entity's field values, posting to the entity's update
- * route under the section's list path. */
+/** The Edit-tab panel for one Site content entity (Pages, News). The form
+ * posts to the update route of the entity under the list path of the section.
+ * It shows the stored values, or the submitted values of a rejected edit
+ * under the message. */
 export const contentEntityEditPanel =
   <E extends { id: number }, Values>(
     listPath: string,
-    editForm: { render: (values: Values) => string },
+    editForm: { render: (values: Values | Record<string, string>) => string },
     valuesOf: (entity: E) => Values,
   ) =>
-  (entity: E): JSX.Element =>
-    contentEditPanel(
-      `${listPath}/${entity.id}/edit`,
-      editForm.render(valuesOf(entity)),
+  (entity: E, submitted: SubmittedValueProps = {}): JSX.Element =>
+    editPanel(submitted.error)(
+      contentEditPanel(
+        `${listPath}/${entity.id}/edit`,
+        editForm.render(submitted.values ?? valuesOf(entity)),
+      ),
     );
 
 /** The "Guide: …" help link for a Site content page, rendered as a

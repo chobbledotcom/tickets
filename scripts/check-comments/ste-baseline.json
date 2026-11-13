@@ -1764,7 +1764,7 @@
     "banned-modal": 1
   },
   "src/ui/templates/admin/site-content.tsx": {
-    "long-sentence": 2,
+    "long-sentence": 1,
     "contraction": 1
   },
   "src/ui/templates/admin/site.tsx": {

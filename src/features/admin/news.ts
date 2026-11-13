@@ -38,6 +38,7 @@ const pages = recordPages(newsRecord, {
   editForm: newsPostEditForm,
   form: newsPostForm,
   renderDelete: adminNewsDeletePage,
+  renderEditError: newsPage.renderEditError,
   renderList: adminNewsListPage,
   renderNew: adminNewsNewPage,
   toEditInput: (values: NewsContentValues & { slug: string }) => ({

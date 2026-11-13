@@ -95,6 +95,7 @@ const pages = recordPages(sitePageRecord, {
   editForm: sitePageEditForm,
   form: sitePageForm,
   renderDelete: adminSitePageDeletePage,
+  renderEditError: sitePageEntityPage.renderEditError,
   renderList: async (_rows, session, successMessage) =>
     adminSitePagesListPage(await buildListModel(), session, successMessage),
   renderNew: adminSitePageNewPage,

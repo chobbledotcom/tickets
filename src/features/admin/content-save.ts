@@ -52,7 +52,6 @@ export const contentPagePaths = (record: RecordSurface) => {
   const path = adminDestination(record.list).pattern;
   return {
     createErrorPath: `${path}/new`,
-    editErrorPath: (id: number) => `${path}/${id}/edit`,
     savePath: (id: number) => `${path}/${id}/edit`,
   };
 };

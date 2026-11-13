@@ -17,16 +17,11 @@ import {
 } from "#routes/admin/entity-pages.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
-import type { FormParams } from "#shared/form-data.ts";
+import type { FormParams, SubmittedValueProps } from "#shared/form-data.ts";
 
 export interface RejectedEdit {
   error: string;
   form: FormParams;
-}
-
-interface SubmittedValueProps {
-  error?: string;
-  values?: Record<string, string>;
 }
 
 /** Props for a schema-rendered form's rejected submitted state. */
