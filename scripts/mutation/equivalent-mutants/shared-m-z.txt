@@ -411,3 +411,10 @@ src/shared/order-line-items.ts::orderLineItems.name~0am8pen  ??→|| audited:04c
 # crud-api.ts: a resource declares its children and custom routes as an object
 # or leaves them out.
 src/shared/rest/crud-api.ts::declaredRecords~1k64ef7  ?? → || audited:17gpx11 # records: an object or undefined — an object is always truthy
+
+# svg-ticket.ts: an empty match group and a missing one both become "".
+src/shared/svg-ticket.ts::extractSvgContent~1wmrkda  ??→|| audited:135uwno # innerMatch[1] is a string or undefined, and both fall back to ""
+
+# svg-ticket.ts: the QR section starts empty two lines above and nothing else
+# adds to it, so the first write reads the same with = and +=.
+src/shared/svg-ticket.ts::generateSvgTicket.qrSection~1lgmz55  =→+= audited:135uwno # qrSection is "" at this write, so += adds nothing

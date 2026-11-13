@@ -54,6 +54,17 @@ describeWithEnv("svg-ticket", { db: true }, () => {
       const svg = '<svg viewBox="0 0"><rect/></svg>';
       expect(extractViewBox(svg)).toEqual({ height: 180, width: 180 });
     });
+
+    test("keeps a zero side that the viewBox names", () => {
+      expect(extractViewBox('<svg viewBox="0 0 33 0">')).toEqual({
+        height: 0,
+        width: 33,
+      });
+      expect(extractViewBox('<svg viewBox="0 0 0 44">')).toEqual({
+        height: 44,
+        width: 0,
+      });
+    });
   });
 
   describe("buildInfoLines", () => {
@@ -94,6 +105,11 @@ describeWithEnv("svg-ticket", { db: true }, () => {
       const lines = buildInfoLines(makeTicketData({ pricePaid: "0" }));
       expect(lines.every((l) => !l.includes("Price:"))).toBe(true);
     });
+
+    test("includes a price of one penny", () => {
+      const lines = buildInfoLines(makeTicketData({ pricePaid: "1" }));
+      expect(lines.some((l) => l.startsWith("Price:"))).toBe(true);
+    });
   });
 
   describe("ticketBodyBlock", () => {
@@ -111,6 +127,7 @@ describeWithEnv("svg-ticket", { db: true }, () => {
         '<img src="cid:ticket.png" alt="Ticket QR code"',
         "</div>",
       ]);
+      expect(block).toContain('</p><p style="margin:4px 0');
     });
 
     test("escapes the facts a reader sees", () => {
@@ -131,6 +148,7 @@ describeWithEnv("svg-ticket", { db: true }, () => {
 
       assert(!block.includes("<img"));
       assertStringIncludes(block, "Qty: 1");
+      expect(block.endsWith("</p></div>")).toBe(true);
     });
   });
 
@@ -201,6 +219,35 @@ describeWithEnv("svg-ticket", { db: true }, () => {
       assertStringIncludes(svg, "June");
     });
 
+    test("places each info line one line height below the last", async () => {
+      const svg = await generateSvgTicket(
+        makeTicketData({
+          attendeeDate: "2026-06-15",
+          listingLocation: "The Venue",
+        }),
+      );
+
+      expectIncludesAll(svg, ['y="62"', 'y="84"', 'y="106"']);
+      expect(svg).toContain('</text>\n    <text');
+    });
+
+    test("sets the document height from the facts", async () => {
+      expect(await generateSvgTicket(makeTicketData())).toContain(
+        'height="282" viewBox="0 0 400 282"',
+      );
+      expect(
+        await generateSvgTicket(makeTicketData({ purchaseOnly: true })),
+      ).toContain('height="86" viewBox="0 0 400 86"');
+    });
+
+    test("centres the QR code and scales it into the ticket", async () => {
+      const svg = await generateSvgTicket(makeTicketData());
+
+      expect(svg).toContain(
+        '<g transform="translate(110, 78) scale(0.5806451612903226)"',
+      );
+    });
+
     test("omits QR code when purchaseOnly is true", async () => {
       const svg = await generateSvgTicket(
         makeTicketData({ purchaseOnly: true }),
@@ -208,6 +255,7 @@ describeWithEnv("svg-ticket", { db: true }, () => {
       assertStringIncludes(svg, "Summer Concert");
       assert(!svg.includes("<path"));
       assert(!svg.includes("checkin"));
+      expect(svg.endsWith("</text>\n</svg>")).toBe(true);
     });
 
     test("includes listing name and info lines when purchaseOnly is true", async () => {
