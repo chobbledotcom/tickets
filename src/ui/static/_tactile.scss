@@ -1,0 +1,110 @@
+/* Feel: press, focus, and hover feedback on top of the plain design.
+
+   Two constraints keep an operator's custom CSS safe:
+   - Every selector sits inside :where(), so each rule has zero specificity.
+     A rule in style.scss or in /custom.css always wins.
+   - Each rule sets only properties that the base rule for that element leaves
+     alone, and reads its colours from the theme variables. */
+
+:where(:root) {
+  --motion-fast: 120ms;
+  --motion-ease: cubic-bezier(0.2, 0, 0, 1);
+  --press-shift: 1px;
+  --press-scale: 0.97;
+  --color-hover-tint: color-mix(in srgb, var(--color-link) 7%, transparent);
+  accent-color: var(--color-link);
+  caret-color: var(--color-link);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(:root) {
+    --motion-fast: 0s;
+  }
+}
+
+/* Buttons sink and shrink a little under the pointer, like a physical key. The
+   `translate` and `scale` properties leave any `transform` on the button
+   alone. */
+:where(button, input[type="submit"], .btn) {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition:
+    filter var(--motion-fast) var(--motion-ease),
+    translate var(--motion-fast) var(--motion-ease),
+    scale var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    outline-offset var(--motion-fast) var(--motion-ease);
+}
+
+:where(button, input[type="submit"], .btn):where(
+    :active:not(:disabled, .btn--disabled)
+  ) {
+  translate: 0 var(--press-shift);
+  scale: var(--press-scale);
+}
+
+/* One keyboard focus ring for every control. The ring starts at the edge of
+   the control and moves out to its offset. */
+:where(a, summary, input, select, textarea) {
+  transition:
+    border-color var(--motion-fast) var(--motion-ease),
+    outline-offset var(--motion-fast) var(--motion-ease);
+}
+
+:where(a, button, summary, input, select, textarea, [tabindex]):where(
+    :focus-visible
+  ) {
+  outline: 2px solid var(--color-secondary);
+  outline-offset: 2px;
+}
+
+:where(input[type="checkbox"], input[type="radio"]) {
+  cursor: pointer;
+}
+
+/* Text */
+:where(a) {
+  text-underline-offset: 0.15em;
+}
+
+:where(p, li, dd) {
+  text-wrap: pretty;
+}
+
+/* Figures line up digit under digit down a column. */
+:where(.col-amount, .col-quantity) {
+  font-variant-numeric: tabular-nums;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-link) 22%, transparent);
+}
+
+/* Hover feedback only where a pointer can hover, so a tap leaves no stuck
+   highlight. The tint sits on the cells, above the row stripes. */
+@media (hover: hover) {
+  :where(tbody tr:hover) > :where(td, th) {
+    background-color: var(--color-hover-tint);
+  }
+}
+
+:where(td, th, section aside, .listing-type-card, a.cal-day, [role="option"]) {
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-fast) var(--motion-ease);
+}
+
+/* The page dims behind a popup at the speed the popup rises. */
+@keyframes backdrop-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :where(dialog)::backdrop {
+    animation: backdrop-in 0.25s ease-out;
+  }
+}
