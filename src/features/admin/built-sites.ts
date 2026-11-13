@@ -265,6 +265,7 @@ const gateOnBuilder = <Key extends string>(
 
 /** Built site routes (all gated on CAN_BUILD_SITES via gateOnBuilder). The
  * list GET restates the standard key with its own handler. */
+/* jscpd:ignore-start -- a route table is a list of route keys, not code */
 export const adminHandlers = gateOnBuilder(
   defineAdminRoutes({
     ...recordRoutes(
@@ -288,3 +289,4 @@ export const adminHandlers = gateOnBuilder(
     ...databaseKeyRoutes,
   }),
 );
+/* jscpd:ignore-end */

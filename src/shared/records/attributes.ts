@@ -16,15 +16,17 @@ import {
 import type { NamedSortOrderInput } from "#db/common-schema.ts";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
-import type { RecordShapeOf } from "#shared/rest/record.ts";
+import { type RecordShapeOf, recordHead } from "#shared/rest/record.ts";
 
 export const attributeRecord = defineNamedRowRecord<
   RecordShapeOf<Attribute, NamedSortOrderInput, AttributeWithOptions>
 >({
-  activityName: "Attribute",
-  api: ADMIN_API_RESOURCES.attributes,
-  deleteDestination: "attributeDelete",
-  list: "attributes",
+  ...recordHead(
+    "Attribute",
+    ADMIN_API_RESOURCES.attributes,
+    "attributeDelete",
+    "attributes",
+  ),
   onDelete: (id) => deleteAttribute(id),
   order: attributesOrder,
   reads: {

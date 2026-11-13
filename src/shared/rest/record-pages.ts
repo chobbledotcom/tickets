@@ -34,6 +34,7 @@ import type {
   FullRowOf,
   InputOf,
   ListRowOf,
+  LoadCommand,
   RecordShape,
   WriteVerdict,
 } from "#shared/rest/record.ts";
@@ -75,6 +76,20 @@ type RouteOverrides = {
 /** The standard routes a surface does not serve. */
 type SkippedRoutes = readonly ("new" | "edit")[];
 
+/** One record's delete-page render. */
+type RenderDelete<Shape extends RecordShape> = (
+  row: FullRowOf<Shape>,
+  session: AdminSession,
+  error?: string,
+) => string;
+
+/** One record's list-page render. */
+type RenderList<Shape extends RecordShape> = (
+  rows: ListRowOf<Shape>[],
+  session: AdminSession,
+  successMessage?: string,
+) => string | Promise<string>;
+
 /** The page-door facts a record supplies: its renderers, its form, and its
  * confirmation words. `CreateValues` and `EditValues` are separate because an
  * edit form carries a field a create form does not (the group slug). */
@@ -84,16 +99,8 @@ export type RecordPagesConfig<
   EditValues = CreateValues,
   DeleteInput = undefined,
 > = FormInputConfig<CreateValues, EditValues, InputOf<Shape>> & {
-  renderDelete?: (
-    row: FullRowOf<Shape>,
-    session: AdminSession,
-    error?: string,
-  ) => string;
-  renderList?: (
-    rows: ListRowOf<Shape>[],
-    session: AdminSession,
-    successMessage?: string,
-  ) => string | Promise<string>;
+  renderDelete?: RenderDelete<Shape>;
+  renderList?: RenderList<Shape>;
   renderNew?: (session: AdminSession, error?: string) => string;
   /** The noun the flash messages use ("Holiday created"). */
   singular: string;
@@ -278,9 +285,13 @@ const resolvePagePaths = (
   };
 };
 
-/**
- * Build the six standard HTML routes for one record.
- */
+/** Bind a record read to the session the page route hands it. */
+export const loadWithSession =
+  <FullRow>(load: LoadCommand<FullRow>) =>
+  (id: number, session: AuthSession): Promise<FullRow | null> =>
+    load(id, { session });
+
+/** Build the six standard HTML routes for one record. */
 export const recordPages = <
   Shape extends RecordShape,
   CreateValues,
@@ -415,7 +426,7 @@ export const recordPages = <
     identifier: (row: FullRowOf<Shape>) =>
       config.identifier ? config.identifier(row) : record.nameOf(row),
     identifierLabel: config.identifierLabel ?? "",
-    load: (id, session) => record.load(id, { session }),
+    load: loadWithSession(record.load),
     onConfirm: async (_row, id, session, form) => {
       const verdict = await record.remove(
         id,
@@ -451,17 +462,9 @@ export const standardRecordPages = <Shape extends RecordShape, CreateValues>(
   record: AdminRecord<Shape>,
   form: FormSchema<CreateValues>,
   identifierLabel: string,
-  renderDelete: (
-    row: FullRowOf<Shape>,
-    session: AdminSession,
-    error?: string,
-  ) => string,
+  renderDelete: RenderDelete<Shape>,
   renderEditError: EditErrorRenderer,
-  renderList: (
-    rows: ListRowOf<Shape>[],
-    session: AdminSession,
-    successMessage?: string,
-  ) => string | Promise<string>,
+  renderList: RenderList<Shape>,
   renderNew: (session: AdminSession, error?: string) => string,
   singular: string,
   toInput: (

@@ -14,7 +14,6 @@ import {
 } from "#types";
 
 /** The admin areas from `markdownPreview` through `users`. */
-/* jscpd:ignore-start -- the route declaration holds strings and string lists, not code */
 export const AREAS_M_Z = {
   markdownPreview: {
     audience: CONTENT_ADMIN_LEVELS,
@@ -42,6 +41,7 @@ export const AREAS_M_Z = {
     name: "modifiers",
     singular: "modifier",
   }),
+  /* jscpd:ignore-start -- a route list, not code */
   news: recordArea({
     audience: SITE_ADMIN_LEVELS,
     basePath: "/admin/site/news",
@@ -54,6 +54,7 @@ export const AREAS_M_Z = {
     prefix: "news",
     singular: "newsPost",
   }),
+  /* jscpd:ignore-end */
   privacy: {
     audience: OWNER_AUDIENCE,
     view: {
@@ -65,6 +66,7 @@ export const AREAS_M_Z = {
       privacyOrphans: "/admin/privacy/orphans",
     },
   },
+  /* jscpd:ignore-start -- a route list, not code */
   questions: recordArea({
     audience: OWNER_AUDIENCE,
     extraWrites: {
@@ -82,6 +84,7 @@ export const AREAS_M_Z = {
     segments: ["listing"],
     singular: "question",
   }),
+  /* jscpd:ignore-end */
   scanner: {
     audience: DOOR_ADMIN_LEVELS,
     view: {
@@ -217,6 +220,7 @@ export const AREAS_M_Z = {
       siteOrderToggle: "/admin/site/order/toggle",
     },
   },
+  /* jscpd:ignore-start -- a route list, not code */
   sitePages: recordArea({
     audience: SITE_ADMIN_LEVELS,
     basePath: "/admin/site/pages",
@@ -238,6 +242,7 @@ export const AREAS_M_Z = {
     prefix: "sitePage",
     singular: "sitePage",
   }),
+  /* jscpd:ignore-end */
   sms: {
     audience: STAFF_ADMIN_LEVELS,
     view: {
@@ -272,4 +277,3 @@ export const AREAS_M_Z = {
     },
   },
 } as const;
-/* jscpd:ignore-end */

@@ -11,6 +11,7 @@ import type {
   FullRowOf,
   RecordShape,
 } from "#shared/rest/record.ts";
+import { loadWithSession } from "#shared/rest/record-pages.ts";
 import type { NavActive } from "#templates/admin/nav.tsx";
 import {
   defineEditEntityPage,
@@ -19,10 +20,11 @@ import {
   type EditPanelLoader,
 } from "./entity-write-tab.ts";
 
+/** A record whose display name is its row name. */
+type NamedShape = RecordShape & { row: { name: string } };
+
 /** The facts a record's page module still supplies. */
-export type RecordEditPageConfig<
-  Shape extends RecordShape & { row: { name: string } },
-> = Omit<
+export type RecordEditPageConfig<Shape extends NamedShape> = Omit<
   EditEntityPageDef<FullRowOf<Shape>>,
   | "deleteDestination"
   | "deleteLabelKey"
@@ -40,9 +42,7 @@ export type RecordEditPageConfig<
 };
 
 /** Build a record page from the facts every simple record repeats, in order. */
-export const recordEditPageFor = <
-  Shape extends RecordShape & { row: { name: string } },
->(
+export const recordEditPageFor = <Shape extends NamedShape>(
   record: AdminRecord<Shape>,
   deleteDestination: AdminDestinationId,
   deleteLabelKey: string,
@@ -60,15 +60,13 @@ export const recordEditPageFor = <
     edit,
     ...page,
   });
-export const recordEditPage = <
-  Shape extends RecordShape & { row: { name: string } },
->(
+export const recordEditPage = <Shape extends NamedShape>(
   record: AdminRecord<Shape>,
   config: RecordEditPageConfig<Shape>,
 ): EditEntityPage<FullRowOf<Shape>> =>
   defineEditEntityPage({
     ...config,
-    load: (id, session) => record.load(id, { session }),
+    load: loadWithSession(record.load),
     navActive: config.navActive ?? adminPattern(record.list),
     recordId: (row) => row.id,
   });

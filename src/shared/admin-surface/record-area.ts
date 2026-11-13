@@ -5,6 +5,7 @@
  */
 
 import type {
+  AdminAreaBase,
   AdminAudience,
   AdminDestinationSpec,
 } from "#shared/admin-surface/definitions.ts";
@@ -18,9 +19,7 @@ export type RecordArea<
   ExtraWrites extends Record<string, AdminDestinationSpec>,
   SaveToRecord extends boolean,
   ListAfterSave extends boolean,
-> = {
-  readonly audience: AdminAudience;
-  readonly segments?: readonly string[];
+> = AdminAreaBase & {
   readonly view: {
     readonly [K in Name]: ListAfterSave extends true
       ? {

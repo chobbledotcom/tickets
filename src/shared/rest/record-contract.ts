@@ -173,6 +173,14 @@ export type RecordRule<Input, Row> = (
 /** One ordered collection's create-time append. */
 export type RecordOrder = Pick<OrderedCollection<"id", undefined>, "append">;
 
+/** The four facts every record states the same way. */
+export const recordHead = (
+  activityName: string,
+  api: AdminApiResource,
+  deleteDestination: AdminDestinationId,
+  list: AdminDestinationId,
+) => ({ activityName, api, deleteDestination, list });
+
 /**
  * The declaration of one admin record.
  *

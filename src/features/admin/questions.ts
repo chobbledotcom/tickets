@@ -144,6 +144,7 @@ const handleListingQuestionsPost = createListingChoicePost({
 });
 
 /** Questions routes */
+/* jscpd:ignore-start -- a route table is a list of route keys, not code */
 export const adminHandlers = defineAdminRoutes({
   ...recordRoutes(
     adminPattern("questions"),
@@ -167,3 +168,4 @@ export const adminHandlers = defineAdminRoutes({
   "POST /admin/questions/:id/move-down": questionOrder.down,
   "POST /admin/questions/:id/move-up": questionOrder.up,
 });
+/* jscpd:ignore-end */

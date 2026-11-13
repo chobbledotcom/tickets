@@ -339,6 +339,7 @@ const handleModifierRecalculatePost: TypedRouteHandler<"POST /admin/modifiers/re
 
 /** Modifier routes. The edit POST restates the standard key with its own
  * handler. */
+/* jscpd:ignore-start -- a route table is a list of route keys, not code */
 export const adminHandlers = defineAdminRoutes({
   ...recordRoutes(
     adminPattern("modifiers"),
@@ -354,3 +355,4 @@ export const adminHandlers = defineAdminRoutes({
   "POST /admin/modifiers/recalculate/:modifierId":
     handleModifierRecalculatePost,
 });
+/* jscpd:ignore-end */
