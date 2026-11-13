@@ -18,20 +18,20 @@ import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
 import type { RecordShapeOf } from "#shared/rest/record.ts";
 
-/* jscpd:ignore-start -- declarative record config */
 export const attributeRecord = defineNamedRowRecord<
   RecordShapeOf<Attribute, NamedSortOrderInput, AttributeWithOptions>
 >({
   activityName: "Attribute",
   api: ADMIN_API_RESOURCES.attributes,
   deleteDestination: "attributeDelete",
-  getAll: getAllAttributesWithOptions,
   list: "attributes",
-  load: getAttributeWithOptions,
-  loadAfterWrite: getAttributeWithOptionsOnPrimary,
   onDelete: (id) => deleteAttribute(id),
   order: attributesOrder,
+  reads: {
+    all: getAllAttributesWithOptions,
+    one: getAttributeWithOptions,
+    onePrimary: getAttributeWithOptionsOnPrimary,
+  },
   saveLanding: "attribute",
   table: attributesTable,
 });
-/* jscpd:ignore-end */

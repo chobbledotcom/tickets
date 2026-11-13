@@ -54,24 +54,24 @@ export const questionRule = (
   return okResult({ ...input, displayType, text: capped.value });
 };
 
-/* jscpd:ignore-start -- declarative record config */
 export const questionRecord = defineRecord<
   RecordShapeOf<Question, QuestionInput, QuestionWithAnswers>
 >({
   activityName: "Question",
   api: ADMIN_API_RESOURCES.questions,
   deleteDestination: "questionDelete",
-  getAll: getAllQuestionsWithAnswers,
   list: "questions",
-  load: getQuestionWithAnswers,
-  loadAfterWrite: getQuestionWithAnswersOnPrimary,
   logName: (input) => input.text,
   nameField: "text",
   nameOf: (question) => question.text,
   onDelete: (id) => deleteQuestion(id),
   order: questionsOrder,
+  reads: {
+    all: getAllQuestionsWithAnswers,
+    one: getQuestionWithAnswers,
+    onePrimary: getQuestionWithAnswersOnPrimary,
+  },
   rule: questionRule,
   saveLanding: "question",
   table: questionsTable,
 });
-/* jscpd:ignore-end */

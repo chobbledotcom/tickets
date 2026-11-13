@@ -444,3 +444,40 @@ export const recordPages = <
     ...config.overrides,
   };
 };
+
+/** Build the standard six pages from the parts every table-like record
+ *  supplies: its form, its renderers, its noun, and its input mapper. */
+export const standardRecordPages = <Shape extends RecordShape, CreateValues>(
+  record: AdminRecord<Shape>,
+  form: FormSchema<CreateValues>,
+  identifierLabel: string,
+  renderDelete: (
+    row: FullRowOf<Shape>,
+    session: AdminSession,
+    error?: string,
+  ) => string,
+  renderEditError: EditErrorRenderer,
+  renderList: (
+    rows: ListRowOf<Shape>[],
+    session: AdminSession,
+    successMessage?: string,
+  ) => string | Promise<string>,
+  renderNew: (session: AdminSession, error?: string) => string,
+  singular: string,
+  toInput: (
+    values: CreateValues,
+    form: FormParams,
+  ) => InputOf<Shape> | Promise<InputOf<Shape>>,
+  validateValues?: (values: CreateValues) => string | null,
+): CrudHandlers =>
+  recordPages<Shape, CreateValues, CreateValues, never>(record, {
+    form,
+    identifierLabel,
+    renderDelete,
+    renderEditError,
+    renderList,
+    renderNew,
+    singular,
+    toInput,
+    ...(validateValues === undefined ? {} : { validateValues }),
+  });

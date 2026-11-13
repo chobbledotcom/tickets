@@ -208,7 +208,7 @@ export interface RecordSpec<Shape extends RecordShape>
     id: number,
     actor?: RecordActor,
   ) => Promise<string | null>;
-  readonly getAll: GetAllCommand<ListRowOf<Shape>>;
+  readonly getAll?: GetAllCommand<ListRowOf<Shape>>;
   /** Link create/update log entries to the row (the listing log does). */
   readonly linkActivityToRow?: boolean;
   /** The page route whose declaration gives the record its audience. */
@@ -238,6 +238,13 @@ export interface RecordSpec<Shape extends RecordShape>
   readonly order?: RecordOrder;
   /** Read the narrow pre-update state `afterWrite` and `checkTx` need. */
   readonly readState?: TransactionStateReader<StateOf<Shape>>;
+  /** The three reads the record serves, when its db module exports them
+   *  together. A record can name one read directly instead. */
+  readonly reads?: {
+    readonly all: GetAllCommand<ListRowOf<Shape>>;
+    readonly one?: LoadCommand<FullRowOf<Shape>>;
+    readonly onePrimary?: LoadAfterWriteCommand<FullRowOf<Shape>>;
+  };
   /** The one write rule. Both doors run it before any write. */
   readonly rule: RecordRule<InputOf<Shape>, RowOf<Shape>>;
   /** The record page a save lands on, when it differs from the collection's
@@ -264,6 +271,7 @@ export interface AdminRecord<Shape extends RecordShape>
     FullRowOf<Shape>,
     StateOf<Shape>
   >;
+  readonly getAll: GetAllCommand<ListRowOf<Shape>>;
   readonly load: LoadCommand<FullRowOf<Shape>>;
   readonly loadAfterWrite: LoadAfterWriteCommand<FullRowOf<Shape>>;
   readonly remove: DeleteCommand;

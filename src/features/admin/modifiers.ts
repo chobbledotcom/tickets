@@ -28,11 +28,7 @@ import {
   type EditEntityPage,
 } from "#routes/admin/entity-write-tab.ts";
 import { loadAccountLedger } from "#routes/admin/ledger/statements.ts";
-import {
-  crudRoutes,
-  defineAdminRoutes,
-  entityTabRoutes,
-} from "#routes/admin/route-tables.ts";
+import { defineAdminRoutes, recordRoutes } from "#routes/admin/route-tables.ts";
 import { type AuthSession, withAuth } from "#routes/auth.ts";
 import { adminRedirect, notFoundResponse } from "#routes/response.ts";
 import { formPolicyAt } from "#routes/route-gates.ts";
@@ -44,7 +40,7 @@ import { checkedValues } from "#shared/forms/validation.ts";
 import { matchKey } from "#shared/keys.ts";
 import { validateCalcValue } from "#shared/price-modifier.ts";
 import { modifierRecord } from "#shared/records/modifiers.ts";
-import { recordPages } from "#shared/rest/record-pages.ts";
+import { standardRecordPages } from "#shared/rest/record-pages.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { exceedsCurrencyPrecision } from "#shared/validation/money.ts";
 import { adminModifierRecalculatePage } from "#templates/admin/modifiers/aggregates.tsx";
@@ -203,19 +199,18 @@ const modifierPage: EditEntityPage<Modifier> = defineEditEntityPage({
 
 // The list and edit pages load the ledger-projected Modifier. The delete
 // confirmation and every write use the stored ModifierRow.
-/* jscpd:ignore-start -- declarative record page config */
-const pages = recordPages(modifierRecord, {
-  form: getModifierForm(),
-  identifierLabel: t("modifiers.name_label"),
-  renderDelete: adminModifierDeletePage,
-  renderEditError: modifierPage.renderEditError,
-  renderList: adminModifiersPage,
-  renderNew: adminModifierNewPage,
-  singular: "Modifier",
-  toInput: extractModifierInput,
-  validateValues: modifierValuesError,
-});
-/* jscpd:ignore-end */
+const pages = standardRecordPages(
+  modifierRecord,
+  getModifierForm(),
+  t("modifiers.name_label"),
+  adminModifierDeletePage,
+  modifierPage.renderEditError,
+  adminModifiersPage,
+  adminModifierNewPage,
+  "Modifier",
+  extractModifierInput,
+  modifierValuesError,
+);
 
 const withModifier = withEntityLoader(getModifier);
 
@@ -349,9 +344,12 @@ const handleModifierRecalculatePost: TypedRouteHandler<"POST /admin/modifiers/re
 /** Modifier routes. The edit POST restates the standard key with its own
  * handler. */
 export const adminHandlers = defineAdminRoutes({
-  /* jscpd:ignore-start -- declarative route table */
-  ...crudRoutes(adminPattern("modifiers"), pages),
-  ...entityTabRoutes(adminPattern("modifier"), modifierPage),
+  ...recordRoutes(
+    adminPattern("modifiers"),
+    adminPattern("modifier"),
+    pages,
+    modifierPage,
+  ),
   "GET /admin/modifiers/recalculate/:modifierId": handleModifierRecalculateGet,
   "POST /admin/modifiers/:id/answers": handleAnswerLinks,
   "POST /admin/modifiers/:id/edit": handleEditPost,
@@ -359,5 +357,4 @@ export const adminHandlers = defineAdminRoutes({
   "POST /admin/modifiers/:id/revenue": handleRevenueAdjust,
   "POST /admin/modifiers/recalculate/:modifierId":
     handleModifierRecalculatePost,
-  /* jscpd:ignore-end */
 });

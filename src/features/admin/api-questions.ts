@@ -28,7 +28,7 @@ import type {
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { questionRecord } from "#shared/records/questions.ts";
 import {
-  childTextHandlers,
+  childTextConfig,
   recordChildSurface,
 } from "#shared/rest/child-surface.ts";
 import type { HydratedRows } from "#shared/rest/crud-api-types.ts";
@@ -167,28 +167,25 @@ const questionResponse = async (
   );
 };
 
-/* jscpd:ignore-start -- declarative child-route config, one per record */
-const answerHandlers = childTextHandlers({
-  create: async (question, text) => {
-    // Free-text questions collect a typed value, never an answer id, so
-    // the request is refused with the same message the HTML form answers.
-    if (question.display_type === "free_text") {
-      return apiErrorResponse(t("questions.answers.free_text_no_options"));
-    }
-    await addAnswerWithLog(question.id, text);
-    return questionResponse(question.id, 201);
+const answerHandlers = childTextConfig(
+  answerSurface,
+  "Answer text",
+  withAnswerText,
+  (answer) => answer.text,
+  {
+    add: (question, text) => addAnswerWithLog(question.id, text),
+    // Free-text questions collect a typed value, never an answer id, so the
+    // request is refused with the same message the HTML form answers.
+    refuseAdd: (question) =>
+      question.display_type === "free_text"
+        ? apiErrorResponse(t("questions.answers.free_text_no_options"))
+        : null,
+    remove: deleteAnswerWithLog,
+    rename: (question, answer, text) =>
+      updateAnswerWithLog(question, answer, { text }),
+    respond: questionResponse,
   },
-  destroy: (question, answer) => deleteAnswerWithLog(question, answer),
-  label: "Answer text",
-  reader: withAnswerText,
-  surface: answerSurface,
-  textOf: (answer) => answer.text,
-  update: async (question, answer, text) => {
-    await updateAnswerWithLog(question, answer, { text });
-    return questionResponse(question.id);
-  },
-});
-/* jscpd:ignore-end */
+);
 
 /** GET /api/admin/questions/:questionId/bookings — the bookings that answered
  *  the question, newest first. Owner-only, like the question pages. Free text

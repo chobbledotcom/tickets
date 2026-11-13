@@ -98,6 +98,18 @@ export const crudRoutes = <Base extends string>(
     [`POST ${base}/:id/edit`]: crud.editPost,
   }) as CrudRoutes<Base>;
 
+/** Bind a record's six list routes and its two entity tabs under the paths its
+ *  destinations declare, ready to spread into an area's route table. */
+export const recordRoutes = <List extends string, Detail extends string>(
+  listPattern: List,
+  detailPattern: Detail,
+  crud: CrudHandlers,
+  page: Pick<EntityPage<never>, "renderTab">,
+): CrudRoutes<List> & EntityTabRoutes<Detail> => ({
+  ...crudRoutes(listPattern, crud),
+  ...entityTabRoutes(detailPattern, page),
+});
+
 /** Define an admin route table. It refuses any route whose path no declared
  * destination serves. A route without a declaration has no audience, so the
  * role matrix and the nav cannot say who reaches it. A new route must not

@@ -130,6 +130,47 @@ export const childTextHandlers = <
   ),
 });
 
+/** One text-named child's domain writes and its parent response. */
+type TextChildWrites<Parent, Child extends { id: number }> = {
+  add: (parent: Parent, text: string) => Promise<unknown>;
+  remove: (parent: Parent, child: Child) => Promise<unknown>;
+  rename: (parent: Parent, child: Child, text: string) => Promise<unknown>;
+  respond: (parentId: number, status?: number) => Promise<Response>;
+  /** A refusal that depends on the parent, before the add. */
+  refuseAdd?: (parent: Parent) => Response | null;
+};
+
+/** Build a text-named child's three routes from its domain writes. */
+export const childTextConfig = <
+  Parent extends { id: number },
+  Child extends { id: number },
+>(
+  surface: ApiChildSurface<Parent, Child>,
+  label: string,
+  reader: RequiredTextReader,
+  textOf: (child: Child) => string,
+  writes: TextChildWrites<Parent, Child>,
+): CrudChildHandlers =>
+  childTextHandlers({
+    create: async (parent, text) => {
+      const refusal = writes.refuseAdd?.(parent);
+      if (refusal) return refusal;
+      await writes.add(parent, text);
+      return writes.respond(parent.id, 201);
+    },
+    destroy: async (parent, child) => {
+      await writes.remove(parent, child);
+    },
+    label,
+    reader,
+    surface,
+    textOf,
+    update: async (parent, child, text) => {
+      await writes.rename(parent, child, text);
+      return writes.respond(parent.id);
+    },
+  });
+
 /** One child surface whose audience is the parent record's page audience. */
 export const recordChildSurface = <Parent, Child extends { id: number }>(
   record: RecordSurface,

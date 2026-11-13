@@ -9,11 +9,7 @@ import {
 } from "#db/built-sites/types.ts";
 import { builtSites } from "#db/built-sites.ts";
 import { t } from "#i18n";
-import {
-  crudRoutes,
-  defineAdminRoutes,
-  entityTabRoutes,
-} from "#routes/admin/route-tables.ts";
+import { defineAdminRoutes, recordRoutes } from "#routes/admin/route-tables.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import { authPageAt } from "#routes/route-gates.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
@@ -28,7 +24,7 @@ import type { FormValues } from "#shared/forms/definition.ts";
 import { builtSiteRecord } from "#shared/records/built-sites.ts";
 import { isProvisioned, isReservedRenewal } from "#shared/renewal-helpers.ts";
 import { getQualifyingTierListings } from "#shared/renewal-tier.ts";
-import { recordPages } from "#shared/rest/record-pages.ts";
+import { standardRecordPages } from "#shared/rest/record-pages.ts";
 import { siteHostingAccess } from "#shared/site-hosting.ts";
 import { rotateRenewalToken } from "#shared/site-renewal.ts";
 import { provisionSiteScheduler } from "#shared/site-scheduler.ts";
@@ -92,18 +88,17 @@ const extractBuiltSiteInput = (
   };
 };
 
-/* jscpd:ignore-start -- declarative record page config */
-const pages = recordPages(builtSiteRecord, {
-  form: getBuiltSiteForm(),
-  identifierLabel: t("built_sites.name_label"),
-  renderDelete: adminBuiltSiteDeletePage,
-  renderEditError: builtSitePage.renderEditError,
-  renderList: adminBuiltSitesPage,
-  renderNew: adminBuiltSiteNewPage,
-  singular: "Built site",
-  toInput: extractBuiltSiteInput,
-});
-/* jscpd:ignore-end */
+const pages = standardRecordPages(
+  builtSiteRecord,
+  getBuiltSiteForm(),
+  t("built_sites.name_label"),
+  adminBuiltSiteDeletePage,
+  builtSitePage.renderEditError,
+  adminBuiltSitesPage,
+  adminBuiltSiteNewPage,
+  "Built site",
+  extractBuiltSiteInput,
+);
 
 const handleProvisionSiteScheduler = builtSiteFormPost(
   async (site, _session, _form, _request) =>
@@ -272,9 +267,12 @@ const gateOnBuilder = <Key extends string>(
  * list GET restates the standard key with its own handler. */
 export const adminHandlers = gateOnBuilder(
   defineAdminRoutes({
-    /* jscpd:ignore-start -- declarative route table */
-    ...crudRoutes(adminPattern("builtSites"), pages),
-    ...entityTabRoutes(adminPattern("builtSite"), builtSitePage),
+    ...recordRoutes(
+      adminPattern("builtSites"),
+      adminPattern("builtSite"),
+      pages,
+      builtSitePage,
+    ),
     "GET /admin/built-sites": handleBuiltSitesListGet,
     "POST /admin/built-sites/:id/add-secrets": handleAddSecrets,
     "POST /admin/built-sites/:id/add-uptime-monitor": handleAddUptimeMonitor,
@@ -288,6 +286,5 @@ export const adminHandlers = gateOnBuilder(
     "POST /admin/built-sites/:id/support-message": handleSaveSiteSupportMessage,
     "POST /admin/built-sites/:id/update": handleUpdateSite,
     ...databaseKeyRoutes,
-    /* jscpd:ignore-end */
   }),
 );

@@ -89,8 +89,17 @@ export const defineRecord = <Shape extends RecordShape>(
   type Input = InputOf<Shape>;
   type FullRow = FullRowOf<Shape>;
   type State = StateOf<Shape>;
+  const getAll =
+    spec.getAll ??
+    spec.reads?.all ??
+    (() => {
+      throw new Error(
+        `The record for ${spec.list} declares no collection read`,
+      );
+    });
   const load =
     spec.load ??
+    spec.reads?.one ??
     (spec.table === undefined
       ? () => {
           throw new Error(`The record for ${spec.list} declares no load read`);
@@ -98,6 +107,7 @@ export const defineRecord = <Shape extends RecordShape>(
       : defaultLoad(false)<Row, Input, FullRow>(spec.table));
   const loadAfterWrite =
     spec.loadAfterWrite ??
+    spec.reads?.onePrimary ??
     (spec.table === undefined
       ? load
       : defaultLoad(true)<Row, Input, FullRow>(spec.table));
@@ -323,6 +333,7 @@ export const defineRecord = <Shape extends RecordShape>(
   return {
     ...spec,
     ...commands,
+    getAll,
     load,
     loadAfterWrite,
   };

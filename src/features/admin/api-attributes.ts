@@ -19,7 +19,7 @@ import { reReadResponse } from "#routes/response.ts";
 import type { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { attributeRecord } from "#shared/records/attributes.ts";
 import {
-  childTextHandlers,
+  childTextConfig,
   recordChildSurface,
 } from "#shared/rest/child-surface.ts";
 import { withRequiredText, withWriteName } from "#shared/rest/crud-parsers.ts";
@@ -61,24 +61,18 @@ const attributeResponse = reReadResponse(
   getAttributeWithOptionsOnPrimary,
 );
 
-/* jscpd:ignore-start -- declarative child-route config, one per record */
-const optionHandlers = childTextHandlers({
-  create: async (attribute, text) => {
-    await addAttributeOptionWithLog(attribute, text);
-    return attributeResponse(attribute.id, 201);
+const optionHandlers = childTextConfig(
+  optionSurface,
+  "Option text",
+  withRequiredText,
+  (option) => option.text,
+  {
+    add: addAttributeOptionWithLog,
+    remove: deleteAttributeOptionWithLog,
+    rename: renameAttributeOptionWithLog,
+    respond: attributeResponse,
   },
-  destroy: (attribute, option) =>
-    deleteAttributeOptionWithLog(attribute, option),
-  label: "Option text",
-  reader: withRequiredText,
-  surface: optionSurface,
-  textOf: (option) => option.text,
-  update: async (attribute, option, text) => {
-    await renameAttributeOptionWithLog(attribute, option, text);
-    return attributeResponse(attribute.id);
-  },
-});
-/* jscpd:ignore-end */
+);
 
 export const attributeApiRoutes = recordApi<
   typeof ADMIN_API_RESOURCES.attributes,
