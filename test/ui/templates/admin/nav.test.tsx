@@ -23,6 +23,9 @@ describeWithEnv("AdminNav", {}, () => {
       "site",
     ),
   );
+  const navHtml = (active: string, adminLevel: AdminLevel): string =>
+    String(AdminNav({ active, session: { adminLevel } }));
+
   /** Assert every role in `adminLevels` sees a nav link to `href` labelled
    *  `text` (rendered from the "/admin/" landing nav). */
   const expectLinkForRoles = (
@@ -31,9 +34,7 @@ describeWithEnv("AdminNav", {}, () => {
     adminLevels: readonly AdminLevel[],
   ): void => {
     for (const adminLevel of adminLevels) {
-      const html = String(
-        AdminNav({ active: "/admin/", session: { adminLevel } }),
-      );
+      const html = navHtml("/admin/", adminLevel);
       assertStringIncludes(html, `href="${href}"`, adminLevel);
       assertStringIncludes(html, text, adminLevel);
     }
@@ -201,10 +202,9 @@ describeWithEnv("AdminNav", {}, () => {
   });
 
   test("Invite User stays owner-only", () => {
-    const managerHtml = String(
-      AdminNav({ active: "/admin/users", session: { adminLevel: "manager" } }),
+    expect(navHtml("/admin/users", "manager")).not.toContain(
+      `href="${adminDestination("userNew").pattern}"`,
     );
-    assert(!managerHtml.includes('href="/admin/user/new"'));
   });
 
   test("AdminNav hides every 'Add X' create link in read-only mode, keeping the section links", () => {

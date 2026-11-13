@@ -1,8 +1,9 @@
 /**
  * The destinations every record area declares. It gives the list, the record
- * page, the edit and delete writes, and the create write. The create write is
- * absent when the record has no new page. The ids and paths derive from the
- * record's names, so a route and its gate cannot name different paths.
+ * page, the edit and delete writes, and the create write. An area names each
+ * page its record does not have, and that destination is then absent. The ids
+ * and paths derive from the record's names, so a route and its gate cannot
+ * name different paths.
  */
 
 import type {
@@ -13,55 +14,81 @@ import type {
 
 /** The names and switches one record area is built from. */
 type AreaSpec = {
+  readonly extraViews: Record<string, AdminDestinationSpec>;
   readonly extraWrites: Record<string, AdminDestinationSpec>;
   readonly listAfterSave: boolean;
   readonly name: string;
-  readonly newPage: boolean;
+  /** The pages the record has: its own page, an edit form, a new page. */
+  readonly pages: { detail: boolean; edit: boolean; new: boolean };
   readonly path: string;
   readonly prefix: string;
   readonly saveToRecord: boolean;
   readonly singular: string;
 };
 
-/** One record area's list, detail, and write destinations. */
-type RecordArea<Spec extends AreaSpec> = AdminAreaBase & {
-  /** The ids the record that names this area reads its routes from. */
-  readonly record: {
-    readonly detail: Spec["singular"];
-    readonly list: Spec["name"];
-    /** False when the record is created on its list page. */
-    readonly newPage: Spec["newPage"];
-    readonly remove: `${Spec["prefix"]}Delete`;
-  };
-  readonly view: {
-    readonly [K in Spec["name"]]: Spec["listAfterSave"] extends true
-      ? {
-          readonly afterSave: Spec["singular"];
-          readonly pattern: Spec["path"];
-        }
-      : Spec["path"];
-  } & {
-    readonly [K in Spec["singular"]]: `${Spec["path"]}/:id`;
-  };
-  readonly write: {
-    readonly [K in `${Spec["prefix"]}Delete`]: {
-      readonly audience?: AdminAudience;
-      readonly pattern: `${Spec["path"]}/:id/delete`;
-    };
-  } & {
-    readonly [K in `${Spec["prefix"]}Edit`]: Spec["saveToRecord"] extends true
-      ? {
-          readonly afterSave: Spec["singular"];
-          readonly pattern: `${Spec["path"]}/:id/edit`;
-        }
-      : `${Spec["path"]}/:id/edit`;
-  } & (Spec["newPage"] extends false
-      ? unknown
-      : { readonly [K in `${Spec["prefix"]}New`]: `${Spec["path"]}/new` }) &
-    Spec["extraWrites"];
-};
+/** The entries, or nothing when the area's record has no such page. */
+type WhenPage<Page extends boolean, Entries> = Page extends false
+  ? unknown
+  : Entries;
 
-/** The declared area, with every fact its record reads. */
+/** One record area's list, detail, and write destinations. */
+type RecordArea<Spec extends AreaSpec> = AdminAreaBase &
+  WhenPage<
+    Spec["pages"]["detail"],
+    {
+      /** The ids the record that names this area reads its routes from. */
+      readonly record: {
+        readonly detail: Spec["singular"];
+        readonly list: Spec["name"];
+        /** False when the record is created on its list page. */
+        readonly newPage: Spec["pages"]["new"];
+        readonly remove: `${Spec["prefix"]}Delete`;
+      };
+    }
+  > & {
+    readonly view: {
+      readonly [K in Spec["name"]]: Spec["listAfterSave"] extends true
+        ? {
+            readonly afterSave: Spec["singular"];
+            readonly pattern: Spec["path"];
+          }
+        : Spec["path"];
+    } & WhenPage<
+      Spec["pages"]["detail"],
+      { readonly [K in Spec["singular"]]: `${Spec["path"]}/:id` }
+    > &
+      Spec["extraViews"];
+    readonly write: {
+      readonly [K in `${Spec["prefix"]}Delete`]: {
+        readonly audience?: AdminAudience;
+        readonly pattern: `${Spec["path"]}/:id/delete`;
+      };
+    } & WhenPage<
+      Spec["pages"]["edit"],
+      {
+        readonly [K in `${Spec["prefix"]}Edit`]: Spec["saveToRecord"] extends true
+          ? {
+              readonly afterSave: Spec["singular"];
+              readonly pattern: `${Spec["path"]}/:id/edit`;
+            }
+          : `${Spec["path"]}/:id/edit`;
+      }
+    > &
+      WhenPage<
+        Spec["pages"]["new"],
+        { readonly [K in `${Spec["prefix"]}New`]: `${Spec["path"]}/new` }
+      > &
+      Spec["extraWrites"];
+  };
+
+/** No extra destinations. */
+type NoExtras = Record<never, never>;
+
+/** The entries, or none when the switch is off. */
+const whenPage = <Entries extends object>(
+  page: boolean,
+  entries: Entries,
+): Entries | NoExtras => (page ? entries : {});
 
 /**
  * Declare a record's destinations. The list path defaults to
@@ -73,17 +100,23 @@ export const recordArea = <
   const Singular extends string,
   const Prefix extends string = Singular,
   const Path extends string = `/admin/${Name}`,
-  const ExtraWrites extends Record<string, AdminDestinationSpec> = Record<
-    never,
-    never
-  >,
+  const ExtraWrites extends Record<string, AdminDestinationSpec> = NoExtras,
   const SaveToRecord extends boolean = false,
   const ListAfterSave extends boolean = SaveToRecord,
   const NewPage extends boolean = true,
+  const ExtraViews extends Record<string, AdminDestinationSpec> = NoExtras,
+  const DetailPage extends boolean = true,
+  const EditPage extends boolean = true,
 >(config: {
   readonly audience: AdminAudience;
   readonly basePath?: Path;
   readonly deleteAudience?: AdminAudience;
+  /** False for a record with no page of its own. No record can then name
+   *  the area as its home. */
+  readonly detailPage?: DetailPage;
+  /** False for a record that no form edits. */
+  readonly editPage?: EditPage;
+  readonly extraViews?: ExtraViews;
   readonly extraWrites?: ExtraWrites;
   readonly listAfterSave?: ListAfterSave;
   readonly name: Name;
@@ -97,6 +130,7 @@ export const recordArea = <
   const path = (config.basePath ?? `/admin/${config.name}`) as Path;
   const prefix = (config.prefix ?? config.singular) as Prefix;
   const newPage = (config.newPage !== false) as NewPage;
+  const detailPage = config.detailPage !== false;
   const listAfterSave = (config.listAfterSave ??
     config.saveToRecord) as ListAfterSave;
   const listSpec = listAfterSave
@@ -107,16 +141,19 @@ export const recordArea = <
     : `${path}/:id/edit`;
   return {
     audience: config.audience,
-    record: {
-      detail: config.singular,
-      list: config.name,
-      newPage,
-      remove: `${prefix}Delete`,
-    },
+    ...whenPage(detailPage, {
+      record: {
+        detail: config.singular,
+        list: config.name,
+        newPage,
+        remove: `${prefix}Delete`,
+      },
+    }),
     ...(config.segments === undefined ? {} : { segments: config.segments }),
     view: {
       [config.name]: listSpec,
-      [config.singular]: `${path}/:id`,
+      ...whenPage(detailPage, { [config.singular]: `${path}/:id` }),
+      ...config.extraViews,
     },
     write: {
       [`${prefix}Delete`]: {
@@ -125,15 +162,16 @@ export const recordArea = <
           : { audience: config.deleteAudience }),
         pattern: `${path}/:id/delete`,
       },
-      [`${prefix}Edit`]: editSpec,
-      ...(newPage ? { [`${prefix}New`]: `${path}/new` } : {}),
+      ...whenPage(config.editPage !== false, { [`${prefix}Edit`]: editSpec }),
+      ...whenPage(newPage, { [`${prefix}New`]: `${path}/new` }),
       ...config.extraWrites,
     },
   } as RecordArea<{
+    extraViews: ExtraViews;
     extraWrites: ExtraWrites;
     listAfterSave: ListAfterSave;
     name: Name;
-    newPage: NewPage;
+    pages: { detail: DetailPage; edit: EditPage; new: NewPage };
     path: Path;
     prefix: Prefix;
     saveToRecord: SaveToRecord;

@@ -95,6 +95,7 @@ describeWithEnv(
       expect(res.status).not.toBe(403);
     });
 
+    /* jscpd:ignore-start -- a list of strings, not code */
     const getRedirectPaths = [
       "/admin/listing/new",
       "/admin/listing/42/edit",
@@ -125,8 +126,9 @@ describeWithEnv(
       "/admin/questions/42/answers/9/delete",
       "/admin/questions/42/answers/9/recalculate",
       "/admin/catalog/import",
-      "/admin/user/new",
+      "/admin/users/new",
     ];
+    /* jscpd:ignore-end */
     for (const path of getRedirectPaths) {
       test(`GET ${path} redirects to /read-only`, async () => {
         expectReadOnlyRedirect(await handleRequest(mockRequest(path)));
@@ -271,6 +273,7 @@ describeWithEnv(
 
     // Safe-list routes must pass through the guard even in read-only mode.
     // The response may be 4xx (no auth / bad payload) but must not be 302 → /read-only.
+    /* jscpd:ignore-start -- a list of strings, not code */
     const safePostPaths = [
       "/admin/logout",
       "/renew",
@@ -292,6 +295,7 @@ describeWithEnv(
       "/admin/attendees/99/refresh-payment",
       "/admin/deliveries/mark",
     ];
+    /* jscpd:ignore-end */
     for (const path of safePostPaths) {
       test(`POST ${path} is not blocked by read-only guard`, async () => {
         const res = await postForm(path);

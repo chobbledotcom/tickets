@@ -42,7 +42,7 @@ describe("adminUserNewPage agent selector", () => {
       'value="2"',
       "Delivery agent",
       'action="/admin/users"',
-      '<a class="active" href="/admin/user/new">',
+      '<a class="active" href="/admin/users/new">',
     ]);
   });
 

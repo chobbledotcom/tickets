@@ -130,4 +130,37 @@ describe("the derived record area writes", () => {
       list: "/admin/site/news",
     });
   });
+
+  test("leave out each page a record area says its record lacks", () => {
+    const { images, invoices, users } = ADMIN_AREAS;
+    // Images have no record page, so no record can name the area.
+    expect("record" in images).toBe(false);
+    expect(images.view).toEqual({
+      imageOptions: "/admin/images/options",
+      images: "/admin/images",
+    });
+    expect(images.write).toEqual({
+      imageDelete: { pattern: "/admin/images/:id/delete" },
+      imageEdit: "/admin/images/:id/edit",
+      imageNew: "/admin/images/new",
+    });
+    // No form edits an invoice or a user.
+    expect(invoices.write).toEqual({
+      invoiceCancel: "/admin/invoices/:id/cancel",
+      invoiceDelete: { pattern: "/admin/invoices/:id/delete" },
+      invoiceNew: "/admin/invoices/new",
+      invoicePreview: "/admin/invoices/preview",
+    });
+    expect(users.write).toEqual({
+      userAgents: "/admin/users/:id/agents",
+      userDelete: { pattern: "/admin/users/:id/delete" },
+      userNew: "/admin/users/new",
+    });
+    expect(recordAreaIds("users")).toEqual({
+      detail: "user",
+      list: "users",
+      newPage: true,
+      remove: "userDelete",
+    });
+  });
 });

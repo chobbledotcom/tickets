@@ -289,32 +289,24 @@ export const AREAS_A_L = {
     saveToRecord: true,
     singular: "holiday",
   }),
-  images: {
+  images: recordArea({
     audience: CONTENT_ADMIN_LEVELS,
-    view: {
-      imageOptions: "/admin/images/options",
-      images: "/admin/images",
-    },
-    write: {
-      imageDelete: "/admin/images/:id/delete",
-      imageEdit: "/admin/images/:id/edit",
-      imageNew: "/admin/images/new",
-    },
-  },
+    detailPage: false,
+    extraViews: { imageOptions: "/admin/images/options" },
+    name: "images",
+    singular: "image",
+  }),
   // Staff only: an invoice can be created only by an owner or a manager.
-  invoices: {
+  invoices: recordArea({
     audience: STAFF_ADMIN_LEVELS,
-    view: {
-      invoice: "/admin/invoices/:id",
-      invoices: "/admin/invoices",
-    },
-    write: {
+    editPage: false,
+    extraWrites: {
       invoiceCancel: "/admin/invoices/:id/cancel",
-      invoiceDelete: "/admin/invoices/:id/delete",
-      invoiceNew: "/admin/invoices/new",
       invoicePreview: "/admin/invoices/preview",
     },
-  },
+    name: "invoices",
+    singular: "invoice",
+  }),
   ledger: {
     audience: OWNER_AUDIENCE,
     view: {
@@ -322,9 +314,11 @@ export const AREAS_A_L = {
       ledgerAccount: "/admin/ledger/:type/:ref",
     },
     write: {
+      /* jscpd:ignore-start -- a list of strings, not code */
       ledgerAdd: "/admin/ledger/:type/:ref/add",
       ledgerEdit: "/admin/ledger/entries/:id/edit",
       ledgerEntryDelete: "/admin/ledger/entries/:id/delete",
+      /* jscpd:ignore-end */
     },
   },
   listingQr: {

@@ -281,9 +281,9 @@ const handleUserManageGet: TypedRouteHandler<"GET /admin/users/:id"> =
   renderUserTab("");
 
 /**
- * Handle GET /admin/user/new - show invite user form
+ * Handle GET /admin/users/new - show invite user form
  */
-const handleUserNewGet = authPageAt("/admin/user/new")(async (session) =>
+const handleUserNewGet = authPageAt("/admin/users/new")(async (session) =>
   adminUserNewPage(session, await loadAssignableAgents(), getFlash().error),
 );
 
@@ -411,13 +411,13 @@ const pages = recordPages(userRecord, {
 });
 
 export const adminHandlers = defineAdminRoutes({
-  "GET /admin/user/new": pages.newGet,
   "GET /admin/users": pages.listGet,
   "GET /admin/users/:id": handleUserManageGet,
   "GET /admin/users/:id/:tab": (request, { id, tab }) =>
     userPage.renderTab(request, id, tab),
   "GET /admin/users/:id/agents": handleUserAgentsGet,
   "GET /admin/users/:id/delete": pages.deleteGet,
+  "GET /admin/users/new": pages.newGet,
   "POST /admin/users": pages.createPost,
   "POST /admin/users/:id/agents": handleUserAgentsPost,
   "POST /admin/users/:id/delete": pages.deletePost,

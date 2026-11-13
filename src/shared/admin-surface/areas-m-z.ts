@@ -253,16 +253,11 @@ export const AREAS_M_Z = {
       updateCheck: "/admin/update/check",
     },
   },
-  users: {
+  users: recordArea({
     audience: OWNER_AUDIENCE,
-    view: {
-      user: "/admin/users/:id",
-      users: "/admin/users",
-    },
-    write: {
-      userAgents: "/admin/users/:id/agents",
-      userDelete: "/admin/users/:id/delete",
-      userNew: "/admin/user/new",
-    },
-  },
+    editPage: false,
+    extraWrites: { userAgents: "/admin/users/:id/agents" },
+    name: "users",
+    singular: "user",
+  }),
 } as const;

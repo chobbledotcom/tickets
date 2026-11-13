@@ -28,7 +28,7 @@ import {
   getTestSession,
 } from "#test-utils/session.ts";
 
-const NEW_PATH = "/admin/user/new";
+const NEW_PATH = "/admin/users/new";
 const LIST_PATH = "/admin/users";
 
 const invite = (username: string, adminLevel = "manager") =>
