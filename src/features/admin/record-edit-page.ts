@@ -39,7 +39,27 @@ export type RecordEditPageConfig<
   readonly navActive?: NavActive;
 };
 
-/** Build a record's Edit / Actions page from its declaration and its panel. */
+/** Build a record page from the facts every simple record repeats, in order. */
+export const recordEditPageFor = <
+  Shape extends RecordShape & { row: { name: string } },
+>(
+  record: AdminRecord<Shape>,
+  deleteDestination: AdminDestinationId,
+  deleteLabelKey: string,
+  destination: AdminDestinationId,
+  edit: EditPanelLoader<FullRowOf<Shape>>,
+  page: Omit<
+    RecordEditPageConfig<Shape>,
+    "deleteDestination" | "deleteLabelKey" | "destination" | "edit"
+  > = {},
+): EditEntityPage<FullRowOf<Shape>> =>
+  recordEditPage(record, {
+    deleteDestination,
+    deleteLabelKey,
+    destination,
+    edit,
+    ...page,
+  });
 export const recordEditPage = <
   Shape extends RecordShape & { row: { name: string } },
 >(

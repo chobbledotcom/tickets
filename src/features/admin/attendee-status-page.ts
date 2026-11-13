@@ -5,18 +5,19 @@ import type { EditEntityPage } from "#routes/admin/entity-write-tab.ts";
 import { statusRecord } from "#shared/records/statuses.ts";
 import { AttendeeStatusEditPanel } from "#templates/admin/settings-statuses.tsx";
 
-import { recordEditPage } from "./record-edit-page.ts";
+import { recordEditPageFor } from "./record-edit-page.ts";
 
 export const attendeeStatusPage: EditEntityPage<AttendeeStatus> =
-  recordEditPage(statusRecord, {
-    deleteDestination: "statusDelete",
-    deleteLabelKey: "statuses.delete_button",
-    destination: "status",
-    edit: (status, _ctx, rejected) =>
+  recordEditPageFor(
+    statusRecord,
+    "statusDelete",
+    "statuses.delete_button",
+    "status",
+    (status, _ctx, rejected) =>
       Promise.resolve(
         AttendeeStatusEditPanel({
           status,
           ...(rejected ? { error: rejected.error, values: rejected.form } : {}),
         }),
       ),
-  });
+  );
