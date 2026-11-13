@@ -60,3 +60,40 @@ describe("readSubmittedFieldValue date cleanup", () => {
     );
   });
 });
+
+describe("readSubmittedFieldValue Markdown text", () => {
+  const markdownField = {
+    label: "Content",
+    markdown: true,
+    name: "content",
+    type: "textarea",
+  } as const;
+  const plainField = {
+    label: "Notes",
+    name: "content",
+    type: "textarea",
+  } as const;
+
+  // Each row: the test name, the box, the submitted text, the value read.
+  const READS = [
+    [
+      "a Markdown box keeps the indentation of its first line",
+      markdownField,
+      "\r\n \n    code\n  more  \n\n",
+      "    code\n  more",
+    ],
+    ["a Markdown box with only spaces is blank", markdownField, "  \n \t ", ""],
+    ["a plain text box is trimmed", plainField, "    code\n", "code"],
+  ] as const;
+
+  for (const [name, field, raw, value] of READS) {
+    test(name, () => {
+      const form = new FormParams([["content", raw]]);
+      expect(readSubmittedFieldValue(form, field)).toBe(value);
+    });
+  }
+
+  test("a Markdown box that the form omits is blank", () => {
+    expect(readSubmittedFieldValue(new FormParams(), markdownField)).toBe("");
+  });
+});

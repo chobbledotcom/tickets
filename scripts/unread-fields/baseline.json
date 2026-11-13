@@ -590,15 +590,15 @@
   "src/shared/forms/field.ts": [
     {
       "path": [{ "name": "ChoiceField" }],
-      "fields": ["accept", "markdown"]
+      "fields": ["accept"]
     },
     {
       "path": [{ "name": "FileField" }],
-      "fields": ["markdown", "options"]
+      "fields": ["options"]
     },
     {
       "path": [{ "name": "InputField" }],
-      "fields": ["accept", "markdown", "options"]
+      "fields": ["accept", "options"]
     },
     {
       "path": [{ "name": "TextareaField" }],
