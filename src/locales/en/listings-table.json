@@ -196,7 +196,7 @@
   "listings_table.duplicate_children_dropped": "Listing duplicated, but its required children weren't copied: {reason}",
   "listings_table.group_duplicate_children_dropped": "{success}, but a cloned listing's required children weren't copied: {reason}",
   "listings_table.listing_type_picker_heading": "Choose a listing type",
-  "listings_table.listing_type_picker_subheading": "What sort of listing do you want to make?",
+  "listings_table.listing_type_picker_subheading": "What sort of listing do you want to make? Choose from the options below.",
   "listings_table.listing_type_picker_import_link": "Alternatively you can import multiple listings from a JSON file.",
   "listings_table.listing_type_picker_custom": "Other",
   "listings_table.listing_type_picker_custom_description": "Show the full form with all options",
