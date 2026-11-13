@@ -7,6 +7,7 @@ import {
   extractViewBox,
   generateSvgTicket,
   type SvgTicketData,
+  ticketSvgBlock,
 } from "#shared/svg-ticket.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -92,6 +93,17 @@ describeWithEnv("svg-ticket", { db: true }, () => {
     test("omits price when zero", () => {
       const lines = buildInfoLines(makeTicketData({ pricePaid: "0" }));
       expect(lines.every((l) => !l.includes("Price:"))).toBe(true);
+    });
+  });
+
+  describe("ticketSvgBlock", () => {
+    test("keeps the svg element and drops the XML declaration", () => {
+      const block = ticketSvgBlock(
+        '<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>',
+      );
+      expect(block).toBe(
+        '<div style="margin:24px 0;max-width:400px"><svg xmlns="http://www.w3.org/2000/svg"><rect/></svg></div>',
+      );
     });
   });
 

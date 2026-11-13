@@ -27,7 +27,11 @@ import {
   type RegistrationPackageFacts,
   waitForRegistrationDeliveries,
 } from "#shared/registration-package-facts.ts";
-import { generateSvgTicket, type SvgTicketData } from "#shared/svg-ticket.ts";
+import {
+  generateSvgTicket,
+  type SvgTicketData,
+  ticketSvgBlock,
+} from "#shared/svg-ticket.ts";
 import { buildCheckinUrl, buildTicketUrl } from "#shared/ticket-url.ts";
 import { parseEmail, type ValidEmail } from "#shared/validation/email.ts";
 
@@ -102,10 +106,15 @@ const collapsedSvgTicketData = (
   };
 };
 
-const buildTicketAttachments = async (
+interface TicketSvg {
+  filename: string;
+  svg: string;
+}
+
+const buildTicketSvgs = async (
   groups: readonly BuyerEntryGroup[],
   currency: string,
-): Promise<EmailAttachment[]> => {
+): Promise<TicketSvg[]> => {
   const ticketDataList = groups.map((group) =>
     group.hiddenPackageName === undefined
       ? buildSvgTicketData(group.entries[0]!, currency)
@@ -119,12 +128,22 @@ const buildTicketAttachments = async (
     ticketDataList.map((data) => generateSvgTicket(data)),
   );
   return svgs.map((svg, index) => ({
-    content: toBase64(new TextEncoder().encode(svg)),
-    contentType: "image/svg+xml",
     filename:
       ticketDataList.length === 1 ? "ticket.svg" : `ticket-${index + 1}.svg`,
+    svg,
   }));
 };
+
+const ticketAttachments = (tickets: readonly TicketSvg[]): EmailAttachment[] =>
+  tickets.map(({ filename, svg }) => ({
+    content: toBase64(new TextEncoder().encode(svg)),
+    contentType: "image/svg+xml",
+    filename,
+  }));
+
+/** The tickets shown after the message in the buyer's HTML email. */
+const ticketsHtml = (tickets: readonly TicketSvg[]): string =>
+  tickets.map(({ svg }) => ticketSvgBlock(svg)).join("\n");
 
 export const sendRegistrationEmails = async (
   entries: EmailEntry[],
@@ -162,14 +181,14 @@ export const sendRegistrationEmails = async (
       hidePackageMembers: true,
       packageDisplays: facts.displays,
     });
-    const [rendered, attachments] = await Promise.all([
+    const [rendered, tickets] = await Promise.all([
       renderEmailContent("confirmation", data),
-      buildTicketAttachments(groups, currency),
+      buildTicketSvgs(groups, currency),
     ]);
     addRenderedMessage(
-      rendered,
+      { ...rendered, html: `${rendered.html}\n${ticketsHtml(tickets)}` },
       {
-        attachments,
+        attachments: ticketAttachments(tickets),
         replyTo: businessEmail || undefined,
         to: attendeeEmail,
       },

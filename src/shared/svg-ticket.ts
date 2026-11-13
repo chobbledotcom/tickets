@@ -1,7 +1,8 @@
 /**
  * SVG ticket generator
- * Composes a QR code SVG with listing and booking data into a standalone SVG ticket
- * suitable for email attachment. Contains no PII — only listing details and booking metadata.
+ * Composes a QR code SVG with listing and booking data into a standalone SVG ticket.
+ * The ticket goes in an email body or an email attachment. It contains no PII: only
+ * listing details and booking metadata.
  */
 
 import { escapeHtml } from "#jsx/escape-html.ts";
@@ -113,3 +114,13 @@ export const generateSvgTicket = async (
     ${linesSvg}${qrSection}
 </svg>`;
 };
+
+/** An XML declaration is valid only at the start of a document. */
+const XML_DECLARATION = /^<\?xml[^>]*\?>\s*/;
+
+/** Wrap a generated ticket SVG as a block for an HTML email body. */
+export const ticketSvgBlock = (svg: string): string =>
+  `<div style="margin:24px 0;max-width:${WIDTH}px">${svg.replace(
+    XML_DECLARATION,
+    "",
+  )}</div>`;
