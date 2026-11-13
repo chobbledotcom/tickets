@@ -5,30 +5,26 @@
  */
 
 import {
-  type AdminRecord,
   defineRecord,
-  type RecordRule,
+  type RecordDefiner,
   type RecordShape,
-  type RecordSpec,
 } from "#shared/rest/record.ts";
-import { okResult } from "#shared/result.ts";
 
-export const defineNamedRowRecord = <
-  Shape extends RecordShape & {
-    row: { id: number; name: string };
-    input: { name: string };
-  },
->(
-  spec: Omit<RecordSpec<Shape>, "logName" | "nameField" | "nameOf" | "rule"> & {
-    /** The one write rule. A record with no domain rule passes nothing and
-     *  gets its input back unchanged. */
-    rule?: RecordRule<Shape["input"], Shape["row"]>;
-  },
-): AdminRecord<Shape> =>
-  defineRecord<Shape>({
-    ...spec,
-    logName: (input) => input.name,
-    nameField: "name",
-    nameOf: (row) => row.name,
-    rule: spec.rule ?? ((input) => okResult(input)),
-  });
+/** A record whose row and input both carry its display name. */
+type NamedShape = RecordShape & {
+  row: { id: number; name: string };
+  input: { name: string };
+};
+
+export const defineNamedRowRecord =
+  <Shape extends NamedShape>(): RecordDefiner<
+    Shape,
+    "logName" | "nameField" | "nameOf"
+  > =>
+  (spec) =>
+    defineRecord<Shape>()({
+      ...spec,
+      logName: (input) => input.name,
+      nameField: "name",
+      nameOf: (row) => row.name,
+    });

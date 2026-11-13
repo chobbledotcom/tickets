@@ -257,7 +257,7 @@ const imageWrites = {
 
 export const imageRecord = defineNamedRowRecord<
   RecordShapeOf<Image, ImageWriteInput>
->({
+>()({
   activityName: "Image",
   api: ADMIN_API_RESOURCES.images,
   getAll: async () => sortByName(await getAllImages(), byNameThenUpload),

@@ -56,7 +56,7 @@ export const questionRule = (
 
 export const questionRecord = defineRecord<
   RecordShapeOf<Question, QuestionInput, QuestionWithAnswers>
->({
+>()({
   activityName: "Question",
   api: ADMIN_API_RESOURCES.questions,
   logName: (input) => input.text,

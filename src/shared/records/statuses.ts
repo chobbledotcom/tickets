@@ -103,7 +103,7 @@ const statusWrites = {
 
 export const statusRecord = defineNamedRowRecord<
   RecordShapeOf<AttendeeStatus, AttendeeStatusWriteInput>
->({
+>()({
   activityName: "Attendee status",
   api: ADMIN_API_RESOURCES["attendee-statuses"],
   getAll: attendeeStatuses.getAll,

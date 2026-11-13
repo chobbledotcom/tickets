@@ -16,7 +16,7 @@ import type { BulkEmailTarget } from "#shared/bulk-email-targets/types.ts";
 import { MAX_EMAIL_TEMPLATES } from "#shared/limits.ts";
 import { emailTemplateRecord } from "#shared/records/email-templates.ts";
 import { ok } from "#shared/response.ts";
-import type { WriteVerdict } from "#shared/rest/record.ts";
+import type { Missing, Written } from "#shared/rest/record.ts";
 import { recordPages } from "#shared/rest/record-pages.ts";
 import { parsePositiveInt as parsePositiveIntId } from "#shared/validation/number.ts";
 import { bulkEmailTemplateDeletePage } from "#templates/admin/bulk-email.tsx";
@@ -29,11 +29,10 @@ const templateSavedResponse = (
 ): Response =>
   ok(`${COMPOSE_PATH}${targetQuery(target)}&template=${templateId}`, message);
 
-/** Answer one template save: its flash redirect, or the refusal. The template
- *  was removed between the compose page load and this save. The record's save
- *  command never refuses a submitted template. */
+/** Answer one template save: its flash redirect, or the flash for a template
+ *  that was removed between the compose page load and this save. */
 const answerTemplateSave = (
-  verdict: WriteVerdict<{ id: number }>,
+  verdict: Written<{ id: number }> | Missing,
   target: BulkEmailTarget,
   message: string,
 ): Response => {

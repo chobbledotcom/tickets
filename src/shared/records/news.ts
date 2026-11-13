@@ -39,7 +39,7 @@ export const newsRecord = defineNamedRowRecord<
     never,
     NewsPostSummary
   >
->({
+>()({
   activityName: "News post",
   getAll: getNewsPostSummaries,
   load: getNewsPostById,

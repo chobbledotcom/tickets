@@ -18,7 +18,7 @@ const holidayFields = {
 } as const;
 
 test("refuses a record with no JSON resource", () => {
-  const record = defineRecord<HolidayShape>(holidayFields);
+  const record = defineRecord<HolidayShape>()(holidayFields);
   expect(() =>
     recordApi<typeof ADMIN_API_RESOURCES.holidays, HolidayShape>(
       record,
@@ -28,7 +28,7 @@ test("refuses a record with no JSON resource", () => {
 });
 
 test("refuses a record with no display-name column", () => {
-  const record = defineRecord<HolidayShape>({
+  const record = defineRecord<HolidayShape>()({
     ...holidayFields,
     api: ADMIN_API_RESOURCES.holidays,
   });

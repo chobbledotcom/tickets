@@ -51,7 +51,6 @@ import { DAY_MS, nowMs } from "#shared/now.ts";
 import { defineRecord, type RecordShapeOf } from "#shared/rest/record.ts";
 import { recordPages } from "#shared/rest/record-pages.ts";
 import { asRequestRoute } from "#shared/rest/route-adapters.ts";
-import { okResult } from "#shared/result.ts";
 import { selectedIdsFromForm } from "#shared/selected-ids.ts";
 import { flashProps } from "#templates/admin/admin-page-spec.tsx";
 import {
@@ -389,14 +388,13 @@ const userDelete = createConfirmedHandlers<DisplayUser>({
 
 /** The user record: its display read, its name, and its delete. The routes
  *  that need the inviting session stay as overrides on this declaration. */
-const userRecord = defineRecord<RecordShapeOf<DisplayUser, DisplayUser>>({
+const userRecord = defineRecord<RecordShapeOf<DisplayUser, DisplayUser>>()({
   activityName: "User",
   getAll: loadDisplayUsers,
   load: loadDisplayUser,
   logName: usernameOf,
   nameOf: usernameOf,
   onDelete: deleteUser,
-  rule: okResult,
   surface: { deleteDestination: "userDelete", list: "users" },
 });
 

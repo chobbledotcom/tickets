@@ -47,8 +47,6 @@ import { sortByName } from "#shared/name-order.ts";
 import { imageRecord } from "#shared/records/images.ts";
 import { featureGate, type ResponseHandler } from "#shared/response-steps.ts";
 import type { DeleteVerdict, WriteVerdict } from "#shared/rest/record.ts";
-import { recordPages } from "#shared/rest/record-pages.ts";
-import { asIdRoute, asRequestRoute } from "#shared/rest/route-adapters.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import { deleteImageStorageFilesStrict } from "#shared/storage-cleanup.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
@@ -341,28 +339,13 @@ const answerImageWrite = async <Row>(
   return deleted();
 };
 
-/** The image page routes, all bound from the image record's declaration. */
-const pages = recordPages(imageRecord, {
-  overrides: {
-    createPost: asRequestRoute(handleImageCreatePost),
-    deleteGet: asIdRoute(handleImageDeleteGet),
-    deletePost: asIdRoute(handleImageDeletePost),
-    editGet: asIdRoute(handleImageEditGet),
-    editPost: asIdRoute(handleImageEditPost),
-    listGet: asRequestRoute(handleImagesListGet),
-    newGet: asRequestRoute(handleImageNewGet),
-  },
-  renderDelete: adminImageDeletePage,
-  renderList: adminImagesPage,
-});
-
 export const adminHandlers = defineAdminRoutes({
-  "GET /admin/images": pages.listGet,
-  "GET /admin/images/:id/delete": pages.deleteGet,
-  "GET /admin/images/:id/edit": pages.editGet!,
-  "GET /admin/images/new": pages.newGet,
+  "GET /admin/images": handleImagesListGet,
+  "GET /admin/images/:id/delete": handleImageDeleteGet,
+  "GET /admin/images/:id/edit": handleImageEditGet,
+  "GET /admin/images/new": handleImageNewGet,
   "GET /admin/images/options": handleImageOptionsGet,
-  "POST /admin/images": pages.createPost,
-  "POST /admin/images/:id/delete": pages.deletePost,
-  "POST /admin/images/:id/edit": pages.editPost,
+  "POST /admin/images": handleImageCreatePost,
+  "POST /admin/images/:id/delete": handleImageDeletePost,
+  "POST /admin/images/:id/edit": handleImageEditPost,
 });

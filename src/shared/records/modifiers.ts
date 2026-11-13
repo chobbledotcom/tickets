@@ -74,7 +74,7 @@ const modifierRule = ruleFromValidator<ModifierInput, ModifierRow>(
 
 export const modifierRecord = defineNamedRowRecord<
   RecordShapeOf<ModifierRow, ModifierInput, Modifier, never, Modifier>
->({
+>()({
   activityName: "Modifier",
   getAll: getAllModifiers,
   load: getModifier,

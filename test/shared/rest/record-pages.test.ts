@@ -40,7 +40,7 @@ const form = (name: string): FormSchema<Values> => ({
 const toInput = (values: Values): Input => ({ name: values.name });
 
 const recordWith = (write: Partial<WriteSet> = {}): AdminRecord<Shape> =>
-  defineRecord<Shape>({
+  defineRecord<Shape>()({
     activityName: "Widget",
     getAll: () => Promise.resolve([]),
     load: (id) => Promise.resolve(id === 7 ? { id: 7, name: "Widget" } : null),

@@ -20,7 +20,7 @@ import type { RecordShapeOf } from "#shared/rest/record.ts";
 
 export const attributeRecord = defineNamedRowRecord<
   RecordShapeOf<Attribute, NamedSortOrderInput, AttributeWithOptions>
->({
+>()({
   activityName: "Attribute",
   api: ADMIN_API_RESOURCES.attributes,
   nameLabel: "attributes.name_label",

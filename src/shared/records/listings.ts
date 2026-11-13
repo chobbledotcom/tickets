@@ -24,7 +24,7 @@ import type { Listing, ListingWithCount } from "#types";
 
 export const listingRecord = defineNamedRowRecord<
   RecordShapeOf<Listing, ListingInput, ListingWithCount>
->({
+>()({
   activityName: "Listing",
   afterCommit: syncListingPrices,
   api: ADMIN_API_RESOURCES.listings,

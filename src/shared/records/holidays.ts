@@ -19,7 +19,7 @@ export const validateDateRange = (input: HolidayInput): Result<HolidayInput> =>
 
 export const holidayRecord = defineNamedRowRecord<
   RecordShapeOf<Holiday, HolidayInput>
->({
+>()({
   activityName: "Holiday",
   api: ADMIN_API_RESOURCES.holidays,
   getAll: holidays.getAll,

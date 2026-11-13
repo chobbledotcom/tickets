@@ -13,15 +13,16 @@ import { byPrimaryKey } from "#db/table-reader.ts";
 import { refusingTheWriteOn } from "#db/transaction.ts";
 import {
   type AdminRecord,
+  type AnswersOf,
   type DeleteCommand,
+  type DeleteRefusal,
   type DeleteVerdict,
   type FullRowOf,
   type InputOf,
-  type PlannedUpdateCommand,
-  type PlannedWriteCommand,
   type RecordActor,
   type RecordShape,
   type RecordSpec,
+  type RecordWrites,
   type RowOf,
   recordSurfaceOf,
   type StateOf,
@@ -34,6 +35,7 @@ import {
   writeEntity,
 } from "#shared/rest/write-entity.ts";
 import { transactionValidationMessageOrRethrow } from "#shared/rest/write-error.ts";
+import { okResult } from "#shared/result.ts";
 
 export * from "#shared/rest/record-contract.ts";
 
@@ -79,11 +81,62 @@ export const answerWrite = async <Row>(
   }
 };
 
+/** The declaration `defineRecord` reads. Its domain write and its delete
+ * refusal keep their declared types, so the record's answers follow them. */
+type DeclaredSpec<
+  Shape extends RecordShape,
+  Create,
+  Update,
+  Remove,
+  Refusal,
+> = Omit<RecordSpec<Shape>, "deleteRefusal" | "write"> & {
+  readonly deleteRefusal?: Refusal;
+  readonly write?: RecordWrites<
+    InputOf<Shape>,
+    FullRowOf<Shape>,
+    Create & WriteVerdict<FullRowOf<Shape>>,
+    Update & WriteVerdict<FullRowOf<Shape>>,
+    Remove & DeleteVerdict
+  >;
+};
+
+/**
+ * A function that defines one record of a known shape. Each answer type
+ * reads as `never` when the declaration names none. `Filled` names the facts
+ * the definer supplies itself.
+ */
+export type RecordDefiner<
+  Shape extends RecordShape,
+  Filled extends keyof RecordSpec<Shape> = never,
+> = <
+  Create extends WriteVerdict<FullRowOf<Shape>> = never,
+  Update extends WriteVerdict<FullRowOf<Shape>> = never,
+  Remove extends DeleteVerdict = never,
+  Refusal extends DeleteRefusal = never,
+>(
+  spec: Omit<DeclaredSpec<Shape, Create, Update, Remove, Refusal>, Filled>,
+) => AdminRecord<
+  Shape,
+  AnswersOf<FullRowOf<Shape>, Create, Update, Remove, Refusal>
+>;
+
+/** The input of a record with no domain rule passes unchanged. */
+const acceptInput = <Input>(input: Input) => okResult(input);
+
 /**
  * Define one admin record. The returned object carries the single write path
- * both doors call.
+ * both doors call. The first call names the record's shape. The second call
+ * reads the declaration, so each command's answer type follows from it.
  */
-export const defineRecord = <Shape extends RecordShape>(
+export const defineRecord = <
+  Shape extends RecordShape,
+>(): RecordDefiner<Shape> => buildRecord<Shape> as RecordDefiner<Shape>;
+
+/** Build the commands of one record. The answer types are wide here.
+ * `defineRecord` narrows them from the declaration: a domain write answers
+ * what its commands answer, and a table delete refuses only through
+ * `deleteRefusal`, which `removeRow` reads. */
+const buildRecord = <Shape extends RecordShape>(
   spec: RecordSpec<Shape>,
 ): AdminRecord<Shape> => {
   type Row = RowOf<Shape>;
@@ -91,6 +144,7 @@ export const defineRecord = <Shape extends RecordShape>(
   type FullRow = FullRowOf<Shape>;
   type State = StateOf<Shape>;
   const surface = recordSurfaceOf(spec.surface);
+  const rule = spec.rule ?? acceptInput;
   const getAll =
     spec.getAll ??
     spec.reads?.all ??
@@ -193,7 +247,7 @@ export const defineRecord = <Shape extends RecordShape>(
     existing: FullRow | null,
     steps: WriteSteps<Row, Input, Prepared, State>,
   ): Promise<WriteVerdict<FullRow>> => {
-    const ruled = await spec.rule(
+    const ruled = await rule(
       input,
       existing === null ? null : storedValues(existing),
     );
@@ -263,7 +317,7 @@ export const defineRecord = <Shape extends RecordShape>(
       : run(current.row, current.table);
   };
 
-  const create: PlannedWriteCommand<Input, FullRow, State> = (input, plan) => {
+  const create: AdminRecord<Shape>["create"] = (input, plan) => {
     const table = requireTable();
     return runWrite(input, null, {
       plainWriteFor: (value) => table.insert(value),
@@ -273,12 +327,7 @@ export const defineRecord = <Shape extends RecordShape>(
     });
   };
 
-  const update: PlannedUpdateCommand<Input, FullRow, State> = async (
-    id,
-    input,
-    plan,
-    actor,
-  ) =>
+  const update: AdminRecord<Shape>["update"] = async (id, input, plan, actor) =>
     withWriteRow(id, actor, (existing, table) =>
       runWrite(input, existing, {
         plainWriteFor: (value) => table.update(id, value) as Promise<Row>,
@@ -341,5 +390,6 @@ export const defineRecord = <Shape extends RecordShape>(
     getAll,
     load,
     loadAfterWrite,
+    rule,
   };
 };

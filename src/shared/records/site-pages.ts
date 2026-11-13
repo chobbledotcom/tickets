@@ -32,7 +32,7 @@ export const sitePageRule = (input: SitePageWriteInput) =>
 
 export const sitePageRecord = defineNamedRowRecord<
   RecordShapeOf<SitePage, SitePageWriteInput, SitePage>
->({
+>()({
   activityName: "Page",
   api: ADMIN_API_RESOURCES["site-pages"],
   getAll: () =>

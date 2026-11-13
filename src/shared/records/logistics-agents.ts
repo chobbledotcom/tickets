@@ -15,7 +15,7 @@ import type { LogisticsAgent } from "#types";
 
 export const logisticsAgentRecord = defineNamedRowRecord<
   RecordShapeOf<LogisticsAgent, LogisticsAgentInput>
->({
+>()({
   activityName: "Logistics agent",
   getAll: logisticsAgents.getAll,
   nameLabel: "logistics.name_label",

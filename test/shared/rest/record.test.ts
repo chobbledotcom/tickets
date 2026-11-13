@@ -55,7 +55,7 @@ const table = makeIdNameTable(TABLE);
 const widgetRecord = (
   overrides: Partial<RecordSpec<RecordShapeOf<IdNameRow, IdNameInput>>> = {},
 ) =>
-  defineRecord<RecordShapeOf<IdNameRow, IdNameInput>>({
+  defineRecord<RecordShapeOf<IdNameRow, IdNameInput>>()({
     activityName: "Widget",
     getAll: () => table.read.many({}),
     logName: (input) => input.name,
@@ -93,6 +93,17 @@ describeWithEnv("the admin record write path", { db: true }, () => {
 
     expect(created).toEqual({ id: 1, name: "Alpha" });
     expect(await wasActivityLogged("Widget 'Alpha' created")).toBe(true);
+  });
+
+  test("a record with no rule stores its input unchanged", async () => {
+    const { rule: _rule, ...ruleless } = widgetRecord();
+    const record =
+      defineRecord<RecordShapeOf<IdNameRow, IdNameInput>>()(ruleless);
+
+    expect(await record.create({ name: "" })).toEqual({
+      kind: "written",
+      row: { id: 1, name: "" },
+    });
   });
 
   test("a refused rule writes no row and no activity line", async () => {
@@ -278,7 +289,7 @@ describeWithEnv("the admin record write path", { db: true }, () => {
 describe("the record read defaults", () => {
   type Widget = RecordShapeOf<IdNameRow, IdNameInput>;
   const bareRecord = (spec: Partial<RecordSpec<Widget>> = {}) =>
-    defineRecord<Widget>({
+    defineRecord<Widget>()({
       activityName: "Widget",
       logName: (input) => input.name,
       nameOf: (row) => row.name,

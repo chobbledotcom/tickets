@@ -132,7 +132,7 @@ const groupRule = ruleFromValidator<GroupInput, Group>(
 
 export const groupRecord = defineNamedRowRecord<
   RecordShapeOf<Group, GroupInput, Group, PackageFlags | null>
->({
+>()({
   activityName: "Group",
   afterWrite: (tx, id, input, flags) =>
     writePackageMembersTx(

@@ -4,9 +4,11 @@
 import { type TxScope, withTransaction } from "#db/client.ts";
 import type {
   DeleteCommand,
-  DeleteVerdict,
+  Deleted,
   InputValidator,
+  Missing,
   RecordRule,
+  Refused,
   UpdateCommand,
   WriteCommand,
   WriteVerdict,
@@ -61,13 +63,18 @@ export const writeAndLog = async <Row, Error extends string = string>(
   return { kind: "written", row: saved.value };
 };
 
-/** Run the record's one rule, then a command that answers its own verdict. */
-export const ruledCommand = async <Row, Input>(config: {
+/** Run the record's one rule, then a command that answers its own verdict.
+ * The answer is the command's own answers, or the rule's refusal. */
+export const ruledCommand = async <
+  Row,
+  Input,
+  Answer extends WriteVerdict<unknown> = WriteVerdict<Row>,
+>(config: {
   input: Input;
-  run: (value: Input) => Promise<WriteVerdict<Row>>;
+  run: (value: Input) => Promise<Answer>;
   rule: RecordRule<Input, Row>;
   stored: Row | null;
-}): Promise<WriteVerdict<Row>> => {
+}): Promise<Answer | Refused> => {
   const ruled = await config.rule(config.input, config.stored);
   return ruled.ok
     ? config.run(ruled.value)
@@ -149,7 +156,7 @@ type DeleteSteps<Row> = {
 export const deleteIfPresent = async <Row>(
   id: number,
   config: DeleteSteps<Row>,
-): Promise<DeleteVerdict> => {
+): Promise<Deleted | Missing> => {
   const row = await config.load(id);
   if (row === null) return { kind: "not-found" };
   await config.destroy(row);
@@ -163,7 +170,7 @@ export const deleteAndLog = <Row>(
   config: DeleteSteps<Row> & {
     log: (row: Row) => Promise<unknown>;
   },
-): Promise<DeleteVerdict> => deleteIfPresent(id, config);
+): Promise<Deleted | Missing> => deleteIfPresent(id, config);
 
 /** Build one record's delete command from its load, destroy, and log steps. */
 export const deleteCommand =
@@ -172,7 +179,7 @@ export const deleteCommand =
     destroy: (row: Row) => Promise<unknown>,
     log: (row: Row) => Promise<unknown>,
   ) =>
-  (id: number): Promise<DeleteVerdict> =>
+  (id: number): Promise<Deleted | Missing> =>
     deleteAndLog(id, { destroy, load, log });
 
 /** The three writes of a content record with a slug: its domain create,
@@ -198,8 +205,8 @@ export const contentCommands = <
   /** An update carries the slug the create generated. */
   updateInput: (input: Input) => Input;
 }): {
-  create: WriteCommand<Input, Row>;
-  update: UpdateCommand<Input, Row>;
+  create: WriteCommand<Input, WriteVerdict<Row>>;
+  update: UpdateCommand<Input, WriteVerdict<Row>>;
   remove: DeleteCommand;
 } => {
   const words = (verb: string) => ({

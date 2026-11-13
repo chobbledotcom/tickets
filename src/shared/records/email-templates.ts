@@ -14,11 +14,11 @@ import {
 import { settings } from "#db/settings.ts";
 import {
   defineRecord,
+  type Missing,
   type RecordShapeOf,
-  type WriteVerdict,
+  type Written,
 } from "#shared/rest/record.ts";
 import { deleteIfPresent } from "#shared/rest/record-command.ts";
-import { okResult } from "#shared/result.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 
 export type EmailTemplateRow = { id: number; subject: string };
@@ -33,7 +33,7 @@ const sealedTemplate = async (input: EmailTemplateInput) => ({
 const saveTemplate = async (
   id: number | null,
   input: EmailTemplateInput,
-): Promise<WriteVerdict<EmailTemplateRow>> => {
+): Promise<Written<EmailTemplateRow> | Missing> => {
   if (id !== null && (await getRawEmailTemplate(id)) === null) {
     return { kind: "not-found" };
   }
@@ -54,7 +54,7 @@ const templateSubjectOrNull = async (id: number): Promise<string | null> => {
 
 export const emailTemplateRecord = defineRecord<
   RecordShapeOf<EmailTemplateRow, EmailTemplateInput>
->({
+>()({
   activityName: "Template",
   getAll: () => Promise.resolve([]),
   load: async (id) => {
@@ -64,7 +64,6 @@ export const emailTemplateRecord = defineRecord<
   logName: (input) => input.subject,
   nameLabel: "bulk_email.name_label",
   nameOf: (template) => template.subject,
-  rule: (input) => okResult(input),
   surface: { deleteDestination: "emailTemplateDelete", list: "emails" },
   write: {
     create: (input) => saveTemplate(null, input),

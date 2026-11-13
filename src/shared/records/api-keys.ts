@@ -18,7 +18,8 @@ import {
   defineRecord,
   type RecordActor,
   type RecordShapeOf,
-  type WriteVerdict,
+  type Refused,
+  type Written,
 } from "#shared/rest/record.ts";
 import { ruledCommand } from "#shared/rest/record-command.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
@@ -64,7 +65,7 @@ const apiKeyRule = (input: ApiKeyInput): Result<ApiKeyInput> => {
 const createApiKeyCommand = async (
   input: ApiKeyInput,
   actor?: RecordActor,
-): Promise<WriteVerdict<ApiKeyDisplay>> =>
+): Promise<Written<ApiKeyDisplay & { secret: string }> | Refused> =>
   ruledCommand({
     input,
     rule: apiKeyRule,
@@ -90,7 +91,7 @@ const createApiKeyCommand = async (
 
 export const apiKeyRecord = defineRecord<
   RecordShapeOf<ApiKeyDisplay, ApiKeyInput>
->({
+>()({
   activityName: "API key",
   getAll: (actor) => getApiKeysForUser(sessionOf(actor).userId),
   load: async (id, actor) => {

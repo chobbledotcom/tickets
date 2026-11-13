@@ -51,7 +51,7 @@ const sourceRule = (
 
 export const externalSourceRecord = defineNamedRowRecord<
   RecordShapeOf<ExternalSource, ExternalSourceInput>
->({
+>()({
   activityName: "Source",
   api: ADMIN_API_RESOURCES["external-sources"],
   // The owner's page is the one route this record declares. Its audience is

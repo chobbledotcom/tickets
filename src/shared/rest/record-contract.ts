@@ -31,17 +31,25 @@ import type { AdminLevel } from "#types";
  * per-user row or a secret read uses the session at its boundary. */
 export type RecordActor = { session: AuthSession };
 
-/** The refusal answer a write or delete command gives. */
-type RefusalVerdict =
-  | { kind: "refused"; message: string }
-  | { kind: "not-found" };
+/** A write that stored its row. */
+export type Written<Row> = { kind: "written"; row: Row };
 
-/** The answer to one write command. A refusal is a domain rule, and a page and
- * the JSON API answer it with the same text. */
-export type WriteVerdict<Row> = { kind: "written"; row: Row } | RefusalVerdict;
+/** A delete that removed its row. */
+export type Deleted = { kind: "deleted" };
 
-/** The answer to one delete command. */
-export type DeleteVerdict = { kind: "deleted" } | RefusalVerdict;
+/** A command a domain rule refused. A page and the JSON API answer it with the
+ * same text. */
+export type Refused = { kind: "refused"; message: string };
+
+/** A command whose row is not there. */
+export type Missing = { kind: "not-found" };
+
+/** Every answer one write command can give. A command that cannot refuse, or
+ * cannot miss its row, declares the narrower union it does give. */
+export type WriteVerdict<Row> = Written<Row> | Refused | Missing;
+
+/** Every answer one delete command can give. */
+export type DeleteVerdict = Deleted | Refused | Missing;
 
 /** One read by key, for a page, the JSON API, and the delete confirmation. */
 export type LoadCommand<FullRow> = (
@@ -72,36 +80,67 @@ type PlannedCommand<Args extends unknown[], Answer, State> = <
 ) => Promise<Answer>;
 
 /** One domain create, before the record adds a per-call plan. */
-export type WriteCommand<Input, FullRow> = ActorCommand<
-  [input: Input],
-  WriteVerdict<FullRow>
->;
+export type WriteCommand<Input, Answer> = ActorCommand<[input: Input], Answer>;
 
 /** One domain update, before the record adds a per-call plan. */
-export type UpdateCommand<Input, FullRow> = ActorCommand<
+export type UpdateCommand<Input, Answer> = ActorCommand<
   [id: number, input: Input],
-  WriteVerdict<FullRow>
+  Answer
 >;
 
 /** One domain delete. */
-export type DeleteCommand = ActorCommand<
-  [id: number, input?: unknown],
-  DeleteVerdict
->;
+export type DeleteCommand<Answer extends DeleteVerdict = DeleteVerdict> =
+  ActorCommand<[id: number, input?: unknown], Answer>;
 
-/** One generated create, with the record's per-call plan. */
-export type PlannedWriteCommand<Input, FullRow, State> = PlannedCommand<
-  [input: Input],
-  WriteVerdict<FullRow>,
-  State
->;
+/** The answers one record's three commands give. A record's declaration
+ * narrows them, so a door never handles an answer its record cannot give. */
+export type RecordAnswers<FullRow> = {
+  readonly create: WriteVerdict<FullRow>;
+  readonly remove: DeleteVerdict;
+  readonly update: WriteVerdict<FullRow>;
+};
 
-/** One generated update, with the record's per-call plan. */
-export type PlannedUpdateCommand<Input, FullRow, State> = PlannedCommand<
-  [id: number, input: Input],
-  WriteVerdict<FullRow>,
-  State
->;
+/** The three domain commands of a record whose writes go through a domain
+ * boundary rather than its table statement. Each command can declare the
+ * narrower answers it gives. */
+export type RecordWrites<
+  Input,
+  FullRow,
+  Create extends WriteVerdict<FullRow> = WriteVerdict<FullRow>,
+  Update extends WriteVerdict<FullRow> = WriteVerdict<FullRow>,
+  Remove extends DeleteVerdict = DeleteVerdict,
+> = {
+  readonly create: WriteCommand<Input, Create>;
+  readonly remove: DeleteCommand<Remove>;
+  readonly update: UpdateCommand<Input, Update>;
+};
+
+/** The guard a JSON delete answers beyond the confirmation check. */
+export type DeleteRefusal = (
+  id: number,
+  actor?: RecordActor,
+) => Promise<string | null>;
+
+/** The answer a declaration names, or `Otherwise` when it names none. An
+ * absent answer reads as `never`. */
+type DeclaredOr<Answer, Otherwise> = [Answer] extends [never]
+  ? Otherwise
+  : Answer;
+
+/**
+ * The answers a record gives, read from its declaration. A domain write
+ * answers what its own commands answer. A table write can always refuse: the
+ * rule, the plan, and the transaction guards can each refuse it. A table
+ * delete refuses only through `deleteRefusal`.
+ */
+export type AnswersOf<FullRow, Create, Update, Remove, Refusal> = {
+  readonly create: DeclaredOr<Create, WriteVerdict<FullRow>>;
+  readonly remove: DeclaredOr<
+    Remove,
+    [Refusal] extends [never] ? Deleted | Missing : DeleteVerdict
+  >;
+  readonly update: DeclaredOr<Update, WriteVerdict<FullRow>>;
+};
 
 /** A per-call extra step for a write that carries side data (the listing's
  * group and option edges). `prepare` runs before the row statement and can
@@ -228,10 +267,7 @@ export interface RecordSpec<Shape extends RecordShape>
   readonly checkTx?: CheckTxHook<InputOf<Shape>>;
   /** A refusal the JSON delete answers beyond the confirmation check. The
    * page can declare its own pre-render guard. */
-  readonly deleteRefusal?: (
-    id: number,
-    actor?: RecordActor,
-  ) => Promise<string | null>;
+  readonly deleteRefusal?: DeleteRefusal;
   readonly getAll?: GetAllCommand<ListRowOf<Shape>>;
   /** Link create/update log entries to the row (the listing log does). */
   readonly linkActivityToRow?: boolean;
@@ -269,8 +305,9 @@ export interface RecordSpec<Shape extends RecordShape>
     readonly one?: LoadCommand<FullRowOf<Shape>>;
     readonly onePrimary?: LoadAfterWriteCommand<FullRowOf<Shape>>;
   };
-  /** The one write rule. Both doors run it before any write. */
-  readonly rule: RecordRule<InputOf<Shape>, RowOf<Shape>>;
+  /** The one write rule. Both doors run it before any write. A record with no
+   * domain rule declares none, and its input passes unchanged. */
+  readonly rule?: RecordRule<InputOf<Shape>, RowOf<Shape>>;
   /** The record page a save lands on, when it differs from the collection's
    * declared `afterSave`. */
   readonly saveLanding?: AdminDestinationId;
@@ -283,29 +320,31 @@ export interface RecordSpec<Shape extends RecordShape>
   /** A record whose writes go through a domain boundary rather than its table
    * statement gives its three commands here. Each command applies `rule`
    * itself, so the one rule still holds at both doors. */
-  readonly write?: {
-    readonly create: WriteCommand<InputOf<Shape>, FullRowOf<Shape>>;
-    readonly update: UpdateCommand<InputOf<Shape>, FullRowOf<Shape>>;
-    readonly remove: DeleteCommand;
-  };
+  readonly write?: RecordWrites<InputOf<Shape>, FullRowOf<Shape>>;
 }
 
-/** One admin record, with its write commands. */
-export interface AdminRecord<Shape extends RecordShape>
-  extends RecordSpec<Shape>,
+/** One admin record, with its write commands. `Answers` is what its
+ * declaration says each command can answer. */
+export interface AdminRecord<
+  Shape extends RecordShape,
+  Answers extends RecordAnswers<FullRowOf<Shape>> = RecordAnswers<
+    FullRowOf<Shape>
+  >,
+> extends RecordSpec<Shape>,
     RecordSurface {
-  readonly create: PlannedWriteCommand<
-    InputOf<Shape>,
-    FullRowOf<Shape>,
+  readonly create: PlannedCommand<
+    [input: InputOf<Shape>],
+    Answers["create"],
     StateOf<Shape>
   >;
   readonly getAll: GetAllCommand<ListRowOf<Shape>>;
   readonly load: LoadCommand<FullRowOf<Shape>>;
   readonly loadAfterWrite: LoadAfterWriteCommand<FullRowOf<Shape>>;
-  readonly remove: DeleteCommand;
-  readonly update: PlannedUpdateCommand<
-    InputOf<Shape>,
-    FullRowOf<Shape>,
+  readonly remove: DeleteCommand<Answers["remove"]>;
+  readonly rule: RecordRule<InputOf<Shape>, RowOf<Shape>>;
+  readonly update: PlannedCommand<
+    [id: number, input: InputOf<Shape>],
+    Answers["update"],
     StateOf<Shape>
   >;
 }
