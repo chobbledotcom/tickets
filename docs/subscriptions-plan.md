@@ -360,7 +360,7 @@ contract and the code together.
 
 ## Pull requests
 
-One stack of four. Each layer is green and useful alone.
+One stack of five. Each layer is useful alone.
 
 | Layer | Behaviour | Story |
 | --- | --- | --- |
@@ -368,6 +368,9 @@ One stack of four. Each layer is green and useful alone.
 | 2 | The Subscriptions menu and page | "Seeing who subscribed" |
 | 3 | The scheduled check: status and recurring payments in the ledger, with VAT | "Recurring payments reach the books" |
 | 4 | The owner cancels. Edits, deletes, and merges must keep live subscription plans. | "Cancelling a subscription" |
+| 5 | Production-backed TLA checks for the four lower layers | The [model check contract](subscription-models-plan.md) defines the proposed scope. |
+
+Layer 5 needs human approval of its separate contract before implementation.
 
 Layer 1 replaces no old path. No layer adds a compatibility surface.
 
