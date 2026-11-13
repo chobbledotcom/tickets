@@ -339,6 +339,16 @@ describeWithEnv("listings form", { db: true }, () => {
       ).toEqual({ notFound: true, ok: false });
     });
 
+    test("answers a record refusal with its message", async () => {
+      const first = await createListing();
+      const second = await createListing({ name: "Second listing" });
+
+      expect(await saveListingEdit(second.id, { name: first.name })).toEqual({
+        error: t("error.name_in_use"),
+        ok: false,
+      });
+    });
+
     test("the slug is normalized and its lookup code recomputed", async () => {
       const created = await createListing();
       const row = await updateListing(created.id, { slug: "  New-Slug  " });
