@@ -12,6 +12,7 @@ import {
   dateRange,
   optionalDateString,
   optionalTextField,
+  parseAndValidate,
   parseApiBody,
   parseOptionalArray,
   parseUpdateSlug,
@@ -141,6 +142,35 @@ test("parseApiBody returns the parsed body", () => {
     ok: true,
     value: { name: "Poster" },
   });
+});
+
+test("parseAndValidate answers a validator's refusal as an API error", async () => {
+  const validated = await parseAndValidate(
+    okResult({ name: "taken" }),
+    (_input, id) => Promise.resolve(id === 3 ? "That name is taken" : null),
+    3,
+  );
+
+  if (validated.ok) throw new Error("the validator should have refused");
+  expect(validated.response.status).toBe(400);
+  expect(await validated.response.json()).toEqual({
+    error: "That name is taken",
+  });
+});
+
+test("parseAndValidate returns the input its validator accepts", async () => {
+  const checked: [{ name: string }, number | undefined][] = [];
+  const validated = await parseAndValidate(
+    okResult({ name: "free" }),
+    (input, id) => {
+      checked.push([input, id]);
+      return Promise.resolve(null);
+    },
+    4,
+  );
+
+  expect(validated).toEqual({ input: { name: "free" }, ok: true });
+  expect(checked).toEqual([[{ name: "free" }, 4]]);
 });
 
 test("parseUpdateSlug trims and lowercases the slug, deriving its index", async () => {

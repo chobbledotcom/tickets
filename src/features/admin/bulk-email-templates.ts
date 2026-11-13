@@ -16,6 +16,7 @@ import type { BulkEmailTarget } from "#shared/bulk-email-targets/types.ts";
 import { MAX_EMAIL_TEMPLATES } from "#shared/limits.ts";
 import { emailTemplateRecord } from "#shared/records/email-templates.ts";
 import { ok } from "#shared/response.ts";
+import type { WriteVerdict } from "#shared/rest/record.ts";
 import { recordPages } from "#shared/rest/record-pages.ts";
 import { parsePositiveInt as parsePositiveIntId } from "#shared/validation/number.ts";
 import { bulkEmailTemplateDeletePage } from "#templates/admin/bulk-email.tsx";
@@ -28,32 +29,21 @@ const templateSavedResponse = (
 ): Response =>
   ok(`${COMPOSE_PATH}${targetQuery(target)}&template=${templateId}`, message);
 
-/** The refusal a failed template save flashes, or null for a saved row. */
-const templateFailure = (
-  verdict: { kind: string; message?: string },
-  target: BulkEmailTarget,
-): Response | null =>
-  verdict.kind === "written"
-    ? null
-    : errorRedirect(
-        `${COMPOSE_PATH}${targetQuery(target)}`,
-        verdict.kind === "refused" && verdict.message !== undefined
-          ? verdict.message
-          : t("bulk_email.template_missing"),
-      );
-
-/** Answer one template save: its flash redirect, or the refusal. */
+/** Answer one template save: its flash redirect, or the refusal. The template
+ *  was removed between the compose page load and this save; the record's save
+ *  command never refuses a submitted template. */
 const answerTemplateSave = (
-  verdict: { kind: string; message?: string; row?: { id: number } },
+  verdict: WriteVerdict<{ id: number }>,
   target: BulkEmailTarget,
   message: string,
 ): Response => {
-  const failure = templateFailure(verdict, target);
-  if (failure !== null) return failure;
-  if (verdict.kind !== "written" || verdict.row === undefined) {
-    throw new Error("A saved template answered no row");
+  if (verdict.kind === "written") {
+    return templateSavedResponse(target, verdict.row.id, message);
   }
-  return templateSavedResponse(target, verdict.row.id, message);
+  return errorRedirect(
+    `${COMPOSE_PATH}${targetQuery(target)}`,
+    t("bulk_email.template_missing"),
+  );
 };
 
 /** POST /admin/emails/templates — save or update a template. */

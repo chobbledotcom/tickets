@@ -1,6 +1,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { generateSecureToken } from "#crypto/utils.ts";
 import { setAdminFeatureEnabled } from "#db/admin-features.ts";
 import { getApiKeysForUser, touchApiKeyLastUsed } from "#db/api-keys.ts";
@@ -8,6 +9,7 @@ import { createSession } from "#db/sessions.ts";
 import { handleRequest } from "#routes";
 import { buildSessionCookie } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { apiKeyRecord } from "#shared/records/api-keys.ts";
 import {
   expectFlash,
   expectIncludesAll,
@@ -135,6 +137,18 @@ describeWithEnv("API keys admin UI", { db: true }, () => {
   });
 
   describe("creating keys", () => {
+    /** POST a key create and assert its error flash, its redirect, and that
+     *  no key was stored. */
+    const expectCreateFailure = async (message: string): Promise<void> => {
+      const response = (
+        await adminFormPost("/admin/api-keys", { name: "Rejected" })
+      ).response;
+
+      expect(response.status).toBe(302);
+      expectFlash(response, message, false);
+      expect(await getApiKeysForUser(1)).toEqual([]);
+    };
+
     test("POST /admin/api-keys creates a key and redirects with it", async () => {
       const cookie = await testCookie();
 
@@ -260,6 +274,25 @@ describeWithEnv("API keys admin UI", { db: true }, () => {
 
       expect(response.status).toBe(302);
       expectFlash(response, "Session key unavailable", false);
+    });
+
+    test("POST /admin/api-keys flashes when the record answers a vanished key", async () => {
+      using _create = stub(apiKeyRecord, "create", () =>
+        Promise.resolve({ kind: "not-found" as const }),
+      );
+
+      await expectCreateFailure("The API key was not stored");
+    });
+
+    test("POST /admin/api-keys refuses a written key with no secret", async () => {
+      using _create = stub(apiKeyRecord, "create", () =>
+        Promise.resolve({
+          kind: "written" as const,
+          row: { created: "", id: 1, lastUsed: "", name: "No secret" },
+        }),
+      );
+
+      await expectCreateFailure("The API key create returned no secret");
     });
   });
 });

@@ -14,9 +14,12 @@ import {
   getImageUsesForImage,
 } from "#db/images.ts";
 import { writeImageUpdate } from "#routes/admin/api-images.ts";
+import { imageRecord } from "#shared/records/images.ts";
 import {
   type ApiImageRow,
   deleteImage,
+  expectImageDeleteError,
+  expectImageName,
   expectImageNotFound,
   imageApiPath,
   imageOnListing,
@@ -148,7 +151,7 @@ describeWithEnv(
         expect((await response.json()).error).toBe(
           "This image is used by public site content — only site editors can manage it.",
         );
-        expect((await getImageById(image.id))?.name).toBe("On a page");
+        await expectImageName(image.id, "On a page");
       });
 
       test("refuses a manager's news post link", async () => {
@@ -198,7 +201,7 @@ describeWithEnv(
           400,
           `items must name existing records: listing:${missingId}`,
         );
-        expect((await getImageById(image.id))?.name).toBe("Kept");
+        await expectImageName(image.id, "Kept");
         expect(await getImageUsesForImage(image.id)).toEqual([]);
       });
 
@@ -281,36 +284,33 @@ describeWithEnv(
 
       test("refuses a confirmation that is not the image name", async () => {
         const image = await makeImage("Keep me");
-        await expectApiError(
-          deleteImage(image.id, { confirm_identifier: "wrong" }),
+        await expectImageDeleteError(
+          image,
           400,
           "Image name does not match. Please provide the exact image name in confirm_identifier.",
+          "wrong",
         );
-        expect(await getImageById(image.id)).not.toBeNull();
+        await expectImageName(image.id, "Keep me");
       });
 
       test("refuses deleting an image when storage is off", async () => {
         const image = await makeImage("No storage");
         await withStorageDisabled(() =>
-          expectApiError(
-            deleteImage(image.id, { confirm_identifier: image.name }),
-            400,
-            "File storage is not configured.",
-          ),
+          expectImageDeleteError(image, 400, "File storage is not configured."),
         );
-        expect(await getImageById(image.id)).not.toBeNull();
+        await expectImageName(image.id, "No storage");
       });
 
       test("keeps the image when its stored files cannot be deleted", async () => {
         const image = await makeImage("Storage failure");
         await withCdnRejecting(new Error("delete down"), async () => {
-          await expectApiError(
-            deleteImage(image.id, { confirm_identifier: image.name }),
+          await expectImageDeleteError(
+            image,
             500,
             "Could not delete the image files from storage. The image was kept so you can try again.",
           );
         });
-        expect(await getImageById(image.id)).not.toBeNull();
+        await expectImageName(image.id, "Storage failure");
       });
 
       test("refuses deleting an image a page shows, for a manager", async () => {
@@ -322,7 +322,19 @@ describeWithEnv(
           await createTestManagerSession(),
         );
         expect(response.status).toBe(403);
-        expect(await getImageById(image.id)).not.toBeNull();
+        await expectImageName(image.id, "Page image");
+      });
+
+      test("answers 404 when the row vanished before the delete committed", async () => {
+        const { image } = await imageOnListing("Vanishes");
+        using _remove = stub(imageRecord, "remove", () =>
+          Promise.resolve({ kind: "not-found" as const }),
+        );
+
+        await withStorageMock(async () => {
+          await expectImageDeleteError(image, 404, "Image not found");
+        });
+        await expectImageName(image.id, "Vanishes");
       });
 
       test("answers 404 for an id the library does not hold", async () => {

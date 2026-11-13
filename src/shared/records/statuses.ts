@@ -108,7 +108,6 @@ export const statusRecord = defineNamedRowRecord<
   api: ADMIN_API_RESOURCES["attendee-statuses"],
   getAll: attendeeStatuses.getAll,
   load: getAttendeeStatus,
-  loadAfterWrite: (id) => attendeeStatuses.table.findByIdPrimary!(id),
   nameLabel: "statuses.name_label",
   rule: statusRule,
   surface: "settingsStatuses",

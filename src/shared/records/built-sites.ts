@@ -31,21 +31,18 @@ const commitBuiltSite = (
 ): Promise<WriteVerdict<BuiltSite>> =>
   answerWrite(write, (row) => logBuiltSite(row.name, verb));
 
-/** Save one built site and its activity line. The rule runs first. */
+/** Save one built site and its activity line. The rule admits every input, so
+ * there is no refusal to answer here. */
 const saveBuiltSite = (
   id: number | null,
   input: BuiltSiteFormInput,
   verb: "created" | "updated",
-): Promise<WriteVerdict<BuiltSite>> => {
-  const ruled = builtSiteRule(input);
-  if (!ruled.ok)
-    return Promise.resolve({ kind: "refused", message: ruled.error });
-  return commitBuiltSite(verb, () =>
+): Promise<WriteVerdict<BuiltSite>> =>
+  commitBuiltSite(verb, () =>
     id === null
-      ? builtSitesCrudTable.insert(ruled.value)
-      : builtSitesCrudTable.update(id, ruled.value),
+      ? builtSitesCrudTable.insert(input)
+      : builtSitesCrudTable.update(id, input),
   );
-};
 
 const builtSiteWrites = {
   create: (input: BuiltSiteFormInput) => saveBuiltSite(null, input, "created"),

@@ -14,6 +14,7 @@ import {
   attendeeStatusWrites,
 } from "#db/attendee-statuses.ts";
 import { execute } from "#db/client.ts";
+import { statusRecord } from "#shared/records/statuses.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import {
   expectFlashRedirect,
@@ -49,6 +50,10 @@ const attendeeStatusCount = async (statusId: number): Promise<number> => {
 };
 
 describeWithEnv("deleting a status", { db: true }, () => {
+  test("the record's delete command answers not-found for an unknown id", async () => {
+    expect(await statusRecord.remove(999_999)).toEqual({ kind: "not-found" });
+  });
+
   test("removes one nothing depends on", async () => {
     const id = await create("Spare");
 

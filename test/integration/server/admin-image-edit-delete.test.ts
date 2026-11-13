@@ -1,18 +1,22 @@
 import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import {
   getImageById,
   getImageUsesForImage,
   setImagesForItem,
-  setItemsForImage,
 } from "#db/images.ts";
 import { handleRequest } from "#routes";
+import { imageRecord } from "#shared/records/images.ts";
+import type { DeleteVerdict, WriteVerdict } from "#shared/rest/record.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   adminGet,
+  expectImageName,
   formRequest,
   imageNamesForItem,
+  imageOnListingAndGroup,
   makeImage,
 } from "#test-utils/admin-images.ts";
 import {
@@ -32,20 +36,140 @@ import {
   withStorageMock,
 } from "#test-utils/mocks.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
+import type { Image } from "#types";
 
 describeWithEnv(
   "admin image edit and delete routes",
   { db: true, storage: "cdn" },
   () => {
+    /** POST one image's edit form as the owner: the route's answer and the
+     *  session cookie it used. The fields default to the image's own values. */
+    const postImageEdit = async (
+      image: { alt_text: string; id: number; name: string },
+      fields: [string, string][] = [
+        ["name", image.name],
+        ["alt_text", image.alt_text],
+      ],
+    ): Promise<{ cookie: string; response: Response }> => {
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
+      const response = await handleRequest(
+        formRequest(
+          `/admin/images/${image.id}/edit`,
+          [["csrf_token", csrfToken], ...fields],
+          cookie,
+        ),
+      );
+      return { cookie, response };
+    };
+
+    /** The delete confirmation one image's page POST sends, and its cookie. */
+    const deleteRequest = async (
+      image: { id: number; name: string },
+      confirmIdentifier: string = image.name,
+    ): Promise<{ cookie: string; request: Request }> => {
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
+      return {
+        cookie,
+        request: mockFormRequest(
+          `/admin/images/${image.id}/delete`,
+          { confirm_identifier: confirmIdentifier, csrf_token: csrfToken },
+          cookie,
+        ),
+      };
+    };
+
+    /** Assert one page write's answer: its status, or its refusal flash. */
+    const expectWriteAnswer = async (
+      path: string,
+      cookie: string,
+      response: Response,
+      expected: { status: number } | { flash: string },
+    ): Promise<void> => {
+      if ("status" in expected) {
+        expect(response.status).toBe(expected.status);
+        return;
+      }
+      await expectFlashRedirect(path, expected.flash, false, cookie)(response);
+    };
+
+    /** Assert one edit's answer when the record's write answers `verdict`:
+     *  its 404, or its refusal flash. */
+    const expectEditAnswer = async (
+      imageName: string,
+      verdict: WriteVerdict<Image>,
+      expected: { status: number } | { flash: string },
+    ): Promise<void> => {
+      const image = await makeImage(imageName);
+      using _update = stub(imageRecord, "update", () =>
+        Promise.resolve(verdict),
+      );
+      const { cookie, response } = await postImageEdit(image);
+      await expectWriteAnswer(
+        `/admin/images/${image.id}/edit`,
+        cookie,
+        response,
+        expected,
+      );
+      await expectImageName(image.id, imageName);
+    };
+
+    /** Assert one delete's answer when the record's remove answers `verdict`:
+     *  its 404, or its refusal flash. */
+    const expectDeleteAnswer = async (
+      imageName: string,
+      verdict: DeleteVerdict,
+      expected: { status: number } | { flash: string },
+    ): Promise<void> => {
+      const image = await makeImage(imageName);
+      using _remove = stub(imageRecord, "remove", () =>
+        Promise.resolve(verdict),
+      );
+      const { cookie, request } = await deleteRequest(image);
+      let response: Response | undefined;
+      await withStorageMock(async () => {
+        response = await handleRequest(request);
+      });
+      await expectWriteAnswer(
+        `/admin/images/${image.id}/delete`,
+        cookie,
+        response!,
+        expected,
+      );
+      await expectImageName(image.id, imageName);
+    };
+
+    test("answers the record's vanished or refused image writes", async () => {
+      const cases = [
+        {
+          expected: { status: 404 },
+          name: "Vanished",
+          verdict: { kind: "not-found" as const },
+        },
+        {
+          expected: { flash: "The image refused the change" },
+          name: "Refused",
+          verdict: {
+            kind: "refused" as const,
+            message: "The image refused the change",
+          },
+        },
+      ];
+
+      for (const { expected, name, verdict } of cases) {
+        await expectEditAnswer(`${name} edit`, verdict, expected);
+        await expectDeleteAnswer(`${name} delete`, verdict, expected);
+      }
+    });
+
     describe("GET /admin/images/:id/edit", () => {
       test("renders selected listing and group links", async () => {
-        const image = await makeImage("Shared");
-        const listing = await createTestListing({ name: "Image listing" });
-        const group = await createTestGroup({ name: "Image group" });
-        await setItemsForImage(image.id, [
-          { id: listing.id, kind: "listing" },
-          { id: group.id, kind: "group" },
-        ]);
+        const { group, image, listing } = await imageOnListingAndGroup(
+          "Shared",
+          "Image listing",
+          "Image group",
+        );
 
         await expectHtmlResponse(
           await adminGet(`/admin/images/${image.id}/edit`),
@@ -95,20 +219,10 @@ describeWithEnv(
     describe("POST /admin/images/:id/edit", () => {
       test("rejects empty image names", async () => {
         const image = await makeImage("Named");
-        const cookie = await testCookie();
-        const csrfToken = await testCsrfToken();
-
-        const response = await handleRequest(
-          formRequest(
-            `/admin/images/${image.id}/edit`,
-            [
-              ["csrf_token", csrfToken],
-              ["name", ""],
-              ["alt_text", "Still invalid"],
-            ],
-            cookie,
-          ),
-        );
+        const { cookie, response } = await postImageEdit(image, [
+          ["name", ""],
+          ["alt_text", "Still invalid"],
+        ]);
 
         await expectFlashRedirect(
           `/admin/images/${image.id}/edit`,
@@ -116,32 +230,22 @@ describeWithEnv(
           false,
           cookie,
         )(response);
-        expect(await getImageById(image.id)).toMatchObject({ name: "Named" });
+        await expectImageName(image.id, "Named");
       });
 
       test("updates image metadata and linked items", async () => {
         const image = await makeImage("Original");
         const listing = await createTestListing({ name: "Editable listing" });
         const group = await createTestGroup({ name: "Editable group" });
-        const cookie = await testCookie();
-        const csrfToken = await testCsrfToken();
-
-        const response = await handleRequest(
-          formRequest(
-            `/admin/images/${image.id}/edit`,
-            [
-              ["csrf_token", csrfToken],
-              ["name", "Updated"],
-              ["alt_text", "Updated alt"],
-              ["image_items", `listing:${listing.id}`],
-              ["image_items", `group:${group.id}`],
-              ["image_items", "not-an-item"],
-              ["image_items", "bogus:12"],
-              ["image_items", "listing:0"],
-            ],
-            cookie,
-          ),
-        );
+        const { cookie, response } = await postImageEdit(image, [
+          ["name", "Updated"],
+          ["alt_text", "Updated alt"],
+          ["image_items", `listing:${listing.id}`],
+          ["image_items", `group:${group.id}`],
+          ["image_items", "not-an-item"],
+          ["image_items", "bogus:12"],
+          ["image_items", "listing:0"],
+        ]);
 
         await expectFlashRedirect(
           `/admin/images/${image.id}/edit`,
@@ -173,21 +277,11 @@ describeWithEnv(
         const image = await makeImage("Original first");
         const trailing = await makeImage("Original trailing");
         await setImagesForItem("listing", listing.id, [image.id, trailing.id]);
-        const cookie = await testCookie();
-        const csrfToken = await testCsrfToken();
-
-        const response = await handleRequest(
-          formRequest(
-            `/admin/images/${image.id}/edit`,
-            [
-              ["csrf_token", csrfToken],
-              ["name", "Renamed first"],
-              ["alt_text", "Updated alt"],
-              ["image_items", `listing:${listing.id}`],
-            ],
-            cookie,
-          ),
-        );
+        const { cookie, response } = await postImageEdit(image, [
+          ["name", "Renamed first"],
+          ["alt_text", "Updated alt"],
+          ["image_items", `listing:${listing.id}`],
+        ]);
 
         await expectFlashRedirect(
           `/admin/images/${image.id}/edit`,
@@ -203,21 +297,12 @@ describeWithEnv(
 
       test("rejects direct metadata saves when storage is disabled", async () => {
         const image = await makeImage("Storage-off edit");
-        const cookie = await testCookie();
-        const csrfToken = await testCsrfToken();
 
         await withStorageDisabled(async () => {
-          const response = await handleRequest(
-            formRequest(
-              `/admin/images/${image.id}/edit`,
-              [
-                ["csrf_token", csrfToken],
-                ["name", "Should not save"],
-                ["alt_text", "Should not save"],
-              ],
-              cookie,
-            ),
-          );
+          const { cookie, response } = await postImageEdit(image, [
+            ["name", "Should not save"],
+            ["alt_text", "Should not save"],
+          ]);
           await expectFlashRedirect(
             "/admin/images",
             "File storage is not configured.",
@@ -225,10 +310,7 @@ describeWithEnv(
             cookie,
           )(response);
         });
-        expect(await getImageById(image.id)).toMatchObject({
-          alt_text: "Alt Storage-off edit",
-          name: "Storage-off edit",
-        });
+        await expectImageName(image.id, "Storage-off edit");
       });
     });
 
@@ -248,17 +330,10 @@ describeWithEnv(
 
       test("rejects direct deletes when storage is disabled", async () => {
         const image = await makeImage("Storage-off delete");
-        const cookie = await testCookie();
-        const csrfToken = await testCsrfToken();
+        const { cookie, request } = await deleteRequest(image);
 
         await withStorageDisabled(async () => {
-          const response = await handleRequest(
-            mockFormRequest(
-              `/admin/images/${image.id}/delete`,
-              { confirm_identifier: image.name, csrf_token: csrfToken },
-              cookie,
-            ),
-          );
+          const response = await handleRequest(request);
           await expectFlashRedirect(
             "/admin/images",
             "File storage is not configured.",
@@ -266,37 +341,25 @@ describeWithEnv(
             cookie,
           )(response);
         });
-        expect(await getImageById(image.id)).not.toBeNull();
+        await expectImageName(image.id, "Storage-off delete");
       });
 
       test("requires the image name, then deletes storage files and image rows", async () => {
         const image = await makeImage("Discard");
-        const cookie = await testCookie();
-        const csrfToken = await testCsrfToken();
+        const mismatchRequest = await deleteRequest(image, "wrong");
 
-        const mismatch = await handleRequest(
-          mockFormRequest(
-            `/admin/images/${image.id}/delete`,
-            { confirm_identifier: "wrong", csrf_token: csrfToken },
-            cookie,
-          ),
-        );
+        const mismatch = await handleRequest(mismatchRequest.request);
         await expectFlashRedirect(
           `/admin/images/${image.id}/delete`,
           "Confirmation did not match the image name",
           false,
-          cookie,
+          mismatchRequest.cookie,
         )(mismatch);
-        expect(await getImageById(image.id)).not.toBeNull();
+        await expectImageName(image.id, "Discard");
 
+        const { request } = await deleteRequest(image);
         await withStorageMock(async (fetchCalls) => {
-          const deleted = await handleRequest(
-            mockFormRequest(
-              `/admin/images/${image.id}/delete`,
-              { confirm_identifier: "Discard", csrf_token: csrfToken },
-              cookie,
-            ),
-          );
+          const deleted = await handleRequest(request);
           await expectFlashRedirect(
             "/admin/images",
             "Image deleted",
@@ -318,17 +381,10 @@ describeWithEnv(
 
       test("keeps the image row when storage cleanup fails", async () => {
         const image = await makeImage("Storage failure");
-        const cookie = await testCookie();
-        const csrfToken = await testCsrfToken();
+        const { cookie, request } = await deleteRequest(image);
 
         await withCdnRejecting(new Error("delete down"), async () => {
-          const response = await handleRequest(
-            mockFormRequest(
-              `/admin/images/${image.id}/delete`,
-              { confirm_identifier: image.name, csrf_token: csrfToken },
-              cookie,
-            ),
-          );
+          const response = await handleRequest(request);
           await expectFlashRedirect(
             `/admin/images/${image.id}/delete`,
             "Could not delete the image files from storage. The image was kept so you can try again.",
@@ -338,7 +394,7 @@ describeWithEnv(
         });
         // The record survives so the admin can retry rather than orphaning the
         // stored files under a deleted library entry.
-        expect(await getImageById(image.id)).not.toBeNull();
+        await expectImageName(image.id, "Storage failure");
       });
     });
   },

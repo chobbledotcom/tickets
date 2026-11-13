@@ -1,12 +1,19 @@
+import { expect } from "@std/expect";
 import { encrypt } from "#crypto/encryption.ts";
 import { toBase64 } from "#crypto/utils.ts";
 import { execute } from "#db/client.ts";
-import { getImagesForItem, imagesTable, setItemsForImage } from "#db/images.ts";
+import {
+  getImageById,
+  getImagesForItem,
+  imagesTable,
+  setItemsForImage,
+} from "#db/images.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { expectApiError } from "#test-utils/assertions.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
 import { mockMultipartRequest, mockRequest } from "#test-utils/mocks.ts";
@@ -21,6 +28,26 @@ export const makeImage = (name: string): Promise<Image> =>
     filenameThumb: nonEmptyString(`${name.toLowerCase()}-thumb.webp`),
     name,
   });
+
+/** A stored image shown on one listing and one group. */
+export const imageOnListingAndGroup = async (
+  imageName: string,
+  listingName: string,
+  groupName: string,
+): Promise<{
+  group: { id: number };
+  image: Image;
+  listing: { id: number };
+}> => {
+  const image = await makeImage(imageName);
+  const listing = await createTestListing({ name: listingName });
+  const group = await createTestGroup({ name: groupName });
+  await setItemsForImage(image.id, [
+    { id: listing.id, kind: "listing" },
+    { id: group.id, kind: "group" },
+  ]);
+  return { group, image, listing };
+};
 
 /** A stored image shown on one listing. Returns the image and the listing's
  *  id, which the tests read back through. */
@@ -139,6 +166,28 @@ export const deleteImage = imageWrite("DELETE");
 export const expectImageNotFound = (
   request: Promise<Response>,
 ): Promise<unknown> => expectApiError(request, 404, "Image not found");
+
+/** Assert one image delete's answer: its status and error text. The
+ *  confirmation defaults to the image's own name. */
+export const expectImageDeleteError = (
+  image: Pick<Image, "id" | "name">,
+  status: number,
+  message: string,
+  confirmIdentifier: string = image.name,
+): Promise<unknown> =>
+  expectApiError(
+    deleteImage(image.id, { confirm_identifier: confirmIdentifier }),
+    status,
+    message,
+  );
+
+/** Assert the stored image still carries `name`. */
+export const expectImageName = async (
+  id: number,
+  name: string,
+): Promise<void> => {
+  expect((await getImageById(id))?.name).toBe(name);
+};
 
 /** One image row as the JSON API answers with it. */
 export type ApiImageRow = {

@@ -112,13 +112,16 @@ const hydrateImages = async (rows: Image[]): Promise<HydratedRows> => {
   );
 };
 
+/** The rows a write answered, hydrated from the primary: a write's answer must
+ *  show the links it just stored, not a lagging replica's. */
 const hydrateImageAfterWrite = async (rows: Image[]): Promise<HydratedRows> => {
-  const [row] = rows;
-  return row === undefined
-    ? new Map()
-    : new Map([
-        [row.id, imageExtras(row, await getImageUsesForImageOnPrimary(row.id))],
-      ]);
+  const extras = await Promise.all(
+    rows.map(async (row) => {
+      const uses = await getImageUsesForImageOnPrimary(row.id);
+      return [row.id, imageExtras(row, uses)] as const;
+    }),
+  );
+  return new Map(extras);
 };
 
 // ─── Body mapping ──────────────────────────────────────────────
@@ -153,10 +156,14 @@ const toCreateInput: WriteMapper<
   return okResult({ ...metadata.value, ...filenames.value });
 };
 
+/** The input an update maps: its metadata is always complete, because the
+ *  metadata check fills the alt text it read. */
+type ImageUpdateInput = ImageWriteInput & { altText: string };
+
 /** One update's metadata and links. An absent field keeps the stored value,
  *  and an absent `items` leaves the stored links alone (null). */
 const toUpdateInput: WriteMapper<
-  ImageWriteInput,
+  ImageUpdateInput,
   WriteBody<ImageEntry["updateBodySchema"]>,
   Image
 > = (body, existing) => {
@@ -236,15 +243,6 @@ const withImageWrite =
       policy,
     );
 
-/** The answer a refused or vanished image write gives. */
-const imageFailure = (verdict: {
-  kind: "refused" | "not-found";
-  message?: string;
-}): Response =>
-  verdict.kind === "refused"
-    ? apiErrorResponse(verdict.message ?? "")
-    : apiErrorResponse(`${ENTRY.label} not found`, 404);
-
 const handleUpdate: RouteHandlerFn = withImageWrite(
   async (existing, session, body) =>
     answerParsed(
@@ -260,7 +258,7 @@ const handleUpdate: RouteHandlerFn = withImageWrite(
         const outcome = await writeImageUpdate(existing, {
           items: input.value.items ?? null,
           metadata: {
-            altText: input.value.altText ?? existing.alt_text,
+            altText: input.value.altText,
             name: input.value.name,
           },
         });
@@ -295,9 +293,8 @@ const handleDelete: RouteHandlerFn = withImageWrite(
       return apiErrorResponse(t("images.delete.storage_failed"), 500);
     }
     const verdict = await imageRecord.remove(image.id);
-    return verdict.kind === "deleted"
-      ? jsonResponse({ status: "ok" })
-      : imageFailure(verdict);
+    if (verdict.kind === "deleted") return jsonResponse({ status: "ok" });
+    return apiErrorResponse(`${ENTRY.label} not found`, 404);
   },
   deletePolicy,
 );

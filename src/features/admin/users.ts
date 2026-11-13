@@ -361,20 +361,19 @@ const handleUserAgentsPost: TypedRouteHandler<"POST /admin/users/:id/agents"> =
     return adminRedirect("users", {}, t("success.agents_updated"), true);
   });
 
+/** The login name a user's confirmation and record use. */
+const usernameOf = (user: DisplayUser): string => user.username;
+
 /** Confirmed-delete handlers for users */
 const userDelete = createConfirmedHandlers<DisplayUser>({
-  identifier: (displayUser) => displayUser.username,
+  identifier: usernameOf,
   identifierLabel: t("users.name_label"),
   load: async (id) => {
     const user = await getUserById(id);
     if (!user) return null;
     return toDisplayUser(user);
   },
-  onConfirm: confirmDeleteWithLog(
-    deleteUser,
-    "User",
-    (displayUser) => displayUser.username,
-  ),
+  onConfirm: confirmDeleteWithLog(deleteUser, "User", usernameOf),
   onNotFound: (_id, session) =>
     usersErrorResponse(session, t("error.user_not_found"), 404),
   path: "/admin/users/:id/delete",
@@ -393,11 +392,11 @@ const userDelete = createConfirmedHandlers<DisplayUser>({
 const userRecord = defineRecord<RecordShapeOf<DisplayUser, DisplayUser>>({
   activityName: "User",
   getAll: loadDisplayUsers,
-  load: (id) => loadDisplayUser(id),
-  logName: (user) => user.username,
-  nameOf: (user) => user.username,
-  onDelete: (id) => deleteUser(id),
-  rule: (input) => okResult(input),
+  load: loadDisplayUser,
+  logName: usernameOf,
+  nameOf: usernameOf,
+  onDelete: deleteUser,
+  rule: okResult,
   surface: { deleteDestination: "userDelete", list: "users" },
 });
 

@@ -148,15 +148,6 @@ type RecordGates = {
   new: SessionGuard<AuthSession> | null;
 };
 
-/** The gate a route declares, or null when the surface declares no route. */
-const guardAtOrNull = (
-  path: string,
-  form: boolean,
-): FormGuard<AuthSession> | SessionGuard<AuthSession> | null => {
-  if (adminDestinationAtOrNull(path) === null) return null;
-  return form ? formGuardAt(path) : pageGuardAt(path);
-};
-
 const recordGates = (
   listPath: string,
   newPath: string | null,
@@ -166,15 +157,9 @@ const recordGates = (
   create: formGuardAt(listPath),
   delete: pageGuardAt(deletePath),
   deleteForm: formGuardAt(deletePath),
-  edit:
-    editPath === null
-      ? null
-      : (guardAtOrNull(editPath, true) as FormGuard<AuthSession>),
+  edit: editPath === null ? null : formGuardAt(editPath),
   list: pageGuardAt(listPath),
-  new:
-    newPath === null
-      ? null
-      : (guardAtOrNull(newPath, false) as SessionGuard<AuthSession>),
+  new: newPath === null ? null : pageGuardAt(newPath),
 });
 
 /** Run the form's own checks, then convert the values to the record's input.
@@ -367,6 +352,7 @@ export const recordPages = <
     );
 
   const rejectEdit = (
+    editPath: string,
     id: number,
     session: AuthSession,
     form: FormParams,
@@ -375,19 +361,19 @@ export const recordPages = <
     config.renderEditError
       ? config.renderEditError(id, session, form, message)
       : errorRedirect(
-          config.editErrorPath?.(id) ??
-            (editPath ?? `${listPath}/:id/edit`).replace(/:[^/]+/, String(id)),
+          config.editErrorPath?.(id) ?? editPath.replace(/:[^/]+/, String(id)),
           message,
         );
 
   const editVerdict = (
+    editPath: string,
     verdict: WriteVerdict<FullRowOf<Shape>>,
     id: number,
     session: AuthSession,
     form: FormParams,
   ): Response | Promise<Response> => {
     if (verdict.kind === "refused") {
-      return rejectEdit(id, session, form, verdict.message);
+      return rejectEdit(editPath, id, session, form, verdict.message);
     }
     if (verdict.kind === "not-found") return notFoundResponse();
     return redirect(
@@ -405,9 +391,10 @@ export const recordPages = <
             runParsedForm(
               form,
               true,
-              (message) => rejectEdit(id, session, form, message),
+              (message) => rejectEdit(editPath, id, session, form, message),
               async (input) =>
                 editVerdict(
+                  editPath,
                   await record.update(id, input, undefined, { session }),
                   id,
                   session,

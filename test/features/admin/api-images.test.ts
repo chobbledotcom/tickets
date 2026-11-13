@@ -14,13 +14,13 @@ import {
   expectImageNotFound,
   IMAGE_API_ROOT,
   imageApiPath,
+  imageOnListingAndGroup,
   imageUploadBody,
   loggedMessages,
   makeImage,
 } from "#test-utils/admin-images.ts";
 import { assertJson, expectApiError } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   mockRequest,
@@ -76,13 +76,11 @@ describeWithEnv("Admin API - Images", { db: true, storage: "cdn" }, () => {
 
   describe("GET /api/admin/images/:imageId", () => {
     test("answers one image with every record it shows on", async () => {
-      const image = await makeImage("Shared");
-      const listing = await createTestListing({ name: "Summer" });
-      const group = await createTestGroup({ name: "Series" });
-      await setItemsForImage(image.id, [
-        { id: group.id, kind: "group" },
-        { id: listing.id, kind: "listing" },
-      ]);
+      const { group, image, listing } = await imageOnListingAndGroup(
+        "Shared",
+        "Summer",
+        "Series",
+      );
 
       await assertJson<{ image: ApiImageRow }>(
         apiRequest(imageApiPath(image.id)),

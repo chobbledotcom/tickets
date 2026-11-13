@@ -32,9 +32,16 @@ import {
   recordPageIds,
   recordSurfaceOf,
 } from "#shared/rest/record.ts";
-import { deleteIfPresent, writeAndLog } from "#shared/rest/record-command.ts";
+import {
+  contentCommands,
+  deleteIfPresent,
+  writeAndLog,
+} from "#shared/rest/record-command.ts";
 import { errorResult, okResult } from "#shared/result.ts";
-import { wasActivityLogged } from "#test-utils/activity-log.ts";
+import {
+  getAllActivityLog,
+  wasActivityLogged,
+} from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   type IdNameInput,
@@ -65,8 +72,11 @@ const widgetRecord = (
 const storedWidgets = async (): Promise<IdNameRow[]> =>
   table.read.many({}, { order: "id ASC" });
 
-const createWidget = async (name: string): Promise<IdNameRow> => {
-  const created = await widgetRecord().create({ name });
+const createWidget = async (
+  name: string,
+  record = widgetRecord(),
+): Promise<IdNameRow> => {
+  const created = await record.create({ name });
   if (created.kind !== "written") throw new Error("create failed");
   return created.row;
 };
@@ -145,6 +155,81 @@ describeWithEnv("the admin record write path", { db: true }, () => {
     expect(await record.remove(created.id)).toEqual({ kind: "not-found" });
   });
 
+  test("a write with no join steps takes the plain table path", async () => {
+    const record = widgetRecord({ logAfterCommit: true });
+
+    const created = await createWidget("Plain", record);
+    expect(created).toEqual({ id: 1, name: "Plain" });
+
+    const updated = await record.update(created.id, { name: "Plainer" });
+    expect(updated).toEqual({
+      kind: "written",
+      row: { id: 1, name: "Plainer" },
+    });
+    expect(await storedWidgets()).toEqual([{ id: 1, name: "Plainer" }]);
+  });
+
+  test("a linked write names its row on every activity line", async () => {
+    const record = widgetRecord({ linkActivityToRow: true });
+
+    expect(await createWidget("Linked", record)).toEqual({
+      id: 1,
+      name: "Linked",
+    });
+    expect(
+      (await getAllActivityLog()).map((entry) => [
+        entry.listing_id,
+        entry.message,
+      ]),
+    ).toEqual([[1, "Widget 'Linked' created"]]);
+
+    expect(await record.remove(1)).toEqual({ kind: "deleted" });
+    expect(
+      (await getAllActivityLog()).map((entry) => [
+        entry.listing_id,
+        entry.message,
+      ]),
+    ).toEqual([
+      [1, "Widget 'Linked' deleted"],
+      [1, "Widget 'Linked' created"],
+    ]);
+  });
+
+  test("a table record loads through the replica and the primary", async () => {
+    const created = await createWidget("Defaults");
+    const record = widgetRecord();
+
+    expect(await record.load(created.id)).toEqual(created);
+    expect(await record.loadAfterWrite(created.id)).toEqual(created);
+    expect(await record.load(999)).toBeNull();
+  });
+
+  test("a content update needs no not-found error of its own", async () => {
+    const saved: [number, IdNameInput][] = [];
+    const commands = contentCommands<IdNameRow, IdNameInput, "missing">({
+      create: () => Promise.resolve(okResult({ id: 2, name: "New" })),
+      load: (id) =>
+        Promise.resolve(id === 1 ? { id: 1, name: "Stored" } : null),
+      log: () => Promise.resolve(),
+      message: () => "refused",
+      remove: () => Promise.resolve(),
+      rule: (input) => okResult(input),
+      update: (id, input) => {
+        saved.push([id, input]);
+        return Promise.resolve(okResult({ id, name: input.name }));
+      },
+      updateInput: (input) => input,
+    });
+
+    const verdict = await commands.update(1, { name: "Renamed" });
+
+    expect(verdict).toEqual({
+      kind: "written",
+      row: { id: 1, name: "Renamed" },
+    });
+    expect(saved).toEqual([[1, { name: "Renamed" }]]);
+  });
+
   test("a plan refusal writes nothing", async () => {
     const record = widgetRecord();
 
@@ -187,6 +272,60 @@ describeWithEnv("the admin record write path", { db: true }, () => {
 
     expect(verdict).toEqual({ kind: "refused", message: "Order failed" });
     expect(await storedWidgets()).toEqual([]);
+  });
+});
+
+describe("the record read defaults", () => {
+  type Widget = RecordShapeOf<IdNameRow, IdNameInput>;
+  const bareRecord = (spec: Partial<RecordSpec<Widget>> = {}) =>
+    defineRecord<Widget>({
+      activityName: "Widget",
+      logName: (input) => input.name,
+      nameOf: (row) => row.name,
+      rule: (input) => okResult(input),
+      surface: "holidays",
+      ...spec,
+    });
+
+  test("a record with no declared read refuses the read it cannot serve", () => {
+    const record = bareRecord();
+
+    expect(() => record.getAll()).toThrow(
+      "The record for holidays declares no collection read",
+    );
+    expect(() => record.load(1)).toThrow(
+      "The record for holidays declares no load read",
+    );
+  });
+
+  test("a read bundle serves both reads and the write read-back", async () => {
+    const row: IdNameRow = { id: 3, name: "Bundled" };
+    const record = bareRecord({
+      reads: {
+        all: () => Promise.resolve([row]),
+        one: () => Promise.resolve(row),
+      },
+    });
+
+    expect(await record.getAll()).toEqual([row]);
+    expect(await record.load(3)).toEqual(row);
+    expect(await record.loadAfterWrite(3)).toEqual(row);
+  });
+
+  test("a record with no table refuses every generated write", async () => {
+    const record = bareRecord({
+      getAll: () => Promise.resolve([]),
+      load: (id) =>
+        Promise.resolve(id === 1 ? { id: 1, name: "Loaded" } : null),
+    });
+
+    expect(() => record.create({ name: "Orphan" })).toThrow(
+      "The record for holidays declares no table",
+    );
+    await expect(record.update(1, { name: "Orphan" })).rejects.toThrow(
+      "The record for holidays declares no table",
+    );
+    expect(await record.remove(2)).toEqual({ kind: "not-found" });
   });
 });
 
@@ -243,6 +382,14 @@ describe("the record surface law", () => {
     expect(() => recordPageIds(imageRecord)).toThrow(
       "The record for images declares no record page",
     );
+  });
+
+  test("a record with no delete route takes the collection's delete audience", () => {
+    expect(deleteAudienceFor({ list: "images" })).toEqual([
+      "owner",
+      "manager",
+      "editor",
+    ]);
   });
 
   test("every record names a page route the surface declares", () => {

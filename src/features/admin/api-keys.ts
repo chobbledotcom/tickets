@@ -71,12 +71,9 @@ const handleApiKeysPost: TypedRouteHandler<"POST /admin/api-keys"> =
         undefined,
         { session },
       );
+      if (verdict.kind === "refused") throw new Error(verdict.message);
       if (verdict.kind !== "written") {
-        throw new Error(
-          verdict.kind === "refused"
-            ? verdict.message
-            : "The API key was not stored",
-        );
+        throw new Error("The API key was not stored");
       }
       if (verdict.row.secret === undefined) {
         throw new Error("The API key create returned no secret");

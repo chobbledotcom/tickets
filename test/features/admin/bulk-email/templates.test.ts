@@ -14,6 +14,7 @@ import {
 } from "#db/email-templates.ts";
 import { settings } from "#db/settings.ts";
 import { MAX_EMAIL_TEMPLATES } from "#shared/limits.ts";
+import { emailTemplateRecord } from "#shared/records/email-templates.ts";
 import { seedDraft } from "#test/integration/server/bulk-email/helpers.ts";
 import {
   expectFlash,
@@ -288,6 +289,25 @@ describeWithEnv("server bulk email > templates", { db: true }, () => {
         { confirm_identifier: "anything" },
       );
       expect(response.status).toBe(404);
+    });
+  });
+
+  describe("record declaration", () => {
+    const input = { body: "<p>Body</p>", subject: "Welcome" };
+
+    test("declares no collection read of its own", async () => {
+      expect(await emailTemplateRecord.getAll()).toEqual([]);
+    });
+
+    test("logs the template by the subject the write saved", () => {
+      expect(emailTemplateRecord.logName(input)).toBe("Welcome");
+    });
+
+    test("accepts every input its command writes", () => {
+      expect(emailTemplateRecord.rule(input, null)).toEqual({
+        ok: true,
+        value: input,
+      });
     });
   });
 });

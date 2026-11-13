@@ -19,7 +19,12 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
-import { createData, lastModifier } from "./helpers.ts";
+import {
+  createData,
+  createModifier,
+  expectCreateRefused,
+  lastModifier,
+} from "./helpers.ts";
 
 describeWithEnv("server (admin modifiers)", { db: true }, () => {
   describe("delete", () => {
@@ -335,20 +340,14 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     });
 
     test("accepts zero, the declared minimum", async () => {
-      await adminFormPost("/admin/modifiers", createData({ min_visits: "0" }));
-      expect((await lastModifier()).min_visits).toBe(0);
+      expect((await createModifier({ min_visits: "0" })).min_visits).toBe(0);
     });
 
     test("rejects a fractional minimum previous bookings value", async () => {
-      const { response } = await adminFormPost(
-        "/admin/modifiers",
+      await expectCreateRefused(
         createData({ min_visits: "1.5" }),
-      );
-      await expectFlashRedirect(
-        "/admin/modifiers/new",
         "Minimum previous bookings (optional) must be a whole number",
-        false,
-      )(response);
+      );
     });
   });
 });

@@ -13,6 +13,7 @@ import { t } from "#i18n";
 import {
   buildCreateListingResource,
   buildUpdateListingResource,
+  type ListingUpdateResult,
 } from "#routes/admin/listings-form.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
@@ -46,16 +47,23 @@ const createListing = async (extra: TestFormValues = {}): Promise<Listing> => {
   return result.row;
 };
 
+/** Run one edit save against the stored row, as the production edit handler
+ *  does. A daily listing's effective date is already empty, so the save's date
+ *  guard must see the value the row still stores. */
+const saveListingEdit = async (
+  id: number,
+  extra: TestFormValues = {},
+): Promise<ListingUpdateResult> => {
+  const form = listingForm({ slug: "kept-slug", ...extra });
+  const stored = (await getStoredListingWithCount(id))!;
+  return buildUpdateListingResource(stored).update(id, form);
+};
+
 const updateListing = async (
   id: number,
   extra: TestFormValues = {},
 ): Promise<Listing> => {
-  const form = listingForm({ slug: "kept-slug", ...extra });
-  // The production edit handler passes the stored row, not the effective one:
-  // a daily listing's effective date is already empty, and the save's date
-  // guard must see the value the row still stores.
-  const stored = (await getStoredListingWithCount(id))!;
-  const result = await buildUpdateListingResource(stored).update(id, form);
+  const result = await saveListingEdit(id, extra);
   if (!result.ok) {
     throw new Error(
       "error" in result ? `update failed: ${result.error}` : "update not found",
@@ -373,6 +381,20 @@ describeWithEnv("listings form", { db: true }, () => {
       expect(row.bookable_days).toEqual([...VALID_DAY_NAMES]);
     });
 
+    test("an unreadable day price rejects an update with a plain message", async () => {
+      const created = await createListing({ duration_days: "2" });
+      const result = await saveListingEdit(created.id, {
+        day_price_1: "abc",
+        duration_days: "2",
+      });
+
+      expect(result).toEqual({
+        error: "Enter a valid day price for each duration, or leave it blank.",
+        ok: false,
+      });
+      expect(await getListingDayPrices(created.id)).toEqual({});
+    });
+
     test("refuses a max_quantity below a package membership quantity", async () => {
       const group = await createTestGroup({ name: "Cap package" });
       const created = await createListing({
@@ -391,14 +413,10 @@ describeWithEnv("listings form", { db: true }, () => {
         [`package_qty_${created.id}`]: "3",
       });
 
-      const form = listingForm({
+      const result = await saveListingEdit(created.id, {
         group_ids: [String(group.id)],
         max_quantity: "2",
-        slug: "kept-slug",
       });
-      const result = await buildUpdateListingResource(
-        (await getStoredListingWithCount(created.id))!,
-      ).update(created.id, form);
 
       expect(result).toEqual({
         error: t("error.package_member_cap", {

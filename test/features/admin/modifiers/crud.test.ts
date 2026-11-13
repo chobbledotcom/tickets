@@ -1,9 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { getAllModifiers } from "#db/modifiers.ts";
 import { handleRequest } from "#routes";
 import { toMinorUnits } from "#shared/currency.ts";
 import { MAX_PERCENT_CHARGE } from "#shared/price-modifier.ts";
+import { modifierRecord } from "#shared/records/modifiers.ts";
 import {
   expectFlashRedirect,
   expectHtmlResponse,
@@ -23,7 +25,12 @@ import {
   storedFeatureEnabled,
   withFeatureWriteFailure,
 } from "#test-utils/settings.ts";
-import { createData, lastModifier } from "./helpers.ts";
+import {
+  createData,
+  createModifier,
+  expectCreateRefused,
+  lastModifier,
+} from "./helpers.ts";
 
 describeWithEnv("server (admin modifiers)", { db: true }, () => {
   describe("GET /admin/modifiers", () => {
@@ -170,25 +177,18 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     test("rejects a minimum order with too many decimals for the currency", async () => {
       // 10.005 has 3 decimals — invalid in GBP (2). Without validation this
       // would be rounded by toMinorUnits at save; instead it's rejected.
-      const { response } = await adminFormPost(
-        "/admin/modifiers",
+      await expectCreateRefused(
         createData({ min_subtotal: "10.005" }),
-      );
-      await expectFlashRedirect(
-        "/admin/modifiers/new",
         "Minimum order must be a valid amount for your currency",
-        false,
-      )(response);
+      );
     });
 
     test("stores a stock limit", async () => {
-      await adminFormPost("/admin/modifiers", createData({ stock: "5" }));
-      expect((await lastModifier()).stock).toBe(5);
+      expect((await createModifier({ stock: "5" })).stock).toBe(5);
     });
 
     test("defaults stock to unlimited (null) when blank", async () => {
-      await adminFormPost("/admin/modifiers", createData());
-      expect((await lastModifier()).stock).toBeNull();
+      expect((await createModifier()).stock).toBeNull();
     });
 
     test("stores the max times per order on a question-answer modifier", async () => {
@@ -235,15 +235,10 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     });
 
     test("rejects a fractional max times per order", async () => {
-      const { response } = await adminFormPost(
-        "/admin/modifiers",
+      await expectCreateRefused(
         createData({ max_per_order: "1.5", trigger: "answer" }),
-      );
-      await expectFlashRedirect(
-        "/admin/modifiers/new",
         "Max times per order (optional) must be a whole number",
-        false,
-      )(response);
+      );
     });
 
     test("rejects a non-numeric value", async () => {
@@ -366,15 +361,10 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     });
 
     test("rejects a non-positive fixed amount", async () => {
-      const { response } = await adminFormPost(
-        "/admin/modifiers",
+      await expectCreateRefused(
         createData({ calc_kind: "fixed", calc_value: "0" }),
-      );
-      await expectFlashRedirect(
-        "/admin/modifiers/new",
         "Amount must be greater than 0",
-        false,
-      )(response);
+      );
     });
 
     test("rejects an unknown modifier type", async () => {
@@ -390,15 +380,64 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     });
 
     test("rejects an unknown direction", async () => {
-      const { response } = await adminFormPost(
-        "/admin/modifiers",
+      await expectCreateRefused(
         createData({ direction: "sideways" }),
-      );
-      await expectFlashRedirect(
-        "/admin/modifiers/new",
         "Invalid direction",
-        false,
-      )(response);
+      );
+    });
+  });
+
+  describe("POST /admin/modifiers/:id/edit", () => {
+    /** Seed one modifier and answer the edit payload that names it. */
+    const seedEdit = async (name: string) => {
+      await adminFormPost("/admin/modifiers", createData({ name }));
+      const { id } = await lastModifier();
+      return {
+        edit: createData({
+          calc_kind: "fixed",
+          calc_value: "5",
+          direction: "charge",
+          name: `${name} renamed`,
+          scope: "listings",
+          trigger: "automatic",
+        }),
+        id,
+      };
+    };
+
+    test("answers 404 when the row vanished before the save commits", async () => {
+      const { edit, id } = await seedEdit("Vanishing");
+      using _update = stub(modifierRecord, "update", () =>
+        Promise.resolve({ kind: "not-found" as const }),
+      );
+
+      const { response } = await adminFormPost(
+        `/admin/modifiers/${id}/edit`,
+        edit,
+      );
+
+      expectStatus(404)(response);
+    });
+
+    test("re-renders the edit page with the record's refusal", async () => {
+      const { edit, id } = await seedEdit("Refused");
+      using _update = stub(modifierRecord, "update", () =>
+        Promise.resolve({
+          kind: "refused" as const,
+          message: "The stored modifier refused this save",
+        }),
+      );
+
+      const { response } = await adminFormPost(
+        `/admin/modifiers/${id}/edit`,
+        edit,
+      );
+
+      await expectHtmlResponse(
+        response,
+        400,
+        "The stored modifier refused this save",
+      );
     });
   });
 });

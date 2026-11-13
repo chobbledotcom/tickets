@@ -252,7 +252,7 @@ const handleImageEditPost: TypedRouteHandler<"POST /admin/images/:id/edit"> =
       verdict,
       () =>
         adminRedirect("imageEdit", { id: image.id }, t("images.updated"), true),
-      () => notFoundResponse(),
+      notFoundResponse,
       (message) => imageRefusalRedirect("imageEdit", image.id, message),
     );
   });
@@ -308,7 +308,7 @@ const handleImageDeletePost: TypedRouteHandler<"POST /admin/images/:id/delete"> 
     const verdict = await imageRecord.remove(image.id);
     return answerImageWrite(
       verdict,
-      () => notFoundResponse(),
+      notFoundResponse,
       () => adminRedirect("images", {}, t("images.deleted"), true),
       (message) => imageRefusalRedirect("imageDelete", image.id, message),
     );
@@ -326,7 +326,9 @@ const handleImageOptionsGet: TypedRouteHandler<"GET /admin/images/options"> =
     return jsonResponse({ images: options });
   });
 
-/** Answer one image write: its success redirect, its refusal, or a 404. */
+/** Answer one image write: its success redirect, its refusal, or a 404. Each
+ *  call passes `notFoundResponse` for the outcome its verdict union cannot
+ *  carry: an update never answers "deleted", and a delete never "written". */
 const answerImageWrite = async <Row>(
   verdict: WriteVerdict<Row> | DeleteVerdict,
   written: ResponseHandler<[row: Row]>,
@@ -335,7 +337,8 @@ const answerImageWrite = async <Row>(
 ): Promise<Response> => {
   if (verdict.kind === "refused") return refused(verdict.message);
   if (verdict.kind === "not-found") return notFoundResponse();
-  return verdict.kind === "written" ? written(verdict.row) : deleted();
+  if (verdict.kind === "written") return written(verdict.row);
+  return deleted();
 };
 
 /** The image page routes, all bound from the image record's declaration. */
@@ -356,7 +359,7 @@ const pages = recordPages(imageRecord, {
 export const adminHandlers = defineAdminRoutes({
   "GET /admin/images": pages.listGet,
   "GET /admin/images/:id/delete": pages.deleteGet,
-  "GET /admin/images/:id/edit": pages.editGet ?? (() => notFoundResponse()),
+  "GET /admin/images/:id/edit": pages.editGet!,
   "GET /admin/images/new": pages.newGet,
   "GET /admin/images/options": handleImageOptionsGet,
   "POST /admin/images": pages.createPost,

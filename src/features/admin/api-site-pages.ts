@@ -355,6 +355,9 @@ export const sitePageApiRoutes = recordApi<
     handleList,
     handleUpdate,
   ),
-  toCreateInput: (body) => toPageWrite(body, null),
-  toUpdateInput: (body, existing) => toPageWrite(body, existing),
+  // The page body mapper is one function for both doors: its `existing`
+  // argument is null on a create. The handlers above call it directly, so the
+  // record's generated write path reads the same declaration.
+  toCreateInput: toPageWrite,
+  toUpdateInput: toPageWrite,
 });
