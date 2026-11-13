@@ -64,6 +64,12 @@ export const adminDestinationAt = (route: string): AdminDestinationDef => {
   return destination;
 };
 
+/** The route at a path or id, or null when the surface declares none. */
+export const adminDestinationAtOrNull = (
+  route: string,
+): AdminDestinationDef | null =>
+  folded.byPattern[route] ?? folded.destinations[route] ?? null;
+
 /**
  * The roles that can reach any part of one record's page: the page itself and
  * every route beneath it. This is the floor an entity page's guard enforces,

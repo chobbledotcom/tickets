@@ -226,6 +226,18 @@
       "evidence": "defineForm's render and validate read the declared fields"
     }
   ],
+  "src/shared/rest/record-pages.ts": [
+    {
+      "path": [{ "name": "RecordPagesConfig" }],
+      "kind": "schema-driven",
+      "evidence": "resolvePagePaths reads createErrorPath and savePath from the config through its structural PagePathConfig"
+    },
+    {
+      "path": [{ "name": "RecordPagesConfig" }, { "name": "routes" }],
+      "kind": "schema-driven",
+      "evidence": "resolvePagePaths reads the new and edit route ids through its structural PagePathConfig"
+    }
+  ],
   "src/shared/rest/crud-api-types.ts": [
     {
       "path": [

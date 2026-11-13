@@ -45,6 +45,10 @@ import { getEffectiveDomain } from "#shared/config.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { DAY_MS, nowMs } from "#shared/now.ts";
+import { defineRecord } from "#shared/rest/record.ts";
+import { recordPages } from "#shared/rest/record-pages.ts";
+import { asRequestRoute } from "#shared/rest/route-adapters.ts";
+import { okResult } from "#shared/result.ts";
 import { selectedIdsFromForm } from "#shared/selected-ids.ts";
 import { flashProps } from "#templates/admin/admin-page-spec.tsx";
 import {
@@ -145,22 +149,22 @@ const toDisplayUser = async (
   };
 };
 
+/** Every user, decrypted for the list page and the record read. */
+const loadDisplayUsers = async (): Promise<DisplayUser[]> => {
+  const [users, agentNameById] = await Promise.all([
+    getAllUsers(),
+    loadAgentNameById(),
+  ]);
+  return Promise.all(users.map((user) => toDisplayUser(user, agentNameById)));
+};
+
 /**
  * Render users page with current state
  */
 const renderUsersPage = async (
   session: AuthSession,
   opts: UsersPageOpts,
-): Promise<string> => {
-  const [users, agentNameById] = await Promise.all([
-    getAllUsers(),
-    loadAgentNameById(),
-  ]);
-  const displayUsers = await Promise.all(
-    users.map((user) => toDisplayUser(user, agentNameById)),
-  );
-  return adminUsersPage(displayUsers, session, opts);
-};
+): Promise<string> => adminUsersPage(await loadDisplayUsers(), session, opts);
 
 /** Render users page with an error message and return an HTML response */
 const usersErrorResponse = async (
@@ -381,15 +385,43 @@ const userDelete = createConfirmedHandlers<DisplayUser>({
   successRedirect: "/admin/users",
 });
 
+/** The user record: its display read, its name, and its delete. The routes
+ *  that need the inviting session stay as overrides on this declaration. */
+const userRecord = defineRecord<DisplayUser, DisplayUser>({
+  activityName: "User",
+  deleteDestination: "userDelete",
+  getAll: loadDisplayUsers,
+  list: "users",
+  load: (id) => loadDisplayUser(id),
+  logName: (user) => user.username,
+  nameOf: (user) => user.username,
+  onDelete: (id) => deleteUser(id),
+  rule: (input) => okResult(input),
+});
+
+/** The user page routes, bound from the user record's declaration. */
+const pages = recordPages(userRecord, {
+  overrides: {
+    createPost: asRequestRoute(handleUsersPost),
+    deleteGet: idRouteFor(userDelete.get),
+    deletePost: idRouteFor(userDelete.post),
+    listGet: asRequestRoute(handleUsersGet),
+    newGet: asRequestRoute(handleUserNewGet),
+  },
+  routes: { new: "userNew" },
+  singular: "User",
+  skip: ["edit"],
+});
+
 export const adminHandlers = defineAdminRoutes({
-  "GET /admin/user/new": handleUserNewGet,
-  "GET /admin/users": handleUsersGet,
+  "GET /admin/user/new": pages.newGet,
+  "GET /admin/users": pages.listGet,
   "GET /admin/users/:id": handleUserManageGet,
   "GET /admin/users/:id/:tab": (request, { id, tab }) =>
     userPage.renderTab(request, id, tab),
   "GET /admin/users/:id/agents": handleUserAgentsGet,
-  "GET /admin/users/:id/delete": idRouteFor(userDelete.get),
-  "POST /admin/users": handleUsersPost,
+  "GET /admin/users/:id/delete": pages.deleteGet,
+  "POST /admin/users": pages.createPost,
   "POST /admin/users/:id/agents": handleUserAgentsPost,
-  "POST /admin/users/:id/delete": idRouteFor(userDelete.post),
+  "POST /admin/users/:id/delete": pages.deletePost,
 });

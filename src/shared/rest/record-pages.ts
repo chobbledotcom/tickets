@@ -18,7 +18,11 @@ import { type IdRouteHandler, idRouteFor } from "#routes/entity.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import { formGuardAt, pageGuardAt } from "#routes/route-gates.ts";
 import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
-import { adminDestination, adminRecordPath } from "#shared/admin-surface.ts";
+import {
+  adminDestination,
+  adminDestinationAtOrNull,
+  adminRecordPath,
+} from "#shared/admin-surface.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { FormSchema } from "#shared/forms/definition.ts";
@@ -49,13 +53,13 @@ export type PageRecord<
 /** The form facts a page config carries, split out so the parser does not
  *  depend on the renderers. */
 type FormInputConfig<CreateValues, EditValues, Input> = {
-  form: FormSchema<CreateValues>;
+  form?: FormSchema<CreateValues>;
   /** The edit form, when an edit carries fields a create does not. */
   editForm?: FormSchema<EditValues>;
   /** Convert the validated form values into the record's input. `form` rides
    * along for a field the static schema cannot declare, such as a per-member
    * package price keyed by listing id. */
-  toInput: (values: CreateValues, form: FormParams) => Input | Promise<Input>;
+  toInput?: (values: CreateValues, form: FormParams) => Input | Promise<Input>;
   /** The edit conversion, when an edit builds its input differently from a
    * create (an auto-generated slug becomes a submitted one). */
   toEditInput?: (
@@ -79,8 +83,12 @@ export type RecordPagesConfig<
   DeleteInput = undefined,
   ListRow = FullRow,
 > = FormInputConfig<CreateValues, EditValues, Input> & {
-  renderDelete: (row: FullRow, session: AdminSession, error?: string) => string;
-  renderList: (
+  renderDelete?: (
+    row: FullRow,
+    session: AdminSession,
+    error?: string,
+  ) => string;
+  renderList?: (
     rows: ListRow[],
     session: AdminSession,
     successMessage?: string,
@@ -88,11 +96,18 @@ export type RecordPagesConfig<
   renderNew?: (session: AdminSession, error?: string) => string;
   /** The noun the flash messages use ("Holiday created"). */
   singular: string;
+  /** The destination ids a surface uses for its new or edit page, when they do
+   * not sit under the collection path. */
+  routes?: { new?: AdminDestinationId; edit?: AdminDestinationId };
+  /** Standard routes this surface does not serve. */
+  skip?: readonly ("new" | "edit")[];
+  /** Handlers that replace a generated standard route. */
+  overrides?: Partial<CrudHandlers>;
   /** Mutate the form before validation (demo overrides). */
   preprocessForm?: (form: FormParams) => void;
   /** Render a rejected edit in place. Keep the submitted values. */
   renderEditError?: EditErrorRenderer;
-  identifierLabel: string | (() => string);
+  identifierLabel?: string | (() => string);
   /** The display name the confirmation must match. Defaults to the record's
    * display name. A page whose input cannot carry newlines uses the flattened
    * form, which is what the operator can type. */
@@ -119,22 +134,38 @@ type RecordGates = {
   create: FormGuard<AuthSession>;
   delete: SessionGuard<AuthSession>;
   deleteForm: FormGuard<AuthSession>;
-  edit: FormGuard<AuthSession>;
+  edit: FormGuard<AuthSession> | null;
   list: SessionGuard<AuthSession>;
   new: SessionGuard<AuthSession> | null;
 };
 
-const recordGates = (listPath: string, hasNewPage: boolean): RecordGates => {
-  const deletePath = `${listPath}/:id/delete`;
-  return {
-    create: formGuardAt(listPath),
-    delete: pageGuardAt(deletePath),
-    deleteForm: formGuardAt(deletePath),
-    edit: formGuardAt(`${listPath}/:id/edit`),
-    list: pageGuardAt(listPath),
-    new: hasNewPage ? pageGuardAt(`${listPath}/new`) : null,
-  };
+/** The gate a route declares, or null when the surface declares no route. */
+const guardAtOrNull = (
+  path: string,
+  form: boolean,
+): FormGuard<AuthSession> | SessionGuard<AuthSession> | null => {
+  if (adminDestinationAtOrNull(path) === null) return null;
+  return form ? formGuardAt(path) : pageGuardAt(path);
 };
+
+const recordGates = (
+  listPath: string,
+  newPath: string | null,
+  editPath: string | null,
+): RecordGates => ({
+  create: formGuardAt(listPath),
+  delete: pageGuardAt(`${listPath}/:id/delete`),
+  deleteForm: formGuardAt(`${listPath}/:id/delete`),
+  edit:
+    editPath === null
+      ? null
+      : (guardAtOrNull(editPath, true) as FormGuard<AuthSession>),
+  list: pageGuardAt(listPath),
+  new:
+    newPath === null
+      ? null
+      : (guardAtOrNull(newPath, false) as SessionGuard<AuthSession>),
+});
 
 /** Run the form's own checks, then convert the values to the record's input.
  * The record's one rule runs inside the record's write command. */
@@ -151,12 +182,16 @@ const parseFormInput = async <CreateValues, EditValues, Input>(
       config.validateValues,
     );
     if (!parsed.ok) return parsed;
-    const convert = config.toEditInput;
-    return okResult(
-      convert
-        ? await convert(parsed.value, form)
-        : await config.toInput(parsed.value as never, form),
-    );
+    if (config.toEditInput !== undefined) {
+      return okResult(await config.toEditInput(parsed.value, form));
+    }
+    if (config.toInput === undefined) {
+      throw new Error("The record page declares no edit input mapper");
+    }
+    return okResult(await config.toInput(parsed.value as never, form));
+  }
+  if (config.form === undefined || config.toInput === undefined) {
+    throw new Error("The record page declares no form");
   }
   const parsed = checkedValues(
     config.form.validate(form),
@@ -182,6 +217,63 @@ const deleteFailure = async (
       ? await notFoundResponse()
       : null;
 
+/** The paths one record's page bundle serves, resolved from the surface and
+ *  the config's route overrides. */
+type PagePathConfig = {
+  createErrorPath?: string;
+  routes?: { new?: AdminDestinationId; edit?: AdminDestinationId };
+  savePath?: (id: number) => string;
+  skip?: readonly ("new" | "edit")[];
+};
+
+type PagePaths = {
+  createErrorPath: string;
+  deletePath: string;
+  editPath: string | null;
+  listPath: string;
+  newPath: string | null;
+  savePath: (id: number) => string;
+};
+
+const resolvePagePaths = (
+  listPath: string,
+  afterSave: string | undefined,
+  list: AdminDestinationId,
+  config: PagePathConfig,
+): PagePaths => {
+  const saveRouteId = (afterSave as AdminDestinationId | undefined) ?? list;
+  const skipped = config.skip ?? [];
+  const routePath = <T extends "new" | "edit">(
+    kind: T,
+    fallback: string,
+  ): string | null =>
+    skipped.includes(kind)
+      ? null
+      : config.routes?.[kind]
+        ? adminDestination(config.routes[kind]!).pattern
+        : adminDestinationAtOrNull(fallback)
+          ? fallback
+          : null;
+  return {
+    createErrorPath:
+      config.createErrorPath ??
+      (config.routes?.new
+        ? adminDestination(config.routes.new).pattern
+        : `${listPath}/new`),
+    deletePath: `${listPath}/:id/delete`,
+    editPath: routePath("edit", `${listPath}/:id/edit`),
+    listPath,
+    newPath: routePath("new", `${listPath}/new`),
+    savePath: (id) => {
+      if (config.savePath) return config.savePath(id);
+      const route = adminDestination(saveRouteId);
+      return route.pattern.includes(":")
+        ? adminRecordPath(saveRouteId, id)
+        : route.pattern;
+    },
+  };
+};
+
 /**
  * Build the six standard HTML routes for one record.
  */
@@ -205,21 +297,14 @@ export const recordPages = <
   >,
 ): CrudHandlers => {
   const listRoute = adminDestination(record.list);
-  const listPath = listRoute.pattern;
-  const saveRouteId =
-    record.saveLanding ??
-    (listRoute.afterSave as AdminDestinationId | undefined) ??
-    record.list;
-  const savePath = (id: number): string => {
-    if (config.savePath) return config.savePath(id);
-    const route = adminDestination(saveRouteId);
-    return route.pattern.includes(":")
-      ? adminRecordPath(saveRouteId, id)
-      : route.pattern;
-  };
-  const deletePath = `${listPath}/:id/delete`;
-  const auth = recordGates(listPath, config.renderNew !== undefined);
-  const createErrorPath = config.createErrorPath ?? `${listPath}/new`;
+  const { createErrorPath, deletePath, editPath, listPath, newPath, savePath } =
+    resolvePagePaths(
+      listRoute.pattern,
+      record.saveLanding ?? (listRoute.afterSave as string | undefined),
+      record.list,
+      config,
+    );
+  const auth = recordGates(listPath, newPath, editPath);
 
   const readInput = async (
     form: FormParams,
@@ -229,9 +314,11 @@ export const recordPages = <
     return parseFormInput(config, form, edit);
   };
 
-  const listGet = authPage(auth.list)(async (session) =>
-    config.renderList(await record.getAll(), session, getFlash().success),
-  );
+  const listGet = config.renderList
+    ? authPage(auth.list)(async (session) =>
+        config.renderList!(await record.getAll(), session, getFlash().success),
+      )
+    : notFoundResponse;
 
   const newGet =
     auth.new === null || config.renderNew === undefined
@@ -252,28 +339,52 @@ export const recordPages = <
         : notFoundResponse();
     });
 
-  const editPost: IdRouteHandler = (request, { id }) =>
-    formGuardAt(`${listPath}/:id/edit`)(request, async (session, form) => {
-      const parsed = await readInput(form, true);
-      const reject = (message: string): Response | Promise<Response> =>
-        config.renderEditError
-          ? config.renderEditError(id, session, form, message)
-          : errorRedirect(
-              config.editErrorPath?.(id) ?? `${listPath}/${id}/edit`,
-              message,
-            );
-      if (!parsed.ok) return reject(parsed.error);
-      const verdict = await record.update(id, parsed.value);
-      const refusal = refusalOf(verdict);
-      if (refusal !== null) return reject(refusal);
-      return verdict.kind === "written"
-        ? redirect(
-            (config.updateSavePath ?? savePath)(verdict.row.id),
-            `${config.singular} updated`,
-            true,
-          )
-        : notFoundResponse();
-    });
+  const rejectEdit = (
+    id: number,
+    session: AuthSession,
+    form: FormParams,
+    message: string,
+  ): Response | Promise<Response> =>
+    config.renderEditError
+      ? config.renderEditError(id, session, form, message)
+      : errorRedirect(
+          config.editErrorPath?.(id) ?? `${editPath}/${id}/edit`,
+          message,
+        );
+
+  const editVerdict = (
+    verdict: WriteVerdict<FullRow>,
+    id: number,
+    session: AuthSession,
+    form: FormParams,
+  ): Response | Promise<Response> => {
+    if (verdict.kind === "refused") {
+      return rejectEdit(id, session, form, verdict.message);
+    }
+    if (verdict.kind === "not-found") return notFoundResponse();
+    return redirect(
+      (config.updateSavePath ?? savePath)(verdict.row.id),
+      `${config.singular} updated`,
+      true,
+    );
+  };
+
+  const applyEdit = async (
+    id: number,
+    session: AuthSession,
+    form: FormParams,
+  ): Promise<Response> => {
+    const parsed = await readInput(form, true);
+    return parsed.ok
+      ? editVerdict(await record.update(id, parsed.value), id, session, form)
+      : rejectEdit(id, session, form, parsed.error);
+  };
+
+  const editPost: IdRouteHandler =
+    editPath === null || auth.edit === null
+      ? () => notFoundResponse()
+      : (request, { id }) =>
+          auth.edit!(request, (session, form) => applyEdit(id, session, form));
 
   const confirmedDelete = createConfirmedHandlers<FullRow, AdminSession>({
     auth: { requireSession: auth.delete, withForm: auth.deleteForm },
@@ -285,7 +396,7 @@ export const recordPages = <
       : {}),
     identifier: (row: FullRow) =>
       config.identifier ? config.identifier(row) : record.nameOf(row),
-    identifierLabel: config.identifierLabel,
+    identifierLabel: config.identifierLabel ?? "",
     load: (id) => record.load(id),
     onConfirm: async (_row, id, _session, form) => {
       const verdict = await record.remove(
@@ -296,7 +407,7 @@ export const recordPages = <
       return failure ?? undefined;
     },
     path: deletePath,
-    render: config.renderDelete,
+    render: config.renderDelete ?? (() => ""),
     successMessage: `${config.singular} deleted`,
     successRedirect: listPath,
   });
@@ -308,5 +419,6 @@ export const recordPages = <
     editPost,
     listGet,
     newGet,
+    ...config.overrides,
   };
 };

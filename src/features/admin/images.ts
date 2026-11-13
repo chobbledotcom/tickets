@@ -7,14 +7,11 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 
 import { groups } from "#db/groups.ts";
 import {
-  deleteImageRecord,
   getAllImages,
   getImageById,
   getImageUsesForImage,
   type ImageUseTarget,
   imageUseTargets,
-  setItemsForImage,
-  updateImageRecord,
 } from "#db/images.ts";
 import { getAllListingOptions } from "#db/listings/records.ts";
 import { getNewsPostNames } from "#db/news-posts.ts";
@@ -35,6 +32,7 @@ import {
   adminRedirect,
   htmlResponse,
   jsonResponse,
+  notFoundResponse,
   redirect,
 } from "#routes/response.ts";
 import { adminPath } from "#shared/admin-surface.ts";
@@ -46,7 +44,11 @@ import {
   siteContentBlocksManager,
 } from "#shared/images/library.ts";
 import { sortByName } from "#shared/name-order.ts";
+import { imageRecord } from "#shared/records/images.ts";
 import { featureGate } from "#shared/response-steps.ts";
+import type { DeleteVerdict, WriteVerdict } from "#shared/rest/record.ts";
+import { recordPages } from "#shared/rest/record-pages.ts";
+import { asIdRoute, asRequestRoute } from "#shared/rest/route-adapters.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import { deleteImageStorageFilesStrict } from "#shared/storage-cleanup.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
@@ -238,17 +240,18 @@ const handleImageEditPost: TypedRouteHandler<"POST /admin/images/:id/edit"> =
         false,
       );
     }
-    await updateImageRecord(image.id, metadata.value);
-    await setItemsForImage(
-      image.id,
-      allowedImageTargets(adminLevel, parseImageTargets(form)),
-    );
-    await logImageAction("updated", metadata.value.name);
-    return adminRedirect(
-      "imageEdit",
-      { id: image.id },
-      t("images.updated"),
-      true,
+    const verdict = await imageRecord.update(image.id, {
+      ...metadata.value,
+      filename: image.filename,
+      filenameThumb: image.filename_thumb,
+      items: allowedImageTargets(adminLevel, parseImageTargets(form)),
+    });
+    return answerImageWrite(
+      verdict,
+      () =>
+        adminRedirect("imageEdit", { id: image.id }, t("images.updated"), true),
+      () => notFoundResponse(),
+      (message) => adminRedirect("imageEdit", { id: image.id }, message, false),
     );
   });
 
@@ -268,7 +271,7 @@ const confirmDelete = (form: FormParams, image: Image): string | null =>
 const handleImageDeletePost: TypedRouteHandler<"POST /admin/images/:id/delete"> =
   imageHandlers.post(async (image, form, adminLevel) => {
     const deletePath = adminPath("imageDelete", { id: image.id });
-    // deleteImageRecord prunes every use, including a news one, so a non-Site
+    // The record delete prunes every use, including a news one, so a non-Site
     // role cannot delete an image a news post uses (public Site content).
     const blocked = await siteContentImageGate(
       adminLevel,
@@ -293,9 +296,14 @@ const handleImageDeletePost: TypedRouteHandler<"POST /admin/images/:id/delete"> 
         false,
       );
     }
-    await deleteImageRecord(image.id);
-    await logImageAction("deleted", image.name);
-    return adminRedirect("images", {}, t("images.deleted"), true);
+    const verdict = await imageRecord.remove(image.id);
+    return answerImageWrite(
+      verdict,
+      () => notFoundResponse(),
+      () => adminRedirect("images", {}, t("images.deleted"), true),
+      (message) =>
+        adminRedirect("imageDelete", { id: image.id }, message, false),
+    );
   });
 
 /** The image list the editor's image dropdown offers: every image's id and
@@ -310,13 +318,42 @@ const handleImageOptionsGet: TypedRouteHandler<"GET /admin/images/options"> =
     return jsonResponse({ images: options });
   });
 
+/** Answer one image write: its success redirect, its refusal, or a 404. */
+const answerImageWrite = <Row>(
+  verdict: WriteVerdict<Row> | DeleteVerdict,
+  written: (row: Row) => Response | Promise<Response>,
+  deleted: () => Response | Promise<Response>,
+  refused: (message: string) => Response | Promise<Response>,
+): Response | Promise<Response> => {
+  if (verdict.kind === "refused") return refused(verdict.message);
+  if (verdict.kind === "not-found") return notFoundResponse();
+  return verdict.kind === "written" ? written(verdict.row) : deleted();
+};
+
+/** The image page routes, all bound from the image record's declaration. */
+const pages = recordPages(imageRecord, {
+  identifierLabel: t("images.delete.confirm_label"),
+  overrides: {
+    createPost: asRequestRoute(handleImageCreatePost),
+    deleteGet: asIdRoute(handleImageDeleteGet),
+    deletePost: asIdRoute(handleImageDeletePost),
+    editGet: asIdRoute(handleImageEditGet),
+    editPost: asIdRoute(handleImageEditPost),
+    listGet: asRequestRoute(handleImagesListGet),
+    newGet: asRequestRoute(handleImageNewGet),
+  },
+  renderDelete: adminImageDeletePage,
+  renderList: adminImagesPage,
+  singular: "Image",
+});
+
 export const adminHandlers = defineAdminRoutes({
-  "GET /admin/images": handleImagesListGet,
-  "GET /admin/images/:id/delete": handleImageDeleteGet,
-  "GET /admin/images/:id/edit": handleImageEditGet,
-  "GET /admin/images/new": handleImageNewGet,
+  "GET /admin/images": pages.listGet,
+  "GET /admin/images/:id/delete": pages.deleteGet,
+  "GET /admin/images/:id/edit": pages.editGet ?? (() => notFoundResponse()),
+  "GET /admin/images/new": pages.newGet,
   "GET /admin/images/options": handleImageOptionsGet,
-  "POST /admin/images": handleImageCreatePost,
-  "POST /admin/images/:id/delete": handleImageDeletePost,
-  "POST /admin/images/:id/edit": handleImageEditPost,
+  "POST /admin/images": pages.createPost,
+  "POST /admin/images/:id/delete": pages.deletePost,
+  "POST /admin/images/:id/edit": pages.editPost,
 });

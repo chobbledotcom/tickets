@@ -64,6 +64,9 @@ export interface CrudHandlers {
   createPost: RequestRoute;
   deleteGet: IdRouteHandler;
   deletePost: IdRouteHandler;
+  /** A GET edit page, for a surface whose edit page is a route rather than a
+   * tab. The standard six routes do not bind it. */
+  editGet?: IdRouteHandler;
   editPost: IdRouteHandler;
   listGet: RequestRoute;
   newGet: RequestRoute;
