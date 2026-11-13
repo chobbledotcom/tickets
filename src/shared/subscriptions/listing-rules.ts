@@ -1,9 +1,9 @@
 /** The listing save rule for a subscription ticket. */
 
 import * as v from "valibot";
-import { saleProviderOrNull } from "#shared/config.ts";
 import { t } from "#i18n";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import { saleProviderOrNull } from "#shared/config.ts";
 import { RecurringIntervalSchema } from "#shared/subscriptions/plan.ts";
 
 /** A recurring price needs a frequency, and a frequency needs a price. The

@@ -42,9 +42,10 @@ The production callers are:
 
 ## Providers
 
-Stripe is the only provider in this plan. On a site that uses Square or SumUp,
-the listing form hides the recurring fields, and the checkout refuses a
-subscription ticket.
+Stripe is the only provider in this plan. The listing form shows the recurring
+fields while the Subscriptions feature is on. The owner can clear the recurring
+price and choose Never after a provider change. A saved recurring price requires
+Stripe with valid credentials. Checkout refuses subscription tickets without Stripe.
 
 ### SumUp: not possible
 
@@ -154,8 +155,8 @@ start a Stripe subscription:
 - a deposit
 - an order with nothing to pay today
 
-The public form, the direct QR checkout, the API, and the admin booking path
-all use `subscriptionOrderError`.
+The public form, direct QR checkout, API booking, and folded API booking all
+use `subscriptionOrderError`.
 
 Completion reads the subscription and the first invoice of the session. The
 session names that invoice, so a renewal that Stripe adds later cannot take

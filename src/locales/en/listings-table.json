@@ -318,7 +318,7 @@
   "error.recurring_price_required": "Enter a recurring price above zero, or choose Never.",
   "error.recurring_interval_required": "Choose how often the subscription charges.",
   "error.recurring_needs_ticket_price": "A subscription ticket needs a ticket price above zero. The buyer pays the ticket price on the first day.",
-  "error.recurring_needs_stripe": "Only Stripe can charge a subscription. Choose Never, or take payments with Stripe.",
+  "error.recurring_needs_stripe": "Only Stripe can charge a subscription. Clear the recurring price and choose Never, or use Stripe for payments.",
   "success.listing_created": "Listing created",
   "success.listing_deleted": "Listing deleted",
   "success.required_children_updated": "Required children updated",

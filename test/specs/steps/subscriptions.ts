@@ -7,9 +7,10 @@ import { firstRecurringChargeAt } from "#shared/subscriptions/plan.ts";
 import {
   CUSTOMER,
   ORGANISER,
-  openAdminPage,
+  savesServedForm,
 } from "#test/specs/support/browser.ts";
 import {
+  listingPage,
   organiserSavesFields,
   putsPlainThingOnSale,
 } from "#test/specs/support/listings.ts";
@@ -40,6 +41,17 @@ Given(
   "Square takes payments for the site",
   async function (this: TicketsWorld): Promise<void> {
     await settings.update.paymentProvider("square");
+  },
+);
+
+Given(
+  "the organiser sells a {word} ticket at {word}",
+  async function (
+    this: TicketsWorld,
+    name: string,
+    price: string,
+  ): Promise<void> {
+    await putsPlainThingOnSale(this, name, { unitPrice: minorUnits(price) });
   },
 );
 
@@ -76,13 +88,19 @@ When(
 );
 
 When(
-  "the organiser opens the form for a new listing",
-  async function (this: TicketsWorld): Promise<void> {
-    const browser = await openAdminPage(
-      this,
-      "/admin/listing/new?template=custom",
-    );
-    keepWhatTheyWereTold(this, ORGANISER, browser.currentHtml);
+  "the organiser tries to charge {word} again every {word} for {word}",
+  async function (
+    this: TicketsWorld,
+    recurringPrice: string,
+    interval: Interval,
+    name: string,
+  ): Promise<void> {
+    const browser = await listingPage(this, name, "/edit");
+    await savesServedForm(browser, () => ({
+      recurring_interval: interval,
+      recurring_price: recurringPrice,
+    }));
+    keepWhatTheyWereTold(this, ORGANISER, browser.pageText);
   },
 );
 
@@ -140,10 +158,11 @@ Then(
   },
 );
 
-Then("the form offers no recurring price", function (this: TicketsWorld): void {
-  const form = whatTheyWereTold(this, ORGANISER);
-  expect(form).toContain('name="name"');
-  expect(form).not.toContain(t("fields.listing.recurring_price"));
-  expect(form).not.toContain('name="recurring_price"');
-  expect(form).not.toContain('name="recurring_interval"');
-});
+Then(
+  "the site says only Stripe can charge a subscription",
+  function (this: TicketsWorld): void {
+    expect(whatTheyWereTold(this, ORGANISER)).toContain(
+      t("error.recurring_needs_stripe"),
+    );
+  },
+);

@@ -50,12 +50,14 @@ Feature: A customer buys a subscription ticket
 
   @rule:payments.only-stripe-sells-subscriptions
   @surface:admin
-  Rule: Only a site that takes payments with Stripe offers a recurring price
-    Square and SumUp cannot charge a subscription for this site.
+  Rule: Only a site that takes payments with Stripe charges a recurring price
+    The form still offers the recurring price after a provider change.
+    The site refuses a recurring price that Stripe cannot charge.
 
     @case:payments.no-recurring-price-with-square
-    Scenario: The organiser on a Square site sees no recurring price
+    Scenario: The organiser on a Square site cannot save a recurring price
       Given Square takes payments for the site
       And the owner enables "Subscriptions"
-      When the organiser opens the form for a new listing
-      Then the form offers no recurring price
+      And the organiser sells a Club ticket at 10.00
+      When the organiser tries to charge 5.00 again every month for Club
+      Then the site says only Stripe can charge a subscription

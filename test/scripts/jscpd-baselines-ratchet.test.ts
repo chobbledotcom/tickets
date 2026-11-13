@@ -137,31 +137,25 @@ describe("fingerprintCounts", () => {
 });
 
 describe("riseFindings", () => {
-  test("passes when the clone total matches the base", () => {
-    expect(
-      riseFindings(BASELINE, baseline({ aaa: 1 }), baseline({ aaa: 1 })),
-    ).toEqual([]);
-  });
-
-  test("passes a clone the branch removed and one it lowered", () => {
-    expect(
-      riseFindings(
-        BASELINE,
-        baseline({ aaa: 1 }),
-        baseline({ aaa: 2, bbb: 1 }),
-      ),
-    ).toEqual([]);
-  });
-
-  test("passes a clone whose fingerprint changed", () => {
-    expect(
-      riseFindings(
-        BASELINE,
-        baseline({ zzz: 2 }),
-        baseline({ aaa: 1, bbb: 1 }),
-      ),
-    ).toEqual([]);
-  });
+  for (const [name, head, base] of [
+    ["passes when the clone total matches the base", { aaa: 1 }, { aaa: 1 }],
+    [
+      "passes a clone the branch removed and one it lowered",
+      { aaa: 1 },
+      { aaa: 2, bbb: 1 },
+    ],
+    [
+      "passes a clone whose fingerprint changed",
+      { zzz: 2 },
+      { aaa: 1, bbb: 1 },
+    ],
+  ] as const) {
+    test(name, () => {
+      expect(riseFindings(BASELINE, baseline(head), baseline(base))).toEqual(
+        [],
+      );
+    });
+  }
 
   test("names a clone total above the base's", () => {
     expect(
@@ -178,15 +172,19 @@ describe("riseFindings", () => {
 
   test("fails a new baseline that accepts clones", () => {
     expect(
-      riseFindings(BASELINE, baseline({ aaa: 1, bbb: 1 }), undefined),
+      riseFindings(BASELINE, baseline({ aaa: 3, bbb: 1 }), undefined),
     ).toEqual([
-      `${BASELINE} [added-baseline]: is a new baseline that accepts 2 ` +
+      `${BASELINE} [added-baseline]: is a new baseline that accepts 4 ` +
         "clone(s) — merge the duplicated code before you add the scan",
     ]);
   });
 
   test("passes a new baseline that accepts no clone", () => {
     expect(riseFindings(BASELINE, baseline({}), undefined)).toEqual([]);
+  });
+
+  test("passes a new baseline whose recorded counts are zero", () => {
+    expect(riseFindings(BASELINE, baseline({ aaa: 0 }), undefined)).toEqual([]);
   });
 });
 

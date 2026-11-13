@@ -22,9 +22,7 @@ describeWithEnv("recurring plan rule", { db: true }, () => {
   });
 
   test("lets a priced plan with a frequency through", () => {
-    expect(
-      withPlan(MONTHLY),
-    ).toBeNull();
+    expect(withPlan(MONTHLY)).toBeNull();
   });
 
   test("asks for a price when only the frequency is set", () => {
