@@ -63,11 +63,18 @@ describe("baselinePathsNamed", () => {
           "deno run -A scripts/cpd.ts --config .jscpd.json " +
           "--baseline .jscpd.test-baseline.json && deno run -A scripts/cpd.ts " +
           "--config .jscpd.test.json --baseline .jscpd.test-baseline.json",
+        "cpd:helpers":
+          "deno run -A scripts/cpd.ts --config .jscpd.helpers.json " +
+          "--baseline=.jscpd.helpers-baseline.json",
         "cpd:renamed":
           "deno run -A scripts/cpd.ts --config .jscpd.renamed.json " +
           "--baseline .jscpd.baseline.json",
       }),
-    ).toEqual([".jscpd.baseline.json", ".jscpd.test-baseline.json"]);
+    ).toEqual([
+      ".jscpd.baseline.json",
+      ".jscpd.helpers-baseline.json",
+      ".jscpd.test-baseline.json",
+    ]);
   });
 
   test("keeps nothing when no task runs a scan", () => {

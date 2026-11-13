@@ -49,8 +49,9 @@ export const baselineFileNames = (names: readonly string[]): string[] =>
 /** The script a task runs when that task is a jscpd scan. */
 const CPD_SCRIPT = "scripts/cpd.ts";
 
-/** The flag each scan task gives its committed baseline. */
-const BASELINE_FLAG = /--baseline\s+(\S+)/g;
+/** The flag each scan task gives its committed baseline, in either the
+ * `--baseline <path>` or the `--baseline=<path>` form. */
+const BASELINE_FLAG = /--baseline(?:=|\s+)(\S+)/g;
 
 /** The baseline paths the `scripts/cpd.ts` tasks name, sorted and unique. A
  * scan whose baseline sits outside the names the ratchet reads can raise that
