@@ -13,6 +13,7 @@ import {
 import { renderAdminPage } from "#templates/admin/admin-page.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import type { ChildProps } from "#templates/components/child-props.ts";
+import { ProseIntro } from "#templates/components/prose-intro.tsx";
 import type { AdminSession, Group, ListingWithCount } from "#types";
 import {
   advancedSectionHasValues,
@@ -169,15 +170,18 @@ export const adminListingPickerPage = (session: AdminSession): string => {
     session,
     t("listings_table.add_listing"),
     <>
-      <div class="prose">
-        <h1>{t("listings_table.listing_type_picker_heading")}</h1>
-        <div class="listing-type-import">
-          <p>{t("listings_table.listing_type_picker_subheading")}</p>
-          <a class="listing-type-import-button" href="/admin/catalog/import">
-            {t("catalog_transfer.import_button")}
-          </a>
-        </div>
-      </div>
+      <ProseIntro
+        heading={t("listings_table.listing_type_picker_heading")}
+        headingTag="h1"
+        intro={
+          <>
+            {t("listings_table.listing_type_picker_subheading")}{" "}
+            <a href="/admin/catalog/import">
+              {t("listings_table.listing_type_picker_import_link")}
+            </a>
+          </>
+        }
+      />
       <div class="listing-type-picker">
         {cards.map((card) => listingTypeCard(card))}
       </div>

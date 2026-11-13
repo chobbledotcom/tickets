@@ -49,13 +49,13 @@ describeWithEnv("server listings > index and new", { db: true }, () => {
         "Add Listing",
         "Choose a listing type",
       );
-      // The import call-out sits beside the explainer text as a button,
-      // above the card grid — Custom / advanced is the grid's last card.
+      // The import path reads as a sentence in the picker's intro, linking
+      // to the catalog importer — Custom / advanced is the grid's last card.
       assertStringIncludes(
         html,
-        '<a class="listing-type-import-button" href="/admin/catalog/import">',
+        '<a href="/admin/catalog/import">Alternatively you can import multiple listings from a JSON file.</a>',
       );
-      assertStringIncludes(html, "Import from file");
+      assertStringIncludes(html, "What sort of listing do you want to make?");
       expect(html.lastIndexOf('class="listing-type-card"')).toBe(
         html.indexOf(
           'class="listing-type-card" href="/admin/listing/new?template=custom"',
