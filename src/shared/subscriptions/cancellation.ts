@@ -6,7 +6,10 @@ import {
   SUBSCRIPTION_NODE_OF,
   type SubscriptionStart,
 } from "#shared/subscriptions/plan.ts";
-import { recordObserved, unread } from "#shared/subscriptions/record.ts";
+import {
+  readForSubscriptionOrNull,
+  recordObserved,
+} from "#shared/subscriptions/record.ts";
 
 const cancelOrRead = async (id: string) => {
   const cancelled = await stripeApi.cancelSubscription(id);
@@ -39,12 +42,9 @@ export const endFailedCheckoutSubscription = async (
 export const cancelOwnerSubscription = async (
   row: CheckedRow,
 ): Promise<boolean> => {
-  const answer = await cancelOrRead(row.subscription_id);
-  if (answer.status !== "found") {
-    unread(row, answer);
-    return false;
-  }
-  const observed = answer.resource.status;
+  const subscription = await readForSubscriptionOrNull(row, cancelOrRead);
+  if (subscription === null) return false;
+  const observed = subscription.status;
   await recordObserved(row, observed);
   return SUBSCRIPTION_NODE_OF[observed] === "ended";
 };

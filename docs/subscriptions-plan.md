@@ -367,7 +367,7 @@ One stack of four. Each layer is green and useful alone.
 | 1 | The feature switch, recurring prices, Stripe checkout, the stored plan, and cancellation before a failed checkout refunds | "Buying a subscription ticket" |
 | 2 | The Subscriptions menu and page | "Seeing who subscribed" |
 | 3 | The scheduled check: status and recurring payments in the ledger, with VAT | "Recurring payments reach the books" |
-| 4 | The owner cancels, and the site refuses to delete a live booking | "Cancelling a subscription" |
+| 4 | The owner cancels. Edits, deletes, and merges must keep live subscription plans. | "Cancelling a subscription" |
 
 Layer 1 replaces no old path. No layer adds a compatibility surface.
 
