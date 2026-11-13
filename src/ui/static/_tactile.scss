@@ -10,6 +10,7 @@
   --motion-fast: 120ms;
   --motion-ease: cubic-bezier(0.2, 0, 0, 1);
   --press-shift: 1px;
+  --press-scale: 0.97;
   --color-hover-tint: color-mix(in srgb, var(--color-link) 7%, transparent);
   accent-color: var(--color-link);
   caret-color: var(--color-link);
@@ -21,14 +22,16 @@
   }
 }
 
-/* Buttons move down by one pixel under the pointer, like a physical key. The
-   `translate` property leaves any `transform` on the button alone. */
+/* Buttons sink and shrink a little under the pointer, like a physical key. The
+   `translate` and `scale` properties leave any `transform` on the button
+   alone. */
 :where(button, input[type="submit"], .btn) {
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
   transition:
     filter var(--motion-fast) var(--motion-ease),
     translate var(--motion-fast) var(--motion-ease),
+    scale var(--motion-fast) var(--motion-ease),
     background-color var(--motion-fast) var(--motion-ease),
     border-color var(--motion-fast) var(--motion-ease),
     outline-offset var(--motion-fast) var(--motion-ease);
@@ -38,6 +41,7 @@
     :active:not(:disabled, .btn--disabled)
   ) {
   translate: 0 var(--press-shift);
+  scale: var(--press-scale);
 }
 
 /* One keyboard focus ring for every control. The ring starts at the edge of
