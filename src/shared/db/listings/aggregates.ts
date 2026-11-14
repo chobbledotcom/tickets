@@ -60,12 +60,10 @@ export const adjustListingIncome = (
 export const listingAggregates = aggregateRepairs<ListingAggregateField>(
   "listings",
   {
-    booked_quantity: (listingId) =>
-      sql`booked_quantity = COALESCE((SELECT SUM(listingAttendee.quantity) FROM listing_attendees AS listingAttendee WHERE listingAttendee.listing_id = ${listingId}), 0)`,
-    tickets_count: (listingId) =>
-      sql`tickets_count = (SELECT COUNT(*) FROM listing_attendees AS listingAttendee WHERE listingAttendee.listing_id = ${listingId} AND ${ticketCountPredicateFor(
-        sql`listingAttendee.quantity`,
-        sql`listingAttendee.attendee_id`,
-      )})`,
+    booked_quantity: sql`COALESCE((SELECT SUM(listingAttendee.quantity) FROM listing_attendees AS listingAttendee WHERE listingAttendee.listing_id = listings.id), 0)`,
+    tickets_count: sql`(SELECT COUNT(*) FROM listing_attendees AS listingAttendee WHERE listingAttendee.listing_id = listings.id AND ${ticketCountPredicateFor(
+      sql`listingAttendee.quantity`,
+      sql`listingAttendee.attendee_id`,
+    )})`,
   },
 );

@@ -14,7 +14,7 @@ import { ATTENDEE } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import { asOrderLegs, mapBooking, mapRefund } from "#accounting/mappers.ts";
 import { accountBalancesForIds } from "#accounting/queries.ts";
-import { insertIfNewStatement } from "#accounting/rows.ts";
+import { insertIfNewStatements } from "#accounting/rows.ts";
 import { executeBatch, queryAll, queryIdColumn } from "#db/client.ts";
 import {
   type SqlSlot,
@@ -142,7 +142,7 @@ const attendeeStatements = async (
 ): Promise<SqlStatement[]> => {
   const legs = await attendeeLegs(attendeeId, rows);
   return [
-    ...legs.map((leg) => insertIfNewStatement(leg, recordedAt)),
+    ...insertIfNewStatements(legs, recordedAt),
     stampStatement(attendeeId, legs[0]!.eventGroup),
   ];
 };

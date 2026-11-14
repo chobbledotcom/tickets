@@ -160,37 +160,32 @@ export const tableRowCount = async (table: string): Promise<number> => {
   return Number(result.rows[0]!.n);
 };
 
-/** Read `total_uses` and `usage_count` for a modifier — the two columns the
- *  modifier_usages triggers maintain. Shared by the modifier-aggregates test
- *  suite and the drop_modifiers_total_revenue migration test. */
-export const readModifierAggregates = async (
-  modifierId: number,
-): Promise<Record<string, number>> => {
-  const result = await getDb().execute(
-    sql`SELECT total_uses, usage_count FROM modifiers WHERE id = ${modifierId}`,
-  );
-  const row = result.rows[0]!;
-  return {
-    total_uses: Number(row.total_uses),
-    usage_count: Number(row.usage_count),
+/** A reader of the count columns that a table's triggers maintain, by row id. */
+const countColumnsReader =
+  (table: string, columns: readonly string[]) =>
+  async (id: number): Promise<Record<string, number>> => {
+    const result = await getDb().execute(
+      sql`SELECT ${sqlNames(columns)} FROM ${sqlName(table)} WHERE id = ${id}`,
+    );
+    const row = result.rows[0]!;
+    return Object.fromEntries(
+      columns.map((column) => [column, Number(row[column])]),
+    );
   };
-};
 
-/** Read `booked_quantity` and `tickets_count` for a listing — the two columns
- *  the listing_attendees triggers maintain. Shared by the listing-aggregates
- *  test suite and the drop_listing_income migration test. */
-export const readListingAggregates = async (
-  listingId: number,
-): Promise<Record<string, number>> => {
-  const result = await getDb().execute(
-    sql`SELECT booked_quantity, tickets_count FROM listings WHERE id = ${listingId}`,
-  );
-  const row = result.rows[0]!;
-  return {
-    booked_quantity: Number(row.booked_quantity),
-    tickets_count: Number(row.tickets_count),
-  };
-};
+/** Read `total_uses` and `usage_count` for a modifier: the two columns that
+ * the modifier_usages triggers maintain. */
+export const readModifierAggregates = countColumnsReader("modifiers", [
+  "total_uses",
+  "usage_count",
+]);
+
+/** Read `booked_quantity` and `tickets_count` for a listing: the two columns
+ * that the listing_attendees triggers maintain. */
+export const readListingAggregates = countColumnsReader("listings", [
+  "booked_quantity",
+  "tickets_count",
+]);
 
 export const triggerNames = async (): Promise<Set<string>> => {
   const result = await getDb().execute(
@@ -325,6 +320,16 @@ export const seedLegacyAggregateColumnDropSchema = async (
   await installLegacyAggregateTriggers(spec);
 };
 
+/** The tables that the rename migration removes. */
+const LEGACY_EVENT_TABLES = ["events", "event_attendees", "event_questions"];
+
+/** The tables that the rename migration leaves, each with one seeded row. */
+const LISTING_DOMAIN_TABLES = [
+  "listings",
+  "listing_attendees",
+  "listing_questions",
+];
+
 /**
  * Assert the post-`renameEventsToListings` schema state: the three legacy
  * `event_*` tables are gone, the three `listing_*` tables exist with one row
@@ -338,42 +343,14 @@ export const expectListingDomainRestored = async (
   listingId: number,
 ): Promise<void> => {
   const results = await queryLabelledBatch([
-    {
-      label: "events_exists",
-      statement: sql`SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=${"events"}`,
-    },
-    {
-      label: "event_attendees_exists",
-      statement: sql`SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=${"event_attendees"}`,
-    },
-    {
-      label: "event_questions_exists",
-      statement: sql`SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=${"event_questions"}`,
-    },
-    {
-      label: "listings_exists",
-      statement: sql`SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=${"listings"}`,
-    },
-    {
-      label: "listing_attendees_exists",
-      statement: sql`SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=${"listing_attendees"}`,
-    },
-    {
-      label: "listing_questions_exists",
-      statement: sql`SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=${"listing_questions"}`,
-    },
-    {
-      label: "listings_count",
-      statement: sql`SELECT COUNT(*) AS v FROM listings`,
-    },
-    {
-      label: "listing_attendees_count",
-      statement: sql`SELECT COUNT(*) AS v FROM listing_attendees`,
-    },
-    {
-      label: "listing_questions_count",
-      statement: sql`SELECT COUNT(*) AS v FROM listing_questions`,
-    },
+    ...[...LEGACY_EVENT_TABLES, ...LISTING_DOMAIN_TABLES].map((table) => ({
+      label: `${table}_exists`,
+      statement: sql`SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=${table}`,
+    })),
+    ...LISTING_DOMAIN_TABLES.map((table) => ({
+      label: `${table}_count`,
+      statement: sql`SELECT COUNT(*) AS v FROM ${sqlName(table)}`,
+    })),
     {
       label: "activity_log_listing_id",
       statement: sql`SELECT listing_id AS v FROM activity_log WHERE message = 'legacy listing activity'`,
@@ -385,15 +362,13 @@ export const expectListingDomainRestored = async (
   ]);
   const exists = (label: string) => results.get(label)!.rows.length > 0;
   const scalar = (label: string) => results.get(label)!.rows[0]?.v;
-  expect(exists("events_exists")).toBe(false);
-  expect(exists("event_attendees_exists")).toBe(false);
-  expect(exists("event_questions_exists")).toBe(false);
-  expect(exists("listings_exists")).toBe(true);
-  expect(exists("listing_attendees_exists")).toBe(true);
-  expect(exists("listing_questions_exists")).toBe(true);
-  expect(Number(scalar("listings_count"))).toBe(1);
-  expect(Number(scalar("listing_attendees_count"))).toBe(1);
-  expect(Number(scalar("listing_questions_count"))).toBe(1);
+  for (const table of LEGACY_EVENT_TABLES) {
+    expect(exists(`${table}_exists`)).toBe(false);
+  }
+  for (const table of LISTING_DOMAIN_TABLES) {
+    expect(exists(`${table}_exists`)).toBe(true);
+    expect(Number(scalar(`${table}_count`))).toBe(1);
+  }
   expect(scalar("activity_log_listing_id")).toBe(listingId);
   expect(scalar("built_sites_listing_id")).toBe(listingId);
 };

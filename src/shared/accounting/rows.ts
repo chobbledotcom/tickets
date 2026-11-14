@@ -161,6 +161,12 @@ export const insertStatement = bindFirst(insertUnder)(INSERT);
  * nowhere. */
 export const insertIfNewStatement = bindFirst(insertUnder)(INSERT_IF_NEW);
 
+/** One insert-if-new statement for each leg, all recorded at one time. */
+export const insertIfNewStatements = (
+  legs: readonly Parameters<typeof insertIfNewStatement>[0][],
+  recordedAt: string,
+): SqlStatement[] => legs.map((leg) => insertIfNewStatement(leg, recordedAt));
+
 /**
  * Build an idempotent, guarded INSERT for one booking leg, for the single-batch
  * booking writer. `INSERT OR IGNORE` keys idempotency on the unique `reference`

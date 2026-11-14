@@ -338,18 +338,23 @@ const reassignNameRows = async (
 /** The one occupancy query, read two ways: through a write transaction (the
  *  delete command's probe) and through the plain client (the delete page's
  *  displayed count). One query, so the two can never disagree on what holds. */
-const heldCountSql = (statusId: number): SqlStatement =>
-  sql`SELECT COUNT(*) AS held FROM attendees AS attendee WHERE attendee.status_id = ${statusId}`;
-
-const heldOf = (rows: readonly { held: number }[]): number => rows[0]!.held;
+const heldCountThrough = async (
+  readRows: (statement: SqlStatement) => Promise<{ held: number }[]>,
+  statusId: number,
+): Promise<number> => {
+  const rows = await readRows(
+    sql`SELECT COUNT(*) AS held FROM attendees AS attendee WHERE attendee.status_id = ${statusId}`,
+  );
+  return rows[0]!.held;
+};
 
 /** How many attendees sit on a status, read inside a transaction. */
-const heldAttendeeCountTx = async (tx: TxScope, id: number): Promise<number> =>
-  heldOf(await txRows<{ held: number }>(tx, heldCountSql(id)));
+const heldAttendeeCountTx = (tx: TxScope, id: number): Promise<number> =>
+  heldCountThrough((statement) => txRows(tx, statement), id);
 
 /** How many attendees sit on a status, read outside a transaction. */
-export const heldAttendeeCount = async (id: number): Promise<number> =>
-  heldOf(await queryAll<{ held: number }>(heldCountSql(id)));
+export const heldAttendeeCount = (id: number): Promise<number> =>
+  heldCountThrough(queryAll, id);
 
 /** Reads rows through an open write transaction, naming the rows. */
 const txRows = async <T>(tx: TxScope, stmt: SqlStatement): Promise<T[]> =>

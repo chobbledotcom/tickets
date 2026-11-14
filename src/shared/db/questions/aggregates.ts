@@ -78,8 +78,7 @@ export const getAnswerAggregateRecalculation = async (
 export const answerAggregates = aggregateRepairs<AnswerAggregateField>(
   "answers",
   {
-    times_selected: (answerId) =>
-      sql`times_selected = COALESCE((SELECT COUNT(*) FROM attendee_answers WHERE answer_id = ${answerId}), 0)`,
+    times_selected: sql`COALESCE((SELECT COUNT(*) FROM attendee_answers WHERE answer_id = answers.id), 0)`,
   },
 );
 

@@ -214,10 +214,8 @@ export const adjustModifierRevenue = inOwnTx(ledgerTx.correct.modifierRevenue);
 export const modifierAggregates = aggregateRepairs<ModifierAggregateField>(
   "modifiers",
   {
-    total_uses: (modifierId) =>
-      sql`total_uses = COALESCE((SELECT SUM(quantity) FROM modifier_usages WHERE modifier_id = ${modifierId}), 0)`,
-    usage_count: (modifierId) =>
-      sql`usage_count = (SELECT COUNT(*) FROM modifier_usages WHERE modifier_id = ${modifierId})`,
+    total_uses: sql`COALESCE((SELECT SUM(quantity) FROM modifier_usages WHERE modifier_id = modifiers.id), 0)`,
+    usage_count: sql`(SELECT COUNT(*) FROM modifier_usages WHERE modifier_id = modifiers.id)`,
   },
 );
 

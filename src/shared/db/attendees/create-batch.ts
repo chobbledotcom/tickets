@@ -57,10 +57,6 @@ export type BookingBatchPlan = {
   };
 };
 
-/** The newly inserted attendee is always found by its unique stable token. */
-export const attendeeByToken = (tokenIndex: string): SqlStatement =>
-  sql`(SELECT id FROM attendees WHERE ticket_token_index = ${tokenIndex})`;
-
 /** Abort the batch if the immediately preceding guarded booking did not insert
  * exactly one row. The deliberate NOT NULL failure rolls back every write. */
 const bookingWriteGuard =
@@ -74,8 +70,13 @@ const isBookingWriteGuardFailure = notNullGuardFailureAt(
 const guardedBookings = (statements: SqlStatement[]): SqlStatement[] =>
   statements.flatMap((statement) => [statement, bookingWriteGuard()]);
 
+/** The newly inserted attendee is always found by its unique stable token. */
 const attendeeIdStatement = (tokenIndex: string): SqlStatement =>
   sql`SELECT id FROM attendees WHERE ticket_token_index = ${tokenIndex}`;
+
+/** The id of the newly inserted attendee, as a value inside a statement. */
+export const attendeeByToken = (tokenIndex: string): SqlStatement =>
+  sql`(${attendeeIdStatement(tokenIndex)})`;
 
 const runAtomicBatch = async (
   prepared: PreparedWrite,

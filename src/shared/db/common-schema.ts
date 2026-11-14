@@ -1,4 +1,3 @@
-import type { InValue } from "@libsql/client";
 import type { BlindIndex, EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { executeUpdate, resetAggregates } from "#db/client.ts";
 import {
@@ -66,16 +65,16 @@ export type AggregateRepairs<F extends string> = {
 };
 
 /**
- * Both repairs for one table's aggregate columns, given the SQL that recounts
- * each one. Every aggregate family declares its table and its per-column
+ * Both repairs for one table's aggregate columns, given the expression that
+ * recounts each one for the row `<table>.id`. Every aggregate family declares its table and its per-column
  * recount here rather than writing the same two wrappers again.
  */
 export const aggregateRepairs = <F extends string>(
   table: string,
-  resetSql: Record<F, (entityId: InValue) => SqlStatement>,
+  recount: Record<F, SqlStatement>,
 ): AggregateRepairs<F> => ({
   reset: (entityId, fields) =>
-    resetAggregates(table, entityId, fields, resetSql),
+    resetAggregates(table, entityId, fields, recount),
   update: async (entityId, values) => {
     await executeUpdate(table, { ...values }, { id: entityId });
   },

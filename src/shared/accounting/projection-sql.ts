@@ -19,6 +19,7 @@ import {
 import { KIND } from "#accounting/kinds.ts";
 import { MANUAL_ATTENDEE_CHARGE } from "#accounting/manual-entries.ts";
 import { type SqlStatement, sql, sqlCommas, sqlLiteral } from "#db/sql.ts";
+import { bindFirst } from "#shared/fp-bind.ts";
 
 /** Account type/id columns for one leg side of a `transfers` row — the single
  *  home for these names. Every projection (the interpolated subqueries here
@@ -191,9 +192,9 @@ export const externalCashBalanceSubquery = (
 };
 
 const billedTotalSubquery = (
+  kinds: readonly string[],
   type: string,
   idExpr: SqlStatement,
-  kinds: readonly string[],
 ): SqlStatement => {
   const billed = accountPredicate("source", type, idExpr);
   const discounted = accountPredicate("dest", type, idExpr);
@@ -213,22 +214,16 @@ const TAXED_SALE_KINDS = [
 
 /** Customer subtotal including tax, before booking fees. This is the base used
  * to calculate a reservation deposit. */
-export const reservationSubtotalSubquery = (
-  type: string,
-  idExpr: SqlStatement,
-): SqlStatement => billedTotalSubquery(type, idExpr, TAXED_SALE_KINDS);
+export const reservationSubtotalSubquery =
+  bindFirst(billedTotalSubquery)(TAXED_SALE_KINDS);
 
 /** Total amount billed to one attendee. Booking fees and later manual charges
  * add to the saved ticket subtotal. Payments, refunds and write-offs do not. */
-export const orderTotalSubquery = (
-  type: string,
-  idExpr: SqlStatement,
-): SqlStatement =>
-  billedTotalSubquery(type, idExpr, [
-    ...TAXED_SALE_KINDS,
-    KIND.fee,
-    MANUAL_ATTENDEE_CHARGE,
-  ]);
+export const orderTotalSubquery = bindFirst(billedTotalSubquery)([
+  ...TAXED_SALE_KINDS,
+  KIND.fee,
+  MANUAL_ATTENDEE_CHARGE,
+]);
 
 /**
  * The bare subquery for what an attendee still owes: the negation of their net

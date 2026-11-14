@@ -21,6 +21,7 @@ import { type SqlStatement, sql } from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { t } from "#i18n";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import { bindFirst } from "#shared/fp-bind.ts";
 import { dayPriceFieldsFromInput } from "#shared/listing-edge.ts";
 import type { ListingType } from "#types";
 
@@ -65,20 +66,21 @@ const storedTypeTx = async (
  * places somebody holds. A quantity-0 ghost line books nothing, so it never
  * blocks. The guard's count and the move's rows derive from this one clause,
  * so they can never disagree about which bookings block the switch. */
-const undatedWhere = (listingId: number): SqlStatement =>
-  sql`listing_id = ${listingId} AND start_at IS NULL AND quantity > 0`;
-
-const undatedRowsSql = (
+const undatedSelect = (
+  columns: SqlStatement,
   listingId: number,
-): SqlStatement => sql`SELECT attendee_id AS "attendeeId",
+): SqlStatement =>
+  sql`SELECT ${columns} FROM listing_attendees
+      WHERE listing_id = ${listingId} AND start_at IS NULL AND quantity > 0`;
+
+const undatedRowsSql = bindFirst(undatedSelect)(
+  sql`attendee_id AS "attendeeId",
             package_group_id AS "packageGroupId",
             parent_listing_id AS "parentListingId",
-            quantity
-       FROM listing_attendees
-      WHERE ${undatedWhere(listingId)}`;
+            quantity`,
+);
 
-const undatedCountSql = (listingId: number): SqlStatement =>
-  sql`SELECT COUNT(*) AS undated FROM listing_attendees WHERE ${undatedWhere(listingId)}`;
+const undatedCountSql = bindFirst(undatedSelect)(sql`COUNT(*) AS undated`);
 
 /** The undated bookings of one listing — the rows a switch to daily must
  * give a day first. The plan's pre-check, pinned to the primary: a lagging

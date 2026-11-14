@@ -13,11 +13,12 @@
 import { WRITEOFF } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import { eventGroup, legReference, type RefPart } from "#accounting/refs.ts";
-import { insertIfNewStatement } from "#accounting/rows.ts";
+import { insertIfNewStatements } from "#accounting/rows.ts";
 import { signedLegParts } from "#accounting/signed-leg.ts";
 import { postTransfersTx } from "#accounting/store.ts";
 import type { TxScope } from "#db/client.ts";
 import type { SqlStatement } from "#db/sql.ts";
+import { compact } from "#fp";
 import type { AccountRef, TransferInput } from "#shared/ledger/types.ts";
 import { nowIso } from "#shared/now.ts";
 
@@ -95,7 +96,5 @@ export const writeoffAdjustmentInserts = async (
       writeoffAdjustmentLeg(a.account, a.delta, a.keyParts),
     ),
   );
-  return legs.flatMap((leg) =>
-    leg === null ? [] : [insertIfNewStatement(leg, recordedAt)],
-  );
+  return insertIfNewStatements(compact(legs), recordedAt);
 };

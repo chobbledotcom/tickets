@@ -39,29 +39,35 @@ export const linkModifierListing = (modifierId: number, listingId: number) =>
     sql`INSERT INTO modifier_listings (modifier_id, listing_id) VALUES (${modifierId}, ${listingId})`,
   );
 
+/** Link a "groups"-scoped modifier to a group. */
+export const linkModifierGroup = (modifierId: number, groupId: number) =>
+  getDb().execute(
+    sql`INSERT INTO modifier_groups (modifier_id, group_id) VALUES (${modifierId}, ${groupId})`,
+  );
+
+/** An active opt-in add-on of one scope, linked to each id through `link`. */
+const optInAddOnScopedTo =
+  (
+    scope: "listings" | "groups",
+    link: (modifierId: number, id: number) => Promise<unknown>,
+  ) =>
+  async (name: string, ids: number[]): Promise<void> => {
+    const modifier = await insertModifier({ name });
+    await patchModifier(modifier.id, { scope, trigger: "optional" });
+    for (const id of ids) await link(modifier.id, id);
+  };
+
 /** Insert an active opt-in add-on scoped to the given listing ids. */
-export const optInAddOnForListings = async (
-  name: string,
-  listingIds: number[],
-): Promise<void> => {
-  const modifier = await insertModifier({ name });
-  await patchModifier(modifier.id, { scope: "listings", trigger: "optional" });
-  for (const listingId of listingIds) {
-    await linkModifierListing(modifier.id, listingId);
-  }
-};
+export const optInAddOnForListings = optInAddOnScopedTo(
+  "listings",
+  linkModifierListing,
+);
 
 /** Insert an active opt-in add-on scoped to the given group ids. */
-export const optInAddOnForGroups = async (
-  name: string,
-  groupIds: number[],
-): Promise<void> => {
-  const modifier = await insertModifier({ name });
-  await patchModifier(modifier.id, { scope: "groups", trigger: "optional" });
-  for (const groupId of groupIds) {
-    await linkModifierGroup(modifier.id, groupId);
-  }
-};
+export const optInAddOnForGroups = optInAddOnScopedTo(
+  "groups",
+  linkModifierGroup,
+);
 
 /** An active, listings-scoped, opt-in modifier with no links yet. Links go
  * on later with `linkModifierListing`. */
@@ -74,12 +80,6 @@ export const activeOptInAddOn = async (name: string) => {
   });
   return modifier;
 };
-
-/** Link a "groups"-scoped modifier to a group. */
-export const linkModifierGroup = (modifierId: number, groupId: number) =>
-  getDb().execute(
-    sql`INSERT INTO modifier_groups (modifier_id, group_id) VALUES (${modifierId}, ${groupId})`,
-  );
 
 /** Point a question answer at an "answer"-triggered modifier. */
 export const linkModifierAnswer = (modifierId: number, answerId: number) =>

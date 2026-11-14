@@ -75,10 +75,9 @@ describe("cachedEntityTable", () => {
 
 describeWithEnv("aggregateRepairs", { db: true }, () => {
   const answerRepairs = aggregateRepairs<"times_selected">("answers", {
-    // Bind the id, then ignore it: this proves the factory passes the caller's
-    // own SQL through rather than knowing anything about answers.
-    times_selected: (id) =>
-      sql`times_selected = COALESCE((SELECT 33 WHERE ${id} > 0), 0)`,
+    // Read the row's id, then ignore it: this proves the factory passes the
+    // caller's own SQL through rather than knowing anything about answers.
+    times_selected: sql`COALESCE((SELECT 33 WHERE answers.id > 0), 0)`,
   });
 
   const storedTotal = async (answerId: number): Promise<number | undefined> =>

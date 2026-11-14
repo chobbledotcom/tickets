@@ -462,16 +462,16 @@ describeWithEnv("db > client", { db: true }, () => {
     });
     try {
       await resetAggregates("agg_t", 7, ["a", "b"], {
-        a: (id) => sql`a = a + ${id}`,
-        b: (id) => sql`b = ${id}`,
+        a: sql`a + agg_t.id`,
+        b: sql`${3}`,
       });
     } finally {
       executeStub.restore();
     }
-    // Two expressions must join into one valid SET clause, with the entity id
-    // bound once per field plus once for the WHERE.
+    // Two recounts must join into one valid SET clause, each under its own
+    // column name, with the entity id bound for the WHERE.
     expect(captured).toEqual([
-      sql`UPDATE agg_t SET a = a + ${7}, b = ${7} WHERE id = ${7}`,
+      sql`UPDATE agg_t SET a = a + agg_t.id, b = ${3} WHERE id = ${7}`,
     ]);
   });
 

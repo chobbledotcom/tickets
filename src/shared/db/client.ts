@@ -230,9 +230,8 @@ export type StatementClient = Omit<
     statements: SqlStatement[],
     mode?: TransactionMode,
   ) => Promise<ResultSet[]>;
-  execute: (statement: SqlStatement) => Promise<ResultSet>;
   transaction: (mode?: TransactionMode) => Promise<StatementTransaction>;
-};
+} & Pick<TxScope, "execute">;
 
 /**
  * Get or create database client
@@ -376,9 +375,15 @@ export const queryAll = async <T>(statement: SqlStatement): Promise<T[]> =>
     ? queryAllPrimary<T>(statement)
     : resultRows<T>(await execute(statement));
 
+/** The first row that `readAll` returns for a statement, or null when the
+ * query returns none. */
+const firstRowOn =
+  (readAll: typeof queryAll) =>
+  async <T>(statement: SqlStatement): Promise<T | null> =>
+    (await readAll<T>(statement))[0] ?? null;
+
 /** Query one row, or null when the query returns none. */
-export const queryOne = async <T>(statement: SqlStatement): Promise<T | null> =>
-  (await queryAll<T>(statement))[0] ?? null;
+export const queryOne = firstRowOn(queryAll);
 
 const requireQueryRow = async <T>(
   row: Promise<T | null>,
@@ -398,9 +403,7 @@ export const requireOne = <T>(statement: SqlStatement): Promise<T> =>
 
 /** Query an optional row on the primary — the singular of
  *  {@link queryAllPrimary}, as {@link queryOne} is of {@link queryAll}. */
-export const queryOnePrimary = async <T>(
-  statement: SqlStatement,
-): Promise<T | null> => (await queryAllPrimary<T>(statement))[0] ?? null;
+export const queryOnePrimary = firstRowOn(queryAllPrimary);
 
 /** Query one required row from the primary. */
 export const requireOnePrimary = <T>(statement: SqlStatement): Promise<T> =>
@@ -479,17 +482,19 @@ export const deleteWithChildren =
     ]);
 
 /**
- * Reset selected aggregate columns. Each column's reset is built for the
- * entity id.
+ * Reset selected aggregate columns. Each column's recount is an expression
+ * that reads the id of the row it sits on, as `<table>.id`.
  */
 export const resetAggregates = async <T extends string>(
   table: string,
   entityId: InValue,
   fields: readonly T[],
-  resetSql: Record<T, (entityId: InValue) => SqlStatement>,
+  recount: Record<T, SqlStatement>,
 ): Promise<void> => {
   if (fields.length === 0) return;
-  const resets = sqlCommas(fields.map((field) => resetSql[field](entityId)));
+  const resets = sqlCommas(
+    fields.map((field) => sql`${sqlName(field)} = ${recount[field]}`),
+  );
   await execute(
     sql`UPDATE ${sqlName(table)} SET ${resets} WHERE id = ${entityId}`,
   );
