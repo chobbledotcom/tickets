@@ -2,7 +2,7 @@
  *  form, and from a stored row into a catalogue transfer. */
 
 import * as v from "valibot";
-import { toCamelCase } from "#db/table.ts";
+import { toCamelCase } from "#shared/column-names.ts";
 import {
   optionalDateString,
   parseEach,
@@ -18,6 +18,7 @@ import {
   type FieldsInput,
   type FieldsRow,
   fieldsOnDoor,
+  type OnDoor,
   type ShownField,
 } from "#shared/rest/field-specs.ts";
 import { apiRefusal, fieldValueSchema } from "#shared/rest/field-values.ts";
@@ -170,7 +171,7 @@ export const formFieldsInput = <const Fields extends FieldSpecs>(
   values: object,
 ): DoorInput<Fields, "form"> =>
   // Each entry is the value its own kind read from its own box.
-  asInput<Fields>(
+  asInput<readonly OnDoor<Fields, "form">[]>(
     fieldsOnDoor(fields, "form").map((field) => [
       field.key,
       FORM_READS[field.kind](
@@ -178,7 +179,7 @@ export const formFieldsInput = <const Fields extends FieldSpecs>(
         field,
       ),
     ]),
-  ) as unknown as DoorInput<Fields, "form">;
+  );
 
 /** Read one checked form into the input the fields declare. */
 export const formInput =

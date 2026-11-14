@@ -5,7 +5,7 @@
  */
 
 import * as v from "valibot";
-import { toCamelCase } from "#db/table.ts";
+import { toCamelCase } from "#shared/column-names.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { flagOfKind } from "#shared/fp-bind.ts";
 import {
@@ -211,15 +211,18 @@ export type TransferData<Fields extends FieldSpecs> = ByInputKey<
  *  applies its own column default. */
 export const transferSchema = <const Fields extends FieldSpecs>(
   fields: Fields,
-): v.GenericSchema<unknown, TransferData<Fields>> =>
-  // The entries hold the value rule of each transfer field.
-  v.strictObject(
-    Object.fromEntries(
-      fieldsOnDoor(fields, "transfer").map((field) => [
-        toCamelCase(field.key),
-        field.required
-          ? fieldValueSchema(field)
-          : v.optional(fieldValueSchema(field)),
-      ]),
+) =>
+  v.pipe(
+    v.strictObject(
+      Object.fromEntries(
+        fieldsOnDoor(fields, "transfer").map((field) => [
+          toCamelCase(field.key),
+          field.required
+            ? fieldValueSchema(field)
+            : v.optional(fieldValueSchema(field)),
+        ]),
+      ),
     ),
-  ) as unknown as v.GenericSchema<unknown, TransferData<Fields>>;
+    // The strict object checked each key against its own field's rule.
+    v.transform((value) => value as TransferData<Fields>),
+  );

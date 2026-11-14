@@ -148,12 +148,16 @@ const readsThrough = (door: Door, field: FieldSpec): boolean =>
   field.doors === undefined || field.doors.includes(door);
 
 /** The fields that one door reads, in declaration order. */
-export const fieldsOnDoor = <const Fields extends FieldSpecs>(
+export const fieldsOnDoor = <
+  const Fields extends FieldSpecs,
+  Through extends Door,
+>(
   fields: Fields,
-  door: Door,
-): Fields =>
-  // A filtered list keeps the element type of its source.
-  fields.filter((field) => readsThrough(door, field)) as unknown as Fields;
+  door: Through,
+): readonly OnDoor<Fields, Through>[] =>
+  fields.filter((field): field is OnDoor<Fields, Through> =>
+    readsThrough(door, field),
+  );
 
 /** The declared field of one key. A caller names a key of its own list. */
 export const fieldOfKey = <

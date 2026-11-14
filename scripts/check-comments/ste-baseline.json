@@ -944,9 +944,9 @@
     "semicolon": 3
   },
   "src/shared/db/table.ts": {
-    "wordy": 10,
+    "wordy": 8,
     "banned-modal": 6,
-    "long-sentence": 9,
+    "long-sentence": 8,
     "semicolon": 3,
     "contraction": 1
   },
