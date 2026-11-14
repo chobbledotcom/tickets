@@ -5,6 +5,7 @@ import { afterEach, it as test } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
 import { queryOne } from "#db/client.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { siteDbApi } from "#shared/site-db.ts";
 import {
   type DeployedRelease,
@@ -171,13 +172,12 @@ describeWithEnv(
 const seedSiteDb = async (version: string | null): Promise<Client> => {
   const client = createClient({ url: ":memory:" });
   await client.execute(
-    "CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT)",
+    sql`CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT)`,
   );
   if (version !== null) {
-    await client.execute({
-      args: [CURRENT_SCRIPT_VERSION_KEY, version],
-      sql: "INSERT INTO settings (key, value) VALUES (?, ?)",
-    });
+    await client.execute(
+      sql`INSERT INTO settings (key, value) VALUES (${CURRENT_SCRIPT_VERSION_KEY}, ${version})`,
+    );
   }
   return client;
 };
@@ -338,9 +338,9 @@ describeWithEnv("recordScriptVersion", { db: true }, () => {
   });
 
   const readVersion = (): Promise<{ value: string } | null> =>
-    queryOne<{ value: string }>("SELECT value FROM settings WHERE key = ?", [
-      CURRENT_SCRIPT_VERSION_KEY,
-    ]);
+    queryOne<{ value: string }>(
+      sql`SELECT value FROM settings WHERE key = ${CURRENT_SCRIPT_VERSION_KEY}`,
+    );
 
   test("records the running build's version", async () => {
     setBuildTimestampForTest("2026-06-19T12:00:00Z");
@@ -416,7 +416,7 @@ describeWithEnv("recordScriptVersion", { db: true }, () => {
   test("swallows database errors so it can never block boot", async () => {
     setBuildTimestampForTest("2026-06-19T12:00:00Z");
     const { getDb } = await import("#db/client.ts");
-    await getDb().execute("DROP TABLE settings");
+    await getDb().execute(sql`DROP TABLE settings`);
     // Reading/writing the missing table throws inside; the call must still resolve.
     await expect(recordScriptVersion()).resolves.toBeUndefined();
   });

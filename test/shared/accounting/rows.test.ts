@@ -14,15 +14,16 @@ import {
   executeBatch,
   queryBatch,
   queryOne,
-  type SqlStatement,
   type TxScope,
   withTransaction,
 } from "#db/client.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { inList } from "#db/where-clauses.ts";
 import { account } from "#shared/ledger/account.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { useTransactionalDb } from "#test-utils/ledger.ts";
+import { placed } from "#test-utils/sql-text.ts";
 
 /** The value bound to `column` in a built INSERT, by pairing the SQL's leading
  *  column list with its positional args. */
@@ -34,7 +35,7 @@ const boundValue = (
     .slice(statement.sql.indexOf("(") + 1, statement.sql.indexOf(")"))
     .split(",")
     .map((name) => name.trim());
-  return statement.args[columns.indexOf(column)];
+  return placed(statement).args[columns.indexOf(column)];
 };
 
 describe("accounting > rows > insertStatement", () => {
@@ -79,22 +80,28 @@ describe("accounting > rows > bookingLegBatchInsert", () => {
     reference: "ref",
     source: account("attendee", 3),
   };
-  const guard = { args: ["g"], sql: "? = 'g'" };
+  const guard = sql`${"g"} = 'g'`;
 
   test("renders ONLY the attendee side via the in-batch id subquery", () => {
-    const built = bookingLegBatchInsert(leg, recordedAt, "MAX(id)", 7, guard);
+    const built = bookingLegBatchInsert(
+      leg,
+      recordedAt,
+      sql`MAX(id) + ${7}`,
+      guard,
+    );
     // source is the attendee account -> subquery; destination (revenue) stays a
     // bound literal. Swapping the two would post the sale to a phantom account.
-    assertStringIncludes(built.sql, "CAST(MAX(id) AS TEXT)");
-    expect(built.sql.indexOf("CAST(MAX(id) AS TEXT)")).toBe(
-      built.sql.lastIndexOf("CAST(MAX(id) AS TEXT)"),
+    const text = placed(built).sql;
+    assertStringIncludes(text, "CAST(MAX(id) + ?");
+    expect(text.indexOf("CAST(MAX(id) + ?")).toBe(
+      text.lastIndexOf("CAST(MAX(id) + ?"),
     );
     assertArrayIncludes(built.args, [7]); // the subquery's bound arg
     assertArrayIncludes(built.args, ["9"]); // revenue id still a bound literal
     assert(!built.args.includes("3")); // attendee id replaced by subquery
     expect(built.args.at(-1)).toBe("g"); // guard args come last
     expect(built.sql).toMatch(/^INSERT OR IGNORE INTO transfers /);
-    assertStringIncludes(built.sql, "WHERE ? = 'g'");
+    expect(built.sql).toMatch(/WHERE \?\d+ = 'g'$/);
   });
 });
 
@@ -134,8 +141,7 @@ const storeTwoLegs = (): Promise<void> =>
  *  one reader must not lean on another to set itself up. */
 const storedIdFor = async (reference: string): Promise<number> => {
   const row = await queryOne<{ id: number | bigint }>(
-    "SELECT id FROM transfers WHERE reference = ?",
-    [reference],
+    sql`SELECT id FROM transfers WHERE reference = ${reference}`,
   );
   if (row === null) throw new Error(`Nothing was stored for ${reference}`);
   return Number(row.id);
@@ -271,7 +277,7 @@ describe("accounting > rows > stored-row round-trip", () => {
       insertStatement(voiding, recordedAt),
     ]);
 
-    const all = await selectTransfers(queryBatch, { order: "id" });
+    const all = await selectTransfers(queryBatch, { order: sql`id` });
     expect(all.length).toBe(2);
     const [first, second] = all;
 
@@ -286,7 +292,7 @@ describe("accounting > rows > stored-row round-trip", () => {
     expect(first!.occurredAt).toBe("2026-06-21T00:00:00.000Z");
 
     // NULL reverses_id maps to undefined; a real id maps to the Number.
-    expect(first!.reversesId).toBeUndefined();
+    expect(first!.reversesId).toBe(undefined);
     expect(second!.reversesId).toBe(999);
   });
 
@@ -303,7 +309,6 @@ describe("accounting > rows > stored-row round-trip", () => {
     const [stored] = await selectTransfers(queryBatch);
     // Omitted, not "": a stored transfer and a never-stored input must agree
     // on what "no kind" looks like (mirroring reverses_id).
-    expect(stored!.kind).toBeUndefined();
     expect("kind" in stored!).toBe(false);
   });
 
@@ -353,9 +358,8 @@ describe("accounting > rows > stored-row round-trip", () => {
       insertStatement(refund, recordedAt),
     ]);
 
-    const all = await selectTransfers(queryBatch, { order: "id" });
+    const all = await selectTransfers(queryBatch, { order: sql`id` });
     const [sale, reversal] = all;
-    expect(sale!.reversesGroup).toBeUndefined();
     expect("reversesGroup" in sale!).toBe(false);
     expect(reversal!.reversesGroup).toBe("evt-order");
   });

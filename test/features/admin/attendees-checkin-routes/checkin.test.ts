@@ -2,6 +2,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import {
@@ -273,12 +274,9 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
         "Hal Half",
         "hal-half@example.com",
       );
-      await getDb().execute({
-        args: [attendee.id, listing.id],
-        sql: `UPDATE listing_attendees
+      await getDb().execute(sql`UPDATE listing_attendees
               SET checked_in = 1
-              WHERE attendee_id = ? AND listing_id = ?`,
-      });
+              WHERE attendee_id = ${attendee.id} AND listing_id = ${listing.id}`);
 
       const html = await expectHtmlResponse(
         await adminGet(`/admin/listing/${listing.id}/attendees?filter=in`),
@@ -301,10 +299,9 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       scope: "listing" | "attendee" = "attendee",
     ): Promise<{ response: Response; listingId: number }> => {
       const ctx = await setupAdminTest();
-      await getDb().execute({
-        args: [ctx.attendee.id, ctx.listing.id],
-        sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ? AND listing_id = ?",
-      });
+      await getDb().execute(
+        sql`UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ${ctx.attendee.id} AND listing_id = ${ctx.listing.id}`,
+      );
       const response = await handleRequest(
         mockFormRequest(
           scope === "listing"
@@ -331,10 +328,9 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
         "Cannot check in a no-quantity line",
         false,
       )(response);
-      const row = await getDb().execute({
-        args: [listingId],
-        sql: "SELECT checked_in FROM listing_attendees WHERE listing_id = ?",
-      });
+      const row = await getDb().execute(
+        sql`SELECT checked_in FROM listing_attendees WHERE listing_id = ${listingId}`,
+      );
       expect(Number(row.rows[0]!.checked_in)).toBe(0);
     });
 

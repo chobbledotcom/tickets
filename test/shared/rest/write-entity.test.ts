@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { resultRows, type TxScope } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import type { Table } from "#db/table.ts";
 import { type EntityWrite, writeEntity } from "#shared/rest/write-entity.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
@@ -109,7 +110,7 @@ describe("writeEntity", () => {
         async (tx, _id, state) => {
           states.push(String(state));
           const current = resultRows<Row>(
-            await tx.execute("SELECT id, name FROM we_items WHERE id = 1"),
+            await tx.execute(sql`SELECT id, name FROM we_items WHERE id = 1`),
           )[0];
           events.push(`write:${current?.name}`);
         },
@@ -122,7 +123,7 @@ describe("writeEntity", () => {
       plainWrite: reject("plainWrite"),
       readState: async (tx) => {
         const current = resultRows<Row>(
-          await tx.execute("SELECT id, name FROM we_items WHERE id = 1"),
+          await tx.execute(sql`SELECT id, name FROM we_items WHERE id = 1`),
         )[0];
         events.push(`read:${current?.name}`);
         return current?.name ?? null;
@@ -193,7 +194,7 @@ describe("writeEntity", () => {
         plainWrite: reject("plainWrite"),
         readState: async (tx) => {
           const row = resultRows<Row>(
-            await tx.execute("SELECT id, name FROM we_items WHERE id = 1"),
+            await tx.execute(sql`SELECT id, name FROM we_items WHERE id = 1`),
           )[0];
           return row?.name ?? null;
         },
@@ -228,7 +229,7 @@ describe("writeEntity", () => {
     }
 
     expect((thrown as Error).message).toBe("no orphaning");
-    expect(txSeen).toBeDefined();
+    expect(typeof txSeen?.execute).toBe("function");
     expect(plainWriteRan).toBe(false);
   });
 

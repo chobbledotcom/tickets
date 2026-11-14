@@ -8,6 +8,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attributesTable } from "#db/attributes.ts";
 import { rawListingsTable } from "#db/listings/table.ts";
+import { sql } from "#db/sql.ts";
 import { col, defineTable } from "#db/table.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -64,7 +65,7 @@ describeWithEnv("db > table reader > filters", { db: true }, () => {
     await add("Alpha");
     await add("Beta");
 
-    const rows = await attributes.many({}, { limit: 1, order: "id DESC" });
+    const rows = await attributes.many({}, { limit: 1, order: sql`id DESC` });
 
     expect(rows.map((row) => row.name)).toEqual(["Beta"]);
   });

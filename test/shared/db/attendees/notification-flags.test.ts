@@ -19,6 +19,7 @@ import {
 } from "#db/attendees/queries.ts";
 import { execute, executeBatch, queryAll } from "#db/client.ts";
 import { deleteListing } from "#db/listings/delete.ts";
+import { sql } from "#db/sql.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -28,6 +29,7 @@ import {
   readPendingNotificationFlags,
   setPendingNotificationFlags,
 } from "#test-utils/db-helpers/attendees.ts";
+import { personOnCollectingAndStoppedListings } from "#test-utils/db-helpers/booking-shapes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /** The attendee a test booked, read back the way the admin surfaces read
@@ -66,10 +68,9 @@ describeWithEnv(
       // No create path raises a servicing row's flags, but the input type
       // permits the combination and a restored backup can carry it. The
       // count and the attendee list must agree on the rows they count.
-      await execute("UPDATE attendees SET kind = ? WHERE id = ?", [
-        SERVICING_KIND,
-        attendee.id,
-      ]);
+      await execute(
+        sql`UPDATE attendees SET kind = ${SERVICING_KIND} WHERE id = ${attendee.id}`,
+      );
 
       expect(await countAttendeesWithPendingFlags()).toBe(0);
     });
@@ -93,9 +94,9 @@ describeWithEnv(
         1,
       );
 
-      await execute("UPDATE listings SET fields = 'phone' WHERE id = ?", [
-        listing.id,
-      ]);
+      await execute(
+        sql`UPDATE listings SET fields = 'phone' WHERE id = ${listing.id}`,
+      );
 
       const read = await readAttendeeBack(attendee.id);
       expect(read.email_pending).toBe(1);
@@ -150,15 +151,14 @@ describeWithEnv(
      * direct edit or a restored backup can leave pad characters at a token
      * edge. The read trims the pad characters there, so the stored token
      * still reads. */
-    const paddedStoredFieldsStayOwed = async (
+    const expectPaddedStoredFieldsStayOwed = async (
       name: string,
       fields: string,
     ): Promise<void> => {
       const { attendee, listing } = await bookTestAttendeeWithFlags(name, 1, 0);
-      await execute("UPDATE listings SET fields = ? WHERE id = ?", [
-        fields,
-        listing.id,
-      ]);
+      await execute(
+        sql`UPDATE listings SET fields = ${fields} WHERE id = ${listing.id}`,
+      );
 
       const read = await readAttendeeBack(attendee.id);
       expect(read.email_owed).toBe(1);
@@ -166,22 +166,25 @@ describeWithEnv(
     };
 
     test("reads the owed email through a space-padded stored fields value", async () => {
-      await paddedStoredFieldsStayOwed("Space Padded Buyer", " email ");
+      await expectPaddedStoredFieldsStayOwed("Space Padded Buyer", " email ");
     });
 
     test("reads the owed email through a non-breaking-space-padded stored fields value", async () => {
-      await paddedStoredFieldsStayOwed(
+      await expectPaddedStoredFieldsStayOwed(
         "Narrow Padded Buyer",
         "\u00a0email\u00a0",
       );
     });
 
     test("reads the owed email through a repeatedly space-padded stored fields value", async () => {
-      await paddedStoredFieldsStayOwed("Wide Padded Buyer", "   email   ");
+      await expectPaddedStoredFieldsStayOwed(
+        "Wide Padded Buyer",
+        "   email   ",
+      );
     });
 
     test("reads the owed email through mixed space and non-breaking-space padding", async () => {
-      await paddedStoredFieldsStayOwed(
+      await expectPaddedStoredFieldsStayOwed(
         "Mixed Padded Buyer",
         " \u00a0 \u00a0email \u00a0 ",
       );
@@ -193,9 +196,9 @@ describeWithEnv(
         1,
         0,
       );
-      await execute("UPDATE listings SET fields = 'emailx' WHERE id = ?", [
-        listing.id,
-      ]);
+      await execute(
+        sql`UPDATE listings SET fields = 'emailx' WHERE id = ${listing.id}`,
+      );
 
       const read = await readAttendeeBack(attendee.id);
       expect(read.email_owed).toBe(0);
@@ -203,9 +206,9 @@ describeWithEnv(
 
       // The split keeps token edges, so a space inside a token cannot glue
       // a lookalike into "email".
-      await execute("UPDATE listings SET fields = 'e mail' WHERE id = ?", [
-        listing.id,
-      ]);
+      await execute(
+        sql`UPDATE listings SET fields = 'e mail' WHERE id = ${listing.id}`,
+      );
       const readAfterLookalike = await readAttendeeBack(attendee.id);
       expect(readAfterLookalike.email_owed).toBe(0);
       expect(await countAttendeesWithPendingFlags()).toBe(0);
@@ -235,23 +238,8 @@ describeWithEnv(
       // One person, two bookings. The Ceilidh collects an email, the Quiz
       // stopped. The same flag sits on the person, so only each row's own
       // listing can decide its badge.
-      const collecting = await createTestListing({
-        maxAttendees: 10,
-        name: "Scoped Ceilidh",
-      });
-      const stopped = await createTestListing({
-        maxAttendees: 10,
-        name: "Scoped Quiz",
-      });
-      await execute("UPDATE listings SET fields = 'phone' WHERE id = ?", [
-        stopped.id,
-      ]);
-      const attendee = await createMultiBookingAttendee(
-        "Scoped Buyer",
-        "scoped-buyer@example.com",
-        [{ listingId: collecting.id }, { listingId: stopped.id }],
-      );
-      await setPendingNotificationFlags(attendee.id, 1, 0);
+      const { attendee, collecting, stopped } =
+        await personOnCollectingAndStoppedListings("Scoped");
 
       const rows = await getAttendeeBookingRowsRaw(attendee.id);
       const owedByListing = new Map(
@@ -269,7 +257,7 @@ describeWithEnv(
 
     test("the count plans through the partial pending-flags index", async () => {
       const plan = await queryAll<{ detail: string }>(
-        `EXPLAIN QUERY PLAN ${pendingFlagsCountStatement().sql}`,
+        sql`EXPLAIN QUERY PLAN ${pendingFlagsCountStatement()}`,
       );
       const details = plan.map((row) => row.detail).join("\n");
 

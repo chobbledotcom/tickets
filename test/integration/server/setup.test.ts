@@ -1,10 +1,10 @@
-import type { InStatement } from "@libsql/client";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { invalidateInitDbCache, resetDatabase } from "#db/migrations.ts";
 import { settings } from "#db/settings.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
@@ -30,11 +30,7 @@ import {
   withExpectedError,
   withMocks,
 } from "#test-utils/mocks.ts";
-import {
-  recordQueries,
-  statementSql,
-  wrapDbClient,
-} from "#test-utils/record-queries.ts";
+import { recordQueries, wrapDbClient } from "#test-utils/record-queries.ts";
 import { reloginAsAdmin } from "#test-utils/session.ts";
 import { invalidateTestDbCache } from "#test-utils/test-state.ts";
 
@@ -66,7 +62,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
    *  page, read its CSRF token, then POST the standard valid credentials.
    *  Asserts the GET returns 200, a token is present, and the POST redirects to
    *  /setup/complete. */
-  async function completeSetupViaBrowser(setupUrl: string): Promise<void> {
+  async function expectSetupViaBrowser(setupUrl: string): Promise<void> {
     const getResponse = await handleRequest(
       new Request(setupUrl, {
         headers: { host: "localhost" },
@@ -101,7 +97,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
 
   async function createEmptySettingsTable(): Promise<void> {
     await getDb().execute(
-      "CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
+      sql`CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
     );
     settings.invalidateCache();
     settings.setup.clearCache();
@@ -135,15 +131,15 @@ describeWithEnv("server (setup)", { db: true }, () => {
         const released = new Promise<void>((resolve) => {
           release = resolve;
         });
-        const holdProbe = async (statement: InStatement) => {
+        const holdProbe = async (statement: SqlStatement) => {
           await released;
           return real.execute(statement);
         };
         const restore = wrapDbClient({
           batch: () => {},
           execute: (statement) =>
-            statementSql(statement).startsWith("SELECT value FROM settings")
-              ? holdProbe(statement as InStatement)
+            statement.sql.startsWith("SELECT value FROM settings")
+              ? holdProbe(statement)
               : null,
         });
         try {
@@ -508,12 +504,12 @@ describeWithEnv("server (setup)", { db: true }, () => {
         // 1. GET /setup/ - browser receives the page with CSRF token
         // 2. User fills form and submits
         // 3. Browser sends POST with signed CSRF token
-        await completeSetupViaBrowser("http://localhost/setup/");
+        await expectSetupViaBrowser("http://localhost/setup/");
       });
 
       test("setup form works when accessed via /setup (no trailing slash)", async () => {
         // Same full flow, but reached at /setup with no trailing slash.
-        await completeSetupViaBrowser("http://localhost/setup");
+        await expectSetupViaBrowser("http://localhost/setup");
       });
 
       test("GET /setup/complete redirects to setup when not yet complete", async () => {

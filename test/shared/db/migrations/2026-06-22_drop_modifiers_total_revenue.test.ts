@@ -2,6 +2,7 @@ import { getDb } from "#db/client.ts";
 import dropModifiersTotalRevenueMigration from "#db/migrations/2026-06-22_drop_modifiers_total_revenue.ts";
 import { recreateTable, syncTriggers } from "#db/migrations/schema-sync.ts";
 import { modifiersTable } from "#db/modifiers.ts";
+import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import {
   readModifierAggregates as modifierAggregates,
   runAggregateColumnDropTests,
@@ -18,12 +19,14 @@ const runMigration = () => dropModifiersTotalRevenueMigration(context).up();
 /** Old revenue-maintaining SET clause (signed `+`/`-`) the pre-drop triggers
  *  used, so the fixture mirrors a real pre-migration database whose triggers
  *  still reference the total_revenue column. */
-const contribution = (sign: "+" | "-", row: "NEW" | "OLD"): string =>
-  `UPDATE modifiers SET
-     total_uses = total_uses ${sign} ${row}.quantity,
-     usage_count = usage_count ${sign} 1,
-     total_revenue = total_revenue ${sign} ${row}.amount_applied
-   WHERE id = ${row}.modifier_id;`;
+const contribution = (sign: "+" | "-", row: "NEW" | "OLD"): SqlStatement => {
+  const op = sign === "+" ? sql`+` : sql`-`;
+  return sql`UPDATE modifiers SET
+     total_uses = total_uses ${op} ${sqlName(`${row}.quantity`)},
+     usage_count = usage_count ${op} 1,
+     total_revenue = total_revenue ${op} ${sqlName(`${row}.amount_applied`)}
+   WHERE id = ${sqlName(`${row}.modifier_id`)};`;
+};
 
 const makeModifier = () =>
   modifiersTable.insert({
@@ -44,10 +47,9 @@ describeWithEnv(
       dropColumnPhrase: "a revenue",
       expected: { total_uses: 3, usage_count: 1 },
       insertUsage: (modifierId) =>
-        getDb().execute({
-          args: [modifierId],
-          sql: "INSERT INTO modifier_usages (modifier_id, attendee_id, quantity, amount_applied, created) VALUES (?, 1, 3, 1500, '2026-06-22')",
-        }),
+        getDb().execute(
+          sql`INSERT INTO modifier_usages (modifier_id, attendee_id, quantity, amount_applied, created) VALUES (${modifierId}, 1, 3, 1500, '2026-06-22')`,
+        ),
       readAggregates: modifierAggregates,
       runMigration,
       targetTable: "modifiers",

@@ -11,6 +11,7 @@ import { attendeesApi } from "#db/attendees/api.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getDb } from "#db/client.ts";
 import { getListingsWithCountsByIds } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTwoListingsSharingOnePlace } from "#test-utils/db-helpers/groups.ts";
 import {
@@ -163,10 +164,7 @@ describeWithEnv(
       const listing = await createTestListing({ maxAttendees: 10 });
       const [cached] = await getListingsWithCountsByIds([listing.id]);
       expect(cached?.id).toBe(listing.id);
-      await getDb().execute({
-        args: [listing.id],
-        sql: "DELETE FROM listings WHERE id = ?",
-      });
+      await getDb().execute(sql`DELETE FROM listings WHERE id = ${listing.id}`);
 
       await expectLateOrderRefusedNaming(
         [{ listingId: listing.id, quantity: 1 }],

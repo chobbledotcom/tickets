@@ -568,6 +568,25 @@ to do.
   `table.read.one` / `read.many` in `table-reader.ts`. Outside these, a caller
   that needs many columns lists them explicitly.
 
+### The `sql` Tag
+
+Write all SQL in a `sql` template from `#db/sql.ts`. The runners refuse a
+plain string.
+
+- A value in a slot is a bound argument. It never enters the SQL text.
+- A statement in a slot brings its own values with it.
+- Use `sqlName` and `sqlNames` for a table name or a column name.
+- Use `sqlLiteral` for a constant that the SQL text must hold: schema text,
+  trigger text, and a constant that a partial index names.
+- Use `sqlList` for the values of an `IN (...)`, and `sqlRows` for VALUES rows.
+- Bind an id as text when the SQL compares it with a TEXT column. libsql binds
+  a JavaScript number as a float, and `CAST(5.0 AS TEXT)` gives `'5.0'`.
+- Do not write a slot inside a quoted SQL literal. The tag refuses it.
+- `sqlFromDump` is for backup restore only.
+
+The SQL tag check in `test/integration/code-quality.test.ts` fails on SQL text
+or a placeholder outside a `sql` template in `src/`.
+
 ### Transactions and Batches
 
 Use the helpers in `src/shared/db/client.ts` rather than `getDb().batch` or

@@ -4,6 +4,7 @@ import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
 import { getDb } from "#db/client.ts";
 import { loadMigrations } from "#db/migrations/context.ts";
 import { SCHEMA } from "#db/migrations/schema/index.ts";
+import { sql, sqlCommas, sqlLiteral, sqlName } from "#db/sql.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -23,13 +24,13 @@ describeWithEnv(
       await migration.up();
       // Capture the state after the first run.
       const firstRun = await getDb().execute(
-        "SELECT COUNT(*) AS c FROM attendees",
+        sql`SELECT COUNT(*) AS c FROM attendees`,
       );
       const firstCount = Number(firstRun.rows[0]!.c);
       // Re-run: must not duplicate columns, error, or shift row count.
       await migration.up();
       const secondRun = await getDb().execute(
-        "SELECT COUNT(*) AS c FROM attendees",
+        sql`SELECT COUNT(*) AS c FROM attendees`,
       );
       expect(Number(secondRun.rows[0]!.c)).toBe(firstCount);
       expect(await indexExists("idx_attendees_kind")).toBe(true);
@@ -50,17 +51,13 @@ describeWithEnv(
       // which would consume booked_capacity while counting as neither attendee
       // nor servicing — cannot be created. The CHECK constraint is the defence.
       await expect(
-        getDb().execute({
-          args: ["limbo"],
-          sql:
-            "INSERT INTO attendees (created, ticket_token_index, pii_blob, kind) " +
-            "VALUES ('2026-01-01T00:00:00Z', ?, '', NULL)",
-        }),
+        getDb().execute(
+          sql`INSERT INTO attendees (created, ticket_token_index, pii_blob, kind) VALUES ('2026-01-01T00:00:00Z', ${"limbo"}, '', NULL)`,
+        ),
       ).rejects.toThrow();
-      const rows = await getDb().execute({
-        args: [ATTENDEE_KIND],
-        sql: "SELECT kind FROM attendees WHERE kind IS NULL OR kind <> ?",
-      });
+      const rows = await getDb().execute(
+        sql`SELECT kind FROM attendees WHERE kind IS NULL OR kind <> ${ATTENDEE_KIND}`,
+      );
       expect(rows.rows.length).toBe(0);
     });
 
@@ -72,28 +69,25 @@ describeWithEnv(
       // and the copy-time COALESCE(kind, 'attendee') repairs the row.
       const attendeesColumns = SCHEMA.find(([name]) => name === "attendees")![1]
         .columns;
-      const legacyCols = attendeesColumns
-        .map(([col, type]) =>
-          col === "kind"
-            ? `kind TEXT CHECK (kind IS NULL OR kind IN ('${ATTENDEE_KIND}', '${SERVICING_KIND}'))`
-            : `${col} ${type}`,
-        )
-        .join(", ");
-      await getDb().execute("DROP TABLE attendees");
-      await getDb().execute(`CREATE TABLE attendees (${legacyCols})`);
-      const res = await getDb().execute({
-        args: ["limbo"],
-        sql:
-          "INSERT INTO attendees (created, ticket_token_index, pii_blob, kind) " +
-          "VALUES ('2026-01-01T00:00:00Z', ?, '', NULL)",
-      });
+      const legacyCols = attendeesColumns.map(([col, type]) =>
+        col === "kind"
+          ? sql`kind TEXT CHECK (kind IS NULL OR kind IN (${sqlLiteral(ATTENDEE_KIND)}, ${sqlLiteral(SERVICING_KIND)}))`
+          : sql`${sqlName(col)} ${type}`,
+      );
+      await getDb().execute(sql`DROP TABLE attendees`);
+      await getDb().execute(
+        sql`CREATE TABLE attendees (${sqlCommas(legacyCols)})`,
+      );
+      const res = await getDb().execute(
+        sql`INSERT INTO attendees (created, ticket_token_index, pii_blob, kind) VALUES ('2026-01-01T00:00:00Z', ${"limbo"}, '', NULL)`,
+      );
       const id = Number(res.lastInsertRowid);
       expect(await kindOf(id)).toBeNull();
 
       await notNullMigration.up();
 
       expect(await kindOf(id)).toBe(ATTENDEE_KIND);
-      const notnull = await getDb().execute("PRAGMA table_info(attendees)");
+      const notnull = await getDb().execute(sql`PRAGMA table_info(attendees)`);
       const kindRow = notnull.rows.find((r) => r.name === "kind");
       expect(Number(kindRow?.notnull ?? 0)).toBe(1);
     });
@@ -122,8 +116,8 @@ describeWithEnv(
         ([name]) => name === "attendees",
       )![1].columns.find(([n]) => n === "kind")!;
       const [, type] = kindCol;
-      expect(type).toMatch(/CHECK/i);
-      expectIncludesAll(type, [ATTENDEE_KIND, SERVICING_KIND]);
+      expect(type.sql).toMatch(/CHECK/i);
+      expectIncludesAll(type.sql, [ATTENDEE_KIND, SERVICING_KIND]);
     });
   },
 );

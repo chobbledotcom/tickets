@@ -3,11 +3,11 @@
  * the two settings rows naming the schema this build expects.
  */
 
-import { executeBatch, getDb, type SqlStatement } from "#db/client.ts";
+import { executeBatch, getDb } from "#db/client.ts";
 import { stringColumnSet } from "#db/query.ts";
 import { settingsVersionIncrement } from "#db/settings/cache.ts";
+import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
 import { nowIso } from "#shared/now.ts";
-
 import {
   executeWhileMigrationLockOwned,
   releaseMigrationLockStatement,
@@ -34,18 +34,15 @@ const buildSchemaMarkerStatements =
     SCHEMA_MARKERS.map(([key, value]) => build(key, value));
 
 export const schemaMarkerStatements = buildSchemaMarkerStatements(
-  (key, value) => ({
-    args: [value],
-    sql: `INSERT OR REPLACE INTO settings (key, value) VALUES ('${key}', ?)`,
-  }),
+  (key, value) =>
+    sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${sqlLiteral(key)}, ${value})`,
 );
 
 /** The same schema markers, written only while this request holds the lock. */
 const ownedSchemaMarkerStatements = (lockToken: string): SqlStatement[] =>
   buildSchemaMarkerStatements((key, value) =>
     whileMigrationLockOwned(
-      "INSERT OR REPLACE INTO settings (key, value) SELECT ?, ?",
-      [key, value],
+      sql`INSERT OR REPLACE INTO settings (key, value) SELECT ${key}, ${value}`,
       lockToken,
     ),
   )();
@@ -58,10 +55,8 @@ export const writeSchemaMarkers = async (): Promise<void> => {
 export const migrationMarkerStatement = (
   migration: Migration,
   appliedAt: string,
-): SqlStatement => ({
-  args: [migration.id, migration.description, appliedAt],
-  sql: `INSERT OR REPLACE INTO ${SCHEMA_MIGRATIONS_TABLE} (id, description, applied_at) VALUES (?, ?, ?)`,
-});
+): SqlStatement =>
+  sql`INSERT OR REPLACE INTO ${sqlName(SCHEMA_MIGRATIONS_TABLE)} (id, description, applied_at) VALUES (${migration.id}, ${migration.description}, ${appliedAt})`;
 
 const buildMigrationMarkerStatements =
   (build: (migration: Migration, appliedAt: string) => SqlStatement) =>
@@ -80,8 +75,7 @@ const ownedMigrationMarkerStatements = (
 ): SqlStatement[] =>
   buildMigrationMarkerStatements((migration, appliedAt) =>
     whileMigrationLockOwned(
-      `INSERT OR REPLACE INTO ${SCHEMA_MIGRATIONS_TABLE} (id, description, applied_at) SELECT ?, ?, ?`,
-      [migration.id, migration.description, appliedAt],
+      sql`INSERT OR REPLACE INTO ${sqlName(SCHEMA_MIGRATIONS_TABLE)} (id, description, applied_at) SELECT ${migration.id}, ${migration.description}, ${appliedAt}`,
       lockToken,
     ),
   )(migrations);
@@ -146,7 +140,7 @@ const ensureMigrationTrackingTable = async (): Promise<void> => {
 export const getAppliedMigrationIds = async (): Promise<Set<string>> => {
   await ensureMigrationTrackingTable();
   const result = await getDb().execute(
-    `SELECT id FROM ${SCHEMA_MIGRATIONS_TABLE}`,
+    sql`SELECT id FROM ${sqlName(SCHEMA_MIGRATIONS_TABLE)}`,
   );
   return stringColumnSet(result.rows, "id");
 };

@@ -5,6 +5,7 @@ import {
   setAttendeePhoneIndexIfEmpty,
 } from "#db/attendee-phone-index.ts";
 import { queryOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import {
   computePhoneIndex,
   normalizeForIndex,
@@ -36,8 +37,7 @@ describeWithEnv("db > attendee phone index", { db: true }, () => {
   /** The raw stored phone_index column for one attendee row. */
   const storedPhoneIndex = async (attendeeId: number): Promise<string> => {
     const row = await queryOne<{ phone_index: string }>(
-      "SELECT phone_index FROM attendees WHERE id = ?",
-      [attendeeId],
+      sql`SELECT phone_index FROM attendees WHERE id = ${attendeeId}`,
     );
     return row!.phone_index;
   };

@@ -9,6 +9,7 @@ import {
 } from "#db/modifier-resolve.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { sql } from "#db/sql.ts";
 import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
 import type { BookingIntent, ModifierRef } from "#shared/booking-intent.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
@@ -88,12 +89,9 @@ const rebuildFromMetadata = async (
   const refs = toModifierRefs(publicSpecs) ?? [];
   const fromMetadata = JSON.parse(JSON.stringify(refs)) as ModifierRef[];
   if (ctx.visits > 0) {
-    await getDb().execute({
-      args: [await hashEmail(buyer.email), ctx.visits],
-      sql: `INSERT INTO contact_preferences (contact_hash, visits)
-            VALUES (?, ?)
-            ON CONFLICT(contact_hash) DO UPDATE SET visits = excluded.visits`,
-    });
+    await getDb().execute(sql`INSERT INTO contact_preferences (contact_hash, visits)
+            VALUES (${await hashEmail(buyer.email)}, ${ctx.visits})
+            ON CONFLICT(contact_hash) DO UPDATE SET visits = excluded.visits`);
   }
   const intent: BookingIntent = {
     ...buyer,
@@ -470,8 +468,8 @@ describeWithEnv(
 
       for (let iter = 0; iter < 40; iter++) {
         // Each iteration is an independent cart + modifier set.
-        await db.execute("DELETE FROM modifier_usages");
-        await db.execute("DELETE FROM modifiers");
+        await db.execute(sql`DELETE FROM modifier_usages`);
+        await db.execute(sql`DELETE FROM modifiers`);
 
         const items = randomItems(rng);
         const { addOns, code } = await generateModifiers(rng, iter);

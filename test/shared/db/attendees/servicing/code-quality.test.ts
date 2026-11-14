@@ -85,8 +85,8 @@ describe("servicing §20 — servicing query readers reuse the shared attendee S
   });
 
   test("attendeeColumns always emits the core columns and adds only the fields asked for", () => {
-    const full = attendeeColumns("inner", ATTENDEE_FIELDS, "attendee");
-    const none = attendeeColumns("inner", [], "attendee");
+    const full = attendeeColumns("inner", ATTENDEE_FIELDS, "attendee").sql;
+    const none = attendeeColumns("inner", [], "attendee").sql;
     // Both carry the always-present core (identity + cheap per-listing columns),
     // so every reader projects the same base regardless of its field set.
     expectIncludesAll(none, [

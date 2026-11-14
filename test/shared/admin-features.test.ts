@@ -8,12 +8,13 @@ import {
   serializeEnabledFeatures,
   setFeatureEnabled,
 } from "#shared/admin-features.ts";
+import { sqlText } from "#test-utils/sql-text.ts";
 
 const DEFAULT_ENABLED_FEATURES = parseEnabledFeatures("");
 
 describe("admin features", () => {
   test("defines the complete feature list in display order", () => {
-    expect(ADMIN_FEATURES).toEqual([
+    expect(sqlText(ADMIN_FEATURES)).toEqual([
       {
         descriptionKey: "features.site.description",
         inUseSql: null,

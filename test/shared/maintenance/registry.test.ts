@@ -6,6 +6,7 @@ import { HYBRID_PREFIX } from "#crypto/hybrid.ts";
 
 import { ACTIVITY_LOG_BACKFILL_COMPLETE } from "#db/activity-log-backfill.ts";
 import { executeBatch } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import {
   ACTIVITY_LOG_BACKFILL_BATCH,
   MAINTENANCE_PRUNE_BATCH,
@@ -183,8 +184,7 @@ describeWithEnv("maintenance registry", { db: true }, () => {
       const id = `sq_task_${index}`;
       await stageSquareLinkEnd(id, `link_${id}`, "2026-01-01T00:00:00Z");
       await execute(
-        "UPDATE square_link_ends SET next_attempt_at = '2020-01-01T00:00:00Z' WHERE session_index = ?",
-        [await hmacHash(id)],
+        sql`UPDATE square_link_ends SET next_attempt_at = '2020-01-01T00:00:00Z' WHERE session_index = ${await hmacHash(id)}`,
       );
     }
     const read = stub(squareApi, "endLink", () =>
@@ -215,7 +215,7 @@ describeWithEnv("maintenance registry", { db: true }, () => {
     const ipHash = await insertLoginAttempt("192.0.2.10", 1, 0, 0);
     expect(await loginAttemptExists(ipHash)).toBe(true);
 
-    expect(await runTask(taskNamed("database_pruning"))).toBeUndefined();
+    expect(await runTask(taskNamed("database_pruning"))).toBe(undefined);
 
     expect(await loginAttemptExists(ipHash)).toBe(false);
   });
@@ -284,10 +284,11 @@ describeWithEnv("maintenance registry", { db: true }, () => {
     const message = await rawActivityMessage(firstId);
     expect(message.startsWith(ENCRYPTION_PREFIX)).toBe(true);
     await executeBatch(
-      Array.from({ length: ACTIVITY_LOG_BACKFILL_BATCH - 1 }, () => ({
-        args: [message, nowIso()],
-        sql: "INSERT INTO activity_log (message, created, listing_id, attendee_id) VALUES (?, ?, NULL, NULL)",
-      })),
+      Array.from(
+        { length: ACTIVITY_LOG_BACKFILL_BATCH - 1 },
+        () =>
+          sql`INSERT INTO activity_log (message, created, listing_id, attendee_id) VALUES (${message}, ${nowIso()}, NULL, NULL)`,
+      ),
     );
     let followUps = 0;
     const checkpoints: (string | null)[] = [];

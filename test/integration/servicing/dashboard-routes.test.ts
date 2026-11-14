@@ -2,6 +2,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -38,10 +39,9 @@ describeWithEnv("admin servicing routes", { db: true }, () => {
       bookings: [{ listingId: deletedListing.id, quantity: 1 }],
       name: "Undated Route Service",
     });
-    await getDb().execute({
-      args: [deletedListing.id],
-      sql: "DELETE FROM listings WHERE id = ?",
-    });
+    await getDb().execute(
+      sql`DELETE FROM listings WHERE id = ${deletedListing.id}`,
+    );
 
     const html = await renderAdminPage("/admin/servicing");
 

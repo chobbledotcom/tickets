@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { paymentCaseDecisionTable } from "#db/migrations/schema/payments/decisions.ts";
+import { type SqlStatement, sql, sqlLiteral } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   expectAccepted,
@@ -9,8 +10,8 @@ import {
   expectRefusedAsRepeat,
 } from "./refuses.ts";
 
-const aDecision = (values: string) =>
-  `INSERT INTO payment_case_decisions
+const aDecision = (values: SqlStatement) =>
+  sql`INSERT INTO payment_case_decisions
     (case_id, case_revision, claim, state, attempt_count, created_at)
     VALUES (${values})`;
 
@@ -37,13 +38,13 @@ describeWithEnv("db > payment decision and message rules", { db: true }, () => {
   // What the owner was looking at, what was decided, and what went wrong are
   // all allowed to be missing — but never held in the open.
   for (const [name, claim, decision, lastError] of [
-    ["what the owner was looking at", "'Give it back'", "NULL", "NULL"],
-    ["what was decided", "'hyb:1:a:b:c'", "'Refunded'", "NULL"],
-    ["what went wrong", "'hyb:1:a:b:c'", "NULL", "'Card declined'"],
-    ["under the database owner's key", "'enc:1:a:b'", "NULL", "NULL"],
+    ["what the owner was looking at", "Give it back", null, null],
+    ["what was decided", "hyb:1:a:b:c", "Refunded", null],
+    ["what went wrong", "hyb:1:a:b:c", null, "Card declined"],
+    ["under the database owner's key", "enc:1:a:b", null, null],
   ] as const) {
     test(`refuses a decision keeping ${name}`, async () => {
-      await expectRefused(`INSERT INTO payment_case_decisions
+      await expectRefused(sql`INSERT INTO payment_case_decisions
         (case_id, case_revision, claim, state, attempt_count, created_at,
          decision, last_error)
         VALUES (1, 1, ${claim}, 'accepted', 0, 0, ${decision}, ${lastError})`);
@@ -54,14 +55,14 @@ describeWithEnv("db > payment decision and message rules", { db: true }, () => {
     // What was decided and what went wrong are both allowed to be missing, so
     // the rules on them have to let a missing one through as well as turning
     // a plain one away. Only the claim itself must always be there.
-    return expectAccepted(`INSERT INTO payment_case_decisions
+    return expectAccepted(sql`INSERT INTO payment_case_decisions
       (case_id, case_revision, claim, state, attempt_count, created_at,
        decision, last_error)
       VALUES (99, 1, 'hyb:1:a:b:c', 'accepted', 0, 0, NULL, NULL)`);
   });
 
   test("accepts a decision whose outcome is held behind the owner's key", () =>
-    expectAccepted(`INSERT INTO payment_case_decisions
+    expectAccepted(sql`INSERT INTO payment_case_decisions
       (case_id, case_revision, claim, state, attempt_count, created_at,
        decision, last_error)
       VALUES (98, 1, 'hyb:1:a:b:c', 'accepted', 0, 0,
@@ -75,18 +76,18 @@ describeWithEnv("db > payment decision and message rules", { db: true }, () => {
     ["behind an envelope with nothing in it", "hyb:1:Dear Buyer"],
   ] as const) {
     test(`refuses a message to send held ${name}`, async () => {
-      await expectRefused(`INSERT INTO payment_completion_deliveries
+      await expectRefused(sql`INSERT INTO payment_completion_deliveries
         (payment_id, delivery_key, data)
-        VALUES ('plain-message', 'registration_email', '${data}')`);
+        VALUES ('plain-message', 'registration_email', ${sqlLiteral(data)})`);
     });
   }
 
   test("counts a decision as untried when the write does not say", async () => {
-    await expectAccepted(`INSERT INTO payment_case_decisions
+    await expectAccepted(sql`INSERT INTO payment_case_decisions
       (case_id, case_revision, claim, state, created_at)
       VALUES (13, 1, 'hyb:1:a:b:c', 'accepted', 1)`);
     const saved = await getDb().execute(
-      "SELECT attempt_count FROM payment_case_decisions WHERE case_id = 13",
+      sql`SELECT attempt_count FROM payment_case_decisions WHERE case_id = 13`,
     );
     expect(Number(saved.rows[0]?.attempt_count)).toBe(0);
   });
@@ -94,10 +95,14 @@ describeWithEnv("db > payment decision and message rules", { db: true }, () => {
   test("gives each decision its own number", async () => {
     // The waiting-to-retry index finds a decision by its number, so two
     // sharing one would hide each other from the worker.
-    await expectAccepted(aDecision("11, 1, 'hyb:1:a:b:c', 'accepted', 0, 1"));
-    await expectAccepted(aDecision("11, 2, 'hyb:1:a:b:c', 'accepted', 0, 1"));
+    await expectAccepted(
+      aDecision(sql`11, 1, 'hyb:1:a:b:c', 'accepted', 0, 1`),
+    );
+    await expectAccepted(
+      aDecision(sql`11, 2, 'hyb:1:a:b:c', 'accepted', 0, 1`),
+    );
     const saved = await getDb().execute(
-      "SELECT id FROM payment_case_decisions WHERE case_id = 11",
+      sql`SELECT id FROM payment_case_decisions WHERE case_id = 11`,
     );
     const ids = saved.rows.map((row) => Number(row.id));
     expect(ids.every((id) => id > 0)).toBe(true);
@@ -107,9 +112,11 @@ describeWithEnv("db > payment decision and message rules", { db: true }, () => {
   test("refuses a second decision on the same version of a problem", async () => {
     // One version of a problem may only be settled once, so a double-click
     // cannot give the money back twice.
-    await expectAccepted(aDecision("12, 1, 'hyb:1:a:b:c', 'accepted', 0, 1"));
+    await expectAccepted(
+      aDecision(sql`12, 1, 'hyb:1:a:b:c', 'accepted', 0, 1`),
+    );
     await expectRefusedAsRepeat(
-      aDecision("12, 1, 'hyb:1:c:d:e', 'accepted', 0, 2"),
+      aDecision(sql`12, 1, 'hyb:1:c:d:e', 'accepted', 0, 2`),
     );
   });
 });

@@ -5,6 +5,7 @@ import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { getAttendeeOrderSummary } from "#db/attendees/balance.ts";
 import { getDb } from "#db/client.ts";
 import { modifiersTable } from "#db/modifiers.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { signBalanceToken } from "#shared/balance-link.ts";
 import {
@@ -135,7 +136,7 @@ describeWithEnv(
       const listing = await setupReservationListing();
       // Clear the public-default flag so the required lookup fails.
       await getDb().execute(
-        "UPDATE attendee_statuses SET is_public_default = 0",
+        sql`UPDATE attendee_statuses SET is_public_default = 0`,
       );
       attendeeStatuses.invalidate();
       await expect(captureCheckoutIntent(listing)).rejects.toThrow(

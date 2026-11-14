@@ -9,6 +9,7 @@ import {
 import { getAttendeeAnswersBatch } from "#db/questions/attendee-answers/reads.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { sql } from "#db/sql.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { createDailyListing } from "#test/integration/server/public/daily-listing.ts";
@@ -86,8 +87,7 @@ describeWithEnv(
         const [attendee] = await getAttendeesRaw(listing.id);
         expect(
           await queryAll(
-            "SELECT question_id, answer_id FROM answers_at_booking WHERE attendee_id = ?",
-            [attendee!.id],
+            sql`SELECT question_id, answer_id FROM answers_at_booking WHERE attendee_id = ${attendee!.id}`,
           ),
         ).toEqual([{ answer_id: answer2.id, question_id: question.id }]);
       });

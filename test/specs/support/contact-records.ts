@@ -15,6 +15,7 @@ import {
   hashEmail,
   saveContactRecord,
 } from "#db/contact-preferences.ts";
+import { sql } from "#db/sql.ts";
 import { mapNotNullish } from "#fp";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { openAdminPage } from "#test/specs/support/browser.ts";
@@ -79,15 +80,7 @@ export const unreadableRecord = async (
   counts: StoredCounts,
 ): Promise<void> => {
   await execute(
-    "INSERT INTO contact_preferences (contact_hash, visits, public_booking_count, admin_booking_count, stats_blob, last_activity) VALUES (?, ?, ?, ?, ?, ?)",
-    [
-      await hashEmail(email),
-      counts.visits,
-      counts.bookedThroughTheSite,
-      counts.bookedByHand,
-      "not-valid-ciphertext",
-      Date.now(),
-    ],
+    sql`INSERT INTO contact_preferences (contact_hash, visits, public_booking_count, admin_booking_count, stats_blob, last_activity) VALUES (${await hashEmail(email)}, ${counts.visits}, ${counts.bookedThroughTheSite}, ${counts.bookedByHand}, ${"not-valid-ciphertext"}, ${Date.now()})`,
   );
 };
 

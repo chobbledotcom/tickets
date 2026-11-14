@@ -13,6 +13,7 @@ import {
 } from "#db/groups/membership/package-writes.ts";
 import { getGroupPackagePrices, setGroupPackageMembers } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import type { PackageMemberInput } from "#shared/catalog-fields/fields.ts";
 import { sitePlanMemberError } from "#shared/package-membership.ts";
@@ -171,10 +172,9 @@ describeWithEnv(
 
       await expect(
         withTransaction(async (tx) => {
-          await tx.execute({
-            args: [group.id],
-            sql: "UPDATE groups SET is_package = 1, hide_package_listings = 1 WHERE id = ?",
-          });
+          await tx.execute(
+            sql`UPDATE groups SET is_package = 1, hide_package_listings = 1 WHERE id = ${group.id}`,
+          );
           await writePackageMembersTx(
             tx,
             group.id,

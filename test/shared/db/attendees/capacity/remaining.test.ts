@@ -5,6 +5,7 @@ import { getDb } from "#db/client.ts";
 import { listingAggregates } from "#db/listings/aggregates.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -37,10 +38,9 @@ const remaining = async (
 /** Overbook a listing by lowering its cap below what is already booked,
  * bypassing the capacity guard that would block it during booking. */
 const lowerMaxAttendees = (id: number, max: number): Promise<unknown> =>
-  getDb().execute({
-    args: [max, id],
-    sql: "UPDATE listings SET max_attendees = ? WHERE id = ?",
-  });
+  getDb().execute(
+    sql`UPDATE listings SET max_attendees = ${max} WHERE id = ${id}`,
+  );
 
 describeWithEnv(
   "db > attendees > getListingRemainingForRange",

@@ -15,6 +15,7 @@ import {
 import { queryOne, withTransaction } from "#db/client.ts";
 import { modifierUsedQuantities } from "#db/modifier-usage.ts";
 import { modifiersTable } from "#db/modifiers.ts";
+import { sql } from "#db/sql.ts";
 import { postBookingLegsTx } from "#shared/checkout-complete.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -77,8 +78,7 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     expect(session!.attendee_id).toBe(attendeeId);
     expect(
       await queryOne<{ pii_payment_session_id: string }>(
-        "SELECT pii_payment_session_id FROM attendees WHERE id = ?",
-        [attendeeId],
+        sql`SELECT pii_payment_session_id FROM attendees WHERE id = ${attendeeId}`,
       ),
     ).toEqual({ pii_payment_session_id: "sess_batch_ok" });
     // The booking row is stamped with the legs' event group, so the per-row

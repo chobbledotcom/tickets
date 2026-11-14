@@ -18,6 +18,7 @@ import {
   reserveSession,
   STALE_RESERVATION_MS,
 } from "#db/processed-payments.ts";
+import { sql } from "#db/sql.ts";
 import {
   type StoredPaymentFailure,
   writeRowState,
@@ -253,7 +254,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
     });
 
     test("re-throws non-unique-constraint errors", async () => {
-      await getDb().execute("DROP TABLE processed_payments");
+      await getDb().execute(sql`DROP TABLE processed_payments`);
 
       try {
         await reserveSession("sess_error");
@@ -379,6 +380,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
 
     test("is a no-op if the session was pruned", async () => {
       await finalizeSessionIfUnresolved("sess_gone", 1, null);
+      expect(await getProcessedPayment("sess_gone")).toBeNull();
     });
 
     test("clears stored ticket tokens", async () => {

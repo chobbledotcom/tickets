@@ -4,6 +4,7 @@ import { FakeTime } from "@std/testing/time";
 import { hmacHash } from "#crypto/hashing.ts";
 import { clearAttemptsFor, lockoutActive } from "#db/attempt-lockout.ts";
 import { execute, queryOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const insertLockout = async (
@@ -11,8 +12,7 @@ const insertLockout = async (
   lockedUntil: number,
 ): Promise<void> => {
   await execute(
-    "INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (?, 5, ?)",
-    [hashedIp, lockedUntil],
+    sql`INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (${hashedIp}, 5, ${lockedUntil})`,
   );
 };
 
@@ -20,8 +20,7 @@ const storedLockedUntil = async (
   hashedIp: string,
 ): Promise<number | null | undefined> => {
   const row = await queryOne<{ locked_until: number | null }>(
-    "SELECT loginAttempt.locked_until FROM login_attempts AS loginAttempt WHERE loginAttempt.ip = ?",
-    [hashedIp],
+    sql`SELECT loginAttempt.locked_until FROM login_attempts AS loginAttempt WHERE loginAttempt.ip = ${hashedIp}`,
   );
   return row?.locked_until;
 };
@@ -56,7 +55,7 @@ describeWithEnv("attempt lockout", { db: true }, () => {
     expect(await lockoutActive("login_attempts", hashedIp, expired)).toBe(
       false,
     );
-    expect(await storedLockedUntil(hashedIp)).toBeUndefined();
+    expect(await storedLockedUntil(hashedIp)).toBe(undefined);
   });
 
   test("cleanup of an expired lockout keeps a fresh lockout another request wrote", async () => {
@@ -83,7 +82,7 @@ describeWithEnv("attempt lockout", { db: true }, () => {
 
     await clearAttemptsFor("login_attempts")(cleared);
 
-    expect(await storedLockedUntil(await hmacHash(cleared))).toBeUndefined();
+    expect(await storedLockedUntil(await hmacHash(cleared))).toBe(undefined);
     expect(await storedLockedUntil(keptHash)).toBe(2);
   });
 });

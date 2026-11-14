@@ -1,6 +1,7 @@
 import type { Client } from "@libsql/client";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { sql } from "#db/sql.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import {
   hranaBatchReply,
@@ -15,16 +16,7 @@ describe("primary read results", () => {
       using remote = hranaTestSqlite(intMode);
       const [result] = await remote.client.batch(
         [
-          {
-            args: [
-              -42n,
-              1.25,
-              'quoted "text"',
-              null,
-              new Uint8Array([0, 128, 255]),
-            ],
-            sql: "SELECT ? AS whole, ? AS fraction, ? AS text, ? AS absent, ? AS bytes",
-          },
+          sql`SELECT ${-42n} AS whole, ${1.25} AS fraction, ${'quoted "text"'} AS text, ${null} AS absent, ${new Uint8Array([0, 128, 255])} AS bytes`,
         ],
         "write",
       );
@@ -91,17 +83,17 @@ describe("primary read results", () => {
     using remote = hranaTestSqlite();
     await remote.local.batch(
       [
-        "CREATE TABLE listings (id INTEGER PRIMARY KEY, name TEXT)",
-        "INSERT INTO listings VALUES (2, 'Second')",
-        "INSERT INTO listings VALUES (1, 'First')",
+        sql`CREATE TABLE listings (id INTEGER PRIMARY KEY, name TEXT)`,
+        sql`INSERT INTO listings VALUES (2, 'Second')`,
+        sql`INSERT INTO listings VALUES (1, 'First')`,
       ],
       "write",
     );
     const results = await remote.client.batch(
       [
-        "SELECT id, name FROM listings ORDER BY id",
-        "SELECT name FROM listings WHERE id = 0",
-        "SELECT name FROM listings WHERE id = 2",
+        sql`SELECT id, name FROM listings ORDER BY id`,
+        sql`SELECT name FROM listings WHERE id = 0`,
+        sql`SELECT name FROM listings WHERE id = 2`,
       ],
       "write",
     );
@@ -143,7 +135,7 @@ describe("primary read results", () => {
           rowsAffected: 7,
         }),
     });
-    const [result] = await remote.client.batch(["SELECT 1"], "write");
+    const [result] = await remote.client.batch([sql`SELECT 1`], "write");
     expect(result!.rowsAffected).toBe(7);
     expect(result!.lastInsertRowid).toBe(9223372036854775807n);
     expect(result!.toJSON()).toEqual({
@@ -170,11 +162,11 @@ describe("primary read results", () => {
         );
       }),
     });
-    const [result] = await remote.client.batch(["SELECT 1, 2"], "write");
+    const [result] = await remote.client.batch([sql`SELECT 1, 2`], "write");
     expect(result!.columns).toEqual(["", ""]);
     expect(result!.columnTypes).toEqual(["", ""]);
     expect(Array.from(result!.rows[0]!)).toEqual(["first", null]);
-    expect(result!.lastInsertRowid).toBeUndefined();
+    expect(result!.lastInsertRowid).toBe(undefined);
     expect(result!.toJSON().lastInsertRowid).toBeNull();
   });
 
@@ -182,9 +174,9 @@ describe("primary read results", () => {
     using remote = hranaTestSqlite();
     const statements: Parameters<Client["batch"]>[0] = [
       "SELECT 1 AS value",
-      { sql: "SELECT 2 AS value" },
+      sql`SELECT 2 AS value`,
       ["SELECT ? AS value", [3]],
-      { args: [4], sql: "SELECT ? AS value" },
+      sql`SELECT ${4} AS value`,
       {
         args: { ":first": 1, "@second": 2, $third: 3 },
         sql: "SELECT :first + @second + $third AS value",

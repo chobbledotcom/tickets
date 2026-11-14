@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { deleteListing } from "#db/listings/delete.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
@@ -200,10 +201,9 @@ describeWithEnv("server (payment success details)", { db: true }, () => {
       "Hidden",
       "hidden@example.com",
     );
-    await getDb().execute({
-      args: [group.id, attendee.id],
-      sql: "UPDATE listing_attendees SET package_group_id = ? WHERE attendee_id = ?",
-    });
+    await getDb().execute(
+      sql`UPDATE listing_attendees SET package_group_id = ${group.id} WHERE attendee_id = ${attendee.id}`,
+    );
 
     const html = await (
       await handleRequest(successRequest(`tokens=${encodeURIComponent(token)}`))

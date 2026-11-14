@@ -12,6 +12,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { attendeeWithoutBookings } from "#test-utils/db-helpers/booking-shapes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { refundUrl } from "#test-utils/refund-routes.ts";
@@ -40,18 +41,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
     test("returns 404 for an orphan attendee with no home listing", async () => {
       // The attendee-scoped route loads the attendee's home listing; an
       // attendee whose bookings are all gone has none, so the action 404s.
-      const listing = await createTestListing({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "John Doe",
-        "john@example.com",
-      );
-      const { getDb } = await import("#db/client.ts");
-      await getDb().execute(
-        "DELETE FROM listing_attendees WHERE attendee_id = ?",
-        [attendee.id],
-      );
+      const { attendee } = await attendeeWithoutBookings("John Doe");
       const response = await awaitTestRequest(refundUrl(attendee.id), {
         cookie: await testCookie(),
       });

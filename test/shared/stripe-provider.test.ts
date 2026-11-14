@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { hmacHash } from "#crypto/hashing.ts";
 import { queryOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { expectClosedCheckoutFailure } from "#test-utils/checkout-failure.ts";
 import { checkoutIntent } from "#test-utils/checkout-items.ts";
@@ -284,8 +285,7 @@ describeStripe("stripe-provider", () => {
           );
 
           const row = await queryOne<{ link_ends_at: string }>(
-            "SELECT link_ends_at FROM checkout_pending_answers WHERE session_index = ?",
-            [await hmacHash("cs_window")],
+            sql`SELECT link_ends_at FROM checkout_pending_answers WHERE session_index = ${await hmacHash("cs_window")}`,
           );
           expect(row?.link_ends_at).toBe("1970-01-01T00:07:36.000Z");
         },
@@ -312,8 +312,7 @@ describeStripe("stripe-provider", () => {
           );
 
           const row = await queryOne<{ link_ends_at: string | null }>(
-            "SELECT link_ends_at FROM checkout_pending_answers WHERE session_index = ?",
-            [await hmacHash("cs_no_expiry")],
+            sql`SELECT link_ends_at FROM checkout_pending_answers WHERE session_index = ${await hmacHash("cs_no_expiry")}`,
           );
           expect(row?.link_ends_at).toBeNull();
         },

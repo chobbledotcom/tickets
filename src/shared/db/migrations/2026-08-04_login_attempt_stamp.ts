@@ -1,3 +1,4 @@
+import { sql } from "#db/sql.ts";
 import { schemaMigration } from "./define.ts";
 
 export default schemaMigration(
@@ -11,9 +12,8 @@ export default schemaMigration(
     // Rows written before this release have no stamp. Start their clock at
     // the migration, so existing counters age out one retention period from
     // now instead of being pruned on the first maintenance run.
-    await getDb().execute({
-      args: [Date.now()],
-      sql: "UPDATE login_attempts SET last_attempt = ? WHERE last_attempt = 0",
-    });
+    await getDb().execute(
+      sql`UPDATE login_attempts SET last_attempt = ${Date.now()} WHERE last_attempt = 0`,
+    );
   },
 );

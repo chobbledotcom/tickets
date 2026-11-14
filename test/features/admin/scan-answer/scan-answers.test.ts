@@ -13,6 +13,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { groupDoor, scanAtDoor } from "#test/features/admin/scanner/support.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -101,7 +102,7 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
 
     expect(answer.response.status).toBe(404);
     expect(answer.json.status).toBe("not_found");
-    expect(answer.json.name).toBeUndefined();
+    expect(Object.hasOwn(answer.json, "name")).toBe(false);
     expect(await storedCheckinRows(stranger.id)).toEqual([{ checked_in: 0 }]);
   });
 
@@ -170,10 +171,9 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
       "ola@example.com",
     );
     const { getDb } = await import("#db/client.ts");
-    await getDb().execute({
-      args: [attendee.id],
-      sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ?",
-    });
+    await getDb().execute(
+      sql`UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ${attendee.id}`,
+    );
 
     const answer = await scanAtDoor(door.group.id, {
       token: attendee.ticket_token,
@@ -199,10 +199,9 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
     // listing, and the attendee's one row sits on exactly that listing.
     const { group, members } = await groupDoor(1);
     const { getDb } = await import("#db/client.ts");
-    await getDb().execute({
-      args: [1, members[0]!.id],
-      sql: "UPDATE listings SET purchase_only = 1 WHERE id = ?",
-    });
+    await getDb().execute(
+      sql`UPDATE listings SET purchase_only = 1 WHERE id = ${members[0]!.id}`,
+    );
     const attendee = await bookTestAttendee(
       [members[0]!.id],
       "No Door Person",
@@ -266,11 +265,11 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
       const { getDb } = await import("#db/client.ts");
       const { settings } = await import("#db/settings.ts");
       const stored = await getDb().execute(
-        "SELECT value FROM settings WHERE key = 'wrapped_private_key'",
+        sql`SELECT value FROM settings WHERE key = 'wrapped_private_key'`,
       );
       const savedKey = stored.rows[0]?.value;
       await getDb().execute(
-        "DELETE FROM settings WHERE key = 'wrapped_private_key'",
+        sql`DELETE FROM settings WHERE key = 'wrapped_private_key'`,
       );
       settings.invalidateCache();
       try {
@@ -284,10 +283,9 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
         );
       } finally {
         if (savedKey !== undefined) {
-          await getDb().execute({
-            args: [savedKey as string],
-            sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('wrapped_private_key', ?)",
-          });
+          await getDb().execute(
+            sql`INSERT OR REPLACE INTO settings (key, value) VALUES ('wrapped_private_key', ${savedKey as string})`,
+          );
         }
         settings.invalidateCache();
       }

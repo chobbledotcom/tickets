@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { insert, setDb } from "#db/client.ts";
 import { initDb } from "#db/migrations.ts";
+import { sql } from "#db/sql.ts";
 import {
   createLegacyMigrationHarness,
   expectAttendeeCols,
@@ -24,10 +25,10 @@ describe("db > listing_attendees migration from legacy schema (partial state)", 
     // have already been dropped (e.g. by a partial earlier migration), but
     // the pre-pii_blob PII columns are still present with NOT NULL.
     await client.execute(
-      "CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
+      sql`CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
     );
     await seedLegacySchemaMarkers(client);
-    await client.execute(`CREATE TABLE attendees (
+    await client.execute(sql`CREATE TABLE attendees (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       email TEXT NOT NULL,
@@ -60,7 +61,9 @@ describe("db > listing_attendees migration from legacy schema (partial state)", 
       ["pii_blob", "ticket_token_index"],
     );
 
-    const rows = await client.execute("SELECT * FROM attendees WHERE id = 1");
+    const rows = await client.execute(
+      sql`SELECT * FROM attendees WHERE id = 1`,
+    );
     expect(rows.rows.length).toBe(1);
     expect(rows.rows[0]!.created).toBe("2024-03-01T00:00:00Z");
     expect(rows.rows[0]!.pii_blob).toBe("encrypted-data");
@@ -73,10 +76,10 @@ describe("db > listing_attendees migration from legacy schema (partial state)", 
     setDb(client);
 
     await client.execute(
-      "CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
+      sql`CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
     );
     await seedLegacySchemaMarkers(client);
-    await client.execute(`CREATE TABLE attendees (
+    await client.execute(sql`CREATE TABLE attendees (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       listing_id INTEGER NOT NULL,
       created TEXT NOT NULL
@@ -85,7 +88,7 @@ describe("db > listing_attendees migration from legacy schema (partial state)", 
     await expect(initDb()).rejects.toThrow("missing expected legacy column");
 
     const markerRows = await client.execute(
-      "SELECT key, value FROM settings WHERE key IN ('latest_db_update', 'db_schema_hash') ORDER BY key",
+      sql`SELECT key, value FROM settings WHERE key IN ('latest_db_update', 'db_schema_hash') ORDER BY key`,
     );
     expect(markerRows.rows.map((row) => [row.key, row.value])).toEqual([
       ["db_schema_hash", LEGACY_DB_SCHEMA_HASH],
@@ -93,14 +96,14 @@ describe("db > listing_attendees migration from legacy schema (partial state)", 
     ]);
 
     const migrationRows = await client.execute(
-      "SELECT id FROM schema_migrations",
+      sql`SELECT id FROM schema_migrations`,
     );
     expect(migrationRows.rows.length).toBe(0);
 
     // The advisory lock must be released on failure so a retry isn't
     // blocked until the lock TTL expires.
     const lockRows = await client.execute(
-      "SELECT 1 FROM settings WHERE key = 'migration_lock'",
+      sql`SELECT 1 FROM settings WHERE key = 'migration_lock'`,
     );
     expect(lockRows.rows.length).toBe(0);
   });

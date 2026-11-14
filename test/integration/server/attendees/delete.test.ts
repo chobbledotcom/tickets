@@ -4,6 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { queryOne } from "#db/client.ts";
 import { deleteListing } from "#db/listings/delete.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import {
   adminAttendeeAction,
@@ -19,6 +20,7 @@ import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { dropAttendeeBookings } from "#test-utils/db-helpers/booking-shapes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import {
@@ -55,8 +57,7 @@ const setupDeleteListingAndAttendee = (): ReturnType<
 /** Whether the attendee row is still there. */
 const attendeeExists = async (attendeeId: number): Promise<boolean> =>
   (await queryOne<{ id: number }>(
-    "SELECT attendee.id FROM attendees AS attendee WHERE attendee.id = ?",
-    [attendeeId],
+    sql`SELECT attendee.id FROM attendees AS attendee WHERE attendee.id = ${attendeeId}`,
   )) !== null;
 
 describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
@@ -92,11 +93,7 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
           thankYouUrl: "https://example.com",
         },
       });
-      const { getDb } = await import("#db/client.ts");
-      await getDb().execute(
-        "DELETE FROM listing_attendees WHERE attendee_id = ?",
-        [attendee.id],
-      );
+      await dropAttendeeBookings(attendee.id);
 
       const response = await adminGet(`/admin/attendees/${attendee.id}/delete`);
       await expectHtmlResponse(response, 200, "Delete Attendee", "John Doe");

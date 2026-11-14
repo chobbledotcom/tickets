@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
+import { sql } from "#db/sql.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -169,10 +170,7 @@ describeWithEnv(
       });
       // Delete the listing row directly, leaving the booking link in place —
       // the inconsistent state the indicator is for.
-      await getDb().execute({
-        args: [listing.id],
-        sql: "DELETE FROM listings WHERE id = ?",
-      });
+      await getDb().execute(sql`DELETE FROM listings WHERE id = ${listing.id}`);
 
       const body = await renderAdminPage(`/admin/servicing/${id}`);
       expectIncludesAll(body, ["no longer exist", "will be removed"]);

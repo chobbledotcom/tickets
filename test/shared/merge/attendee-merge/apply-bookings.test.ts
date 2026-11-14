@@ -2,6 +2,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb, queryAll } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { bookingKey } from "#shared/merge/attendee-merge.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -50,10 +51,9 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         "Bob",
         "b@test.com",
       );
-      await getDb().execute({
-        args: [source.id],
-        sql: "UPDATE listing_attendees SET quantity = 0, checked_in = 1 WHERE attendee_id = ?",
-      });
+      await getDb().execute(
+        sql`UPDATE listing_attendees SET quantity = 0, checked_in = 1 WHERE attendee_id = ${source.id}`,
+      );
 
       const moved = await runMergeAndGetMovedBooking(
         source,
@@ -71,10 +71,9 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
     test("preserves check-in when copying a positive-quantity source line", async () => {
       const { listing2, source, target } = await createMergePair();
-      await getDb().execute({
-        args: [source.id],
-        sql: "UPDATE listing_attendees SET checked_in = 1 WHERE attendee_id = ?",
-      });
+      await getDb().execute(
+        sql`UPDATE listing_attendees SET checked_in = 1 WHERE attendee_id = ${source.id}`,
+      );
 
       const moved = await runMergeAndGetMovedBooking(
         source,
@@ -121,8 +120,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       });
       expect(
         await queryAll<{ listing_id: number }>(
-          "SELECT listing_id FROM listing_attendees WHERE attendee_id = ?",
-          [target.id],
+          sql`SELECT listing_id FROM listing_attendees WHERE attendee_id = ${target.id}`,
         ),
       ).toEqual([{ listing_id: listing.id }]);
     });
@@ -131,10 +129,9 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       const { listing, target, source } = await createMergePair({
         sameListing: true,
       });
-      await getDb().execute({
-        args: [source.id],
-        sql: "UPDATE listing_attendees SET quantity = 5 WHERE attendee_id = ?",
-      });
+      await getDb().execute(
+        sql`UPDATE listing_attendees SET quantity = 5 WHERE attendee_id = ${source.id}`,
+      );
       const key = bookingKey(listing.id, null, 0, 0);
 
       const { diff, result } = await runMerge({
@@ -162,11 +159,10 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       });
       expect(
         await queryAll<{ quantity: number }>(
-          `SELECT quantity
+          sql`SELECT quantity
              FROM listing_attendees
-            WHERE attendee_id = ?
-              AND listing_id = ?`,
-          [target.id, listing.id],
+            WHERE attendee_id = ${target.id}
+              AND listing_id = ${listing.id}`,
         ),
       ).toEqual([{ quantity: 5 }]);
     });

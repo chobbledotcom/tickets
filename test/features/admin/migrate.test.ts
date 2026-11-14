@@ -5,6 +5,7 @@ import {
   countLegacyPaymentReferences,
   legacyPaymentReferencePage,
 } from "#db/payment-reference-rebuild.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import {
@@ -46,16 +47,15 @@ const cloneRebuildableRows = async (
     (_, index) => `sess_clone_${index + 1}`,
   );
   await executeBatch(
-    sessionIds.map((sessionId) => ({
-      args: [sessionId, fromSessionId],
-      sql: `INSERT INTO processed_payments
+    sessionIds.map(
+      (sessionId) => sql`INSERT INTO processed_payments
               (payment_session_id, attendee_id, processed_at,
                payment_reference, payment_reference_index)
-            SELECT ?, attendee_id, processed_at,
+            SELECT ${sessionId}, attendee_id, processed_at,
                    payment_reference, payment_reference_index
               FROM processed_payments
-             WHERE payment_session_id = ?`,
-    })),
+             WHERE payment_session_id = ${fromSessionId}`,
+    ),
   );
 };
 
@@ -163,8 +163,7 @@ describeWithEnv("server (admin migrate rebuild)", { db: true }, () => {
       reference: "pi_route_kept_tag",
     });
     await execute(
-      "UPDATE processed_payments SET payment_reference_index = '' WHERE payment_session_id = ?",
-      ["sess_route_kept_tag"],
+      sql`UPDATE processed_payments SET payment_reference_index = '' WHERE payment_session_id = ${"sess_route_kept_tag"}`,
     );
     await assertAdminHtml(
       REBUILD_PATH,

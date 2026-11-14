@@ -7,6 +7,7 @@ import {
   loginLimiter,
   makeIpRateLimiter,
 } from "#db/login-attempts.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("login attempt limiting", { db: true }, () => {
@@ -18,7 +19,7 @@ describeWithEnv("login attempt limiting", { db: true }, () => {
     expect(await limiter.record("203.0.113.10")).toBe(true);
     expect(
       await queryOne<{ attempts: number; locked_until: number }>(
-        "SELECT attempts, locked_until FROM login_attempts",
+        sql`SELECT attempts, locked_until FROM login_attempts`,
       ),
     ).toEqual({ attempts: 2, locked_until: 1_800_000_001_000 });
     expect(await limiter.isLimited("203.0.113.10")).toBe(true);
@@ -41,7 +42,7 @@ describeWithEnv("login attempt limiting", { db: true }, () => {
     expect(results.filter((locked) => locked)).toHaveLength(1);
     expect(
       await queryOne<{ attempts: number }>(
-        "SELECT attempts FROM login_attempts",
+        sql`SELECT attempts FROM login_attempts`,
       ),
     ).toEqual({ attempts: 5 });
     expect(await limiter.isLimited(ip)).toBe(true);
@@ -58,7 +59,7 @@ describeWithEnv("login attempt limiting", { db: true }, () => {
 
     expect(
       await queryOne<{ last_attempt: number }>(
-        "SELECT last_attempt FROM login_attempts",
+        sql`SELECT last_attempt FROM login_attempts`,
       ),
     ).toEqual({ last_attempt: 1_800_000_060_000 });
   });
@@ -67,11 +68,11 @@ describeWithEnv("login attempt limiting", { db: true }, () => {
     const ip = "203.0.113.11";
     await loginLimiter.record(ip);
     expect(
-      await queryOne("SELECT ip FROM login_attempts WHERE attempts = 1"),
+      await queryOne(sql`SELECT ip FROM login_attempts WHERE attempts = 1`),
     ).not.toBeNull();
 
     await clearLoginAttempts(ip);
 
-    expect(await queryOne("SELECT ip FROM login_attempts")).toBeNull();
+    expect(await queryOne(sql`SELECT ip FROM login_attempts`)).toBeNull();
   });
 });

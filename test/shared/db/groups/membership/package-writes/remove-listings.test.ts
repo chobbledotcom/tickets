@@ -10,6 +10,7 @@ import { queryAll, withTransaction } from "#db/client.ts";
 import { removeListingsFromGroup } from "#db/groups/membership/package-writes.ts";
 import { setGroupPackageMembers, setListingGroups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { groupLeavingOrphanedAddOnError } from "#shared/add-on-reachability.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -26,8 +27,7 @@ import {
 /** The flat price override rows one group's membership put on a listing. */
 const groupOverrideRows = (listingId: number, groupId: number) =>
   queryAll<{ unit_price: number }>(
-    "SELECT unit_price FROM listing_prices WHERE listing_id = ? AND price_type = 'group' AND price_id = ?",
-    [listingId, String(groupId)],
+    sql`SELECT unit_price FROM listing_prices WHERE listing_id = ${listingId} AND price_type = 'group' AND price_id = ${String(groupId)}`,
   );
 
 describeWithEnv("db > groups > membership removal writes", { db: true }, () => {
@@ -190,10 +190,9 @@ describeWithEnv("db > groups > membership removal writes", { db: true }, () => {
       // The first operator's removal, still uncommitted: the guard runs inside
       // the write transaction, so it must read these membership rows through
       // it — a stale committed read would pass and orphan the add-on.
-      await tx.execute({
-        args: [group.id, secondPage.id],
-        sql: "DELETE FROM group_listings WHERE group_id = ? AND listing_id = ?",
-      });
+      await tx.execute(
+        sql`DELETE FROM group_listings WHERE group_id = ${group.id} AND listing_id = ${secondPage.id}`,
+      );
       expect(
         await groupLeavingOrphanedAddOnError(new Map([[rescuer.id, []]]), tx),
       ).toBe(t("modifiers.err_child_only_addon", { name: "Group extra" }));

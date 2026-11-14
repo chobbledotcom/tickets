@@ -6,12 +6,13 @@
  */
 
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
-import { inPlaceholders, queryAll } from "#db/client.ts";
+import { queryAll } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { getGroupsById } from "#db/groups.ts";
 import { listingParents } from "#db/listing-parents.ts";
 import { requireListingsWithCountsByIds } from "#db/listings/records.ts";
 import { modifiersTable } from "#db/modifiers.ts";
+import { sql, sqlList } from "#db/sql.ts";
 import { requiredMapValue, unique } from "#fp";
 import { matchKey as nameKey } from "#shared/keys.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -96,14 +97,13 @@ const optInAddOnsByGroupId = async (
     modifier_id: number;
     name: EnvKeyEncrypted;
   }>(
-    `SELECT modifierGroup.group_id, modifier.id AS modifier_id, modifier.name
+    sql`SELECT modifierGroup.group_id, modifier.id AS modifier_id, modifier.name
        FROM modifiers AS modifier
        JOIN modifier_groups AS modifierGroup
          ON modifierGroup.modifier_id = modifier.id
       WHERE modifier.active = 1 AND modifier.trigger = 'optional'
         AND modifier.scope = 'groups'
-        AND modifierGroup.group_id IN (${inPlaceholders(groupIds)})`,
-    [...groupIds],
+        AND modifierGroup.group_id IN (${sqlList(groupIds)})`,
   );
   for (const row of rows) {
     const optIns = groupOptIns(byGroup, row.group_id);

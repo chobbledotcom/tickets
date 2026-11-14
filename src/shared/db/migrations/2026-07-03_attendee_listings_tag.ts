@@ -1,3 +1,4 @@
+import { sql } from "#db/sql.ts";
 import { bareSchemaMigration } from "./define.ts";
 
 /** Matches the old {{listing}} column tag (with optional inner whitespace and
@@ -19,15 +20,14 @@ export default bareSchemaMigration(
   "Rename the {{listing}} tag to {{listings}} in the stored attendee column-order template.",
   async ({ getDb }) => {
     const result = await getDb().execute(
-      "SELECT value FROM settings WHERE key = 'attendee_column_order'",
+      sql`SELECT value FROM settings WHERE key = 'attendee_column_order'`,
     );
     const value = result.rows[0]?.value;
     if (typeof value !== "string") return;
     const updated = value.replace(LISTING_TAG, "{{$1listings$2");
     if (updated === value) return;
     await getDb().execute(
-      "UPDATE settings SET value = ? WHERE key = 'attendee_column_order'",
-      [updated],
+      sql`UPDATE settings SET value = ${updated} WHERE key = 'attendee_column_order'`,
     );
   },
 );

@@ -17,6 +17,7 @@ import {
 } from "#db/notes/queries.ts";
 import { openNotes } from "#db/notes/sealing.ts";
 import { attendeeNotes, groupNotesByTargetId } from "#db/notes/target.ts";
+import { sql } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -40,8 +41,7 @@ const makeAttendee = async (name = "Note Target"): Promise<number> => {
 
 const rawNote = (attendeeId: number): Promise<{ note: string } | null> =>
   queryOne<{ note: string }>(
-    "SELECT note FROM system_notes WHERE entity_type = 'attendee' AND entity_id = ? ORDER BY id",
-    [attendeeId],
+    sql`SELECT note FROM system_notes WHERE entity_type = 'attendee' AND entity_id = ${attendeeId} ORDER BY id`,
   );
 
 describeWithEnv("db > notes", { db: true }, () => {
@@ -259,11 +259,11 @@ describeWithEnv("db > notes", { db: true }, () => {
     await createSystemNote(attendeeNotes(keep), "kept");
     await createSystemNote(attendeeNotes(drop), "dropped");
 
-    const statement = noteDeleteStatement("attendee", {
-      args: [drop],
-      sql: "SELECT id FROM attendees WHERE id = ?",
-    });
-    await execute(statement.sql, statement.args);
+    const statement = noteDeleteStatement(
+      "attendee",
+      sql`SELECT id FROM attendees WHERE id = ${drop}`,
+    );
+    await execute(statement);
 
     expect(await getNoteRows("attendee", [drop])).toEqual([]);
     expect(await getNoteRows("attendee", [keep])).toHaveLength(1);

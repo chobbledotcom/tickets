@@ -8,6 +8,7 @@ import {
   orRefusal,
   PaymentRowsBusyError,
 } from "#db/payment-admit-move.ts";
+import { sql } from "#db/sql.ts";
 import {
   armRefundSend,
   markRefundCompleted,
@@ -88,9 +89,8 @@ const deleteRefusal = async (attendeeId: number): Promise<string | null> => {
  *  reader cannot make sense of. */
 const givenUnreadableRefundState = (): Promise<unknown> =>
   execute(
-    `UPDATE payment_charges
-        SET refund_state = '{"kind":"ready","local":{"kind":"not_due"},` +
-      `"request":{"capability":"keyed"},"nextActionAt":10}',
+    sql`UPDATE payment_charges
+        SET refund_state = '{"kind":"ready","local":{"kind":"not_due"},"request":{"capability":"keyed"},"nextActionAt":10}',
             refund_state_name = 'ready',
             refund_local_state = 'not_due',
             capability = 'keyed',
@@ -98,14 +98,13 @@ const givenUnreadableRefundState = (): Promise<unknown> =>
   );
 
 const attendeeStillThere = async (attendeeId: number): Promise<boolean> =>
-  (await queryOne<{ id: number }>("SELECT id FROM attendees WHERE id = ?", [
-    attendeeId,
-  ])) !== null;
+  (await queryOne<{ id: number }>(
+    sql`SELECT id FROM attendees WHERE id = ${attendeeId}`,
+  )) !== null;
 
 const paymentStillThere = async (sessionId: string): Promise<boolean> =>
   (await queryOne<{ id: number }>(
-    "SELECT rowid AS id FROM processed_payments WHERE payment_session_id = ?",
-    [sessionId],
+    sql`SELECT rowid AS id FROM processed_payments WHERE payment_session_id = ${sessionId}`,
   )) !== null;
 
 const snapshotFor = (attendeeId: number) =>

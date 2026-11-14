@@ -1,6 +1,7 @@
 import { decrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { executeBatch } from "#db/client.ts";
+import { sql, sqlList } from "#db/sql.ts";
 import { bareSchemaMigration } from "./define.ts";
 
 /**
@@ -32,7 +33,7 @@ export default bareSchemaMigration(
     // Scanned in id order, so an aborted run's behaviour is deterministic:
     // everything before the record that failed was identified, nothing after.
     const result = await getDb().execute(
-      "SELECT id, filename FROM images ORDER BY id",
+      sql`SELECT id, filename FROM images ORDER BY id`,
     );
     const brokenIds: number[] = [];
     for (const row of result.rows) {
@@ -41,16 +42,10 @@ export default bareSchemaMigration(
     }
     if (brokenIds.length === 0) return;
 
-    const placeholders = brokenIds.map(() => "?").join(", ");
+    const broken = sqlList(brokenIds);
     await executeBatch([
-      {
-        args: brokenIds,
-        sql: `DELETE FROM image_uses WHERE image_id IN (${placeholders})`,
-      },
-      {
-        args: brokenIds,
-        sql: `DELETE FROM images WHERE id IN (${placeholders})`,
-      },
+      sql`DELETE FROM image_uses WHERE image_id IN (${broken})`,
+      sql`DELETE FROM images WHERE id IN (${broken})`,
     ]);
   },
 );

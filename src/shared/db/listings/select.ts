@@ -16,38 +16,31 @@ import {
 } from "#accounting/projection-sql.ts";
 import { imageFilenameSubqueries } from "#db/images.ts";
 import { defineReader } from "#db/read.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { inList, type WhereClause } from "#db/where-clauses.ts";
 import type { ListingWithCount } from "#types";
 
 /** A listing's recognised income and servicing cost, worked out from the ledger
  * rather than stored columns. */
-const listingMoneyProjections = (idExpression: string): string =>
-  [
-    `${creditsLessWriteoffDebits("revenue", idExpression)} AS income`,
-    `-${accountBalanceSubquery("cost", idExpression)} AS cost`,
-  ].join(", ");
-
-/** The listing's day-count prices, collapsed into one JSON object so a listing
- * read does not need a second query per row. */
-const listingDayPriceColumn = (idExpression: string): string =>
-  `COALESCE((SELECT json_group_object(listingPrice.price_id, listingPrice.unit_price)
-      FROM listing_prices AS listingPrice
-      WHERE listingPrice.listing_id = ${idExpression}
-        AND listingPrice.price_type = 'day_count'), '{}') AS day_prices`;
+const listingMoneyProjections = (idExpression: SqlStatement): SqlStatement =>
+  sql`${creditsLessWriteoffDebits("revenue", idExpression)} AS income, -${accountBalanceSubquery("cost", idExpression)} AS cost`;
 
 /** A complete stored listing row plus its ledger, day-price, and image values. */
-const storedListingColumns = (alias: string): string => {
-  const idExpression = `${alias}.id`;
-  return `${alias}.*,
+const storedListingColumns = (): SqlStatement => {
+  const idExpression = sql`listing.id`;
+  return sql`listing.*,
        ${listingMoneyProjections(idExpression)},
-       ${listingDayPriceColumn(idExpression)},
+       COALESCE((SELECT json_group_object(listingPrice.price_id, listingPrice.unit_price)
+         FROM listing_prices AS listingPrice
+         WHERE listingPrice.listing_id = ${idExpression}
+           AND listingPrice.price_type = 'day_count'), '{}') AS day_prices,
        ${imageFilenameSubqueries("listing", idExpression)}`;
 };
 
 /** The SELECT column list for a listing record read: every stored column, the
  * worked-out values, and the trigger-maintained booking count. */
-const listingColumns = (): string =>
-  `${storedListingColumns("listing")},
+const listingColumns = (): SqlStatement =>
+  sql`${storedListingColumns()},
        listing.booked_quantity AS attendee_count`;
 
 /**
@@ -79,15 +72,15 @@ export type ListingWhere = {
  * order as the full reads. */
 export type ListingOrder = "created_desc";
 
-export const LISTING_ORDER_SQL: Record<ListingOrder, string> = {
-  created_desc: "listing.created DESC, listing.id DESC",
+export const LISTING_ORDER_SQL: Record<ListingOrder, SqlStatement> = {
+  created_desc: sql`listing.created DESC, listing.id DESC`,
 };
 
 const whereClauses = (where: ListingWhere): WhereClause[] => [
   ...inList("listing.id", where.ids),
   ...inList("listing.slug_index", where.slugIndexes),
   ...inList("groupListing.group_id", where.inGroups),
-  ...(where.activeOnly ? [{ args: [], clause: "listing.active = 1" }] : []),
+  ...(where.activeOnly ? [{ clause: sql`listing.active = 1` }] : []),
 ];
 
 /** Everything a caller declares to read listing records: which rows to keep and
@@ -110,12 +103,12 @@ export const listingReader = defineReader<ListingOrder, GetListingsQuery>(
     const byGroup = query.where.inGroups !== undefined;
     return {
       columns: byGroup
-        ? `json_group_array(groupListing.group_id) AS group_ids, ${listingColumns()}`
+        ? sql`json_group_array(groupListing.group_id) AS group_ids, ${listingColumns()}`
         : listingColumns(),
       from: byGroup
-        ? "group_listings AS groupListing JOIN listings AS listing ON listing.id = groupListing.listing_id"
-        : "listings AS listing",
-      groupBy: byGroup ? "listing.id" : undefined,
+        ? sql`group_listings AS groupListing JOIN listings AS listing ON listing.id = groupListing.listing_id`
+        : sql`listings AS listing`,
+      groupBy: byGroup ? sql`listing.id` : undefined,
       where: whereClauses(query.where),
     };
   },

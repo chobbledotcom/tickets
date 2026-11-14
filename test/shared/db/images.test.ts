@@ -22,7 +22,7 @@ import {
   setItemsForImage,
 } from "#db/images.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
+import { sql } from "#db/sql.ts";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
 import {
   currentRequestStore,
@@ -86,8 +86,7 @@ describeWithEnv("db > images", { db: true }, () => {
         filename_thumb: string;
         name: string;
       }>(
-        "SELECT name, filename, filename_thumb, alt_text FROM images WHERE id = ?",
-        [image.id],
+        sql`SELECT name, filename, filename_thumb, alt_text FROM images WHERE id = ${image.id}`,
       );
       expect(raw?.name.startsWith("enc:")).toBe(true);
       expect(raw?.filename.startsWith("enc:")).toBe(true);
@@ -159,10 +158,7 @@ describeWithEnv("db > images", { db: true }, () => {
 
   describe("item links", () => {
     test("uses the declared table for page and news targets", () => {
-      const statement = numberedStatement(
-        (bind) =>
-          `${imageUseTargets.existsSql("news", bind(7))} AND ${imageUseTargets.existsSql("page", bind(8))}`,
-      );
+      const statement = sql`${imageUseTargets.existsSql("news", 7)} AND ${imageUseTargets.existsSql("page", 8)}`;
       expect(statement.sql).toBe(
         "EXISTS (SELECT 1 FROM news_posts WHERE id = ?1)" +
           " AND EXISTS (SELECT 1 FROM site_pages WHERE id = ?2)",
@@ -224,11 +220,10 @@ describeWithEnv("db > images", { db: true }, () => {
       ]);
       expect(
         await queryAll<{ image_id: number; sort_order: number }>(
-          `SELECT image_id, sort_order
+          sql`SELECT image_id, sort_order
              FROM image_uses
-            WHERE item_type = ? AND item_id = ?
+            WHERE item_type = ${"listing"} AND item_id = ${listing.id}
             ORDER BY sort_order ASC, image_id ASC`,
-          ["listing", listing.id],
         ),
       ).toEqual([
         { image_id: existing.id, sort_order: 0 },
@@ -289,9 +284,8 @@ describeWithEnv("db > images", { db: true }, () => {
       expect(await linkedImageIds("group", group.id)).toEqual([image.id]);
       expect(
         await queryAll<{ item_id: number; item_type: string }>(
-          `SELECT item_type, item_id FROM image_uses
-            WHERE image_id = ? ORDER BY item_type, item_id`,
-          [image.id],
+          sql`SELECT item_type, item_id FROM image_uses
+            WHERE image_id = ${image.id} ORDER BY item_type, item_id`,
         ),
       ).toEqual([
         { item_id: group.id, item_type: "group" },
@@ -436,7 +430,7 @@ describeWithEnv("db > images", { db: true }, () => {
         questions: [],
       });
 
-      expect(currentRequestStore()).toBeUndefined();
+      expect(currentRequestStore()).toBe(undefined);
     });
   });
 

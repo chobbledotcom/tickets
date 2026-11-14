@@ -23,6 +23,7 @@ import {
   SCHEMA_HASH,
   SCHEMA_TABLE_NAMES,
 } from "#db/migrations.ts";
+import { sql } from "#db/sql.ts";
 import {
   runWithSubrequestBudget,
   withSubrequestAllowance,
@@ -255,10 +256,10 @@ describeWithEnv("backup", { db: true }, () => {
 
     test("restores data from SQL statements", async () => {
       await createTestListing({ name: "Before Restore" });
-      const sql = await exportInSnapshot("listings");
-      await restoreFromSql(sql);
+      const dump = await exportInSnapshot("listings");
+      await restoreFromSql(dump);
       const listings = await queryAll<Record<string, unknown>>(
-        "SELECT * FROM listings",
+        sql`SELECT * FROM listings`,
       );
       expect(listings.length).toBe(1);
     });
@@ -267,7 +268,7 @@ describeWithEnv("backup", { db: true }, () => {
       await createTestListing({ name: "Gone" });
       await restoreFromSql("");
       const listings = await queryAll<Record<string, unknown>>(
-        "SELECT * FROM listings",
+        sql`SELECT * FROM listings`,
       );
       expect(listings.length).toBe(0);
     });
@@ -284,7 +285,7 @@ describeWithEnv("backup", { db: true }, () => {
       await initDb();
 
       const result = await getDb().execute(
-        "SELECT value FROM settings WHERE key = 'db_schema_hash'",
+        sql`SELECT value FROM settings WHERE key = 'db_schema_hash'`,
       );
       expect(result.rows[0]?.value).toBe(SCHEMA_HASH);
     });
@@ -350,13 +351,12 @@ describeWithEnv("backup", { db: true }, () => {
       const css =
         "/* 🐸 Splish-Splash — a bright kids' theme 🐳 */\n\n" +
         ":root {\n  --color-bg: #f2fcff;\n  --color-text: #0d3b45;\n}";
-      await getDb().execute({
-        args: ["custom_css", css],
-        sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-      });
+      await getDb().execute(
+        sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${"custom_css"}, ${css})`,
+      );
       await restoreFromZip(await createBackupZip());
       const restored = await queryAll<{ value: string }>(
-        "SELECT value FROM settings WHERE key = 'custom_css'",
+        sql`SELECT value FROM settings WHERE key = 'custom_css'`,
       );
       expect(restored).toEqual([{ value: css }]);
     });
@@ -378,7 +378,7 @@ describeWithEnv("backup", { db: true }, () => {
       });
       await restoreFromZip(partial);
       const rows = await queryAll<{ value: string }>(
-        "SELECT value FROM settings WHERE key = 'k'",
+        sql`SELECT value FROM settings WHERE key = 'k'`,
       );
       expect(rows[0]!.value).toBe("v");
     });

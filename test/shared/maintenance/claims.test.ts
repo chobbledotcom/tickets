@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { execute, getDb, queryOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import {
   claimNextMaintenanceTask,
   finishMaintenanceTask,
@@ -22,18 +23,16 @@ const taskRow = (name = TASK) =>
     completed_at: number | null;
     next_run_at: number;
   }>(
-    `SELECT checkpoint, completed_at, next_run_at, lease_token,
+    sql`SELECT checkpoint, completed_at, next_run_at, lease_token,
             last_started_at, last_finished_at
-       FROM maintenance_tasks WHERE name = ?`,
-    [name],
+       FROM maintenance_tasks WHERE name = ${name}`,
   );
 
 const replaceExpiredClaim = async () => {
   await syncMaintenanceTaskRows([TASK], []);
   const first = await claimNextMaintenanceTask([TASK], 60_000);
   await execute(
-    "UPDATE maintenance_tasks SET lease_expires_at = 0 WHERE name = ?",
-    [TASK],
+    sql`UPDATE maintenance_tasks SET lease_expires_at = 0 WHERE name = ${TASK}`,
   );
   const second = await claimNextMaintenanceTask([TASK], 60_000);
   return { first, second };
@@ -103,8 +102,7 @@ describeWithEnv("maintenance task claims", { db: true }, () => {
   test("success schedules from database completion time without catch-up", async () => {
     await syncMaintenanceTaskRows([TASK], []);
     await execute(
-      "UPDATE maintenance_tasks SET next_run_at = 1 WHERE name = ?",
-      [TASK],
+      sql`UPDATE maintenance_tasks SET next_run_at = 1 WHERE name = ${TASK}`,
     );
     const claim = await claimNextMaintenanceTask([TASK], 60_000);
     await finishMaintenanceTask(claim!, {
@@ -138,9 +136,8 @@ describeWithEnv("maintenance task claims", { db: true }, () => {
   test("claims separate tasks by oldest due time", async () => {
     await syncMaintenanceTaskRows([TASK, OTHER_TASK], []);
     await execute(
-      `UPDATE maintenance_tasks
-          SET next_run_at = CASE name WHEN ? THEN 2 ELSE 1 END`,
-      [TASK],
+      sql`UPDATE maintenance_tasks
+          SET next_run_at = CASE name WHEN ${TASK} THEN 2 ELSE 1 END`,
     );
 
     const claim = await claimNextMaintenanceTask([TASK, OTHER_TASK], 60_000);
@@ -179,8 +176,7 @@ describeWithEnv("maintenance task claims", { db: true }, () => {
       intervalMs: 60_000,
     });
     await execute(
-      "UPDATE maintenance_tasks SET next_run_at = 0 WHERE name = ?",
-      [TASK],
+      sql`UPDATE maintenance_tasks SET next_run_at = 0 WHERE name = ${TASK}`,
     );
 
     expect(await claimNextMaintenanceTask([TASK], 60_000)).toBeNull();

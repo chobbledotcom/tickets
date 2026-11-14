@@ -8,6 +8,7 @@ import {
   setN1GuardNotifyOnly,
   TRANSACTION_ROUNDTRIP_THRESHOLD,
 } from "#db/query-log.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 import {
   getSubrequestRemaining,
   runWithSubrequestBudget,
@@ -47,16 +48,18 @@ describeWithEnv("db > client transaction", { db: true }, () => {
     withRequestContext(() =>
       withTransaction(async (tx) => {
         for (let i = 0; i < executes; i++) {
-          await tx.execute(`SELECT ${i}`);
+          await tx.execute(sql`SELECT ${sqlLiteral(i)}`);
         }
-        await tx.batch(["SELECT 100", "SELECT 101"]);
+        await tx.batch([sql`SELECT 100`, sql`SELECT 101`]);
       }),
     );
 
   test("a transaction may use the full statement budget", async () => {
     // Off-by-one in the running count would fire the guard one statement
     // early, failing a legitimate transaction at exactly the threshold.
-    await runChattyTransaction(TRANSACTION_ROUNDTRIP_THRESHOLD - 1);
+    await expect(
+      runChattyTransaction(TRANSACTION_ROUNDTRIP_THRESHOLD - 1),
+    ).resolves.toBe(undefined);
   });
 
   test("the single-statement over the budget throws", async () => {
@@ -64,7 +67,7 @@ describeWithEnv("db > client transaction", { db: true }, () => {
       withRequestContext(() =>
         withTransaction(async (tx) => {
           for (let i = 0; i <= TRANSACTION_ROUNDTRIP_THRESHOLD; i++) {
-            await tx.execute(`SELECT ${i}`);
+            await tx.execute(sql`SELECT ${sqlLiteral(i)}`);
           }
         }),
       ),
@@ -86,7 +89,7 @@ describeWithEnv("db > client transaction", { db: true }, () => {
     });
     await expect(
       withTransaction(async (tx) => {
-        await tx.execute("INSERT INTO t (x) VALUES (1)");
+        await tx.execute(sql`INSERT INTO t (x) VALUES (1)`);
         throw new Error("work failed");
       }),
     ).rejects.toThrow("work failed");
@@ -103,8 +106,8 @@ describeWithEnv("db > client transaction", { db: true }, () => {
             async () => {
               await expect(
                 withTransaction(async (tx) => {
-                  await tx.execute("SELECT 1");
-                  await tx.execute("SELECT 2");
+                  await tx.execute(sql`SELECT 1`);
+                  await tx.execute(sql`SELECT 2`);
                 }),
               ).rejects.toThrow("Subrequest allowance exceeded");
             },
@@ -146,7 +149,7 @@ describeWithEnv("db > client transaction", { db: true }, () => {
       rollback,
     });
     await withTransaction(async (tx) => {
-      await tx.batch(["SELECT 1"]);
+      await tx.batch([sql`SELECT 1`]);
     });
     expect(rollback.calls.length).toBe(0);
   });
@@ -165,7 +168,7 @@ describeWithEnv("db > client transaction", { db: true }, () => {
     });
     await expect(
       withTransaction(async (tx) => {
-        await tx.execute("INSERT INTO t (x) VALUES (1)");
+        await tx.execute(sql`INSERT INTO t (x) VALUES (1)`);
       }),
     ).rejects.toThrow("SERVER_ERROR: Server returned HTTP status 504");
     // One begin, no retry — a replayed transaction would double-apply the write.
@@ -223,7 +226,7 @@ describeWithEnv("db > client transaction", { db: true }, () => {
       rollback: () => Promise.resolve(),
     });
     const id = await writeRowInTransaction(
-      "UPDATE rows SET x = 1",
+      sql`UPDATE rows SET x = 1`,
       0,
       (_tx, rowId) => {
         persistedIds.push(rowId);
@@ -247,7 +250,7 @@ describeWithEnv("db > client transaction", { db: true }, () => {
     });
     try {
       await writeRowInTransaction(
-        "INSERT INTO rows (x) VALUES (1)",
+        sql`INSERT INTO rows (x) VALUES (1)`,
         null,
         (_tx, rowId) => {
           persistedIds.push(rowId);

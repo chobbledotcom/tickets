@@ -4,6 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { getLogisticsAssignments } from "#db/logistics.ts";
 import { logisticsAgents } from "#db/logistics-agents.ts";
+import { sql } from "#db/sql.ts";
 import { agentUsers } from "#db/user-agents.ts";
 import { getAllUsers } from "#db/users.ts";
 import {
@@ -181,7 +182,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
     test("rolls back the name when assigned-user writes fail", async () => {
       const id = await createLogisticsAgent("Atomic van");
       const userId = (await getAllUsers())[0]!.id;
-      await getDb().execute(`
+      await getDb().execute(sql`
         CREATE TRIGGER fail_agent_user_link
         BEFORE INSERT ON user_logistics_agents
         BEGIN

@@ -21,6 +21,7 @@ import {
   countPurgeableOrphanedAttendees,
   purgeOrphanedAttendees,
 } from "#db/orphan-attendees.ts";
+import { sql } from "#db/sql.ts";
 import { nowIso } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { attendeeExists } from "#test-utils/db-helpers/attendees.ts";
@@ -83,16 +84,14 @@ describeWithEnv("servicing §15 — deletion & orphan purge", { db: true }, () =
       occurredAt: "2026-07-01T00:00:00.000Z",
       servicingId: id,
     });
-    const before = await getDb().execute({
-      args: [id],
-      sql: "SELECT COUNT(*) AS n FROM service_costs WHERE servicing_attendee_id = ?",
-    });
+    const before = await getDb().execute(
+      sql`SELECT COUNT(*) AS n FROM service_costs WHERE servicing_attendee_id = ${id}`,
+    );
     expect(Number(before.rows[0]!.n)).toBe(1);
     await deleteServicingEvent(id);
-    const after = await getDb().execute({
-      args: [id],
-      sql: "SELECT COUNT(*) AS n FROM service_costs WHERE servicing_attendee_id = ?",
-    });
+    const after = await getDb().execute(
+      sql`SELECT COUNT(*) AS n FROM service_costs WHERE servicing_attendee_id = ${id}`,
+    );
     expect(Number(after.rows[0]!.n)).toBe(0);
   });
 

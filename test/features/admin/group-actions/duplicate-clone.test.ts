@@ -9,6 +9,7 @@ import {
 } from "#db/groups.ts";
 import { getStoredListingWithCount } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
@@ -64,8 +65,7 @@ describeWithEnv("Group actions — duplicate", { db: true }, () => {
       )!;
       const clone = (await getListingsByGroupId(newGroup.id))[0]!;
       const rows = await queryAll<{ price_type: string; unit_price: number }>(
-        "SELECT price_type, unit_price FROM listing_prices WHERE listing_id = ?",
-        [clone.id],
+        sql`SELECT price_type, unit_price FROM listing_prices WHERE listing_id = ${clone.id}`,
       );
       expect(rows).toEqual([{ price_type: "base", unit_price: 850 }]);
     });

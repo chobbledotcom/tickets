@@ -7,6 +7,7 @@ import { getDb } from "#db/client.ts";
 import { getListingDayPrices } from "#db/listing-prices.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { sum } from "#fp";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import {
@@ -164,14 +165,14 @@ describeWithEnv("seeds", { db: true }, () => {
   test("each seeded listing gets its own slug", async () => {
     await createSeeds(3, 0);
     const rows = await getDb().execute(
-      "SELECT listing.slug_index FROM listings AS listing",
+      sql`SELECT listing.slug_index FROM listings AS listing`,
     );
     const indexes = rows.rows.map((row) => row.slug_index);
     expect(new Set(indexes).size).toBe(3);
   });
 
   test("throws when the public key is not configured", async () => {
-    await getDb().execute("DELETE FROM settings WHERE key = 'public_key'");
+    await getDb().execute(sql`DELETE FROM settings WHERE key = 'public_key'`);
     settings.invalidateCache();
 
     await expect(createSeeds(1, 0)).rejects.toThrow(

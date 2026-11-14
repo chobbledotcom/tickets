@@ -1,6 +1,7 @@
 /** Real database failures used by refund recovery stories. */
 
 import { execute } from "#db/client.ts";
+import { sql, sqlName } from "#db/sql.ts";
 import type { PutsThingsBack } from "#test/specs/support/memory.ts";
 import { refundLedgerFaultTrigger } from "#test-utils/refund-ledger-fault.ts";
 
@@ -12,7 +13,7 @@ export interface RefundLedgerFault {
 }
 
 const dropRefundLedgerFault = async (): Promise<void> => {
-  await execute(`DROP TRIGGER IF EXISTS ${REFUND_LEDGER_FAULT}`);
+  await execute(sql`DROP TRIGGER IF EXISTS ${sqlName(REFUND_LEDGER_FAULT)}`);
 };
 
 /**

@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { paymentSessionTable } from "#db/migrations/schema/payments/sessions.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   expectAccepted,
@@ -9,13 +10,12 @@ import {
   expectRefusedAsRepeat,
 } from "./refuses.ts";
 
-const COLUMNS =
-  "id, origin, provider, mode, account_id, expected_amount, expected_currency, booking_intent, session_resource, session_reference_index, state, revision, created_at, updated_at, result_state, ticket_state, completion_state";
+const COLUMNS = sql`id, origin, provider, mode, account_id, expected_amount, expected_currency, booking_intent, session_resource, session_reference_index, state, revision, created_at, updated_at, result_state, ticket_state, completion_state`;
 
-const aPayment = (id: string, index: string, intent = "'hyb:1:a:b:c'") =>
-  `INSERT INTO payment_sessions (${COLUMNS})
-    VALUES ('${id}', 'current', 'stripe', 'test', 'acct', 100, 'GBP',
-      ${intent}, 'hyb:1:a:b:c', '${index}', 'pending', 1, 1, 1,
+const aPayment = (id: string, index: string, intent = "hyb:1:a:b:c") =>
+  sql`INSERT INTO payment_sessions (${COLUMNS})
+    VALUES (${id}, 'current', 'stripe', 'test', 'acct', 100, 'GBP',
+      ${intent}, 'hyb:1:a:b:c', ${index}, 'pending', 1, 1, 1,
       'none', 'none', 'none')`;
 
 test("is what a payment itself is made of", () => {
@@ -58,7 +58,7 @@ describeWithEnv("db > payment session rules", { db: true }, () => {
     // SQLite lets a text primary key hold NULL unless the table says
     // otherwise, and a payment with no id can never be looked up again.
     await expect(
-      getDb().execute(`INSERT INTO payment_sessions
+      getDb().execute(sql`INSERT INTO payment_sessions
         (id, origin, state, revision, created_at, updated_at,
          result_state, ticket_state, completion_state)
         VALUES (NULL, 'legacy', 'created', 1, 1, 1, 'none', 'none', 'none')`),
@@ -69,10 +69,10 @@ describeWithEnv("db > payment session rules", { db: true }, () => {
   // all live behind an envelope. This is the one rule the table still keeps,
   // because it checks what landed rather than what the code meant to write.
   for (const [name, intent] of [
-    ["in plain words", "'Jane Smith'"],
-    ["under the database owner's key", "'enc:1:a:b'"],
-    ["behind an upper-case envelope", "'HYB:1:a:b:c'"],
-    ["wearing an envelope with nothing in it", "'hyb:1:Jane Smith'"],
+    ["in plain words", "Jane Smith"],
+    ["under the database owner's key", "enc:1:a:b"],
+    ["behind an upper-case envelope", "HYB:1:a:b:c"],
+    ["wearing an envelope with nothing in it", "hyb:1:Jane Smith"],
   ] as const) {
     test(`refuses a booking held ${name}`, async () => {
       await expectRefused(aPayment("plain", "plain-index", intent));
@@ -80,13 +80,10 @@ describeWithEnv("db > payment session rules", { db: true }, () => {
   }
 
   test("refuses a booking that is bytes only reading like an envelope", async () => {
-    await expectRefused({
-      args: [new TextEncoder().encode("hyb:1:a:b:c")],
-      sql: `INSERT INTO payment_sessions (${COLUMNS})
+    await expectRefused(sql`INSERT INTO payment_sessions (${COLUMNS})
         VALUES ('bytes', 'current', 'stripe', 'test', 'acct', 100, 'GBP',
-          ?, 'hyb:1:a:b:c', 'bytes-index', 'pending', 1, 1, 1,
-          'none', 'none', 'none')`,
-    });
+          ${new TextEncoder().encode("hyb:1:a:b:c")}, 'hyb:1:a:b:c', 'bytes-index', 'pending', 1, 1, 1,
+          'none', 'none', 'none')`);
   });
 
   test("accepts a booking held behind the owner's key", async () => {
@@ -94,12 +91,12 @@ describeWithEnv("db > payment session rules", { db: true }, () => {
   });
 
   test("starts a payment at version one when the write does not say", async () => {
-    await expectAccepted(`INSERT INTO payment_sessions
+    await expectAccepted(sql`INSERT INTO payment_sessions
       (id, origin, state, created_at, updated_at, result_state, ticket_state,
        completion_state)
       VALUES ('no-version', 'legacy', 'created', 1, 1, 'none', 'none', 'none')`);
     const saved = await getDb().execute(
-      "SELECT revision FROM payment_sessions WHERE id = 'no-version'",
+      sql`SELECT revision FROM payment_sessions WHERE id = 'no-version'`,
     );
     expect(Number(saved.rows[0]?.revision)).toBe(1);
   });

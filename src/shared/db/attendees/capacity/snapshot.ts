@@ -8,8 +8,9 @@
  * subrequest budget.
  */
 
-import { inPlaceholders, queryAll } from "#db/client.ts";
+import { queryAll } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
+import { sql, sqlList } from "#db/sql.ts";
 import { requiredMapValue } from "#fp";
 import { countsPerDate } from "#shared/capacity-rules.ts";
 import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
@@ -35,12 +36,9 @@ const loadsByListing = async (
   if (listingIds.length === 0) return new Map();
   const { startAt, endAt } = daySpan(days);
   const rows = await queryAll<IntervalRow & { listing_id: number }>(
-    `SELECT attendee.listing_id, attendee.start_at, attendee.end_at, attendee.quantity
+    sql`SELECT attendee.listing_id, attendee.start_at, attendee.end_at, attendee.quantity
        FROM listing_attendees AS attendee
-      WHERE attendee.listing_id IN (${inPlaceholders(
-        listingIds,
-      )}) AND attendee.start_at < ? AND attendee.end_at > ?`,
-    [...listingIds, endAt, startAt],
+      WHERE attendee.listing_id IN (${sqlList(listingIds)}) AND attendee.start_at < ${endAt} AND attendee.end_at > ${startAt}`,
   );
   const byListing = Map.groupBy(rows, (row) => row.listing_id);
   return new Map(

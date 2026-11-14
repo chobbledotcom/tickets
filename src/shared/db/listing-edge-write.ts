@@ -9,7 +9,13 @@
  */
 
 import { resultRows, type TxScope } from "#db/client.ts";
-import { boundSlots, numberedStatement } from "#db/numbered-statement.ts";
+import {
+  type SqlStatement,
+  sql,
+  sqlExists,
+  sqlList,
+  sqlName,
+} from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { t } from "#i18n";
 import {
@@ -80,27 +86,26 @@ const requireExists = (
 /** Whether any of these listings sits inside a package group. The hidden-only
  *  form also requires the package to hide what is inside it. */
 const packageMembershipExists = (
-  listingSlots: string,
+  listings: SqlStatement,
   hiddenOnly: boolean,
-): string =>
-  `EXISTS(SELECT 1
+): SqlStatement =>
+  sql`EXISTS(SELECT 1
            FROM group_listings AS membership
                 JOIN groups AS package
                   ON package.id = membership.group_id
-           WHERE membership.listing_id IN (${listingSlots})
-             AND package.is_package = 1${hiddenOnly ? " AND package.hide_package_listings = 1" : ""})`;
+           WHERE membership.listing_id IN (${listings})
+             AND package.is_package = 1${hiddenOnly ? sql` AND package.hide_package_listings = 1` : sql``})`;
 
 /** Whether any parent→child edge names one of these listings on that side of
  *  the edge. */
 const edgeExists = (
   edgeColumn: "child_listing_id" | "parent_listing_id",
-  listingSlots: string,
-): string =>
-  `EXISTS(SELECT 1 FROM listing_parents
-           WHERE ${edgeColumn} IN (${listingSlots}))`;
+  listings: SqlStatement,
+): SqlStatement =>
+  sqlExists("listing_parents", sql`${sqlName(edgeColumn)} IN (${listings})`);
 
-const listingCount = (listingSlots: string): string =>
-  `(SELECT COUNT(*) FROM listings WHERE id IN (${listingSlots}))`;
+const listingCount = (listings: SqlStatement): SqlStatement =>
+  sql`(SELECT COUNT(*) FROM listings WHERE id IN (${listings}))`;
 
 /** The edge-state checks shared by both writers, in one SELECT. `parentIds`/`
  *  `childIds` are the role id sets; each set is bound once and its slots
@@ -114,21 +119,18 @@ export const guardEdgeWriteTx = async (
   const childSet = new Set(childIds);
   const uniqueParentIds = [...parentSet];
   const uniqueChildIds = [...childSet];
+  const childSlots = sqlList(uniqueChildIds);
+  const parentSlots = sqlList(uniqueParentIds);
 
   const [state] = resultRows<EdgeState>(
     await tx.execute(
-      numberedStatement((bind) => {
-        const childSlots = boundSlots(bind, uniqueChildIds);
-        const parentSlots = boundSlots(bind, uniqueParentIds);
-        // One fact per line, named for the role set it reads.
-        return `SELECT
+      sql`SELECT
           ${packageMembershipExists(childSlots, false)} AS child_is_package_member,
           ${packageMembershipExists(parentSlots, true)} AS parent_is_hidden_package_member,
           ${listingCount(childSlots)} AS child_count,
           ${listingCount(parentSlots)} AS parent_count,
           ${edgeExists("child_listing_id", parentSlots)} AS parent_has_parent,
-          ${edgeExists("parent_listing_id", childSlots)} AS child_has_children`;
-      }),
+          ${edgeExists("parent_listing_id", childSlots)} AS child_has_children`,
     ),
   );
 

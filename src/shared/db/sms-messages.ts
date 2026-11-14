@@ -9,6 +9,7 @@
  */
 
 import { deleteByField, execute, insert, queryOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { nowIso } from "#shared/now.ts";
 
 export interface SmsMessageRow {
@@ -19,7 +20,7 @@ export interface SmsMessageRow {
   provider_id: string;
 }
 
-const COLUMNS = "id, attendee_id, listing_id, provider_id, created";
+const COLUMNS = sql`id, attendee_id, listing_id, provider_id, created`;
 
 /** Record a sent message's gateway id against its attendee. */
 export const recordSmsMessage = async (input: {
@@ -27,13 +28,14 @@ export const recordSmsMessage = async (input: {
   listingId: number;
   providerId: string;
 }): Promise<void> => {
-  const { sql, args } = insert("sms_messages", {
-    attendee_id: input.attendeeId,
-    created: nowIso(),
-    listing_id: input.listingId,
-    provider_id: input.providerId,
-  });
-  await execute(sql, args);
+  await execute(
+    insert("sms_messages", {
+      attendee_id: input.attendeeId,
+      created: nowIso(),
+      listing_id: input.listingId,
+      provider_id: input.providerId,
+    }),
+  );
 };
 
 /** Find the message a status event refers to, by the gateway's message id. */
@@ -43,8 +45,7 @@ export const getSmsMessageByProviderId = (
   providerId === ""
     ? Promise.resolve(null)
     : queryOne<SmsMessageRow>(
-        `SELECT ${COLUMNS} FROM sms_messages WHERE provider_id = ? LIMIT 1`,
-        [providerId],
+        sql`SELECT ${COLUMNS} FROM sms_messages WHERE provider_id = ${providerId} LIMIT 1`,
       );
 
 /** Delete a row once its message reaches a terminal state. */
@@ -55,5 +56,5 @@ export const deleteSmsMessage = (id: number): Promise<void> =>
 export const pruneSmsMessagesBefore = async (
   cutoffIso: string,
 ): Promise<void> => {
-  await execute("DELETE FROM sms_messages WHERE created < ?", [cutoffIso]);
+  await execute(sql`DELETE FROM sms_messages WHERE created < ${cutoffIso}`);
 };

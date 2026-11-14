@@ -3,6 +3,7 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { insert } from "#db/client.ts";
 import { deleteListing } from "#db/listings/delete.ts";
 import { initDb } from "#db/migrations.ts";
+import { sql } from "#db/sql.ts";
 import {
   createLegacyMigrationHarness,
   stubPragmaForeignKeysOff,
@@ -39,7 +40,7 @@ describe("db > listing_attendees migration from legacy schema (questions)", () =
     await initDb();
 
     const questions = await client.execute(
-      "SELECT id, text, sort_order, display_type FROM questions",
+      sql`SELECT id, text, sort_order, display_type FROM questions`,
     );
     expect(questions.rows.length).toBe(1);
     expect(questions.rows[0]!.display_type).toBe("radio");
@@ -47,7 +48,7 @@ describe("db > listing_attendees migration from legacy schema (questions)", () =
     expect(questions.rows[0]!.text).toBe("Encrypted question");
 
     const answers = await client.execute(
-      "SELECT id, question_id, text FROM answers",
+      sql`SELECT id, question_id, text FROM answers`,
     );
     expect(answers.rows).toEqual([
       { id: 1, question_id: 1, text: "Encrypted answer" },
@@ -72,9 +73,9 @@ describe("db > listing_attendees migration from legacy schema (questions)", () =
     // orphaned links.
     await deleteListing(1);
 
-    const listings = await client.execute("SELECT id FROM listings");
+    const listings = await client.execute(sql`SELECT id FROM listings`);
     expect(listings.rows.length).toBe(0);
-    const links = await client.execute("SELECT id FROM listing_questions");
+    const links = await client.execute(sql`SELECT id FROM listing_questions`);
     expect(links.rows.length).toBe(0);
   });
 });

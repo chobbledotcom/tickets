@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import { DatabaseBusyError, execute, setDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { expectFullBackoffWalk } from "#test-utils/backoff-walk.ts";
 import {
   emptyResultSet,
@@ -48,7 +49,7 @@ describe("db > client write-lock retry", () => {
           : Promise.resolve(emptyResultSet());
       }),
     );
-    const promise = execute("INSERT INTO t (x) VALUES (1)");
+    const promise = execute(sql`INSERT INTO t (x) VALUES (1)`);
     await time.tickAsync(50);
     const result = await promise;
     expect(result.rowsAffected).toBe(0);
@@ -61,7 +62,7 @@ describe("db > client write-lock retry", () => {
       failsWith: busyError,
       outcome: (operation) =>
         expect(operation).rejects.toThrow(DatabaseBusyError),
-      sql: "INSERT INTO t (x) VALUES (1)",
+      sql: sql`INSERT INTO t (x) VALUES (1)`,
       waits: [50, 150, 350],
     }));
 
@@ -81,7 +82,7 @@ describe("db > client write-lock retry", () => {
           : Promise.resolve(emptyResultSet());
       }),
     );
-    const promise = execute("INSERT INTO t (x) VALUES (1)");
+    const promise = execute(sql`INSERT INTO t (x) VALUES (1)`);
     await time.tickAsync(50);
     await time.tickAsync(150);
     await time.tickAsync(350);
@@ -98,7 +99,7 @@ describe("db > client write-lock retry", () => {
       failsWith: busyError,
       outcome: (operation) =>
         expect(operation).rejects.toThrow(DatabaseBusyError),
-      sql: "INSERT INTO t (x) VALUES (1)",
+      sql: sql`INSERT INTO t (x) VALUES (1)`,
       waits: [50, 150, 350, 700, 1400],
     }));
 });

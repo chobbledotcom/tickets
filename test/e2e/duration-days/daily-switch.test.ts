@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { optionChosen } from "#test/specs/support/form-controls/reading.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
@@ -21,8 +22,7 @@ const rawRows = async (
 ): Promise<{ attendee_id: number; start_at: string | null }[]> => {
   const { queryAll } = await import("#db/client.ts");
   return queryAll(
-    "SELECT attendee_id, start_at FROM listing_attendees WHERE listing_id = ? ORDER BY attendee_id",
-    [listingId],
+    sql`SELECT attendee_id, start_at FROM listing_attendees WHERE listing_id = ${listingId} ORDER BY attendee_id`,
   );
 };
 
@@ -162,24 +162,22 @@ describeWithEnv(
       // the setup only: one booking then takes the chosen day, and the cap
       // goes back to 2 — too small for the two moves of 1 place each.
       const { queryAll } = await import("#db/client.ts");
-      await queryAll("UPDATE listings SET max_attendees = 3 WHERE id = ?", [
-        listing.id,
-      ]);
+      await queryAll(
+        sql`UPDATE listings SET max_attendees = 3 WHERE id = ${listing.id}`,
+      );
       await bookAttendee(listing, {
         email: "z@example.com",
         name: "Z",
         quantity: 1,
       });
-      await queryAll("UPDATE listings SET max_attendees = 2 WHERE id = ?", [
-        listing.id,
-      ]);
+      await queryAll(
+        sql`UPDATE listings SET max_attendees = 2 WHERE id = ${listing.id}`,
+      );
       const undated = await queryAll<{ attendee_id: number }>(
-        "SELECT attendee_id FROM listing_attendees WHERE listing_id = ? AND start_at IS NULL",
-        [listing.id],
+        sql`SELECT attendee_id FROM listing_attendees WHERE listing_id = ${listing.id} AND start_at IS NULL`,
       );
       await queryAll(
-        "UPDATE listing_attendees SET start_at = ?, end_at = ? WHERE attendee_id = ?",
-        [`${day}T00:00:00Z`, `${day}T23:59:59Z`, undated[0]!.attendee_id],
+        sql`UPDATE listing_attendees SET start_at = ${`${day}T00:00:00Z`}, end_at = ${`${day}T23:59:59Z`} WHERE attendee_id = ${undated[0]!.attendee_id}`,
       );
 
       const { response } = await adminFormPost(
@@ -210,9 +208,9 @@ describeWithEnv(
       // The cap drops after the setup, so no offered day can hold the two
       // bookings the switch would have to move.
       const { queryAll } = await import("#db/client.ts");
-      await queryAll("UPDATE listings SET max_attendees = 1 WHERE id = ?", [
-        listing.id,
-      ]);
+      await queryAll(
+        sql`UPDATE listings SET max_attendees = 1 WHERE id = ${listing.id}`,
+      );
 
       const { response } = await adminFormPost(
         `/admin/listing/${listing.id}/edit`,

@@ -7,6 +7,7 @@ import {
   insertBuiltSite,
 } from "#db/built-sites.ts";
 import { execute } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";
@@ -60,8 +61,8 @@ describeWithEnv("built-site storage", { db: true }, () => {
       name: "Test Site",
       siteUrl: "test.b-cdn.net",
     });
-    expect(parsed.d).toBeUndefined();
-    expect(parsed.t).toBeUndefined();
+    expect(Object.hasOwn(parsed, "d")).toBe(false);
+    expect(Object.hasOwn(parsed, "t")).toBe(false);
   });
 
   test("toDbValues includes hosting id when provided", async () => {
@@ -78,22 +79,22 @@ describeWithEnv("built-site storage", { db: true }, () => {
       name: "Test Site",
       siteUrl: "test.b-cdn.net",
     });
-    expect(parsed.s).toBeUndefined();
+    expect(Object.hasOwn(parsed, "s")).toBe(false);
   });
 
   test("parseSiteDataBlob handles legacy blobs without optional keys", () => {
     const parsed = parseSiteDataBlob(
       JSON.stringify({ n: "Old Site", u: "old.b-cdn.net", v: 1 }),
     );
-    expect(parsed.d).toBeUndefined();
-    expect(parsed.t).toBeUndefined();
-    expect(parsed.s).toBeUndefined();
+    expect(Object.hasOwn(parsed, "d")).toBe(false);
+    expect(Object.hasOwn(parsed, "t")).toBe(false);
+    expect(Object.hasOwn(parsed, "s")).toBe(false);
   });
 
   test("insertBuiltSite creates a row with encrypted site data", async () => {
     const row = await insertBuiltSite("Alpha Site", "alpha.b-cdn.net");
     expect(row.id).toBe(1);
-    expect(row.created).toBeTruthy();
+    expect(row.created).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 
   test("insertBuiltSite stores credentials and hosting id", async () => {
@@ -122,14 +123,12 @@ describeWithEnv("built-site storage", { db: true }, () => {
   test("getAll returns decrypted sites sorted by name", async () => {
     const alpha = await insertBuiltSite("Alpha", "alpha.b-cdn.net");
     const zulu = await insertBuiltSite("Zulu", "zulu.b-cdn.net");
-    await execute("UPDATE built_sites SET created = ? WHERE id = ?", [
-      "2025-01-01T00:00:00Z",
-      alpha.id,
-    ]);
-    await execute("UPDATE built_sites SET created = ? WHERE id = ?", [
-      "2026-01-01T00:00:00Z",
-      zulu.id,
-    ]);
+    await execute(
+      sql`UPDATE built_sites SET created = ${"2025-01-01T00:00:00Z"} WHERE id = ${alpha.id}`,
+    );
+    await execute(
+      sql`UPDATE built_sites SET created = ${"2026-01-01T00:00:00Z"} WHERE id = ${zulu.id}`,
+    );
     expect((await builtSites.getAll()).map(({ name }) => name)).toEqual([
       "Alpha",
       "Zulu",

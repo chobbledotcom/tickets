@@ -27,6 +27,7 @@ import { createBackupZip, restoreFromZip } from "#db/backup.ts";
 import { getDb } from "#db/client.ts";
 import { loadMigrations } from "#db/migrations/context.ts";
 import { SCHEMA } from "#db/migrations/schema/index.ts";
+import { sql } from "#db/sql.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -42,10 +43,9 @@ const NOT_NULL_MIGRATION_ID = "2026-06-26_attendees_kind_not_null";
 const attendeesTable = SCHEMA.find(([name]) => name === "attendees")![1];
 
 const columnDefault = async (): Promise<string | null> => {
-  const result = await getDb().execute({
-    args: ["kind"],
-    sql: "SELECT dflt_value FROM pragma_table_info('attendees') WHERE name = ?",
-  });
+  const result = await getDb().execute(
+    sql`SELECT dflt_value FROM pragma_table_info('attendees') WHERE name = ${"kind"}`,
+  );
   return result.rows[0]!.dflt_value as string | null;
 };
 
@@ -53,14 +53,14 @@ describe("servicing §1 — schema declares the kind column + index", () => {
   test("the attendees schema carries a NOT NULL kind column defaulting to ATTENDEE_KIND", () => {
     const kindCol = attendeesTable.columns.find(([name]) => name === "kind");
     const [, type] = kindCol!;
-    expect(type).toMatch(/NOT NULL/);
-    assertStringIncludes(type, ATTENDEE_KIND);
+    expect(type.sql).toMatch(/NOT NULL/);
+    assertStringIncludes(type.sql, ATTENDEE_KIND);
     // Guards the wishful `/* NOT NULL */` comment hack: the invariant must be a
     // real constraint, not a comment, and the `IS NULL` escape (which left
     // NULL-kind rows that consumed capacity as neither attendee nor servicing)
     // must be gone from the CHECK.
-    assert(!type.includes("/* NOT NULL */"));
-    assert(!type.includes("IS NULL"));
+    assert(!type.sql.includes("/* NOT NULL */"));
+    assert(!type.sql.includes("IS NULL"));
   });
 
   test("the attendees schema declares idx_attendees_kind", () => {
@@ -70,8 +70,8 @@ describe("servicing §1 — schema declares the kind column + index", () => {
 
   test("the kind column's allowed values are ATTENDEE_KIND and SERVICING_KIND only", () => {
     const [, type] = attendeesTable.columns.find(([n]) => n === "kind")!;
-    expectIncludesAll(type, [ATTENDEE_KIND, SERVICING_KIND]);
-    expect(type).toMatch(/CHECK/i);
+    expectIncludesAll(type.sql, [ATTENDEE_KIND, SERVICING_KIND]);
+    expect(type.sql).toMatch(/CHECK/i);
   });
 });
 
@@ -90,7 +90,7 @@ describe("servicing §1 — migration is registered and runs on an existing data
     });
 
     test("kind index is created by the migration (guards the requires.indexes omission)", async () => {
-      await getDb().execute("DROP INDEX IF EXISTS idx_attendees_kind");
+      await getDb().execute(sql`DROP INDEX IF EXISTS idx_attendees_kind`);
       expect(await indexExists("idx_attendees_kind")).toBe(false);
       await migration.up();
       expect(await indexExists("idx_attendees_kind")).toBe(true);
@@ -100,10 +100,9 @@ describe("servicing §1 — migration is registered and runs on an existing data
       const listing = await createTestListing();
       await createTestAttendeeDirect(listing.id, "Existing", "x@example.com");
       await migration.up();
-      const rows = await getDb().execute({
-        args: [ATTENDEE_KIND],
-        sql: "SELECT kind FROM attendees WHERE kind IS NULL OR kind <> ?",
-      });
+      const rows = await getDb().execute(
+        sql`SELECT kind FROM attendees WHERE kind IS NULL OR kind <> ${ATTENDEE_KIND}`,
+      );
       expect(rows.rows.length).toBe(0);
     });
   });
@@ -164,14 +163,14 @@ describeWithEnv(
   { db: true },
   () => {
     const kindNotNull = async (): Promise<number> => {
-      const result = await getDb().execute("PRAGMA table_info(attendees)");
+      const result = await getDb().execute(sql`PRAGMA table_info(attendees)`);
       const row = result.rows.find((r) => r.name === "kind");
       return Number(requireValue(row, "the kind column's pragma row").notnull);
     };
 
     const limboCount = async (): Promise<number> => {
       const result = await getDb().execute(
-        "SELECT COUNT(*) AS count FROM attendees WHERE kind IS NULL",
+        sql`SELECT COUNT(*) AS count FROM attendees WHERE kind IS NULL`,
       );
       return Number(result.rows[0]!.count);
     };
@@ -182,12 +181,9 @@ describeWithEnv(
 
     test("INSERT of a NULL-kind row is rejected by the constraint (no limbo row)", async () => {
       await expect(
-        getDb().execute({
-          args: ["limbo"],
-          sql:
-            "INSERT INTO attendees (created, ticket_token_index, pii_blob, kind) " +
-            "VALUES ('2026-01-01T00:00:00Z', ?, '', NULL)",
-        }),
+        getDb().execute(
+          sql`INSERT INTO attendees (created, ticket_token_index, pii_blob, kind) VALUES ('2026-01-01T00:00:00Z', ${"limbo"}, '', NULL)`,
+        ),
       ).rejects.toThrow();
       expect(await limboCount()).toBe(0);
     });
@@ -200,10 +196,9 @@ describeWithEnv(
         "x@example.com",
       );
       await expect(
-        getDb().execute({
-          args: [attendee.id],
-          sql: "UPDATE attendees SET kind = NULL WHERE id = ?",
-        }),
+        getDb().execute(
+          sql`UPDATE attendees SET kind = NULL WHERE id = ${attendee.id}`,
+        ),
       ).rejects.toThrow();
       expect(await kindOf(attendee.id)).toBe(ATTENDEE_KIND);
     });

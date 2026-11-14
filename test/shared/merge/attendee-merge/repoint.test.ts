@@ -15,6 +15,7 @@ import {
   getRefundAllSummary,
   loadRefundAllBatch,
 } from "#db/refund-all-candidates.ts";
+import { sql } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -157,10 +158,9 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       attendee_id: number;
       payment_session_id: string;
     }>(
-      `SELECT attendee_id, payment_session_id
+      sql`SELECT attendee_id, payment_session_id
          FROM processed_payments
-        WHERE payment_session_id = ?`,
-      ["source-paid-session"],
+        WHERE payment_session_id = ${"source-paid-session"}`,
     );
     expect(rows).toEqual([
       { attendee_id: target.id, payment_session_id: "source-paid-session" },
@@ -199,8 +199,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     expect(result.success).toBe(true);
     expect(
       await queryOne<{ pii_payment_session_id: string }>(
-        "SELECT pii_payment_session_id FROM attendees WHERE id = ?",
-        [target.id],
+        sql`SELECT pii_payment_session_id FROM attendees WHERE id = ${target.id}`,
       ),
     ).toEqual({ pii_payment_session_id: "target-paid-session" });
   });
@@ -245,8 +244,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     expect(result.success).toBe(true);
     expect(
       await queryOne<{ pii_payment_session_id: string | null }>(
-        "SELECT pii_payment_session_id FROM attendees WHERE id = ?",
-        [target.id],
+        sql`SELECT pii_payment_session_id FROM attendees WHERE id = ${target.id}`,
       ),
     ).toEqual({ pii_payment_session_id: null });
     expect(await getRefundAllSummary(sourceListing.id)).toEqual({

@@ -1,14 +1,18 @@
-import type { InStatement, ResultSet, Transaction } from "@libsql/client";
+import type { ResultSet } from "@libsql/client";
+import type { StatementTransaction } from "#db/client.ts";
 import { trackSql } from "#db/query-log.ts";
-import { sqlOf } from "#db/sql-text.ts";
+import type { SqlStatement } from "#db/sql.ts";
 
 /** Track both read snapshots and write transactions through the same query log. */
 export const trackedTxBatch =
-  (tx: Transaction) =>
-  (statements: InStatement[]): Promise<ResultSet[]> =>
-    trackSql(statements.map(sqlOf), () => tx.batch(statements));
+  (tx: Pick<StatementTransaction, "batch">) =>
+  (statements: SqlStatement[]): Promise<ResultSet[]> =>
+    trackSql(
+      statements.map((statement) => statement.sql),
+      () => tx.batch(statements),
+    );
 
 export const trackedTxExecute =
-  (tx: Transaction) =>
-  (stmt: InStatement): Promise<ResultSet> =>
-    trackSql(sqlOf(stmt), () => tx.execute(stmt));
+  (tx: Pick<StatementTransaction, "execute">) =>
+  (statement: SqlStatement): Promise<ResultSet> =>
+    trackSql(statement.sql, () => tx.execute(statement));

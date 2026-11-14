@@ -4,6 +4,7 @@ import listingMinQuantity from "#db/migrations/2026-10-05_listing_min_quantity.t
 import { coreTables as listingsTable } from "#db/migrations/schema/tables-core.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
+import { sqlText } from "#test-utils/sql-text.ts";
 
 const migration = () => listingMinQuantity(buildMigrationContext());
 
@@ -12,7 +13,7 @@ const migration = () => listingMinQuantity(buildMigrationContext());
 const listingsColumns = () =>
   listingsTable
     .filter((entry) => entry[0] === "listings")
-    .flatMap((entry) => (entry[1] as { columns: [string, string][] }).columns);
+    .flatMap((entry) => entry[1].columns);
 const minimumColumn = () =>
   listingsColumns().find(([name]) => name === "min_quantity");
 
@@ -32,7 +33,7 @@ describeWithEnv(
     test("the schema stores a NOT NULL default of 1", () => {
       // STE(min_quantity): the default is the identity element — old rows
       // keep today's choice set, so the column must never read NULL.
-      expect(minimumColumn()).toEqual([
+      expect(sqlText(minimumColumn())).toEqual([
         "min_quantity",
         "INTEGER NOT NULL DEFAULT 1",
       ]);

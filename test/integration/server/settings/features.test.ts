@@ -12,13 +12,13 @@
  * settings table, and the races and rollback around disabling Logistics.
  */
 
-import type { InStatement } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { setAdminFeatureEnabled } from "#db/admin-features.ts";
 import { getDb, queryOne } from "#db/client.ts";
 import { CONFIG_KEYS, settings } from "#db/settings.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { parseEnabledFeatures } from "#shared/admin-features.ts";
 import {
   expectFlash,
@@ -26,7 +26,6 @@ import {
   expectStatus,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
-import { statementSql } from "#test-utils/record-queries.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import {
   describeAdminSettings,
@@ -95,11 +94,13 @@ describeAdminSettings(() => {
 
   test("disables Logistics without creating a listing default", async () => {
     await expectFeatureSaved("logistics", false, "Logistics disabled.");
-    expect(settings.listingDefaults.usesLogistics).toBeUndefined();
+    expect(Object.hasOwn(settings.listingDefaults, "usesLogistics")).toBe(
+      false,
+    );
     expect(
-      await queryOne("SELECT value FROM settings WHERE key = ?", [
-        CONFIG_KEYS.LISTING_DEFAULTS,
-      ]),
+      await queryOne(
+        sql`SELECT value FROM settings WHERE key = ${CONFIG_KEYS.LISTING_DEFAULTS}`,
+      ),
     ).toBeNull();
     expect(await storedFeatureEnabled("logistics")).toBe(false);
   });
@@ -182,12 +183,12 @@ describeAdminSettings(() => {
     const insertUse = async (): Promise<void> => {
       inserted = true;
       await originalExecute(
-        "INSERT INTO logistics_agents (name) VALUES ('New delivery team')",
+        sql`INSERT INTO logistics_agents (name) VALUES ('New delivery team')`,
       );
     };
-    const executeStub = stub(db, "execute", async (statement: InStatement) => {
+    const executeStub = stub(db, "execute", async (statement: SqlStatement) => {
       const result = await originalExecute(statement);
-      const sql = statementSql(statement);
+      const sql = statement.sql;
       if (
         !inserted &&
         sql.startsWith("UPDATE settings SET value = ? WHERE key = ?")
@@ -258,9 +259,9 @@ describeAdminSettings(() => {
     const db = getDb();
     const originalExecute = db.execute.bind(db);
     let inserted = false;
-    const executeStub = stub(db, "execute", async (statement: InStatement) => {
+    const executeStub = stub(db, "execute", async (statement: SqlStatement) => {
       const result = await originalExecute(statement);
-      const sql = statementSql(statement);
+      const sql = statement.sql;
       if (!inserted && sql.includes("SELECT json_object")) {
         inserted = true;
         await saveAModifier();

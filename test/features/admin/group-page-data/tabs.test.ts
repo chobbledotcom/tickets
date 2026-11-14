@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
@@ -225,7 +226,7 @@ describeWithEnv(
         });
         const listing = await createTestListing({ name: "Waiting listing" });
         const restore = beforeNextTransaction(async () => {
-          await execute("DELETE FROM groups WHERE id = ?", [group.id]);
+          await execute(sql`DELETE FROM groups WHERE id = ${group.id}`);
         });
 
         let response: Response;

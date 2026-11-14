@@ -7,12 +7,12 @@
  * exists through the same vocabulary.
  */
 
-import type { SqlStatement } from "#db/client.ts";
 import {
   defineRecordTarget,
   type RecordTarget,
   type RecordTargets,
 } from "#db/record-target.ts";
+import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import { EXTERNAL_LINK_KINDS, type ExternalLinkKind } from "./types.ts";
 
 /** The table the links live in. Trusted constant, never input. */
@@ -50,7 +50,5 @@ export const repointExternalLinksStatement = (
   kind: ExternalLinkKind,
   sourceId: number,
   targetId: number,
-): SqlStatement => ({
-  args: [targetId, kind, sourceId],
-  sql: `UPDATE ${LINK_TABLE} SET ${LINK_COLUMNS.id} = ? WHERE ${LINK_COLUMNS.kind} = ? AND ${LINK_COLUMNS.id} = ?`,
-});
+): SqlStatement =>
+  sql`UPDATE ${sqlName(LINK_TABLE)} SET ${sqlName(LINK_COLUMNS.id)} = ${targetId} WHERE ${sqlName(LINK_COLUMNS.kind)} = ${kind} AND ${sqlName(LINK_COLUMNS.id)} = ${sourceId}`;

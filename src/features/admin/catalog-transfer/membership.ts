@@ -6,9 +6,14 @@
  * passes {@link TRANSACTION_ROUNDTRIP_THRESHOLD} on a ~30-member export.
  */
 
-import type { InValue } from "@libsql/client";
-import { inPlaceholders, queryAll, type SqlStatement } from "#db/client.ts";
+import { queryAll } from "#db/client.ts";
 import { PRICE_TYPE_GROUP, PRICE_TYPE_GROUP_DAY } from "#db/price-types.ts";
+import {
+  type SqlStatement,
+  sql,
+  sqlInsertRowsOrNull,
+  sqlLiteral,
+} from "#db/sql.ts";
 import { type DayPrices, type GroupListing, parseDayPrices } from "#types";
 
 /** Every group a listing belongs to, with this listing's per-package override
@@ -20,15 +25,14 @@ export const getListingGroupMemberships = (
   listingId: number,
 ): Promise<GroupListing[]> =>
   queryAll<GroupListing>(
-    `SELECT groupListing.group_id, groupListing.listing_id, groupListing.quantity,
+    sql`SELECT groupListing.group_id, groupListing.listing_id, groupListing.quantity,
             (SELECT listingPrice.unit_price FROM listing_prices AS listingPrice
                WHERE listingPrice.listing_id = groupListing.listing_id
-                 AND listingPrice.price_type = '${PRICE_TYPE_GROUP}'
+                 AND listingPrice.price_type = ${sqlLiteral(PRICE_TYPE_GROUP)}
                  AND listingPrice.price_id = CAST(groupListing.group_id AS TEXT))
               AS package_price
        FROM group_listings AS groupListing
-      WHERE groupListing.listing_id = ? ORDER BY groupListing.group_id ASC`,
-    [listingId],
+      WHERE groupListing.listing_id = ${listingId} ORDER BY groupListing.group_id ASC`,
   );
 
 /** One membership to (re)create on catalog import: which listing joins which
@@ -39,21 +43,6 @@ export type ImportedMembership = {
   packagePrice: number | null;
   quantity: number;
   dayPrices: DayPrices;
-};
-
-const multiRowInsert = (
-  table: string,
-  columns: readonly string[],
-  rows: readonly InValue[][],
-): SqlStatement | null => {
-  if (rows.length === 0) return null;
-  const placeholder = `(${inPlaceholders(columns)})`;
-  return {
-    args: rows.flat(),
-    sql: `INSERT INTO ${table} (${columns.join(", ")}) VALUES ${rows
-      .map(() => placeholder)
-      .join(", ")}`,
-  };
 };
 
 /** The (at most two) batched statements that create every membership row plus
@@ -85,12 +74,12 @@ export const membershipStatements = (
     ]),
   );
   return [
-    multiRowInsert(
+    sqlInsertRowsOrNull(
       "group_listings",
       ["group_id", "listing_id", "quantity"],
       memberRows,
     ),
-    multiRowInsert(
+    sqlInsertRowsOrNull(
       "listing_prices",
       ["listing_id", "price_type", "price_id", "unit_price"],
       [...flatRows, ...dayRows],

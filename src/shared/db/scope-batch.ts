@@ -5,11 +5,8 @@
  *  run as one client batch. */
 
 import type { ResultSet } from "@libsql/client";
-import {
-  executeBatchWithResults,
-  type SqlStatement,
-  type TxScope,
-} from "#db/client.ts";
+import { executeBatchWithResults, type TxScope } from "#db/client.ts";
+import type { SqlStatement } from "#db/sql.ts";
 
 export const batchOnScope = (
   statements: SqlStatement[],

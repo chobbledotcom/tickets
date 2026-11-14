@@ -1,6 +1,7 @@
 /** Attendee, booking, payment, and activity tables. */
 
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 import {
   attendeeIdColumn,
   datedRowColumns,
@@ -54,9 +55,9 @@ export const attendeeTables: [name: string, table: Table][] = [
         ...datedRowColumns,
         [
           "kind",
-          checked(`kind IN ('${ATTENDEE_KIND}', '${SERVICING_KIND}')`)(
-            defaulted(text, ATTENDEE_KIND),
-          ),
+          checked(
+            sql`kind IN (${sqlLiteral(ATTENDEE_KIND)}, ${sqlLiteral(SERVICING_KIND)})`,
+          )(defaulted(text, ATTENDEE_KIND)),
         ],
         ["checked_in", textStartingBlank],
         ["ticket_token_index", textOrNull],
@@ -87,7 +88,7 @@ export const attendeeTables: [name: string, table: Table][] = [
         {
           columns: ["kind"],
           name: "idx_attendees_pending_flags",
-          where: "email_pending > 0 OR webhooks_pending > 0",
+          where: sql`email_pending > 0 OR webhooks_pending > 0`,
         },
         {
           columns: ["ticket_token_index"],
@@ -268,7 +269,7 @@ export const attendeeTables: [name: string, table: Table][] = [
         {
           columns: ["attendee_id"],
           name: "idx_processed_payments_protected_attendee",
-          where: "protected_state != ''",
+          where: sql`protected_state != ''`,
         },
       ],
       // FK declarations removed — libsql's FK enforcement breaks table

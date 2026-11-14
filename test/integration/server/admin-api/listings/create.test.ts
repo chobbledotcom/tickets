@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
 import { requireListingWithCount } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -25,7 +26,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
           expect(body.listing.name).toBe("New API Listing");
           expect(body.listing.max_attendees).toBe(50);
           expect(body.listing.id).toBeGreaterThan(0);
-          expect(body.listing.slug_index).toBeUndefined();
+          expect(Object.hasOwn(body.listing, "slug_index")).toBe(false);
         },
       );
     });
@@ -166,9 +167,9 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         },
       );
       expect(
-        await queryAll("SELECT id FROM listings WHERE name = ?", [
-          "Unknown Field",
-        ]),
+        await queryAll(
+          sql`SELECT id FROM listings WHERE name = ${"Unknown Field"}`,
+        ),
       ).toEqual([]);
     });
 
@@ -235,9 +236,8 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       });
       const { listing } = await response.json();
       const rows = await queryAll(
-        `SELECT price_type, price_id, unit_price FROM listing_prices
-          WHERE listing_id = ? ORDER BY price_type, price_id`,
-        [listing.id],
+        sql`SELECT price_type, price_id, unit_price FROM listing_prices
+          WHERE listing_id = ${listing.id} ORDER BY price_type, price_id`,
       );
       expect(rows).toEqual([
         { price_id: "", price_type: "base", unit_price: 900 },

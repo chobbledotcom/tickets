@@ -10,6 +10,7 @@
  * range (the {@link emptyRange} default) selects the whole ledger ("forever").
  */
 
+import { sql, sqlName } from "#db/sql.ts";
 import type { WhereClause } from "#db/where-clauses.ts";
 
 /** A bounded window over `occurred_at`: `startMs` ≤ occurred_at < `endMs`. A
@@ -35,8 +36,8 @@ export const occurredAtRange = (
 ): WhereClause[] => [
   ...(range.startMs === null
     ? []
-    : [{ args: [range.startMs], clause: `${column} >= ?` }]),
+    : [{ clause: sql`${sqlName(column)} >= ${range.startMs}` }]),
   ...(range.endMs === null
     ? []
-    : [{ args: [range.endMs], clause: `${column} < ?` }]),
+    : [{ clause: sql`${sqlName(column)} < ${range.endMs}` }]),
 ];

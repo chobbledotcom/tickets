@@ -7,6 +7,7 @@ import {
   listProviderRefundCases,
   loadProviderRefundCase,
 } from "#db/provider-refund-cases.ts";
+import { sql } from "#db/sql.ts";
 import {
   armRefundSend,
   markRefundCompleted,
@@ -47,10 +48,7 @@ const addCase = async (
 };
 
 const discardCase = async (id: number): Promise<void> => {
-  await getDb().execute({
-    args: [id],
-    sql: "DELETE FROM payment_charges WHERE id = ?",
-  });
+  await getDb().execute(sql`DELETE FROM payment_charges WHERE id = ${id}`);
   createdIds.delete(id);
 };
 
@@ -60,11 +58,11 @@ const corruptCase = async (
   value: number | string,
 ): Promise<void> => {
   const db = getDb();
-  await db.execute("PRAGMA ignore_check_constraints = true");
+  await db.execute(sql`PRAGMA ignore_check_constraints = true`);
   try {
     await db.execute(update("payment_charges", { [column]: value }, { id }));
   } finally {
-    await db.execute("PRAGMA ignore_check_constraints = false");
+    await db.execute(sql`PRAGMA ignore_check_constraints = false`);
   }
 };
 

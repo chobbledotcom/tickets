@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { insert, setDb } from "#db/client.ts";
 import { initDb, invalidateInitDbCache } from "#db/migrations.ts";
+import { sql } from "#db/sql.ts";
 import {
   createLegacyMigrationHarness,
   expectAttendeeCols,
@@ -52,10 +53,12 @@ describe("db > listing_attendees migration from legacy schema (backfill)", () =>
     using _pragmaStub = stubPragmaForeignKeysOff(client);
     await initDb();
 
-    const listings = await client.execute("SELECT duration_days FROM listings");
+    const listings = await client.execute(
+      sql`SELECT duration_days FROM listings`,
+    );
     expect(listings.rows[0]!.duration_days).toBe(1);
 
-    const ea = await client.execute("SELECT * FROM listing_attendees");
+    const ea = await client.execute(sql`SELECT * FROM listing_attendees`);
     expect(ea.rows.length).toBe(1);
     expect(ea.rows[0]!.listing_id).toBe(1);
     expect(ea.rows[0]!.attendee_id).toBe(1);
@@ -63,7 +66,7 @@ describe("db > listing_attendees migration from legacy schema (backfill)", () =>
     // price_paid is no longer a column — a booking's amount projects from the
     // transfers ledger. Like the dropped refunded flag, the legacy price_paid_v2
     // value isn't carried by the reconcile (no live site predates the ledger).
-    expect(ea.rows[0]!.price_paid).toBeUndefined();
+    expect(Object.hasOwn(ea.rows[0]!, "price_paid")).toBe(false);
     expect(ea.rows[0]!.start_at).toBe("2024-06-15T00:00:00Z");
     expect(ea.rows[0]!.end_at).toBe("2024-06-16T00:00:00Z");
 
@@ -85,7 +88,9 @@ describe("db > listing_attendees migration from legacy schema (backfill)", () =>
       ["id", "pii_blob"],
     );
 
-    const payments = await client.execute("SELECT * FROM processed_payments");
+    const payments = await client.execute(
+      sql`SELECT * FROM processed_payments`,
+    );
     expect(payments.rows.length).toBe(1);
     expect(payments.rows[0]!.attendee_id).toBe(1);
   });
@@ -110,25 +115,25 @@ describe("db > listing_attendees migration from legacy schema (backfill)", () =>
 
     // Force a named migration re-run by making legacy markers stale and
     // clearing named migration history.
-    await client.execute({
-      args: [LEGACY_DB_UPDATE],
-      sql: "UPDATE settings SET value = ? WHERE key = 'latest_db_update'",
-    });
-    await client.execute({
-      args: [LEGACY_DB_SCHEMA_HASH],
-      sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
-    });
-    await client.execute("DROP TABLE schema_migrations");
+    await client.execute(
+      sql`UPDATE settings SET value = ${LEGACY_DB_UPDATE} WHERE key = 'latest_db_update'`,
+    );
+    await client.execute(
+      sql`UPDATE settings SET value = ${LEGACY_DB_SCHEMA_HASH} WHERE key = 'db_schema_hash'`,
+    );
+    await client.execute(sql`DROP TABLE schema_migrations`);
     invalidateInitDbCache();
     await initDb();
 
-    const cols = await client.execute("PRAGMA table_info(attendees)");
+    const cols = await client.execute(sql`PRAGMA table_info(attendees)`);
     const colNames = cols.rows.map((r) => r.name);
     assertArrayIncludes(colNames, ["id"]);
     assertArrayIncludes(colNames, ["pii_blob"]);
     assertArrayIncludes(colNames, ["created"]);
 
-    const rows = await client.execute("SELECT * FROM attendees WHERE id = 1");
+    const rows = await client.execute(
+      sql`SELECT * FROM attendees WHERE id = 1`,
+    );
     expect(rows.rows.length).toBe(1);
     expect(rows.rows[0]!.pii_blob).toBe("blob-data");
     expect(rows.rows[0]!.ticket_token_index).toBe("tok_skip");

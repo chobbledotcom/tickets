@@ -14,6 +14,7 @@ import {
   setN1GuardNotifyOnly,
   TRANSACTION_ROUNDTRIP_THRESHOLD,
 } from "#db/query-log.ts";
+import { sql } from "#db/sql.ts";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { stubClient } from "#test-utils/db-helpers/result-set.ts";
 import { transactionStub } from "#test-utils/db-helpers/stub-transaction.ts";
@@ -35,7 +36,7 @@ const withFileDb = async (run: () => Promise<void>): Promise<void> => {
   const client = createClient({ url: `file:${path}` });
   setDb(client);
   try {
-    await client.execute("CREATE TABLE t (x INTEGER)");
+    await client.execute(sql`CREATE TABLE t (x INTEGER)`);
     await run();
   } finally {
     setDb(null);
@@ -45,7 +46,7 @@ const withFileDb = async (run: () => Promise<void>): Promise<void> => {
 };
 
 const count = async (): Promise<number> => {
-  const row = await queryOne<{ n: number }>("SELECT COUNT(*) AS n FROM t", []);
+  const row = await queryOne<{ n: number }>(sql`SELECT COUNT(*) AS n FROM t`);
   return row!.n;
 };
 
@@ -57,8 +58,8 @@ describe("withTransaction", () => {
   test("commits all writes on success", async () => {
     await withFileDb(async () => {
       await withTransaction(async (tx) => {
-        await tx.execute("INSERT INTO t VALUES (1)");
-        await tx.execute("INSERT INTO t VALUES (2)");
+        await tx.execute(sql`INSERT INTO t VALUES (1)`);
+        await tx.execute(sql`INSERT INTO t VALUES (2)`);
       });
       expect(await count()).toBe(2);
     });
@@ -69,8 +70,8 @@ describe("withTransaction", () => {
       const log = await withRequestContext(async () => {
         enableQueryLog();
         await withTransaction(async (tx) => {
-          await tx.execute("INSERT INTO t VALUES (1)");
-          await tx.execute({ args: [], sql: "SELECT COUNT(*) AS n FROM t" });
+          await tx.execute(sql`INSERT INTO t VALUES (1)`);
+          await tx.execute(sql`SELECT COUNT(*) AS n FROM t`);
         });
         return getQueryLog();
       });
@@ -87,7 +88,7 @@ describe("withTransaction", () => {
       await withRequestContext(async () => {
         await withTransaction(async (tx) => {
           for (let i = 0; i < TRANSACTION_ROUNDTRIP_THRESHOLD; i++) {
-            await tx.execute("INSERT INTO t VALUES (1)");
+            await tx.execute(sql`INSERT INTO t VALUES (1)`);
           }
         });
       });
@@ -106,7 +107,7 @@ describe("withTransaction", () => {
           withRequestContext(async () => {
             await withTransaction(async (tx) => {
               for (let i = 0; i <= TRANSACTION_ROUNDTRIP_THRESHOLD; i++) {
-                await tx.execute("INSERT INTO t VALUES (1)");
+                await tx.execute(sql`INSERT INTO t VALUES (1)`);
               }
             });
           }),
@@ -125,8 +126,8 @@ describe("withTransaction", () => {
       });
       try {
         await withTransaction(async (tx) => {
-          await tx.execute("INSERT INTO t VALUES (1)");
-          await tx.execute("INSERT INTO t VALUES (2)");
+          await tx.execute(sql`INSERT INTO t VALUES (1)`);
+          await tx.execute(sql`INSERT INTO t VALUES (2)`);
           // Invalidation must wait for the commit — a write that has not
           // landed yet must not clear caches.
           expect(fired).toBe(0);
@@ -147,7 +148,7 @@ describe("withTransaction", () => {
         () => undefined,
       );
       const result = await withTransaction(async (tx) => {
-        await tx.execute("INSERT INTO t VALUES (1)");
+        await tx.execute(sql`INSERT INTO t VALUES (1)`);
         return "ok";
       });
       expect(result).toBe("ok");
@@ -160,7 +161,7 @@ describe("withTransaction", () => {
       let message = "";
       try {
         await withTransaction(async (tx) => {
-          await tx.execute("INSERT INTO t VALUES (1)");
+          await tx.execute(sql`INSERT INTO t VALUES (1)`);
           throw new Error("boom");
         });
       } catch (error) {

@@ -15,6 +15,7 @@ import {
   hashEmail,
   saveContactRecord,
 } from "#db/contact-preferences.ts";
+import { sql } from "#db/sql.ts";
 import {
   expectHtmlResponse,
   expectIncludesAll,
@@ -357,11 +358,8 @@ describeWithEnv(
         // Leave this contact's encrypted stats unreadable — the exact state the
         // best-effort SMS write path can persist — but keep recent activity so
         // the request's prune doesn't delete the row before it is read.
-        await getDb().execute({
-          args: [hash, Date.now()],
-          sql: `INSERT INTO contact_preferences (contact_hash, stats_blob, last_activity) VALUES (?, 'corrupt-blob', ?)
-              ON CONFLICT(contact_hash) DO UPDATE SET stats_blob = 'corrupt-blob', last_activity = excluded.last_activity`,
-        });
+        await getDb().execute(sql`INSERT INTO contact_preferences (contact_hash, stats_blob, last_activity) VALUES (${hash}, 'corrupt-blob', ${Date.now()})
+              ON CONFLICT(contact_hash) DO UPDATE SET stats_blob = 'corrupt-blob', last_activity = excluded.last_activity`);
 
         const response = await adminGet(`/admin/attendees/${attendee.id}`);
         // The page renders AND keeps the /admin/history repair link for the bad

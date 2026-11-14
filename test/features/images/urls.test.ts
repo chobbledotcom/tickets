@@ -1,4 +1,3 @@
-import type { InStatement } from "@libsql/client";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -11,6 +10,7 @@ import { acquireMigrationLock } from "#db/migrations/lock.ts";
 import { recordMigrationBatch } from "#db/migrations/markers.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { settings } from "#db/settings.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
@@ -245,8 +245,8 @@ describeWithEnv(
           Promise.withResolvers<void>();
         const { promise: reading, resolve: started } =
           Promise.withResolvers<void>();
-        const held = stub(db, "execute", async (stmt: InStatement) => {
-          const sql = typeof stmt === "string" ? stmt : stmt.sql;
+        const held = stub(db, "execute", async (stmt: SqlStatement) => {
+          const sql = stmt.sql;
           if (sql.includes("FROM images") && sql.includes("filename")) {
             started();
             await gate;
@@ -299,14 +299,9 @@ describeWithEnv(
         // way the first-class-images backfill did — and the runner then
         // records the batch. Recording moves the shared version, so the next
         // lookup cannot serve the table it held before the migration ran.
-        await getDb().execute({
-          args: [
-            migratedId,
-            await encrypt("migrated.png"),
-            await encrypt("migrated.png"),
-          ],
-          sql: "INSERT INTO images (id, name, filename, filename_thumb, alt_text) VALUES (?, 'Migrated', ?, ?, '')",
-        });
+        await getDb().execute(
+          sql`INSERT INTO images (id, name, filename, filename_thumb, alt_text) VALUES (${migratedId}, 'Migrated', ${await encrypt("migrated.png")}, ${await encrypt("migrated.png")}, '')`,
+        );
         await recordMigrationBatch(
           [
             {

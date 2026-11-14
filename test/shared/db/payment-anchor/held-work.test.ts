@@ -7,6 +7,7 @@ import { prepareClaimedAttendeePaymentAnchor } from "#db/payment-anchor/attendee
 import { loadAnchorRowWork } from "#db/payment-anchor/held-work.ts";
 import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
 import { reserveSession } from "#db/processed-payments.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -24,13 +25,12 @@ describeWithEnv("db > payment anchor > held work", { db: true }, () => {
     const payment = taggedPaymentReference("pi_held_work");
     const prepared = await prepareClaimedAttendeePaymentAnchor(payment);
     const anchor = await prepared.forAttendee(attendeeId);
-    await execute(anchor.statement.sql, anchor.statement.args);
+    await execute(anchor.statement);
     // The session's own idempotency row can carry the same reference index
     // once finalized; the anchor read must still not return it.
     await reserveSession("cs_held_work");
     await execute(
-      "UPDATE processed_payments SET payment_reference_index = ? WHERE payment_session_id = 'cs_held_work'",
-      [await paymentReferenceIndex(payment)],
+      sql`UPDATE processed_payments SET payment_reference_index = ${await paymentReferenceIndex(payment)} WHERE payment_session_id = 'cs_held_work'`,
     );
 
     const rows = await loadAnchorRowWork(payment);

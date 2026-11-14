@@ -1,14 +1,8 @@
 /** Atomic storage for the one provider-refund authority. */
 
-import {
-  execute,
-  queryAll,
-  queryOne,
-  resultRows,
-  type SqlStatement,
-} from "#db/client.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
+import { execute, queryAll, queryOne, resultRows } from "#db/client.ts";
 import { storePaymentReference } from "#db/payment-reference-store.ts";
+import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import { type Money, sameMoney } from "#payment/money.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import {
@@ -51,7 +45,7 @@ type StoredRefundAuthorityRow = {
   refund_state: string;
 };
 
-export const REFUND_AUTHORITY_COLUMNS = `id, provider, reference_index,
+export const REFUND_AUTHORITY_COLUMNS = sql`id, provider, reference_index,
   callback_replay_index, captured_amount, currency, refunded_amount,
   refund_state, refund_revision`;
 
@@ -84,10 +78,9 @@ const loadRefundAuthority = async (
   value: number | string,
 ): Promise<RefundAuthorityRow | null> => {
   const row = await queryOne<StoredRefundAuthorityRow>(
-    `SELECT ${REFUND_AUTHORITY_COLUMNS}
+    sql`SELECT ${REFUND_AUTHORITY_COLUMNS}
        FROM payment_charges
-      WHERE ${field} = ?`,
-    [value],
+      WHERE ${sqlName(field)} = ${value}`,
   );
   return row === null ? null : authorityRow(row);
 };
@@ -118,10 +111,9 @@ const loadRefundCallbackBinding = async ({
   referenceIndex,
 }: RefundCallbackBinding): Promise<RefundAuthorityRow | null> => {
   const owners = await queryAll<StoredRefundAuthorityRow>(
-    `SELECT ${REFUND_AUTHORITY_COLUMNS}
+    sql`SELECT ${REFUND_AUTHORITY_COLUMNS}
        FROM payment_charges
-      WHERE reference_index = ? OR callback_replay_index = ?`,
-    [referenceIndex, callbackReplayIndex],
+      WHERE reference_index = ${referenceIndex} OR callback_replay_index = ${callbackReplayIndex}`,
   );
   if (owners.length === 0) return null;
   if (owners.length === 1) {
@@ -143,24 +135,18 @@ export const bindRefundCallbackIfChargeExists = async (
   binding: RefundCallbackBinding,
 ): Promise<RefundAuthorityRow | null> => {
   const { callbackReplayIndex, referenceIndex } = binding;
-  const statement = numberedStatement((bind) => {
-    const callback = bind(callbackReplayIndex);
-    const reference = bind(referenceIndex);
-    return `UPDATE payment_charges
-          SET callback_replay_index = COALESCE(callback_replay_index, ${callback})
-        WHERE reference_index = ${reference}
+  const statement = sql`UPDATE payment_charges
+          SET callback_replay_index = COALESCE(callback_replay_index, ${callbackReplayIndex})
+        WHERE reference_index = ${referenceIndex}
           AND callback_replay_index IS NULL
           AND NOT EXISTS (
             SELECT 1
               FROM payment_charges AS callbackOwner
-             WHERE callbackOwner.callback_replay_index = ${callback}
-               AND callbackOwner.reference_index <> ${reference}
+             WHERE callbackOwner.callback_replay_index = ${callbackReplayIndex}
+               AND callbackOwner.reference_index <> ${referenceIndex}
           )
       RETURNING ${REFUND_AUTHORITY_COLUMNS}`;
-  });
-  const changed = refundAuthorityFromResult(
-    await execute(statement.sql, statement.args),
-  );
+  const changed = refundAuthorityFromResult(await execute(statement));
   if (changed !== null) return changed;
   return await loadRefundCallbackBinding(binding);
 };
@@ -218,22 +204,20 @@ const prepareRefundAuthorityWrite = async (
   requireCreateFacts(input);
   const stored = await storePaymentReference(input.reference);
   const callbackReplayIndex = input.callbackReplayIndex;
-  const statement: SqlStatement = numberedStatement((bind) => {
-    const now = bind(input.now);
-    return `INSERT INTO payment_charges
+  const statement = sql`INSERT INTO payment_charges
         (provider, provider_reference, reference_index, callback_replay_index,
          capability, captured_amount, currency, refunded_amount, refund_state,
           refund_state_name, refund_local_state, next_refund_action_at,
           refund_revision, created_at, updated_at, observed_at)
-         VALUES (${bind(input.reference.provider)}, ${bind(stored.encrypted)}, ${bind(stored.index)},
-                 ${bind(input.callbackReplayIndex === undefined ? null : input.callbackReplayIndex)},
-                 ${bind(input.state.request.capability)}, ${bind(input.captured.amount)},
-                 ${bind(input.captured.currency)}, ${bind(0)},
-                 ${bind(writeRefundAuthorityState(input.state))},
-                 ${bind(refundStateMirror(input.state))},
-                 ${bind(refundLocalMirror(input.state))},
-                 ${bind(refundNextActionAt(input.state))}, ${bind(1)},
-                 ${now}, ${now}, ${now})
+         VALUES (${input.reference.provider}, ${stored.encrypted}, ${stored.index},
+                 ${input.callbackReplayIndex === undefined ? null : input.callbackReplayIndex},
+                 ${input.state.request.capability}, ${input.captured.amount},
+                 ${input.captured.currency}, ${0},
+                 ${writeRefundAuthorityState(input.state)},
+                 ${refundStateMirror(input.state)},
+                 ${refundLocalMirror(input.state)},
+                 ${refundNextActionAt(input.state)}, ${1},
+                 ${input.now}, ${input.now}, ${input.now})
         ON CONFLICT DO UPDATE SET
           callback_replay_index = COALESCE(
             payment_charges.callback_replay_index,
@@ -252,7 +236,6 @@ const prepareRefundAuthorityWrite = async (
                AND callbackOwner.reference_index <> excluded.reference_index
           )
         RETURNING ${REFUND_AUTHORITY_COLUMNS}`;
-  });
   return {
     loadConflictOwner:
       callbackReplayIndex === undefined
@@ -282,7 +265,7 @@ export const createOrLoadRefundAuthority = async (
 ): Promise<RefundAuthorityRow> => {
   const { loadConflictOwner, prepared } =
     await prepareRefundAuthorityWrite(input);
-  const result = await execute(prepared.statement.sql, prepared.statement.args);
+  const result = await execute(prepared.statement);
   const returned = refundAuthorityFromResult(result);
   return returned === null
     ? requireAuthority(await loadConflictOwner(), input)

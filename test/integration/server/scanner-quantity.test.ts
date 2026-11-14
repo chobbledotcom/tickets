@@ -7,6 +7,7 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import { assertJson } from "#test-utils/assertions.ts";
@@ -110,8 +111,7 @@ describeWithEnv("scan quantity guards", { db: true }, () => {
   const otherDoorAdmitsFirst = (listingId: number, count: number) =>
     beforeNextTransaction(async () => {
       await execute(
-        "UPDATE listing_attendees SET checked_in = checked_in + ? WHERE listing_id = ?",
-        [count, listingId],
+        sql`UPDATE listing_attendees SET checked_in = checked_in + ${count} WHERE listing_id = ${listingId}`,
       );
     });
 

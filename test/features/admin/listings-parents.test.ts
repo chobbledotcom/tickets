@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { executeWithoutCacheInvalidation } from "#db/client.ts";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { listingChildren, listingParents } from "#db/listing-parents.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import {
   copyDuplicatedChildEdges,
@@ -54,9 +55,9 @@ describeWithEnv("duplicated listing child edges", { db: true }, () => {
     // message through the caller's warning flow rather than letting a 500 out.
     const parent = await createTestListing({ name: "Copied Parent" });
     const child = await createTestListing({ name: "Vanishing Child" });
-    await executeWithoutCacheInvalidation("DELETE FROM listings WHERE id = ?", [
-      child.id,
-    ]);
+    await executeWithoutCacheInvalidation(
+      sql`DELETE FROM listings WHERE id = ${child.id}`,
+    );
 
     expect(await copyDuplicatedChildEdges(parent, [child.id])).toBe(
       t("error.child_listing_deleted"),

@@ -8,6 +8,7 @@ import {
   updateAttendeePII,
 } from "#db/attendees/update.ts";
 import { executeUpdate, queryOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
@@ -30,8 +31,7 @@ describeWithEnv(
       listingId: number,
     ): Promise<number> => {
       const row = await queryOne<{ attachment_downloads: number }>(
-        "SELECT attachment_downloads FROM listing_attendees WHERE attendee_id = ? AND listing_id = ?",
-        [attendeeId, listingId],
+        sql`SELECT attachment_downloads FROM listing_attendees WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId}`,
       );
       return row!.attachment_downloads;
     };
@@ -153,8 +153,7 @@ describeWithEnv("db > attendees > booking ranges", { db: true }, () => {
     await recomputeListingBookingRanges(listing.id, 3);
 
     const row = await queryOne<{ end_at: string; start_at: string }>(
-      "SELECT start_at, end_at FROM listing_attendees WHERE listing_id = ?",
-      [listing.id],
+      sql`SELECT start_at, end_at FROM listing_attendees WHERE listing_id = ${listing.id}`,
     );
     expect(row).toEqual({
       end_at: "2026-09-04T00:00:00.000Z",
@@ -283,8 +282,7 @@ describeWithEnv("db > attendees > moveTickets", { db: true }, () => {
     ]);
 
     const row = await queryOne<{ checked_in: number }>(
-      "SELECT checked_in FROM listing_attendees WHERE attendee_id = ? AND listing_id = ?",
-      [attendee.id, listing.id],
+      sql`SELECT checked_in FROM listing_attendees WHERE attendee_id = ${attendee.id} AND listing_id = ${listing.id}`,
     );
     // The write itself is the point: the answer alone cannot tell a stored
     // count from a skipped one.

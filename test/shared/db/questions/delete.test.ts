@@ -4,6 +4,7 @@ import { queryAll } from "#db/client.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
 import { deleteAnswer, deleteQuestion } from "#db/questions/delete.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
+import { sql, sqlName } from "#db/sql.ts";
 import {
   addAnswer,
   createAttendee,
@@ -16,7 +17,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 /** How many rows one table holds, so a delete's reach is visible. */
 const countIn = async (table: string): Promise<number> => {
   const rows = await queryAll<{ total: number }>(
-    `SELECT COUNT(*) AS total FROM ${table}`,
+    sql`SELECT COUNT(*) AS total FROM ${sqlName(table)}`,
   );
   return rows[0]!.total;
 };

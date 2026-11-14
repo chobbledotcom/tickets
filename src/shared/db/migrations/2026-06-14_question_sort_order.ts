@@ -1,3 +1,4 @@
+import { sql } from "#db/sql.ts";
 import { schemaMigration } from "./define.ts";
 
 export default schemaMigration(
@@ -11,7 +12,7 @@ export default schemaMigration(
     // its id (distinct, creation-ordered). New questions are assigned a
     // non-zero sort_order on creation, so this never re-touches them.
     await getDb().execute(
-      "UPDATE questions SET sort_order = id WHERE sort_order = 0",
+      sql`UPDATE questions SET sort_order = id WHERE sort_order = 0`,
     );
   },
 );

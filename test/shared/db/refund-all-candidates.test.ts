@@ -8,6 +8,7 @@ import {
   getRefundAllSummary,
   loadRefundAllBatch,
 } from "#db/refund-all-candidates.ts";
+import { sql } from "#db/sql.ts";
 import { armRefundSend, readyRefund } from "#payment/refund-authority.ts";
 import { markRefundProviderConflict } from "#payment/refund-authority-choice.ts";
 import {
@@ -173,10 +174,9 @@ describeWithEnv("db > Refund All candidates", { db: true }, () => {
     });
     const oldPayment = await candidateFor(listing.id, attendee.id);
     await execute(
-      `UPDATE processed_payments
+      sql`UPDATE processed_payments
           SET payment_reference_index = ''
-        WHERE payment_session_id = ?`,
-      [paymentRowOf(oldPayment)],
+        WHERE payment_session_id = ${paymentRowOf(oldPayment)}`,
     );
     await finalizeProcessedPayment("new_indexed_payment", attendee.id, "", {
       kind: "tagged",

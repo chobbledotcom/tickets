@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { groups, setGroupPackageMembers } from "#db/groups.ts";
 import { modifiersTable } from "#db/modifiers.ts";
+import { sql } from "#db/sql.ts";
 import {
   expectPackageRefund,
   expectProcessed,
@@ -235,10 +236,9 @@ describeWithEnv(
         direction: "charge",
         name: "Add-on",
       });
-      await execute("UPDATE modifiers SET trigger = ? WHERE id = ?", [
-        "optional",
-        addOn.id,
-      ]);
+      await execute(
+        sql`UPDATE modifiers SET trigger = ${"optional"} WHERE id = ${addOn.id}`,
+      );
       const metadata = signMeta(
         webhookMeta({
           email: "buyer@example.com",

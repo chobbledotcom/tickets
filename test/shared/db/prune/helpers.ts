@@ -3,6 +3,7 @@ import { KIND } from "#accounting/kinds.ts";
 import { postTransfers } from "#accounting/store.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import { executeBatch, getDb, insert } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { nowMs } from "#shared/now.ts";
 import { CLAIM_MIRROR } from "#test-utils/payment-claim.ts";
 
@@ -68,10 +69,9 @@ export const insertClaimedPayment = async (
 };
 
 export const paymentExists = async (sessionId: string): Promise<boolean> => {
-  const { rows } = await getDb().execute({
-    args: [sessionId],
-    sql: "SELECT 1 FROM processed_payments WHERE payment_session_id = ?",
-  });
+  const { rows } = await getDb().execute(
+    sql`SELECT 1 FROM processed_payments WHERE payment_session_id = ${sessionId}`,
+  );
   return rows.length > 0;
 };
 
@@ -106,10 +106,9 @@ export const insertSumupCheckout = async (
 export const sumupCheckoutExists = async (
   referenceIndex: string,
 ): Promise<boolean> => {
-  const { rows } = await getDb().execute({
-    args: [referenceIndex],
-    sql: "SELECT 1 FROM sumup_checkouts WHERE reference_index = ?",
-  });
+  const { rows } = await getDb().execute(
+    sql`SELECT 1 FROM sumup_checkouts WHERE reference_index = ${referenceIndex}`,
+  );
   return rows.length > 0;
 };
 
@@ -145,10 +144,9 @@ export const insertStrings = (
   );
 
 export const stringExists = async (textIndex: string): Promise<boolean> => {
-  const { rows } = await getDb().execute({
-    args: [textIndex],
-    sql: "SELECT 1 FROM strings WHERE text_index = ?",
-  });
+  const { rows } = await getDb().execute(
+    sql`SELECT 1 FROM strings WHERE text_index = ${textIndex}`,
+  );
   return rows.length > 0;
 };
 
@@ -159,18 +157,16 @@ export const insertLoginAttempt = async (
   lastAttempt: number,
 ): Promise<string> => {
   const ipHash = await hmacHash(ipPlain);
-  await getDb().execute({
-    args: [ipHash, attempts, lockedUntil, lastAttempt],
-    sql: "INSERT INTO login_attempts (ip, attempts, locked_until, last_attempt) VALUES (?, ?, ?, ?)",
-  });
+  await getDb().execute(
+    sql`INSERT INTO login_attempts (ip, attempts, locked_until, last_attempt) VALUES (${ipHash}, ${attempts}, ${lockedUntil}, ${lastAttempt})`,
+  );
   return ipHash;
 };
 
 export const loginAttemptExists = async (ipHash: string): Promise<boolean> => {
-  const { rows } = await getDb().execute({
-    args: [ipHash],
-    sql: "SELECT 1 FROM login_attempts WHERE ip = ?",
-  });
+  const { rows } = await getDb().execute(
+    sql`SELECT 1 FROM login_attempts WHERE ip = ${ipHash}`,
+  );
   return rows.length > 0;
 };
 
@@ -180,18 +176,16 @@ export const insertTokenAttempt = async (
   lastAttempt: number,
 ): Promise<string> => {
   const ipHash = await hmacHash(ipPlain);
-  await getDb().execute({
-    args: [ipHash, "[]", lockedUntil, lastAttempt, lastAttempt],
-    sql: "INSERT INTO token_attempts (ip, recent_tokens, locked_until, window_start, last_attempt) VALUES (?, ?, ?, ?, ?)",
-  });
+  await getDb().execute(
+    sql`INSERT INTO token_attempts (ip, recent_tokens, locked_until, window_start, last_attempt) VALUES (${ipHash}, ${"[]"}, ${lockedUntil}, ${lastAttempt}, ${lastAttempt})`,
+  );
   return ipHash;
 };
 
 export const tokenAttemptExists = async (ipHash: string): Promise<boolean> => {
-  const { rows } = await getDb().execute({
-    args: [ipHash],
-    sql: "SELECT 1 FROM token_attempts WHERE ip = ?",
-  });
+  const { rows } = await getDb().execute(
+    sql`SELECT 1 FROM token_attempts WHERE ip = ${ipHash}`,
+  );
   return rows.length > 0;
 };
 
@@ -200,19 +194,17 @@ export const insertContactPreference = async (
   unsubscribed: number,
   lastActivity: number,
 ): Promise<void> => {
-  await getDb().execute({
-    args: [hash, unsubscribed, lastActivity],
-    sql: "INSERT INTO contact_preferences (contact_hash, unsubscribed, visits, stats_blob, last_activity) VALUES (?, ?, 1, '', ?)",
-  });
+  await getDb().execute(
+    sql`INSERT INTO contact_preferences (contact_hash, unsubscribed, visits, stats_blob, last_activity) VALUES (${hash}, ${unsubscribed}, 1, '', ${lastActivity})`,
+  );
 };
 
 export const contactPreferenceExists = async (
   hash: string,
 ): Promise<boolean> => {
-  const { rows } = await getDb().execute({
-    args: [hash],
-    sql: "SELECT 1 FROM contact_preferences WHERE contact_hash = ?",
-  });
+  const { rows } = await getDb().execute(
+    sql`SELECT 1 FROM contact_preferences WHERE contact_hash = ${hash}`,
+  );
   return rows.length > 0;
 };
 
@@ -230,10 +222,9 @@ export const insertOrphanAttendee = async (
 };
 
 export const attendeeExists = async (id: number): Promise<boolean> => {
-  const { rows } = await getDb().execute({
-    args: [id],
-    sql: "SELECT 1 FROM attendees WHERE id = ?",
-  });
+  const { rows } = await getDb().execute(
+    sql`SELECT 1 FROM attendees WHERE id = ${id}`,
+  );
   return rows.length > 0;
 };
 
@@ -244,18 +235,16 @@ export const insertScanOperation = async (
   operationId: string,
   createdIso: string,
 ): Promise<void> => {
-  await getDb().execute({
-    args: [operationId, "a-token-digest", "[3]", 1, createdIso],
-    sql: "INSERT INTO processed_scan_operations (operation_id, token_hash, listing_ids, quantity, created) VALUES (?, ?, ?, ?, ?)",
-  });
+  await getDb().execute(
+    sql`INSERT INTO processed_scan_operations (operation_id, token_hash, listing_ids, quantity, created) VALUES (${operationId}, ${"a-token-digest"}, ${"[3]"}, ${1}, ${createdIso})`,
+  );
 };
 
 export const scanOperationExists = async (
   operationId: string,
 ): Promise<boolean> => {
-  const { rows } = await getDb().execute({
-    args: [operationId],
-    sql: "SELECT 1 FROM processed_scan_operations WHERE operation_id = ?",
-  });
+  const { rows } = await getDb().execute(
+    sql`SELECT 1 FROM processed_scan_operations WHERE operation_id = ${operationId}`,
+  );
   return rows.length > 0;
 };

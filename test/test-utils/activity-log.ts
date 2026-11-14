@@ -26,6 +26,7 @@ import {
   getListingWithActivityLogOrNull as realGetListingWithActivityLogOrNull,
 } from "#db/activity-log.ts";
 import { execute, queryOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { nowIso } from "#shared/now.ts";
 import { withTestSession } from "#test-utils/session.ts";
 
@@ -36,8 +37,7 @@ export const insertLegacyActivity = async (
   message: string,
 ): Promise<number> => {
   const result = await execute(
-    "INSERT INTO activity_log (message, created, listing_id, attendee_id) VALUES (?, ?, NULL, NULL)",
-    [await encrypt(message), nowIso()],
+    sql`INSERT INTO activity_log (message, created, listing_id, attendee_id) VALUES (${await encrypt(message)}, ${nowIso()}, NULL, NULL)`,
   );
   return Number(result.lastInsertRowid);
 };
@@ -45,8 +45,7 @@ export const insertLegacyActivity = async (
 /** Raw (still-encrypted) stored message for an activity-log row. */
 export const rawActivityMessage = async (id: number): Promise<string> => {
   const row = await queryOne<{ message: string }>(
-    "SELECT message FROM activity_log WHERE id = ?",
-    [id],
+    sql`SELECT message FROM activity_log WHERE id = ${id}`,
   );
   if (!row) throw new Error(`Activity log entry not found: ${id}`);
   return row.message;

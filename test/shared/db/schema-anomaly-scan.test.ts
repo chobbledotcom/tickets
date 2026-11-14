@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { scanSchemaAnomalies } from "#db/schema-anomaly-scan.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { plantSumupRecoveryRow } from "#test-utils/sumup.ts";
 
@@ -37,8 +38,7 @@ describeWithEnv("schema anomaly scan", { db: true }, () => {
   test("reports a live SumUp row that has no checkout id", async () => {
     await plantSumupRecoveryRow("co_scan_missing", "waiting", null);
     await execute(
-      "UPDATE sumup_checkouts SET sumup_id = '' WHERE reference_index = ?",
-      ["idx_co_scan_missing"],
+      sql`UPDATE sumup_checkouts SET sumup_id = '' WHERE reference_index = ${"idx_co_scan_missing"}`,
     );
 
     expect(await scanSchemaAnomalies()).toEqual([

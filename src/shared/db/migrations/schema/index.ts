@@ -1,5 +1,6 @@
 /** Assembles the ordered schema and computes its identity hash. */
 
+import { isSqlStatement } from "#db/sql.ts";
 import { paymentTables } from "./payments/index.ts";
 import { attendeeTables } from "./tables-attendees.ts";
 import { catalogTables } from "./tables-catalog.ts";
@@ -48,4 +49,10 @@ export const APP_SCHEMA = SCHEMA.filter(
 
 // Triggers join the hash input so changing a trigger's SQL re-runs migrations
 // even if no column/index changed (the same safety net columns already have).
-export const SCHEMA_HASH = djb2(JSON.stringify([APP_SCHEMA, TRIGGERS]));
+/** The hash input holds each statement as its SQL text alone. */
+const statementAsText = (_key: string, value: unknown): unknown =>
+  isSqlStatement(value) ? value.sql : value;
+
+export const SCHEMA_HASH = djb2(
+  JSON.stringify([APP_SCHEMA, TRIGGERS], statementAsText),
+);

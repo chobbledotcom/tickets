@@ -1,6 +1,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { sql } from "#db/sql.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
 import {
   postCheckin,
@@ -115,10 +116,9 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
         "orphan@test.com",
       );
       const { getDb } = await import("#db/client.ts");
-      await getDb().execute({
-        args: [listing.id],
-        sql: "DELETE FROM listing_attendees WHERE listing_id = ?",
-      });
+      await getDb().execute(
+        sql`DELETE FROM listing_attendees WHERE listing_id = ${listing.id}`,
+      );
       const response = await adminGet(`/checkin/${token}`);
       expect(response.status).toBe(404);
     });

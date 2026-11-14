@@ -8,6 +8,7 @@ import { updateAttendeePII } from "#db/attendees/update.ts";
 import { execute } from "#db/client.ts";
 import { balanceFinalizeStatements } from "#db/payment-finalize.ts";
 import { reserveSession } from "#db/processed-payments.ts";
+import { sql } from "#db/sql.ts";
 import type { RefundCtx } from "#test/features/admin/refunds-helpers.ts";
 import {
   expectFlashRedirect,
@@ -177,10 +178,9 @@ describeWithEnv("server (admin balance-payment refunds)", { db: true }, () => {
     test("does not refund an indexed balance while an old deposit is unindexed", async () => {
       await expectIncompleteReservationHistoryRefused(async () => {
         await execute(
-          `UPDATE processed_payments
+          sql`UPDATE processed_payments
               SET payment_reference_index = ''
-            WHERE payment_session_id = ?`,
-          ["reservation_deposit_session"],
+            WHERE payment_session_id = ${"reservation_deposit_session"}`,
         );
       });
     });
@@ -192,8 +192,7 @@ describeWithEnv("server (admin balance-payment refunds)", { db: true }, () => {
           payment_id: "pi_reservation_deposit",
         });
         await execute(
-          "DELETE FROM processed_payments WHERE payment_session_id = ?",
-          ["reservation_deposit_session"],
+          sql`DELETE FROM processed_payments WHERE payment_session_id = ${"reservation_deposit_session"}`,
         );
       });
     });

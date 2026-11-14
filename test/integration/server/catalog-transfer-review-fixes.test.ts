@@ -8,6 +8,7 @@ import { getGroupPackagePrices } from "#db/groups.ts";
 import { listingParents } from "#db/listing-parents.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { exportListing } from "#routes/admin/catalog-transfer/export.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
@@ -20,6 +21,7 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { featureSetting } from "#test-utils/settings.ts";
+import { placed } from "#test-utils/sql-text.ts";
 
 /** Import a listing that asks for a built site, answering the refusal
  * message the import raises. */
@@ -201,8 +203,7 @@ describeWithEnv(
       // createTestGroup can't set hide_package_listings, so set it directly and
       // refresh the cached group set the import reads.
       await execute(
-        "UPDATE groups SET hide_package_listings = 1 WHERE id = ?",
-        [pkg.id],
+        sql`UPDATE groups SET hide_package_listings = 1 WHERE id = ${pkg.id}`,
       );
       const { groups } = await import("#db/groups.ts");
       groups.cache.invalidate();
@@ -338,7 +339,7 @@ describeWithEnv(
       // Every member appears in the single group_listings insert (3 args each:
       // group_id, listing_id, quantity — the flat price override, when present,
       // lives in the separate listing_prices insert).
-      expect(statements[0]!.args.length).toBe(40 * 3);
+      expect(placed(statements[0]!).args.length).toBe(40 * 3);
     });
   },
 );

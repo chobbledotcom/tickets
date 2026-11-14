@@ -3,7 +3,7 @@ import {
   queryAllPrimary,
   queryBatchPrimary,
 } from "#db/client.ts";
-import { noArgStatements } from "./schema-sync.ts";
+import { sql, sqlList, sqlName } from "#db/sql.ts";
 import type { MigrationBuilder } from "./types.ts";
 
 /**
@@ -21,23 +21,15 @@ const DORMANT_PAYMENT_TABLES = [
   "payment_case_decisions",
 ] as const;
 
-const tableSlots = DORMANT_PAYMENT_TABLES.map(() => "?").join(", ");
-
 /** How many rows each dormant table that still exists is holding. */
 const storedRowCounts = async (): Promise<Map<string, number>> => {
-  const present = await queryAllPrimary<{ name: string }>({
-    args: [...DORMANT_PAYMENT_TABLES],
-    sql:
-      "SELECT name FROM sqlite_master " +
-      `WHERE type = 'table' AND name IN (${tableSlots})`,
-  });
+  const present = await queryAllPrimary<{ name: string }>(
+    sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (${sqlList(DORMANT_PAYMENT_TABLES)})`,
+  );
   const names = present.map((row) => row.name);
   if (names.length === 0) return new Map();
   const counts = await queryBatchPrimary(
-    names.map((name) => ({
-      args: [],
-      sql: `SELECT COUNT(*) AS stored FROM ${name}`,
-    })),
+    names.map((name) => sql`SELECT COUNT(*) AS stored FROM ${sqlName(name)}`),
   );
   return new Map(
     names.map((name, index) => [name, Number(counts[index]!.rows[0]!.stored)]),
@@ -62,7 +54,7 @@ const clearDormantPaymentTables = async (): Promise<void> => {
   }
   if (stored.size === 0) return;
   await executeBatch(
-    noArgStatements([...stored.keys()].map((n) => `DROP TABLE IF EXISTS ${n}`)),
+    [...stored.keys()].map((n) => sql`DROP TABLE IF EXISTS ${sqlName(n)}`),
   );
 };
 

@@ -11,16 +11,23 @@
 import type { InValue } from "@libsql/client";
 import * as v from "valibot";
 import {
+  equalityClauses,
   execute,
-  inPlaceholders,
   insertedRowId,
   queryOne,
   queryOnePrimary,
   resultRows,
-  type SqlStatement,
   type TxScope,
 } from "#db/client.ts";
 import { queryAndMap } from "#db/query.ts";
+import {
+  type SqlStatement,
+  sql,
+  sqlCommas,
+  sqlList,
+  sqlName,
+  sqlNames,
+} from "#db/sql.ts";
 import { byPrimaryKey, readerFor, type TableReader } from "#db/table-reader.ts";
 import { compact, filter, mapParallel, reduce } from "#fp";
 import {
@@ -132,7 +139,7 @@ export interface Table<Row, Input> {
     input: Input,
     condition?: SqlStatement,
     /** Columns the INSERT reports back. Defaults to the primary key. */
-    returningColumns?: string,
+    returningColumns?: readonly string[],
   ) => Promise<SqlStatement>;
   name: string;
   primaryKey: keyof Row & string;
@@ -217,7 +224,7 @@ export async function writeTableRow<Row, Input>(
       ? await table.insertStatement!(
           write.input,
           write.condition,
-          table.columns.join(", "),
+          table.columns,
         )
       : await table.updateStatement!(write.id, write.input, write.condition);
   const row = resultRows<Row>(await transaction.execute(statement))[0];
@@ -243,34 +250,26 @@ const applyWriteTransform = <T>(
   return Promise.resolve(value);
 };
 
-/** Build INSERT SQL */
 /** Build INSERT SQL with RETURNING, so the written row itself reports the
  * columns the caller needs — a generated key included. */
 const buildInsertSql = (
   name: string,
-  columns: string[],
-  returningColumns: string,
-  condition?: string,
-): string => {
-  const placeholders = inPlaceholders(columns);
-  const values = condition
-    ? `SELECT ${placeholders} WHERE ${condition}`
-    : `VALUES (${placeholders})`;
-  return `INSERT INTO ${name} (${columns.join(", ")}) ${values} RETURNING ${returningColumns}`;
+  values: Record<string, InValue>,
+  returningColumns: readonly string[],
+  condition?: SqlStatement,
+): SqlStatement => {
+  const slots = sqlList(Object.values(values));
+  const source = condition
+    ? sql`SELECT ${slots} WHERE ${condition}`
+    : sql`VALUES (${slots})`;
+  return sql`INSERT INTO ${sqlName(name)} (${sqlNames(
+    Object.keys(values),
+  )}) ${source} RETURNING ${sqlNames(returningColumns)}`;
 };
 
-/** Build UPDATE SQL with RETURNING to get updated row in one round trip */
-const buildUpdateSql = (
-  name: string,
-  columns: string[],
-  primaryKey: string,
-  returningColumns: string,
-  condition?: string,
-): string => {
-  const setClauses = columns.map((col) => `${col} = ?`).join(", ");
-  const extraCondition = condition ? ` AND (${condition})` : "";
-  return `UPDATE ${name} SET ${setClauses} WHERE ${primaryKey} = ?${extraCondition} RETURNING ${returningColumns}`;
-};
+/** One `column = value` per written column, joined by commas. */
+const setClauses = (values: Record<string, InValue>): SqlStatement =>
+  sqlCommas(equalityClauses(values));
 
 /** The shape that defines a table: its name, primary key, and column schema. */
 export type TableDefinition<Row> = {
@@ -290,10 +289,6 @@ export const defineTable = <Row, Input = Row>(
   // Build column lists
   const allColumns = Object.keys(schema) as (keyof Row & string)[];
   const physicalColumns = allColumns.filter((col) => !schema[col].projected);
-  const physicalColumnsSql = physicalColumns.join(", ");
-  const qualifiedPhysicalColumnsSql = physicalColumns
-    .map((column) => `record.${column}`)
-    .join(", ");
   const inputColumns = physicalColumns.filter((col) => !schema[col].generated);
   const inputKeyMap = buildInputKeyMap(inputColumns);
 
@@ -392,32 +387,10 @@ export const defineTable = <Row, Input = Row>(
       inputColumns,
     );
 
-  /** Build the INSERT statement plus the resolved db values. Shared by
-   * {@link insert} and {@link insertStatement} so the column/arg derivation
-   * lives in one place. */
-  const buildInsert = async (
-    input: Input,
-    returningColumns: string,
-  ): Promise<{
-    args: InValue[];
-    columns: string[];
-    dbValues: Record<string, InValue>;
-    sql: string;
-  }> => {
-    const dbValues = await toDbValues(input);
-    const columns = Object.keys(dbValues);
-    return {
-      args: columns.map((col) => dbValues[col] as InValue),
-      columns,
-      dbValues,
-      sql: buildInsertSql(name, columns, returningColumns),
-    };
-  };
-
   // Insert implementation
   const insert = async (input: Input): Promise<Row> => {
-    const { args, dbValues, sql } = await buildInsert(input, primaryKey);
-    const result = await execute(sql, args);
+    const dbValues = await toDbValues(input);
+    const result = await execute(buildInsertSql(name, dbValues, [primaryKey]));
 
     const initialRow = schema[primaryKey].generated
       ? { [primaryKey]: insertedRowId(result, primaryKey) }
@@ -435,16 +408,9 @@ export const defineTable = <Row, Input = Row>(
   const insertStatement = async (
     input: Input,
     condition?: SqlStatement,
-    returningColumns: string = primaryKey,
-  ): Promise<SqlStatement> => {
-    const { args, columns, sql } = await buildInsert(input, returningColumns);
-    return condition
-      ? {
-          args: [...args, ...condition.args],
-          sql: buildInsertSql(name, columns, returningColumns, condition.sql),
-        }
-      : { args, sql };
-  };
+    returningColumns: readonly string[] = [primaryKey],
+  ): Promise<SqlStatement> =>
+    buildInsertSql(name, await toDbValues(input), returningColumns, condition);
 
   /** Build the UPDATE statement for `input` (which must provide ≥1 column — the
    * CRUD side-effect path passes a fully-merged input). For transactional callers
@@ -455,21 +421,15 @@ export const defineTable = <Row, Input = Row>(
     condition?: SqlStatement,
   ): Promise<SqlStatement> => {
     const dbValues = await toDbValues(input);
-    const providedColumns = getProvidedColumns(input);
-    return {
-      args: [
-        ...providedColumns.map((col) => dbValues[col] as InValue),
-        id,
-        ...(condition?.args ?? []),
-      ],
-      sql: buildUpdateSql(
-        name,
-        providedColumns,
-        primaryKey,
-        physicalColumnsSql,
-        condition?.sql,
-      ),
-    };
+    const provided = Object.fromEntries(
+      getProvidedColumns(input).map((col) => [col, dbValues[col] as InValue]),
+    );
+    const guard = condition ? sql` AND (${condition})` : sql``;
+    return sql`UPDATE ${sqlName(name)} SET ${setClauses(
+      provided,
+    )} WHERE ${sqlName(primaryKey)} = ${id}${guard} RETURNING ${sqlNames(
+      physicalColumns,
+    )}`;
   };
 
   // Update implementation - uses RETURNING to avoid a second round trip
@@ -480,8 +440,7 @@ export const defineTable = <Row, Input = Row>(
     if (getProvidedColumns(input).length === 0) {
       return read.one(byPrimaryKey(table, id));
     }
-    const { args, sql } = await updateStatement(id, input);
-    const row = await queryOne<Row>(sql, args);
+    const row = await queryOne<Row>(await updateStatement(id, input));
     return row ? fromDb(row) : null;
   };
 
@@ -490,15 +449,20 @@ export const defineTable = <Row, Input = Row>(
    * still be behind the write (see {@link Table.findByIdPrimary}). */
   const findByIdPrimary = async (id: InValue): Promise<Row | null> => {
     const row = await queryOnePrimary<Row>(
-      `SELECT ${qualifiedPhysicalColumnsSql} FROM ${name} AS record WHERE record.${primaryKey} = ?`,
-      [id],
+      sql`SELECT ${sqlNames(
+        physicalColumns.map((column) => `record.${column}`),
+      )} FROM ${sqlName(name)} AS record WHERE ${sqlName(
+        `record.${primaryKey}`,
+      )} = ${id}`,
     );
     return row ? fromDb(row) : null;
   };
 
   // Delete by ID implementation
   const deleteById = async (id: InValue): Promise<void> => {
-    await execute(`DELETE FROM ${name} WHERE ${primaryKey} = ?`, [id]);
+    await execute(
+      sql`DELETE FROM ${sqlName(name)} WHERE ${sqlName(primaryKey)} = ${id}`,
+    );
   };
 
   // Row → Input: copy input-eligible columns from a row, translating
@@ -589,19 +553,20 @@ export const cachedTable = <Row, Input, Cached = Row>(config: {
  */
 export const defineCachedListTable = <Row, Input>(
   config: TableDefinition<Row> & {
-    /** ORDER BY clause without the keyword, e.g. `"start_date ASC"`. */
-    orderBy: string;
+    /** ORDER BY clause without the keyword, such as `start_date ASC`. */
+    orderBy: SqlStatement;
     dependsOn?: readonly DependsOnEntry[];
   },
 ) => {
   const table = defineTable<Row, Input>(config);
   const selectAll = queryAndMap<Row, Row>(table.fromDb);
-  const columns = table.columns.join(", ");
   return cachedTable<Row, Input>({
     dependsOn: config.dependsOn ?? [],
     fetchAll: () =>
       selectAll(
-        `SELECT ${columns} FROM ${config.name} ORDER BY ${config.orderBy}`,
+        sql`SELECT ${sqlNames(table.columns)} FROM ${sqlName(
+          config.name,
+        )} ORDER BY ${config.orderBy}`,
       ),
     name: config.name,
     table,

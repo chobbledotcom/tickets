@@ -12,6 +12,7 @@ import { getListingOverviewStats } from "#db/listing-overview-stats.ts";
 import { getAttendeesByListingIds } from "#db/listings/attendees.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { reserveSession } from "#db/processed-payments.ts";
+import { sql } from "#db/sql.ts";
 import {
   overviewStatsFromAttendees,
   overviewStatsFromDbStats,
@@ -32,8 +33,7 @@ import { isPaidListing } from "#types";
 
 const checkIn = (attendeeId: number, listingId: number): Promise<unknown> =>
   execute(
-    "UPDATE listing_attendees SET checked_in = 1 WHERE attendee_id = ? AND listing_id = ?",
-    [attendeeId, listingId],
+    sql`UPDATE listing_attendees SET checked_in = 1 WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId}`,
   );
 
 /** The listing-with-count plus the attendee-derived reference stats the SQL

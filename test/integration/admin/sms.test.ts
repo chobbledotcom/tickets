@@ -19,6 +19,7 @@ import { countRows, getDb } from "#db/client.ts";
 import { hashPhone } from "#db/contact-preferences.ts";
 import { settings } from "#db/settings.ts";
 import { getSmsMessageByProviderId } from "#db/sms-messages.ts";
+import { sql } from "#db/sql.ts";
 import { SMS_MESSAGE_MAX_LENGTH } from "#shared/sms/message-limit.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
@@ -163,11 +164,8 @@ describeWithEnv("admin sms", { db: true }, () => {
     // Seed an undecryptable stats_blob for this phone contact so recordContacts
     // throws when it tries to update the per-phone history — the exact failure
     // that must not be allowed to flip an already-sent text into an error.
-    await getDb().execute({
-      args: [await hashPhone(PHONE)],
-      sql: `INSERT INTO contact_preferences (contact_hash, stats_blob) VALUES (?, 'corrupt-blob')
-            ON CONFLICT(contact_hash) DO UPDATE SET stats_blob = 'corrupt-blob'`,
-    });
+    await getDb().execute(sql`INSERT INTO contact_preferences (contact_hash, stats_blob) VALUES (${await hashPhone(PHONE)}, 'corrupt-blob')
+            ON CONFLICT(contact_hash) DO UPDATE SET stats_blob = 'corrupt-blob'`);
     using _fetch = stubFetch(new Response('{"id":"msg-9"}'));
     const { response } = await adminFormPost("/admin/sms", {
       ...form,

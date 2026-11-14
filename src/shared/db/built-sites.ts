@@ -7,6 +7,7 @@ import type { InValue } from "@libsql/client";
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { queryAll, queryOne } from "#db/client.ts";
 import { retryWrite } from "#db/retry-write.ts";
+import { type SqlStatement, sql, sqlNames } from "#db/sql.ts";
 import {
   cachedTable,
   col,
@@ -15,6 +16,7 @@ import {
   type TableSchema,
 } from "#db/table.ts";
 import type { RowFilter, RowOptions, TableReader } from "#db/table-reader.ts";
+import { refusalOf } from "#fp";
 import { compareByName } from "#shared/name-order.ts";
 import {
   blobToSiteFields,
@@ -55,7 +57,7 @@ const rawBuiltSiteSchema = {
   site_data: col.encrypted(encrypt, decrypt),
 } satisfies TableSchema<BuiltSiteRow>;
 
-const builtSiteSelectColumns = Object.keys(rawBuiltSiteSchema).join(", ");
+const builtSiteSelectColumns = sqlNames(Object.keys(rawBuiltSiteSchema));
 
 const rawBuiltSitesTable = defineTable<BuiltSiteRow, BuiltSiteInput>({
   name: "built_sites",
@@ -97,15 +99,17 @@ const rowToBuiltSite = (row: BuiltSiteRow): BuiltSite => {
 export const builtSites = cachedTable({
   fetchAll: () =>
     queryAndDecrypt(
-      `SELECT ${builtSiteSelectColumns} FROM built_sites ORDER BY created DESC`,
+      sql`SELECT ${builtSiteSelectColumns} FROM built_sites ORDER BY created DESC`,
     ),
   name: "built_sites",
   table: rawBuiltSitesTable,
 });
 
 /** Query and decrypt built site rows */
-const queryAndDecrypt = async (sql: string): Promise<BuiltSite[]> => {
-  const rows = await queryAll<BuiltSiteRow>(sql);
+const queryAndDecrypt = async (
+  statement: SqlStatement,
+): Promise<BuiltSite[]> => {
+  const rows = await queryAll<BuiltSiteRow>(statement);
   const decrypted = await Promise.all(
     rows.map((row) => rawBuiltSitesTable.fromDb(row)),
   );
@@ -153,13 +157,12 @@ const firstOf = async <Item>(items: Promise<Item[]>): Promise<Item | null> => {
 /** A built site is only ever handed back whole and already opened: its fields
  * live in one encrypted blob, so there is no half of a site to give out and no
  * raw row a caller could make sense of. */
-const refuseUnopened = (): never => {
-  throw new Error(
-    "A built site's fields are stored in one encrypted blob, so a read can only hand back whole, opened sites. Read the whole site.",
-  );
-};
+const refuseUnopened = refusalOf(
+  "A built site's fields are stored in one encrypted blob, so a read can only hand back whole, opened sites. Read the whole site.",
+);
 
 const builtSiteReads: TableReader<BuiltSite> = {
+  every: (options) => () => readSites({}, options),
   exists: (filter, options) =>
     rawBuiltSitesTable.read.exists(rawFilter(filter), options),
   // The filter is checked before anything is awaited, so a field that is not a
@@ -204,9 +207,9 @@ const storeBuiltSiteChanges = async (
       ...changes,
       siteDataRevision: existing.siteDataRevision + 1,
     }),
-    { args: [existing.siteDataRevision], sql: "site_data_revision = ?" },
+    sql`site_data_revision = ${existing.siteDataRevision}`,
   );
-  return queryOne<BuiltSiteRow>(statement.sql, statement.args);
+  return queryOne<BuiltSiteRow>(statement);
 };
 
 /** Apply `changes` only while the row still sits at `expectedRevision`; a
@@ -336,8 +339,7 @@ export const getBuiltSiteByRenewalTokenIndex = async (
   tokenIndex: string,
 ): Promise<BuiltSite | null> => {
   const rows = await queryAll<BuiltSiteRow>(
-    `SELECT ${builtSiteSelectColumns} FROM built_sites WHERE renewal_token_index = ?`,
-    [tokenIndex],
+    sql`SELECT ${builtSiteSelectColumns} FROM built_sites WHERE renewal_token_index = ${tokenIndex}`,
   );
   if (rows.length === 0) return null;
   const decrypted = await rawBuiltSitesTable.fromDb(rows[0]!);

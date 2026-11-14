@@ -15,7 +15,7 @@ import {
   isIpLockedOut,
   makeAttemptRecorder,
 } from "#db/attempt-lockout.ts";
-import type { SqlParameter } from "#db/numbered-statement.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { LOGIN_LOCKOUT_MS, MAX_LOGIN_ATTEMPTS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 
@@ -24,18 +24,17 @@ import { nowMs } from "#shared/now.ts";
  * decide the lockout inside the database — concurrent attempts each land as
  * their own increment instead of overwriting a shared read. */
 const recordAttemptStatement = (
-  bind: SqlParameter,
   values: LoginAttemptValues,
-): string => `
+): SqlStatement => sql`
   INSERT INTO login_attempts (ip, attempts, locked_until, last_attempt)
-  VALUES (${bind(values.hashedIp)}, 1, CASE WHEN 1 >= ${bind(values.maxAttempts)} THEN ${bind(values.lockDeadline)} ELSE NULL END, ${bind(values.now)})
+  VALUES (${values.hashedIp}, 1, CASE WHEN 1 >= ${values.maxAttempts} THEN ${values.lockDeadline} ELSE NULL END, ${values.now})
   ON CONFLICT (ip) DO UPDATE SET
     attempts = login_attempts.attempts + 1,
     locked_until = CASE
-      WHEN login_attempts.attempts + 1 >= ${bind(values.maxAttempts)} THEN ${bind(values.lockDeadline)}
+      WHEN login_attempts.attempts + 1 >= ${values.maxAttempts} THEN ${values.lockDeadline}
       ELSE NULL
     END,
-    last_attempt = ${bind(values.now)}
+    last_attempt = ${values.now}
   RETURNING locked_until`;
 
 /** The values one recorded attempt carries. */
@@ -75,7 +74,7 @@ const recordIpAttempt = async (
 };
 
 /**
- * Build a namespaced per-IP limiter: `isLimited` checks the lockout,
+ * Build a namespaced per-IP limiter: sql`isLimited` checks the lockout,
  * `record` counts one attempt (locking out at `maxAttempts` for `lockoutMs`
  * and returning true once locked). Each caller picks its own `prefix` so
  * counters never collide across features.

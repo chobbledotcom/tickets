@@ -7,6 +7,7 @@ import { postTransfers } from "#accounting/store.ts";
 import { getDb } from "#db/client.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { sql } from "#db/sql.ts";
 import { bookingKey, itemBookingKey } from "#shared/merge/attendee-merge.ts";
 import type { AttendeeMergeDiffBookingItem } from "#shared/merge/attendee-merge-types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -266,10 +267,9 @@ describeWithEnv("attendee merge service", { db: true }, () => {
           source: attendee,
         },
       ]);
-      await getDb().execute({
-        args: [eventGroup, source.id, listing.id],
-        sql: "UPDATE listing_attendees SET ledger_event_group = ? WHERE attendee_id = ? AND listing_id = ?",
-      });
+      await getDb().execute(
+        sql`UPDATE listing_attendees SET ledger_event_group = ${eventGroup} WHERE attendee_id = ${source.id} AND listing_id = ${listing.id}`,
+      );
 
       const diff = await buildMergeDiff({ source, target });
 
@@ -307,10 +307,9 @@ describeWithEnv("attendee merge service", { db: true }, () => {
           source: attendee,
         },
       ]);
-      await getDb().execute({
-        args: [eventGroup, source.id, listing2.id],
-        sql: "UPDATE listing_attendees SET ledger_event_group = ? WHERE attendee_id = ? AND listing_id = ?",
-      });
+      await getDb().execute(
+        sql`UPDATE listing_attendees SET ledger_event_group = ${eventGroup} WHERE attendee_id = ${source.id} AND listing_id = ${listing2.id}`,
+      );
 
       const diff = await buildMergeDiff({ source, target });
 

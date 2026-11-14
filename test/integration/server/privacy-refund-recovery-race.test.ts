@@ -5,6 +5,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { queryOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { refundRequestIdentityIndex } from "#payment/refund-request-identity.ts";
 import { requestProviderRefund } from "#shared/provider-refunds.ts";
 import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
@@ -27,8 +28,7 @@ interface StoredReadyRevision {
 
 const storedReadyRevision = (id: number): Promise<StoredReadyRevision | null> =>
   queryOne<StoredReadyRevision>(
-    "SELECT refund_revision, refund_state FROM payment_charges WHERE id = ?",
-    [id],
+    sql`SELECT refund_revision, refund_state FROM payment_charges WHERE id = ${id}`,
   );
 
 describeWithEnv("owner refund HTTP revision fence", { db: true }, () => {

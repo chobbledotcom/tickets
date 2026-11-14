@@ -17,6 +17,7 @@ import {
 import { hasActiveBookingLine } from "#db/attendees/queries.ts";
 import { getDb } from "#db/client.ts";
 import { getAgentRunSheet, setLegDone } from "#db/logistics-run-sheet.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -24,10 +25,9 @@ import { awaitTestRequest } from "#test-utils/mocks.ts";
 
 /** Make the attendee's single line a quantity-0 sentinel (price 0, invariant). */
 const ghostLine = (attendeeId: number): Promise<unknown> =>
-  getDb().execute({
-    args: [attendeeId],
-    sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ?",
-  });
+  getDb().execute(
+    sql`UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ${attendeeId}`,
+  );
 
 describeWithEnv("no-quantity audit > token flows", { db: true }, () => {
   test("a quantity-0-only token returns not-found on /t and /t/svg", async () => {
@@ -175,13 +175,10 @@ describeWithEnv("no-quantity audit > logistics", { db: true }, () => {
     attendeeId: number,
     quantity: number,
   ): Promise<unknown> =>
-    getDb().execute({
-      args: [listingId, attendeeId, quantity],
-      sql: `INSERT INTO listing_attendees
+    getDb().execute(sql`INSERT INTO listing_attendees
               (listing_id, attendee_id, quantity, start_at, end_at,
                start_agent_id, end_agent_id)
-            VALUES (?, ?, ?, '2026-07-01T00:00:00Z', '2026-07-02T00:00:00Z', ${AGENT}, ${AGENT})`,
-    });
+            VALUES (${listingId}, ${attendeeId}, ${quantity}, '2026-07-01T00:00:00Z', '2026-07-02T00:00:00Z', ${AGENT}, ${AGENT})`);
 
   test("the run sheet and setLegDone exclude a quantity-0 line", async () => {
     const listing = await createTestListing({ maxAttendees: 50 });

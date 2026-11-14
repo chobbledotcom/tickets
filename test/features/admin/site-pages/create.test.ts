@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { sitePages } from "#db/site-pages.ts";
+import { sql } from "#db/sql.ts";
 import { wasActivityLogged as wasLogged } from "#test-utils/activity-log.ts";
 import {
   expectErrorFlash,
@@ -19,12 +20,12 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       const response = await create("about");
       expectRedirect(response);
       expectFlash(response, "Page created", true);
-      expect(await findPage("about")).toBeTruthy();
+      expect((await findPage("about")).slug).toBe("about");
       expect(await wasLogged("Page 'Name about' created")).toBe(true);
     });
 
     test("rolls back the page when activity logging fails", async () => {
-      await getDb().execute(`
+      await getDb().execute(sql`
         CREATE TRIGGER fail_page_activity_log
         BEFORE INSERT ON activity_log
         BEGIN

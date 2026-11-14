@@ -427,6 +427,29 @@ export const sumByKey =
 /** Return a value unchanged. */
 export const identity = <T>(value: T): T => value;
 
+/** A function that always throws an error with `message`. */
+export const refusalOf = (message: string) => (): never => {
+  throw new Error(message);
+};
+
+/** The items whose mark occurs in `text` at or after `from`, each with the
+ * place of its first occurrence, nearest first. */
+export const occurrencesIn =
+  <T>(text: string, markOf: (item: T) => string, from = 0) =>
+  (items: readonly T[]): { at: number; item: T }[] =>
+    items
+      .map((item) => ({ at: text.indexOf(markOf(item), from), item }))
+      .filter(({ at }) => at >= 0)
+      .sort((left, right) => left.at - right.at);
+
+/** A copy of a record with one key left out. */
+export const withoutKey =
+  <Key extends string>(key: Key) =>
+  <Row extends Record<Key, unknown>>(row: Row): Omit<Row, Key> => {
+    const { [key]: _dropped, ...rest } = row;
+    return rest;
+  };
+
 /** Index items by one field and chosen value. Keys keep first-occurrence order,
  * while later matching items replace the stored value. */
 export const mapBy =

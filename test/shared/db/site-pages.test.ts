@@ -13,8 +13,8 @@ import {
   sitePages,
   updateSitePage,
 } from "#db/site-pages.ts";
+import { sql } from "#db/sql.ts";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
-
 import { expectEncryptedAtRest } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -47,9 +47,9 @@ describeWithEnv("db > site-pages", { db: true }, () => {
         content: string;
         name: string;
         slug: string;
-      }>("SELECT slug, name, content FROM site_pages WHERE id = ?", [
-        created.id,
-      ]);
+      }>(
+        sql`SELECT slug, name, content FROM site_pages WHERE id = ${created.id}`,
+      );
       // At rest, everything is ciphertext (enc:… envelope), not plaintext.
       expectEncryptedAtRest(raw[0]?.name, raw[0]?.slug, raw[0]?.content);
       assert(!raw[0]?.name.includes("Name about"));

@@ -5,6 +5,7 @@ import { withTransaction } from "#db/client.ts";
 import { groups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { listingInputToEdge } from "#shared/listing-edge.ts";
@@ -377,7 +378,7 @@ describeWithEnv("performListingDelete", { db: true }, () => {
       const withCount = (await getListingWithCount(listing.id))!;
 
       await withDbFault(
-        `CREATE TRIGGER test_listing_delete_fault
+        sql`CREATE TRIGGER test_listing_delete_fault
           BEFORE DELETE ON listings
           BEGIN
             SELECT RAISE(ABORT, 'listing delete unavailable');
@@ -397,7 +398,7 @@ describeWithEnv("performListingDelete", { db: true }, () => {
 });
 
 /** The guard's verdict for one listing's would-be daily save. */
-const guardVerdictIs = async (
+const expectGuardVerdict = async (
   listing: ListingWithCount,
   expected: string | null,
 ): Promise<void> => {
@@ -414,7 +415,7 @@ const guardVerdictIs = async (
 describeWithEnv("refuseUndatedListingSwitch", { db: true }, () => {
   test("names the undated bookings a bare switch would strand", async () => {
     const listing = await listingWithTwoUndatedBookings();
-    await guardVerdictIs(
+    await expectGuardVerdict(
       listing,
       t("listings_table.switch_daily_undated_guard", { count: 2 }),
     );
@@ -422,7 +423,7 @@ describeWithEnv("refuseUndatedListingSwitch", { db: true }, () => {
 
   test("lets a save through when nothing would be stranded", async () => {
     const listing = await createTestListing({ maxAttendees: 10 });
-    await guardVerdictIs(listing, null);
+    await expectGuardVerdict(listing, null);
   });
 
   test("reads a missing listing type as the ordinary kind it stays", async () => {

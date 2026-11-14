@@ -12,15 +12,10 @@ import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/hybrid.ts";
 
 import { openEach } from "#crypto/open-each.ts";
 import type { BlindIndex, OwnerKeyEncrypted } from "#crypto/sealed.ts";
-import {
-  execute,
-  queryOne,
-  resultRows,
-  type SqlStatement,
-  type TxScope,
-} from "#db/client.ts";
+import { execute, queryOne, resultRows, type TxScope } from "#db/client.ts";
 import { type ContactChannel, contactHash } from "#db/contact-preferences.ts";
 import { settings } from "#db/settings.ts";
+import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import { nowMs } from "#shared/now.ts";
 
 /** Booking origin: an online public checkout vs an admin manual add. Each is
@@ -121,14 +116,14 @@ const preparedTokenEntry = async ({
   source,
   ticketToken,
 }: TokenEntryInput): Promise<{
-  args: [string, number, string];
+  encrypted: string;
   marker: BlindIndex;
 }> => {
   const [encrypted, marker] = await Promise.all([
     encryptTokenEntry(hash, source, ticketToken),
     tokenMarkerFor(hash, ticketToken),
   ]);
-  return { args: [hash, nowMs(), encrypted], marker };
+  return { encrypted, marker };
 };
 
 /** Build the replay-safe visit + booking write for one contact. The marker is
@@ -136,21 +131,17 @@ const preparedTokenEntry = async ({
 const bookingActivityStatement = async (
   input: TokenEntryInput,
 ): Promise<SqlStatement> => {
-  const { source } = input;
-  const column = BOOKING_COLUMN[source];
+  const column = sqlName(BOOKING_COLUMN[input.source]);
   const entry = await preparedTokenEntry(input);
-  return {
-    args: [...entry.args, `${entry.marker}${TOKEN_LINE_SEPARATOR}`],
-    sql: `INSERT INTO contact_preferences
+  return sql`INSERT INTO contact_preferences
             (contact_hash, last_activity, visits, ${column}, attendee_tokens_blob)
-          VALUES (?, ?, 1, 1, ?)
+          VALUES (${input.hash}, ${nowMs()}, 1, 1, ${entry.encrypted})
           ON CONFLICT(contact_hash) DO UPDATE SET
             visits = visits + 1,
             ${column} = ${column} + 1,
             last_activity = excluded.last_activity,
             attendee_tokens_blob = attendee_tokens_blob || excluded.attendee_tokens_blob
-          WHERE INSTR(attendee_tokens_blob, ?) = 0`,
-  };
+          WHERE INSTR(attendee_tokens_blob, ${`${entry.marker}${TOKEN_LINE_SEPARATOR}`}) = 0`;
 };
 
 /** Run one token write on the caller's transaction, or as its own write when
@@ -160,7 +151,7 @@ const writeTokenStatement = (
   statement: SqlStatement,
 ): Promise<ResultSet> =>
   transaction === undefined
-    ? execute(statement.sql, statement.args)
+    ? execute(statement)
     : transaction.execute(statement);
 
 /** Append one encrypted ticket token without changing booking counts. */
@@ -169,14 +160,14 @@ const appendBookingToken = async (
   transaction?: TxScope,
 ): Promise<void> => {
   const entry = await preparedTokenEntry(input);
-  await writeTokenStatement(transaction, {
-    args: entry.args,
-    sql: `INSERT INTO contact_preferences (contact_hash, last_activity, attendee_tokens_blob)
-     VALUES (?, ?, ?)
+  await writeTokenStatement(
+    transaction,
+    sql`INSERT INTO contact_preferences (contact_hash, last_activity, attendee_tokens_blob)
+     VALUES (${input.hash}, ${nowMs()}, ${entry.encrypted})
      ON CONFLICT(contact_hash) DO UPDATE SET
        last_activity = excluded.last_activity,
        attendee_tokens_blob = attendee_tokens_blob || excluded.attendee_tokens_blob`,
-  });
+  );
 };
 
 /** The contacts a person's non-empty email and phone name, in search order. */
@@ -229,14 +220,12 @@ const loadTokenBlob = async (
 ): Promise<string | null> => {
   const row = transaction
     ? resultRows<{ attendee_tokens_blob: string }>(
-        await transaction.execute({
-          args: [hash],
-          sql: "SELECT attendee_tokens_blob FROM contact_preferences WHERE contact_hash = ?",
-        }),
+        await transaction.execute(
+          sql`SELECT attendee_tokens_blob FROM contact_preferences WHERE contact_hash = ${hash}`,
+        ),
       )[0]
     : await queryOne<{ attendee_tokens_blob: string }>(
-        "SELECT attendee_tokens_blob FROM contact_preferences WHERE contact_hash = ?",
-        [hash],
+        sql`SELECT attendee_tokens_blob FROM contact_preferences WHERE contact_hash = ${hash}`,
       );
   return row?.attendee_tokens_blob ?? null;
 };
@@ -319,10 +308,10 @@ const removeBookingToken = async (
   // Delete just this entry's ciphertext line in place. REPLACE operates on the
   // column's current value at write time, so a keyless checkout append that
   // lands after our read is preserved instead of overwritten by a stale rewrite.
-  await writeTokenStatement(transaction, {
-    args: [`${match.raw}\n`, nowMs(), hash],
-    sql: "UPDATE contact_preferences SET attendee_tokens_blob = REPLACE(attendee_tokens_blob, ?, ''), last_activity = ? WHERE contact_hash = ?",
-  });
+  await writeTokenStatement(
+    transaction,
+    sql`UPDATE contact_preferences SET attendee_tokens_blob = REPLACE(attendee_tokens_blob, ${`${match.raw}\n`}, ''), last_activity = ${nowMs()} WHERE contact_hash = ${hash}`,
+  );
   return removed.source;
 };
 

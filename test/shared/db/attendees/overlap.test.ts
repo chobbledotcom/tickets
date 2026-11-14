@@ -16,6 +16,7 @@ import { SERVICING_KIND } from "#db/attendees/kind.ts";
 import { getOverlappingBookings } from "#db/attendees/overlap.ts";
 import { dateToRange } from "#db/capacity.ts";
 import { execute } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createDailyTestListing,
@@ -162,10 +163,9 @@ describeWithEnv("db > attendees > overlap", { db: true }, () => {
     });
     // Turn the booking into a servicing hold — a real non-customer row the
     // overlap query filters out with `attendee.kind = 'attendee'`.
-    await execute("UPDATE attendees SET kind = ? WHERE id = ?", [
-      SERVICING_KIND,
-      servicing,
-    ]);
+    await execute(
+      sql`UPDATE attendees SET kind = ${SERVICING_KIND} WHERE id = ${servicing}`,
+    );
     assert(!(await overlappingIds(0)).includes(servicing));
   });
 
@@ -210,8 +210,7 @@ describeWithEnv("db > attendees > overlap", { db: true }, () => {
     // Drop the booking to no quantity — a real "no quantity" attendee state the
     // overlap query filters out with `quantity > 0`.
     await execute(
-      "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ?",
-      [zero],
+      sql`UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ${zero}`,
     );
     assert(!(await overlappingIds(0)).includes(zero));
   });

@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { getNewsPostById, getNewsPostCards } from "#db/news-posts.ts";
+import { sql } from "#db/sql.ts";
 import { CONTENT_FIELD_LIMITS } from "#routes/admin/content-form-fields.ts";
 import { wasActivityLogged as wasLogged } from "#test-utils/activity-log.ts";
 import {
@@ -117,7 +118,7 @@ describeWithEnv("server (admin news)", { db: true }, () => {
     });
 
     test("rolls back the post when activity logging fails", async () => {
-      await getDb().execute(`
+      await getDb().execute(sql`
         CREATE TRIGGER fail_news_activity_log
         BEFORE INSERT ON activity_log
         BEGIN

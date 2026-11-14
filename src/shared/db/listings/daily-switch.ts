@@ -16,15 +16,12 @@ import {
   CAPACITY_GUARD,
   updateStatementFor,
 } from "#db/attendees/atomic-update.ts";
-import {
-  queryAllPrimary,
-  resultRows,
-  type SqlStatement,
-  type TxScope,
-} from "#db/client.ts";
+import { queryAllPrimary, resultRows, type TxScope } from "#db/client.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { t } from "#i18n";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import { bindFirst } from "#shared/fp-bind.ts";
 import { dayPriceFieldsFromInput } from "#shared/listing-edge.ts";
 import type { ListingType } from "#types";
 
@@ -53,12 +50,6 @@ export interface UndatedBooking {
   quantity: number;
 }
 
-/** One statement of a transaction batch whose single row answers one read. */
-const singleStatement = (sql: string, listingId: number): SqlStatement => ({
-  args: [listingId],
-  sql,
-});
-
 /** The stored type a switch leaves behind. Read inside the write's own
  * transaction, so a concurrent type change cannot slip past the guard. */
 const storedTypeTx = async (
@@ -66,10 +57,7 @@ const storedTypeTx = async (
   listingId: number,
 ): Promise<string> => {
   const results = await tx.batch([
-    singleStatement(
-      "SELECT listing_type FROM listings WHERE id = ?",
-      listingId,
-    ),
+    sql`SELECT listing_type FROM listings WHERE id = ${listingId}`,
   ]);
   return resultRows<{ listing_type: string }>(results[0]!)[0]!.listing_type;
 };
@@ -78,16 +66,21 @@ const storedTypeTx = async (
  * places somebody holds. A quantity-0 ghost line books nothing, so it never
  * blocks. The guard's count and the move's rows derive from this one clause,
  * so they can never disagree about which bookings block the switch. */
-const UNDATED_WHERE = "listing_id = ? AND start_at IS NULL AND quantity > 0";
+const undatedSelect = (
+  columns: SqlStatement,
+  listingId: number,
+): SqlStatement =>
+  sql`SELECT ${columns} FROM listing_attendees
+      WHERE listing_id = ${listingId} AND start_at IS NULL AND quantity > 0`;
 
-const UNDATED_ROWS_SQL = `SELECT attendee_id AS "attendeeId",
+const undatedRowsSql = bindFirst(undatedSelect)(
+  sql`attendee_id AS "attendeeId",
             package_group_id AS "packageGroupId",
             parent_listing_id AS "parentListingId",
-            quantity
-       FROM listing_attendees
-      WHERE ${UNDATED_WHERE}`;
+            quantity`,
+);
 
-const UNDATED_COUNT_SQL = `SELECT COUNT(*) AS undated FROM listing_attendees WHERE ${UNDATED_WHERE}`;
+const undatedCountSql = bindFirst(undatedSelect)(sql`COUNT(*) AS undated`);
 
 /** The undated bookings of one listing — the rows a switch to daily must
  * give a day first. The plan's pre-check, pinned to the primary: a lagging
@@ -96,7 +89,7 @@ const UNDATED_COUNT_SQL = `SELECT COUNT(*) AS undated FROM listing_attendees WHE
 export const undatedBookingsForListing = (
   listingId: number,
 ): Promise<UndatedBooking[]> =>
-  queryAllPrimary<UndatedBooking>(singleStatement(UNDATED_ROWS_SQL, listingId));
+  queryAllPrimary<UndatedBooking>(undatedRowsSql(listingId));
 
 /** Refuse a save that flips the listing type to daily while undated bookings
  * remain. The HTML assign flow does not run this guard — its move dates every
@@ -108,9 +101,7 @@ export const refuseUndatedSwitchTx = async (
 ): Promise<string | null> => {
   if (wouldBeType !== "daily") return null;
   if ((await storedTypeTx(tx, listingId)) === "daily") return null;
-  const results = await tx.batch([
-    singleStatement(UNDATED_COUNT_SQL, listingId),
-  ]);
+  const results = await tx.batch([undatedCountSql(listingId)]);
   const { undated } = resultRows<{ undated: number }>(results[0]!)[0]!;
   return undated === 0
     ? null
@@ -161,9 +152,7 @@ export const moveUndatedBookingsToDayTx = async (
   date: string,
   durationDays: number,
 ): Promise<number> => {
-  const results = await tx.batch([
-    singleStatement(UNDATED_ROWS_SQL, listingId),
-  ]);
+  const results = await tx.batch([undatedRowsSql(listingId)]);
   const rows = resultRows<UndatedBooking>(results[0]!);
   if (rows.length === 0) return 0;
   const statements = rows.flatMap((row) => [

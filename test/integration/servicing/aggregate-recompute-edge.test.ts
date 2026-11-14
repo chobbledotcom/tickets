@@ -20,6 +20,7 @@ import {
   getListingWithCount,
   invalidateListingsCache,
 } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
@@ -84,14 +85,9 @@ describeWithEnv(
       expect(recalc.booked_quantity.recalculated).toBe(4);
       expect(recalc.tickets_count.recalculated).toBe(1);
       // Apply and confirm the trigger-maintained shape.
-      await getDb().execute({
-        args: [
-          recalc.booked_quantity.recalculated,
-          recalc.tickets_count.recalculated,
-          listing.id,
-        ],
-        sql: "UPDATE listings SET booked_quantity = ?, tickets_count = ? WHERE id = ?",
-      });
+      await getDb().execute(
+        sql`UPDATE listings SET booked_quantity = ${recalc.booked_quantity.recalculated}, tickets_count = ${recalc.tickets_count.recalculated} WHERE id = ${listing.id}`,
+      );
       const after = await reloadAggregates(listing.id);
       expect(after?.attendee_count).toBe(4);
       expect(after?.tickets_count).toBe(1);

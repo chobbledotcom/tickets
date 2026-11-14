@@ -16,6 +16,7 @@ import {
   recomputeListingBookingRanges,
 } from "#db/attendees/update.ts";
 import { getDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -31,10 +32,9 @@ const D3 = "2026-09-03";
 /** Give the group its real cap only after the bookings exist, mirroring how a
  * duration change can push already-accepted bookings over the limit. */
 const setGroupCap = async (groupId: number, cap: number): Promise<void> => {
-  await getDb().execute({
-    args: [cap, groupId],
-    sql: "UPDATE groups SET max_attendees = ? WHERE id = ?",
-  });
+  await getDb().execute(
+    sql`UPDATE groups SET max_attendees = ${cap} WHERE id = ${groupId}`,
+  );
 };
 
 /** A capless group holding one daily listing. */
@@ -122,14 +122,12 @@ describeWithEnv("db > group cap after duration change", { db: true }, () => {
     // crash the sweep's date slicing).
     await bookAttendee(listing, { date: D2, quantity: 9 });
     await bookAttendee(listing, { date: D3, quantity: 9 });
-    await getDb().execute({
-      args: [listing.id, `${D2}T00:00:00Z`],
-      sql: "UPDATE listing_attendees SET start_at = NULL, end_at = NULL WHERE listing_id = ? AND start_at = ?",
-    });
-    await getDb().execute({
-      args: [listing.id, `${D3}T00:00:00Z`],
-      sql: "UPDATE listing_attendees SET start_at = NULL WHERE listing_id = ? AND start_at = ?",
-    });
+    await getDb().execute(
+      sql`UPDATE listing_attendees SET start_at = NULL, end_at = NULL WHERE listing_id = ${listing.id} AND start_at = ${`${D2}T00:00:00Z`}`,
+    );
+    await getDb().execute(
+      sql`UPDATE listing_attendees SET start_at = NULL WHERE listing_id = ${listing.id} AND start_at = ${`${D3}T00:00:00Z`}`,
+    );
     await setGroupCap(group.id, 10);
 
     expect(

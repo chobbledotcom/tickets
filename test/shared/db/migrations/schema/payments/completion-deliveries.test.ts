@@ -2,12 +2,13 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { paymentCompletionDeliveriesTable } from "#db/migrations/schema/payments/completion-deliveries.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { expectAccepted, expectRefused } from "./refuses.ts";
 
 const [name, table] = paymentCompletionDeliveriesTable;
 const column = (wanted: string): string =>
-  table.columns.find(([held]) => held === wanted)?.[1] ?? "";
+  table.columns.find(([held]) => held === wanted)?.[1].sql ?? "";
 
 describe("the messages sent after a payment", () => {
   test("is one row per message per payment", () => {
@@ -55,15 +56,15 @@ describe("the messages sent after a payment", () => {
 // this asks a real table to turn a plain message away.
 describeWithEnv("db > message rules", { db: true }, () => {
   const aMessage = (key: string, data: string) =>
-    `INSERT INTO payment_completion_deliveries
+    sql`INSERT INTO payment_completion_deliveries
       (payment_id, delivery_key, data)
-      VALUES ('pay_1', '${key}', ${data})`;
+      VALUES ('pay_1', ${key}, ${data})`;
 
   for (const [name, data] of [
-    ["left in plain words", "'Jane Smith'"],
-    ["held under the database owner's key", "'enc:1:a:b'"],
-    ["behind an upper-case envelope", "'HYB:1:a:b:c'"],
-    ["wearing an envelope with nothing in it", "'hyb:1:Jane Smith'"],
+    ["left in plain words", "Jane Smith"],
+    ["held under the database owner's key", "enc:1:a:b"],
+    ["behind an upper-case envelope", "HYB:1:a:b:c"],
+    ["wearing an envelope with nothing in it", "hyb:1:Jane Smith"],
   ] as const) {
     test(`refuses a message ${name}`, async () => {
       await expectRefused(aMessage("plain", data));
@@ -71,15 +72,12 @@ describeWithEnv("db > message rules", { db: true }, () => {
   }
 
   test("refuses a message that is bytes only reading like an envelope", async () => {
-    await expectRefused({
-      args: [new TextEncoder().encode("hyb:1:a:b:c")],
-      sql: `INSERT INTO payment_completion_deliveries
+    await expectRefused(sql`INSERT INTO payment_completion_deliveries
         (payment_id, delivery_key, data)
-        VALUES ('pay_1', 'bytes', ?)`,
-    });
+        VALUES ('pay_1', 'bytes', ${new TextEncoder().encode("hyb:1:a:b:c")})`);
   });
 
   test("accepts a message that is hidden", async () => {
-    await expectAccepted(aMessage("hidden", "'hyb:1:a:b:c'"));
+    await expectAccepted(aMessage("hidden", "hyb:1:a:b:c"));
   });
 });

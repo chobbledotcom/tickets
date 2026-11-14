@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { inPlaceholders, withTransaction } from "#db/client.ts";
+import { withTransaction } from "#db/client.ts";
+import { sql, sqlList } from "#db/sql.ts";
 import { TransactionValidationError, txIdSet } from "#db/transaction.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -16,10 +17,12 @@ describeWithEnv("transaction ID sets", { db: true }, () => {
     const listing = await createTestListing({ name: "Transaction ID set" });
 
     const ids = await withTransaction((tx) =>
-      txIdSet(tx, [listing.id, listing.id, 999_999], (unique) => ({
-        args: unique,
-        sql: `SELECT id FROM listings WHERE id IN (${inPlaceholders(unique)})`,
-      })),
+      txIdSet(
+        tx,
+        [listing.id, listing.id, 999_999],
+        (unique) =>
+          sql`SELECT id FROM listings WHERE id IN (${sqlList(unique)})`,
+      ),
     );
 
     expect(ids).toEqual(new Set([listing.id]));

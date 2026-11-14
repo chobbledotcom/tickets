@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { execute, queryAll } from "#db/client.ts";
 import { repairLegacyRenames } from "#db/migrations/rename-utils.ts";
+import { type SqlStatement, sql, sqlList, sqlName } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 /** The tables this file makes, dropped before each case so one test never
@@ -10,28 +11,35 @@ const SCRATCH = ["legacy_things", "target_things"];
 
 const dropScratch = async (): Promise<void> => {
   for (const table of SCRATCH) {
-    await execute(`DROP TABLE IF EXISTS ${table}`);
+    await execute(sql`DROP TABLE IF EXISTS ${sqlName(table)}`);
   }
 };
 
-const makeTable = async (name: string, columns: string): Promise<void> => {
-  await execute(`CREATE TABLE ${name} (${columns})`);
+const makeTable = async (
+  name: string,
+  columns: SqlStatement,
+): Promise<void> => {
+  await execute(sql`CREATE TABLE ${sqlName(name)} (${columns})`);
 };
 
 const tableNames = async (): Promise<string[]> =>
   (
     await queryAll<{ name: string }>(
-      `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('${SCRATCH.join("','")}')`,
+      sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (${sqlList(SCRATCH)})`,
     )
   ).map((row) => row.name);
 
 const columnNames = async (table: string): Promise<string[]> =>
-  (await queryAll<{ name: string }>(`PRAGMA table_info(${table})`)).map(
-    (row) => row.name,
-  );
+  (
+    await queryAll<{ name: string }>(sql`PRAGMA table_info(${sqlName(table)})`)
+  ).map((row) => row.name);
 
 const rowCount = async (table: string): Promise<number> =>
-  (await queryAll<{ n: number }>(`SELECT COUNT(*) AS n FROM ${table}`))[0]!.n;
+  (
+    await queryAll<{ n: number }>(
+      sql`SELECT COUNT(*) AS n FROM ${sqlName(table)}`,
+    )
+  )[0]!.n;
 
 const renameTable = {
   columnRenames: [],
@@ -42,8 +50,10 @@ describeWithEnv("db > legacy rename repair", { db: true }, () => {
   describe("a table rename", () => {
     test("renames the legacy table when only it is there", async () => {
       await dropScratch();
-      await makeTable("legacy_things", "id INTEGER PRIMARY KEY, name TEXT");
-      await execute("INSERT INTO legacy_things (id, name) VALUES (1, 'kept')");
+      await makeTable("legacy_things", sql`id INTEGER PRIMARY KEY, name TEXT`);
+      await execute(
+        sql`INSERT INTO legacy_things (id, name) VALUES (1, 'kept')`,
+      );
 
       await repairLegacyRenames(renameTable);
 
@@ -54,8 +64,10 @@ describeWithEnv("db > legacy rename repair", { db: true }, () => {
 
     test("changes nothing when the target is already there alone", async () => {
       await dropScratch();
-      await makeTable("target_things", "id INTEGER PRIMARY KEY, name TEXT");
-      await execute("INSERT INTO target_things (id, name) VALUES (1, 'kept')");
+      await makeTable("target_things", sql`id INTEGER PRIMARY KEY, name TEXT`);
+      await execute(
+        sql`INSERT INTO target_things (id, name) VALUES (1, 'kept')`,
+      );
 
       await repairLegacyRenames(renameTable);
 
@@ -79,9 +91,12 @@ describeWithEnv("db > legacy rename repair", { db: true }, () => {
 
     test("renames the legacy column when only it is there", async () => {
       await dropScratch();
-      await makeTable("target_things", "id INTEGER PRIMARY KEY, old_name TEXT");
+      await makeTable(
+        "target_things",
+        sql`id INTEGER PRIMARY KEY, old_name TEXT`,
+      );
       await execute(
-        "INSERT INTO target_things (id, old_name) VALUES (1, 'kept')",
+        sql`INSERT INTO target_things (id, old_name) VALUES (1, 'kept')`,
       );
 
       await repairLegacyRenames(renameColumn);
@@ -90,7 +105,7 @@ describeWithEnv("db > legacy rename repair", { db: true }, () => {
       expect(
         (
           await queryAll<{ new_name: string }>(
-            "SELECT new_name FROM target_things",
+            sql`SELECT new_name FROM target_things`,
           )
         )[0]?.new_name,
       ).toBe("kept");
@@ -99,7 +114,10 @@ describeWithEnv("db > legacy rename repair", { db: true }, () => {
 
     test("changes nothing when the target column is already there alone", async () => {
       await dropScratch();
-      await makeTable("target_things", "id INTEGER PRIMARY KEY, new_name TEXT");
+      await makeTable(
+        "target_things",
+        sql`id INTEGER PRIMARY KEY, new_name TEXT`,
+      );
 
       await repairLegacyRenames(renameColumn);
 

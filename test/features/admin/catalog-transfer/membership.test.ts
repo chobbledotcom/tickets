@@ -1,10 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { PRICE_TYPE_GROUP, PRICE_TYPE_GROUP_DAY } from "#db/price-types.ts";
+import { sql } from "#db/sql.ts";
 import {
   type ImportedMembership,
   membershipStatements,
 } from "#routes/admin/catalog-transfer/membership.ts";
+import { placed } from "#test-utils/sql-text.ts";
 
 const membership = (
   overrides: Partial<ImportedMembership> = {},
@@ -32,10 +34,7 @@ describe("catalog transfer memberships", () => {
     const statements = membershipStatements([membership()]);
 
     expect(statements).toEqual([
-      {
-        args: [4, 9, 1],
-        sql: "INSERT INTO group_listings (group_id, listing_id, quantity) VALUES (?, ?, ?)",
-      },
+      sql`INSERT INTO group_listings (group_id, listing_id, quantity) VALUES (${4}, ${9}, ${1})`,
     ]);
   });
 
@@ -48,12 +47,9 @@ describe("catalog transfer memberships", () => {
     // The column list is asserted whole: a price row that names its columns
     // wrongly writes the override into the wrong dimension, and the values
     // alone cannot show that.
-    expect(prices).toEqual({
-      args: [9, PRICE_TYPE_GROUP, "4", 2500],
-      sql:
-        "INSERT INTO listing_prices " +
-        "(listing_id, price_type, price_id, unit_price) VALUES (?, ?, ?, ?)",
-    });
+    expect(prices).toEqual(
+      sql`INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES (${9}, ${PRICE_TYPE_GROUP}, ${"4"}, ${2500})`,
+    );
   });
 
   test("keys a per-day override by its group and day count", () => {
@@ -62,7 +58,7 @@ describe("catalog transfer memberships", () => {
       "listing_prices",
     );
 
-    expect(prices?.args).toEqual([
+    expect(placed(prices!).args).toEqual([
       9,
       PRICE_TYPE_GROUP_DAY,
       "4/1",
@@ -82,7 +78,12 @@ describe("catalog transfer memberships", () => {
       "listing_prices",
     );
 
-    expect(prices?.args).toEqual([9, PRICE_TYPE_GROUP_DAY, "4/2", 1800]);
+    expect(placed(prices!).args).toEqual([
+      9,
+      PRICE_TYPE_GROUP_DAY,
+      "4/2",
+      1800,
+    ]);
   });
 
   test("writes the flat override before the per-day ones", () => {
@@ -93,8 +94,13 @@ describe("catalog transfer memberships", () => {
       "listing_prices",
     );
 
-    expect(prices?.args.slice(0, 4)).toEqual([9, PRICE_TYPE_GROUP, "4", 2500]);
-    expect(prices?.args.slice(4)).toEqual([
+    expect(placed(prices!).args.slice(0, 4)).toEqual([
+      9,
+      PRICE_TYPE_GROUP,
+      "4",
+      2500,
+    ]);
+    expect(placed(prices!).args.slice(4)).toEqual([
       9,
       PRICE_TYPE_GROUP_DAY,
       "4/1",
@@ -118,9 +124,9 @@ describe("catalog transfer memberships", () => {
     const prices = statementFor(statements, "listing_prices");
 
     expect(statements).toHaveLength(2);
-    expect(rows?.args).toHaveLength(90);
-    expect(rows?.sql.match(/\(\?, \?, \?\)/gu)).toHaveLength(30);
-    expect(prices?.args).toHaveLength(120);
+    expect(placed(rows!).args).toHaveLength(90);
+    expect(placed(rows!).sql.match(/\(\?, \?, \?\)/gu)).toHaveLength(30);
+    expect(placed(prices!).args).toHaveLength(120);
   });
 
   test("separates one row's placeholders from the next", () => {
@@ -134,18 +140,18 @@ describe("catalog transfer memberships", () => {
 
     // Run the row groups together and SQLite reads one row of six columns
     // against a three-column insert, so the whole write is refused.
-    expect(rows?.sql).toBe(
+    expect(placed(rows!).sql).toBe(
       "INSERT INTO group_listings (group_id, listing_id, quantity) " +
         "VALUES (?, ?, ?), (?, ?, ?)",
     );
-    expect(rows?.args).toEqual([4, 9, 1, 5, 10, 2]);
+    expect(placed(rows!).args).toEqual([4, 9, 1, 5, 10, 2]);
   });
 
   test("gives every argument its own placeholder", () => {
     for (const { args, sql } of membershipStatements([
       membership({ dayPrices: { 3: 2400 }, packagePrice: 2500 }),
       membership({ groupId: 5, listingId: 10, quantity: 2 }),
-    ])) {
+    ]).map(placed)) {
       expect(sql.match(/\?/gu)).toHaveLength(args.length);
     }
   });

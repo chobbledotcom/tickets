@@ -8,6 +8,7 @@ import {
   renameEventsToListings,
 } from "#db/migrations/context.ts";
 import { MIGRATION_IDS } from "#db/migrations/registry.ts";
+import { sql } from "#db/sql.ts";
 import {
   columnNames,
   downgradeListingDomainToLegacyNames,
@@ -76,7 +77,7 @@ describeWithEnv(
 
       test("skips column renames for tables that do not exist", async () => {
         await downgradeListingDomainToLegacyNames();
-        await getDb().execute("DROP TABLE built_sites");
+        await getDb().execute(sql`DROP TABLE built_sites`);
 
         await renameEventsToListings();
 
@@ -102,7 +103,9 @@ describeWithEnv(
     });
 
     test("the rename puts back a column the current schema declares", async () => {
-      await getDb().execute("ALTER TABLE listings DROP COLUMN thank_you_url");
+      await getDb().execute(
+        sql`ALTER TABLE listings DROP COLUMN thank_you_url`,
+      );
 
       await renameEventsToListings();
 
@@ -110,7 +113,7 @@ describeWithEnv(
     });
 
     test("the rename puts back an index the current schema declares", async () => {
-      await getDb().execute("DROP INDEX idx_listings_slug_index");
+      await getDb().execute(sql`DROP INDEX idx_listings_slug_index`);
 
       await renameEventsToListings();
 

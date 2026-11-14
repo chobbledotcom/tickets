@@ -5,7 +5,6 @@
 import {
   deleteByFieldStatement,
   queryAll,
-  type SqlStatement,
   withTransaction,
 } from "#db/client.ts";
 import {
@@ -15,6 +14,7 @@ import {
 import { ticketCountSumExpr } from "#db/migrations/schema/listing-aggregates.ts";
 import { noteDeleteStatement } from "#db/notes/queries.ts";
 import { assertRowsFreeToMove } from "#db/payment-admit-move.ts";
+import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import {
   ATTENDEE_DATA_RULES,
   type AttendeeDataRule,
@@ -34,30 +34,29 @@ type ListingContribution = {
  * for a no-quantity line — see {@link ticketCountSumExpr}). `booked_quantity`
  * sums over all rows. Exported for the shared-predicate guard test.
  */
-export const ATTENDEE_LISTING_CONTRIBUTIONS_SQL = `SELECT listing_id,
+export const attendeeListingContributionsSql = (
+  attendeeId: number,
+): SqlStatement => sql`SELECT listing_id,
             COALESCE(SUM(quantity), 0) AS booked_quantity,
             ${ticketCountSumExpr()} AS tickets_count
        FROM listing_attendees
-      WHERE attendee_id = ?
+      WHERE attendee_id = ${attendeeId}
       GROUP BY listing_id`;
 
 const attendeeListingContributions = (
   attendeeId: number,
 ): Promise<ListingContribution[]> =>
-  queryAll<ListingContribution>(ATTENDEE_LISTING_CONTRIBUTIONS_SQL, [
-    attendeeId,
-  ]);
+  queryAll<ListingContribution>(attendeeListingContributionsSql(attendeeId));
 
 const restoreListingContributions = (
   contributions: ListingContribution[],
 ): SqlStatement[] =>
-  contributions.map((row) => ({
-    args: [row.booked_quantity, row.tickets_count, row.listing_id],
-    sql: `UPDATE listings
-             SET booked_quantity = booked_quantity + ?,
-                 tickets_count = tickets_count + ?
-           WHERE id = ?`,
-  }));
+  contributions.map(
+    (row) => sql`UPDATE listings
+             SET booked_quantity = booked_quantity + ${row.booked_quantity},
+                 tickets_count = tickets_count + ${row.tickets_count}
+           WHERE id = ${row.listing_id}`,
+  );
 
 const dependentDeleteStatement = (
   rule: Extract<AttendeeDataRule, { action: "delete" }>,
@@ -67,20 +66,14 @@ const dependentDeleteStatement = (
     return noteDeleteStatement("attendee", attendeeIds);
   }
   if (rule.kind === "through") {
-    return {
-      args: attendeeIds.args,
-      sql: `DELETE FROM ${rule.table}
-         WHERE ${rule.tableField} IN (
-           SELECT joined.${rule.joinedField}
-             FROM ${rule.joinedTable} AS joined
-            WHERE joined.${rule.attendeeField} IN (${attendeeIds.sql})
-         )`,
-    };
+    return sql`DELETE FROM ${sqlName(rule.table)}
+         WHERE ${sqlName(rule.tableField)} IN (
+           SELECT ${sqlName(`joined.${rule.joinedField}`)}
+             FROM ${sqlName(rule.joinedTable)} AS joined
+            WHERE ${sqlName(`joined.${rule.attendeeField}`)} IN (${attendeeIds})
+         )`;
   }
-  return {
-    args: attendeeIds.args,
-    sql: `DELETE FROM ${rule.table} WHERE ${rule.field} IN (${attendeeIds.sql})`,
-  };
+  return sql`DELETE FROM ${sqlName(rule.table)} WHERE ${sqlName(rule.field)} IN (${attendeeIds})`;
 };
 
 type DeleteRule = Extract<AttendeeDataRule, { action: "delete" }>;
@@ -99,10 +92,7 @@ const repointRuleStatement = (
 ): SqlStatement =>
   rule.kind === "external-links"
     ? clearExternalLinksForIdsStatement(rule.target, attendeeIds)
-    : {
-        args: attendeeIds.args,
-        sql: `UPDATE ${rule.table} SET ${rule.field} = NULL WHERE ${rule.field} IN (${attendeeIds.sql})`,
-      };
+    : sql`UPDATE ${sqlName(rule.table)} SET ${sqlName(rule.field)} = NULL WHERE ${sqlName(rule.field)} IN (${attendeeIds})`;
 
 /** Remove or detach every dependent row for one or many attendee ids. */
 export const attendeeRemovalStatements = (
@@ -135,10 +125,7 @@ export const repointAttendeeDependents = (
       ? [
           rule.kind === "external-links"
             ? repointExternalLinksStatement(rule.target, sourceId, targetId)
-            : {
-                args: [targetId, sourceId],
-                sql: `UPDATE ${rule.table} SET ${rule.field} = ? WHERE ${rule.field} = ?`,
-              },
+            : sql`UPDATE ${sqlName(rule.table)} SET ${sqlName(rule.field)} = ${targetId} WHERE ${sqlName(rule.field)} = ${sourceId}`,
         ]
       : [],
   );
@@ -159,7 +146,7 @@ const purgeAttendee = (
   withTransaction(async (tx) => {
     await assertRowsFreeToMove(tx, [attendeeId], "delete");
     await tx.batch([
-      ...attendeeRemovalStatements({ args: [attendeeId], sql: "?" }),
+      ...attendeeRemovalStatements(sql`${attendeeId}`),
       ...restoreListingContributions(contributions),
       deleteByFieldStatement({
         field: "id",

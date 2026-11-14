@@ -17,6 +17,7 @@ import {
   loadIndexedPaymentReference,
   matchingPaymentReferenceIndexes,
 } from "#db/payment-reference-store.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { requiredMapValue } from "#fp";
 import { CLAIM_MIRROR } from "#payment/admit-move.ts";
 import type {
@@ -123,18 +124,16 @@ type ReferenceProgressByKey = Map<string, ReferenceProgress>;
 
 const queryProcessedReferences = <Row>(
   attendeeIds: readonly number[],
-  select: string,
-  suffix = "",
+  select: SqlStatement,
 ): Promise<Row[]> =>
   querySelectedPaymentReferenceRows<Row>(
     attendeeIds,
     (idSlots) =>
-      `SELECT ${select}
+      sql`SELECT ${select}
            FROM processed_payments
           WHERE attendee_id IN (${idSlots})
             AND payment_reference != ''
-            AND payment_reference_index != ''
-          ${suffix}`,
+            AND payment_reference_index != ''`,
   );
 
 const attendeeIdsOf = (
@@ -148,7 +147,7 @@ export const attendeeIdsWithIndexedPaymentReferences = async (
   attendeeIdSet(
     await queryProcessedReferences<PaymentReferenceAttendeeRow>(
       attendeeIds,
-      "DISTINCT attendee_id",
+      sql`DISTINCT attendee_id`,
     ),
   );
 

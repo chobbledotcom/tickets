@@ -12,6 +12,7 @@ import { attendeesApi } from "#db/attendees/api.ts";
 import { refusedOrderUnfitListingIds } from "#db/attendees/capacity/refusal-diagnosis.ts";
 import { execute } from "#db/client.ts";
 import { enableQueryLog } from "#db/query-log.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestGroup,
@@ -299,9 +300,9 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
       // already taken — a limit expiry must fail the test, not free the
       // room while the snapshot is still in flight and pass vacuously.
       await awaitObservedProbe();
-      await execute("DELETE FROM listing_attendees WHERE listing_id = ?", [
-        holder.id,
-      ]);
+      await execute(
+        sql`DELETE FROM listing_attendees WHERE listing_id = ${holder.id}`,
+      );
       // Two held places plus seven lines tip the cap of eight, so the line
       // that did not fit at the snapshot is the seventh.
       expect(await diagnosis).toEqual([lines[6]!.listingId]);

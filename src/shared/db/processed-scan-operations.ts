@@ -13,13 +13,8 @@
 
 import { type TicketMoveAnswer, ticketCount } from "#booking/ticket-moves.ts";
 import type { ScanOperationGuard } from "#db/attendees/door-moves.ts";
-import {
-  insert,
-  orIgnore,
-  queryOne,
-  type TxScope,
-  update,
-} from "#db/client.ts";
+import { insertOrIgnore, queryOne, type TxScope, update } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { limit } from "#shared/limits.ts";
 import { DAY_MS, nowIso } from "#shared/now.ts";
 
@@ -50,15 +45,13 @@ export const claimScanOperation =
   (delivery: ScanDelivery): ((tx: TxScope) => Promise<boolean>) =>
   async (tx) => {
     const result = await tx.execute(
-      orIgnore(
-        insert("processed_scan_operations", {
-          created: nowIso(),
-          listing_ids: JSON.stringify([...delivery.listingIds]),
-          operation_id: delivery.operationId,
-          quantity: delivery.quantity,
-          token_hash: delivery.tokenHash,
-        }),
-      ),
+      insertOrIgnore("processed_scan_operations", {
+        created: nowIso(),
+        listing_ids: JSON.stringify([...delivery.listingIds]),
+        operation_id: delivery.operationId,
+        quantity: delivery.quantity,
+        token_hash: delivery.tokenHash,
+      }),
     );
     return result.rowsAffected > 0;
   };
@@ -97,9 +90,8 @@ export const deliveredScanOperation = async (
   tokenHash: string,
 ): Promise<DeliveredScanOperation | null> => {
   const row = await queryOne<{ listing_ids: string; quantity: number }>(
-    `SELECT listing_ids, quantity FROM processed_scan_operations
-       WHERE operation_id = ? AND token_hash = ?`,
-    [operationId, tokenHash],
+    sql`SELECT listing_ids, quantity FROM processed_scan_operations
+       WHERE operation_id = ${operationId} AND token_hash = ${tokenHash}`,
   );
   if (!row) return null;
   return {

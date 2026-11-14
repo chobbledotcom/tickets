@@ -6,6 +6,7 @@ import {
   getRefundPaymentReferences,
   type RefundPaymentReferenceSet,
 } from "#db/payment-references.ts";
+import { sql } from "#db/sql.ts";
 import type { UntaggedPaymentReference } from "#payment/provider-reference.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -25,10 +26,9 @@ const untagged = (reference: string): UntaggedPaymentReference => ({
 
 const indexOf = (sessionId: string): Promise<{ value: string } | null> =>
   queryOne<{ value: string }>(
-    `SELECT payment_reference_index AS value
+    sql`SELECT payment_reference_index AS value
        FROM processed_payments
-      WHERE payment_session_id = ?`,
-    [sessionId],
+      WHERE payment_session_id = ${sessionId}`,
   );
 
 const completeReferencesFor = (
@@ -136,15 +136,9 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
     const attendeeId = created.attendees[0]!.id;
 
     await execute(
-      `INSERT INTO processed_payments
+      sql`INSERT INTO processed_payments
           (payment_session_id, attendee_id, processed_at, payment_reference)
-        VALUES (?, ?, ?, ?)`,
-      [
-        "sess_plain_ref",
-        attendeeId,
-        "2026-06-21T00:00:00.000Z",
-        "pi_plain_legacy",
-      ],
+        VALUES (${"sess_plain_ref"}, ${attendeeId}, ${"2026-06-21T00:00:00.000Z"}, ${"pi_plain_legacy"})`,
     );
 
     await expectLegacyReferenceUnavailable(attendeeId, "sess_plain_ref");
@@ -162,17 +156,10 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
     const sessionId = "sess_plain_indexed";
 
     await execute(
-      `INSERT INTO processed_payments
+      sql`INSERT INTO processed_payments
           (payment_session_id, attendee_id, processed_at, payment_reference,
            payment_reference_index)
-        VALUES (?, ?, ?, ?, ?)`,
-      [
-        sessionId,
-        attendeeId,
-        "2026-06-21T00:00:00.000Z",
-        payment.reference,
-        await paymentReferenceIndex(payment),
-      ],
+        VALUES (${sessionId}, ${attendeeId}, ${"2026-06-21T00:00:00.000Z"}, ${payment.reference}, ${await paymentReferenceIndex(payment)})`,
     );
 
     await expect(
@@ -191,8 +178,7 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
     const payment = taggedPaymentReference("pi_unindexed", "sumup");
     await finalizeProcessedPayment("sess_unindexed", attendeeId, "", payment);
     await execute(
-      "UPDATE processed_payments SET payment_reference_index = '' WHERE payment_session_id = ?",
-      ["sess_unindexed"],
+      sql`UPDATE processed_payments SET payment_reference_index = '' WHERE payment_session_id = ${"sess_unindexed"}`,
     );
 
     await expectLegacyReferenceUnavailable(attendeeId, "sess_unindexed");
@@ -214,10 +200,9 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
       taggedPaymentReference("pi_mismatched_index", "square"),
     );
     await execute(
-      `UPDATE processed_payments
-          SET payment_reference_index = ?
-        WHERE payment_session_id = ?`,
-      ["wrong-index", sessionId],
+      sql`UPDATE processed_payments
+          SET payment_reference_index = ${"wrong-index"}
+        WHERE payment_session_id = ${sessionId}`,
     );
 
     await expect(

@@ -1,6 +1,7 @@
 import { getDb } from "#db/client.ts";
 import dropListingIncomeMigration from "#db/migrations/2026-06-22_drop_listing_income.ts";
 import { recreateTable, syncTriggers } from "#db/migrations/schema-sync.ts";
+import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import {
   readListingAggregates as listingAggregates,
   runAggregateColumnDropTests,
@@ -18,12 +19,14 @@ const runMigration = () => dropListingIncomeMigration(context).up();
 /** Old income-maintaining SET clause (signed `+`/`-`) the pre-drop triggers used,
  *  so the fixture mirrors a real pre-migration database whose triggers still
  *  reference the income column. */
-const contribution = (sign: "+" | "-", row: "NEW" | "OLD"): string =>
-  `UPDATE listings SET
-     booked_quantity = booked_quantity ${sign} ${row}.quantity,
-     tickets_count = tickets_count ${sign} 1,
-     income = income ${sign} ${row}.price_paid
-   WHERE id = ${row}.listing_id;`;
+const contribution = (sign: "+" | "-", row: "NEW" | "OLD"): SqlStatement => {
+  const op = sign === "+" ? sql`+` : sql`-`;
+  return sql`UPDATE listings SET
+     booked_quantity = booked_quantity ${op} ${sqlName(`${row}.quantity`)},
+     tickets_count = tickets_count ${op} 1,
+     income = income ${op} ${sqlName(`${row}.price_paid`)}
+   WHERE id = ${sqlName(`${row}.listing_id`)};`;
+};
 
 describeWithEnv(
   "db > migrations > 2026-06-22_drop_listing_income",
@@ -36,10 +39,9 @@ describeWithEnv(
       dropColumnPhrase: "an income",
       expected: { booked_quantity: 3, tickets_count: 1 },
       insertUsage: (listingId) =>
-        getDb().execute({
-          args: [listingId],
-          sql: "INSERT INTO listing_attendees (listing_id, attendee_id, quantity) VALUES (?, 1, 3)",
-        }),
+        getDb().execute(
+          sql`INSERT INTO listing_attendees (listing_id, attendee_id, quantity) VALUES (${listingId}, 1, 3)`,
+        ),
       readAggregates: listingAggregates,
       runMigration,
       targetTable: "listings",

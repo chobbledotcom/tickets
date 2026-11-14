@@ -29,6 +29,7 @@ import {
   invalidateListingsCache,
 } from "#db/listings/records.ts";
 import { TICKET_COUNTS_PREDICATE } from "#db/migrations/schema/listing-aggregates.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createServicingHold } from "#test-utils/servicing.ts";
@@ -47,8 +48,8 @@ const createHoldAndInvalidate = async (quantity: number) => {
 
 describe("servicing §10 — tickets_count predicate excludes servicing by kind", () => {
   test("TICKET_COUNTS_PREDICATE gates on kind='attendee' (mutation: dropping it counts servicing as tickets)", () => {
-    expect(TICKET_COUNTS_PREDICATE).toMatch(/kind\s*=\s*'attendee'/);
-    expect(TICKET_COUNTS_PREDICATE).toMatch(/quantity\s*>\s*0/);
+    expect(TICKET_COUNTS_PREDICATE.sql).toMatch(/kind\s*=\s*'attendee'/);
+    expect(TICKET_COUNTS_PREDICATE.sql).toMatch(/quantity\s*>\s*0/);
   });
 });
 
@@ -83,14 +84,9 @@ describeWithEnv("servicing §10 — listing aggregates", { db: true }, () => {
     expect(recalc.booked_quantity.recalculated).toBe(3);
     expect(recalc.tickets_count.recalculated).toBe(0);
     // Apply the recalculated values and confirm the trigger-maintained shape.
-    await getDb().execute({
-      args: [
-        recalc.booked_quantity.recalculated,
-        recalc.tickets_count.recalculated,
-        listing.id,
-      ],
-      sql: "UPDATE listings SET booked_quantity = ?, tickets_count = ? WHERE id = ?",
-    });
+    await getDb().execute(
+      sql`UPDATE listings SET booked_quantity = ${recalc.booked_quantity.recalculated}, tickets_count = ${recalc.tickets_count.recalculated} WHERE id = ${listing.id}`,
+    );
     invalidateListingsCache();
     const after = await getListingWithCount(listing.id);
     expect(after?.attendee_count).toBe(before?.attendee_count);

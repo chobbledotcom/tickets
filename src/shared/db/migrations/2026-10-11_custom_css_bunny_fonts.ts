@@ -7,6 +7,7 @@ import {
   queryAllPrimary,
 } from "#db/client.ts";
 import { settingUpsert } from "#db/settings/raw-writes.ts";
+import { sql } from "#db/sql.ts";
 import { cssUsesBunnyFonts } from "#routes/public/bunny-fonts.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 import { bareSchemaMigration } from "./define.ts";
@@ -15,10 +16,9 @@ export default bareSchemaMigration(
   "2026-10-11_custom_css_bunny_fonts",
   "Store whether the custom CSS uses Bunny's fonts, scanned from the saved CSS.",
   async () => {
-    const rows = await queryAllPrimary<{ value: string }>({
-      args: [CONFIG_KEYS.CUSTOM_CSS],
-      sql: "SELECT value FROM settings WHERE key = ?",
-    });
+    const rows = await queryAllPrimary<{ value: string }>(
+      sql`SELECT value FROM settings WHERE key = ${CONFIG_KEYS.CUSTOM_CSS}`,
+    );
     await executeBatchWithoutCacheInvalidation(
       rows.map((row) =>
         settingUpsert(

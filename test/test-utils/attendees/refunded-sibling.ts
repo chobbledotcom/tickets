@@ -1,4 +1,5 @@
 import { getDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { reverseOrderFor } from "#test/shared/db/attendees/select-refunded/support.ts";
 import { createDualPackageAttendee } from "#test-utils/attendees/helpers.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
@@ -33,12 +34,9 @@ export const bookRefundedSibling = async (
     gross: 100,
     listingId,
   });
-  await getDb().execute({
-    args: [secondOrder, attendee.id, listingId],
-    sql:
-      "UPDATE listing_attendees SET ledger_event_group = ?" +
-      " WHERE attendee_id = ? AND listing_id = ? AND package_group_id = 0",
-  });
+  await getDb().execute(
+    sql`UPDATE listing_attendees SET ledger_event_group = ${secondOrder} WHERE attendee_id = ${attendee.id} AND listing_id = ${listingId} AND package_group_id = 0`,
+  );
   await reverseOrderFor(attendee.id, listingId);
   return attendee;
 };

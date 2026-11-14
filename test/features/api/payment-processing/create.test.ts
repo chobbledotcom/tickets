@@ -8,6 +8,7 @@ import { logActivities } from "#db/activity-log.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { stageCheckoutAnswers } from "#db/checkout-pending-answers.ts";
 import { execute, queryAll } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import {
   alreadyProcessedResult,
   bookingSlot,
@@ -253,9 +254,9 @@ describeWithEnv("payment booking lines", { db: true }, () => {
       { "7": "Answer" },
       null,
     );
-    await execute("UPDATE checkout_pending_answers SET sealed = ?", [
-      "not-a-sealed-payload",
-    ]);
+    await execute(
+      sql`UPDATE checkout_pending_answers SET sealed = ${"not-a-sealed-payload"}`,
+    );
     using create = stubSuccessfulBooking();
     const result = await preparationResult({
       listingTextAnswerIds: { "1": [{ q: 7, s: 3 }] },
@@ -415,8 +416,7 @@ describeWithEnv("payment booking lines", { db: true }, () => {
       );
 
       const [row] = await queryAll<{ message: string }>(
-        "SELECT message FROM activity_log WHERE attendee_id = ?",
-        [attendee.id],
+        sql`SELECT message FROM activity_log WHERE attendee_id = ${attendee.id}`,
       );
       expect(
         await decryptWithOwnerKey(

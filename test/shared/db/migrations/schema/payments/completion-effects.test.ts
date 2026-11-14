@@ -4,7 +4,7 @@ import { paymentCompletionEffectsTable } from "#db/migrations/schema/payments/co
 
 const [name, table] = paymentCompletionEffectsTable;
 const column = (wanted: string): string =>
-  table.columns.find(([held]) => held === wanted)?.[1] ?? "";
+  table.columns.find(([held]) => held === wanted)?.[1].sql ?? "";
 
 describe("the work done after a payment", () => {
   test("is one row per piece of work per payment", () => {

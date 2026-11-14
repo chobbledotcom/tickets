@@ -12,8 +12,8 @@
 
 import { encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
-import { execute, inPlaceholders, queryAll } from "#db/client.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
+import { execute, executeChangedRow, queryAll } from "#db/client.ts";
+import { sql, sqlList } from "#db/sql.ts";
 import {
   LINK_END_CHECKABLE_NODES,
   parseSquareLinkEndState,
@@ -38,8 +38,6 @@ export type DueSquareLinkEnd = {
   readonly state: SquareLinkEndState;
 };
 
-const CHECKABLE_SLOTS = inPlaceholders(LINK_END_CHECKABLE_NODES);
-
 /**
  * The oldest link ends whose attempt time has come, newest-last so a row that
  * keeps failing cannot hold the front of the queue. A `pending` row is due
@@ -52,13 +50,12 @@ export const getDueSquareLinkEnds = async (): Promise<DueSquareLinkEnd[]> => {
     session_index: string;
     state: string;
   }>(
-    `SELECT session_index, sealed_handle, state, next_attempt_at
+    sql`SELECT session_index, sealed_handle, state, next_attempt_at
        FROM square_link_ends
-      WHERE state IN (${CHECKABLE_SLOTS})
-        AND next_attempt_at <= ?
+      WHERE state IN (${sqlList(LINK_END_CHECKABLE_NODES)})
+        AND next_attempt_at <= ${nowIso()}
       ORDER BY next_attempt_at
-      LIMIT ?`,
-    [...LINK_END_CHECKABLE_NODES, nowIso(), SQUARE_LINK_EXPIRY_BATCH],
+      LIMIT ${SQUARE_LINK_EXPIRY_BATCH}`,
   );
   return rows.map((row) => ({
     claimedAt: row.next_attempt_at,
@@ -82,15 +79,26 @@ export const stageSquareLinkEnd = async (
   const sessionIndex = await hmacHash(sessionId);
   const sealedHandle = await encrypt(linkId);
   const state = squareLinkEndMoveTo("unwritten", "checkout_created");
-  const statement = numberedStatement((bind) => {
-    const endsAt = bind(linkEndsAt);
-    return `INSERT INTO square_link_ends
+  await execute(
+    sql`INSERT INTO square_link_ends
                (session_index, state, sealed_handle, link_ends_at,
                 next_attempt_at, created_at)
-             VALUES (${bind(sessionIndex)}, ${bind(state)}, ${bind(sealedHandle)}, ${endsAt}, ${endsAt}, ${bind(nowIso())})`;
-  });
-  await execute(statement.sql, statement.args);
+             VALUES (${sessionIndex}, ${state}, ${sealedHandle}, ${linkEndsAt}, ${linkEndsAt}, ${nowIso()})`,
+  );
 };
+
+/** Write a state and an attempt time to a row that is still as this worker
+ * read it. Returns whether the write landed. */
+const moveRowAsRead = async (
+  row: DueSquareLinkEnd,
+  state: string,
+  nextAttemptAt: string,
+): Promise<boolean> =>
+  executeChangedRow(
+    sql`UPDATE square_link_ends
+        SET state = ${state}, next_attempt_at = ${nextAttemptAt}
+      WHERE session_index = ${row.sessionIndex} AND state = ${row.state} AND next_attempt_at = ${row.claimedAt}`,
+  );
 
 /**
  * Claim one row for this worker, giving it a lease to answer inside. Returns
@@ -101,19 +109,12 @@ export const claimSquareLinkEnd = async (
   row: DueSquareLinkEnd,
 ): Promise<string | null> => {
   const leaseUntil = isoAfter(SQUARE_LINK_LEASE_MS);
-  const result = await execute(
-    `UPDATE square_link_ends
-        SET state = ?, next_attempt_at = ?
-      WHERE session_index = ? AND state = ? AND next_attempt_at = ?`,
-    [
-      squareLinkEndMoveTo("pending", "claim_due"),
-      leaseUntil,
-      row.sessionIndex,
-      row.state,
-      row.claimedAt,
-    ],
+  const claimed = await moveRowAsRead(
+    row,
+    squareLinkEndMoveTo("pending", "claim_due"),
+    leaseUntil,
   );
-  return result.rowsAffected === 1 ? leaseUntil : null;
+  return claimed ? leaseUntil : null;
 };
 
 /** The attempt time a row carries after one event lands on it. A row keeps
@@ -137,13 +138,7 @@ export const applySquareLinkEndEvent = async (
   if (to === "gone") {
     return deleteSquareLinkEnd(row.sessionIndex, row.state, row.claimedAt);
   }
-  const result = await execute(
-    `UPDATE square_link_ends
-        SET state = ?, next_attempt_at = ?
-      WHERE session_index = ? AND state = ? AND next_attempt_at = ?`,
-    [to, nextAttemptFor(event), row.sessionIndex, row.state, row.claimedAt],
-  );
-  return result.rowsAffected === 1;
+  return moveRowAsRead(row, to, nextAttemptFor(event));
 };
 
 /** Delete one row by its index, fenced on the state — and, for a claimed
@@ -152,17 +147,12 @@ const deleteSquareLinkEnd = async (
   sessionIndex: string,
   state: string,
   claimedAt?: string,
-): Promise<boolean> => {
-  const result = await execute(
-    `DELETE FROM square_link_ends
-      WHERE session_index = ? AND state = ?
-        ${claimedAt === undefined ? "" : "AND next_attempt_at = ?"}`,
-    claimedAt === undefined
-      ? [sessionIndex, state]
-      : [sessionIndex, state, claimedAt],
+): Promise<boolean> =>
+  executeChangedRow(
+    sql`DELETE FROM square_link_ends
+      WHERE session_index = ${sessionIndex} AND state = ${state}
+        ${claimedAt === undefined ? sql`` : sql`AND next_attempt_at = ${claimedAt}`}`,
   );
-  return result.rowsAffected === 1;
-};
 
 /**
  * Take the handle row away when a payment completes. Conditional on

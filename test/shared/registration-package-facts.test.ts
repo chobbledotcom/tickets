@@ -10,11 +10,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import {
-  type DbCallHooks,
-  statementSql,
-  wrapDbClient,
-} from "#test-utils/record-queries.ts";
+import { type DbCallHooks, wrapDbClient } from "#test-utils/record-queries.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 const row = (packageGroupId: number) => ({
@@ -111,7 +107,7 @@ describeWithEnv("loadRegistrationPackageFacts", { db: true }, () => {
     const restoreDb = wrapDbClient({
       batch: () => {},
       execute: (statement) => {
-        if (statementSql(statement).includes("groupListing.group_id IN")) {
+        if (statement.sql.includes("groupListing.group_id IN")) {
           packageQueries.push(statement);
         }
         return null;

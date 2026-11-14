@@ -4,6 +4,7 @@ import { hmacHash } from "#crypto/hashing.ts";
 import { generateSecureToken } from "#crypto/utils.ts";
 import { apiKeyLimiter } from "#db/api-key-attempts.ts";
 import { getDb, insert } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { MAX_APIKEY_ATTEMPTS } from "#shared/limits.ts";
 import { assertJson } from "#test-utils/assertions.ts";
@@ -29,7 +30,7 @@ describeWithEnv("API key authentication", { db: true }, () => {
         handleRequest(requestAsApiKey("/api/admin/listings", apiKey)),
         200,
         (body) => {
-          expect(body.listings).toBeDefined();
+          expect(Array.isArray(body.listings)).toBe(true);
         },
       );
     });
@@ -72,7 +73,6 @@ describeWithEnv("API key authentication", { db: true }, () => {
         handleRequest(requestAsApiKey("/api/admin/listings", apiKey)),
         200,
         (body) => {
-          expect(body.listings).toBeDefined();
           expect(body.listings.length).toBeGreaterThan(0);
           expect(body.admin_level).toBe("owner");
         },
@@ -81,10 +81,10 @@ describeWithEnv("API key authentication", { db: true }, () => {
       // Verify snake_case keys and no internal fields
       const listing = body.listings[0];
       expect(listing.name).toBe("Test Listing");
-      expect(listing.max_attendees).toBeDefined();
-      expect(listing.attendee_count).toBeDefined();
-      expect(listing.listing_type).toBeDefined();
-      expect(listing.slug_index).toBeUndefined();
+      expect(typeof listing.max_attendees).toBe("number");
+      expect(listing.attendee_count).toBe(0);
+      expect(typeof listing.listing_type).toBe("string");
+      expect(Object.hasOwn(listing, "slug_index")).toBe(false);
     });
 
     test("GET /api/admin/listings returns listings via cookie+CSRF", async () => {
@@ -99,7 +99,7 @@ describeWithEnv("API key authentication", { db: true }, () => {
         ),
         200,
         (body) => {
-          expect(body.listings).toBeDefined();
+          expect(Array.isArray(body.listings)).toBe(true);
         },
       );
     });
@@ -123,7 +123,7 @@ describeWithEnv("API key authentication", { db: true }, () => {
       const keyIndex = await hmacHash(token);
 
       // Disable FK checks to insert an orphaned API key row
-      await getDb().execute({ args: [], sql: "PRAGMA foreign_keys = OFF" });
+      await getDb().execute(sql`PRAGMA foreign_keys = OFF`);
       await getDb().execute(
         insert("api_keys", {
           created: new Date().toISOString(),
@@ -134,7 +134,7 @@ describeWithEnv("API key authentication", { db: true }, () => {
           wrapped_data_key: "dummy",
         }),
       );
-      await getDb().execute({ args: [], sql: "PRAGMA foreign_keys = ON" });
+      await getDb().execute(sql`PRAGMA foreign_keys = ON`);
 
       const response = await handleRequest(
         requestAsApiKey("/api/admin/listings", token),
@@ -147,10 +147,9 @@ describeWithEnv("API key authentication", { db: true }, () => {
       const { apiKey, id } = await createTestApiKeyFull("Corrupt Key");
 
       // Corrupt the wrapped_data_key in the DB
-      await getDb().execute({
-        args: ["corrupted-data", id],
-        sql: "UPDATE api_keys SET wrapped_data_key = ? WHERE id = ?",
-      });
+      await getDb().execute(
+        sql`UPDATE api_keys SET wrapped_data_key = ${"corrupted-data"} WHERE id = ${id}`,
+      );
 
       const response = await handleRequest(
         requestAsApiKey("/api/admin/listings", apiKey),
@@ -174,7 +173,7 @@ describeWithEnv("API key authentication", { db: true }, () => {
         ),
         200,
         (body) => {
-          expect(body.listings).toBeDefined();
+          expect(Array.isArray(body.listings)).toBe(true);
         },
       );
     });

@@ -7,8 +7,8 @@ import { listingChildren } from "#db/listing-parents.ts";
 import { settings } from "#db/settings.ts";
 import { addPageItem } from "#db/site-page-items.ts";
 import { sitePages } from "#db/site-pages.ts";
+import { sql } from "#db/sql.ts";
 import { publicNavModel, publicNavProps } from "#routes/public/site-nav.ts";
-
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import type { NavModel, NavNode, TargetKey } from "#shared/site-pages/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -122,7 +122,7 @@ describeWithEnv("public site nav", { db: true, triggers: true }, () => {
 
   test("keeps an inactive listing in the nav but not as a link", async () => {
     const { model } = await navShowingListing("Off sale", (listingId) =>
-      execute("UPDATE listings SET active = 0 WHERE id = ?", [listingId]),
+      execute(sql`UPDATE listings SET active = 0 WHERE id = ${listingId}`),
     );
 
     expect(model.currentChildren.map((node) => node.label)).toEqual([

@@ -7,17 +7,19 @@
  * here. The column list and row mapping therefore live in exactly one place.
  */
 
-import type { InValue, ResultSet } from "@libsql/client";
+import type { ResultSet } from "@libsql/client";
 import { ATTENDEE } from "#accounting/accounts.ts";
-import {
-  type BatchExecutor,
-  orIgnore,
-  resultRows,
-  type SqlStatement,
-} from "#db/client.ts";
-import { type NumberedSql, numberedStatement } from "#db/numbered-statement.ts";
+import { type BatchExecutor, resultRows } from "#db/client.ts";
 import { type Read, readStatement } from "#db/read.ts";
+import {
+  type SqlSlot,
+  type SqlStatement,
+  sql,
+  sqlCommas,
+  sqlNames,
+} from "#db/sql.ts";
 import { equals, matchesNoRows } from "#db/where-clauses.ts";
+import { bindFirst } from "#shared/fp-bind.ts";
 import { account } from "#shared/ledger/account.ts";
 import type {
   AccountRef,
@@ -55,10 +57,7 @@ type TransferRow = TransferEndpoints & {
   posted_by: string;
 };
 
-const COLUMNS =
-  "id, source_type, source_id, dest_type, dest_id, amount, " +
-  "occurred_at, recorded_at, reference, event_group, kind, memo, " +
-  "reverses_id, reverses_group, posted_by";
+const COLUMNS = sql`id, source_type, source_id, dest_type, dest_id, amount, occurred_at, recorded_at, reference, event_group, kind, memo, reverses_id, reverses_group, posted_by`;
 
 /** Turn a database row into the {@link Transfer} the rest of the code uses.
  *  A kindless leg is stored as `kind = ''` (see {@link legColumns}). It maps
@@ -80,16 +79,11 @@ const rowToTransfer = (row: TransferRow): Transfer => ({
   source: account(row.source_type, row.source_id),
 });
 
-/** One column of a transfers INSERT: its name, the SQL placeholder/expression
- *  for its value, and the args that expression binds. */
-type LegColumn = { col: string; expr: string; args: InValue[] };
+/** One column of a transfers INSERT: its name, and the value or SQL expression
+ *  it takes. */
+type LegColumn = { col: string; value: SqlSlot };
 
-/** A plain bound-placeholder column. */
-const lit = (col: string, value: InValue): LegColumn => ({
-  args: [value],
-  col,
-  expr: "?",
-});
+const lit = (col: string, value: SqlSlot): LegColumn => ({ col, value });
 
 /** Renders one leg side's account id column. The default binds the id as a
  *  literal. The batch booking writer swaps in its in-batch subquery for the
@@ -130,43 +124,48 @@ const legColumns = (
  * Render the INSERT for a column plan. Without a guard it is a plain
  * `VALUES (…)` insert. With one, the values become `SELECT … WHERE <guard>`, so
  * the row lands only while the guard still holds. One statement either way, so
- * it can ride in a single batch. Each column keeps its own placeholder (the
- * guard's args are appended after the columns'). A stray `$`/`?` in the
- * guard SQL can never re-bind a column value.
+ * it can ride in a single batch.
  */
 const renderInsert = (
+  opening: SqlStatement,
   columns: LegColumn[],
-  guard?: { sql: string; args: InValue[] },
+  guard?: SqlStatement,
 ): SqlStatement => {
-  const exprs = columns.map((column) => column.expr).join(", ");
-  return {
-    args: [...columns.flatMap((column) => column.args), ...(guard?.args ?? [])],
-    sql:
-      `INSERT INTO transfers (${columns.map((column) => column.col).join(", ")}) ` +
-      (guard ? `SELECT ${exprs} WHERE ${guard.sql}` : `VALUES (${exprs})`),
-  };
+  const values = sqlCommas(columns.map((column) => sql`${column.value}`));
+  const names = sqlNames(columns.map((column) => column.col));
+  return guard
+    ? sql`${opening} transfers (${names}) SELECT ${values} WHERE ${guard}`
+    : sql`${opening} transfers (${names}) VALUES (${values})`;
 };
 
-/** Build the INSERT for one transfer. `recordedAt` is the write-time clock. */
-export const insertStatement = (
-  t: TransferInput,
-  recordedAt: string,
-): SqlStatement => renderInsert(legColumns(t, recordedAt));
+const INSERT = sql`INSERT INTO`;
+const INSERT_IF_NEW = sql`INSERT OR IGNORE INTO`;
 
-/**
- * A guarded INSERT for one transfer: `INSERT … SELECT … WHERE <guard>`, so a leg
- * can be folded into a one-shot batch and land only when the guard still holds.
- * Used to post a balance-payment leg atomically inside the settle batch (which
- * stays a batch, not an interactive transaction, for its concurrency guard).
- * Renders from the shared {@link legColumns} plan.
- */
-export const guardedInsertStatement = (
+/** The INSERT for one transfer under one opening. `recordedAt` is the
+ * write-time clock. With a guard the leg lands only while the guard holds, so
+ * the leg can ride in a one-shot batch. */
+const insertUnder = (
+  opening: SqlStatement,
   t: TransferInput,
   recordedAt: string,
-  guardSql: string,
-  guardArgs: InValue[],
-): SqlStatement =>
-  renderInsert(legColumns(t, recordedAt), { args: guardArgs, sql: guardSql });
+  guard?: SqlStatement,
+): SqlStatement => renderInsert(opening, legColumns(t, recordedAt), guard);
+
+/** Build the INSERT for one transfer. The settle batch passes a guard to post
+ * a balance-payment leg atomically. That batch stays a batch, not an
+ * interactive transaction, for its concurrency guard. */
+export const insertStatement = bindFirst(insertUnder)(INSERT);
+
+/** {@link insertStatement}, dropping a leg whose unique `reference` is
+ * already stored: a replayed write re-derives the same reference and lands
+ * nowhere. */
+export const insertIfNewStatement = bindFirst(insertUnder)(INSERT_IF_NEW);
+
+/** One insert-if-new statement for each leg, all recorded at one time. */
+export const insertIfNewStatements = (
+  legs: readonly Parameters<typeof insertIfNewStatement>[0][],
+  recordedAt: string,
+): SqlStatement[] => legs.map((leg) => insertIfNewStatement(leg, recordedAt));
 
 /**
  * Build an idempotent, guarded INSERT for one booking leg, for the single-batch
@@ -181,23 +180,17 @@ export const guardedInsertStatement = (
 export const bookingLegBatchInsert = (
   t: TransferInput,
   recordedAt: string,
-  attendeeIdSql: string,
-  attendeeIdArg: InValue,
-  guard: { sql: string; args: InValue[] },
+  attendeeIdSql: SqlStatement,
+  guard: SqlStatement,
 ): SqlStatement =>
-  orIgnore(
-    renderInsert(
-      legColumns(t, recordedAt, (col, acct) =>
-        acct.type === ATTENDEE
-          ? {
-              args: [attendeeIdArg],
-              col,
-              expr: `CAST(${attendeeIdSql} AS TEXT)`,
-            }
-          : literalId(col, acct),
-      ),
-      guard,
+  renderInsert(
+    INSERT_IF_NEW,
+    legColumns(t, recordedAt, (col, acct) =>
+      acct.type === ATTENDEE
+        ? lit(col, sql`CAST(${attendeeIdSql} AS TEXT)`)
+        : literalId(col, acct),
     ),
+    guard,
   );
 
 /** The transfers held by one answered query. */
@@ -209,7 +202,7 @@ const transfersIn = (result: ResultSet): Transfer[] =>
 export type TransferRead = Omit<Read, "columns" | "from">;
 
 const transferStatement = (query: TransferRead): SqlStatement =>
-  readStatement({ ...query, columns: COLUMNS, from: "transfers" });
+  readStatement({ ...query, columns: COLUMNS, from: sql`transfers` });
 
 /** One set of rows for each query, in the order the queries were given. A
  *  caller can then name them by destructuring rather than counting positions. */
@@ -261,18 +254,13 @@ export const selectTransfers = async (
   return rows;
 };
 
-/** Read transfers whose rows a deferred numbered WHERE selects. A scope that
- *  names one value in several places binds it once and reuses its token. */
+/** Read transfers whose rows a WHERE condition selects. */
 export const selectTransfersScope = async (
   read: BatchExecutor,
-  where: NumberedSql,
+  where: SqlStatement,
 ): Promise<Transfer[]> => {
-  const statement = numberedStatement(where);
   const [result] = await read([
-    {
-      args: statement.args,
-      sql: `SELECT ${COLUMNS} FROM transfers WHERE ${statement.sql}`,
-    },
+    sql`SELECT ${COLUMNS} FROM transfers WHERE ${where}`,
   ]);
   return transfersIn(requireValue(result, "Ledger read went unanswered"));
 };

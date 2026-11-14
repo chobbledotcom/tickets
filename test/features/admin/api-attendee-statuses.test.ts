@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeStatuses, getAttendeeStatus } from "#db/attendee-statuses.ts";
 import { getDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -22,10 +23,9 @@ const createStatus = async (
 
 /** Point one attendee at a status, the way a booking would. */
 const holdStatus = async (statusId: number): Promise<void> => {
-  await getDb().execute({
-    args: [new Date().toISOString(), statusId],
-    sql: "INSERT INTO attendees (created, pii_blob, status_id) VALUES (?, '', ?)",
-  });
+  await getDb().execute(
+    sql`INSERT INTO attendees (created, pii_blob, status_id) VALUES (${new Date().toISOString()}, '', ${statusId})`,
+  );
 };
 
 describeWithEnv("Admin API - Attendee statuses", { db: true }, () => {
@@ -52,7 +52,7 @@ describeWithEnv("Admin API - Attendee statuses", { db: true }, () => {
           });
           // The answer carries the three default flags and the amount, but not
           // the dashboard-only sort order.
-          expect(confirmed.sort_order).toBeUndefined();
+          expect(Object.hasOwn(confirmed, "sort_order")).toBe(false);
         },
       );
     });

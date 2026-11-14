@@ -4,6 +4,7 @@ import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { hashPassword } from "#crypto/hashing.ts";
 import { generateDataKey, wrapKeyWithToken } from "#crypto/keys.ts";
 import { execute } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import {
   acceptInvite,
   activateKeylessUser,
@@ -105,10 +106,9 @@ describeWithEnv("db > users contracts", { db: true }, () => {
     const cached = (await getUserByUsername("changed-role"))!;
     expect(await decryptAdminLevel(cached)).toBe("manager");
 
-    await execute("UPDATE users SET admin_level = ? WHERE id = ?", [
-      await encrypt("editor"),
-      cached.id,
-    ]);
+    await execute(
+      sql`UPDATE users SET admin_level = ${await encrypt("editor")} WHERE id = ${cached.id}`,
+    );
 
     expect(
       await decryptAdminLevel((await getUserByUsername("changed-role"))!),

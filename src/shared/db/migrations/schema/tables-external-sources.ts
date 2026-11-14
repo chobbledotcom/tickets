@@ -3,6 +3,7 @@
 
 /* jscpd:ignore-start */
 import { EXTERNAL_LINK_KINDS } from "#db/external-sources/types.ts";
+import { sql } from "#db/sql.ts";
 import { datedRowColumns } from "./columns.ts";
 import {
   checked,
@@ -45,7 +46,7 @@ export const externalSourceTables: [name: string, table: Table][] = [
         ["external_id", textOrNull],
         [
           "external_id_index",
-          checked("(external_id_index IS NULL) = (external_id IS NULL)")(
+          checked(sql`(external_id_index IS NULL) = (external_id IS NULL)`)(
             textOrNull,
           ),
         ],

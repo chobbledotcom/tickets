@@ -5,6 +5,7 @@ import { FakeTime } from "@std/testing/time";
 import { getDb } from "#db/client.ts";
 import maintenanceMigration from "#db/migrations/2026-07-18_maintenance_tasks.ts";
 import { applySchemaChanges, syncIndexes } from "#db/migrations/schema-sync.ts";
+import { sql, sqlList } from "#db/sql.ts";
 import {
   ACTIVITY_LOG_BACKFILL_INTERVAL_MS,
   PRUNE_INTERVAL_MS,
@@ -49,16 +50,15 @@ describeWithEnv(
     test("moves old due times and removes every old marker", async () => {
       await getDb().batch(
         [
-          "DROP TABLE maintenance_tasks",
-          ...LEGACY_MARKERS.map((key, index) => ({
-            args: [
-              key,
-              key === "activity_log_backfill_done"
-                ? "false"
-                : String(index + 1),
-            ],
-            sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-          })),
+          sql`DROP TABLE maintenance_tasks`,
+          ...LEGACY_MARKERS.map(
+            (key, index) =>
+              sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${key}, ${
+                key === "activity_log_backfill_done"
+                  ? "false"
+                  : String(index + 1)
+              })`,
+          ),
         ],
         "write",
       );
@@ -66,7 +66,7 @@ describeWithEnv(
       await runMigration();
 
       const tasks = await getDb().execute(
-        "SELECT name, next_run_at FROM maintenance_tasks ORDER BY name",
+        sql`SELECT name, next_run_at FROM maintenance_tasks ORDER BY name`,
       );
       expect(tasks.rows.map((row) => String(row.name))).toEqual([
         "activity_log_backfill",
@@ -76,10 +76,9 @@ describeWithEnv(
         12 + ACTIVITY_LOG_BACKFILL_INTERVAL_MS,
       );
       expect(Number(tasks.rows[1]?.next_run_at)).toBe(1 + PRUNE_INTERVAL_MS);
-      const markers = await getDb().execute({
-        args: [...LEGACY_MARKERS],
-        sql: `SELECT key FROM settings WHERE key IN (${LEGACY_MARKERS.map(() => "?").join(", ")})`,
-      });
+      const markers = await getDb().execute(
+        sql`SELECT key FROM settings WHERE key IN (${sqlList(LEGACY_MARKERS)})`,
+      );
       expect(markers.rows).toEqual([]);
     });
 
@@ -87,9 +86,9 @@ describeWithEnv(
       using _time = new FakeTime(1_800_000_000_000);
       await getDb().batch(
         [
-          "DROP TABLE maintenance_tasks",
-          "INSERT OR REPLACE INTO settings (key, value) VALUES ('last_pruned_sessions', '0')",
-          "INSERT OR REPLACE INTO settings (key, value) VALUES ('last_activity_log_backfill', 'not-a-time')",
+          sql`DROP TABLE maintenance_tasks`,
+          sql`INSERT OR REPLACE INTO settings (key, value) VALUES ('last_pruned_sessions', '0')`,
+          sql`INSERT OR REPLACE INTO settings (key, value) VALUES ('last_activity_log_backfill', 'not-a-time')`,
         ],
         "write",
       );
@@ -97,7 +96,7 @@ describeWithEnv(
       await runMigration();
 
       const tasks = await getDb().execute(
-        "SELECT name, next_run_at FROM maintenance_tasks ORDER BY name",
+        sql`SELECT name, next_run_at FROM maintenance_tasks ORDER BY name`,
       );
       expect(tasks.rows).toEqual([
         { name: "activity_log_backfill", next_run_at: 1_800_000_000_000 },
@@ -106,10 +105,12 @@ describeWithEnv(
     });
 
     test("adds a revision fence to existing built sites", async () => {
-      await getDb().execute("DROP TABLE maintenance_tasks");
+      await getDb().execute(sql`DROP TABLE maintenance_tasks`);
       await runMigration();
 
-      const columns = await getDb().execute("PRAGMA table_info(built_sites)");
+      const columns = await getDb().execute(
+        sql`PRAGMA table_info(built_sites)`,
+      );
       assertArrayIncludes(
         columns.rows.map((row) => String(row.name)),
         ["site_data_revision"],
@@ -119,8 +120,8 @@ describeWithEnv(
     test("does not reschedule a backfill that was already complete", async () => {
       await getDb().batch(
         [
-          "DROP TABLE maintenance_tasks",
-          "INSERT OR REPLACE INTO settings (key, value) VALUES ('activity_log_backfill_done', 'true')",
+          sql`DROP TABLE maintenance_tasks`,
+          sql`INSERT OR REPLACE INTO settings (key, value) VALUES ('activity_log_backfill_done', 'true')`,
         ],
         "write",
       );
@@ -128,7 +129,7 @@ describeWithEnv(
       await runMigration();
 
       const task = await getDb().execute(
-        "SELECT name FROM maintenance_tasks WHERE name = 'activity_log_backfill'",
+        sql`SELECT name FROM maintenance_tasks WHERE name = 'activity_log_backfill'`,
       );
       expect(task.rows).toEqual([]);
     });

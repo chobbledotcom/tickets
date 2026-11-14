@@ -27,12 +27,19 @@ import {
   attendeeStatuses,
   ensureDefaultAttendeeStatus,
 } from "#db/attendee-statuses.ts";
-import { getDb, insert, setDb } from "#db/client.ts";
+import { executeScript, getDb, insert, setDb } from "#db/client.ts";
 import { TRIGGERS } from "#db/migrations/schema/triggers.ts";
 import { SCHEMA_MIGRATIONS_TABLE } from "#db/migrations/schema/version.ts";
 import { fullSchemaCreateStatements } from "#db/migrations/schema-sync.ts";
 import { LATEST_UPDATE, SCHEMA_HASH } from "#db/migrations.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
+import {
+  type SqlStatement,
+  sql,
+  sqlLiteral,
+  sqlName,
+  sqlNames,
+} from "#db/sql.ts";
 import { lazyRef, once } from "#fp";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { createTestDbClient } from "#test-utils/db-client.ts";
@@ -70,7 +77,7 @@ const UserRowSchema = v.object({
 });
 
 /** The columns a captured user row carries, as one SELECT list. */
-const USER_ROW_COLUMNS = Object.keys(UserRowSchema.entries).join(", ");
+const USER_ROW_COLUMNS = sqlNames(Object.keys(UserRowSchema.entries));
 
 const AdminSessionRowSchema = v.object({
   csrf_token: v.string(),
@@ -112,35 +119,27 @@ export const invalidateTestDbCache = (): void => {
   setSnapshotDisabled(true);
 };
 
-const sqlString = (value: string): string => `'${value.replaceAll("'", "''")}'`;
-
 // Lazy (and cached): the migration modules are only needed to stamp a fresh
 // schema, so isolates seeded from the run-wide snapshot never load them.
-const buildTestSchemaSql = once(async (): Promise<string> => {
+const buildTestSchemaStatements = once(async (): Promise<SqlStatement[]> => {
   const migrations = await loadMigrations();
-  return `${[
+  return [
     ...fullSchemaCreateStatements(),
     ...TRIGGERS.map((trigger) => trigger.sql),
-    `INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ${sqlString(
-      LATEST_UPDATE,
-    )})`,
-    `INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_hash', ${sqlString(
-      SCHEMA_HASH,
-    )})`,
+    sql`INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ${sqlLiteral(LATEST_UPDATE)})`,
+    sql`INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_hash', ${sqlLiteral(SCHEMA_HASH)})`,
     ...migrations.map(
       (migration) =>
-        `INSERT OR REPLACE INTO ${SCHEMA_MIGRATIONS_TABLE} (id, description, applied_at) VALUES (${sqlString(
-          migration.id,
-        )}, ${sqlString(migration.description)}, '2026-01-01T00:00:00.000Z')`,
+        sql`INSERT OR REPLACE INTO ${sqlName(SCHEMA_MIGRATIONS_TABLE)} (id, description, applied_at) VALUES (${sqlLiteral(migration.id)}, ${sqlLiteral(migration.description)}, '2026-01-01T00:00:00.000Z')`,
     ),
-  ].join(";\n")};`;
+  ];
 });
 
 /** Build the full test schema plus the default attendee status into `path`. */
 const createGoldenDbAt = async (path: string): Promise<void> => {
   const client = await createTestDbClient(path);
   setDb(client);
-  await client.executeMultiple(await buildTestSchemaSql());
+  await executeScript(await buildTestSchemaStatements());
   await ensureDefaultAttendeeStatus();
   attendeeStatuses.invalidate();
   client.close();
@@ -210,7 +209,7 @@ export const reusableSetupState = (country: string): SetupState | null => {
 export const replaySetupState = async (state: SetupState): Promise<void> => {
   await getDb().batch(
     [
-      { args: [], sql: "DELETE FROM settings" },
+      sql`DELETE FROM settings`,
       ...state.settings.map((row) => insert("settings", row)),
       ...state.users.map((row) => insert("users", row)),
     ],
@@ -279,19 +278,19 @@ export const runSetupCeremony = async (
   settings.setForTest({ timezone: "UTC" });
 
   const settingsResult = await getDb().execute(
-    "SELECT key, value FROM settings AS setting",
+    sql`SELECT key, value FROM settings AS setting`,
   );
   const settingsRows = settingsResult.rows.map((row) =>
     v.parse(SettingsRowSchema, row),
   );
   const usersResult = await getDb().execute(
-    `SELECT ${USER_ROW_COLUMNS} FROM users AS user`,
+    sql`SELECT ${USER_ROW_COLUMNS} FROM users AS user`,
   );
   const users = usersResult.rows.map((row) => v.parse(UserRowSchema, row));
 
   const liveSession = await createDirectAdminSession();
   const sessionsResult = await getDb().execute(
-    `SELECT token, csrf_token, expires,
+    sql`SELECT token, csrf_token, expires,
             wrapped_data_key, user_id
      FROM sessions AS session LIMIT 1`,
   );

@@ -13,10 +13,11 @@ import { hashPassword } from "#crypto/hashing.ts";
 import { generateKeyPair } from "#crypto/hybrid.ts";
 import { generateDataKey, wrapDataKeyForPassword } from "#crypto/keys.ts";
 
-import { type SqlStatement, withTransaction } from "#db/client.ts";
+import { withTransaction } from "#db/client.ts";
 import { bumpSettingsVersion } from "#db/settings/cache.ts";
 import { invalidateCache, loadKeys } from "#db/settings/load.ts";
 import { getRawCached, settingUpsert } from "#db/settings/raw-writes.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { buildCreateUserStatement } from "#db/users.ts";
 import { lazyRef } from "#fp";
 import { registerCacheReset } from "#shared/cache-registry.ts";
@@ -60,13 +61,8 @@ export const clearSetupCompleteCache = (): void => {
 // registration covers it (it never re-reads once true), so hook the sweep.
 registerCacheReset(clearSetupCompleteCache);
 
-const claimSetupSlot = (): SqlStatement => ({
-  args: [CONFIG_KEYS.SETUP_COMPLETE, SETUP_CLAIM_VALUE, SETUP_DONE_VALUE],
-  sql:
-    "INSERT INTO settings (key, value) VALUES (?, ?) " +
-    "ON CONFLICT(key) DO UPDATE SET value = excluded.value " +
-    "WHERE settings.value <> ?",
-});
+const claimSetupSlot = (): SqlStatement =>
+  sql`INSERT INTO settings (key, value) VALUES (${CONFIG_KEYS.SETUP_COMPLETE}, ${SETUP_CLAIM_VALUE}) ON CONFLICT(key) DO UPDATE SET value = excluded.value WHERE settings.value <> ${SETUP_DONE_VALUE}`;
 
 /**
  * The initial site-setup ceremony — creates the owner account, generates and

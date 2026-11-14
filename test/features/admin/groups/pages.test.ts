@@ -9,6 +9,7 @@ import { listingGroups } from "#db/groups/table.ts";
 import { groups } from "#db/groups.ts";
 import { createOwnerNote, getNoteRows } from "#db/notes/queries.ts";
 import { noteTargets } from "#db/notes/target.ts";
+import { sql } from "#db/sql.ts";
 import { deleteGroup } from "#routes/admin/groups.ts";
 import {
   imageNamesForItem,
@@ -126,8 +127,7 @@ describeWithEnv("admin group pages", { db: true }, () => {
     groups.cache.invalidate();
     expect(
       await queryAll(
-        "SELECT groupRecord.id FROM groups AS groupRecord WHERE groupRecord.id = ?",
-        [group.id],
+        sql`SELECT groupRecord.id FROM groups AS groupRecord WHERE groupRecord.id = ${group.id}`,
       ),
     ).toEqual([]);
     expect(await listingGroups.getIds(listing.id)).toEqual([]);

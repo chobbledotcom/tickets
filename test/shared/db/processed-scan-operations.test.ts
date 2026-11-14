@@ -11,6 +11,7 @@ import {
   type ScanDelivery,
   scanOperationGuard,
 } from "#db/processed-scan-operations.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 /** One claimed delivery: the id a device made up, the digest it stored, and
@@ -126,7 +127,7 @@ describeWithEnv("the scan delivery ledger", { db: true }, () => {
       claimScanOperation(delivery("op-ledger-5", "digest-f"))(tx),
     );
     const { rows } = await getDb().execute(
-      "SELECT created, listing_ids, operation_id, quantity, token_hash FROM processed_scan_operations WHERE operation_id = 'op-ledger-5'",
+      sql`SELECT created, listing_ids, operation_id, quantity, token_hash FROM processed_scan_operations WHERE operation_id = 'op-ledger-5'`,
     );
     const row = rows[0] as Record<string, unknown>;
     expect(Object.keys(row).sort()).toEqual([

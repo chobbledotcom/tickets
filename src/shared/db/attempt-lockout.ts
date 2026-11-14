@@ -13,33 +13,24 @@ import {
   executeReturningRow,
   queryOne,
 } from "#db/client.ts";
-import {
-  numberedStatement,
-  type SqlParameter,
-} from "#db/numbered-statement.ts";
+import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import { nowMs } from "#shared/now.ts";
 
 type StoredLockout = { locked_until: number | null };
 
-/** Build a limiter's attempt recorder from its single-statement upsert,
- * written in the deferred numbered form: the builder binds each value once
- * and the binder hands every repeat of that value the same token, so the
- * numbering carries no prose map. The statement must count the attempt AND
+/** Build a limiter's attempt recorder from its single-statement upsert.
+ * The statement must count the attempt AND
  * decide the lockout inside the database (`INSERT … ON CONFLICT … RETURNING
  * locked_until`). Two attempts arriving at once can then never lose a count
  * the way a read-then-write sequence could. The recorder returns true when
  * the IP is now locked out. */
 export const makeAttemptRecorder =
   <T>(
-    buildSql: (bind: SqlParameter, values: T) => string,
+    buildStatement: (values: T) => SqlStatement,
   ): ((values: T) => Promise<boolean>) =>
-  async (values: T): Promise<boolean> => {
-    const { sql, args } = numberedStatement((bind) => buildSql(bind, values));
-    return (
-      (await executeReturningRow<StoredLockout>(sql, args)).locked_until !==
-      null
-    );
-  };
+  async (values: T): Promise<boolean> =>
+    (await executeReturningRow<StoredLockout>(buildStatement(values)))
+      .locked_until !== null;
 
 /** Whether the IP's row in an attempts table holds an active lockout. Reads
  * only the lockout column; a missing row (no attempts yet) reads as not
@@ -49,8 +40,7 @@ export const isIpLockedOut = async (
   hashedIp: string,
 ): Promise<boolean> => {
   const row = await queryOne<StoredLockout>(
-    `SELECT locked_until FROM ${table} WHERE ip = ?`,
-    [hashedIp],
+    sql`SELECT locked_until FROM ${sqlName(table)} WHERE ip = ${hashedIp}`,
   );
   return lockoutActive(table, hashedIp, row?.locked_until);
 };
@@ -75,9 +65,8 @@ export const lockoutActive = async (
   if (lockedUntil > nowMs()) return true;
   // Delete only the exact lockout we read: a fresh one written by a
   // concurrent request has a different timestamp and must survive.
-  await execute(`DELETE FROM ${table} WHERE ip = ? AND locked_until = ?`, [
-    hashedIp,
-    lockedUntil,
-  ]);
+  await execute(
+    sql`DELETE FROM ${sqlName(table)} WHERE ip = ${hashedIp} AND locked_until = ${lockedUntil}`,
+  );
   return false;
 };

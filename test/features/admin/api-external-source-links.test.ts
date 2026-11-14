@@ -7,6 +7,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { HYBRID_PREFIX } from "#crypto/hybrid.ts";
 import { queryOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -71,8 +72,7 @@ describeWithEnv("Admin API - External source links", { db: true }, () => {
       expect(link.link).not.toHaveProperty("external_id_index");
 
       const stored = await queryOne<{ external_id: string }>(
-        "SELECT external_id FROM external_source_links WHERE id = ?",
-        [Number(link.link.id)],
+        sql`SELECT external_id FROM external_source_links WHERE id = ${Number(link.link.id)}`,
       );
       expect(stored!.external_id.startsWith(HYBRID_PREFIX)).toBe(true);
     });

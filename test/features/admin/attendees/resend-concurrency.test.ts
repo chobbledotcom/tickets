@@ -11,6 +11,7 @@ import { it as test } from "@std/testing/bdd";
 import { claimOutstandingNotificationFlags } from "#db/attendees/notification-flags.ts";
 import { execute } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 import { t } from "#i18n";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -262,12 +263,11 @@ describeWithEnv(
       // the words. The booking's own lines are already written, so any new
       // line for this attendee is the resend's.
       await execute(
-        `CREATE TRIGGER reject_resend_activity BEFORE INSERT ON activity_log
-       WHEN NEW.attendee_id = ${attendee.id}
+        sql`CREATE TRIGGER reject_resend_activity BEFORE INSERT ON activity_log
+       WHEN NEW.attendee_id = ${sqlLiteral(attendee.id)}
        BEGIN
          SELECT RAISE(ABORT, 'activity rejected');
        END`,
-        [],
       );
       try {
         // The refused activity write surfaces as the press's own rejection.
@@ -279,7 +279,7 @@ describeWithEnv(
           webhooks: 1,
         });
       } finally {
-        await execute("DROP TRIGGER IF EXISTS reject_resend_activity", []);
+        await execute(sql`DROP TRIGGER IF EXISTS reject_resend_activity`);
       }
 
       const second = await resend(attendee.id, "Activity Fault Buyer", "both");
@@ -307,22 +307,20 @@ describeWithEnv(
       );
       await addWebhook(listing.id);
       await execute(
-        `CREATE TRIGGER reject_resend_activity BEFORE INSERT ON activity_log
-       WHEN NEW.attendee_id = ${attendee.id}
+        sql`CREATE TRIGGER reject_resend_activity BEFORE INSERT ON activity_log
+       WHEN NEW.attendee_id = ${sqlLiteral(attendee.id)}
        BEGIN
          SELECT RAISE(ABORT, 'activity rejected');
        END`,
-        [],
       );
       await execute(
-        `CREATE TRIGGER reject_flag_restore BEFORE UPDATE ON attendees
-       WHEN NEW.id = ${attendee.id}
+        sql`CREATE TRIGGER reject_flag_restore BEFORE UPDATE ON attendees
+       WHEN NEW.id = ${sqlLiteral(attendee.id)}
          AND (NEW.email_pending > OLD.email_pending
            OR NEW.webhooks_pending > OLD.webhooks_pending)
        BEGIN
          SELECT RAISE(ABORT, 'restore rejected');
        END`,
-        [],
       );
       try {
         // The refused activity write surfaces as the press's own rejection,
@@ -337,8 +335,8 @@ describeWithEnv(
           webhooks: 0,
         });
       } finally {
-        await execute("DROP TRIGGER IF EXISTS reject_resend_activity", []);
-        await execute("DROP TRIGGER IF EXISTS reject_flag_restore", []);
+        await execute(sql`DROP TRIGGER IF EXISTS reject_resend_activity`);
+        await execute(sql`DROP TRIGGER IF EXISTS reject_flag_restore`);
       }
     });
 

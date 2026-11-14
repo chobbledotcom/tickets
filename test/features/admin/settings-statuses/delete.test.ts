@@ -14,6 +14,7 @@ import {
   attendeeStatusWrites,
 } from "#db/attendee-statuses.ts";
 import { execute } from "#db/client.ts";
+import { sql, sqlLiteral, sqlName } from "#db/sql.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import {
   expectFlashRedirect,
@@ -42,8 +43,7 @@ const names = async (): Promise<string[]> =>
 
 const attendeeStatusCount = async (statusId: number): Promise<number> => {
   const rows = await execute(
-    "SELECT COUNT(*) AS held FROM attendees WHERE status_id = ?",
-    [statusId],
+    sql`SELECT COUNT(*) AS held FROM attendees WHERE status_id = ${statusId}`,
   );
   return Number(rows.rows[0]!.held);
 };
@@ -113,10 +113,9 @@ describeWithEnv("deleting a status", { db: true }, () => {
   test("a held status refuses a delete with no target, and everything stays", async () => {
     const { attendee } = await setupListingAndAttendee({ name: "On It" });
     const id = await create("In Use");
-    await execute("UPDATE attendees SET status_id = ? WHERE id = ?", [
-      id,
-      attendee.id,
-    ]);
+    await execute(
+      sql`UPDATE attendees SET status_id = ${id} WHERE id = ${attendee.id}`,
+    );
 
     const { response } = await remove(id, "In Use");
 
@@ -164,10 +163,9 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
     const otherId = await create("Landing Status");
     const busyId = await create("Busy");
     const { attendee } = await setupListingAndAttendee({ name: "Holder" });
-    await execute("UPDATE attendees SET status_id = ? WHERE id = ?", [
-      busyId,
-      attendee.id,
-    ]);
+    await execute(
+      sql`UPDATE attendees SET status_id = ${busyId} WHERE id = ${attendee.id}`,
+    );
     return { attendeeId: attendee.id, busyId, otherId };
   };
 
@@ -195,10 +193,9 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
   test("a lone status attendees hold shows the prerequisite instead of an empty picker", async () => {
     const { attendee } = await setupListingAndAttendee({ name: "Lonely" });
     const only = (await attendeeStatuses.getAll())[0]!;
-    await execute("UPDATE attendees SET status_id = ? WHERE id = ?", [
-      only.id,
-      attendee.id,
-    ]);
+    await execute(
+      sql`UPDATE attendees SET status_id = ${only.id} WHERE id = ${attendee.id}`,
+    );
 
     const html = await (await adminGet(`${PATH}/${only.id}/delete`)).text();
 
@@ -251,9 +248,9 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
     });
 
     await expectFlashRedirect(PATH, "Status deleted")(response);
-    const rows = await execute("SELECT status_id FROM attendees WHERE id = ?", [
-      attendeeId,
-    ]);
+    const rows = await execute(
+      sql`SELECT status_id FROM attendees WHERE id = ${attendeeId}`,
+    );
     expect(Number(rows.rows[0]!.status_id)).toBe(otherId);
     assertArrayIncludes(await names(), ["Landing Status"]);
     assert(!(await names()).includes("Busy"));
@@ -283,9 +280,9 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
     const faultName = "test_status_reassign_fault";
 
     const fault = withDbFault(
-      `CREATE TRIGGER ${faultName}
+      sql`CREATE TRIGGER ${sqlName(faultName)}
          BEFORE UPDATE ON attendees
-         WHEN NEW.status_id = ${otherId}
+         WHEN NEW.status_id = ${sqlLiteral(otherId)}
        BEGIN SELECT RAISE(ABORT, 'reassign unavailable'); END`,
       faultName,
       () => attendeeStatusWrites.delete(busyId, otherId),
@@ -294,9 +291,9 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
 
     assertArrayIncludes(await names(), ["Busy"]);
     expect(await attendeeStatusCount(busyId)).toBe(1);
-    const rows = await execute("SELECT status_id FROM attendees WHERE id = ?", [
-      attendeeId,
-    ]);
+    const rows = await execute(
+      sql`SELECT status_id FROM attendees WHERE id = ${attendeeId}`,
+    );
     expect(Number(rows.rows[0]!.status_id)).toBe(busyId);
   });
 });

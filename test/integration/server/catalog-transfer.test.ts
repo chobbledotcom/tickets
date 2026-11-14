@@ -9,6 +9,7 @@ import { listingChildren, listingParents } from "#db/listing-parents.ts";
 import { getGroupDayPrices } from "#db/listing-prices.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import {
   exportGroup,
@@ -163,8 +164,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       // The derived listing_prices base row is re-synced from unit_price after
       // the transactional insert (which bypasses the table wrapper).
       const priceRows = await execute(
-        "SELECT unit_price FROM listing_prices WHERE listing_id = ? AND price_type = 'base'",
-        [requireEntityImport(result).id],
+        sql`SELECT unit_price FROM listing_prices WHERE listing_id = ${requireEntityImport(result).id} AND price_type = 'base'`,
       );
       expect(priceRows.rows.map((r) => Number(r.unit_price))).toEqual([2500]);
     });

@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -204,8 +205,7 @@ describeWithEnv(
           `/checkin/${token}?message=Checked%20in%201%20ticket`,
         );
         const rows = await queryAll<{ listing_id: number; checked_in: number }>(
-          "SELECT listing_id, checked_in FROM listing_attendees WHERE attendee_id = ?",
-          [result.attendees[0]!.id],
+          sql`SELECT listing_id, checked_in FROM listing_attendees WHERE attendee_id = ${result.attendees[0]!.id}`,
         );
         const byListing = new Map(
           rows.map((r) => [r.listing_id, r.checked_in]),

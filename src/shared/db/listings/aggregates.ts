@@ -11,6 +11,7 @@ import {
   ticketCountPredicateFor,
   ticketCountSumExpr,
 } from "#db/migrations/schema/listing-aggregates.ts";
+import { sql } from "#db/sql.ts";
 import type { ListingWithCount } from "#types";
 
 export const LISTING_AGGREGATE_FIELDS = [
@@ -23,19 +24,18 @@ export type ListingAggregateValues = AggregateValues<ListingAggregateField>;
 export type ListingAggregateRecalculation =
   AggregateRecalculation<ListingAggregateField>;
 
-const LISTING_AGGREGATE_RECALC_SQL = `SELECT
+const listingAggregateRecalcSql = (listingId: number) => sql`SELECT
        COALESCE(SUM(listingAttendee.quantity), 0) AS booked_quantity,
        ${ticketCountSumExpr()} AS tickets_count
      FROM listing_attendees AS listingAttendee
-     WHERE listingAttendee.listing_id = ?`;
+     WHERE listingAttendee.listing_id = ${listingId}`;
 
 /** Compare stored listing aggregates with the values rebuilt from bookings. */
 export const getListingAggregateRecalculation = async (
   listing: ListingWithCount,
 ): Promise<ListingAggregateRecalculation> => {
   const row = await requireOne<ListingAggregateValues>(
-    LISTING_AGGREGATE_RECALC_SQL,
-    [listing.id],
+    listingAggregateRecalcSql(listing.id),
   );
   return {
     booked_quantity: {
@@ -60,11 +60,10 @@ export const adjustListingIncome = (
 export const listingAggregates = aggregateRepairs<ListingAggregateField>(
   "listings",
   {
-    booked_quantity:
-      "booked_quantity = COALESCE((SELECT SUM(listingAttendee.quantity) FROM listing_attendees AS listingAttendee WHERE listingAttendee.listing_id = ?), 0)",
-    tickets_count: `tickets_count = (SELECT COUNT(*) FROM listing_attendees AS listingAttendee WHERE listingAttendee.listing_id = ? AND ${ticketCountPredicateFor(
-      "listingAttendee.quantity",
-      "listingAttendee.attendee_id",
+    booked_quantity: sql`COALESCE((SELECT SUM(listingAttendee.quantity) FROM listing_attendees AS listingAttendee WHERE listingAttendee.listing_id = listings.id), 0)`,
+    tickets_count: sql`(SELECT COUNT(*) FROM listing_attendees AS listingAttendee WHERE listingAttendee.listing_id = listings.id AND ${ticketCountPredicateFor(
+      sql`listingAttendee.quantity`,
+      sql`listingAttendee.attendee_id`,
     )})`,
   },
 );

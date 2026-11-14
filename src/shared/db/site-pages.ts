@@ -11,7 +11,7 @@
 
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import type { StoredRowOf } from "#db/chosen-columns.ts";
-import { resultRows, type SqlStatement, type TxScope } from "#db/client.ts";
+import { resultRows, type TxScope } from "#db/client.ts";
 import { idAndEncryptedSlugSchema } from "#db/common-schema.ts";
 import { encryptedNameAndSeoSchema } from "#db/content-columns.ts";
 import { defineIdTable } from "#db/define-id-table.ts";
@@ -23,10 +23,11 @@ import {
   unclaimedSiteSlugCondition,
 } from "#db/slug-registry.ts";
 import type { SluggedContentInput } from "#db/slugged-content-input.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { cachedTable, col } from "#db/table.ts";
 import { readById, readBySlugIndex } from "#db/table-reader.ts";
 import type { Result } from "#shared/result.ts";
-import type { SitePage, SitePageNavRow } from "#types";
+import type { SitePage } from "#types";
 
 /** Create/update input (camelCase keys → snake_case columns). `sortOrder` is
  * optional only for the update path, which never writes it — create always
@@ -61,10 +62,9 @@ const sitePageNavColumns = sitePagesTable.read.pick([
 
 /** Load id, slug, name, sort_order, and hidden. Decrypt only slug and name.
  * Order by sort_order, then id. */
-const NAV_ROW_ORDER = { order: "sort_order ASC, id ASC" } as const;
+const NAV_ROW_ORDER = { order: sql`sort_order ASC, id ASC` } as const;
 
-const fetchNavRows = (): Promise<SitePageNavRow[]> =>
-  sitePageNavColumns.many({}, NAV_ROW_ORDER);
+const fetchNavRows = sitePageNavColumns.every(NAV_ROW_ORDER);
 
 // Request-scoped cache over those columns: computed once per request, fresh on
 // the next request (no cross-isolate staleness), and auto-cleared on any write

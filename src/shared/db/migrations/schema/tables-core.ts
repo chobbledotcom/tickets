@@ -1,5 +1,6 @@
 /** Core schema tables: system config, auth, listings, assets, rate limits. */
 
+import { sql } from "#db/sql.ts";
 import { datedRowColumns, itemLinkColumns } from "./columns.ts";
 import {
   checked,
@@ -52,7 +53,7 @@ export const coreTables: [name: string, table: Table][] = [
         ["last_started_at", wholeNumberOrNull],
         [
           "last_finished_at",
-          checked("(lease_token IS NULL) = (lease_expires_at IS NULL)")(
+          checked(sql`(lease_token IS NULL) = (lease_expires_at IS NULL)`)(
             wholeNumberOrNull,
           ),
         ],
@@ -235,8 +236,8 @@ export const coreTables: [name: string, table: Table][] = [
       columns: [
         ["id", rowId],
         ["name", textStartingBlank],
-        ["filename", checked("filename <> ''")(text)],
-        ["filename_thumb", checked("filename_thumb <> ''")(text)],
+        ["filename", checked(sql`filename <> ''`)(text)],
+        ["filename_thumb", checked(sql`filename_thumb <> ''`)(text)],
         ["alt_text", textStartingBlank],
       ],
     },

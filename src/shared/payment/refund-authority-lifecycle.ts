@@ -1,6 +1,13 @@
 // effects: pure
 /** The declared exit and destructive-write policy for every refund state. */
 
+import {
+  type SqlStatement,
+  sql,
+  sqlJoin,
+  sqlLiteral,
+  sqlName,
+} from "#db/sql.ts";
 import type { RowMove } from "#payment/admit-move.ts";
 import type {
   NeedsProviderCheckRefundState,
@@ -183,22 +190,40 @@ export const refundEvidenceActionAllowed = (
 
 type RefundAuthorityColumnPrefix = "" | "charge.";
 
-/** The one SQL form of the same states that block destructive work. */
+const stateColumn = (
+  prefix: RefundAuthorityColumnPrefix,
+  column: string,
+): SqlStatement => sqlName(`${prefix}${column}`);
+
+const storedWorkSql = (
+  prefix: RefundAuthorityColumnPrefix,
+  rule: (typeof REFUND_LIFECYCLE)[RefundAuthorityStateName],
+): SqlStatement => {
+  const inState = sql`${stateColumn(prefix, "refund_state_name")} = ${sqlLiteral(rule.state)}`;
+  return rule.storedWork === "all"
+    ? inState
+    : sql`(${inState} AND ${stateColumn(prefix, "refund_local_state")} = 'due')`;
+};
+
+/** The one SQL form of the same states that block destructive work, without
+ * brackets: the form a partial index names. */
+export const refundAuthorityWorkCondition = (
+  prefix: RefundAuthorityColumnPrefix,
+): SqlStatement =>
+  sqlJoin(
+    Object.values(REFUND_LIFECYCLE).map((rule) => storedWorkSql(prefix, rule)),
+    sql` OR `,
+  );
+
+/** The same condition in brackets, for a place inside a larger condition. */
 export const refundAuthorityWorkSql = (
   prefix: RefundAuthorityColumnPrefix,
-): string =>
-  `(${Object.values(REFUND_LIFECYCLE)
-    .map((rule) =>
-      rule.storedWork === "all"
-        ? `${prefix}refund_state_name = '${rule.state}'`
-        : `(${prefix}refund_state_name = '${rule.state}' AND ${prefix}refund_local_state = 'due')`,
-    )
-    .join(" OR ")})`;
+): SqlStatement => sql`(${refundAuthorityWorkCondition(prefix)})`;
 
 /** The exact stored authority states whose evidence and local books are done. */
 export const refundAuthorityPrunableSql = (
   prefix: RefundAuthorityColumnPrefix,
-): string => `NOT ${refundAuthorityWorkSql(prefix)}`;
+): SqlStatement => sql`NOT ${refundAuthorityWorkSql(prefix)}`;
 
 export type RefundLifecycle = {
   readonly blocks: Record<RowMove, boolean>;

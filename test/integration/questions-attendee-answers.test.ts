@@ -9,6 +9,7 @@ import {
 } from "#db/questions/attendee-answers/reads.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
 import { getOrCreateStringIds } from "#db/questions/strings.ts";
+import { sql } from "#db/sql.ts";
 import { nowIso } from "#shared/now.ts";
 import {
   addAnswer,
@@ -130,13 +131,14 @@ describeWithEnv("custom questions", { db: true }, () => {
     });
 
     test("saveAttendeeAnswers does nothing for an empty map", async () => {
-      await saveAttendeeAnswers(new Map());
       // No error thrown, no batch executed
+      await expect(saveAttendeeAnswers(new Map())).resolves.toBe(undefined);
     });
 
     test("saveAttendeeAnswers skips inserts for an answerless attendee", async () => {
       await saveAttendeeAnswers(new Map([[1, []]]));
-      // No error thrown, no rows inserted (delete-only path)
+      const after = await getAttendeeAnswersBatch([1], { texts: false });
+      expect(after.has(1)).toBe(false);
     });
 
     test("saveAttendeeAnswers skips answer ids whose answer was deleted", async () => {
@@ -148,7 +150,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       const att = await createAttendee(listing.id);
       await saveAttendeeAnswers(new Map([[att.id, [999_999]]]));
       const after = await getAttendeeAnswersBatch([att.id], { texts: false });
-      expect(after.get(att.id)).toBeUndefined();
+      expect(after.has(att.id)).toBe(false);
     });
 
     test("saveAttendeeAnswers replaces existing answers atomically", async () => {
@@ -230,7 +232,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       expect(textAnswers.get(q.id)).toBe("Front row please");
 
       const strings = await queryAll<{ created: string; used_count: number }>(
-        "SELECT created, used_count FROM strings",
+        sql`SELECT created, used_count FROM strings`,
       );
       expect(strings.map((row) => row.used_count)).toEqual([1]);
       expect(Number.isNaN(Date.parse(strings[0]!.created))).toBe(false);
@@ -251,7 +253,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       expect(textAnswers.get(q.id)).toBe("Final answer");
 
       const strings = await queryAll<{ used_count: number }>(
-        "SELECT used_count FROM strings",
+        sql`SELECT used_count FROM strings`,
       );
       expect(strings.map((row) => row.used_count)).toEqual([1]);
     });
@@ -293,13 +295,13 @@ describeWithEnv("custom questions", { db: true }, () => {
       );
 
       const afterInsert = await queryAll<{ used_count: number }>(
-        "SELECT used_count FROM strings",
+        sql`SELECT used_count FROM strings`,
       );
       expect(afterInsert.map((row) => row.used_count)).toEqual([2]);
 
       await saveAttendeeAnswers(new Map([[att1.id, []]]));
       const afterOneClear = await queryAll<{ used_count: number }>(
-        "SELECT used_count FROM strings",
+        sql`SELECT used_count FROM strings`,
       );
       expect(afterOneClear.map((row) => row.used_count)).toEqual([1]);
 
@@ -308,16 +310,16 @@ describeWithEnv("custom questions", { db: true }, () => {
       // lingers at used_count 0 until the age-based pruner removes it.
       await saveAttendeeAnswers(new Map([[att2.id, []]]));
       const afterAllClear = await queryAll<{ used_count: number }>(
-        "SELECT used_count FROM strings",
+        sql`SELECT used_count FROM strings`,
       );
       expect(afterAllClear.map((row) => row.used_count)).toEqual([0]);
 
       // Once aged past retention, the pruner deletes the unused row.
       await execute(
-        "UPDATE strings SET created = '2000-01-01T00:00:00Z' WHERE used_count = 0",
+        sql`UPDATE strings SET created = '2000-01-01T00:00:00Z' WHERE used_count = 0`,
       );
       await runDatabasePruning();
-      expect(await queryAll("SELECT id FROM strings")).toEqual([]);
+      expect(await queryAll(sql`SELECT id FROM strings`)).toEqual([]);
     });
 
     test("skips a text answer whose question was deleted at finalize", async () => {
@@ -339,18 +341,16 @@ describeWithEnv("custom questions", { db: true }, () => {
       const ids = await getOrCreateStringIds(["reuse me"]);
       const id = ids.get("reuse me")!;
       // Backdate it as if abandoned by an earlier checkout.
-      await execute("UPDATE strings SET created = ? WHERE id = ?", [
-        "2000-01-01T00:00:00Z",
-        id,
-      ]);
+      await execute(
+        sql`UPDATE strings SET created = ${"2000-01-01T00:00:00Z"} WHERE id = ${id}`,
+      );
 
       const beforeReuse = nowIso();
       const reused = await getOrCreateStringIds(["reuse me"]);
       expect(reused.get("reuse me")).toBe(id);
 
       const rows = await queryAll<{ created: string }>(
-        "SELECT created FROM strings WHERE id = ?",
-        [id],
+        sql`SELECT created FROM strings WHERE id = ${id}`,
       );
       // The refreshed timestamp must be at least the instant before the reuse,
       // not merely "after the backdated 2000 value" — this catches a mutant
@@ -370,7 +370,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       await saveAttendeeAnswers(new Map([[att.id, []]]));
 
       const after = await getAttendeeAnswersBatch([att.id], { texts: false });
-      expect(after.get(att.id)).toBeUndefined();
+      expect(after.has(att.id)).toBe(false);
     });
   });
 });

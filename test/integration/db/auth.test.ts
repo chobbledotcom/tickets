@@ -11,6 +11,7 @@ import { getDb, insert } from "#db/client.ts";
 import { clearLoginAttempts, loginLimiter } from "#db/login-attempts.ts";
 import { createSession, getSession } from "#db/sessions.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { getUserByUsername, verifyUserPassword } from "#db/users.ts";
 import { MAX_LOGIN_ATTEMPTS } from "#shared/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -39,7 +40,7 @@ describeWithEnv("db > auth", { db: true }, () => {
       const oldWrappedKey = user!.wrapped_data_key;
 
       const oldHash = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
-      expect(oldHash).toBeTruthy();
+      expect(oldHash).toMatch(/^pbkdf2:/);
 
       const success = await settings.updateUserPassword(user!.id, {
         newPassword: "newpassword456",
@@ -59,9 +60,9 @@ describeWithEnv("db > auth", { db: true }, () => {
         await verifyUserPassword(updatedUser!, TEST_ADMIN_PASSWORD),
       ).toBeNull();
 
-      expect(
-        await verifyUserPassword(updatedUser!, "newpassword456"),
-      ).toBeTruthy();
+      expect(await verifyUserPassword(updatedUser!, "newpassword456")).toMatch(
+        /^pbkdf2:/,
+      );
     });
 
     test("updateUserPassword fails with wrong old password", async () => {
@@ -82,9 +83,9 @@ describeWithEnv("db > auth", { db: true }, () => {
       expect(success).toBe(false);
 
       const unchanged = await getUserByUsername(TEST_ADMIN_USERNAME);
-      expect(
-        await verifyUserPassword(unchanged!, TEST_ADMIN_PASSWORD),
-      ).toBeTruthy();
+      expect(await verifyUserPassword(unchanged!, TEST_ADMIN_PASSWORD)).toMatch(
+        /^pbkdf2:/,
+      );
     });
 
     test("password change allows decryption of both old and new attendee records", async () => {
@@ -109,7 +110,7 @@ describeWithEnv("db > auth", { db: true }, () => {
       const user = await getUserByUsername(TEST_ADMIN_USERNAME);
       expect(user).not.toBeNull();
       const oldHash = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
-      expect(oldHash).toBeTruthy();
+      expect(oldHash).toMatch(/^pbkdf2:/);
 
       const changeSuccess = await settings.updateUserPassword(user!.id, {
         newPassword,
@@ -136,13 +137,13 @@ describeWithEnv("db > auth", { db: true }, () => {
         updatedUser!,
         newPassword,
       );
-      expect(newPasswordHash).toBeTruthy();
+      expect(newPasswordHash).toMatch(/^pbkdf2:/);
 
       const kek = await deriveKEKFromPassword(newPassword, newPasswordHash!);
       const dataKey = await unwrapKey(updatedUser!.wrapped_data_key!, kek);
 
       const wrappedPrivateKey = settings.wrappedPrivateKey;
-      expect(wrappedPrivateKey).toBeTruthy();
+      expect(wrappedPrivateKey).not.toBe("");
 
       // Asserted non-empty above, so the "" branch of the union is excluded.
       const privateKeyJwk = await decryptWithKey(
@@ -182,7 +183,7 @@ describeWithEnv("db > auth", { db: true }, () => {
       await createSession("session2", "csrf2", Date.now() + 10000, null, 1);
 
       const initialHash = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
-      expect(initialHash).toBeTruthy();
+      expect(initialHash).toMatch(/^pbkdf2:/);
 
       const success = await settings.updateUserPassword(user!.id, {
         newPassword: "new-password-123",
@@ -198,7 +199,7 @@ describeWithEnv("db > auth", { db: true }, () => {
         updatedUser!,
         "new-password-123",
       );
-      expect(newValid).toBeTruthy();
+      expect(newValid).toMatch(/^pbkdf2:/);
 
       const oldValid = await verifyUserPassword(
         updatedUser!,
@@ -231,10 +232,9 @@ describeWithEnv("db > auth", { db: true }, () => {
       const ip = "192.168.1.8";
       await loginLimiter.record(ip);
 
-      const row = await getDb().execute({
-        args: [await hmacHash(ip)],
-        sql: "SELECT attempts FROM login_attempts WHERE ip = ?",
-      });
+      const row = await getDb().execute(
+        sql`SELECT attempts FROM login_attempts WHERE ip = ${await hmacHash(ip)}`,
+      );
       expect(row.rows).toEqual([{ attempts: 1 }]);
     });
 
@@ -281,10 +281,9 @@ describeWithEnv("db > auth", { db: true }, () => {
       );
 
       expect(await loginLimiter.isLimited(ip)).toBe(false);
-      const row = await getDb().execute({
-        args: [ipHash],
-        sql: "SELECT attempts FROM login_attempts WHERE ip = ?",
-      });
+      const row = await getDb().execute(
+        sql`SELECT attempts FROM login_attempts WHERE ip = ${ipHash}`,
+      );
       expect(row.rows).toEqual([]);
     });
 
@@ -311,12 +310,9 @@ describeWithEnv("db > auth", { db: true }, () => {
       expect(await loginLimiter.isLimited(ip)).toBe(true);
 
       // Simulate expired lockout
-      await getDb().execute({
-        args: [Date.now() - 1000],
-        sql: `UPDATE login_attempts
-              SET locked_until = ?
-              WHERE locked_until IS NOT NULL`,
-      });
+      await getDb().execute(sql`UPDATE login_attempts
+              SET locked_until = ${Date.now() - 1000}
+              WHERE locked_until IS NOT NULL`);
 
       const limited = await loginLimiter.isLimited(ip);
       expect(limited).toBe(false);

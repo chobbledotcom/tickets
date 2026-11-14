@@ -3,17 +3,15 @@
  * the all-or-none hold lives in `payment-claim/take.ts`.
  */
 
-import type { InValue } from "@libsql/client";
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import {
   executeBatch,
-  inPlaceholders,
   queryAllPrimary,
   resultRows,
-  type SqlStatement,
   type TxScope,
 } from "#db/client.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import { mapNotNullish, requiredMapValue } from "#fp";
 import { mirrorFor } from "#payment/admit-move.ts";
 import { refundAuthorityWorkSql } from "#payment/refund-authority-lifecycle.ts";
@@ -65,8 +63,8 @@ export type StoredPaymentClaimRow = {
 
 /** One place says which columns a claim needs, so no reader can build a
  *  `StoredRow` that is missing one. */
-export const paymentClaimRowsSql = (where: string): string =>
-  `SELECT payment_session_id, attendee_id, failure_data,
+export const paymentClaimRowsSql = (where: SqlStatement): SqlStatement =>
+  sql`SELECT payment_session_id, attendee_id, failure_data,
           payment_reference_index, charge.refund_state_name,
           CASE WHEN ${refundAuthorityWorkSql("charge.")}
             THEN 1 ELSE 0 END AS provider_refund_work
@@ -77,11 +75,10 @@ export const paymentClaimRowsSql = (where: string): string =>
 
 export const readPaymentClaimRows = async (
   tx: TxScope,
-  where: string,
-  args: InValue[],
+  where: SqlStatement,
 ): Promise<StoredPaymentClaimRow[]> =>
   resultRows<StoredPaymentClaimRow>(
-    await tx.execute({ args, sql: paymentClaimRowsSql(where) }),
+    await tx.execute(paymentClaimRowsSql(where)),
   );
 
 /** Read one stored row into the record it carries. */
@@ -118,8 +115,7 @@ export const readAttendeeRowStates = async (
   await asPaymentRowRecords(
     await readPaymentClaimRows(
       tx,
-      `attendee_id IN (${inPlaceholders(attendeeIds)})`,
-      [...attendeeIds],
+      sql`attendee_id IN (${sqlList(attendeeIds)})`,
     ),
   );
 
@@ -128,12 +124,9 @@ export const loadAttendeeRowStates = async (
   attendeeIds: readonly number[],
 ): Promise<PaymentRowRecord[]> =>
   asPaymentRowRecords(
-    await queryAllPrimary<StoredPaymentClaimRow>({
-      args: [...attendeeIds],
-      sql: paymentClaimRowsSql(
-        `attendee_id IN (${inPlaceholders(attendeeIds)})`,
-      ),
-    }),
+    await queryAllPrimary<StoredPaymentClaimRow>(
+      paymentClaimRowsSql(sql`attendee_id IN (${sqlList(attendeeIds)})`),
+    ),
   );
 
 /** Fail when a confirmer no longer owns every payment row it started with. */
@@ -151,8 +144,7 @@ export const assertRefundRowsHeld = async (
       ? []
       : await readPaymentClaimRows(
           tx,
-          `payment_session_id IN (${inPlaceholders(sessionIds)})`,
-          sessionIds,
+          sql`payment_session_id IN (${sqlList(sessionIds)})`,
         );
   const rows = await Promise.all(stored.map(asPaymentRowRecord));
   if (
@@ -198,12 +190,9 @@ export const paymentRowStateStatement = async (
   state: PaymentRowState,
 ): Promise<SqlStatement> => {
   const stored = await paymentRowStateValues(state);
-  return {
-    args: [stored.failureData, stored.protectedState, row.sessionId, row.slot],
-    sql: `UPDATE processed_payments
-           SET failure_data = ?, protected_state = ?
-         WHERE payment_session_id = ? AND failure_data = ?`,
-  };
+  return sql`UPDATE processed_payments
+           SET failure_data = ${stored.failureData}, protected_state = ${stored.protectedState}
+         WHERE payment_session_id = ${row.sessionId} AND failure_data = ${row.slot}`;
 };
 
 /** The exact row transitions made under one durable claim. */
@@ -233,12 +222,9 @@ const rewriteRows = async (
   // write depends on it, and each write is conditioned on the exact record it
   // read. Pinned to the primary because a caller may be reading its own claim
   // — a lagging replica would match no write and leave the claim standing.
-  const stored = await queryAllPrimary<StoredPaymentClaimRow>({
-    args: [...sessionIds],
-    sql: paymentClaimRowsSql(
-      `payment_session_id IN (${inPlaceholders(sessionIds)})`,
-    ),
-  });
+  const stored = await queryAllPrimary<StoredPaymentClaimRow>(
+    paymentClaimRowsSql(sql`payment_session_id IN (${sqlList(sessionIds)})`),
+  );
   const rows = await asPaymentRowRecords(stored);
   const writes = await Promise.all(
     mapNotNullish((row: PaymentRowRecord) => {

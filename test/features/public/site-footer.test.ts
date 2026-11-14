@@ -1,4 +1,3 @@
-import type { InStatement } from "@libsql/client";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -7,6 +6,7 @@ import { settleAttendeeBalance } from "#db/attendees/balance.ts";
 import { insertBuiltSite } from "#db/built-sites.ts";
 import { getDb } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import {
   databaseBusyResponse,
@@ -221,10 +221,9 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
     const noTicketsId = (
       await createReservedAttendee(1500, { listingName: "No Line Ticket" })
     ).attendeeId;
-    await getDb().execute({
-      args: [noTicketsId],
-      sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ?",
-    });
+    await getDb().execute(
+      sql`UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ${noTicketsId}`,
+    );
     assertStringIncludes(await getPayPage(noTicketsId), picture);
   });
 
@@ -261,7 +260,7 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
     await settings.update.siteFooter(`Sorry.![FooterLimited](img#${image.id})`);
     // Earlier tests in this file have asked for unknown tokens, so the
     // failure window starts empty here.
-    await getDb().execute({ args: [], sql: "DELETE FROM token_attempts" });
+    await getDb().execute(sql`DELETE FROM token_attempts`);
     for (let attempt = 0; attempt < MAX_TOKEN_404S; attempt++) {
       expectStatus(404)(
         await handleRequest(mockRequest(`/t/not-a-real-token-${attempt}`)),
@@ -309,8 +308,8 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
     const db = getDb();
     const realExecute = db.execute.bind(db);
     // `using` restores the stub when the test's scope closes.
-    using _executeStub = stub(db, "execute", (statement: InStatement) => {
-      const sql = typeof statement === "string" ? statement : statement.sql;
+    using _executeStub = stub(db, "execute", (statement: SqlStatement) => {
+      const sql = statement.sql;
       if (sql.includes("FROM images")) {
         throw new Error("the images read failed");
       }

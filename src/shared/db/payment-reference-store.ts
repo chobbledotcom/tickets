@@ -8,8 +8,8 @@ import {
 } from "#crypto/hybrid.ts";
 
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
-import { inPlaceholders } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
+import { type SqlStatement, sql, sqlList, sqlLiteral } from "#db/sql.ts";
 import { CLAIM_MIRROR } from "#payment/admit-move.ts";
 import {
   type PaymentReference,
@@ -25,13 +25,8 @@ export type StoredPaymentReference = {
   readonly index: string;
 };
 
-export type PaymentReferenceClaimGuard = {
-  readonly args: readonly string[];
-  readonly sql: string;
-};
-
 export type PreparedPaymentReferenceWrite = {
-  readonly claim: PaymentReferenceClaimGuard;
+  readonly claim: SqlStatement;
   readonly stored: StoredPaymentReference | null;
 };
 
@@ -63,18 +58,13 @@ export const matchingPaymentReferenceIndexes = async (
 /** SQL fact used by reference-bearing finalizers inside their own write. */
 export const unclaimedPaymentReference = async (
   reference: TaggedPaymentReference,
-): Promise<PaymentReferenceClaimGuard> => {
+): Promise<SqlStatement> => {
   const indexes = await matchingPaymentReferenceIndexes(reference);
-  return {
-    args: indexes,
-    sql: `NOT EXISTS (
+  return sql`NOT EXISTS (
       SELECT 1 FROM processed_payments AS referenceHolder
-       WHERE referenceHolder.payment_reference_index IN (${inPlaceholders(
-         indexes,
-       )})
-         AND referenceHolder.protected_state = '${CLAIM_MIRROR}'
-    )`,
-  };
+       WHERE referenceHolder.payment_reference_index IN (${sqlList(indexes)})
+         AND referenceHolder.protected_state = ${sqlLiteral(CLAIM_MIRROR)}
+    )`;
 };
 
 /** Encrypt a reference and calculate its matching index as one value. */
@@ -115,7 +105,7 @@ export const preparePaymentReferenceWrite = async (
   reference: TaggedPaymentReference | null,
 ): Promise<PreparedPaymentReferenceWrite> =>
   reference === null
-    ? { claim: { args: [], sql: "1 = 1" }, stored: null }
+    ? { claim: sql`1 = 1`, stored: null }
     : {
         claim: await unclaimedPaymentReference(reference),
         stored: await storePaymentReference(reference),

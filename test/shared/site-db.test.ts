@@ -2,6 +2,7 @@ import { type Client, createClient } from "@libsql/client";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
+import { sql } from "#db/sql.ts";
 import {
   hasSiteDbCredentials,
   readSiteSetting,
@@ -18,13 +19,12 @@ import {
 const seededClient = async (rows: [string, string][]): Promise<Client> => {
   const client = createClient({ url: ":memory:" });
   await client.execute(
-    "CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT)",
+    sql`CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT)`,
   );
   for (const [key, value] of rows) {
-    await client.execute({
-      args: [key, value],
-      sql: "INSERT INTO settings (key, value) VALUES (?, ?)",
-    });
+    await client.execute(
+      sql`INSERT INTO settings (key, value) VALUES (${key}, ${value})`,
+    );
   }
   return client;
 };

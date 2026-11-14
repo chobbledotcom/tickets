@@ -9,6 +9,7 @@ import {
   dayCountPriceStatements,
   getListingDayPrices,
 } from "#db/listing-prices.ts";
+import { LISTINGS_IN_ID_ORDER } from "#db/listings/table.ts";
 import { LISTING_AGGREGATE_WRITE_COLUMNS } from "#db/migrations/schema/listing-aggregates.ts";
 import { envNameSource } from "#db/query.ts";
 import { settings } from "#db/settings.ts";
@@ -32,11 +33,7 @@ import {
   type ListingWhere,
   listingReader,
 } from "./select.ts";
-import {
-  type ListingOption,
-  listingOptionColumns,
-  rawListingsTable,
-} from "./table.ts";
+import { listingOptionColumns, rawListingsTable } from "./table.ts";
 
 const decryptStoredListingWithCount = async (
   row: ListingRecordRow,
@@ -172,8 +169,8 @@ export const getListingsById = async (): Promise<
 > => byId(await getAllListings());
 
 /** Read the narrow listing option projection used by item pickers. */
-export const getAllListingOptions = (): Promise<ListingOption[]> =>
-  listingOptionColumns.many({}, { alias: "listing", order: "listing.id ASC" });
+export const getAllListingOptions =
+  listingOptionColumns.every(LISTINGS_IN_ID_ORDER);
 
 /** Read and decrypt listing names without loading full records. */
 export const listingNames = envNameSource("listings", "listing");
@@ -206,8 +203,9 @@ export const getListingWithCount = (
 export const getListingWithCountPrimary = async (
   id: number,
 ): Promise<ListingWithCount | null> => {
-  const { sql, args } = listingReader.statement({ where: { ids: [id] } });
-  const row = await queryOnePrimary<ListingRecordRow>(sql, args);
+  const row = await queryOnePrimary<ListingRecordRow>(
+    listingReader.statement({ where: { ids: [id] } }),
+  );
   return row === null ? null : decryptListingWithCount(row);
 };
 

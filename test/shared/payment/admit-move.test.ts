@@ -261,11 +261,13 @@ describe("payment > admit move", () => {
   });
 
   test("the SQL work predicates render the table's own words", () => {
-    expect(rowWorkMirrorSql("payment.", "claim")).toBe(
+    expect(rowWorkMirrorSql("payment.", "claim").sql).toBe(
       "payment.protected_state = 'claim'",
     );
-    expect(rowWorkMirrorSql("", "review")).toBe("protected_state = 'review'");
-    expect(rowWorkMirrorSql("payment.", "unrecorded")).toBe(
+    expect(rowWorkMirrorSql("", "review").sql).toBe(
+      "protected_state = 'review'",
+    );
+    expect(rowWorkMirrorSql("payment.", "unrecorded").sql).toBe(
       "payment.protected_state = 'unrecorded'",
     );
   });

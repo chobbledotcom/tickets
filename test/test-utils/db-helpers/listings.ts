@@ -1,4 +1,5 @@
 import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import {
   resolveTestGroupIds,
@@ -70,10 +71,9 @@ export const createTestListing = async (
   await applyTestListingGroups(listing.id, resolveTestGroupIds(overrides));
   if (formCapacity !== input.maxAttendees) {
     const { execute } = await import("#db/client.ts");
-    await execute("UPDATE listings SET max_attendees = ? WHERE id = ?", [
-      input.maxAttendees,
-      listing.id,
-    ]);
+    await execute(
+      sql`UPDATE listings SET max_attendees = ${input.maxAttendees} WHERE id = ${listing.id}`,
+    );
     return { ...listing, max_attendees: input.maxAttendees };
   }
   return listing;

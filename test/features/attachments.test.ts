@@ -5,6 +5,7 @@ import { encryptBytes } from "#crypto/encryption.ts";
 import { getAttendeeRaw } from "#db/attendees/queries.ts";
 import { getDb } from "#db/client.ts";
 import { listingsTable } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { signAttachmentUrl } from "#shared/attachment-url.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
@@ -178,10 +179,9 @@ describeWithEnv(
         const { listingId, attendeeId } = await setupAttachment();
         // A still-valid signed URL must stop working once the line is a
         // quantity-0 sentinel — the protected attachment is no longer theirs.
-        await getDb().execute({
-          args: [attendeeId, listingId],
-          sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ? AND listing_id = ?",
-        });
+        await getDb().execute(
+          sql`UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId}`,
+        );
         const path = await signUrl(listingId, attendeeId);
         const response = await handleRequest(mockRequest(path));
         expect(response.status).toBe(403);

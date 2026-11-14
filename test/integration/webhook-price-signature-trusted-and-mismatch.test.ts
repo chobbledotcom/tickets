@@ -9,6 +9,7 @@ import { listingChildren } from "#db/listing-parents.ts";
 import { deleteListing } from "#db/listings/delete.ts";
 import { listingsTable } from "#db/listings/records.ts";
 import { runDatabasePruning } from "#db/prune.ts";
+import { sql } from "#db/sql.ts";
 import {
   expectProcessed,
   expectReplayOutcome,
@@ -29,20 +30,18 @@ import { setupStripe } from "#test-utils/settings.ts";
 
 const pruneLegacyReplayRow = async (sessionId: string) => {
   await execute(
-    `UPDATE attendees
+    sql`UPDATE attendees
         SET pii_payment_session_id = NULL
       WHERE id = (
         SELECT attendee_id
           FROM processed_payments
-         WHERE payment_session_id = ?
+         WHERE payment_session_id = ${sessionId}
       )`,
-    [sessionId],
   );
   await execute(
-    `UPDATE processed_payments
-        SET processed_at = ?, payment_reference = ''
-      WHERE payment_session_id = ?`,
-    ["2000-01-01T00:00:00.000Z", sessionId],
+    sql`UPDATE processed_payments
+        SET processed_at = ${"2000-01-01T00:00:00.000Z"}, payment_reference = ''
+      WHERE payment_session_id = ${sessionId}`,
   );
   await runDatabasePruning();
   expect(await getProcessedPayment(sessionId)).toBe(null);

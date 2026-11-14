@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";
 import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
 import { getDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { isTokenRateLimited, recordTokenFailure } from "#db/token-attempts.ts";
 import {
   buildWalletPassData,
@@ -20,25 +21,26 @@ import { buildCheckinUrl } from "#shared/ticket-url.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
-  createMultiBookingAttendee,
   createTestAttendeeDirect,
   setPendingNotificationFlags,
 } from "#test-utils/db-helpers/attendees.ts";
+import {
+  attendeeWithoutBookings,
+  personOnCollectingAndStoppedListings,
+} from "#test-utils/db-helpers/booking-shapes.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
 const setBookingDates = (attendeeId: number, startAt: string, endAt: string) =>
-  getDb().execute({
-    args: [startAt, endAt, attendeeId],
-    sql: "UPDATE listing_attendees SET start_at = ?, end_at = ? WHERE attendee_id = ?",
-  });
+  getDb().execute(
+    sql`UPDATE listing_attendees SET start_at = ${startAt}, end_at = ${endAt} WHERE attendee_id = ${attendeeId}`,
+  );
 
 const setBookingQuantity = (attendeeId: number, quantity: number) =>
-  getDb().execute({
-    args: [quantity, attendeeId],
-    sql: "UPDATE listing_attendees SET quantity = ? WHERE attendee_id = ?",
-  });
+  getDb().execute(
+    sql`UPDATE listing_attendees SET quantity = ${quantity} WHERE attendee_id = ${attendeeId}`,
+  );
 
 const entriesForToken = async (token: string): Promise<TokenEntry[]> => {
   const attendees = await getAttendeesByTokens([token]);
@@ -100,24 +102,8 @@ describeWithEnv("ticket token utils", { db: true }, () => {
     // One person, two bookings, one flag on the person. The Ceilidh collects
     // an email, the Quiz stopped. The entry that stands for the Quiz's
     // booking shows no notice, and the Ceilidh's entry keeps it.
-    const collecting = await createTestListing({
-      maxAttendees: 10,
-      name: "Entry Ceilidh",
-    });
-    const stopped = await createTestListing({
-      maxAttendees: 10,
-      name: "Entry Quiz",
-    });
-    await getDb().execute({
-      args: ["phone", stopped.id],
-      sql: "UPDATE listings SET fields = ? WHERE id = ?",
-    });
-    const attendee = await createMultiBookingAttendee(
-      "Entry Buyer",
-      "entry-buyer@example.com",
-      [{ listingId: collecting.id }, { listingId: stopped.id }],
-    );
-    await setPendingNotificationFlags(attendee.id, 1, 0);
+    const { attendee, collecting, stopped } =
+      await personOnCollectingAndStoppedListings("Entry");
 
     const entries = await entriesForToken(attendee.ticket_token);
     expect(entries).toHaveLength(2);
@@ -142,10 +128,9 @@ describeWithEnv("ticket token utils", { db: true }, () => {
       "Tab Pad Buyer",
       "tab-pad@example.com",
     );
-    await getDb().execute({
-      args: ["phone,\temail", listing.id],
-      sql: "UPDATE listings SET fields = ? WHERE id = ?",
-    });
+    await getDb().execute(
+      sql`UPDATE listings SET fields = ${"phone,\temail"} WHERE id = ${listing.id}`,
+    );
     await setPendingNotificationFlags(attendee.id, 1, 0);
 
     const entries = await entriesForToken(token);
@@ -173,16 +158,10 @@ describeWithEnv("ticket token utils", { db: true }, () => {
   });
 
   test("resolveEntries returns no entries when the attendee has no bookings", async () => {
-    const listing = await createTestListing({ maxAttendees: 10 });
-    const { attendee, token } = await createTestAttendeeDirect(
-      listing.id,
+    const { token } = await attendeeWithoutBookings(
       "No booking",
       "nobooking@example.com",
     );
-    await getDb().execute({
-      args: [attendee.id],
-      sql: "DELETE FROM listing_attendees WHERE attendee_id = ?",
-    });
 
     const attendees = await getAttendeesByTokens([token]);
     expect(await resolveEntries([attendees[0]!])).toEqual([]);
@@ -340,10 +319,9 @@ describeWithEnv("ticket token utils", { db: true }, () => {
       "Bundled",
       "bundled@example.com",
     );
-    await getDb().execute({
-      args: [group.id, attendee.id],
-      sql: "UPDATE listing_attendees SET package_group_id = ? WHERE attendee_id = ?",
-    });
+    await getDb().execute(
+      sql`UPDATE listing_attendees SET package_group_id = ${group.id} WHERE attendee_id = ${attendee.id}`,
+    );
 
     await expectPassLookupNotFound([token]);
   });

@@ -10,8 +10,9 @@ import type {
   OwnerKeyEncrypted,
 } from "#crypto/sealed.ts";
 import { generateSecureToken } from "#crypto/utils.ts";
-import { execute, type SqlStatement } from "#db/client.ts";
+import { execute, executeChangedRow } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { col, defineTable } from "#db/table.ts";
 import { type RowFilter, readById } from "#db/table-reader.ts";
 import { invoiceBodyKey } from "#shared/invoices/seal.ts";
@@ -78,7 +79,9 @@ export const getInvoice = readById(invoicesTable);
 const summariesNewestFirst = (
   filter: RowFilter<InvoiceSummary>,
 ): Promise<InvoiceSummary[]> =>
-  invoicesTable.read.pick(SUMMARY_COLUMNS).many(filter, { order: "id DESC" });
+  invoicesTable.read
+    .pick(SUMMARY_COLUMNS)
+    .many(filter, { order: sql`id DESC` });
 
 /** Every invoice, newest first, without its sealed body. */
 export const getInvoices = (): Promise<InvoiceSummary[]> =>
@@ -106,7 +109,7 @@ export const getInvoiceByShareToken = async (
 /** The next free invoice number, which the create form prefills. */
 export const nextInvoiceNumber = async (): Promise<number> => {
   const result = await execute(
-    "SELECT COALESCE(MAX(id), 0) + 1 AS next_number FROM invoices",
+    sql`SELECT COALESCE(MAX(id), 0) + 1 AS next_number FROM invoices`,
   );
   return Number(result.rows[0]!.next_number);
 };
@@ -140,16 +143,14 @@ export const createInvoice = async ({
   return { invoice, shareToken };
 };
 
-/** The statement text that moves one new invoice to cancelled, and no other
+/** The statement that moves one new invoice to cancelled, and no other
  *  row. */
-export const CANCEL_INVOICE_SQL =
-  "UPDATE invoices SET status = 'cancelled' WHERE id = ? AND status = 'new'";
+export const cancelInvoiceStatement = (id: number): SqlStatement =>
+  sql`UPDATE invoices SET status = 'cancelled' WHERE id = ${id} AND status = 'new'`;
 
 /** Move one new invoice to cancelled. False when it was not new. */
-export const cancelInvoice = async (id: number): Promise<boolean> => {
-  const result = await execute(CANCEL_INVOICE_SQL, [id]);
-  return result.rowsAffected > 0;
-};
+export const cancelInvoice = async (id: number): Promise<boolean> =>
+  executeChangedRow(cancelInvoiceStatement(id));
 
 /** Remove one invoice. */
 export const deleteInvoice: (id: number) => Promise<void> = (id) =>
@@ -162,10 +163,7 @@ export const deleteInvoice: (id: number) => Promise<void> = (id) =>
  */
 export const markOpenInvoicesPaidStatement = (
   attendeeId: number,
-  owedSql: string,
+  owedSql: SqlStatement,
   expectedAmount: InValue,
-): SqlStatement => ({
-  args: [attendeeId, expectedAmount],
-  sql: `UPDATE invoices SET status = 'paid'
-         WHERE attendee_id = ? AND status = 'new' AND ${owedSql} = ?`,
-});
+): SqlStatement => sql`UPDATE invoices SET status = 'paid'
+         WHERE attendee_id = ${attendeeId} AND status = 'new' AND ${owedSql} = ${expectedAmount}`;

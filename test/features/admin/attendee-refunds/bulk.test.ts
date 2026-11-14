@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { setN1GuardNotifyOnly } from "#db/query-log.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import {
   createPaidListing,
@@ -239,13 +240,12 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
       // booking stamp would give it the order's event group too — carry the
       // first row's stamp so the per-order projections read the pair as one.
       await execute(
-        `INSERT INTO listing_attendees
+        sql`INSERT INTO listing_attendees
           (listing_id, attendee_id, quantity, parent_listing_id,
            ledger_event_group)
-         SELECT ?, ?, 1, ?, ledger_event_group
+         SELECT ${listing.id}, ${repeated.id}, 1, ${listing.id + 1000}, ledger_event_group
            FROM listing_attendees
-          WHERE attendee_id = ? AND listing_id = ?`,
-        [listing.id, repeated.id, listing.id + 1000, repeated.id, listing.id],
+          WHERE attendee_id = ${repeated.id} AND listing_id = ${listing.id}`,
       );
 
       await withRefundMock(refundCompletes, async (mockRefund) => {

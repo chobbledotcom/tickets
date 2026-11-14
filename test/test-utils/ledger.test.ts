@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { getDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createDailyTestListing,
@@ -23,12 +24,9 @@ const attendeeHoldingTwoOrdersOnOneListing = async (): Promise<{
   });
   if (!made.success) throw new Error("booking setup failed");
   const attendeeId = made.attendees[0]!.id;
-  await getDb().execute({
-    args: [attendeeId, listing.id],
-    sql:
-      "INSERT INTO listing_attendees (attendee_id, listing_id, start_at)" +
-      " VALUES (?, ?, '2026-09-21T00:00:00Z')",
-  });
+  await getDb().execute(
+    sql`INSERT INTO listing_attendees (attendee_id, listing_id, start_at) VALUES (${attendeeId}, ${listing.id}, '2026-09-21T00:00:00Z')`,
+  );
   await postListingSale({
     attendeeId,
     eventId: "ambiguous-one",

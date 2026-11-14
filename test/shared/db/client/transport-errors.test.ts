@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import { execute, setDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import {
   emptyResultSet,
   stubClient,
@@ -48,7 +49,7 @@ describe("db > client transport retry", () => {
         },
       }),
     );
-    const result = await withVirtualBackoff(() => execute("SELECT 1 AS ok"));
+    const result = await withVirtualBackoff(() => execute(sql`SELECT 1 AS ok`));
     expect(attempts).toBe(2);
     expect(Array.from(result.rows)).toEqual([{ ok: 1 }]);
   });
@@ -64,7 +65,7 @@ describe("db > client transport retry", () => {
       }),
     );
     await expect(
-      withVirtualBackoff(() => execute("INSERT INTO t (x) VALUES (1)")),
+      withVirtualBackoff(() => execute(sql`INSERT INTO t (x) VALUES (1)`)),
     ).rejects.toThrow(
       "client error (SendRequest): connection closed before message completed",
     );
@@ -84,7 +85,7 @@ describe("db > client transport retry", () => {
       }),
     );
     const result = await withVirtualBackoff(() =>
-      execute("INSERT INTO t (x) VALUES (1)"),
+      execute(sql`INSERT INTO t (x) VALUES (1)`),
     );
     // Two attempts: the first never left the edge, so the one successful run
     // is the write's only application.
@@ -103,11 +104,11 @@ describe("db > client transport retry", () => {
         },
       }),
     );
-    const read = execute("SELECT 1 AS ok");
+    const read = execute(sql`SELECT 1 AS ok`);
     const readOutcome = expect(read).rejects.toThrow(
       "client error (Connect): dns error",
     );
-    const write = execute("INSERT INTO t (x) VALUES (1)");
+    const write = execute(sql`INSERT INTO t (x) VALUES (1)`);
     const writeOutcome = expect(write).rejects.toThrow(
       "client error (Connect): dns error",
     );
@@ -120,9 +121,9 @@ describe("db > client transport retry", () => {
     expect(attempts).toBe(4);
   });
 
-  for (const [label, sql] of [
-    ["read", "SELECT 1 AS ok"],
-    ["write", "INSERT INTO t (x) VALUES (1)"],
+  for (const [label, statement] of [
+    ["read", sql`SELECT 1 AS ok`],
+    ["write", sql`INSERT INTO t (x) VALUES (1)`],
   ] as const) {
     test(`a TypeError without a transport marker fails at once on a ${label}`, async () => {
       let attempts = 0;
@@ -134,9 +135,9 @@ describe("db > client transport retry", () => {
           },
         }),
       );
-      await expect(withVirtualBackoff(() => execute(sql))).rejects.toThrow(
-        "Cannot read properties of undefined",
-      );
+      await expect(
+        withVirtualBackoff(() => execute(statement)),
+      ).rejects.toThrow("Cannot read properties of undefined");
       expect(attempts).toBe(1);
     });
   }

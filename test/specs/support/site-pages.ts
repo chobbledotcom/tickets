@@ -5,6 +5,7 @@
 
 import { expect } from "@std/expect";
 import { sitePages } from "#db/site-pages.ts";
+import { occurrencesIn } from "#fp";
 import { t } from "#i18n";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import {
@@ -149,11 +150,10 @@ export const pagesInOrder = async (world: TicketsWorld): Promise<string[]> => {
   const browser = await openAdminPage(world, PAGES_LIST);
   const named = await sitePages.getAll();
   const shown = browser.pageText;
-  return named
-    .map(({ name }) => ({ at: shown.indexOf(name), name }))
-    .filter(({ at }) => at >= 0)
-    .sort((left, right) => left.at - right.at)
-    .map(({ name }) => name);
+  return occurrencesIn(
+    shown,
+    ({ name }: { name: string }) => name,
+  )(named).map(({ item }) => item.name);
 };
 
 /** The owner moves one page a step up the list. The arrows are pictures rather

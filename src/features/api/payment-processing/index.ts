@@ -19,6 +19,7 @@ import {
   releaseReservation,
   reserveSession,
 } from "#db/processed-payments.ts";
+import { sql } from "#db/sql.ts";
 import { forgetSquareLinkEnd } from "#db/square-link-ends.ts";
 import { t } from "#i18n";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
@@ -322,8 +323,7 @@ const processReservedSession: SessionProcessor = async (sessionId, data) => {
     // The transfers ledger is the durable record of what happened (unlike the
     // prunable processed_payments row), so one leg here means a replay.
     const alreadySettled = await rowExists(
-      "SELECT 1 FROM transfers WHERE event_group = ? LIMIT 1",
-      [await balanceEventGroup(sessionId)],
+      sql`SELECT 1 FROM transfers WHERE event_group = ${await balanceEventGroup(sessionId)} LIMIT 1`,
     );
     if (alreadySettled) {
       return replaySuccess(

@@ -3,6 +3,7 @@ import { toBase64 } from "#crypto/utils.ts";
 import { execute } from "#db/client.ts";
 import { getImagesForItem, imagesTable, setItemsForImage } from "#db/images.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
@@ -55,15 +56,12 @@ export const insertBrokenImage = async (
 ): Promise<number> => {
   const brokenFilename = await encrypt("");
   const result = await execute(
-    `INSERT INTO images (name, filename, filename_thumb, alt_text)
-     VALUES (?, ?, ?, '')`,
-    [
-      await encrypt(options.name ?? "Broken"),
-      brokenFilename,
-      options.thumbFilename === undefined
-        ? brokenFilename
-        : await encrypt(options.thumbFilename),
-    ],
+    sql`INSERT INTO images (name, filename, filename_thumb, alt_text)
+     VALUES (${await encrypt(options.name ?? "Broken")}, ${brokenFilename}, ${
+       options.thumbFilename === undefined
+         ? brokenFilename
+         : await encrypt(options.thumbFilename)
+}, '')`,
   );
   return Number(result.lastInsertRowid);
 };

@@ -2,12 +2,7 @@
  *  its members, or assigns listings to it. Each path rechecks
  *  transaction-fresh state through the guards and fences here. */
 
-import {
-  inPlaceholders,
-  resultRows,
-  type TxScope,
-  withTransaction,
-} from "#db/client.ts";
+import { resultRows, type TxScope, withTransaction } from "#db/client.ts";
 import {
   type GroupListingSettings,
   groupListingSettingsError,
@@ -26,7 +21,7 @@ import {
 import { listingGroups } from "#db/groups/table.ts";
 import { hasPackageBookingsTx, setGroupPackageMembers } from "#db/groups.ts";
 import { removeGroupPricesStatement } from "#db/listing-prices.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
+import { sql, sqlList } from "#db/sql.ts";
 import {
   refusingTheWriteOn,
   TransactionValidationError,
@@ -112,12 +107,9 @@ export const readPackageFlagsTxOrNull = async (
   id: number,
 ): Promise<PackageFlags | null> => {
   const row = resultRows<PackageFlagsRow>(
-    await tx.execute({
-      args: [id],
-      sql: `SELECT groupRow.is_package, groupRow.hide_package_listings
+    await tx.execute(sql`SELECT groupRow.is_package, groupRow.hide_package_listings
               FROM groups AS groupRow
-             WHERE groupRow.id = ?`,
-    }),
+             WHERE groupRow.id = ${id}`),
   )[0];
   return row
     ? {
@@ -183,13 +175,11 @@ const groupListingAssignmentStatements = (
   listingIds: readonly number[],
   groupId: number,
 ) =>
-  listingIds.map((listingId) =>
-    numberedStatement((bind) => {
-      const listing = bind(listingId);
-      return `INSERT OR IGNORE INTO group_listings (group_id, listing_id)
-              SELECT ${bind(groupId)}, ${listing}
-               WHERE EXISTS (SELECT 1 FROM listings WHERE id = ${listing})`;
-    }),
+  listingIds.map(
+    (listingId) =>
+      sql`INSERT OR IGNORE INTO group_listings (group_id, listing_id)
+              SELECT ${groupId}, ${listingId}
+               WHERE EXISTS (SELECT 1 FROM listings WHERE id = ${listingId})`,
   );
 
 /** A membership write over one group: which listings, and the group they join
@@ -266,10 +256,9 @@ export const removeListingsFromGroup: MembershipWrite = membershipWrite(
   async (tx, ids, groupId) => {
     // The removal judges no member rules, so the fresh group check reads the
     // group's existence alone — not the whole member list.
-    const group = await tx.execute({
-      args: [groupId],
-      sql: "SELECT 1 FROM groups WHERE id = ? LIMIT 1",
-    });
+    const group = await tx.execute(
+      sql`SELECT 1 FROM groups WHERE id = ${groupId} LIMIT 1`,
+    );
     if (group.rows.length === 0) return t("error.selected_group_deleted");
     // The listing form refuses an untick that orphans a child-scoped add-on;
     // the group page refuses it here, INSIDE the transaction, so the
@@ -290,12 +279,7 @@ export const removeListingsFromGroup: MembershipWrite = membershipWrite(
     const orphanError = await groupLeavingOrphanedAddOnError(leaving, tx);
     if (orphanError) return orphanError;
     await tx.batch([
-      {
-        args: [groupId, ...ids],
-        sql: `DELETE FROM group_listings WHERE group_id = ? AND listing_id IN (${inPlaceholders(
-          ids,
-        )})`,
-      },
+      sql`DELETE FROM group_listings WHERE group_id = ${groupId} AND listing_id IN (${sqlList(ids)})`,
       ...compact([removeGroupPricesStatement(ids, [groupId])]),
     ]);
     return null;

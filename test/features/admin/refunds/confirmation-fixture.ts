@@ -1,6 +1,7 @@
 import { assert } from "@std/assert";
 import { queryOne } from "#db/client.ts";
 import type { RefundPaymentReference } from "#db/payment-references.ts";
+import { sql } from "#db/sql.ts";
 import {
   type ConfirmedRefund,
   confirmRefund,
@@ -116,10 +117,9 @@ export const confirmationCount = async (
   attendeeId: number,
 ): Promise<number> => {
   const row = await queryOne<{ count: number }>(
-    `SELECT COUNT(*) AS count
+    sql`SELECT COUNT(*) AS count
        FROM refund_confirmations AS confirmation
-      WHERE confirmation.attendee_id = ?`,
-    [attendeeId],
+      WHERE confirmation.attendee_id = ${attendeeId}`,
   );
   assert(row !== null, "refund confirmation count was not found");
   return row.count;

@@ -6,19 +6,21 @@
  * trigger fires before the strings are recreated).
  */
 
-import { ATTENDEE_BY_TOKEN_SQL } from "#db/attendees/create-batch.ts";
-import {
-  executeBatch,
-  type SqlStatement,
-  type TxScope,
-  withTransaction,
-} from "#db/client.ts";
+import { attendeeByToken } from "#db/attendees/create-batch.ts";
+import { executeBatch, type TxScope, withTransaction } from "#db/client.ts";
 import type { TextAnswer, TextAnswerId } from "#db/question-types.ts";
 import {
   internWriteStatements,
   type PreparedStringRow,
   prepareStringRows,
 } from "#db/questions/strings.ts";
+import {
+  type SqlSlot,
+  type SqlStatement,
+  sql,
+  sqlList,
+  sqlRows,
+} from "#db/sql.ts";
 import { requiredMapValue } from "#fp";
 
 export type AttendeeAnswerSet = {
@@ -65,67 +67,54 @@ export type PreparedAnswerSave = {
  * its one attendee from the ticket token the booking batch itself inserts, so
  * the statements need no attendee id before the batch runs. */
 type AttendeeRef = {
-  /** SQL for one attendee_id value slot. */
-  slot: string;
-  /** The value bound into that slot. */
-  arg: (attendeeId: number) => string | number;
+  /** The attendee_id value of one row. */
+  idOf: (attendeeId: number) => SqlSlot;
   /** The delete that clears the attendee's previous answers. */
   delete: (attendeeIds: number[]) => SqlStatement;
 };
 
 const idsRef: AttendeeRef = {
-  arg: (attendeeId) => attendeeId,
-  delete: (attendeeIds) => ({
-    args: attendeeIds,
-    sql: `DELETE FROM attendee_answers WHERE attendee_id IN (${attendeeIds
-      .map(() => "?")
-      .join(", ")})`,
-  }),
-  slot: "?",
+  delete: (attendeeIds) =>
+    sql`DELETE FROM attendee_answers WHERE attendee_id IN (${sqlList(attendeeIds)})`,
+  idOf: (attendeeId) => attendeeId,
 };
 
 /** The reservation boundary's attendee: the row the batch itself inserts,
  * found by token. The answer map carries a placeholder id it never binds. */
-const bookedRef = (tokenIndex: string): AttendeeRef => ({
-  arg: () => tokenIndex,
-  delete: () => ({
-    args: [tokenIndex],
-    sql: `DELETE FROM attendee_answers WHERE attendee_id = ${ATTENDEE_BY_TOKEN_SQL}`,
-  }),
-  slot: ATTENDEE_BY_TOKEN_SQL,
-});
+const bookedRef = (tokenIndex: string): AttendeeRef => {
+  const attendee = attendeeByToken(tokenIndex);
+  return {
+    delete: () =>
+      sql`DELETE FROM attendee_answers WHERE attendee_id = ${attendee}`,
+    idOf: () => attendee,
+  };
+};
 
-/** One multi-row INSERT into attendee_answers: every row binds the attendee
- * slot first, then its own columns, each with the SQL slot it binds into (a
- * plain `?`, or the subselect that resolves a prepared text's string id by
- * its blind index). */
+/** One multi-row INSERT into attendee_answers: every row holds the attendee
+ * first, then its own column values (a bound value, or the subquery that
+ * finds a prepared text's string id by its blind index). */
 const answerRowsInsert = <Row extends { attendeeId: number }>(
   ref: AttendeeRef,
-  columns: string,
+  columns: SqlStatement,
   rows: readonly Row[],
-  rowValues: (row: Row) => { binds: (string | number)[]; slots: string[] },
-  afterValues: string,
-): SqlStatement => ({
-  args: rows.flatMap((row) => [
-    ref.arg(row.attendeeId),
-    ...rowValues(row).binds,
-  ]),
-  sql: `WITH selected(${columns}) AS (
-        VALUES ${rows
-          .map((row) => `(${ref.slot}, ${rowValues(row).slots.join(", ")})`)
-          .join(", ")}
-      ) ${afterValues}`,
-});
+  rowValues: (row: Row) => SqlSlot[],
+  afterValues: SqlStatement,
+): SqlStatement =>
+  sql`WITH selected(${columns}) AS (
+        VALUES ${sqlRows(
+          rows.map((row) => [ref.idOf(row.attendeeId), ...rowValues(row)]),
+        )}
+      ) ${afterValues}`;
 
 /** Adds the insert for these rows, or nothing when there are none. */
 const pushAnswerRows = <Row extends { attendeeId: number }>(
   statements: SqlStatement[],
   ref: AttendeeRef,
   insert: {
-    columns: string;
+    columns: SqlStatement;
     rows: readonly Row[];
-    rowValues: (row: Row) => { binds: (string | number)[]; slots: string[] };
-    afterValues: string;
+    rowValues: (row: Row) => SqlSlot[];
+    afterValues: SqlStatement;
   },
 ): void => {
   if (insert.rows.length === 0) return;
@@ -170,7 +159,7 @@ const answerSaveStatements = (
   pushAnswerRows(statements, ref, {
     // Last answer per question wins: the row numbers rank each question's
     // answers by position, descending, and only the first survives.
-    afterValues: `, ranked AS (
+    afterValues: sql`, ranked AS (
         SELECT selected.attendee_id, selected.answer_id, answer.question_id,
           ROW_NUMBER() OVER (
             PARTITION BY selected.attendee_id, answer.question_id
@@ -183,12 +172,9 @@ const answerSaveStatements = (
       SELECT attendee_id, answer_id, question_id
       FROM ranked
       WHERE choice_order = 1`,
-    columns: "attendee_id, answer_id, position",
+    columns: sql`attendee_id, answer_id, position`,
     rows: choiceRows,
-    rowValues: (row) => ({
-      binds: [row.answerId, row.position],
-      slots: ["?", "?"],
-    }),
+    rowValues: (row) => [row.answerId, row.position],
   });
   const textIndexByText = new Map(
     preparedStringRows.map((row) => [row.text, row.textIndex]),
@@ -222,21 +208,18 @@ const answerSaveStatements = (
   pushAnswerRows(statements, ref, {
     // The questions join drops a question deleted between checkout and
     // finalize instead of inserting an orphan row.
-    afterValues: `INSERT INTO attendee_answers (attendee_id, question_id, string_id)
+    afterValues: sql`INSERT INTO attendee_answers (attendee_id, question_id, string_id)
         SELECT selected.attendee_id, selected.question_id, selected.string_id
         FROM selected
         INNER JOIN questions AS question ON question.id = selected.question_id`,
-    columns: "attendee_id, question_id, string_id",
+    columns: sql`attendee_id, question_id, string_id`,
     rows: textRows,
-    rowValues: (row) => ({
-      binds: [row.questionId, row.value],
-      slots: [
-        "?",
-        typeof row.value === "string"
-          ? "(SELECT id FROM strings WHERE text_index = ?)"
-          : "?",
-      ],
-    }),
+    rowValues: (row) => [
+      row.questionId,
+      typeof row.value === "string"
+        ? sql`(SELECT id FROM strings WHERE text_index = ${row.value})`
+        : row.value,
+    ],
   });
   return [...statements, ...alongside];
 };

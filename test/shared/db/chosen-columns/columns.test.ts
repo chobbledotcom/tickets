@@ -32,21 +32,21 @@ describe("chosen table columns", () => {
   test("builds explicit column SQL with an optional table alias", () => {
     const chosen = chooseColumns(sampleTable, ["id", "name"]);
 
-    expect(chosen.columnsSql()).toBe("id, name");
-    expect(chosen.columnsSql("row")).toBe("row.id, row.name");
+    expect(chosen.columnsSql().sql).toBe("id, name");
+    expect(chosen.columnsSql("row").sql).toBe("row.id, row.name");
   });
 
   test("a read of the table's own rows also selects the row's key", () => {
     // A column's read transform may name the row a bad value came from, so the
     // key has to come back with it — but only when it was not chosen already,
     // or the read would ask for the same column twice.
-    expect(chooseColumns(sampleTable, ["name"]).readColumnsSql()).toBe(
+    expect(chooseColumns(sampleTable, ["name"]).readColumnsSql().sql).toBe(
       "name, id",
     );
-    expect(chooseColumns(sampleTable, ["id", "name"]).readColumnsSql()).toBe(
-      "id, name",
-    );
-    expect(chooseColumns(sampleTable, ["name"]).readColumnsSql("row")).toBe(
+    expect(
+      chooseColumns(sampleTable, ["id", "name"]).readColumnsSql().sql,
+    ).toBe("id, name");
+    expect(chooseColumns(sampleTable, ["name"]).readColumnsSql("row").sql).toBe(
       "row.name, row.id",
     );
   });

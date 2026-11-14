@@ -4,6 +4,7 @@ import { getAttendeeAnswersBatch } from "#db/questions/attendee-answers/reads.ts
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import {
   expectFlash,
@@ -229,9 +230,8 @@ export const dualPackageRows = async (
     package_group_id: number;
     quantity: number;
   }>(
-    `SELECT package_group_id, quantity FROM listing_attendees
-          WHERE attendee_id = ? ORDER BY package_group_id ASC`,
-    [attendeeId],
+    sql`SELECT package_group_id, quantity FROM listing_attendees
+          WHERE attendee_id = ${attendeeId} ORDER BY package_group_id ASC`,
   );
   return rows.map((row) => [Number(row.package_group_id), row.quantity]);
 };
@@ -297,8 +297,7 @@ export const emptyBookingLine = async (
 ): Promise<void> => {
   const { execute } = await import("#shared/db/client.ts");
   await execute(
-    "UPDATE listing_attendees SET quantity = 0 WHERE listing_id = ? AND attendee_id = ?",
-    [listingId, attendeeId],
+    sql`UPDATE listing_attendees SET quantity = 0 WHERE listing_id = ${listingId} AND attendee_id = ${attendeeId}`,
   );
 };
 

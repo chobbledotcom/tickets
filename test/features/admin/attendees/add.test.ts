@@ -11,6 +11,7 @@ import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
@@ -33,8 +34,7 @@ const bookingLine = (listingId: number) =>
     end_at: string | null;
     quantity: number;
   }>(
-    "SELECT start_at, end_at, quantity FROM listing_attendees WHERE listing_id = ?",
-    [listingId],
+    sql`SELECT start_at, end_at, quantity FROM listing_attendees WHERE listing_id = ${listingId}`,
   );
 
 describeWithEnv("adding to a listing with no dates", { db: true }, () => {

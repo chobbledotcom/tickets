@@ -7,6 +7,7 @@ import {
   getExistingColumns,
   syncIndexes,
 } from "#db/migrations/schema-sync.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 
@@ -19,10 +20,10 @@ describeWithEnv(
   () => {
     test("adds the door setting so a stored group keeps one-listing scans", async () => {
       await getDb().execute(
-        "INSERT INTO groups (id, slug, slug_index, name) VALUES (9092, 'scan-all-group', 'scan-all-index', 'Scan All Group')",
+        sql`INSERT INTO groups (id, slug, slug_index, name) VALUES (9092, 'scan-all-group', 'scan-all-index', 'Scan All Group')`,
       );
       await getDb().execute(
-        "ALTER TABLE groups DROP COLUMN scan_checks_in_all_listings",
+        sql`ALTER TABLE groups DROP COLUMN scan_checks_in_all_listings`,
       );
 
       await migration().up();
@@ -31,7 +32,7 @@ describeWithEnv(
         (await getExistingColumns("groups")).has("scan_checks_in_all_listings"),
       ).toBe(true);
       const result = await getDb().execute(
-        "SELECT scan_checks_in_all_listings FROM groups WHERE id = 9092",
+        sql`SELECT scan_checks_in_all_listings FROM groups WHERE id = 9092`,
       );
       // DEFAULT 0 is the door promise: an upgraded site's groups keep the
       // one-listing-at-a-time rule until each group ticks its own box.

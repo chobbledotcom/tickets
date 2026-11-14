@@ -17,6 +17,7 @@ import {
   transitionRefundAuthority,
 } from "#db/provider-refund-authority-change.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
+import { sql } from "#db/sql.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import {
   armRefundSend,
@@ -115,9 +116,8 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
         observed_at: number;
         updated_at: number;
       }>(
-        `SELECT created_at, updated_at, observed_at
-           FROM payment_charges WHERE id = ?`,
-        [authority.id],
+        sql`SELECT created_at, updated_at, observed_at
+           FROM payment_charges WHERE id = ${authority.id}`,
       ),
     ).toEqual({
       created_at: input.now,
@@ -144,7 +144,7 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
 
     expect(second).toEqual(first);
     expect(
-      await getDb().execute("SELECT id FROM payment_charges"),
+      await getDb().execute(sql`SELECT id FROM payment_charges`),
     ).toMatchObject({ rows: [{ id: first.id }] });
   });
 
@@ -261,7 +261,7 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
       }),
     ).rejects.toThrow("Refund callback identity belongs to another charge");
     expect(
-      await getDb().execute("SELECT id FROM payment_charges"),
+      await getDb().execute(sql`SELECT id FROM payment_charges`),
     ).toMatchObject({ rows: [{ id: first.id }] });
   });
 

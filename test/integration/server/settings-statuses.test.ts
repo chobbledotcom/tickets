@@ -16,6 +16,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getAllActivityLog } from "#db/activity-log.ts";
 import { attendeeStatuses, getAttendeeStatus } from "#db/attendee-statuses.ts";
 import { getDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import {
   expectFlashRedirect,
@@ -125,10 +126,9 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
       const inUse = await attendeeStatuses.table.insert({ name: "Active" });
       // A current `created` keeps this booking-less attendee out of the
       // orphaned-record auto-purge so it still counts as "in use".
-      await getDb().execute({
-        args: [new Date().toISOString(), inUse.id],
-        sql: "INSERT INTO attendees (created, pii_blob, status_id) VALUES (?, '', ?)",
-      });
+      await getDb().execute(
+        sql`INSERT INTO attendees (created, pii_blob, status_id) VALUES (${new Date().toISOString()}, '', ${inUse.id})`,
+      );
       const { response } = await adminFormPost(`${PATH}/${inUse.id}/delete`, {
         confirm_identifier: "Active",
       });

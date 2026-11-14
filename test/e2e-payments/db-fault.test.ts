@@ -6,6 +6,7 @@
 import { createClient } from "@libsql/client";
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
+import { sql } from "#db/sql.ts";
 import {
   REFUSE_REFUND_TRANSFERS_TRIGGER,
   refuseRefundTransfers,
@@ -22,10 +23,9 @@ const TRANSFERS_TABLE = `
 const insertTransfer = async (url: string, kind: string): Promise<void> => {
   const client = createClient({ url });
   try {
-    await client.execute({
-      args: [kind, 100],
-      sql: "INSERT INTO transfers (kind, amount) VALUES (?, ?)",
-    });
+    await client.execute(
+      sql`INSERT INTO transfers (kind, amount) VALUES (${kind}, ${100})`,
+    );
   } finally {
     client.close();
   }
@@ -34,7 +34,9 @@ const insertTransfer = async (url: string, kind: string): Promise<void> => {
 const kindsIn = async (url: string): Promise<string[]> => {
   const client = createClient({ url });
   try {
-    const rows = await client.execute("SELECT kind FROM transfers ORDER BY id");
+    const rows = await client.execute(
+      sql`SELECT kind FROM transfers ORDER BY id`,
+    );
     return rows.rows.map((row) => String(row.kind ?? ""));
   } finally {
     client.close();
@@ -109,8 +111,7 @@ describe("the scoped refund-transfer refusal fault", () => {
       const check = createClient({ url: dbUrl });
       try {
         const triggers = await check.execute(
-          "SELECT name FROM sqlite_master WHERE type = 'trigger' AND name = ?",
-          [REFUSE_REFUND_TRANSFERS_TRIGGER],
+          sql`SELECT name FROM sqlite_master WHERE type = 'trigger' AND name = ${REFUSE_REFUND_TRANSFERS_TRIGGER}`,
         );
         expect(triggers.rows).toEqual([]);
       } finally {

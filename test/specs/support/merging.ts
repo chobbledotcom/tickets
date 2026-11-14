@@ -10,6 +10,7 @@ import { expect } from "@std/expect";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { queryAll } from "#db/client.ts";
 import { setListingGroups } from "#db/groups.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { attribute } from "#test/specs/support/form-controls/reading.ts";
 import { expectCanReallySend } from "#test/specs/support/form-controls/rules.ts";
@@ -423,7 +424,6 @@ export const keptBookingRows = async (
   }[]
 > =>
   queryAll(
-    `SELECT package_group_id, quantity, start_at, end_at FROM listing_attendees
-      WHERE attendee_id = ? AND listing_id = ?`,
-    [theBooking(world), theListing(world)],
+    sql`SELECT package_group_id, quantity, start_at, end_at FROM listing_attendees
+      WHERE attendee_id = ${theBooking(world)} AND listing_id = ${theListing(world)}`,
   );

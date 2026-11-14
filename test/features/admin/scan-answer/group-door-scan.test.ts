@@ -11,6 +11,7 @@
 import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import {
   editorScan,
@@ -104,7 +105,7 @@ describeWithEnv("group scanner scans", { db: true }, () => {
     // The scan's own error logging rethrows in tests, so the failed write is
     // the rejection itself.
     const scan = withDbFault(
-      `CREATE TRIGGER test_no_activity_log
+      sql`CREATE TRIGGER test_no_activity_log
         BEFORE INSERT ON activity_log
       BEGIN
         SELECT RAISE(ABORT, 'activity log unavailable');
@@ -118,8 +119,7 @@ describeWithEnv("group scanner scans", { db: true }, () => {
     // record: the transaction rolled both back.
     const { queryOne } = await import("#db/client.ts");
     const row = await queryOne<{ checked_in: number }>(
-      "SELECT checked_in FROM listing_attendees WHERE attendee_id = ?",
-      [ticket.id],
+      sql`SELECT checked_in FROM listing_attendees WHERE attendee_id = ${ticket.id}`,
     );
     expect(row?.checked_in).toBe(0);
   });

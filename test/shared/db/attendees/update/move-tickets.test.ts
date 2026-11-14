@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import type { TicketDirection } from "#booking/ticket-moves.ts";
 import { moveTickets } from "#db/attendees/update.ts";
 import { executeUpdate, queryOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -30,15 +31,14 @@ describeWithEnv(
       listingId: number,
     ): Promise<number> => {
       const row = await queryOne<{ checked_in: number }>(
-        "SELECT checked_in FROM listing_attendees WHERE attendee_id = ? AND listing_id = ?",
-        [attendeeId, listingId],
+        sql`SELECT checked_in FROM listing_attendees WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId}`,
       );
       return row!.checked_in;
     };
 
     /** Move `count` tickets one way on the person's line, then name the
      * count the line holds afterwards. */
-    const movesTo =
+    const expectMoveTo =
       (direction: TicketDirection, attendeeId: number, listingId: number) =>
       async (count: number, stored: number): Promise<void> => {
         await moveTickets(direction, [{ attendeeId, count, listingId }]);
@@ -47,7 +47,7 @@ describeWithEnv(
 
     test("admit adds tickets up to the line's quantity", async () => {
       const { listing, attendee } = await attendeeOnListing(2);
-      const admit = movesTo("admit", attendee.id, listing.id);
+      const admit = expectMoveTo("admit", attendee.id, listing.id);
 
       await admit(1, 1);
       await admit(1, 2);
@@ -55,7 +55,7 @@ describeWithEnv(
 
     test("admit caps at the line's quantity, so a full line stays full", async () => {
       const { listing, attendee } = await attendeeOnListing(2);
-      const admit = movesTo("admit", attendee.id, listing.id);
+      const admit = expectMoveTo("admit", attendee.id, listing.id);
 
       await admit(2, 2);
       await admit(5, 2);
@@ -63,8 +63,8 @@ describeWithEnv(
 
     test("release removes tickets and floors at zero", async () => {
       const { listing, attendee } = await attendeeOnListing(2);
-      await movesTo("admit", attendee.id, listing.id)(2, 2);
-      const release = movesTo("release", attendee.id, listing.id);
+      await expectMoveTo("admit", attendee.id, listing.id)(2, 2);
+      const release = expectMoveTo("release", attendee.id, listing.id);
 
       await release(1, 1);
       await release(2, 0);
@@ -78,8 +78,8 @@ describeWithEnv(
         { attendee_id: attendee.id, listing_id: listing.id },
       );
 
-      await movesTo("admit", attendee.id, listing.id)(2, 0);
-      await movesTo("release", attendee.id, listing.id)(2, 0);
+      await expectMoveTo("admit", attendee.id, listing.id)(2, 0);
+      await expectMoveTo("release", attendee.id, listing.id)(2, 0);
     });
 
     test("answers the tickets each move really moved", async () => {

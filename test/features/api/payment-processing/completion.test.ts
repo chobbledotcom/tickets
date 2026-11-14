@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, queryOne } from "#db/client.ts";
+import { sql, sqlName } from "#db/sql.ts";
 import { completePaidBooking } from "#routes/api/payment-processing/completion.ts";
 import type { CreatedEntry } from "#routes/api/payment-processing/create.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
@@ -26,9 +27,9 @@ const raiseFlag = async (
   attendeeId: number,
   column: "email_pending" | "webhooks_pending",
 ): Promise<void> => {
-  await execute(`UPDATE attendees SET ${column} = 1 WHERE id = ?`, [
-    attendeeId,
-  ]);
+  await execute(
+    sql`UPDATE attendees SET ${sqlName(column)} = 1 WHERE id = ${attendeeId}`,
+  );
 };
 
 const flagOf = async (
@@ -36,8 +37,7 @@ const flagOf = async (
   column: "email_pending" | "webhooks_pending",
 ): Promise<number> => {
   const row = await queryOne<{ value: number }>(
-    `SELECT ${column} AS value FROM attendees WHERE id = ?`,
-    [attendeeId],
+    sql`SELECT ${sqlName(column)} AS value FROM attendees WHERE id = ${attendeeId}`,
   );
   return Number(row!.value);
 };

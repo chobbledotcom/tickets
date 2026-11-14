@@ -14,12 +14,17 @@
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import {
   executeBatch,
-  inPlaceholders,
   queryOne,
   resultRows,
-  type SqlStatement,
   withTransaction,
 } from "#db/client.ts";
+import {
+  type SqlStatement,
+  sql,
+  sqlList,
+  sqlLiteral,
+  sqlName,
+} from "#db/sql.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type { Attendee } from "#types";
 
@@ -40,9 +45,9 @@ export const PENDING_NOTIFICATION = {
 export type PendingNotificationSide = "email" | "webhooks";
 
 /** The flag column each side owns. */
-const FLAG_COLUMN: Record<PendingNotificationSide, string> = {
-  email: "email_pending",
-  webhooks: "webhooks_pending",
+const FLAG_COLUMN: Record<PendingNotificationSide, SqlStatement> = {
+  email: sql`email_pending`,
+  webhooks: sql`webhooks_pending`,
 };
 
 /** Zero one side's flag for the given attendees. Touches rows whose flag is
@@ -50,12 +55,9 @@ const FLAG_COLUMN: Record<PendingNotificationSide, string> = {
 export const clearPendingFlagStatement = (
   side: PendingNotificationSide,
   attendeeIds: readonly number[],
-): SqlStatement => ({
-  args: [...attendeeIds],
-  sql: `UPDATE attendees SET ${FLAG_COLUMN[side]} = 0
-        WHERE id IN (${inPlaceholders(attendeeIds)})
-          AND ${FLAG_COLUMN[side]} > 0`,
-});
+): SqlStatement => sql`UPDATE attendees SET ${FLAG_COLUMN[side]} = 0
+        WHERE id IN (${sqlList(attendeeIds)})
+          AND ${FLAG_COLUMN[side]} > 0`;
 
 /** Write one side's flag back to the value the claim found. Touches rows
  * whose flag is down, and is what releases a recovery's claim. The captured
@@ -64,12 +66,9 @@ export const restorePendingFlagStatement = (
   side: PendingNotificationSide,
   attendeeIds: readonly number[],
   value: PendingNotificationFlag,
-): SqlStatement => ({
-  args: [value, ...attendeeIds],
-  sql: `UPDATE attendees SET ${FLAG_COLUMN[side]} = ?
-        WHERE id IN (${inPlaceholders(attendeeIds)})
-          AND ${FLAG_COLUMN[side]} = 0`,
-});
+): SqlStatement => sql`UPDATE attendees SET ${FLAG_COLUMN[side]} = ${value}
+        WHERE id IN (${sqlList(attendeeIds)})
+          AND ${FLAG_COLUMN[side]} = 0`;
 
 /** One side a recovery claimed, with the flag value the claim found. The
  * restore writes this value back, so a refused or failed send keeps the
@@ -88,10 +87,9 @@ export const claimOutstandingNotificationFlags = async (
   attendeeId: number,
 ): Promise<ClaimedNotificationSide[]> =>
   withTransaction(async (tx) => {
-    const read = await tx.execute({
-      args: [attendeeId],
-      sql: "SELECT email_pending AS email, webhooks_pending AS webhooks FROM attendees WHERE id = ?",
-    });
+    const read = await tx.execute(
+      sql`SELECT email_pending AS email, webhooks_pending AS webhooks FROM attendees WHERE id = ${attendeeId}`,
+    );
     const row = resultRows<{
       email: PendingNotificationFlag;
       webhooks: PendingNotificationFlag;
@@ -106,10 +104,9 @@ export const claimOutstandingNotificationFlags = async (
       .filter(([, value]) => value > 0)
       .map(([side, previous]) => ({ previous, side }));
     if (claimed.length > 0) {
-      await tx.execute({
-        args: [attendeeId],
-        sql: "UPDATE attendees SET email_pending = 0, webhooks_pending = 0 WHERE id = ?",
-      });
+      await tx.execute(
+        sql`UPDATE attendees SET email_pending = 0, webhooks_pending = 0 WHERE id = ${attendeeId}`,
+      );
     }
     return claimed;
   });
@@ -141,15 +138,15 @@ export const restoreClaimedNotificationFlags = (
  * not bookings. */
 export const emailOwedSql = (
   attendeeRef: string,
-  listingRef?: string,
-): string => `EXISTS (
+  listingRef?: SqlStatement,
+): SqlStatement => sql`EXISTS (
   SELECT 1 FROM listing_attendees AS owed_line
   JOIN listings AS owed_listing ON owed_listing.id = owed_line.listing_id
-  WHERE owed_line.attendee_id = ${attendeeRef}.id
+  WHERE owed_line.attendee_id = ${sqlName(`${attendeeRef}.id`)}
     AND owed_line.quantity > 0${
       listingRef === undefined
-        ? ""
-        : `\n    AND owed_line.listing_id = ${listingRef}`
+        ? sql``
+        : sql`\n    AND owed_line.listing_id = ${listingRef}`
     }
     AND EXISTS (
       WITH RECURSIVE owed_field(rest, field) AS (
@@ -168,15 +165,15 @@ export const emailOwedSql = (
  *  `attendeeRef`, optionally constrained to the row's own `listingRef`. */
 export type EmailOwedProjection = (
   attendeeRef: string,
-  listingRef?: string,
-) => string;
+  listingRef?: SqlStatement,
+) => SqlStatement;
 
 /** The `email_owed` column every attendee read projects beside the stored
  *  flag. All readers share it, so the badges cannot disagree across reads.
  *  `listingRef` scopes the rule to the row's own booking, exactly as
  *  {@link emailOwedSql} scopes it. */
 export const emailOwedColumn: EmailOwedProjection = (attendeeRef, listingRef) =>
-  `(CASE WHEN ${attendeeRef}.email_pending > 0 THEN ${emailOwedSql(attendeeRef, listingRef)} ELSE 0 END) as email_owed`;
+  sql`(CASE WHEN ${sqlName(`${attendeeRef}.email_pending`)} > 0 THEN ${emailOwedSql(attendeeRef, listingRef)} ELSE 0 END) as email_owed`;
 
 /** The stored flag value one attendee's email badge shows, or null when no
  * badge shows. The badge needs the flag up and a booked listing that still
@@ -194,27 +191,25 @@ export const emailBadgePendingOrNull = (
  *  the bookings but keeps the attendee. The attendee browser reads its rows
  *  through this join. The count asks for it too, so it never counts an
  *  attendee the list cannot show. */
-const bookedLineSql = (attendeeRef: string): string => `EXISTS (
+const bookedLineSql = (attendeeRef: string): SqlStatement => sql`EXISTS (
   SELECT 1 FROM listing_attendees AS booked_line
   JOIN listings AS booked_listing ON booked_listing.id = booked_line.listing_id
-  WHERE booked_line.attendee_id = ${attendeeRef}.id
+  WHERE booked_line.attendee_id = ${sqlName(`${attendeeRef}.id`)}
 )`;
 
 /** The count statement, separate from the count so the plan test can pin the
  * index the planner picks. */
-export const pendingFlagsCountStatement = (): SqlStatement => ({
-  args: [],
-  // The plain OR term repeats the partial index's own predicate. Without it
-  // the planner cannot prove the count's WHERE implies the index's WHERE,
-  // and it falls back to the kind index over every attendee row. With it the
-  // plan seeks idx_attendees_pending_flags, and the second conjunct keeps
-  // the email and booking rules. EXPLAIN QUERY PLAN pins this.
-  sql: `SELECT COUNT(*) AS n FROM attendees
-     WHERE kind = '${ATTENDEE_KIND}'
+// The plain OR term repeats the partial index's own predicate. Without it
+// the planner cannot prove the count's WHERE implies the index's WHERE,
+// and it falls back to the kind index over every attendee row. With it the
+// plan seeks idx_attendees_pending_flags, and the second conjunct keeps
+// the email and booking rules. EXPLAIN QUERY PLAN pins this.
+export const pendingFlagsCountStatement = (): SqlStatement =>
+  sql`SELECT COUNT(*) AS n FROM attendees
+     WHERE kind = ${sqlLiteral(ATTENDEE_KIND)}
        AND (email_pending > 0 OR webhooks_pending > 0)
        AND ((email_pending > 0 AND ${emailOwedSql("attendees")})
-            OR (webhooks_pending > 0 AND ${bookedLineSql("attendees")}))`,
-});
+            OR (webhooks_pending > 0 AND ${bookedLineSql("attendees")}))`;
 
 /** How many attendees still owe a notification send. The dashboard shows this
  * count when it is above zero. Only customer attendee rows count, the rows
@@ -222,7 +217,7 @@ export const pendingFlagsCountStatement = (): SqlStatement => ({
  * a booked listing still collects an email, the same rule the badge applies.
  * A webhook flag counts only while a booking still points at the attendee. */
 export const countAttendeesWithPendingFlags = async (): Promise<number> => {
-  const row = await queryOne<{ n: number }>(pendingFlagsCountStatement().sql);
+  const row = await queryOne<{ n: number }>(pendingFlagsCountStatement());
   // A COUNT always yields one row. A missing row means the query broke.
   return Number(
     requireValue(row, "The pending-notification count returned no row").n,

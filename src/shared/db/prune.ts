@@ -3,19 +3,11 @@
 import { decrypt } from "#crypto/encryption.ts";
 import { addressCachePruneStatement } from "#db/address-cache.ts";
 import { attendeeRemovalStatements } from "#db/attendees/delete.ts";
-import {
-  executeBatchWithResults,
-  inPlaceholders,
-  queryAll,
-  type SqlStatement,
-} from "#db/client.ts";
-import {
-  numberedStatement,
-  type SqlParameter,
-} from "#db/numbered-statement.ts";
+import { executeBatchWithResults, queryAll } from "#db/client.ts";
 import { orphanIdsBatch } from "#db/orphan-attendees.ts";
 import { PRUNE_SCAN_OPERATIONS_RETENTION_MS } from "#db/processed-scan-operations.ts";
 import { settings } from "#db/settings.ts";
+import { type SqlStatement, sql, sqlList, sqlName } from "#db/sql.ts";
 import {
   refundAuthorityPrunableSql,
   refundAuthorityWorkSql,
@@ -46,26 +38,19 @@ export interface DatabasePruningResult {
   fullBatch: boolean;
 }
 
-const boundedDelete = (
-  table: string,
-  buildWhere: (bind: SqlParameter) => string,
-): PruneStatement =>
-  numberedStatement((bind) => {
-    const batch = bind(MAINTENANCE_PRUNE_BATCH);
-    return `DELETE FROM ${table}
+const boundedDelete = (table: string, where: SqlStatement): PruneStatement =>
+  sql`DELETE FROM ${sqlName(table)}
          WHERE rowid IN (
-           SELECT rowid FROM ${table} WHERE ${buildWhere(bind)}
-           ORDER BY rowid LIMIT ${batch}
+           SELECT rowid FROM ${sqlName(table)} WHERE ${where}
+           ORDER BY rowid LIMIT ${MAINTENANCE_PRUNE_BATCH}
          )`;
-  });
 
-const paymentStatement = (): PruneStatement => ({
-  args: [isoBefore(PRUNE_PAYMENTS_RETENTION_MS), MAINTENANCE_PRUNE_BATCH],
-  sql: `DELETE FROM processed_payments
+const paymentStatement = (): PruneStatement =>
+  sql`DELETE FROM processed_payments
          WHERE rowid IN (
            SELECT payment.rowid
              FROM processed_payments AS payment
-            WHERE payment.processed_at < ?
+            WHERE payment.processed_at < ${isoBefore(PRUNE_PAYMENTS_RETENTION_MS)}
               -- A row with refund work on it is never pruned, however old it
               -- is, and however long ago the claim was taken. The retention
               -- window is measured from checkout, so a years-old booking
@@ -112,9 +97,14 @@ const paymentStatement = (): PruneStatement => ({
                   )
                 )
               )
-            ORDER BY payment.rowid LIMIT ?
-         )`,
-});
+            ORDER BY payment.rowid LIMIT ${MAINTENANCE_PRUNE_BATCH}
+         )`;
+
+const loginAttemptsExpired = (): SqlStatement => {
+  const cutoff = nowMs() - PRUNE_LOGINS_RETENTION_MS;
+  return sql`(locked_until IS NOT NULL AND locked_until < ${cutoff})
+        OR (locked_until IS NULL AND last_attempt < ${cutoff})`;
+};
 
 const pruneStatements = (): PruneStatement[] => [
   paymentStatement(),
@@ -123,8 +113,7 @@ const pruneStatements = (): PruneStatement[] => [
   // is the exact harm the recovery task exists to prevent.
   boundedDelete(
     "sumup_checkouts",
-    (bind) =>
-      `created_at < ${bind(isoBefore(PRUNE_SUMUP_RETENTION_MS))} AND recovery_state IN (${RECOVERY_PRUNABLE_NODES.map((node) => bind(node)).join(", ")})`,
+    sql`created_at < ${isoBefore(PRUNE_SUMUP_RETENTION_MS)} AND recovery_state IN (${sqlList(RECOVERY_PRUNABLE_NODES)})`,
   ),
   // The payments cutoff keeps answers past the short SumUp staging window. A
   // Square row also waits for its link to end, and only an observed end
@@ -133,79 +122,65 @@ const pruneStatements = (): PruneStatement[] => [
   // window, the link cannot take payment, so the answers go even though the
   // handle row remains. A payment made just before the end can still arrive
   // through webhook retries.
-  boundedDelete("checkout_pending_answers", (bind) => {
-    const paymentsCutoff = bind(isoBefore(PRUNE_PAYMENTS_RETENTION_MS));
-    const squareCutoff = bind(isoBefore(SQUARE_LINK_RETENTION_MS));
-    const webhookCutoff = bind(isoBefore(WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS));
-    return `created_at < ${paymentsCutoff}
+  boundedDelete(
+    "checkout_pending_answers",
+    sql`created_at < ${isoBefore(PRUNE_PAYMENTS_RETENTION_MS)}
        AND (
          link_ends_at IS NULL
-         OR created_at < ${squareCutoff}
+         OR created_at < ${isoBefore(SQUARE_LINK_RETENTION_MS)}
          OR (
-           link_ends_at < ${webhookCutoff}
+           link_ends_at < ${isoBefore(WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS)}
            AND NOT EXISTS (
              SELECT 1 FROM square_link_ends AS handle
               WHERE handle.session_index = checkout_pending_answers.session_index
            )
          )
-       )`;
-  }),
+       )`,
+  ),
   // A Square link stops taking payment at Square's native lifetime (180 days)
   // at the latest, whatever the expiry task did, so a handle row older than
   // that bound plus the webhook window can hold nothing worth ending. Younger
   // rows keep their place until the task observes their end.
   boundedDelete(
     "square_link_ends",
-    (bind) => `created_at < ${bind(isoBefore(SQUARE_LINK_RETENTION_MS))}`,
+    sql`created_at < ${isoBefore(SQUARE_LINK_RETENTION_MS)}`,
   ),
   boundedDelete(
     "strings",
-    (bind) =>
-      `used_count = 0 AND created < ${bind(isoBefore(PRUNE_UNUSED_STRINGS_RETENTION_MS))}`,
+    sql`used_count = 0 AND created < ${isoBefore(PRUNE_UNUSED_STRINGS_RETENTION_MS)}`,
   ),
   addressCachePruneStatement(),
   boundedDelete(
     "sessions",
-    (bind) => `expires < ${bind(nowMs() - PRUNE_SESSIONS_RETENTION_MS)}`,
+    sql`expires < ${nowMs() - PRUNE_SESSIONS_RETENTION_MS}`,
   ),
-  // Both arms compare against the same cutoff, so one bound value reads the
-  // same token twice.
-  boundedDelete("login_attempts", (bind) => {
-    const cutoff = bind(nowMs() - PRUNE_LOGINS_RETENTION_MS);
-    return `(locked_until IS NOT NULL AND locked_until < ${cutoff})
-        OR (locked_until IS NULL AND last_attempt < ${cutoff})`;
-  }),
+  boundedDelete("login_attempts", loginAttemptsExpired()),
   boundedDelete(
     "token_attempts",
-    (bind) => `last_attempt < ${bind(nowMs() - PRUNE_TOKENS_RETENTION_MS)}`,
+    sql`last_attempt < ${nowMs() - PRUNE_TOKENS_RETENTION_MS}`,
   ),
   boundedDelete(
     "contact_preferences",
-    (bind) =>
-      `unsubscribed = 0 AND last_activity < ${bind(nowMs() - PRUNE_CONTACTS_RETENTION_MS)}`,
+    sql`unsubscribed = 0 AND last_activity < ${nowMs() - PRUNE_CONTACTS_RETENTION_MS}`,
   ),
   // A replay ledger row guards one offline delivery's retry, and a device
   // only retries while its saved cache is valid. Past the retention window
   // no retry can still admit, so the row — and the digest it holds — goes.
   boundedDelete(
     "processed_scan_operations",
-    (bind) =>
-      `created < ${bind(isoBefore(PRUNE_SCAN_OPERATIONS_RETENTION_MS))}`,
+    sql`created < ${isoBefore(PRUNE_SCAN_OPERATIONS_RETENTION_MS)}`,
   ),
 ];
 
 const orphanStatements = (): PruneStatement[] => {
   if (!settings.autoPurgeOrphans) return [];
-  const args = [
+  const orphanIds = orphanIdsBatch(
     orphanRetentionCutoffIso(settings.orphanPurgeRetention, nowMs()),
     MAINTENANCE_PRUNE_BATCH,
-  ];
+  );
   return [
-    ...attendeeRemovalStatements({ args, sql: orphanIdsBatch() }),
-    {
-      args,
-      sql: `DELETE FROM attendees WHERE id IN (${orphanIdsBatch()})`,
-    },
+    ...attendeeRemovalStatements(orphanIds),
+    sql`DELETE FROM attendees WHERE id IN (${orphanIds})`,
   ];
 };
 
@@ -229,19 +204,16 @@ const checkpointId = (checkpoint: string | null): number | null => {
 const expiredInvitePage = async (
   checkpoint: string | null,
 ): Promise<InvitePage> => {
-  const { sql, args } = numberedStatement((bind) => {
-    const position = bind(checkpointId(checkpoint));
-    return `SELECT id, invite_expiry FROM users
+  const position = checkpointId(checkpoint);
+  const rows = await queryAll<InviteCandidate>(
+    sql`SELECT id, invite_expiry FROM users
       WHERE wrapped_data_key IS NULL
         AND password_hash = ''
         AND invite_expiry IS NOT NULL
         AND (${position} IS NULL OR id > ${position})
       ORDER BY id
-      LIMIT ${bind(MAINTENANCE_PRUNE_BATCH + 1)}`;
-  });
-  // Both arms compare against the same saved position, so one bound value
-  // reads the same token twice.
-  const rows = await queryAll<InviteCandidate>(sql, args);
+      LIMIT ${MAINTENANCE_PRUNE_BATCH + 1}`,
+  );
   const candidates = rows.slice(0, MAINTENANCE_PRUNE_BATCH);
   const cutoff = now().getTime();
   const inviteStates = await Promise.all(
@@ -262,9 +234,8 @@ const expiredInvitePage = async (
 
 const inviteStatements = (ids: number[]): PruneStatement[] => {
   if (ids.length === 0) return [];
-  const inIds = inPlaceholders(ids);
-  const unactivatedIds = `SELECT id FROM users
-    WHERE id IN (${inIds})
+  const unactivatedIds = sql`SELECT id FROM users
+    WHERE id IN (${sqlList(ids)})
       AND wrapped_data_key IS NULL
       AND password_hash = ''
       AND invite_expiry IS NOT NULL`;
@@ -273,10 +244,12 @@ const inviteStatements = (ids: number[]): PruneStatement[] => {
     { field: "user_id", table: "sessions" },
     { field: "user_id", table: "user_logistics_agents" },
     { field: "id", table: "users" },
-  ].map(({ field, table }) => ({
-    args: ids,
-    sql: `DELETE FROM ${table} WHERE ${field} IN (${unactivatedIds})`,
-  }));
+  ].map(
+    ({ field, table }) =>
+      sql`DELETE FROM ${sqlName(table)} WHERE ${sqlName(
+        field,
+      )} IN (${unactivatedIds})`,
+  );
 };
 
 const lastResultIndexes = (batches: PruneStatement[][]): number[] =>

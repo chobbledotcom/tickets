@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
 import { getOrCreateStringIds } from "#db/questions/strings.ts";
+import { sql } from "#db/sql.ts";
 import {
   addAnswer,
   createAttendee,
@@ -67,7 +68,7 @@ describeWithEnv("db > attendee answers > stored ids", { db: true }, () => {
     expect(calls).toBe(1);
     expect(
       await queryAll(
-        `SELECT attendee_id, question_id, answer_id, string_id
+        sql`SELECT attendee_id, question_id, answer_id, string_id
          FROM attendee_answers ORDER BY attendee_id, question_id`,
       ),
     ).toEqual([
@@ -98,8 +99,7 @@ describeWithEnv("db > attendee answers > stored ids", { db: true }, () => {
     ]);
     expect(
       await queryAll(
-        "SELECT id, times_selected FROM answers WHERE id IN (?, ?) ORDER BY id",
-        [firstChoice.id, lastChoice.id],
+        sql`SELECT id, times_selected FROM answers WHERE id IN (${firstChoice.id}, ${lastChoice.id}) ORDER BY id`,
       ),
     ).toEqual([
       { id: firstChoice.id, times_selected: 1 },
@@ -107,8 +107,7 @@ describeWithEnv("db > attendee answers > stored ids", { db: true }, () => {
     ]);
     expect(
       await queryAll(
-        "SELECT id, used_count FROM strings WHERE id IN (?, ?, ?) ORDER BY id",
-        [oldStringId, firstStringId, lastStringId],
+        sql`SELECT id, used_count FROM strings WHERE id IN (${oldStringId}, ${firstStringId}, ${lastStringId}) ORDER BY id`,
       ),
     ).toEqual([
       { id: oldStringId, used_count: 0 },

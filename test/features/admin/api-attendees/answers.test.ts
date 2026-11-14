@@ -8,6 +8,7 @@ import {
   loadAttendeeQuestionData,
 } from "#db/questions/attendee-answers/reads.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
+import { sql } from "#db/sql.ts";
 import {
   addAnswer,
   assignQuestion,
@@ -102,8 +103,7 @@ describeWithEnv(
         free_text_index: string | null;
         question_id: number;
       }>(
-        "SELECT question_id, answer_id, free_text, free_text_index FROM answers_at_booking WHERE attendee_id = ?",
-        [attendeeId],
+        sql`SELECT question_id, answer_id, free_text, free_text_index FROM answers_at_booking WHERE attendee_id = ${attendeeId}`,
       );
       expect(rows).toHaveLength(2);
       const choice = rows.find((row) => row.question_id === meal.id)!;
@@ -140,8 +140,7 @@ describeWithEnv(
         answer_id: number | null;
         question_id: number;
       }>(
-        "SELECT question_id, answer_id FROM answers_at_booking WHERE attendee_id = ?",
-        [attendeeId],
+        sql`SELECT question_id, answer_id FROM answers_at_booking WHERE attendee_id = ${attendeeId}`,
       );
       expect(rows).toHaveLength(2);
       expect(new Set(rows.map((row) => row.question_id))).toEqual(
@@ -171,7 +170,7 @@ describeWithEnv(
       }
 
       const rows = await queryAll<{ used_count: number }>(
-        "SELECT used_count FROM strings",
+        sql`SELECT used_count FROM strings`,
       );
       expect(rows).toHaveLength(1);
       expect(rows[0]!.used_count).toBe(2);

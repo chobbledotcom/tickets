@@ -5,6 +5,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { type Spy, spy, stub } from "@std/testing/mock";
 import { createDatabaseClient, PROXY_ENV_NAMES } from "#db/database-client.ts";
+import { sql } from "#db/sql.ts";
 import { hranaTestFetch } from "#test-utils/hrana.ts";
 
 type WatchedPool = {
@@ -168,8 +169,8 @@ describe("database connection pool", () => {
   test("requests within the idle window reuse one real connection", async () => {
     await using loopback = openLoopback();
     const client = createDatabaseClient({ url: loopback.url });
-    await client.batch(["SELECT 1"], "write");
-    await client.execute("SELECT 2");
+    await client.batch([sql`SELECT 1`], "write");
+    await client.execute(sql`SELECT 2`);
     client.close();
     expect(loopback.options).toEqual([{ poolIdleTimeout: 20_000 }]);
     expect(loopback.connections.length).toBeGreaterThanOrEqual(2);
@@ -179,9 +180,9 @@ describe("database connection pool", () => {
   test("a request after the idle window opens a fresh connection", async () => {
     await using loopback = openLoopback();
     const client = createDatabaseClient({ url: loopback.url });
-    await client.execute("SELECT 1");
+    await client.execute(sql`SELECT 1`);
     await waitPastTheIdleWindow();
-    const result = await client.execute("SELECT 2");
+    const result = await client.execute(sql`SELECT 2`);
     client.close();
     expect(result.rows).toEqual([]);
     expect(loopback.connections.length).toBe(2);
@@ -191,8 +192,8 @@ describe("database connection pool", () => {
   test("a reply held past the idle window still returns", async () => {
     await using loopback = openLoopback(PAST_THE_IDLE_WINDOW_MS);
     const client = createDatabaseClient({ url: loopback.url });
-    const result = await client.execute("SELECT 1");
-    await client.execute("SELECT 2");
+    const result = await client.execute(sql`SELECT 1`);
+    await client.execute(sql`SELECT 2`);
     client.close();
     expect(result.rows).toEqual([]);
     expect(loopback.connections.length).toBe(2);
@@ -202,11 +203,11 @@ describe("database connection pool", () => {
   test("close is safe to repeat, and reconnect opens a fresh pool", async () => {
     using watched = watchPools();
     const client = openClient();
-    await client.execute("SELECT 1");
+    await client.execute(sql`SELECT 1`);
     client.close();
     client.close();
     client.reconnect();
-    await client.execute("SELECT 2");
+    await client.execute(sql`SELECT 2`);
     client.close();
     expect(watched.pools.map(({ close }) => close.calls.length)).toEqual([
       1, 1,
@@ -224,7 +225,7 @@ describe("database connection pool", () => {
     using watched = watchPools();
     process.env.HTTPS_PROXY = "http://proxy.test:8080";
     const client = openClient();
-    await client.execute("SELECT 1");
+    await client.execute(sql`SELECT 1`);
     client.close();
     // The custom client knows no proxy: the requests go through the
     // default fetch, whose proxy support the runtime applies.
@@ -236,7 +237,7 @@ describe("database connection pool", () => {
     using watched = watchPools();
     process.env.HTTPS_PROXY = "http://proxy.test:8080";
     const client = openClient();
-    const pending = client.execute("SELECT 1");
+    const pending = client.execute(sql`SELECT 1`);
     client.close();
     await expectRejectedAndUndispatched(pending, watched);
   });
@@ -279,7 +280,7 @@ describe("database connection pool", () => {
     const restoreNode = holdRead(NodeFetchRequest);
     const restoreCross = holdRead(CrossFetchRequest);
     try {
-      const pending = client.execute("SELECT 1");
+      const pending = client.execute(sql`SELECT 1`);
       // The hold must gate the read. If the request settles first, the
       // entry signal never came from a suspended read: fail the test so
       // the finally restores the patched prototypes.
@@ -315,7 +316,7 @@ describe("database connection pool", () => {
       fetch: remote.fetch,
       url: "libsql://pipeline.test",
     });
-    await client.batch(["SELECT 1"], "write");
+    await client.batch([sql`SELECT 1`], "write");
     client.close();
     expect(watched.pools).toEqual([]);
     expect(watched.usedPools).toEqual([]);
@@ -325,7 +326,7 @@ describe("database connection pool", () => {
   test("a local database opens no pool", async () => {
     using watched = watchPools();
     const client = createDatabaseClient({ url: ":memory:" });
-    await client.execute("SELECT 1");
+    await client.execute(sql`SELECT 1`);
     client.close();
     expect(watched.pools).toEqual([]);
   });
@@ -333,7 +334,7 @@ describe("database connection pool", () => {
   test("close during the body read rejects the request before it dispatches", async () => {
     const opened = openWithQueuedClose();
     using watched = opened.watched;
-    const pending = opened.client.execute("SELECT 1");
+    const pending = opened.client.execute(sql`SELECT 1`);
     await waitUntilClosed(opened.state);
     await expect(pending).rejects.toThrow("The database client is closed");
     expect(watched.usedPools).toEqual([]);
@@ -343,10 +344,10 @@ describe("database connection pool", () => {
   test("work started after a reconnect dispatches on the fresh pool", async () => {
     const opened = openWithQueuedClose();
     using watched = opened.watched;
-    const stale = opened.client.execute("SELECT 1");
+    const stale = opened.client.execute(sql`SELECT 1`);
     await waitUntilClosed(opened.state);
     opened.client.reconnect();
-    const fresh = await opened.client.execute("SELECT 2");
+    const fresh = await opened.client.execute(sql`SELECT 2`);
     opened.client.close();
     await expect(stale).rejects.toThrow("The database client is closed");
     expect(fresh.rows).toEqual([]);

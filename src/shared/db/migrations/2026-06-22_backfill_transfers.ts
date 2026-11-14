@@ -1,5 +1,6 @@
 import { backfillTransfers } from "#accounting/backfill.ts";
 import { getDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { schemaMigration } from "./define.ts";
 import { getExistingColumns } from "./schema-sync.ts";
 
@@ -23,12 +24,12 @@ export default schemaMigration(
     const columns = await getExistingColumns("listing_attendees");
     if (!columns.has("refunded")) {
       await getDb().execute(
-        "ALTER TABLE listing_attendees ADD COLUMN refunded INTEGER NOT NULL DEFAULT 0",
+        sql`ALTER TABLE listing_attendees ADD COLUMN refunded INTEGER NOT NULL DEFAULT 0`,
       );
     }
     if (!columns.has("price_paid")) {
       await getDb().execute(
-        "ALTER TABLE listing_attendees ADD COLUMN price_paid INTEGER NOT NULL DEFAULT 0",
+        sql`ALTER TABLE listing_attendees ADD COLUMN price_paid INTEGER NOT NULL DEFAULT 0`,
       );
     }
     await backfillTransfers();

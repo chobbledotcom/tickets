@@ -13,22 +13,23 @@ import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import { emailOwedColumn } from "#db/attendees/notification-flags.ts";
 import { listingAttendeeRowColumnsFrom } from "#db/attendees/queries.ts";
 import {
+  ATTENDEE_IDENTITY_COLUMNS,
   pricePaidFromLedger,
   remainingBalanceFromLedger,
 } from "#db/attendees/select.ts";
-import { inPlaceholders, queryAll } from "#db/client.ts";
-import { groupToMap, map, unique } from "#fp";
-
-const ATTENDEE_ALIAS = "attendee";
-const LISTING_ATTENDEE_ALIAS = "listingAttendee";
-const listingAttendeeColumn = (name: string): string =>
-  `${LISTING_ATTENDEE_ALIAS}.${name}`;
+import { queryAll } from "#db/client.ts";
+import {
+  type SqlStatement,
+  sql,
+  sqlCommas,
+  sqlList,
+  sqlLiteral,
+} from "#db/sql.ts";
+import { groupToMap, map, unique, withoutKey } from "#fp";
 
 /** Shared ordering for an attendee's booking rows so grouped reads are
  * deterministic: date, then listing id. */
-const BOOKING_ROWS_ORDER = `${listingAttendeeColumn("start_at")}, ${listingAttendeeColumn(
-  "listing_id",
-)}`;
+const BOOKING_ROWS_ORDER = sql`listingAttendee.start_at, listingAttendee.listing_id`;
 
 /** PII-free booking rows for a token-resolved attendee. */
 export type AttendeeBookingRows = {
@@ -47,23 +48,9 @@ type PreviousBookingLine = Pick<
 type BookingRowWithAttendee = TokenBookingRow & { attendee_id: number };
 type RowWithAttendee<Row> = Row & { attendee_id: number };
 
-const bookingRowWithoutAttendee = (
+const bookingRowWithoutAttendee: (
   row: BookingRowWithAttendee,
-): TokenBookingRow => ({
-  attachment_downloads: row.attachment_downloads,
-  checked_in: row.checked_in,
-  email_owed: row.email_owed,
-  end_at: row.end_at,
-  ledger_event_group: row.ledger_event_group,
-  listing_id: row.listing_id,
-  order_token: row.order_token,
-  package_group_id: row.package_group_id,
-  parent_listing_id: row.parent_listing_id,
-  price_paid: row.price_paid,
-  quantity: row.quantity,
-  refunded: row.refunded,
-  start_at: row.start_at,
-});
+) => TokenBookingRow = withoutKey("attendee_id");
 
 /** Load the booking lines for a set of attendees, grouped by attendee id.
  * Callers vary only in which columns they read, any extra join, and any
@@ -74,19 +61,16 @@ const bookingLinesByAttendeeIds = async <
   Result,
 >(
   attendeeIds: number[],
-  columns: string,
-  joins: string,
-  extraWhere: string,
+  columns: SqlStatement,
+  joins: SqlStatement,
+  extraWhere: SqlStatement,
   toResult: (row: Row) => Result,
 ): Promise<Map<number, Result[]>> => {
   const rows = await queryAll<Row>(
-    `SELECT ${listingAttendeeColumn("attendee_id")}, ${columns}
-     FROM listing_attendees AS ${LISTING_ATTENDEE_ALIAS}${joins}
-     WHERE ${listingAttendeeColumn("attendee_id")} IN (${inPlaceholders(
-       attendeeIds,
-     )})${extraWhere}
+    sql`SELECT listingAttendee.attendee_id, ${columns}
+     FROM listing_attendees AS listingAttendee${joins}
+     WHERE listingAttendee.attendee_id IN (${sqlList(attendeeIds)})${extraWhere}
      ORDER BY ${BOOKING_ROWS_ORDER}`,
-    attendeeIds,
   );
 
   return groupToMap((row: Row) => row.attendee_id, toResult)(rows);
@@ -97,22 +81,20 @@ const bookingRowsByAttendeeIds = (
 ): Promise<Map<number, TokenBookingRow[]>> =>
   bookingLinesByAttendeeIds<BookingRowWithAttendee, TokenBookingRow>(
     attendeeIds,
-    `${listingAttendeeRowColumnsFrom(LISTING_ATTENDEE_ALIAS)}, ${emailOwedColumn(ATTENDEE_ALIAS, listingAttendeeColumn("listing_id"))}`,
+    sql`${listingAttendeeRowColumnsFrom("listingAttendee")}, ${emailOwedColumn("attendee", sql`listingAttendee.listing_id`)}`,
     // The owed rule reads the attendee's flag through the same alias the
     // attendee scan uses, so the projection matches the one emailOwedColumn
     // emits everywhere else.
-    ` JOIN attendees AS ${ATTENDEE_ALIAS} ON ${ATTENDEE_ALIAS}.id = ${listingAttendeeColumn("attendee_id")}`,
-    "",
+    sql` JOIN attendees AS attendee ON attendee.id = listingAttendee.attendee_id`,
+    sql``,
     bookingRowWithoutAttendee,
   );
 
-const PREVIOUS_BOOKING_LINE_COLS = `${listingAttendeeColumn("listing_id")}, ${listingAttendeeColumn(
-  "quantity",
-)}, ${pricePaidFromLedger(
-  listingAttendeeColumn("attendee_id"),
-  listingAttendeeColumn("listing_id"),
-  listingAttendeeColumn("ledger_event_group"),
-  listingAttendeeColumn("id"),
+const PREVIOUS_BOOKING_LINE_COLS = sql`listingAttendee.listing_id, listingAttendee.quantity, ${pricePaidFromLedger(
+  sql`listingAttendee.attendee_id`,
+  sql`listingAttendee.listing_id`,
+  sql`listingAttendee.ledger_event_group`,
+  sql`listingAttendee.id`,
 )}`;
 
 const previousBookingLineWithoutAttendee = (
@@ -132,8 +114,8 @@ const previousBookingLinesByAttendeeIds = (
   >(
     attendeeIds,
     PREVIOUS_BOOKING_LINE_COLS,
-    "",
-    `\n       AND ${listingAttendeeColumn("quantity")} > 0`,
+    sql``,
+    sql`\n       AND listingAttendee.quantity > 0`,
     previousBookingLineWithoutAttendee,
   );
 
@@ -150,17 +132,14 @@ const tokenIndexesFor = (tokens: string[]): Promise<BlindIndex[]> =>
 
 const attendeeRowsForTokens = async <Row extends TokenIndexedRow>(
   tokens: string[],
-  columns: string,
+  columns: SqlStatement,
 ): Promise<TokenIndexedRows<Row>> => {
   const uniqueTokens = unique(tokens);
   const tokenIndexes = await tokenIndexesFor(uniqueTokens);
   const rows = await queryAll<Row>(
-    `SELECT ${columns}
-     FROM attendees AS ${ATTENDEE_ALIAS}
-     WHERE ${ATTENDEE_ALIAS}.ticket_token_index IN (${inPlaceholders(
-       tokenIndexes,
-     )}) AND ${ATTENDEE_ALIAS}.kind = '${ATTENDEE_KIND}'`,
-    tokenIndexes,
+    sql`SELECT ${columns}
+     FROM attendees AS attendee
+     WHERE attendee.ticket_token_index IN (${sqlList(tokenIndexes)}) AND ${IS_ATTENDEE_KIND}`,
   );
   return { rows, tokenIndexes, uniqueTokens };
 };
@@ -217,7 +196,7 @@ const tokenResultMap = <Row extends TokenResultRow, Booking, Result>(
 
 const resultsForTokens = async <Row extends TokenResultRow, Booking, Result>(
   tokens: string[],
-  columns: string,
+  columns: SqlStatement,
   bookingsFor: (attendeeIds: number[]) => Promise<Map<number, Booking[]>>,
   build: BuildTokenResult<Row, Booking, Result>,
 ): Promise<(Result | null)[]> => {
@@ -240,15 +219,19 @@ const resultsForTokens = async <Row extends TokenResultRow, Booking, Result>(
   );
 };
 
-const TOKEN_ATTENDEE_BALANCE = remainingBalanceFromLedger(
-  `${ATTENDEE_ALIAS}.id`,
-);
+const IS_ATTENDEE_KIND = sql`attendee.kind = ${sqlLiteral(ATTENDEE_KIND)}`;
 
 /** The attendee columns a scan needs: identity, the token index its ticket
  * resolves by, the PII blob for the name, and the ledger balance. The
  * pending-notification flags ride along with the email badge's read-time
  * rule, so the merge preview's badges resolve like every other read. */
-const ATTENDEE_SCAN_COLUMNS = `${ATTENDEE_ALIAS}.id, ${ATTENDEE_ALIAS}.created, ${ATTENDEE_ALIAS}.kind, ${ATTENDEE_ALIAS}.ticket_token_index, ${ATTENDEE_ALIAS}.pii_blob, ${ATTENDEE_ALIAS}.status_id, ${TOKEN_ATTENDEE_BALANCE}, ${ATTENDEE_ALIAS}.email_pending, ${ATTENDEE_ALIAS}.webhooks_pending, ${emailOwedColumn(ATTENDEE_ALIAS)}`;
+const ATTENDEE_SCAN_COLUMNS = sqlCommas([
+  ...ATTENDEE_IDENTITY_COLUMNS,
+  remainingBalanceFromLedger(sql`attendee.id`),
+  sql`attendee.email_pending`,
+  sql`attendee.webhooks_pending`,
+  emailOwedColumn("attendee"),
+]);
 
 type AttendeeScanRow = {
   id: number;
@@ -309,12 +292,9 @@ export const getAttendeesByIdsWithBookings = async (
   // The only caller looks up exactly one id. An empty list is a caller bug
   // and fails loudly in SQL rather than answering an empty map.
   const rows = await queryAll<AttendeeScanRow>(
-    `SELECT ${ATTENDEE_SCAN_COLUMNS}
-     FROM attendees AS ${ATTENDEE_ALIAS}
-     WHERE ${ATTENDEE_ALIAS}.id IN (${inPlaceholders(
-       ids,
-     )}) AND ${ATTENDEE_ALIAS}.kind = '${ATTENDEE_KIND}'`,
-    ids,
+    sql`SELECT ${ATTENDEE_SCAN_COLUMNS}
+     FROM attendees AS attendee
+     WHERE attendee.id IN (${sqlList(ids)}) AND ${IS_ATTENDEE_KIND}`,
   );
   const bookingsByAttendee = await bookingRowsByAttendeeIds(
     rows.map((row) => row.id),
@@ -344,7 +324,7 @@ export const getAttendeeBookingRowsByTokens = async (
     AttendeeBookingRows
   >(
     tokens,
-    `${ATTENDEE_ALIAS}.id, ${ATTENDEE_ALIAS}.created, ${ATTENDEE_ALIAS}.ticket_token_index, ${ATTENDEE_ALIAS}.status_id`,
+    sql`attendee.id, attendee.created, attendee.ticket_token_index, attendee.status_id`,
     previousBookingLinesByAttendeeIds,
     (row, bookings): AttendeeBookingRows => ({
       bookings,

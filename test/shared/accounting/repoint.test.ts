@@ -52,8 +52,7 @@ describeWithEnv("accounting > repoint (integration)", { db: true }, () => {
         "evt",
         assessment,
         "2026-06-21T00:00:00.000Z",
-        "?",
-        [3],
+        3,
       ),
       ...repointAttendeeStatements(3, 7),
     ]);

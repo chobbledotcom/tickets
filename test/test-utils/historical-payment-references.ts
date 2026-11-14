@@ -13,6 +13,7 @@ import {
 import type { StoredPaymentReference } from "#db/payment-reference-store.ts";
 import { reserveSession } from "#db/processed-payments.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import {
   bookAttendee,
@@ -38,10 +39,9 @@ export const seedHistoricalProcessedPayment = async (
   await reserveSession(sessionId);
   const stored = await historicalPaymentReferenceStorage(reference);
   const result = await execute(
-    `UPDATE processed_payments
-        SET attendee_id = ?, payment_reference = ?, payment_reference_index = ?
-      WHERE payment_session_id = ? AND attendee_id IS NULL`,
-    [attendeeId, stored.encrypted, stored.index, sessionId],
+    sql`UPDATE processed_payments
+        SET attendee_id = ${attendeeId}, payment_reference = ${stored.encrypted}, payment_reference_index = ${stored.index}
+      WHERE payment_session_id = ${sessionId} AND attendee_id IS NULL`,
   );
   assert(
     result.rowsAffected === 1,
@@ -72,12 +72,10 @@ export const bookLegacyPaidAttendee = async (
   );
   await seedHistoricalProcessedPayment(sessionId, attendee.id, paymentId);
   await execute(
-    "UPDATE processed_payments SET payment_reference_index = '' WHERE payment_session_id = ?",
-    [sessionId],
+    sql`UPDATE processed_payments SET payment_reference_index = '' WHERE payment_session_id = ${sessionId}`,
   );
   await execute(
-    "UPDATE attendees SET pii_payment_session_id = NULL WHERE id = ?",
-    [attendee.id],
+    sql`UPDATE attendees SET pii_payment_session_id = NULL WHERE id = ${attendee.id}`,
   );
   return { attendee, listing };
 };
@@ -109,8 +107,7 @@ export const provenancePointerOf = async (
   attendeeId: number,
 ): Promise<string | null> => {
   const row = await queryOne<{ pii_payment_session_id: string | null }>(
-    "SELECT pii_payment_session_id FROM attendees WHERE id = ?",
-    [attendeeId],
+    sql`SELECT pii_payment_session_id FROM attendees WHERE id = ${attendeeId}`,
   );
   return row?.pii_payment_session_id ?? null;
 };

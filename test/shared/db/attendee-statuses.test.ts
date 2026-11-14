@@ -15,6 +15,7 @@ import {
 import { attendeesApi } from "#db/attendees/api.ts";
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";
 import { getDb } from "#db/client.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -124,7 +125,9 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
   test("requirePublicStatusId throws when the required default is missing", async () => {
     const [seed] = await attendeeStatuses.getAll();
     expect(await requirePublicStatusId()).toBe(seed!.id);
-    await getDb().execute("UPDATE attendee_statuses SET is_public_default = 0");
+    await getDb().execute(
+      sql`UPDATE attendee_statuses SET is_public_default = 0`,
+    );
     attendeeStatuses.invalidate();
     await expect(requirePublicStatusId()).rejects.toThrow(
       "No attendee status has the required is_public_default flag",
@@ -190,10 +193,9 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
 
   test("status name is encrypted at rest", async () => {
     const created = await attendeeStatuses.table.insert({ name: "VIP Guest" });
-    const raw = await getDb().execute({
-      args: [created.id],
-      sql: "SELECT name FROM attendee_statuses WHERE id = ?",
-    });
+    const raw = await getDb().execute(
+      sql`SELECT name FROM attendee_statuses WHERE id = ${created.id}`,
+    );
     // Stored value is ciphertext, not the plaintext name.
     expect(String(raw.rows[0]!.name)).not.toBe("VIP Guest");
     // ...but it decrypts back to the plaintext name on read.
@@ -202,14 +204,13 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
 
   test("ensureDefaultAttendeeStatus seeds and backfills null-status attendees", async () => {
     // Wipe the seed and insert an attendee with no status.
-    await getDb().execute("DELETE FROM attendee_statuses");
+    await getDb().execute(sql`DELETE FROM attendee_statuses`);
     attendeeStatuses.invalidate();
-    await getDb().execute({
-      args: [],
-      sql: "INSERT INTO attendees (created, pii_blob, status_id) VALUES ('2024-01-01T00:00:00Z', '', NULL)",
-    });
+    await getDb().execute(
+      sql`INSERT INTO attendees (created, pii_blob, status_id) VALUES ('2024-01-01T00:00:00Z', '', NULL)`,
+    );
     const { rows } = await getDb().execute(
-      "SELECT id FROM attendees ORDER BY id DESC LIMIT 1",
+      sql`SELECT id FROM attendees ORDER BY id DESC LIMIT 1`,
     );
     const attendeeId = Number(rows[0]!.id);
 
@@ -225,10 +226,9 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
       reservation_amount: "0",
       sort_order: 0,
     });
-    const backfilled = await getDb().execute({
-      args: [attendeeId],
-      sql: "SELECT status_id FROM attendees WHERE id = ?",
-    });
+    const backfilled = await getDb().execute(
+      sql`SELECT status_id FROM attendees WHERE id = ${attendeeId}`,
+    );
     expect(Number(backfilled.rows[0]!.status_id)).toBe(statuses[0]!.id);
   });
 
@@ -280,7 +280,7 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
     ]);
 
     const defaults = await getDb().execute(
-      `SELECT status.is_public_default, status.is_paid_default
+      sql`SELECT status.is_public_default, status.is_paid_default
          FROM attendee_statuses AS status
         WHERE status.is_public_default = 1 OR status.is_paid_default = 1`,
     );
@@ -298,9 +298,9 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
       name: "Candidate",
     });
     await getDb().execute(
-      `CREATE TRIGGER fail_candidate_status_update
+      sql`CREATE TRIGGER fail_candidate_status_update
        BEFORE UPDATE ON attendee_statuses
-       WHEN NEW.id = ${candidate.id}
+       WHEN NEW.id = ${sqlLiteral(candidate.id)}
        BEGIN
          SELECT RAISE(ABORT, 'candidate update failed');
        END`,
@@ -317,7 +317,7 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
     ).rejects.toThrow("candidate update failed");
 
     const defaults = await getDb().execute(
-      `SELECT status.id, status.is_public_default, status.is_paid_default
+      sql`SELECT status.id, status.is_public_default, status.is_paid_default
          FROM attendee_statuses AS status
         ORDER BY status.id`,
     );

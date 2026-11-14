@@ -13,6 +13,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { groups } from "#db/groups.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -80,8 +81,7 @@ describeWithEnv(
         const original = groups.table.updateStatement!;
         groups.table.updateStatement = async (...args) => {
           await execute(
-            "UPDATE groups SET hide_package_listings = 1 WHERE id = ?",
-            [group.id],
+            sql`UPDATE groups SET hide_package_listings = 1 WHERE id = ${group.id}`,
           );
           await sellPackageTicket(memberListing.id, group.id);
           return original(...args);

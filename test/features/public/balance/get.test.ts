@@ -4,6 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { settleAttendeeBalance } from "#db/attendees/balance.ts";
 import { getDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { routeBalance } from "#routes/public/balance.ts";
 import {
@@ -68,10 +69,9 @@ describeWithEnv("server (public balance page) > GET", { db: true }, () => {
   test("GET refuses a reserved balance whose only line is no-quantity", async () => {
     const attendeeId = await createReserved(1500);
     // Turn the only line into a no-quantity sentinel: nothing real to pay into.
-    await getDb().execute({
-      args: [attendeeId],
-      sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ?",
-    });
+    await getDb().execute(
+      sql`UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ${attendeeId}`,
+    );
     // An honest "no tickets to pay for" message, not a misleading "link invalid".
     assertStringIncludes(await getPayPage(attendeeId), "no tickets to pay for");
   });
@@ -116,10 +116,10 @@ describeWithEnv("server (public balance page) > GET", { db: true }, () => {
     });
     // Hard-delete the group: a pay-page read must not recover member names
     // from an absent package row.
-    await getDb().execute("DELETE FROM group_listings WHERE group_id = ?", [
-      group.id,
-    ]);
-    await getDb().execute("DELETE FROM groups WHERE id = ?", [group.id]);
+    await getDb().execute(
+      sql`DELETE FROM group_listings WHERE group_id = ${group.id}`,
+    );
+    await getDb().execute(sql`DELETE FROM groups WHERE id = ${group.id}`);
 
     const html = await getPayPage(attendee.id);
 

@@ -2,12 +2,13 @@
 
 import { decrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
-import { inPlaceholders, resultRows, type TxScope } from "#db/client.ts";
+import { resultRows, type TxScope } from "#db/client.ts";
 import {
   checkGroupListingSettings,
   type GroupListingSettings,
 } from "#db/groups/homogeneity.ts";
 import { groupListings } from "#db/groups/table.ts";
+import { sql, sqlList } from "#db/sql.ts";
 import { TransactionValidationError, txIdSetInTable } from "#db/transaction.ts";
 import { byId, mapNotNullish, requiredMapValue } from "#fp";
 import { t } from "#i18n";
@@ -48,9 +49,7 @@ export const groupStatesTx = async (
   const ids = [...new Set(groupIds)];
   if (ids.length === 0) return new Map();
   const rows = resultRows<GroupStateRow>(
-    await tx.execute({
-      args: ids,
-      sql: `SELECT groupRow.id AS group_id, groupRow.is_package,
+    await tx.execute(sql`SELECT groupRow.id AS group_id, groupRow.is_package,
                    groupRow.hide_package_listings,
                    COALESCE(groupListing.quantity, 1) AS group_quantity,
                    listing.id AS listing_id,
@@ -59,8 +58,7 @@ export const groupStatesTx = async (
               LEFT JOIN group_listings AS groupListing
                 ON groupListing.group_id = groupRow.id
               LEFT JOIN listings AS listing ON listing.id = groupListing.listing_id
-             WHERE groupRow.id IN (${inPlaceholders(ids)})`,
-    }),
+             WHERE groupRow.id IN (${sqlList(ids)})`),
   );
   const states = new Map<number, GroupState>();
   for (const row of rows) {
@@ -90,7 +88,7 @@ export const groupStatesTx = async (
  *  rather than a pre-transaction snapshot that can go stale. */
 export const packageGroupIdsTx = txIdSetInTable(
   "groups",
-  " AND is_package = 1",
+  sql` AND is_package = 1`,
 );
 
 type ListingStateRow = Omit<GroupListingSettings, "customisable_days"> & {
@@ -122,9 +120,7 @@ export const listingStatesTx = async (
 ): Promise<ListingState[]> => {
   const ids = [...new Set(listingIds)];
   const rows = resultRows<ListingStateRow>(
-    await tx.execute({
-      args: ids,
-      sql: `SELECT listing.id, listing.name, listing.listing_type,
+    await tx.execute(sql`SELECT listing.id, listing.name, listing.listing_type,
                     listing.customisable_days, listing.can_pay_more,
                     listing.max_quantity, listing.min_quantity,
                     listing.assign_built_site,
@@ -133,8 +129,7 @@ export const listingStatesTx = async (
                     EXISTS(SELECT 1 FROM listing_parents AS listingParent
                              WHERE listingParent.child_listing_id = listing.id) AS has_parents
                FROM listings AS listing
-              WHERE listing.id IN (${inPlaceholders(ids)})`,
-    }),
+              WHERE listing.id IN (${sqlList(ids)})`),
   );
   const states: ListingState[] = rows.map((row) => ({
     assignsBuiltSite: row.assign_built_site === 1,

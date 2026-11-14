@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { checkGroupCapAfterDurationChange } from "#db/attendees/update.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { twoGroupedListingsBookedOnAdjacentDays } from "#test-utils/db-helpers/grouped-days.ts";
@@ -59,10 +60,9 @@ describeWithEnv("e2e: multi-day bookings — booking flows", { db: true }, () =>
       });
       if (!legacy.success) throw new Error("setup");
       // Wipe start_at to simulate a pre-migration attendee.
-      await getDb().execute({
-        args: [legacy.attendees[0]!.id, listing.id],
-        sql: "UPDATE listing_attendees SET start_at = NULL, end_at = NULL WHERE attendee_id = ? AND listing_id = ?",
-      });
+      await getDb().execute(
+        sql`UPDATE listing_attendees SET start_at = NULL, end_at = NULL WHERE attendee_id = ${legacy.attendees[0]!.id} AND listing_id = ${listing.id}`,
+      );
       // The null-start_at row is excluded from per-day counts because the
       // listing IS daily — no overflow on day 1 (5 only, not 10).
       expect(

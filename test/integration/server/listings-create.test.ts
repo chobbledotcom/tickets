@@ -9,6 +9,7 @@ import {
   listingsTable,
 } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import {
@@ -107,7 +108,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
 
     test("does not refresh after the listing commits and its activity write fails", async () => {
       const { response } = await withDbFault(
-        `CREATE TRIGGER fail_listing_activity
+        sql`CREATE TRIGGER fail_listing_activity
          BEFORE INSERT ON activity_log
          WHEN NEW.listing_id IS NOT NULL
          BEGIN

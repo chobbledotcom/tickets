@@ -1,4 +1,4 @@
-import type { InStatement, ResultSet } from "@libsql/client";
+import type { ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -10,15 +10,13 @@ import {
   executeUpdate,
   extractUpdateColumns,
   getDb,
-  inPlaceholders,
   insert,
-  orIgnore,
+  insertOrIgnore,
   queryAll,
   queryAllPrimary,
   queryBatch,
   queryOne,
   queryOnePrimary,
-  rawSql,
   requireOne,
   requireOnePrimary,
   resetAggregates,
@@ -27,6 +25,7 @@ import {
   update,
 } from "#db/client.ts";
 import { runWithPrimaryReads } from "#db/primary-reads.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -41,29 +40,11 @@ const emptyResultSet = (): ResultSet => ({
   toJSON: () => ({}),
 });
 
-describe("orIgnore", () => {
-  test("turns a plain insert into one that skips a clash", () => {
-    expect(
-      orIgnore({ args: [1], sql: "INSERT INTO settings (key) VALUES (?)" }),
-    ).toEqual({
-      args: [1],
-      sql: "INSERT OR IGNORE INTO settings (key) VALUES (?)",
-    });
-  });
-
-  test("leaves a statement that does not start with an insert alone", () => {
-    const update = { args: [], sql: "UPDATE settings SET value = 1" };
-    expect(orIgnore(update).sql).toBe(update.sql);
-  });
-
-  test("copies the arguments rather than sharing them", () => {
-    const original = {
-      args: [1],
-      sql: "INSERT INTO settings (key) VALUES (?)",
-    };
-    const relaxed = orIgnore(original);
-    original.args.push(2);
-    expect(relaxed.args).toEqual([1]);
+describe("insertOrIgnore", () => {
+  test("writes an insert that skips a clash", () => {
+    expect(insertOrIgnore("settings", { key: 1 })).toEqual(
+      sql`INSERT OR IGNORE INTO settings (key) VALUES (${1})`,
+    );
   });
 });
 
@@ -80,13 +61,11 @@ describe("extractUpdateColumns", () => {
     const cols = extractUpdateColumns(
       "UPDATE listing_attendees SET checked_in = ? WHERE attendee_id = ? AND listing_id = ?",
     );
-    expect(cols).toBeDefined();
     expect([...cols!]).toEqual(["checked_in"]);
   });
 
   test("multiple column assignments", () => {
     const cols = extractUpdateColumns("UPDATE t SET a = a + 1, b = ?");
-    expect(cols).toBeDefined();
     expect([...cols!].sort()).toEqual(["a", "b"]);
   });
 
@@ -94,7 +73,6 @@ describe("extractUpdateColumns", () => {
     const cols = extractUpdateColumns(
       "UPDATE users SET password_hash = ?, invite_code_hash = ?, invite_expiry = ? WHERE id = ?",
     );
-    expect(cols).toBeDefined();
     expect([...cols!].sort()).toEqual([
       "invite_code_hash",
       "invite_expiry",
@@ -104,19 +82,16 @@ describe("extractUpdateColumns", () => {
 
   test("table-qualified column name strips the qualifier", () => {
     const cols = extractUpdateColumns("UPDATE t SET t.col = ?");
-    expect(cols).toBeDefined();
     expect([...cols!]).toEqual(["col"]);
   });
 
   test("quoted column name strips the quotes", () => {
     const cols = extractUpdateColumns('UPDATE t SET "my_col" = ?');
-    expect(cols).toBeDefined();
     expect([...cols!]).toEqual(["my_col"]);
   });
 
   test("commas inside parentheses in an expression do not split the assignment", () => {
     const cols = extractUpdateColumns("UPDATE t SET a = coalesce(x, 0), b = ?");
-    expect(cols).toBeDefined();
     expect([...cols!].sort()).toEqual(["a", "b"]);
   });
 
@@ -127,7 +102,6 @@ describe("extractUpdateColumns", () => {
     const cols = extractUpdateColumns(
       "UPDATE t SET note = \u{1F600}, quantity = 1",
     );
-    expect(cols).toBeDefined();
     expect([...cols!].sort()).toEqual(["note", "quantity"]);
   });
 
@@ -135,7 +109,6 @@ describe("extractUpdateColumns", () => {
     // A value like ')(' must not stop the scan. A stop there would drop
     // every later column from the sniff, so its cache is never invalidated.
     const cols = extractUpdateColumns("UPDATE t SET note = ')(', quantity = 1");
-    expect(cols).toBeDefined();
     expect([...cols!].sort()).toEqual(["note", "quantity"]);
   });
 
@@ -143,7 +116,6 @@ describe("extractUpdateColumns", () => {
     // A lone closer inside a quoted value used to shift the level for the
     // rest of the clause, dropping every later column from the sniff.
     const cols = extractUpdateColumns("UPDATE t SET note = ')', quantity = 1");
-    expect(cols).toBeDefined();
     expect([...cols!].sort()).toEqual(["note", "quantity"]);
   });
 
@@ -151,7 +123,6 @@ describe("extractUpdateColumns", () => {
     const cols = extractUpdateColumns(
       "UPDATE t SET note = 'a'', b', quantity = 1",
     );
-    expect(cols).toBeDefined();
     expect([...cols!].sort()).toEqual(["note", "quantity"]);
   });
 
@@ -160,7 +131,6 @@ describe("extractUpdateColumns", () => {
     // see that first character, otherwise depth goes negative at ")" and the
     // top-level comma never splits — losing the second assignment ("b").
     const cols = extractUpdateColumns("UPDATE t SET (a) = 1, b = 2");
-    expect(cols).toBeDefined();
     expect([...cols!].sort()).toEqual(["(a)", "b"]);
   });
 
@@ -176,7 +146,6 @@ describe("extractUpdateColumns", () => {
 
   test("column names are lower-cased", () => {
     const cols = extractUpdateColumns("UPDATE t SET MyCol = ?");
-    expect(cols).toBeDefined();
     expect([...cols!]).toEqual(["mycol"]);
   });
 });
@@ -196,7 +165,7 @@ describeWithEnv("invalidateForSql fallback path", { db: true }, () => {
     );
     try {
       // Empty SET clause → extractUpdateColumns returns null → fallback fires
-      await execute("UPDATE t SET WHERE true", []);
+      await execute(sql`UPDATE t SET WHERE true`);
       expect(fired).toBe(1);
     } finally {
       executeStub.restore();
@@ -210,10 +179,9 @@ describeWithEnv("invalidateForSql fallback path", { db: true }, () => {
       fired++;
     });
     try {
-      await execute("REPLACE INTO settings (key, value) VALUES (?, ?)", [
-        "replace_test",
-        "val",
-      ]);
+      await execute(
+        sql`REPLACE INTO settings (key, value) VALUES (${"replace_test"}, ${"val"})`,
+      );
       expect(fired).toBe(1);
     } finally {
       unregister();
@@ -232,7 +200,7 @@ describeWithEnv("db > client", { db: true }, () => {
     setDb(null);
     using _env = withEnv({ DB_URL: ":memory:" });
     const client = getDb();
-    expect(client).toBeDefined();
+    expect(typeof client.execute).toBe("function");
   });
 
   test("getDb returns existing client when db is set", () => {
@@ -260,16 +228,14 @@ describeWithEnv("db > client", { db: true }, () => {
 
   test("primary read scopes use remote write mode and local read mode", async () => {
     const { modes, result } = await batchModesWhile(async () => {
-      await queryBatch([{ args: [], sql: "SELECT 1" }]);
+      await queryBatch([sql`SELECT 1`]);
       {
         using _env = withEnv({ DB_URL: "libsql://primary.test" });
-        await runWithPrimaryReads(() => queryAll("SELECT 1"));
-        await runWithPrimaryReads(() =>
-          queryBatch([{ args: [], sql: "SELECT 1" }]),
-        );
+        await runWithPrimaryReads(() => queryAll(sql`SELECT 1`));
+        await runWithPrimaryReads(() => queryBatch([sql`SELECT 1`]));
       }
       return await runWithPrimaryReads(() =>
-        queryAll<{ one: number }>("SELECT 1 AS one"),
+        queryAll<{ one: number }>(sql`SELECT 1 AS one`),
       );
     });
     expect(result).toEqual([{ one: 1 }]);
@@ -279,7 +245,7 @@ describeWithEnv("db > client", { db: true }, () => {
   test("a read outside a primary scope is left to a replica", async () => {
     const { modes, result } = await batchModesWhile(async () => {
       using _env = withEnv({ DB_URL: "libsql://primary.test" });
-      return await queryAll<{ one: number }>("SELECT 1 AS one");
+      return await queryAll<{ one: number }>(sql`SELECT 1 AS one`);
     });
     // One plain statement, which any replica can answer. A batch here would
     // pin every ordinary read to the primary and take its write-mode lock.
@@ -289,17 +255,17 @@ describeWithEnv("db > client", { db: true }, () => {
 
   test("queryOne returns null for an expected miss", async () => {
     expect(
-      await queryOne("SELECT value FROM settings WHERE key = ?", [
-        "missing-query-one-test",
-      ]),
+      await queryOne(
+        sql`SELECT value FROM settings WHERE key = ${"missing-query-one-test"}`,
+      ),
     ).toBeNull();
   });
 
   test("requireOne throws the failed query when a required row is missing", async () => {
     await expect(
-      requireOne("SELECT value FROM settings WHERE key = ?", [
-        "missing-query-one-test",
-      ]),
+      requireOne(
+        sql`SELECT value FROM settings WHERE key = ${"missing-query-one-test"}`,
+      ),
     ).rejects.toThrow(
       "Required query returned no rows: SELECT value FROM settings WHERE key = ?",
     );
@@ -307,9 +273,9 @@ describeWithEnv("db > client", { db: true }, () => {
 
   test("requireOnePrimary names a missing row on the primary", async () => {
     await expect(
-      requireOnePrimary("SELECT value FROM settings WHERE key = ?", [
-        "missing-primary-query-one-test",
-      ]),
+      requireOnePrimary(
+        sql`SELECT value FROM settings WHERE key = ${"missing-primary-query-one-test"}`,
+      ),
     ).rejects.toThrow(
       "Required primary query returned no rows: SELECT value FROM settings WHERE key = ?",
     );
@@ -317,11 +283,10 @@ describeWithEnv("db > client", { db: true }, () => {
 
   test("queryOnePrimary returns the single matching row from the primary", async () => {
     await execute(
-      "INSERT INTO settings (key, value) VALUES ('query_one_primary', 'found')",
+      sql`INSERT INTO settings (key, value) VALUES ('query_one_primary', 'found')`,
     );
     const row = await queryOnePrimary<{ value: string }>(
-      "SELECT value FROM settings WHERE key = ?",
-      ["query_one_primary"],
+      sql`SELECT value FROM settings WHERE key = ${"query_one_primary"}`,
     );
     // Exactly one row must surface as that row (not null, not the next one).
     expect(row?.value).toBe("found");
@@ -329,13 +294,11 @@ describeWithEnv("db > client", { db: true }, () => {
 
   test("queryAllPrimary returns every matching row from the primary", async () => {
     await execute(
-      "INSERT INTO settings (key, value) VALUES" +
-        " ('query_all_primary_a', 'first'), ('query_all_primary_b', 'second')",
+      sql`INSERT INTO settings (key, value) VALUES ('query_all_primary_a', 'first'), ('query_all_primary_b', 'second')`,
     );
-    const rows = await queryAllPrimary<{ value: string }>({
-      args: ["query_all_primary_%"],
-      sql: "SELECT value FROM settings WHERE key LIKE ? ORDER BY key",
-    });
+    const rows = await queryAllPrimary<{ value: string }>(
+      sql`SELECT value FROM settings WHERE key LIKE ${"query_all_primary_%"} ORDER BY key`,
+    );
     // Every match in order: a plural that answered with the first row alone
     // would be the singular wearing the wrong name.
     expect(rows.map(({ value }) => value)).toEqual(["first", "second"]);
@@ -347,7 +310,7 @@ describeWithEnv("db > client", { db: true }, () => {
       table: "sessions",
       value: 7,
     });
-    expect(stmt.sql).toBe("DELETE FROM sessions WHERE user_id = ?");
+    expect(stmt.sql).toBe("DELETE FROM sessions WHERE user_id = ?1");
     expect(stmt.args).toEqual([7]);
   });
 
@@ -356,20 +319,20 @@ describeWithEnv("db > client", { db: true }, () => {
       email: "a@b.com",
       name: "Alice",
     });
-    expect(stmt.sql).toBe("INSERT INTO users (email, name) VALUES (?, ?)");
+    expect(stmt.sql).toBe("INSERT INTO users (email, name) VALUES (?1, ?2)");
     expect(stmt.args).toEqual(["a@b.com", "Alice"]);
   });
 
-  test("insert supports rawSql for expressions", () => {
+  test("insert takes a statement as a column value", () => {
     const stmt = insert("listing_attendees", {
-      attendee_id: rawSql("last_insert_rowid()"),
+      attendee_id: sql`last_insert_rowid()`,
       listing_id: 1,
       quantity: 2,
     });
     expect(stmt.sql).toBe(
       "INSERT INTO listing_attendees" +
         " (attendee_id, listing_id, quantity)" +
-        " VALUES (last_insert_rowid(), ?, ?)",
+        " VALUES (last_insert_rowid(), ?1, ?2)",
     );
     expect(stmt.args).toEqual([1, 2]);
   });
@@ -383,7 +346,7 @@ describeWithEnv("db > client", { db: true }, () => {
     expect(stmt.sql).toBe(
       "INSERT INTO payments" +
         " (attendee_id, created, id)" +
-        " VALUES (?, ?, ?)",
+        " VALUES (?1, ?2, ?3)",
     );
     expect(stmt.args).toEqual([null, "now", "p1"]);
   });
@@ -395,7 +358,7 @@ describeWithEnv("db > client", { db: true }, () => {
     });
     await getDb().execute(stmt);
     const row = await getDb().execute(
-      "SELECT value FROM settings WHERE key = 'insert_test'",
+      sql`SELECT value FROM settings WHERE key = 'insert_test'`,
     );
     expect(row.rows[0]!.value).toBe("works");
   });
@@ -407,21 +370,21 @@ describeWithEnv("db > client", { db: true }, () => {
       { id: 4, kind: "attendee" },
     );
     expect(stmt.sql).toBe(
-      "UPDATE attendees SET pii_blob = ? WHERE id = ? AND kind = ?",
+      "UPDATE attendees SET pii_blob = ?1 WHERE id = ?2 AND kind = ?3",
     );
     expect(stmt.args).toEqual(["encrypted", 4, "attendee"]);
   });
 
-  test("update supports rawSql expressions in SET", () => {
+  test("update takes a statement as a SET value", () => {
     const stmt = update(
       "listing_attendees",
-      { attachment_downloads: rawSql("attachment_downloads + 1") },
+      { attachment_downloads: sql`attachment_downloads + 1` },
       { attendee_id: 1, listing_id: 2 },
     );
     expect(stmt.sql).toBe(
       "UPDATE listing_attendees" +
         " SET attachment_downloads = attachment_downloads + 1" +
-        " WHERE attendee_id = ? AND listing_id = ?",
+        " WHERE attendee_id = ?1 AND listing_id = ?2",
     );
     expect(stmt.args).toEqual([1, 2]);
   });
@@ -429,14 +392,9 @@ describeWithEnv("db > client", { db: true }, () => {
   test("update joins multiple SET assignments with commas", () => {
     const stmt = update("listings", { name: "n", slug: "s" }, { id: 3 });
     expect(stmt.sql).toBe(
-      "UPDATE listings SET name = ?, slug = ? WHERE id = ?",
+      "UPDATE listings SET name = ?1, slug = ?2 WHERE id = ?3",
     );
     expect(stmt.args).toEqual(["n", "s", 3]);
-  });
-
-  test("inPlaceholders builds one comma-separated placeholder per value", () => {
-    expect(inPlaceholders([10, 20, 30])).toBe("?, ?, ?");
-    expect(inPlaceholders([])).toBe("");
   });
 
   test("update passes null SET values as params", () => {
@@ -446,15 +404,15 @@ describeWithEnv("db > client", { db: true }, () => {
       { start_agent_id: 7 },
     );
     expect(stmt.sql).toBe(
-      "UPDATE listing_attendees SET start_agent_id = ?" +
-        " WHERE start_agent_id = ?",
+      "UPDATE listing_attendees SET start_agent_id = ?1" +
+        " WHERE start_agent_id = ?2",
     );
     expect(stmt.args).toEqual([null, 7]);
   });
 
   test("executeUpdate writes the matched row", async () => {
     await execute(
-      "INSERT INTO settings (key, value) VALUES ('update_test', 'before')",
+      sql`INSERT INTO settings (key, value) VALUES ('update_test', 'before')`,
     );
     const result = await executeUpdate(
       "settings",
@@ -463,14 +421,14 @@ describeWithEnv("db > client", { db: true }, () => {
     );
     expect(result.rowsAffected).toBe(1);
     const row = await getDb().execute(
-      "SELECT value FROM settings WHERE key = 'update_test'",
+      sql`SELECT value FROM settings WHERE key = 'update_test'`,
     );
     expect(row.rows[0]!.value).toBe("after");
   });
 
   test("executeUpdate leaves non-matching rows alone", async () => {
     await execute(
-      "INSERT INTO settings (key, value) VALUES ('update_scope', 'kept')",
+      sql`INSERT INTO settings (key, value) VALUES ('update_scope', 'kept')`,
     );
     const result = await executeUpdate(
       "settings",
@@ -479,7 +437,7 @@ describeWithEnv("db > client", { db: true }, () => {
     );
     expect(result.rowsAffected).toBe(0);
     const row = await getDb().execute(
-      "SELECT value FROM settings WHERE key = 'update_scope'",
+      sql`SELECT value FROM settings WHERE key = 'update_scope'`,
     );
     expect(row.rows[0]!.value).toBe("kept");
   });
@@ -497,52 +455,48 @@ describeWithEnv("db > client", { db: true }, () => {
   });
 
   test("resetAggregates joins the reset expressions with commas", async () => {
-    const captured: InStatement[] = [];
-    const executeStub = stub(getDb(), "execute", (stmt: InStatement) => {
+    const captured: SqlStatement[] = [];
+    const executeStub = stub(getDb(), "execute", (stmt: SqlStatement) => {
       captured.push(stmt);
       return Promise.resolve(emptyResultSet());
     });
     try {
       await resetAggregates("agg_t", 7, ["a", "b"], {
-        a: "a = a + ?",
-        b: "b = ?",
+        a: sql`a + agg_t.id`,
+        b: sql`${3}`,
       });
     } finally {
       executeStub.restore();
     }
-    // Two expressions must join into one valid SET clause, with the entity id
-    // bound once per field plus once for the WHERE.
+    // Two recounts must join into one valid SET clause, each under its own
+    // column name, with the entity id bound for the WHERE.
     expect(captured).toEqual([
-      {
-        args: [7, 7, 7],
-        sql: "UPDATE agg_t SET a = a + ?, b = ? WHERE id = ?",
-      },
+      sql`UPDATE agg_t SET a = a + agg_t.id, b = ${3} WHERE id = ${7}`,
     ]);
   });
 
   test("rowExists is true when the probe matches a row", async () => {
     await execute(
-      "INSERT INTO settings (key, value) VALUES ('exists_test', 'x')",
+      sql`INSERT INTO settings (key, value) VALUES ('exists_test', 'x')`,
     );
     expect(
-      await rowExists("SELECT 1 FROM settings WHERE key = ? LIMIT 1", [
-        "exists_test",
-      ]),
+      await rowExists(
+        sql`SELECT 1 FROM settings WHERE key = ${"exists_test"} LIMIT 1`,
+      ),
     ).toBe(true);
   });
 
   test("rowExists is false when no row matches", async () => {
     expect(
-      await rowExists("SELECT 1 FROM settings WHERE key = ? LIMIT 1", [
-        "missing_key",
-      ]),
+      await rowExists(
+        sql`SELECT 1 FROM settings WHERE key = ${"missing_key"} LIMIT 1`,
+      ),
     ).toBe(false);
   });
 
   test("executeReturningRow reads back the written row", async () => {
     const row = await executeReturningRow<{ value: string }>(
-      "INSERT INTO settings (key, value) VALUES ('returning_test', 'x') RETURNING value",
-      [],
+      sql`INSERT INTO settings (key, value) VALUES ('returning_test', 'x') RETURNING value`,
     );
     expect(row).toEqual({ value: "x" });
   });
@@ -550,30 +504,19 @@ describeWithEnv("db > client", { db: true }, () => {
   test("executeReturningRow throws when the write returned no row", async () => {
     await expect(
       executeReturningRow(
-        "UPDATE settings SET value = 'y' WHERE key = ? RETURNING value",
-        ["missing_key"],
+        sql`UPDATE settings SET value = 'y' WHERE key = ${"missing_key"} RETURNING value`,
       ),
     ).rejects.toThrow("Write returned no row");
   });
 
   test("queryOne returns the single matching row", async () => {
     await execute(
-      "INSERT INTO settings (key, value) VALUES ('query_one', 'found')",
+      sql`INSERT INTO settings (key, value) VALUES ('query_one', 'found')`,
     );
     const row = await queryOne<{ value: string }>(
-      "SELECT value FROM settings WHERE key = ?",
-      ["query_one"],
+      sql`SELECT value FROM settings WHERE key = ${"query_one"}`,
     );
     // Exactly one row must surface as that row (not null, not the next one).
     expect(row?.value).toBe("found");
-  });
-
-  test("rawSql brands its value with the raw-sql sentinel symbol", () => {
-    // The sentinel's description is the observable contract that names the
-    // raw-expression marker; insert()/update() branch on the symbol's
-    // identity, and rawSql() exposes it on the returned object.
-    const symbols = Object.getOwnPropertySymbols(rawSql("last_insert_rowid()"));
-    expect(symbols).toHaveLength(1);
-    expect(symbols[0]!.description).toBe("raw-sql");
   });
 });

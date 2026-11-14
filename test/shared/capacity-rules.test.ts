@@ -105,13 +105,13 @@ describe("capacity rules", () => {
 
   describe("capacityRuleTypeSql", () => {
     test("emits the type predicate the SQL guard interpolates", () => {
-      expect(capacityRuleTypeSql("perDateCap", "listing.listing_type")).toBe(
-        "listing.listing_type IN ('daily')",
-      );
       expect(
-        capacityRuleTypeSql("dateLessCap", "memberListing.listing_type"),
+        capacityRuleTypeSql("perDateCap", "listing.listing_type").sql,
+      ).toBe("listing.listing_type IN ('daily')");
+      expect(
+        capacityRuleTypeSql("dateLessCap", "memberListing.listing_type").sql,
       ).toBe("memberListing.listing_type IN ('standard')");
-      expect(capacityRuleTypeSql("groupPoolCap", "t")).toBe(
+      expect(capacityRuleTypeSql("groupPoolCap", "t").sql).toBe(
         "t IN ('standard', 'daily')",
       );
     });

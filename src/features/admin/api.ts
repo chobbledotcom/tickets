@@ -18,7 +18,7 @@ import {
   getListingWithCountPrimary,
   listingsTable,
 } from "#db/listings/records.ts";
-import { mapById, requiredMapValue } from "#fp";
+import { mapById, requiredMapValue, withoutKey } from "#fp";
 import { attendeeStatusApiRoutes } from "#routes/admin/api-attendee-statuses.ts";
 import { attributeApiRoutes } from "#routes/admin/api-attributes.ts";
 import { externalSourceApiRoutes } from "#routes/admin/api-external-sources.ts";
@@ -102,10 +102,8 @@ const handleToggleActive = (
   });
 
 /** Strip slug_index from listing row, producing the admin API shape */
-export const toAdminListing = ({
-  slug_index: _,
-  ...rest
-}: ListingWithCount): AdminListing => rest;
+export const toAdminListing: (row: ListingWithCount) => AdminListing =
+  withoutKey("slug_index");
 
 /** Batched join-table hydration for a set of listing rows, keyed by listing
  * id. One query per link table covers the whole list rather than one per row.

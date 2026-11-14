@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeAccount } from "#accounting/accounts.ts";
 import { queryAll } from "#db/client.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 import {
   assignMergeAnswers,
   mergePairWithQuestion,
@@ -38,35 +39,26 @@ const mergeRowState = async (
   const sourceAccount = attendeeAccount(sourceId);
   return {
     answers: await queryAll(
-      `SELECT attendee_id, answer_id, question_id
+      sql`SELECT attendee_id, answer_id, question_id
          FROM attendee_answers
-        WHERE attendee_id IN (?, ?)
+        WHERE attendee_id IN (${targetId}, ${sourceId})
         ORDER BY attendee_id, question_id, answer_id`,
-      [targetId, sourceId],
     ),
     attendees: await queryAll(
-      "SELECT id, pii_blob FROM attendees WHERE id IN (?, ?) ORDER BY id",
-      [targetId, sourceId],
+      sql`SELECT id, pii_blob FROM attendees WHERE id IN (${targetId}, ${sourceId}) ORDER BY id`,
     ),
     payments: await queryAll(
-      `SELECT attendee_id, payment_session_id
+      sql`SELECT attendee_id, payment_session_id
          FROM processed_payments
-        WHERE attendee_id IN (?, ?)
+        WHERE attendee_id IN (${targetId}, ${sourceId})
         ORDER BY payment_session_id`,
-      [targetId, sourceId],
     ),
     transfers: await queryAll(
-      `SELECT id, source_id, dest_id, amount
+      sql`SELECT id, source_id, dest_id, amount
          FROM transfers
-        WHERE (source_id = ? AND source_type = ?)
-           OR (dest_id = ? AND dest_type = ?)
+        WHERE (source_id = ${sourceAccount.id} AND source_type = ${sourceAccount.type})
+           OR (dest_id = ${sourceAccount.id} AND dest_type = ${sourceAccount.type})
         ORDER BY id`,
-      [
-        sourceAccount.id,
-        sourceAccount.type,
-        sourceAccount.id,
-        sourceAccount.type,
-      ],
     ),
   };
 };
@@ -104,9 +96,9 @@ describeWithEnv(
       (targetId: number) =>
       <T>(body: () => Promise<T>) =>
         withDbFault(
-          `CREATE TRIGGER test_merge_answers_fault
+          sql`CREATE TRIGGER test_merge_answers_fault
           BEFORE DELETE ON attendee_answers
-          WHEN OLD.attendee_id = ${targetId}
+          WHEN OLD.attendee_id = ${sqlLiteral(targetId)}
           BEGIN
             SELECT RAISE(ABORT, 'merged answers write refused');
           END`,
@@ -121,9 +113,9 @@ describeWithEnv(
       (targetId: number) =>
       <T>(body: () => Promise<T>) =>
         withDbFault(
-          `CREATE TRIGGER test_merge_pii_fault
+          sql`CREATE TRIGGER test_merge_pii_fault
           BEFORE UPDATE OF pii_blob ON attendees
-          WHEN NEW.id = ${targetId}
+          WHEN NEW.id = ${sqlLiteral(targetId)}
           BEGIN
             SELECT RAISE(ABORT, 'merged PII write refused');
           END`,

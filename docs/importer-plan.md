@@ -1375,7 +1375,7 @@ Implementation notes:
   must generate a distinct `ticket_token_index` per source booking and key every
   child insert off it (or use an equivalent `RETURNING` strategy if the helper
   moves to one).
-- **Orphan auto-purge interaction.** `orphan-attendees.ts` (`ORPHAN_IDS`) treats
+- **Orphan auto-purge interaction.** `orphan-attendees.ts` (`orphanIds`) treats
   any attendee with no `listing_attendees` rows as a purgeable orphan, and
   auto-purge is on by default; it deletes the attendee and its
   `attendee_answers` but leaves `booking_imports`, so a purged import could
@@ -1456,7 +1456,7 @@ Implementation notes:
     line deletion of a multi-line import needs an explicit strategy — line-level
     import state (`(schema, old_id, listing)`), or **block** deleting individual
     lines of a multi-line import (whole booking or nothing). (Quantity-0 lines
-    were still chosen over a `booking_imports`-aware exclusion in `ORPHAN_IDS`
+    were still chosen over a `booking_imports`-aware exclusion in `orphanIds`
     because they also keep the products structured and matched while the
     attendee is live.)
 - **Attendee merge needs special handling.** `applyAttendeeMerge`
@@ -2103,7 +2103,7 @@ the importer-specific additions in item 6 remain.
   held-delete caveat) rather than stranding a re-import forever. **Conditional
   on actually releasing the aggregate:** the current held-delete path _restores_
   `booked_quantity`/`tickets_count` after deleting the rows
-  (`ATTENDEE_LISTING_CONTRIBUTIONS_SQL`), and a re-upload of a freed `old_id`
+  (`attendeeListingContributionsSql`), and a re-upload of a freed `old_id`
   inserts new rows whose triggers add quantity **on top of** that restored
   aggregate — double-counting. So free/remap only when the daily import's
   aggregate contribution is genuinely released (skip the restore for these rows,

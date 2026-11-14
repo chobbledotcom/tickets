@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { withTransaction } from "#db/client.ts";
 import { listingChildren } from "#db/listing-parents.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import {
   deactivationOrphanedAddOnError,
@@ -58,10 +59,7 @@ const deactivateListing = (
   tx: Parameters<Parameters<typeof withTransaction>[0]>[0],
   listingId: number,
 ): Promise<unknown> =>
-  tx.execute({
-    args: [listingId],
-    sql: "UPDATE listings SET active = 0 WHERE id = ?",
-  });
+  tx.execute(sql`UPDATE listings SET active = 0 WHERE id = ${listingId}`);
 
 describeWithEnv("add-on reachability guards", { db: true }, () => {
   test("rejects moving a parent away from its group-scoped child add-on", async () => {

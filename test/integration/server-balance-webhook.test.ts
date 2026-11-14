@@ -7,6 +7,7 @@ import { accountBalance, transfersByAccount } from "#accounting/queries.ts";
 import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
 import { execute } from "#db/client.ts";
 import { runDatabasePruning } from "#db/prune.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { stripeApi } from "#shared/stripe.ts";
 import {
@@ -82,8 +83,7 @@ describeWithEnv("server (public balance page) > webhook", { db: true }, () => {
 
     // Prune the idempotency row; the balance payment leg stays in the ledger.
     await execute(
-      "UPDATE processed_payments SET processed_at = ? WHERE payment_session_id = ?",
-      ["2000-01-01T00:00:00.000Z", "cs_balance_replay"],
+      sql`UPDATE processed_payments SET processed_at = ${"2000-01-01T00:00:00.000Z"} WHERE payment_session_id = ${"cs_balance_replay"}`,
     );
     await runDatabasePruning();
 

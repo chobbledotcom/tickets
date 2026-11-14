@@ -15,6 +15,7 @@ import type { QuestionWithAnswers } from "#db/question-types.ts";
 import { attendeesWithChangedAnswers } from "#db/questions/attendee-answers/at-booking.ts";
 import { getQuestionsWithListingIds } from "#db/questions/queries.ts";
 import { answersTable } from "#db/questions/tables.ts";
+import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
 import { groupToMap, mapParallel } from "#fp";
 
 /** Group `(attendee_id, answer_id)` rows into an attendee → answer-ids map. */
@@ -30,18 +31,18 @@ const choiceAnswerMapFromRows = groupToMap(
 const selectAttendeeAnswerRows = <R>(
   attendeeIds: number[],
   column: string,
-  selectColumns: string,
-  join = "",
+  selectColumns: SqlStatement,
+  join: SqlStatement = sql``,
   readRows: typeof rowsByIds = rowsByIds,
 ): Promise<R[]> =>
   readRows<R>(
     attendeeIds,
-    (placeholders) =>
-      `SELECT ${selectColumns}
+    (attendeeIdList) =>
+      sql`SELECT ${selectColumns}
        FROM attendee_answers AS attendee_answer
        ${join}
-      WHERE attendee_answer.${column} IS NOT NULL
-        AND attendee_answer.attendee_id IN (${placeholders})`,
+      WHERE ${sqlName(`attendee_answer.${column}`)} IS NOT NULL
+        AND attendee_answer.attendee_id IN (${attendeeIdList})`,
   );
 
 /** The choice-id read over the two readers: the shared shape, the caller
@@ -56,8 +57,8 @@ const choiceAnswerIdsWith =
       }>(
         attendeeIds,
         "answer_id",
-        "attendee_answer.attendee_id, attendee_answer.answer_id",
-        "",
+        sql`attendee_answer.attendee_id, attendee_answer.answer_id`,
+        sql``,
         readRows,
       ),
     );
@@ -79,7 +80,7 @@ export const getListingChoiceAnswerMap = async (
   listingId: number,
 ): Promise<Map<number, number[]>> => {
   const rows = await queryAll<{ attendee_id: number; answer_id: number }>(
-    `SELECT attendee_answer.attendee_id, attendee_answer.answer_id
+    sql`SELECT attendee_answer.attendee_id, attendee_answer.answer_id
        FROM attendee_answers AS attendee_answer
       WHERE attendee_answer.answer_id IS NOT NULL
         AND attendee_answer.attendee_id IN (
@@ -87,8 +88,7 @@ export const getListingChoiceAnswerMap = async (
             FROM listing_attendees AS listingAttendee
             JOIN attendees AS attendee
               ON attendee.id = listingAttendee.attendee_id
-           WHERE listingAttendee.listing_id = ? AND attendee.kind = '${ATTENDEE_KIND}')`,
-    [listingId],
+           WHERE listingAttendee.listing_id = ${listingId} AND attendee.kind = ${sqlLiteral(ATTENDEE_KIND)})`,
   );
   return choiceAnswerMapFromRows(rows);
 };
@@ -109,8 +109,8 @@ export const getAttendeeTextAnswersBatch = async (
   const rows = await selectAttendeeAnswerRows<TextAnswerRow>(
     attendeeIds,
     "question_id",
-    "attendee_answer.attendee_id, attendee_answer.question_id, string.encrypted_text",
-    "JOIN strings AS string ON string.id = attendee_answer.string_id",
+    sql`attendee_answer.attendee_id, attendee_answer.question_id, string.encrypted_text`,
+    sql`JOIN strings AS string ON string.id = attendee_answer.string_id`,
   );
   // Decrypt in parallel, then group by attendee into questionId→text maps.
   const decrypted = await mapParallel(async (row: TextAnswerRow) => ({
@@ -233,11 +233,10 @@ export const getAttendeeAnswersByQuestion = async (
   attendeeId: number,
 ): Promise<Map<number, { answerId: number; answerText: string }>> => {
   const rows = await queryAll<ChoiceAnswerRow>(
-    `SELECT answer.question_id, attendeeAnswer.answer_id, answer.text AS answer_text
+    sql`SELECT answer.question_id, attendeeAnswer.answer_id, answer.text AS answer_text
      FROM attendee_answers AS attendeeAnswer
      JOIN answers AS answer ON answer.id = attendeeAnswer.answer_id
-     WHERE attendeeAnswer.answer_id IS NOT NULL AND attendeeAnswer.attendee_id = ?`,
-    [attendeeId],
+     WHERE attendeeAnswer.answer_id IS NOT NULL AND attendeeAnswer.attendee_id = ${attendeeId}`,
   );
   // Decrypt each chosen answer's text in parallel, then key by question id.
   const decrypted = await mapParallel(async (row: ChoiceAnswerRow) => ({

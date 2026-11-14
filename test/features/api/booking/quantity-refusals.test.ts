@@ -18,6 +18,7 @@ import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { withMessageGroups } from "#i18n";
 import { apiBookPackage } from "#test/features/api/packages/helpers.ts";
 import {
@@ -175,8 +176,7 @@ describeWithEnv("Quantity refusal table", { db: true }, () => {
     });
     const { execute } = await import("#db/client.ts");
     await execute(
-      "UPDATE listings SET min_quantity = 3, max_quantity = 2 WHERE id = ?",
-      [listing.id],
+      sql`UPDATE listings SET min_quantity = 3, max_quantity = 2 WHERE id = ${listing.id}`,
     );
     const belowIntent = bookingIntent([{ e: listing.id, p: 500, q: 1 }]);
     const aboveIntent = bookingIntent([{ e: listing.id, p: 500, q: 3 }]);

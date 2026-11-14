@@ -9,30 +9,31 @@ import {
   wholeNumberStartingAtZero,
 } from "#db/migrations/schema/scalar-columns.ts";
 import type { Table } from "#db/migrations/schema/types.ts";
-import { refundAuthorityWorkSql } from "#payment/refund-authority-lifecycle.ts";
+import { sql } from "#db/sql.ts";
+import { refundAuthorityWorkCondition } from "#payment/refund-authority-lifecycle.ts";
 import { madeAndTouched, ownerEncryptedColumn } from "./columns.ts";
 
 /** Rules the database can prove without understanding the whole state machine. */
 const ABOUT_THE_CHARGE = [
-  "provider IN ('stripe', 'square', 'sumup')",
-  "reference_index <> ''",
-  "capability IN ('keyed', 'keyless')",
-  "captured_amount >= 0",
-  "refunded_amount >= 0",
-  "length(currency) = 3 AND currency = upper(currency)",
-  "json_valid(refund_state)",
-  "json_type(refund_state) = 'object'",
-  "refund_state_name IN ('ready', 'send_armed', 'observing', 'completed', 'needs_owner_choice', 'needs_provider_check')",
-  "refund_local_state IN ('not_due', 'due', 'recorded')",
-  "json_type(refund_state, '$.kind') IS 'text'",
-  "json_type(refund_state, '$.request.capability') IS 'text'",
-  "json_type(refund_state, '$.local.kind') IS 'text'",
-  "json_type(refund_state, '$.nextActionAt') IS NOT NULL",
-  "json_extract(refund_state, '$.kind') = refund_state_name",
-  "json_extract(refund_state, '$.request.capability') = capability",
-  "json_extract(refund_state, '$.local.kind') = refund_local_state",
-  "json_extract(refund_state, '$.nextActionAt') IS next_refund_action_at",
-  "refund_revision >= 1",
+  sql`provider IN ('stripe', 'square', 'sumup')`,
+  sql`reference_index <> ''`,
+  sql`capability IN ('keyed', 'keyless')`,
+  sql`captured_amount >= 0`,
+  sql`refunded_amount >= 0`,
+  sql`length(currency) = 3 AND currency = upper(currency)`,
+  sql`json_valid(refund_state)`,
+  sql`json_type(refund_state) = 'object'`,
+  sql`refund_state_name IN ('ready', 'send_armed', 'observing', 'completed', 'needs_owner_choice', 'needs_provider_check')`,
+  sql`refund_local_state IN ('not_due', 'due', 'recorded')`,
+  sql`json_type(refund_state, '$.kind') IS 'text'`,
+  sql`json_type(refund_state, '$.request.capability') IS 'text'`,
+  sql`json_type(refund_state, '$.local.kind') IS 'text'`,
+  sql`json_type(refund_state, '$.nextActionAt') IS NOT NULL`,
+  sql`json_extract(refund_state, '$.kind') = refund_state_name`,
+  sql`json_extract(refund_state, '$.request.capability') = capability`,
+  sql`json_extract(refund_state, '$.local.kind') = refund_local_state`,
+  sql`json_extract(refund_state, '$.nextActionAt') IS next_refund_action_at`,
+  sql`refund_revision >= 1`,
 ];
 
 export const paymentChargeTable: [name: string, table: Table] = [
@@ -70,12 +71,12 @@ export const paymentChargeTable: [name: string, table: Table] = [
       {
         columns: ["next_refund_action_at", "id"],
         name: "idx_payment_charges_next_action",
-        where: "next_refund_action_at IS NOT NULL",
+        where: sql`next_refund_action_at IS NOT NULL`,
       },
       {
         columns: ["id"],
         name: "idx_payment_charges_refund_state",
-        where: refundAuthorityWorkSql("").slice(1, -1),
+        where: refundAuthorityWorkCondition(""),
       },
     ],
   },

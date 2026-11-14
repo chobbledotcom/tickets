@@ -8,6 +8,7 @@ import {
   undatedBookingsForListing,
   wouldBeStaySpanDays,
 } from "#db/listings/daily-switch.ts";
+import { sql } from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { t } from "#i18n";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
@@ -41,8 +42,7 @@ const rawRows = async (
 > => {
   const { queryAll } = await import("#db/client.ts");
   return queryAll(
-    "SELECT attendee_id, end_at, start_at FROM listing_attendees WHERE listing_id = ? ORDER BY attendee_id",
-    [listingId],
+    sql`SELECT attendee_id, end_at, start_at FROM listing_attendees WHERE listing_id = ${listingId} ORDER BY attendee_id`,
   );
 };
 
@@ -195,17 +195,17 @@ describeWithEnv("db: listings — the daily switch", { db: true }, () => {
     const { queryAll } = await import("#db/client.ts");
     // Widen the cap for the setup booking, then take it away again: the day
     // the move targets can hold none of the undated bookings.
-    await queryAll("UPDATE listings SET max_attendees = 3 WHERE id = ?", [
-      listing.id,
-    ]);
+    await queryAll(
+      sql`UPDATE listings SET max_attendees = 3 WHERE id = ${listing.id}`,
+    );
     await bookAttendee(listing, {
       date: "2026-11-05",
       email: "z@example.com",
       name: "Z",
     });
-    await queryAll("UPDATE listings SET max_attendees = 2 WHERE id = ?", [
-      listing.id,
-    ]);
+    await queryAll(
+      sql`UPDATE listings SET max_attendees = 2 WHERE id = ${listing.id}`,
+    );
 
     const refusal = await withTransaction(async (tx) => {
       try {
@@ -260,10 +260,9 @@ describeWithEnv("db: listings — the daily switch", { db: true }, () => {
 
     // The same listing already daily is not a switch at all.
     await withTransaction(async (tx) => {
-      await tx.execute({
-        args: [listing.id],
-        sql: "UPDATE listings SET listing_type = 'daily' WHERE id = ?",
-      });
+      await tx.execute(
+        sql`UPDATE listings SET listing_type = 'daily' WHERE id = ${listing.id}`,
+      );
     });
     const daily = await withTransaction((tx) =>
       refuseUndatedSwitchTx(tx, listing.id, "daily"),

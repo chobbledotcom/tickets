@@ -2,11 +2,13 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { paymentTables } from "#db/migrations/schema/payments/index.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { jsonHash } from "#test-utils/hash.ts";
+import { sqlText } from "#test-utils/sql-text.ts";
 
 test("keeps the complete payment aggregate schema declaration exact", async () => {
-  expect(await jsonHash(paymentTables)).toBe(
+  expect(await jsonHash(sqlText(paymentTables))).toBe(
     "d747ecf9924c30ecbaccd2c4e1f6020fa8bd8931c97975f576a50caf222f4d60",
   );
 });
@@ -14,7 +16,7 @@ test("keeps the complete payment aggregate schema declaration exact", async () =
 describeWithEnv("db > payment aggregate indexes", { db: true }, () => {
   test("creates every aggregate lookup index", async () => {
     const result = await getDb().execute(
-      `SELECT name FROM sqlite_master
+      sql`SELECT name FROM sqlite_master
         WHERE type = 'index'
           AND tbl_name IN ('payment_sessions', 'payment_charges', 'payment_cases',
                             'payment_case_decisions', 'payment_completion_effects',
@@ -23,7 +25,7 @@ describeWithEnv("db > payment aggregate indexes", { db: true }, () => {
           AND name NOT LIKE 'sqlite_autoindex%'
         ORDER BY name`,
     );
-    expect(result.rows.map((row) => row.name)).toEqual([
+    expect(sqlText(result.rows.map((row) => row.name))).toEqual([
       "idx_payment_case_decisions_retry",
       "idx_payment_case_decisions_revision",
       "idx_payment_cases_alert",

@@ -6,6 +6,7 @@ import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { listingParents } from "#db/listing-parents.ts";
 import { requireListingWithCount } from "#db/listings/records.ts";
 import { getAllModifiers, modifierListings } from "#db/modifiers.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { requireEntityImport } from "#test-utils/catalog-import.ts";
@@ -108,12 +109,12 @@ describeWithEnv(
         trigger: "optional",
       });
       await execute(
-        `CREATE TRIGGER activate_imported_child_add_on
+        sql`CREATE TRIGGER activate_imported_child_add_on
            AFTER INSERT ON listings
            BEGIN
-             UPDATE modifiers SET active = 1 WHERE id = ${modifier.id};
+             UPDATE modifiers SET active = 1 WHERE id = ${sqlLiteral(modifier.id)};
              INSERT INTO modifier_listings (modifier_id, listing_id)
-             VALUES (${modifier.id}, NEW.id);
+             VALUES (${sqlLiteral(modifier.id)}, NEW.id);
            END`,
       );
       const before = await countRows("listings");

@@ -2,6 +2,7 @@ import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
@@ -30,9 +31,8 @@ const bookingRows = (
   { start_at: string | null; quantity: number; package_group_id: number }[]
 > =>
   queryAll(
-    `SELECT start_at, quantity, package_group_id FROM listing_attendees
-      WHERE listing_id = ? ORDER BY id DESC`,
-    [listingId],
+    sql`SELECT start_at, quantity, package_group_id FROM listing_attendees
+      WHERE listing_id = ${listingId} ORDER BY id DESC`,
   );
 
 /** A free daily package with two members sharing the default booking window. */

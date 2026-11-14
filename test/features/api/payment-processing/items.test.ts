@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { setGroupPackageMembers } from "#db/groups.ts";
+import { sql } from "#db/sql.ts";
 import { withMessageGroups } from "#i18n";
 import { validateAllItems as validateSnapshotItems } from "#routes/api/payment-processing/items.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
@@ -131,9 +132,9 @@ describeWithEnv("paid item validation", { db: true }, () => {
       unitPrice: 500,
     });
     const { execute } = await import("#db/client.ts");
-    await execute("UPDATE listings SET min_quantity = 3 WHERE id = ?", [
-      listing.id,
-    ]);
+    await execute(
+      sql`UPDATE listings SET min_quantity = 3 WHERE id = ${listing.id}`,
+    );
     const intent = bookingIntent([{ e: listing.id, p: 500, q: 1 }]);
     using refund = stubRefundPayment("re_items_minimum", 500);
 
@@ -164,9 +165,9 @@ describeWithEnv("paid item validation", { db: true }, () => {
       unitPrice: 500,
     });
     const { execute } = await import("#db/client.ts");
-    await execute("UPDATE listings SET max_quantity = 1 WHERE id = ?", [
-      listing.id,
-    ]);
+    await execute(
+      sql`UPDATE listings SET max_quantity = 1 WHERE id = ${listing.id}`,
+    );
     const intent = bookingIntent([{ e: listing.id, p: 500, q: 2 }]);
     using refund = stubRefundPayment("re_items_maximum", 500);
 

@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
 import { resultRows } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import type { Table } from "#db/table.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { isNotNullish } from "#fp";
@@ -325,10 +326,7 @@ describeWithEnv("defineCrudApi", { db: true }, () => {
       },
       readState: async (tx, id) => {
         const current = resultRows<Row>(
-          await tx.execute({
-            args: [id],
-            sql: "SELECT id, name FROM widgets WHERE id = ?",
-          }),
+          await tx.execute(sql`SELECT id, name FROM widgets WHERE id = ${id}`),
         )[0];
         events.push(`read:${current?.name}`);
         return current?.name ?? null;
@@ -336,10 +334,9 @@ describeWithEnv("defineCrudApi", { db: true }, () => {
       sideEffect: {
         persist: async (tx, id, _value, state) => {
           const current = resultRows<Row>(
-            await tx.execute({
-              args: [id],
-              sql: "SELECT id, name FROM widgets WHERE id = ?",
-            }),
+            await tx.execute(
+              sql`SELECT id, name FROM widgets WHERE id = ${id}`,
+            ),
           )[0];
           events.push(`side:${current?.name}:${state}`);
         },

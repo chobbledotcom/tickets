@@ -28,6 +28,7 @@ import {
   setGroupPackageMembers,
 } from "#db/groups.ts";
 import { listingAggregates } from "#db/listings/aggregates.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
@@ -165,10 +166,9 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         name: "Batch Shared",
       });
       await assignListingsToGroup([shared.id], empty.id);
-      await getDb().execute({
-        args: [inactive.id],
-        sql: "UPDATE listings SET active = 0 WHERE id = ?",
-      });
+      await getDb().execute(
+        sql`UPDATE listings SET active = 0 WHERE id = ${inactive.id}`,
+      );
       const attendee = await bookAttendee(active, {
         email: "batch-a@example.com",
         name: "A",
@@ -540,7 +540,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
       const { e1 } = await createCappedGroupWithListings(3, "single-daily", {
         listingType: "daily",
       });
-      expect(await getGroupRemainingForListing(e1)).toBeUndefined();
+      expect(await getGroupRemainingForListing(e1)).toBe(undefined);
     });
 
     test("getGroupRemainingForListing returns undefined when no group", async () => {
@@ -548,7 +548,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         maxAttendees: 50,
         name: "no-group",
       });
-      expect(await getGroupRemainingForListing(ungrouped)).toBeUndefined();
+      expect(await getGroupRemainingForListing(ungrouped)).toBe(undefined);
     });
 
     test("getGroupRemainingByGroupId is per-date for daily-listing groups", async () => {

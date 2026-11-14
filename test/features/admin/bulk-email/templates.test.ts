@@ -13,6 +13,7 @@ import {
   updateEmailTemplate,
 } from "#db/email-templates.ts";
 import { settings } from "#db/settings.ts";
+import { sql, sqlCommas } from "#db/sql.ts";
 import { MAX_EMAIL_TEMPLATES } from "#shared/limits.ts";
 import { seedDraft } from "#test/integration/server/bulk-email/helpers.ts";
 import {
@@ -172,10 +173,10 @@ describeWithEnv("server bulk email > templates", { db: true }, () => {
       // rows, so the (opaque) content here need not be real encrypted blobs.
       const rows = Array.from(
         { length: MAX_EMAIL_TEMPLATES },
-        () => "('x', 'y')",
-      ).join(", ");
+        () => sql`('x', 'y')`,
+      );
       await getDb().execute(
-        `INSERT INTO email_templates (subject, body) VALUES ${rows}`,
+        sql`INSERT INTO email_templates (subject, body) VALUES ${sqlCommas(rows)}`,
       );
       const { response } = await adminFormPost("/admin/emails/templates", {
         audience: "active",
