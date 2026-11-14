@@ -14,11 +14,12 @@ import {
   PASSWORD_MIN_LENGTH,
 } from "#shared/limits.ts";
 import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
+import { HOLIDAY_FIELDS } from "#shared/records/holiday-fields.ts";
 import { checkboxField } from "#templates/fields/checkbox-field.ts";
 import { picklistOptions } from "#templates/fields/picklist-options.ts";
+import { fieldsForm } from "#templates/fields/record-fields.ts";
 import {
   getUsernameFieldBase,
-  validateDate,
   validateHttpsDomainUrl,
   validateUpdateTier,
   validateUsername,
@@ -42,36 +43,7 @@ const getLoginFields = () =>
 
 export const getLoginForm = defineFieldsForm(getLoginFields);
 
-/**
- * Holiday form field definitions (per-request builder)
- */
-const getHolidayFields = () =>
-  [
-    {
-      label: t("fields.holiday.name"),
-      name: "name",
-      placeholder: t("fields.holiday.name_placeholder"),
-      required: true,
-      type: "text",
-    },
-    {
-      label: t("fields.holiday.start_date"),
-      name: "start_date",
-      required: true,
-      type: "date",
-      validate: validateDate,
-    },
-    {
-      hint: t("fields.holiday.end_date_hint"),
-      label: t("fields.holiday.end_date"),
-      name: "end_date",
-      required: true,
-      type: "date",
-      validate: validateDate,
-    },
-  ] as const satisfies readonly Field[];
-
-export const getHolidayForm = defineFieldsForm(getHolidayFields);
+export const getHolidayForm = fieldsForm(HOLIDAY_FIELDS);
 
 /** One built-site box: its label and placeholder come from the field's
  * catalog keys, so every form naming this value says the same words. */

@@ -1,7 +1,7 @@
 /**
  * Branch cover for the invite routes
  * GET /admin/users — the list, its invite link, and its flash message
- * GET /admin/user/new — the invite form
+ * GET /admin/users/new — the invite form
  * POST /admin/users — the invite itself
  *
  * Sits beside the story `@story:access.inviting-someone-to-help`: the story
@@ -30,7 +30,7 @@ import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
 describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("who may reach the invite pages", () => {
     testRequiresAuth("/admin/users");
-    testRequiresAuth("/admin/user/new");
+    testRequiresAuth("/admin/users/new");
     testRequiresAuth("/admin/users", {
       body: {
         admin_level: "manager",
@@ -41,7 +41,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
     test("serves the invite form to the owner", async () => {
       await expectHtmlResponse(
-        await adminGet("/admin/user/new"),
+        await adminGet("/admin/users/new"),
         200,
         "Invite User",
         'action="/admin/users"',
@@ -92,7 +92,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const before = (await getAllUsers()).length;
       const { response } = await adminFormPost("/admin/users", body);
       await expectFlashRedirect(
-        "/admin/user/new",
+        "/admin/users/new",
         expect.stringContaining(reason),
         false,
       )(response);

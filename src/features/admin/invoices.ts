@@ -60,6 +60,7 @@ import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { nowIso } from "#shared/now.ts";
 import { orderLineItems } from "#shared/order-line-items.ts";
 import { requireValue } from "#shared/required-value.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { parseEmail, type ValidEmail } from "#shared/validation/email.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
@@ -197,7 +198,7 @@ const draftBodyData = async (draft: InvoiceDraft): Promise<InvoiceBodyData> =>
 const withInvoiceForm = async (
   form: FormParams,
   missingText: string,
-  use: (draft: InvoiceDraft, template: string) => Response | Promise<Response>,
+  use: ResponseHandler<[draft: InvoiceDraft, template: string]>,
 ): Promise<Response> => {
   const hasText = form.has("body");
   const submitted = (form.get("body") ?? "").trim();

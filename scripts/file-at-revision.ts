@@ -26,16 +26,23 @@ export const fileAtRevision = async (
   return show.stdout;
 };
 
+/** A reader of the paths that one git command lists for a revision, one on
+ * each line. A failed command must surface, because an empty list reads as
+ * "no path". */
+const pathLister =
+  (...command: string[]) =>
+  async (run: RunCommand, revision: string): Promise<string[]> => {
+    const args = [...command, revision];
+    const listing = await runGit(run, args);
+    if (listing.code !== 0) {
+      throw new Error(`git ${args.join(" ")} failed: ${listing.stderr.trim()}`);
+    }
+    return listing.stdout.split("\n").filter((path) => path !== "");
+  };
+
 /** Every path `revision` holds, in git's order. A caller that matches a file
  * by name reads a file the revision holds at a path it does not know. */
-export const pathsAtRevision = async (
-  run: RunCommand,
-  revision: string,
-): Promise<string[]> => {
-  const args = ["ls-tree", "-r", "--name-only", revision];
-  const tree = await runGit(run, args);
-  if (tree.code !== 0) {
-    throw new Error(`git ${args.join(" ")} failed: ${tree.stderr.trim()}`);
-  }
-  return tree.stdout.split("\n").filter((path) => path !== "");
-};
+export const pathsAtRevision = pathLister("ls-tree", "-r", "--name-only");
+
+/** Every tracked path that differs between `revision` and the working tree. */
+export const pathsChangedSince = pathLister("diff", "--name-only");

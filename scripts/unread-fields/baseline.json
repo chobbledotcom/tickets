@@ -13,12 +13,6 @@
       "fields": ["slug"]
     }
   ],
-  "src/features/admin/api-holidays.ts": [
-    {
-      "path": [{ "name": "CreateHolidayBody" }],
-      "fields": ["end_date", "name", "start_date"]
-    }
-  ],
   "src/features/admin/api-listing-body.ts": [
     {
       "path": [{ "name": "CreateListingBody" }],
@@ -174,7 +168,7 @@
     },
     {
       "path": [{ "name": "AdminApiHoliday" }],
-      "fields": ["end_date", "id", "name", "start_date"]
+      "fields": ["id"]
     },
     {
       "path": [{ "name": "AdminApiOptionBody" }],
@@ -421,17 +415,7 @@
       "fields": ["active"]
     }
   ],
-  "src/shared/db/holidays.ts": [
-    {
-      "path": [{ "name": "HolidayInput" }],
-      "fields": ["name"]
-    }
-  ],
   "src/shared/db/images.ts": [
-    {
-      "path": [{ "name": "ImageInput" }],
-      "fields": ["altText", "filename", "filenameThumb", "name"]
-    },
     {
       "path": [{ "name": "OrderedImage" }],
       "fields": ["sort_order"]
@@ -532,7 +516,7 @@
   "src/shared/db/questions/tables.ts": [
     {
       "path": [{ "name": "QuestionInput" }],
-      "fields": ["assignAll", "displayType", "text"]
+      "fields": ["assignAll"]
     }
   ],
   "src/shared/db/refund-all-candidates.ts": [
@@ -606,15 +590,15 @@
   "src/shared/forms/field.ts": [
     {
       "path": [{ "name": "ChoiceField" }],
-      "fields": ["accept", "markdown"]
+      "fields": ["accept"]
     },
     {
       "path": [{ "name": "FileField" }],
-      "fields": ["markdown", "options"]
+      "fields": ["options"]
     },
     {
       "path": [{ "name": "InputField" }],
-      "fields": ["accept", "markdown", "options"]
+      "fields": ["accept", "options"]
     },
     {
       "path": [{ "name": "TextareaField" }],
@@ -955,20 +939,6 @@
     {
       "path": [{ "name": "DeleteBody" }],
       "fields": ["confirm_identifier"]
-    }
-  ],
-  "src/shared/rest/resource.ts": [
-    {
-      "path": [{ "name": "DeleteResult" }],
-      "fields": ["notFound"]
-    },
-    {
-      "path": [{ "name": "Resource" }],
-      "fields": ["fields", "table"]
-    },
-    {
-      "path": [{ "name": "UpdateResult" }],
-      "fields": ["notFound"]
     }
   ],
   "src/shared/schema-atlas/machine-spec.ts": [

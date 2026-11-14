@@ -1,7 +1,6 @@
-/** Direct unit tests for the CRUD API parsers extracted from crud-api.ts.
- *  The defineCrudApi integration tests in crud-api.test.ts exercise the full
- *  request path; these test the parsing helpers directly so mutation testing
- *  has a mirror for crud-parsers.ts. */
+/** Direct unit tests for the admin record parsing helpers. The record API
+ *  integration tests exercise the full request path; these test the parsing
+ *  helpers directly so mutation testing has a mirror for crud-parsers.ts. */
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -10,9 +9,9 @@ import { ADMIN_API } from "#routes/auth.ts";
 import { dateField, textField } from "#shared/rest/api-body-fields.ts";
 import {
   bodyNumber,
-  dateRange,
   optionalDateString,
   optionalTextField,
+  parseAndValidate,
   parseApiBody,
   parseOptionalArray,
   parseUpdateSlug,
@@ -20,10 +19,9 @@ import {
   requireEntityField,
   requireStrings,
   withApiEntity,
-  withWriteName,
   writeEntityName,
 } from "#shared/rest/crud-parsers.ts";
-import { errorResult, okResult } from "#shared/result.ts";
+import { okResult } from "#shared/result.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestApiKeyToken, requestAsApiKey } from "#test-utils/session.ts";
 
@@ -142,6 +140,35 @@ test("parseApiBody returns the parsed body", () => {
     ok: true,
     value: { name: "Poster" },
   });
+});
+
+test("parseAndValidate answers a validator's refusal as an API error", async () => {
+  const validated = await parseAndValidate(
+    okResult({ name: "taken" }),
+    (_input, id) => Promise.resolve(id === 3 ? "That name is taken" : null),
+    3,
+  );
+
+  if (validated.ok) throw new Error("the validator should have refused");
+  expect(validated.response.status).toBe(400);
+  expect(await validated.response.json()).toEqual({
+    error: "That name is taken",
+  });
+});
+
+test("parseAndValidate returns the input its validator accepts", async () => {
+  const checked: [{ name: string }, number | undefined][] = [];
+  const validated = await parseAndValidate(
+    okResult({ name: "free" }),
+    (input, id) => {
+      checked.push([input, id]);
+      return Promise.resolve(null);
+    },
+    4,
+  );
+
+  expect(validated).toEqual({ input: { name: "free" }, ok: true });
+  expect(checked).toEqual([[{ name: "free" }, 4]]);
 });
 
 test("parseUpdateSlug trims and lowercases the slug, deriving its index", async () => {
@@ -281,30 +308,4 @@ test("writeEntityName reads the supplied or stored name", () => {
     error: "name cannot be empty",
     ok: false,
   });
-});
-
-test("dateRange reports the end date refusal", () => {
-  const start = requireDateString({ start_date: "2026-01-01" }, "start_date");
-  expect(dateRange(start, errorResult("end date bad"))).toEqual({
-    error: "end date bad",
-    ok: false,
-  });
-});
-
-test("withWriteName refuses an empty name before the mapper runs", () => {
-  let mapped = false;
-  const mapper = withWriteName<
-    { name?: string | undefined },
-    { name: string },
-    { name: string }
-  >((name) => {
-    mapped = true;
-    return okResult({ name });
-  });
-
-  expect(mapper({ name: "  " }, { name: "Stored" })).toEqual({
-    error: "name cannot be empty",
-    ok: false,
-  });
-  expect(mapped).toBe(false);
 });

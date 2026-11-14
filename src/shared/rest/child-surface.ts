@@ -9,14 +9,17 @@
 import { byId } from "#fp";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
-import { type AuthPolicy, OWNER_API } from "#routes/auth.ts";
+import type { AuthPolicy } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
+import type { CrudChildHandlers } from "#shared/rest/crud-api-types.ts";
 import {
   apiEntityGate,
   type RequiredTextReader,
   type RowBodyHandler,
 } from "#shared/rest/crud-parsers.ts";
+import type { RecordSurface } from "#shared/rest/record.ts";
+import { recordJsonPolicy } from "#shared/rest/record-api.ts";
 
 /** The write routes one child surface answers. */
 export type ApiChildSurface<Parent, Child extends { id: number }> = {
@@ -99,10 +102,78 @@ export const apiChildSurface = <Parent, Child extends { id: number }>(config: {
   };
 };
 
-/** One owner-only child surface. The parts are in route order. They are the
- *  parent id param and label, the child id param and label, the primary-pinned
- *  parent read, and the parent's children. */
-export const ownerChildSurface = <Parent, Child extends { id: number }>(
+/** The three write routes every text-named child surface shares: create under
+ *  the parent, rename one child, and delete one child by its text. */
+export const childTextHandlers = <
+  Parent,
+  Child extends { id: number },
+>(config: {
+  create: (parent: Parent, text: string) => Promise<Response>;
+  destroy: (parent: Parent, child: Child) => Promise<void>;
+  label: string;
+  reader: RequiredTextReader;
+  surface: ApiChildSurface<Parent, Child>;
+  textOf: (child: Child) => string;
+  update: (parent: Parent, child: Child, text: string) => Promise<Response>;
+}): CrudChildHandlers => ({
+  create: (request, params) =>
+    config.surface.parent(request, params, (parent, body) =>
+      config.reader(body, (text) => config.create(parent, text)),
+    ),
+  delete: config.surface.confirmedDelete(
+    config.textOf,
+    config.label,
+    (parent, child) => config.destroy(parent, child),
+  ),
+  update: config.surface.textUpdate(config.reader, (parent, child, text) =>
+    config.update(parent, child, text),
+  ),
+});
+
+/** One text-named child's domain writes and its parent response. */
+type TextChildWrites<Parent, Child extends { id: number }> = {
+  add: (parent: Parent, text: string) => Promise<unknown>;
+  remove: (parent: Parent, child: Child) => Promise<unknown>;
+  rename: (parent: Parent, child: Child, text: string) => Promise<unknown>;
+  respond: (parentId: number, status?: number) => Promise<Response>;
+  /** A refusal that depends on the parent, before the add. */
+  refuseAdd?: (parent: Parent) => Response | null;
+};
+
+/** Build a text-named child's three routes from its domain writes. */
+export const childTextConfig = <
+  Parent extends { id: number },
+  Child extends { id: number },
+>(
+  surface: ApiChildSurface<Parent, Child>,
+  label: string,
+  reader: RequiredTextReader,
+  textOf: (child: Child) => string,
+  writes: TextChildWrites<Parent, Child>,
+): CrudChildHandlers =>
+  childTextHandlers({
+    create: async (parent, text) => {
+      const refusal = writes.refuseAdd?.(parent);
+      if (refusal) return refusal;
+      await writes.add(parent, text);
+      return writes.respond(parent.id, 201);
+    },
+    destroy: async (parent, child) => {
+      await writes.remove(parent, child);
+    },
+    label,
+    reader,
+    surface,
+    textOf,
+    update: async (parent, child, text) => {
+      await writes.rename(parent, child, text);
+      return writes.respond(parent.id);
+    },
+  });
+
+/** One child surface whose audience is the parent record's page audience. */
+export const recordChildSurface = <Parent, Child extends { id: number }>(
+  record: RecordSurface,
   parentIdParam: string,
   parentLabel: string,
   childIdParam: string,
@@ -117,5 +188,5 @@ export const ownerChildSurface = <Parent, Child extends { id: number }>(
     lookup,
     parentIdParam,
     parentLabel,
-    policy: OWNER_API,
+    policy: recordJsonPolicy(record),
   });

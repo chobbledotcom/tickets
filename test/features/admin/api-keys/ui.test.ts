@@ -135,6 +135,8 @@ describeWithEnv("API keys admin UI", { db: true }, () => {
   });
 
   describe("creating keys", () => {
+    /** POST a key create and assert its error flash, its redirect, and that
+     *  no key was stored. */
     test("POST /admin/api-keys creates a key and redirects with it", async () => {
       const cookie = await testCookie();
 
