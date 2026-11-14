@@ -1,0 +1,132 @@
+/** The link-based date picker and the ledger's date range pickers. */
+
+@use "mixins" as *;
+
+/* QR result panel — fade transition for client-side auto-refresh */
+.qr-result {
+  transition: opacity 500ms ease-in-out;
+}
+
+.qr-code svg {
+  max-width: 400px;
+  width: 100%;
+  height: auto;
+}
+
+/* Link-based date picker calendar */
+.date-picker {
+  max-width: 22rem;
+  margin-bottom: var(--space-m);
+  padding: var(--space-s);
+  @include panel-border;
+}
+
+/* The ledger's two range pickers ("From" / "To") laid out side by side, wrapping
+   to a column on narrow screens. */
+.ledger-date-range {
+  @include wrap-row;
+}
+
+.ledger-date-field {
+  @include stack-tight;
+}
+
+.date-picker > select {
+  display: block;
+  width: 100%;
+}
+
+.calendar {
+  max-width: 22rem;
+  margin-bottom: var(--space-s);
+}
+
+.calendar-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-s);
+  margin-bottom: var(--space-s);
+  font-weight: bold;
+}
+
+.calendar-nav a {
+  padding: 0 var(--space-s);
+  text-decoration: none;
+}
+
+/* The month label is a <select> styled to read as plain text */
+.calendar-month-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  width: auto;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  font-size: inherit;
+  font-family: inherit;
+  font-weight: bold;
+  color: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+
+.calendar-month-select:hover {
+  text-decoration: underline;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  text-align: center;
+}
+
+.calendar-dow {
+  padding: 0.2rem 0;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}
+
+.cal-day {
+  display: block;
+  padding: 0.35rem 0;
+  border-radius: var(--border-radius);
+  font-size: 0.9rem;
+}
+
+/* Selectable days are links; non-selectable days are plain greyed text */
+a.cal-day {
+  background: var(--color-accent);
+  text-decoration: none;
+}
+
+a.cal-day:hover {
+  background: var(--color-bg-secondary);
+}
+
+span.cal-day {
+  color: var(--color-text-secondary);
+}
+
+/* Days outside the displayed month (the extra week either side) */
+.cal-day-muted {
+  opacity: 0.45;
+}
+
+/* Today */
+.cal-day-today {
+  outline: 1px solid var(--color-link);
+}
+
+/* Currently selected date. The :active selector keeps the light text when the
+   selected day is tapped (touch/keyboard have no :hover to fall back on). */
+.cal-day-selected,
+a.cal-day-selected:hover,
+a.cal-day-selected:active {
+  @include link-colors;
+}
+
