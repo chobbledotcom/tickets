@@ -28,42 +28,41 @@ const makeTicketData = (
 
 describeWithEnv("svg-ticket", { db: true }, () => {
   describe("extractSvgContent", () => {
-    test("extracts inner content from svg element", () => {
-      const svg =
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect/></svg>';
-      expect(extractSvgContent(svg)).toBe("<rect/>");
-    });
-
-    test("returns empty string when no svg element found", () => {
+    test("reads the content the SVG element wraps, and nothing else", () => {
+      expect(
+        extractSvgContent(
+          '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect/></svg>',
+        ),
+      ).toBe("<rect/>");
       expect(extractSvgContent("<div>not svg</div>")).toBe("");
     });
   });
 
   describe("extractViewBox", () => {
-    test("parses viewBox dimensions", () => {
-      const svg = '<svg viewBox="0 0 33 33"><rect/></svg>';
-      expect(extractViewBox(svg)).toEqual({ height: 33, width: 33 });
-    });
-
-    test("returns default size when no viewBox", () => {
-      const svg = "<svg><rect/></svg>";
-      expect(extractViewBox(svg)).toEqual({ height: 180, width: 180 });
-    });
-
-    test("falls back to defaults for incomplete viewBox", () => {
-      const svg = '<svg viewBox="0 0"><rect/></svg>';
-      expect(extractViewBox(svg)).toEqual({ height: 180, width: 180 });
-    });
-
-    test("keeps a zero side that the viewBox names", () => {
-      expect(extractViewBox('<svg viewBox="0 0 33 0">')).toEqual({
-        height: 0,
+    test("reads the width and height the viewBox names", () => {
+      expect(extractViewBox('<svg viewBox="0 0 33 44"><rect/></svg>')).toEqual({
+        height: 44,
         width: 33,
       });
-      expect(extractViewBox('<svg viewBox="0 0 0 44">')).toEqual({
-        height: 44,
-        width: 0,
+    });
+
+    test("defaults a side the viewBox does not name", () => {
+      expect(extractViewBox("<svg><rect/></svg>")).toEqual({
+        height: 180,
+        width: 180,
       });
+      expect(extractViewBox('<svg viewBox="0 0">')).toEqual({
+        height: 180,
+        width: 180,
+      });
+    });
+
+    test("keeps a zero side instead of the default", () => {
+      const flat = extractViewBox('<svg viewBox="0 0 33 0">');
+      const thin = extractViewBox('<svg viewBox="0 0 0 44">');
+
+      expect([flat.width, flat.height]).toEqual([33, 0]);
+      expect([thin.width, thin.height]).toEqual([0, 44]);
     });
   });
 
@@ -101,14 +100,13 @@ describeWithEnv("svg-ticket", { db: true }, () => {
       expect(lines.some((l) => l.startsWith("Booking:"))).toBe(true);
     });
 
-    test("omits price when zero", () => {
-      const lines = buildInfoLines(makeTicketData({ pricePaid: "0" }));
-      expect(lines.every((l) => !l.includes("Price:"))).toBe(true);
-    });
-
-    test("includes a price of one penny", () => {
-      const lines = buildInfoLines(makeTicketData({ pricePaid: "1" }));
-      expect(lines.some((l) => l.startsWith("Price:"))).toBe(true);
+    test("includes a price above zero and omits a zero price", () => {
+      expect(buildInfoLines(makeTicketData({ pricePaid: "0" }))).toEqual([
+        "Qty: 1",
+      ]);
+      const paid = buildInfoLines(makeTicketData({ pricePaid: "1" }));
+      expect(paid).toHaveLength(2);
+      expect(paid[1]).toMatch(/^Price:/);
     });
   });
 
@@ -195,30 +193,17 @@ describeWithEnv("svg-ticket", { db: true }, () => {
       expect(svg1).not.toBe(svg2);
     });
 
-    test("includes quantity in output", async () => {
-      const svg = await generateSvgTicket(makeTicketData({ quantity: 3 }));
-      assertStringIncludes(svg, "Qty: 3");
-    });
-
-    test("includes price for paid tickets", async () => {
+    test("includes the quantity, price, place and date", async () => {
       const svg = await generateSvgTicket(
-        makeTicketData({ pricePaid: "1500" }),
+        makeTicketData({
+          listingDate: "2026-06-15T18:00:00.000Z",
+          listingLocation: "Main Hall",
+          pricePaid: "1500",
+          quantity: 3,
+        }),
       );
-      assertStringIncludes(svg, "Price:");
-    });
 
-    test("includes location when provided", async () => {
-      const svg = await generateSvgTicket(
-        makeTicketData({ listingLocation: "Main Hall" }),
-      );
-      assertStringIncludes(svg, "Main Hall");
-    });
-
-    test("includes listing date when provided", async () => {
-      const svg = await generateSvgTicket(
-        makeTicketData({ listingDate: "2026-06-15T18:00:00.000Z" }),
-      );
-      assertStringIncludes(svg, "June");
+      expectIncludesAll(svg, ["Qty: 3", "Price:", "Main Hall", "June"]);
     });
 
     test("places each info line one line height below the last", async () => {

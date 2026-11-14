@@ -29,28 +29,24 @@ test("draws one quiet border of white and a black square per dark module", async
   const image = await decodeImage(png, "image/png");
   const qr = encode(URL, { border: 1 });
   const data = [...image.data];
-  const red = data.filter((_, index) => index % 4 === 0);
+  const rgb = Array.from({ length: data.length / 4 }, (_, pixel) =>
+    data.slice(pixel * 4, pixel * 4 + 3).join(","),
+  );
 
-  expect(red.slice(0, SCALE)).toEqual(Array(SCALE).fill(255));
-
-  const darkColours = new Set<string>();
-  let darkPixels = 0;
-  for (let index = 0; index < data.length; index += 4) {
-    if (data[index] !== 0) continue;
-    darkPixels += 1;
-    darkColours.add(`${data[index]},${data[index + 1]},${data[index + 2]}`);
-  }
-  expect([...darkColours]).toEqual(["0,0,0"]);
-  expect(darkPixels).toBe(
+  expect(rgb.slice(0, SCALE)).toEqual(Array(SCALE).fill("255,255,255"));
+  expect([...new Set(rgb)]).toEqual(["255,255,255", "0,0,0"]);
+  expect(rgb.filter((colour) => colour === "0,0,0")).toHaveLength(
     qr.data.flat().filter(Boolean).length * SCALE * SCALE,
   );
 });
 
 test("different URLs produce different pictures", async () => {
-  const first = await qrPng("https://example.com/t/aaa");
-  const second = await qrPng("https://example.com/t/bbb");
+  const pictures = await Promise.all([
+    qrPng("https://example.com/t/aaa"),
+    qrPng("https://example.com/t/bbb"),
+  ]);
 
-  expect(first).not.toEqual(second);
+  expect(pictures[0]).not.toEqual(pictures[1]);
 });
 
 test("keeps the quiet border in the SVG that a page shows", () => {

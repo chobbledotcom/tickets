@@ -205,7 +205,9 @@ describeWithEnv(
         '<img src="cid:ticket-1.png"',
         '<img src="cid:ticket-2.png"',
       ]);
-      expect(body.html).toContain('</div>\n<div style="margin:24px 0');
+      expect(
+        body.html.match(/<\/div>\n<div style="margin:24px 0/g),
+      ).toHaveLength(2);
       expect(body.html.match(/<img /g)).toHaveLength(2);
     });
 
