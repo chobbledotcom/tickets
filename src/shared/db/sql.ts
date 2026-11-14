@@ -3,7 +3,7 @@
  * The one way to write SQL: the `sql` tag.
  *
  * Text inside the template is SQL. A value put into the template is never
- * text: it becomes a bound argument at the place it is written, so a value and
+ * text. It becomes a bound argument at the place it is written, so a value and
  * its placeholder cannot fall out of step. A statement put into another
  * statement brings its own values with it.
  *
@@ -120,7 +120,7 @@ const placeAfter = (text: string, place: TextPlace): TextPlace => {
 };
 
 /** Refuse a slot inside a quoted SQL literal. SQLite reads `'?1'` as text, so
- * the value would never bind. */
+ * the value never binds. */
 const refuseSlotInQuotes = (strings: TemplateStringsArray): void => {
   let place: TextPlace = "sql";
   for (const text of strings.slice(0, -1)) {
@@ -170,6 +170,13 @@ export const sqlCommas = (parts: readonly SqlStatement[]): SqlStatement =>
  * or of one VALUES row. */
 export const sqlList = (values: readonly InValue[]): SqlStatement =>
   sqlCommas(values.map((value) => sql`${value}`));
+
+/** Rows for a VALUES list: `(a, b), (c, d)`. A value in a row binds. A
+ * statement in a row stays as written. */
+export const sqlRows = (rows: readonly (readonly SqlSlot[])[]): SqlStatement =>
+  sqlCommas(
+    rows.map((row) => sql`(${sqlCommas(row.map((slot) => sql`${slot}`))})`),
+  );
 
 const NAME = /^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$/;
 

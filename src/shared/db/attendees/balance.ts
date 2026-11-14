@@ -17,7 +17,7 @@ import {
   reservationSubtotalSubquery,
 } from "#accounting/projection-sql.ts";
 import { eventGroup, legReference } from "#accounting/refs.ts";
-import { guardedInsertStatement } from "#accounting/rows.ts";
+import { insertStatement } from "#accounting/rows.ts";
 import { decrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { logActivity } from "#db/activity-log.ts";
@@ -219,7 +219,7 @@ export const settleAttendeeBalance = async (
     // INSERT OR IGNORE on a settle-stable reference plus the same owed guard
     // makes a retried/raced webhook a no-op. Runs after the status move so its
     // guard still sees the pre-payment balance.
-    guardedInsertStatement(
+    insertStatement(
       {
         amount: expectedAmount,
         destination: attendeeAccount(attendeeId),

@@ -15,9 +15,16 @@ export const queryAndMap =
   async (statement: SqlStatement): Promise<Out[]> =>
     mapParallel(toOut)(resultRows<Row>(await execute(statement)));
 
-/** Collapse a result's rows to the set of one column's values, as strings —
- * the shared tail of the "which names/ids already exist" reads (applied
- * migrations, live table columns, index and trigger names). */
+/** A row of whole numbers by column. SQLite gives a COUNT or a SUM back as a
+ * number or as a bigint. */
+export type WholeNumberRow<Column extends string> = Record<
+  Column,
+  number | bigint
+>;
+
+/** Collapse a result's rows to the set of one column's values, as strings.
+ * The reads that ask which names or ids exist share this tail: applied
+ * migrations, live table columns, index names and trigger names. */
 export const stringColumnSet = (rows: Row[], column: string): Set<string> =>
   new Set(rows.map((row) => String(row[column])));
 

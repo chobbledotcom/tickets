@@ -15,13 +15,7 @@ import {
   resultRows,
   type TxScope,
 } from "#db/client.ts";
-import {
-  type SqlStatement,
-  sql,
-  sqlCommas,
-  sqlList,
-  sqlName,
-} from "#db/sql.ts";
+import { type SqlStatement, sql, sqlList, sqlName, sqlRows } from "#db/sql.ts";
 import { reduce, requiredMapValue, unique } from "#fp";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { requestBatchCache } from "#shared/request-cache.ts";
@@ -169,8 +163,8 @@ export const linkTableSide = (
     keyId: number,
     ids: readonly number[],
   ): SqlStatement =>
-    sql`INSERT INTO ${linkTable} (${key}, ${value}) VALUES ${sqlCommas(
-      ids.map((id) => sql`(${keyId}, ${id})`),
+    sql`INSERT INTO ${linkTable} (${key}, ${value}) VALUES ${sqlRows(
+      ids.map((id) => [keyId, id]),
     )}`;
 
   // Every link table carries a unique (key, value) index, so repeated ids in a

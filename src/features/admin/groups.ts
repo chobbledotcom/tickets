@@ -14,10 +14,6 @@ import { adminPattern } from "#shared/admin-surface.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import { executeBatch, rowExists } from "#db/client.ts";
 import {
-  clearExternalLinksStatement,
-  externalLinkTargets,
-} from "#db/external-sources/target.ts";
-import {
   readPackageFlagsTxOrNull,
   writePackageMembersTx,
 } from "#db/groups/membership/package-writes.ts";
@@ -30,13 +26,12 @@ import {
   packageMembersError,
   resetGroupListings,
 } from "#db/groups.ts";
-import { clearImageUsesForItemStatement, imageUseTargets } from "#db/images.ts";
+import { clearItemReferencesStatements } from "#db/item-references.ts";
 import {
   catalogNameLengthError,
   isNameTakenAnywhere,
 } from "#db/name-registry.ts";
 import { noteDeleteStatement } from "#db/notes/queries.ts";
-import { clearItemEdgesStatement } from "#db/site-page-items.ts";
 import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
@@ -55,7 +50,6 @@ import {
   wrapResourceForDemo,
 } from "#shared/demo/overrides.ts";
 import { defineResource } from "#shared/rest/resource.ts";
-import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import { normalizeSlug } from "#shared/slug.ts";
 import { adminGroupDeletePage } from "#templates/admin/groups/delete.tsx";
 import { adminGroupNewPage } from "#templates/admin/groups/form.tsx";
@@ -182,9 +176,7 @@ export const deleteGroup = async (id: InValue) => {
   // note names the record it is about by entity_type + entity_id, so it
   // cannot ride a plain group_id delete.
   await executeBatch([
-    clearItemEdgesStatement(sitePageItemTargets.of("group")(groupId)),
-    clearImageUsesForItemStatement(imageUseTargets.of("group")(groupId)),
-    clearExternalLinksStatement(externalLinkTargets.of("group")(groupId)),
+    ...clearItemReferencesStatements("group", groupId),
     noteDeleteStatement("group", sql`${groupId}`),
     sql`DELETE FROM groups WHERE id = ${groupId}`,
   ]);

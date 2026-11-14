@@ -18,7 +18,7 @@ import {
   type PreparedAnswerSave,
 } from "#db/questions/attendee-answers/save.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
-import { type SqlSlot, type SqlStatement, sql, sqlCommas } from "#db/sql.ts";
+import { type SqlSlot, type SqlStatement, sql, sqlRows } from "#db/sql.ts";
 import { mapParallel } from "#fp";
 
 /** The answers-at-booking record: the questions the booked listings asked,
@@ -28,7 +28,7 @@ const recordAnswersStatement = (
   attendee: SqlSlot,
   listingIds: number[],
 ): SqlStatement => sql`WITH booked(attendee_id, listing_id) AS (
-      VALUES ${sqlCommas(listingIds.map((listingId) => sql`(${attendee}, ${listingId})`))}
+      VALUES ${sqlRows(listingIds.map((listingId) => [attendee, listingId]))}
     ), asked AS (
       SELECT DISTINCT booked.attendee_id, question.id AS question_id, question.text
       FROM booked

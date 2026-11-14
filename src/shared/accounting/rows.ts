@@ -19,6 +19,7 @@ import {
   sqlNames,
 } from "#db/sql.ts";
 import { equals, matchesNoRows } from "#db/where-clauses.ts";
+import { bindFirst } from "#shared/fp-bind.ts";
 import { account } from "#shared/ledger/account.ts";
 import type {
   AccountRef,
@@ -140,32 +141,25 @@ const renderInsert = (
 const INSERT = sql`INSERT INTO`;
 const INSERT_IF_NEW = sql`INSERT OR IGNORE INTO`;
 
-/** Build the INSERT for one transfer. `recordedAt` is the write-time clock. */
-export const insertStatement = (
+/** The INSERT for one transfer under one opening. `recordedAt` is the
+ * write-time clock. With a guard the leg lands only while the guard holds, so
+ * the leg can ride in a one-shot batch. */
+const insertUnder = (
+  opening: SqlStatement,
   t: TransferInput,
   recordedAt: string,
-): SqlStatement => renderInsert(INSERT, legColumns(t, recordedAt));
+  guard?: SqlStatement,
+): SqlStatement => renderInsert(opening, legColumns(t, recordedAt), guard);
+
+/** Build the INSERT for one transfer. The settle batch passes a guard to post
+ * a balance-payment leg atomically. That batch stays a batch, not an
+ * interactive transaction, for its concurrency guard. */
+export const insertStatement = bindFirst(insertUnder)(INSERT);
 
 /** {@link insertStatement}, dropping a leg whose unique `reference` is
  * already stored: a replayed write re-derives the same reference and lands
  * nowhere. */
-export const insertIfNewStatement = (
-  t: TransferInput,
-  recordedAt: string,
-): SqlStatement => renderInsert(INSERT_IF_NEW, legColumns(t, recordedAt));
-
-/**
- * A guarded INSERT for one transfer: `INSERT … SELECT … WHERE <guard>`, so a leg
- * can be folded into a one-shot batch and land only when the guard still holds.
- * Used to post a balance-payment leg atomically inside the settle batch (which
- * stays a batch, not an interactive transaction, for its concurrency guard).
- * Renders from the shared {@link legColumns} plan.
- */
-export const guardedInsertStatement = (
-  t: TransferInput,
-  recordedAt: string,
-  guard: SqlStatement,
-): SqlStatement => renderInsert(INSERT, legColumns(t, recordedAt), guard);
+export const insertIfNewStatement = bindFirst(insertUnder)(INSERT_IF_NEW);
 
 /**
  * Build an idempotent, guarded INSERT for one booking leg, for the single-batch

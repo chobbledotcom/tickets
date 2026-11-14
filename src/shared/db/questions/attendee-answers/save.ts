@@ -18,8 +18,8 @@ import {
   type SqlSlot,
   type SqlStatement,
   sql,
-  sqlCommas,
   sqlList,
+  sqlRows,
 } from "#db/sql.ts";
 import { requiredMapValue } from "#fp";
 
@@ -101,15 +101,8 @@ const answerRowsInsert = <Row extends { attendeeId: number }>(
   afterValues: SqlStatement,
 ): SqlStatement =>
   sql`WITH selected(${columns}) AS (
-        VALUES ${sqlCommas(
-          rows.map(
-            (row) =>
-              sql`(${sqlCommas(
-                [ref.idOf(row.attendeeId), ...rowValues(row)].map(
-                  (value) => sql`${value}`,
-                ),
-              )})`,
-          ),
+        VALUES ${sqlRows(
+          rows.map((row) => [ref.idOf(row.attendeeId), ...rowValues(row)]),
         )}
       ) ${afterValues}`;
 

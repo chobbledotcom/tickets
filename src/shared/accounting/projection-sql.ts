@@ -130,6 +130,23 @@ export const modifierLeg = {
   signedAmount: signedSumCase(surchargeSide, discountSide),
 } as const;
 
+/** The legs that pay into an account, then the legs that pay out of it. */
+const legsOfAccount = (
+  type: string,
+  idExpr: SqlStatement,
+): [moneyIn: SqlStatement, moneyOut: SqlStatement] => [
+  accountPredicate("dest", type, idExpr),
+  accountPredicate("source", type, idExpr),
+];
+
+/** A bare scalar subquery: the legs that add, less the legs that subtract. It
+ * reads only those legs, so an index backs it. */
+const signedLegSum = (
+  adds: SqlStatement,
+  subtracts: SqlStatement,
+): SqlStatement =>
+  sql`(SELECT ${signedSumCase(adds, subtracts)} FROM transfers WHERE ${adds} OR ${subtracts})`;
+
 /**
  * A *bare* scalar subquery (no alias) for an account's net ledger balance: money
  * in as the destination minus money out as the source. It is the same signed
@@ -141,11 +158,7 @@ export const modifierLeg = {
 export const accountBalanceSubquery = (
   type: string,
   idExpr: SqlStatement,
-): SqlStatement => {
-  const asDest = accountPredicate("dest", type, idExpr);
-  const asSource = accountPredicate("source", type, idExpr);
-  return sql`(SELECT ${signedSumCase(asDest, asSource)} FROM transfers WHERE ${asDest} OR ${asSource})`;
-};
+): SqlStatement => signedLegSum(...legsOfAccount(type, idExpr));
 
 /** Net cash received from the outside world by one account. Payments into the
  * account add. Refunds and reversals back to the world subtract. Other ledger
@@ -154,13 +167,13 @@ export const externalCashBalanceSubquery = (
   type: string,
   idExpr: SqlStatement,
 ): SqlStatement => {
-  const accountIn = accountPredicate("dest", type, idExpr);
-  const accountOut = accountPredicate("source", type, idExpr);
+  const [accountIn, accountOut] = legsOfAccount(type, idExpr);
   const worldOut = sql`source_type = ${sqlLiteral(WORLD.type)} AND source_id = ${sqlLiteral(WORLD.id)}`;
   const worldIn = sql`dest_type = ${sqlLiteral(WORLD.type)} AND dest_id = ${sqlLiteral(WORLD.id)}`;
-  const received = sql`${accountIn} AND ${worldOut}`;
-  const returned = sql`${accountOut} AND ${worldIn}`;
-  return sql`(SELECT ${signedSumCase(received, returned)} FROM transfers WHERE ${received} OR ${returned})`;
+  return signedLegSum(
+    sql`${accountIn} AND ${worldOut}`,
+    sql`${accountOut} AND ${worldIn}`,
+  );
 };
 
 const billedTotalSubquery = (

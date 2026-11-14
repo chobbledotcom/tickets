@@ -13,7 +13,7 @@ import { encryptWithOwnerKey } from "#crypto/hybrid.ts";
 import type { BlindIndex, OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { executeBatchWithResults, resultRows } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
-import { type SqlStatement, sql, sqlCommas, sqlList } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlList, sqlRows } from "#db/sql.ts";
 import { nowIso } from "#shared/now.ts";
 
 /** One free-text answer's encrypted payload plus its blind index and plaintext.
@@ -101,8 +101,8 @@ export const internWriteStatements = (
   const created = nowIso();
   const indexes = textIndexes(rows);
   return [
-    sql`INSERT OR IGNORE INTO strings (text_index, encrypted_text, created) VALUES ${sqlCommas(
-      rows.map((row) => sql`(${row.textIndex}, ${row.encrypted}, ${created})`),
+    sql`INSERT OR IGNORE INTO strings (text_index, encrypted_text, created) VALUES ${sqlRows(
+      rows.map((row) => [row.textIndex, row.encrypted, created]),
     )}`,
     // Refresh `created` on every referenced row. INSERT OR IGNORE leaves an
     // existing row's timestamp untouched, so without this the age-based prune

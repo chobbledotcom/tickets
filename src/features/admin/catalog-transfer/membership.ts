@@ -12,11 +12,10 @@ import { PRICE_TYPE_GROUP, PRICE_TYPE_GROUP_DAY } from "#db/price-types.ts";
 import {
   type SqlStatement,
   sql,
-  sqlCommas,
-  sqlList,
   sqlLiteral,
   sqlName,
   sqlNames,
+  sqlRows,
 } from "#db/sql.ts";
 import { type DayPrices, type GroupListing, parseDayPrices } from "#types";
 
@@ -55,9 +54,7 @@ const multiRowInsert = (
   rows: readonly InValue[][],
 ): SqlStatement | null => {
   if (rows.length === 0) return null;
-  return sql`INSERT INTO ${sqlName(table)} (${sqlNames(columns)}) VALUES ${sqlCommas(
-    rows.map((row) => sql`(${sqlList(row)})`),
-  )}`;
+  return sql`INSERT INTO ${sqlName(table)} (${sqlNames(columns)}) VALUES ${sqlRows(rows)}`;
 };
 
 /** The (at most two) batched statements that create every membership row plus

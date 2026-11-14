@@ -1,6 +1,6 @@
 import { generateSecureToken } from "#crypto/utils.ts";
 import { execute, queryOne } from "#db/client.ts";
-import { sql, sqlCommas, sqlList } from "#db/sql.ts";
+import { sql, sqlList, sqlRows } from "#db/sql.ts";
 
 const DATABASE_NOW_MS = sql`CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)`;
 
@@ -17,9 +17,7 @@ export const syncMaintenanceTaskRows = async (
   if (enabledNames.length > 0) {
     await execute(
       sql`INSERT OR IGNORE INTO maintenance_tasks (name, next_run_at)
-       VALUES ${sqlCommas(
-         enabledNames.map((name) => sql`(${name}, ${DATABASE_NOW_MS})`),
-       )}`,
+       VALUES ${sqlRows(enabledNames.map((name) => [name, DATABASE_NOW_MS]))}`,
     );
   }
   if (disabledNames.length > 0) {

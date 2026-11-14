@@ -6,7 +6,8 @@ import {
 } from "#accounting/manual-entries.ts";
 import { type LedgerRange, occurredAtRange } from "#accounting/range.ts";
 import { requireOne } from "#db/client.ts";
-import { sql, sqlCommas, sqlLiteral } from "#db/sql.ts";
+import type { WholeNumberRow } from "#db/query.ts";
+import { sql, sqlLiteral, sqlRows } from "#db/sql.ts";
 import { whereSql } from "#db/where-clauses.ts";
 
 export type ListingMoneyTotals = {
@@ -21,16 +22,16 @@ export type ListingMoneyTotals = {
   transferCount: number;
 };
 
-type ListingMoneyTotalsRow = {
-  external_costs: number | bigint;
-  external_income: number | bigint;
-  gross_sales: number | bigint;
-  manual_adjustments: number | bigint;
-  net_balance: number | bigint;
-  refunds: number | bigint;
-  servicing_costs: number | bigint;
-  transfer_count: number | bigint;
-};
+type ListingMoneyTotalsRow = WholeNumberRow<
+  | "external_costs"
+  | "external_income"
+  | "gross_sales"
+  | "manual_adjustments"
+  | "net_balance"
+  | "refunds"
+  | "servicing_costs"
+  | "transfer_count"
+>;
 
 /** The full money breakdown for one-or-many listings inside a range. Revenue
  * account movements and service-event cost-account movements stay separate:
@@ -64,8 +65,8 @@ export const listingMoneyTotals = async (
   // An aggregate without GROUP BY always returns one row. COALESCE supplies
   // zeroes when no transfers match, so the result cannot be null.
   const row = await requireOne<ListingMoneyTotalsRow>(
-    sql`WITH selected_listing(id) AS (VALUES ${sqlCommas(
-      listingIds.map((id) => sql`(${String(id)})`),
+    sql`WITH selected_listing(id) AS (VALUES ${sqlRows(
+      listingIds.map((id) => [String(id)]),
     )})
      SELECT
        COUNT(*) AS transfer_count,

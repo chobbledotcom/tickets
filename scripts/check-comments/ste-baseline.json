@@ -434,7 +434,7 @@
     "semicolon": 1
   },
   "src/shared/db/attempt-lockout.ts": {
-    "long-sentence": 2,
+    "long-sentence": 1,
     "semicolon": 3,
     "banned-modal": 1
   },
@@ -456,7 +456,7 @@
     "contraction": 1
   },
   "src/shared/db/attendees/balance.ts": {
-    "long-sentence": 5,
+    "long-sentence": 4,
     "semicolon": 3,
     "contraction": 2
   },
@@ -494,7 +494,7 @@
   "src/shared/db/attendees/select.ts": {
     "long-sentence": 7,
     "banned-modal": 1,
-    "semicolon": 5,
+    "semicolon": 4,
     "contraction": 1
   },
   "src/shared/db/attendees/servicing.ts": {
@@ -542,9 +542,8 @@
     "present-perfect": 1
   },
   "src/shared/db/capacity-batch.ts": {
-    "long-sentence": 7,
-    "semicolon": 3,
-    "present-perfect": 1
+    "long-sentence": 6,
+    "semicolon": 3
   },
   "src/shared/db/capacity.ts": {
     "long-sentence": 5,
@@ -560,12 +559,11 @@
     "banned-modal": 1
   },
   "src/shared/db/client.ts": {
-    "semicolon": 10,
-    "long-sentence": 13,
+    "semicolon": 9,
+    "long-sentence": 12,
     "contraction": 1,
-    "banned-modal": 9,
-    "present-perfect": 1,
-    "wordy": 2
+    "banned-modal": 8,
+    "present-perfect": 1
   },
   "src/shared/db/contact-preferences.ts": {
     "semicolon": 2,
@@ -649,10 +647,9 @@
     "semicolon": 1
   },
   "src/shared/db/logistics-run-sheet.ts": {
-    "long-sentence": 10,
+    "long-sentence": 9,
     "banned-modal": 2,
     "wordy": 1,
-    "semicolon": 1,
     "contraction": 2
   },
   "src/shared/db/migrations.ts": {
@@ -825,8 +822,8 @@
   },
   "src/shared/db/query.ts": {
     "long-sentence": 5,
-    "wordy": 2,
-    "semicolon": 2
+    "wordy": 1,
+    "semicolon": 1
   },
   "src/shared/db/question-types.ts": {
     "contraction": 1,
@@ -839,8 +836,8 @@
     "contraction": 1
   },
   "src/shared/db/questions/attendee-answers/at-booking.ts": {
-    "long-sentence": 2,
-    "semicolon": 2
+    "long-sentence": 1,
+    "semicolon": 1
   },
   "src/shared/db/questions/attendee-answers/reads.ts": {
     "long-sentence": 4,
@@ -900,7 +897,7 @@
     "banned-modal": 1
   },
   "src/shared/db/settings/payment-provider.ts": {
-    "long-sentence": 3,
+    "long-sentence": 2,
     "present-perfect": 1
   },
   "src/shared/db/settings/setup.ts": {
@@ -947,7 +944,7 @@
     "semicolon": 3
   },
   "src/shared/db/table.ts": {
-    "wordy": 10,
+    "wordy": 9,
     "banned-modal": 6,
     "long-sentence": 9,
     "semicolon": 3,

@@ -47,23 +47,10 @@ type PreviousBookingLine = Pick<
 type BookingRowWithAttendee = TokenBookingRow & { attendee_id: number };
 type RowWithAttendee<Row> = Row & { attendee_id: number };
 
-const bookingRowWithoutAttendee = (
-  row: BookingRowWithAttendee,
-): TokenBookingRow => ({
-  attachment_downloads: row.attachment_downloads,
-  checked_in: row.checked_in,
-  email_owed: row.email_owed,
-  end_at: row.end_at,
-  ledger_event_group: row.ledger_event_group,
-  listing_id: row.listing_id,
-  order_token: row.order_token,
-  package_group_id: row.package_group_id,
-  parent_listing_id: row.parent_listing_id,
-  price_paid: row.price_paid,
-  quantity: row.quantity,
-  refunded: row.refunded,
-  start_at: row.start_at,
-});
+const bookingRowWithoutAttendee = ({
+  attendee_id: _attendeeId,
+  ...line
+}: BookingRowWithAttendee): TokenBookingRow => line;
 
 /** Load the booking lines for a set of attendees, grouped by attendee id.
  * Callers vary only in which columns they read, any extra join, and any

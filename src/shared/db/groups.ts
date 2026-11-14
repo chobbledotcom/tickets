@@ -37,10 +37,10 @@ import { slugTakenIn } from "#db/slug-registry.ts";
 import {
   type SqlStatement,
   sql,
-  sqlCommas,
   sqlJoin,
   sqlList,
   sqlLiteral,
+  sqlRows,
 } from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { equals, inList } from "#db/where-clauses.ts";
@@ -403,8 +403,8 @@ const listingGroupDiffStatements = (
   }
   if (toAdd.length > 0) {
     statements.push(
-      sql`INSERT OR IGNORE INTO group_listings (group_id, listing_id) VALUES ${sqlCommas(
-        toAdd.map((groupId) => sql`(${groupId}, ${listingId})`),
+      sql`INSERT OR IGNORE INTO group_listings (group_id, listing_id) VALUES ${sqlRows(
+        toAdd.map((groupId) => [groupId, listingId]),
       )}`,
     );
   }

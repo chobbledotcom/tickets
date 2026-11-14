@@ -42,22 +42,25 @@ export type AdditiveMigration = Omit<Migration, "verify"> & {
 /** The default export of every dated migration module. */
 export type MigrationBuilder = (context: MigrationContext) => Migration;
 
+/** One piece of migration work that takes no input. */
+export type MigrationStep = () => Promise<void>;
+
 export type MigrationContext = {
   additive: (migration: AdditiveMigration) => Migration;
   applySchemaChanges: (scope?: SchemaApplyScope) => Promise<void>;
-  backfillAnswerAggregates: () => Promise<void>;
-  backfillListingAggregates: () => Promise<void>;
-  backfillModifierAggregates: () => Promise<void>;
-  ensureDefaultAttendeeStatus: () => Promise<void>;
+  backfillAnswerAggregates: MigrationStep;
+  backfillListingAggregates: MigrationStep;
+  backfillModifierAggregates: MigrationStep;
+  ensureDefaultAttendeeStatus: MigrationStep;
   getDb: () => StatementClient;
   /** Rebuild a table from its SCHEMA definition, dropping any columns and
    * attached triggers no longer declared (preserving data for shared columns). */
   recreateTable: (table: string) => Promise<void>;
-  renameEventsToListings: () => Promise<void>;
-  syncCurrentSchema: () => Promise<void>;
-  syncIndexes: () => Promise<void>;
-  syncTriggers: () => Promise<void>;
+  renameEventsToListings: MigrationStep;
+  syncCurrentSchema: MigrationStep;
+  syncIndexes: MigrationStep;
+  syncTriggers: MigrationStep;
   tableExists: (table: string) => Promise<boolean>;
-  verifyCurrentAppSchema: () => Promise<void>;
-  verifyRequirement: (req: SchemaRequirement) => () => Promise<void>;
+  verifyCurrentAppSchema: MigrationStep;
+  verifyRequirement: (req: SchemaRequirement) => MigrationStep;
 };

@@ -20,10 +20,10 @@ import {
 import {
   type SqlStatement,
   sql,
-  sqlCommas,
   sqlJoin,
   sqlList,
   sqlLiteral,
+  sqlRows,
 } from "#db/sql.ts";
 import { compact, mapNotNullish, requiredMapValue } from "#fp";
 import { type DayPrices, parseDayPrices } from "#types";
@@ -66,9 +66,7 @@ const multiInsertPriceStatement = (
   rows: readonly PriceRow[],
 ): SqlStatement | null => {
   if (rows.length === 0) return null;
-  return sql`INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES ${sqlCommas(
-    rows.map((row) => sql`(${sqlList(row)})`),
-  )}`;
+  return sql`INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES ${sqlRows(rows)}`;
 };
 
 /** The delete-then-insert statements that make a package group's `group_day`

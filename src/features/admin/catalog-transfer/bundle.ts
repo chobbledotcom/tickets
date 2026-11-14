@@ -27,13 +27,7 @@ import { dayCountPriceStatements } from "#db/listing-prices.ts";
 import { requireCurrentRelationshipRules } from "#db/listing-relationship-validation.ts";
 import { listingsTable } from "#db/listings/records.ts";
 import { takenSlugIndexes } from "#db/slug-registry.ts";
-import {
-  type SqlStatement,
-  sql,
-  sqlCommas,
-  sqlList,
-  sqlName,
-} from "#db/sql.ts";
+import { type SqlStatement, sql, sqlList, sqlName, sqlRows } from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { requiredMapValue, unique } from "#fp";
 import { t } from "#i18n";
@@ -108,8 +102,8 @@ const parentEdgeStatement = (
     ).values(),
   ];
   if (uniqueEdges.length === 0) return null;
-  return sql`INSERT INTO listing_parents (parent_listing_id, child_listing_id) VALUES ${sqlCommas(
-    uniqueEdges.map((edge) => sql`(${edge.parentId}, ${edge.childId})`),
+  return sql`INSERT INTO listing_parents (parent_listing_id, child_listing_id) VALUES ${sqlRows(
+    uniqueEdges.map((edge) => [edge.parentId, edge.childId]),
   )}`;
 };
 

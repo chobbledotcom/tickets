@@ -13,7 +13,7 @@
 
 import { refundEventGroup } from "#accounting/mappers.ts";
 import { executeBatch, queryAllPrimary, queryOnePrimary } from "#db/client.ts";
-import { type SqlStatement, sql, sqlCommas, sqlList } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlList, sqlRows } from "#db/sql.ts";
 
 /** One (refund group → booking group) attribution. */
 type ReversesPair = readonly [refundGroup: string, bookingGroup: string];
@@ -80,11 +80,7 @@ const pagePairs = async (
 /** Stamp one page's pairs in a single UPDATE, joining each refund event's
  *  legs through the event-group index. */
 const pageUpdate = (pairs: readonly ReversesPair[]): SqlStatement =>
-  sql`WITH pairs(refund_group, booking_group) AS (VALUES ${sqlCommas(
-    pairs.map(
-      ([refundGroup, bookingGroup]) => sql`(${refundGroup}, ${bookingGroup})`,
-    ),
-  )}) UPDATE transfers SET reverses_group = pairs.booking_group FROM pairs WHERE transfers.event_group = pairs.refund_group AND transfers.kind ${REFUND_KIND} AND transfers.reverses_group = ''`;
+  sql`WITH pairs(refund_group, booking_group) AS (VALUES ${sqlRows(pairs)}) UPDATE transfers SET reverses_group = pairs.booking_group FROM pairs WHERE transfers.event_group = pairs.refund_group AND transfers.kind ${REFUND_KIND} AND transfers.reverses_group = ''`;
 
 /** Every refund group still carrying an unattributed leg, page by page. */
 const unattributedRefundGroups = async (

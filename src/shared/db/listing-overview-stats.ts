@@ -23,6 +23,7 @@ import {
   refundedForBooking,
 } from "#db/attendees/select.ts";
 import { requireOne } from "#db/client.ts";
+import type { WholeNumberRow } from "#db/query.ts";
 import { type SqlStatement, sql, sqlLiteral } from "#db/sql.ts";
 import { isPaidListing, type Listing } from "#types";
 
@@ -89,14 +90,14 @@ const incompleteRowPredicate = (paid: boolean): SqlStatement => {
   return sql`(${hasSale} AND NOT ${hasPayment} AND NOT ${hasProviderReference} AND ${nothingOwed} AND ${notRefunded(LISTING_ATTENDEE_REFUNDED_ROW)})`;
 };
 
-type OverviewCountsRow = {
-  incomplete_quantity: number | bigint;
-  complete_quantity_sum: number | bigint;
-  tickets_total: number | bigint;
-  rows_total: number | bigint;
-  tickets_checked_in: number | bigint;
-  rows_checked_in: number | bigint;
-};
+type OverviewCountsRow = WholeNumberRow<
+  | "incomplete_quantity"
+  | "complete_quantity_sum"
+  | "tickets_total"
+  | "rows_total"
+  | "tickets_checked_in"
+  | "rows_checked_in"
+>;
 
 /** Σ of the `sale` legs recognised into the listing's revenue account for
  *  bookings that never received a payment — the revenue to exclude from the

@@ -10,6 +10,7 @@ import {
   sqlLiteral,
   sqlName,
   sqlNames,
+  sqlRows,
 } from "#db/sql.ts";
 
 /** The text and the arguments, without the type mark. */
@@ -230,6 +231,30 @@ describe("sqlList", () => {
       args: [],
       sql: "id IN ()",
     });
+  });
+});
+
+describe("sqlRows", () => {
+  test("puts each row in brackets and binds each value", () => {
+    expect(
+      rendered(
+        sql`VALUES ${sqlRows([
+          [1, "a"],
+          [2, "b"],
+        ])}`,
+      ),
+    ).toEqual({ args: [1, "a", 2, "b"], sql: "VALUES (?1, ?2), (?3, ?4)" });
+  });
+
+  test("keeps a statement in a row as it is written", () => {
+    expect(rendered(sqlRows([[7, sql`unixepoch()`]]))).toEqual({
+      args: [7],
+      sql: "(?1, unixepoch())",
+    });
+  });
+
+  test("gives empty text for no rows", () => {
+    expect(rendered(sqlRows([]))).toEqual({ args: [], sql: "" });
   });
 });
 
