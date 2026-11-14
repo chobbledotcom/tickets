@@ -13,12 +13,13 @@ import { adminPath, adminPattern } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ExclusivePair } from "#shared/forms/field.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
+import { statusRecord } from "#shared/records/statuses.ts";
 import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { recordEditPanel } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import {
-  defineAdminResourcePages,
+  defineRecordPages,
   writableNameColumn,
 } from "#templates/admin/resource-pages.tsx";
 import { SettingsCheckbox } from "#templates/admin/settings/settings-checkbox.tsx";
@@ -235,9 +236,7 @@ const deleteChildren = (status: AttendeeStatus): JSX.Element => (
   <p>{t("statuses.delete_confirm", { name: status.name })}</p>
 );
 
-export const statusPages = defineAdminResourcePages<AttendeeStatus>({
-  active: LIST_PATH,
-  basePath: LIST_PATH,
+export const statusPages = defineRecordPages(statusRecord, {
   delete: {
     children: deleteChildren,
     ...DELETE_PAGE_LABELS,

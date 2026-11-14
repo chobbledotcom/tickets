@@ -19,6 +19,7 @@ import {
   UpdateSitePageBodySchema,
 } from "#shared/admin-api-resources.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
+import { markdownSource } from "#shared/markdown-source.ts";
 import { parseApiBody, writeEntityName } from "#shared/rest/crud-parsers.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { isReservedSlug, wouldCreateCycle } from "#shared/site-pages/core.ts";
@@ -56,14 +57,13 @@ const storedText = (
   meta_title: existing?.meta_title ?? "",
 });
 
-/** One writable text field: a value past the field's cap gets the form's own
- *  length refusal. The form reads submitted values trimmed, so the API trims
- *  too. */
+/** One writable text field, cleaned the way the form cleans it. A value past
+ *  the cap of the field gets the length refusal of the form. */
 const cleanedText = (
   value: string,
   key: keyof typeof FIELD_LABELS,
 ): Result<string> => {
-  const text = value.trim();
+  const text = key === "content" ? markdownSource(value) : value.trim();
   const max = CONTENT_FIELD_LIMITS[key];
   return text.length > max ? tooLong(FIELD_LABELS[key](), max) : okResult(text);
 };

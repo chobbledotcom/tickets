@@ -3,27 +3,18 @@
  */
 
 import { decrypt, encrypt } from "#crypto/encryption.ts";
-import { idAndEncryptedNameSchema } from "#db/common-schema.ts";
+import { fieldColumns } from "#db/common-schema.ts";
 import { settings } from "#db/settings.ts";
-import { col, defineCachedListTable } from "#db/table.ts";
+import { defineCachedListTable } from "#db/table.ts";
 import { filter } from "#fp";
+import { HOLIDAY_FIELDS } from "#shared/records/holiday-fields.ts";
+import type { FieldsInput, FieldsRow } from "#shared/rest/field-specs.ts";
 import { todayInTz } from "#shared/timezone.ts";
-import type { DateString } from "#shared/validation/date-string.ts";
 
-export interface Holiday {
-  end_date: string;
-  id: number;
-  name: string;
-  start_date: string;
-}
+export type Holiday = FieldsRow<typeof HOLIDAY_FIELDS>;
 
-/** Holiday input fields for create/update (camelCase). The dates carry the
- *  `DateString` the JSON boundary brands before a write can carry them. */
-export type HolidayInput = {
-  name: string;
-  startDate: DateString;
-  endDate: DateString;
-};
+/** The dates carry the `DateString` a boundary checks before a write. */
+export type HolidayInput = FieldsInput<typeof HOLIDAY_FIELDS>;
 
 /** Cached holidays table: name is encrypted, dates are plaintext. Writes
  * auto-invalidate the cache. */
@@ -31,11 +22,7 @@ export const holidays = defineCachedListTable<Holiday, HolidayInput>({
   name: "holidays",
   orderBy: "start_date ASC",
   primaryKey: "id",
-  schema: {
-    ...idAndEncryptedNameSchema(encrypt, decrypt),
-    end_date: col.simple<string>(),
-    start_date: col.simple<string>(),
-  },
+  schema: fieldColumns(HOLIDAY_FIELDS)(encrypt, decrypt),
 });
 
 /**

@@ -1,7 +1,9 @@
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { listingGroups } from "#db/groups/table.ts";
+import { listingChildren } from "#db/listing-parents.ts";
 import type { GroupInput } from "#shared/catalog-fields/fields.ts";
-import type { Group } from "#types";
+import type { TestListingOverrides } from "#test-utils/factories.ts";
+import type { Group, ListingWithCount } from "#types";
 import { createTestListing } from "./listings.ts";
 import { doAuthenticatedFormRequest } from "./request.ts";
 
@@ -88,6 +90,35 @@ export const createHiddenPackageGroup = async (
   return (await groups.table.update(group.id, {
     hidePackageListings: true,
   })) as Group;
+};
+
+/** A package group with one member listing. */
+export const createPackageWithMember = async (
+  name: string,
+  memberFields: TestListingOverrides = {},
+): Promise<{ group: Group; member: ListingWithCount }> => {
+  const group = await createTestGroup({ isPackage: true, name });
+  const member = await createTestListing({
+    ...memberFields,
+    groupId: group.id,
+  });
+  return { group, member };
+};
+
+/** A group whose one member is the child of a listing outside the group. */
+export const createGroupOfOneChild = async (names: {
+  child: string;
+  group: string;
+  parent: string;
+}): Promise<Group> => {
+  const group = await createTestGroup({ name: names.group });
+  const parent = await createTestListing({ name: names.parent });
+  const child = await createTestListing({
+    groupId: group.id,
+    name: names.child,
+  });
+  await listingChildren.setIds(parent.id, [child.id]);
+  return group;
 };
 
 export const updateTestGroup = async (

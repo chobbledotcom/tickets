@@ -32,8 +32,24 @@ const saveAnInvoice = (): Promise<unknown> =>
     "INSERT INTO invoices (attendee_id, body, created, share_token, share_token_index) VALUES (1, 'enc:1:a', '2026-11-04T09:00:00.000Z', 'hyb:1:a', 'index-a')",
   );
 
-/** One saved record of each kind that puts a feature in use. */
 /* jscpd:ignore-start -- a list of strings, not code */
+/** One ordinary record of each kind, and an update that changes it. */
+const ORDINARY_UPDATES = [
+  [
+    "attendee",
+    "servicing",
+    "INSERT INTO attendees (created, kind) VALUES ('2026-07-15', 'attendee')",
+    "UPDATE attendees SET pii_blob = 'after'",
+  ],
+  [
+    "listing",
+    "logistics",
+    "INSERT INTO listings (created, max_attendees, uses_logistics) VALUES ('2026-07-15', 10, 0)",
+    "UPDATE listings SET uses_logistics = 0",
+  ],
+] as const;
+
+/** One saved record of each kind that puts a feature in use. */
 const USE_RECORDS = [
   [
     "a logistics agent",
@@ -134,27 +150,16 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
     expect((await storedFeatures()).logistics).toBe(false);
   });
 
-  test("updating an ordinary attendee does not enable Servicing", async () => {
-    await storeDisabledFeatures();
-    await execute(
-      "INSERT INTO attendees (created, kind) VALUES ('2026-07-15', 'attendee')",
-    );
+  for (const [what, feature, insert, update] of ORDINARY_UPDATES) {
+    test(`updating an ordinary ${what} does not enable ${feature}`, async () => {
+      await storeDisabledFeatures();
+      await execute(insert);
 
-    await execute("UPDATE attendees SET pii_blob = 'after'");
+      await execute(update);
 
-    expect((await storedFeatures()).servicing).toBe(false);
-  });
-
-  test("updating an ordinary listing does not enable Logistics", async () => {
-    await storeDisabledFeatures();
-    await execute(
-      "INSERT INTO listings (created, max_attendees, uses_logistics) VALUES ('2026-07-15', 10, 0)",
-    );
-
-    await execute("UPDATE listings SET uses_logistics = 0");
-
-    expect((await storedFeatures()).logistics).toBe(false);
-  });
+      expect((await storedFeatures())[feature]).toBe(false);
+    });
+  }
 
   for (const [what, feature, sql] of USE_RECORDS) {
     test(`counts ${what} as ${feature} use`, async () => {

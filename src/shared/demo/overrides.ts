@@ -23,8 +23,6 @@ import {
   randomChoice,
 } from "#shared/demo/samples.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import type { FieldValues } from "#shared/forms/values.ts";
-import type { Resource } from "#shared/rest/resource.ts";
 
 /** Maps form field names to arrays of possible demo values */
 export type DemoFieldMap = Record<string, readonly string[]>;
@@ -121,13 +119,3 @@ export const loadAfterDemoOverrides = async <T>(
   applyDemoOverrides(form, mapping);
   return load();
 };
-
-/** Wrap a named resource so create/update apply demo overrides to the form */
-export const wrapResourceForDemo = <R, I, V extends FieldValues = FieldValues>(
-  resource: Resource<R, I, V>,
-  mapping: DemoFieldMap,
-): Resource<R, I, V> => ({
-  ...resource,
-  create: (form) => resource.create(applyDemoOverrides(form, mapping)),
-  update: (id, form) => resource.update(id, applyDemoOverrides(form, mapping)),
-});

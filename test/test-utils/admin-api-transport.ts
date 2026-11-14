@@ -8,6 +8,7 @@ import { expect } from "@std/expect";
 import {
   AdminApiError,
   type AdminApiResponse,
+  adminApiChildCreate,
 } from "#shared/admin-api-client.ts";
 import { apiRequest } from "./session.ts";
 
@@ -39,4 +40,35 @@ export const expectAdminApiError = async (
   const failure = await call.catch((error: unknown) => error);
   expect(failure).toBeInstanceOf(AdminApiError);
   expect((failure as Error).message).toBe(message);
+};
+
+/** One refused child create: the parent it names, the body, and the client's
+ *  error message. */
+type RefusedCreate = { body: unknown; message: string; parentId: number };
+
+/** Assert a text child create is refused without its text and under an
+ *  unknown parent, plus any `extra` refusals the resource adds. */
+export const expectTextChildCreateRefusals = async <
+  E extends Parameters<typeof adminApiChildCreate>[1],
+>(
+  entry: E,
+  childKey: keyof E["children"] & string,
+  parentId: number,
+  extra: readonly RefusedCreate[] = [],
+): Promise<void> => {
+  const cases: RefusedCreate[] = [
+    { body: {}, message: "text is required (status 400)", parentId },
+    ...extra,
+    {
+      body: { text: "Nope" },
+      message: `${entry.label} not found (status 404)`,
+      parentId: 99999,
+    },
+  ];
+  for (const { body, message, parentId: id } of cases) {
+    await expectAdminApiError(
+      adminApiChildCreate(adminApiTestTransport, entry, childKey, id, body),
+      message,
+    );
+  }
 };

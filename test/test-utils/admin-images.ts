@@ -1,12 +1,17 @@
+import { expect } from "@std/expect";
 import { encrypt } from "#crypto/encryption.ts";
 import { toBase64 } from "#crypto/utils.ts";
 import { execute } from "#db/client.ts";
-import { getImagesForItem, imagesTable, setItemsForImage } from "#db/images.ts";
-import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
+import {
+  getImageById,
+  getImagesForItem,
+  imagesTable,
+  setItemsForImage,
+} from "#db/images.ts";
 import { handleRequest } from "#routes";
 import { nonEmptyString } from "#shared/validation/string.ts";
-import { activityMessages } from "#test-utils/activity-log.ts";
 import { expectApiError } from "#test-utils/assertions.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
 import { mockMultipartRequest, mockRequest } from "#test-utils/mocks.ts";
@@ -22,16 +27,65 @@ export const makeImage = (name: string): Promise<Image> =>
     name,
   });
 
+type ImageWithListingAndGroup = {
+  group: { id: number };
+  image: Image;
+  listing: { id: number };
+};
+
+/** A stored image, one listing and one group. The image is on neither item. */
+export const imageBesideListingAndGroup = async (
+  imageName: string,
+  listingName: string,
+  groupName: string,
+): Promise<ImageWithListingAndGroup> => {
+  const image = await makeImage(imageName);
+  const listing = await createTestListing({ name: listingName });
+  const group = await createTestGroup({ name: groupName });
+  return { group, image, listing };
+};
+
+/** A stored image shown on one listing and one group. */
+export const imageOnListingAndGroup = async (
+  imageName: string,
+  listingName: string,
+  groupName: string,
+): Promise<ImageWithListingAndGroup> => {
+  const { group, image, listing } = await imageBesideListingAndGroup(
+    imageName,
+    listingName,
+    groupName,
+  );
+  await setItemsForImage(image.id, [
+    { id: listing.id, kind: "listing" },
+    { id: group.id, kind: "group" },
+  ]);
+  return { group, image, listing };
+};
+
+/** A stored image shown on the one item `makeItem` creates. Returns the image
+ *  and the item's id. */
+const imageOnItem = async (
+  imageName: string,
+  kind: "listing" | "page",
+  makeItem: () => Promise<{ id: number }>,
+): Promise<{ image: Image; itemId: number }> => {
+  const image = await makeImage(imageName);
+  const { id } = await makeItem();
+  await setItemsForImage(image.id, [{ id, kind }]);
+  return { image, itemId: id };
+};
+
 /** A stored image shown on one listing. Returns the image and the listing's
  *  id, which the tests read back through. */
 export const imageOnListing = async (
   imageName: string,
   listingName = "Summer",
 ): Promise<{ image: Image; listingId: number }> => {
-  const image = await makeImage(imageName);
-  const listing = await createTestListing({ name: listingName });
-  await setItemsForImage(image.id, [{ id: listing.id, kind: "listing" }]);
-  return { image, listingId: listing.id };
+  const { image, itemId } = await imageOnItem(imageName, "listing", () =>
+    createTestListing({ name: listingName }),
+  );
+  return { image, listingId: itemId };
 };
 
 /** A stored image shown on one site page. */
@@ -39,12 +93,12 @@ export const imageOnPage = async (
   imageName: string,
   slug: string,
   pageName: string,
-): Promise<Image> => {
-  const image = await makeImage(imageName);
-  const page = await createTestSitePage(slug, { name: pageName });
-  await setItemsForImage(image.id, [{ id: page.id, kind: "page" }]);
-  return image;
-};
+): Promise<Image> =>
+  (
+    await imageOnItem(imageName, "page", () =>
+      createTestSitePage(slug, { name: pageName }),
+    )
+  ).image;
 
 /** Store an image row whose filename is an encrypted empty string — the broken
  * shape the first-class images migration copied from a legacy listing whose
@@ -135,10 +189,39 @@ export const putImage = imageWrite("PUT");
 /** DELETE one image's JSON route as an owner API key. */
 export const deleteImage = imageWrite("DELETE");
 
+/** Assert the admin API refuses an unauthenticated request. */
+export const expectUnauthorized = async (
+  request: Promise<Response>,
+): Promise<void> => {
+  expect((await request).status).toBe(401);
+};
+
 /** Assert the image library answers its 404 for this request. */
 export const expectImageNotFound = (
   request: Promise<Response>,
 ): Promise<unknown> => expectApiError(request, 404, "Image not found");
+
+/** Assert one image delete's answer: its status and error text. The
+ *  confirmation defaults to the image's own name. */
+export const expectImageDeleteError = (
+  image: Pick<Image, "id" | "name">,
+  status: number,
+  message: string,
+  confirmIdentifier: string = image.name,
+): Promise<unknown> =>
+  expectApiError(
+    deleteImage(image.id, { confirm_identifier: confirmIdentifier }),
+    status,
+    message,
+  );
+
+/** Assert the stored image still carries `name`. */
+export const expectImageName = async (
+  id: number,
+  name: string,
+): Promise<void> => {
+  expect((await getImageById(id))?.name).toBe(name);
+};
 
 /** One image row as the JSON API answers with it. */
 export type ApiImageRow = {
@@ -161,11 +244,3 @@ export const imageUploadBody = async (
   name,
   ...overrides,
 });
-
-/** The activity log's messages. A library write bumps the settings version,
- *  which leaves the snapshot at its defaults until it reloads, and the log's
- *  decryption needs the wrapped private key the snapshot holds. */
-export const loggedMessages = async (): Promise<string[]> => {
-  await settings.loadKeys(ALL_SETTINGS_KEYS);
-  return activityMessages();
-};

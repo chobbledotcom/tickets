@@ -7,7 +7,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ADMIN_AREAS } from "#shared/admin-surface/areas.ts";
-import { ADMIN_SURFACE, adminDestination } from "#shared/admin-surface.ts";
+import type { AdminPatternFor } from "#shared/admin-surface/ids.ts";
+import {
+  ADMIN_SURFACE,
+  adminDestination,
+  adminPattern,
+  recordAreaIds,
+  recordAreaPatterns,
+} from "#shared/admin-surface.ts";
 import { ALL_ADMIN_LEVELS } from "#types";
 
 const routes = Object.values(ADMIN_SURFACE.destinations);
@@ -85,5 +92,75 @@ describe("the admin areas table", () => {
     });
 
     expect(stranded).toEqual([]);
+  });
+});
+
+describe("the derived record area writes", () => {
+  test("declare each derived write under the path its helper builds", () => {
+    const expected = {
+      answerAdd: "/admin/questions/:id/answers",
+      answerDelete: "/admin/questions/:id/answers/:answerId/delete",
+      attributeOptionEdit: "/admin/attributes/:id/options/:optionId/edit",
+      attributeOptionMoveUp: "/admin/attributes/:id/options/:optionId/move-up",
+      groupImagesUpload: "/admin/groups/:id/images/upload",
+      newsActions: "/admin/site/news/:id/actions",
+      sitePageImages: "/admin/site/pages/:id/images",
+      statusMoveDown: "/admin/settings/statuses/:id/move-down",
+    } as const;
+    type Id = keyof typeof expected;
+    const ids = Object.keys(expected) as Id[];
+    // The annotation checks the literal types the helpers derive.
+    const declared: { readonly [K in Id]: AdminPatternFor<K> } = expected;
+    expect(ids.map((id) => adminPattern(id))).toEqual(Object.values(declared));
+  });
+
+  test("give each record area the ids and paths of its five routes", () => {
+    expect(recordAreaIds("settingsLogistics")).toEqual({
+      detail: "logisticsAgent",
+      list: "logistics",
+      newPage: true,
+      remove: "logisticsDelete",
+    });
+    const patterns: {
+      readonly detail: "/admin/site/news/:id";
+      readonly list: "/admin/site/news";
+    } = recordAreaPatterns("news");
+    expect(patterns).toEqual({
+      detail: "/admin/site/news/:id",
+      list: "/admin/site/news",
+    });
+  });
+
+  test("leave out each page a record area says its record lacks", () => {
+    const { images, invoices, users } = ADMIN_AREAS;
+    // Images have no record page, so no record can name the area.
+    expect("record" in images).toBe(false);
+    expect(images.view).toEqual({
+      imageOptions: "/admin/images/options",
+      images: "/admin/images",
+    });
+    expect(images.write).toEqual({
+      imageDelete: { pattern: "/admin/images/:id/delete" },
+      imageEdit: "/admin/images/:id/edit",
+      imageNew: "/admin/images/new",
+    });
+    // No form edits an invoice or a user.
+    expect(invoices.write).toEqual({
+      invoiceCancel: "/admin/invoices/:id/cancel",
+      invoiceDelete: { pattern: "/admin/invoices/:id/delete" },
+      invoiceNew: "/admin/invoices/new",
+      invoicePreview: "/admin/invoices/preview",
+    });
+    expect(users.write).toEqual({
+      userAgents: "/admin/users/:id/agents",
+      userDelete: { pattern: "/admin/users/:id/delete" },
+      userNew: "/admin/users/new",
+    });
+    expect(recordAreaIds("users")).toEqual({
+      detail: "user",
+      list: "users",
+      newPage: true,
+      remove: "userDelete",
+    });
   });
 });

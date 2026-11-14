@@ -19,37 +19,28 @@ import {
   type TxScope,
   withTransaction,
 } from "#db/client.ts";
-import type { NamedSortOrderInput } from "#db/common-schema.ts";
+import { fieldColumns, type NamedSortOrderInput } from "#db/common-schema.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
 import { col, defineCachedListTable, writeTableRow } from "#db/table.ts";
 import { requiredMapValue } from "#fp";
 import { t } from "#i18n";
+import { STATUS_FIELDS } from "#shared/records/status-fields.ts";
 import { requireValue } from "#shared/required-value.ts";
+import type { FieldsInput, FieldsRow } from "#shared/rest/field-specs.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 
 /** Name of the status seeded on first run so there is always at least one. */
 export const DEFAULT_ATTENDEE_STATUS_NAME = "Confirmed";
 
-/** A status an attendee can be in. */
-export interface AttendeeStatus {
-  id: number;
-  is_paid_default: boolean;
-  is_public_default: boolean;
-  is_reservation: boolean;
-  name: string; // encrypted at rest
-  reservation_amount: string;
+/** A status an attendee can be in: its declared fields and its place in
+ *  the list. */
+export type AttendeeStatus = FieldsRow<typeof STATUS_FIELDS> & {
   sort_order: number;
-}
+};
 
 /** Complete owner form input for creating or editing a status. */
-export interface AttendeeStatusWriteInput {
-  isPaidDefault: boolean;
-  isPublicDefault: boolean;
-  isReservation: boolean;
-  name: string;
-  reservationAmount: string;
-}
+export type AttendeeStatusWriteInput = FieldsInput<typeof STATUS_FIELDS>;
 
 export type AttendeeStatusSaveError =
   | "public_default_required"
@@ -144,12 +135,7 @@ export const attendeeStatuses = defineCachedListTable<
   orderBy: "sort_order ASC, id ASC",
   primaryKey: "id",
   schema: {
-    id: col.generated<number>(),
-    is_paid_default: col.boolean(false),
-    is_public_default: col.boolean(false),
-    is_reservation: col.boolean(false),
-    name: col.encrypted(encrypt, decrypt),
-    reservation_amount: col.simple<string>(),
+    ...fieldColumns(STATUS_FIELDS)(encrypt, decrypt),
     sort_order: col.simple<number>(),
   },
 });

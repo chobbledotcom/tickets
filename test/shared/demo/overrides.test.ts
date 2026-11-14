@@ -7,18 +7,13 @@
 import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
-import { holidays } from "#db/holidays.ts";
-import { validateDateRange } from "#routes/admin/holidays.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import {
   applyDemoOverrides,
+  LOGISTICS_DEMO_FIELDS,
   loadAfterDemoOverrides,
-  wrapResourceForDemo,
 } from "#shared/demo/overrides.ts";
 import { FormParams } from "#shared/form-data.ts";
-import { defineResource } from "#shared/rest/resource.ts";
-import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
-import { getHolidayForm } from "#templates/fields/admin.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("demo overrides", { db: true }, () => {
@@ -87,6 +82,15 @@ describeWithEnv("demo overrides", { db: true }, () => {
     expect(seen).toEqual(["Demo"]);
   });
 
+  test("the Logistics tab clears the pinned latitude and longitude", () => {
+    setDemoModeForTest(true);
+    const form = formWith({ lat: "51.5072", lng: "-0.1276" });
+
+    applyDemoOverrides(form, LOGISTICS_DEMO_FIELDS);
+
+    expect([form.get("lat"), form.get("lng")]).toEqual(["", ""]);
+  });
+
   test("hands the loader's empty answer through", async () => {
     setDemoModeForTest(true);
 
@@ -95,55 +99,5 @@ describeWithEnv("demo overrides", { db: true }, () => {
     );
 
     expect(loaded).toBeNull();
-  });
-
-  test("wraps a resource so create and update see the samples", async () => {
-    setDemoModeForTest(true);
-    const wrapped = wrapResourceForDemo(
-      defineResource({
-        form: getHolidayForm(),
-        table: holidays.table,
-        toInput: (values) => ({
-          endDate: parseDateStringOrThrow(
-            values.end_date,
-            "the demo override's end date",
-          ),
-          name: values.name,
-          startDate: parseDateStringOrThrow(
-            values.start_date,
-            "the demo override's start date",
-          ),
-        }),
-        validate: validateDateRange,
-      }),
-      { name: ["Demo Holiday"] },
-    );
-
-    const created = await wrapped.create(
-      formWith({
-        end_date: "2027-01-02",
-        name: "Real",
-        start_date: "2027-01-01",
-      }),
-    );
-    expect(created.ok).toBe(true);
-    if (!created.ok) return;
-    expect(created.row.name).toBe("Demo Holiday");
-
-    const updated = await wrapped.update(
-      created.row.id,
-      formWith({
-        end_date: "2027-01-02",
-        name: "Real",
-        start_date: "2027-01-01",
-      }),
-    );
-    expect(updated.ok).toBe(true);
-    if (!updated.ok) return;
-    expect(updated.row.id).toBe(created.row.id);
-    expect(updated.row.name).toBe("Demo Holiday");
-
-    const loaded = await wrapped.loadOrNull(created.row.id);
-    expect(loaded?.name).toBe("Demo Holiday");
   });
 });

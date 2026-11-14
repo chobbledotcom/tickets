@@ -22,7 +22,7 @@ import type {
   ExternalSourceLink,
 } from "#db/external-sources/types.ts";
 import { deleteListing } from "#db/listings/delete.ts";
-import { deleteGroup } from "#routes/admin/groups.ts";
+import { deleteGroup } from "#shared/records/groups.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
