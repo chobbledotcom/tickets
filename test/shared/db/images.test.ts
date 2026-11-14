@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { executeBatch, queryAll } from "#db/client.ts";
@@ -21,7 +21,6 @@ import {
   setImagesForItem,
   setItemsForImage,
 } from "#db/images.ts";
-import { getListingWithCount } from "#db/listings/records.ts";
 import { sql } from "#db/sql.ts";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
 import {
@@ -30,10 +29,18 @@ import {
 } from "#shared/request-context.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import { insertBrokenImage } from "#test-utils/admin-images.ts";
+import { expectEncryptedAtRest } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import {
+  addProjectedImage,
+  expectImageFields,
+  insertBrokenImageWithGoodThumb,
+  projectionCases,
+} from "#test-utils/image-projections.ts";
+import { expectQueryRows } from "#test-utils/query-rows.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import type { Image } from "#types";
 
@@ -64,10 +71,61 @@ const linkedImageIds = async (
 ): Promise<number[]> =>
   (await getImagesForItem(itemType, itemId)).map((image) => image.id);
 
-/** A broken image row with a working thumbnail, so tests can see that only
- * the unreadable column falls back to the marker. */
-const insertBrokenImageWithGoodThumb = (): Promise<number> =>
-  insertBrokenImage({ thumbFilename: "broken-thumb.webp" });
+/** Two new stored images, named in creation order. */
+const createImagePair = async (name: string) => {
+  const first = await makeImage(`${name} first`);
+  const second = await makeImage(`${name} second`);
+  return { first, second };
+};
+
+/** One stored listing, one stored group and one stored image that neither item
+ * holds yet. */
+const linkedItemSet = async (name: string) => {
+  const listing = await createTestListing({ name: `${name} listing` });
+  const group = await createTestGroup({ name: `${name} group` });
+  const image = await makeImage(name);
+  return { group, image, listing };
+};
+
+/** A listing that holds `linked` and no other image, plus a `spare` image on
+ * no item. */
+const listingWithSpareImage = async (name: string) => {
+  const listing = await createTestListing({ name: `${name} listing` });
+  const { first: linked, second: spare } = await createImagePair(name);
+  await setImagesForItem("listing", listing.id, [linked.id]);
+  return { linked, listing, spare };
+};
+
+/** A stored image whose filename or thumbnail decrypts empty falls back to the
+ * marker and reports the column it could not read. */
+const brokenImageCases: readonly {
+  expected: { filename: string; filename_thumb: string; name: string };
+  insertImage: () => Promise<number>;
+  report: (id: number) => string;
+  title: string;
+}[] = [
+  {
+    expected: {
+      filename: BROKEN_IMAGE_FILENAME,
+      filename_thumb: "broken-thumb.webp",
+      name: "Broken",
+    },
+    insertImage: insertBrokenImageWithGoodThumb,
+    report: (id) => `image ${id} filename decrypted to an empty value`,
+    title: "swaps in the broken-image marker when a filename decrypts empty",
+  },
+  {
+    expected: {
+      filename: BROKEN_IMAGE_FILENAME,
+      filename_thumb: BROKEN_IMAGE_FILENAME,
+      name: "Broken",
+    },
+    insertImage: insertBrokenImage,
+    report: (id) =>
+      `image ${id} thumbnail filename decrypted to an empty value`,
+    title: "names a broken thumbnail in its report",
+  },
+];
 
 describeWithEnv("db > images", { db: true }, () => {
   const errors = setupErrorSpy();
@@ -88,10 +146,12 @@ describeWithEnv("db > images", { db: true }, () => {
       }>(
         sql`SELECT name, filename, filename_thumb, alt_text FROM images WHERE id = ${image.id}`,
       );
-      expect(raw?.name.startsWith("enc:")).toBe(true);
-      expect(raw?.filename.startsWith("enc:")).toBe(true);
-      expect(raw?.filename_thumb.startsWith("enc:")).toBe(true);
-      expect(raw?.alt_text.startsWith("enc:")).toBe(true);
+      expectEncryptedAtRest(
+        raw?.name,
+        raw?.filename,
+        raw?.filename_thumb,
+        raw?.alt_text,
+      );
       assert(!raw!.name.includes("Hero"));
 
       expect(await getImageById(image.id)).toEqual(image);
@@ -99,64 +159,41 @@ describeWithEnv("db > images", { db: true }, () => {
       expect(await getImageById(9999)).toBeNull();
     });
 
-    test("swaps in the broken-image marker when a filename decrypts empty", async () => {
-      const id = await insertBrokenImageWithGoodThumb();
+    for (const brokenImage of brokenImageCases) {
+      test(brokenImage.title, async () => {
+        const id = await brokenImage.insertImage();
 
-      const images = await getAllImages();
-      expect(images.map((image) => image.id)).toEqual([id]);
-      expect(images[0]?.filename).toBe(BROKEN_IMAGE_FILENAME);
-      expect(images[0]?.filename_thumb).toBe("broken-thumb.webp");
-      expect(images[0]?.name).toBe("Broken");
-      assertStringIncludes(errors.lastMessage() ?? "", "E_IMAGE_BROKEN");
-      assertStringIncludes(
-        errors.lastMessage() ?? "",
-        `image ${id} filename decrypted to an empty value`,
-      );
-    });
-
-    test("names a broken thumbnail in its report", async () => {
-      const id = await insertBrokenImage();
-
-      await getAllImages();
-
-      expect(
-        errors.contains(
-          `image ${id} thumbnail filename decrypted to an empty value`,
-        ),
-      ).toBe(true);
-    });
-
-    test("projects the broken-image marker for an item's first image", async () => {
-      const listing = await createTestListing({ name: "Broken poster" });
-      const id = await insertBrokenImageWithGoodThumb();
-      await setImagesForItem("listing", listing.id, [id]);
-
-      expect(await getImageFilenamesForItem("listing", listing.id)).toEqual({
-        image_alt_text: "",
-        image_thumb_url: "broken-thumb.webp",
-        image_url: BROKEN_IMAGE_FILENAME,
+        const images = await getAllImages();
+        expect(images.map((image) => image.id)).toEqual([id]);
+        expect(images[0]).toMatchObject(brokenImage.expected);
+        expect(errors.contains("E_IMAGE_BROKEN")).toBe(true);
+        expect(errors.contains(brokenImage.report(id))).toBe(true);
       });
-      assertStringIncludes(
-        errors.lastMessage() ?? "",
-        `image ${id} (first image of listing ${listing.id}) filename decrypted to an empty value`,
-      );
-    });
-
-    test("projects the broken-image marker through listing reads", async () => {
-      const listing = await createTestListing({ name: "Broken projection" });
-      const id = await insertBrokenImageWithGoodThumb();
-      await setImagesForItem("listing", listing.id, [id]);
-
-      expect(await getListingWithCount(listing.id)).toMatchObject({
-        image_alt_text: "",
-        image_thumb_url: "broken-thumb.webp",
-        image_url: BROKEN_IMAGE_FILENAME,
-      });
-      expect(errors.contains(`listing ${listing.id} image`)).toBe(true);
-    });
+    }
   });
 
   describe("item links", () => {
+    for (const projection of projectionCases) {
+      test(projection.title, async () => {
+        const listing = await createTestListing({ name: projection.title });
+        const imageId = projection.broken
+          ? await insertBrokenImageWithGoodThumb()
+          : await addProjectedImage(projection.title, projection.expected);
+        await setImagesForItem("listing", listing.id, [imageId]);
+
+        expectImageFields(
+          await projection.read(listing.id),
+          projection.expected,
+        );
+        const report = projection.report;
+        if (report) {
+          expect(
+            errors.contains(report({ imageId, listingId: listing.id })),
+          ).toBe(true);
+        }
+      });
+    }
+
     test("uses the declared table for page and news targets", () => {
       const statement = sql`${imageUseTargets.existsSql("news", 7)} AND ${imageUseTargets.existsSql("page", 8)}`;
       expect(statement.sql).toBe(
@@ -176,8 +213,7 @@ describeWithEnv("db > images", { db: true }, () => {
 
     test("sets one item's ordered images through the collection path", async () => {
       const listing = await createTestListing({ name: "Poster listing" });
-      const first = await makeImage("First");
-      const second = await makeImage("Second");
+      const { first, second } = await createImagePair("Poster");
 
       await setImagesForItem("listing", listing.id, [
         second.id,
@@ -200,10 +236,11 @@ describeWithEnv("db > images", { db: true }, () => {
     });
 
     test("appends one image link at the next item sort order", async () => {
-      const listing = await createTestListing({ name: "Append listing" });
-      const existing = await makeImage("Existing");
-      const uploaded = await makeImage("Uploaded");
-      await setImagesForItem("listing", listing.id, [existing.id]);
+      const {
+        linked: existing,
+        listing,
+        spare: uploaded,
+      } = await listingWithSpareImage("Append");
 
       await appendImageToItem(uploaded.id, {
         id: listing.id,
@@ -218,56 +255,21 @@ describeWithEnv("db > images", { db: true }, () => {
         existing.id,
         uploaded.id,
       ]);
-      expect(
-        await queryAll<{ image_id: number; sort_order: number }>(
-          sql`SELECT image_id, sort_order
+      await expectQueryRows<{ image_id: number; sort_order: number }>(
+        sql`SELECT image_id, sort_order
              FROM image_uses
             WHERE item_type = ${"listing"} AND item_id = ${listing.id}
             ORDER BY sort_order ASC, image_id ASC`,
-        ),
-      ).toEqual([
-        { image_id: existing.id, sort_order: 0 },
-        { image_id: uploaded.id, sort_order: 1 },
-      ]);
-    });
-
-    test("projects the primary image filenames and alt text for an item", async () => {
-      const listing = await createTestListing({ name: "Alt listing" });
-      const image = await makeImage("Primary", {
-        altText: "Primary image alt",
-        filename: "primary.webp",
-        filenameThumb: "primary-thumb.webp",
-      });
-      await setImagesForItem("listing", listing.id, [image.id]);
-
-      expect(await getImageFilenamesForItem("listing", listing.id)).toEqual({
-        image_alt_text: "Primary image alt",
-        image_thumb_url: "primary-thumb.webp",
-        image_url: "primary.webp",
-      });
-    });
-
-    test("projects listing images through listing reads", async () => {
-      const listing = await createTestListing({ name: "Projected listing" });
-      const image = await makeImage("Projected", {
-        altText: "Projected image alt",
-        filename: "projected.webp",
-        filenameThumb: "projected-thumb.webp",
-      });
-      await setImagesForItem("listing", listing.id, [image.id]);
-
-      expect(await getListingWithCount(listing.id)).toMatchObject({
-        image_alt_text: "Projected image alt",
-        image_thumb_url: "projected-thumb.webp",
-        image_url: "projected.webp",
-      });
+        [
+          { image_id: existing.id, sort_order: 0 },
+          { image_id: uploaded.id, sort_order: 1 },
+        ],
+      );
     });
 
     test("sets all item links for one image and appends to existing item order", async () => {
-      const listing = await createTestListing({ name: "Linked listing" });
-      const group = await createTestGroup({ name: "Linked group" });
+      const { group, image, listing } = await linkedItemSet("Linked");
       const existing = await makeImage("Existing");
-      const image = await makeImage("Reusable");
       await setImagesForItem("listing", listing.id, [existing.id]);
 
       await setItemsForImage(image.id, [
@@ -282,15 +284,14 @@ describeWithEnv("db > images", { db: true }, () => {
         image.id,
       ]);
       expect(await linkedImageIds("group", group.id)).toEqual([image.id]);
-      expect(
-        await queryAll<{ item_id: number; item_type: string }>(
-          sql`SELECT item_type, item_id FROM image_uses
+      await expectQueryRows<{ item_id: number; item_type: string }>(
+        sql`SELECT item_type, item_id FROM image_uses
             WHERE image_id = ${image.id} ORDER BY item_type, item_id`,
-        ),
-      ).toEqual([
-        { item_id: group.id, item_type: "group" },
-        { item_id: listing.id, item_type: "listing" },
-      ]);
+        [
+          { item_id: group.id, item_type: "group" },
+          { item_id: listing.id, item_type: "listing" },
+        ],
+      );
       expect(await getImageUsesForImage(image.id)).toEqual([
         {
           image_id: image.id,
@@ -329,9 +330,7 @@ describeWithEnv("db > images", { db: true }, () => {
     });
 
     test("clears every link for an image when saving no item links", async () => {
-      const listing = await createTestListing({ name: "Unlinked listing" });
-      const group = await createTestGroup({ name: "Unlinked group" });
-      const image = await makeImage("Unlinked");
+      const { group, image, listing } = await linkedItemSet("Unlinked");
       await setItemsForImage(image.id, [
         { id: listing.id, kind: "listing" },
         { id: group.id, kind: "group" },

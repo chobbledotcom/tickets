@@ -258,19 +258,13 @@ describeWithEnv("backup", { db: true }, () => {
       await createTestListing({ name: "Before Restore" });
       const dump = await exportInSnapshot("listings");
       await restoreFromSql(dump);
-      const listings = await queryAll<Record<string, unknown>>(
-        sql`SELECT * FROM listings`,
-      );
-      expect(listings.length).toBe(1);
+      expect(await storedListingNames()).toEqual(["Before Restore"]);
     });
 
     test("clears existing data before restoring", async () => {
       await createTestListing({ name: "Gone" });
       await restoreFromSql("");
-      const listings = await queryAll<Record<string, unknown>>(
-        sql`SELECT * FROM listings`,
-      );
-      expect(listings.length).toBe(0);
+      expect(await storedListingNames()).toEqual([]);
     });
 
     test("initDb re-checks markers after a restore instead of trusting the ready cache", async () => {

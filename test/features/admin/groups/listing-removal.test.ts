@@ -3,11 +3,9 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { queryAll } from "#db/client.ts";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { getListingsByGroupId, setGroupPackageMembers } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
-import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import {
@@ -16,6 +14,7 @@ import {
   expectIncludesAll,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { groupOverrideRows } from "#test-utils/db-helpers/group-prices.ts";
 import {
   createTestGroup,
   listingGroupIdsOf,
@@ -44,11 +43,6 @@ const confirmRemoval = async (
     ),
   );
 };
-
-const flatOverrideRows = (listingId: number, groupId: number) =>
-  queryAll<{ unit_price: number }>(
-    sql`SELECT unit_price FROM listing_prices WHERE listing_id = ${listingId} AND price_type = 'group' AND price_id = ${String(groupId)}`,
-  );
 
 describeWithEnv("admin group listing removal", { db: true }, () => {
   test("the confirmation page lists the chosen members and their stakes", async () => {
@@ -155,7 +149,7 @@ describeWithEnv("admin group listing removal", { db: true }, () => {
 
     expectFlash(response, "Listings removed from group", true);
     expect(await listingGroupIdsOf(listing.id)).toEqual([]);
-    expect(await flatOverrideRows(listing.id, group.id)).toEqual([]);
+    expect(await groupOverrideRows(listing.id, group.id)).toEqual([]);
   });
 
   test("the removed listing is offered by the add form again", async () => {

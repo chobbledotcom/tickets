@@ -11,7 +11,7 @@ import { it as test } from "@std/testing/bdd";
 import { claimOutstandingNotificationFlags } from "#db/attendees/notification-flags.ts";
 import { execute } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
-import { sql, sqlLiteral } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
 import { t } from "#i18n";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -248,6 +248,41 @@ describeWithEnv(
       });
     });
 
+    /** Run the press with the activity write refused and each more trigger
+     * installed, check the flags its failure left, then drop every trigger so
+     * a later press can recover. Activity messages are encrypted at insert,
+     * so the trigger reads no words; the booking's own lines are already
+     * written, so any new line is the press's. */
+    const expectPressWithRefusedActivity = async (
+      attendeeId: number,
+      name: string,
+      expectedFlags: { email: number; webhooks: number },
+      moreTriggers: Readonly<Record<string, SqlStatement>> = {},
+    ): Promise<void> => {
+      const triggers: Record<string, SqlStatement> = {
+        reject_resend_activity: sql`CREATE TRIGGER reject_resend_activity BEFORE INSERT ON activity_log
+       WHEN NEW.attendee_id = ${sqlLiteral(attendeeId)}
+       BEGIN
+         SELECT RAISE(ABORT, 'activity rejected');
+       END`,
+        ...moreTriggers,
+      };
+      try {
+        for (const create of Object.values(triggers)) await execute(create);
+        // The refused activity write surfaces as the press's own rejection.
+        await expect(resend(attendeeId, name, "both")).rejects.toThrow(
+          "activity rejected",
+        );
+        expect(await readPendingNotificationFlags(attendeeId)).toEqual(
+          expectedFlags,
+        );
+      } finally {
+        for (const triggerName of Object.keys(triggers)) {
+          await execute(sql`DROP TRIGGER IF EXISTS ${sqlName(triggerName)}`);
+        }
+      }
+    };
+
     test("a failed activity write releases the claimed flags", async () => {
       // The activity line lands before the delivery queues. When its write is
       // refused, the catch releases the lease, so both captured values go
@@ -259,28 +294,15 @@ describeWithEnv(
         1,
       );
       await addWebhook(listing.id);
-      // Activity messages are encrypted at insert, so the trigger cannot read
-      // the words. The booking's own lines are already written, so any new
-      // line for this attendee is the resend's.
-      await execute(
-        sql`CREATE TRIGGER reject_resend_activity BEFORE INSERT ON activity_log
-       WHEN NEW.attendee_id = ${sqlLiteral(attendee.id)}
-       BEGIN
-         SELECT RAISE(ABORT, 'activity rejected');
-       END`,
-      );
-      try {
-        // The refused activity write surfaces as the press's own rejection.
-        await expect(
-          resend(attendee.id, "Activity Fault Buyer", "both"),
-        ).rejects.toThrow("activity rejected");
-        expect(await readPendingNotificationFlags(attendee.id)).toEqual({
+
+      await expectPressWithRefusedActivity(
+        attendee.id,
+        "Activity Fault Buyer",
+        {
           email: 2,
           webhooks: 1,
-        });
-      } finally {
-        await execute(sql`DROP TRIGGER IF EXISTS reject_resend_activity`);
-      }
+        },
+      );
 
       const second = await resend(attendee.id, "Activity Fault Buyer", "both");
       expectRedirectWithFlash(
@@ -296,9 +318,8 @@ describeWithEnv(
     test("a failed restore keeps the original failure and the lease", async () => {
       // The restore is a best-effort bookkeeping write. When the database
       // refuses it too, the press still fails with the original error — not
-      // the restore's — and the lease stays held: the flags read zero while
-      // the logged incident says a restore failed, for the operator to
-      // repair.
+      // the restore's — and the lease stays held: the claim's zeros stand,
+      // for the operator to repair.
       await configureTestEmail();
       const { attendee, listing } = await bookTestAttendeeWithFlags(
         "Restore Fault Buyer",
@@ -306,38 +327,21 @@ describeWithEnv(
         1,
       );
       await addWebhook(listing.id);
-      await execute(
-        sql`CREATE TRIGGER reject_resend_activity BEFORE INSERT ON activity_log
-       WHEN NEW.attendee_id = ${sqlLiteral(attendee.id)}
-       BEGIN
-         SELECT RAISE(ABORT, 'activity rejected');
-       END`,
-      );
-      await execute(
-        sql`CREATE TRIGGER reject_flag_restore BEFORE UPDATE ON attendees
+
+      await expectPressWithRefusedActivity(
+        attendee.id,
+        "Restore Fault Buyer",
+        { email: 0, webhooks: 0 },
+        {
+          reject_flag_restore: sql`CREATE TRIGGER reject_flag_restore BEFORE UPDATE ON attendees
        WHEN NEW.id = ${sqlLiteral(attendee.id)}
          AND (NEW.email_pending > OLD.email_pending
            OR NEW.webhooks_pending > OLD.webhooks_pending)
        BEGIN
          SELECT RAISE(ABORT, 'restore rejected');
        END`,
+        },
       );
-      try {
-        // The refused activity write surfaces as the press's own rejection,
-        // not the restore's.
-        await expect(
-          resend(attendee.id, "Restore Fault Buyer", "both"),
-        ).rejects.toThrow("activity rejected");
-        // The lease is still held: the claim's zeros stand because the
-        // restore could not land.
-        expect(await readPendingNotificationFlags(attendee.id)).toEqual({
-          email: 0,
-          webhooks: 0,
-        });
-      } finally {
-        await execute(sql`DROP TRIGGER IF EXISTS reject_resend_activity`);
-        await execute(sql`DROP TRIGGER IF EXISTS reject_flag_restore`);
-      }
     });
 
     test("an unknown provider preserves an email-only recovery's flag", async () => {

@@ -136,9 +136,13 @@ describe("attendeeColumns", () => {
         attendeeColumns("inner", [field], "attendee").sql.match(/\(SELECT/g) ??
         []
       ).length;
-    expect(subqueries("price_paid")).toBe(8);
-    expect(subqueries("refunded")).toBe(11);
-    expect(subqueries("remaining_balance")).toBe(1);
+    for (const [field, count] of [
+      ["price_paid", 8],
+      ["refunded", 11],
+      ["remaining_balance", 1],
+    ] as const) {
+      expect(subqueries(field)).toBe(count);
+    }
   });
 
   test("the cheap fields add no subquery at all", () => {

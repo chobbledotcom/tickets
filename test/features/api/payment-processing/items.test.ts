@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { setGroupPackageMembers } from "#db/groups.ts";
-import { sql } from "#db/sql.ts";
 import { withMessageGroups } from "#i18n";
 import { validateAllItems as validateSnapshotItems } from "#routes/api/payment-processing/items.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
@@ -13,6 +12,7 @@ import {
   createHiddenPackageGroup,
   createTestGroup,
 } from "#test-utils/db-helpers/groups.ts";
+import { createListingWithStoredQuantities } from "#test-utils/db-helpers/listing-quantities.ts";
 import {
   createTestListing,
   deactivateTestListing,
@@ -20,7 +20,10 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
-import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
+import {
+  type StripeRefundStub,
+  stubRefundPayment,
+} from "#test-utils/webhooks/stripe.ts";
 import { bookingIntent, paymentSession } from "./index/helpers.ts";
 import {
   listingPair,
@@ -47,6 +50,57 @@ const failureResult = (
   }
   return result;
 };
+
+/** Assert that the webhook refused the payment, named the reason, and refunded
+ *  the captured amount. */
+const expectRefunded = (
+  result: ValidationResult,
+  refund: StripeRefundStub,
+  expected: { error: string; paymentIntentId: string; total: number },
+): void => {
+  expect(failureResult(result)).toEqual({
+    detail: undefined,
+    error: expected.error,
+    refunded: true,
+    status: 410,
+    success: false,
+  });
+  expect(refund.calls[0]?.args).toEqual([
+    stripeRefundRequestShape(expected.paymentIntentId, expected.total),
+  ]);
+};
+
+/** A buyer's checkout against a listing whose stored bound moved after the
+ *  checkout opened. The webhook re-reads the stored fact and refunds instead of
+ *  booking a quantity the listing now refuses. */
+const movedBoundCases = [
+  {
+    // The buyer opened the checkout at one ticket; the owner then raised the
+    // stored minimum to three. The webhook is the last minimum check.
+    error: "Sorry, Raised floor sells at least 3 tickets per booking.",
+    listingName: "Raised floor",
+    quantity: 1,
+    refundId: "re_items_minimum",
+    sessionId: "cs_items_minimum",
+    stored: { minQuantity: 3 },
+    testName:
+      "refunds a paid checkout whose listing minimum rose above its quantity",
+    total: 500,
+  },
+  {
+    // The buyer opened the checkout at two tickets; the owner then lowered the
+    // stored maximum to one.
+    error: "Sorry, Lowered ceiling sells at most 1 ticket per booking.",
+    listingName: "Lowered ceiling",
+    quantity: 2,
+    refundId: "re_items_maximum",
+    sessionId: "cs_items_maximum",
+    stored: { maxQuantity: 1 },
+    testName:
+      "refunds a paid checkout whose listing maximum dropped below its quantity",
+    total: 500,
+  },
+];
 
 describeWithEnv("paid item validation", { db: true }, () => {
   test("uses the one-day price when the session has no chosen day count", async () => {
@@ -102,89 +156,45 @@ describeWithEnv("paid item validation", { db: true }, () => {
     const intent = bookingIntent([{ e: listing.id, p: 500, q: 1 }]);
     using refund = stubRefundPayment("re_items_inactive", 500);
 
-    expect(
-      failureResult(
-        await validateAllItems(
-          paymentSession("cs_items_inactive", 500, intent),
+    expectRefunded(
+      await validateAllItems(
+        paymentSession("cs_items_inactive", 500, intent),
+        intent,
+      ),
+      refund,
+      {
+        error: "Private workshop is no longer accepting registrations.",
+        paymentIntentId: "pi_cs_items_inactive",
+        total: 500,
+      },
+    );
+  });
+
+  for (const boundCase of movedBoundCases) {
+    test(boundCase.testName, async () => {
+      await setupStripe();
+      const listing = await createListingWithStoredQuantities(
+        { maxAttendees: 5, name: boundCase.listingName, unitPrice: 500 },
+        boundCase.stored,
+      );
+      const intent = bookingIntent([
+        { e: listing.id, p: 500, q: boundCase.quantity },
+      ]);
+      using refund = stubRefundPayment(boundCase.refundId, boundCase.total);
+
+      const result = await withMessageGroups(["payment"], () =>
+        validateAllItems(
+          paymentSession(boundCase.sessionId, boundCase.total, intent),
           intent,
         ),
-      ),
-    ).toEqual({
-      detail: undefined,
-      error: "Private workshop is no longer accepting registrations.",
-      refunded: true,
-      status: 410,
-      success: false,
+      );
+      expectRefunded(result, refund, {
+        error: boundCase.error,
+        paymentIntentId: `pi_${boundCase.sessionId}`,
+        total: boundCase.total,
+      });
     });
-    expect(refund.calls[0]?.args).toEqual([
-      stripeRefundRequestShape("pi_cs_items_inactive", 500),
-    ]);
-  });
-
-  test("refunds a paid checkout whose listing minimum rose above its quantity", async () => {
-    // The buyer opened the checkout at one ticket; the owner then raised the
-    // stored minimum to three. The webhook is the last minimum check, so the
-    // payment refunds instead of booking a quantity the listing now refuses.
-    await setupStripe();
-    const listing = await createTestListing({
-      maxAttendees: 5,
-      name: "Raised floor",
-      unitPrice: 500,
-    });
-    const { execute } = await import("#db/client.ts");
-    await execute(
-      sql`UPDATE listings SET min_quantity = 3 WHERE id = ${listing.id}`,
-    );
-    const intent = bookingIntent([{ e: listing.id, p: 500, q: 1 }]);
-    using refund = stubRefundPayment("re_items_minimum", 500);
-
-    const result = await withMessageGroups(["payment"], () =>
-      validateAllItems(paymentSession("cs_items_minimum", 500, intent), intent),
-    );
-    expect(failureResult(result)).toEqual({
-      detail: undefined,
-      error: "Sorry, Raised floor sells at least 3 tickets per booking.",
-      refunded: true,
-      status: 410,
-      success: false,
-    });
-    expect(refund.calls[0]?.args).toEqual([
-      stripeRefundRequestShape("pi_cs_items_minimum", 500),
-    ]);
-  });
-
-  test("refunds a paid checkout whose listing maximum dropped below its quantity", async () => {
-    // The buyer opened the checkout at two tickets; the owner then lowered
-    // the stored maximum to one. The webhook is the last stop that re-reads
-    // the stored fact, so the payment refunds instead of booking a quantity
-    // the listing no longer sells.
-    await setupStripe();
-    const listing = await createTestListing({
-      maxAttendees: 5,
-      name: "Lowered ceiling",
-      unitPrice: 500,
-    });
-    const { execute } = await import("#db/client.ts");
-    await execute(
-      sql`UPDATE listings SET max_quantity = 1 WHERE id = ${listing.id}`,
-    );
-    const intent = bookingIntent([{ e: listing.id, p: 500, q: 2 }]);
-    using refund = stubRefundPayment("re_items_maximum", 500);
-
-    const result = await withMessageGroups(["payment"], () =>
-      validateAllItems(paymentSession("cs_items_maximum", 500, intent), intent),
-    );
-    expect(failureResult(result)).toEqual({
-      detail: undefined,
-      error: "Sorry, Lowered ceiling sells at most 1 ticket per booking.",
-      refunded: true,
-      status: 410,
-      success: false,
-    });
-    expect(refund.calls[0]?.args).toEqual([
-      stripeRefundRequestShape("pi_cs_items_maximum", 500),
-    ]);
-  });
+  }
 
   test("refunds a hidden package member whose maximum dropped, without naming it", async () => {
     // A concealed member's name must not reach the buyer, so the refusal
@@ -215,16 +225,11 @@ describeWithEnv("paid item validation", { db: true }, () => {
         snapshot,
       ),
     );
-    expect(failureResult(result)).toEqual({
-      detail: undefined,
+    expectRefunded(result, refund, {
       error: "Sorry, this listing sells at most 1 ticket per booking.",
-      refunded: true,
-      status: 410,
-      success: false,
+      paymentIntentId: "pi_cs_items_hidden_maximum",
+      total: amount,
     });
-    expect(refund.calls[0]?.args).toEqual([
-      stripeRefundRequestShape("pi_cs_items_hidden_maximum", amount),
-    ]);
   });
 
   test("names the listing that closed in a visible multi-listing order", async () => {

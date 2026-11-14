@@ -25,9 +25,9 @@ import {
 } from "#test-utils/historical-payment-references.ts";
 import {
   expectProcessedPaymentReference,
-  finalizeProcessedPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
+import { bookTaggedWithBlankIndex } from "#test-utils/tagged-payment-rows.ts";
 
 describeWithEnv("db > legacy payment reference rebuild", { db: true }, () => {
   test("a legacy payment is refused before the rebuild and refundable after", async () => {
@@ -100,23 +100,13 @@ describeWithEnv("db > legacy payment reference rebuild", { db: true }, () => {
   });
 
   test("a kept provider tag and a kept provenance pointer survive the rebuild", async () => {
-    const listing = await createTestListing();
-    const tagged = bookedAttendee(
-      await bookAttendee(listing, {
-        email: "tagged-blank@example.com",
-        name: "Tagged Blank",
-        paymentId: "pi_tagged_blank",
-      }),
-    );
-    await finalizeProcessedPayment("sess_tagged_blank", tagged.id, "", {
-      kind: "tagged",
-      provider: "square",
-      reference: "pi_tagged_blank",
+    const tagged = await bookTaggedWithBlankIndex("sess_tagged_blank", {
+      email: "tagged-blank@example.com",
+      name: "Tagged Blank",
+      paymentId: "pi_tagged_blank",
     });
-    await execute(
-      sql`UPDATE processed_payments SET payment_reference_index = '' WHERE payment_session_id = ${"sess_tagged_blank"}`,
-    );
 
+    const listing = await createTestListing();
     const pointed = bookedAttendee(
       await bookAttendee(listing, {
         email: "pointed@example.com",
@@ -206,22 +196,11 @@ describeWithEnv("db > legacy payment reference rebuild", { db: true }, () => {
   });
 
   test("a row that already names its provider needs no stated choice", async () => {
-    const listing = await createTestListing();
-    const tagged = bookedAttendee(
-      await bookAttendee(listing, {
-        email: "kept-tag@example.com",
-        name: "Kept Tag",
-        paymentId: "pi_kept_tag",
-      }),
-    );
-    await finalizeProcessedPayment("sess_kept_tag", tagged.id, "", {
-      kind: "tagged",
-      provider: "square",
-      reference: "pi_kept_tag",
+    const tagged = await bookTaggedWithBlankIndex("sess_kept_tag", {
+      email: "kept-tag@example.com",
+      name: "Kept Tag",
+      paymentId: "pi_kept_tag",
     });
-    await execute(
-      sql`UPDATE processed_payments SET payment_reference_index = '' WHERE payment_session_id = ${"sess_kept_tag"}`,
-    );
     const privateKey = await getTestPrivateKey();
     expect(await legacyPaymentReferencePage(privateKey)).toEqual([
       expect.objectContaining({

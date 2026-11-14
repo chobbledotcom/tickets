@@ -3,7 +3,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import { attendeeAccount } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import { transfersByAccount } from "#accounting/queries.ts";
-import { attendeesApi } from "#db/attendees/api.ts";
 import { deleteAttendee } from "#db/attendees/delete.ts";
 import { queryOne } from "#db/client.ts";
 import { deleteListing } from "#db/listings/delete.ts";
@@ -12,6 +11,7 @@ import { listProviderRefundCases } from "#db/provider-refund-cases.ts";
 import { sql } from "#db/sql.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createAttendeeOrThrow } from "#test-utils/db-helpers/attendee-atomic-create.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postPaymentLeg } from "#test-utils/db-helpers/payment-leg.ts";
 import {
@@ -60,7 +60,7 @@ const setupPlaceholderForRefresh = async (
     maxAttendees: 50,
     unitPrice: 800,
   });
-  const created = await attendeesApi.createAttendeeAtomic({
+  const attendee = await createAttendeeOrThrow({
     bookings: [
       { date: "2026-08-01", listingId: listing.id, pricePaid: 0, quantity: 0 },
     ],
@@ -68,8 +68,6 @@ const setupPlaceholderForRefresh = async (
     name,
     paymentId: paymentReference,
   });
-  if (!created.success) throw new Error(`setup failed: ${created.reason}`);
-  const attendee = created.attendees[0]!;
   await postPaymentLeg(attendee.id, 500, sessionId, listing.id, 0);
   await reserveSession(sessionId);
   await finalizeReservedPayment(
@@ -153,16 +151,12 @@ describeWithEnv(
           maxAttendees: 50,
           unitPrice: 800,
         });
-        const created = await attendeesApi.createAttendeeAtomic({
+        const attendee = await createAttendeeOrThrow({
           bookings: [{ listingId: listing.id, pricePaid: 800, quantity: 1 }],
           email: "unrecorded@example.com",
           name: "Unrecorded",
           paymentId: "pi_unrecorded_refresh",
         });
-        if (!created.success) {
-          throw new Error(`setup failed: ${created.reason}`);
-        }
-        const attendee = created.attendees[0]!;
         await reserveSession("unrecorded-refresh-session");
         await finalizeReservedPayment(
           "unrecorded-refresh-session",

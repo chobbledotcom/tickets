@@ -32,6 +32,32 @@ const sessionIndexOf = (sessionId: string): Promise<string> =>
 const requiredSquareRetentionMs =
   SQUARE_NATIVE_LIFETIME_MS + WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS;
 
+/** Stage answers for a Square checkout plus its handle row, then age the
+ *  answers past the payments clock — and, with `beyondSquareLifetime`, past
+ *  Square's own page lifetime too. */
+const stageAgedSquareAnswers = async (
+  sessionId: string,
+  beyondSquareLifetime: boolean,
+) => {
+  await stageCheckoutAnswers(
+    sessionId,
+    { "7": "held" },
+    "2020-01-01T00:00:00Z",
+  );
+  await stageSquareLinkEnd(
+    sessionId,
+    `link_${sessionId}`,
+    "2020-01-01T01:00:00Z",
+  );
+  const ageMs =
+    PRUNE_PAYMENTS_RETENTION_MS +
+    60_000 +
+    (beyondSquareLifetime ? requiredSquareRetentionMs : 0);
+  await execute(
+    sql`UPDATE checkout_pending_answers SET created_at = ${new Date(nowMs() - ageMs).toISOString()} WHERE session_index = ${await sessionIndexOf(sessionId)}`,
+  );
+};
+
 describeWithEnv("checkout pending answers", { db: true }, () => {
   test("stages sealed rows and reads them back by session id", async () => {
     await stageCheckoutAnswers("cs_staged", { "7": "Coming by bus" }, null);
@@ -111,19 +137,7 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
   });
 
   test("keeps Square answers whose handle row still stands, and prunes them once it is gone", async () => {
-    await stageCheckoutAnswers(
-      "cs_square",
-      { "7": "held" },
-      "2020-01-01T00:00:00Z",
-    );
-    await stageSquareLinkEnd(
-      "cs_square",
-      "link_cs_square",
-      "2020-01-01T01:00:00Z",
-    );
-    await execute(
-      sql`UPDATE checkout_pending_answers SET created_at = ${new Date(nowMs() - PRUNE_PAYMENTS_RETENTION_MS - 60_000).toISOString()} WHERE session_index = ${await sessionIndexOf("cs_square")}`,
-    );
+    await stageAgedSquareAnswers("cs_square", false);
 
     // The window is long past and the payments clock has run, but the handle
     // row still stands: the link's end was never observed. The read is
@@ -144,25 +158,7 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
   });
 
   test("the Square fallback prunes answers past Square's own page lifetime", async () => {
-    await stageCheckoutAnswers(
-      "cs_fallback",
-      { "7": "old" },
-      "2020-01-01T00:00:00Z",
-    );
-    await stageSquareLinkEnd(
-      "cs_fallback",
-      "link_cs_fallback",
-      "2020-01-01T01:00:00Z",
-    );
-    const pastSquareLifetime = new Date(
-      nowMs() -
-        PRUNE_PAYMENTS_RETENTION_MS -
-        requiredSquareRetentionMs -
-        60_000,
-    ).toISOString();
-    await execute(
-      sql`UPDATE checkout_pending_answers SET created_at = ${pastSquareLifetime} WHERE session_index = ${await sessionIndexOf("cs_fallback")}`,
-    );
+    await stageAgedSquareAnswers("cs_fallback", true);
 
     // No monitor ever ran and the handle row still stands, but past
     // Square's own 180-day clock the link cannot take payment.

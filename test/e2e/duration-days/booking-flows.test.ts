@@ -1,8 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { checkGroupCapAfterDurationChange } from "#db/attendees/update.ts";
+import { getDb } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createAttendeeOrThrow } from "#test-utils/db-helpers/attendee-atomic-create.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { twoGroupedListingsBookedOnAdjacentDays } from "#test-utils/db-helpers/grouped-days.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -51,17 +53,14 @@ describeWithEnv("e2e: multi-day bookings — booking flows", { db: true }, () =>
       // Book normally (has start_at).
       await bookAttendee(listing, { date: "2026-10-01", quantity: 5 });
       // Simulate a legacy attendee with NULL start_at (pre-daily migration).
-      const { getDb } = await import("#db/client.ts");
-      const { attendeesApi } = await import("#db/attendees/api.ts");
-      const legacy = await attendeesApi.createAttendeeAtomic({
+      const legacy = await createAttendeeOrThrow({
         bookings: [{ listingId: listing.id, quantity: 5 }],
         email: "legacy@example.com",
         name: "Legacy",
       });
-      if (!legacy.success) throw new Error("setup");
       // Wipe start_at to simulate a pre-migration attendee.
       await getDb().execute(
-        sql`UPDATE listing_attendees SET start_at = NULL, end_at = NULL WHERE attendee_id = ${legacy.attendees[0]!.id} AND listing_id = ${listing.id}`,
+        sql`UPDATE listing_attendees SET start_at = NULL, end_at = NULL WHERE attendee_id = ${legacy.id} AND listing_id = ${listing.id}`,
       );
       // The null-start_at row is excluded from per-day counts because the
       // listing IS daily — no overflow on day 1 (5 only, not 10).

@@ -15,14 +15,22 @@ import { type DayPrices, MAX_DURATION_DAYS } from "#types";
 describeWithEnv("db > listings", { db: true, triggers: true }, () => {
   const errors = setupErrorSpy();
 
-  test("applies every listing storage default", async () => {
-    const listing = await listingsTable.insert({
+  /** A listing with the standard test values, under the given slug. */
+  const insertListing = async (
+    slug: string,
+    fields: Partial<ListingInput> = {},
+  ) =>
+    listingsTable.insert({
       maxAttendees: 100,
       maxPrice: 10000,
-      name: "defaults",
-      slug: "storage-defaults",
-      slugIndex: await hmacHash("storage-defaults"),
+      name: slug,
+      slug,
+      slugIndex: await hmacHash(slug),
+      ...fields,
     });
+
+  test("applies every listing storage default", async () => {
+    const listing = await insertListing("storage-defaults");
     const saved = await getListingWithCount(listing.id);
     expect(saved).toMatchObject({
       active: true,
@@ -84,26 +92,14 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       ).rejects.toThrow("stored datetime has invalid datetime: not-a-dateZ");
     });
     test("returns empty string for no-date listing", async () => {
-      const listing = await listingsTable.insert({
-        date: "",
-        maxAttendees: 100,
-        maxPrice: 10000,
-        name: "test",
-        slug: "test-date-read-1",
-        slugIndex: await hmacHash("test-date-read-1"),
-      });
+      const listing = await insertListing("test-date-read-1", { date: "" });
       const saved = await getListingWithCount(listing.id);
       expect(saved?.date).toBe("");
     });
 
     test("normalizes a timezone offset to UTC", async () => {
-      const listing = await listingsTable.insert({
+      const listing = await insertListing("test-date-read-2", {
         date: "2026-06-15T14:00:00+02:00",
-        maxAttendees: 100,
-        maxPrice: 10000,
-        name: "test",
-        slug: "test-date-read-2",
-        slugIndex: await hmacHash("test-date-read-2"),
       });
       const saved = await getListingWithCount(listing.id);
       expect(saved?.date).toBe("2026-06-15T12:00:00.000Z");
@@ -111,40 +107,21 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
 
     test("rejects an invalid date", async () => {
       await expect(
-        listingsTable.insert({
-          date: "not-a-dateZ",
-          maxAttendees: 100,
-          maxPrice: 10000,
-          name: "test",
-          slug: "test-date-read-invalid",
-          slugIndex: await hmacHash("test-date-read-invalid"),
-        }),
+        insertListing("test-date-read-invalid", { date: "not-a-dateZ" }),
       ).rejects.toThrow("date has invalid datetime: not-a-dateZ");
     });
   });
 
   describe("closes_at read transform", () => {
     test("returns null for no-deadline listing", async () => {
-      const listing = await listingsTable.insert({
-        closesAt: "",
-        maxAttendees: 100,
-        maxPrice: 10000,
-        name: "test",
-        slug: "test-read-1",
-        slugIndex: await hmacHash("test-read-1"),
-      });
+      const listing = await insertListing("test-read-1", { closesAt: "" });
       const saved = await getListingWithCount(listing.id);
       expect(saved?.closes_at).toBeNull();
     });
 
     test("returns normalized ISO string for valid datetime", async () => {
-      const listing = await listingsTable.insert({
+      const listing = await insertListing("test-read-2", {
         closesAt: "2099-12-31T23:59",
-        maxAttendees: 100,
-        maxPrice: 10000,
-        name: "test",
-        slug: "test-read-2",
-        slugIndex: await hmacHash("test-read-2"),
       });
       const saved = await getListingWithCount(listing.id);
       expect(saved?.closes_at).toBe("2099-12-31T23:59:00.000Z");
@@ -152,28 +129,14 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
 
     test("names closes_at when rejecting an invalid date", async () => {
       await expect(
-        listingsTable.insert({
-          closesAt: "not-a-dateZ",
-          maxAttendees: 100,
-          maxPrice: 10000,
-          name: "test",
-          slug: "test-closes-invalid",
-          slugIndex: await hmacHash("test-closes-invalid"),
-        }),
+        insertListing("test-closes-invalid", { closesAt: "not-a-dateZ" }),
       ).rejects.toThrow("closes_at has invalid datetime: not-a-dateZ");
     });
   });
 
   describe("duration_days write validation", () => {
     const insertWithDuration = async (slug: string, durationDays: number) => {
-      const listing = await listingsTable.insert({
-        durationDays,
-        maxAttendees: 100,
-        maxPrice: 10000,
-        name: "test-duration",
-        slug,
-        slugIndex: await hmacHash(slug),
-      });
+      const listing = await insertListing(slug, { durationDays });
       return (await getListingWithCount(listing.id))!.duration_days;
     };
 
@@ -201,13 +164,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
     });
 
     test("clamps an out-of-range update", async () => {
-      const listing = await listingsTable.insert({
-        maxAttendees: 100,
-        maxPrice: 10000,
-        name: "test-duration",
-        slug: "test-dur-upd",
-        slugIndex: await hmacHash("test-dur-upd"),
-      });
+      const listing = await insertListing("test-dur-upd");
       await listingsTable.update(listing.id, {
         durationDays: MAX_DURATION_DAYS + 1,
       });
@@ -218,64 +175,44 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
   });
 
   describe("bookable_days read transform", () => {
-    test("rejects malformed JSON stored in the database", async () => {
-      const listing = await listingsTable.insert({
-        maxAttendees: 100,
-        maxPrice: 10000,
-        name: "test-bd-json",
+    /** Store `stored` as a fresh listing's raw bookable_days text. */
+    const storeBookableDays = async (slug: string, stored: string) => {
+      const listing = await insertListing(slug);
+      await getDb().execute(
+        sql`UPDATE listings SET bookable_days = ${stored} WHERE id = ${listing.id}`,
+      );
+      return listing;
+    };
+
+    for (const { name, slug, stored } of [
+      {
+        name: "rejects malformed JSON stored in the database",
         slug: "test-bd-json",
-        slugIndex: await hmacHash("test-bd-json"),
-      });
-      await getDb().execute(
-        sql`UPDATE listings SET bookable_days = ${"["} WHERE id = ${listing.id}`,
-      );
-      await expect(getListingWithCount(listing.id)).rejects.toThrow(
-        `Invalid stored JSON in listings.bookable_days row ${listing.id}`,
-      );
-    });
-
-    test("rejects non-array JSON stored in the database", async () => {
-      const listing = await listingsTable.insert({
-        maxAttendees: 100,
-        maxPrice: 10000,
-        name: "test-bd",
+        stored: "[",
+      },
+      {
+        name: "rejects non-array JSON stored in the database",
         slug: "test-bd-1",
-        slugIndex: await hmacHash("test-bd-1"),
-      });
-      await getDb().execute(
-        sql`UPDATE listings SET bookable_days = ${'"not-an-array"'} WHERE id = ${listing.id}`,
-      );
-      await expect(getListingWithCount(listing.id)).rejects.toThrow(
-        `Invalid stored JSON in listings.bookable_days row ${listing.id}`,
-      );
-    });
-
-    test("rejects mixed element types stored in the database", async () => {
-      const listing = await listingsTable.insert({
-        maxAttendees: 100,
-        maxPrice: 10000,
-        name: "test-bd-types",
+        stored: '"not-an-array"',
+      },
+      {
+        name: "rejects mixed element types stored in the database",
         slug: "test-bd-2",
-        slugIndex: await hmacHash("test-bd-2"),
+        stored: '["Monday",1]',
+      },
+    ]) {
+      test(name, async () => {
+        const listing = await storeBookableDays(slug, stored);
+        await expect(getListingWithCount(listing.id)).rejects.toThrow(
+          `Invalid stored JSON in listings.bookable_days row ${listing.id}`,
+        );
       });
-      await getDb().execute(
-        sql`UPDATE listings SET bookable_days = ${'["Monday",1]'} WHERE id = ${listing.id}`,
-      );
-      await expect(getListingWithCount(listing.id)).rejects.toThrow(
-        `Invalid stored JSON in listings.bookable_days row ${listing.id}`,
-      );
-    });
+    }
 
     test("preserves unknown day names for catalog repair", async () => {
-      const listing = await listingsTable.insert({
-        maxAttendees: 100,
-        maxPrice: 10000,
-        name: "test-bd-day",
-        slug: "test-bd-day",
-        slugIndex: await hmacHash("test-bd-day"),
-      });
-      await getDb().execute(
-        sql`UPDATE listings SET bookable_days = ${'["Monday","Funday"]'} WHERE id = ${listing.id}`,
+      const listing = await storeBookableDays(
+        "test-bd-day",
+        '["Monday","Funday"]',
       );
       expect((await getListingWithCount(listing.id))?.bookable_days).toEqual([
         "Monday",

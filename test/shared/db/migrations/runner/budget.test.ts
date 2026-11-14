@@ -36,6 +36,10 @@ const migrationOf = (id: string, up: () => Promise<unknown>): Migration => ({
   verify: () => Promise.resolve(),
 });
 
+/** The ids of the migrations a batch finished, in the order it ran them. */
+const completedIds = (completed: Migration[]): string[] =>
+  completed.map((migration) => migration.id);
+
 describe("db > migrations > runner subrequest budget", () => {
   test("verify does not retry a spent budget — the reserve is not for retries", async () => {
     let attempts = 0;
@@ -107,6 +111,17 @@ describeWithEnv(
     const runBatch = (pending: Migration[]): Promise<Migration[]> =>
       asOneRequest((lockToken) => runPendingMigrations(pending, lockToken));
 
+    /** Run the batch, then record what ran for the next request — the
+     *  bookkeeping every production caller does inside the same budget. */
+    const runAndRecord = async (
+      lockToken: string,
+      pending: Migration[],
+    ): Promise<Migration[]> => {
+      const ran = await runPendingMigrations(pending, lockToken);
+      await recordMigrationBatch(ran, false, lockToken);
+      return ran;
+    };
+
     /** Spend the database calls this request still has, keeping `spare` back. */
     const spendAllBut = async (spare: number): Promise<void> => {
       const calls = getSubrequestRemaining().database - spare;
@@ -132,8 +147,8 @@ describeWithEnv(
       expect(completed.length).toBeGreaterThan(0);
       expect(completed.length).toBeLessThan(pending.length);
       // The ones that ran are the leading prefix, in order.
-      expect(completed.map((migration) => migration.id)).toEqual(
-        pending.slice(0, completed.length).map((migration) => migration.id),
+      expect(completedIds(completed)).toEqual(
+        completedIds(pending.slice(0, completed.length)),
       );
     });
 
@@ -148,16 +163,10 @@ describeWithEnv(
         // finished prefix is in order, and the reserve still lets the caller
         // record the batch for the next request — inside the same budget, as
         // the production caller does.
-        const completed = await runWithSubrequestBudget(async () => {
-          const ran = await runPendingMigrations(pending, lockToken);
-          await recordMigrationBatch(ran, false, lockToken);
-          return ran;
-        });
-        expect(completed.map((migration) => migration.id)).toEqual([
-          "m1",
-          "m2",
-          "m3",
-        ]);
+        const completed = await runWithSubrequestBudget(() =>
+          runAndRecord(lockToken, pending),
+        );
+        expect(completedIds(completed)).toEqual(["m1", "m2", "m3"]);
       });
     });
 
@@ -172,22 +181,17 @@ describeWithEnv(
           withTransaction((tx) => tx.execute(sql`SELECT 1`)),
         ),
       ]);
-      expect(completed.map((migration) => migration.id)).toEqual(["spend"]);
+      expect(completedIds(completed)).toEqual(["spend"]);
     });
 
     test("leaves the caller room to record the batch and release the lock", async () => {
       // The held-back round-trips are the whole reason a stale database moves
       // forward: a batch that spent every call could not write its markers, so
       // the next request would replay the same work behind a held lock.
-      const completed = await asOneRequest(async (lockToken) => {
-        const ran = await runPendingMigrations(
-          [migrationOf("spend", () => spendAllBut(0))],
-          lockToken,
-        );
-        await recordMigrationBatch(ran, false, lockToken);
-        return ran;
-      });
-      expect(completed.map((migration) => migration.id)).toEqual(["spend"]);
+      const completed = await asOneRequest((lockToken) =>
+        runAndRecord(lockToken, [migrationOf("spend", () => spendAllBut(0))]),
+      );
+      expect(completedIds(completed)).toEqual(["spend"]);
     });
 
     test("runs one migration on the last call the request has", async () => {
@@ -201,7 +205,7 @@ describeWithEnv(
           lockToken,
         );
       });
-      expect(completed.map((migration) => migration.id)).toEqual(["one call"]);
+      expect(completedIds(completed)).toEqual(["one call"]);
     });
   },
 );

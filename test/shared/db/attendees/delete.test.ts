@@ -4,7 +4,7 @@ import { deleteAttendee } from "#db/attendees/delete.ts";
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";
 import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
 import { getAssignableBuiltSites, insertBuiltSite } from "#db/built-sites.ts";
-import { getDb, queryOne } from "#db/client.ts";
+import { queryOne } from "#db/client.ts";
 import {
   getListingWithCount,
   invalidateListingsCache,
@@ -15,11 +15,12 @@ import { createSystemNote, getNoteRows } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
 import { reserveSession } from "#db/processed-payments.ts";
 import { sql } from "#db/sql.ts";
+import { emptyBookingLine } from "#test-utils/attendees/helpers.ts";
 import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { listingWithAttendee } from "#test-utils/db-helpers/listing-attendee.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { insertModifierUsage } from "#test-utils/modifiers.ts";
 import {
@@ -30,17 +31,14 @@ import {
 import { insertRefundConfirmationFixture } from "#test-utils/refund-confirmations.ts";
 
 describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
-  test("removes attendee", async () => {
-    const listing = await createTestListing({
-      maxAttendees: 50,
+  /** A listing that thanks the buyer, with one attendee booked on it. */
+  const thankedBooking = (name: string, email: string) =>
+    listingWithAttendee(50, name, email, {
       thankYouUrl: "https://example.com",
     });
-    const attendee = await createTestAttendee(
-      listing.id,
-      listing.slug,
-      "John Doe",
-      "john@example.com",
-    );
+
+  test("removes attendee", async () => {
+    const { attendee } = await thankedBooking("John Doe", "john@example.com");
 
     await deleteAttendee(attendee.id);
 
@@ -50,16 +48,7 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
   });
 
   test("removes processed payment records", async () => {
-    const listing = await createTestListing({
-      maxAttendees: 50,
-      thankYouUrl: "https://example.com",
-    });
-    const attendee = await createTestAttendee(
-      listing.id,
-      listing.slug,
-      "Jane Doe",
-      "jane@example.com",
-    );
+    const { attendee } = await thankedBooking("Jane Doe", "jane@example.com");
 
     await reserveSession("sess_attendee_delete");
     await finalizeReservedPayment(
@@ -76,10 +65,8 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
   });
 
   test("removes the attendee's checkout stage", async () => {
-    const listing = await createTestListing({ maxAttendees: 50 });
-    const attendee = await createTestAttendee(
-      listing.id,
-      listing.slug,
+    const { attendee } = await listingWithAttendee(
+      50,
       "Open Checkout",
       "open@example.com",
     );
@@ -94,10 +81,8 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
   });
 
   test("detaches a built site before removing its attendee", async () => {
-    const listing = await createTestListing({ maxAttendees: 50 });
-    const attendee = await createTestAttendee(
-      listing.id,
-      listing.slug,
+    const { attendee, listing } = await listingWithAttendee(
+      50,
       "Built Site Owner",
       "built-site-owner@example.com",
     );
@@ -168,19 +153,15 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
   });
 
   test("deleting a quantity-0-only attendee without releasing does not inflate tickets_count", async () => {
-    const listing = await createTestListing({ maxAttendees: 50 });
-    const attendee = await createTestAttendee(
-      listing.id,
-      listing.slug,
+    const { attendee, listing } = await listingWithAttendee(
+      50,
       "Ghost Line",
       "ghost@example.com",
     );
     // Turn the single line into a no-quantity sentinel: the UPDATE trigger drops
     // tickets_count to 0. The hold-delete restore must add 0 back (SUM(CASE …)),
     // not 1 (a plain COUNT(*) would permanently inflate tickets_count).
-    await getDb().execute(
-      sql`UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ${attendee.id}`,
-    );
+    await emptyBookingLine(listing.id, attendee.id);
     // The raw UPDATE bypasses the wrapped client's cache invalidation.
     invalidateListingsCache();
     expect(await getListingWithCount(listing.id)).toMatchObject({
@@ -198,13 +179,7 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
   });
 
   test("keeps modifier usage rows and totals after attendee deletion", async () => {
-    const listing = await createTestListing({
-      maxAttendees: 50,
-      thankYouUrl: "https://example.com",
-    });
-    const attendee = await createTestAttendee(
-      listing.id,
-      listing.slug,
+    const { attendee } = await thankedBooking(
       "Modifier User",
       "modifier@example.com",
     );
@@ -243,13 +218,7 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
   });
 
   test("removes the attendee's system notes", async () => {
-    const listing = await createTestListing({
-      maxAttendees: 50,
-      thankYouUrl: "https://example.com",
-    });
-    const attendee = await createTestAttendee(
-      listing.id,
-      listing.slug,
+    const { attendee } = await thankedBooking(
       "Noted Attendee",
       "noted@example.com",
     );
@@ -265,10 +234,8 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
   });
 
   test("removes the attendee's refund confirmations", async () => {
-    const listing = await createTestListing({ maxAttendees: 50 });
-    const attendee = await createTestAttendee(
-      listing.id,
-      listing.slug,
+    const { attendee } = await listingWithAttendee(
+      50,
       "Confirmed Attendee",
       "confirmed@example.com",
     );
@@ -291,13 +258,7 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
   });
 
   test("succeeds when the attendee has no modifier usage", async () => {
-    const listing = await createTestListing({
-      maxAttendees: 50,
-      thankYouUrl: "https://example.com",
-    });
-    const attendee = await createTestAttendee(
-      listing.id,
-      listing.slug,
+    const { attendee } = await thankedBooking(
       "No Modifier",
       "none@example.com",
     );

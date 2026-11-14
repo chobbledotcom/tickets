@@ -47,6 +47,29 @@ import {
 import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
+/** Assert the order-summary facts a test cares about: what was paid, the full
+ *  order price, the reservation share, the line count and the total quantity.
+ *  A fact the caller leaves out stays unchecked. */
+const expectOrderSummary = async (
+  attendeeId: number,
+  expected: Partial<{
+    depositPaid: number;
+    fullPrice: number;
+    lineCount: number;
+    reservationSubtotal: number;
+    totalQuantity: number;
+  }>,
+): Promise<void> => {
+  const summary = await getAttendeeOrderSummary(attendeeId);
+  expect({
+    depositPaid: summary.depositPaid,
+    fullPrice: summary.fullPrice,
+    lineCount: summary.lines.length,
+    reservationSubtotal: summary.reservationSubtotal,
+    totalQuantity: summary.totalQuantity,
+  }).toMatchObject(expected);
+};
+
 describeWithEnv("db > settle attendee balance", { db: true }, () => {
   test("clears the balance, moves to the paid status and logs it", async () => {
     const { attendeeId, listingId } = await createReservedAttendee(1500);
@@ -293,20 +316,21 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     const { rows } = await getDb().execute(
       sql`SELECT id FROM attendees ORDER BY id DESC LIMIT 1`,
     );
-    const summary = await getAttendeeOrderSummary(Number(rows[0]!.id));
-    expect(summary.lines).toHaveLength(0);
-    expect(summary.fullPrice).toBe(0);
-    expect(summary.totalQuantity).toBe(0);
-    expect(summary.depositPaid).toBe(0);
+    await expectOrderSummary(Number(rows[0]!.id), {
+      depositPaid: 0,
+      fullPrice: 0,
+      lineCount: 0,
+      totalQuantity: 0,
+    });
   });
 
   test("order summary combines cash paid with the outstanding balance", async () => {
     const { attendeeId } = await createReservedAttendee(1500);
 
-    const summary = await getAttendeeOrderSummary(attendeeId);
-
-    expect(summary.depositPaid).toBe(100);
-    expect(summary.fullPrice).toBe(1600);
+    await expectOrderSummary(attendeeId, {
+      depositPaid: 100,
+      fullPrice: 1600,
+    });
   });
 
   test("order summary uses recorded payments when attendee state is missing", async () => {
@@ -325,11 +349,12 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
       listingId: listing.id,
     });
 
-    const summary = await getAttendeeOrderSummary(999999);
-    expect(summary.lines).toHaveLength(1);
-    expect(summary.depositPaid).toBe(300);
-    expect(summary.fullPrice).toBe(300);
-    expect(summary.totalQuantity).toBe(2);
+    await expectOrderSummary(999999, {
+      depositPaid: 300,
+      fullPrice: 300,
+      lineCount: 1,
+      totalQuantity: 2,
+    });
   });
 
   test("order summary preserves the original order price after a full refund", async () => {
@@ -341,9 +366,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     const result = await recordAttendeeRefund(attendeeId, [reference]);
 
     expect(result).toEqual(refundLedgerResult([reference]));
-    const summary = await getAttendeeOrderSummary(attendeeId);
-    expect(summary.depositPaid).toBe(0);
-    expect(summary.fullPrice).toBe(100);
+    await expectOrderSummary(attendeeId, { depositPaid: 0, fullPrice: 100 });
   });
 
   test("order summary includes a later manual attendee charge", async () => {
@@ -356,11 +379,11 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
       type: MANUAL_ATTENDEE_CHARGE,
     });
 
-    const summary = await getAttendeeOrderSummary(attendeeId);
-
-    expect(summary.fullPrice).toBe(1600);
-    expect(summary.depositPaid).toBe(100);
-    expect(summary.reservationSubtotal).toBe(100);
+    await expectOrderSummary(attendeeId, {
+      depositPaid: 100,
+      fullPrice: 1600,
+      reservationSubtotal: 100,
+    });
   });
 
   test("order summary skips bookings whose listing no longer exists", async () => {
@@ -368,9 +391,8 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     await getDb().execute(
       sql`INSERT INTO listing_attendees (listing_id, attendee_id, quantity) VALUES (98765, ${attendeeId}, 1)`,
     );
-    const summary = await getAttendeeOrderSummary(attendeeId);
     // Only the real listing is included; the dangling row is dropped.
-    expect(summary.lines).toHaveLength(1);
+    await expectOrderSummary(attendeeId, { lineCount: 1 });
   });
 
   test("order summary loads booking listings with one joined read", async () => {

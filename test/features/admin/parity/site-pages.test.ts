@@ -52,12 +52,14 @@ describeWithEnv("Site page parity pins", { db: true }, () => {
       `/admin/site/pages/${row.id}/edit`,
       "Page created",
     )(response);
-    expect(row.name).toBe("Plan your weekend");
-    expect(row.slug).toBe("plan-your-weekend");
-    expect(row.hidden).toBe(true);
-    expect(row.content).toBe("Pack light.");
-    expect(row.meta_title).toBe("Plan");
-    expect(row.meta_description).toBe("Before you come");
+    expect(row).toMatchObject({
+      content: "Pack light.",
+      hidden: true,
+      meta_description: "Before you come",
+      meta_title: "Plan",
+      name: "Plan your weekend",
+      slug: "plan-your-weekend",
+    });
   });
 
   test("api create stores the posted fields the same way", async () => {
@@ -137,7 +139,7 @@ describeWithEnv("Site page parity pins", { db: true }, () => {
 
   /** Pin one slug's refusal on both surfaces: the JSON API answers the
    *  message as a 400, the page form answers it as a flash redirect. */
-  const refuseSlugOnBothSurfaces = async (
+  const expectSlugRefusedOnBothSurfaces = async (
     slug: string,
     message: string,
   ): Promise<void> => {
@@ -160,19 +162,22 @@ describeWithEnv("Site page parity pins", { db: true }, () => {
   };
 
   test("both surfaces refuse a reserved slug with the same message", async () => {
-    await refuseSlugOnBothSurfaces("home", t("site.pages.error.reserved"));
+    await expectSlugRefusedOnBothSurfaces(
+      "home",
+      t("site.pages.error.reserved"),
+    );
   });
 
   test("both surfaces refuse a taken slug with the same message", async () => {
     const listing = await createTestListing({ name: "Kayak" });
-    await refuseSlugOnBothSurfaces(
+    await expectSlugRefusedOnBothSurfaces(
       listing.slug,
       t("site.pages.error.slug_taken"),
     );
   });
 
   test("both surfaces refuse a slug past the input cap with the same message", async () => {
-    await refuseSlugOnBothSurfaces(
+    await expectSlugRefusedOnBothSurfaces(
       "a".repeat(MAX_INPUT_LENGTH + 1),
       t("fields.validation.max_length", {
         label: t("common.slug"),
@@ -227,7 +232,7 @@ describeWithEnv("Site page parity pins", { db: true }, () => {
   /** Pin one fixed page's content on both surfaces: the page editor (or the
    *  terms setting) and the API by name both write the same setting, and the
    *  stored value reads back the same. */
-  const pinFixedPageStorage = async (
+  const expectPageTextStoredAlike = async (
     formPath: string,
     formField: string,
     apiName: "contact" | "home" | "terms",
@@ -252,7 +257,7 @@ describeWithEnv("Site page parity pins", { db: true }, () => {
   };
 
   test("the home form and the api store the same homepage text", async () => {
-    await pinFixedPageStorage(
+    await expectPageTextStoredAlike(
       "/admin/site",
       "homepage_text",
       "home",
@@ -263,7 +268,7 @@ describeWithEnv("Site page parity pins", { db: true }, () => {
   });
 
   test("the contact form and the api store the same contact text", async () => {
-    await pinFixedPageStorage(
+    await expectPageTextStoredAlike(
       "/admin/site/contact",
       "contact_page_text",
       "contact",
@@ -274,7 +279,7 @@ describeWithEnv("Site page parity pins", { db: true }, () => {
   });
 
   test("the terms setting and the api store the same terms", async () => {
-    await pinFixedPageStorage(
+    await expectPageTextStoredAlike(
       "/admin/settings/terms",
       "terms_and_conditions",
       "terms",

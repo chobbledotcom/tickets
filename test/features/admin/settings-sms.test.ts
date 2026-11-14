@@ -21,6 +21,15 @@ const PATH = "/admin/settings/sms-gateway";
 const FLASH_TARGET =
   "/admin/settings-advanced?form=settings-sms-gateway#settings-sms-gateway";
 
+/** One row per single-line setting: its form field and the label a refusal
+ *  names it by. */
+const SMS_FIELDS = [
+  ["sms_gateway_username", "Phone app username"],
+  ["sms_gateway_password", "Phone app password"],
+  ["sms_gateway_webhook_secret", "Webhook signing secret (optional)"],
+  ["sms_gateway_passphrase", "End-to-end key (passphrase)"],
+] as const;
+
 const post = async (data: Record<string, string>): Promise<Response> =>
   await handleSmsGatewayPost(
     mockFormRequest(
@@ -64,12 +73,7 @@ describeWithEnv("settings (sms gateway form)", { db: true }, () => {
     expect(settings.smsGatewayPassphrase).toBe("");
   });
 
-  for (const [field, label] of [
-    ["sms_gateway_username", "Phone app username"],
-    ["sms_gateway_password", "Phone app password"],
-    ["sms_gateway_webhook_secret", "Webhook signing secret (optional)"],
-    ["sms_gateway_passphrase", "End-to-end key (passphrase)"],
-  ] as const) {
+  for (const [field, label] of SMS_FIELDS) {
     test(`refuses an over-long ${field} before the save`, async () => {
       const data: Record<string, string> = {
         [field]: "x".repeat(MAX_INPUT_LENGTH + 1),

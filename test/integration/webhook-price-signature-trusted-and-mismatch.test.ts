@@ -15,6 +15,7 @@ import {
   expectReplayOutcome,
   expectStoredRefund,
   expectStoredRefundRecord,
+  packageMetadata,
   runWebhook,
   setupPackage,
   setupWithListing,
@@ -282,16 +283,7 @@ describeWithEnv(
       const { group, listing } = await setupPackage();
       // A package line carries its edge (k:"p", r=group id); the walk rebuilds the
       // package tree, finds the member's nodeKey resolves, and books it.
-      const metadata = signMeta(
-        webhookMeta({
-          email: "buyer@example.com",
-          items: JSON.stringify([
-            { e: listing.id, k: "p", p: 1500, q: 1, r: group.id },
-          ]),
-          name: "Buyer",
-        }),
-        1500,
-      );
+      const metadata = packageMetadata(group.id, listing.id, 1500);
       await runWebhook(
         { amount_total: 1500, id: "cs_pkg_edge_ok", metadata },
         () => expectProcessed(listing.id),

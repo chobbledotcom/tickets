@@ -5,6 +5,7 @@ import { getDb, queryAll } from "#db/client.ts";
 import groupFlatPricesMigration from "#db/migrations/2026-07-02_group_flat_prices.ts";
 import { recreateTable } from "#db/migrations/schema-sync.ts";
 import { sql } from "#db/sql.ts";
+import { columnNames } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 
@@ -41,11 +42,6 @@ const groupPriceRows = (): Promise<
       WHERE price_type = 'group' ORDER BY price_id, listing_id`,
   );
 
-const groupListingsColumns = async (): Promise<string[]> => {
-  const info = await getDb().execute(sql`PRAGMA table_info(group_listings)`);
-  return info.rows.map((row) => String(row.name));
-};
-
 describeWithEnv(
   "db > migrations > 2026-07-02_group_flat_prices",
   { db: true },
@@ -68,7 +64,7 @@ describeWithEnv(
         { listing_id: 10, price_id: "2", unit_price: 750 },
       ]);
       // The column is gone but membership + quantity survive the rebuild.
-      assert(!(await groupListingsColumns()).includes("package_price"));
+      assert(!(await columnNames("group_listings")).includes("package_price"));
       const rows = await queryAll<{ listing_id: number; quantity: number }>(
         sql`SELECT listing_id, quantity FROM group_listings WHERE group_id = 1 ORDER BY listing_id`,
       );

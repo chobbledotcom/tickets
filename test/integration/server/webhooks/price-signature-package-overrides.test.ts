@@ -13,6 +13,7 @@ import {
   runWebhook,
   setupPackage,
   setupWithListing,
+  signedMeta,
   webhookRequest,
 } from "#test/integration/webhook-price-signature/helpers.ts";
 import { assertJson } from "#test-utils/assertions.ts";
@@ -239,17 +240,12 @@ describeWithEnv(
       await execute(
         sql`UPDATE modifiers SET trigger = ${"optional"} WHERE id = ${addOn.id}`,
       );
-      const metadata = signMeta(
-        webhookMeta({
-          email: "buyer@example.com",
-          items: JSON.stringify([
-            { e: listing.id, k: "p", p: 0, q: 1, r: group.id },
-          ]),
-          modifiers: JSON.stringify([{ i: addOn.id, q: 1 }]),
-          name: "Buyer",
-        }),
-        500,
-      );
+      const metadata = signedMeta(500, {
+        items: JSON.stringify([
+          { e: listing.id, k: "p", p: 0, q: 1, r: group.id },
+        ]),
+        modifiers: JSON.stringify([{ i: addOn.id, q: 1 }]),
+      });
       // Operator raises the override from 0 to a positive value while the payment
       // is in flight; the signed zero line must no longer be honoured.
       await setGroupPackageMembers(group.id, [

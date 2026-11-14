@@ -8,7 +8,7 @@ import {
   loadRefundAuthorityByReference,
 } from "#db/provider-refund-authority.ts";
 import { transitionRefundAuthority } from "#db/provider-refund-authority-change.ts";
-import { sql } from "#db/sql.ts";
+import { sql, sqlName } from "#db/sql.ts";
 import { CLAIM_MIRROR } from "#payment/admit-move.ts";
 import {
   armRefundSend,
@@ -34,6 +34,24 @@ import {
   bookedWithPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
+
+/**
+ * Write each value into `column` on the session's payment row, then assert the
+ * seam refuses the payment it already saw claimed.
+ */
+const expectClaimGuardFailure = async (
+  verify: () => Promise<void>,
+  sessionId: string,
+  column: "payment_reference_index" | "protected_state",
+  values: readonly string[],
+): Promise<void> => {
+  for (const value of values) {
+    await execute(
+      sql`UPDATE processed_payments SET ${sqlName(column)} = ${value} WHERE payment_session_id = ${sessionId}`,
+    );
+  }
+  await expect(verify()).rejects.toThrow("Payment claim guard failed");
+};
 
 describeWithEnv("payment proof boundary observer", { db: true }, () => {
   test("records a changed refund generation even after the authority leaves its armed state", async () => {
@@ -80,12 +98,12 @@ describeWithEnv("payment proof boundary observer", { db: true }, () => {
   test("records an unindexed claim even after its release", async () => {
     const verify = await observePaymentSeam();
     await reserveSession("sess_missing_reference");
-    for (const mirror of [CLAIM_MIRROR, ""]) {
-      await execute(
-        sql`UPDATE processed_payments SET protected_state = ${mirror} WHERE payment_session_id = ${"sess_missing_reference"}`,
-      );
-    }
-    await expect(verify()).rejects.toThrow("Payment claim guard failed");
+    await expectClaimGuardFailure(
+      verify,
+      "sess_missing_reference",
+      "protected_state",
+      [CLAIM_MIRROR, ""],
+    );
   });
 
   test("records a claimed reference that was stripped and restored", async () => {
@@ -96,12 +114,12 @@ describeWithEnv("payment proof boundary observer", { db: true }, () => {
       reference.reference,
     );
     await claimCurrentAttendeeRows([attendeeId]);
-    for (const index of ["", await paymentReferenceIndex(reference)]) {
-      await execute(
-        sql`UPDATE processed_payments SET payment_reference_index = ${index} WHERE payment_session_id = ${"sess_stripped"}`,
-      );
-    }
-    await expect(verify()).rejects.toThrow("Payment claim guard failed");
+    await expectClaimGuardFailure(
+      verify,
+      "sess_stripped",
+      "payment_reference_index",
+      ["", await paymentReferenceIndex(reference)],
+    );
   });
 
   test("a callback sends under its durable armed authority before any attendee row exists", async () => {

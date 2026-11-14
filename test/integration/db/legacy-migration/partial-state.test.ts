@@ -10,24 +10,32 @@ import {
   LEGACY_DB_UPDATE,
   seedLegacySchemaMarkers,
 } from "#test/integration/db/legacy-migration/helpers.ts";
+import { expectAttendeeRow } from "#test-utils/attendee-rows.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 
 describe("db > listing_attendees migration from legacy schema (partial state)", () => {
   const h = createLegacyMigrationHarness();
   afterEach(h.cleanup);
 
-  test("drops PII columns when listing_id was dropped in a prior partial run", async () => {
+  /** Open a file DB that holds only the legacy schema markers and a settings
+   *  table — the base a partial earlier migration run leaves behind. */
+  const openPartialStateDb = async () => {
     setupTestEncryptionKey();
     const client = await h.newFileDb();
     setDb(client);
-
-    // Simulate a DB in the intermediate state: listing_id and its relatives
-    // have already been dropped (e.g. by a partial earlier migration), but
-    // the pre-pii_blob PII columns are still present with NOT NULL.
     await client.execute(
       sql`CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
     );
     await seedLegacySchemaMarkers(client);
+    return client;
+  };
+
+  test("drops PII columns when listing_id was dropped in a prior partial run", async () => {
+    const client = await openPartialStateDb();
+
+    // Simulate a DB in the intermediate state: listing_id and its relatives
+    // have already been dropped (e.g. by a partial earlier migration), but
+    // the pre-pii_blob PII columns are still present with NOT NULL.
     await client.execute(sql`CREATE TABLE attendees (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -61,24 +69,16 @@ describe("db > listing_attendees migration from legacy schema (partial state)", 
       ["pii_blob", "ticket_token_index"],
     );
 
-    const rows = await client.execute(
-      sql`SELECT * FROM attendees WHERE id = 1`,
-    );
-    expect(rows.rows.length).toBe(1);
-    expect(rows.rows[0]!.created).toBe("2024-03-01T00:00:00Z");
-    expect(rows.rows[0]!.pii_blob).toBe("encrypted-data");
-    expect(rows.rows[0]!.ticket_token_index).toBe("tok_abc");
+    await expectAttendeeRow(client, 1, {
+      created: "2024-03-01T00:00:00Z",
+      pii_blob: "encrypted-data",
+      ticket_token_index: "tok_abc",
+    });
   });
 
   test("fails instead of marking progress for unknown legacy attendee shape", async () => {
-    setupTestEncryptionKey();
-    const client = await h.newFileDb();
-    setDb(client);
+    const client = await openPartialStateDb();
 
-    await client.execute(
-      sql`CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
-    );
-    await seedLegacySchemaMarkers(client);
     await client.execute(sql`CREATE TABLE attendees (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       listing_id INTEGER NOT NULL,

@@ -101,29 +101,26 @@ describeWithEnv("db > ordered collection", { db: true }, () => {
     expect(rows.map((row) => row.sort_order)).toEqual([2, 3]);
   });
 
-  test("starts an empty default collection at zero", async () => {
-    const appended = await insertAnswer(30, 0);
+  for (const [title, collection, start] of [
+    ["starts an empty default collection at zero", answers, 0],
+    [
+      "uses the collection's starting order when its scope is empty",
+      oneBasedAnswers,
+      1,
+    ],
+  ] as const) {
+    test(title, async () => {
+      const appended = await insertAnswer(30, 0);
 
-    expect(await answers.next({ scope: 40 })).toBe(0);
-    await answers.append({ key: appended, scope: 30 });
-    expect(
-      await queryOne<{ sort_order: number }>(
-        sql`SELECT sort_order FROM answers WHERE id = ${appended}`,
-      ),
-    ).toEqual({ sort_order: 0 });
-  });
-
-  test("uses the collection's starting order when its scope is empty", async () => {
-    const appended = await insertAnswer(30, 0);
-
-    expect(await oneBasedAnswers.next({ scope: 40 })).toBe(1);
-    await oneBasedAnswers.append({ key: appended, scope: 30 });
-    expect(
-      await queryOne<{ sort_order: number }>(
-        sql`SELECT sort_order FROM answers WHERE id = ${appended}`,
-      ),
-    ).toEqual({ sort_order: 1 });
-  });
+      expect(await collection.next({ scope: 40 })).toBe(start);
+      await collection.append({ key: appended, scope: 30 });
+      expect(
+        await queryOne<{ sort_order: number }>(
+          sql`SELECT sort_order FROM answers WHERE id = ${appended}`,
+        ),
+      ).toEqual({ sort_order: start });
+    });
+  }
 
   test("swaps composite keys without changing the same id in another scope", async () => {
     await insertPageItem(1, "listing", 7, 10);

@@ -1,7 +1,7 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getDb, queryAll, queryOne } from "#db/client.ts";
+import { getDb, queryOne } from "#db/client.ts";
 import { logisticsAgents } from "#db/logistics-agents.ts";
 import { sql } from "#db/sql.ts";
 import { addDays } from "#shared/dates.ts";
@@ -20,6 +20,7 @@ import {
 import { submitTicketForm } from "#test-utils/csrf.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { setupTwoDailyBookingAttendees } from "#test-utils/db-helpers/daily-booking-pairs.ts";
 import {
   createDailyTestListing,
   createTestListing,
@@ -140,20 +141,15 @@ describeWithEnv(
       });
 
       test("exports newest bookings first", async () => {
-        const { date, listing1, listing2 } = await setupTwoDailyBookings();
+        const { attendeeOn, date, listing1, listing2 } =
+          await setupTwoDailyBookingAttendees();
         // Pin the registration stamps so the expected order is exact no
         // matter how far apart the two bookings land within the test run.
-        const rows = await queryAll<{
-          listing_id: number;
-          attendee_id: number;
-        }>(
-          sql`SELECT listing_id, attendee_id FROM listing_attendees WHERE listing_id IN (${listing1.id}, ${listing2.id})`,
+        await getDb().execute(
+          sql`UPDATE attendees SET created = ${"2020-01-01T00:00:00.000Z"} WHERE id = ${attendeeOn(listing1.id)}`,
         );
         await getDb().execute(
-          sql`UPDATE attendees SET created = ${"2020-01-01T00:00:00.000Z"} WHERE id = ${rows.find((row) => row.listing_id === listing1.id)!.attendee_id}`,
-        );
-        await getDb().execute(
-          sql`UPDATE attendees SET created = ${"2021-01-01T00:00:00.000Z"} WHERE id = ${rows.find((row) => row.listing_id === listing2.id)!.attendee_id}`,
+          sql`UPDATE attendees SET created = ${"2021-01-01T00:00:00.000Z"} WHERE id = ${attendeeOn(listing2.id)}`,
         );
 
         const response = await fetchCalendarResponse(

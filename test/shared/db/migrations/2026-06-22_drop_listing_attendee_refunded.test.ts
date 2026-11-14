@@ -10,8 +10,7 @@ import {
   seedPreDropLedgerColumns,
 } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { listingWithAttendee } from "#test-utils/db-helpers/listing-attendee.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 
 // This migration's up() only recreates the table.
@@ -31,10 +30,8 @@ describeWithEnv(
     });
 
     test("preserves the existing booking rows it rebuilds", async () => {
-      const listing = await createTestListing({ maxAttendees: 50 });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
+      const { attendee, listing } = await listingWithAttendee(
+        50,
         "Refunded Row",
         "row@example.com",
       );

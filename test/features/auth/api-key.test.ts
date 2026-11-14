@@ -8,6 +8,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { execute } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
 import {
   ADMIN_API,
@@ -81,6 +82,19 @@ describeWithEnv("reading the Bearer token", { db: true }, () => {
 describeWithEnv("refusing a Bearer token", { db: true }, () => {
   const errors = setupErrorSpy();
 
+  /** Create a real key, break it with `damage`, then require the request to be
+   *  refused and the log to name `reason`. */
+  const expectRefusedKey = async (
+    reason: string,
+    damage?: () => Promise<unknown>,
+  ): Promise<void> => {
+    const apiKey = await createTestApiKeyToken();
+    await damage?.();
+
+    expect(await sessionFor(withAuthorization(`Bearer ${apiKey}`))).toBe(null);
+    expect(errors.contains(reason)).toBe(true);
+  };
+
   test("says the token matched no key", async () => {
     expect(await sessionFor(withAuthorization("Bearer nonsense"))).toBe(null);
     expect(errors.contains("Bearer token does not match any API key")).toBe(
@@ -92,32 +106,24 @@ describeWithEnv("refusing a Bearer token", { db: true }, () => {
     for (let attempt = 0; attempt < MAX_APIKEY_ATTEMPTS; attempt++) {
       await sessionFor(withAuthorization(`Bearer wrong-${attempt}`));
     }
-    const apiKey = await createTestApiKeyToken();
 
     // The lockout is by address, so even the real key is refused while it
     // holds — that is what makes the counting observable.
-    expect(await sessionFor(withAuthorization(`Bearer ${apiKey}`))).toBe(null);
-    expect(errors.contains("API key authentication rate limited")).toBe(true);
+    await expectRefusedKey("API key authentication rate limited");
   });
 
   test("says the key's stored data key could not be opened", async () => {
-    const apiKey = await createTestApiKeyToken();
-    const { execute } = await import("#shared/db/client.ts");
-    await execute(
-      sql`UPDATE api_keys SET wrapped_data_key = ${"not-a-wrapped-key"} WHERE user_id = 1`,
+    await expectRefusedKey("API key wrapped data key corrupted", () =>
+      execute(
+        sql`UPDATE api_keys SET wrapped_data_key = ${"not-a-wrapped-key"} WHERE user_id = 1`,
+      ),
     );
-
-    expect(await sessionFor(withAuthorization(`Bearer ${apiKey}`))).toBe(null);
-    expect(errors.contains("API key wrapped data key corrupted")).toBe(true);
   });
 
   test("says the key points at a user who is gone", async () => {
-    const apiKey = await createTestApiKeyToken();
-    const { execute } = await import("#shared/db/client.ts");
-    await execute(sql`UPDATE api_keys SET user_id = 9999 WHERE user_id = 1`);
-
-    expect(await sessionFor(withAuthorization(`Bearer ${apiKey}`))).toBe(null);
-    expect(errors.contains("API key references non-existent user")).toBe(true);
+    await expectRefusedKey("API key references non-existent user", () =>
+      execute(sql`UPDATE api_keys SET user_id = 9999 WHERE user_id = 1`),
+    );
   });
 });
 

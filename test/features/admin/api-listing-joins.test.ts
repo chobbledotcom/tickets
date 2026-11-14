@@ -7,7 +7,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import { listingAttributeOptions } from "#db/attributes.ts";
-import { withTransaction } from "#db/client.ts";
+import { type TxScope, withTransaction } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { setListingGroups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
@@ -17,6 +17,7 @@ import { type SqlStatement, sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { bodyToUpdateInput } from "#routes/admin/api-listing-body.ts";
 import {
+  type PreparedListingJoins,
   persistListingJoins,
   prepareChildEdges,
   prepareListingJoins,
@@ -29,6 +30,10 @@ import {
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListingInput } from "#test-utils/factories.ts";
+import {
+  linkedParentChild,
+  parentAndChild,
+} from "#test-utils/listing-parents/helpers.ts";
 import type { ListingWithCount } from "#types";
 
 const baseInput = (
@@ -46,19 +51,63 @@ const baseInput = (
   };
 };
 
-const persistAfterRowChange = (
+/** The join fields a persist test varies. Attribute options and day prices stay
+ * out of the record, so the write skips both. */
+type JoinWrite = {
+  childEdges: PreparedListingJoins["childEdges"];
+  groupIds?: number[];
+};
+
+/** Run one join write for `listingId` with only the fields under test set.
+ * `before` changes the row in the same transaction, so the write must validate
+ * against the new row rather than the row it read earlier. */
+const persistJoins = (
   listingId: number,
-  statement: SqlStatement,
+  joins: JoinWrite,
+  before?: (tx: TxScope) => Promise<unknown>,
 ): Promise<void> =>
   withTransaction(async (tx) => {
-    await tx.execute(statement);
+    await before?.(tx);
     await persistListingJoins(tx, listingId, {
       attributeOptionIds: undefined,
-      childEdges: null,
+      childEdges: joins.childEdges,
       dayPrices: undefined,
-      groupIds: undefined,
+      groupIds: joins.groupIds,
     });
   });
+
+/** A row change that breaks a stored standard/standard edge: which side the
+ * change hits, the message the write must raise, and the column the rollback
+ * leaves alone. */
+type StaleEdgeCase = {
+  broken: "child" | "parent";
+  message: string;
+  name: string;
+  read: (row: ListingWithCount) => string | number;
+  statement: (ids: { child: number; parent: number }) => SqlStatement;
+  unchanged: string | number;
+};
+
+const staleEdgeCases: readonly StaleEdgeCase[] = [
+  {
+    broken: "child",
+    message: "listings_table.children_err_child_daily",
+    name: "rejects a stale incoming edge after the child becomes daily",
+    read: (row) => row.listing_type,
+    statement: ({ child }) =>
+      sql`UPDATE listings SET listing_type = 'daily' WHERE id = ${child}`,
+    unchanged: "standard",
+  },
+  {
+    broken: "parent",
+    message: "listings_table.children_err_parent_renewal",
+    name: "rejects a stale outgoing edge after the parent becomes a renewal",
+    read: (row) => row.months_per_unit,
+    statement: ({ parent }) =>
+      sql`UPDATE listings SET months_per_unit = 1 WHERE id = ${parent}`,
+    unchanged: 0,
+  },
+];
 
 /** Run an unrelated update through the API body parser the way the route
  * does: an owner session and a body without join fields. Returns the merged
@@ -327,17 +376,12 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
   });
 
   test("persistListingJoins writes group membership and child edges in one tx", async () => {
-    const parent = await createTestListing({ name: "Persist parent" });
-    const child = await createTestListing({ name: "Persist child" });
+    const { parent, child } = await parentAndChild();
     const group = await createTestGroup({ name: "Persist group" });
 
-    await withTransaction(async (tx) => {
-      await persistListingJoins(tx, parent.id, {
-        attributeOptionIds: undefined,
-        childEdges: [child.id],
-        dayPrices: undefined,
-        groupIds: [group.id],
-      });
+    await persistJoins(parent.id, {
+      childEdges: [child.id],
+      groupIds: [group.id],
     });
 
     expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
@@ -349,82 +393,40 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
     const group = await createTestGroup({ name: "Clear group" });
     await setListingGroups(listing.id, [group.id]);
 
-    await withTransaction(async (tx) => {
-      await persistListingJoins(tx, listing.id, {
-        attributeOptionIds: undefined,
-        childEdges: null,
-        dayPrices: undefined,
-        groupIds: [],
-      });
-    });
+    await persistJoins(listing.id, { childEdges: null, groupIds: [] });
 
     expect(await listingGroups.getIds(listing.id)).toEqual([]);
   });
 
   test("persistListingJoins leaves existing edges untouched when childEdges is null", async () => {
-    const parent = await createTestListing({ name: "Skip parent" });
-    const child = await createTestListing({ name: "Skip child" });
-    await listingChildren.setIds(parent.id, [child.id]);
+    const { parent, child } = await linkedParentChild();
 
-    await withTransaction(async (tx) => {
-      await persistListingJoins(tx, parent.id, {
-        attributeOptionIds: undefined,
-        childEdges: null,
-        dayPrices: undefined,
-        groupIds: undefined,
-      });
-    });
+    await persistJoins(parent.id, { childEdges: null });
 
     expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
   });
 
-  test("rejects a stale incoming edge after the child becomes daily", async () => {
-    const parent = await createTestListing({ name: "Standard parent" });
-    const child = await createTestListing({ name: "Changing child" });
-    await listingChildren.setIds(parent.id, [child.id]);
+  for (const staleEdge of staleEdgeCases) {
+    test(staleEdge.name, async () => {
+      const { parent, child } = await linkedParentChild();
+      const broken = staleEdge.broken === "child" ? child : parent;
 
-    await expect(
-      persistAfterRowChange(
-        child.id,
-        sql`UPDATE listings SET listing_type = 'daily' WHERE id = ${child.id}`,
-      ),
-    ).rejects.toThrow(
-      t("listings_table.children_err_child_daily", { name: child.name }),
-    );
-    expect((await getListingWithCount(child.id))?.listing_type).toBe(
-      "standard",
-    );
-  });
-
-  test("rejects a stale outgoing edge after the parent becomes a renewal", async () => {
-    const parent = await createTestListing({ name: "Changing parent" });
-    const child = await createTestListing({ name: "Standard child" });
-    await listingChildren.setIds(parent.id, [child.id]);
-
-    await expect(
-      persistAfterRowChange(
-        parent.id,
-        sql`UPDATE listings SET months_per_unit = 1 WHERE id = ${parent.id}`,
-      ),
-    ).rejects.toThrow(
-      t("listings_table.children_err_parent_renewal", { name: parent.name }),
-    );
-    expect((await getListingWithCount(parent.id))?.months_per_unit).toBe(0);
-  });
+      await expect(
+        persistJoins(broken.id, { childEdges: null }, (tx) =>
+          tx.execute(
+            staleEdge.statement({ child: child.id, parent: parent.id }),
+          ),
+        ),
+      ).rejects.toThrow(t(staleEdge.message, { name: broken.name }));
+      const after = await getListingWithCount(broken.id);
+      expect(after && staleEdge.read(after)).toBe(staleEdge.unchanged);
+    });
+  }
 
   test("persistListingJoins clears child edges when given an empty array", async () => {
-    const parent = await createTestListing({ name: "Clear parent" });
-    const child = await createTestListing({ name: "Clear child" });
-    await listingChildren.setIds(parent.id, [child.id]);
+    const { parent } = await linkedParentChild();
 
-    await withTransaction(async (tx) => {
-      await persistListingJoins(tx, parent.id, {
-        attributeOptionIds: undefined,
-        childEdges: [],
-        dayPrices: undefined,
-        groupIds: undefined,
-      });
-    });
+    await persistJoins(parent.id, { childEdges: [] });
 
     expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });

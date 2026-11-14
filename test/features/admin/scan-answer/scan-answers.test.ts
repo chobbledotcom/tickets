@@ -40,6 +40,29 @@ const orphanedTokenFrom = async (listingId: number): Promise<string> => {
   return attendee.ticket_token;
 };
 
+type DoorAnswer = { json: { status: unknown }; response: Response };
+
+/** Assert the door answered `http` and that the body names the same `status`. */
+const expectAnswer = (
+  answer: DoorAnswer,
+  http: number,
+  status: string,
+): void => {
+  expect(answer.response.status).toBe(http);
+  expect(answer.json.status).toBe(status);
+};
+
+/** The attendee's one booking row must hold exactly `checkedIn` — a second
+ *  row or another count fails the case. */
+const expectCheckinRows = async (
+  attendeeId: number,
+  checkedIn: number,
+): Promise<void> => {
+  expect(await storedCheckinRows(attendeeId)).toEqual([
+    { checked_in: checkedIn },
+  ]);
+};
+
 describeWithEnv("group scanner answer edges", { db: true }, () => {
   test("answers 404 with not_found for a token no attendee holds", async () => {
     const { group } = await groupDoor();
@@ -48,8 +71,7 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
       token: "no-token-any-attendee-holds",
     });
 
-    expect(answer.response.status).toBe(404);
-    expect(answer.json.status).toBe("not_found");
+    expectAnswer(answer, 404, "not_found");
   });
 
   test("a manual pick of an id no attendee holds answers not_found", async () => {
@@ -57,8 +79,7 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
 
     const answer = await scanAtDoor(group.id, { attendee_id: 987654 });
 
-    expect(answer.response.status).toBe(404);
-    expect(answer.json.status).toBe("not_found");
+    expectAnswer(answer, 404, "not_found");
   });
 
   test("a scan with neither token nor attendee id answers Missing token", async () => {
@@ -82,9 +103,9 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
       attendee_id: attendee.id,
     });
 
-    expect(answer.json.status).toBe("checked_in");
+    expectAnswer(answer, 200, "checked_in");
     expect(answer.json.name).toBe("Picked Person");
-    expect(await storedCheckinRows(attendee.id)).toEqual([{ checked_in: 1 }]);
+    await expectCheckinRows(attendee.id, 1);
   });
 
   test("a manual pick for a person on another door's listings answers not_found and names nobody", async () => {
@@ -100,10 +121,9 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
       attendee_id: stranger.id,
     });
 
-    expect(answer.response.status).toBe(404);
-    expect(answer.json.status).toBe("not_found");
+    expectAnswer(answer, 404, "not_found");
     expect(Object.hasOwn(answer.json, "name")).toBe(false);
-    expect(await storedCheckinRows(stranger.id)).toEqual([{ checked_in: 0 }]);
+    await expectCheckinRows(stranger.id, 0);
   });
 
   test("a line owing more than one ticket asks how many, then admits the answer", async () => {
@@ -117,13 +137,13 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
     const ask = await scanAtDoor(door.group.id, {
       token: attendee.ticket_token,
     });
-    expect(ask.json.status).toBe("select_quantity");
+    expectAnswer(ask, 200, "select_quantity");
 
     const admission = await scanAtDoor(door.group.id, {
       quantity: 2,
       token: attendee.ticket_token,
     });
-    expect(admission.json.status).toBe("checked_in");
+    expectAnswer(admission, 200, "checked_in");
     expect(admission.json.quantity).toBe(2);
     expect(admission.json.remaining).toBe(1);
   });
@@ -155,8 +175,7 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
     // The line points at a listing that no longer resolves, so the ticket
     // matches no door. A camera read may name the person it decoded — the
     // guest presented the credential.
-    expect(answer.response.status).toBe(200);
-    expect(answer.json.status).toBe("wrong_listing");
+    expectAnswer(answer, 200, "wrong_listing");
     expect(answer.json.name).toBe("Owen");
   });
 
@@ -179,8 +198,7 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
       token: attendee.ticket_token,
     });
 
-    expect(answer.response.status).toBe(200);
-    expect(answer.json.status).toBe("wrong_listing");
+    expectAnswer(answer, 200, "wrong_listing");
     expect(answer.json.listingName).toBe("Unknown listing");
   });
 
@@ -190,8 +208,7 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
 
     const answer = await scanAtDoor(door.group.id, { force: true, token });
 
-    expect(answer.response.status).toBe(404);
-    expect(answer.json.status).toBe("not_found");
+    expectAnswer(answer, 404, "not_found");
   });
 
   test("a ticket with only no-check-in rows never admits, forceably too", async () => {
@@ -213,9 +230,8 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
       { force: true, token: attendee.ticket_token },
     ]) {
       const answer = await scanAtDoor(group.id, body);
-      expect(answer.response.status).toBe(200);
-      expect(answer.json.status).toBe("wrong_listing");
-      expect(await storedCheckinRows(attendee.id)).toEqual([{ checked_in: 0 }]);
+      expectAnswer(answer, 200, "wrong_listing");
+      await expectCheckinRows(attendee.id, 0);
     }
   });
 
@@ -238,7 +254,7 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
     const answer = await scanAtDoor(door.group.id, {
       token: attendee.ticket_token,
     });
-    expect(answer.json.status).toBe("checked_in");
+    expectAnswer(answer, 200, "checked_in");
 
     // The live order checked in; the refunded order kept its state.
     const rows = await storedCheckinRows(attendee.id);

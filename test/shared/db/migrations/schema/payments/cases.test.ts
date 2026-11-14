@@ -4,6 +4,7 @@ import { getDb } from "#db/client.ts";
 import { paymentCaseTable } from "#db/migrations/schema/payments/cases.ts";
 import { sql, sqlLiteral } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { expectSchemaColumns } from "#test-utils/schema-columns.ts";
 import {
   expectAccepted,
   expectRefused,
@@ -17,11 +18,17 @@ const aCase = (
   values = sql`'case-1', 'hyb:1:a:b:c', 'case-1-index', 'network_error', 'needs_action', 1, 1, 1, 'hyb:1:a:b:c', 1`,
 ) => sql`INSERT INTO payment_cases (${columns}) VALUES (${values})`;
 
-test("is what a problem for the owner is made of", () => {
-  const [name, table] = paymentCaseTable;
+/** Each row is one way a writer could hold evidence that the table must
+ *  refuse: in the open, under the wrong key, or in a broken envelope. */
+const OPEN_EVIDENCE = [
+  ["in plain words", "Jane Smith"],
+  ["under the database owner's key", "enc:1:a:b"],
+  ["behind an upper-case envelope", "HYB:1:a:b:c"],
+  ["wearing an envelope with nothing in it", "hyb:1:Jane Smith"],
+] as const;
 
-  expect(name).toBe("payment_cases");
-  expect(table.columns.map(([held]) => held)).toEqual([
+test("is what a problem for the owner is made of", () => {
+  expectSchemaColumns(paymentCaseTable, "payment_cases", [
     "id",
     "payment_id",
     "resource",
@@ -48,12 +55,7 @@ test("is what a problem for the owner is made of", () => {
 describeWithEnv("db > payment case rules", { db: true }, () => {
   // The one rule the table still keeps. A type says "string" while the value
   // is bytes, which is the thing no TypeScript check can see.
-  for (const [name, resource] of [
-    ["in plain words", "Jane Smith"],
-    ["under the database owner's key", "enc:1:a:b"],
-    ["behind an upper-case envelope", "HYB:1:a:b:c"],
-    ["wearing an envelope with nothing in it", "hyb:1:Jane Smith"],
-  ] as const) {
+  for (const [name, resource] of OPEN_EVIDENCE) {
     test(`refuses a problem whose evidence is held ${name}`, async () => {
       await expectRefused(
         aCase(

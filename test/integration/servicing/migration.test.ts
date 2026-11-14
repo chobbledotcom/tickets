@@ -49,6 +49,15 @@ const columnDefault = async (): Promise<string | null> => {
   return result.rows[0]!.dflt_value as string | null;
 };
 
+/** Asserts the migration id is registered. Registration is manual, so a
+ *  missing entry is a real gap rather than a test artefact. */
+const assertRegistered = (id: string): void => {
+  assert(
+    MIGRATIONS.some((m) => m.id === id),
+    `migration ${id} is not registered`,
+  );
+};
+
 describe("servicing §1 — schema declares the kind column + index", () => {
   test("the attendees schema carries a NOT NULL kind column defaulting to ATTENDEE_KIND", () => {
     const kindCol = attendeesTable.columns.find(([name]) => name === "kind");
@@ -77,7 +86,7 @@ describe("servicing §1 — schema declares the kind column + index", () => {
 
 describe("servicing §1 — migration is registered and runs on an existing database", () => {
   test("the migration is appended to MIGRATIONS (guards the manual-registration gap)", () => {
-    expect(MIGRATIONS.some((m) => m.id === MIGRATION_ID)).toBe(true);
+    assertRegistered(MIGRATION_ID);
   });
 
   describeWithEnv("servicing §1 — migration up()", { db: true }, () => {
@@ -146,7 +155,7 @@ describe("servicing §1 — schema and migration stay in sync", () => {
 
 describe("servicing §1 — the NOT NULL tightening migration is registered", () => {
   test("the 2026-06-26_attendees_kind_not_null migration is appended to MIGRATIONS", () => {
-    expect(MIGRATIONS.some((m) => m.id === NOT_NULL_MIGRATION_ID)).toBe(true);
+    assertRegistered(NOT_NULL_MIGRATION_ID);
   });
 
   test("the NOT NULL migration runs after the kind migration (column exists to tighten)", () => {

@@ -58,18 +58,30 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
     return members.map((listing) => line(listing.id));
   };
 
+  /** Run the diagnosis under a database-call budget and return what it named.
+   * `calls` pins the round trips the ask actually spent inside that budget. */
+  const diagnoseWithinBudget = async (
+    budget: number,
+    calls: number,
+    lines: LineBooking[],
+  ): Promise<number[]> => {
+    let diagnosis: number[] | undefined;
+    expect(
+      await countDatabaseCalls(budget, async () => {
+        diagnosis = await refusedOrderUnfitListingIds(lines);
+      }),
+    ).toBe(calls);
+    return requireValue(diagnosis, "the diagnosis must name its answer");
+  };
+
   test("a longer refused order narrows a bracket instead of one query per line", async () => {
     // Seventeen lines share one place. The first stride batch samples every
     // third prefix plus the bracket end, the second asks the bracket's own
     // lines: three round trips total, not one probe statement per prefix.
     const lines = await seventeenLinesSharingOnePlace();
-    let diagnosis: number[] | undefined;
-    expect(
-      await countDatabaseCalls(4, async () => {
-        diagnosis = await refusedOrderUnfitListingIds(lines);
-      }),
-    ).toBe(3);
-    expect(diagnosis).toEqual([lines[1]!.listingId]);
+    expect(await diagnoseWithinBudget(4, 3, lines)).toEqual([
+      lines[1]!.listingId,
+    ]);
   });
 
   test("every probe batch holds at most the stride sample plus its bracket ends", async () => {
@@ -102,13 +114,7 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
       line(index % 2 ? b.id : a.id),
     );
 
-    let diagnosis: number[] | undefined;
-    expect(
-      await countDatabaseCalls(4, async () => {
-        diagnosis = await refusedOrderUnfitListingIds(lines);
-      }),
-    ).toBe(4);
-    expect(diagnosis).toEqual([a.id]);
+    expect(await diagnoseWithinBudget(4, 4, lines)).toEqual([a.id]);
   });
 
   test("a booking that consumes room between batches still names the first unfit line", async () => {
@@ -133,13 +139,7 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
       }
     });
 
-    let diagnosis: number[] | undefined;
-    expect(
-      await countDatabaseCalls(8, async () => {
-        diagnosis = await refusedOrderUnfitListingIds(lines);
-      }),
-    ).toBe(6);
-    expect(diagnosis).toEqual([b.id]);
+    expect(await diagnoseWithinBudget(8, 6, lines)).toEqual([b.id]);
   });
 
   test("a room that moves under every batch names nothing once its batch budget spends", async () => {
@@ -172,13 +172,7 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
       }
     });
 
-    let diagnosis: number[] | undefined;
-    expect(
-      await countDatabaseCalls(17, async () => {
-        diagnosis = await refusedOrderUnfitListingIds(lines);
-      }),
-    ).toBe(17);
-    expect(diagnosis).toEqual([]);
+    expect(await diagnoseWithinBudget(17, 17, lines)).toEqual([]);
   });
 
   test("a member that joins a new full group mid-diagnosis still names the first unfit line", async () => {
@@ -213,13 +207,7 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
       }
     });
 
-    let diagnosis: number[] | undefined;
-    expect(
-      await countDatabaseCalls(6, async () => {
-        diagnosis = await refusedOrderUnfitListingIds(lines);
-      }),
-    ).toBe(6);
-    expect(diagnosis).toEqual([b.id]);
+    expect(await diagnoseWithinBudget(6, 6, lines)).toEqual([b.id]);
   });
 
   test("a membership set that comes back in a different row order is the same facts", async () => {
@@ -265,13 +253,7 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
       }
     });
 
-    let diagnosis: number[] | undefined;
-    expect(
-      await countDatabaseCalls(5, async () => {
-        diagnosis = await refusedOrderUnfitListingIds(lines);
-      }),
-    ).toBe(5);
-    expect(diagnosis).toEqual([second.id]);
+    expect(await diagnoseWithinBudget(5, 5, lines)).toEqual([second.id]);
   });
 
   test("a listing that vanishes mid-diagnosis names nothing", async () => {
@@ -290,16 +272,9 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
       }
     });
 
-    let diagnosis: number[] | undefined;
     expect(
-      await countDatabaseCalls(3, async () => {
-        diagnosis = await refusedOrderUnfitListingIds([
-          line(first.id),
-          line(second.id),
-        ]);
-      }),
-    ).toBe(3);
-    expect(diagnosis).toEqual([]);
+      await diagnoseWithinBudget(3, 3, [line(first.id), line(second.id)]),
+    ).toEqual([]);
   });
 
   test("an order whose first line alone busts a zero-cap listing names it", async () => {

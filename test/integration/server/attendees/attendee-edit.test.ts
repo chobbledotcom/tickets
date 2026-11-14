@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { sql } from "#db/sql.ts";
@@ -11,6 +10,7 @@ import {
   expectRedirect,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
+import { expectEditPageRegistrations } from "#test-utils/attendees/edit-page.ts";
 import {
   createDualPackageAttendee,
   dualPackageRows,
@@ -98,9 +98,7 @@ describeWithEnv(
           name: "",
         });
         // Validation failure re-renders the form (200) with the error inline.
-        expect(response.status).toBe(200);
-        const html = await response.text();
-        assertStringIncludes(html, "Name is required");
+        await expectHtmlResponse(response, 200, "Name is required");
       });
 
       test("preserves return_url on edit validation error", async () => {
@@ -111,9 +109,7 @@ describeWithEnv(
           name: "",
           returnUrl,
         });
-        expect(response.status).toBe(200);
-        const html = await response.text();
-        expectIncludesAll(html, ["Name is required", returnUrl]);
+        await expectHtmlResponse(response, 200, "Name is required", returnUrl);
       });
 
       test("rejects whitespace-only name", async () => {
@@ -121,9 +117,7 @@ describeWithEnv(
         const response = await submitAttendeeEdit(attendee.id, {
           name: "   ",
         });
-        expect(response.status).toBe(200);
-        const html = await response.text();
-        assertStringIncludes(html, "Name is required");
+        await expectHtmlResponse(response, 200, "Name is required");
       });
 
       test("updates attendee with new data", async () => {
@@ -327,14 +321,8 @@ describeWithEnv(
           sql`UPDATE listings SET active = 0 WHERE id = ${inactiveListing.id}`,
         );
 
-        const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
         // Listing still shows in registrations table even when inactive
-        await expectHtmlResponse(
-          response,
-          200,
-          "Inactive Listing",
-          "Listing Registrations",
-        );
+        await expectEditPageRegistrations(attendee.id, "Inactive Listing");
       });
 
       test("updates attendee with empty email", async () => {

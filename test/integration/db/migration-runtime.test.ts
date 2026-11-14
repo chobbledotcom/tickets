@@ -1,5 +1,5 @@
 import type { InStatement, TransactionMode } from "@libsql/client";
-import { assert, assertStringIncludes } from "@std/assert";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -34,6 +34,7 @@ import {
   sqlLiteral,
   sqlName,
 } from "#db/sql.ts";
+import { expectExcludesAll } from "#test-utils/assertions/absent.ts";
 import { markCurrentSchemaMigrationPending } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -93,6 +94,15 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
     invalidateInitDbCache();
   };
 
+  /** Assert the stored schema hash marker holds the current schema hash once a
+   *  migration run finishes. */
+  const expectSchemaHashStored = async (): Promise<void> => {
+    const result = await getDb().execute(
+      sql`SELECT value FROM settings WHERE key = ${sqlLiteral(DB_SCHEMA_HASH_KEY)}`,
+    );
+    expect(result.rows[0]?.value).toBe(SCHEMA_HASH);
+  };
+
   const statementSql = (statement: BatchStatement | InStatement): string =>
     Array.isArray(statement)
       ? statement[0]
@@ -131,10 +141,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
       await initDb();
 
       // The migration completed...
-      const result = await getDb().execute(
-        sql`SELECT value FROM settings WHERE key = ${sqlLiteral(DB_SCHEMA_HASH_KEY)}`,
-      );
-      expect(result.rows[0]?.value).toBe(SCHEMA_HASH);
+      await expectSchemaHashStored();
 
       // ...and no backup was written — backups are now taken out-of-band.
       const files = [...Deno.readDirSync(tmpDir.path)]
@@ -210,10 +217,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
 
         await initDb();
 
-        const result = await getDb().execute(
-          sql`SELECT value FROM settings WHERE key = ${sqlLiteral(DB_SCHEMA_HASH_KEY)}`,
-        );
-        expect(result.rows[0]?.value).toBe(SCHEMA_HASH);
+        await expectSchemaHashStored();
       } finally {
         await getDb().execute(
           sql`DELETE FROM settings WHERE key = ${sqlLiteral(MIGRATION_LOCK_KEY)}`,
@@ -349,14 +353,18 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
       const tablesResult = await getDb().execute(
         sql`SELECT name FROM sqlite_master WHERE type='table'`,
       );
-      const tableNames = tablesResult.rows.map((r) => r.name);
-      assert(!tableNames.includes("listings"));
-      assert(!tableNames.includes("attendees"));
-      assert(!tableNames.includes("sessions"));
-      assert(!tableNames.includes("settings"));
-      assert(!tableNames.includes("login_attempts"));
-      assert(!tableNames.includes("processed_payments"));
-      assert(!tableNames.includes("activity_log"));
+      expectExcludesAll(
+        tablesResult.rows.map((r) => String(r.name)),
+        [
+          "listings",
+          "attendees",
+          "sessions",
+          "settings",
+          "login_attempts",
+          "processed_payments",
+          "activity_log",
+        ],
+      );
     });
 
     test("can reinitialize database after reset", async () => {

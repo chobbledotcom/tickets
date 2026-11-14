@@ -11,9 +11,9 @@ import {
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createAttendeeOn } from "#test-utils/db-helpers/attendees.ts";
 import { attendeeWithoutBookings } from "#test-utils/db-helpers/booking-shapes.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { listingWithAttendee } from "#test-utils/db-helpers/listing-attendee.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { refundUrl } from "#test-utils/refund-routes.ts";
 import { setupListingAndLogin, testCookie } from "#test-utils/session.ts";
@@ -23,12 +23,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
     testRequiresAuth("/admin/attendees/1/refund", {
       setup: async () => {
         const listing = await createPaidListing();
-        await createTestAttendee(
-          listing.id,
-          listing.slug,
-          "John Doe",
-          "john@example.com",
-        );
+        await createAttendeeOn(listing, "John Doe", "john@example.com");
       },
     });
 
@@ -49,10 +44,8 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
     });
 
     test("shows error when attendee has no payment", async () => {
-      const listing = await createTestListing({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
+      const { attendee } = await listingWithAttendee(
+        100,
         "John Doe",
         "john@example.com",
       );

@@ -76,10 +76,11 @@ describeWithEnv("admin listing recalculate routes", { db: true }, () => {
         encodeURIComponent("Listing totals recalculated"),
       );
 
-      const repaired = await getListingWithCount(listing.id);
-      expect(repaired?.attendee_count).toBe(1);
-      // tickets_count was not ticked, so it keeps the wrong stored value.
-      expect(repaired?.tickets_count).toBe(5);
+      expect(await getListingWithCount(listing.id)).toMatchObject({
+        // tickets_count was not ticked, so it keeps the wrong stored value.
+        attendee_count: 1,
+        tickets_count: 5,
+      });
     });
 
     test("names the listing in the activity log", async () => {
@@ -125,9 +126,10 @@ describeWithEnv("admin listing recalculate routes", { db: true }, () => {
         await response.text(),
         "Choose at least one total to recalculate",
       );
-      const untouched = await getListingWithCount(listing.id);
-      expect(untouched?.attendee_count).toBe(9);
-      expect(untouched?.tickets_count).toBe(5);
+      expect(await getListingWithCount(listing.id)).toMatchObject({
+        attendee_count: 9,
+        tickets_count: 5,
+      });
     });
   });
 });

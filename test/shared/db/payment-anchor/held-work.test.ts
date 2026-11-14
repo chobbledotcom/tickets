@@ -3,29 +3,20 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
-import { prepareClaimedAttendeePaymentAnchor } from "#db/payment-anchor/attendee.ts";
 import { loadAnchorRowWork } from "#db/payment-anchor/held-work.ts";
 import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
 import { reserveSession } from "#db/processed-payments.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { bookAnchoredAttendee } from "#test-utils/db-helpers/attendee-anchor.ts";
 import { taggedPaymentReference } from "#test-utils/processed-payments.ts";
 
 describeWithEnv("db > payment anchor > held work", { db: true }, () => {
   test("reads only the payment's anchor rows, never the session's own", async () => {
-    const listing = await createTestListing({ maxAttendees: 20 });
-    const made = await bookAttendee(listing, {
-      email: "held@example.com",
-      name: "Held Work",
-    });
-    if (!made.success) throw new Error("attendee setup failed");
-    const attendeeId = made.attendees[0]!.id;
-    const payment = taggedPaymentReference("pi_held_work");
-    const prepared = await prepareClaimedAttendeePaymentAnchor(payment);
-    const anchor = await prepared.forAttendee(attendeeId);
-    await execute(anchor.statement);
+    const { anchor, attendeeId, payment } = await bookAnchoredAttendee(
+      "pi_held_work",
+      { email: "held@example.com", name: "Held Work" },
+    );
     // The session's own idempotency row can carry the same reference index
     // once finalized; the anchor read must still not return it.
     await reserveSession("cs_held_work");

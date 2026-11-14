@@ -72,8 +72,8 @@ export type AggregateRepairs<F extends string> = {
 
 /**
  * Both repairs for one table's aggregate columns, given the expression that
- * recounts each one for the row `<table>.id`. Every aggregate family declares its table and its per-column
- * recount here rather than writing the same two wrappers again.
+ * recounts each one for the row `<table>.id`. Every family declares its table
+ * and per-column recount here rather than writing the same two wrappers again.
  */
 export const aggregateRepairs = <F extends string>(
   table: string,

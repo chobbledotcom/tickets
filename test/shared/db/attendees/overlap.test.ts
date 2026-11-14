@@ -63,6 +63,29 @@ const overlappingIds = async (excludeId: number): Promise<number[]> =>
     (row) => row.attendee_id,
   );
 
+/** A real booking on a daily listing that `breakHold` turns into a row the
+ *  overlap query must filter out — a servicing hold (`attendee.kind`) or a
+ *  row with no quantity (`quantity > 0`). */
+const EXCLUSION_CASES: readonly {
+  name: string;
+  breakHold: (attendeeId: number) => Promise<unknown>;
+}[] = [
+  {
+    breakHold: (id) =>
+      execute(
+        sql`UPDATE attendees SET kind = ${SERVICING_KIND} WHERE id = ${id}`,
+      ),
+    name: "excludes an overlapping booking held by a servicing (non-attendee) row",
+  },
+  {
+    breakHold: (id) =>
+      execute(
+        sql`UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ${id}`,
+      ),
+    name: "excludes a no-quantity booking that would otherwise overlap",
+  },
+];
+
 describeWithEnv("db > attendees > overlap", { db: true }, () => {
   /** A daily listing with a cast of bookings around the query window: one for
    *  the "current" attendee (excluded), two genuine overlappers, and three that
@@ -155,19 +178,17 @@ describeWithEnv("db > attendees > overlap", { db: true }, () => {
     );
   });
 
-  test("excludes an overlapping booking held by a servicing (non-attendee) row", async () => {
-    const daily = await createDailyTestListing({ maxAttendees: 50 });
-    const servicing = await bookOne("Servicing Hold", daily.id, {
-      date: "2030-03-10",
-      durationDays: 2,
+  for (const { breakHold, name } of EXCLUSION_CASES) {
+    test(name, async () => {
+      const daily = await createDailyTestListing({ maxAttendees: 50 });
+      const held = await bookOne("Held Booking", daily.id, {
+        date: "2030-03-10",
+        durationDays: 2,
+      });
+      await breakHold(held);
+      assert(!(await overlappingIds(0)).includes(held));
     });
-    // Turn the booking into a servicing hold — a real non-customer row the
-    // overlap query filters out with `attendee.kind = 'attendee'`.
-    await execute(
-      sql`UPDATE attendees SET kind = ${SERVICING_KIND} WHERE id = ${servicing}`,
-    );
-    assert(!(await overlappingIds(0)).includes(servicing));
-  });
+  }
 
   test("includes an overlapper booked on a different listing", async () => {
     const listingA = await createDailyTestListing({ maxAttendees: 50 });
@@ -199,20 +220,6 @@ describeWithEnv("db > attendees > overlap", { db: true }, () => {
     expect(rows.map((row) => row.listing_id).sort()).toEqual(
       [listingA.id, listingB.id].sort(),
     );
-  });
-
-  test("excludes a no-quantity booking that would otherwise overlap", async () => {
-    const daily = await createDailyTestListing({ maxAttendees: 50 });
-    const zero = await bookOne("Zero Quantity", daily.id, {
-      date: "2030-03-10",
-      durationDays: 2,
-    });
-    // Drop the booking to no quantity — a real "no quantity" attendee state the
-    // overlap query filters out with `quantity > 0`.
-    await execute(
-      sql`UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ${zero}`,
-    );
-    assert(!(await overlappingIds(0)).includes(zero));
   });
 
   test("excludes a date-less booking, keeping only the dated overlapper", async () => {

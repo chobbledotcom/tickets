@@ -499,18 +499,18 @@ describeWithEnv("server (setup)", { db: true }, () => {
         expectRedirect(response, /^\/setup$/);
       });
 
-      test("setup form works with full browser flow simulation", async () => {
-        // This test simulates what a real browser does:
-        // 1. GET /setup/ - browser receives the page with CSRF token
-        // 2. User fills form and submits
-        // 3. Browser sends POST with signed CSRF token
-        await expectSetupViaBrowser("http://localhost/setup/");
-      });
-
-      test("setup form works when accessed via /setup (no trailing slash)", async () => {
-        // Same full flow, but reached at /setup with no trailing slash.
-        await expectSetupViaBrowser("http://localhost/setup");
-      });
+      // Both paths finish the same browser flow: page, form, signed POST.
+      for (const [title, path] of [
+        ["setup form works with full browser flow simulation", "/setup/"],
+        [
+          "setup form works when accessed via /setup (no trailing slash)",
+          "/setup",
+        ],
+      ] as const) {
+        test(title, async () => {
+          await expectSetupViaBrowser(`http://localhost${path}`);
+        });
+      }
 
       test("GET /setup/complete redirects to setup when not yet complete", async () => {
         const response = await handleRequest(mockRequest("/setup/complete"));

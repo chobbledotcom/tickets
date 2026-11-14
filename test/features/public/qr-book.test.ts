@@ -82,12 +82,11 @@ describeWithEnv("QR booking", { db: true }, () => {
     });
 
     test("unknown listing slug renders the error page", async () => {
-      const token = await signQrBookToken(
-        "unknown-slug",
-        buildQrBookPayload({ name: "Ada" }),
-      );
-      const response = await awaitTestRequest(
-        qrBookPath("unknown-slug", token),
+      const response = await scanRequest(
+        { slug: "unknown-slug" },
+        {
+          name: "Ada",
+        },
       );
       expect(response.status).toBe(404);
     });
@@ -98,10 +97,7 @@ describeWithEnv("QR booking", { db: true }, () => {
         unitPrice: 500,
       });
       using time = new FakeTime(1_700_000_000_000);
-      const token = await signQrBookToken(
-        listing.slug,
-        buildQrBookPayload({ name: "Ada", value: 500 }),
-      );
+      const token = await bookToken(listing.slug, { name: "Ada", value: 500 });
       time.tick((QR_TOKEN_MAX_AGE_S + 30) * 1000);
       const response = await awaitTestRequest(qrBookPath(listing.slug, token));
       expect(response.status).toBe(400);
@@ -109,11 +105,11 @@ describeWithEnv("QR booking", { db: true }, () => {
 
     test("daily listing with an un-bookable date is rejected", async () => {
       const listing = await createDailyTestListing({ unitPrice: 500 });
-      const token = await signQrBookToken(
-        listing.slug,
-        buildQrBookPayload({ date: "1999-01-01", name: "Ada", value: 500 }),
-      );
-      const response = await awaitTestRequest(qrBookPath(listing.slug, token));
+      const response = await scanRequest(listing, {
+        date: "1999-01-01",
+        name: "Ada",
+        value: 500,
+      });
       expect(response.status).toBe(400);
     });
 
@@ -133,10 +129,10 @@ describeWithEnv("QR booking", { db: true }, () => {
         maxPrice: 10000,
         unitPrice: 500,
       });
-      const token = await signQrBookToken(
-        listing.slug,
-        buildQrBookPayload({ name: "Ada", value: 2500 }),
-      );
+      const token = await bookToken(listing.slug, {
+        name: "Ada",
+        value: 2500,
+      });
       const response = await awaitTestRequest(qrBookPath(listing.slug, token));
       const body = await response.text();
       expect(
@@ -170,11 +166,11 @@ describeWithEnv("QR booking", { db: true }, () => {
         maxQuantity: 5,
         unitPrice: 500,
       });
-      const token = await signQrBookToken(
-        listing.slug,
-        buildQrBookPayload({ name: "Ada", quantity: 3, value: 500 }),
-      );
-      const response = await awaitTestRequest(qrBookPath(listing.slug, token));
+      const response = await scanRequest(listing, {
+        name: "Ada",
+        quantity: 3,
+        value: 500,
+      });
       const body = await response.text();
       expect(body).toMatch(/<option value="3"\s+selected>/);
     });
@@ -215,21 +211,18 @@ describeWithEnv("QR booking", { db: true }, () => {
         maximumDaysAfter: 60,
         minimumDaysBefore: 0,
       });
-      const token = await signQrBookToken(
-        listing.slug,
-        buildQrBookPayload({
+      await scanWithStripe(
+        listing,
+        async ({ response }) => {
+          expect(response.status).toBe(200);
+          assertStringIncludes(await response.text(), 'name="day_count"');
+        },
+        {
           date: addDays(testDate(todayInTz("UTC")), 5),
           name: "Ada",
           value: 1000,
-        }),
+        },
       );
-      await withStripe(async () => {
-        const response = await awaitTestRequest(
-          qrBookPath(listing.slug, token),
-        );
-        expect(response.status).toBe(200);
-        assertStringIncludes(await response.text(), 'name="day_count"');
-      });
     });
 
     test("renders the error page when the provider cannot create a session", async () => {
@@ -267,17 +260,14 @@ describeWithEnv("QR booking", { db: true }, () => {
         maxAttendees: 10,
         unitPrice: 500,
       });
-      const token = await signQrBookToken(
-        listing.slug,
-        buildQrBookPayload({ value: 1000 }),
+      await scanWithStripe(
+        listing,
+        async ({ response, stripe }) => {
+          expect(response.status).toBe(200);
+          expect(stripe.calls()).toBe(0);
+        },
+        { value: 1000 },
       );
-      await withStripe(async (stripe) => {
-        const response = await awaitTestRequest(
-          qrBookPath(listing.slug, token),
-        );
-        expect(response.status).toBe(200);
-        expect(stripe.calls()).toBe(0);
-      });
     });
 
     test("falls through when value is missing even though name is set", async () => {
@@ -335,12 +325,8 @@ describeWithEnv("QR booking", { db: true }, () => {
         unitPrice: 500,
       });
       await settings.update.terms("# Test terms");
-      const token = await bookToken(listing.slug);
       try {
-        await withStripe(async (stripe) => {
-          const response = await awaitTestRequest(
-            qrBookPath(listing.slug, token),
-          );
+        await scanWithStripe(listing, async ({ response, stripe }) => {
           expectStripeRedirect(response, stripe);
         });
       } finally {

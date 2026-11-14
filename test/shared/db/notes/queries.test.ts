@@ -21,6 +21,7 @@ import { sql } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createListingPair } from "#test-utils/db-helpers/listing-pair.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { runAndCountRoundTrips } from "#test-utils/query-log.ts";
 
@@ -44,10 +45,21 @@ const rawNote = (attendeeId: number): Promise<{ note: string } | null> =>
     sql`SELECT note FROM system_notes WHERE entity_type = 'attendee' AND entity_id = ${attendeeId} ORDER BY id`,
   );
 
+/** Two attendees, each holding one system note. */
+const makeNotePair = async (
+  firstSpec: { name: string; text: string },
+  secondSpec: { name: string; text: string },
+): Promise<{ first: number; second: number }> => {
+  const first = await makeAttendee(firstSpec.name);
+  const second = await makeAttendee(secondSpec.name);
+  await createSystemNote(attendeeNotes(first), firstSpec.text);
+  await createSystemNote(attendeeNotes(second), secondSpec.text);
+  return { first, second };
+};
+
 describeWithEnv("db > notes", { db: true }, () => {
   test("loads notes scoped to one listing's attendees only", async () => {
-    const listing = await createTestListing({ maxAttendees: 50 });
-    const other = await createTestListing({ maxAttendees: 50 });
+    const [listing, other] = await createListingPair({ maxAttendees: 50 });
     const mine = await createTestAttendee(
       listing.id,
       listing.slug,
@@ -236,10 +248,10 @@ describeWithEnv("db > notes", { db: true }, () => {
   });
 
   test("deleteAttendeeNote removes only the scoped note", async () => {
-    const owner = await makeAttendee("Delete Owner");
-    const other = await makeAttendee("Keep Owner");
-    await createSystemNote(attendeeNotes(owner), "delete me");
-    await createSystemNote(attendeeNotes(other), "keep me");
+    const { first: owner, second: other } = await makeNotePair(
+      { name: "Delete Owner", text: "delete me" },
+      { name: "Keep Owner", text: "keep me" },
+    );
     const [ownerRow] = await getNoteRows("attendee", [owner]);
     const [otherRow] = await getNoteRows("attendee", [other]);
 
@@ -254,10 +266,10 @@ describeWithEnv("db > notes", { db: true }, () => {
   });
 
   test("noteDeleteStatement clears only the chosen records' notes", async () => {
-    const keep = await makeAttendee("Keep Notes");
-    const drop = await makeAttendee("Drop Notes");
-    await createSystemNote(attendeeNotes(keep), "kept");
-    await createSystemNote(attendeeNotes(drop), "dropped");
+    const { first: keep, second: drop } = await makeNotePair(
+      { name: "Keep Notes", text: "kept" },
+      { name: "Drop Notes", text: "dropped" },
+    );
 
     const statement = noteDeleteStatement(
       "attendee",

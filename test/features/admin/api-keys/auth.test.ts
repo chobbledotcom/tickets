@@ -7,7 +7,7 @@ import { getDb, insert } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { MAX_APIKEY_ATTEMPTS } from "#shared/limits.ts";
-import { assertJson } from "#test-utils/assertions.ts";
+import { assertJson, expectStatus } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
@@ -19,6 +19,11 @@ import {
   testCsrfToken,
 } from "#test-utils/session.ts";
 
+/** The listings payload is a list, whatever it holds. */
+const expectListingsArray = (body: { listings: unknown }): void => {
+  expect(Array.isArray(body.listings)).toBe(true);
+};
+
 describeWithEnv("API key authentication", { db: true }, () => {
   describe("Bearer token authentication", () => {
     test("authenticates /api/admin/* request with Bearer token", async () => {
@@ -29,19 +34,26 @@ describeWithEnv("API key authentication", { db: true }, () => {
       await assertJson(
         handleRequest(requestAsApiKey("/api/admin/listings", apiKey)),
         200,
-        (body) => {
-          expect(Array.isArray(body.listings)).toBe(true);
-        },
+        expectListingsArray,
       );
     });
 
-    test("rejects invalid Bearer token", async () => {
-      const response = await handleRequest(
+    for (const [name, request, status] of [
+      [
+        "rejects invalid Bearer token",
         requestAsApiKey("/api/admin/listings", "invalid-token"),
-      );
-
-      expect(response.status).toBe(401);
-    });
+        401,
+      ],
+      [
+        "rejects request without auth",
+        mockRequest("/admin/api-keys/docs"),
+        302,
+      ],
+    ] as const) {
+      test(name, async () => {
+        expectStatus(status)(await handleRequest(request));
+      });
+    }
 
     test("locks out Bearer auth after too many failed attempts", async () => {
       const { apiKey } = await createTestApiKeyFull("Rate Limited");
@@ -50,16 +62,10 @@ describeWithEnv("API key authentication", { db: true }, () => {
       for (let i = 0; i < MAX_APIKEY_ATTEMPTS; i++) {
         await apiKeyLimiter.record("direct");
       }
-      const response = await handleRequest(
-        requestAsApiKey("/api/admin/listings", apiKey),
+
+      expectStatus(401)(
+        await handleRequest(requestAsApiKey("/api/admin/listings", apiKey)),
       );
-      expect(response.status).toBe(401);
-    });
-
-    test("rejects request without auth", async () => {
-      const response = await handleRequest(mockRequest("/admin/api-keys/docs"));
-
-      expect(response.status).toBe(302);
     });
   });
 
@@ -98,25 +104,24 @@ describeWithEnv("API key authentication", { db: true }, () => {
           requestAsSession("/api/admin/listings", { cookie, csrfToken }),
         ),
         200,
-        (body) => {
-          expect(Array.isArray(body.listings)).toBe(true);
-        },
+        expectListingsArray,
       );
     });
 
-    test("GET /api/admin/listings returns 401 for invalid API key", async () => {
-      const response = await handleRequest(
+    for (const [name, request] of [
+      [
+        "GET /api/admin/listings returns 401 for invalid API key",
         requestAsApiKey("/api/admin/listings", "bad-key"),
-      );
-
-      expect(response.status).toBe(401);
-    });
-
-    test("GET /api/admin/listings returns 401 without auth", async () => {
-      const response = await handleRequest(mockRequest("/api/admin/listings"));
-
-      expect(response.status).toBe(401);
-    });
+      ],
+      [
+        "GET /api/admin/listings returns 401 without auth",
+        mockRequest("/api/admin/listings"),
+      ],
+    ] as const) {
+      test(name, async () => {
+        expectStatus(401)(await handleRequest(request));
+      });
+    }
 
     test("returns 401 when API key user no longer exists", async () => {
       const token = generateSecureToken();
@@ -136,11 +141,9 @@ describeWithEnv("API key authentication", { db: true }, () => {
       );
       await getDb().execute(sql`PRAGMA foreign_keys = ON`);
 
-      const response = await handleRequest(
-        requestAsApiKey("/api/admin/listings", token),
+      expectStatus(401)(
+        await handleRequest(requestAsApiKey("/api/admin/listings", token)),
       );
-
-      expect(response.status).toBe(401);
     });
 
     test("returns 401 when API key wrapped data key is corrupted", async () => {
@@ -151,11 +154,9 @@ describeWithEnv("API key authentication", { db: true }, () => {
         sql`UPDATE api_keys SET wrapped_data_key = ${"corrupted-data"} WHERE id = ${id}`,
       );
 
-      const response = await handleRequest(
-        requestAsApiKey("/api/admin/listings", apiKey),
+      expectStatus(401)(
+        await handleRequest(requestAsApiKey("/api/admin/listings", apiKey)),
       );
-
-      expect(response.status).toBe(401);
     });
 
     test("GET /api/admin/listings serves a cookie without a CSRF header", async () => {
@@ -172,9 +173,7 @@ describeWithEnv("API key authentication", { db: true }, () => {
           }),
         ),
         200,
-        (body) => {
-          expect(Array.isArray(body.listings)).toBe(true);
-        },
+        expectListingsArray,
       );
     });
 
@@ -187,11 +186,10 @@ describeWithEnv("API key authentication", { db: true }, () => {
       setTouchOverride(new Error("touch failed"));
 
       try {
-        const response = await handleRequest(
-          requestAsApiKey("/api/admin/listings", apiKey),
+        // The request succeeds despite touchApiKeyLastUsed throwing.
+        expectStatus(200)(
+          await handleRequest(requestAsApiKey("/api/admin/listings", apiKey)),
         );
-        // Request should succeed despite touchApiKeyLastUsed throwing
-        expect(response.status).toBe(200);
       } finally {
         setTouchOverride(null);
       }

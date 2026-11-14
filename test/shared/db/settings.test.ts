@@ -10,6 +10,7 @@ import {
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
 } from "#test-utils/internal.ts";
+import { loadRawSetting } from "#test-utils/settings-load.ts";
 
 describeWithEnv("db > settings", { db: true }, () => {
   describe("generated string accessors", () => {
@@ -40,26 +41,34 @@ describeWithEnv("db > settings", { db: true }, () => {
   });
 
   describe("additional settings", () => {
-    test("loadKeys sets theme to dark when stored value is dark", async () => {
-      await settings.setRaw(CONFIG_KEYS.THEME, "dark");
-      settings.invalidateCache();
-      await settings.loadKeys([CONFIG_KEYS.THEME]);
-      expect(settings.theme).toBe("dark");
-    });
-
-    test("loadKeys sets underlineLinks true when stored value is true", async () => {
-      await settings.setRaw(CONFIG_KEYS.UNDERLINE_LINKS, "true");
-      settings.invalidateCache();
-      await settings.loadKeys([CONFIG_KEYS.UNDERLINE_LINKS]);
-      expect(settings.underlineLinks).toBe(true);
-    });
-
-    test("loadKeys leaves underlineLinks false when stored value is not true", async () => {
-      await settings.setRaw(CONFIG_KEYS.UNDERLINE_LINKS, "false");
-      settings.invalidateCache();
-      await settings.loadKeys([CONFIG_KEYS.UNDERLINE_LINKS]);
-      expect(settings.underlineLinks).toBe(false);
-    });
+    for (const { expected, key, name, read, stored } of [
+      {
+        expected: "dark",
+        key: CONFIG_KEYS.THEME,
+        name: "loadKeys sets theme to dark when stored value is dark",
+        read: () => settings.theme,
+        stored: "dark",
+      },
+      {
+        expected: true,
+        key: CONFIG_KEYS.UNDERLINE_LINKS,
+        name: "loadKeys sets underlineLinks true when stored value is true",
+        read: () => settings.underlineLinks,
+        stored: "true",
+      },
+      {
+        expected: false,
+        key: CONFIG_KEYS.UNDERLINE_LINKS,
+        name: "loadKeys leaves underlineLinks false when stored value is not true",
+        read: () => settings.underlineLinks,
+        stored: "false",
+      },
+    ]) {
+      test(name, async () => {
+        await loadRawSetting(key, stored);
+        expect(read()).toBe(expected);
+      });
+    }
 
     test("update.bookingFee with empty string resets to 0", async () => {
       await settings.update.bookingFee("500");
@@ -143,9 +152,7 @@ describeWithEnv("db > settings", { db: true }, () => {
     });
 
     test("settings.superuserChoice returns '' when stored value is invalid", async () => {
-      await settings.setRaw(CONFIG_KEYS.SUPERUSER_CHOICE, "invalid");
-      settings.invalidateCache();
-      await settings.loadKeys([CONFIG_KEYS.SUPERUSER_CHOICE]);
+      await loadRawSetting(CONFIG_KEYS.SUPERUSER_CHOICE, "invalid");
 
       expect(settings.superuserChoice).toBe("");
     });
@@ -153,12 +160,10 @@ describeWithEnv("db > settings", { db: true }, () => {
 
   describe("addressLookup provider getter behavior", () => {
     test("settings.addressLookup.provider reads none when the stored value is unknown", async () => {
-      await settings.setRaw(
+      await loadRawSetting(
         CONFIG_KEYS.ADDRESS_LOOKUP_PROVIDER,
         "carrier-pigeon",
       );
-      settings.invalidateCache();
-      await settings.loadKeys([CONFIG_KEYS.ADDRESS_LOOKUP_PROVIDER]);
 
       expect(settings.addressLookup.provider).toBe("none");
     });

@@ -9,6 +9,7 @@ import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import { sitePlanMemberError } from "#shared/package-membership.ts";
 import { requireEntityImport } from "#test-utils/catalog-import.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createPlanListing } from "#test-utils/db-helpers/catalog-import-fixtures.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 
@@ -142,11 +143,7 @@ describeWithEnv("in-tx member validation", { db: true }, () => {
 
   test("rejects a group import naming a built-site plan member", async () => {
     using _env = withEnv({ CAN_BUILD_SITES: "true" });
-    const member = await createTestListing({
-      assignBuiltSite: true,
-      initialSiteMonths: 1,
-      name: "Plan Group Member",
-    });
+    const member = await createPlanListing("Plan Group Member");
 
     await expectPlanMemberImportRefused({ name: "Plan Member Group" }, member);
   });

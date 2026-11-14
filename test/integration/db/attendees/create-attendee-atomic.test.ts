@@ -18,6 +18,7 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { expectWriteRefused } from "#test-utils/db-helpers/refused-booking.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 
 /** Fetch raw start_at/end_at for an listing (getAttendeesRaw drops them). */
@@ -168,16 +169,11 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
       name: "First",
     });
 
-    const result = await createAttendeeAtomic({
-      bookings: [{ listingId: listing.id, quantity: 1 }],
-      email: "second@example.com",
-      name: "Second",
-    });
-
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.reason).toBe("capacity_exceeded");
-    }
+    const refused = await expectWriteRefused(
+      { listingId: listing.id, quantity: 1 },
+      { email: "second@example.com", name: "Second" },
+    );
+    expect(refused.reason).toBe("capacity_exceeded");
   });
 
   test("fails with empty bookings", async () => {
@@ -313,39 +309,31 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
       email: "mid@example.com",
       name: "Mid",
     });
-    const result = await createAttendeeAtomic({
-      bookings: [
-        {
-          date: "2026-05-01",
-          durationDays: 3,
-          listingId: listing.id,
-          quantity: 1,
-        },
-      ],
-      email: "span@example.com",
-      name: "Span",
-    });
-    expect(result.success).toBe(false);
+    await expectWriteRefused(
+      {
+        date: "2026-05-01",
+        durationDays: 3,
+        listingId: listing.id,
+        quantity: 1,
+      },
+      { email: "span@example.com", name: "Span" },
+    );
   });
 
   test("atomic SQL uses editable booked quantity for date-less capacity", async () => {
     const listing = await setupBookedOutListing();
-    const result = await createAttendeeAtomic({
-      bookings: [{ listingId: listing.id, quantity: 1 }],
-      email: "manual-full@example.com",
-      name: "Manual Full",
-    });
-    expect(result.success).toBe(false);
+    await expectWriteRefused(
+      { listingId: listing.id, quantity: 1 },
+      { email: "manual-full@example.com", name: "Manual Full" },
+    );
   });
 
   test("atomic SQL uses editable booked quantity for dated standard listings", async () => {
     const listing = await setupBookedOutListing();
-    const result = await createAttendeeAtomic({
-      bookings: [{ date: "2026-05-01", listingId: listing.id, quantity: 1 }],
-      email: "dated-standard-full@example.com",
-      name: "Dated Standard Full",
-    });
-    expect(result.success).toBe(false);
+    await expectWriteRefused(
+      { date: "2026-05-01", listingId: listing.id, quantity: 1 },
+      { email: "dated-standard-full@example.com", name: "Dated Standard Full" },
+    );
   });
 
   test("concurrent at-capacity inserts: only one wins", async () => {
@@ -433,12 +421,10 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
 
   test("rejects negative quantities (defensive guard at library boundary)", async () => {
     const listing = await createTestListing({ maxAttendees: 5 });
-    const result = await createAttendeeAtomic({
-      bookings: [{ listingId: listing.id, quantity: -1 }],
-      email: "neg@example.com",
-      name: "Neg",
-    });
-    expect(result.success).toBe(false);
+    await expectWriteRefused(
+      { listingId: listing.id, quantity: -1 },
+      { email: "neg@example.com", name: "Neg" },
+    );
   });
 
   test("rejects duplicate (listing, date) rows in one cart", async () => {
@@ -633,12 +619,10 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
     expect(fill.success).toBe(true);
 
     // Default (public/webhook): the capacity guard blocks the second booking.
-    const blocked = await createAttendeeAtomic({
-      bookings: [{ listingId: listing.id, quantity: 1 }],
-      email: "",
-      name: "Blocked",
-    });
-    expect(blocked.success).toBe(false);
+    await expectWriteRefused(
+      { listingId: listing.id, quantity: 1 },
+      { email: "", name: "Blocked" },
+    );
 
     // allowOverbook (admin manual add): the row is inserted anyway.
     const over = await createAttendeeAtomic({

@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { parseSiteDataBlob } from "#db/built-sites/blob.ts";
+import { parseSiteDataBlob, type SiteDataBlob } from "#db/built-sites/blob.ts";
+import type { BuiltSiteFormInput } from "#db/built-sites/types.ts";
 import {
   builtSites,
   builtSitesCrudTable,
@@ -12,75 +13,79 @@ import { getAllCacheStats } from "#shared/cache-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";
 
-const formBlob = async (
-  input: Parameters<typeof builtSitesCrudTable.toDbValues>[0],
-) => {
-  const values = await builtSitesCrudTable.toDbValues(input);
+/** The form every site-data case starts from, so each case lists only the
+ *  fields it is about. */
+const BASE_FORM: Partial<BuiltSiteFormInput> = {
+  name: "Test Site",
+  siteUrl: "test.b-cdn.net",
+};
+
+const formBlob = async (input: Partial<BuiltSiteFormInput>) => {
+  const values = await builtSitesCrudTable.toDbValues({
+    ...BASE_FORM,
+    ...input,
+  });
   return parseSiteDataBlob(values.site_data as string);
 };
 
-describeWithEnv("built-site storage", { db: true }, () => {
-  test("toDbValues creates valid site-data JSON", async () => {
-    const parsed = await formBlob({
-      name: "Test Site",
-      siteUrl: "test.b-cdn.net",
-    });
-    expect(parsed).toMatchObject({
+/** One toDbValues case: the fields it adds to BASE_FORM, the blob keys the
+ *  stored JSON must carry with which value, and the keys it must omit. */
+const siteDataCases: {
+  title: string;
+  input: Partial<BuiltSiteFormInput>;
+  present?: Partial<SiteDataBlob>;
+  absent?: readonly (keyof SiteDataBlob)[];
+}[] = [
+  {
+    input: {},
+    present: {
       dp: "bunny",
       hp: "bunny",
       n: "Test Site",
       u: "test.b-cdn.net",
       v: 2,
-    });
-  });
+    },
+    title: "toDbValues creates valid site-data JSON",
+  },
+  {
+    input: { dbProvider: "turso", hostingProvider: "deno" },
+    present: { dp: "turso", hp: "deno" },
+    title: "toDbValues includes selected providers",
+  },
+  {
+    input: { dbToken: "secret-token", dbUrl: "libsql://db.turso.io" },
+    present: { d: "libsql://db.turso.io", t: "secret-token" },
+    title: "toDbValues includes db credentials when provided",
+  },
+  {
+    absent: ["d", "t"],
+    input: {},
+    title: "toDbValues omits db keys when empty",
+  },
+  {
+    input: { hostingId: "98765" },
+    present: { s: "98765" },
+    title: "toDbValues includes hosting id when provided",
+  },
+  {
+    absent: ["s"],
+    input: {},
+    title: "toDbValues omits hosting id when empty",
+  },
+];
 
-  test("toDbValues includes selected providers", async () => {
-    const parsed = await formBlob({
-      dbProvider: "turso",
-      hostingProvider: "deno",
-      name: "Test Site",
-      siteUrl: "test.b-cdn.net",
+describeWithEnv("built-site storage", { db: true }, () => {
+  for (const siteCase of siteDataCases) {
+    test(siteCase.title, async () => {
+      const parsed = await formBlob(siteCase.input);
+      if (siteCase.present !== undefined) {
+        expect(parsed).toMatchObject(siteCase.present);
+      }
+      for (const key of siteCase.absent ?? []) {
+        expect(Object.hasOwn(parsed, key)).toBe(false);
+      }
     });
-    expect(parsed.dp).toBe("turso");
-    expect(parsed.hp).toBe("deno");
-  });
-
-  test("toDbValues includes db credentials when provided", async () => {
-    const parsed = await formBlob({
-      dbToken: "secret-token",
-      dbUrl: "libsql://db.turso.io",
-      name: "Test Site",
-      siteUrl: "test.b-cdn.net",
-    });
-    expect(parsed.d).toBe("libsql://db.turso.io");
-    expect(parsed.t).toBe("secret-token");
-  });
-
-  test("toDbValues omits db keys when empty", async () => {
-    const parsed = await formBlob({
-      name: "Test Site",
-      siteUrl: "test.b-cdn.net",
-    });
-    expect(Object.hasOwn(parsed, "d")).toBe(false);
-    expect(Object.hasOwn(parsed, "t")).toBe(false);
-  });
-
-  test("toDbValues includes hosting id when provided", async () => {
-    const parsed = await formBlob({
-      hostingId: "98765",
-      name: "Test Site",
-      siteUrl: "test.b-cdn.net",
-    });
-    expect(parsed.s).toBe("98765");
-  });
-
-  test("toDbValues omits hosting id when empty", async () => {
-    const parsed = await formBlob({
-      name: "Test Site",
-      siteUrl: "test.b-cdn.net",
-    });
-    expect(Object.hasOwn(parsed, "s")).toBe(false);
-  });
+  }
 
   test("parseSiteDataBlob handles legacy blobs without optional keys", () => {
     const parsed = parseSiteDataBlob(
@@ -107,17 +112,17 @@ describeWithEnv("built-site storage", { db: true }, () => {
       "12345",
     );
     const site = (await builtSites.getAll())[0]!;
-    expect(site.dbUrl).toBe("libsql://db.turso.io");
-    expect(site.dbToken).toBe("secret-token");
-    expect(site.hostingId).toBe("12345");
+    expect(site).toMatchObject({
+      dbToken: "secret-token",
+      dbUrl: "libsql://db.turso.io",
+      hostingId: "12345",
+    });
   });
 
   test("insertBuiltSite defaults optional strings", async () => {
     await insertBuiltSite("Default Site", "default.b-cdn.net");
     const site = (await builtSites.getAll())[0]!;
-    expect(site.dbUrl).toBe("");
-    expect(site.dbToken).toBe("");
-    expect(site.hostingId).toBe("");
+    expect(site).toMatchObject({ dbToken: "", dbUrl: "", hostingId: "" });
   });
 
   test("getAll returns decrypted sites sorted by name", async () => {

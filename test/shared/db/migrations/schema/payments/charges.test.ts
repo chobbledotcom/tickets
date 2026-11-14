@@ -4,6 +4,7 @@ import { paymentChargeTable } from "#db/migrations/schema/payments/charges.ts";
 import { sql } from "#db/sql.ts";
 import { refundAuthorityWorkCondition } from "#payment/refund-authority-lifecycle.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { expectSchemaColumns } from "#test-utils/schema-columns.ts";
 import {
   expectAccepted,
   expectRefused,
@@ -45,11 +46,19 @@ const aCharge = (
       ${facts.state}, ${facts.stateName}, ${facts.localState}, ${facts.nextActionAt}, 1, 1, 1, 1)`;
 };
 
-test("is what the money actually taken is made of", () => {
-  const [name, table] = paymentChargeTable;
+/** Each row is one way a writer could hold a provider's name that the table
+ *  must refuse: in the open or in an envelope the decoder turns away. */
+const OPEN_PROVIDER_REFERENCES = [
+  ["in plain words", "pi_12345"],
+  ["behind an upper-case envelope", "ENC:1:a:b"],
+  ["wearing an envelope with nothing in it", "enc:1:pi_12345"],
+  ["behind the database owner's symmetric key", "enc:1:a:b"],
+] as const;
 
-  expect(name).toBe("payment_charges");
-  expect(table.columns.map(([held]) => held)).toEqual([
+test("is what the money actually taken is made of", () => {
+  const [, table] = paymentChargeTable;
+
+  expectSchemaColumns(paymentChargeTable, "payment_charges", [
     "id",
     "provider",
     "provider_reference",
@@ -76,12 +85,7 @@ test("is what the money actually taken is made of", () => {
 });
 
 describeWithEnv("db > payment charge rules", { db: true }, () => {
-  for (const [name, reference] of [
-    ["in plain words", "pi_12345"],
-    ["behind an upper-case envelope", "ENC:1:a:b"],
-    ["wearing an envelope with nothing in it", "enc:1:pi_12345"],
-    ["behind the database owner's symmetric key", "enc:1:a:b"],
-  ] as const) {
+  for (const [name, reference] of OPEN_PROVIDER_REFERENCES) {
     test(`refuses money whose provider name is held ${name}`, async () => {
       await expectRefused(aCharge("plain-index", reference));
     });
@@ -117,26 +121,14 @@ describeWithEnv("db > payment charge rules", { db: true }, () => {
   });
 
   test("refuses invalid or dishonest state mirrors", async () => {
-    await expectRefused(
-      aCharge("bad-json-index", undefined, undefined, {
-        nextActionAt: null,
-        state: "{}",
-      }),
-    );
-    await expectRefused(
-      aCharge("bad-kind-index", undefined, undefined, {
-        stateName: "observing",
-      }),
-    );
-    await expectRefused(
-      aCharge("bad-local-index", undefined, undefined, {
-        localState: "due",
-      }),
-    );
-    await expectRefused(
-      aCharge("bad-capability-index", undefined, undefined, {
-        capability: "keyless",
-      }),
-    );
+    // Each row bends one mirror away from the state the charge claims.
+    for (const [index, changed] of [
+      ["bad-json-index", { nextActionAt: null, state: "{}" }],
+      ["bad-kind-index", { stateName: "observing" }],
+      ["bad-local-index", { localState: "due" }],
+      ["bad-capability-index", { capability: "keyless" }],
+    ] as const) {
+      await expectRefused(aCharge(index, undefined, undefined, changed));
+    }
   });
 });

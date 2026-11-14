@@ -5,6 +5,7 @@ import { getDb, queryAll } from "#db/client.ts";
 import dropListingsDayPricesMigration from "#db/migrations/2026-07-02_drop_listings_day_prices.ts";
 import { recreateTable } from "#db/migrations/schema-sync.ts";
 import { sql } from "#db/sql.ts";
+import { columnNames } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 
@@ -35,11 +36,6 @@ const dayCountRows = (): Promise<
       WHERE price_type = 'day_count' ORDER BY listing_id, CAST(price_id AS INTEGER)`,
   );
 
-const listingsColumns = async (): Promise<string[]> => {
-  const info = await getDb().execute(sql`PRAGMA table_info(listings)`);
-  return info.rows.map((row) => String(row.name));
-};
-
 describeWithEnv(
   "db > migrations > 2026-07-02_drop_listings_day_prices",
   { db: true },
@@ -62,7 +58,7 @@ describeWithEnv(
         { listing_id: 10, price_id: "3", unit_price: 1000 },
       ]);
       // The column is gone; the listing rows survive the rebuild.
-      assert(!(await listingsColumns()).includes("day_prices"));
+      assert(!(await columnNames("listings")).includes("day_prices"));
       const ids = await queryAll<{ id: number }>(
         sql`SELECT id FROM listings ORDER BY id`,
       );

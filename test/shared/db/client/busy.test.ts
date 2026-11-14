@@ -56,15 +56,38 @@ describe("db > client write-lock retry", () => {
     expect(attempts).toBe(2);
   });
 
-  test("a remote database waits 50/150/350ms, then gives up as DatabaseBusyError", () =>
-    expectFullBackoffWalk({
+  /** One full backoff walk per database shape: a remote server keeps the short
+   * ladder, while a file database keeps yielding through it plus two longer
+   * waits. */
+  const walkCases: readonly {
+    name: string;
+    dbUrl: string;
+    waits: readonly number[];
+  }[] = [
+    {
       dbUrl: "libsql://busy-ladder.example.turso.io",
-      failsWith: busyError,
-      outcome: (operation) =>
-        expect(operation).rejects.toThrow(DatabaseBusyError),
-      sql: sql`INSERT INTO t (x) VALUES (1)`,
+      name: "a remote database waits 50/150/350ms, then gives up as DatabaseBusyError",
       waits: [50, 150, 350],
-    }));
+    },
+    {
+      dbUrl: "file:/tmp/busy-ladder.db",
+      name: "a file database waits 700/1400ms after the short ladder, then gives up",
+      waits: [50, 150, 350, 700, 1400],
+    },
+  ];
+
+  for (const { name, dbUrl, waits } of walkCases) {
+    test(name, () =>
+      expectFullBackoffWalk({
+        dbUrl,
+        failsWith: busyError,
+        outcome: (operation) =>
+          expect(operation).rejects.toThrow(DatabaseBusyError),
+        sql: sql`INSERT INTO t (x) VALUES (1)`,
+        waits,
+      }),
+    );
+  }
 
   test("a file database outwaits a lock the remote ladder would give up on", async () => {
     using env = withEnv({ DB_URL: "file:/tmp/busy-ladder.db" });
@@ -92,14 +115,4 @@ describe("db > client write-lock retry", () => {
     expect(attempts).toBe(5);
     void env;
   });
-
-  test("a file database waits 700/1400ms after the short ladder, then gives up", () =>
-    expectFullBackoffWalk({
-      dbUrl: "file:/tmp/busy-ladder.db",
-      failsWith: busyError,
-      outcome: (operation) =>
-        expect(operation).rejects.toThrow(DatabaseBusyError),
-      sql: sql`INSERT INTO t (x) VALUES (1)`,
-      waits: [50, 150, 350, 700, 1400],
-    }));
 });

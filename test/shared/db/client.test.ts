@@ -57,97 +57,102 @@ describe("DATABASE_MAX_ATTEMPTS", () => {
 });
 
 describe("extractUpdateColumns", () => {
-  test("single column assignment", () => {
-    const cols = extractUpdateColumns(
+  /** One parse shape per case: name, SQL text, and the column names it must
+   *  yield, compared as a set. */
+  const cases: [name: string, text: string, expected: string[]][] = [
+    [
+      "single column assignment",
       "UPDATE listing_attendees SET checked_in = ? WHERE attendee_id = ? AND listing_id = ?",
-    );
-    expect([...cols!]).toEqual(["checked_in"]);
-  });
-
-  test("multiple column assignments", () => {
-    const cols = extractUpdateColumns("UPDATE t SET a = a + 1, b = ?");
-    expect([...cols!].sort()).toEqual(["a", "b"]);
-  });
-
-  test("WHERE clause = signs are not mistaken for assignments", () => {
-    const cols = extractUpdateColumns(
+      ["checked_in"],
+    ],
+    [
+      "multiple column assignments",
+      "UPDATE t SET a = a + 1, b = ?",
+      ["a", "b"],
+    ],
+    [
+      "WHERE clause = signs are not mistaken for assignments",
       "UPDATE users SET password_hash = ?, invite_code_hash = ?, invite_expiry = ? WHERE id = ?",
-    );
-    expect([...cols!].sort()).toEqual([
-      "invite_code_hash",
-      "invite_expiry",
-      "password_hash",
-    ]);
-  });
-
-  test("table-qualified column name strips the qualifier", () => {
-    const cols = extractUpdateColumns("UPDATE t SET t.col = ?");
-    expect([...cols!]).toEqual(["col"]);
-  });
-
-  test("quoted column name strips the quotes", () => {
-    const cols = extractUpdateColumns('UPDATE t SET "my_col" = ?');
-    expect([...cols!]).toEqual(["my_col"]);
-  });
-
-  test("commas inside parentheses in an expression do not split the assignment", () => {
-    const cols = extractUpdateColumns("UPDATE t SET a = coalesce(x, 0), b = ?");
-    expect([...cols!].sort()).toEqual(["a", "b"]);
-  });
-
-  test("columns after an astral character still split at the comma", () => {
+      ["invite_code_hash", "invite_expiry", "password_hash"],
+    ],
+    [
+      "table-qualified column name strips the qualifier",
+      "UPDATE t SET t.col = ?",
+      ["col"],
+    ],
+    [
+      "quoted column name strips the quotes",
+      'UPDATE t SET "my_col" = ?',
+      ["my_col"],
+    ],
+    [
+      "commas inside parentheses in an expression do not split the assignment",
+      "UPDATE t SET a = coalesce(x, 0), b = ?",
+      ["a", "b"],
+    ],
     // An emoji is two UTF-16 code units. A code-point scan slices into its
-    // middle, reads the next column as ", quantity", and the write sniffs
-    // the wrong table — so its cache is never invalidated.
-    const cols = extractUpdateColumns(
+    // middle, reads the next column as ", quantity", and the write sniffs the
+    // wrong table — so its cache is never invalidated.
+    [
+      "columns after an astral character still split at the comma",
       "UPDATE t SET note = \u{1F600}, quantity = 1",
-    );
-    expect([...cols!].sort()).toEqual(["note", "quantity"]);
-  });
-
-  test("columns after a bracket inside a value still split at the comma", () => {
-    // A value like ')(' must not stop the scan. A stop there would drop
-    // every later column from the sniff, so its cache is never invalidated.
-    const cols = extractUpdateColumns("UPDATE t SET note = ')(', quantity = 1");
-    expect([...cols!].sort()).toEqual(["note", "quantity"]);
-  });
-
-  test("columns after an unbalanced bracket inside a quoted value", () => {
-    // A lone closer inside a quoted value used to shift the level for the
-    // rest of the clause, dropping every later column from the sniff.
-    const cols = extractUpdateColumns("UPDATE t SET note = ')', quantity = 1");
-    expect([...cols!].sort()).toEqual(["note", "quantity"]);
-  });
-
-  test("a doubled quote keeps its comma inside one value", () => {
-    const cols = extractUpdateColumns(
+      ["note", "quantity"],
+    ],
+    // A value like ')(' must not stop the scan. A stop there would drop every
+    // later column from the sniff, so its cache is never invalidated.
+    [
+      "columns after a bracket inside a value still split at the comma",
+      "UPDATE t SET note = ')(', quantity = 1",
+      ["note", "quantity"],
+    ],
+    // A lone closer inside a quoted value used to shift the level for the rest
+    // of the clause, dropping every later column from the sniff.
+    [
+      "columns after an unbalanced bracket inside a quoted value",
+      "UPDATE t SET note = ')', quantity = 1",
+      ["note", "quantity"],
+    ],
+    [
+      "a doubled quote keeps its comma inside one value",
       "UPDATE t SET note = 'a'', b', quantity = 1",
-    );
-    expect([...cols!].sort()).toEqual(["note", "quantity"]);
-  });
-
-  test("depth scan starts at the very first character of the SET clause", () => {
+      ["note", "quantity"],
+    ],
     // Synthetic SQL whose SET clause opens with "(": the paren-depth scan must
     // see that first character, otherwise depth goes negative at ")" and the
-    // top-level comma never splits — losing the second assignment ("b").
-    const cols = extractUpdateColumns("UPDATE t SET (a) = 1, b = 2");
-    expect([...cols!].sort()).toEqual(["(a)", "b"]);
-  });
+    // top-level comma never splits, losing the second assignment.
+    [
+      "depth scan starts at the very first character of the SET clause",
+      "UPDATE t SET (a) = 1, b = 2",
+      ["(a)", "b"],
+    ],
+    ["column names are lower-cased", "UPDATE t SET MyCol = ?", ["mycol"]],
+  ];
 
-  test("returns null for non-UPDATE SQL (no SET clause)", () => {
-    expect(extractUpdateColumns("INSERT INTO t (a) VALUES (?)")).toBeNull();
-  });
+  for (const [name, text, expected] of cases) {
+    test(name, () => {
+      const cols = extractUpdateColumns(text);
+      expect([...cols!].sort()).toEqual([...expected].sort());
+    });
+  }
 
-  test("returns null when SET clause has no parseable assignments", () => {
-    // Empty content between SET and WHERE: covers the eqIdx < 0 guard and the
-    // columns.size === 0 → null return path.
-    expect(extractUpdateColumns("UPDATE t SET WHERE true")).toBeNull();
-  });
+  // Empty content between SET and WHERE covers the eqIdx < 0 guard; a
+  // non-UPDATE has no SET clause at all. Both mean "cannot read the columns".
+  const nullCases: [name: string, text: string][] = [
+    [
+      "returns null for non-UPDATE SQL (no SET clause)",
+      "INSERT INTO t (a) VALUES (?)",
+    ],
+    [
+      "returns null when SET clause has no parseable assignments",
+      "UPDATE t SET WHERE true",
+    ],
+  ];
 
-  test("column names are lower-cased", () => {
-    const cols = extractUpdateColumns("UPDATE t SET MyCol = ?");
-    expect([...cols!]).toEqual(["mycol"]);
-  });
+  for (const [name, text] of nullCases) {
+    test(name, () => {
+      expect(extractUpdateColumns(text)).toBeNull();
+    });
+  }
 });
 
 describeWithEnv("invalidateForSql fallback path", { db: true }, () => {
@@ -209,6 +214,19 @@ describeWithEnv("db > client", { db: true }, () => {
     expect(client1).toBe(client2);
   });
 
+  /** Store one settings row, so a read below has a known row to find. */
+  const seedSetting = (key: string, value: string): Promise<ResultSet> =>
+    execute(sql`INSERT INTO settings (key, value) VALUES (${key}, ${value})`);
+
+  /** The value column stored for `key`. It reads the table directly, so a write
+   *  shows its effect without the reader under test in the way. */
+  const storedValue = async (key: string): Promise<unknown> => {
+    const row = await getDb().execute(
+      sql`SELECT value FROM settings WHERE key = ${key}`,
+    );
+    return row.rows[0]!.value;
+  };
+
   /** The transaction modes the client is asked for while `read` runs. An empty
    *  list means the read never went out as a batch at all. */
   const batchModesWhile = async <T>(
@@ -261,30 +279,41 @@ describeWithEnv("db > client", { db: true }, () => {
     ).toBeNull();
   });
 
-  test("requireOne throws the failed query when a required row is missing", async () => {
-    await expect(
-      requireOne(
-        sql`SELECT value FROM settings WHERE key = ${"missing-query-one-test"}`,
-      ),
-    ).rejects.toThrow(
-      "Required query returned no rows: SELECT value FROM settings WHERE key = ?",
-    );
-  });
+  /** Both required readers must reject with the statement text they were
+   *  given, naming the primary only in the primary one. */
+  const missingRowCases: {
+    name: string;
+    read: () => Promise<unknown>;
+    message: string;
+  }[] = [
+    {
+      message:
+        "Required query returned no rows: SELECT value FROM settings WHERE key = ?",
+      name: "requireOne throws the failed query when a required row is missing",
+      read: () =>
+        requireOne(
+          sql`SELECT value FROM settings WHERE key = ${"missing-query-one-test"}`,
+        ),
+    },
+    {
+      message:
+        "Required primary query returned no rows: SELECT value FROM settings WHERE key = ?",
+      name: "requireOnePrimary names a missing row on the primary",
+      read: () =>
+        requireOnePrimary(
+          sql`SELECT value FROM settings WHERE key = ${"missing-primary-query-one-test"}`,
+        ),
+    },
+  ];
 
-  test("requireOnePrimary names a missing row on the primary", async () => {
-    await expect(
-      requireOnePrimary(
-        sql`SELECT value FROM settings WHERE key = ${"missing-primary-query-one-test"}`,
-      ),
-    ).rejects.toThrow(
-      "Required primary query returned no rows: SELECT value FROM settings WHERE key = ?",
-    );
-  });
+  for (const { name, read, message } of missingRowCases) {
+    test(name, async () => {
+      await expect(read()).rejects.toThrow(message);
+    });
+  }
 
   test("queryOnePrimary returns the single matching row from the primary", async () => {
-    await execute(
-      sql`INSERT INTO settings (key, value) VALUES ('query_one_primary', 'found')`,
-    );
+    await seedSetting("query_one_primary", "found");
     const row = await queryOnePrimary<{ value: string }>(
       sql`SELECT value FROM settings WHERE key = ${"query_one_primary"}`,
     );
@@ -293,9 +322,8 @@ describeWithEnv("db > client", { db: true }, () => {
   });
 
   test("queryAllPrimary returns every matching row from the primary", async () => {
-    await execute(
-      sql`INSERT INTO settings (key, value) VALUES ('query_all_primary_a', 'first'), ('query_all_primary_b', 'second')`,
-    );
+    await seedSetting("query_all_primary_a", "first");
+    await seedSetting("query_all_primary_b", "second");
     const rows = await queryAllPrimary<{ value: string }>(
       sql`SELECT value FROM settings WHERE key LIKE ${"query_all_primary_%"} ORDER BY key`,
     );
@@ -304,142 +332,116 @@ describeWithEnv("db > client", { db: true }, () => {
     expect(rows.map(({ value }) => value)).toEqual(["first", "second"]);
   });
 
-  test("deleteByFieldStatement builds the DELETE for one table, field and value", () => {
-    const stmt = deleteByFieldStatement({
-      field: "user_id",
-      table: "sessions",
-      value: 7,
-    });
-    expect(stmt.sql).toBe("DELETE FROM sessions WHERE user_id = ?1");
-    expect(stmt.args).toEqual([7]);
-  });
+  /** Each builder must render the whole statement and bind the args in slot
+   *  order: SET args before WHERE args, a statement value spliced as written,
+   *  a null value kept as a param. Each row is the name, the statement, the
+   *  SQL text, and the args. */
+  const builtStatements: [
+    name: string,
+    stmt: SqlStatement,
+    sqlText: string,
+    args: SqlStatement["args"],
+  ][] = [
+    [
+      "deleteByFieldStatement builds the DELETE for one table, field and value",
+      deleteByFieldStatement({ field: "user_id", table: "sessions", value: 7 }),
+      "DELETE FROM sessions WHERE user_id = ?1",
+      [7],
+    ],
+    [
+      "insert builds sql and args from record",
+      insert("users", { email: "a@b.com", name: "Alice" }),
+      "INSERT INTO users (email, name) VALUES (?1, ?2)",
+      ["a@b.com", "Alice"],
+    ],
+    [
+      "insert takes a statement as a column value",
+      insert("listing_attendees", {
+        attendee_id: sql`last_insert_rowid()`,
+        listing_id: 1,
+        quantity: 2,
+      }),
+      "INSERT INTO listing_attendees (attendee_id, listing_id, quantity) VALUES (last_insert_rowid(), ?1, ?2)",
+      [1, 2],
+    ],
+    [
+      "insert handles null values as params",
+      insert("payments", { attendee_id: null, created: "now", id: "p1" }),
+      "INSERT INTO payments (attendee_id, created, id) VALUES (?1, ?2, ?3)",
+      [null, "now", "p1"],
+    ],
+    [
+      "update builds sql and args, SET args before WHERE args",
+      update(
+        "attendees",
+        { pii_blob: "encrypted" },
+        { id: 4, kind: "attendee" },
+      ),
+      "UPDATE attendees SET pii_blob = ?1 WHERE id = ?2 AND kind = ?3",
+      ["encrypted", 4, "attendee"],
+    ],
+    [
+      "update takes a statement as a SET value",
+      update(
+        "listing_attendees",
+        { attachment_downloads: sql`attachment_downloads + 1` },
+        { attendee_id: 1, listing_id: 2 },
+      ),
+      "UPDATE listing_attendees SET attachment_downloads = attachment_downloads + 1 WHERE attendee_id = ?1 AND listing_id = ?2",
+      [1, 2],
+    ],
+    [
+      "update joins multiple SET assignments with commas",
+      update("listings", { name: "n", slug: "s" }, { id: 3 }),
+      "UPDATE listings SET name = ?1, slug = ?2 WHERE id = ?3",
+      ["n", "s", 3],
+    ],
+    [
+      "update passes null SET values as params",
+      update(
+        "listing_attendees",
+        { start_agent_id: null },
+        { start_agent_id: 7 },
+      ),
+      "UPDATE listing_attendees SET start_agent_id = ?1 WHERE start_agent_id = ?2",
+      [null, 7],
+    ],
+  ];
 
-  test("insert builds sql and args from record", () => {
-    const stmt = insert("users", {
-      email: "a@b.com",
-      name: "Alice",
+  for (const [name, stmt, sqlText, args] of builtStatements) {
+    test(name, () => {
+      expect(stmt.sql).toBe(sqlText);
+      expect(stmt.args).toEqual(args);
     });
-    expect(stmt.sql).toBe("INSERT INTO users (email, name) VALUES (?1, ?2)");
-    expect(stmt.args).toEqual(["a@b.com", "Alice"]);
-  });
-
-  test("insert takes a statement as a column value", () => {
-    const stmt = insert("listing_attendees", {
-      attendee_id: sql`last_insert_rowid()`,
-      listing_id: 1,
-      quantity: 2,
-    });
-    expect(stmt.sql).toBe(
-      "INSERT INTO listing_attendees" +
-        " (attendee_id, listing_id, quantity)" +
-        " VALUES (last_insert_rowid(), ?1, ?2)",
-    );
-    expect(stmt.args).toEqual([1, 2]);
-  });
-
-  test("insert handles null values as params", () => {
-    const stmt = insert("payments", {
-      attendee_id: null,
-      created: "now",
-      id: "p1",
-    });
-    expect(stmt.sql).toBe(
-      "INSERT INTO payments" +
-        " (attendee_id, created, id)" +
-        " VALUES (?1, ?2, ?3)",
-    );
-    expect(stmt.args).toEqual([null, "now", "p1"]);
-  });
+  }
 
   test("insert executes correctly against db", async () => {
-    const stmt = insert("settings", {
-      key: "insert_test",
-      value: "works",
-    });
-    await getDb().execute(stmt);
-    const row = await getDb().execute(
-      sql`SELECT value FROM settings WHERE key = 'insert_test'`,
+    await getDb().execute(
+      insert("settings", { key: "insert_test", value: "works" }),
     );
-    expect(row.rows[0]!.value).toBe("works");
-  });
-
-  test("update builds sql and args, SET args before WHERE args", () => {
-    const stmt = update(
-      "attendees",
-      { pii_blob: "encrypted" },
-      { id: 4, kind: "attendee" },
-    );
-    expect(stmt.sql).toBe(
-      "UPDATE attendees SET pii_blob = ?1 WHERE id = ?2 AND kind = ?3",
-    );
-    expect(stmt.args).toEqual(["encrypted", 4, "attendee"]);
-  });
-
-  test("update takes a statement as a SET value", () => {
-    const stmt = update(
-      "listing_attendees",
-      { attachment_downloads: sql`attachment_downloads + 1` },
-      { attendee_id: 1, listing_id: 2 },
-    );
-    expect(stmt.sql).toBe(
-      "UPDATE listing_attendees" +
-        " SET attachment_downloads = attachment_downloads + 1" +
-        " WHERE attendee_id = ?1 AND listing_id = ?2",
-    );
-    expect(stmt.args).toEqual([1, 2]);
-  });
-
-  test("update joins multiple SET assignments with commas", () => {
-    const stmt = update("listings", { name: "n", slug: "s" }, { id: 3 });
-    expect(stmt.sql).toBe(
-      "UPDATE listings SET name = ?1, slug = ?2 WHERE id = ?3",
-    );
-    expect(stmt.args).toEqual(["n", "s", 3]);
-  });
-
-  test("update passes null SET values as params", () => {
-    const stmt = update(
-      "listing_attendees",
-      { start_agent_id: null },
-      { start_agent_id: 7 },
-    );
-    expect(stmt.sql).toBe(
-      "UPDATE listing_attendees SET start_agent_id = ?1" +
-        " WHERE start_agent_id = ?2",
-    );
-    expect(stmt.args).toEqual([null, 7]);
+    expect(await storedValue("insert_test")).toBe("works");
   });
 
   test("executeUpdate writes the matched row", async () => {
-    await execute(
-      sql`INSERT INTO settings (key, value) VALUES ('update_test', 'before')`,
-    );
+    await seedSetting("update_test", "before");
     const result = await executeUpdate(
       "settings",
       { value: "after" },
       { key: "update_test" },
     );
     expect(result.rowsAffected).toBe(1);
-    const row = await getDb().execute(
-      sql`SELECT value FROM settings WHERE key = 'update_test'`,
-    );
-    expect(row.rows[0]!.value).toBe("after");
+    expect(await storedValue("update_test")).toBe("after");
   });
 
   test("executeUpdate leaves non-matching rows alone", async () => {
-    await execute(
-      sql`INSERT INTO settings (key, value) VALUES ('update_scope', 'kept')`,
-    );
+    await seedSetting("update_scope", "kept");
     const result = await executeUpdate(
       "settings",
       { value: "clobbered" },
       { key: "update_scope", value: "other" },
     );
     expect(result.rowsAffected).toBe(0);
-    const row = await getDb().execute(
-      sql`SELECT value FROM settings WHERE key = 'update_scope'`,
-    );
-    expect(row.rows[0]!.value).toBe("kept");
+    expect(await storedValue("update_scope")).toBe("kept");
   });
 
   test("resetAggregates does not issue an empty update", async () => {
@@ -476,9 +478,7 @@ describeWithEnv("db > client", { db: true }, () => {
   });
 
   test("rowExists is true when the probe matches a row", async () => {
-    await execute(
-      sql`INSERT INTO settings (key, value) VALUES ('exists_test', 'x')`,
-    );
+    await seedSetting("exists_test", "x");
     expect(
       await rowExists(
         sql`SELECT 1 FROM settings WHERE key = ${"exists_test"} LIMIT 1`,
@@ -510,9 +510,7 @@ describeWithEnv("db > client", { db: true }, () => {
   });
 
   test("queryOne returns the single matching row", async () => {
-    await execute(
-      sql`INSERT INTO settings (key, value) VALUES ('query_one', 'found')`,
-    );
+    await seedSetting("query_one", "found");
     const row = await queryOne<{ value: string }>(
       sql`SELECT value FROM settings WHERE key = ${"query_one"}`,
     );

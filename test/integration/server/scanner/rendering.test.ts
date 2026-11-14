@@ -66,8 +66,7 @@ describeWithEnv("QR scanner page, links and guide", { db: true }, () => {
     });
 
     test("includes manual check-in form with combobox", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const body = await getScannerBody(listing.id);
+      const { body } = await createListingAndGetScannerBody();
       expectIncludesAll(body, [
         "Manual Check-in",
         "data-manual-checkin",

@@ -86,42 +86,37 @@ const PLAIN_SQL_TEXT_FILES = [
   "shared/db/migrations/2026-07-06_listing_attendees_end_start_index.ts",
 ];
 
+/** Runs one per-file detector over every src file and fails on any finding, so
+ *  a rule only has to name its detector and allow-list. */
+const expectNoSrcViolations = async (
+  detect: (relativePath: string, content: string) => readonly string[],
+): Promise<void> => {
+  const { srcFiles, srcContents } = await ensureLoaded();
+  const violations = srcFiles.flatMap((file) =>
+    detect(getRelativePath(file), srcContents.get(file)!),
+  );
+  expect(violations).toEqual([]);
+};
+
 describe("code quality", () => {
   describe("no in-memory state", () => {
     test("source files should not use module-level Map or Set for state", async () => {
-      const { srcFiles, srcContents } = await ensureLoaded();
-      const violations: string[] = [];
-
-      for (const file of srcFiles) {
-        const relativePath = getRelativePath(file);
-        violations.push(
-          ...findInMemoryStateViolations(
-            relativePath,
-            srcContents.get(file)!,
-            ALLOWED_FILES_STATE,
-          ),
-        );
-      }
-
-      expect(violations).toEqual([]);
+      await expectNoSrcViolations((relativePath, content) =>
+        findInMemoryStateViolations(relativePath, content, ALLOWED_FILES_STATE),
+      );
     });
   });
 
   describe("db writes go through the client", () => {
     test("no source file calls getDb().execute/.batch directly", async () => {
-      const { srcFiles, srcContents } = await ensureLoaded();
-      const violations: string[] = [];
-
-      for (const file of srcFiles) {
+      await expectNoSrcViolations((relativePath, content) => {
         const violation = findRawDbViolation(
-          getRelativePath(file),
-          srcContents.get(file)!,
+          relativePath,
+          content,
           ALLOWED_RAW_DB,
         );
-        if (violation) violations.push(violation);
-      }
-
-      expect(violations).toEqual([]);
+        return violation ? [violation] : [];
+      });
     });
   });
 

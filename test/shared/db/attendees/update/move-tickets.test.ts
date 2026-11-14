@@ -45,42 +45,60 @@ describeWithEnv(
         expect(await storedCheckedIn(attendeeId, listingId)).toBe(stored);
       };
 
-    test("admit adds tickets up to the line's quantity", async () => {
-      const { listing, attendee } = await attendeeOnListing(2);
-      const admit = expectMoveTo("admit", attendee.id, listing.id);
+    /** Each case walks one person's line: every step names the direction, the
+     * count asked for, and the count the line holds afterwards. */
+    const lineCases: readonly {
+      name: string;
+      lineQuantity?: number;
+      moves: readonly (readonly [TicketDirection, number, number])[];
+    }[] = [
+      {
+        moves: [
+          ["admit", 1, 1],
+          ["admit", 1, 2],
+        ],
+        name: "admit adds tickets up to the line's quantity",
+      },
+      {
+        moves: [
+          ["admit", 2, 2],
+          ["admit", 5, 2],
+        ],
+        name: "admit caps at the line's quantity, so a full line stays full",
+      },
+      {
+        moves: [
+          ["admit", 2, 2],
+          ["release", 1, 1],
+          ["release", 2, 0],
+        ],
+        name: "release removes tickets and floors at zero",
+      },
+      {
+        lineQuantity: 0,
+        moves: [
+          ["admit", 2, 0],
+          ["release", 2, 0],
+        ],
+        name: "a quantity 0 line never admits and never releases",
+      },
+    ];
 
-      await admit(1, 1);
-      await admit(1, 2);
-    });
-
-    test("admit caps at the line's quantity, so a full line stays full", async () => {
-      const { listing, attendee } = await attendeeOnListing(2);
-      const admit = expectMoveTo("admit", attendee.id, listing.id);
-
-      await admit(2, 2);
-      await admit(5, 2);
-    });
-
-    test("release removes tickets and floors at zero", async () => {
-      const { listing, attendee } = await attendeeOnListing(2);
-      await expectMoveTo("admit", attendee.id, listing.id)(2, 2);
-      const release = expectMoveTo("release", attendee.id, listing.id);
-
-      await release(1, 1);
-      await release(2, 0);
-    });
-
-    test("a quantity 0 line never admits and never releases", async () => {
-      const { listing, attendee } = await attendeeOnListing(2);
-      await executeUpdate(
-        "listing_attendees",
-        { quantity: 0 },
-        { attendee_id: attendee.id, listing_id: listing.id },
-      );
-
-      await expectMoveTo("admit", attendee.id, listing.id)(2, 0);
-      await expectMoveTo("release", attendee.id, listing.id)(2, 0);
-    });
+    for (const { name, lineQuantity, moves } of lineCases) {
+      test(name, async () => {
+        const { listing, attendee } = await attendeeOnListing(2);
+        if (lineQuantity !== undefined) {
+          await executeUpdate(
+            "listing_attendees",
+            { quantity: lineQuantity },
+            { attendee_id: attendee.id, listing_id: listing.id },
+          );
+        }
+        for (const [direction, count, stored] of moves) {
+          await expectMoveTo(direction, attendee.id, listing.id)(count, stored);
+        }
+      });
+    }
 
     test("answers the tickets each move really moved", async () => {
       const { listing, attendee } = await attendeeOnListing(3);

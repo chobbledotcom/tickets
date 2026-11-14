@@ -55,6 +55,40 @@ const expectStaysActive = async (id: number): Promise<void> => {
   expect((await getListingWithCount(id))?.active).toBe(true);
 };
 
+/** The edit-save request that would deactivate one listing. */
+const saveDeactivated = (listingId: number): Promise<Response> =>
+  apiRequest(`/api/admin/listings/${listingId}`, {
+    body: { active: false },
+    method: "PUT",
+  });
+
+/** The JSON API deactivate request for one listing. */
+const postDeactivate = (listingId: number): Promise<Response> =>
+  apiRequest(`/api/admin/listings/${listingId}/deactivate`, {
+    method: "POST",
+  });
+
+/** Take an add-on's only selling page away through one API path and assert
+ *  the guard refuses it, leaving the listing active. */
+const expectApiDeactivateRefused = async (
+  listingId: number,
+  request: (listingId: number) => Promise<Response>,
+): Promise<void> => {
+  await expectApiAddOnError(request(listingId));
+  await expectStaysActive(listingId);
+};
+
+/** Post the unverified direct delete of one listing and assert the orphan
+ *  guard refused it: the error flash shows and the row survives. */
+const expectDirectDeleteRefused = async (listingId: number): Promise<void> => {
+  const { response } = await adminFormPost(
+    `/admin/listing/${listingId}/delete?verify_identifier=false`,
+  );
+  response.body?.cancel();
+  expectFlash(response, await childOnlyAddOnFlash(), false);
+  expect(await getListingWithCount(listingId)).not.toBe(null);
+};
+
 describeWithEnv(
   "server > listing parents > deactivation & deletion",
   { db: true },
@@ -76,63 +110,40 @@ describeWithEnv(
       expect((await getListingWithCount(thatPage.id))?.active).toBe(true);
     });
 
-    test("an admin API edit-save that deactivates the rescuing page is rejected", async () => {
-      // The full edit-save path (validateListingInput → validateListingEdges)
-      // must also block a deactivation that orphans a child-scoped add-on, not
-      // only the dedicated /deactivate route. Set `active: false` via PUT.
-      const { thatPage } = await rescuingPageSetup();
-      await expectApiAddOnError(
-        apiRequest(`/api/admin/listings/${thatPage.id}`, {
-          body: { active: false },
-          method: "PUT",
-        }),
-      );
-      await expectStaysActive(thatPage.id);
-    });
+    /** Every admin path that can take a page offline must refuse when an opt-in
+     *  add-on reaches it only through that page: the edit-save PUT and the
+     *  dedicated /deactivate POST, each for a rescuing page and for a
+     *  bookable_alone child whose own page is the add-on's only seller. A
+     *  bookable_alone child's stored row still reads bookable_alone=1 while the
+     *  save runs, so the guard must force the flagged child in by hand. */
+    const apiDeactivateCases = [
+      {
+        name: "an admin API edit-save that deactivates the rescuing page is rejected",
+        request: saveDeactivated,
+        setup: async () => (await rescuingPageSetup()).thatPage.id,
+      },
+      {
+        name: "API deactivate of the only rescuing page of a child add-on is rejected, leaving it active",
+        request: postDeactivate,
+        setup: async () => (await rescuingPageSetup()).thatPage.id,
+      },
+      {
+        name: "API deactivate of a bookable_alone child whose add-on only it can reach is rejected",
+        request: saveDeactivated,
+        setup: async () => (await soloChildAddOn()).child.id,
+      },
+      {
+        name: "POST deactivate of a bookable_alone child whose add-on only it can reach is rejected",
+        request: postDeactivate,
+        setup: async () => (await soloChildAddOn()).child.id,
+      },
+    ];
 
-    test("API deactivate of the only rescuing page of a child add-on is rejected, leaving it active", async () => {
-      // The JSON API toggle (POST /api/admin/listings/:id/deactivate) must run the
-      // same orphaned-add-on guard the HTML deactivate route does: deactivating
-      // `thatPage` — the only active non-child page rescuing a {child, thatPage}-
-      // scoped opt-in add-on — would leave the add-on reachable only via the
-      // suppressed child. The API must reject with a 400 and the listing stay active.
-      const { thatPage } = await rescuingPageSetup();
-      await expectApiAddOnError(
-        apiRequest(`/api/admin/listings/${thatPage.id}/deactivate`, {
-          method: "POST",
-        }),
-      );
-      await expectStaysActive(thatPage.id);
-    });
-
-    test("API deactivate of a bookable_alone child whose add-on only it can reach is rejected", async () => {
-      // A bookable_alone child's OWN page is the sole seller of an add-on scoped
-      // only to it. Its stored row still reads bookable_alone=1 during the save, so
-      // getNonStandaloneChildIds excludes it from the suppressed set; the
-      // deactivation guard must force the flagged child in by hand, or taking its
-      // page offline silently orphans the add-on only it could sell.
-      const { child } = await soloChildAddOn();
-      await expectApiAddOnError(
-        apiRequest(`/api/admin/listings/${child.id}`, {
-          body: { active: false },
-          method: "PUT",
-        }),
-      );
-      await expectStaysActive(child.id);
-    });
-
-    test("POST deactivate of a bookable_alone child whose add-on only it can reach is rejected", async () => {
-      // The dedicated /deactivate route (deactivationOrphanedAddOnError) must apply
-      // the same flagged-child suppression the edit-save path does — a bookable_alone
-      // child taken offline here would otherwise silently orphan a child-only add-on.
-      const { child } = await soloChildAddOn();
-      await expectApiAddOnError(
-        apiRequest(`/api/admin/listings/${child.id}/deactivate`, {
-          method: "POST",
-        }),
-      );
-      await expectStaysActive(child.id);
-    });
+    for (const { name, request, setup } of apiDeactivateCases) {
+      test(name, async () => {
+        await expectApiDeactivateRefused(await setup(), request);
+      });
+    }
 
     test("API deactivate of a listing unrelated to any child add-on still succeeds", async () => {
       // The guard must not block an ordinary API deactivation: a plain listing
@@ -202,12 +213,7 @@ describeWithEnv(
       // same guard as the confirmed path: it shares no code with the confirmed
       // handler, so it needs its own block.
       const { thatPage } = await rescuingPageSetup();
-      const { response } = await adminFormPost(
-        `/admin/listing/${thatPage.id}/delete?verify_identifier=false`,
-      );
-      response.body?.cancel();
-      expectFlash(response, await childOnlyAddOnFlash(), false);
-      expect(await getListingWithCount(thatPage.id)).not.toBe(null);
+      await expectDirectDeleteRefused(thatPage.id);
     });
 
     test("the unverified direct delete reports a refusal raised inside the write transaction", async () => {
@@ -219,12 +225,7 @@ describeWithEnv(
       // isolate's cache still shows it active.
       const stmt = update("listings", { active: 0 }, { id: pageTwo.id });
       await executeWithoutCacheInvalidation(stmt);
-      const { response } = await adminFormPost(
-        `/admin/listing/${pageOne.id}/delete?verify_identifier=false`,
-      );
-      response.body?.cancel();
-      expectFlash(response, await childOnlyAddOnFlash(), false);
-      expect(await getListingWithCount(pageOne.id)).not.toBe(null);
+      await expectDirectDeleteRefused(pageOne.id);
     });
 
     test("API delete of the only rescuing page of a child add-on is blocked, leaving it", async () => {

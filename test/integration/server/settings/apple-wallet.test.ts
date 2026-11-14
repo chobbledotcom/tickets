@@ -26,6 +26,13 @@ import {
 import { withEnv } from "#test-utils/env.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
+import {
+  expectMultiTokenPass404,
+  expectPassRouteIgnoresNonGet,
+  expectWalletCacheControl,
+  expectWalletPass404,
+  walletAliceToken,
+} from "#test-utils/wallet-passes.ts";
 
 /** Reuse cached certs for all wallet configuration */
 const testCerts = generateTestCerts();
@@ -72,10 +79,7 @@ const fetchWalletTicketBody = async (token: string): Promise<string> => {
 
 /** Create a test attendee, fetch pkpass, and assert 200 with correct content type */
 const expectValidPkpassForNewAttendee = async () => {
-  const { token } = await createTestAttendeeWithToken(
-    "Alice",
-    "alice@test.com",
-  );
+  const token = await walletAliceToken();
   const response = await fetchPkpassResponse(token);
   expect(response.status).toBe(200);
   expect(response.headers.get("Content-Type")).toBe(
@@ -86,18 +90,13 @@ const expectValidPkpassForNewAttendee = async () => {
 
 describeWithEnv("wallet route (/wallet/:token)", { db: true }, () => {
   test("returns 404 when Apple Wallet is not configured", async () => {
-    const { token } = await createTestAttendeeWithToken(
-      "Alice",
-      "alice@test.com",
-    );
-    const response = await awaitTestRequest(`/wallet/${token}.pkpass`);
-    expect(response.status).toBe(404);
+    const token = await walletAliceToken();
+    await expectWalletPass404(`/wallet/${token}.pkpass`);
   });
 
   test("returns 404 for invalid token", async () => {
     await configureAppleWallet();
-    const response = await awaitTestRequest("/wallet/nonexistent-token.pkpass");
-    expect(response.status).toBe(404);
+    await expectWalletPass404("/wallet/nonexistent-token.pkpass");
   });
 
   test("returns 404 for orphaned attendee with no listing links", async () => {
@@ -106,26 +105,19 @@ describeWithEnv("wallet route (/wallet/:token)", { db: true }, () => {
       "Orphan",
       "orphan@test.com",
     );
-    const response = await awaitTestRequest(`/wallet/${token}.pkpass`);
-    expect(response.status).toBe(404);
+    await expectWalletPass404(`/wallet/${token}.pkpass`);
   });
 
   test("returns 404 for multi-token request", async () => {
     await configureAppleWallet();
-    const { token: a } = await createTestAttendeeWithToken("A", "a@test.com");
-    const { token: b } = await createTestAttendeeWithToken("B", "b@test.com");
-    const response = await awaitTestRequest(`/wallet/${a}+${b}.pkpass`);
-    expect(response.status).toBe(404);
+    await expectMultiTokenPass404(
+      (first, second) => `/wallet/${first}+${second}.pkpass`,
+    );
   });
 
   test("returns 404 without .pkpass extension", async () => {
-    await configureAppleWallet();
-    const { token } = await createTestAttendeeWithToken(
-      "Alice",
-      "alice@test.com",
-    );
-    const response = await awaitTestRequest(`/wallet/${token}`);
-    expect(response.status).toBe(404);
+    const token = await walletAliceToken(configureAppleWallet);
+    await expectWalletPass404(`/wallet/${token}`);
   });
 
   test("returns pkpass with correct content type", async () => {
@@ -134,25 +126,13 @@ describeWithEnv("wallet route (/wallet/:token)", { db: true }, () => {
   });
 
   test("returns pkpass with cache-control headers", async () => {
-    await configureAppleWallet();
-    const { token } = await createTestAttendeeWithToken(
-      "Alice",
-      "alice@test.com",
-    );
-
+    const token = await walletAliceToken(configureAppleWallet);
     const response = await fetchPkpassResponse(token);
-    const cacheControl = response.headers.get("Cache-Control");
-    assertStringIncludes(cacheControl ?? "", "public");
-    assertStringIncludes(cacheControl ?? "", "s-maxage=3600");
+    expectWalletCacheControl(response);
   });
 
   test("returns pkpass with inline content-disposition for iOS compatibility", async () => {
-    await configureAppleWallet();
-    const { token } = await createTestAttendeeWithToken(
-      "Alice",
-      "alice@test.com",
-    );
-
+    const token = await walletAliceToken(configureAppleWallet);
     const response = await fetchPkpassResponse(token);
     const disposition = getHeader(response, "Content-Disposition");
     assertStringIncludes(disposition, "inline");
@@ -160,12 +140,7 @@ describeWithEnv("wallet route (/wallet/:token)", { db: true }, () => {
   });
 
   test("returns pkpass with Content-Length header for iOS compatibility", async () => {
-    await configureAppleWallet();
-    const { token } = await createTestAttendeeWithToken(
-      "Alice",
-      "alice@test.com",
-    );
-
+    const token = await walletAliceToken(configureAppleWallet);
     const response = await fetchPkpassResponse(token);
     const contentLength = response.headers.get("Content-Length");
     expect(contentLength).not.toBeNull();
@@ -174,12 +149,7 @@ describeWithEnv("wallet route (/wallet/:token)", { db: true }, () => {
   });
 
   test("pkpass is a valid ZIP containing pass.json, manifest.json, and signature", async () => {
-    await configureAppleWallet();
-    const { token } = await createTestAttendeeWithToken(
-      "Alice",
-      "alice@test.com",
-    );
-
+    const token = await walletAliceToken(configureAppleWallet);
     const response = await fetchPkpassResponse(token);
     const bytes = new Uint8Array(await response.arrayBuffer());
     const files = unzipSync(bytes);
@@ -209,11 +179,7 @@ describeWithEnv("wallet route (/wallet/:token)", { db: true }, () => {
   });
 
   test("pass.json includes webServiceURL and authenticationToken for auto-updates", async () => {
-    await configureAppleWallet();
-    const { token } = await createTestAttendeeWithToken(
-      "Alice",
-      "alice@test.com",
-    );
+    const token = await walletAliceToken(configureAppleWallet);
     const passJson = await parsePkpassJson(token);
     expect(passJson.webServiceURL).toBe("https://localhost");
     expect(passJson.authenticationToken).toBe(token.padEnd(16, "-"));
@@ -222,31 +188,20 @@ describeWithEnv("wallet route (/wallet/:token)", { db: true }, () => {
 
   test("returns null for non-GET methods", async () => {
     const { routeWallet } = await import("#routes/wallet/index.ts");
-    const request = new Request("http://localhost/wallet/some-token", {
-      method: "POST",
-    });
-    const result = await routeWallet(request, "/wallet/some-token", "POST");
-    expect(result).toBeNull();
+    await expectPassRouteIgnoresNonGet(routeWallet, "/wallet/some-token");
   });
 });
 
 describeWithEnv("ticket view wallet link", { db: true }, () => {
   test("does not show wallet link when Apple Wallet is not configured", async () => {
-    const { token } = await createTestAttendeeWithToken(
-      "Alice",
-      "alice@test.com",
-    );
+    const token = await walletAliceToken();
     const body = await fetchWalletTicketBody(token);
     assert(!body.includes("wallet-link"));
     assert(!body.includes("Apple Wallet"));
   });
 
   test("shows wallet link when Apple Wallet is configured", async () => {
-    await configureAppleWallet();
-    const { token } = await createTestAttendeeWithToken(
-      "Alice",
-      "alice@test.com",
-    );
+    const token = await walletAliceToken(configureAppleWallet);
     const body = await fetchWalletTicketBody(token);
     assertStringIncludes(body, "wallet-link");
     assertStringIncludes(body, "Apple Wallet");
@@ -648,10 +603,7 @@ describeWithEnv(
 
     test("ticket view shows wallet link with env var config", async () => {
       using _env = setWalletEnvVars();
-      const { token } = await createTestAttendeeWithToken(
-        "Alice",
-        "alice@test.com",
-      );
+      const token = await walletAliceToken();
       const body = await fetchWalletTicketBody(token);
       assertStringIncludes(body, "wallet-link");
       assertStringIncludes(body, "Apple Wallet");

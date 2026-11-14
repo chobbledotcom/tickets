@@ -16,10 +16,16 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
+/** Writes one listing under each of the two names, so a read sees two rows. */
+async function writeTwoListings(firstName: string, secondName: string) {
+  const first = await createTestListing({ name: firstName });
+  const second = await createTestListing({ name: secondName });
+  return { first, second };
+}
+
 describeWithEnv("db > table reader > reads", { db: true }, () => {
   test("reads every row when nothing is asked of it", async () => {
-    const first = await createTestListing({ name: "Alpha" });
-    const second = await createTestListing({ name: "Beta" });
+    const { first, second } = await writeTwoListings("Alpha", "Beta");
 
     const rows = await listingOptionColumns.many({}, { alias: "listing" });
 
@@ -33,8 +39,7 @@ describeWithEnv("db > table reader > reads", { db: true }, () => {
       alias: "listing",
       order: sql`listing.id DESC`,
     });
-    const first = await createTestListing({ name: "Alpha" });
-    const second = await createTestListing({ name: "Beta" });
+    const { first, second } = await writeTwoListings("Alpha", "Beta");
 
     // The read runs at the call, so rows written after it was built appear.
     expect((await readAll()).map(({ id }) => id)).toEqual([
@@ -56,8 +61,7 @@ describeWithEnv("db > table reader > reads", { db: true }, () => {
   });
 
   test("orders and caps the rows", async () => {
-    const first = await createTestListing({ name: "First" });
-    const second = await createTestListing({ name: "Second" });
+    const { first, second } = await writeTwoListings("First", "Second");
 
     const rows = await listingOptionColumns.many(
       {},

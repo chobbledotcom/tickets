@@ -8,7 +8,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { requireOne } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
 import { sql } from "#db/sql.ts";
-import { handleRequest } from "#routes";
+import { expectUnauthorized } from "#test-utils/admin-api-auth.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -19,7 +19,6 @@ import {
   SOURCE_BODY,
   sourcePath,
 } from "#test-utils/external-sources.ts";
-import { mockRequest } from "#test-utils/mocks.ts";
 import { apiRequest } from "#test-utils/session.ts";
 import { featureSetting, useSetting } from "#test-utils/settings.ts";
 
@@ -41,12 +40,8 @@ describeWithEnv("Admin API - External sources", { db: true }, () => {
       );
     });
 
-    test("answers 401 without auth", async () => {
-      const response = await handleRequest(
-        mockRequest("/api/admin/external-sources"),
-      );
-      expect(response.status).toBe(401);
-    });
+    test("answers 401 without auth", () =>
+      expectUnauthorized("/api/admin/external-sources"));
   });
 
   describe("GET /api/admin/external-sources", () => {

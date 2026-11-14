@@ -5,6 +5,7 @@ import { getDb } from "#db/client.ts";
 import activityBackfillCompleteMigration from "#db/migrations/2026-07-21_activity_backfill_complete.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { expectMigrationIdentity } from "#test-utils/migration-identity.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 
 const context = buildMigrationContext({});
@@ -23,12 +24,7 @@ describeWithEnv(
   { db: true },
   () => {
     test("declares its identity", () => {
-      const migration = activityBackfillCompleteMigration(context);
-      expect({
-        description: migration.description,
-        id: migration.id,
-        requires: migration.requires,
-      }).toEqual({
+      expectMigrationIdentity(activityBackfillCompleteMigration(context), {
         description:
           "Keep completed activity log backfills complete after moving to checkpoints.",
         id: "2026-07-21_activity_backfill_complete",

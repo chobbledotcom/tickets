@@ -16,6 +16,7 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { expectWriteRefused } from "#test-utils/db-helpers/refused-booking.ts";
 
 /**
  * The read-time availability preflight (`checkBatchAvailability`) and the
@@ -36,12 +37,14 @@ describeWithEnv(
   "db > attendees > availability preflight matches the write",
   { db: true },
   () => {
-    /** Run the cart through both paths and assert they agree. Returns the
-     * shared verdict so callers can additionally assert the expected outcome. */
-    const assertConsistent = async (
+    /** Run the cart through both paths and assert they agree on `fits`: every
+     * line books when the cart fits, and the write lands nothing when it does
+     * not. */
+    const expectConsistent = async (
       bookings: ListingBooking[],
+      fits: boolean,
       date?: string | null,
-    ): Promise<boolean> => {
+    ): Promise<void> => {
       const items: BatchAvailabilityItem[] = bookings.map((b) => ({
         listingId: b.listingId,
         quantity: b.quantity ?? 1,
@@ -63,22 +66,18 @@ describeWithEnv(
         );
         fullyBooked = rows[0]!.c === bookings.length;
       }
-      expect(fullyBooked).toBe(preflight);
-      return preflight;
+      expect(preflight).toBe(fits);
+      expect(fullyBooked).toBe(fits);
     };
 
     test("a simple in-capacity cart is admitted and books", async () => {
       const listing = await createTestListing({ maxAttendees: 5 });
-      expect(
-        await assertConsistent([{ listingId: listing.id, quantity: 2 }]),
-      ).toBe(true);
+      await expectConsistent([{ listingId: listing.id, quantity: 2 }], true);
     });
 
     test("a single line over the listing cap is rejected and fails to book", async () => {
       const listing = await createTestListing({ maxAttendees: 3 });
-      expect(
-        await assertConsistent([{ listingId: listing.id, quantity: 4 }]),
-      ).toBe(false);
+      await expectConsistent([{ listingId: listing.id, quantity: 4 }], false);
     });
 
     /** A capped group with two standard members (each individually roomy at 10),
@@ -92,12 +91,13 @@ describeWithEnv(
 
     test("cross-listing demand on a shared group cap that fits exactly", async () => {
       const { a, b } = await groupWithTwoMembers(4);
-      expect(
-        await assertConsistent([
+      await expectConsistent(
+        [
           { listingId: a.id, quantity: 2 },
           { listingId: b.id, quantity: 2 },
-        ]),
-      ).toBe(true);
+        ],
+        true,
+      );
     });
 
     test("cross-listing demand exceeding a shared group cap is rejected by BOTH", async () => {
@@ -105,24 +105,26 @@ describeWithEnv(
       // 2 + 3 = 5 against a group cap of 4: each line fits its OWN listing cap,
       // only the combined group demand overflows — the case a per-line check
       // would miss but the aggregated preflight and the sequential write catch.
-      expect(
-        await assertConsistent([
+      await expectConsistent(
+        [
           { listingId: a.id, quantity: 2 },
           { listingId: b.id, quantity: 3 },
-        ]),
-      ).toBe(false);
+        ],
+        false,
+      );
     });
 
     test("a shared group already partly full, combined cart tips it over", async () => {
       const { a, b } = await groupWithTwoMembers(6);
       await bookAttendee(a, { quantity: 3 });
       // 3 already booked + a cart of 2 + 2 = 7 > 6.
-      expect(
-        await assertConsistent([
+      await expectConsistent(
+        [
           { listingId: a.id, quantity: 2 },
           { listingId: b.id, quantity: 2 },
-        ]),
-      ).toBe(false);
+        ],
+        false,
+      );
     });
 
     /** A daily listing capped at 2, fully booked on `fullDate` (1-day booking).
@@ -141,15 +143,17 @@ describeWithEnv(
 
     /** One daily ticket on the cart date beside one undated standard ticket —
      * the smallest cart whose two lines a shared cap can bind together. */
-    const dailyAndStandardCart = (
+    const expectDailyAndStandardCart = (
       dailyId: number,
       standardId: number,
-    ): Promise<boolean> =>
-      assertConsistent(
+      fits: boolean,
+    ): Promise<void> =>
+      expectConsistent(
         [
           { date: "2026-05-01", listingId: dailyId, quantity: 1 },
           { listingId: standardId, quantity: 1 },
         ],
+        fits,
         "2026-05-01",
       );
 
@@ -159,35 +163,33 @@ describeWithEnv(
       const standard = await createTestListing({ maxAttendees: 2 });
       await bookAttendee(standard, { quantity: 2 });
       const daily = await createDailyTestListing({ maxAttendees: 5 });
-      expect(await dailyAndStandardCart(daily.id, standard.id)).toBe(false);
+      await expectDailyAndStandardCart(daily.id, standard.id, false);
     });
 
     test("daily per-date capacity agrees on a full date", async () => {
       const listing = await dailyListingFullOn("2026-05-01");
-      expect(
-        await assertConsistent(
-          [{ date: "2026-05-01", listingId: listing.id, quantity: 1 }],
-          "2026-05-01",
-        ),
-      ).toBe(false);
+      await expectConsistent(
+        [{ date: "2026-05-01", listingId: listing.id, quantity: 1 }],
+        false,
+        "2026-05-01",
+      );
     });
 
     test("daily multi-day cart agrees when one day in the span is full", async () => {
       // The listing spans 3 days; day 2 of the span is already full.
       const listing = await dailyListingFullOn("2026-05-02", 3);
-      expect(
-        await assertConsistent(
-          [
-            {
-              date: "2026-05-01",
-              durationDays: 3,
-              listingId: listing.id,
-              quantity: 1,
-            },
-          ],
-          "2026-05-01",
-        ),
-      ).toBe(false);
+      await expectConsistent(
+        [
+          {
+            date: "2026-05-01",
+            durationDays: 3,
+            listingId: listing.id,
+            quantity: 1,
+          },
+        ],
+        false,
+        "2026-05-01",
+      );
     });
 
     test("a date-less line on a daily member counts against the group's running total on both paths", async () => {
@@ -206,7 +208,7 @@ describeWithEnv(
       });
       await bookAttendee(daily, { date: "2026-05-05", quantity: 2 });
 
-      expect(await dailyAndStandardCart(daily.id, standard.id)).toBe(false);
+      await expectDailyAndStandardCart(daily.id, standard.id, false);
     });
 
     test("a zero-quantity line books on an over-full listing and both paths agree", async () => {
@@ -219,9 +221,7 @@ describeWithEnv(
         booked_quantity: 5,
         tickets_count: 0,
       });
-      expect(
-        await assertConsistent([{ listingId: listing.id, quantity: 0 }]),
-      ).toBe(true);
+      await expectConsistent([{ listingId: listing.id, quantity: 0 }], true);
     });
 
     test("a multi-day dated daily line beside a standard line counts the dated units once on both paths", async () => {
@@ -237,20 +237,19 @@ describeWithEnv(
         groupId: group.id,
         maxAttendees: 10,
       });
-      expect(
-        await assertConsistent(
-          [
-            {
-              date: "2026-05-01",
-              durationDays: 2,
-              listingId: daily.id,
-              quantity: 1,
-            },
-            { listingId: standard.id, quantity: 1 },
-          ],
-          "2026-05-01",
-        ),
-      ).toBe(true);
+      await expectConsistent(
+        [
+          {
+            date: "2026-05-01",
+            durationDays: 2,
+            listingId: daily.id,
+            quantity: 1,
+          },
+          { listingId: standard.id, quantity: 1 },
+        ],
+        true,
+        "2026-05-01",
+      );
     });
 
     test("a zero-quantity line refuses when its listing row is gone", async () => {
@@ -261,12 +260,7 @@ describeWithEnv(
       // outright, so this pins the write side alone.
       const listing = await createTestListing({ maxAttendees: 2 });
       await execute(sql`DELETE FROM listings WHERE id = ${listing.id}`);
-      const write = await createAttendeeAtomic({
-        bookings: [{ listingId: listing.id, quantity: 0 }],
-        email: "gone@example.com",
-        name: "Gone",
-      });
-      expect(write.success).toBe(false);
+      await expectWriteRefused({ listingId: listing.id, quantity: 0 });
     });
   },
 );

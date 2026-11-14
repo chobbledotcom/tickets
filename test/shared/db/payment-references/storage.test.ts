@@ -10,7 +10,10 @@ import { sql } from "#db/sql.ts";
 import type { UntaggedPaymentReference } from "#payment/provider-reference.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import {
+  bookAttendee,
+  bookedAttendee,
+} from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { requireCompleteRefundReferences } from "#test-utils/payment-references.ts";
 import {
@@ -30,6 +33,15 @@ const indexOf = (sessionId: string): Promise<{ value: string } | null> =>
        FROM processed_payments
       WHERE payment_session_id = ${sessionId}`,
   );
+
+/** One attendee on a fresh fifty-seat listing, booked for a single slot. */
+const bookAttendeeId = async (email: string, name: string): Promise<number> =>
+  bookedAttendee(
+    await bookAttendee(await createTestListing({ maxAttendees: 50 }), {
+      email,
+      name,
+    }),
+  ).id;
 
 const completeReferencesFor = (
   sets: ReadonlyMap<number, RefundPaymentReferenceSet>,
@@ -64,18 +76,8 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
   });
 
   test("refuses PII payment ids missing from indexed rows", async () => {
-    const listing = await createTestListing({ maxAttendees: 50 });
-    const first = await bookAttendee(listing, {
-      email: "refs1@example.com",
-      name: "Refs One",
-    });
-    const second = await bookAttendee(listing, {
-      email: "refs2@example.com",
-      name: "Refs Two",
-    });
-    if (!first.success || !second.success) throw new Error("setup failed");
-    const firstId = first.attendees[0]!.id;
-    const secondId = second.attendees[0]!.id;
+    const firstId = await bookAttendeeId("refs1@example.com", "Refs One");
+    const secondId = await bookAttendeeId("refs2@example.com", "Refs Two");
     const recorded = taggedPaymentReference("pi_recorded");
 
     await finalizeProcessedPayment("sess_refs_a", firstId, "", recorded);
@@ -96,13 +98,10 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
   });
 
   test("does not duplicate a legacy id already present on a tagged row", async () => {
-    const listing = await createTestListing({ maxAttendees: 50 });
-    const created = await bookAttendee(listing, {
-      email: "refs-duplicate@example.com",
-      name: "Refs Duplicate",
-    });
-    if (!created.success) throw new Error("setup failed");
-    const attendeeId = created.attendees[0]!.id;
+    const attendeeId = await bookAttendeeId(
+      "refs-duplicate@example.com",
+      "Refs Duplicate",
+    );
 
     await finalizeProcessedPayment(
       "sess_refs_duplicate",
@@ -127,13 +126,10 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
   });
 
   test("leaves an unindexed plaintext reference unavailable", async () => {
-    const listing = await createTestListing({ maxAttendees: 50 });
-    const created = await bookAttendee(listing, {
-      email: "plain-ref@example.com",
-      name: "Plain Ref",
-    });
-    if (!created.success) throw new Error("setup failed");
-    const attendeeId = created.attendees[0]!.id;
+    const attendeeId = await bookAttendeeId(
+      "plain-ref@example.com",
+      "Plain Ref",
+    );
 
     await execute(
       sql`INSERT INTO processed_payments
@@ -145,13 +141,10 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
   });
 
   test("rejects a durable index whose reference is still plaintext", async () => {
-    const listing = await createTestListing({ maxAttendees: 50 });
-    const created = await bookAttendee(listing, {
-      email: "indexed-plain-ref@example.com",
-      name: "Indexed Plain Ref",
-    });
-    if (!created.success) throw new Error("setup failed");
-    const attendeeId = created.attendees[0]!.id;
+    const attendeeId = await bookAttendeeId(
+      "indexed-plain-ref@example.com",
+      "Indexed Plain Ref",
+    );
     const payment = untagged("pi_plain_indexed");
     const sessionId = "sess_plain_indexed";
 
@@ -168,13 +161,10 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
   });
 
   test("does not repair a row predating the provider-aware index", async () => {
-    const listing = await createTestListing({ maxAttendees: 50 });
-    const created = await bookAttendee(listing, {
-      email: "unindexed@example.com",
-      name: "Unindexed",
-    });
-    if (!created.success) throw new Error("setup failed");
-    const attendeeId = created.attendees[0]!.id;
+    const attendeeId = await bookAttendeeId(
+      "unindexed@example.com",
+      "Unindexed",
+    );
     const payment = taggedPaymentReference("pi_unindexed", "sumup");
     await finalizeProcessedPayment("sess_unindexed", attendeeId, "", payment);
     await execute(
@@ -185,13 +175,10 @@ describeWithEnv("db > payment reference storage", { db: true }, () => {
   });
 
   test("refuses a stored row whose reference index does not match", async () => {
-    const listing = await createTestListing({ maxAttendees: 50 });
-    const created = await bookAttendee(listing, {
-      email: "mismatched-index@example.com",
-      name: "Mismatched Index",
-    });
-    if (!created.success) throw new Error("setup failed");
-    const attendeeId = created.attendees[0]!.id;
+    const attendeeId = await bookAttendeeId(
+      "mismatched-index@example.com",
+      "Mismatched Index",
+    );
     const sessionId = "sess_mismatched_index";
     await finalizeProcessedPayment(
       sessionId,

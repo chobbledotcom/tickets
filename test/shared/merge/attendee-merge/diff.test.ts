@@ -8,6 +8,7 @@ import { getDb } from "#db/client.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { sql } from "#db/sql.ts";
+import type { TransferInput } from "#shared/ledger/types.ts";
 import { bookingKey, itemBookingKey } from "#shared/merge/attendee-merge.ts";
 import type { AttendeeMergeDiffBookingItem } from "#shared/merge/attendee-merge-types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -46,6 +47,31 @@ const diffAfterSourceChoice = async (
 const soleAnswerItem = (diff: Awaited<ReturnType<typeof diffForQuestion>>) => {
   expect(diff.answerItems.length).toBe(1);
   return diff.answerItems[0]!;
+};
+
+/** Post `legs` from the source attendee to the listing's revenue account as
+ *  one event group, then stamp that group on the source's booking row so the
+ *  diff projects the booking's money from the ledger. */
+const postSourceLegs = async (
+  listingId: number,
+  sourceId: number,
+  eventGroup: string,
+  legs: readonly Pick<TransferInput, "amount" | "kind" | "reference">[],
+): Promise<void> => {
+  const attendee = attendeeAccount(sourceId);
+  const revenue = revenueAccount(listingId);
+  await postTransfers(
+    legs.map((leg) => ({
+      ...leg,
+      destination: revenue,
+      eventGroup,
+      occurredAt: "2026-06-21T00:00:00.000Z",
+      source: attendee,
+    })),
+  );
+  await getDb().execute(
+    sql`UPDATE listing_attendees SET ledger_event_group = ${eventGroup} WHERE attendee_id = ${sourceId} AND listing_id = ${listingId}`,
+  );
 };
 
 describeWithEnv("attendee merge service", { db: true }, () => {
@@ -244,32 +270,10 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       const { listing, source, target } = await createMergePair({
         sameListing: true,
       });
-      const eventGroup = "evt-phantom-leg";
-      const attendee = attendeeAccount(source.id);
-      const revenue = revenueAccount(listing.id);
-      await postTransfers([
-        {
-          amount: 5000,
-          destination: revenue,
-          eventGroup,
-          kind: KIND.sale,
-          occurredAt: "2026-06-21T00:00:00.000Z",
-          reference: "phantom-sale",
-          source: attendee,
-        },
-        {
-          amount: 1234,
-          destination: revenue,
-          eventGroup,
-          kind: KIND.payment,
-          occurredAt: "2026-06-21T00:00:00.000Z",
-          reference: "phantom-non-sale",
-          source: attendee,
-        },
+      await postSourceLegs(listing.id, source.id, "evt-phantom-leg", [
+        { amount: 5000, kind: KIND.sale, reference: "phantom-sale" },
+        { amount: 1234, kind: KIND.payment, reference: "phantom-non-sale" },
       ]);
-      await getDb().execute(
-        sql`UPDATE listing_attendees SET ledger_event_group = ${eventGroup} WHERE attendee_id = ${source.id} AND listing_id = ${listing.id}`,
-      );
 
       const diff = await buildMergeDiff({ source, target });
 
@@ -293,23 +297,9 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       // real sale leg onto a MOVEABLE source booking's event group: the diff
       // must STILL report 0 for both amounts.
       const { listing2, source, target } = await createMergePair();
-      const eventGroup = "evt-moveable-sale";
-      const attendee = attendeeAccount(source.id);
-      const revenue = revenueAccount(listing2.id);
-      await postTransfers([
-        {
-          amount: 5000,
-          destination: revenue,
-          eventGroup,
-          kind: KIND.sale,
-          occurredAt: "2026-06-21T00:00:00.000Z",
-          reference: "moveable-sale",
-          source: attendee,
-        },
+      await postSourceLegs(listing2.id, source.id, "evt-moveable-sale", [
+        { amount: 5000, kind: KIND.sale, reference: "moveable-sale" },
       ]);
-      await getDb().execute(
-        sql`UPDATE listing_attendees SET ledger_event_group = ${eventGroup} WHERE attendee_id = ${source.id} AND listing_id = ${listing2.id}`,
-      );
 
       const diff = await buildMergeDiff({ source, target });
 

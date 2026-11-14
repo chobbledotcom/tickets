@@ -4,7 +4,8 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute } from "#db/client.ts";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
+import { execute, queryOnePrimary } from "#db/client.ts";
 import {
   advanceSessionFailure,
   advanceStoredOutcomeOnce,
@@ -47,12 +48,38 @@ const storedFailure = async (
 };
 
 /** The exact encrypted bytes the session row holds right now. */
-const storedBytes = async (sessionId: string) => {
-  const row = await getProcessedPayment(sessionId);
+const storedBytes = async (sessionId: string): Promise<EnvKeyEncrypted> => {
+  const row = await queryOnePrimary<{ failure_data: EnvKeyEncrypted | "" }>(
+    sql`SELECT failure_data FROM processed_payments WHERE payment_session_id = ${sessionId}`,
+  );
   if (row === null || row.failure_data === "") {
     throw new Error(`Stored outcome is missing: ${sessionId}`);
   }
   return row.failure_data;
+};
+
+/** Store the pending outcome, read its fence bytes, then prune the row so the
+ *  fence no longer matches any stored row. */
+const storedFenceThenPruned = async (
+  sessionId: string,
+): Promise<EnvKeyEncrypted> => {
+  await storePendingOutcome(sessionId);
+  const fence = await storedBytes(sessionId);
+  await execute(
+    sql`DELETE FROM processed_payments WHERE payment_session_id = ${sessionId}`,
+  );
+  return fence;
+};
+
+/** Store the pending outcome, read its fence bytes, then advance the row to
+ *  FINAL so the fence no longer matches the row. */
+const storedFenceThenAdvanced = async (
+  sessionId: string,
+): Promise<EnvKeyEncrypted> => {
+  await storePendingOutcome(sessionId);
+  const fence = await storedBytes(sessionId);
+  await advanceSessionFailure(sessionId, PENDING, FINAL);
+  return fence;
 };
 
 describeWithEnv("db > processed payment outcome advance", { db: true }, () => {
@@ -113,9 +140,7 @@ describeWithEnv("db > processed payment outcome advance", { db: true }, () => {
 
   test("a stale fence converges when the row already holds the final shape", async () => {
     const sessionId = "advance_session_stale_fence";
-    await storePendingOutcome(sessionId);
-    const staleFence = await storedBytes(sessionId);
-    await advanceSessionFailure(sessionId, PENDING, FINAL);
+    const staleFence = await storedFenceThenAdvanced(sessionId);
 
     await advanceStoredOutcomeOnce(sessionId, staleFence, FINAL);
 
@@ -124,11 +149,7 @@ describeWithEnv("db > processed payment outcome advance", { db: true }, () => {
 
   test("a stale fence finds nothing to check when the row was pruned", async () => {
     const sessionId = "advance_session_fence_pruned";
-    await storePendingOutcome(sessionId);
-    const staleFence = await storedBytes(sessionId);
-    await execute(
-      sql`DELETE FROM processed_payments WHERE payment_session_id = ${sessionId}`,
-    );
+    const staleFence = await storedFenceThenPruned(sessionId);
 
     await advanceStoredOutcomeOnce(sessionId, staleFence, FINAL);
 
@@ -137,11 +158,7 @@ describeWithEnv("db > processed payment outcome advance", { db: true }, () => {
 
   test("a stale fence steps aside for a fresh re-reservation", async () => {
     const sessionId = "advance_session_fence_rereserved";
-    await storePendingOutcome(sessionId);
-    const staleFence = await storedBytes(sessionId);
-    await execute(
-      sql`DELETE FROM processed_payments WHERE payment_session_id = ${sessionId}`,
-    );
+    const staleFence = await storedFenceThenPruned(sessionId);
     await reserveSession(sessionId);
 
     await advanceStoredOutcomeOnce(sessionId, staleFence, FINAL);
@@ -151,9 +168,7 @@ describeWithEnv("db > processed payment outcome advance", { db: true }, () => {
 
   test("a stale fence throws when the row moved somewhere else", async () => {
     const sessionId = "advance_session_conflict";
-    await storePendingOutcome(sessionId);
-    const staleFence = await storedBytes(sessionId);
-    await advanceSessionFailure(sessionId, PENDING, FINAL);
+    const staleFence = await storedFenceThenAdvanced(sessionId);
 
     await expect(
       advanceStoredOutcomeOnce(sessionId, staleFence, {

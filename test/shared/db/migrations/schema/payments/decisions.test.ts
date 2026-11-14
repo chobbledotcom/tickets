@@ -4,6 +4,7 @@ import { getDb } from "#db/client.ts";
 import { paymentCaseDecisionTable } from "#db/migrations/schema/payments/decisions.ts";
 import { type SqlStatement, sql, sqlLiteral } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { expectSchemaColumns } from "#test-utils/schema-columns.ts";
 import {
   expectAccepted,
   expectRefused,
@@ -16,10 +17,7 @@ const aDecision = (values: SqlStatement) =>
     VALUES (${values})`;
 
 test("is what the owner's decision is made of", () => {
-  const [name, table] = paymentCaseDecisionTable;
-
-  expect(name).toBe("payment_case_decisions");
-  expect(table.columns.map(([held]) => held)).toEqual([
+  expectSchemaColumns(paymentCaseDecisionTable, "payment_case_decisions", [
     "id",
     "case_id",
     "case_revision",

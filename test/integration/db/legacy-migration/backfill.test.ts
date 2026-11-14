@@ -1,4 +1,3 @@
-import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { insert, setDb } from "#db/client.ts";
@@ -11,6 +10,7 @@ import {
   LEGACY_DB_UPDATE,
   stubPragmaForeignKeysOff,
 } from "#test/integration/db/legacy-migration/helpers.ts";
+import { expectAttendeeRow } from "#test-utils/attendee-rows.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 
 describe("db > listing_attendees migration from legacy schema (backfill)", () => {
@@ -125,17 +125,10 @@ describe("db > listing_attendees migration from legacy schema (backfill)", () =>
     invalidateInitDbCache();
     await initDb();
 
-    const cols = await client.execute(sql`PRAGMA table_info(attendees)`);
-    const colNames = cols.rows.map((r) => r.name);
-    assertArrayIncludes(colNames, ["id"]);
-    assertArrayIncludes(colNames, ["pii_blob"]);
-    assertArrayIncludes(colNames, ["created"]);
-
-    const rows = await client.execute(
-      sql`SELECT * FROM attendees WHERE id = 1`,
-    );
-    expect(rows.rows.length).toBe(1);
-    expect(rows.rows[0]!.pii_blob).toBe("blob-data");
-    expect(rows.rows[0]!.ticket_token_index).toBe("tok_skip");
+    await expectAttendeeCols(client, [], ["id", "pii_blob", "created"]);
+    await expectAttendeeRow(client, 1, {
+      pii_blob: "blob-data",
+      ticket_token_index: "tok_skip",
+    });
   });
 });

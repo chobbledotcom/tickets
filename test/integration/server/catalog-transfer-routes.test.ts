@@ -11,6 +11,7 @@ import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   expectFlashRedirect,
   expectIncludesAll,
+  expectStatus,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -47,7 +48,7 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
       const response = await adminGet(
         `/admin/listing/${listing.id}/export.json`,
       );
-      expect(response.status).toBe(200);
+      expectStatus(200)(response);
       assertStringIncludes(
         response.headers.get("content-type") ?? "",
         "application/json",
@@ -64,7 +65,7 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
     test("downloads a group as a JSON attachment", async () => {
       const group = await createTestGroup({ name: "Group X" });
       const response = await adminGet(`/admin/groups/${group.id}/export.json`);
-      expect(response.status).toBe(200);
+      expectStatus(200)(response);
       const blob = await response.json();
       expect(blob.kind).toBe("group");
       expect(blob.group.name).toBe("Group X");
@@ -84,8 +85,7 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
     });
 
     test("returns 404 for a missing listing", async () => {
-      const response = await adminGet("/admin/listing/9999/export.json");
-      expect(response.status).toBe(404);
+      expectStatus(404)(await adminGet("/admin/listing/9999/export.json"));
     });
 
     test("returns 422 (not 500) when a row holds an unexportable value", async () => {
@@ -99,7 +99,7 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
       const response = await adminGet(
         `/admin/listing/${listing.id}/export.json`,
       );
-      expect(response.status).toBe(422);
+      expectStatus(422)(response);
       assertStringIncludes(await response.text(), "can't be exported");
     });
 
@@ -110,7 +110,7 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
         sql`UPDATE groups SET max_attendees = ${-1} WHERE id = ${group.id}`,
       );
       const response = await adminGet(`/admin/groups/${group.id}/export.json`);
-      expect(response.status).toBe(422);
+      expectStatus(422)(response);
       assertStringIncludes(await response.text(), "can't be exported");
     });
   });
@@ -120,7 +120,7 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
 
     test("renders the upload form", async () => {
       const response = await adminGet("/admin/catalog/import");
-      expect(response.status).toBe(200);
+      expectStatus(200)(response);
       const html = await response.text();
       expectIncludesAll(html, ["Import a catalog file", 'name="catalog_file"']);
     });

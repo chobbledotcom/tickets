@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { it as test } from "@std/testing/bdd";
+import { beforeEach, it as test } from "@std/testing/bdd";
 import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#db/attendees/create.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { queryAll } from "#db/client.ts";
@@ -7,6 +7,7 @@ import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { expectNoAttendeesForListings } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import type { ListingWithCount } from "#types";
 
 /** The caller-supplied writes a reservation can ride on the atomic create:
  * creation work on the interactive transaction, or tail statements on the
@@ -15,15 +16,23 @@ describeWithEnv(
   "db > attendees > createAttendeeAtomic caller writes",
   { db: true },
   () => {
-    test("runs caller creation work inside the create transaction", async () => {
-      const listing = await createTestListing({ maxAttendees: 5 });
+    /** The listing each case books one of. */
+    let listing: ListingWithCount;
 
+    beforeEach(async () => {
+      listing = await createTestListing({ maxAttendees: 5 });
+    });
+
+    /** One ticket on that listing, bought by the named buyer. */
+    const oneTicket = (email: string, name: string) => ({
+      bookings: [{ listingId: listing.id, quantity: 1 }],
+      email,
+      name,
+    });
+
+    test("runs caller creation work inside the create transaction", async () => {
       const result = await createAttendeeAtomic(
-        {
-          bookings: [{ listingId: listing.id, quantity: 1 }],
-          email: "work@example.com",
-          name: "Work User",
-        },
+        oneTicket("work@example.com", "Work User"),
         async (tx, attendeeId) => {
           await tx.execute(
             sql`UPDATE attendees SET checked_in = 'worked' WHERE id = ${attendeeId}`,
@@ -44,19 +53,15 @@ describeWithEnv(
     });
 
     test("rolls the booking and the creation work back when the work fails", async () => {
-      const listing = await createTestListing({ maxAttendees: 5 });
-
       await expect(
         createAttendeeAtomic(
-          {
-            bookings: [{ listingId: listing.id, quantity: 1 }],
-            email: "work-fail@example.com",
-            name: "Work Fail",
-          },
+          oneTicket("work-fail@example.com", "Work Fail"),
           async (tx) => {
             // A write the caller makes before its failure must not survive.
-            await tx.execute(sql`INSERT INTO strings (text_index, encrypted_text, created)
-                  VALUES ('work-marker', 'x', 'now')`);
+            await tx.execute(
+              sql`INSERT INTO strings (text_index, encrypted_text, created)
+                  VALUES ('work-marker', 'x', 'now')`,
+            );
             throw new Error("creation work boom");
           },
         ),
@@ -72,14 +77,8 @@ describeWithEnv(
     });
 
     test("commits caller tail statements with the booking batch", async () => {
-      const listing = await createTestListing({ maxAttendees: 5 });
-
       const result = await createAttendeeAtomic(
-        {
-          bookings: [{ listingId: listing.id, quantity: 1 }],
-          email: "tail@example.com",
-          name: "Tail User",
-        },
+        oneTicket("tail@example.com", "Tail User"),
         undefined,
         (tokenIndex) => [
           sql`UPDATE attendees SET checked_in = 'tail'
@@ -97,15 +96,9 @@ describeWithEnv(
     });
 
     test("rolls the whole booking back when a tail statement fails", async () => {
-      const listing = await createTestListing({ maxAttendees: 5 });
-
       await expect(
         createAttendeeAtomic(
-          {
-            bookings: [{ listingId: listing.id, quantity: 1 }],
-            email: "tail-fail@example.com",
-            name: "Tail Fail",
-          },
+          oneTicket("tail-fail@example.com", "Tail Fail"),
           undefined,
           () => [
             sql`INSERT INTO strings (text_index, encrypted_text, created)

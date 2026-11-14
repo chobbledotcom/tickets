@@ -28,21 +28,20 @@ const withDatabaseTrigger = async <Result>(
   }
 };
 
+/** Book one quantity-1 line on a fresh ten-seat listing. */
+const bookOneLine = (name: string) =>
+  bookOnNewListing({ maxAttendees: 10 }, { name, quantity: 1 });
+
 describeWithEnv("db > attendees > atomic edit guards", { db: true }, () => {
   test("uses empty date and zero relationship ids in a standard line key", async () => {
-    const { listing, existing } = await bookOnNewListing(
-      { maxAttendees: 10 },
-      { name: "Key", quantity: 1 },
-    );
+    const { listing, existing } = await bookOneLine("Key");
 
     expect(existing[0]!.key).toBe(`${listing.id}||0|0`);
   });
 
   test("clears logistics state when quantity becomes zero", async () => {
-    const { listing, attendee, blob, existing } = await bookOnNewListing(
-      { maxAttendees: 10 },
-      { name: "No quantity", quantity: 1 },
-    );
+    const { listing, attendee, blob, existing } =
+      await bookOneLine("No quantity");
     await execute(
       sql`UPDATE listing_attendees
           SET checked_in = 1, start_agent_id = 7, end_agent_id = 8,
@@ -95,10 +94,8 @@ describeWithEnv("db > attendees > atomic edit guards", { db: true }, () => {
   });
 
   test("rejects an existing-line update that affects no row", async () => {
-    const { listing, attendee, blob, existing } = await bookOnNewListing(
-      { maxAttendees: 10 },
-      { name: "Ignored update", quantity: 1 },
-    );
+    const { listing, attendee, blob, existing } =
+      await bookOneLine("Ignored update");
 
     await expect(
       withDatabaseTrigger(

@@ -20,6 +20,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import { createListingPair } from "#test-utils/db-helpers/listing-pair.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
@@ -173,14 +174,10 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
     });
 
     test("merges source listings into target and deletes source", async () => {
-      const listing1 = await createTestListing({
-        maxAttendees: 10,
-        name: "Listing One",
-      });
-      const listing2 = await createTestListing({
-        maxAttendees: 10,
-        name: "Listing Two",
-      });
+      const [listing1, listing2] = await createListingPair(
+        { maxAttendees: 10, name: "Listing One" },
+        { maxAttendees: 10, name: "Listing Two" },
+      );
 
       const { attendee: target } = await createTestAttendeeDirect(
         listing1.id,
@@ -324,16 +321,10 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
     });
 
     test('POST merge joins multiple validation errors with "; "', async () => {
-      const listing1 = await createTestListing({
-        maxAttendees: 10,
-        name: "L1",
-        unitPrice: 500,
-      });
-      const listing2 = await createTestListing({
-        maxAttendees: 10,
-        name: "L2",
-        unitPrice: 500,
-      });
+      const [listing1, listing2] = await createListingPair(
+        { maxAttendees: 10, name: "L1", unitPrice: 500 },
+        { maxAttendees: 10, name: "L2", unitPrice: 500 },
+      );
       const { attendeesApi } = await import("#db/attendees/api.ts");
       const targetResult = await attendeesApi.createAttendeeAtomic({
         bookings: [

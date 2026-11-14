@@ -1,11 +1,11 @@
 import { assertArrayIncludes } from "@std/assert";
-import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import maintenanceCheckpointMigration from "#db/migrations/2026-07-19_maintenance_checkpoint.ts";
 import { applySchemaChanges } from "#db/migrations/schema-sync.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { expectMigrationIdentity } from "#test-utils/migration-identity.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 
 const context = buildMigrationContext({ applySchemaChanges });
@@ -15,12 +15,7 @@ describeWithEnv(
   { db: true },
   () => {
     test("declares its identity and checkpoint column", () => {
-      const migration = maintenanceCheckpointMigration(context);
-      expect({
-        description: migration.description,
-        id: migration.id,
-        requires: migration.requires,
-      }).toEqual({
+      expectMigrationIdentity(maintenanceCheckpointMigration(context), {
         description:
           "Remember where bounded maintenance scans should continue.",
         id: "2026-07-19_maintenance_checkpoint",

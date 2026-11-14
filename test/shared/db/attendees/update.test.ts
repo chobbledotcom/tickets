@@ -16,6 +16,7 @@ import {
   decryptFirstAttendee,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createListingPair } from "#test-utils/db-helpers/listing-pair.ts";
 import {
   createDailyTestListing,
   createTestListing,
@@ -37,8 +38,9 @@ describeWithEnv(
     };
 
     test("adds 1 per call for the matching pair, leaving other rows alone", async () => {
-      const listingA = await createTestListing({ maxAttendees: 10 });
-      const listingB = await createTestListing({ maxAttendees: 10 });
+      const [listingA, listingB] = await createListingPair({
+        maxAttendees: 10,
+      });
       const { attendee: onA } = await createTestAttendeeDirect(
         listingA.id,
         "Downloader",
@@ -59,8 +61,9 @@ describeWithEnv(
     });
 
     test("a mismatched attendee+listing pair matches no row", async () => {
-      const listingA = await createTestListing({ maxAttendees: 10 });
-      const listingB = await createTestListing({ maxAttendees: 10 });
+      const [listingA, listingB] = await createListingPair({
+        maxAttendees: 10,
+      });
       const { attendee } = await createTestAttendeeDirect(
         listingA.id,
         "Only A",
@@ -77,8 +80,7 @@ describeWithEnv(
 
 describeWithEnv("db > attendees > updateAttendeePII", { db: true }, () => {
   test("rewrites the stored PII blob for that attendee only", async () => {
-    const listingA = await createTestListing({ maxAttendees: 10 });
-    const listingB = await createTestListing({ maxAttendees: 10 });
+    const [listingA, listingB] = await createListingPair({ maxAttendees: 10 });
     const { attendee: edited } = await createTestAttendeeDirect(
       listingA.id,
       "Old Name",

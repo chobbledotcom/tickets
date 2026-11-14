@@ -7,6 +7,7 @@ import { bumpSettingsVersion, CONFIG_KEYS, settings } from "#db/settings.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { loadRawSetting } from "#test-utils/settings-load.ts";
 
 describeWithEnv("db > settings > load", { db: true }, () => {
   test("reloads setting values from primary after a write", async () => {
@@ -41,16 +42,12 @@ describeWithEnv("db > settings > load", { db: true }, () => {
 
   describe("buildSnapshot via loadKeys", () => {
     test("loads valid payment provider from raw settings", async () => {
-      await settings.setRaw("payment_provider", "stripe");
-      settings.invalidateCache();
-      await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
+      await loadRawSetting(CONFIG_KEYS.PAYMENT_PROVIDER, "stripe");
       expect(settings.paymentProvider).toBe("stripe");
     });
 
     test("ignores invalid payment provider in raw settings", async () => {
-      await settings.setRaw("payment_provider", "not-a-provider");
-      settings.invalidateCache();
-      await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
+      await loadRawSetting(CONFIG_KEYS.PAYMENT_PROVIDER, "not-a-provider");
       expect(settings.paymentProvider).toBeNull();
     });
   });
@@ -69,13 +66,10 @@ describeWithEnv("db > settings > load", { db: true }, () => {
     });
 
     test("decrypts an encrypted key it is asked to load", async () => {
-      await settings.setRaw(
+      await loadRawSetting(
         CONFIG_KEYS.BUSINESS_EMAIL,
         await encrypt("owner@example.com"),
       );
-      settings.invalidateCache();
-
-      await settings.loadKeys([CONFIG_KEYS.BUSINESS_EMAIL]);
 
       expect(settings.businessEmail).toBe("owner@example.com");
     });
@@ -99,10 +93,7 @@ describeWithEnv("db > settings > load", { db: true }, () => {
     });
 
     test("applies country-derived fields", async () => {
-      await settings.setRaw(CONFIG_KEYS.COUNTRY, "US");
-      settings.invalidateCache();
-
-      await settings.loadKeys([CONFIG_KEYS.COUNTRY]);
+      await loadRawSetting(CONFIG_KEYS.COUNTRY, "US");
 
       expect(settings.country).toBe("US");
       expect(settings.currency).toBe("USD");
@@ -127,9 +118,7 @@ describeWithEnv("db > settings > load", { db: true }, () => {
     });
 
     test("is a no-op when the requested key is already loaded", async () => {
-      await settings.setRaw(CONFIG_KEYS.THEME, "dark");
-      settings.invalidateCache();
-      await settings.loadKeys([CONFIG_KEYS.THEME]);
+      await loadRawSetting(CONFIG_KEYS.THEME, "dark");
 
       // Mutate the DB after the load; loadKeys must not re-fetch a key
       // the fresh cache already holds.

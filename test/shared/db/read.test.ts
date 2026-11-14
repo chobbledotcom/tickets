@@ -5,12 +5,12 @@
  * order of the values that fill them.
  */
 
-import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { defineReader, readStatement } from "#db/read.ts";
 import { sql } from "#db/sql.ts";
 import { equals, inList } from "#db/where-clauses.ts";
+import { expectExcludesAll } from "#test-utils/assertions/absent.ts";
 
 describe("readStatement", () => {
   test("says the plainest read with nothing but columns and a table", () => {
@@ -51,10 +51,7 @@ describe("readStatement", () => {
       from: sql`listings`,
     });
 
-    assert(!text.includes("WHERE"));
-    assert(!text.includes("GROUP BY"));
-    assert(!text.includes("ORDER BY"));
-    assert(!text.includes("LIMIT"));
+    expectExcludesAll(text, ["WHERE", "GROUP BY", "ORDER BY", "LIMIT"]);
   });
 
   test("an empty filter list adds no WHERE", () => {

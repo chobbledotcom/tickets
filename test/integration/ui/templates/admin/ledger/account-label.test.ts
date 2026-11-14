@@ -18,6 +18,7 @@ import {
   transfer,
 } from "#test/ui/templates/admin/ledger/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectExcludesAll } from "#test-utils/assertions/absent.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 /** The admin page each row-backed money account opens, keyed by the picklist
@@ -61,10 +62,12 @@ describe("money account labels", () => {
       "Tax",
       "Corrections",
     ]);
-    assert(!html.includes("/admin/ledger/external/"));
-    assert(!html.includes("/admin/ledger/fee_income/"));
-    assert(!html.includes("/admin/ledger/tax/"));
-    assert(!html.includes("/admin/ledger/writeoff/"));
+    expectExcludesAll(html, [
+      "/admin/ledger/external/",
+      "/admin/ledger/fee_income/",
+      "/admin/ledger/tax/",
+      "/admin/ledger/writeoff/",
+    ]);
   });
 
   test("links each row-backed account to the record page the routes declare", () => {
@@ -97,9 +100,11 @@ describe("money account labels", () => {
       );
     }
     // No account leg points back at the ledger or at a filtered ledger.
-    assert(!html.includes("/admin/ledger/attendee/"));
-    assert(!html.includes("/admin/ledger/modifier/"));
-    assert(!html.includes("/admin/ledger?listing="));
+    expectExcludesAll(html, [
+      "/admin/ledger/attendee/",
+      "/admin/ledger/modifier/",
+      "/admin/ledger?listing=",
+    ]);
   });
 
   test("links a service event account to the service event page", () => {
@@ -151,7 +156,6 @@ describe("money account labels", () => {
       "dual",
     );
     expectIncludesAll(html, ["Attendee #42", "Listing #9", "Modifier #8"]);
-    assert(!html.includes("/admin/attendees/42"));
-    assert(!html.includes("/admin/modifiers/8"));
+    expectExcludesAll(html, ["/admin/attendees/42", "/admin/modifiers/8"]);
   });
 });

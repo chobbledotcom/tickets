@@ -27,6 +27,10 @@ const createWriteTable = async () => {
   });
 };
 
+/** Every stored write-table row, with the column write transform applied. */
+const storedRows = (): Promise<WriteRow[]> =>
+  queryAll<WriteRow>(sql`SELECT id, name FROM table_write_rows`);
+
 describeWithEnv("db > writeTableRow", { db: true }, () => {
   test("inserts and reads back every selected table column", async () => {
     const table = await createWriteTable();
@@ -38,9 +42,7 @@ describeWithEnv("db > writeTableRow", { db: true }, () => {
     );
 
     expect(row).toEqual({ id: 1, name: "first" });
-    expect(await queryAll(sql`SELECT id, name FROM table_write_rows`)).toEqual([
-      { id: 1, name: "FIRST" },
-    ]);
+    expect(await storedRows()).toEqual([{ id: 1, name: "FIRST" }]);
   });
 
   test("updates and reads back the changed row", async () => {
@@ -68,9 +70,7 @@ describeWithEnv("db > writeTableRow", { db: true }, () => {
     );
 
     expect(row).toBeNull();
-    expect(await queryAll(sql`SELECT id, name FROM table_write_rows`)).toEqual(
-      [],
-    );
+    expect(await storedRows()).toEqual([]);
   });
 
   // The id comes back from the row the INSERT wrote, so it needs no help from
@@ -90,9 +90,7 @@ describeWithEnv("db > writeTableRow", { db: true }, () => {
     // insert() reports the values it was given; the stored value keeps the
     // column's write transform.
     expect(row).toEqual({ id: 1, name: "Named" });
-    expect(await queryAll(sql`SELECT id, name FROM table_write_rows`)).toEqual([
-      { id: 1, name: "NAMED" },
-    ]);
+    expect(await storedRows()).toEqual([{ id: 1, name: "NAMED" }]);
   });
 
   // Nothing downstream can be keyed on a row the INSERT did not report, so the

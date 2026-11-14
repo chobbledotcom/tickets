@@ -5,6 +5,7 @@ import { getDb } from "#db/client.ts";
 import builtSitesUpdatesMigration from "#db/migrations/2026-06-24_built_sites_updates.ts";
 import { applySchemaChanges } from "#db/migrations/schema-sync.ts";
 import { sql } from "#db/sql.ts";
+import { columnNames } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 
@@ -29,11 +30,6 @@ const insertSite = (updates?: string) =>
       : sql`INSERT INTO built_sites (site_data, created, updates) VALUES ('{}', '2026-01-01T00:00:00Z', ${updates})`,
   );
 
-const columnNames = async (): Promise<string[]> => {
-  const result = await getDb().execute(sql`PRAGMA table_info(built_sites)`);
-  return result.rows.map((row) => String(row.name));
-};
-
 describeWithEnv(
   "db > migrations > 2026-06-24_built_sites_updates",
   { db: true },
@@ -41,11 +37,11 @@ describeWithEnv(
     test("adds the updates column, defaulting existing rows to release", async () => {
       await createPreUpdatesTable();
       await insertSite();
-      assert(!(await columnNames()).includes("updates"));
+      assert(!(await columnNames("built_sites")).includes("updates"));
 
       await runMigration();
 
-      assertArrayIncludes(await columnNames(), ["updates"]);
+      assertArrayIncludes(await columnNames("built_sites"), ["updates"]);
       const { rows } = await getDb().execute(
         sql`SELECT updates FROM built_sites`,
       );

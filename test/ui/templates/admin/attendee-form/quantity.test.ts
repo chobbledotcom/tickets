@@ -10,10 +10,8 @@ import {
   expectIncludesAll,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import {
-  buildAttendeeEditForm,
-  createTestAttendee,
-} from "#test-utils/db-helpers/attendees.ts";
+import { buildAttendeeEditForm } from "#test-utils/db-helpers/attendees.ts";
+import { listingWithAttendee } from "#test-utils/db-helpers/listing-attendee.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
@@ -83,10 +81,8 @@ describeWithEnv(
       };
 
       test("marking a line no-quantity keeps it as a quantity-0 row, not deleted", async () => {
-        const listing = await createTestListing({ maxAttendees: 50 });
-        const attendee = await createTestAttendee(
-          listing.id,
-          listing.slug,
+        const { attendee, listing } = await listingWithAttendee(
+          50,
           "Ghost",
           "ghost@example.com",
         );
@@ -102,10 +98,8 @@ describeWithEnv(
       });
 
       test("a stored quantity-0 line renders with the no-quantity box ticked", async () => {
-        const listing = await createTestListing({ maxAttendees: 50 });
-        const attendee = await createTestAttendee(
-          listing.id,
-          listing.slug,
+        const { attendee, listing } = await listingWithAttendee(
+          50,
           "Ghost",
           "ghost@example.com",
         );
@@ -125,10 +119,8 @@ describeWithEnv(
       });
 
       test("the quantity input uses CSP-safe styling", async () => {
-        const listing = await createTestListing({ maxAttendees: 50 });
-        const attendee = await createTestAttendee(
-          listing.id,
-          listing.slug,
+        const { attendee } = await listingWithAttendee(
+          50,
           "Styled",
           "styled@example.com",
         );
@@ -150,10 +142,8 @@ describeWithEnv(
       });
 
       test("marking a checked-in line no-quantity clears its check-in", async () => {
-        const listing = await createTestListing({ maxAttendees: 50 });
-        const attendee = await createTestAttendee(
-          listing.id,
-          listing.slug,
+        const { attendee, listing } = await listingWithAttendee(
+          50,
           "WasIn",
           "wasin@example.com",
         );
@@ -203,10 +193,8 @@ describeWithEnv(
       });
 
       test("a no-quantity-only attendee saves instead of being rejected as no lines", async () => {
-        const listing = await createTestListing({ maxAttendees: 50 });
-        const attendee = await createTestAttendee(
-          listing.id,
-          listing.slug,
+        const { attendee, listing } = await listingWithAttendee(
+          50,
           "OnlyGhost",
           "onlyghost@example.com",
         );
@@ -229,10 +217,8 @@ describeWithEnv(
       // stranded by the no-quantity transition in the first place.)
 
       test("blocks marking an assigned built-site line no-quantity", async () => {
-        const listing = await createTestListing({ maxAttendees: 50 });
-        const attendee = await createTestAttendee(
-          listing.id,
-          listing.slug,
+        const { attendee, listing } = await listingWithAttendee(
+          50,
           "Sited",
           "sited@example.com",
         );

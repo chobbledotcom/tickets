@@ -1,4 +1,4 @@
-import { LibsqlBatchError, LibsqlError } from "@libsql/client";
+import { type Client, LibsqlBatchError, LibsqlError } from "@libsql/client";
 import {
   ClosedError,
   InternalError,
@@ -14,12 +14,22 @@ import {
   hranaTestDatabase,
 } from "#test-utils/hrana.ts";
 
+/** Assert a two-statement write batch over `remote` rejects as `errorClass` and
+ *  matches `shape`: both faults surface through the same batch reply path. */
+const expectTwoStatementBatchFailure = async (
+  remote: { client: Client },
+  errorClass: typeof LibsqlBatchError | typeof LibsqlError,
+  shape: Record<PropertyKey, unknown>,
+): Promise<void> => {
+  const result = remote.client.batch([sql`SELECT 1`, sql`SELECT 2`], "write");
+  await expect(result).rejects.toBeInstanceOf(errorClass);
+  await expect(result).rejects.toMatchObject(shape);
+};
+
 for (const fault of ["begin", "select", "commit"] as const) {
   test(`rejects a ${fault} failure without a partial result`, async () => {
     using remote = hranaTestDatabase({ fault });
-    const result = remote.client.batch([sql`SELECT 1`, sql`SELECT 2`], "write");
-    await expect(result).rejects.toBeInstanceOf(LibsqlError);
-    await expect(result).rejects.toMatchObject({
+    await expectTwoStatementBatchFailure(remote, LibsqlError, {
       code: "SQLITE_ERROR",
       message: expect.stringContaining(`forced ${fault} failure`),
     });
@@ -80,9 +90,7 @@ for (const missing of ["null", "absent"] as const) {
         );
       }),
     });
-    const result = remote.client.batch([sql`SELECT 1`, sql`SELECT 2`], "write");
-    await expect(result).rejects.toBeInstanceOf(LibsqlBatchError);
-    await expect(result).rejects.toMatchObject({
+    await expectTwoStatementBatchFailure(remote, LibsqlBatchError, {
       code: "TRANSACTION_CLOSED",
       message: expect.stringContaining(
         "Primary read statement was not executed",

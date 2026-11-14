@@ -185,16 +185,23 @@ describeWithEnv(
         unitPrice: 700,
       });
 
+    /** The base price the listing mirrors into its price rows. */
+    const storedBasePrice = async (
+      listingId: number,
+    ): Promise<number | undefined> => {
+      const row = await queryOne<{ unit_price: number }>(
+        sql`SELECT unit_price FROM listing_prices WHERE listing_id = ${listingId} AND price_type = ${PRICE_TYPE_BASE}`,
+      );
+      return row?.unit_price;
+    };
+
     test("an insert stores day prices, mirrors the base price, and carries no image", async () => {
       const listing = await insertPriced();
       expect(listing.image_url).toBe("");
       expect(listing.image_thumb_url).toBe("");
       expect(listing.image_alt_text).toBe("");
       expect((await getListingDayPrices(listing.id))[2]).toBe(500);
-      const base = await queryOne<{ unit_price: number }>(
-        sql`SELECT unit_price FROM listing_prices WHERE listing_id = ${listing.id} AND price_type = ${PRICE_TYPE_BASE}`,
-      );
-      expect(base?.unit_price).toBe(700);
+      expect(await storedBasePrice(listing.id)).toBe(700);
     });
 
     test("an update rewrites the day prices and re-mirrors the base price", async () => {
@@ -206,10 +213,7 @@ describeWithEnv(
       const prices = await getListingDayPrices(listing.id);
       expect(prices[2]).toBe(undefined);
       expect(prices[3]).toBe(900);
-      const base = await queryOne<{ unit_price: number }>(
-        sql`SELECT unit_price FROM listing_prices WHERE listing_id = ${listing.id} AND price_type = ${PRICE_TYPE_BASE}`,
-      );
-      expect(base?.unit_price).toBe(800);
+      expect(await storedBasePrice(listing.id)).toBe(800);
     });
 
     test("a booked listing's profit is its income minus its cost", async () => {

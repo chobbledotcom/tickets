@@ -7,6 +7,7 @@ import { sql } from "#db/sql.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { getListingWithActivityLogOrNull } from "#test-utils/activity-log.ts";
 import { attendeeLineIndex } from "#test-utils/assertions.ts";
+import { emptyBookingLine } from "#test-utils/attendees/helpers.ts";
 import { createReservedAttendee } from "#test-utils/balance.ts";
 import { getTestDataKey, getTestPrivateKey } from "#test-utils/crypto.ts";
 import {
@@ -17,12 +18,14 @@ import {
 import {
   buildAttendeeEditForm,
   createTestAttendee,
+  createTestAttendeeWithToken,
   existingAttendeeLines,
 } from "#test-utils/db-helpers/attendees.ts";
 import {
   createTestBuiltSite,
   updateTestBuiltSite,
 } from "#test-utils/db-helpers/built-sites.ts";
+import { listingWithAttendee } from "#test-utils/db-helpers/listing-attendee.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   addAttendee,
@@ -218,15 +221,10 @@ describe("test-utils — db-backed & settings contracts", () => {
     });
 
     test("buildAttendeeEditForm preserves existing booking lines by default", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 10,
-        maxQuantity: 5,
-      });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
+      const { attendee, listing } = await createTestAttendeeWithToken(
         "Default Form",
         "default-form@example.com",
+        { maxAttendees: 10, maxQuantity: 5 },
         2,
       );
 
@@ -240,15 +238,10 @@ describe("test-utils — db-backed & settings contracts", () => {
     });
 
     test("existingAttendeeLines returns the complete stored form line", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 10,
-        maxQuantity: 5,
-      });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
+      const { attendee, listing } = await createTestAttendeeWithToken(
         "Stored Form",
         "stored-form@example.com",
+        { maxAttendees: 10, maxQuantity: 5 },
         2,
       );
 
@@ -264,16 +257,12 @@ describe("test-utils — db-backed & settings contracts", () => {
     });
 
     test("buildAttendeeEditForm preserves a no-quantity line by default", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
+      const { attendee, listing } = await listingWithAttendee(
+        10,
         "No Quantity Form",
         "no-quantity-form@example.com",
       );
-      await getDb().execute(
-        sql`UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ${attendee.id}`,
-      );
+      await emptyBookingLine(listing.id, attendee.id);
 
       const form = await buildAttendeeEditForm(attendee.id);
 
@@ -282,15 +271,10 @@ describe("test-utils — db-backed & settings contracts", () => {
     });
 
     test("buildAttendeeEditForm defaults new override lines to one ticket with no key", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 10,
-        maxQuantity: 5,
-      });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
+      const { attendee, listing } = await createTestAttendeeWithToken(
         "Override Form",
         "override-form@example.com",
+        { maxAttendees: 10, maxQuantity: 5 },
         2,
       );
 

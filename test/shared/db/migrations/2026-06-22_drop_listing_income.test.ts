@@ -1,32 +1,14 @@
 import { getDb } from "#db/client.ts";
-import dropListingIncomeMigration from "#db/migrations/2026-06-22_drop_listing_income.ts";
-import { recreateTable, syncTriggers } from "#db/migrations/schema-sync.ts";
-import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
+import { sql } from "#db/sql.ts";
+import { listingIncomeDropFixture } from "#test-utils/db/legacy-aggregate-migration.ts";
 import {
   readListingAggregates as listingAggregates,
   runAggregateColumnDropTests,
 } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { buildMigrationContext } from "#test-utils/migrations.ts";
 
-// This migration's up() touches only the three below — recreateTable and
-// syncTriggers do the trigger/structure rebuild; getDb is real by default.
-const context = buildMigrationContext({ recreateTable, syncTriggers });
-
-const runMigration = () => dropListingIncomeMigration(context).up();
-
-/** Old income-maintaining SET clause (signed `+`/`-`) the pre-drop triggers used,
- *  so the fixture mirrors a real pre-migration database whose triggers still
- *  reference the income column. */
-const contribution = (sign: "+" | "-", row: "NEW" | "OLD"): SqlStatement => {
-  const op = sign === "+" ? sql`+` : sql`-`;
-  return sql`UPDATE listings SET
-     booked_quantity = booked_quantity ${op} ${sqlName(`${row}.quantity`)},
-     tickets_count = tickets_count ${op} 1,
-     income = income ${op} ${sqlName(`${row}.price_paid`)}
-   WHERE id = ${sqlName(`${row}.listing_id`)};`;
-};
+const { contribution, runMigration } = listingIncomeDropFixture;
 
 describeWithEnv(
   "db > migrations > 2026-06-22_drop_listing_income",

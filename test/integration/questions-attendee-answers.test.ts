@@ -32,9 +32,10 @@ const choiceAnswersFor = async (att: {
   return batch.get(att.id);
 };
 
-/** "Colour?" question with Red/Blue options plus one attendee who has saved Red
- *  — the shared setup behind the replace and rollback tests below. */
-const seedColourAttendeeWithRed = async (): Promise<{
+/** "Colour?" question with Red/Blue options, an attendee who has saved Red, and
+ *  the checked Red id — the prior state the replace and rollback tests start
+ *  from. */
+const seedAttendeeHoldingRed = async (): Promise<{
   a1: { id: number };
   a2: { id: number };
   att: { id: number };
@@ -45,8 +46,15 @@ const seedColourAttendeeWithRed = async (): Promise<{
   const listing = await createTestListing();
   const att = await createAttendee(listing.id);
   await saveAttendeeAnswers(new Map([[att.id, [a1.id]]]));
+  expect(await choiceAnswersFor(att)).toEqual([a1.id]);
   return { a1, a2, att };
 };
+
+/** The used_count of every interned string, in id order. */
+const stringUsedCounts = async (): Promise<number[]> =>
+  (
+    await queryAll<{ used_count: number }>(sql`SELECT used_count FROM strings`)
+  ).map((row) => row.used_count);
 
 describeWithEnv("custom questions", { db: true }, () => {
   describe("createAttendee helper", () => {
@@ -154,8 +162,7 @@ describeWithEnv("custom questions", { db: true }, () => {
     });
 
     test("saveAttendeeAnswers replaces existing answers atomically", async () => {
-      const { a1, a2, att } = await seedColourAttendeeWithRed();
-      expect(await choiceAnswersFor(att)).toEqual([a1.id]);
+      const { a2, att } = await seedAttendeeHoldingRed();
 
       await saveAttendeeAnswers(new Map([[att.id, [a2.id]]]));
 
@@ -168,8 +175,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       // committed left the attendee with no answers at all. Now the whole save
       // runs in one transaction, so a mid-save INSERT failure rolls the DELETE
       // back and the attendee's prior answers survive.
-      const { a1, a2, att } = await seedColourAttendeeWithRed();
-      expect(await choiceAnswersFor(att)).toEqual([a1.id]);
+      const { a1, a2, att } = await seedAttendeeHoldingRed();
 
       await withPoisonedWrite(
         (sql) => sql.includes("INSERT INTO attendee_answers"),
@@ -294,25 +300,19 @@ describeWithEnv("custom questions", { db: true }, () => {
         ]),
       );
 
-      const afterInsert = await queryAll<{ used_count: number }>(
-        sql`SELECT used_count FROM strings`,
-      );
-      expect(afterInsert.map((row) => row.used_count)).toEqual([2]);
+      expect(await stringUsedCounts()).toEqual([2]);
 
-      await saveAttendeeAnswers(new Map([[att1.id, []]]));
-      const afterOneClear = await queryAll<{ used_count: number }>(
-        sql`SELECT used_count FROM strings`,
-      );
-      expect(afterOneClear.map((row) => row.used_count)).toEqual([1]);
-
-      // Freeing the last reference does NOT delete the row — a pending paid
-      // checkout could still reference it in its signed metadata. The row
-      // lingers at used_count 0 until the age-based pruner removes it.
-      await saveAttendeeAnswers(new Map([[att2.id, []]]));
-      const afterAllClear = await queryAll<{ used_count: number }>(
-        sql`SELECT used_count FROM strings`,
-      );
-      expect(afterAllClear.map((row) => row.used_count)).toEqual([0]);
+      // Clearing one attendee drops the count by one. Freeing the last
+      // reference does NOT delete the row — a pending paid checkout could still
+      // reference it in its signed metadata — so the row lingers at used_count
+      // 0 until the age-based pruner removes it.
+      for (const [attendee, expected] of [
+        [att1, 1],
+        [att2, 0],
+      ] as const) {
+        await saveAttendeeAnswers(new Map([[attendee.id, []]]));
+        expect(await stringUsedCounts()).toEqual([expected]);
+      }
 
       // Once aged past retention, the pruner deletes the unused row.
       await execute(

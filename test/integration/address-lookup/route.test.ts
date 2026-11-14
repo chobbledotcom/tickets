@@ -13,6 +13,7 @@ import { execute } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
 import { sql } from "#db/sql.ts";
 import { nowMs } from "#shared/now.ts";
+import { expectStatus } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
@@ -74,13 +75,14 @@ describeWithEnv("GET /address-lookup", { db: true }, () => {
     // The lockout tests plant a counter row for the shared test IP; a row
     // left behind would 429 the next non-staff session in this suite.
     await execute(
-      sql`DELETE FROM login_attempts WHERE ip = ${await hmacHash("address:direct")}`,
+      sql`DELETE FROM login_attempts WHERE ip = ${await hmacHash(
+        "address:direct",
+      )}`,
     );
   });
 
   test("404s while no provider is configured", async () => {
-    const response = await lookupGet("SW1A 2AA");
-    expect(response.status).toBe(404);
+    expectStatus(404)(await lookupGet("SW1A 2AA"));
   });
 
   test("an anonymous lookup gets address lines but never coordinates", async () => {
@@ -119,7 +121,9 @@ describeWithEnv("GET /address-lookup", { db: true }, () => {
   // limiter's own namespace exactly as the configured limiter does.
   const lockOutTestIp = async (): Promise<void> => {
     await execute(
-      sql`INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (${await hmacHash("address:direct")}, ${30}, ${nowMs() + 60_000})`,
+      sql`INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (${await hmacHash(
+        "address:direct",
+      )}, ${30}, ${nowMs() + 60_000})`,
     );
   };
 

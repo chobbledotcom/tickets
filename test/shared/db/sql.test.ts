@@ -14,6 +14,7 @@ import {
   sqlNames,
   sqlRows,
 } from "#db/sql.ts";
+import { testRefusal } from "#test-utils/refusal.ts";
 
 /** The text and the arguments, without the type mark. */
 const rendered = ({ args, sql: text }: { args: unknown[]; sql: string }) => ({
@@ -148,7 +149,8 @@ describe("sql", () => {
 
   test("a comment ends where SQL says it ends", () => {
     expect(
-      () => sql`SELECT 1 -- note
+      () =>
+        sql`SELECT 1 -- note
 , 'a${1}'`,
     ).toThrow("A slot sits inside a quoted SQL literal");
     expect(() => sql`SELECT 1 /* a * b / c */, 'a${1}'`).toThrow(
@@ -356,11 +358,11 @@ describe("sqlNames", () => {
     });
   });
 
-  test("refuses a list that holds a bad name", () => {
-    expect(() => sqlNames(["id", "slug, secret"])).toThrow(
-      'Not a valid SQL name: "slug, secret"',
-    );
-  });
+  testRefusal(
+    "refuses a list that holds a bad name",
+    () => sqlNames(["id", "slug, secret"]),
+    'Not a valid SQL name: "slug, secret"',
+  );
 });
 
 describe("sqlLiteral", () => {

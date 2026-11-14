@@ -41,6 +41,12 @@ const ownerCount = async (): Promise<number> =>
       .total,
   );
 
+/** Both stored key values, read at call time because loading fills them. */
+const storedKeys = (): string[] => [
+  settings.wrappedPrivateKey,
+  settings.publicKey,
+];
+
 /** Proves the stored keypair is the one this owner's password unlocks. */
 const ownerCanReadSiteData = async (
   username: string,
@@ -168,20 +174,16 @@ describeWithEnv("db > settings > setup ceremony", { db: true }, () => {
       settings.setup.clearCache();
       settings.invalidateCache();
       await settings.loadKeys(ALL_SETTINGS_KEYS);
-      expect(settings.wrappedPrivateKey).toBe("");
-      expect(settings.publicKey).toBe("");
+      expect(storedKeys()).toEqual(["", ""]);
       expect(await settings.setup.isComplete()).toBe(false);
 
       await settings.setup.complete("setupuser", "mypassword", "US");
 
       expect(await settings.setup.isComplete()).toBe(true);
-      expect(settings.wrappedPrivateKey).toBe("");
-      expect(settings.publicKey).toBe("");
+      expect(storedKeys()).toEqual(["", ""]);
       await settings.loadKeys(ALL_SETTINGS_KEYS);
-      expect(settings.wrappedPrivateKey).not.toBe("");
-      expect(settings.publicKey).not.toBe("");
-      expect(settings.country).toBe("US");
-      expect(settings.currency).toBe("USD");
+      expect(storedKeys()).not.toContain("");
+      expect([settings.country, settings.currency]).toEqual(["US", "USD"]);
     });
 
     test("completeSetup rolls back every write when the owner insert fails", async () => {

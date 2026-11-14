@@ -58,21 +58,28 @@ describe("a record named by its kind and its id", () => {
 });
 
 describe("asking for a record's rows", () => {
-  test("uses item_type/item_id where rows hang off any record", () => {
-    const where = tablelessTargets.where({ id: 8, kind: "listing" });
+  /** One ask per target domain, with the clause and values it must make. */
+  const singleRecordAsks = [
+    {
+      clause: () => tablelessTargets.where({ id: 8, kind: "listing" }),
+      expectedArgs: ["listing", 8],
+      expectedSql: " WHERE item_type = ?1 AND item_id = ?2",
+      name: "uses item_type/item_id where rows hang off any record",
+    },
+    {
+      clause: () => targets.where({ id: 4, kind: "attendee" }),
+      expectedArgs: ["attendee", 4],
+      expectedSql: " WHERE entity_type = ?1 AND entity_id = ?2",
+      name: "asks by both of its parts",
+    },
+  ];
 
-    expect(whereSql(where).sql).toBe(" WHERE item_type = ?1 AND item_id = ?2");
-    expect(whereSql(where).args).toEqual(["listing", 8]);
-  });
-
-  test("asks by both of its parts", () => {
-    const where = targets.where({ id: 4, kind: "attendee" });
-
-    expect(whereSql(where).sql).toBe(
-      " WHERE entity_type = ?1 AND entity_id = ?2",
-    );
-    expect(whereSql(where).args).toEqual(["attendee", 4]);
-  });
+  for (const { clause, expectedArgs, expectedSql, name } of singleRecordAsks) {
+    test(name, () => {
+      expect(whereSql(clause()).sql).toBe(expectedSql);
+      expect(whereSql(clause()).args).toEqual(expectedArgs);
+    });
+  }
 
   test("names the table when the read joins", () => {
     const where = targets.where({ id: 4, kind: "attendee" }, "note");

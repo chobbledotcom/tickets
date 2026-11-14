@@ -165,30 +165,38 @@ describeWithEnv(
       expect(await countAttendeesWithPendingFlags()).toBe(1);
     };
 
-    test("reads the owed email through a space-padded stored fields value", async () => {
-      await expectPaddedStoredFieldsStayOwed("Space Padded Buyer", " email ");
-    });
-
-    test("reads the owed email through a non-breaking-space-padded stored fields value", async () => {
-      await expectPaddedStoredFieldsStayOwed(
+    const paddedFieldsCases: readonly (readonly [
+      name: string,
+      buyer: string,
+      fields: string,
+    ])[] = [
+      [
+        "reads the owed email through a space-padded stored fields value",
+        "Space Padded Buyer",
+        " email ",
+      ],
+      [
+        "reads the owed email through a non-breaking-space-padded stored fields value",
         "Narrow Padded Buyer",
         "\u00a0email\u00a0",
-      );
-    });
-
-    test("reads the owed email through a repeatedly space-padded stored fields value", async () => {
-      await expectPaddedStoredFieldsStayOwed(
+      ],
+      [
+        "reads the owed email through a repeatedly space-padded stored fields value",
         "Wide Padded Buyer",
         "   email   ",
-      );
-    });
-
-    test("reads the owed email through mixed space and non-breaking-space padding", async () => {
-      await expectPaddedStoredFieldsStayOwed(
+      ],
+      [
+        "reads the owed email through mixed space and non-breaking-space padding",
         "Mixed Padded Buyer",
         " \u00a0 \u00a0email \u00a0 ",
-      );
-    });
+      ],
+    ];
+
+    for (const [name, buyer, fields] of paddedFieldsCases) {
+      test(name, async () => {
+        await expectPaddedStoredFieldsStayOwed(buyer, fields);
+      });
+    }
 
     test("reads no owed email when the stored fields only name a lookalike field", async () => {
       const { attendee, listing } = await bookTestAttendeeWithFlags(

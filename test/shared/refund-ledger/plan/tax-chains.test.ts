@@ -45,6 +45,15 @@ import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
 
 const basis = { lines: [{ gross: 1000, listingId: 1 }], modifiers: [] };
 
+/** Every assessment row is still open: a batch that failed must leave the
+ *  chain exactly as it found it. */
+const expectAllAssessmentsActive = async () => {
+  const states = await queryAll<{ state: string }>(
+    sql`SELECT state FROM booking_tax_assessments`,
+  );
+  expect(states.every(({ state }) => state === "active")).toBe(true);
+};
+
 /** No refund leg of any kind has been written for the attendee. */
 const expectNoRefundLegs = async () => {
   expect(
@@ -276,10 +285,7 @@ describeWithEnv("refund ledger > tax assessment chains", { db: true }, () => {
         sql`INSERT INTO missing_refund_test_table VALUES (1)`,
       ]),
     );
-    const states = await queryAll<{ state: string }>(
-      sql`SELECT state FROM booking_tax_assessments`,
-    );
-    expect(states.every(({ state }) => state === "active")).toBe(true);
+    await expectAllAssessmentsActive();
     expect(
       (await transfersByAccount(attendeeAccount(ATTENDEE))).some((leg) =>
         leg.kind?.startsWith("refund_"),
@@ -301,10 +307,7 @@ describeWithEnv("refund ledger > tax assessment chains", { db: true }, () => {
     expect(await recordAttendeeRefund(ATTENDEE, [reference])).toEqual(
       refundLedgerResult([], [reference]),
     );
-    const states = await queryAll<{ state: string }>(
-      sql`SELECT state FROM booking_tax_assessments`,
-    );
-    expect(states.every(({ state }) => state === "active")).toBe(true);
+    await expectAllAssessmentsActive();
     expect(await bookingRefunded()).toBe(0);
   });
 

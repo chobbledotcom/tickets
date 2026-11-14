@@ -48,33 +48,27 @@ const renameTable = {
 
 describeWithEnv("db > legacy rename repair", { db: true }, () => {
   describe("a table rename", () => {
-    test("renames the legacy table when only it is there", async () => {
-      await dropScratch();
-      await makeTable("legacy_things", sql`id INTEGER PRIMARY KEY, name TEXT`);
-      await execute(
-        sql`INSERT INTO legacy_things (id, name) VALUES (1, 'kept')`,
-      );
+    for (const [name, present] of [
+      ["renames the legacy table when only it is there", "legacy_things"],
+      [
+        "changes nothing when the target is already there alone",
+        "target_things",
+      ],
+    ] as const) {
+      test(name, async () => {
+        await dropScratch();
+        await makeTable(present, sql`id INTEGER PRIMARY KEY, name TEXT`);
+        await execute(
+          sql`INSERT INTO ${sqlName(present)} (id, name) VALUES (1, 'kept')`,
+        );
 
-      await repairLegacyRenames(renameTable);
+        await repairLegacyRenames(renameTable);
 
-      expect(await tableNames()).toEqual(["target_things"]);
-      expect(await rowCount("target_things")).toBe(1);
-      await dropScratch();
-    });
-
-    test("changes nothing when the target is already there alone", async () => {
-      await dropScratch();
-      await makeTable("target_things", sql`id INTEGER PRIMARY KEY, name TEXT`);
-      await execute(
-        sql`INSERT INTO target_things (id, name) VALUES (1, 'kept')`,
-      );
-
-      await repairLegacyRenames(renameTable);
-
-      expect(await tableNames()).toEqual(["target_things"]);
-      expect(await rowCount("target_things")).toBe(1);
-      await dropScratch();
-    });
+        expect(await tableNames()).toEqual(["target_things"]);
+        expect(await rowCount("target_things")).toBe(1);
+        await dropScratch();
+      });
+    }
 
     test("changes nothing when neither table is there", async () => {
       await dropScratch();

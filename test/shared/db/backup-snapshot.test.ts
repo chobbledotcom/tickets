@@ -22,6 +22,7 @@ import { proxyMembers } from "#shared/proxy-members.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { createNamedListings } from "#test-utils/named-listings.ts";
 
 describeWithEnv("backup snapshot", { db: true }, () => {
   /** Export one table through its own snapshot, the way a dump does. */
@@ -81,9 +82,11 @@ describeWithEnv("backup snapshot", { db: true }, () => {
     });
 
     test("keyset-paginates across multiple pages without losing rows", async () => {
-      const pageOne = await createTestListing({ name: "Page One" });
-      const pageTwo = await createTestListing({ name: "Page Two" });
-      const pageThree = await createTestListing({ name: "Page Three" });
+      const [pageOne, pageTwo, pageThree] = await createNamedListings(
+        "Page One",
+        "Page Two",
+        "Page Three",
+      );
 
       // A page size of 2 forces two reads (2 rows, then 1) so the keyset loop
       // must continue past the first full page and stop on the short one.

@@ -1,32 +1,14 @@
 import { getDb } from "#db/client.ts";
-import dropModifiersTotalRevenueMigration from "#db/migrations/2026-06-22_drop_modifiers_total_revenue.ts";
-import { recreateTable, syncTriggers } from "#db/migrations/schema-sync.ts";
 import { modifiersTable } from "#db/modifiers.ts";
-import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
+import { sql } from "#db/sql.ts";
+import { modifierRevenueDropFixture } from "#test-utils/db/legacy-aggregate-migration.ts";
 import {
   readModifierAggregates as modifierAggregates,
   runAggregateColumnDropTests,
 } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { buildMigrationContext } from "#test-utils/migrations.ts";
 
-// This migration's up() touches only the three below — recreateTable and
-// syncTriggers do the trigger/structure rebuild; getDb is real by default.
-const context = buildMigrationContext({ recreateTable, syncTriggers });
-
-const runMigration = () => dropModifiersTotalRevenueMigration(context).up();
-
-/** Old revenue-maintaining SET clause (signed `+`/`-`) the pre-drop triggers
- *  used, so the fixture mirrors a real pre-migration database whose triggers
- *  still reference the total_revenue column. */
-const contribution = (sign: "+" | "-", row: "NEW" | "OLD"): SqlStatement => {
-  const op = sign === "+" ? sql`+` : sql`-`;
-  return sql`UPDATE modifiers SET
-     total_uses = total_uses ${op} ${sqlName(`${row}.quantity`)},
-     usage_count = usage_count ${op} 1,
-     total_revenue = total_revenue ${op} ${sqlName(`${row}.amount_applied`)}
-   WHERE id = ${sqlName(`${row}.modifier_id`)};`;
-};
+const { contribution, runMigration } = modifierRevenueDropFixture;
 
 const makeModifier = () =>
   modifiersTable.insert({

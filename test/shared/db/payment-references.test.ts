@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
-import { prepareClaimedAttendeePaymentAnchor } from "#db/payment-anchor/attendee.ts";
 import { storePaymentReference } from "#db/payment-reference-store.ts";
 import {
   attendeeIdsWithIndexedPaymentReferences,
@@ -17,6 +16,7 @@ import { sql } from "#db/sql.ts";
 import type { RefundState } from "#payment/refund-state.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAnchoredAttendee } from "#test-utils/db-helpers/attendee-anchor.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
@@ -88,17 +88,10 @@ describeWithEnv("db > payment references", { db: true }, () => {
   });
 
   test("marks a returned anchor by its index without a checkout session", async () => {
-    const listing = await createTestListing({ maxAttendees: 50 });
-    const created = await bookAttendee(listing, {
+    const { attendeeId } = await bookAnchoredAttendee("pi_index_marker", {
       email: "index-marker@example.com",
       name: "Index Marker",
     });
-    if (!created.success) throw new Error("setup failed");
-    const attendeeId = created.attendees[0]!.id;
-    const payment = taggedPaymentReference("pi_index_marker");
-    const prepared = await prepareClaimedAttendeePaymentAnchor(payment);
-    const anchor = await prepared.forAttendee(attendeeId);
-    await execute(anchor.statement);
     const [reference] = await refundReferencesFor(
       attendeeId,
       await getTestPrivateKey(),

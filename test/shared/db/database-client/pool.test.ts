@@ -14,10 +14,16 @@ type WatchedPool = {
   close: Spy;
 };
 
+type WatchedPools = {
+  pools: WatchedPool[];
+  usedPools: (Deno.HttpClient | undefined)[];
+  [Symbol.dispose]: () => void;
+};
+
 /** Record each pool the client opens, and answer its requests from a test
  * database. `onCreate` runs inside the adapter call, right after the pool is
  * selected — the seam the body-read-gated tests close the client from. */
-const watchPools = (onCreate?: () => void) => {
+const watchPools = (onCreate?: () => void): WatchedPools => {
   const restoreProxy = clearProxyEnvs();
   const create = Deno.createHttpClient;
   const pools: WatchedPool[] = [];
@@ -94,6 +100,22 @@ const waitUntilClosed = async (state: { closed: boolean }) => {
   if (!state.closed) {
     throw new Error("The queued close never ran during the body read");
   }
+};
+
+/** Run `body` with one request in flight and the queued close already run
+ *  inside its body read. The pool watch ends when `body` returns. */
+const withCloseDuringRead = async (
+  body: (opened: {
+    client: Client;
+    pending: Promise<unknown>;
+    watched: WatchedPools;
+  }) => Promise<void>,
+): Promise<void> => {
+  const opened = openWithQueuedClose();
+  using watched = opened.watched;
+  const pending = opened.client.execute(sql`SELECT 1`);
+  await waitUntilClosed(opened.state);
+  await body({ client: opened.client, pending, watched });
 };
 
 /** A real Hrana endpoint on the loopback. The client's requests cross real
@@ -332,27 +354,23 @@ describe("database connection pool", () => {
   });
 
   test("close during the body read rejects the request before it dispatches", async () => {
-    const opened = openWithQueuedClose();
-    using watched = opened.watched;
-    const pending = opened.client.execute(sql`SELECT 1`);
-    await waitUntilClosed(opened.state);
-    await expect(pending).rejects.toThrow("The database client is closed");
-    expect(watched.usedPools).toEqual([]);
-    expect(watched.pools[0]?.close.calls.length).toBe(1);
+    await withCloseDuringRead(async ({ pending, watched }) => {
+      await expect(pending).rejects.toThrow("The database client is closed");
+      expect(watched.usedPools).toEqual([]);
+      expect(watched.pools[0]?.close.calls.length).toBe(1);
+    });
   });
 
   test("work started after a reconnect dispatches on the fresh pool", async () => {
-    const opened = openWithQueuedClose();
-    using watched = opened.watched;
-    const stale = opened.client.execute(sql`SELECT 1`);
-    await waitUntilClosed(opened.state);
-    opened.client.reconnect();
-    const fresh = await opened.client.execute(sql`SELECT 2`);
-    opened.client.close();
-    await expect(stale).rejects.toThrow("The database client is closed");
-    expect(fresh.rows).toEqual([]);
-    expect(watched.pools.length).toBe(2);
-    expect(watched.usedPools).toEqual([watched.pools[1]?.pool]);
-    expect(watched.pools[0]?.close.calls.length).toBe(1);
+    await withCloseDuringRead(async ({ client, pending, watched }) => {
+      client.reconnect();
+      const fresh = await client.execute(sql`SELECT 2`);
+      client.close();
+      await expect(pending).rejects.toThrow("The database client is closed");
+      expect(fresh.rows).toEqual([]);
+      expect(watched.pools.length).toBe(2);
+      expect(watched.usedPools).toEqual([watched.pools[1]?.pool]);
+      expect(watched.pools[0]?.close.calls.length).toBe(1);
+    });
   });
 });

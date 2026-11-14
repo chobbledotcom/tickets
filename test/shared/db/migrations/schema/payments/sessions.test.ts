@@ -4,6 +4,7 @@ import { getDb } from "#db/client.ts";
 import { paymentSessionTable } from "#db/migrations/schema/payments/sessions.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { expectSchemaColumns } from "#test-utils/schema-columns.ts";
 import {
   expectAccepted,
   expectRefused,
@@ -18,11 +19,17 @@ const aPayment = (id: string, index: string, intent = "hyb:1:a:b:c") =>
       ${intent}, 'hyb:1:a:b:c', ${index}, 'pending', 1, 1, 1,
       'none', 'none', 'none')`;
 
-test("is what a payment itself is made of", () => {
-  const [name, table] = paymentSessionTable;
+/** Each row is one way a writer could hold the booking that the table must
+ *  refuse: in the open or in an envelope the decoder turns away. */
+const OPEN_BOOKINGS = [
+  ["in plain words", "Jane Smith"],
+  ["under the database owner's key", "enc:1:a:b"],
+  ["behind an upper-case envelope", "HYB:1:a:b:c"],
+  ["wearing an envelope with nothing in it", "hyb:1:Jane Smith"],
+] as const;
 
-  expect(name).toBe("payment_sessions");
-  expect(table.columns.map(([held]) => held)).toEqual([
+test("is what a payment itself is made of", () => {
+  expectSchemaColumns(paymentSessionTable, "payment_sessions", [
     "id",
     "origin",
     "provider",
@@ -68,12 +75,7 @@ describeWithEnv("db > payment session rules", { db: true }, () => {
   // The buyer's details, what the payment turned out to be, and the tickets
   // all live behind an envelope. This is the one rule the table still keeps,
   // because it checks what landed rather than what the code meant to write.
-  for (const [name, intent] of [
-    ["in plain words", "Jane Smith"],
-    ["under the database owner's key", "enc:1:a:b"],
-    ["behind an upper-case envelope", "HYB:1:a:b:c"],
-    ["wearing an envelope with nothing in it", "hyb:1:Jane Smith"],
-  ] as const) {
+  for (const [name, intent] of OPEN_BOOKINGS) {
     test(`refuses a booking held ${name}`, async () => {
       await expectRefused(aPayment("plain", "plain-index", intent));
     });

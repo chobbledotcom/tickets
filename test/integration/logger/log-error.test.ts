@@ -175,6 +175,14 @@ describe("log-error", () => {
         resetDb();
       });
 
+      /** The listing ids the activity log recorded for one exact message. */
+      const listingIdsFor = async (
+        message: string,
+      ): Promise<(number | null)[]> =>
+        (await getAllActivityLog())
+          .filter((entry) => entry.message === message)
+          .map(({ listing_id }) => listing_id);
+
       test("persists error to activity log", async () => {
         await withRequestContext(async () => {
           logError({
@@ -184,15 +192,10 @@ describe("log-error", () => {
           await flushPendingWork();
         });
 
-        const entries = await getAllActivityLog();
         expect(
-          entries
-            .filter(
-              (e) =>
-                e.message ===
-                "Error: Stripe checkout failed (session creation failed)",
-            )
-            .map(({ listing_id }) => listing_id),
+          await listingIdsFor(
+            "Error: Stripe checkout failed (session creation failed)",
+          ),
         ).toEqual([null]);
       });
 
@@ -207,14 +210,8 @@ describe("log-error", () => {
           await flushPendingWork();
         });
 
-        const entries = await getAllActivityLog();
         expect(
-          entries
-            .filter(
-              (e) =>
-                e.message === "Error: Payment refund failed (refund declined)",
-            )
-            .map(({ listing_id }) => listing_id),
+          await listingIdsFor("Error: Payment refund failed (refund declined)"),
         ).toEqual([listing.id]);
       });
 

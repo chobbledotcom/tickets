@@ -284,75 +284,61 @@ describe("comment-gate-citation rule", () => {
   });
 
   test("flags a credit word before or after the tool it credits", () => {
-    expect(
-      citations("src/shared/db.ts", "// so the linter passes\n"),
-    ).toHaveLength(1);
-    expect(
-      citations("src/shared/db.ts", "// keeps biome happy\n"),
-    ).toHaveLength(1);
+    for (const comment of [
+      "// so the linter passes\n",
+      "// keeps biome happy\n",
+    ]) {
+      expect(citations("src/shared/db.ts", comment)).toHaveLength(1);
+    }
   });
 
   test("passes comments that describe the code without naming a check", () => {
-    expect(
-      citations(
-        "src/shared/db.ts",
-        "// Eliminates duplication between adapters.\n",
-      ),
-    ).toEqual([]);
-    expect(
-      citations(
-        "src/shared/db.ts",
-        "// avoid V8 coverage gaps on `throw` inside catch blocks.\n",
-      ),
-    ).toEqual([]);
+    for (const comment of [
+      "// Eliminates duplication between adapters.\n",
+      "// avoid V8 coverage gaps on `throw` inside catch blocks.\n",
+    ]) {
+      expect(citations("src/shared/db.ts", comment)).toEqual([]);
+    }
   });
 
-  test("passes a comment that describes a tool's flags", () => {
-    expect(
-      citations("src/shared/db.ts", "// Biome flags are read from settings.\n"),
-    ).toEqual([]);
-  });
-
-  test("passes a comment that names a check as its topic", () => {
-    expect(
-      citations(
-        "src/shared/db.ts",
-        "// Deno lint rules: avoid nested calls in the parser.\n",
-      ),
-    ).toEqual([]);
-  });
-
-  test("passes a comment whose subject is the tool itself", () => {
-    expect(
-      citations(
-        "src/shared/db.ts",
-        "// Biome avoids duplicating the scanner.\n",
-      ),
-    ).toEqual([]);
-  });
+  for (const [name, comment] of [
+    [
+      "passes a comment that describes a tool's flags",
+      "// Biome flags are read from settings.\n",
+    ],
+    [
+      "passes a comment that names a check as its topic",
+      "// Deno lint rules: avoid nested calls in the parser.\n",
+    ],
+    [
+      "passes a comment whose subject is the tool itself",
+      "// Biome avoids duplicating the scanner.\n",
+    ],
+  ] as const) {
+    test(name, () => {
+      expect(citations("src/shared/db.ts", comment)).toEqual([]);
+    });
+  }
 
   test("finds a citation however the src path is spelled", () => {
-    expect(
-      citations("/repo/src/shared/db.ts", "// so the linter passes\n"),
-    ).toHaveLength(1);
-    expect(
-      citations("src/shared/db.ts", "// so the linter passes\n"),
-    ).toHaveLength(1);
+    for (const path of ["/repo/src/shared/db.ts", "src/shared/db.ts"]) {
+      expect(citations(path, "// so the linter passes\n")).toHaveLength(1);
+    }
   });
 
   test("passes the tooling trees, whose comments document the checks", () => {
-    expect(
-      citations(
+    for (const [path, comment] of [
+      [
         "scripts/check-comments/rules.ts",
         '// "avoids jscpd duplication" is the shape this rule flags.\n',
-      ),
-    ).toEqual([]);
-    expect(
-      citations(
+      ],
+      [
         "test/scripts/check-comments/rules.test.ts",
         "// so precommit passes on a shallow clone\n",
-      ),
-    ).toEqual([]);
+      ],
+    ] as const) {
+      expect(citations(path, comment)).toEqual([]);
+    }
   });
 
   test("passes directives a tool reads", () => {

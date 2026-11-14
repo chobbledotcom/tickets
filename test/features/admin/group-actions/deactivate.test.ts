@@ -4,7 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
-import { expectFlash } from "#test-utils/assertions.ts";
+import { expectFlash, expectStatus } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -22,8 +22,7 @@ describeWithEnv("Group actions — deactivate", { db: true }, () => {
     test("returns 404 when the group does not exist", async () => {
       // Not-found boundary — a story cannot reach this path (it sets up a
       // real group first), so it stays as a direct technical contract.
-      const response = await adminGet("/admin/groups/999999/deactivate");
-      expect(response.status).toBe(404);
+      expectStatus(404)(await adminGet("/admin/groups/999999/deactivate"));
     });
 
     test("renders the confirmation form with singular listing count", async () => {
@@ -61,7 +60,7 @@ describeWithEnv("Group actions — deactivate", { db: true }, () => {
         { confirm_identifier: "Shutdown" },
       );
 
-      expect(response.status).toBe(302);
+      expectStatus(302)(response);
       assertStringIncludes(
         response.headers.get("location") ?? "",
         `/admin/groups/${group.id}`,
@@ -102,7 +101,7 @@ describeWithEnv("Group actions — deactivate", { db: true }, () => {
         { confirm_identifier: "Rescue Group" },
       );
 
-      expect(response.status).toBe(302);
+      expectStatus(302)(response);
       assertStringIncludes(
         response.headers.get("location") ?? "",
         `/admin/groups/${group.id}/deactivate`,

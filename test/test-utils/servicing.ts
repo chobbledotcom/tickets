@@ -419,6 +419,18 @@ export const createDailyListingPair = async (
   return [a, b];
 };
 
+/** The canonical Annual Inspection fixture as one call: two daily listings plus
+ *  the event spanning both. §3-creation and §18-duplicate both start here, so
+ *  the listings and the event cannot drift apart. */
+export const createAnnualInspectionPair = async (): Promise<{
+  a: Listing;
+  b: Listing;
+  event: ServicingEvent;
+}> => {
+  const [a, b] = await createDailyListingPair("Room A", "Room B");
+  return { a, b, event: await createAnnualInspectionEvent(a, b) };
+};
+
 // ─── Control-attendee fixture ───────────────────────────────────────────────
 
 /** Create a listing + a real (customer) attendee on it — the control fixture

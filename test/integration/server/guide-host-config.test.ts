@@ -6,12 +6,14 @@ import { assertAdminHtml } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { validEmail } from "#test-utils/email.ts";
 import { withEnv } from "#test-utils/env.ts";
-import { guide } from "#test-utils/guide.ts";
+import { expectGuidePage } from "#test-utils/guide.ts";
 
 describeWithEnv("server (admin guide host config)", { db: true }, () => {
   describe("GET /admin/guide", () => {
     test("shows default email setup instructions when no host email configured", async () => {
-      const html = await guide("Choose your email company from the dropdown");
+      const html = await expectGuidePage(
+        "Choose your email company from the dropdown",
+      );
       assert(
         !html.includes("already set up by the company that runs your site"),
       );
@@ -37,7 +39,7 @@ describeWithEnv("server (admin guide host config)", { db: true }, () => {
     });
 
     test("shows default Google Wallet setup when no host config", async () => {
-      const html = await guide("You need three values from");
+      const html = await expectGuidePage("You need three values from");
       assert(
         !html.includes("already set up by the company that runs your site"),
       );
@@ -62,7 +64,7 @@ describeWithEnv("server (admin guide host config)", { db: true }, () => {
     });
 
     test("shows default wallet setup instructions when no host wallet configured", async () => {
-      const html = await guide("You need five values from");
+      const html = await expectGuidePage("You need five values from");
       assert(
         !html.includes("already set up by the company that runs your site"),
       );
@@ -98,7 +100,7 @@ describeWithEnv("server (admin guide host config)", { db: true }, () => {
       using _ambient = withEnv({ CAN_BUILD_SITES: "true" });
       const live = await assertAdminHtml("/admin/guide", 'id="built-sites"');
       assertStringIncludes(live, 'id="built-sites"');
-      const cached = await guide();
+      const cached = await expectGuidePage();
       assert(!cached.includes('id="built-sites"'));
     });
 

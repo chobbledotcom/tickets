@@ -23,7 +23,7 @@ import {
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import {
-  createAnnualInspectionEvent,
+  createAnnualInspectionPair,
   createDailyListingPair,
   createServicingHold,
   createTestServicingEvent,
@@ -44,8 +44,7 @@ const bookingRows = (listingId: number) =>
 
 describeWithEnv("servicing §3 — creation", { db: true }, () => {
   test("creating a servicing event persists name, bookings and kind", async () => {
-    const [a, b] = await createDailyListingPair("Room A", "Room B");
-    const event = await createAnnualInspectionEvent(a, b);
+    const { a, b, event } = await createAnnualInspectionPair();
     expect(await kindOf(event.id)).toBe(SERVICING_KIND);
 
     const decrypted = await decryptFirstServicingAttendee(a.id);

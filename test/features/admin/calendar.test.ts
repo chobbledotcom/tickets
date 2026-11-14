@@ -1,7 +1,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getDb, queryAll } from "#db/client.ts";
+import { getDb } from "#db/client.ts";
 import { logisticsAgents } from "#db/logistics-agents.ts";
 import { sql } from "#db/sql.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
@@ -16,6 +16,7 @@ import { submitTicketForm } from "#test-utils/csrf.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { setupTwoDailyBookingAttendees } from "#test-utils/db-helpers/daily-booking-pairs.ts";
 import {
   createDailyTestListing,
   createTestListing,
@@ -366,21 +367,16 @@ describeWithEnv(
           const vanTwo = (
             await logisticsAgents.table.insert({ name: "Van Two" })
           ).id;
-          const { date, listing1, listing2 } = await setupTwoDailyBookings();
-          const rows = await queryAll<{
-            listing_id: number;
-            attendee_id: number;
-          }>(
-            sql`SELECT listing_id, attendee_id FROM listing_attendees WHERE listing_id IN (${listing1.id}, ${listing2.id})`,
-          );
+          const { attendeeOn, date, listing1, listing2 } =
+            await setupTwoDailyBookingAttendees();
           await assignBookingToAgent(
-            rows.find((row) => row.listing_id === listing1.id)!.attendee_id,
+            attendeeOn(listing1.id),
             listing1.id,
             vanOne,
             date,
           );
           await assignBookingToAgent(
-            rows.find((row) => row.listing_id === listing2.id)!.attendee_id,
+            attendeeOn(listing2.id),
             listing2.id,
             vanTwo,
             date,

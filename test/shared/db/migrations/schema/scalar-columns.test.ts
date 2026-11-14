@@ -25,51 +25,74 @@ import {
 import { sql } from "#db/sql.ts";
 import { sqlText } from "#test-utils/sql-text.ts";
 
+/** One column and the exact text it must spell. */
+type ColumnSpelling = readonly [column: unknown, spelled: string];
+
+/** Each row is one test: the columns it pins, in the order given. A wrong
+ *  spelling here changes the schema of many tables at once. */
+const spellings: readonly {
+  readonly name: string;
+  readonly columns: readonly ColumnSpelling[];
+}[] = [
+  {
+    columns: [
+      [textOrNull, "TEXT"],
+      [wholeNumberOrNull, "INTEGER"],
+    ],
+    name: "spells a column that may hold nothing",
+  },
+  {
+    columns: [
+      [text, "TEXT NOT NULL"],
+      [wholeNumber, "INTEGER NOT NULL"],
+      [real, "REAL NOT NULL"],
+    ],
+    name: "spells a column that always holds a value",
+  },
+  {
+    columns: [
+      [textStartingBlank, "TEXT NOT NULL DEFAULT ''"],
+      [wholeNumberStartingAtZero, "INTEGER NOT NULL DEFAULT 0"],
+      [wholeNumberStartingAtOne, "INTEGER NOT NULL DEFAULT 1"],
+    ],
+    name: "gives a new column its starting value",
+  },
+  {
+    columns: [
+      [defaulted(text, "none"), "TEXT NOT NULL DEFAULT 'none'"],
+      [defaulted(wholeNumber, 90), "INTEGER NOT NULL DEFAULT 90"],
+    ],
+    name: "starts a column at the value it names",
+  },
+  {
+    columns: [
+      [textStartingAtNull, "TEXT DEFAULT NULL"],
+      [wholeNumberStartingAtNull, "INTEGER DEFAULT NULL"],
+    ],
+    name: "starts a column at nothing, as older columns hold it",
+  },
+  {
+    columns: [[rowId, "INTEGER PRIMARY KEY AUTOINCREMENT"]],
+    name: "grows the row's own id",
+  },
+  {
+    columns: [
+      // SQLite lets a text key hold nothing, so the required mark is added here.
+      [textKey, "TEXT PRIMARY KEY"],
+      [requiredTextKey, "TEXT PRIMARY KEY NOT NULL"],
+    ],
+    name: "marks a text key that must always be found",
+  },
+];
+
 describe("schema column types", () => {
-  test("spells a column that may hold nothing", () => {
-    expect(sqlText(textOrNull)).toBe("TEXT");
-    expect(sqlText(wholeNumberOrNull)).toBe("INTEGER");
-  });
-
-  test("spells a column that always holds a value", () => {
-    expect(sqlText(text)).toBe("TEXT NOT NULL");
-    expect(sqlText(wholeNumber)).toBe("INTEGER NOT NULL");
-    expect(sqlText(real)).toBe("REAL NOT NULL");
-  });
-
-  test("gives a new column its starting value", () => {
-    expect(sqlText(textStartingBlank)).toBe("TEXT NOT NULL DEFAULT ''");
-    expect(sqlText(wholeNumberStartingAtZero)).toBe(
-      "INTEGER NOT NULL DEFAULT 0",
-    );
-    expect(sqlText(wholeNumberStartingAtOne)).toBe(
-      "INTEGER NOT NULL DEFAULT 1",
-    );
-  });
-
-  test("starts a column at the value it names", () => {
-    expect(sqlText(defaulted(text, "none"))).toBe(
-      "TEXT NOT NULL DEFAULT 'none'",
-    );
-    expect(sqlText(defaulted(wholeNumber, 90))).toBe(
-      "INTEGER NOT NULL DEFAULT 90",
-    );
-  });
-
-  test("starts a column at nothing, as older columns hold it", () => {
-    expect(sqlText(textStartingAtNull)).toBe("TEXT DEFAULT NULL");
-    expect(sqlText(wholeNumberStartingAtNull)).toBe("INTEGER DEFAULT NULL");
-  });
-
-  test("grows the row's own id", () => {
-    expect(sqlText(rowId)).toBe("INTEGER PRIMARY KEY AUTOINCREMENT");
-  });
-
-  test("marks a text key that must always be found", () => {
-    // SQLite lets a text key hold nothing, so the required mark is added here.
-    expect(sqlText(textKey)).toBe("TEXT PRIMARY KEY");
-    expect(sqlText(requiredTextKey)).toBe("TEXT PRIMARY KEY NOT NULL");
-  });
+  for (const { columns, name } of spellings) {
+    test(name, () => {
+      for (const [column, spelled] of columns) {
+        expect(sqlText(column)).toBe(spelled);
+      }
+    });
+  }
 
   test("adds a rule about the column's own value", () => {
     expect(sqlText(checked(sql`state IN ('active', 'refunded')`)(text))).toBe(

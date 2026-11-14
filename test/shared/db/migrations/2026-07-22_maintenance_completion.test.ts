@@ -6,6 +6,7 @@ import maintenanceCompletionMigration from "#db/migrations/2026-07-22_maintenanc
 import { applySchemaChanges } from "#db/migrations/schema-sync.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { expectMigrationIdentity } from "#test-utils/migration-identity.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 
 const context = buildMigrationContext({ applySchemaChanges });
@@ -25,12 +26,7 @@ describeWithEnv(
   { db: true },
   () => {
     test("declares its identity and completion column", () => {
-      const migration = maintenanceCompletionMigration(context);
-      expect({
-        description: migration.description,
-        id: migration.id,
-        requires: migration.requires,
-      }).toEqual({
+      expectMigrationIdentity(maintenanceCompletionMigration(context), {
         description: "Keep completed maintenance work dormant.",
         id: "2026-07-22_maintenance_completion",
         requires: { columns: { maintenance_tasks: ["completed_at"] } },

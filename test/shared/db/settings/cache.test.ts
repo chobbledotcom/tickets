@@ -9,7 +9,7 @@ import {
   getCurrentSettingsVersion,
   settings,
 } from "#db/settings.ts";
-import { sql } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
@@ -68,19 +68,46 @@ describeWithEnv("db > settings > cache", { db: true }, () => {
       expect(await getCurrentSettingsVersion()).toBe(before + 1);
     });
 
-    test("settings table writes invalidate the loaded settings cache", async () => {
-      await settings.update.paymentProvider("stripe");
-      settings.invalidateCache();
-      await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
-      expect(settings.paymentProvider).toBe("stripe");
+    /** Both cases change the stored provider and reload it; they differ only
+     *  in the path the change takes, and so in whether this process's cache
+     *  hears about it. */
+    const writes: readonly {
+      readonly name: string;
+      readonly dropsCacheFirst: boolean;
+      readonly write: (statement: SqlStatement) => Promise<unknown>;
+      readonly served: string;
+    }[] = [
+      {
+        dropsCacheFirst: true,
+        name: "settings table writes invalidate the loaded settings cache",
+        served: "square",
+        write: execute,
+      },
+      {
+        dropsCacheFirst: false,
+        name: "a raw DB change with no version bump is not picked up (cache stays authoritative)",
+        served: "stripe",
+        write: (statement) => getDb().execute(statement),
+      },
+    ];
 
-      await execute(
-        sql`UPDATE settings SET value = ${"square"} WHERE key = ${CONFIG_KEYS.PAYMENT_PROVIDER}`,
-      );
-      await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
+    for (const { dropsCacheFirst, name, served, write } of writes) {
+      test(name, async () => {
+        await settings.update.paymentProvider("stripe");
+        if (dropsCacheFirst) settings.invalidateCache();
+        await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
+        expect(settings.paymentProvider).toBe("stripe");
 
-      expect(settings.paymentProvider).toBe("square");
-    });
+        await write(
+          sql`UPDATE settings SET value = ${"square"} WHERE key = ${CONFIG_KEYS.PAYMENT_PROVIDER}`,
+        );
+        await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
+
+        // A write through the client drops this cache. A raw write leaves the
+        // loaded value in place, because no version moved under it.
+        expect(settings.paymentProvider).toBe(served);
+      });
+    }
 
     test("a change that bumps the settings version is picked up on the next load", async () => {
       // This process caches the current (unset) provider at the current version.
@@ -97,21 +124,6 @@ describeWithEnv("db > settings > cache", { db: true }, () => {
 
       // The bumped version invalidates this process's cache on the next load.
       await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
-      expect(settings.paymentProvider).toBe("stripe");
-    });
-
-    test("a raw DB change with no version bump is not picked up (cache stays authoritative)", async () => {
-      await settings.update.paymentProvider("stripe");
-      await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
-      expect(settings.paymentProvider).toBe("stripe");
-
-      // Sneak a value change straight into the DB without bumping the version.
-      await getDb().execute(
-        sql`UPDATE settings SET value = ${"square"} WHERE key = ${CONFIG_KEYS.PAYMENT_PROVIDER}`,
-      );
-      await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
-
-      // Version unchanged → no reload → the cached value is served.
       expect(settings.paymentProvider).toBe("stripe");
     });
 

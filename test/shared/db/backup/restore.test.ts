@@ -46,12 +46,14 @@ describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
     ).sql;
   const zipSql = (file: string, sql: string): Uint8Array =>
     zipSync({ [file]: new TextEncoder().encode(sql) });
-  const listingTotals = (
-    listingId: number,
-  ): Promise<{ booked_quantity: number; tickets_count: number } | null> =>
-    queryOne(
-      sql`SELECT booked_quantity, tickets_count FROM listings WHERE id = ${listingId}`,
-    );
+  /** Assert the stored totals of a listing that holds one booked ticket. */
+  const expectOneBookedTicket = async (listingId: number): Promise<void> => {
+    expect(
+      await queryOne<{ booked_quantity: number; tickets_count: number }>(
+        sql`SELECT booked_quantity, tickets_count FROM listings WHERE id = ${listingId}`,
+      ),
+    ).toEqual({ booked_quantity: 1, tickets_count: 1 });
+  };
 
   const listingColumnNames = async (): Promise<string[]> => {
     const rows = await queryAll<{ name: string }>(
@@ -67,10 +69,7 @@ describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
 
     await restoreFromZip(zip);
 
-    expect(await listingTotals(listing.id)).toEqual({
-      booked_quantity: 1,
-      tickets_count: 1,
-    });
+    await expectOneBookedTicket(listing.id);
   });
 
   test("restores encrypted attendee details with their booking", async () => {
@@ -94,13 +93,12 @@ describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
       sql`INSERT INTO attendees (created, pii_blob) VALUES ('2026-07-22T00:00:00.000Z', '')`,
     );
     await getDb().execute(
-      sql`INSERT INTO listing_attendees (listing_id, attendee_id) VALUES (${listing.id}, ${Number(attendee.lastInsertRowid)})`,
+      sql`INSERT INTO listing_attendees (listing_id, attendee_id) VALUES (${listing.id}, ${Number(
+        attendee.lastInsertRowid,
+      )})`,
     );
 
-    expect(await listingTotals(listing.id)).toEqual({
-      booked_quantity: 1,
-      tickets_count: 1,
-    });
+    await expectOneBookedTicket(listing.id);
   });
 
   test("keeps validation triggers active while importing rows", async () => {

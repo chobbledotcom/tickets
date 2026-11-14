@@ -16,8 +16,8 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidAttendeeWithoutLedger } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createAttendeeOn } from "#test-utils/db-helpers/attendees.ts";
+import { listingWithAttendee } from "#test-utils/db-helpers/listing-attendee.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { claimCurrentAttendeeRows } from "#test-utils/payment-claim.ts";
@@ -45,12 +45,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       method: "POST",
       setup: async () => {
         const listing = await createPaidListing();
-        await createTestAttendee(
-          listing.id,
-          listing.slug,
-          "John Doe",
-          "john@example.com",
-        );
+        await createAttendeeOn(listing, "John Doe", "john@example.com");
       },
     });
 
@@ -61,10 +56,8 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
     });
 
     test("returns error when attendee has no payment", async () => {
-      const listing = await createTestListing({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
+      const { attendee } = await listingWithAttendee(
+        100,
         "John Doe",
         "john@example.com",
       );

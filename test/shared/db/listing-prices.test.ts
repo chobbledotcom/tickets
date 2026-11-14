@@ -13,7 +13,7 @@ import {
 } from "#db/listing-prices.ts";
 import { deleteListing } from "#db/listings/delete.ts";
 import { listingsTable } from "#db/listings/records.ts";
-import { sql } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { updateTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -23,135 +23,144 @@ import {
   priceRows,
 } from "./listing-prices/fixtures.ts";
 
+/** One managed price row as a writer emits it: listing, type, key, price. */
+type PriceRow = readonly [number, string, string, number];
+
+/** The insert every full-replace dimension writes: one multi-row VALUES. */
+const priceInsertSql = (rowCount: number) =>
+  `INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES ${Array.from(
+    { length: rowCount },
+    () => "(?, ?, ?, ?)",
+  ).join(", ")}`;
+
+/**
+ * Asserts a full-replace price writer: the scoped delete of `deleteArgs`, then
+ * ONE multi-row insert holding every `row` — never one insert per row, so a
+ * replace stays two statements and its interactive-transaction round-trip stays
+ * bounded. No `rows` means the write has nothing to insert.
+ */
+const expectScopedReplace = (
+  stmts: readonly SqlStatement[],
+  deleteSql: string,
+  deleteArgs: readonly unknown[],
+  rows: readonly PriceRow[] = [],
+): void => {
+  const expected = [{ args: [...deleteArgs], sql: deleteSql }];
+  if (rows.length > 0) {
+    expected.push({ args: rows.flat(), sql: priceInsertSql(rows.length) });
+  }
+  expect(stmts.map((stmt) => placed(stmt))).toEqual(expected);
+};
+
 describe("dayCountPriceStatements", () => {
   test("emits a day_count-scoped delete then ONE multi-row insert for all day counts", () => {
-    const stmts = dayCountPriceStatements(5, { 1: 750, 2: 1200 });
-    // Exactly two statements regardless of how many day counts — the insert is a
-    // single multi-row VALUES so the interactive-transaction round-trip stays
-    // bounded (see the round-trip guard).
-    expect(stmts.length).toBe(2);
-    expect(placed(stmts[0]!).sql).toBe(
+    expectScopedReplace(
+      dayCountPriceStatements(5, { 1: 750, 2: 1200 }),
       "DELETE FROM listing_prices WHERE listing_id = ? AND price_type = ?",
+      [5, "day_count"],
+      [
+        [5, "day_count", "1", 750],
+        [5, "day_count", "2", 1200],
+      ],
     );
-    expect(placed(stmts[0]!).args).toEqual([5, "day_count"]);
-    expect(placed(stmts[1]!).sql).toBe(
-      "INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES (?, ?, ?, ?), (?, ?, ?, ?)",
-    );
-    expect(placed(stmts[1]!).args).toEqual([
-      5,
-      "day_count",
-      "1",
-      750,
-      5,
-      "day_count",
-      "2",
-      1200,
-    ]);
   });
 
   test("emits only the scoped delete when there are no day prices", () => {
-    expect(dayCountPriceStatements(9, {}).map((s) => placed(s).args)).toEqual([
+    expectScopedReplace(
+      dayCountPriceStatements(9, {}),
+      "DELETE FROM listing_prices WHERE listing_id = ? AND price_type = ?",
       [9, "day_count"],
-    ]);
+    );
   });
 
   test("treats undefined day prices as an empty map (delete only)", () => {
-    expect(
-      dayCountPriceStatements(9, undefined).map((s) => placed(s).args),
-    ).toEqual([[9, "day_count"]]);
+    expectScopedReplace(
+      dayCountPriceStatements(9, undefined),
+      "DELETE FROM listing_prices WHERE listing_id = ? AND price_type = ?",
+      [9, "day_count"],
+    );
   });
 
   test("normalises entries like every other day-price write", () => {
     // Day 0 and a negative price are dropped by parseDayPrices; the rest kept.
-    const stmts = dayCountPriceStatements(9, { 0: 100, 2: -5, 4: 800 });
-    expect(stmts.length).toBe(2);
-    expect(placed(stmts[1]!).args).toEqual([9, "day_count", "4", 800]);
+    expectScopedReplace(
+      dayCountPriceStatements(9, { 0: 100, 2: -5, 4: 800 }),
+      "DELETE FROM listing_prices WHERE listing_id = ? AND price_type = ?",
+      [9, "day_count"],
+      [[9, "day_count", "4", 800]],
+    );
   });
 });
 
 describe("groupDayPriceStatements", () => {
   test("emits a group-scoped LIKE delete, then ONE multi-row insert of every day price", () => {
-    const stmts = groupDayPriceStatements(12, [
-      { dayPrices: { 2: 1500, 3: 2000 }, listingId: 5 },
-      // A member with no per-day overrides contributes no rows.
-      { listingId: 6 },
-    ]);
-    expect(stmts.length).toBe(2);
-    assertStringIncludes(placed(stmts[0]!).sql, "price_id LIKE ?");
-    expect(placed(stmts[0]!).args).toEqual(["group_day", "12/%"]);
-    // A single multi-row insert (bounded round-trips), one row per member day.
-    expect(placed(stmts[1]!).args).toEqual([
-      5,
-      "group_day",
-      "12/2",
-      1500,
-      5,
-      "group_day",
-      "12/3",
-      2000,
-    ]);
+    expectScopedReplace(
+      groupDayPriceStatements(12, [
+        { dayPrices: { 2: 1500, 3: 2000 }, listingId: 5 },
+        // A member with no per-day overrides contributes no rows.
+        { listingId: 6 },
+      ]),
+      "DELETE FROM listing_prices WHERE price_type = ? AND price_id LIKE ?",
+      ["group_day", "12/%"],
+      [
+        [5, "group_day", "12/2", 1500],
+        [5, "group_day", "12/3", 2000],
+      ],
+    );
   });
 
   test("normalises day-price entries like every other day-price write", () => {
     // Day 0 and a negative price are dropped by parseDayPrices; the valid
     // entry is kept.
-    const stmts = groupDayPriceStatements(3, [
-      { dayPrices: { 0: 100, 2: -5, 4: 800 }, listingId: 9 },
-    ]);
-    expect(stmts.map((s) => placed(s).args)).toEqual([
+    expectScopedReplace(
+      groupDayPriceStatements(3, [
+        { dayPrices: { 0: 100, 2: -5, 4: 800 }, listingId: 9 },
+      ]),
+      "DELETE FROM listing_prices WHERE price_type = ? AND price_id LIKE ?",
       ["group_day", "3/%"],
-      [9, "group_day", "3/4", 800],
-    ]);
+      [[9, "group_day", "3/4", 800]],
+    );
   });
 });
 
 describe("groupFlatPriceStatements", () => {
   test("emits a group-scoped delete, then ONE multi-row insert for all overrides", () => {
-    const stmts = groupFlatPriceStatements(12, [
-      // A positive override and an explicit free (0) both get a row.
-      { listingId: 5, price: 1500 },
-      { listingId: 6, price: 0 },
-    ]);
-    // Two statements regardless of member count (the insert is multi-row), so the
-    // interactive-transaction round-trips stay bounded.
-    expect(stmts.length).toBe(2);
-    // The delete scopes to this group's flat rows by exact price_id (not LIKE).
-    expect(placed(stmts[0]!).sql).toBe(
+    // A positive override and an explicit free (0) both get a row.
+    expectScopedReplace(
+      groupFlatPriceStatements(12, [
+        { listingId: 5, price: 1500 },
+        { listingId: 6, price: 0 },
+      ]),
+      // The delete scopes to this group's flat rows by exact price_id (not LIKE).
       "DELETE FROM listing_prices WHERE price_type = ? AND price_id = ?",
+      ["group", "12"],
+      [
+        [5, "group", "12", 1500],
+        [6, "group", "12", 0],
+      ],
     );
-    expect(placed(stmts[0]!).args).toEqual(["group", "12"]);
-    expect(placed(stmts[1]!).sql).toBe(
-      "INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES (?, ?, ?, ?), (?, ?, ?, ?)",
-    );
-    expect(placed(stmts[1]!).args).toEqual([
-      5,
-      "group",
-      "12",
-      1500,
-      6,
-      "group",
-      "12",
-      0,
-    ]);
   });
 
   test("skips members with a null or absent price (no override → no row)", () => {
-    const stmts = groupFlatPriceStatements(3, [
-      { listingId: 9, price: null },
-      { listingId: 10 },
-      { listingId: 11, price: 250 },
-    ]);
     // Only the delete plus the one real override survive.
-    expect(stmts.map((s) => placed(s).args)).toEqual([
+    expectScopedReplace(
+      groupFlatPriceStatements(3, [
+        { listingId: 9, price: null },
+        { listingId: 10 },
+        { listingId: 11, price: 250 },
+      ]),
+      "DELETE FROM listing_prices WHERE price_type = ? AND price_id = ?",
       ["group", "3"],
-      [11, "group", "3", 250],
-    ]);
+      [[11, "group", "3", 250]],
+    );
   });
 
   test("emits only the group-scoped delete when there are no members", () => {
-    expect(groupFlatPriceStatements(7, []).map((s) => placed(s).args)).toEqual([
+    expectScopedReplace(
+      groupFlatPriceStatements(7, []),
+      "DELETE FROM listing_prices WHERE price_type = ? AND price_id = ?",
       ["group", "7"],
-    ]);
+    );
   });
 });
 

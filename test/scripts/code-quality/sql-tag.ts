@@ -7,7 +7,8 @@
  */
 
 import { requiredMapValue } from "#fp";
-import { interpolationEnd, lexicalSpans } from "#scripts/typescript-lex.ts";
+import { lexicalSpans } from "#scripts/typescript-lex.ts";
+import { templateHoles } from "#test-utils/template-holes.ts";
 
 /** The module that makes statements. */
 const SQL_TAG_PATH = "shared/db/sql.ts";
@@ -34,26 +35,6 @@ const lineAt = (content: string, index: number): number =>
 const hasSqlTag = (content: string, start: number): boolean =>
   content[start] === "`" && /(?<![\w$.])sql$/.test(content.slice(0, start));
 
-/** The interpolations of one template, as the positions of their code. */
-const interpolationsOf = (content: string, span: Span): Span[] => {
-  const found: Span[] = [];
-  let at = span.start + 1;
-  while (at < span.end - 1) {
-    if (content[at] === "\\") {
-      at += 2;
-      continue;
-    }
-    if (content[at] === "$" && content[at + 1] === "{") {
-      const close = interpolationEnd(content, at + 2);
-      found.push({ end: close, start: at + 2 });
-      at = close + 1;
-      continue;
-    }
-    at += 1;
-  }
-  return found;
-};
-
 /** The text of one string span that is not interpolation code. */
 const ownText = (content: string, span: Span): string => {
   if (content[span.start] !== "`") {
@@ -61,7 +42,7 @@ const ownText = (content: string, span: Span): string => {
   }
   let text = "";
   let at = span.start + 1;
-  for (const hole of interpolationsOf(content, span)) {
+  for (const hole of templateHoles(content, span.start, span.end)) {
     text += `${content.slice(at, hole.start - 2)} `;
     at = hole.end + 1;
   }
@@ -77,7 +58,7 @@ const withoutQuotedLiterals = (text: string): string =>
 const spansInside = (content: string, span: Span): Span[] =>
   content[span.start] !== "`"
     ? []
-    : interpolationsOf(content, span).flatMap((hole) =>
+    : templateHoles(content, span.start, span.end).flatMap((hole) =>
         [...lexicalSpans(content.slice(hole.start, hole.end))]
           .filter((inner) => inner.kind === "string")
           .map((inner) => ({

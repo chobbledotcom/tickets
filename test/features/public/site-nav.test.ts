@@ -39,6 +39,14 @@ const nodesOf = (model: NavModel): NavNode[] => [
   ...model.currentChildren,
 ];
 
+/** The nav key that names one site page. */
+const pageKey = (pageId: number): TargetKey =>
+  sitePageItemTargets.key(sitePageItemTargets.of("page")(pageId));
+
+/** The labels the nav shows at its top level. */
+const rootLabels = (model: NavModel): string[] =>
+  model.rootPageNodes.map((node) => node.label);
+
 /** Put one listing on a page and read the nav as that page. `change` runs
  *  after the listing is placed, so a test can alter it first. */
 const navShowingListing = async (
@@ -51,9 +59,7 @@ const navShowingListing = async (
   await change(listing.id);
   return {
     listing,
-    model: await publicNavModel(
-      sitePageItemTargets.key(sitePageItemTargets.of("page")(page.id)),
-    ),
+    model: await publicNavModel(pageKey(page.id)),
   };
 };
 
@@ -64,10 +70,7 @@ describeWithEnv("public site nav", { db: true, triggers: true }, () => {
 
     const model = await publicNavModel(null);
 
-    expect(model.rootPageNodes.map((node) => node.label)).toEqual([
-      "First",
-      "Second",
-    ]);
+    expect(rootLabels(model)).toEqual(["First", "Second"]);
   });
 
   test("carries the settings flags and whether any news exists", async () => {
@@ -97,9 +100,7 @@ describeWithEnv("public site nav", { db: true, triggers: true }, () => {
 
   test("does not classify listings when the current page has none", async () => {
     const page = await addPage("About", "about", 1);
-    const current = sitePageItemTargets.key(
-      sitePageItemTargets.of("page")(page.id),
-    );
+    const current = pageKey(page.id);
 
     const calls = await withRequestContext(() =>
       // The forest's two reads answer everything: with no leaf on the page,

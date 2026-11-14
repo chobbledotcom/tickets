@@ -38,6 +38,19 @@ const withStoredRevision = async (
   ),
 });
 
+/** Book a paid attendee and build the refund candidate from the rows as stored,
+ *  before a test changes them. */
+const loadCandidate = async (
+  sessionId: string,
+  paymentIntentId: string,
+): Promise<{ attendeeId: number; candidate: RefundCandidate }> => {
+  const attendeeId = await bookedWithPayment(sessionId, paymentIntentId);
+  return {
+    attendeeId,
+    candidate: await withStoredRevision({ id: attendeeId, payment_id: "" }),
+  };
+};
+
 const resave = (attendee: Attendee, name = attendee.name): Promise<void> =>
   updateAttendeePII(attendee.id, {
     address: attendee.address,
@@ -80,14 +93,10 @@ describeWithEnv(
     setupErrorSpy();
 
     test("does not refund a payment row deleted after it was loaded", async () => {
-      const attendeeId = await bookedWithPayment(
+      const { candidate } = await loadCandidate(
         "sess_deleted_before_claim",
         "pi_deleted_before_claim",
       );
-      const candidate = await withStoredRevision({
-        id: attendeeId,
-        payment_id: "",
-      });
       await execute(
         sql`DELETE FROM processed_payments WHERE payment_session_id = ${"sess_deleted_before_claim"}`,
       );
@@ -95,14 +104,10 @@ describeWithEnv(
     });
 
     test("does not refund a payment row moved after it was loaded", async () => {
-      const attendeeId = await bookedWithPayment(
+      const { candidate } = await loadCandidate(
         "sess_moved_before_claim",
         "pi_moved_before_claim",
       );
-      const candidate = await withStoredRevision({
-        id: attendeeId,
-        payment_id: "",
-      });
       const destinationId = await bookedWithPayment(
         "sess_move_destination",
         "pi_move_destination",
@@ -115,14 +120,10 @@ describeWithEnv(
     });
 
     test("does not refund when a payment row is added after loading", async () => {
-      const attendeeId = await bookedWithPayment(
+      const { attendeeId, candidate } = await loadCandidate(
         "sess_original_before_claim",
         "pi_original_before_claim",
       );
-      const candidate = await withStoredRevision({
-        id: attendeeId,
-        payment_id: "",
-      });
       await finalizeProcessedPayment(
         "sess_added_before_claim",
         attendeeId,
@@ -134,14 +135,10 @@ describeWithEnv(
     });
 
     test("does not refund when unindexed history appears after loading", async () => {
-      const attendeeId = await bookedWithPayment(
+      const { attendeeId, candidate } = await loadCandidate(
         "sess_indexed_before_history",
         "pi_indexed_before_history",
       );
-      const candidate = await withStoredRevision({
-        id: attendeeId,
-        payment_id: "",
-      });
       await finalizeProcessedPayment(
         "sess_unindexed_after_load",
         attendeeId,

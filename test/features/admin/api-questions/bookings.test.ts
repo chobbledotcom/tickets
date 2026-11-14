@@ -43,6 +43,26 @@ const selectedTotals = (
   answers: { times_selected?: number }[],
 ): (number | undefined)[] => answers.map((answer) => answer.times_selected);
 
+/** One booking link the question's bookings endpoint answers. */
+type BookingLink = {
+  answer_id: number | null;
+  answer_text: string | null;
+  attendee_id: number;
+  created: string;
+  free_text: string | null;
+  listing_ids: number[];
+  question_id: number;
+};
+
+/** The booking links the admin API answers for one question, newest first. */
+const questionBookings = async (questionId: number): Promise<BookingLink[]> =>
+  (
+    await assertJson<{ bookings: BookingLink[] }>(
+      apiRequest(`/api/admin/questions/${questionId}/bookings`),
+      200,
+    )
+  ).bookings;
+
 describeWithEnv(
   "Admin API - question bookings and stats",
   { db: true, triggers: true },
@@ -62,32 +82,26 @@ describeWithEnv(
         created: "2026-06-02T09:00:00Z",
       });
 
-      await assertJson(
-        apiRequest(`/api/admin/questions/${size.id}/bookings`),
-        200,
-        (body) => {
-          expect(body.bookings).toEqual([
-            {
-              answer_id: small.id,
-              answer_text: "Small",
-              attendee_id: newer,
-              created: "2026-06-02T09:00:00.000Z",
-              free_text: null,
-              listing_ids: [listing.id],
-              question_id: size.id,
-            },
-            {
-              answer_id: large.id,
-              answer_text: "Large",
-              attendee_id: older,
-              created: "2026-06-01T09:00:00.000Z",
-              free_text: null,
-              listing_ids: [listing.id],
-              question_id: size.id,
-            },
-          ]);
+      expect(await questionBookings(size.id)).toEqual([
+        {
+          answer_id: small.id,
+          answer_text: "Small",
+          attendee_id: newer,
+          created: "2026-06-02T09:00:00.000Z",
+          free_text: null,
+          listing_ids: [listing.id],
+          question_id: size.id,
         },
-      );
+        {
+          answer_id: large.id,
+          answer_text: "Large",
+          attendee_id: older,
+          created: "2026-06-01T09:00:00.000Z",
+          free_text: null,
+          listing_ids: [listing.id],
+          question_id: size.id,
+        },
+      ]);
     });
 
     test("answers a free-text booking with the words the buyer typed", async () => {
@@ -101,34 +115,22 @@ describeWithEnv(
         created: "2026-06-03T09:00:00Z",
       });
 
-      await assertJson(
-        apiRequest(`/api/admin/questions/${notes.id}/bookings`),
-        200,
-        (body) => {
-          expect(body.bookings).toEqual([
-            {
-              answer_id: null,
-              answer_text: null,
-              attendee_id: attendeeId,
-              created: "2026-06-03T09:00:00.000Z",
-              free_text: "Peanuts",
-              listing_ids: [listing.id],
-              question_id: notes.id,
-            },
-          ]);
+      expect(await questionBookings(notes.id)).toEqual([
+        {
+          answer_id: null,
+          answer_text: null,
+          attendee_id: attendeeId,
+          created: "2026-06-03T09:00:00.000Z",
+          free_text: "Peanuts",
+          listing_ids: [listing.id],
+          question_id: notes.id,
         },
-      );
+      ]);
     });
 
     test("answers no bookings for a question nobody answered", async () => {
       const { size } = await seedChoiceAndTextQuestions();
-      await assertJson(
-        apiRequest(`/api/admin/questions/${size.id}/bookings`),
-        200,
-        (body) => {
-          expect(body.bookings).toEqual([]);
-        },
-      );
+      expect(await questionBookings(size.id)).toEqual([]);
     });
 
     test("carries each answer's selection total on the single and list reads", async () => {
@@ -275,14 +277,9 @@ describeWithEnv(
         ],
       });
 
-      await assertJson(
-        apiRequest(`/api/admin/questions/${size.id}/bookings`),
-        200,
-        (body) => {
-          expect(body.bookings[0].listing_ids).toEqual(
-            [listing.id, second.id].sort((left, right) => left - right),
-          );
-        },
+      const [booking] = await questionBookings(size.id);
+      expect(booking?.listing_ids).toEqual(
+        [listing.id, second.id].sort((left, right) => left - right),
       );
     });
 
@@ -296,23 +293,17 @@ describeWithEnv(
       // so the link answers with no listing to name.
       await dropAttendeeBookings(attendeeId);
 
-      await assertJson(
-        apiRequest(`/api/admin/questions/${size.id}/bookings`),
-        200,
-        (body) => {
-          expect(body.bookings).toEqual([
-            {
-              answer_id: small.id,
-              answer_text: "Small",
-              attendee_id: attendeeId,
-              created: "2026-06-04T09:00:00.000Z",
-              free_text: null,
-              listing_ids: [],
-              question_id: size.id,
-            },
-          ]);
+      expect(await questionBookings(size.id)).toEqual([
+        {
+          answer_id: small.id,
+          answer_text: "Small",
+          attendee_id: attendeeId,
+          created: "2026-06-04T09:00:00.000Z",
+          free_text: null,
+          listing_ids: [],
+          question_id: size.id,
         },
-      );
+      ]);
     });
 
     test("returns 404 for a question that does not exist", async () => {

@@ -17,6 +17,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createListingWithAttendeeAndLogistics } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createAgentAssignedToFirstUser } from "#test-utils/db-helpers/logistics-agent-users.ts";
 import { createLogisticsAgent } from "#test-utils/db-helpers/logistics-agents.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { awaitTestRequest, withExpectedError } from "#test-utils/mocks.ts";
@@ -153,18 +154,17 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
     });
 
     test("assigns users to an agent, drops unknown ids, and pre-checks them", async () => {
-      const id = await createLogisticsAgent("Crewed Van");
-      const userId = (await getAllUsers())[0]!.id;
+      const {
+        id,
+        response: assigned,
+        userId,
+      } = await createAgentAssignedToFirstUser("Crewed Van");
 
       // Assigning a real user persists the link.
-      const assigned = await adminFormPost(`/admin/logistics/${id}/edit`, {
-        name: "Crewed Van",
-        user_ids: String(userId),
-      });
       await expectFlashRedirect(
         "/admin/logistics",
         "Logistics agent updated",
-      )(assigned.response);
+      )(assigned);
       expect(await agentUsers.getIds(id)).toEqual([userId]);
 
       // The edit form pre-checks the assigned user.

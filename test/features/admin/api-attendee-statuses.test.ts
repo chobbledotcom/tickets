@@ -5,9 +5,9 @@ import { attendeeStatuses, getAttendeeStatus } from "#db/attendee-statuses.ts";
 import { getDb } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
+import { expectUnauthorized } from "#test-utils/admin-api-auth.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { mockRequest } from "#test-utils/mocks.ts";
 import {
   apiRequest,
   createTestManagerSession,
@@ -57,12 +57,8 @@ describeWithEnv("Admin API - Attendee statuses", { db: true }, () => {
       );
     });
 
-    test("returns 401 without auth", async () => {
-      const response = await handleRequest(
-        mockRequest("/api/admin/attendee-statuses"),
-      );
-      expect(response.status).toBe(401);
-    });
+    test("returns 401 without auth", () =>
+      expectUnauthorized("/api/admin/attendee-statuses"));
   });
 
   describe("GET /api/admin/attendee-statuses/:statusId", () => {

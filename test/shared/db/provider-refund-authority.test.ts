@@ -61,6 +61,13 @@ const createInput = (
   state,
 });
 
+/** The table holds exactly one charge row: the one with `id`. */
+const expectOnlyCharge = async (id: number): Promise<void> => {
+  expect(
+    await getDb().execute(sql`SELECT id FROM payment_charges`),
+  ).toMatchObject({ rows: [{ id }] });
+};
+
 describeWithEnv("provider refund authority persistence", { db: true }, () => {
   test("creates ready authority in one exact upsert", async () => {
     const input = createInput();
@@ -143,9 +150,7 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
     const second = await createOrLoadRefundAuthority(input);
 
     expect(second).toEqual(first);
-    expect(
-      await getDb().execute(sql`SELECT id FROM payment_charges`),
-    ).toMatchObject({ rows: [{ id: first.id }] });
+    await expectOnlyCharge(first.id);
   });
 
   test("an empty upsert result recovers only an exact existing authority", async () => {
@@ -260,9 +265,7 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
         callbackReplayIndex: "callback-one",
       }),
     ).rejects.toThrow("Refund callback identity belongs to another charge");
-    expect(
-      await getDb().execute(sql`SELECT id FROM payment_charges`),
-    ).toMatchObject({ rows: [{ id: first.id }] });
+    await expectOnlyCharge(first.id);
   });
 
   test("transitions exactly the expected revision", async () => {

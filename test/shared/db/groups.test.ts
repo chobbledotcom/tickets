@@ -458,6 +458,19 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
   });
 
   describe("group remaining helpers", () => {
+    /** A capped daily group, its two listings, and `e1` booked on each date. */
+    const dailyGroupBookedOn = async (
+      max: number,
+      slug: string,
+      bookings: readonly (readonly [date: string, qty: number])[],
+    ) => {
+      const { e1, e2, group } = await createCappedGroupWithListings(max, slug, {
+        listingType: "daily",
+      });
+      for (const [date, qty] of bookings) await book(e1.id, qty, date);
+      return { e1, e2, group };
+    };
+
     test("getGroupRemainingByGroupId returns spots remaining for capped groups", async () => {
       const { e1, group } = await createCappedGroupWithListings(5, "remaining");
       await book(e1.id, 2);
@@ -552,15 +565,10 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
     });
 
     test("getGroupRemainingByGroupId is per-date for daily-listing groups", async () => {
-      const { e1, group } = await createCappedGroupWithListings(
-        4,
-        "by-id-daily",
-        {
-          listingType: "daily",
-        },
-      );
-      await book(e1.id, 3, "2026-09-01");
-      await book(e1.id, 1, "2026-09-02");
+      const { group } = await dailyGroupBookedOn(4, "by-id-daily", [
+        ["2026-09-01", 3],
+        ["2026-09-02", 1],
+      ]);
 
       const onSep1 = await getGroupRemainingByGroupId([group.id], "2026-09-01");
       const onSep2 = await getGroupRemainingByGroupId([group.id], "2026-09-02");
@@ -569,14 +577,9 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
     });
 
     test("getGroupRemainingByListingId returns daily listings when date is given", async () => {
-      const { e1, e2 } = await createCappedGroupWithListings(
-        4,
-        "by-evt-daily",
-        {
-          listingType: "daily",
-        },
-      );
-      await book(e1.id, 1, "2026-10-01");
+      const { e1, e2 } = await dailyGroupBookedOn(4, "by-evt-daily", [
+        ["2026-10-01", 1],
+      ]);
 
       const onOct1 = await getGroupRemainingByListingId([e1, e2], "2026-10-01");
       expect(onOct1.get(e1.id)).toBe(3);
@@ -584,12 +587,9 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
     });
 
     test("getGroupRemainingForListing returns per-date remaining for daily listing", async () => {
-      const { e1, e2 } = await createCappedGroupWithListings(
-        5,
-        "single-daily-date",
-        { listingType: "daily" },
-      );
-      await book(e1.id, 2, "2026-11-15");
+      const { e2 } = await dailyGroupBookedOn(5, "single-daily-date", [
+        ["2026-11-15", 2],
+      ]);
 
       expect(await getGroupRemainingForListing(e2, "2026-11-15")).toBe(3);
       expect(await getGroupRemainingForListing(e2, "2026-11-16")).toBe(5);

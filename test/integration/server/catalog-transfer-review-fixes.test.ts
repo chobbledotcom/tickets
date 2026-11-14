@@ -1,14 +1,11 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute } from "#db/client.ts";
-import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { getGroupPackagePrices } from "#db/groups.ts";
 import { listingParents } from "#db/listing-parents.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
-import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { exportListing } from "#routes/admin/catalog-transfer/export.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
@@ -17,6 +14,7 @@ import {
   unwrapExport,
 } from "#test-utils/catalog-import.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { importChildOfHiddenGroupMember } from "#test-utils/db-helpers/catalog-import-fixtures.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -196,24 +194,10 @@ describeWithEnv(
     });
 
     test("rejects a parent that is a hidden-package member", async () => {
-      const pkg = await createTestGroup({
-        isPackage: true,
-        name: "Hidden Pkg",
-      });
-      // createTestGroup can't set hide_package_listings, so set it directly and
-      // refresh the cached group set the import reads.
-      await execute(
-        sql`UPDATE groups SET hide_package_listings = 1 WHERE id = ${pkg.id}`,
-      );
-      const { groups } = await import("#db/groups.ts");
-      groups.cache.invalidate();
-      const parent = await createTestListing({ name: "Pkg Parent" });
-      await assignListingsToGroup([parent.id], pkg.id);
-      const result = await importCatalog({
-        kind: "listing",
-        listing: { maxAttendees: 1, name: "Kid" },
-        parents: ["Pkg Parent"],
-        version: 1,
+      const result = await importChildOfHiddenGroupMember({
+        childName: "Kid",
+        group: { isPackage: true, name: "Hidden Pkg" },
+        parentName: "Pkg Parent",
       });
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("unreachable");

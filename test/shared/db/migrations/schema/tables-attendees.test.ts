@@ -24,6 +24,16 @@ const columnNamed = (table: string, column: string): string => {
   return found[1].sql;
 };
 
+/** The columns one declared index covers, in order, failing when the table
+ *  declares no index under that name. */
+const indexColumns = (table: string, indexName: string): string[] => {
+  const found = tableNamed(table).indexes?.find(
+    (one) => one.name === indexName,
+  );
+  if (!found) throw new Error(`${table} declares no ${indexName} index`);
+  return found.columns;
+};
+
 describe("attendee schema tables", () => {
   test("gives every staged SumUp checkout a state, defaulting to the start", () => {
     // The default decides what an upgrading site's existing rows become
@@ -46,20 +56,15 @@ describe("attendee schema tables", () => {
 
   test("indexes the queue the recovery task reads", () => {
     // Without this the task scans the table every time it runs.
-    const index = tableNamed("sumup_checkouts").indexes?.find(
-      (one) => one.name === "idx_sumup_checkouts_next_check",
-    );
-    expect(sqlText(index?.columns)).toEqual([
-      "recovery_state",
-      "next_check_at",
-    ]);
+    expect(
+      indexColumns("sumup_checkouts", "idx_sumup_checkouts_next_check"),
+    ).toEqual(["recovery_state", "next_check_at"]);
   });
 
   test("still finds a staged checkout by the id its callback names", () => {
-    const index = tableNamed("sumup_checkouts").indexes?.find(
-      (one) => one.name === "idx_sumup_checkouts_sumup_id",
-    );
-    expect(sqlText(index?.columns)).toEqual(["sumup_id"]);
+    expect(
+      indexColumns("sumup_checkouts", "idx_sumup_checkouts_sumup_id"),
+    ).toEqual(["sumup_id"]);
   });
 
   test("keys a staged checkout by the one-way code for its reference", () => {

@@ -26,8 +26,8 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import {
   attendeeLineFields,
   buildAttendeeEditForm,
-  createTestAttendee,
 } from "#test-utils/db-helpers/attendees.ts";
+import { listingWithAttendee } from "#test-utils/db-helpers/listing-attendee.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale, postWriteoffAdjustment } from "#test-utils/ledger.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
@@ -308,21 +308,17 @@ describeWithEnv(
       });
 
       test("changing an attendee's email on edit never copies the note onto the new email", async () => {
-        const listing = await createTestListing({
-          maxAttendees: 100,
-          maxQuantity: 5,
-        });
+        const { attendee } = await listingWithAttendee(
+          100,
+          "Alice",
+          "alice@example.com",
+          { maxQuantity: 5 },
+        );
         const pk = await getTestPrivateKey();
         const aliceHash = await hashEmail("alice@example.com");
         const bobHash = await hashEmail("bob@example.com");
         // Alice's contact carries a private note; the attendee starts as Alice.
         await saveContactRecord(aliceHash, seededRecord("Alice private note"));
-        const attendee = await createTestAttendee(
-          listing.id,
-          listing.slug,
-          "Alice",
-          "alice@example.com",
-        );
 
         // Switch the attendee's email to Bob and save the form.
         const form = await buildAttendeeEditForm(attendee.id, {
@@ -344,15 +340,11 @@ describeWithEnv(
       });
 
       test("keeps the repair link when a contact's stats_blob is corrupt", async () => {
-        const listing = await createTestListing({
-          maxAttendees: 100,
-          maxQuantity: 5,
-        });
-        const attendee = await createTestAttendee(
-          listing.id,
-          listing.slug,
+        const { attendee } = await listingWithAttendee(
+          100,
           "Corrupt Contact",
           "corrupt@example.com",
+          { maxQuantity: 5 },
         );
         const hash = await hashEmail("corrupt@example.com");
         // Leave this contact's encrypted stats unreadable — the exact state the
@@ -374,10 +366,8 @@ describeWithEnv(
 
     describe("attendee page tabs", () => {
       test("an unknown tab slug 404s", async () => {
-        const listing = await createTestListing({ maxAttendees: 10 });
-        const attendee = await createTestAttendee(
-          listing.id,
-          listing.slug,
+        const { attendee } = await listingWithAttendee(
+          10,
           "Tabbed",
           "tabbed@example.com",
         );
@@ -396,10 +386,8 @@ describeWithEnv(
       });
 
       test("the banner notes are visible on non-overview tabs too", async () => {
-        const listing = await createTestListing({ maxAttendees: 10 });
-        const attendee = await createTestAttendee(
-          listing.id,
-          listing.slug,
+        const { attendee } = await listingWithAttendee(
+          10,
           "Noted",
           "noted@example.com",
         );

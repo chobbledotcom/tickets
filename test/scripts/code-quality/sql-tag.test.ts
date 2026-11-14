@@ -14,6 +14,18 @@ const DUMP = `${PATH}:1: sqlFromDump is for backup restore only`;
 
 const found = (source: string): string[] => findSqlTagViolations(PATH, source);
 
+/** Run one test per source, each owing the same violations. */
+const casesOwing = (
+  expected: string[],
+  cases: readonly (readonly [name: string, source: string])[],
+): void => {
+  for (const [name, source] of cases) {
+    test(name, () => {
+      expect(found(source)).toEqual(expected);
+    });
+  }
+};
+
 describe("SQL in a plain string", () => {
   for (const statement of [
     "SELECT id FROM listings",
@@ -32,23 +44,23 @@ describe("SQL in a plain string", () => {
     });
   }
 
-  test("fires on a statement in a template with no tag", () => {
-    expect(
-      found("const text = `SELECT id FROM ${table} WHERE id = ${id}`;"),
-    ).toEqual([PLAIN_SQL]);
-  });
-
-  test("fires on a statement that starts after white space", () => {
-    expect(found("const text = `\n  DELETE FROM sessions`;")).toEqual([
-      PLAIN_SQL,
-    ]);
-  });
-
-  test("fires on a plain string inside a sql template slot", () => {
-    expect(
-      found('const s = sql`${flag ? "DELETE FROM sessions" : "x"}`;'),
-    ).toEqual([PLAIN_SQL]);
-  });
+  casesOwing(
+    [PLAIN_SQL],
+    [
+      [
+        "fires on a statement in a template with no tag",
+        "const text = `SELECT id FROM ${table} WHERE id = ${id}`;",
+      ],
+      [
+        "fires on a statement that starts after white space",
+        "const text = `\n  DELETE FROM sessions`;",
+      ],
+      [
+        "fires on a plain string inside a sql template slot",
+        'const s = sql`${flag ? "DELETE FROM sessions" : "x"}`;',
+      ],
+    ],
+  );
 
   test("reports the line the string starts on", () => {
     expect(
@@ -117,17 +129,19 @@ describe("a placeholder in a plain string", () => {
 });
 
 describe("a placeholder in a sql template", () => {
-  test("fires on a bare placeholder", () => {
-    expect(found("const s = sql`SELECT id FROM t WHERE id = ?`;")).toEqual([
-      TAGGED_PLACEHOLDER,
-    ]);
-  });
-
-  test("fires on a numbered placeholder", () => {
-    expect(found("const s = sql`SELECT id FROM t WHERE id = ?1`;")).toEqual([
-      TAGGED_PLACEHOLDER,
-    ]);
-  });
+  casesOwing(
+    [TAGGED_PLACEHOLDER],
+    [
+      [
+        "fires on a bare placeholder",
+        "const s = sql`SELECT id FROM t WHERE id = ?`;",
+      ],
+      [
+        "fires on a numbered placeholder",
+        "const s = sql`SELECT id FROM t WHERE id = ?1`;",
+      ],
+    ],
+  );
 
   test("fires on a placeholder in a nested sql template", () => {
     expect(
@@ -135,23 +149,23 @@ describe("a placeholder in a sql template", () => {
     ).toEqual([TAGGED_PLACEHOLDER]);
   });
 
-  test("stays quiet on a value in a slot", () => {
-    expect(found("const s = sql`SELECT id FROM t WHERE id = ${id}`;")).toEqual(
-      [],
-    );
-  });
-
-  test("stays quiet on a question mark inside a quoted SQL literal", () => {
-    expect(
-      found("const s = sql`SELECT id FROM t WHERE name GLOB 'enc:1:?*'`;"),
-    ).toEqual([]);
-  });
-
-  test("stays quiet on a question mark in the code of a slot", () => {
-    expect(
-      found("const s = sql`SELECT id FROM t WHERE ${flag ? one : two}`;"),
-    ).toEqual([]);
-  });
+  casesOwing(
+    [],
+    [
+      [
+        "stays quiet on a value in a slot",
+        "const s = sql`SELECT id FROM t WHERE id = ${id}`;",
+      ],
+      [
+        "stays quiet on a question mark inside a quoted SQL literal",
+        "const s = sql`SELECT id FROM t WHERE name GLOB 'enc:1:?*'`;",
+      ],
+      [
+        "stays quiet on a question mark in the code of a slot",
+        "const s = sql`SELECT id FROM t WHERE ${flag ? one : two}`;",
+      ],
+    ],
+  );
 
   test("an escaped slot opener stays SQL text", () => {
     expect(found("const s = sql`SELECT '\\${a}' WHERE id = ?`;")).toEqual([
@@ -166,29 +180,33 @@ describe("a placeholder in a sql template", () => {
 });
 
 describe("ways around the tag", () => {
-  test("fires on a cast to a statement", () => {
-    expect(found("const s = { args: [], sql: text } as SqlStatement;")).toEqual(
-      [CAST],
-    );
-  });
+  casesOwing(
+    [CAST],
+    [
+      [
+        "fires on a cast to a statement",
+        "const s = { args: [], sql: text } as SqlStatement;",
+      ],
+      [
+        "fires on a cast through unknown",
+        "const s = text as unknown as SqlStatement;",
+      ],
+    ],
+  );
 
-  test("fires on a cast through unknown", () => {
-    expect(found("const s = text as unknown as SqlStatement;")).toEqual([CAST]);
-  });
-
-  test("stays quiet on a cast named in a string or a comment", () => {
-    expect(
-      found('// x as SqlStatement\nconst note = "as SqlStatement";'),
-    ).toEqual([]);
-  });
-
-  test("stays quiet on a type that only starts with the name", () => {
-    expect(found("const s = x as SqlStatementList;")).toEqual([]);
-  });
-
-  test("fires on the dump boundary outside backup restore", () => {
-    expect(found("const s = sqlFromDump(text);")).toEqual([DUMP]);
-  });
+  casesOwing(
+    [],
+    [
+      [
+        "stays quiet on a cast named in a string or a comment",
+        '// x as SqlStatement\nconst note = "as SqlStatement";',
+      ],
+      [
+        "stays quiet on a type that only starts with the name",
+        "const s = x as SqlStatementList;",
+      ],
+    ],
+  );
 
   test("lets backup restore name the dump boundary", () => {
     expect(
@@ -197,6 +215,10 @@ describe("ways around the tag", () => {
         "const s = sqlFromDump(text);",
       ),
     ).toEqual([]);
+  });
+
+  test("fires on the dump boundary outside backup restore", () => {
+    expect(found("const s = sqlFromDump(text);")).toEqual([DUMP]);
   });
 
   test("judges nothing in the module that makes statements", () => {

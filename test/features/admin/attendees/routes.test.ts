@@ -8,31 +8,31 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { expectStatus } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("the attendee pages every listing shares", { db: true }, () => {
-  test("serves the attendee list", async () => {
-    const response = await adminGet("/admin/attendees");
-
-    expect(response.status).toBe(200);
-  });
+  for (const [name, path] of [
+    ["serves the attendee list", "/admin/attendees"],
+    [
+      "serves the form for adding one without a listing in hand",
+      "/admin/attendees/new",
+    ],
+  ] as const) {
+    test(name, async () => {
+      expectStatus(200)(await adminGet(path));
+    });
+  }
 
   test("serves the list as a spreadsheet", async () => {
-    const response = await adminGet("/admin/attendees/csv");
+    const response = expectStatus(200)(await adminGet("/admin/attendees/csv"));
 
-    expect(response.status).toBe(200);
     assertStringIncludes(
       response.headers.get("content-type") ?? "",
       "text/csv",
     );
-  });
-
-  test("serves the form for adding one without a listing in hand", async () => {
-    const response = await adminGet("/admin/attendees/new");
-
-    expect(response.status).toBe(200);
   });
 
   test("takes that form back", async () => {

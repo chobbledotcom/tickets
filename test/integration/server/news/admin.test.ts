@@ -110,10 +110,12 @@ describeWithEnv("server (admin news)", { db: true }, () => {
     test("stores omitted optional content fields as empty text", async () => {
       await create("No optional fields");
       const post = await findPost("No optional fields");
-      expect(post.content).toBe("");
-      expect(post.meta_title).toBe("");
-      expect(post.meta_description).toBe("");
-      expect(post.snippet).toBe("");
+      expect(post).toMatchObject({
+        content: "",
+        meta_description: "",
+        meta_title: "",
+        snippet: "",
+      });
     });
 
     test("rolls back the post when activity logging fails", async () => {
