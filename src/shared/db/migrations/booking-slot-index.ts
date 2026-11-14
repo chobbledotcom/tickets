@@ -1,6 +1,6 @@
 import { sql, sqlName } from "#db/sql.ts";
+import { liveIndexRows } from "./live-schema.ts";
 import { SCHEMA } from "./schema/index.ts";
-import { liveIndexRows } from "./schema-sync.ts";
 import type { MigrationContext, SchemaRequirement } from "./types.ts";
 
 /** The unique booking-slot index on `listing_attendees`. Widening it (adding

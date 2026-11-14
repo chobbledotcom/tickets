@@ -18,7 +18,6 @@ import type {
 import {
   deleteByFieldBatch,
   execute,
-  executeChangedRow,
   insert,
   insertedRowId,
   queryAll,
@@ -28,6 +27,7 @@ import {
   registerCache,
   registerTableInvalidation,
 } from "#db/common-schema.ts";
+import { executeChangedRow } from "#db/guarded-writes.ts";
 import { sql, sqlList } from "#db/sql.ts";
 import type { CacheInvalidation } from "#shared/cache-registry.ts";
 import { now } from "#shared/now.ts";

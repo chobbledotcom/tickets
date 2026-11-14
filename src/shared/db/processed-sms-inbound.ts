@@ -6,7 +6,8 @@
  * `sms:received` events cannot create duplicate activity-log entries.
  */
 
-import { executeBatch, executeChangedRow, insertOrIgnore } from "#db/client.ts";
+import { executeBatch, insertOrIgnore } from "#db/client.ts";
+import { executeChangedRow } from "#db/guarded-writes.ts";
 import { sql } from "#db/sql.ts";
 import { nowIso } from "#shared/now.ts";
 

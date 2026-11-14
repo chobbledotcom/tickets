@@ -12,7 +12,8 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { occurrencesIn, refusalOf } from "#fp";
+import { occurrencesIn } from "#fp-strings";
+import { refusalOf } from "#shared/fp-records.ts";
 
 declare const MADE_BY_SQL_TAG: unique symbol;
 

@@ -1,6 +1,7 @@
 import type { ResultSet } from "@libsql/client";
-import { getDb, type StatementClient, setDb } from "#db/client.ts";
+import { getDb, setDb } from "#db/client.ts";
 import type { SqlStatement } from "#db/sql.ts";
+import type { StatementClient } from "#db/statement-client.ts";
 import { proxyMembers } from "#shared/proxy-members.ts";
 
 export type DbCallHooks = {

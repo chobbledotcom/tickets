@@ -8,12 +8,7 @@
  * and routes to the right response.
  */
 
-import {
-  executeBatch,
-  executeScript,
-  getDb,
-  type StatementClient,
-} from "#db/client.ts";
+import { executeBatch, executeScript, getDb } from "#db/client.ts";
 import {
   type SqlStatement,
   sql,
@@ -21,6 +16,7 @@ import {
   sqlLiteral,
   sqlName,
 } from "#db/sql.ts";
+import type { StatementClient } from "#db/statement-client.ts";
 import { lazyRef } from "#fp";
 import { resetAllCaches } from "#shared/cache-registry.ts";
 import { logDebug } from "#shared/logger.ts";

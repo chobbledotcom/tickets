@@ -1,11 +1,10 @@
 import { countRows, getDb } from "#db/client.ts";
 import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import { escapeRegExp } from "#shared/regexp.ts";
+import { liveIndexRows, pragmaRows } from "./live-schema.ts";
 import {
   currentSchemaColumnsPresentIn,
   getExistingColumns,
-  liveIndexRows,
-  pragmaRows,
   rebuildTableWithColumns,
   runMigration,
   tableExists,

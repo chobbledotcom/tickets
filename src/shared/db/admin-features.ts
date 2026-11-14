@@ -3,13 +3,13 @@ import { decrypt, encrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { enabledFeaturesAreValidSql } from "#db/admin-feature-sql.ts";
 import {
-  abortUnless,
   executeBatchWithResults,
   queryOne,
   queryOnePrimary,
   requireOnePrimary,
   resultRows,
 } from "#db/client.ts";
+import { abortUnless } from "#db/guarded-writes.ts";
 import { invalidateListingsCache } from "#db/listings/records.ts";
 import { notNullGuardFailure } from "#db/query.ts";
 import { settingsVersionIncrement } from "#db/settings/cache.ts";

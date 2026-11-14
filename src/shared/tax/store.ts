@@ -1,6 +1,6 @@
 import { eventGroup } from "#accounting/refs.ts";
 import type { TxScope } from "#db/client.ts";
-import { abortUnless } from "#db/client.ts";
+import { abortUnless } from "#db/guarded-writes.ts";
 import { notNullGuardFailureAt, rowsByIdsPrimary } from "#db/query.ts";
 import { type SqlSlot, type SqlStatement, sql, sqlNames } from "#db/sql.ts";
 import { col, defineTable } from "#db/table.ts";

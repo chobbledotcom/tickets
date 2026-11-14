@@ -16,7 +16,7 @@ import {
   type TableSchema,
 } from "#db/table.ts";
 import type { RowFilter, RowOptions, TableReader } from "#db/table-reader.ts";
-import { refusalOf } from "#fp";
+import { refusalOf } from "#shared/fp-records.ts";
 import { compareByName } from "#shared/name-order.ts";
 import {
   blobToSiteFields,

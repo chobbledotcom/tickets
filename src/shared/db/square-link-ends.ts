@@ -12,7 +12,8 @@
 
 import { encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
-import { execute, executeChangedRow, queryAll } from "#db/client.ts";
+import { execute, queryAll } from "#db/client.ts";
+import { executeChangedRow } from "#db/guarded-writes.ts";
 import { sql, sqlList } from "#db/sql.ts";
 import {
   LINK_END_CHECKABLE_NODES,

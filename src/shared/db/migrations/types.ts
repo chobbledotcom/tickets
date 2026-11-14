@@ -1,4 +1,4 @@
-import type { StatementClient } from "#db/client.ts";
+import type { StatementClient } from "#db/statement-client.ts";
 
 /**
  * The tables a scoped schema step can touch. A schemaMigration passes the

@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { occurrencesIn, refusalOf, withoutKey } from "#fp";
+import { occurrencesIn } from "#fp-strings";
+import { refusalOf, withoutKey } from "#shared/fp-records.ts";
 
 describe("withoutKey", () => {
   test("copies the record with the one key left out", () => {

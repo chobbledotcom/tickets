@@ -18,7 +18,7 @@ import {
   getListingWithCountPrimary,
   listingsTable,
 } from "#db/listings/records.ts";
-import { mapById, requiredMapValue, withoutKey } from "#fp";
+import { mapById, requiredMapValue } from "#fp";
 import { attendeeStatusApiRoutes } from "#routes/admin/api-attendee-statuses.ts";
 import { attributeApiRoutes } from "#routes/admin/api-attributes.ts";
 import { externalSourceApiRoutes } from "#routes/admin/api-external-sources.ts";
@@ -34,6 +34,7 @@ import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import { withoutKey } from "#shared/fp-records.ts";
 import {
   performListingDelete,
   refuseUndatedListingSwitch,

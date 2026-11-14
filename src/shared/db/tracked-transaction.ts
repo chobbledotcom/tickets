@@ -1,7 +1,7 @@
 import type { ResultSet } from "@libsql/client";
-import type { StatementTransaction } from "#db/client.ts";
 import { trackSql } from "#db/query-log.ts";
 import type { SqlStatement } from "#db/sql.ts";
+import type { StatementTransaction } from "#db/statement-client.ts";
 
 /** Track both read snapshots and write transactions through the same query log. */
 export const trackedTxBatch =

@@ -10,7 +10,8 @@ import type {
   OwnerKeyEncrypted,
 } from "#crypto/sealed.ts";
 import { generateSecureToken } from "#crypto/utils.ts";
-import { execute, executeChangedRow } from "#db/client.ts";
+import { execute } from "#db/client.ts";
+import { executeChangedRow } from "#db/guarded-writes.ts";
 import { settings } from "#db/settings.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 import { col, defineTable } from "#db/table.ts";

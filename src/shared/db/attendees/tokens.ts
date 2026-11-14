@@ -25,7 +25,8 @@ import {
   sqlList,
   sqlLiteral,
 } from "#db/sql.ts";
-import { groupToMap, map, unique, withoutKey } from "#fp";
+import { groupToMap, map, unique } from "#fp";
+import { withoutKey } from "#shared/fp-records.ts";
 
 /** Shared ordering for an attendee's booking rows so grouped reads are
  * deterministic: date, then listing id. */

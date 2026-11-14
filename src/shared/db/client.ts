@@ -37,6 +37,7 @@ import {
   sqlNames,
 } from "#db/sql.ts";
 import { isReadSql, sqlOf, writeSqlOf } from "#db/sql-text.ts";
+import type { StatementClient } from "#db/statement-client.ts";
 import { trackedTxBatch, trackedTxExecute } from "#db/tracked-transaction.ts";
 import { lazyRef } from "#fp";
 import { invalidateCachesForWrite } from "#shared/cache-registry.ts";
@@ -213,25 +214,6 @@ const withRoundTripGuard = (client: Client): Client => {
 };
 
 const [dbGetter, dbSetter] = lazyRef(createDbClient);
-
-/** A libsql transaction that runs only statements the `sql` tag built. */
-export type StatementTransaction = Omit<
-  Transaction,
-  "batch" | "execute" | "executeMultiple"
-> &
-  TxScope;
-
-/** The libsql client, narrowed to run only statements the `sql` tag built. */
-export type StatementClient = Omit<
-  Client,
-  "batch" | "execute" | "executeMultiple" | "migrate" | "transaction"
-> & {
-  batch: (
-    statements: SqlStatement[],
-    mode?: TransactionMode,
-  ) => Promise<ResultSet[]>;
-  transaction: (mode?: TransactionMode) => Promise<StatementTransaction>;
-} & Pick<TxScope, "execute">;
 
 /**
  * Get or create database client
@@ -412,20 +394,6 @@ export const requireOnePrimary = <T>(statement: SqlStatement): Promise<T> =>
     statement.sql,
     "Required primary",
   );
-
-/** A guard that aborts its batch unless a condition holds. It inserts `row`,
- * which holds a NULL that `target` refuses, when the condition fails. */
-export const abortUnless =
-  (target: SqlStatement, row: SqlStatement) =>
-  (condition: SqlStatement): SqlStatement =>
-    sql`INSERT INTO ${target} SELECT ${row} WHERE NOT (${condition})`;
-
-/** Run a guarded write and report whether it changed a row. Zero rows means
- * that the guard refused the write: a replay, a race, or a row in another
- * state. */
-export const executeChangedRow = async (
-  statement: SqlStatement,
-): Promise<boolean> => (await execute(statement)).rowsAffected > 0;
 
 /** True when the query returns a row. The statement should be an existence probe such as
  *  `SELECT 1 ... LIMIT 1`; which columns it selects is ignored. */

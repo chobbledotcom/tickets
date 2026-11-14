@@ -7,7 +7,8 @@
  */
 
 import { bookingSlotKey } from "#db/attendees/booking-slot.ts";
-import { executeChangedRow, queryAll } from "#db/client.ts";
+import { queryAll } from "#db/client.ts";
+import { executeChangedRow } from "#db/guarded-writes.ts";
 import {
   type AssignmentRow,
   bookingAssignmentKey,

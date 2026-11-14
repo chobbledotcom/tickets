@@ -18,6 +18,7 @@ import {
   backfillAnswerAggregates,
   backfillModifierAggregates,
 } from "./aggregate-backfills.ts";
+import { pragmaRows } from "./live-schema.ts";
 import { APP_SCHEMA, SCHEMA } from "./schema/index.ts";
 import {
   TICKET_COUNTS_PREDICATE,
@@ -47,22 +48,6 @@ export const runMigration = async (statement: SqlStatement): Promise<void> => {
     throw e;
   }
 };
-
-/** The name and the CREATE text of each live index that `filter` keeps. */
-export const liveIndexRows = async (filter: SqlStatement) =>
-  (
-    await getDb().execute(
-      sql`SELECT name, sql FROM sqlite_master WHERE type = 'index' AND ${filter}`,
-    )
-  ).rows;
-
-/** The rows that one PRAGMA reports for a table. */
-export const pragmaRows = async (
-  pragma: "foreign_key_list" | "table_info",
-  table: string,
-) =>
-  (await getDb().execute(sql`PRAGMA ${sqlName(pragma)}(${sqlName(table)})`))
-    .rows;
 
 /** Get the set of existing column names for a table */
 export const getExistingColumns = async (table: string): Promise<Set<string>> =>

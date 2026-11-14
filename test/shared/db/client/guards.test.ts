@@ -1,12 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import {
-  abortUnless,
-  execute,
-  executeBatch,
-  executeChangedRow,
-  queryOne,
-} from "#db/client.ts";
+import { execute, executeBatch, queryOne } from "#db/client.ts";
+import { abortUnless, executeChangedRow } from "#db/guarded-writes.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
