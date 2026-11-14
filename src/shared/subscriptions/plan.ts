@@ -8,7 +8,7 @@
 
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
-import { assessTax } from "#shared/tax/assessment.ts";
+import { assessTax, roundedRatio } from "#shared/tax/assessment.ts";
 import type { TaxPolicy } from "#shared/tax/types.ts";
 
 export const RecurringIntervalSchema = v.picklist(["week", "month", "year"]);
@@ -148,5 +148,5 @@ export const renewalTax = (
   paid: number,
 ): number => {
   if (paid === plan.price) return plan.tax;
-  return Math.round((paid * plan.tax) / plan.price);
+  return roundedRatio(paid, plan.tax, BigInt(plan.price));
 };
