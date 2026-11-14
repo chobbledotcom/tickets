@@ -4,11 +4,11 @@
  * and terms) are addressed by name. Site → Pages admits owners and
  * editors, so the JSON API matches.
  *
- * The content-page writes skip the generic CRUD writer (defineCrudApi).
- * A create carries its root order, and the slug index moves with the
- * slug. A delete clears the tree edges with the row. The fixed pages
- * are settings-backed. Their content is the public page text, changed
- * through the settings writers. Parsers and auth are the shared ones.
+ * The content-page writes go through the shared site-page record, with this
+ * module's own parent-change route beside it. A create carries its root order,
+ * and the slug index moves with the slug. A delete clears the tree edges with
+ * the row. The fixed pages are settings-backed. Their content is the public
+ * page text, changed through the settings writers.
  */
 
 import { logActivity } from "#db/activity-log.ts";
@@ -37,14 +37,22 @@ import {
   ADMIN_API_RESOURCES,
   type AdminApiSitePage,
 } from "#shared/admin-api-resources.ts";
+import { sitePageRecord } from "#shared/records/site-pages.ts";
+import type { CrudApiHandlers } from "#shared/rest/crud-api-types.ts";
 import {
   apiEntityGate,
   parseAndValidate,
   type RowBodyHandler,
 } from "#shared/rest/crud-parsers.ts";
+import type { RecordShapeOf } from "#shared/rest/record.ts";
+import {
+  apiHandlerSet,
+  recordApi,
+  recordJsonPolicy,
+} from "#shared/rest/record-api.ts";
 import { transactionValidationMessageOrRethrow } from "#shared/rest/write-error.ts";
 import type { Result } from "#shared/result.ts";
-import { SITE_ADMIN_LEVELS, type SitePage, type SitePageItem } from "#types";
+import type { SitePage, SitePageItem } from "#types";
 import {
   planParentChange,
   toFixedPageContent,
@@ -57,18 +65,12 @@ const RESPONSE_KEY = "page";
 /** The page rows the list answers with, in the order the form's list shows. */
 const LIST_ORDER = { order: "sort_order ASC, id ASC" } as const;
 
-/** The page-write audience: the roles the Site → Pages form declares, with
- *  API-key auth. auth.ts holds the shared presets and sits at its size pin.
- *  This resource therefore carries its own. */
-const SITE_API = {
-  allowApiKey: true,
-  body: "json",
-  roles: SITE_ADMIN_LEVELS,
-} as const;
+/** The page-write audience: the roles the Site → Pages page declares, with
+ *  API-key auth. The surface table is the one place the roles are written. */
+const SITE_API = recordJsonPolicy(sitePageRecord);
 
 /** Validate the mapped input, then run `run` with it. A mapping refusal
- *  answers its error response. The same shape crud-api.ts wraps its mappers
- *  in. */
+ *  answers its error response. */
 const withValidated = async (
   raw: Result<SitePageWriteInput>,
   run: (input: SitePageWriteInput) => Promise<Response>,
@@ -325,26 +327,37 @@ const handleFixedUpdate = (name: FixedPageName): RouteHandlerFn =>
 const handleFixedRefusal = (verb: "created" | "deleted"): RouteHandlerFn =>
   fixedPageRoute(async () => apiErrorResponse(`fixed pages cannot be ${verb}`));
 
-/** The four routes one fixed page answers to. The literal name segment beats
- *  the content pages' `:pageId` route (which only matches digits). */
-const fixedPageRoutes = (
-  name: FixedPageName,
-): Record<string, RouteHandlerFn> => ({
-  [`DELETE /api/admin/site-pages/${name}`]: handleFixedRefusal("deleted"),
-  [`GET /api/admin/site-pages/${name}`]: handleFixedGet(name),
-  [`POST /api/admin/site-pages/${name}`]: handleFixedRefusal("created"),
-  [`PUT /api/admin/site-pages/${name}`]: handleFixedUpdate(name),
-});
+/** The four routes one fixed page answers to, keyed the way the resource
+ *  table declares them. The literal name segment beats the content pages'
+ *  `:pageId` route (which only matches digits). */
+const FIXED_PAGE_NAMES = ["contact", "home", "terms"] as const;
+
+const fixedPageHandlers = Object.fromEntries(
+  FIXED_PAGE_NAMES.flatMap((name) => [
+    [`${name}-delete`, handleFixedRefusal("deleted")],
+    [`${name}-get`, handleFixedGet(name)],
+    [`${name}-post`, handleFixedRefusal("created")],
+    [`${name}-put`, handleFixedUpdate(name)],
+  ]),
+) as NonNullable<CrudApiHandlers<typeof ENTRY>["customHandlers"]>;
 
 // ─── Routes ─────────────────────────────────────────────────────
 
-export const sitePageApiRoutes: Record<string, RouteHandlerFn> = {
-  "DELETE /api/admin/site-pages/:pageId": handleDelete,
-  "GET /api/admin/site-pages": handleList,
-  "GET /api/admin/site-pages/:pageId": handleGet,
-  "POST /api/admin/site-pages": handleCreate,
-  "PUT /api/admin/site-pages/:pageId": handleUpdate,
-  ...fixedPageRoutes("contact"),
-  ...fixedPageRoutes("home"),
-  ...fixedPageRoutes("terms"),
-};
+export const sitePageApiRoutes = recordApi<
+  typeof ENTRY,
+  RecordShapeOf<SitePage, SitePageWriteInput, SitePage>
+>(sitePageRecord, {
+  customHandlers: fixedPageHandlers,
+  overrides: apiHandlerSet(
+    handleCreate,
+    handleDelete,
+    handleGet,
+    handleList,
+    handleUpdate,
+  ),
+  // The page body mapper is one function for both doors: its `existing`
+  // argument is null on a create. The handlers above call it directly, so the
+  // record's generated write path reads the same declaration.
+  toCreateInput: toPageWrite,
+  toUpdateInput: toPageWrite,
+});

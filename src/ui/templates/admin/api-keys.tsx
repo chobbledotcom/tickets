@@ -9,6 +9,7 @@ import { apiKeyForm } from "#routes/admin/api-keys-form.ts";
 import type { EndpointDoc } from "#shared/admin-api-example/endpoint-doc.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
 import { Flash } from "#shared/forms/flash.tsx";
+import type { ApiKeyDisplay } from "#shared/records/api-keys.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { renderAdminPage } from "#templates/admin/admin-page.tsx";
@@ -25,13 +26,6 @@ import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import type { AdminSession } from "#types";
-
-export type ApiKeyDisplay = {
-  id: number;
-  name: string;
-  created: string;
-  lastUsed: string;
-};
 
 /** Render a last-used date, or "never" when the key has not been used. */
 const lastUsedCell = (apiKey: ApiKeyDisplay): string =>

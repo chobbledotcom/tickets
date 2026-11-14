@@ -6,6 +6,7 @@ import {
   listingCatalogFields,
 } from "#shared/catalog-fields/fields.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
+import { testListing } from "#test-utils/factories.ts";
 
 interface DefaultColumn {
   default?: (() => unknown) | undefined;
@@ -17,6 +18,57 @@ const defaultsOf = (columns: Record<string, DefaultColumn>) =>
       column.default ? [[name, column.default()]] : [],
     ),
   );
+
+/* jscpd:ignore-start -- a list of strings, not code */
+const LISTING_API_FIELDS = [
+  "active",
+  "bookableAlone",
+  "bookableDays",
+  "canPayMore",
+  "closesAt",
+  "customisableDays",
+  "date",
+  "description",
+  "durationDays",
+  "fields",
+  "hidden",
+  "listingType",
+  "location",
+  "maxAttendees",
+  "maxPrice",
+  "maxQuantity",
+  "maximumDaysAfter",
+  "minQuantity",
+  "minimumDaysBefore",
+  "nonTransferable",
+  "thankYouUrl",
+  "unitPrice",
+  "useDefaults",
+  "webhookUrl",
+];
+
+const LISTING_FORM_FIELDS = [
+  "bookableAlone",
+  "canPayMore",
+  "customisableDays",
+  "description",
+  "durationDays",
+  "fields",
+  "hidden",
+  "initialSiteMonths",
+  "location",
+  "maxAttendees",
+  "maxQuantity",
+  "maximumDaysAfter",
+  "minQuantity",
+  "minimumDaysBefore",
+  "monthsPerUnit",
+  "name",
+  "nonTransferable",
+  "purchaseOnly",
+  "thankYouUrl",
+];
+/* jscpd:ignore-end */
 
 describe("catalog fields", () => {
   test("declares every listing storage default", () => {
@@ -82,92 +134,18 @@ describe("catalog fields", () => {
   });
 
   test("declares every listing API and form field", () => {
-    const values = {
-      active: false,
-      bookable_alone: false,
-      bookable_days: [],
-      can_pay_more: false,
-      closes_at: "",
-      customisable_days: false,
-      date: "",
-      description: "",
-      duration_days: 1,
-      fields: "email",
-      hidden: false,
-      initial_site_months: 0,
-      listing_type: "standard",
-      location: "",
-      max_attendees: 1,
-      max_price: 0,
-      max_quantity: 1,
-      maximum_days_after: 0,
-      min_quantity: 1,
-      minimum_days_before: 0,
-      months_per_unit: 0,
-      name: "Listing",
-      non_transferable: false,
-      purchase_only: false,
-      thank_you_url: "",
-      unit_price: 0,
-      use_defaults: false,
-      webhook_url: "",
-    };
+    const values = testListing();
 
     expect(
       Object.keys(
         projectCatalogFields(listingCatalogFields, "api", values),
       ).toSorted(),
-    ).toEqual([
-      "active",
-      "bookableAlone",
-      "bookableDays",
-      "canPayMore",
-      "closesAt",
-      "customisableDays",
-      "date",
-      "description",
-      "durationDays",
-      "fields",
-      "hidden",
-      "listingType",
-      "location",
-      "maxAttendees",
-      "maxPrice",
-      "maxQuantity",
-      "maximumDaysAfter",
-      "minQuantity",
-      "minimumDaysBefore",
-      "nonTransferable",
-      "thankYouUrl",
-      "unitPrice",
-      "useDefaults",
-      "webhookUrl",
-    ]);
+    ).toEqual(LISTING_API_FIELDS);
     expect(
       Object.keys(
         projectCatalogFields(listingCatalogFields, "form", values),
       ).toSorted(),
-    ).toEqual([
-      "bookableAlone",
-      "canPayMore",
-      "customisableDays",
-      "description",
-      "durationDays",
-      "fields",
-      "hidden",
-      "initialSiteMonths",
-      "location",
-      "maxAttendees",
-      "maxQuantity",
-      "maximumDaysAfter",
-      "minQuantity",
-      "minimumDaysBefore",
-      "monthsPerUnit",
-      "name",
-      "nonTransferable",
-      "purchaseOnly",
-      "thankYouUrl",
-    ]);
+    ).toEqual(LISTING_FORM_FIELDS);
   });
 
   test("declares every form-only default", () => {

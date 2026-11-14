@@ -5,21 +5,17 @@ import { groups } from "#db/groups.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import {
   adjustModifierRevenue,
-  getAllModifiers,
   getModifier,
   getModifierAggregateRecalculation,
   getModifierAnswerIds,
   MODIFIER_AGGREGATE_FIELDS,
   type ModifierAggregateValues,
   type ModifierInput,
-  type ModifierRow,
   modifierAggregates,
   modifierGroups,
   modifierListings,
-  modifiersTable,
 } from "#db/modifiers.ts";
 import { getAllQuestionsWithAnswers } from "#db/questions/queries.ts";
-import { once } from "#fp";
 import { t } from "#i18n";
 import {
   createRecalculateHandlers,
@@ -27,26 +23,22 @@ import {
   parseEditableAggregateForm,
   recalculateRoute,
 } from "#routes/admin/aggregate-recalculation.ts";
-import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
-import {
-  defineEditEntityPage,
-  type EditEntityPage,
-} from "#routes/admin/entity-write-tab.ts";
+import type { EditEntityPage } from "#routes/admin/entity-write-tab.ts";
 import { loadAccountLedger } from "#routes/admin/ledger/statements.ts";
-import {
-  crudRoutes,
-  defineAdminRoutes,
-  entityTabRoutes,
-} from "#routes/admin/route-tables.ts";
-import { withAuth } from "#routes/auth.ts";
+import { defineAdminRoutes, recordRoutes } from "#routes/admin/route-tables.ts";
+import { type AuthSession, withAuth } from "#routes/auth.ts";
 import { adminRedirect, notFoundResponse } from "#routes/response.ts";
 import { formPolicyAt } from "#routes/route-gates.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 import { toMinorUnits } from "#shared/currency.ts";
+import type { FormParams } from "#shared/form-data.ts";
+import { checkedValues } from "#shared/forms/validation.ts";
 import { matchKey } from "#shared/keys.ts";
 import { validateCalcValue } from "#shared/price-modifier.ts";
-import { defineResource } from "#shared/rest/resource.ts";
+import { modifierRecord } from "#shared/records/modifiers.ts";
+import { recordPages } from "#shared/rest/record-pages.ts";
+import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { exceedsCurrencyPrecision } from "#shared/validation/money.ts";
 import { adminModifierRecalculatePage } from "#templates/admin/modifiers/aggregates.tsx";
 import type {
@@ -67,9 +59,9 @@ import {
 } from "#templates/fields/modifier.ts";
 import type { Modifier } from "#types";
 import { withEntityLoader } from "./entity-handlers.ts";
-import { childAddOnSaveError } from "./modifier-add-on-reachability.ts";
 import { handleAnswerLinks, handleScopeLinks } from "./modifier-links.ts";
 import { makeMoneyAdjustHandler } from "./money-adjust.ts";
+import { recordEditPage } from "./record-edit-page.ts";
 
 /** Build modifier input from validated form values. The value is stored as
  * the positive magnitude the owner typed. The signed engine value is
@@ -98,28 +90,6 @@ const extractModifierInput = async (
   };
 };
 
-const childAddOnInputError = async (
-  input: ModifierInput,
-  id: number | undefined,
-): Promise<string | null> => {
-  if (input.trigger !== "optional" || input.active !== true) return null;
-  // Resolve from the stored links. An edit does not change them, and a
-  // create has none. `resolveAddOnScope` keeps only the set matching the
-  // input's scope.
-  const [listingIds, groupIds] = await Promise.all([
-    id === undefined ? [] : modifierListings.getIds(id),
-    id === undefined ? [] : modifierGroups.getIds(id),
-  ]);
-  return childAddOnSaveError({
-    active: true,
-    groupIds,
-    listingIds,
-    name: input.name,
-    scope: input.scope,
-    trigger: "optional",
-  });
-};
-
 const modifierValuesError = (values: ModifierFormValues): string | null => {
   const valueError = validateCalcValue(
     values.calc_kind,
@@ -132,33 +102,6 @@ const modifierValuesError = (values: ModifierFormValues): string | null => {
     ? "Amount has more decimal places than your currency allows"
     : null;
 };
-
-const validateModifier = (
-  input: ModifierInput,
-  id?: number,
-): Promise<string | null> => {
-  if (input.trigger === "code" && !input.code) {
-    return Promise.resolve("A promo-code modifier needs a code");
-  }
-  // The form refuses a fraction for both whole-number fields, and its message
-  // names the field. This resource checks only the trigger rules below.
-  const isOptionalAddOn = input.trigger === "optional";
-  const requiresPreviousBookings = Number(input.minVisits) > 0;
-  if (isOptionalAddOn && requiresPreviousBookings) {
-    return Promise.resolve("Optional add-ons cannot require previous bookings");
-  }
-  return childAddOnInputError(input, id);
-};
-
-const getModifiersResource = once(() =>
-  defineResource<ModifierRow, ModifierInput, number, ModifierFormValues>({
-    form: getModifierForm(),
-    table: modifiersTable,
-    toInput: extractModifierInput,
-    validate: validateModifier,
-    validateValues: modifierValuesError,
-  }),
-);
 
 const scopeLinksFor = async (
   modifier: Modifier,
@@ -232,10 +175,8 @@ const loadModifierEditPanel = async (
   });
 };
 
-const modifierPage: EditEntityPage<Modifier> = defineEditEntityPage({
-  deleteDestination: "modifierDelete",
+const modifierPage: EditEntityPage<Modifier> = recordEditPage(modifierRecord, {
   deleteLabelKey: "modifiers.delete.submit",
-  destination: "modifier",
   edit: (modifier, ctx, rejected) =>
     loadModifierEditPanel(
       modifier,
@@ -247,28 +188,71 @@ const modifierPage: EditEntityPage<Modifier> = defineEditEntityPage({
     "/admin/guide#modifiers",
     "modifiers.guide_link",
   ),
-  load: (id) => getModifier(id),
   navActive: { section: adminPattern("modifiers") },
-  recordId: (modifier) => modifier.id,
 });
 
-// The list and entity page load the ledger-projected Modifier. Writes and
-// the delete confirmation use the stored ModifierRow.
-const crud = createCrudHandlers({
-  getAll: getAllModifiers,
-  getName: (m: ModifierRow) => m.name,
-  identifierLabel: t("modifiers.name_label"),
-  list: "modifiers",
-  operations: getModifiersResource,
+// The list and edit pages load the ledger-projected Modifier. The delete
+// confirmation and every write use the stored ModifierRow.
+const pages = recordPages(modifierRecord, {
+  form: getModifierForm(),
   renderDelete: adminModifierDeletePage,
   renderEditError: modifierPage.renderEditError,
   renderList: adminModifiersPage,
   renderNew: adminModifierNewPage,
-  singular: "Modifier",
+  toInput: extractModifierInput,
+  validateValues: modifierValuesError,
 });
 
 const withModifier = withEntityLoader(getModifier);
 
+/** Parse the edit form the way the standard page door does: the schema, then
+ * the cross-field value rule, then the record's input. */
+const modifierEditInput = async (
+  form: FormParams,
+): Promise<Result<ModifierInput>> => {
+  const parsed = checkedValues(
+    getModifierForm().validate(form),
+    modifierValuesError,
+  );
+  return parsed.ok
+    ? okResult(await extractModifierInput(parsed.value))
+    : parsed;
+};
+
+/** The running totals the edit form carries, if any, or the error to render. */
+const modifierEditAggregates = (
+  form: FormParams,
+): Result<ModifierAggregateValues | null> => {
+  const aggregates = parseEditableAggregateForm<ModifierAggregateValues>(
+    form,
+    getModifierAggregateFields(),
+  );
+  return aggregates.ok
+    ? okResult(aggregates.input)
+    : errorResult(aggregates.error);
+};
+
+/** Write the edited row through the record, then save the running totals that
+ * ride outside its input. */
+const applyModifierEdit = async (
+  id: number,
+  session: AuthSession,
+  form: FormParams,
+  input: ModifierInput,
+  aggregates: ModifierAggregateValues | null,
+): Promise<Response> => {
+  const result = await modifierRecord.update(id, input);
+  if (result.kind === "written") {
+    if (aggregates) await modifierAggregates.update(id, aggregates);
+    return adminRedirect("modifiers", {}, t("modifiers.updated"), true);
+  }
+  return result.kind === "not-found"
+    ? notFoundResponse()
+    : modifierPage.renderEditError(id, session, form, result.message);
+};
+
+/** The edit POST also saves the running totals, which are not part of the
+ * record's input. The record's one write still owns the row and its log. */
 const handleEditPost: TypedRouteHandler<"POST /admin/modifiers/:id/edit"> = (
   request,
   { id },
@@ -276,31 +260,29 @@ const handleEditPost: TypedRouteHandler<"POST /admin/modifiers/:id/edit"> = (
   withAuth(
     request,
     formPolicyAt("/admin/modifiers/:id/edit"),
-    async (_session, form) => {
+    async (session, form) => {
       const modifier = await getModifier(id);
       if (!modifier) return notFoundResponse();
-      const aggregates = parseEditableAggregateForm<ModifierAggregateValues>(
-        form,
-        getModifierAggregateFields(),
-      );
+      const aggregates = modifierEditAggregates(form);
       if (!aggregates.ok) {
         return modifierPage.renderEditError(
           id,
-          _session,
+          session,
           form,
           aggregates.error,
         );
       }
-      const result = await getModifiersResource().update(id, form);
-      if (result.ok) {
-        if (aggregates.input) {
-          await modifierAggregates.update(id, aggregates.input);
-        }
-        await logActivity(`Modifier '${result.row.name}' updated`);
-        return adminRedirect("modifiers", {}, t("modifiers.updated"), true);
+      const parsed = await modifierEditInput(form);
+      if (!parsed.ok) {
+        return modifierPage.renderEditError(id, session, form, parsed.error);
       }
-      if ("notFound" in result) return notFoundResponse();
-      return modifierPage.renderEditError(id, _session, form, result.error);
+      return applyModifierEdit(
+        id,
+        session,
+        form,
+        parsed.value,
+        aggregates.value,
+      );
     },
   );
 
@@ -353,8 +335,7 @@ const handleModifierRecalculatePost: TypedRouteHandler<"POST /admin/modifiers/re
 /** Modifier routes. The edit POST restates the standard key with its own
  * handler. */
 export const adminHandlers = defineAdminRoutes({
-  ...crudRoutes(adminPattern("modifiers"), crud),
-  ...entityTabRoutes(adminPattern("modifier"), modifierPage),
+  ...recordRoutes("modifiers", pages, modifierPage),
   "GET /admin/modifiers/recalculate/:modifierId": handleModifierRecalculateGet,
   "POST /admin/modifiers/:id/answers": handleAnswerLinks,
   "POST /admin/modifiers/:id/edit": handleEditPost,

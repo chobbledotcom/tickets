@@ -86,7 +86,7 @@ describeWithEnv("KEK v2 (password-bound DATA_KEY)", { db: true }, () => {
       const cookie = response.headers
         .getSetCookie()
         .find((c) => c.startsWith(`${getSessionCookieName()}=`));
-      expect(cookie).toBeDefined();
+      expect(cookie).toContain(`${getSessionCookieName()}=`);
     });
 
     test("acceptInvite is single-use: a replay cannot overwrite the account", async () => {
@@ -138,7 +138,7 @@ describeWithEnv("KEK v2 (password-bound DATA_KEY)", { db: true }, () => {
       expect(response.status).toBe(302);
       assertStringIncludes(
         response.headers.get("location") ?? "",
-        "/admin/user/new",
+        "/admin/users/new",
       );
       expect(await getUserByUsername("guarded")).toBeNull();
     });
@@ -292,7 +292,7 @@ describeWithEnv("KEK v2 (password-bound DATA_KEY)", { db: true }, () => {
         owner.wrapped_data_key!,
         await deriveKEKFromPassword(TEST_ADMIN_PASSWORD, hash),
       );
-      expect(dataKey).toBeDefined();
+      expect(dataKey.type).toBe("secret");
     });
   });
 });

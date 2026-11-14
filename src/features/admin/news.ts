@@ -1,106 +1,60 @@
 /**
- * Admin CRUD for news posts, under Site → News. Owner + editor (the shared
- * Site-tab gates in `site-content.ts`). Posts are a flat newest-first list
- * with no ordering controls. The `/news/:slug` permalink is auto-generated on
- * create (never entered) and editable on the edit page. The edit page also
- * carries the shared images panel (image_uses with item_type 'news').
+ * Admin CRUD for news posts, under Site → News. Owner + editor (the site
+ * gates). Posts are a flat newest-first list with no ordering controls. The
+ * news record owns the writes. The entity page and the image panel are the
+ * custom routes beside the generated six.
  */
 
-import { logActivity } from "#db/activity-log.ts";
-import {
-  createNewsPost,
-  deleteNewsPostWithImages,
-  getNewsPostById,
-  getNewsPostSummaries,
-  type NewsPostWriteInput,
-  updateNewsPost,
-} from "#db/news-posts.ts";
-import { t } from "#i18n";
+import { getNewsPostById } from "#db/news-posts.ts";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
+import { newsRecord } from "#shared/records/news.ts";
+import { recordPages } from "#shared/rest/record-pages.ts";
 import { normalizeSlug } from "#shared/slug.ts";
 import {
   adminNewsDeletePage,
   adminNewsListPage,
   adminNewsNewPage,
 } from "#templates/admin/news.tsx";
-import type { NewsPost } from "#types";
 import { seoContentInput } from "./content-form-fields.ts";
+import {
+  contentImageHandlers,
+  contentPagePaths,
+  contentRecordRoutes,
+} from "./content-save.ts";
 import { newsPostEditForm, newsPostForm } from "./news-form.ts";
 import { newsPage } from "./news-page.ts";
-import { contentWriteOrError, defineSiteContent } from "./site-content.ts";
 
 type NewsContentValues = Parameters<typeof seoContentInput>[0] & {
   snippet: string;
 };
 
-const newsContentInput = (values: NewsContentValues): NewsPostWriteInput => ({
+const newsContentInput = (values: NewsContentValues) => ({
   ...seoContentInput(values),
   snippet: values.snippet,
 });
 
-const content = defineSiteContent("/admin/site/news", (paths) => ({
-  create: {
-    flashMessage: t("news.created"),
-    logMessage: (post: NewsPost) => `News post '${post.name}' created`,
-    write: (values: NewsContentValues, transaction) =>
-      createNewsPost(newsContentInput(values), transaction),
-  },
-  createForm: newsPostForm,
-  delete: {
-    identifier: (post: NewsPost) => post.name,
-    identifierLabel: t("news.name_label"),
-    onConfirm: async (post: NewsPost) => {
-      await deleteNewsPostWithImages(post.id);
-      await logActivity(`News post '${post.name}' deleted`);
-    },
-    render: adminNewsDeletePage,
-    successMessage: t("news.deleted"),
-  },
+const pages = recordPages(newsRecord, {
+  ...contentPagePaths(newsRecord),
   editForm: newsPostEditForm,
-  entityPage: newsPage,
-  imageType: "news",
-  load: getNewsPostById,
-  loadList: getNewsPostSummaries,
+  form: newsPostForm,
+  renderDelete: adminNewsDeletePage,
+  renderEditError: newsPage.renderEditError,
   renderList: adminNewsListPage,
   renderNew: adminNewsNewPage,
-  update: {
-    flashMessage: t("news.updated"),
-    logMessage: (
-      _post: NewsPost,
-      values: NewsContentValues & { slug: string },
-    ) => `News post '${values.name}' updated`,
-    write: async (
-      values: NewsContentValues & { slug: string },
-      transaction,
-      post,
-    ) =>
-      contentWriteOrError(
-        await updateNewsPost(
-          post.id,
-          {
-            ...newsContentInput(values),
-            // The form validator already checked the normalized slug's format.
-            slug: normalizeSlug(values.slug),
-          },
-          transaction,
-        ),
-        paths.edit(post.id),
-        t("news.error.slug_taken"),
-      ),
-  },
-}));
+  toEditInput: (values: NewsContentValues & { slug: string }) => ({
+    ...newsContentInput(values),
+    slug: normalizeSlug(values.slug),
+  }),
+  toInput: newsContentInput,
+});
 
-// ─── Routes ─────────────────────────────────────────────────────
+const images = contentImageHandlers({
+  itemType: "news",
+  load: getNewsPostById,
+  nameOf: (post) => post.name,
+  record: newsRecord,
+});
 
 export const adminHandlers = defineAdminRoutes({
-  "GET /admin/site/news": content.list,
-  "GET /admin/site/news/:id": content.entity,
-  "GET /admin/site/news/:id/:tab": content.entityTab,
-  "GET /admin/site/news/:id/delete": content.deletePage,
-  "GET /admin/site/news/new": content.newPage,
-  "POST /admin/site/news": content.create,
-  "POST /admin/site/news/:id/delete": content.delete,
-  "POST /admin/site/news/:id/edit": content.update,
-  "POST /admin/site/news/:id/images": content.images.set,
-  "POST /admin/site/news/:id/images/upload": content.images.upload,
+  ...contentRecordRoutes("news", pages, images, newsPage),
 });

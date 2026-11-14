@@ -17,10 +17,7 @@ import {
   queryOne,
   type TxScope,
 } from "#db/client.ts";
-import {
-  idAndEncryptedNameSchema,
-  type NamedSortOrderInput,
-} from "#db/common-schema.ts";
+import { fieldColumns, type NamedSortOrderInput } from "#db/common-schema.ts";
 import { linkTableSide } from "#db/link-table.ts";
 import {
   type ListingOption,
@@ -39,11 +36,11 @@ import {
   unique,
   uniqueBy,
 } from "#fp";
+import { ATTRIBUTE_FIELDS } from "#shared/records/attribute-fields.ts";
+import type { FieldsRow } from "#shared/rest/field-specs.ts";
 import type { Listing } from "#types";
 
-export type Attribute = {
-  id: number;
-  name: string;
+export type Attribute = FieldsRow<typeof ATTRIBUTE_FIELDS> & {
   sort_order: number;
 };
 
@@ -70,7 +67,7 @@ export const attributesTable = defineTable<Attribute, NamedSortOrderInput>({
   name: "attributes",
   primaryKey: "id",
   schema: {
-    ...idAndEncryptedNameSchema(encrypt, decrypt),
+    ...fieldColumns(ATTRIBUTE_FIELDS)(encrypt, decrypt),
     sort_order: col.withDefault(() => 0),
   },
 });

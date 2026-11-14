@@ -13,6 +13,7 @@ import {
   stubUpdateFetch,
   useLocalStoragePath,
 } from "#test-utils/_shared-site-update.ts";
+import { expectAreaRoutes } from "#test-utils/area-routes.ts";
 import { expectFlash, expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -60,15 +61,10 @@ describeWithEnv("admin update routes", { db: true }, () => {
   });
 
   test("declares the check and deploy routes", async () => {
-    // A static or destructured import would make the test-only-export scan
-    // count every adminHandlers export as test-only, so the routes load the
-    // way the area loader loads them: dynamic import, member access.
-    const update = await import("#routes/admin/update.ts");
-    expect(Object.keys(update.adminHandlers).toSorted()).toEqual([
-      "GET /admin/update",
-      "POST /admin/update",
-      "POST /admin/update/check",
-    ]);
+    await expectAreaRoutes(
+      () => import("#routes/admin/update.ts"),
+      ["GET /admin/update", "POST /admin/update", "POST /admin/update/check"],
+    );
   });
 
   test("shows the update page", async () => {

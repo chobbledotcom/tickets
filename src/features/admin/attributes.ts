@@ -6,17 +6,14 @@ import {
   attributeOptionsOrder,
   attributeOptionsTable,
   attributesOrder,
-  attributesTable,
-  deleteAttribute,
   deleteAttributeOption,
-  getAllAttributesWithOptions,
   getAttributeId,
   getAttributeIdsOrdered,
   getAttributeListingUse,
   getAttributeWithOptions,
   listingAttributeOptions,
 } from "#db/attributes.ts";
-import { type TxScope, writeRowInTransaction } from "#db/client.ts";
+import type { TxScope } from "#db/client.ts";
 import {
   flatCollectionSwap,
   insertScopedOrderedRow,
@@ -24,31 +21,31 @@ import {
 } from "#db/ordered-collection.ts";
 import { t } from "#i18n";
 import {
-  createConfirmedHandlers,
   createVerifiedFormRoute,
   verifiedDelete,
 } from "#routes/admin/confirmation.ts";
-import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
+import {
+  defineAdminRoutes,
+  listCrudRoutes,
+  orderRoutes,
+} from "#routes/admin/route-tables.ts";
 import { formGuard, formPolicyFor, pageGuardFor } from "#routes/auth.ts";
 import {
   createEntityHandler,
   entityPageById,
-  idRouteFor,
   orNotFound,
   throughParent,
 } from "#routes/entity.ts";
-import {
-  adminRedirect,
-  htmlResponse,
-  redirectToDetail,
-} from "#routes/response.ts";
-import { authPageAt } from "#routes/route-gates.ts";
-import { adminDestinationAt } from "#shared/admin-surface.ts";
+import { adminRedirect, htmlResponse } from "#routes/response.ts";
+import type { AdminPathParams } from "#shared/admin-surface/ids.ts";
+import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
 import {
   createAuthedFormRoute,
   createOrderedCollectionHandlers,
 } from "#shared/app-forms.ts";
 import { getFlash } from "#shared/flash-context.ts";
+import { attributeRecord } from "#shared/records/attributes.ts";
+import { recordPages } from "#shared/rest/record-pages.ts";
 import {
   adminAttributeDeletePage,
   adminAttributeOptionDeletePage,
@@ -66,39 +63,16 @@ import {
   optionListingCounts,
 } from "./attribute-page-data.ts";
 import { createListingChoicePost } from "./listing-choice-post.ts";
-import {
-  appendWithCreationLog,
-  confirmDeleteWithLog,
-} from "./logged-actions.ts";
 
-const handleAttributesGet = authPageAt("/admin/attributes")(async (session) => {
-  const flash = getFlash();
-  return adminAttributesPage(
-    await getAllAttributesWithOptions(),
-    session,
-    flash.error,
-  );
-});
-
-const handleAttributesPost = createAuthedFormRoute({
-  auth: formPolicyFor(adminDestinationAt("/admin/attributes")),
+const pages = recordPages(attributeRecord, {
+  createErrorPath: "/admin/attributes",
+  editErrorPath: (id) => `/admin/attributes/${id}`,
   form: attributeNameForm,
-  onInvalid: ({ error }) => adminRedirect("attributes", {}, error, false),
-  onValid: async ({ values: { name } }) => {
-    // One transaction: an attribute must never exist without its order entry
-    // or its log line.
-    const attributeId = await writeRowInTransaction(
-      await attributesTable.insertStatement({ name }),
-      null,
-      appendWithCreationLog(attributesOrder, "Attribute", name),
-    );
-    return adminRedirect(
-      "attribute",
-      { id: attributeId },
-      t("attributes.created"),
-      true,
-    );
-  },
+  identifier: (attribute) => attributeNameFlat(attribute.name),
+  renderDelete: adminAttributeDeletePage,
+  renderList: (rows, session) =>
+    adminAttributesPage(rows, session, getFlash().error),
+  toInput: ({ name }) => ({ name }),
 });
 
 /** The listing usage both detail pages show: which listings selected each of
@@ -131,14 +105,11 @@ const handleAttributeGet = entityPageById(
   },
 );
 
-type AttributeParams = { id: number };
 type AttributeOptionParams = { id: number; optionId: number };
 type AttributeOptionContext = {
   attribute: AttributeWithOptions;
   option: AttributeOption;
 };
-
-const redirectToAttribute = redirectToDetail("attribute");
 
 const logAttributeOptionActivity = (
   optionText: string,
@@ -196,62 +167,29 @@ export const renameAttributeOptionWithLog = async (
   await logAttributeOptionActivity(text, "updated in", attribute);
 };
 
-const handleAttributeEdit = createAuthedFormRoute<
-  { name: string },
-  AttributeParams
->({
-  auth: formPolicyFor(adminDestinationAt("/admin/attributes/:id/edit")),
-  form: attributeNameForm,
-  onInvalid: redirectToAttribute,
-  onValid: ({ params, values: { name } }) =>
-    orNotFound(getAttributeWithOptions(params.id), async () => {
-      await attributesTable.update(params.id, { name });
-      await logActivity(`Attribute '${name}' updated`);
-      return adminRedirect(
-        "attribute",
-        { id: params.id },
-        t("attributes.updated"),
-        true,
-      );
-    }),
-});
+/** One option form's refusal, back on the page that submitted it. */
+const optionFormRefusal =
+  <Id extends "attribute" | "attributeOptionEdit">(destination: Id) =>
+  ({ error, params }: { error: string; params: AdminPathParams<Id> }) =>
+    adminRedirect(destination, params, error, false);
 
-const handleAddOption = createAuthedFormRoute<
-  { text: string },
-  AttributeParams
->({
-  auth: formPolicyFor(adminDestinationAt("/admin/attributes/:id/options")),
-  form: attributeOptionForm,
-  onInvalid: redirectToAttribute,
-  onValid: ({ params, values: { text } }) =>
-    orNotFound(getAttributeWithOptions(params.id), async (attribute) => {
-      // One transaction: an option must never exist without its place in the
-      // order or its log line.
-      await addAttributeOptionWithLog(attribute, text);
-      return adminRedirect(
-        "attribute",
-        { id: params.id },
-        t("attributes.option_added"),
-        true,
-      );
-    }),
-});
-
-const attributeDelete = createConfirmedHandlers<AttributeWithOptions>({
-  identifier: (attribute) => attributeNameFlat(attribute.name),
-  identifierLabel: () => t("attributes.name_label"),
-  load: getAttributeWithOptions,
-  onConfirm: confirmDeleteWithLog(
-    deleteAttribute,
-    "Attribute",
-    (attribute) => attribute.name,
-  ),
-  path: "/admin/attributes/:id/delete",
-  render: (attribute, session, error) =>
-    adminAttributeDeletePage(attribute, session, error),
-  successMessage: "Attribute deleted",
-  successRedirect: "/admin/attributes",
-});
+const handleAddOption = createAuthedFormRoute<{ text: string }, { id: number }>(
+  {
+    auth: formPolicyFor(adminDestinationAt("/admin/attributes/:id/options")),
+    form: attributeOptionForm,
+    onInvalid: optionFormRefusal("attribute"),
+    onValid: ({ params, values: { text } }) =>
+      orNotFound(getAttributeWithOptions(params.id), async (attribute) => {
+        await addAttributeOptionWithLog(attribute, text);
+        return adminRedirect(
+          "attribute",
+          { id: params.id },
+          t("attributes.option_added"),
+          true,
+        );
+      }),
+  },
+);
 
 const loadAttributeOption = ({ id, optionId }: AttributeOptionParams) =>
   throughParent(getAttributeWithOptions(id), (attribute) => {
@@ -341,8 +279,7 @@ const handleEditOptionPost = createAuthedFormRoute<
   ),
   form: attributeOptionForm,
   loadContext: loadAttributeOption,
-  onInvalid: ({ error, params }) =>
-    adminRedirect("attributeOptionEdit", params, error, false),
+  onInvalid: optionFormRefusal("attributeOptionEdit"),
   onValid: async ({ context: { attribute, option }, values: { text } }) => {
     await renameAttributeOptionWithLog(attribute, option, text);
     return adminRedirect(
@@ -372,7 +309,7 @@ const optionOrder = createOrderedCollectionHandlers({
 const attributeOrder = createOrderedCollectionHandlers({
   auth: formPolicyFor(adminDestinationAt("/admin/attributes/:id/move-up")),
   keys: getAttributeIdsOrdered,
-  loadContext: ({ id }: AttributeParams) => getAttributeId(id),
+  loadContext: ({ id }: { id: number }) => getAttributeId(id),
   movedMessage: "Attribute moved",
   redirectPath: () => "/admin/attributes",
   swap: flatCollectionSwap(attributesOrder),
@@ -392,20 +329,14 @@ const handleListingAttributesPost = createListingChoicePost({
 });
 
 export const adminHandlers = defineAdminRoutes({
-  "GET /admin/attributes": handleAttributesGet,
+  ...listCrudRoutes(adminPattern("attributes"), pages),
   "GET /admin/attributes/:id": handleAttributeGet,
-  "GET /admin/attributes/:id/delete": idRouteFor(attributeDelete.get),
   "GET /admin/attributes/:id/options/:optionId/delete": handleDeleteOptionGet,
   "GET /admin/attributes/:id/options/:optionId/edit": handleEditOptionGet,
-  "POST /admin/attributes": handleAttributesPost,
-  "POST /admin/attributes/:id/delete": idRouteFor(attributeDelete.post),
-  "POST /admin/attributes/:id/edit": handleAttributeEdit,
-  "POST /admin/attributes/:id/move-down": attributeOrder.down,
-  "POST /admin/attributes/:id/move-up": attributeOrder.up,
+  ...orderRoutes("/admin/attributes/:id", attributeOrder),
   "POST /admin/attributes/:id/options": handleAddOption,
   "POST /admin/attributes/:id/options/:optionId/delete": handleDeleteOptionPost,
   "POST /admin/attributes/:id/options/:optionId/edit": handleEditOptionPost,
-  "POST /admin/attributes/:id/options/:optionId/move-down": optionOrder.down,
-  "POST /admin/attributes/:id/options/:optionId/move-up": optionOrder.up,
+  ...orderRoutes("/admin/attributes/:id/options/:optionId", optionOrder),
   "POST /admin/listing/:id/attributes": handleListingAttributesPost,
 });

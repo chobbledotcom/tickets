@@ -10,16 +10,27 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
   ADMIN_API,
+  type AuthPolicy,
   type AuthSession,
-  CONTENT_API,
   getAuthenticatedApiKey,
-  OWNER_API,
   withAuth,
 } from "#routes/auth.ts";
 import { MAX_APIKEY_ATTEMPTS } from "#shared/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { createTestApiKeyToken, requestAsApiKey } from "#test-utils/session.ts";
+import { CONTENT_ADMIN_LEVELS } from "#types";
+
+const contentApi: AuthPolicy<"json"> = {
+  allowApiKey: true,
+  body: "json",
+  roles: CONTENT_ADMIN_LEVELS,
+};
+const ownerApi: AuthPolicy<"json"> = {
+  allowApiKey: true,
+  body: "json",
+  role: "owner",
+};
 
 /** A request carrying whatever the caller wants in the Authorization header. */
 const withAuthorization = (value: string): Request =>
@@ -116,36 +127,20 @@ describeWithEnv("which JSON policies accept a key", { db: true }, () => {
       Promise.resolve(new Response(session.adminLevel)),
     );
 
-  test("the admin API does", async () => {
-    const apiKey = await createTestApiKeyToken();
+  for (const [name, policy] of [
+    ["admin API", ADMIN_API],
+    ["owner API", ownerApi],
+    ["content API", contentApi],
+  ] as const) {
+    test(`the ${name} does`, async () => {
+      const apiKey = await createTestApiKeyToken();
 
-    const response = await answerRole(ADMIN_API)(
-      requestAsApiKey("/api/admin/x", apiKey),
-    );
+      const response = await answerRole(policy)(
+        requestAsApiKey("/api/admin/x", apiKey),
+      );
 
-    expect(response.status).toBe(200);
-    expect(await response.text()).toBe("owner");
-  });
-
-  test("the owner API does", async () => {
-    const apiKey = await createTestApiKeyToken();
-
-    const response = await answerRole(OWNER_API)(
-      requestAsApiKey("/api/admin/x", apiKey),
-    );
-
-    expect(response.status).toBe(200);
-    expect(await response.text()).toBe("owner");
-  });
-
-  test("the content API does", async () => {
-    const apiKey = await createTestApiKeyToken();
-
-    const response = await answerRole(CONTENT_API)(
-      requestAsApiKey("/api/admin/x", apiKey),
-    );
-
-    expect(response.status).toBe(200);
-    expect(await response.text()).toBe("owner");
-  });
+      expect(response.status).toBe(200);
+      expect(await response.text()).toBe("owner");
+    });
+  }
 });
