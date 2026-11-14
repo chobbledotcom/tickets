@@ -3,9 +3,6 @@
  * page. The row keeps its cell narrow: the URL text may break, so the actions
  * wrap at the cell width instead of widening the fit-content table into a
  * sideways scroll. */
-
-@use "mixins" as *;
-
 .public-url-row {
   display: block;
   max-width: 100%;
@@ -48,7 +45,8 @@
 /* Keyboard focus on the hidden toggle lights up its Embed label: the
  * checkbox is visually hidden, so the label shows where focus is. */
 .embed-toggle:focus-visible ~ .public-url-row label {
-  @include focus-ring;
+  outline: 2px solid var(--color-secondary);
+  outline-offset: 2px;
 }
 
 /* The embed code rows stay hidden until the Embed action's hidden toggle is
