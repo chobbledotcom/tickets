@@ -23,6 +23,7 @@ import {
   refundedForBooking,
 } from "#db/attendees/select.ts";
 import { requireOne } from "#db/client.ts";
+import { type SqlStatement, sql, sqlLiteral } from "#db/sql.ts";
 import { isPaidListing, type Listing } from "#types";
 
 /**
@@ -58,8 +59,8 @@ export type ListingOverviewStats = {
  * `refundedForBooking` the row projection uses so the two cannot drift. It is
  * here so a refunded booking whose processed reference was later pruned is not
  * mistaken for a bare sale. */
-const notRefunded = (row: RefundedRowExprs): string =>
-  `NOT ${refundedForBooking(row)}`;
+const notRefunded = (row: RefundedRowExprs): SqlStatement =>
+  sql`NOT ${refundedForBooking(row)}`;
 
 /** SQL boolean (0/1) marking a `listing_attendees` row `listingAttendee` as an
  *  incomplete payment: a recognised `sale` leg for the booking with no
@@ -67,32 +68,25 @@ const notRefunded = (row: RefundedRowExprs): string =>
  *  group, nothing still owed, and no refund. Only paid listings can carry one,
  *  so `false` collapses the CASE arms for a free listing to their confirmed
  *  side. */
-const incompleteRowPredicate = (paid: boolean): string => {
-  if (!paid) return "0";
-  const hasSale = `EXISTS (SELECT 1 FROM transfers WHERE ${saleLegPredicate(
-    "listingAttendee.attendee_id",
-    "listingAttendee.listing_id",
-    "listingAttendee.ledger_event_group",
+const incompleteRowPredicate = (paid: boolean): SqlStatement => {
+  if (!paid) return sql`0`;
+  const hasSale = sql`EXISTS (SELECT 1 FROM transfers WHERE ${saleLegPredicate(
+    sql`listingAttendee.attendee_id`,
+    sql`listingAttendee.listing_id`,
+    sql`listingAttendee.ledger_event_group`,
   )})`;
-  const hasPayment =
-    `EXISTS (SELECT 1 FROM transfers WHERE kind = '${KIND.payment}'` +
-    ` AND ${accountPredicate(
-      "dest",
-      ATTENDEE,
-      "listingAttendee.attendee_id",
-    )}` +
-    " AND event_group = listingAttendee.ledger_event_group)";
-  const hasProviderReference =
-    "EXISTS (SELECT 1 FROM processed_payments AS payment" +
-    " WHERE payment.attendee_id = listingAttendee.attendee_id" +
-    " AND payment.payment_reference != '')";
-  const nothingOwed = `${attendeeOwedSubquery(
-    "listingAttendee.attendee_id",
+  const hasPayment = sql`EXISTS (SELECT 1 FROM transfers WHERE kind = ${sqlLiteral(
+    KIND.payment,
+  )} AND ${accountPredicate(
+    "dest",
+    ATTENDEE,
+    sql`listingAttendee.attendee_id`,
+  )} AND event_group = listingAttendee.ledger_event_group)`;
+  const hasProviderReference = sql`EXISTS (SELECT 1 FROM processed_payments AS payment WHERE payment.attendee_id = listingAttendee.attendee_id AND payment.payment_reference != '')`;
+  const nothingOwed = sql`${attendeeOwedSubquery(
+    sql`listingAttendee.attendee_id`,
   )} <= 0`;
-  return (
-    `(${hasSale} AND NOT ${hasPayment} AND NOT ${hasProviderReference}` +
-    ` AND ${nothingOwed} AND ${notRefunded(LISTING_ATTENDEE_REFUNDED_ROW)})`
-  );
+  return sql`(${hasSale} AND NOT ${hasPayment} AND NOT ${hasProviderReference} AND ${nothingOwed} AND ${notRefunded(LISTING_ATTENDEE_REFUNDED_ROW)})`;
 };
 
 type OverviewCountsRow = {
@@ -108,36 +102,28 @@ type OverviewCountsRow = {
  *  bookings that never received a payment — the revenue to exclude from the
  *  confirmed total. Zero for a free listing (queried only when paid). */
 const incompleteSales = async (listingId: number): Promise<number> => {
-  const saleToRevenue = `saleLeg.kind = '${KIND.sale}' AND ${accountPredicate(
-    "dest",
-    REVENUE,
-    "?",
-  )}`;
-  const noPayment =
-    `NOT EXISTS (SELECT 1 FROM transfers AS paymentLeg WHERE paymentLeg.kind = '${KIND.payment}'` +
-    " AND paymentLeg.dest_type = 'attendee' AND paymentLeg.dest_id = saleLeg.source_id" +
-    " AND paymentLeg.event_group = saleLeg.event_group)";
-  const noProviderReference =
-    "NOT EXISTS (SELECT 1 FROM processed_payments AS payment" +
-    " WHERE payment.attendee_id = CAST(saleLeg.source_id AS INTEGER)" +
-    " AND payment.payment_reference != '')";
-  const nothingOwed = `${attendeeOwedSubquery(
-    "CAST(saleLeg.source_id AS INTEGER)",
-  )} <= 0`;
+  const saleAttendeeId = sql`CAST(saleLeg.source_id AS INTEGER)`;
+  const saleToRevenue = sql`saleLeg.kind = ${sqlLiteral(
+    KIND.sale,
+  )} AND ${accountPredicate("dest", REVENUE, sql`${String(listingId)}`)}`;
+  const noPayment = sql`NOT EXISTS (SELECT 1 FROM transfers AS paymentLeg WHERE paymentLeg.kind = ${sqlLiteral(
+    KIND.payment,
+  )} AND paymentLeg.dest_type = 'attendee' AND paymentLeg.dest_id = saleLeg.source_id AND paymentLeg.event_group = saleLeg.event_group)`;
+  const noProviderReference = sql`NOT EXISTS (SELECT 1 FROM processed_payments AS payment WHERE payment.attendee_id = ${saleAttendeeId} AND payment.payment_reference != '')`;
+  const nothingOwed = sql`${attendeeOwedSubquery(saleAttendeeId)} <= 0`;
   // Every row here HAS a sale leg — the query reads from them — so the
   // placeholder arm is unreachable and says so rather than guessing a quantity.
   const notRefundedSale = notRefunded({
-    attendeeId: "CAST(saleLeg.source_id AS INTEGER)",
-    eventGroup: "saleLeg.event_group",
-    listingId: "CAST(saleLeg.dest_id AS INTEGER)",
-    placeholderWhen: "0",
+    attendeeId: saleAttendeeId,
+    eventGroup: sql`saleLeg.event_group`,
+    listingId: sql`CAST(saleLeg.dest_id AS INTEGER)`,
+    placeholderWhen: sql`0`,
   });
   const row = await requireOne<{ incomplete_sales: number | bigint }>(
-    `SELECT COALESCE(SUM(saleLeg.amount), 0) AS incomplete_sales
+    sql`SELECT COALESCE(SUM(saleLeg.amount), 0) AS incomplete_sales
        FROM transfers AS saleLeg
       WHERE ${saleToRevenue} AND ${noPayment} AND ${noProviderReference}
         AND ${nothingOwed} AND ${notRefundedSale}`,
-    [String(listingId)],
   );
   return Number(row.incomplete_sales);
 };
@@ -156,9 +142,9 @@ export const getListingOverviewStats = async (
 ): Promise<ListingOverviewStats> => {
   const paid = isPaidListing(listing);
   const incomplete = incompleteRowPredicate(paid);
-  const confirmed = `NOT ${incomplete} AND listingAttendee.quantity > 0`;
+  const confirmed = sql`NOT ${incomplete} AND listingAttendee.quantity > 0`;
   const countsPromise = requireOne<OverviewCountsRow>(
-    `SELECT
+    sql`SELECT
        COALESCE(SUM(CASE WHEN ${incomplete} THEN listingAttendee.quantity ELSE 0 END), 0) AS incomplete_quantity,
        COALESCE(SUM(CASE WHEN NOT ${incomplete} THEN listingAttendee.quantity ELSE 0 END), 0) AS complete_quantity_sum,
        COALESCE(SUM(CASE WHEN ${confirmed} THEN listingAttendee.quantity ELSE 0 END), 0) AS tickets_total,
@@ -167,8 +153,7 @@ export const getListingOverviewStats = async (
        COALESCE(SUM(CASE WHEN ${confirmed} AND listingAttendee.checked_in = listingAttendee.quantity THEN 1 ELSE 0 END), 0) AS rows_checked_in
      FROM listing_attendees AS listingAttendee
      JOIN attendees AS attendee ON attendee.id = listingAttendee.attendee_id
-     WHERE listingAttendee.listing_id = ? AND attendee.kind = '${ATTENDEE_KIND}'`,
-    [listing.id],
+     WHERE listingAttendee.listing_id = ${listing.id} AND attendee.kind = ${sqlLiteral(ATTENDEE_KIND)}`,
   );
   // Only a paid listing can carry never-paid sales, so a free listing skips the
   // ledger scan entirely.

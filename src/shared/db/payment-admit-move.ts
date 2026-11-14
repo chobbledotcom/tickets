@@ -7,7 +7,7 @@
  */
 
 import { queryAllPrimary, resultRows, type TxScope } from "#db/client.ts";
-import { idListStatement } from "#db/id-list-statement.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import {
   mirroredMoveRefusalOrNull,
   type PaymentWork,
@@ -38,13 +38,12 @@ export interface PaymentMoveSnapshot {
   readonly work: PaymentWork;
 }
 
-const moveWorkStatement = idListStatement(
-  (ids) => `SELECT DISTINCT payment.protected_state, charge.refund_state
+const moveWorkStatement = (attendeeIds: readonly number[]): SqlStatement =>
+  sql`SELECT DISTINCT payment.protected_state, charge.refund_state
           FROM processed_payments AS payment
           LEFT JOIN payment_charges AS charge
             ON charge.reference_index = payment.payment_reference_index
-         WHERE payment.attendee_id IN (${ids})`,
-);
+         WHERE payment.attendee_id IN (${sqlList(attendeeIds)})`;
 
 const admissionFor = (reason: string | null): PaymentMoveAdmission =>
   reason === null ? { kind: "available" } : { kind: "blocked", reason };

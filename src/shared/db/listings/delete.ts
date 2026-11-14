@@ -25,10 +25,7 @@ export const deleteListing = async (
     sql`DELETE FROM listing_attendees WHERE listing_id = ${listingId}`,
     sql`DELETE FROM listing_questions WHERE listing_id = ${listingId}`,
     sql`DELETE FROM listing_attribute_options WHERE listing_id = ${listingId}`,
-    numberedStatement(
-      (bind) =>
-        `DELETE FROM listing_parents WHERE parent_listing_id = ${bind(listingId)} OR child_listing_id = ${bind(listingId)}`,
-    ),
+    sql`DELETE FROM listing_parents WHERE parent_listing_id = ${listingId} OR child_listing_id = ${listingId}`,
     sql`DELETE FROM group_listings WHERE listing_id = ${listingId}`,
     clearItemEdgesStatement(sitePageItemTargets.of("listing")(listingId)),
     clearImageUsesForItemStatement(imageUseTargets.of("listing")(listingId)),

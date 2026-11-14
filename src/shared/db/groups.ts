@@ -31,11 +31,10 @@ import {
 } from "#db/listing-prices.ts";
 import { decryptListingWithCount } from "#db/listings/records.ts";
 import { type ListingRecordRow, listingReader } from "#db/listings/select.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
 import { PRICE_TYPE_GROUP, PRICE_TYPE_GROUP_DAY } from "#db/price-types.ts";
 import { envNameSource, rowsByIds } from "#db/query.ts";
 import { slugTakenIn } from "#db/slug-registry.ts";
-import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
+import { sql, sqlCommas, sqlJoin, sqlList, sqlLiteral, type SqlStatement } from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { equals, inList } from "#db/where-clauses.ts";
 import {
@@ -82,7 +81,7 @@ export const groups = cachedEntityTable<Group, GroupInput>(
   "groups",
   rawGroupsTable,
   {
-    fetchAll: () => rawGroupsTable.read.many({}, { order: "id ASC" }),
+    fetchAll: () => rawGroupsTable.read.many({}, { order: sql`id ASC` }),
     idOf: (g) => g.id,
     keyOf: (g) => g.slug_index,
     ttlMs: GROUPS_CACHE_TTL_MS,
@@ -152,11 +151,12 @@ export const getListingsByGroupIds = async (
   if (groupIds.length === 0) return new Map();
   type GroupListingRow = ListingRecordRow & { group_ids: string };
   type ListingGroups = { groupIds: number[]; member: ListingWithCount };
-  const { sql, args } = listingReader.statement({
-    order: "created_desc",
-    where: { activeOnly, inGroups: [...groupIds] },
-  });
-  const rows = await queryAll<GroupListingRow>(sql, args);
+  const rows = await queryAll<GroupListingRow>(
+    listingReader.statement({
+      order: "created_desc",
+      where: { activeOnly, inGroups: [...groupIds] },
+    }),
+  );
   const listingsWithGroups: ListingGroups[] = await mapParallel(
     async (row: GroupListingRow): Promise<ListingGroups> => ({
       groupIds: groupIdsJson.read(
@@ -214,11 +214,11 @@ export const getListingsByGroupId = async (
  * Empty input → false (no query). */
 const anyGroupMatching = async (
   groupIds: readonly number[],
-  condition: string,
+  condition: SqlStatement,
 ): Promise<boolean> => {
   if (groupIds.length === 0) return false;
   return rowExists(
-    sql`SELECT 1 FROM groups WHERE id IN (${sqlList(groupIds)}) AND ${TODO_SQL_TEXT(condition)} LIMIT 1`,
+    sql`SELECT 1 FROM groups WHERE id IN (${sqlList(groupIds)}) AND ${condition} LIMIT 1`,
   );
 };
 
@@ -229,7 +229,7 @@ const anyGroupMatching = async (
 export const anyHiddenPackageGroup = (
   groupIds: readonly number[],
 ): Promise<boolean> =>
-  anyGroupMatching(groupIds, "is_package = 1 AND hide_package_listings = 1");
+  anyGroupMatching(groupIds, sql`is_package = 1 AND hide_package_listings = 1`);
 
 /** Whether any of the given listings is a member of a package group. Empty
  * input → false (no query). Used to keep a package member from being turned into
@@ -395,12 +395,11 @@ const listingGroupDiffStatements = (
     statements.push(removeGroupPricesStatement([listingId], toRemove)!);
   }
   if (toAdd.length > 0) {
-    statements.push({
-      args: toAdd.flatMap((groupId) => [groupId, listingId]),
-      sql: `INSERT OR IGNORE INTO group_listings (group_id, listing_id) VALUES ${toAdd
-        .map(() => "(?, ?)")
-        .join(", ")}`,
-    });
+    statements.push(
+      sql`INSERT OR IGNORE INTO group_listings (group_id, listing_id) VALUES ${sqlCommas(
+        toAdd.map((groupId) => sql`(${groupId}, ${listingId})`),
+      )}`,
+    );
   }
   return statements;
 };
@@ -473,10 +472,10 @@ export const resetGroupListings = async (groupId: number): Promise<void> => {
  * `group_listings.package_price` column was retired). NULL when the member has no
  * override — exactly the old NULLable column's "charge the listing's own price".
  * `groupIdExpr` is the outer group id column (a `groupListing` alias is assumed). */
-const groupFlatPriceSubquery = (groupIdExpr: string): string =>
-  `(SELECT listingPrice.unit_price FROM listing_prices AS listingPrice
+const groupFlatPriceSubquery = (groupIdExpr: SqlStatement): SqlStatement =>
+  sql`(SELECT listingPrice.unit_price FROM listing_prices AS listingPrice
       WHERE listingPrice.listing_id = groupListing.listing_id
-        AND listingPrice.price_type = '${PRICE_TYPE_GROUP}'
+        AND listingPrice.price_type = ${sqlLiteral(PRICE_TYPE_GROUP)}
         AND listingPrice.price_id = CAST(${groupIdExpr} AS TEXT)) AS package_price`;
 
 /**
@@ -569,12 +568,12 @@ export const getGroupPackagePricesByGroupIds = async (
   Map.groupBy(
     await rowsByIds<GroupListing>(
       groupIds,
-      (placeholders) =>
-        `SELECT groupListing.group_id, groupListing.listing_id,
-            ${groupFlatPriceSubquery("groupListing.group_id")},
+      (boundIds) =>
+        sql`SELECT groupListing.group_id, groupListing.listing_id,
+            ${groupFlatPriceSubquery(sql`groupListing.group_id`)},
             groupListing.quantity
        FROM group_listings AS groupListing
-      WHERE groupListing.group_id IN (${placeholders})
+      WHERE groupListing.group_id IN (${boundIds})
    ORDER BY groupListing.listing_id ASC`,
     ),
     (row) => row.group_id,
@@ -590,19 +589,16 @@ const copyPackageOverridesStatement = (
   sourceListingId: number,
   newListingId: number,
 ): SqlStatement =>
-  numberedStatement((bind) => {
-    const sourceId = bind(sourceListingId);
-    return `UPDATE group_listings AS cloneMembership
+  sql`UPDATE group_listings AS cloneMembership
         SET quantity = (
               SELECT sourceMembership.quantity FROM group_listings AS sourceMembership
-               WHERE sourceMembership.group_id = cloneMembership.group_id AND sourceMembership.listing_id = ${sourceId})
-      WHERE cloneMembership.listing_id = ${bind(newListingId)}
+               WHERE sourceMembership.group_id = cloneMembership.group_id AND sourceMembership.listing_id = ${sourceListingId})
+      WHERE cloneMembership.listing_id = ${newListingId}
         AND cloneMembership.group_id IN (
               SELECT groupListing.group_id
                 FROM group_listings AS groupListing
-               WHERE groupListing.listing_id = ${sourceId})
+               WHERE groupListing.listing_id = ${sourceListingId})
         AND cloneMembership.group_id IN (SELECT id FROM groups WHERE is_package = 1)`;
-  });
 
 /** Copy the source's package overrides onto the duplicate's membership rows in
  * the SAME transaction that inserted them (the create write's `afterWrite`), so a
@@ -622,24 +618,19 @@ export const copyPackageMemberOverridesTx = async (
     copyPackageOverridesStatement(sourceListingId, newListingId),
   );
   await tx.execute(
-    numberedStatement((bind) => {
-      const newId = bind(newListingId);
-      const groupType = bind(PRICE_TYPE_GROUP);
-      const groupDayType = bind(PRICE_TYPE_GROUP_DAY);
-      return `INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price)
-          SELECT ${newId}, sourcePrice.price_type, sourcePrice.price_id, sourcePrice.unit_price
+    sql`INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price)
+          SELECT ${newListingId}, sourcePrice.price_type, sourcePrice.price_id, sourcePrice.unit_price
             FROM listing_prices AS sourcePrice
-           WHERE sourcePrice.listing_id = ${bind(sourceListingId)}
-             AND sourcePrice.price_type IN (${groupType}, ${groupDayType})
+           WHERE sourcePrice.listing_id = ${sourceListingId}
+             AND sourcePrice.price_type IN (${PRICE_TYPE_GROUP}, ${PRICE_TYPE_GROUP_DAY})
               AND EXISTS (
                 SELECT 1 FROM group_listings AS groupListing
-                 WHERE groupListing.listing_id = ${newId}
-                   AND ((sourcePrice.price_type = ${groupType}
+                 WHERE groupListing.listing_id = ${newListingId}
+                   AND ((sourcePrice.price_type = ${PRICE_TYPE_GROUP}
                            AND sourcePrice.price_id = CAST(groupListing.group_id AS TEXT))
-                     OR (sourcePrice.price_type = ${groupDayType}
+                     OR (sourcePrice.price_type = ${PRICE_TYPE_GROUP_DAY}
                            AND sourcePrice.price_id LIKE (groupListing.group_id || '/%')))
-              )`;
-    }),
+              )`,
   );
 };
 
@@ -656,17 +647,15 @@ const clearMembersStatement = (groupId: number) =>
 const memberQuantityStatement = (
   groupId: number,
   valid: PackageMemberInput[],
-) => {
-  const qtyCases = valid.map(() => " WHEN ? THEN ?").join("");
-  const args: number[] = [];
-  for (const { listingId, quantity } of valid) {
-    args.push(listingId, quantity ?? 1);
-  }
-  args.push(groupId);
-  return {
-    args,
-    sql: `UPDATE group_listings SET quantity = CASE listing_id ${qtyCases} ELSE 1 END WHERE group_id = ?`,
-  };
+): SqlStatement => {
+  const quantityCases = sqlJoin(
+    valid.map(
+      ({ listingId, quantity }) =>
+        sql` WHEN ${listingId} THEN ${quantity ?? 1}`,
+    ),
+    sql``,
+  );
+  return sql`UPDATE group_listings SET quantity = CASE listing_id ${quantityCases} ELSE 1 END WHERE group_id = ${groupId}`;
 };
 
 /** Keep only the submitted members that are CURRENT members of the group, so a
@@ -699,13 +688,10 @@ const applyPackageMembers = async (
   groupId: number,
   members: PackageMemberInput[],
   readCurrentIds: () => Promise<Set<number>>,
-  run: (stmt: {
-    args: (number | string | null)[];
-    sql: string;
-  }) => Promise<unknown>,
+  run: (stmt: SqlStatement) => Promise<unknown>,
 ): Promise<void> => {
   const applyMembers = async (
-    quantityStmt: { args: (number | string | null)[]; sql: string },
+    quantityStmt: SqlStatement,
     priceMembers: PackageMemberInput[],
   ): Promise<void> => {
     await run(quantityStmt);
@@ -753,14 +739,11 @@ export const setGroupListingsActive = async (
   tx?: TxScope,
 ): Promise<number> => {
   // Unaliased `id`: this UPDATE has no table alias for SQLite to qualify.
-  const sql = `UPDATE listings SET active = ? WHERE id IN (
+  const statement = sql`UPDATE listings SET active = ${active ? 1 : 0} WHERE id IN (
        SELECT groupListing.listing_id
          FROM group_listings AS groupListing
-        WHERE groupListing.group_id = ?)`;
-  const args = [active ? 1 : 0, groupId];
+        WHERE groupListing.group_id = ${groupId})`;
   const result =
-    tx === undefined
-      ? await execute(sql, args)
-      : await tx.execute({ args, sql });
+    tx === undefined ? await execute(statement) : await tx.execute(statement);
   return result.rowsAffected;
 };

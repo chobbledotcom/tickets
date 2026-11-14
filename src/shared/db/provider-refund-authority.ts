@@ -46,7 +46,7 @@ type StoredRefundAuthorityRow = {
   refund_state: string;
 };
 
-export const REFUND_AUTHORITY_COLUMNS = `id, provider, reference_index,
+export const REFUND_AUTHORITY_COLUMNS = sql`id, provider, reference_index,
   callback_replay_index, captured_amount, currency, refunded_amount,
   refund_state, refund_revision`;
 
@@ -79,7 +79,7 @@ const loadRefundAuthority = async (
   value: number | string,
 ): Promise<RefundAuthorityRow | null> => {
   const row = await queryOne<StoredRefundAuthorityRow>(
-    sql`SELECT ${TODO_SQL_TEXT(REFUND_AUTHORITY_COLUMNS)}
+    sql`SELECT ${REFUND_AUTHORITY_COLUMNS}
        FROM payment_charges
       WHERE ${TODO_SQL_TEXT(field)} = ${value}`,
   );
@@ -112,7 +112,7 @@ const loadRefundCallbackBinding = async ({
   referenceIndex,
 }: RefundCallbackBinding): Promise<RefundAuthorityRow | null> => {
   const owners = await queryAll<StoredRefundAuthorityRow>(
-    sql`SELECT ${TODO_SQL_TEXT(REFUND_AUTHORITY_COLUMNS)}
+    sql`SELECT ${REFUND_AUTHORITY_COLUMNS}
        FROM payment_charges
       WHERE reference_index = ${referenceIndex} OR callback_replay_index = ${callbackReplayIndex}`,
   );

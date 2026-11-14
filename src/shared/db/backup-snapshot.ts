@@ -61,7 +61,7 @@ const ROWS_PER_INSERT = 100;
 const DEFAULT_BACKUP_PAGE_SIZE = 500;
 
 /** Result-set key carrying the keyset cursor (rowid); stripped from the dump. */
-const ROWID_ALIAS = "__backup_rowid__";
+const ROWID_ALIAS = sql`__backup_rowid__`;
 
 type BackupRow = Record<string, unknown>;
 
@@ -70,7 +70,7 @@ const tablePageStatement = (
   cursor: number,
   pageSize: number,
 ): SqlStatement =>
-  sql`SELECT rowid AS ${TODO_SQL_TEXT(ROWID_ALIAS)}, * FROM ${TODO_SQL_TEXT(quoteId(table))} WHERE rowid > ${cursor} ORDER BY rowid LIMIT ${pageSize}`;
+  sql`SELECT rowid AS ${ROWID_ALIAS}, * FROM ${TODO_SQL_TEXT(quoteId(table))} WHERE rowid > ${cursor} ORDER BY rowid LIMIT ${pageSize}`;
 
 /** The snapshot-scoped page reader a dump's keyset loop reads through. */
 export type SnapshotReader = (statement: SqlStatement) => Promise<BackupRow[]>;

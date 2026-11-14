@@ -42,7 +42,7 @@ const REBUILD_PAGE_SIZE = 50;
 /** The rows a rebuild may touch: attendee-bearing rows that still hold a
  * payment reference with no blind index beside it. A rebuilt row leaves this
  * predicate, so every run naturally takes the next unrepaired page. */
-const LEGACY_ROW_PREDICATE = `
+const LEGACY_ROW_PREDICATE = sql`
        payment_reference != ''
        AND payment_reference_index = ''
        AND attendee_id IS NOT NULL`;
@@ -52,7 +52,7 @@ export const countLegacyPaymentReferences = async (): Promise<number> => {
     await queryOnePrimary<{ total: number }>(
       sql`SELECT COUNT(*) AS total
          FROM processed_payments
-        WHERE ${TODO_SQL_TEXT(LEGACY_ROW_PREDICATE)}`,
+        WHERE ${LEGACY_ROW_PREDICATE}`,
     ),
     "Legacy payment reference count returned no row",
   );
@@ -73,7 +73,7 @@ const loadLegacyPaymentReferencePage = (): Promise<
   queryAllPrimary<LegacyPaymentReferenceRow>(sql`SELECT attendee_id, payment_reference, payment_reference_index,
                  payment_session_id, processed_at
               FROM processed_payments
-             WHERE ${TODO_SQL_TEXT(LEGACY_ROW_PREDICATE)}
+             WHERE ${LEGACY_ROW_PREDICATE}
              ORDER BY processed_at, payment_session_id
              LIMIT ${REBUILD_PAGE_SIZE}`);
 

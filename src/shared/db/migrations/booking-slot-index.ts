@@ -7,7 +7,7 @@ import type { MigrationContext, SchemaRequirement } from "./types.ts";
  * a column to its identity) means DROP plus recreate. `syncIndexes` never
  * alters a same-named index whose columns changed. A widening migration drops
  * the old index first and lets the (updated) SCHEMA recreate it. */
-export const SLOT_INDEX = "idx_listing_attendees_listing_attendee_start";
+export const SLOT_INDEX = sql`idx_listing_attendees_listing_attendee_start`;
 
 /** The requirement an index-only widening migration declares and verifies. */
 export const SLOT_INDEX_REQUIREMENT: SchemaRequirement = {
@@ -20,7 +20,7 @@ export const recreateSlotIndex = async ({
   getDb,
   syncIndexes,
 }: Pick<MigrationContext, "getDb" | "syncIndexes">): Promise<void> => {
-  await getDb().execute(sql`DROP INDEX IF EXISTS ${TODO_SQL_TEXT(SLOT_INDEX)}`);
+  await getDb().execute(sql`DROP INDEX IF EXISTS ${SLOT_INDEX}`);
   await syncIndexes();
 };
 

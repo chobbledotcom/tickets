@@ -45,16 +45,14 @@ export const committedEntries = async (
                    attendee.kind,
                    listingAttendee.listing_id,
                    listingAttendee.package_group_id,
-                   ${TODO_SQL_TEXT(
-                     pricePaidFromLedger(
-                       "listingAttendee.attendee_id",
-                       "listingAttendee.listing_id",
-                       "listingAttendee.ledger_event_group",
-                       "listingAttendee.id",
-                     ),
+                   ${pricePaidFromLedger(
+                     sql`listingAttendee.attendee_id`,
+                     sql`listingAttendee.listing_id`,
+                     sql`listingAttendee.ledger_event_group`,
+                     sql`listingAttendee.id`,
                    )},
                    listingAttendee.quantity,
-                   ${TODO_SQL_TEXT(remainingBalanceFromLedger("attendee.id"))},
+                   ${remainingBalanceFromLedger(sql`attendee.id`)},
                    attendee.status_id,
                    attendee.ticket_token_index,
                    attendee.webhooks_pending

@@ -12,7 +12,6 @@ import {
   useTransaction,
 } from "#db/client.ts";
 import { defineIdTable } from "#db/define-id-table.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
 import { type Read, readOneRow, readRows, readStatement } from "#db/read.ts";
 import {
@@ -22,11 +21,18 @@ import {
   type RecordTargets,
 } from "#db/record-target.ts";
 import { settingsVersionIncrement } from "#db/settings/cache.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
+import {
+  type SqlStatement,
+  sql,
+  sqlCommas,
+  sqlJoin,
+  sqlLiteral,
+  sqlName,
+} from "#db/sql.ts";
 import { type ColumnDef, col, writeTableRow } from "#db/table.ts";
 import { readById } from "#db/table-reader.ts";
 import { txIdSetInTable } from "#db/transaction.ts";
-import { equals, inList } from "#db/where-clauses.ts";
+import { equals, everyClause, inList } from "#db/where-clauses.ts";
 import { groupToMap, unique } from "#fp";
 import { decryptImageFilename } from "#shared/images/broken.ts";
 import type { NonEmptyString } from "#shared/validation/string.ts";
@@ -102,29 +108,29 @@ export const imageFileColumns = imagesTable.read.pick([
 ]);
 
 export const getAllImages = (): Promise<Image[]> =>
-  imageColumns.many({}, { order: "id DESC" });
+  imageColumns.many({}, { order: sql`id DESC` });
 
 export const getImageById = readById(imagesTable);
 
 export const imageFilenameSubquery = (
   itemType: ImageUseItemType,
-  itemIdExpr: string,
+  itemIdExpr: SqlStatement,
   filenameColumn: "filename" | "filename_thumb" | "alt_text",
   alias: string,
-): string =>
-  `COALESCE((SELECT image.${filenameColumn}
+): SqlStatement =>
+  sql`COALESCE((SELECT ${sqlName(`image.${filenameColumn}`)}
       FROM image_uses AS imageUse
       JOIN images AS image ON image.id = imageUse.image_id
-     WHERE imageUse.item_type = '${itemType}'
+     WHERE imageUse.item_type = ${sqlLiteral(itemType)}
        AND imageUse.item_id = ${itemIdExpr}
      ORDER BY imageUse.sort_order ASC, imageUse.image_id ASC
-     LIMIT 1), '') AS ${alias}`;
+     LIMIT 1), '') AS ${sqlName(alias)}`;
 
 export const imageFilenameSubqueries = (
   itemType: ImageUseItemType,
-  itemIdExpr: string,
-): string =>
-  [
+  itemIdExpr: SqlStatement,
+): SqlStatement =>
+  sqlCommas([
     imageFilenameSubquery(itemType, itemIdExpr, "filename", "image_url"),
     imageFilenameSubquery(itemType, itemIdExpr, "alt_text", "image_alt_text"),
     imageFilenameSubquery(
@@ -133,19 +139,19 @@ export const imageFilenameSubqueries = (
       "filename_thumb",
       "image_thumb_url",
     ),
-  ].join(", ");
+  ]);
 
 /** The images attached to one item, in the order the operator arranged them.
  * Both image reads below want the same rows and differ only in which columns
  * they open, so they say it once here. */
 const imagesOfItem = (
-  columns: string,
+  columns: SqlStatement,
   itemType: ImageUseItemType,
   itemId: number,
 ): Read => ({
   columns,
-  from: "image_uses AS imageUse JOIN images AS image ON image.id = imageUse.image_id",
-  order: "imageUse.sort_order ASC, imageUse.image_id ASC",
+  from: sql`image_uses AS imageUse JOIN images AS image ON image.id = imageUse.image_id`,
+  order: sql`imageUse.sort_order ASC, imageUse.image_id ASC`,
   where: imageUseTargets.where(
     imageUseTargets.of(itemType)(itemId),
     "imageUse",
@@ -184,7 +190,7 @@ export const getImagesForItem = async (
   };
   const rows = await readRows<OrderedImageRow>(
     imagesOfItem(
-      `${imageColumns.columnsSql("image")}, imageUse.sort_order`,
+      sql`${imageColumns.columnsSql("image")}, imageUse.sort_order`,
       itemType,
       itemId,
     ),
@@ -204,9 +210,9 @@ export const getImageUsesForImages = async (
 ): Promise<Map<number, ImageUse[]>> => {
   if (imageIds.length === 0) return new Map();
   const rows = await readRows<ImageUse>({
-    columns: "image_id, item_type, item_id, sort_order",
-    from: "image_uses",
-    order: "image_id ASC, item_type ASC, item_id ASC",
+    columns: sql`image_id, item_type, item_id, sort_order`,
+    from: sql`image_uses`,
+    order: sql`image_id ASC, item_type ASC, item_id ASC`,
     where: inList("image_id", [...imageIds]),
   });
   return groupToMap(
@@ -221,9 +227,9 @@ const imageUsesForImage =
   (primary: boolean) =>
   (imageId: number): Promise<ImageUse[]> => {
     const read: Read = {
-      columns: "image_id, item_type, item_id, sort_order",
-      from: "image_uses",
-      order: "item_type ASC, item_id ASC",
+      columns: sql`image_id, item_type, item_id, sort_order`,
+      from: sql`image_uses`,
+      order: sql`item_type ASC, item_id ASC`,
       where: equals("image_id", imageId),
     };
     return primary
@@ -270,14 +276,10 @@ const linkImageStatement = (
   target: ImageUseTarget,
   sortOrder: number,
 ): SqlStatement =>
-  numberedStatement((bind) => {
-    const image = bind(imageId);
-    const itemId = bind(target.id);
-    return `INSERT OR IGNORE INTO image_uses (image_id, item_type, item_id, sort_order)
-          SELECT ${image}, ${bind(target.kind)}, ${itemId}, ${bind(sortOrder)}
-           WHERE EXISTS (SELECT 1 FROM images WHERE id = ${image})
-             AND ${imageUseTargets.existsSql(target.kind, itemId)}`;
-  });
+  sql`INSERT OR IGNORE INTO image_uses (image_id, item_type, item_id, sort_order)
+          SELECT ${imageId}, ${target.kind}, ${target.id}, ${sortOrder}
+           WHERE EXISTS (SELECT 1 FROM images WHERE id = ${imageId})
+             AND ${imageUseTargets.existsSql(target.kind, target.id)}`;
 
 /** Clear every image link of one record. */
 export const clearImageUsesForItemStatement =
@@ -316,23 +318,12 @@ const clearStaleImageUseTargetsStatement = (
   imageId: number,
   targets: readonly ImageUseTarget[],
 ): SqlStatement => {
-  const kept = targets.map((target) => imageUseTargets.where(target));
-  return {
-    args: [
-      imageId,
-      ...kept.flatMap((clauses) => clauses.flatMap((clause) => clause.args)),
-    ],
-    sql: `DELETE FROM image_uses WHERE image_id = ?${
-      kept.length === 0
-        ? ""
-        : ` AND NOT (${kept
-            .map(
-              (clauses) =>
-                `(${clauses.map((clause) => clause.clause).join(" AND ")})`,
-            )
-            .join(" OR ")})`
-    }`,
-  };
+  const kept = targets.map(
+    (target) => sql`(${everyClause(imageUseTargets.where(target))})`,
+  );
+  return sql`DELETE FROM image_uses WHERE image_id = ${imageId}${
+    kept.length === 0 ? sql`` : sql` AND NOT (${sqlJoin(kept, sql` OR `)})`
+  }`;
 };
 
 /** Set one image's links to exactly the records named. Naming none of them

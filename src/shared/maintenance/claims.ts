@@ -3,7 +3,7 @@ import { execute, queryOne } from "#db/client.ts";
 import { sql, sqlList } from "#db/sql.ts";
 
 const DATABASE_NOW_MS =
-  "CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)";
+  sql`CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)`;
 
 export type MaintenanceClaim = {
   checkpoint: string | null;
@@ -40,17 +40,17 @@ export const claimNextMaintenanceTask = async (
   const row = await queryOne<{ checkpoint: string | null; name: string }>(
     sql`UPDATE maintenance_tasks AS task
         SET lease_token = ${leaseToken},
-            lease_expires_at = ${TODO_SQL_TEXT(DATABASE_NOW_MS)} + ${leaseMs},
-            last_started_at = ${TODO_SQL_TEXT(DATABASE_NOW_MS)}
+            lease_expires_at = ${DATABASE_NOW_MS} + ${leaseMs},
+            last_started_at = ${DATABASE_NOW_MS}
       WHERE task.name = (
         SELECT candidate.name
           FROM maintenance_tasks AS candidate
          WHERE candidate.name IN (${sqlList(allowedNames)})
             AND candidate.completed_at IS NULL
-            AND candidate.next_run_at <= ${TODO_SQL_TEXT(DATABASE_NOW_MS)}
+            AND candidate.next_run_at <= ${DATABASE_NOW_MS}
            AND (
              candidate.lease_token IS NULL
-             OR candidate.lease_expires_at <= ${TODO_SQL_TEXT(DATABASE_NOW_MS)}
+             OR candidate.lease_expires_at <= ${DATABASE_NOW_MS}
            )
          ORDER BY candidate.next_run_at ASC, candidate.name ASC
          LIMIT 1
@@ -68,12 +68,12 @@ export const finishMaintenanceTask = async (
 ): Promise<void> => {
   const row = await queryOne<{ name: string }>(
     sql`UPDATE maintenance_tasks
-        SET next_run_at = ${TODO_SQL_TEXT(DATABASE_NOW_MS)} + ${result.intervalMs},
+        SET next_run_at = ${DATABASE_NOW_MS} + ${result.intervalMs},
             checkpoint = ${result.checkpoint},
-            completed_at = CASE WHEN ${result.completed ? 1 : 0} = 1 THEN ${TODO_SQL_TEXT(DATABASE_NOW_MS)} ELSE NULL END,
+            completed_at = CASE WHEN ${result.completed ? 1 : 0} = 1 THEN ${DATABASE_NOW_MS} ELSE NULL END,
             lease_token = NULL,
             lease_expires_at = NULL,
-            last_finished_at = ${TODO_SQL_TEXT(DATABASE_NOW_MS)}
+            last_finished_at = ${DATABASE_NOW_MS}
       WHERE name = ${claim.name} AND lease_token = ${claim.leaseToken}
       RETURNING name`,
   );

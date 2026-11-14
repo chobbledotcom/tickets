@@ -12,6 +12,7 @@ import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { defineIdTable } from "#db/define-id-table.ts";
 import { col } from "#db/table.ts";
 import { readById } from "#db/table-reader.ts";
+import { sql } from "#db/sql.ts";
 
 export type RawEmailTemplate = {
   id: number;
@@ -36,7 +37,7 @@ const emailTemplatesTable = defineIdTable<
 export const getAllRawEmailTemplates = (): Promise<RawEmailTemplate[]> =>
   emailTemplatesTable.read
     .pick(["id", "subject", "body"])
-    .many({}, { order: "id DESC" });
+    .many({}, { order: sql`id DESC` });
 
 export const getRawEmailTemplate = readById(emailTemplatesTable);
 

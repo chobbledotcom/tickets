@@ -49,7 +49,7 @@ export { STALE_RESERVATION_MS };
  * between call sites.
  */
 export const UNRESOLVED_RESERVATION =
-  "attendee_id IS NULL AND failure_data = ''";
+  sql`attendee_id IS NULL AND failure_data = ''`;
 
 /** Processed payment record */
 export type ProcessedPayment = {
@@ -110,7 +110,7 @@ export const releaseReservation: (sessionId: string) => Promise<void> =
 export const deleteAllStaleReservations = async (): Promise<number> => {
   const cutoff = isoBefore(STALE_RESERVATION_MS);
   const result = await execute(
-    sql`DELETE FROM processed_payments WHERE ${TODO_SQL_TEXT(UNRESOLVED_RESERVATION)} AND processed_at < ${cutoff}`,
+    sql`DELETE FROM processed_payments WHERE ${UNRESOLVED_RESERVATION} AND processed_at < ${cutoff}`,
   );
   return result.rowsAffected;
 };
@@ -139,7 +139,7 @@ export const reserveSession = async (
               protected_state = ${blank.protectedState},
               payment_reference = '',
               payment_reference_index = ''
-            WHERE ${TODO_SQL_TEXT(UNRESOLVED_RESERVATION)}
+            WHERE ${UNRESOLVED_RESERVATION}
               AND processed_payments.processed_at < ${staleBefore}
             RETURNING payment_session_id`,
     sql`SELECT payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data, payment_reference FROM processed_payments WHERE payment_session_id = ${sessionId}`,
@@ -172,7 +172,7 @@ export const finalizeSessionIfUnresolved = async (
 ): Promise<void> => {
   if (paymentReference === null) {
     await execute(
-      sql`UPDATE processed_payments SET attendee_id = ${attendeeId} WHERE payment_session_id = ${sessionId} AND ${TODO_SQL_TEXT(UNRESOLVED_RESERVATION)}`,
+      sql`UPDATE processed_payments SET attendee_id = ${attendeeId} WHERE payment_session_id = ${sessionId} AND ${UNRESOLVED_RESERVATION}`,
     );
     return;
   }
@@ -229,7 +229,7 @@ export const prepareSessionFailure = async (
   sessionId: string,
   failure: StoredPaymentFailure,
 ): Promise<PreparedSessionFailure> => ({
-  statement: sql`UPDATE processed_payments SET failure_data = ${await encrypt(storedSessionFailure(failure))} WHERE payment_session_id = ${sessionId} AND ${TODO_SQL_TEXT(UNRESOLVED_RESERVATION)}`,
+  statement: sql`UPDATE processed_payments SET failure_data = ${await encrypt(storedSessionFailure(failure))} WHERE payment_session_id = ${sessionId} AND ${UNRESOLVED_RESERVATION}`,
 });
 
 /** The stored outcome bytes a session row currently holds, read from the

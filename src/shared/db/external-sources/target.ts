@@ -16,7 +16,7 @@ import { type SqlStatement, sql } from "#db/sql.ts";
 import { EXTERNAL_LINK_KINDS, type ExternalLinkKind } from "./types.ts";
 
 /** The table the links live in. Trusted constant, never input. */
-const LINK_TABLE = "external_source_links";
+const LINK_TABLE = sql`external_source_links`;
 
 /** The columns a link stores its record target in. */
 const LINK_COLUMNS = { id: "link_id", kind: "link_type" };
@@ -51,4 +51,4 @@ export const repointExternalLinksStatement = (
   sourceId: number,
   targetId: number,
 ): SqlStatement =>
-  sql`UPDATE ${TODO_SQL_TEXT(LINK_TABLE)} SET ${TODO_SQL_TEXT(LINK_COLUMNS.id)} = ${targetId} WHERE ${TODO_SQL_TEXT(LINK_COLUMNS.kind)} = ${kind} AND ${TODO_SQL_TEXT(LINK_COLUMNS.id)} = ${sourceId}`;
+  sql`UPDATE ${LINK_TABLE} SET ${TODO_SQL_TEXT(LINK_COLUMNS.id)} = ${targetId} WHERE ${TODO_SQL_TEXT(LINK_COLUMNS.kind)} = ${kind} AND ${TODO_SQL_TEXT(LINK_COLUMNS.id)} = ${sourceId}`;

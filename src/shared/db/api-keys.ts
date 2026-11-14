@@ -118,7 +118,7 @@ export const getApiKeysForUser = async (
 > => {
   const decrypted = await apiKeyListColumns.many(
     { user_id: userId },
-    { order: "id ASC" },
+    { order: sql`id ASC` },
   );
   return decrypted.map((row) => ({
     created: row.created,

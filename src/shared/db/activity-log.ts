@@ -25,7 +25,7 @@ import { decryptListingWithCount } from "#db/listings/records.ts";
 import { listingReader } from "#db/listings/select.ts";
 import { batchOnScope } from "#db/scope-batch.ts";
 import { CONFIG_KEYS, settings } from "#db/settings.ts";
-import type { SqlStatement } from "#db/sql.ts";
+import { sql, type SqlStatement } from "#db/sql.ts";
 import { col, defineTable } from "#db/table.ts";
 import { isNullish } from "#fp";
 import { nowIso } from "#shared/now.ts";
@@ -92,7 +92,7 @@ const logEntries = activityLogTable.read;
  * straight from the primary key / idx_activity_log_listing_id without a sort
  * over the unbounded log table.
  */
-const NEWEST_FIRST = { order: "id DESC" };
+const NEWEST_FIRST = { order: sql`id DESC` };
 
 /**
  * Decrypt a stored log message, routing by format prefix: owner-key (hybrid)

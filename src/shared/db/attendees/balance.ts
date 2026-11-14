@@ -8,7 +8,6 @@
  * balance is cleared is a no-op.
  */
 
-import type { InValue } from "@libsql/client";
 import { attendeeAccount, WORLD } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import {
@@ -60,8 +59,8 @@ export const getAttendeeBalanceState = async (
     status_id: number | null;
     remaining_balance: number;
   }>(
-    sql`SELECT status_id, ${TODO_SQL_TEXT(
-      remainingBalanceFromLedger("attendees.id"),
+    sql`SELECT status_id, ${remainingBalanceFromLedger(
+      sql`attendees.id`,
     )} FROM attendees WHERE id = ${attendeeId} AND kind = ${ATTENDEE_KIND}`,
   );
   return row
@@ -114,13 +113,10 @@ const attendeeOrderRowsStatement = (
       ORDER BY listingAttendee.id`;
 
 const attendeeOrderMoneyStatement = (attendeeId: number): SqlStatement => {
-  const sql = `SELECT ${externalCashBalanceSubquery("attendee", "?")} AS amount_paid,
-               ${orderTotalSubquery("attendee", "?")} AS full_price,
-               ${reservationSubtotalSubquery("attendee", "?")} AS reservation_subtotal`;
-  return {
-    args: Array.from(sql.matchAll(/\?/g), () => String(attendeeId)),
-    sql,
-  };
+  const id = sql`${String(attendeeId)}`;
+  return sql`SELECT ${externalCashBalanceSubquery("attendee", id)} AS amount_paid,
+               ${orderTotalSubquery("attendee", id)} AS full_price,
+               ${reservationSubtotalSubquery("attendee", id)} AS reservation_subtotal`;
 };
 
 const orderLineFromRow = async (row: OrderRow): Promise<OrderLine | null> =>
@@ -185,7 +181,7 @@ export const settleAttendeeBalance = async (
   attendeeId: number,
   expectedAmount: number,
   settle: { id: string; occurredAt: string },
-  extraStatements: { sql: string; args: InValue[] }[] = [],
+  extraStatements: SqlStatement[] = [],
 ): Promise<SettleBalanceResult> => {
   const state = await getAttendeeBalanceState(attendeeId);
   if (!state) return { reason: "not_found", settled: false };
@@ -198,16 +194,16 @@ export const settleAttendeeBalance = async (
   // atomic guard: both writes below fire only while they still owe exactly
   // `expectedAmount`. A concurrent settle whose payment leg already landed sees
   // owed = 0 and no-ops, so the balance settles exactly once — no stored column.
-  const owed = attendeeOwedSubquery(String(attendeeId));
+  const owed = attendeeOwedSubquery(sql`${attendeeId}`);
   const results = await executeBatchWithResults([
-    sql`UPDATE attendees SET status_id = status_id WHERE id = ${attendeeId} AND ${TODO_SQL_TEXT(owed)} = ${expectedAmount}`,
+    sql`UPDATE attendees SET status_id = status_id WHERE id = ${attendeeId} AND ${owed} = ${expectedAmount}`,
     sql`UPDATE attendees SET status_id = COALESCE(${paid.id}, status_id)
              WHERE id = ${attendeeId}
                AND status_id IN (
                  SELECT status.id FROM attendee_statuses AS status
                   WHERE status.is_reservation = 1
                )
-               AND ${TODO_SQL_TEXT(owed)} = ${expectedAmount}`,
+               AND ${owed} = ${expectedAmount}`,
     ...extraStatements,
     // An invoice bills this attendee's outstanding balance. Clearing that
     // balance closes the open invoice in the same transaction.
@@ -227,8 +223,7 @@ export const settleAttendeeBalance = async (
         source: WORLD,
       },
       nowIso(),
-      `${owed} = ?`,
-      [expectedAmount],
+      sql`${owed} = ${expectedAmount}`,
     ),
   ]);
 

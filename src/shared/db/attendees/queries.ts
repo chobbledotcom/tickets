@@ -16,14 +16,15 @@ import {
   pricePaidFromLedger,
   refundedFromLedger,
 } from "#db/attendees/select.ts";
-import {
-  inPlaceholders,
-  queryOne,
-  rowExists,
-  rowExistsForIdList,
-} from "#db/client.ts";
+import { queryOne, rowExists } from "#db/client.ts";
 import { columnFrom, columnMapByIds, nameSource } from "#db/query.ts";
-import { sql } from "#db/sql.ts";
+import {
+  type SqlStatement,
+  sql,
+  sqlCommas,
+  sqlList,
+  sqlLiteral,
+} from "#db/sql.ts";
 import type { AttendeeSort } from "#shared/attendee-list-controls.ts";
 import type { Attendee } from "#types";
 
@@ -33,23 +34,34 @@ import type { Attendee } from "#types";
  * pass either the table name or a query alias without the `sibling` subquery
  * shadowing bare column names.
  */
-export const listingAttendeeRowColumnsFrom = (sourceName: string): string => {
+export const listingAttendeeRowColumnsFrom = (
+  sourceName: string,
+): SqlStatement => {
   const column = columnFrom(sourceName);
-  return `${column("listing_id")}, ${column("start_at")}, ${column(
-    "end_at",
-  )}, ${column("quantity")}, ${column("checked_in")}, ${refundedFromLedger({
-    attendeeId: column("attendee_id"),
-    eventGroup: column("ledger_event_group"),
-    listingId: column("listing_id"),
-    placeholderWhen: `${column("quantity")} = 0`,
-  })}, ${pricePaidFromLedger(
-    column("attendee_id"),
+  return sqlCommas([
     column("listing_id"),
+    column("start_at"),
+    column("end_at"),
+    column("quantity"),
+    column("checked_in"),
+    refundedFromLedger({
+      attendeeId: column("attendee_id"),
+      eventGroup: column("ledger_event_group"),
+      listingId: column("listing_id"),
+      placeholderWhen: sql`${column("quantity")} = 0`,
+    }),
+    pricePaidFromLedger(
+      column("attendee_id"),
+      column("listing_id"),
+      column("ledger_event_group"),
+      column("id"),
+    ),
     column("ledger_event_group"),
-    column("id"),
-  )}, ${column("ledger_event_group")}, ${column("attachment_downloads")}, ${column(
-    "order_token",
-  )}, ${column("parent_listing_id")}, ${column("package_group_id")}`;
+    column("attachment_downloads"),
+    column("order_token"),
+    column("parent_listing_id"),
+    column("package_group_id"),
+  ]);
 };
 
 export const LISTING_ATTENDEE_ROW_COLS =
@@ -126,12 +138,9 @@ export const getNewestAttendeesRaw = (
     join: "left",
     order: "id_desc",
     where: {
-      attendeeIdsSubquery: {
-        args: [limit],
-        sql: `SELECT newest.id FROM attendees AS newest
-           WHERE newest.kind = '${ATTENDEE_KIND}'
-           ORDER BY newest.id DESC LIMIT ?`,
-      },
+      attendeeIdsSubquery: sql`SELECT newest.id FROM attendees AS newest
+           WHERE newest.kind = ${sqlLiteral(ATTENDEE_KIND)}
+           ORDER BY newest.id DESC LIMIT ${limit}`,
     },
   });
 
@@ -189,31 +198,26 @@ export const getAttendeesPage = async ({
 }): Promise<AttendeesPage> => {
   // An empty filter set matches nothing — e.g. a type with no listings yet.
   if (listingIds?.length === 0) return { hasNext: false, rows: [] };
-  // `dir` is derived from the AttendeeSort enum and the filter clause is fixed
-  // text, so neither is user-controlled — only the bound args are.
-  const dir = sort === "oldest" ? "ASC" : "DESC";
+  const oldestFirst = sort === "oldest";
   const lineFilter = listingIds
-    ? ` AND pageLine.listing_id IN (${inPlaceholders(listingIds)})`
-    : "";
+    ? sql` AND pageLine.listing_id IN (${sqlList(listingIds)})`
+    : sql``;
   const limit = ATTENDEES_PAGE_SIZE + 1;
   const offset = page * ATTENDEES_PAGE_SIZE;
   // The inner subquery pages the ATTENDEE ids (grouped, so paging counts
   // attendees not lines); getAttendees then returns every booking line for
-  // those attendees. The listing filter and LIMIT/OFFSET are bound args.
-  const idsArgs = listingIds ? [...listingIds, limit, offset] : [limit, offset];
+  // those attendees.
+
   const rows = await loadAttendeeRows({
-    order: dir === "ASC" ? "id_asc" : "id_desc",
+    order: oldestFirst ? "id_asc" : "id_desc",
     where: {
-      attendeeIdsSubquery: {
-        args: idsArgs,
-        sql: `SELECT pageAttendee.id
+      attendeeIdsSubquery: sql`SELECT pageAttendee.id
            FROM attendees AS pageAttendee
            JOIN listing_attendees AS pageLine ON pageLine.attendee_id = pageAttendee.id
-           WHERE pageAttendee.kind = '${ATTENDEE_KIND}'${lineFilter}
+           WHERE pageAttendee.kind = ${sqlLiteral(ATTENDEE_KIND)}${lineFilter}
            GROUP BY pageAttendee.id
-           ORDER BY pageAttendee.id ${dir}
-           LIMIT ? OFFSET ?`,
-      },
+           ORDER BY pageAttendee.id ${oldestFirst ? sql`ASC` : sql`DESC`}
+           LIMIT ${limit} OFFSET ${offset}`,
     },
   });
   return trimAttendeePage(rows);
@@ -276,19 +280,22 @@ export const getFirstBooking = async (
  * stale/missing key can leave it null), so a recorded payment is never dropped
  * onto a fresh quantity-0 row. Callers pass a non-empty list.
  */
-export const hasPaidLine = rowExistsForIdList(
-  (listingIdPlaceholders) =>
-    `SELECT 1 FROM listing_attendees AS listingAttendee
-     WHERE listingAttendee.attendee_id = ? AND listingAttendee.listing_id IN (${listingIdPlaceholders})
+export const hasPaidLine = (
+  attendeeId: number,
+  listingIds: number[],
+): Promise<boolean> =>
+  rowExists(
+    sql`SELECT 1 FROM listing_attendees AS listingAttendee
+     WHERE listingAttendee.attendee_id = ${attendeeId} AND listingAttendee.listing_id IN (${sqlList(listingIds)})
        AND EXISTS (
          SELECT 1 FROM transfers
          WHERE ${saleLegPredicate(
-           "listingAttendee.attendee_id",
-           "listingAttendee.listing_id",
-           "listingAttendee.ledger_event_group",
+           sql`listingAttendee.attendee_id`,
+           sql`listingAttendee.listing_id`,
+           sql`listingAttendee.ledger_event_group`,
          )}
        ) LIMIT 1`,
-);
+  );
 
 /**
  * The id of the attendee whose booking owns this ledger event group, or null

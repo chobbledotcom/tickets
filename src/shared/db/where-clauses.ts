@@ -82,14 +82,16 @@ export const rowsUnlessNoneMatch = <Row>(
   run: () => Promise<Row[]>,
 ): Promise<Row[]> => (matchesNoRows(where) ? Promise.resolve([]) : run());
 
+/** One condition that holds when every clause holds. */
+export const everyClause = (parts: readonly WhereClause[]): SqlStatement =>
+  sqlJoin(
+    parts.map((part) => part.clause),
+    sql` AND `,
+  );
+
 /** The ` WHERE …` tail for a set of clauses, or nothing when there are none. */
 export const whereSql = (parts: readonly WhereClause[]): SqlStatement =>
-  parts.length === 0
-    ? sql``
-    : sql` WHERE ${sqlJoin(
-        parts.map((part) => part.clause),
-        sql` AND `,
-      )}`;
+  parts.length === 0 ? sql`` : sql` WHERE ${everyClause(parts)}`;
 
 /** A delete over whichever rows the clauses it is given select. */
 type DeleteFromTable = (where: readonly WhereClause[]) => SqlStatement;

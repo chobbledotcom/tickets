@@ -31,9 +31,9 @@ export const queryColumnSet = async (
   stringColumnSet(await queryAll<Row>(statement), column);
 
 export const columnFrom =
-  (sourceName: string): ((name: string) => string) =>
-  (name: string): string =>
-    `${sourceName}.${name}`;
+  (sourceName: string): ((name: string) => SqlStatement) =>
+  (name: string): SqlStatement =>
+    sqlName(`${sourceName}.${name}`);
 
 /**
  * Run an id-keyed SELECT, short-circuiting to `[]` (no query) when `ids` is

@@ -20,7 +20,7 @@ export interface SmsMessageRow {
   provider_id: string;
 }
 
-const COLUMNS = "id, attendee_id, listing_id, provider_id, created";
+const COLUMNS = sql`id, attendee_id, listing_id, provider_id, created`;
 
 /** Record a sent message's gateway id against its attendee. */
 export const recordSmsMessage = async (input: {
@@ -44,7 +44,7 @@ export const getSmsMessageByProviderId = (
   providerId === ""
     ? Promise.resolve(null)
     : queryOne<SmsMessageRow>(
-        sql`SELECT ${TODO_SQL_TEXT(COLUMNS)} FROM sms_messages WHERE provider_id = ${providerId} LIMIT 1`,
+        sql`SELECT ${COLUMNS} FROM sms_messages WHERE provider_id = ${providerId} LIMIT 1`,
       );
 
 /** Delete a row once its message reaches a terminal state. */

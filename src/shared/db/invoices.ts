@@ -79,7 +79,7 @@ export const getInvoice = readById(invoicesTable);
 const summariesNewestFirst = (
   filter: RowFilter<InvoiceSummary>,
 ): Promise<InvoiceSummary[]> =>
-  invoicesTable.read.pick(SUMMARY_COLUMNS).many(filter, { order: "id DESC" });
+  invoicesTable.read.pick(SUMMARY_COLUMNS).many(filter, { order: sql`id DESC` });
 
 /** Every invoice, newest first, without its sealed body. */
 export const getInvoices = (): Promise<InvoiceSummary[]> =>
@@ -141,14 +141,14 @@ export const createInvoice = async ({
   return { invoice, shareToken };
 };
 
-/** The statement text that moves one new invoice to cancelled, and no other
+/** The statement that moves one new invoice to cancelled, and no other
  *  row. */
-export const CANCEL_INVOICE_SQL =
-  "UPDATE invoices SET status = 'cancelled' WHERE id = ? AND status = 'new'";
+export const cancelInvoiceStatement = (id: number): SqlStatement =>
+  sql`UPDATE invoices SET status = 'cancelled' WHERE id = ${id} AND status = 'new'`;
 
 /** Move one new invoice to cancelled. False when it was not new. */
 export const cancelInvoice = async (id: number): Promise<boolean> => {
-  const result = await execute(CANCEL_INVOICE_SQL, [id]);
+  const result = await execute(cancelInvoiceStatement(id));
   return result.rowsAffected > 0;
 };
 
@@ -163,7 +163,7 @@ export const deleteInvoice: (id: number) => Promise<void> = (id) =>
  */
 export const markOpenInvoicesPaidStatement = (
   attendeeId: number,
-  owedSql: string,
+  owedSql: SqlStatement,
   expectedAmount: InValue,
 ): SqlStatement => sql`UPDATE invoices SET status = 'paid'
-         WHERE attendee_id = ${attendeeId} AND status = 'new' AND ${TODO_SQL_TEXT(owedSql)} = ${expectedAmount}`;
+         WHERE attendee_id = ${attendeeId} AND status = 'new' AND ${owedSql} = ${expectedAmount}`;

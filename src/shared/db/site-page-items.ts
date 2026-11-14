@@ -40,7 +40,7 @@ import {
 } from "#shared/site-pages/target.ts";
 import type { SitePageItem, SitePageItemType } from "#types";
 
-const SELECT_COLS = "page_id, item_type, item_id, sort_order";
+const SELECT_COLS = sql`page_id, item_type, item_id, sort_order`;
 
 /** One item on one page — the composite key the edge table is unique on. */
 const itemOnPage = (
@@ -62,7 +62,7 @@ export const sitePageItemOrder = defineOrderedCollection({
   table: "site_page_items",
 });
 
-const allItemsStatement: SqlStatement = sql`SELECT ${TODO_SQL_TEXT(SELECT_COLS)} FROM site_page_items ORDER BY page_id ASC, sort_order ASC, item_id ASC`;
+const allItemsStatement: SqlStatement = sql`SELECT ${SELECT_COLS} FROM site_page_items ORDER BY page_id ASC, sort_order ASC, item_id ASC`;
 
 const fetchAllItems = (): Promise<SitePageItem[]> =>
   queryAll<SitePageItem>(allItemsStatement.sql);
@@ -89,7 +89,7 @@ export const invalidatePageItemsCache = (): void => itemsCache.invalidate();
  * {@link SitePageItem}s the core can consume). */
 export const getItemsForPage = (pageId: number): Promise<SitePageItem[]> =>
   queryAll<SitePageItem>(
-    sql`SELECT ${TODO_SQL_TEXT(SELECT_COLS)} FROM site_page_items WHERE page_id = ${pageId} ORDER BY sort_order ASC, item_id ASC`,
+    sql`SELECT ${SELECT_COLS} FROM site_page_items WHERE page_id = ${pageId} ORDER BY sort_order ASC, item_id ASC`,
   );
 
 type PageItemChange<T> = (
@@ -168,7 +168,7 @@ const addPageItemInTransaction: PageItemChangeInTransaction<boolean> = async (
     // same in-transaction snapshot, before inserting.
     const pageEdges = resultRows<SitePageItem>(
       await tx.execute(
-        sql`SELECT ${TODO_SQL_TEXT(SELECT_COLS)} FROM site_page_items WHERE item_type = 'page'`,
+        sql`SELECT ${SELECT_COLS} FROM site_page_items WHERE item_type = 'page'`,
       ),
     );
     // Single-parent: the page must not already be nested elsewhere.

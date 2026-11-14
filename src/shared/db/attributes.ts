@@ -108,7 +108,7 @@ export const listingAttributeOptions = linkTableSide(
   "option_id",
 );
 
-const ATTRIBUTE_COLS = `attribute.id AS attribute_id,
+const ATTRIBUTE_COLS = sql`attribute.id AS attribute_id,
        attribute.name AS attribute_name,
        attribute.sort_order AS attribute_sort_order,
        attributeOption.id AS option_id,
@@ -236,7 +236,7 @@ export const getAllAttributesWithOptions = async (): Promise<
 > =>
   groupAttributeRows(
     await queryAll<JoinedAttributeRow>(
-      sql`SELECT ${TODO_SQL_TEXT(ATTRIBUTE_COLS)}
+      sql`SELECT ${ATTRIBUTE_COLS}
          FROM attributes AS attribute
          LEFT JOIN attribute_options AS attributeOption
            ON attributeOption.attribute_id = attribute.id

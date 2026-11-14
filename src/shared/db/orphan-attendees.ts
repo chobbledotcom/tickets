@@ -12,19 +12,20 @@
 
 import { attendeeRemovalStatements } from "#db/attendees/delete.ts";
 import { executeBatchWithResults, queryAll, requireOne } from "#db/client.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { refundAuthorityWorkSql } from "#payment/refund-authority-lifecycle.ts";
 import { requireValue } from "#shared/required-value.ts";
 
 /** The shared database fact behind both kinds of orphan: no booking points at
  * the attendee. Keep it separate from age and payment state so cleanup and the
  * recovery queue cannot disagree about whether an attendee is an orphan. */
-const HAS_NO_BOOKINGS = `NOT EXISTS (
+const HAS_NO_BOOKINGS = sql`NOT EXISTS (
         SELECT 1 FROM listing_attendees AS booking
          WHERE booking.attendee_id = attendee.id
       )`;
 
 /** A payment row whose plaintext mirrors say work still blocks deletion. */
-const HAS_PAYMENT_WORK = `EXISTS (
+const HAS_PAYMENT_WORK = sql`EXISTS (
         SELECT 1 FROM processed_payments AS payment
         LEFT JOIN payment_charges AS charge
           ON charge.reference_index = payment.payment_reference_index
@@ -38,7 +39,7 @@ const HAS_PAYMENT_WORK = `EXISTS (
 /**
  * Selects the ids of orphaned attendees older than the bound cut-off. Defined
  * once and reused by every statement below so the "what counts as a purgeable
- * orphan" rule lives in a single place. The single `?` binds the ISO cut-off.
+ * orphan" rule lives in a single place.
  *
  * An orphan whose payment is mid-refund, or waiting on the owner, is left
  * where it is: those rows are the only sign money may still be moving. It
@@ -46,9 +47,9 @@ const HAS_PAYMENT_WORK = `EXISTS (
  * no more decrypt every orphan than the prune can — and the count and the
  * delete share this clause, so the page cannot promise a removal it keeps.
  */
-export const ORPHAN_IDS = `SELECT attendee.id
+const orphanIds = (cutoffIso: string): SqlStatement => sql`SELECT attendee.id
      FROM attendees AS attendee
-    WHERE attendee.created < ?
+    WHERE attendee.created < ${cutoffIso}
       AND ${HAS_NO_BOOKINGS}
       AND NOT ${HAS_PAYMENT_WORK}`;
 
@@ -76,15 +77,11 @@ export type OrphanPaymentWorkPage = {
 type PaymentWorkPageDirection =
   | {
       boundary: number;
-      comparison: "<";
       kind: "backward";
-      order: "DESC";
     }
   | {
       boundary: number | undefined;
-      comparison: ">";
       kind: "forward";
-      order: "ASC";
     };
 
 const paymentWorkPageDirection = (
@@ -93,15 +90,11 @@ const paymentWorkPageDirection = (
   cursor.before === undefined
     ? {
         boundary: cursor.after,
-        comparison: ">",
         kind: "forward",
-        order: "ASC",
       }
     : {
         boundary: cursor.before,
-        comparison: "<",
         kind: "backward",
-        order: "DESC",
       };
 
 type VisiblePaymentWorkPage = {
@@ -146,6 +139,19 @@ const paymentWorkPageCursors = (
   }
 };
 
+/** Keeps only the attendees past the page boundary, when the page has one. */
+const pastBoundary = (direction: PaymentWorkPageDirection): SqlStatement => {
+  if (direction.boundary === undefined) return sql``;
+  return direction.kind === "backward"
+    ? sql`AND payment.attendee_id < ${direction.boundary}`
+    : sql`AND payment.attendee_id > ${direction.boundary}`;
+};
+
+const PAGE_ORDER: Record<PaymentWorkPageDirection["kind"], SqlStatement> = {
+  backward: sql`DESC`,
+  forward: sql`ASC`,
+};
+
 /** One keyset page of protected orphans. The query starts at the partial
  * payment-work index and reads only attendee ids; one extra id is the lookahead. */
 export const getOrphanPaymentWorkPage = async (
@@ -153,7 +159,7 @@ export const getOrphanPaymentWorkPage = async (
 ): Promise<OrphanPaymentWorkPage> => {
   const direction = paymentWorkPageDirection(cursor);
   const rows = await queryAll<{ id: number }>(
-    `SELECT DISTINCT payment.attendee_id AS id
+    sql`SELECT DISTINCT payment.attendee_id AS id
        FROM processed_payments AS payment
        LEFT JOIN payment_charges AS charge
          ON charge.reference_index = payment.payment_reference_index
@@ -162,23 +168,15 @@ export const getOrphanPaymentWorkPage = async (
           OR ${refundAuthorityWorkSql("charge.")}
         )
         AND payment.attendee_id IS NOT NULL
-        ${
-          direction.boundary === undefined
-            ? ""
-            : `AND payment.attendee_id ${direction.comparison} ?`
-        }
+        ${pastBoundary(direction)}
         AND EXISTS (
           SELECT 1
             FROM attendees AS attendee
            WHERE attendee.id = payment.attendee_id
              AND ${HAS_NO_BOOKINGS}
         )
-      ORDER BY payment.attendee_id ${direction.order}
-      LIMIT ?`,
-    [
-      ...(direction.boundary === undefined ? [] : [direction.boundary]),
-      ORPHAN_PAYMENT_WORK_PAGE_SIZE + 1,
-    ],
+      ORDER BY payment.attendee_id ${PAGE_ORDER[direction.kind]}
+      LIMIT ${ORPHAN_PAYMENT_WORK_PAGE_SIZE + 1}`,
   );
   const hasLookahead = rows.length > ORPHAN_PAYMENT_WORK_PAGE_SIZE;
   const visible = rows.slice(0, ORPHAN_PAYMENT_WORK_PAGE_SIZE);
@@ -199,8 +197,8 @@ export const getOrphanPaymentWorkPage = async (
  * a time. This separate query adds the age and cleanup rules without duplicating
  * the shared definition of a purgeable orphan.
  */
-export const orphanIdsBatch = (): string =>
-  `${ORPHAN_IDS}\n ORDER BY attendee.id LIMIT ?`;
+export const orphanIdsBatch = (cutoffIso: string, limit: number): SqlStatement =>
+  sql`${orphanIds(cutoffIso)}\n ORDER BY attendee.id LIMIT ${limit}`;
 
 /** Count purgeable orphans whose `created` is before `cutoffIso`. */
 export const countPurgeableOrphanedAttendees = async (
@@ -208,8 +206,7 @@ export const countPurgeableOrphanedAttendees = async (
 ): Promise<number> => {
   // COUNT(*) always returns exactly one row, so the result is never null.
   const row = await requireOne<{ count: number }>(
-    `SELECT COUNT(*) AS count FROM (${ORPHAN_IDS})`,
-    [cutoffIso],
+    sql`SELECT COUNT(*) AS count FROM (${orphanIds(cutoffIso)})`,
   );
   return row!.count;
 };
@@ -223,15 +220,10 @@ export const countPurgeableOrphanedAttendees = async (
 export const purgeOrphanedAttendees = async (
   cutoffIso: string,
 ): Promise<number> => {
+  const ids = orphanIds(cutoffIso);
   const statements = [
-    ...attendeeRemovalStatements({
-      args: [cutoffIso],
-      sql: ORPHAN_IDS,
-    }),
-    {
-      args: [cutoffIso],
-      sql: `DELETE FROM attendees WHERE id IN (${ORPHAN_IDS})`,
-    },
+    ...attendeeRemovalStatements(ids),
+    sql`DELETE FROM attendees WHERE id IN (${ids})`,
   ];
   // The final statement (the attendees delete) reports how many orphans went;
   // executeBatchWithResults always returns one result per statement.

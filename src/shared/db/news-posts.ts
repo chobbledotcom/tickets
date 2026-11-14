@@ -139,7 +139,7 @@ type SealedCardRow = StoredRowOf<
  * slug, name, snippet — no image reads or decrypts. Feeds the RSS feed and the
  * admin list, which render no images. */
 export const getNewsPostSummaries = (): Promise<NewsPostSummary[]> =>
-  newsSummaryColumns.many({}, { order: "created DESC, id DESC" });
+  newsSummaryColumns.many({}, { order: sql`created DESC, id DESC` });
 
 /** Load the card projection for every post, newest first: the summary plus
  * the post's first linked image — for the public /news list, the one reader
@@ -169,7 +169,7 @@ export const getNewsPostCards = async (): Promise<NewsPostCard[]> => {
 export const getNewsPostNames = async (): Promise<Map<number, string>> => {
   const rows = await newsNameColumns.many(
     {},
-    { order: "created DESC, id DESC" },
+    { order: sql`created DESC, id DESC` },
   );
   return fieldById("name")(rows);
 };

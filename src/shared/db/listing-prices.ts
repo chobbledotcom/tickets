@@ -10,14 +10,14 @@
  */
 
 import * as v from "valibot";
-import { execute, inPlaceholders, queryAll, type TxScope } from "#db/client.ts";
+import { execute, queryAll, type TxScope } from "#db/client.ts";
 import { requireTouchingRelationshipsTx } from "#db/listing-relationship-validation.ts";
 import {
   PRICE_TYPE_DAY_COUNT,
   PRICE_TYPE_GROUP,
   PRICE_TYPE_GROUP_DAY,
 } from "#db/price-types.ts";
-import { sql, sqlList } from "#db/sql.ts";
+import { sql, sqlCommas, sqlJoin, sqlList, type SqlStatement } from "#db/sql.ts";
 import { compact, mapNotNullish, requiredMapValue } from "#fp";
 import { type DayPrices, parseDayPrices } from "#types";
 
@@ -40,9 +40,6 @@ export type GroupDayPriceInput = {
   dayPrices?: DayPrices | undefined;
 };
 
-/** One managed `listing_prices` write statement. */
-type PriceStatement = { sql: string; args: (number | string)[] };
-
 /** One managed price row's (listing, type, key, price) tuple. */
 type PriceRow = [number, string, string, number];
 
@@ -50,7 +47,7 @@ type PriceRow = [number, string, string, number];
  * head of every delete-then-insert replace this module writes. */
 const priceDimensionDelete =
   (priceType: string) =>
-  (listingId: number): PriceStatement =>
+  (listingId: number): SqlStatement =>
     sql`DELETE FROM listing_prices WHERE listing_id = ${listingId} AND price_type = ${priceType}`;
 
 /** A SINGLE multi-row INSERT over the managed price rows, or `null` when there
@@ -60,14 +57,11 @@ const priceDimensionDelete =
  * transaction, and a per-row insert would trip the round-trip guard. */
 const multiInsertPriceStatement = (
   rows: readonly PriceRow[],
-): PriceStatement | null => {
+): SqlStatement | null => {
   if (rows.length === 0) return null;
-  return {
-    args: rows.flat(),
-    sql: `INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES ${rows
-      .map(() => "(?, ?, ?, ?)")
-      .join(", ")}`,
-  };
+  return sql`INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES ${sqlCommas(
+    rows.map((row) => sql`(${sqlList(row)})`),
+  )}`;
 };
 
 /** The delete-then-insert statements that make a package group's `group_day`
@@ -78,7 +72,7 @@ const multiInsertPriceStatement = (
 export const groupDayPriceStatements = (
   groupId: number,
   members: readonly GroupDayPriceInput[],
-): PriceStatement[] => {
+): SqlStatement[] => {
   const rows: PriceRow[] = [];
   for (const member of members) {
     for (const [days, price] of Object.entries(
@@ -114,7 +108,7 @@ export type GroupFlatPriceInput = {
 export const groupFlatPriceStatements = (
   groupId: number,
   members: readonly GroupFlatPriceInput[],
-): PriceStatement[] => {
+): SqlStatement[] => {
   const rows = mapNotNullish((member: GroupFlatPriceInput): PriceRow | null =>
     member.price === null || member.price === undefined
       ? null
@@ -139,25 +133,19 @@ export const groupFlatPriceStatements = (
 export const removeGroupPricesStatement = (
   listingIds: readonly number[],
   groupIds: readonly number[],
-): PriceStatement | null => {
+): SqlStatement | null => {
   if (groupIds.length === 0 || listingIds.length === 0) return null;
   const idText = groupIds.map(String);
   // Each group's group_day price_ids are "<groupId>/<n>"; the trailing "/" keeps
   // the LIKE exact (group 1's "1/%" never matches group 12's "12/3").
-  const globs = groupIds.map((id) => `${id}/%`);
-  return {
-    args: [...listingIds, ...idText, ...globs],
-    sql: `DELETE FROM listing_prices WHERE listing_id IN (${inPlaceholders(
-      listingIds,
-    )}) AND (
-        (price_type = '${PRICE_TYPE_GROUP}' AND price_id IN (${inPlaceholders(
-          idText,
-        )}))
-        OR (price_type = '${PRICE_TYPE_GROUP_DAY}' AND (${globs
-          .map(() => "price_id LIKE ?")
-          .join(" OR ")}))
-      )`,
-  };
+  const dayPriceOfGroup = sqlJoin(
+    groupIds.map((id) => sql`price_id LIKE ${`${id}/%`}`),
+    sql` OR `,
+  );
+  return sql`DELETE FROM listing_prices WHERE listing_id IN (${sqlList(listingIds)}) AND (
+        (price_type = ${PRICE_TYPE_GROUP} AND price_id IN (${sqlList(idText)}))
+        OR (price_type = ${PRICE_TYPE_GROUP_DAY} AND (${dayPriceOfGroup}))
+      )`;
 };
 
 /** A raw day-price row as selected from `listing_prices`. */
@@ -242,7 +230,7 @@ export const getGroupDayPricesByGroupIds = async (
 export const dayCountPriceStatements = (
   listingId: number,
   dayPrices: DayPrices | undefined,
-): PriceStatement[] => {
+): SqlStatement[] => {
   const rows = Object.entries(parseDayPrices(dayPrices || {})).map(
     ([days, price]): PriceRow => [listingId, PRICE_TYPE_DAY_COUNT, days, price],
   );

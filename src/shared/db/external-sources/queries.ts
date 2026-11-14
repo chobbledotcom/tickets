@@ -30,6 +30,7 @@ import type {
   ExternalSource,
   ExternalSourceLink,
 } from "./types.ts";
+import { sql } from "#db/sql.ts";
 
 /* jscpd:ignore-end */
 
@@ -44,7 +45,7 @@ export const externalLinkIndex = (
 
 /** Every source, in the order they were added. */
 export const getAllExternalSources = (): Promise<ExternalSource[]> =>
-  externalSourcesTable.read.many({}, { order: "id ASC" });
+  externalSourcesTable.read.many({}, { order: sql`id ASC` });
 
 export const getExternalSource = (id: number): Promise<ExternalSource | null> =>
   externalSourcesTable.read.one({ id });
@@ -94,7 +95,7 @@ export const listExternalLinksForTarget = (
 ): Promise<ExternalSourceLink[]> =>
   externalSourceLinksTable.read.many(
     { link_id: target.id, link_type: target.kind },
-    { order: "id ASC" },
+    { order: sql`id ASC` },
   );
 
 /** One link found by its external id, with the source that holds it. */

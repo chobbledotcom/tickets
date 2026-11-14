@@ -18,7 +18,6 @@ import type {
 import {
   deleteByFieldBatch,
   execute,
-  inPlaceholders,
   insert,
   insertedRowId,
   queryAll,
@@ -28,24 +27,21 @@ import {
   registerCache,
   registerTableInvalidation,
 } from "#db/common-schema.ts";
-import { type NumberedSql, numberedStatement } from "#db/numbered-statement.ts";
-import { sql } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import type { CacheInvalidation } from "#shared/cache-registry.ts";
 import { now } from "#shared/now.ts";
 import { type AdminLevel, isAdminLevel, type User } from "#types";
 
-const USER_COLUMNS =
-  "id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry, kek_version, invite_wrapped_data_key";
+const USER_COLUMNS = sql`id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry, kek_version, invite_wrapped_data_key`;
 
-const USER_SELECT = `SELECT ${USER_COLUMNS} FROM users ORDER BY id ASC`;
+const USER_SELECT = sql`SELECT ${USER_COLUMNS} FROM users ORDER BY id ASC`;
 
 /** Fetch only the users matching the given blind-index keys, in one query, so a
  * by-username read never loads the whole table. Powers the cache's targeted
  * `getByKey`/`getByKeys` path. */
 const fetchUsersByIndex = (keys: string[]): Promise<User[]> =>
   queryAll<User>(
-    `SELECT ${USER_COLUMNS} FROM users WHERE username_index IN (${inPlaceholders(keys)})`,
-    keys,
+    sql`SELECT ${USER_COLUMNS} FROM users WHERE username_index IN (${sqlList(keys)})`,
   );
 
 export type UserDisplayFields = Pick<
@@ -53,11 +49,7 @@ export type UserDisplayFields = Pick<
   "admin_level" | "id" | "username_hash"
 >;
 
-const USER_DISPLAY_SELECT =
-  "SELECT id, username_hash, admin_level FROM users ORDER BY id ASC";
-
-const USER_AUTH_SELECT =
-  "SELECT id, admin_level FROM users WHERE id = ? LIMIT 1";
+const USER_DISPLAY_SELECT = sql`SELECT id, username_hash, admin_level FROM users ORDER BY id ASC`;
 
 export type UserAuthFields = Pick<User, "admin_level" | "id">;
 
@@ -260,7 +252,11 @@ export const getUserById = (id: number): Promise<User | null> =>
 export const getUserAuthFieldsById = async (
   id: number,
 ): Promise<UserAuthFields | null> =>
-  (await queryAll<UserAuthFields>(USER_AUTH_SELECT, [id]))[0] ?? null;
+  (
+    await queryAll<UserAuthFields>(
+      sql`SELECT id, admin_level FROM users WHERE id = ${id} LIMIT 1`,
+    )
+  )[0] ?? null;
 
 /**
  * Check if a username is already taken
@@ -341,18 +337,9 @@ const buildActivationSecrets = async (
 /** Run a single-use guarded UPDATE and report whether it changed a row. Zero
  * rows means the guard already fired (a replay or race), so the caller treats
  * it as a no-op rather than an error. */
-const executeChangedRow = async (
-  sql: string,
-  args: Parameters<typeof execute>[1],
-): Promise<boolean> => {
-  const result = await execute(sql, args);
+const executeChangedRow = async (statement: SqlStatement): Promise<boolean> => {
+  const result = await execute(statement);
   return result.rowsAffected > 0;
-};
-
-/** Run one changed-row write from its deferred numbered form. */
-const executeNumberedChangedRow = (buildSql: NumberedSql): Promise<boolean> => {
-  const { sql, args } = numberedStatement(buildSql);
-  return executeChangedRow(sql, args);
 };
 
 export const acceptInvite = async (
@@ -369,9 +356,8 @@ export const acceptInvite = async (
     password,
     passwordHash,
   );
-  return executeNumberedChangedRow(
-    (bind) =>
-      `UPDATE users SET password_hash = ${bind(encryptedHash)}, wrapped_data_key = ${bind(wrappedDataKey)}, kek_version = 2, invite_wrapped_data_key = NULL, invite_code_hash = ${bind(encryptedEmpty)}, invite_expiry = ${bind(encryptedEmpty)} WHERE id = ${bind(userId)} AND invite_wrapped_data_key IS NOT NULL`,
+  return executeChangedRow(
+    sql`UPDATE users SET password_hash = ${encryptedHash}, wrapped_data_key = ${wrappedDataKey}, kek_version = 2, invite_wrapped_data_key = NULL, invite_code_hash = ${encryptedEmpty}, invite_expiry = ${encryptedEmpty} WHERE id = ${userId} AND invite_wrapped_data_key IS NOT NULL`,
   );
 };
 
@@ -390,9 +376,8 @@ export const activateKeylessUser = async (
 ): Promise<boolean> => {
   const { encryptedHash, encryptedEmpty } =
     await buildActivationSecrets(password);
-  return executeNumberedChangedRow(
-    (bind) =>
-      `UPDATE users SET password_hash = ${bind(encryptedHash)}, kek_version = 2, invite_code_hash = ${bind(encryptedEmpty)}, invite_expiry = ${bind(encryptedEmpty)} WHERE id = ${bind(userId)} AND password_hash = ''`,
+  return executeChangedRow(
+    sql`UPDATE users SET password_hash = ${encryptedHash}, kek_version = 2, invite_code_hash = ${encryptedEmpty}, invite_expiry = ${encryptedEmpty} WHERE id = ${userId} AND password_hash = ''`,
   );
 };
 

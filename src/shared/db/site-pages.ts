@@ -23,7 +23,7 @@ import {
   unclaimedSiteSlugCondition,
 } from "#db/slug-registry.ts";
 import type { SluggedContentInput } from "#db/slugged-content-input.ts";
-import type { SqlStatement } from "#db/sql.ts";
+import { sql, type SqlStatement } from "#db/sql.ts";
 import { cachedTable, col } from "#db/table.ts";
 import { readById, readBySlugIndex } from "#db/table-reader.ts";
 import type { Result } from "#shared/result.ts";
@@ -62,7 +62,7 @@ const sitePageNavColumns = sitePagesTable.read.pick([
 
 /** Load id, slug, name, sort_order, and hidden. Decrypt only slug and name.
  * Order by sort_order, then id. */
-const NAV_ROW_ORDER = { order: "sort_order ASC, id ASC" } as const;
+const NAV_ROW_ORDER = { order: sql`sort_order ASC, id ASC` } as const;
 
 const fetchNavRows = (): Promise<SitePageNavRow[]> =>
   sitePageNavColumns.many({}, NAV_ROW_ORDER);

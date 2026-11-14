@@ -50,12 +50,13 @@ import {
   toFixedPageContent,
   toPageWrite,
 } from "./api-site-pages-input.ts";
+import { sql } from "#db/sql.ts";
 
 const ENTRY = ADMIN_API_RESOURCES["site-pages"];
 const RESPONSE_KEY = "page";
 
 /** The page rows the list answers with, in the order the form's list shows. */
-const LIST_ORDER = { order: "sort_order ASC, id ASC" } as const;
+const LIST_ORDER = { order: sql`sort_order ASC, id ASC` } as const;
 
 /** The page-write audience: the roles the Site → Pages form declares, with
  *  API-key auth. auth.ts holds the shared presets and sits at its size pin.
