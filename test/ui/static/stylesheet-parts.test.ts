@@ -85,9 +85,9 @@ describe("the stylesheet entry", () => {
     // A name that the list holds twice and a partial that it holds not at all
     // both move one partial's rules out of the cascade, so the sorted lists
     // must agree exactly.
-    expect(
-      namesIn(useLine, textOf(stylesheets, ENTRY)).toSorted(),
-    ).toEqual(partials.toSorted());
+    expect(namesIn(useLine, textOf(stylesheets, ENTRY)).toSorted()).toEqual(
+      partials.toSorted(),
+    );
   });
 
   test("holds no rule of its own, so every rule lives in a partial", async () => {
