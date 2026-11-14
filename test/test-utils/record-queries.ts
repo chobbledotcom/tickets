@@ -62,6 +62,22 @@ export const beforeNextTransaction = (
   return () => setDb(real);
 };
 
+/** Run `run` while `before` runs just ahead of its first transaction, as a
+ *  request that loses a race would see it. */
+export const racedBy = async <T>(
+  before: () => Promise<unknown>,
+  run: () => Promise<T>,
+): Promise<T> => {
+  const restore = beforeNextTransaction(async () => {
+    await before();
+  });
+  try {
+    return await run();
+  } finally {
+    restore();
+  }
+};
+
 /** Record every statement into `seen` (whitespace collapsed; batches as one
  *  `batch[a | b]` entry). Returns a restore function. */
 export const recordQueries = (seen: string[]): (() => void) => {

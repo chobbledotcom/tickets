@@ -560,10 +560,10 @@
     "banned-modal": 1
   },
   "src/shared/db/client.ts": {
-    "semicolon": 10,
-    "long-sentence": 13,
+    "semicolon": 9,
+    "long-sentence": 12,
     "contraction": 1,
-    "banned-modal": 9,
+    "banned-modal": 8,
     "present-perfect": 1,
     "wordy": 2
   },

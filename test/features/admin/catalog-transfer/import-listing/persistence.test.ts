@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { countRows, execute, writeRowInTransaction } from "#db/client.ts";
+import { countRows, execute } from "#db/client.ts";
 import {
   getGroupPackagePrices,
   getListingsByGroupId,
@@ -9,6 +9,7 @@ import {
 import { listingParents } from "#db/listing-parents.ts";
 import { getGroupDayPrices } from "#db/listing-prices.ts";
 import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { writeRowInTransaction } from "#db/row-write.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { t } from "#i18n";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";

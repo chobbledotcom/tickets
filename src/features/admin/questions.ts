@@ -5,7 +5,6 @@
  */
 
 import { logActivity } from "#db/activity-log.ts";
-import { writeRowInTransaction } from "#db/client.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import { flatCollectionSwap } from "#db/ordered-collection.ts";
 import {
@@ -19,6 +18,7 @@ import {
   questionListings,
 } from "#db/questions/queries.ts";
 import { questionsOrder, questionsTable } from "#db/questions/tables.ts";
+import { writeRowInTransaction } from "#db/row-write.ts";
 import { fieldById, mapNotNullish } from "#fp";
 import { t } from "#i18n";
 import {

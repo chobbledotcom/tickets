@@ -17,7 +17,6 @@ import { fieldById, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import { isQualifyingTierListing } from "#shared/renewal-tier.ts";
 import { buildForest, eligibleChildPages } from "#shared/site-pages/core.ts";
-import { loadPageForest } from "#shared/site-pages/load.ts";
 import {
   sitePageItemTargets,
   targetOfPageItem,
@@ -28,7 +27,7 @@ import type {
   PickerOption,
   ResolvedItem,
 } from "#templates/admin/site-pages.tsx";
-import type { SitePage, SitePageItemType } from "#types";
+import type { SitePage, SitePageItemType, SitePageNavRow } from "#types";
 
 /** Can this listing be placed on a page? Active (its public page must not
  * 404), not a renewal tier, and not a child listing. A renewal tier needs a
@@ -43,8 +42,10 @@ export const offerableListing = (
 
 /** Build the list-page model: root pages (reorderable) and nested pages (shown
  * with their parent, edited through the item manager). */
-export const buildListModel = async (): Promise<ListModel> => {
-  const { forest, navRows } = await loadPageForest();
+export const buildListModel = async (
+  navRows: SitePageNavRow[],
+): Promise<ListModel> => {
+  const forest = buildForest(navRows, await getAllPageItems());
   const roots = forest.rootIds.map((id) =>
     requiredMapValue(forest.byId, id, `Site page ${id} missing`),
   );

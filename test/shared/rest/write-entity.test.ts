@@ -207,13 +207,13 @@ describe("writeEntity", () => {
   test("checkTx without join writes forces the transactional path and refuses", async () => {
     const table = makeTable();
     let plainWriteRan = false;
-    let txSeen: TxScope | undefined;
+    const checkedIds: number[] = [];
     let thrown: unknown;
 
     try {
       await writeWith(table, {
-        checkTx: (tx) => {
-          txSeen = tx;
+        checkTx: (_tx, id) => {
+          checkedIds.push(id);
           return Promise.reject(new Error("no orphaning"));
         },
         existingId: 7,
@@ -228,7 +228,7 @@ describe("writeEntity", () => {
     }
 
     expect((thrown as Error).message).toBe("no orphaning");
-    expect(txSeen).toBeDefined();
+    expect(checkedIds).toEqual([7]);
     expect(plainWriteRan).toBe(false);
   });
 
@@ -299,6 +299,27 @@ describe("writeEntity", () => {
     });
 
     expect(row).toBeNull();
+  });
+
+  test("an update of a deleted row runs no join write and returns null", async () => {
+    const table = makeTable();
+    const joinIds: number[] = [];
+
+    const row = await writeWith(table, {
+      buildStatement: () => table.updateStatement!(1, { name: "renamed" }),
+      existingId: 1,
+      joinWrites: [
+        (_tx, id) => {
+          joinIds.push(id);
+          return Promise.resolve();
+        },
+      ],
+      plainWrite: reject("plainWrite"),
+      readBack: reject("readBack"),
+    });
+
+    expect(row).toBeNull();
+    expect(joinIds).toEqual([]);
   });
 
   test("runs without an afterCommit hook", async () => {

@@ -361,6 +361,26 @@ describeRecord(imageRecord, "Image", "Type the image name to confirm", () => {
     expect(await loggedMessages()).toEqual(["Listing 'Real' created"]);
   });
 
+  test("skips a link to a missing record when the write asks, and keeps the others", async () => {
+    const image = await makeImage("Kept");
+    const listing = await createTestListing({ name: "Real" });
+
+    await imageRecord.update(image.id, {
+      ...imageInput,
+      items: [
+        { id: listing.id, kind: "listing" },
+        { id: 98, kind: "listing" },
+      ],
+      name: "Changed",
+      skipMissingItems: true,
+    });
+
+    expect([
+      (await getImageById(image.id))?.name,
+      (await getImagesForItem("listing", listing.id)).map((row) => row.id),
+    ]).toEqual(["Changed", [image.id]]);
+  });
+
   test("refuses an update whose name is empty", async () => {
     const image = await makeImage("Named");
 

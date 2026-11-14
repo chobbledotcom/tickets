@@ -317,6 +317,26 @@ describeWithEnv("the admin record write path", { db: true }, () => {
     expect(verdict).toEqual({ kind: "refused", message: "Order failed" });
     expect(await storedWidgets()).toEqual([]);
   });
+
+  test("only a create appends the row to its order, so an update keeps its place", async () => {
+    const appended: unknown[] = [];
+    const record = widgetRecord({
+      order: {
+        append: ({ key }) => {
+          appended.push(key);
+          return Promise.resolve();
+        },
+      },
+    });
+    await createWidget("First", record);
+    await createWidget("Second", record);
+
+    expect(await record.update(1, { name: "Renamed" })).toEqual({
+      kind: "written",
+      row: { id: 1, name: "Renamed" },
+    });
+    expect(appended).toEqual([1, 2]);
+  });
 });
 
 describe("the record read defaults", () => {

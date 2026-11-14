@@ -170,6 +170,19 @@ describeWithEnv("server (admin attribute CRUD)", { db: true }, () => {
       ]);
     });
 
+    test("renaming an attribute keeps its place in the order", async () => {
+      const firstId = await createAttributeViaRoute("First");
+      await createAttributeViaRoute("Second");
+
+      await adminFormPost(`/admin/attributes/${firstId}/edit`, {
+        name: "First renamed",
+      });
+
+      expect(
+        (await getAllAttributesWithOptions()).map(({ name }) => name),
+      ).toEqual(["First renamed", "Second"]);
+    });
+
     test("an empty name is refused back to the attribute page", async () => {
       const id = await createAttributeViaRoute("Required fields");
 

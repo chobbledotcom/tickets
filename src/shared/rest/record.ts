@@ -200,12 +200,14 @@ const buildRecord = <Shape extends RecordShape>(
     };
 
   /** The transaction steps a write runs after its row statement: the per-call
-   * side effect, the record's join write, its order append, then its log. */
+   * side effect, the record's join write, its order append, then its log. Only
+   * a new row joins the end of its order, so an edit keeps its place. */
   const joinWritesFor = <Prepared>(
     value: Input,
     plan: WritePlan<Prepared, State> | undefined,
     prepared: Prepared,
     verb: string,
+    creating: boolean,
   ): JoinWrite<State>[] => {
     const writes: JoinWrite<State>[] = [];
     if (plan?.persist) {
@@ -214,7 +216,7 @@ const buildRecord = <Shape extends RecordShape>(
     if (spec.afterWrite) {
       writes.push((tx, id, state) => spec.afterWrite!(tx, id, value, state));
     }
-    if (spec.order) {
+    if (spec.order && creating) {
       writes.push((tx, id) => spec.order!.append({ key: id, transaction: tx }));
     }
     if (!spec.logAfterCommit) writes.push(logWrite(value, verb));
@@ -269,6 +271,7 @@ const buildRecord = <Shape extends RecordShape>(
           steps.plan,
           prepared.value,
           steps.verb,
+          existing === null,
         ),
         plainWrite: () =>
           steps.plainWriteFor(ruled.value) as Promise<FullRow | null>,
