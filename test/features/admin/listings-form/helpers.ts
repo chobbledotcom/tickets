@@ -47,10 +47,8 @@ export const updateListing = async (
   extra: TestFormValues = {},
 ): Promise<Listing> => {
   const result = await saveListingEdit(id, extra);
-  if (!result.ok) {
-    throw new Error(
-      "error" in result ? `update failed: ${result.error}` : "update not found",
-    );
-  }
-  return result.row;
+  if (result.ok) return result.row;
+  // A save that finds no row carries no error text of its own.
+  const { error } = { error: "the listing is absent", ...result };
+  throw new Error(`update failed: ${error}`);
 };
