@@ -2,6 +2,7 @@ import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
+import { tableExists } from "#db/migrations/schema-sync.ts";
 import { initDb, SCHEMA_HASH } from "#db/migrations.ts";
 import { sql } from "#db/sql.ts";
 import {
@@ -11,7 +12,6 @@ import {
   rerunMigrationsAndExpectListingDomainRestored,
   schemaHashMarker,
   seedListingDomainRows,
-  tableExists,
   tableRowCount,
 } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

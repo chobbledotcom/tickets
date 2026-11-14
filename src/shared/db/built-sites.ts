@@ -16,6 +16,7 @@ import {
   type TableSchema,
 } from "#db/table.ts";
 import type { RowFilter, RowOptions, TableReader } from "#db/table-reader.ts";
+import { refusalOf } from "#fp";
 import { compareByName } from "#shared/name-order.ts";
 import {
   blobToSiteFields,
@@ -156,13 +157,12 @@ const firstOf = async <Item>(items: Promise<Item[]>): Promise<Item | null> => {
 /** A built site is only ever handed back whole and already opened: its fields
  * live in one encrypted blob, so there is no half of a site to give out and no
  * raw row a caller could make sense of. */
-const refuseUnopened = (): never => {
-  throw new Error(
-    "A built site's fields are stored in one encrypted blob, so a read can only hand back whole, opened sites. Read the whole site.",
-  );
-};
+const refuseUnopened = refusalOf(
+  "A built site's fields are stored in one encrypted blob, so a read can only hand back whole, opened sites. Read the whole site.",
+);
 
 const builtSiteReads: TableReader<BuiltSite> = {
+  every: (options) => () => readSites({}, options),
   exists: (filter, options) =>
     rawBuiltSitesTable.read.exists(rawFilter(filter), options),
   // The filter is checked before anything is awaited, so a field that is not a

@@ -9,6 +9,7 @@
 import { executeBatch, queryAll, update } from "#db/client.ts";
 import { rowsByIds } from "#db/query.ts";
 import { sql } from "#db/sql.ts";
+import { mapBy } from "#fp";
 
 /** A start/end agent pair (null = unassigned) plus optional start/end times
  * ("" when unset). Times are logistics-only metadata — never used for
@@ -109,13 +110,16 @@ export const setLogisticsAssignments = async (
 /** Read an attendee's per-listing logistics assignments (for the edit form). */
 export const getLogisticsAssignments = async (
   attendeeId: number,
-): Promise<Map<number, LogisticsAssignment>> => {
-  const rows = await queryAll<AssignmentRow>(
-    sql`SELECT listing_id, start_agent_id, end_agent_id, start_time, end_time
+): Promise<Map<number, LogisticsAssignment>> =>
+  mapBy<AssignmentRow, "listing_id", LogisticsAssignment>(
+    "listing_id",
+    rowToAssignment,
+  )(
+    await queryAll<AssignmentRow>(
+      sql`SELECT listing_id, start_agent_id, end_agent_id, start_time, end_time
      FROM listing_attendees WHERE attendee_id = ${attendeeId}`,
+    ),
   );
-  return new Map(rows.map((row) => [row.listing_id, rowToAssignment(row)]));
-};
 
 /**
  * Read the logistics assignments for a set of attendees, one entry per booking

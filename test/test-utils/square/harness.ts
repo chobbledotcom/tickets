@@ -9,6 +9,9 @@ import { reclaimLeakedFdsNow } from "#test-utils/reclaim-fds.ts";
 type MockFn = (...args: unknown[]) => unknown;
 
 /** Create a mock Square SDK client with spyable methods */
+/** A spy over one mocked Square call. */
+type Spied = ReturnType<typeof spy<unknown, unknown[], unknown>>;
+
 export const createMockClient = (
   impls: {
     checkoutCreate?: MockFn;
@@ -20,11 +23,19 @@ export const createMockClient = (
 ) => {
   // Spy a provided implementation, or a bare no-op spy that returns undefined.
   const asSpy = (impl?: MockFn) => (impl ? spy(impl) : spy());
-  const checkoutCreate = asSpy(impls.checkoutCreate);
-  const ordersGet = asSpy(impls.ordersGet);
-  const paymentsGet = asSpy(impls.paymentsGet);
-  const refundsRefundPayment = asSpy(impls.refundsRefundPayment);
-  const locationsList = asSpy(impls.locationsList);
+  const [
+    checkoutCreate,
+    ordersGet,
+    paymentsGet,
+    refundsRefundPayment,
+    locationsList,
+  ] = [
+    impls.checkoutCreate,
+    impls.ordersGet,
+    impls.paymentsGet,
+    impls.refundsRefundPayment,
+    impls.locationsList,
+  ].map(asSpy) as [Spied, Spied, Spied, Spied, Spied];
 
   return {
     checkoutCreate,

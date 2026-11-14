@@ -14,16 +14,17 @@ import {
 } from "#accounting/projection-sql.ts";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
 import { emailOwedColumn } from "#db/attendees/notification-flags.ts";
-
 import { defineReader } from "#db/read.ts";
 import {
   type SqlStatement,
   sql,
   sqlCommas,
+  sqlExists,
   sqlLiteral,
   sqlName,
 } from "#db/sql.ts";
 import { inList, inSubquery, type WhereClause } from "#db/where-clauses.ts";
+import { bindFirst } from "#shared/fp-bind.ts";
 import type { Attendee } from "#types";
 
 /**
@@ -54,8 +55,7 @@ export const LISTING_ATTENDEE_REFUNDED_ROW: RefundedRowExprs = {
   placeholderWhen: sql`listingAttendee.quantity = 0`,
 };
 
-const legCameBack = (predicate: SqlStatement): SqlStatement =>
-  sql`EXISTS(SELECT 1 FROM transfers WHERE ${predicate})`;
+const legCameBack = bindFirst(sqlExists)("transfers");
 
 export const refundedForBooking = (row: RefundedRowExprs): SqlStatement => {
   const { attendeeId, eventGroup, listingId, placeholderWhen } = row;
@@ -202,17 +202,22 @@ const listingIntColumn = (join: AttendeeJoin, name: string): SqlStatement => {
  * says what any of the person's bookings owes. */
 export type AttendeeOwedScope = "attendee" | "booking";
 
-/** Identity columns plus the cheap per-listing columns every caller reads. */
-const coreColumns = (
-  join: AttendeeJoin,
-  owedScope: AttendeeOwedScope,
-): SqlStatement[] => [
+/** The columns that identify an attendee in every read of the table. */
+export const ATTENDEE_IDENTITY_COLUMNS: readonly SqlStatement[] = [
   sql`attendee.id`,
   sql`attendee.created`,
   sql`attendee.kind`,
   sql`attendee.ticket_token_index`,
   sql`attendee.pii_blob`,
   sql`attendee.status_id`,
+];
+
+/** Identity columns plus the cheap per-listing columns every caller reads. */
+const coreColumns = (
+  join: AttendeeJoin,
+  owedScope: AttendeeOwedScope,
+): SqlStatement[] => [
+  ...ATTENDEE_IDENTITY_COLUMNS,
   sql`attendee.split_logistics_agents`,
   sql`attendee.email_pending`,
   sql`attendee.webhooks_pending`,

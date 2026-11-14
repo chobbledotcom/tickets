@@ -90,11 +90,14 @@ export type WriteoffAdjustment = {
 export const writeoffAdjustmentInserts = async (
   adjustments: WriteoffAdjustment[],
   recordedAt: string,
-): Promise<SqlStatement[]> => {
-  const legs = await Promise.all(
-    adjustments.map((a) =>
-      writeoffAdjustmentLeg(a.account, a.delta, a.keyParts),
+): Promise<SqlStatement[]> =>
+  insertIfNewStatements(
+    compact(
+      await Promise.all(
+        adjustments.map((a) =>
+          writeoffAdjustmentLeg(a.account, a.delta, a.keyParts),
+        ),
+      ),
     ),
+    recordedAt,
   );
-  return insertIfNewStatements(compact(legs), recordedAt);
-};

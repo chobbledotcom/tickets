@@ -20,11 +20,14 @@ export const buyerAssignmentStatement = (
      WHERE assigned_attendee_id = ${attendeeId}
        AND assigned_listing_id IN (${sqlList(listingIds)})${tail}`;
 
-/** A statement scoped to one buyer's plan listings. */
-export type BuyerPlanStatement = (
+/** A read scoped to one buyer's plan listings. */
+type BuyerPlanRead<Result> = (
   attendeeId: number,
   listingIds: readonly number[],
-) => SqlStatement;
+) => Result;
+
+/** A statement scoped to one buyer's plan listings. */
+export type BuyerPlanStatement = BuyerPlanRead<SqlStatement>;
 
 /** Curry the buyer-assignment statement over its select list and tail. */
 export const buyerAssignmentStatementFor =
@@ -35,10 +38,10 @@ export const buyerAssignmentStatementFor =
 export const assignedBuiltSiteExistsStatement: BuyerPlanStatement =
   buyerAssignmentStatementFor({ select: sql`1`, tail: sql` LIMIT 1` });
 
-export const hasAssignedBuiltSite = async (
-  attendeeId: number,
-  listingIds: number[],
-): Promise<boolean> => {
+export const hasAssignedBuiltSite: BuyerPlanRead<Promise<boolean>> = async (
+  attendeeId,
+  listingIds,
+) => {
   const exists = assignedBuiltSiteExistsStatement(attendeeId, listingIds);
   return (await execute(exists)).rows.length > 0;
 };

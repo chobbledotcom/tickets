@@ -84,15 +84,6 @@ const loadMergeSource = async (
   };
 };
 
-/** Load all listing_attendees rows for an attendee */
-const loadAttendeeBookings = (
-  attendeeId: number,
-): Promise<ListingAttendeeRow[]> =>
-  queryAll<ListingAttendeeRow>(
-    sql`SELECT ${LISTING_ATTENDEE_ROW_COLS}
-     FROM listing_attendees WHERE attendee_id = ${attendeeId} ORDER BY start_at, listing_id`,
-  );
-
 /** Collect unique listing IDs from two sets of bookings */
 const collectListingIds = (
   targetBookings: ListingAttendeeRow[],
@@ -122,7 +113,10 @@ const buildMergeDiffFor = async (
   source: MergeSourceLookup,
   attendeeId: number,
 ): Promise<AttendeeMergeDiff> => {
-  const targetBookings = await loadAttendeeBookings(attendeeId);
+  const targetBookings = await queryAll<ListingAttendeeRow>(
+    sql`SELECT ${LISTING_ATTENDEE_ROW_COLS}
+     FROM listing_attendees WHERE attendee_id = ${attendeeId} ORDER BY start_at, listing_id`,
+  );
   const allListingIds = collectListingIds(targetBookings, source.bookings);
   const { questions } = await getQuestionsWithListingIds(allListingIds);
 

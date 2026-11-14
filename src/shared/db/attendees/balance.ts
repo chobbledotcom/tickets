@@ -101,19 +101,6 @@ type OrderRow = {
   listing_name: EnvKeyEncrypted | null;
 };
 
-// quantity > 0: a no-quantity sentinel line is not an order line. The pay page
-// must show, and check out against, a real product, never a lower-id ghost.
-const attendeeOrderRowsStatement = (
-  attendeeId: number,
-): SqlStatement => sql`SELECT listingAttendee.listing_id,
-            listingAttendee.package_group_id,
-            listingAttendee.quantity,
-            listing.name AS listing_name
-       FROM listing_attendees AS listingAttendee
-       LEFT JOIN listings AS listing ON listing.id = listingAttendee.listing_id
-      WHERE listingAttendee.attendee_id = ${attendeeId} AND listingAttendee.quantity > 0
-      ORDER BY listingAttendee.id`;
-
 const attendeeOrderMoneyStatement = (attendeeId: number): SqlStatement => {
   const id = sql`${String(attendeeId)}`;
   return sql`SELECT ${externalCashBalanceSubquery("attendee", id)} AS amount_paid,
@@ -135,7 +122,17 @@ export const getAttendeeOrderSummary = async (
   attendeeId: number,
 ): Promise<OrderSummary> => {
   const [orderResult, paidResult] = await queryBatch([
-    attendeeOrderRowsStatement(attendeeId),
+    // quantity > 0: a no-quantity sentinel line is not an order line. The pay
+    // page must show, and check out against, a real product, never a lower-id
+    // ghost.
+    sql`SELECT listingAttendee.listing_id,
+            listingAttendee.package_group_id,
+            listingAttendee.quantity,
+            listing.name AS listing_name
+       FROM listing_attendees AS listingAttendee
+       LEFT JOIN listings AS listing ON listing.id = listingAttendee.listing_id
+      WHERE listingAttendee.attendee_id = ${attendeeId} AND listingAttendee.quantity > 0
+      ORDER BY listingAttendee.id`,
     attendeeOrderMoneyStatement(attendeeId),
   ]);
   const rows = resultRows<OrderRow>(orderResult!);

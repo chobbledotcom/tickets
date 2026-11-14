@@ -16,7 +16,7 @@ import { type LinkTableSide, selfLinkTableSides } from "#db/link-table.ts";
 import { guardEdgeWriteTx } from "#db/listing-edge-write.ts";
 import { requireCurrentRelationshipRules } from "#db/listing-relationship-validation.ts";
 import { requireListingsWithCountsByIds } from "#db/listings/records.ts";
-import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
+import { sql, sqlList } from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import {
   firstProblem,
@@ -113,19 +113,16 @@ export const listingIdsWithLinks = (
  * set for empty input (no query). An optional transaction reads the same rows
  * through it, so a would-be reachability guard inside a write transaction sees
  * that transaction's own earlier writes. */
-const nonStandaloneChildStatement = (ids: readonly number[]): SqlStatement =>
-  sql`SELECT DISTINCT listingParent.child_listing_id AS id
-          FROM listing_parents AS listingParent
-          JOIN listings AS listing ON listing.id = listingParent.child_listing_id
-         WHERE listingParent.child_listing_id IN (${sqlList(ids)})
-           AND listing.bookable_alone = 0`;
-
 export const getNonStandaloneChildIds = async (
   ids: readonly number[],
   tx?: TxScope,
 ): Promise<Set<number>> => {
   if (ids.length === 0) return new Set();
-  const statement = nonStandaloneChildStatement(ids);
+  const statement = sql`SELECT DISTINCT listingParent.child_listing_id AS id
+          FROM listing_parents AS listingParent
+          JOIN listings AS listing ON listing.id = listingParent.child_listing_id
+         WHERE listingParent.child_listing_id IN (${sqlList(ids)})
+           AND listing.bookable_alone = 0`;
   const idRows =
     tx === undefined
       ? await queryIdColumn(statement)

@@ -3,6 +3,7 @@ import { decrypt, encrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { enabledFeaturesAreValidSql } from "#db/admin-feature-sql.ts";
 import {
+  abortUnless,
   executeBatchWithResults,
   queryOne,
   queryOnePrimary,
@@ -49,9 +50,10 @@ const FEATURES_BY_KEY = Object.fromEntries(
   ADMIN_FEATURES.map((feature) => [feature.key, feature]),
 ) as AdminFeaturesByKey;
 
-const requireSettingCondition = (condition: SqlStatement): SqlStatement =>
-  sql`INSERT INTO settings (key, value)
-        SELECT ${"__required_setting_condition__"}, NULL WHERE NOT (${condition})`;
+const requireSettingCondition = abortUnless(
+  sql`settings (key, value)`,
+  sql`${"__required_setting_condition__"}, NULL`,
+);
 
 const initialFeatureValue = (key: AdminFeatureKey, enabled: boolean): string =>
   serializeEnabledFeatures(

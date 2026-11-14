@@ -59,12 +59,11 @@ export const sitePageItemOrder = defineOrderedCollection({
 
 const allItemsStatement: SqlStatement = sql`SELECT ${SELECT_COLS} FROM site_page_items ORDER BY page_id ASC, sort_order ASC, item_id ASC`;
 
-const fetchAllItems = (): Promise<SitePageItem[]> =>
-  queryAll<SitePageItem>(allItemsStatement);
-
 // Request-scoped: one query per request feeds the whole nav forest, fresh next
 // request, and cleared on any write to site_page_items.
-const itemsCache = requestCache(fetchAllItems);
+const itemsCache = requestCache(() =>
+  queryAll<SitePageItem>(allItemsStatement),
+);
 registerTableInvalidation(["site_page_items"], itemsCache.invalidate);
 
 /** Every edge, ordered — the single read the public nav's forest is built from. */

@@ -4,6 +4,8 @@ import { escapeRegExp } from "#shared/regexp.ts";
 import {
   currentSchemaColumnsPresentIn,
   getExistingColumns,
+  liveIndexRows,
+  pragmaRows,
   rebuildTableWithColumns,
   runMigration,
   tableExists,
@@ -124,8 +126,8 @@ const dropProjectIndexesReferencingColumn = async (
   table: string,
   column: string,
 ): Promise<void> => {
-  const { rows } = await getDb().execute(
-    sql`SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = ${table} AND sql IS NOT NULL`,
+  const rows = await liveIndexRows(
+    sql`tbl_name = ${table} AND sql IS NOT NULL`,
   );
 
   const referencesColumn = sqlIdentifierPattern(column);
@@ -140,12 +142,10 @@ const dropProjectIndexesReferencingColumn = async (
 const columnHasForeignKey = async (
   table: string,
   column: string,
-): Promise<boolean> => {
-  const result = await getDb().execute(
-    sql`PRAGMA foreign_key_list(${sqlName(table)})`,
+): Promise<boolean> =>
+  (await pragmaRows("foreign_key_list", table)).some(
+    (row) => String(row.from) === column,
   );
-  return result.rows.some((row) => String(row.from) === column);
-};
 
 const repairLegacyColumnRename = async ({
   table,

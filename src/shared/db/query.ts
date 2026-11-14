@@ -48,12 +48,12 @@ export const columnFrom =
  * `IN (...)`. The base skeleton for the id-map helpers below and
  * for any read that loads rows for a caller-supplied id list.
  */
+/** Builds a statement from the bound list of ids, ready for an `IN (...)`. */
+type IdListStatement = (boundIds: SqlStatement) => SqlStatement;
+
 const rowsByIdsOn =
   (readAll: (statement: SqlStatement) => Promise<unknown[]>) =>
-  async <Row>(
-    ids: number[],
-    buildSql: (boundIds: SqlStatement) => SqlStatement,
-  ): Promise<Row[]> =>
+  async <Row>(ids: number[], buildSql: IdListStatement): Promise<Row[]> =>
     ids.length === 0 ? [] : ((await readAll(buildSql(sqlList(ids)))) as Row[]);
 
 export const rowsByIds = rowsByIdsOn(queryAll);
@@ -69,7 +69,7 @@ export const rowsByIdsPrimary = rowsByIdsOn(queryAllPrimary);
  */
 export const mapByIds = async <Row, Value = number>(
   ids: number[],
-  buildSql: (boundIds: SqlStatement) => SqlStatement,
+  buildSql: IdListStatement,
   toEntry: (row: Row) => [number, Value],
 ): Promise<Map<number, Value>> =>
   new Map((await rowsByIds<Row>(ids, buildSql)).map(toEntry));

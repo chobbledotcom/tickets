@@ -139,13 +139,6 @@ export const columnNames = async (table: string): Promise<string[]> => {
   return result.rows.map((row) => String(row.name));
 };
 
-export const tableExists = async (table: string): Promise<boolean> => {
-  const result = await getDb().execute(
-    sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ${table}`,
-  );
-  return result.rows.length > 0;
-};
-
 export const tableNames = async (): Promise<Set<string>> => {
   const result = await getDb().execute(
     sql`SELECT name FROM sqlite_master WHERE type = 'table'`,

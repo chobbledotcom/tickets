@@ -18,6 +18,7 @@ import type {
 import {
   deleteByFieldBatch,
   execute,
+  executeChangedRow,
   insert,
   insertedRowId,
   queryAll,
@@ -27,7 +28,7 @@ import {
   registerCache,
   registerTableInvalidation,
 } from "#db/common-schema.ts";
-import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
+import { sql, sqlList } from "#db/sql.ts";
 import type { CacheInvalidation } from "#shared/cache-registry.ts";
 import { now } from "#shared/now.ts";
 import { type AdminLevel, isAdminLevel, type User } from "#types";
@@ -332,14 +333,6 @@ const buildActivationSecrets = async (
     encrypt(""),
   ]);
   return { encryptedEmpty, encryptedHash, passwordHash };
-};
-
-/** Run a single-use guarded UPDATE and report whether it changed a row. Zero
- * rows means the guard already fired (a replay or race), so the caller treats
- * it as a no-op rather than an error. */
-const executeChangedRow = async (statement: SqlStatement): Promise<boolean> => {
-  const result = await execute(statement);
-  return result.rowsAffected > 0;
 };
 
 export const acceptInvite = async (

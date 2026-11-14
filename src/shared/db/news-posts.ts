@@ -48,12 +48,7 @@ import { requestCache } from "#shared/request-cache.ts";
 import type { Result } from "#shared/result.ts";
 import { slugify, uniqueSlugFromBase } from "#shared/slug.ts";
 import { isInstant } from "#shared/validation/timestamp.ts";
-import type {
-  ItemImageColumns,
-  NewsPost,
-  NewsPostCard,
-  NewsPostSummary,
-} from "#types";
+import type { ItemImageColumns, NewsPost, NewsPostCard } from "#types";
 
 /** Create/update input (camelCase keys → snake_case columns). `created`, `slug`,
  * and `slugIndex` are computed in {@link createNewsPost}, never posted by the
@@ -138,8 +133,9 @@ type SealedCardRow = StoredRowOf<
 /** Load the summary projection for every post, newest first: id, created,
  * slug, name, snippet — no image reads or decrypts. Feeds the RSS feed and the
  * admin list, which render no images. */
-export const getNewsPostSummaries = (): Promise<NewsPostSummary[]> =>
-  newsSummaryColumns.many({}, { order: sql`created DESC, id DESC` });
+export const getNewsPostSummaries = newsSummaryColumns.every({
+  order: sql`created DESC, id DESC`,
+});
 
 /** Load the card projection for every post, newest first: the summary plus
  * the post's first linked image — for the public /news list, the one reader

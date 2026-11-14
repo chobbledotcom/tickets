@@ -1,5 +1,6 @@
 import { sql, sqlName } from "#db/sql.ts";
 import { SCHEMA } from "./schema/index.ts";
+import { liveIndexRows } from "./schema-sync.ts";
 import type { MigrationContext, SchemaRequirement } from "./types.ts";
 
 /** The unique booking-slot index on `listing_attendees`. Widening it (adding
@@ -37,21 +38,15 @@ export const slotIndexColumns = (): string[] =>
  * existence check cannot tell a landed widening from a stale pre-drop
  * definition that somehow survived (the snapshot-lag class the sync layer
  * documents). Read the live CREATE INDEX sql and demand every column. */
-export const verifySlotIndex =
-  ({ getDb }: Pick<MigrationContext, "getDb">) =>
-  async (): Promise<void> => {
-    const { rows } = await getDb().execute(
-      sql`SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ${SLOT_INDEX}`,
+export const verifySlotIndex = async (): Promise<void> => {
+  const rows = await liveIndexRows(sql`name = ${SLOT_INDEX}`);
+  const live = rows.length > 0 ? String(rows[0]!.sql) : "";
+  const missing = slotIndexColumns().filter((column) => !live.includes(column));
+  if (missing.length > 0) {
+    throw new Error(
+      `Migration verification failed: index ${SLOT_INDEX} lacks ${missing.join(
+        ", ",
+      )} (live definition: ${live || "absent"})`,
     );
-    const live = rows.length > 0 ? String(rows[0]!.sql) : "";
-    const missing = slotIndexColumns().filter(
-      (column) => !live.includes(column),
-    );
-    if (missing.length > 0) {
-      throw new Error(
-        `Migration verification failed: index ${SLOT_INDEX} lacks ${missing.join(
-          ", ",
-        )} (live definition: ${live || "absent"})`,
-      );
-    }
-  };
+  }
+};

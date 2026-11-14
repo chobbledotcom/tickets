@@ -9,7 +9,13 @@
  */
 
 import { resultRows, type TxScope } from "#db/client.ts";
-import { type SqlStatement, sql, sqlList, sqlName } from "#db/sql.ts";
+import {
+  type SqlStatement,
+  sql,
+  sqlExists,
+  sqlList,
+  sqlName,
+} from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { t } from "#i18n";
 import {
@@ -96,8 +102,7 @@ const edgeExists = (
   edgeColumn: "child_listing_id" | "parent_listing_id",
   listings: SqlStatement,
 ): SqlStatement =>
-  sql`EXISTS(SELECT 1 FROM listing_parents
-           WHERE ${sqlName(edgeColumn)} IN (${listings}))`;
+  sqlExists("listing_parents", sql`${sqlName(edgeColumn)} IN (${listings})`);
 
 const listingCount = (listings: SqlStatement): SqlStatement =>
   sql`(SELECT COUNT(*) FROM listings WHERE id IN (${listings}))`;

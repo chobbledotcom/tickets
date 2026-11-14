@@ -27,7 +27,7 @@ import { type SqlStatement, sql } from "#db/sql.ts";
 import { cachedTable, col } from "#db/table.ts";
 import { readById, readBySlugIndex } from "#db/table-reader.ts";
 import type { Result } from "#shared/result.ts";
-import type { SitePage, SitePageNavRow } from "#types";
+import type { SitePage } from "#types";
 
 /** Create/update input (camelCase keys → snake_case columns). `sortOrder` is
  * optional only for the update path, which never writes it — create always
@@ -64,8 +64,7 @@ const sitePageNavColumns = sitePagesTable.read.pick([
  * Order by sort_order, then id. */
 const NAV_ROW_ORDER = { order: sql`sort_order ASC, id ASC` } as const;
 
-const fetchNavRows = (): Promise<SitePageNavRow[]> =>
-  sitePageNavColumns.many({}, NAV_ROW_ORDER);
+const fetchNavRows = sitePageNavColumns.every(NAV_ROW_ORDER);
 
 // Request-scoped cache over those columns: computed once per request, fresh on
 // the next request (no cross-isolate staleness), and auto-cleared on any write

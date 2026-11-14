@@ -7,7 +7,7 @@
  */
 
 import { bookingSlotKey } from "#db/attendees/booking-slot.ts";
-import { execute, queryAll } from "#db/client.ts";
+import { executeChangedRow, queryAll } from "#db/client.ts";
 import {
   type AssignmentRow,
   bookingAssignmentKey,
@@ -296,7 +296,7 @@ export const setLegDone = async (
     kind === "start" ? sql`start_agent_id` : sql`end_agent_id`;
   const dateExpression =
     kind === "start" ? sql`DATE(start_at)` : sql`DATE(end_at, '-1 day')`;
-  const result = await execute(
+  return executeChangedRow(
     // The date predicate scopes the update to the leg on the claimed run-sheet
     // day: a listing+attendee can have several rows across dates, so without it
     // a mark would flip legs on days the user isn't viewing.
@@ -308,5 +308,4 @@ export const setLegDone = async (
             AND ${agentColumn} IN (${sqlList(agentIds)})
             AND quantity > 0`,
   );
-  return result.rowsAffected > 0;
 };

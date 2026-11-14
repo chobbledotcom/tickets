@@ -25,20 +25,15 @@ import type { ListingWithCount } from "#types";
 const listingMoneyProjections = (idExpression: SqlStatement): SqlStatement =>
   sql`${creditsLessWriteoffDebits("revenue", idExpression)} AS income, -${accountBalanceSubquery("cost", idExpression)} AS cost`;
 
-/** The listing's day-count prices, collapsed into one JSON object so a listing
- * read does not need a second query per row. */
-const listingDayPriceColumn = (idExpression: SqlStatement): SqlStatement =>
-  sql`COALESCE((SELECT json_group_object(listingPrice.price_id, listingPrice.unit_price)
-      FROM listing_prices AS listingPrice
-      WHERE listingPrice.listing_id = ${idExpression}
-        AND listingPrice.price_type = 'day_count'), '{}') AS day_prices`;
-
 /** A complete stored listing row plus its ledger, day-price, and image values. */
 const storedListingColumns = (): SqlStatement => {
   const idExpression = sql`listing.id`;
   return sql`listing.*,
        ${listingMoneyProjections(idExpression)},
-       ${listingDayPriceColumn(idExpression)},
+       COALESCE((SELECT json_group_object(listingPrice.price_id, listingPrice.unit_price)
+         FROM listing_prices AS listingPrice
+         WHERE listingPrice.listing_id = ${idExpression}
+           AND listingPrice.price_type = 'day_count'), '{}') AS day_prices,
        ${imageFilenameSubqueries("listing", idExpression)}`;
 };
 

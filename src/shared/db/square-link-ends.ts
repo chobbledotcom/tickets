@@ -12,7 +12,7 @@
 
 import { encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
-import { execute, queryAll } from "#db/client.ts";
+import { execute, executeChangedRow, queryAll } from "#db/client.ts";
 import { sql, sqlList } from "#db/sql.ts";
 import {
   LINK_END_CHECKABLE_NODES,
@@ -93,14 +93,12 @@ const moveRowAsRead = async (
   row: DueSquareLinkEnd,
   state: string,
   nextAttemptAt: string,
-): Promise<boolean> => {
-  const result = await execute(
+): Promise<boolean> =>
+  executeChangedRow(
     sql`UPDATE square_link_ends
         SET state = ${state}, next_attempt_at = ${nextAttemptAt}
       WHERE session_index = ${row.sessionIndex} AND state = ${row.state} AND next_attempt_at = ${row.claimedAt}`,
   );
-  return result.rowsAffected === 1;
-};
 
 /**
  * Claim one row for this worker, giving it a lease to answer inside. Returns
@@ -149,14 +147,12 @@ const deleteSquareLinkEnd = async (
   sessionIndex: string,
   state: string,
   claimedAt?: string,
-): Promise<boolean> => {
-  const result = await execute(
+): Promise<boolean> =>
+  executeChangedRow(
     sql`DELETE FROM square_link_ends
       WHERE session_index = ${sessionIndex} AND state = ${state}
         ${claimedAt === undefined ? sql`` : sql`AND next_attempt_at = ${claimedAt}`}`,
   );
-  return result.rowsAffected === 1;
-};
 
 /**
  * Take the handle row away when a payment completes. Conditional on

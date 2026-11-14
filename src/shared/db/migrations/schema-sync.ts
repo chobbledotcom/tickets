@@ -48,15 +48,25 @@ export const runMigration = async (statement: SqlStatement): Promise<void> => {
   }
 };
 
-/** Get the set of existing column names for a table */
-export const getExistingColumns = async (
+/** The name and the CREATE text of each live index that `filter` keeps. */
+export const liveIndexRows = async (filter: SqlStatement) =>
+  (
+    await getDb().execute(
+      sql`SELECT name, sql FROM sqlite_master WHERE type = 'index' AND ${filter}`,
+    )
+  ).rows;
+
+/** The rows that one PRAGMA reports for a table. */
+export const pragmaRows = async (
+  pragma: "foreign_key_list" | "table_info",
   table: string,
-): Promise<Set<string>> => {
-  const result = await getDb().execute(
-    sql`PRAGMA table_info(${sqlName(table)})`,
-  );
-  return stringColumnSet(result.rows, "name");
-};
+) =>
+  (await getDb().execute(sql`PRAGMA ${sqlName(pragma)}(${sqlName(table)})`))
+    .rows;
+
+/** Get the set of existing column names for a table */
+export const getExistingColumns = async (table: string): Promise<Set<string>> =>
+  stringColumnSet(await pragmaRows("table_info", table), "name");
 
 export const tableExists = async (table: string): Promise<boolean> => {
   const result = await getDb().execute(

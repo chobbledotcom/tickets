@@ -413,6 +413,20 @@ export const requireOnePrimary = <T>(statement: SqlStatement): Promise<T> =>
     "Required primary",
   );
 
+/** A guard that aborts its batch unless a condition holds. It inserts `row`,
+ * which holds a NULL that `target` refuses, when the condition fails. */
+export const abortUnless =
+  (target: SqlStatement, row: SqlStatement) =>
+  (condition: SqlStatement): SqlStatement =>
+    sql`INSERT INTO ${target} SELECT ${row} WHERE NOT (${condition})`;
+
+/** Run a guarded write and report whether it changed a row. Zero rows means
+ * that the guard refused the write: a replay, a race, or a row in another
+ * state. */
+export const executeChangedRow = async (
+  statement: SqlStatement,
+): Promise<boolean> => (await execute(statement)).rowsAffected > 0;
+
 /** True when the query returns a row. The statement should be an existence probe such as
  *  `SELECT 1 ... LIMIT 1`; which columns it selects is ignored. */
 export const rowExists = async (statement: SqlStatement): Promise<boolean> =>

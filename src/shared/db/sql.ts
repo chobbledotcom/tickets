@@ -12,6 +12,7 @@
  */
 
 import type { InValue } from "@libsql/client";
+import { occurrencesIn, refusalOf } from "#fp";
 
 declare const MADE_BY_SQL_TAG: unique symbol;
 
@@ -59,9 +60,9 @@ const piecesOfSlot = (slot: SqlSlot): readonly Piece[] => {
 };
 
 /** A statement put into a plain string is a mistake: it loses its values. */
-const refuseToBeText = (): never => {
-  throw new Error("A statement is not text. Put it into a sql template.");
-};
+const refuseToBeText = refusalOf(
+  "A statement is not text. Put it into a sql template.",
+);
 
 /** Number the slots and collect the arguments. */
 const statementOf = (pieces: readonly Piece[]): SqlStatement => {
@@ -110,13 +111,14 @@ const PLACE_MOVES: Record<TextPlace, readonly [string, TextPlace][]> = {
 /** The place a reader is in after `text`, when it started in `place` at
  * `from`. The nearest mark moves the reader, and the read goes on after it. */
 const placeAfter = (text: string, place: TextPlace, from = 0): TextPlace => {
-  const [nearest] = PLACE_MOVES[place]
-    .map(([mark, to]) => ({ at: text.indexOf(mark, from), mark, to }))
-    .filter((move) => move.at >= 0)
-    .sort((left, right) => left.at - right.at);
-  return nearest
-    ? placeAfter(text, nearest.to, nearest.at + nearest.mark.length)
-    : place;
+  const [nearest] = occurrencesIn(
+    text,
+    ([mark]: readonly [string, TextPlace]) => mark,
+    from,
+  )(PLACE_MOVES[place]);
+  if (nearest === undefined) return place;
+  const [mark, to] = nearest.item;
+  return placeAfter(text, to, nearest.at + mark.length);
 };
 
 /** Refuse a slot inside a quoted SQL literal. SQLite reads `'?1'` as text, so
@@ -203,6 +205,10 @@ export const sqlInsertRowsOrNull = (
   rows.length === 0
     ? null
     : sql`INSERT INTO ${sqlName(table)} (${sqlNames(columns)}) VALUES ${sqlRows(rows)}`;
+
+/** Whether a row of `table` satisfies `where`: an EXISTS probe. */
+export const sqlExists = (table: string, where: SqlStatement): SqlStatement =>
+  sql`EXISTS (SELECT 1 FROM ${sqlName(table)} WHERE ${where})`;
 
 /** A constant written into the SQL text as a literal. For schema text, which
  * takes no bound arguments, and for a constant that a partial index names. */

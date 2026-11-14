@@ -1,5 +1,6 @@
 import { eventGroup } from "#accounting/refs.ts";
 import type { TxScope } from "#db/client.ts";
+import { abortUnless } from "#db/client.ts";
 import { notNullGuardFailureAt, rowsByIdsPrimary } from "#db/query.ts";
 import { type SqlSlot, type SqlStatement, sql, sqlNames } from "#db/sql.ts";
 import { col, defineTable } from "#db/table.ts";
@@ -81,8 +82,10 @@ export const taxRevisionGroup = (
 ): Promise<string> => eventGroup(["tax-assessment", bookingGroup, revision]);
 
 /** A failed condition aborts the whole domain-and-ledger batch. */
-export const taxAssessmentGuard = (condition: SqlStatement): SqlStatement =>
-  sql`INSERT INTO booking_tax_assessments (booking_group) SELECT NULL WHERE NOT (${condition})`;
+export const taxAssessmentGuard = abortUnless(
+  sql`booking_tax_assessments (booking_group)`,
+  sql`NULL`,
+);
 
 export const taxRevisionFence = (
   bookingGroup: string,

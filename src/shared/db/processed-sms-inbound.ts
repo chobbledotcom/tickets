@@ -6,7 +6,7 @@
  * `sms:received` events cannot create duplicate activity-log entries.
  */
 
-import { execute, executeBatch, insertOrIgnore } from "#db/client.ts";
+import { executeBatch, executeChangedRow, insertOrIgnore } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
 import { nowIso } from "#shared/now.ts";
 
@@ -19,8 +19,7 @@ export const claimProcessedSmsInbound = async (
     created: nowIso(),
     webhook_id: webhookId,
   });
-  const result = await execute(stmt);
-  return result.rowsAffected > 0;
+  return executeChangedRow(stmt);
 };
 
 /** Prune rows older than the given ISO cutoff. */

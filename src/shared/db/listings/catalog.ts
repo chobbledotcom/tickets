@@ -1,5 +1,6 @@
 /** Narrow listing reads for catalogs and site-page pickers. */
 
+import { LISTINGS_IN_ID_ORDER } from "#db/listings/table.ts";
 import { settings } from "#db/settings.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 import type { CatalogSourceListing } from "#shared/external-order.ts";
@@ -53,10 +54,7 @@ export const getListingOfferFlags = async (
 export const getListingPickerNames = async (): Promise<
   Map<number, ListingPickerRow>
 > => {
-  const rows = await listingPickerColumns.many(
-    {},
-    { alias: "listing", order: sql`listing.id ASC` },
-  );
+  const rows = await listingPickerColumns.many({}, LISTINGS_IN_ID_ORDER);
   return new Map(rows.map(({ id, ...listing }) => [id, listing] as const));
 };
 

@@ -34,14 +34,27 @@ const noRefundRunHolding = (attendeeId: SqlSlot): SqlStatement =>
      WHERE holder.attendee_id = ${attendeeId}
        AND holder.protected_state = ${sqlLiteral(CLAIM_MIRROR)})`;
 
-const buildFinalizeStatements = async (
-  attendeeId: SqlSlot,
-  sessionId: string,
-  paymentReference: TaggedPaymentReference | null,
-  ticketTokens: string[],
-  guard: SqlStatement,
-  standDownWhen: SqlStatement = sql`1 = 1`,
-): Promise<SqlStatement[]> => {
+/** A condition that always holds. */
+const ALWAYS = sql`1 = 1`;
+
+/** What one finalize writes, and the conditions it writes under. */
+type FinalizeWrite = {
+  attendeeId: SqlSlot;
+  guard?: SqlStatement;
+  paymentReference: TaggedPaymentReference | null;
+  sessionId: string;
+  standDownWhen?: SqlStatement;
+  ticketTokens: string[];
+};
+
+const buildFinalizeStatements = async ({
+  attendeeId,
+  guard = ALWAYS,
+  paymentReference,
+  sessionId,
+  standDownWhen = ALWAYS,
+  ticketTokens,
+}: FinalizeWrite): Promise<SqlStatement[]> => {
   const referenceWrite = await preparePaymentReferenceWrite(paymentReference);
   return [
     // The blind index is written by the same statement as the reference it
@@ -64,13 +77,12 @@ export const batchFinalizeStatements = (
   paymentReference: TaggedPaymentReference | null,
   ticketToken: string,
 ): Promise<SqlStatement[]> =>
-  buildFinalizeStatements(
+  buildFinalizeStatements({
     attendeeId,
-    sessionId,
     paymentReference,
-    [ticketToken],
-    sql`1 = 1`,
-  );
+    sessionId,
+    ticketTokens: [ticketToken],
+  });
 
 /** Finalize a balance payment only while the attendee still owes the expected
  * amount. Missing and already-resolved sessions abort the whole settle batch. */
@@ -80,11 +92,11 @@ export const balanceFinalizeStatements = (
   expectedAmount: number,
   paymentReference: TaggedPaymentReference,
 ): Promise<SqlStatement[]> =>
-  buildFinalizeStatements(
+  buildFinalizeStatements({
     attendeeId,
-    sessionId,
+    guard: sql`${attendeeOwedSubquery(sql`${String(attendeeId)}`)} = ${expectedAmount}`,
     paymentReference,
-    [],
-    sql`${attendeeOwedSubquery(sql`${String(attendeeId)}`)} = ${expectedAmount}`,
-    noRefundRunHolding(attendeeId),
-  );
+    sessionId,
+    standDownWhen: noRefundRunHolding(attendeeId),
+    ticketTokens: [],
+  });

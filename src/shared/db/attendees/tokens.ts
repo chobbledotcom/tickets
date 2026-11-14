@@ -13,6 +13,7 @@ import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import { emailOwedColumn } from "#db/attendees/notification-flags.ts";
 import { listingAttendeeRowColumnsFrom } from "#db/attendees/queries.ts";
 import {
+  ATTENDEE_IDENTITY_COLUMNS,
   pricePaidFromLedger,
   remainingBalanceFromLedger,
 } from "#db/attendees/select.ts";
@@ -24,7 +25,7 @@ import {
   sqlList,
   sqlLiteral,
 } from "#db/sql.ts";
-import { groupToMap, map, unique } from "#fp";
+import { groupToMap, map, unique, withoutKey } from "#fp";
 
 /** Shared ordering for an attendee's booking rows so grouped reads are
  * deterministic: date, then listing id. */
@@ -47,10 +48,9 @@ type PreviousBookingLine = Pick<
 type BookingRowWithAttendee = TokenBookingRow & { attendee_id: number };
 type RowWithAttendee<Row> = Row & { attendee_id: number };
 
-const bookingRowWithoutAttendee = ({
-  attendee_id: _attendeeId,
-  ...line
-}: BookingRowWithAttendee): TokenBookingRow => line;
+const bookingRowWithoutAttendee: (
+  row: BookingRowWithAttendee,
+) => TokenBookingRow = withoutKey("attendee_id");
 
 /** Load the booking lines for a set of attendees, grouped by attendee id.
  * Callers vary only in which columns they read, any extra join, and any
@@ -226,12 +226,7 @@ const IS_ATTENDEE_KIND = sql`attendee.kind = ${sqlLiteral(ATTENDEE_KIND)}`;
  * pending-notification flags ride along with the email badge's read-time
  * rule, so the merge preview's badges resolve like every other read. */
 const ATTENDEE_SCAN_COLUMNS = sqlCommas([
-  sql`attendee.id`,
-  sql`attendee.created`,
-  sql`attendee.kind`,
-  sql`attendee.ticket_token_index`,
-  sql`attendee.pii_blob`,
-  sql`attendee.status_id`,
+  ...ATTENDEE_IDENTITY_COLUMNS,
   remainingBalanceFromLedger(sql`attendee.id`),
   sql`attendee.email_pending`,
   sql`attendee.webhooks_pending`,

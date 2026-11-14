@@ -107,8 +107,7 @@ export const imageFileColumns = imagesTable.read.pick([
   "alt_text",
 ]);
 
-export const getAllImages = (): Promise<Image[]> =>
-  imageColumns.many({}, { order: sql`id DESC` });
+export const getAllImages = imageColumns.every({ order: sql`id DESC` });
 
 export const getImageById = readById(imagesTable);
 
