@@ -235,9 +235,9 @@ describe("riseFindings", () => {
 
   test("fails a new baseline that accepts clones", () => {
     expect(
-      riseFindings(BASELINE, baseline({ aaa: 1, bbb: 1 }), undefined, 0),
+      riseFindings(BASELINE, baseline({ aaa: 2, bbb: 1 }), undefined, 0),
     ).toEqual([
-      `${BASELINE} [added-baseline]: is a new baseline that accepts 2 ` +
+      `${BASELINE} [added-baseline]: is a new baseline that accepts 3 ` +
         "clone(s) — merge the duplicated code before you add the scan",
     ]);
   });
