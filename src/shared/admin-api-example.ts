@@ -17,10 +17,6 @@ import type {
   UpdateGroupBody,
 } from "#routes/admin/api-groups.ts";
 import type {
-  CreateHolidayBody,
-  UpdateHolidayBody,
-} from "#routes/admin/api-holidays.ts";
-import type {
   CreateListingBody,
   UpdateListingBody,
 } from "#routes/admin/api-listing-body.ts";
@@ -33,6 +29,7 @@ import {
 import { API_EXAMPLE_LISTING } from "#shared/api-example.ts";
 import { listingCatalogFields } from "#shared/catalog-fields/fields.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
+import type { ApiBody } from "#shared/rest/api-body-fields.ts";
 import type { DeleteBody } from "#shared/rest/crud-parsers.ts";
 import type { AdminListing } from "#types";
 import {
@@ -153,11 +150,11 @@ const ADMIN_API_HOLIDAY_CREATE_BODY = {
   end_date: "2025-12-26",
   name: "Christmas",
   start_date: "2025-12-25",
-} satisfies CreateHolidayBody;
+} satisfies ApiBody<typeof ADMIN_API_RESOURCES.holidays.createBodySchema>;
 
 const ADMIN_API_HOLIDAY_UPDATE_BODY = {
   name: "Christmas Break",
-} satisfies UpdateHolidayBody;
+} satisfies ApiBody<typeof ADMIN_API_RESOURCES.holidays.updateBodySchema>;
 
 const ADMIN_API_HOLIDAY_DELETE_BODY = {
   confirm_identifier: "Christmas",

@@ -38,7 +38,8 @@ const args = Deno.args.includes("--update")
   : Deno.args;
 
 /** The report that this scan writes, read from the config that `--config`
- * names. Every cpd task passes `--config`. */
+ * names. Every cpd task passes `--config`. jscpd writes `output` from the
+ * working directory, so the report sits under the project root. */
 const reportPath = async (): Promise<{ config: string; report: string }> => {
   const config = args[args.indexOf("--config") + 1];
   if (!args.includes("--config") || config === undefined) {

@@ -1,5 +1,7 @@
 /**
- * Admin routes for custom questions management (owner-only)
+ * Admin routes for custom questions management (owner-only). The question
+ * record owns the write rule and the audience. The answer surfaces stay
+ * child routes.
  */
 
 import { logActivity } from "#db/activity-log.ts";
@@ -10,7 +12,6 @@ import {
   type QuestionWithAnswers,
   requireQuestionDisplayType,
 } from "#db/question-types.ts";
-import { deleteQuestion } from "#db/questions/delete.ts";
 import {
   getAllQuestionsWithAnswers,
   getQuestionWithAnswers,
@@ -20,60 +21,42 @@ import {
 import { questionsOrder, questionsTable } from "#db/questions/tables.ts";
 import { fieldById, mapNotNullish } from "#fp";
 import { t } from "#i18n";
-import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import {
   defineAdminRoutes,
-  entityTabRoutes,
+  orderRoutes,
+  recordRoutes,
 } from "#routes/admin/route-tables.ts";
 import { formPolicyFor } from "#routes/auth.ts";
-import { entityFormById, idRouteFor } from "#routes/entity.ts";
-import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
-import { authPageAt } from "#routes/route-gates.ts";
-import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
-import {
-  createAuthedFormRoute,
-  createOrderedCollectionHandlers,
-} from "#shared/app-forms.ts";
+import { entityFormById } from "#routes/entity.ts";
+import { notFoundResponse, redirect } from "#routes/response.ts";
+import { adminDestinationAt } from "#shared/admin-surface.ts";
+import { createOrderedCollectionHandlers } from "#shared/app-forms.ts";
 import { getFlash } from "#shared/flash-context.ts";
+import { questionRecord } from "#shared/records/questions.ts";
+import { recordPages } from "#shared/rest/record-pages.ts";
 import {
   adminQuestionDeletePage,
   adminQuestionsPage,
   questionTextFlat,
 } from "#templates/admin/questions.tsx";
-
+import type { AdminSession } from "#types";
 import { createListingChoicePost } from "./listing-choice-post.ts";
-import {
-  appendWithCreationLog,
-  confirmDeleteWithLog,
-} from "./logged-actions.ts";
 import { questionPage } from "./question-page.ts";
-import {
-  answerOrder,
-  handleAddAnswer,
-  handleAnswerRecalculateGet,
-  handleAnswerRecalculatePost,
-  handleDeleteAnswerGet,
-  handleDeleteAnswerPost,
-  handleEditAnswerGet,
-  handleEditAnswerPost,
-  type QuestionIdParams,
-  redirectToQuestion,
-} from "./questions/answers.ts";
+import { answerRoutes, type QuestionIdParams } from "./questions/answers.ts";
 import { questionTextForm } from "./questions/forms.ts";
 
-/** Handle GET /admin/questions */
-const handleQuestionsGet = authPageAt("/admin/questions")(async (session) => {
-  const flash = getFlash();
-  const [questions, allListings] = await Promise.all([
-    getAllQuestionsWithAnswers(),
-    getAllListings(),
-  ]);
+/** The list renderer also resolves each question's listing ids to their
+ * decrypted names. Ids whose listing has since been deleted are dropped:
+ * listing_questions rows are not pruned on listing deletion, so orphans can
+ * linger. */
+const renderList = async (
+  questions: QuestionWithAnswers[],
+  session: AdminSession,
+): Promise<string> => {
+  const allListings = await getAllListings();
   const questionListingIds = await questionListings.getIdsByKeys(
     questions.map((question) => question.id),
   );
-  // Resolve listing ids to their decrypted names for the Listings column.
-  // Ids whose listing has since been deleted are dropped: listing_questions
-  // rows are not pruned on listing deletion, so orphans can linger.
   const nameById = fieldById("name")(allListings);
   const listingNames = new Map(
     [...questionListingIds].map(([questionId, ids]) => [
@@ -84,62 +67,23 @@ const handleQuestionsGet = authPageAt("/admin/questions")(async (session) => {
   return adminQuestionsPage(
     questions,
     session,
-    flash.error,
+    getFlash().error,
     listingNames,
     allListings.length,
   );
-});
+};
 
-/** Handle POST /admin/questions (create question) */
-const handleQuestionsPost = createAuthedFormRoute({
-  auth: formPolicyFor(adminDestinationAt("/admin/questions")),
+const pages = recordPages(questionRecord, {
+  createErrorPath: "/admin/questions",
+  editErrorPath: (id) => `/admin/questions/${id}`,
   form: questionTextForm,
-  onInvalid: ({ error }) => errorRedirect("/admin/questions", error),
-  onValid: async ({ values: { display_type, text } }) => {
-    const displayType = requireQuestionDisplayType(display_type);
-    // One transaction: a question must never exist without its order entry
-    // or its log line.
-    const questionId = await writeRowInTransaction(
-      await questionsTable.insertStatement({ displayType, text }),
-      null,
-      appendWithCreationLog(questionsOrder, "Question", text),
-    );
-    return redirect(
-      `/admin/questions/${questionId}`,
-      t("questions.created"),
-      true,
-    );
-  },
-});
-
-/** Handle POST /admin/questions/:id/edit */
-const handleQuestionEdit = createAuthedFormRoute<
-  { display_type: string; text: string },
-  QuestionIdParams
->({
-  auth: formPolicyFor(adminDestinationAt("/admin/questions/:id/edit")),
-  form: questionTextForm,
-  onInvalid: redirectToQuestion,
-  onValid: async ({ params, values: { display_type, text } }) => {
-    const existing = await getQuestionWithAnswers(params.id);
-    if (!existing) return notFoundResponse();
-    // A type conversion orphans existing answers, so it is not allowed. A
-    // free-text question stays free-text: the edit form hides the selector,
-    // and the code ignores any submitted type. A choice question can switch
-    // only between radio and select.
-    const requested = requireQuestionDisplayType(display_type);
-    const displayType =
-      existing.display_type === "free_text" || requested === "free_text"
-        ? existing.display_type
-        : requested;
-    await questionsTable.update(params.id, { displayType, text });
-    await logActivity(`Question '${text}' updated`);
-    return redirect(
-      `/admin/questions/${params.id}`,
-      t("questions.updated"),
-      true,
-    );
-  },
+  identifier: (question) => questionTextFlat(question.text),
+  renderDelete: adminQuestionDeletePage,
+  renderList,
+  toInput: ({ display_type, text }) => ({
+    displayType: requireQuestionDisplayType(display_type),
+    text,
+  }),
 });
 
 /** Handle POST /admin/questions/:id/listings (assign question to listings) */
@@ -170,20 +114,6 @@ const handleQuestionListings = entityFormById(
   },
 );
 
-const questionDelete = createConfirmedHandlers<QuestionWithAnswers>({
-  // The confirmation page shows the flattened text (newlines become " / ").
-  // A single-line input cannot carry the raw newlines. Verify against the
-  // same flattened form the operator can actually type.
-  identifier: (q) => questionTextFlat(q.text),
-  identifierLabel: t("questions.name_label"),
-  load: (id) => getQuestionWithAnswers(id),
-  onConfirm: confirmDeleteWithLog(deleteQuestion, "Question", (q) => q.text),
-  path: "/admin/questions/:id/delete",
-  render: (q, session, error) => adminQuestionDeletePage(q, session, error),
-  successMessage: "Question deleted",
-  successRedirect: "/admin/questions",
-});
-
 const questionOrder = createOrderedCollectionHandlers({
   auth: formPolicyFor(adminDestinationAt("/admin/questions/:id/move-up")),
   keys: async () =>
@@ -207,25 +137,9 @@ const handleListingQuestionsPost = createListingChoicePost({
 
 /** Questions routes */
 export const adminHandlers = defineAdminRoutes({
-  ...entityTabRoutes(adminPattern("question"), questionPage),
-  "GET /admin/questions": handleQuestionsGet,
-  "GET /admin/questions/:id/answers/:answerId/delete": handleDeleteAnswerGet,
-  "GET /admin/questions/:id/answers/:answerId/edit": handleEditAnswerGet,
-  "GET /admin/questions/:id/answers/:answerId/recalculate":
-    handleAnswerRecalculateGet,
-  "GET /admin/questions/:id/delete": idRouteFor(questionDelete.get),
+  ...recordRoutes("questions", pages, questionPage),
+  ...answerRoutes,
   "POST /admin/listing/:id/questions": handleListingQuestionsPost,
-  "POST /admin/questions": handleQuestionsPost,
-  "POST /admin/questions/:id/answers": handleAddAnswer,
-  "POST /admin/questions/:id/answers/:answerId/delete": handleDeleteAnswerPost,
-  "POST /admin/questions/:id/answers/:answerId/edit": handleEditAnswerPost,
-  "POST /admin/questions/:id/answers/:answerId/move-down": answerOrder.down,
-  "POST /admin/questions/:id/answers/:answerId/move-up": answerOrder.up,
-  "POST /admin/questions/:id/answers/:answerId/recalculate":
-    handleAnswerRecalculatePost,
-  "POST /admin/questions/:id/delete": idRouteFor(questionDelete.post),
-  "POST /admin/questions/:id/edit": handleQuestionEdit,
   "POST /admin/questions/:id/listings": handleQuestionListings,
-  "POST /admin/questions/:id/move-down": questionOrder.down,
-  "POST /admin/questions/:id/move-up": questionOrder.up,
+  ...orderRoutes("/admin/questions/:id", questionOrder),
 });

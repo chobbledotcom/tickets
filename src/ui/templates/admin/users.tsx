@@ -168,7 +168,7 @@ export const adminUserNewPage = (
   agents: LogisticsAgent[],
   error?: string,
 ): string =>
-  errorAdminPage(t("users.invite.title"), "/admin/user/new")(session, error)(
+  errorAdminPage(t("users.invite.title"), "/admin/users/new")(session, error)(
     <NewResourceForm
       action="/admin/users"
       fieldsHtml={getInviteUserForm().render()}

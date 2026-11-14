@@ -7,18 +7,12 @@ import {
   isUpdateTier,
   providerOrBunny,
 } from "#db/built-sites/types.ts";
-import { builtSites, builtSitesCrudTable } from "#db/built-sites.ts";
+import { builtSites } from "#db/built-sites.ts";
 import { t } from "#i18n";
-import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
-import {
-  crudRoutes,
-  defineAdminRoutes,
-  entityTabRoutes,
-} from "#routes/admin/route-tables.ts";
+import { defineAdminRoutes, recordRoutes } from "#routes/admin/route-tables.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import { authPageAt } from "#routes/route-gates.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
-import { adminPattern } from "#shared/admin-surface.ts";
 import {
   inBuiltSitesOrder,
   readBuiltSitesSort,
@@ -26,9 +20,10 @@ import {
 import { isBuilderEnabled } from "#shared/config.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormValues } from "#shared/forms/definition.ts";
+import { builtSiteRecord } from "#shared/records/built-sites.ts";
 import { isProvisioned, isReservedRenewal } from "#shared/renewal-helpers.ts";
 import { getQualifyingTierListings } from "#shared/renewal-tier.ts";
-import { defineResource } from "#shared/rest/resource.ts";
+import { recordPages } from "#shared/rest/record-pages.ts";
 import { siteHostingAccess } from "#shared/site-hosting.ts";
 import { rotateRenewalToken } from "#shared/site-renewal.ts";
 import { provisionSiteScheduler } from "#shared/site-scheduler.ts";
@@ -92,23 +87,13 @@ const extractBuiltSiteInput = (
   };
 };
 
-const builtSitesResource = defineResource({
+const pages = recordPages(builtSiteRecord, {
   form: getBuiltSiteForm(),
-  table: builtSitesCrudTable,
-  toInput: extractBuiltSiteInput,
-});
-
-const crud = createCrudHandlers({
-  getAll: builtSites.getAll,
-  getName: (s) => s.name,
-  identifierLabel: t("built_sites.name_label"),
-  list: "builtSites",
-  operations: builtSitesResource,
   renderDelete: adminBuiltSiteDeletePage,
   renderEditError: builtSitePage.renderEditError,
   renderList: adminBuiltSitesPage,
   renderNew: adminBuiltSiteNewPage,
-  singular: "Built site",
+  toInput: extractBuiltSiteInput,
 });
 
 const handleProvisionSiteScheduler = builtSiteFormPost(
@@ -274,22 +259,26 @@ const gateOnBuilder = <Key extends string>(
 ): Record<Key, RouteHandlerFn> =>
   mapValues(routes, (handler) => builderOnly(handler as RouteHandlerFn));
 
+/** The Renewal tab writes: the deadline and the renewal token. */
+const renewalRoutes = {
+  "POST /admin/built-sites/:id/bump-deadline": handleBumpDeadline,
+  "POST /admin/built-sites/:id/override-deadline": handleOverrideDeadline,
+  "POST /admin/built-sites/:id/provision-renewal": handleProvisionRenewal,
+  "POST /admin/built-sites/:id/re-sync-deadline": handleReSyncDeadline,
+  "POST /admin/built-sites/:id/rotate-renewal-token": handleRotateToken,
+};
+
 /** Built site routes (all gated on CAN_BUILD_SITES via gateOnBuilder). The
  * list GET restates the standard key with its own handler. */
 export const adminHandlers = gateOnBuilder(
   defineAdminRoutes({
-    ...crudRoutes(adminPattern("builtSites"), crud),
-    ...entityTabRoutes(adminPattern("builtSite"), builtSitePage),
+    ...recordRoutes("builtSites", pages, builtSitePage),
     "GET /admin/built-sites": handleBuiltSitesListGet,
     "POST /admin/built-sites/:id/add-secrets": handleAddSecrets,
     "POST /admin/built-sites/:id/add-uptime-monitor": handleAddUptimeMonitor,
-    "POST /admin/built-sites/:id/bump-deadline": handleBumpDeadline,
-    "POST /admin/built-sites/:id/override-deadline": handleOverrideDeadline,
-    "POST /admin/built-sites/:id/provision-renewal": handleProvisionRenewal,
     "POST /admin/built-sites/:id/provision-scheduler":
       handleProvisionSiteScheduler,
-    "POST /admin/built-sites/:id/re-sync-deadline": handleReSyncDeadline,
-    "POST /admin/built-sites/:id/rotate-renewal-token": handleRotateToken,
+    ...renewalRoutes,
     "POST /admin/built-sites/:id/support-message": handleSaveSiteSupportMessage,
     "POST /admin/built-sites/:id/update": handleUpdateSite,
     ...databaseKeyRoutes,

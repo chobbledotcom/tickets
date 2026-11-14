@@ -29,6 +29,10 @@ export const gitShow = (revision: string, path: string): string =>
 export const lsTree = (revision: string, path: string): string =>
   `git ls-tree ${revision} -- ${path}`;
 
+/** The `git ls-tree` command a stub answers for every path at `revision`. */
+export const lsPaths = (revision: string): string =>
+  `git ls-tree -r --name-only ${revision}`;
+
 /** The answer a stub gives when `path` exists at the revision. */
 export const holds = (path: string): GitStubAnswer => ({
   code: 0,

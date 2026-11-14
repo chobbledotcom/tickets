@@ -5,8 +5,6 @@
  */
 
 import { logActivity } from "#db/activity-log.ts";
-import type { TxScope } from "#db/client.ts";
-import type { OrderedCollection } from "#db/ordered-collection.ts";
 
 /** The confirmed-delete handler body: delete one row, then log the deletion. */
 export const confirmDeleteWithLog =
@@ -18,23 +16,4 @@ export const confirmDeleteWithLog =
   async (row: Row): Promise<void> => {
     await deleteOne(row.id);
     await logActivity(`${label} '${nameOf(row)}' deleted`);
-  };
-
-/** The in-transaction create hook: append the new row to its ordered
- * collection, then log the creation with the same transaction. Only the
- * collection's append is read. */
-export const appendWithCreationLog =
-  (
-    order: Pick<OrderedCollection<"id", undefined>, "append">,
-    label: string,
-    name: string,
-  ) =>
-  async (transaction: TxScope, id: number): Promise<void> => {
-    await order.append({ key: id, transaction });
-    await logActivity(
-      `${label} '${name}' created`,
-      undefined,
-      undefined,
-      transaction,
-    );
   };

@@ -10,16 +10,20 @@ import {
   T_CALL,
   TEMPLATES_DIR,
 } from "#scripts/check-i18n/rules.ts";
+import { keyReferences, unreferencedKeys } from "#scripts/check-i18n/unused.ts";
 import { allEnglishMessages } from "#test-utils/i18n.ts";
 import { walkSourceFiles as walk } from "#test-utils/walk-src.ts";
 
 /**
- * Codebase-level i18n coverage, verified in both directions:
+ * Codebase-level i18n coverage, verified in three directions:
  *   forward  — every t("key") reference in the source resolves to a real
  *              locale key (no typos / dangling references);
  *   backward — no user-facing string is left hard-coded in a scanned source
  *              file (everything goes through t()), except a budget of strings
- *              still pending wiring, recorded per file in LEFTOVER_ALLOWLIST.
+ *              still pending wiring, recorded per file in LEFTOVER_ALLOWLIST;
+ *   unused   — every locale key has a reference in the source.
+ *              scripts/check-i18n/unused.ts holds the rule and says what
+ *              counts as a reference.
  *
  * The per-string detection lives in scripts/check-i18n/rules.ts, which the
  * grader's i18n_catalog check shares. This file owns the tree-wide scans:
@@ -143,6 +147,22 @@ describe("i18n coverage", () => {
       }
     }
     expect(stale).toEqual([]);
+  });
+});
+
+describe("unused locale keys", () => {
+  test("every locale key has a reference in the source", () => {
+    // A key that only a test names has no reader, so the scan leaves test/
+    // out.
+    const sources = [
+      ...walk(SRC_DIR, [".ts", ".tsx", ".js"]),
+      ...walk("cli", [".ts"]),
+    ].filter((file) => !file.startsWith("src/locales/"));
+    const references = keyReferences(
+      sources.map((file) => Deno.readTextFileSync(file)),
+    );
+    // Fix: delete the key from src/locales/en, or add the code that reads it.
+    expect(unreferencedKeys(Object.keys(messages), references)).toEqual([]);
   });
 });
 

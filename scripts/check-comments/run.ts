@@ -37,8 +37,9 @@ const EXEMPT = ["doc.ts", "docs/", "ui/static/"];
 
 /**
  * A shipped, dated migration. These are append-only history that must never
- * change, so their prose is not ours to rewrite — the same reason `.jscpd.json`
- * ignores this glob. The live migration machinery beside them is not exempt.
+ * change, so their prose is not ours to rewrite — the same reason
+ * `cfg/jscpd.json` ignores this glob. The live migration machinery beside them
+ * is not exempt.
  */
 export const isShippedMigration = (relative: string): boolean =>
   /(^|\/)migrations\/2\d{3}-/.test(`/${relative}`);

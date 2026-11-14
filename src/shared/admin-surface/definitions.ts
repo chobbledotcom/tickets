@@ -54,10 +54,14 @@ export type AdminDestinationSpec =
 
 type AdminRouteGroup = Readonly<Record<string, AdminDestinationSpec>>;
 
-/** An area serving pages. Declaring a route requires declaring who reaches it. */
-type AdminAreaWithRoutes = {
+/** The audience and extra segments every area with routes declares. */
+export type AdminAreaBase = {
   readonly audience: AdminAudience;
   readonly segments?: readonly string[];
+};
+
+/** An area serving pages. Declaring a route requires declaring who reaches it. */
+type AdminAreaWithRoutes = AdminAreaBase & {
   readonly view?: AdminRouteGroup;
   readonly write?: AdminRouteGroup;
 };
