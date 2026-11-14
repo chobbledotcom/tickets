@@ -113,12 +113,6 @@
   gap: var(--space-m);
 }
 
-@mixin nav-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-s) var(--space-m);
-}
-
 @mixin panel-border {
   border: 1px solid var(--color-bg-secondary);
   border-radius: var(--border-radius);

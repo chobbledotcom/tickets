@@ -36,7 +36,9 @@ nav {
 }
 
 nav ul {
-  @include nav-row;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-s) var(--space-m);
   list-style: none;
   padding: 0;
 }

@@ -3,6 +3,9 @@
  * page. The row keeps its cell narrow: the URL text may break, so the actions
  * wrap at the cell width instead of widening the fit-content table into a
  * sideways scroll. */
+
+@use "mixins" as *;
+
 .public-url-row {
   display: block;
   max-width: 100%;
@@ -14,9 +17,7 @@
 }
 
 .public-url-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-s);
+  @include wrap-row-tight;
   margin-top: var(--space-s);
 }
 
@@ -24,8 +25,7 @@
  * Embed. Sized like the embed badge it replaces, with the link colour on
  * hover. */
 .small-action {
-  border: 1px solid var(--color-bg-secondary);
-  border-radius: var(--border-radius);
+  @include panel-border;
   background: none;
   color: var(--color-text-secondary);
   cursor: pointer;
