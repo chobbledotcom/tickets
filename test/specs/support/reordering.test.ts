@@ -10,6 +10,7 @@ import type { OpensAtOneRow } from "#test/specs/support/browser.ts";
 import {
   type Direction,
   movingRowsOn,
+  upArrowOn,
 } from "#test/specs/support/reordering.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { recordingBrowser } from "#test-utils/test-browser/helpers.ts";
@@ -119,6 +120,32 @@ describe("finding a row's own arrow", () => {
     const rows = confirmedWith(arrowAt(7, "down"));
     expect(await offersConfirmed(rows, "up")).toBe(false);
     expect(await offersConfirmed(rows, "down")).toBe(true);
+  });
+
+  test("the up arrow moves the named row up", async () => {
+    const { browser, sent } = recordingBrowser();
+    const row = `<td>Confirmed</td><td><form action="${LIST}/7/move-up" method="POST"><button>➤</button></form></td>`;
+    browser.currentHtml = `<table><tr>${row}</table>`;
+    const arrow = upArrowOn(LIST, confirmedOpenAt(browser, row, `${LIST}/7`));
+
+    await arrow.movesUp(world, "Confirmed");
+
+    expect(sent().path).toBe(`${LIST}/7/move-up`);
+  });
+
+  test("the up arrow asks about the move up, not the move down", async () => {
+    expect(
+      await upArrowOn(LIST, listOpenAt(confirmedWith(arrowAt(7)))).offersMoveUp(
+        world,
+        "Confirmed",
+      ),
+    ).toBe(true);
+    expect(
+      await upArrowOn(
+        LIST,
+        listOpenAt(confirmedWith(arrowAt(7, "down"))),
+      ).offersMoveUp(world, "Confirmed"),
+    ).toBe(false);
   });
 
   test("names the list from the world when the caller hands a function", async () => {

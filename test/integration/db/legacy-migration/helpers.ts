@@ -1,8 +1,9 @@
-import { createClient, type ResultSet } from "@libsql/client";
+import { createClient, type InStatement, type ResultSet } from "@libsql/client";
 import { assert, assertArrayIncludes } from "@std/assert";
 import { stub } from "@std/testing/mock";
 import { insert, setDb } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
+import { sqlOf } from "#db/sql-text.ts";
 import { resetDb } from "#test-utils/db.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import {
@@ -217,8 +218,8 @@ export const seedLegacySchemaMarkers = async (
  */
 export const stubPragmaForeignKeysOff = (client: Client) => {
   const origExecute = client.execute.bind(client);
-  return stub(client, "execute", (stmt: unknown) => {
-    const sql = typeof stmt === "string" ? stmt : (stmt as { sql: string }).sql;
+  return stub(client, "execute", (stmt: InStatement) => {
+    const sql = sqlOf(stmt);
     if (/PRAGMA\s+foreign_keys\s*=\s*OFF/i.test(sql)) {
       return Promise.resolve({
         columns: [],
@@ -235,7 +236,7 @@ export const stubPragmaForeignKeysOff = (client: Client) => {
         }),
       } as ResultSet);
     }
-    return origExecute(stmt as Parameters<typeof origExecute>[0]);
+    return origExecute(stmt);
   });
 };
 

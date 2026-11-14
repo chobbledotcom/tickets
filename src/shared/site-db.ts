@@ -9,14 +9,14 @@
 
 import { type Client, createClient } from "@libsql/client";
 import type { BuiltSite } from "#db/built-sites/types.ts";
-import { wrapExecute } from "#db/libsql-call.ts";
+import { type ExecuteMethod, wrapExecute } from "#db/libsql-call.ts";
 import { countDatabaseRoundTrip } from "#db/query-log.ts";
 import { sql } from "#db/sql.ts";
 import type { Result } from "#shared/result.ts";
 
 /** Credentials needed to open a read-only connection to a site's database. */
 export type SiteDbCredentials = Pick<BuiltSite, "dbUrl" | "dbToken">;
-export type SiteDbReader = Pick<Client, "execute">;
+export type SiteDbReader = { execute: ExecuteMethod };
 
 const childSiteReader = (client: Client): SiteDbReader => ({
   execute: wrapExecute(client, (_statement, execute) => {

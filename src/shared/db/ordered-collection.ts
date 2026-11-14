@@ -4,8 +4,8 @@ import {
   resultRows,
   type TxScope,
   useTransaction,
-  writeRowInTransaction,
 } from "#db/client.ts";
+import { writeRowInTransaction } from "#db/row-write.ts";
 import {
   type SqlStatement,
   sql,
@@ -123,19 +123,17 @@ export const defineOrderedCollection = <
   table,
 }: OrderedCollectionConfig<Key, Scope>): OrderedCollection<Key, Scope> => {
   const keyColumns = columnNames(key);
-  const scopeColumns = scope === undefined ? undefined : columnNames(scope);
   const tableName = sqlName(table);
   const orderColumn = sqlName(order);
-  const scopeArgs = (operation: ScopeValues<Scope>): readonly InValue[] =>
-    scope === undefined
-      ? []
-      : columnValues(scope, operation.scope as ColumnValues<Scope & Columns>);
   /** The scope test for one operation, or a test every row passes when the
    * collection declares no scope. */
   const inScope = (operation: ScopeValues<Scope>): SqlStatement =>
-    scopeColumns === undefined
+    scope === undefined
       ? sql`1 = 1`
-      : equalityOf(scopeColumns, scopeArgs(operation));
+      : equalityOf(
+          columnNames(scope),
+          columnValues(scope, operation.scope as ColumnValues<Scope & Columns>),
+        );
   const inTransaction = <Result>(
     operation: { transaction?: TxScope | undefined },
     run: (transaction: TxScope) => Promise<Result>,

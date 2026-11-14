@@ -783,28 +783,6 @@ export const insertedRowId = (
   );
 };
 
-/**
- * Write one row `statement` in a fresh write transaction and run `persist` (the
- * coupled join-table writes) on the same `tx`, so the row and its side writes
- * commit or roll back together. On update, the optional `readState` step runs
- * before the statement — it reads the state that reaches `persist` and may
- * refuse the write by throwing; creates skip it. Returns the row id.
- */
-export const writeRowInTransaction = <State = never>(
-  statement: SqlStatement,
-  existingId: number | null,
-  persist: (tx: TxScope, id: number, state: State | null) => Promise<void>,
-  readState?: TransactionStateReader<State>,
-): Promise<number> =>
-  withTransaction(async (tx) => {
-    const state =
-      existingId !== null && readState ? await readState(tx, existingId) : null;
-    const res = await tx.execute(statement);
-    const id = existingId ?? insertedRowId(res);
-    await persist(tx, id, state);
-    return id;
-  });
-
 /** Build an INSERT that starts with `opening`, from a column-to-value record. */
 const insertStartingWith =
   (opening: SqlStatement) =>

@@ -559,10 +559,10 @@
     "banned-modal": 1
   },
   "src/shared/db/client.ts": {
-    "semicolon": 9,
-    "long-sentence": 12,
+    "semicolon": 8,
+    "long-sentence": 11,
     "contraction": 1,
-    "banned-modal": 8,
+    "banned-modal": 7,
     "present-perfect": 1
   },
   "src/shared/db/contact-preferences.ts": {

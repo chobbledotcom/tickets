@@ -4,6 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { returnsNext, stub } from "@std/testing/mock";
 import {
   deleteWithChildren,
+  executeScript,
   getDb,
   queryAll,
   queryAllPrimary,
@@ -150,6 +151,14 @@ describeWithEnv("db > client batch", { db: true }, () => {
       expect(entry!.startedAtMs).toBe(1000);
       expect(entry!.durationMs).toBe(7);
     });
+  });
+
+  test("executeScript refuses a statement that binds values", async () => {
+    // A script carries its statements as one text, so a bound value has no
+    // slot to land in. The refusal must arrive before any script runs.
+    await expect(
+      executeScript([sql`SELECT 1`, sql`SELECT ${2}`]),
+    ).rejects.toThrow("A script statement cannot bind values: SELECT ?1");
   });
 
   test("deleteWithChildren removes the children and the parent row itself", async () => {

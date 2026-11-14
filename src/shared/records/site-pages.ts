@@ -9,10 +9,9 @@ import {
   createSitePage,
   getSitePageById,
   type SitePageWriteInput,
-  sitePagesTable,
+  sitePages,
   updateSitePage,
 } from "#db/site-pages.ts";
-import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
@@ -20,7 +19,7 @@ import { logNameActivity, type RecordShapeOf } from "#shared/rest/record.ts";
 import { contentCommands } from "#shared/rest/record-command.ts";
 import { errorResult, okResult } from "#shared/result.ts";
 import { isReservedSlug } from "#shared/site-pages/core.ts";
-import type { SitePage } from "#types";
+import type { SitePage, SitePageNavRow } from "#types";
 
 const logPage = logNameActivity("Page");
 
@@ -32,12 +31,12 @@ export const sitePageRule = (input: SitePageWriteInput) =>
     : okResult(input);
 
 export const sitePageRecord = defineNamedRowRecord<
-  RecordShapeOf<SitePage, SitePageWriteInput, SitePage>
+  RecordShapeOf<SitePage, SitePageWriteInput, SitePage, never, SitePageNavRow>
 >()({
   activityName: "Page",
   api: ADMIN_API_RESOURCES["site-pages"],
-  getAll: () =>
-    sitePagesTable.read.many({}, { order: sql`sort_order ASC, id ASC` }),
+  // The list page shows the nav columns only.
+  getAll: () => sitePages.getAll(),
   load: getSitePageById,
   nameLabel: "site.pages.name_label",
   rule: sitePageRule,

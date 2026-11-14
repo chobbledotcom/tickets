@@ -245,6 +245,7 @@ const handleImageEditPost: TypedRouteHandler<"POST /admin/images/:id/edit"> =
       filename: image.filename,
       filenameThumb: image.filename_thumb,
       items: allowedImageTargets(adminLevel, parseImageTargets(form)),
+      skipMissingItems: true,
     });
     return answerImageWrite(
       verdict,

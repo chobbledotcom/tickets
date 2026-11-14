@@ -9,14 +9,9 @@ export const occurrences = (haystack: string, needle: string): number =>
 /** Collapse whitespace runs so layout can change without breaking snapshots. */
 export const flatSql = (sql: string): string => sql.replace(/\s+/g, " ").trim();
 
-/** The same value with each statement in it shown as its SQL text. A statement
- * that binds values shows its text and its values. */
+/** The same value with each statement in it shown as its SQL text. */
 export const sqlText = (value: unknown): unknown => {
-  if (isSqlStatement(value)) {
-    return value.args.length === 0
-      ? value.sql
-      : { args: value.args, sql: value.sql };
-  }
+  if (isSqlStatement(value)) return value.sql;
   if (Array.isArray(value)) return value.map(sqlText);
   if (typeof value === "object" && value !== null) {
     return Object.fromEntries(
