@@ -4,7 +4,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FormParams } from "#shared/form-data.ts";
-import { readSubmittedFieldValue } from "#shared/forms/submitted-value.ts";
+import {
+  DATETIME_PARTIAL_ERROR,
+  readSubmittedFieldValue,
+} from "#shared/forms/submitted-value.ts";
 
 const dateField = {
   label: "Starts",
@@ -29,10 +32,25 @@ describe("readSubmittedFieldValue date cleanup", () => {
   test("a date field passes an unusable value through for the field message", () => {
     // The field's own validate hook reports the old copy; the boundary only
     // guarantees that a usable value is cleaned.
-    for (const raw of ["2027-6-1", "2027-02-30", "2027-06-01T00:00", "soon"]) {
+    const unusable = [
+      "2027-6-1",
+      "2027-02-30",
+      "2027-06-01T00:00",
+      "soon",
+      "mutated",
+    ];
+    for (const raw of unusable) {
       const form = new FormParams([["start_date", raw]]);
       expect(readSubmittedFieldValue(form, dateField)).toBe(raw);
     }
+  });
+
+  test("a time without a date reads as the partial the message names", () => {
+    const form = new FormParams([["closes_at_time", "18:30"]]);
+    expect(readSubmittedFieldValue(form, datetimeField)).toBe(null);
+    expect(DATETIME_PARTIAL_ERROR).toBe(
+      "Please enter a date when providing a time, or leave both blank",
+    );
   });
 
   test("a blank date field stays blank", () => {

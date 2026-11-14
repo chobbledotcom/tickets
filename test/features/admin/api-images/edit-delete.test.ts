@@ -46,7 +46,7 @@ import {
   createTestEditorSession,
   createTestManagerSession,
 } from "#test-utils/session.ts";
-import { apiDeleteAs, apiPutAs } from "./parity/helpers.ts";
+import { apiDeleteAs, apiPutAs } from "../parity/helpers.ts";
 
 describeWithEnv(
   "Admin API - Image writes",

@@ -10,6 +10,7 @@ import { afterEach, it as test } from "@std/testing/bdd";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import {
   applyDemoOverrides,
+  LOGISTICS_DEMO_FIELDS,
   loadAfterDemoOverrides,
 } from "#shared/demo/overrides.ts";
 import { FormParams } from "#shared/form-data.ts";
@@ -79,6 +80,15 @@ describeWithEnv("demo overrides", { db: true }, () => {
 
     expect(loaded).toBe(3);
     expect(seen).toEqual(["Demo"]);
+  });
+
+  test("the Logistics tab clears the pinned latitude and longitude", () => {
+    setDemoModeForTest(true);
+    const form = formWith({ lat: "51.5072", lng: "-0.1276" });
+
+    applyDemoOverrides(form, LOGISTICS_DEMO_FIELDS);
+
+    expect([form.get("lat"), form.get("lng")]).toEqual(["", ""]);
   });
 
   test("hands the loader's empty answer through", async () => {

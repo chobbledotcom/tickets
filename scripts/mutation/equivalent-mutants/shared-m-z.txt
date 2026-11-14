@@ -407,5 +407,8 @@ src/shared/square/limits.ts::SQUARE_LINK_EXPIRY_BATCH~1mbbncc  1 → 0 audited:1
 # every writer there rejects an empty name, so the ?? never sees "".
 src/shared/order-line-items.ts::orderLineItems.name~0am8pen  ??→|| audited:04chtsp # a package display name comes from the groups table, where every writer rejects an empty name
 
+src/shared/rest/field-reads.ts::BODY_READS.switch~0d60jwz  ??→|| audited:16bxpfj # a stored switch is boolean or null on create, and both null and false fall back to false under ?? and ||
+src/shared/rest/record.ts::buildRecord.rule~0wug6os  ??→|| audited:1a2111p # spec.rule is a function or undefined; a function is never falsy, so ?? and || pick the same value
+
 # crud-api.ts: a resource declares its children and custom routes as an object
 # or leaves them out.

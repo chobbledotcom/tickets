@@ -109,10 +109,13 @@ describeWithEnv("an invite that cannot be made", { db: true }, () => {
   });
 
   test("refuses one the form itself will not accept", async () => {
-    const { response } = await invite("", "manager");
+    const { response } = await invite("someone", "bogus");
 
-    expect(response.status).toBe(302);
-    assertStringIncludes(response.headers.get("location") ?? "", NEW_PATH);
+    await expectFlashRedirect(
+      NEW_PATH,
+      t("error.invalid_role"),
+      false,
+    )(response);
   });
 });
 

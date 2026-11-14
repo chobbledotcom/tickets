@@ -6,8 +6,10 @@
 
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
-import { it as test } from "@std/testing/bdd";
+import { afterEach, it as test } from "@std/testing/bdd";
 import { holidays } from "#db/holidays.ts";
+import { setDemoModeForTest } from "#shared/demo/mode.ts";
+import { DEMO_HOLIDAY_NAMES } from "#shared/demo/samples.ts";
 import { holidayRule } from "#shared/records/holidays.ts";
 import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import { assertJson, expectFlashRedirect } from "#test-utils/assertions.ts";
@@ -69,6 +71,50 @@ describeWithEnv("holidays", { db: true }, () => {
 
     await expectFlashRedirect("/admin/holidays", "Holiday deleted")(response);
     expect(await holidays.table.read.one({ id: holiday.id })).toBe(null);
+  });
+});
+
+describeWithEnv("holiday saves in demo mode", { db: true }, () => {
+  afterEach(() => {
+    setDemoModeForTest(false);
+  });
+
+  const storedName = async (id: number) =>
+    (await holidays.table.read.one({ id }))?.name;
+
+  const createHoliday = async (name: string) => {
+    await adminFormPost("/admin/holidays", {
+      end_date: "2027-01-02",
+      name,
+      start_date: "2027-01-01",
+    });
+    const [created] = await holidays.table.read.many();
+    return created?.name;
+  };
+
+  const editHoliday = async (name: string) => {
+    const holiday = await createTestHoliday({ name: "Before" });
+    await adminFormPost(`/admin/holidays/${holiday.id}/edit`, {
+      end_date: "2026-12-26",
+      name,
+      start_date: "2026-12-25",
+    });
+    return storedName(holiday.id);
+  };
+
+  test("stores a sample name in place of the typed one on create", async () => {
+    setDemoModeForTest(true);
+    expect(DEMO_HOLIDAY_NAMES).toContain(await createHoliday("Real Day"));
+  });
+
+  test("stores a sample name in place of the typed one on edit", async () => {
+    setDemoModeForTest(true);
+    expect(DEMO_HOLIDAY_NAMES).toContain(await editHoliday("Real Day"));
+  });
+
+  test("stores the typed name on create and edit while demo mode is off", async () => {
+    expect(await createHoliday("Real Day")).toBe("Real Day");
+    expect(await editHoliday("Typed Day")).toBe("Typed Day");
   });
 });
 

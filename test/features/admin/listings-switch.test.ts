@@ -1,9 +1,11 @@
 // test-groups: run-alone
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { withTransaction } from "#db/client.ts";
+import { queryAll, withTransaction } from "#db/client.ts";
+import { holidays } from "#db/holidays.ts";
 import { moveUndatedBookingsToDayTx } from "#db/listings/daily-switch.ts";
 import { listingsTable } from "#db/listings/records.ts";
+import { t } from "#i18n";
 import {
   planListingTypeSwitch,
   probeAssignDates,
@@ -11,9 +13,12 @@ import {
   wouldBeStartDates,
 } from "#routes/admin/listings-switch.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import { getBookableStartDates } from "#shared/dates.ts";
 import { inputFor } from "#test/shared/listings-actions/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { buildUpdateListingForm } from "#test-utils/db-helpers/listing-forms.ts";
 import {
   allDays,
   bookableStartDates,
@@ -21,7 +26,16 @@ import {
   listingWithTwoUndatedBookings,
 } from "#test-utils/db-helpers/listings.ts";
 import { testFormParams } from "#test-utils/form-values.ts";
+import { adminMultipartPost } from "#test-utils/session.ts";
 import type { ListingWithCount } from "#types";
+
+/** Set a listing's stored capacity, so a test can seat a dated booking past
+ * the cap the switch later judges against. */
+const setCapacity = (listingId: number, max: number) =>
+  queryAll("UPDATE listings SET max_attendees = ? WHERE id = ?", [
+    max,
+    listingId,
+  ]);
 
 /** A would-be daily input over the stored row: the row's own fields with the
  * caller's submitted daily fields on top. */
@@ -127,6 +141,43 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     expect(offered).not.toEqual(await bookableStartDates(stored.id));
   });
 
+  test("wouldBeStartDates keeps a submitted false or zero over the stored value", async () => {
+    // The stored row lets the visitor choose the span, so its own start
+    // dates take a one-day stay.
+    const stored = {
+      ...(await createTestListing({
+        bookableDays: allDays,
+        listingType: "daily",
+        maximumDaysAfter: 30,
+        minimumDaysBefore: 2,
+      })),
+      customisable_days: true,
+    };
+    const submitted = {
+      bookableDays: ["Monday", "Tuesday"],
+      customisableDays: false,
+      durationDays: 2,
+      maximumDaysAfter: 0,
+      minimumDaysBefore: 0,
+    };
+    // A two-day stay over Monday and Tuesday starts only on a Monday, and an
+    // open-ended window from today reaches past the stored thirty days.
+    const expected = getBookableStartDates(
+      {
+        ...stored,
+        bookable_days: submitted.bookableDays,
+        customisable_days: false,
+        duration_days: 2,
+        maximum_days_after: 0,
+        minimum_days_before: 0,
+      },
+      await holidays.getAll(),
+    );
+    expect(
+      await wouldBeStartDates(stored, wouldBeInput(stored, submitted)),
+    ).toEqual(expected);
+  });
+
   test("the probe judges each offered date with the production per-day cap SQL", async () => {
     const listing = await createTestListing({ maxAttendees: 2 });
     await bookAttendee(listing, { date: "2026-11-05", quantity: 2 });
@@ -222,6 +273,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     });
     if (step.kind !== "assign") return;
     expect(step.page.card.count).toBe(2);
+    expect(step.page.card.noneFits).toBe(false);
   });
 
   test("a pick outside the offered dates is refused with the pick error", async () => {
@@ -248,7 +300,88 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     expect(step).toMatchObject({ kind: "page", status: 200 });
     if (step.kind !== "page") return;
     expect(step.page.card.noDates).toBe(true);
+    expect(step.page.card.noneFits).toBe(false);
     expect(step.page.card.dates).toEqual([]);
+  });
+
+  test("the card says no date fits only when every offered date is full", async () => {
+    const listing = await hallWithOneUndatedBooking();
+    // One offered day: tomorrow, for a one-day stay.
+    const oneDay = { duration_days: "1", maximum_days_after: "1" };
+    const open = await planListingTypeSwitch(
+      listing,
+      switchForm(listing, oneDay),
+    );
+    expect(open).toMatchObject({ kind: "page" });
+    if (open.kind !== "page") return;
+    expect(open.page.card.noneFits).toBe(false);
+    const [day] = open.page.card.dates;
+
+    await setCapacity(listing.id, 4);
+    await bookAttendee(listing, {
+      date: day,
+      email: "z@example.com",
+      name: "Z",
+      quantity: 2,
+    });
+    await setCapacity(listing.id, 2);
+
+    const full = await planListingTypeSwitch(
+      listing,
+      switchForm(listing, oneDay),
+    );
+    expect(full).toMatchObject({
+      kind: "page",
+      page: { card: { dates: [day], noneFits: true } },
+    });
+  });
+
+  test("a full pick is refused with the places the bookings hold", async () => {
+    const listing = await listingWithTwoUndatedBookings({ maxAttendees: 5 });
+    const [day] = await bookableStartDates(listing.id);
+    await setCapacity(listing.id, 6);
+    await bookAttendee(listing, {
+      date: day,
+      email: "z@example.com",
+      name: "Z",
+    });
+    await setCapacity(listing.id, 5);
+
+    const step = await confirmedPickStep(listing, day!);
+
+    expect(step).toMatchObject({
+      error: t("listings_table.switch_daily_undated_refused", {
+        count: 5,
+        date: day,
+        name: listing.name,
+      }),
+      kind: "page",
+      page: { card: { noneFits: false } },
+      status: 400,
+    });
+  });
+
+  test("serves the Edit tab with the assign card and the submitted groups", async () => {
+    const listing = await hallWithOneUndatedBooking();
+    const group = await createTestGroup({ name: "Chosen group" });
+
+    const { response } = await adminMultipartPost(
+      `/admin/listing/${listing.id}/edit`,
+      {
+        ...buildUpdateListingForm(
+          { bookableDays: allDays, listingType: "daily" },
+          listing,
+        ),
+        group_ids: String(group.id),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain('name="assign_undated_to"');
+    expect(html).toContain(
+      `checked name="group_ids" type="checkbox" value="${group.id}"`,
+    );
   });
 
   test("a confirmed pick carries the move into the save", async () => {

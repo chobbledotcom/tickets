@@ -11,32 +11,11 @@ import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
-import type { AdminApiResource } from "#shared/admin-api-resources.ts";
-import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
-import { adminDestination, adminDestinationAt } from "#shared/admin-surface.ts";
-import { attributeRecord } from "#shared/records/attributes.ts";
-import { externalSourceRecord } from "#shared/records/external-sources.ts";
-import { groupRecord } from "#shared/records/groups.ts";
-import { holidayRecord } from "#shared/records/holidays.ts";
-import { imageRecord } from "#shared/records/images.ts";
-import { listingRecord } from "#shared/records/listings.ts";
-import { questionRecord } from "#shared/records/questions.ts";
-import { sitePageRecord } from "#shared/records/site-pages.ts";
-import { statusRecord } from "#shared/records/statuses.ts";
 import {
   defineRecord,
-  deleteAudienceFor,
-  jsonAudienceFor,
   type RecordShapeOf,
   type RecordSpec,
-  recordPageIds,
-  recordSurfaceOf,
 } from "#shared/rest/record.ts";
-import {
-  contentCommands,
-  deleteIfPresent,
-  writeAndLog,
-} from "#shared/rest/record-command.ts";
 import { errorResult, okResult } from "#shared/result.ts";
 import {
   getAllActivityLog,
@@ -215,30 +194,84 @@ describeWithEnv("the admin record write path", { db: true }, () => {
     expect(await record.load(999)).toBeNull();
   });
 
-  test("a content update needs no not-found error of its own", async () => {
-    const saved: [number, IdNameInput][] = [];
-    const commands = contentCommands<IdNameRow, IdNameInput, "missing">({
-      create: () => Promise.resolve(okResult({ id: 2, name: "New" })),
-      load: (id) =>
-        Promise.resolve(id === 1 ? { id: 1, name: "Stored" } : null),
-      log: () => Promise.resolve(),
-      message: () => "refused",
-      remove: () => Promise.resolve(),
-      rule: (input) => okResult(input),
-      update: (id, input) => {
-        saved.push([id, input]);
-        return Promise.resolve(okResult({ id, name: input.name }));
+  test("a table record reads a page from the replica and a write from the primary", async () => {
+    const reads: string[] = [];
+    const spied = {
+      ...table,
+      findByIdPrimary: (id: number) => {
+        reads.push(`primary ${id}`);
+        return table.findByIdPrimary!(id);
       },
-      updateInput: (input) => input,
+      read: {
+        ...table.read,
+        one: (query: Parameters<typeof table.read.one>[0]) => {
+          reads.push("replica");
+          return table.read.one(query);
+        },
+      },
+    };
+    const record = widgetRecord({ table: spied });
+    await createWidget("Spied", record);
+    reads.length = 0;
+
+    await record.load(1);
+    await record.loadAfterWrite(1);
+    await record.update(1, { name: "Moved" });
+
+    expect(reads).toEqual(["replica", "primary 1", "primary 1", "primary 1"]);
+  });
+
+  test("a join write sees the written id and the ruled input", async () => {
+    const joined: [number, string, unknown][] = [];
+    const record = widgetRecord({
+      afterWrite: (_tx, id, input, state) => {
+        joined.push([id, input.name, state]);
+        return Promise.resolve();
+      },
+      rule: (input) => okResult({ name: `${input.name}!` }),
     });
 
-    const verdict = await commands.update(1, { name: "Renamed" });
+    await createWidget("Joined", record);
 
-    expect(verdict).toEqual({
-      kind: "written",
-      row: { id: 1, name: "Renamed" },
+    expect(joined).toEqual([[1, "Joined!", null]]);
+  });
+
+  test("a write logged after commit names its row only when linked", async () => {
+    const logLines = async () =>
+      (await getAllActivityLog()).map((entry) => [
+        entry.listing_id,
+        entry.message,
+      ]);
+    const linked = widgetRecord({
+      linkActivityToRow: true,
+      logAfterCommit: true,
     });
-    expect(saved).toEqual([[1, { name: "Renamed" }]]);
+    await createWidget("Late", linked);
+    await linked.update(1, { name: "Later" });
+    await createWidget("Loose", widgetRecord({ logAfterCommit: true }));
+
+    expect(await logLines()).toEqual([
+      [null, "Widget 'Loose' created"],
+      [1, "Widget 'Later' updated"],
+      [1, "Widget 'Late' created"],
+    ]);
+  });
+
+  test("a refused write logged after commit logs nothing", async () => {
+    const record = widgetRecord({
+      logAfterCommit: true,
+      order: {
+        append: () => {
+          throw new TransactionValidationError("Order failed");
+        },
+      },
+    });
+
+    expect(await record.create({ name: "Unlogged" })).toEqual({
+      kind: "refused",
+      message: "Order failed",
+    });
+    expect(await getAllActivityLog()).toEqual([]);
   });
 
   test("a plan refusal writes nothing", async () => {
@@ -338,133 +371,17 @@ describe("the record read defaults", () => {
     );
     expect(await record.remove(2)).toEqual({ kind: "not-found" });
   });
-});
 
-describe("the record surface law", () => {
-  type DeclaredRecord = {
-    api?: AdminApiResource;
-    deleteDestination?: AdminDestinationId;
-    list: AdminDestinationId;
-  };
-
-  const API_RECORDS: readonly DeclaredRecord[] = [
-    attributeRecord,
-    externalSourceRecord,
-    groupRecord,
-    holidayRecord,
-    imageRecord,
-    listingRecord,
-    questionRecord,
-    sitePageRecord,
-    statusRecord,
-  ];
-
-  test("every JSON record derives its audiences from its page routes", () => {
-    for (const record of API_RECORDS) {
-      if (!record.api) throw new Error(`${record.list} declares no JSON entry`);
-      expect(jsonAudienceFor(record.list)).toEqual(
-        adminDestination(record.list).audience,
-      );
-      expect(deleteAudienceFor(record)).toEqual(
-        // The default delete route is the collection path with `/:id/delete`.
-        adminDestinationAt(
-          record.deleteDestination ??
-            `${adminDestination(record.list).pattern}/:id/delete`,
-        ).audience,
-      );
-    }
-  });
-
-  test("a record in a record area takes its route ids from the area", () => {
-    expect(recordSurfaceOf("settingsStatuses")).toEqual({
-      deleteDestination: "statusDelete",
-      detail: "status",
-      list: "statuses",
-    });
-    expect(recordPageIds(statusRecord)).toEqual({
-      deleteDestination: "statusDelete",
-      destination: "status",
-    });
-  });
-
-  test("a record outside a record area names its own routes and has no record page", () => {
-    const named = { deleteDestination: "imageDelete", list: "images" } as const;
-    expect(recordSurfaceOf(named)).toBe(named);
-    expect(() => recordPageIds(imageRecord)).toThrow(
-      "The record for images declares no record page",
-    );
-  });
-
-  test("a record with no delete route takes the collection's delete audience", () => {
-    expect(deleteAudienceFor({ list: "images" })).toEqual([
-      "owner",
-      "manager",
-      "editor",
-    ]);
-  });
-
-  test("every record names a page route the surface declares", () => {
-    for (const record of API_RECORDS) {
-      expect(adminDestination(record.list).pattern).toContain("/admin/");
-    }
-  });
-});
-
-describe("the command write answers", () => {
-  test("answers the written row and logs it", async () => {
-    const logged: number[] = [];
-    const verdict = await writeAndLog({
-      log: (row: { id: number }) => {
-        logged.push(row.id);
-        return Promise.resolve();
-      },
-      message: () => "refused",
-      write: () => Promise.resolve(okResult({ id: 4 })),
-    });
-    expect(verdict).toEqual({ kind: "written", row: { id: 4 } });
-    expect(logged).toEqual([4]);
-  });
-
-  test("answers the not-found error as not found", async () => {
-    const verdict = await writeAndLog({
-      log: () => Promise.resolve(),
-      message: () => "refused",
-      notFound: "notFound",
-      write: () => Promise.resolve(errorResult("notFound")),
-    });
-    expect(verdict).toEqual({ kind: "not-found" });
-  });
-
-  test("answers another domain error with its message", async () => {
-    const verdict = await writeAndLog({
-      log: () => Promise.resolve(),
-      message: () => "That name is taken",
-      write: () => Promise.resolve(errorResult("slugTaken")),
-    });
-    expect(verdict).toEqual({
-      kind: "refused",
-      message: "That name is taken",
-    });
-  });
-
-  test("deletes a present row and skips an absent log", async () => {
-    const removed: number[] = [];
-    const verdict = await deleteIfPresent(7, {
-      destroy: (row: { id: number }) => {
-        removed.push(row.id);
-        return Promise.resolve();
-      },
-      load: () => Promise.resolve({ id: 7 }),
-    });
-    expect(verdict).toEqual({ kind: "deleted" });
-    expect(removed).toEqual([7]);
-  });
-
-  test("answers not found for an absent row", async () => {
-    const verdict = await deleteIfPresent(7, {
-      destroy: () => Promise.reject(new Error("must not run")),
+  test("a record with no table finds a write's row through its read-back", async () => {
+    const record = bareRecord({
       load: () => Promise.resolve(null),
+      loadAfterWrite: (id) =>
+        Promise.resolve(id === 1 ? { id: 1, name: "Committed" } : null),
     });
-    expect(verdict).toEqual({ kind: "not-found" });
+
+    await expect(record.update(1, { name: "Orphan" })).rejects.toThrow(
+      "The record for holidays declares no table",
+    );
+    expect(await record.remove(2)).toEqual({ kind: "not-found" });
   });
 });

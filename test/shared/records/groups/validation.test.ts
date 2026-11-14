@@ -9,13 +9,16 @@ import {
   soldHiddenPackageError,
   validateGroupWithPackage,
 } from "#shared/records/groups.ts";
+import {
+  groupInput,
+  soldPackage,
+} from "#test/features/admin/groups/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createHiddenPackageGroup,
   createTestGroup,
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { groupInput, soldPackage } from "./helpers.ts";
 
 describeWithEnv("admin group validation", { db: true }, () => {
   test("rejects a name another group already uses", async () => {
@@ -95,6 +98,29 @@ describeWithEnv("admin group validation", { db: true }, () => {
     const group = await soldPackage("Visible sold", false);
 
     expect(await soldHiddenPackageError(group.id)).toBeNull();
+  });
+
+  test("rejects a name past the text box limit", async () => {
+    expect(
+      await validateGroupWithPackage(
+        await groupInput({ name: "g".repeat(251) }),
+      ),
+    ).toBe("Name must be 250 characters or fewer");
+  });
+
+  test("a sold hidden package cannot be un-packaged by an edit", async () => {
+    const group = await soldPackage("Hidden leaving", true);
+
+    expect(
+      await validateGroupWithPackage(
+        await groupInput({
+          isPackage: false,
+          name: group.name,
+          slug: group.slug,
+        }),
+        group.id,
+      ),
+    ).toBe(t("error.sold_hidden_package"));
   });
 
   test("a sold hidden package may stay a package", async () => {
