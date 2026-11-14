@@ -225,7 +225,7 @@ export const riseFindings = (
 ): string[] => {
   const head = fingerprintCounts(path, headText);
   if (baseText === undefined) {
-    const accepted = Object.keys(head).length;
+    const accepted = totalClones(head);
     return accepted === 0
       ? []
       : [
