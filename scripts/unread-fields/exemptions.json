@@ -279,28 +279,6 @@
     },
     {
       "path": [
-        { "name": "StripeCheckoutLineItemParams" },
-        { "name": "price_data" },
-        { "name": "recurring" }
-      ],
-      "kind": "provider-input",
-      "evidence": "createStripeRequest serialises the complete Stripe request"
-    },
-    {
-      "path": [{ "name": "StripeCheckoutSessionCreateParams" }],
-      "kind": "provider-input",
-      "evidence": "createStripeRequest serialises the complete Stripe request"
-    },
-    {
-      "path": [
-        { "name": "StripeCheckoutSessionCreateParams" },
-        { "name": "subscription_data" }
-      ],
-      "kind": "provider-input",
-      "evidence": "createStripeRequest serialises the complete Stripe request"
-    },
-    {
-      "path": [
         { "name": "StripeClient" },
         { "name": "refunds" },
         { "name": "create" },

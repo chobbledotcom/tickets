@@ -1055,12 +1055,8 @@
   ],
   "src/shared/stripe/client.ts": [
     {
-      "path": [{ "name": "StripeCheckoutLineItemParams" }],
-      "fields": ["price_data", "quantity"]
-    },
-    {
       "path": [{ "name": "StripeCheckoutSessionCreateParams" }],
-      "fields": ["cancel_url", "customer_email", "expires_at", "line_items", "metadata", "mode", "payment_method_types", "success_url"]
+      "fields": ["cancel_url", "customer_email", "expires_at", "metadata", "payment_method_types", "success_url"]
     },
     {
       "path": [{ "name": "StripeWebhookEndpointCreateParams" }],
