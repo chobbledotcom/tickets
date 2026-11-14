@@ -127,7 +127,9 @@ describeWithEnv("svg-ticket", { db: true }, () => {
         '<img src="cid:ticket.png" alt="Ticket QR code"',
         "</div>",
       ]);
-      expect(block).toContain('</p><p style="margin:4px 0');
+      expect(block).toContain(
+        'The Venue</p><p style="margin:4px 0;font-size:13px;color:#555">Qty: 1',
+      );
     });
 
     test("escapes the facts a reader sees", () => {
@@ -228,7 +230,7 @@ describeWithEnv("svg-ticket", { db: true }, () => {
       );
 
       expectIncludesAll(svg, ['y="62"', 'y="84"', 'y="106"']);
-      expect(svg).toContain('</text>\n    <text');
+      expect(svg).toContain('</text>\n    <text x="24" y="84"');
     });
 
     test("sets the document height from the facts", async () => {

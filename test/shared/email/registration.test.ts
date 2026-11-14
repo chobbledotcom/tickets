@@ -205,7 +205,42 @@ describeWithEnv(
         '<img src="cid:ticket-1.png"',
         '<img src="cid:ticket-2.png"',
       ]);
+      expect(body.html).toContain('</div>\n<div style="margin:24px 0');
       expect(body.html.match(/<img /g)).toHaveLength(2);
+    });
+
+    test("sends each part's content type to a provider that carries it", async () => {
+      await configureTestEmail();
+      await settings.update.email.provider("postmark");
+      settings.invalidateCache();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
+
+      await sendRegistrationEmails([makeEntry()], "GBP");
+
+      const parts: { ContentType: string; Name: string }[] =
+        fetch.getFetchJsonBody().Attachments;
+      expect(parts.map((part) => [part.Name, part.ContentType])).toEqual([
+        ["ticket.svg", "image/svg+xml"],
+        ["ticket.png", "image/png"],
+      ]);
+    });
+
+    test("keeps a failed owner copy off the buyer's flag", async () => {
+      await configureTestEmail({ businessEmail: "admin@business.com" });
+      fetch.restubFetch(() =>
+        Promise.resolve(new Response("Error", { status: 500 })),
+      );
+
+      const result = await sendRegistrationEmails(
+        [makeEntry({}, { email: "" })],
+        "GBP",
+      );
+
+      expect(result).toEqual({
+        buyerFailed: false,
+        failed: true,
+        ownerFailed: true,
+      });
     });
 
     test("does not attach tickets to admin notification", async () => {
@@ -235,6 +270,8 @@ describeWithEnv(
       assertStringIncludes(decoded, "VIP Bundle");
       assert(!decoded.includes("Secret Seat"));
       assert(!decoded.includes("Secret Meal"));
+      // The title and the quantity: a package ticket carries no place or date.
+      expect(decoded.match(/<text /g)).toHaveLength(2);
     });
 
     test("keeps a hidden package's booked date in its ticket", async () => {

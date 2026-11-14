@@ -273,10 +273,10 @@ src/shared/crypto/hashing.ts::verifyPassword.iterations~10pid9h  10 → 0 audite
 # attendee-failures.ts: refusedOrderItem picks its fallback with .find over an
 # array of order items — objects, always truthy — so ?? and || agree.
 src/shared/attendee-failures.ts::refusedOrderItem.named~1wyyjdl  ?? → || audited:1ubot7z # find over item objects → undefined|truthy; never falsy-non-null
-src/shared/email.ts::getEmailConfig.fromAddress~1bacov9  → "mutated" audited:1cinuyc # only reached when both stored addresses are falsy, and parseEmail("mutated") === parseEmail("") === null
-src/shared/email.ts::getHostEmailConfigFromEnv.fromAddress~1alw5li  ?? → || audited:1cinuyc # getEnv(): string|undefined, only falsy string "" === fallback ""
-src/shared/email.ts::getHostEmailConfigFromEnv.fromAddress~1alw5li  → "mutated" audited:1cinuyc # only reached when the env var is unset, and parseEmail("mutated") === parseEmail("") === null
-src/shared/email.ts::mailgunBody~0u9dcxo  ?? → || audited:1cinuyc # attachments: EmailAttachment[]|undefined — arrays are truthy, so both operators agree on every input
+src/shared/email.ts::getEmailConfig.fromAddress~1bacov9  → "mutated" audited:1c15j2l # only reached when both stored addresses are falsy, and parseEmail("mutated") === parseEmail("") === null
+src/shared/email.ts::getHostEmailConfigFromEnv.fromAddress~1alw5li  ?? → || audited:1c15j2l # getEnv(): string|undefined, only falsy string "" === fallback ""
+src/shared/email.ts::getHostEmailConfigFromEnv.fromAddress~1alw5li  → "mutated" audited:1c15j2l # only reached when the env var is unset, and parseEmail("mutated") === parseEmail("") === null
+src/shared/email.ts::mailgunBody~0u9dcxo  ?? → || audited:1c15j2l # attachments: EmailAttachment[]|undefined — arrays are truthy, so both operators agree on every input
 src/shared/email-renderer.ts::buildTemplateData.displays~00l98s9  ?? → || audited:0klsbdc # packageDisplays: ReadonlyMap|undefined — a Map is truthy even when empty
 src/shared/email-renderer.ts::collapsedPackageEntry.attendee.date_range_label~0v9023r  ?? → || audited:0klsbdc # date_range_label: string, only falsy string "" === fallback ""
 src/shared/email-renderer.ts::collapsedPackageEntry.attendee.date~1xxdsvp  ?? → || audited:0klsbdc # date is nullish or a stored YYYY-MM-DD string; only the nullish values reach the null fallback
@@ -335,3 +335,8 @@ src/shared/admin-api-example/endpoint-doc.ts::crudDocs.created~0epxqlj  ?? → |
 src/shared/admin-api-example/endpoint-doc.ts::crudDocs.created~0lfuyxn  ?? → || audited:1nwgp80 # freshRecord is undefined or a truthy record object
 src/shared/entity-pages/core.ts::resolveTabSlug~14y75uy  ?? → || audited:13evilg # the named branch only runs for a non-empty requested slug, and the found tab carries that same slug; only undefined reaches the null fallback
 src/shared/admin-pages.ts::adminLandingPath~17bpn1g  ?? → || audited:14t8438 # landingFor[adminLevel] answers undefined or a declared route id, and every route id is a non-empty literal
+
+# registration.ts: a missing date and an empty date both draw no line, and the
+# QR content id is always a file name ending in .png.
+src/shared/email/registration.ts::collapsedSvgTicketData.attendeeDate~0j1g127  ??→|| audited:0ags6x3 # buildInfoLines skips "" and null alike, so the ticket is the same
+src/shared/email/registration.ts::ticketsHtml~02amlqi  ??→|| audited:0ags6x3 # a present qr carries contentId "${name}.png", which is never ""
