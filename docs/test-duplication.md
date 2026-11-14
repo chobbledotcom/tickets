@@ -32,7 +32,7 @@ lower number is a tighter net.
 | `cfg/jscpd.support.json` | `test/specs/support`             | 40        |
 | `cfg/jscpd.helpers.json` | `src` + `test/test-utils`        | 40        |
 | `cfg/jscpd.test.json`    | `test`                           | 48        |
-| `cfg/jscpd.css.json`     | `src/ui/static/style.scss`       | 50        |
+| `cfg/jscpd.css.json`     | `src/ui/static`                  | 50        |
 
 The last one holds no tests, so the rest of this document leaves it out. Its
 number is high because design-token CSS repeats short declaration runs by

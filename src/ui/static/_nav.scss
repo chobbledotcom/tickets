@@ -1,0 +1,148 @@
+/** Headers and navigation: the site menu, the admin sidebar and the mobile
+ * bars. */
+
+@use "mixins" as *;
+
+article header,
+div header,
+main header {
+  padding-top: 0;
+}
+
+header {
+  text-align: var(--justify-important);
+}
+
+header a b,
+header a em,
+header a i,
+header a strong {
+  margin-left: 0.5rem;
+  margin-right: 0.5rem;
+}
+
+section header {
+  padding-top: 0;
+  width: 100%;
+}
+
+/* Nav */
+nav {
+  align-items: center;
+  display: flex;
+  font-weight: bold;
+  justify-content: center;
+  gap: var(--space-m);
+}
+
+nav ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-s) var(--space-m);
+  list-style: none;
+  padding: 0;
+}
+
+nav ul li {
+  text-align: left;
+}
+
+/* Nav for Mobile */
+@media (max-width: 768px) {
+  nav {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+}
+
+/* The admin nav wraps a desktop sidebar nav and the mobile bars; CSS shows
+   whichever suits the viewport. On mobile/tablet the wrapper is transparent
+   (display: contents), so the mobile bars lay out as the plain stacked bars
+   admin has always shown; on desktop it becomes a sticky left column. */
+.admin-nav-group {
+  display: contents;
+}
+
+/* The desktop sidebar nav is hidden until the desktop breakpoint (below); the
+   mobile bars use the default nav styling above. */
+.admin-nav--desktop {
+  display: none;
+}
+
+/* Nav for Desktop: pin the admin menu to the left as a sticky sidebar, with the
+   page content flowing to its right. The sidebar is a plain vertical list of
+   links — no boxes or borders — with each section's sub-nav nested and indented
+   beneath its parent link. */
+@media (min-width: 769px) {
+  body:has(.admin-nav-group) main {
+    display: grid;
+    grid-template-columns: var(--admin-nav-width) minmax(0, 1fr);
+    gap: 0 var(--space-xl);
+    align-items: start;
+  }
+
+  .admin-nav-group {
+    display: block;
+    grid-column: 1;
+    /* Span every content row (9999 stands in for "all rows" — `-1` can't target
+       the implicit grid) so the sidebar's height never stretches a content row
+       and column 2 keeps flowing from the very top. */
+    grid-row: 1 / span 9999;
+    align-self: start;
+    position: sticky;
+    top: var(--space-m);
+    /* If the menu is taller than a short viewport, let it scroll on its own so
+       the lower links stay reachable while the sidebar is stuck. */
+    max-height: calc(100dvh - 2 * var(--space-m));
+    overflow-y: auto;
+    /* Pin the sidebar visually across cross-document navigations: the browser
+       matches this name on both the old and new page and keeps the element in
+       place while only column-2 content transitions. */
+    view-transition-name: admin-sidebar;
+  }
+
+  /* Everything that isn't the sidebar flows down column 2... */
+  body:has(.admin-nav-group) main > :not(.admin-nav-group) {
+    grid-column: 2;
+    min-width: 0;
+  }
+
+  /* ...with margins re-creating the inter-block gap, since a real row-gap would
+     be multiplied across the 9999 spanned (empty) rows. */
+  body:has(.admin-nav-group)
+    main
+    > :not(.admin-nav-group)
+    ~ :not(.admin-nav-group) {
+    margin-top: var(--space-xl);
+  }
+
+  /* Swap which nav shows: the desktop sidebar replaces the mobile bars. */
+  .admin-nav--mobile {
+    display: none;
+  }
+
+  .admin-nav--desktop {
+    display: block;
+  }
+
+  /* Plain stacked links. Every list — the top level and each nested sub-nav —
+     is a simple column; nesting a sub-nav indents it one step, so the site
+     editor's third level indents twice, all without boxes or borders. */
+  .admin-nav--desktop ul {
+    @include stack-tight;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .admin-nav--desktop li {
+    @include stack-tight;
+    padding: 0;
+    text-align: left;
+  }
+
+  .admin-nav--desktop .admin-subnav {
+    padding-left: var(--space-m);
+  }
+}
+

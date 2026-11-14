@@ -47,7 +47,7 @@ export type TableColumn<
   /** A column-kind class (e.g. `"amount"`, `"quantity"`, `"reorder"`,
    *  `"actions"`) applied to both this column's <th> and every <td> in it.
    *  Use for the codified width/alignment kinds mirrored in
-   *  `$column-kinds` in `style.scss`. */
+   *  `$column-kinds` in `_tables.scss`. */
   readonly class?: ColumnKind;
   /** A free-form class applied to every <td> in this column (e.g.
    *  `"cell-description"` for the listing description's truncation,

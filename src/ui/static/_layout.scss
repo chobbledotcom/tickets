@@ -1,0 +1,171 @@
+/** Page layout: the body grid, the page regions and the admin shell. */
+
+@use "mixins" as *;
+
+article aside {
+  background: var(--color-secondary-accent);
+  border-left: 4px solid var(--color-secondary);
+  padding: 0.01rem 0.8rem;
+}
+
+body {
+  @include surface-colors;
+  font-family: var(--font-family);
+  line-height: var(--line-height);
+  margin: 0;
+  overflow-x: hidden;
+  padding: 0;
+}
+
+body > footer,
+header,
+main {
+  margin: 0 auto;
+  max-width: var(--width-content);
+  padding: var(--space-lg) var(--space-m);
+}
+
+body > footer,
+main {
+  /* Fluid horizontal padding: stays at the small --space-m floor on mobile,
+     eases through ~lg across tablet widths, and caps at the --space-xl
+     ceiling on desktop. Vertical padding stays as set by the base rule. */
+  padding-inline: clamp(var(--space-m), 4.5vw, var(--space-xl));
+}
+
+/* Admin pages span the full viewport width (the left sidebar already gives the
+   content its own column) and cap their horizontal padding a step lower. */
+body:has(#main-nav) main,
+.admin-footer {
+  max-width: none;
+  padding-inline: clamp(var(--space-m), 4.5vw, var(--space-lg));
+}
+
+main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+}
+
+/* Stack reset: gap controls spacing, not browser default margins */
+main > *,
+article > * {
+  margin-block: 0;
+}
+
+/* Explicit page composition: large gaps separate peer regions, while the
+   standard gap keeps the related parts inside each region together. */
+.page-regions,
+.page-block {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  width: 100%;
+}
+
+.page-regions {
+  gap: var(--space-lg);
+}
+
+.page-block {
+  gap: var(--space-m);
+}
+
+.page-regions > *,
+.page-block > * {
+  margin-block: 0;
+}
+
+.prose > :first-child {
+  margin-top: 0;
+}
+
+.prose > :last-child {
+  margin-bottom: 0;
+}
+
+.listing-attributes {
+  display: grid;
+  gap: calc(var(--space-s) / 2);
+  margin-block: var(--space-s);
+}
+
+.listing-attributes > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 calc(var(--space-s) / 2);
+}
+
+.listing-attributes dt {
+  color: var(--color-text-secondary);
+  font-weight: 700;
+}
+
+.listing-attributes dd {
+  margin: 0;
+}
+
+/* Agent run sheet: the top-level booking list has no bullets or indent; the
+   nested job/detail lists drop their bullets but keep their padding so they
+   still read as indented sub-lists. */
+.delivery-bookings {
+  list-style-type: none;
+  padding: 0;
+}
+
+.delivery-bookings ul {
+  list-style-type: none;
+}
+
+/* Space the inline "mark done" toggle away from the job it belongs to. */
+.delivery-mark {
+  margin-left: 1rem;
+}
+
+/* Outlines a rendered email body so it reads as a preview, not page content.
+   Constrained to a typical email column width so it reads like a real email. */
+.email-preview {
+  border: 1px dashed var(--color-text-secondary);
+  border-radius: var(--border-radius);
+  padding: var(--space-m);
+  max-width: 40rem;
+}
+
+hr {
+  background-color: var(--color-bg-secondary);
+  border: none;
+  height: 1px;
+  width: 100%;
+}
+
+section {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap;
+  justify-content: var(--justify-important);
+  gap: var(--space-m);
+}
+
+section img,
+article img {
+  max-width: 100%;
+}
+
+section pre {
+  overflow: auto;
+}
+
+section aside {
+  @include panel-raised;
+  padding: var(--space-m);
+  width: var(--width-card);
+}
+
+section aside:hover {
+  box-shadow: var(--box-shadow) var(--color-bg-secondary);
+}
+
+[hidden] {
+  display: none;
+}
+

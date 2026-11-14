@@ -563,7 +563,7 @@ providers are configured at `/admin/settings`.
 
 ```
 deno task start          # Run server
-deno task dev            # Run server, restarting on source changes (static assets build once, so editing style.scss or bundle inputs needs the task restarted)
+deno task dev            # Run server, restarting on source changes (static assets build once, so editing the stylesheet partials or bundle inputs needs the task restarted)
 deno task test           # Run tests
 deno task test:coverage  # Tests with coverage report
 deno task lint           # Format and lint code with Biome

@@ -1,0 +1,188 @@
+/** The door scanner: its overlay, its video, its status panels and its
+ * confirm steps. */
+
+@use "mixins" as *;
+
+/* Scanner overlay container */
+#scanner-container {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+  max-width: 500px;
+}
+
+/* Scanner video element */
+#scanner-video {
+  width: 100%;
+  border-radius: 4px;
+  display: block;
+}
+
+/* Custom combobox */
+.combobox {
+  position: relative;
+}
+
+.combobox-list {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  max-height: 12rem;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--color-bg);
+  @include panel-raised;
+}
+
+.combobox-list [role="option"] {
+  padding: 0.4rem 0.6rem;
+  cursor: pointer;
+}
+
+.combobox-list [role="option"]:hover,
+.combobox-list [role="option"].combobox-active {
+  background: var(--color-bg-secondary);
+}
+
+/* Manual check-in status */
+.checkin-status {
+  padding: 0.75rem 1rem;
+  border-radius: var(--border-radius);
+  font-weight: bold;
+  text-align: center;
+}
+
+.checkin-status-success {
+  @include status-success-colors;
+}
+
+.checkin-status-warning {
+  @include status-warning-colors;
+}
+
+.checkin-status-error {
+  @include status-error-colors;
+}
+
+/* Inactive dashboard row */
+.inactive-row {
+  opacity: 0.5;
+}
+
+/* Scanner status overlay - centered on video */
+.scanner-status {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+  padding: 1.25rem 1.5rem;
+  border-radius: 8px;
+  font-weight: bold;
+  font-size: 1.5rem;
+  text-align: center;
+  max-width: 90%;
+  box-sizing: border-box;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: opacity 0.5s ease;
+}
+
+.scanner-status-fade-out {
+  opacity: 0;
+}
+
+.scanner-status-success {
+  @include status-success-colors;
+}
+
+.scanner-status-warning {
+  @include status-warning-colors;
+}
+
+.scanner-status-error {
+  @include status-error-colors;
+}
+
+@media (max-width: 480px) {
+  .scanner-status {
+    font-size: 1.25rem;
+    padding: 1rem 1.25rem;
+  }
+}
+
+/* Scanner overlays (confirm, quantity) - centered on video like scanner-status */
+.scanner-overlay {
+  @include fill-parent;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &.hidden {
+    display: none;
+  }
+}
+
+.scanner-overlay-backdrop {
+  @include fill-parent;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 4px;
+}
+
+.scanner-overlay-box {
+  position: relative;
+  border: none;
+  border-radius: 8px;
+  padding: var(--space-m);
+  max-width: 90%;
+  width: 320px;
+  text-align: center;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+  @include surface-colors;
+  @include stack;
+
+  p {
+    font-size: 1.1rem;
+  }
+}
+
+#scanner-confirm-close {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+}
+
+.scanner-confirm-actions {
+  display: flex;
+  gap: var(--space-s);
+  justify-content: center;
+}
+
+.scanner-confirm-actions button {
+  min-width: 80px;
+  padding: 0.6rem 1.25rem;
+  font-size: 1rem;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  cursor: pointer;
+}
+
+.scanner-confirm-actions .primary {
+  background: #155724;
+  color: #fff;
+  border-color: #155724;
+}
+
+.scanner-confirm-actions .secondary {
+  @include surface-colors;
+}

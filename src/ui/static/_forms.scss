@@ -1,0 +1,175 @@
+/** Form controls: inputs, selects, textareas, fieldsets and their rows. */
+
+@use "mixins" as *;
+
+button:disabled,
+input:disabled {
+  background: var(--color-bg-secondary);
+  border-color: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+  cursor: not-allowed;
+}
+
+button[disabled]:hover,
+input[type="submit"][disabled]:hover {
+  filter: none;
+}
+
+/* A disabled action rendered as an inert <span>. Used on its own for a plain
+ * greyed link, or layered on .btn to grey out a button-styled link. */
+.btn--disabled {
+  color: var(--color-text-secondary);
+  cursor: not-allowed;
+  pointer-events: none;
+  text-decoration: none;
+}
+
+.btn.btn--disabled {
+  background-color: var(--color-bg-secondary);
+  border-color: var(--color-bg-secondary);
+}
+
+form {
+  @include panel-raised;
+  @include stack;
+  max-width: var(--width-card-wide);
+  min-width: var(--width-card);
+  padding: var(--space-m);
+  text-align: var(--justify-normal);
+}
+
+form.one-button {
+  border: none !important;
+  box-shadow: none !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+form.no-bg {
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+
+form > * {
+  margin: 0;
+}
+
+form header {
+  padding: var(--space-m) 0;
+}
+
+form footer {
+  @include wrap-row-tight;
+  justify-content: flex-start;
+}
+
+input,
+select,
+textarea {
+  display: block;
+  font-size: inherit;
+  max-width: var(--width-card-wide);
+}
+
+/* Selects never overflow their container — max-width caps them at the row and
+   box-sizing keeps the border/padding inside that cap. */
+select {
+  box-sizing: border-box;
+  max-width: 100%;
+  width: fit-content;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  display: inline-block;
+  flex: 0;
+  margin: 0;
+}
+
+input[type="checkbox"] + label,
+input[type="radio"] + label {
+  display: inline-block;
+  font-weight: normal;
+  position: relative;
+  top: 1px;
+}
+
+input[type="range"] {
+  padding: 0.4rem 0;
+}
+
+input,
+select,
+textarea {
+  @include panel-border;
+  padding: 0.4rem 0.8rem;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="email"],
+textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+input[type="file"] {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+textarea {
+  resize: vertical;
+}
+
+/* On admin pages, textareas grow to fit their content via field-sizing (width
+   stays 100% so they only grow vertically). Tidy bounds keep an empty field a
+   few lines tall and stop very long content from running off the page — past
+   the cap it scrolls. Public ticket forms fall back to the browser's default
+   textarea size. Guarded by @supports so browsers without field-sizing get
+   that default too. */
+@supports (field-sizing: content) {
+  body:has(#main-nav) textarea {
+    field-sizing: content;
+    min-block-size: 3lh;
+    max-block-size: 30lh;
+  }
+}
+
+input[readonly],
+textarea[readonly] {
+  background-color: var(--color-bg-secondary);
+}
+
+/* Recipient address list: wrap long emails so they never overflow a
+   narrow (mobile) screen. */
+.recipient-emails {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.char-counter {
+  display: block;
+  text-align: right;
+  color: var(--color-text-secondary);
+  font-weight: normal;
+}
+.char-counter-warn {
+  color: #c00;
+}
+
+/* Footer row beneath a markdown editor: mode toggle and preview link (left)
+   opposite the character counter (right). */
+.md-editor-footer {
+  display: flex;
+  width: 100%;
+  max-width: var(--width-card-wide);
+  align-items: baseline;
+  gap: var(--space-m);
+}
+.md-editor-footer .char-counter {
+  margin: 0 0 0 auto;
+}
+
