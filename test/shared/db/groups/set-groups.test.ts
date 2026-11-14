@@ -6,7 +6,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { withTransaction, writeRowInTransaction } from "#db/client.ts";
+import { withTransaction } from "#db/client.ts";
 import {
   assignListingsToGroup,
   writePackageMembersTx,
@@ -20,6 +20,7 @@ import {
 } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { listingsTable } from "#db/listings/records.ts";
+import { writeRowInTransaction } from "#db/row-write.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { t } from "#i18n";
 import {

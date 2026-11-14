@@ -3,11 +3,15 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
-import { getDb, withTransaction, writeRowInTransaction } from "#db/client.ts";
+import { getDb, withTransaction } from "#db/client.ts";
 import {
   setN1GuardNotifyOnly,
   TRANSACTION_ROUNDTRIP_THRESHOLD,
 } from "#db/query-log.ts";
+import {
+  UpdatedRowMissingError,
+  writeRowInTransaction,
+} from "#db/row-write.ts";
 import {
   getSubrequestRemaining,
   runWithSubrequestBudget,
@@ -56,7 +60,9 @@ describeWithEnv("db > client transaction", { db: true }, () => {
   test("a transaction may use the full statement budget", async () => {
     // Off-by-one in the running count would fire the guard one statement
     // early, failing a legitimate transaction at exactly the threshold.
-    await runChattyTransaction(TRANSACTION_ROUNDTRIP_THRESHOLD - 1);
+    await expect(
+      runChattyTransaction(TRANSACTION_ROUNDTRIP_THRESHOLD - 1),
+    ).resolves.toBeUndefined();
   });
 
   test("the single-statement over the budget throws", async () => {
@@ -211,54 +217,62 @@ describeWithEnv("db > client transaction", { db: true }, () => {
     ]);
   });
 
-  test("writeRowInTransaction honours an explicit existing id of 0", async () => {
-    // `existingId ?? lastInsertRowid` must be nullish- (not falsy-) coalescing:
-    // only a null existingId means "this was an INSERT, use its new rowid". An
-    // explicit 0 must reach persist as 0, not be swapped for lastInsertRowid.
+  /** Run one write through writeRowInTransaction against a driver whose
+   *  statement answers `result`: the id it answered or the error it threw,
+   *  and the ids persist saw. */
+  const writeAnswering = async (
+    result: ResultSet,
+    existingId: number | null,
+  ): Promise<{ error: unknown; id: number | null; persistedIds: number[] }> => {
     const persistedIds: number[] = [];
     using _txStub = stubTransaction({
       commit: () => Promise.resolve(),
-      execute: () =>
-        Promise.resolve({ ...emptyResultSet(), lastInsertRowid: 42n }),
-      rollback: () => Promise.resolve(),
-    });
-    const id = await writeRowInTransaction(
-      "UPDATE rows SET x = 1",
-      0,
-      (_tx, rowId) => {
-        persistedIds.push(rowId);
-        return Promise.resolve();
-      },
-    );
-    expect(id).toBe(0);
-    expect(persistedIds).toEqual([0]);
-  });
-
-  /** Run an INSERT through writeRowInTransaction against a driver whose
-   *  RETURNING gives back `rows`, recording the ids persist saw. */
-  const insertReturningRows = async (
-    rows: Record<string, unknown>[],
-  ): Promise<{ persistedIds: number[]; error: unknown }> => {
-    const persistedIds: number[] = [];
-    using _txStub = stubTransaction({
-      commit: () => Promise.resolve(),
-      execute: () => Promise.resolve(stubResultSet(rows)),
+      execute: () => Promise.resolve(result),
       rollback: () => Promise.resolve(),
     });
     try {
-      await writeRowInTransaction(
-        "INSERT INTO rows (x) VALUES (1)",
-        null,
+      const id = await writeRowInTransaction(
+        "WRITE rows",
+        existingId,
         (_tx, rowId) => {
           persistedIds.push(rowId);
           return Promise.resolve();
         },
       );
-      return { error: null, persistedIds };
+      return { error: null, id, persistedIds };
     } catch (thrown) {
-      return { error: thrown, persistedIds };
+      return { error: thrown, id: null, persistedIds };
     }
   };
+
+  /** An INSERT whose RETURNING gives back `rows`. */
+  const insertReturningRows = (rows: Record<string, unknown>[]) =>
+    writeAnswering(stubResultSet(rows), null);
+
+  test("writeRowInTransaction honours an explicit existing id of 0", async () => {
+    // `existingId ?? lastInsertRowid` must be nullish- (not falsy-) coalescing:
+    // only a null existingId means "this was an INSERT, use its new rowid". An
+    // explicit 0 must reach persist as 0, not be swapped for lastInsertRowid.
+    const changedOneRow = {
+      ...emptyResultSet(),
+      lastInsertRowid: 42n,
+      rowsAffected: 1,
+    };
+
+    expect(await writeAnswering(changedOneRow, 0)).toEqual({
+      error: null,
+      id: 0,
+      persistedIds: [0],
+    });
+  });
+
+  test("writeRowInTransaction refuses an update that changes no row, before persist", async () => {
+    expect(await writeAnswering(emptyResultSet(), 5)).toEqual({
+      error: new UpdatedRowMissingError("No row 5 to update"),
+      id: null,
+      persistedIds: [],
+    });
+  });
 
   // The join writes are keyed on the id, so an INSERT that hands back no row —
   // or a row without a usable key — has to fail before persist runs, leaving the

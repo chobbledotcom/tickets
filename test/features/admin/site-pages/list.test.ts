@@ -1,7 +1,8 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { addPageItem } from "#db/site-page-items.ts";
-import { sitePages } from "#db/site-pages.ts";
+import { sitePages, sitePagesTable } from "#db/site-pages.ts";
 import {
   expectHtmlResponse,
   expectIncludesAll,
@@ -67,6 +68,17 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         "move-down",
         "move-up",
       ]);
+    });
+
+    test("lists the pages from their nav columns, without a full-row read", async () => {
+      await create("nav-only");
+      using _fullRead = stub(sitePagesTable.read, "many", () =>
+        Promise.reject(new Error("The list page must not read full rows")),
+      );
+
+      const html = await expectHtmlResponse(await adminGet(BASE), 200);
+
+      assertStringIncludes(html, "/page/nav-only");
     });
 
     test("removes the order column in read-only mode", async () => {

@@ -4,10 +4,11 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { withTransaction, writeRowInTransaction } from "#db/client.ts";
+import { withTransaction } from "#db/client.ts";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { setListingGroups, setListingGroupsTx } from "#db/groups.ts";
 import { listingsTable } from "#db/listings/records.ts";
+import { writeRowInTransaction } from "#db/row-write.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { sitePlanMemberError } from "#shared/package-membership.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -22,31 +23,40 @@ import type { Group } from "#types";
 const createPlanListing = (name: string) =>
   createTestListing({ assignBuiltSite: true, initialSiteMonths: 1, name });
 
-/** The shared tail of every "the group write refused the plan" case: the join
- *  reports the shared refusal and no membership row lands. */
-const refusePlanJoin = async (name: string, group: Group): Promise<void> => {
+/** Join a new plan listing to `group`: the join's answer, and the groups the
+ *  plan holds after. */
+const joinPlan = async (name: string, group: Group) => {
   const plan = await createPlanListing(name);
-  expect(await assignListingsToGroup([plan.id], group.id)).toBe(
-    sitePlanMemberError(plan.name),
-  );
-  expect(await listingGroupIdsOf(plan.id)).toEqual([]);
+  return {
+    answer: await assignListingsToGroup([plan.id], group.id),
+    groupIds: await listingGroupIdsOf(plan.id),
+  };
 };
+
+/** The shared refusal for the plan `name`, with no membership row. */
+const refusedJoin = (name: string) => ({
+  answer: sitePlanMemberError(name),
+  groupIds: [],
+});
 
 describeWithEnv(
   "db > groups > built-site plan membership",
   { db: true, env: { CAN_BUILD_SITES: "true" } },
   () => {
-    test("an ordinary group refuses a built-site plan listing", async () => {
-      const group = await createTestGroup({ name: "Ordinary Plan Target" });
-      await refusePlanJoin("Refused Plan", group);
-    });
-
-    test("a package group refuses a built-site plan listing", async () => {
-      const group = await createTestGroup({
+    test("an ordinary group and a package group both refuse a built-site plan listing", async () => {
+      const ordinary = await createTestGroup({ name: "Ordinary Plan Target" });
+      const packageGroup = await createTestGroup({
         isPackage: true,
         name: "Package Plan Target",
       });
-      await refusePlanJoin("Package Refused Plan", group);
+
+      expect([
+        await joinPlan("Refused Plan", ordinary),
+        await joinPlan("Package Refused Plan", packageGroup),
+      ]).toEqual([
+        refusedJoin("Refused Plan"),
+        refusedJoin("Package Refused Plan"),
+      ]);
     });
 
     test("a listing's own save refuses to join it to a group", async () => {

@@ -2,7 +2,7 @@
   "src/features/auth.ts": 688,
   "src/fp.ts": 585,
   "src/shared/db/attendees/servicing.ts": 899,
-  "src/shared/db/client.ts": 915,
+  "src/shared/db/client.ts": 893,
   "src/shared/db/groups.ts": 782,
   "src/shared/db/migrations/schema-sync.ts": 633,
   "src/shared/db/modifier-resolve.ts": 616,

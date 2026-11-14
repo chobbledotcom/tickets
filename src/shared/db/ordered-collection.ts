@@ -4,9 +4,9 @@ import {
   resultRows,
   type TxScope,
   useTransaction,
-  writeRowInTransaction,
 } from "#db/client.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
+import { writeRowInTransaction } from "#db/row-write.ts";
 
 type Columns = string | readonly [string, ...string[]];
 type ColumnValues<Names extends Columns> = Names extends string

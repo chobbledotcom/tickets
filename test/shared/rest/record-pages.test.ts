@@ -7,6 +7,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { recordPages } from "#shared/rest/record-pages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
@@ -17,6 +18,7 @@ import {
   expectRedirect,
   form,
   type Input,
+  type PagesConfig,
   pagesFor,
   recordWith,
   refusedWrite,
@@ -75,6 +77,23 @@ describeWithEnv("the record page routes", { db: true }, () => {
 
     expectRedirect(await editAs(pages), "/admin/holidays/7");
     expect(updates).toEqual([[7, { name: "Edited name" }]]);
+  });
+
+  test("an edit hands the record the plan its form names, or none", async () => {
+    const plan = { persist: () => Promise.resolve() };
+    const planned: unknown[] = [];
+    const record = recordWith();
+    using _update = stub(record, "update", (_id, _input, given) => {
+      planned.push(given);
+      return Promise.resolve({ kind: "written", row: { id: 7, name: "W" } });
+    });
+    const pagesWith = (config: Partial<PagesConfig>) =>
+      recordPages(record, { form: form("Widget"), toInput, ...config });
+
+    await editAs(pagesWith({ editPlan: () => Promise.resolve(plan) }));
+    await editAs(pagesWith({}));
+
+    expect(planned).toEqual([plan, undefined]);
   });
 
   test("a refused edit renders in place when the page supplies a renderer", async () => {

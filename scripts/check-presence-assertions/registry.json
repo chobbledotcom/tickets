@@ -27,7 +27,6 @@
   "test/shared/crypto/keys.test.ts": 2,
   "test/shared/db/client.test.ts": 13,
   "test/shared/google-wallet.test.ts": 3,
-  "test/shared/rest/write-entity.test.ts": 1,
   "test/shared/webhook/payload-fields.test.ts": 1,
   "test/test-utils/error-paths.test.ts": 1
 }
