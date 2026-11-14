@@ -9,9 +9,11 @@ import { it as test } from "@std/testing/bdd";
 import { logisticsAgents } from "#db/logistics-agents.ts";
 import { agentUsers } from "#db/user-agents.ts";
 import { getAllUsers } from "#db/users.ts";
+import { activityMessages } from "#test-utils/activity-log.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createLogisticsAgent } from "#test-utils/db-helpers/logistics-agents.ts";
+import { racedBy } from "#test-utils/record-queries.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("settings-logistics", { db: true }, () => {
@@ -88,12 +90,21 @@ describeWithEnv("settings-logistics", { db: true }, () => {
     expect(html).toMatch(new RegExp(`checked[^>]*value="${userId}"`));
   });
 
-  test("editing a missing agent returns 404", async () => {
-    const { response } = await adminFormPost("/admin/logistics/99999/edit", {
+  test("an edit of a missing agent, or of one deleted mid-edit, answers 404 and logs nothing", async () => {
+    const id = await createLogisticsAgent("Racing Van");
+    const missing = await adminFormPost("/admin/logistics/99999/edit", {
       name: "Ghost",
     });
+    const raced = await racedBy(
+      () => logisticsAgents.table.deleteById(id),
+      () => adminFormPost(`/admin/logistics/${id}/edit`, { name: "Renamed" }),
+    );
 
-    expect(response.status).toBe(404);
+    expect([
+      missing.response.status,
+      raced.response.status,
+      await activityMessages(),
+    ]).toEqual([404, 404, ["Logistics agent 'Racing Van' created"]]);
   });
 
   test("deletes an agent and clears its references", async () => {

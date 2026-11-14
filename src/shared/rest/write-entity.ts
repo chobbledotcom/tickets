@@ -5,12 +5,15 @@
  * primary, then run the post-commit hook.
  */
 
-import {
-  type SqlStatement,
-  type TransactionStateReader,
-  type TxScope,
-  writeRowInTransaction,
+import type {
+  SqlStatement,
+  TransactionStateReader,
+  TxScope,
 } from "#db/client.ts";
+import {
+  UpdatedRowMissingError,
+  writeRowInTransaction,
+} from "#db/row-write.ts";
 import { refusingTheWriteOn } from "#db/transaction.ts";
 import type { CheckTxHook } from "#shared/rest/crud-api-types.ts";
 
@@ -76,13 +79,37 @@ export interface EntityWrite<Row extends { id: number }, State = never> {
  */
 const readBackWrittenOrNull = async <Row extends { id: number }, State>(
   { existingId, readBack, tableName }: EntityWrite<Row, State>,
-  id: number,
+  id: number | null,
 ): Promise<Row | null> => {
+  if (id === null) return null;
   const row = await readBack(id);
   if (row || existingId !== null) return row;
   throw new Error(
     `${tableName}: row ${id} was inserted but could not be read back`,
   );
+};
+
+/** Write the row and its join writes in one transaction. Null when an update
+ * finds its row deleted, so nothing commits. */
+const writeJoinedOrNull = async <Row extends { id: number }, State>(
+  write: EntityWrite<Row, State>,
+  preRead: TransactionStateReader<State> | undefined,
+): Promise<number | null> => {
+  try {
+    return await writeRowInTransaction(
+      await write.buildStatement(),
+      write.existingId,
+      async (tx, id, state) => {
+        for (const joinWrite of write.joinWrites) {
+          await joinWrite(tx, id, state);
+        }
+      },
+      preRead,
+    );
+  } catch (error) {
+    if (error instanceof UpdatedRowMissingError) return null;
+    throw error;
+  }
 };
 
 /**
@@ -109,16 +136,7 @@ export const writeEntity = async <Row extends { id: number }, State = never>(
     write.joinWrites.length > 0 || write.checkTx !== undefined
       ? await readBackWrittenOrNull(
           write,
-          await writeRowInTransaction(
-            await write.buildStatement(),
-            write.existingId,
-            async (tx, id, state) => {
-              for (const joinWrite of write.joinWrites) {
-                await joinWrite(tx, id, state);
-              }
-            },
-            preRead,
-          ),
+          await writeJoinedOrNull(write, preRead),
         )
       : await write.plainWrite();
   if (row && write.afterCommit) await write.afterCommit(row.id);

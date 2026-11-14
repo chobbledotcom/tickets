@@ -145,9 +145,11 @@ export const insertUploadedImage = async (
 
 /** What one image write carries: the stored metadata and the links an update
  *  replaces. A null link list keeps the stored links. The list is absent on
- *  create. */
+ *  create. The page's boxes can name a record deleted after the page loaded,
+ *  so the page sets `skipMissingItems`. The API refuses such a link. */
 export type ImageWriteInput = ImageInput & {
   items?: ImageUseTarget[] | null;
+  skipMissingItems?: true;
 };
 
 /** The metadata both doors store, or the refusal they answer. */
@@ -177,13 +179,17 @@ type UpdateTxOutcome =
   | { row: Image };
 
 /** The row write and its links commit together. A link that names no stored
- *  record refuses the whole write, so the image keeps its links. */
+ *  record refuses the whole write, so the image keeps its links. With
+ *  `skipMissingItems`, that link does not land and the rest of the write
+ *  goes on. */
 const updateInTransaction = async (
   tx: TxScope,
   image: Image,
   input: ImageWriteInput,
 ): Promise<UpdateTxOutcome> => {
-  const missing = await missingImageUseTargets(tx, input.items ?? []);
+  const missing = input.skipMissingItems
+    ? []
+    : await missingImageUseTargets(tx, input.items ?? []);
   refuseTheWriteOn(
     missing.length === 0
       ? null
