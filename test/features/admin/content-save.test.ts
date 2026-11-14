@@ -4,11 +4,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { contentPagePaths, saveContent } from "#routes/admin/content-save.ts";
-import { adminHandlers as newsHandlers } from "#routes/admin/news.ts";
 import { newsRecord } from "#shared/records/news.ts";
 import { sitePageRecord } from "#shared/records/site-pages.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
+import { expectAreaRoutes } from "#test-utils/area-routes.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestNewsPost } from "#test-utils/db-helpers/misc.ts";
@@ -59,12 +59,21 @@ describeWithEnv("content save", { db: true, storage: "cdn" }, () => {
     );
   });
 
-  test("binds the record routes and both image writes", () => {
-    expect(Object.keys(newsHandlers)).toEqual(
-      expect.arrayContaining([
+  test("binds the record routes and both image writes", async () => {
+    await expectAreaRoutes(
+      () => import("#routes/admin/news.ts"),
+      [
+        "GET /admin/site/news",
+        "GET /admin/site/news/:id",
+        "GET /admin/site/news/:id/:tab",
+        "GET /admin/site/news/:id/delete",
+        "GET /admin/site/news/new",
+        "POST /admin/site/news",
+        "POST /admin/site/news/:id/delete",
+        "POST /admin/site/news/:id/edit",
         "POST /admin/site/news/:id/images",
         "POST /admin/site/news/:id/images/upload",
-      ]),
+      ],
     );
   });
 

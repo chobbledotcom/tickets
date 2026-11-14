@@ -15,6 +15,7 @@ import {
 } from "#db/images.ts";
 import { writeImageUpdate } from "#routes/admin/api-images.ts";
 import { imageRecord } from "#shared/records/images.ts";
+import { apiDeleteAs, apiPutAs } from "#test/features/admin/parity/helpers.ts";
 import { loggedMessages } from "#test-utils/activity-log.ts";
 import {
   type ApiImageRow,
@@ -46,7 +47,6 @@ import {
   createTestEditorSession,
   createTestManagerSession,
 } from "#test-utils/session.ts";
-import { apiDeleteAs, apiPutAs } from "../parity/helpers.ts";
 
 describeWithEnv(
   "Admin API - Image writes",
