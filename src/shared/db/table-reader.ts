@@ -18,8 +18,9 @@ import {
   type ReadableTable,
   type StoredRowOf,
 } from "#db/chosen-columns.ts";
-import type { SqlStatement } from "#db/client.ts";
+
 import { type Read, readOneRow, readRows, readStatement } from "#db/read.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import type { TableSchema } from "#db/table.ts";
 import { equals, inList, type WhereClause } from "#db/where-clauses.ts";
 import { once } from "#fp";

@@ -1,4 +1,5 @@
 import { getDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { bareSchemaMigration } from "./define.ts";
 
 export default bareSchemaMigration(
@@ -12,7 +13,7 @@ export default bareSchemaMigration(
     "in the same build, so nothing reads a count as a flag.",
   async () => {
     await getDb().execute(
-      `UPDATE listing_attendees
+      sql`UPDATE listing_attendees
        SET checked_in = CASE WHEN quantity > 0 THEN quantity ELSE 0 END
        WHERE checked_in = 1`,
     );

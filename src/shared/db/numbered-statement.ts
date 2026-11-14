@@ -1,5 +1,6 @@
 import type { InValue } from "@libsql/client";
-import type { SqlStatement } from "#db/client.ts";
+
+import type { SqlStatement } from "#db/sql.ts";
 
 export type SqlParameterToken = `?${number}` & { readonly sql: unique symbol };
 export type SqlParameter = (value: InValue) => SqlParameterToken;

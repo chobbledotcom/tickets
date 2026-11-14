@@ -14,7 +14,8 @@
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
-import { execute, queryOne, type SqlStatement } from "#db/client.ts";
+import { execute, queryOne } from "#db/client.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import type { FreeTextAnswers } from "#shared/email/answers.ts";
 import { nowIso } from "#shared/now.ts";
 import { stringRecordJson } from "#shared/validation/stored-json.ts";
@@ -36,19 +37,13 @@ export const stageCheckoutAnswers = async (
 ): Promise<void> => {
   if (!texts || Object.keys(texts).length === 0) return;
   await execute(
-    `INSERT INTO checkout_pending_answers
+    sql`INSERT INTO checkout_pending_answers
                (session_index, sealed, created_at, link_ends_at)
-             VALUES (?, ?, ?, ?)
+             VALUES (${await hmacHash(sessionId)}, ${await encrypt(stringRecordJson.write(texts, "checkout answers"))}, ${nowIso()}, ${linkEndsAt})
              ON CONFLICT(session_index) DO UPDATE SET
                sealed = excluded.sealed,
                created_at = excluded.created_at,
                link_ends_at = excluded.link_ends_at`,
-    [
-      await hmacHash(sessionId),
-      await encrypt(stringRecordJson.write(texts, "checkout answers")),
-      nowIso(),
-      linkEndsAt,
-    ],
   );
 };
 
@@ -62,8 +57,7 @@ export const readCheckoutAnswers = async (
   sessionId: string,
 ): Promise<FreeTextAnswers> => {
   const row = await queryOne<StagedRow>(
-    "SELECT sealed FROM checkout_pending_answers WHERE session_index = ?",
-    [await hmacHash(sessionId)],
+    sql`SELECT sealed FROM checkout_pending_answers WHERE session_index = ${await hmacHash(sessionId)}`,
   );
   if (row === null) return new Map();
   const staged = stringRecordJson.read(
@@ -83,7 +77,5 @@ export const readCheckoutAnswers = async (
  * keeps its staged row, so the provider's redelivery reads it again. */
 export const dropCheckoutAnswersStatement = async (
   sessionId: string,
-): Promise<SqlStatement> => ({
-  args: [await hmacHash(sessionId)],
-  sql: "DELETE FROM checkout_pending_answers WHERE session_index = ?",
-});
+): Promise<SqlStatement> =>
+  sql`DELETE FROM checkout_pending_answers WHERE session_index = ${await hmacHash(sessionId)}`;

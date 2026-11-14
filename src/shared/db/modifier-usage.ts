@@ -9,9 +9,10 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { queryOnePrimary, type SqlStatement } from "#db/client.ts";
+import { queryOnePrimary } from "#db/client.ts";
 import type { NumberedSql } from "#db/numbered-statement.ts";
 import { mapByIds } from "#db/query.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { nowIso } from "#shared/now.ts";
 
 /** One modifier consumed by an order: the modifier, how many, and the amount
@@ -106,9 +107,9 @@ export const anyModifierSoldOut = async (
 ): Promise<boolean> => {
   if (usages.length === 0) return false;
   const row = await queryOnePrimary<{ sold_out: number }>(
-    `SELECT EXISTS (
+    sql`SELECT EXISTS (
        SELECT 1
-       FROM json_each(?) AS requestedUsage
+       FROM json_each(${JSON.stringify(usages)}) AS requestedUsage
        JOIN modifiers AS modifier
          ON modifier.id = json_extract(requestedUsage.value, '$.modifierId')
        WHERE modifier.stock IS NOT NULL
@@ -118,7 +119,6 @@ export const anyModifierSoldOut = async (
            WHERE storedUsage.modifier_id = modifier.id
          ), 0) < CAST(json_extract(requestedUsage.value, '$.quantity') AS INTEGER)
      ) AS sold_out`,
-    [JSON.stringify(usages)],
   );
   return Number(row!.sold_out) === 1;
 };

@@ -18,7 +18,6 @@ import {
   executeBatchWithResults,
   queryOnePrimary,
   resultRows,
-  type SqlStatement,
   withTransaction,
 } from "#db/client.ts";
 import { paymentRowStateValues } from "#db/payment-claim.ts";
@@ -26,6 +25,7 @@ import {
   storePaymentReference,
   unclaimedPaymentReference,
 } from "#db/payment-reference-store.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import {
   EMPTY_ROW_STATE,
@@ -110,8 +110,7 @@ export const releaseReservation: (sessionId: string) => Promise<void> =
 export const deleteAllStaleReservations = async (): Promise<number> => {
   const cutoff = isoBefore(STALE_RESERVATION_MS);
   const result = await execute(
-    `DELETE FROM processed_payments WHERE ${UNRESOLVED_RESERVATION} AND processed_at < ?`,
-    [cutoff],
+    sql`DELETE FROM processed_payments WHERE ${TODO_SQL_TEXT(UNRESOLVED_RESERVATION)} AND processed_at < ${cutoff}`,
   );
   return result.rowsAffected;
 };
@@ -130,32 +129,20 @@ export const reserveSession = async (
   // reset to exactly the state every other writer calls empty.
   const blank = await paymentRowStateValues(EMPTY_ROW_STATE);
   const [claimResult, lookupResult] = await executeBatchWithResults([
-    {
-      args: [
-        sessionId,
-        claimedAt,
-        blank.failureData,
-        blank.protectedState,
-        staleBefore,
-      ],
-      sql: `INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at)
-            VALUES (?, NULL, ?)
+    sql`INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at)
+            VALUES (${sessionId}, NULL, ${claimedAt})
             ON CONFLICT(payment_session_id) DO UPDATE SET
               attendee_id = NULL,
               processed_at = excluded.processed_at,
               ticket_tokens = '',
-              failure_data = ?,
-              protected_state = ?,
+              failure_data = ${blank.failureData},
+              protected_state = ${blank.protectedState},
               payment_reference = '',
               payment_reference_index = ''
-            WHERE ${UNRESOLVED_RESERVATION}
-              AND processed_payments.processed_at < ?
+            WHERE ${TODO_SQL_TEXT(UNRESOLVED_RESERVATION)}
+              AND processed_payments.processed_at < ${staleBefore}
             RETURNING payment_session_id`,
-    },
-    {
-      args: [sessionId],
-      sql: "SELECT payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data, payment_reference FROM processed_payments WHERE payment_session_id = ?",
-    },
+    sql`SELECT payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data, payment_reference FROM processed_payments WHERE payment_session_id = ${sessionId}`,
   ]);
   if (resultRows(claimResult!)[0] !== undefined) return { reserved: true };
   const existing = resultRows<ProcessedPayment>(lookupResult!)[0];
@@ -185,8 +172,7 @@ export const finalizeSessionIfUnresolved = async (
 ): Promise<void> => {
   if (paymentReference === null) {
     await execute(
-      `UPDATE processed_payments SET attendee_id = ? WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
-      [attendeeId, sessionId],
+      sql`UPDATE processed_payments SET attendee_id = ${attendeeId} WHERE payment_session_id = ${sessionId} AND ${TODO_SQL_TEXT(UNRESOLVED_RESERVATION)}`,
     );
     return;
   }
@@ -243,10 +229,7 @@ export const prepareSessionFailure = async (
   sessionId: string,
   failure: StoredPaymentFailure,
 ): Promise<PreparedSessionFailure> => ({
-  statement: {
-    args: [await encrypt(storedSessionFailure(failure)), sessionId],
-    sql: `UPDATE processed_payments SET failure_data = ? WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
-  },
+  statement: sql`UPDATE processed_payments SET failure_data = ${await encrypt(storedSessionFailure(failure))} WHERE payment_session_id = ${sessionId} AND ${TODO_SQL_TEXT(UNRESOLVED_RESERVATION)}`,
 });
 
 /** The stored outcome bytes a session row currently holds, read from the
@@ -255,8 +238,7 @@ const readStoredOutcome = async (
   sessionId: string,
 ): Promise<EnvKeyEncrypted | "" | null> => {
   const row = await queryOnePrimary<{ failure_data: EnvKeyEncrypted | "" }>(
-    "SELECT failure_data FROM processed_payments WHERE payment_session_id = ? AND attendee_id IS NULL",
-    [sessionId],
+    sql`SELECT failure_data FROM processed_payments WHERE payment_session_id = ${sessionId} AND attendee_id IS NULL`,
   );
   return row === null ? null : row.failure_data;
 };
@@ -292,12 +274,11 @@ export const advanceStoredOutcomeOnce = async (
 ): Promise<void> => {
   const toState = storedSessionFailure(to);
   const changed = await execute(
-    `UPDATE processed_payments
-        SET failure_data = ?
-      WHERE payment_session_id = ?
+    sql`UPDATE processed_payments
+        SET failure_data = ${await encrypt(toState)}
+      WHERE payment_session_id = ${sessionId}
         AND attendee_id IS NULL
-        AND failure_data = ?`,
-    [await encrypt(toState), sessionId, fence],
+        AND failure_data = ${fence}`,
   );
   if (changed.rowsAffected === 1) return;
   const after = await readStoredOutcome(sessionId);

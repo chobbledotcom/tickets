@@ -10,6 +10,7 @@
 
 import type { Client } from "@libsql/client";
 import { executeBatch, getDb, inPlaceholders } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { lazyRef } from "#fp";
 import { resetAllCaches } from "#shared/cache-registry.ts";
 import { logDebug } from "#shared/logger.ts";
@@ -379,10 +380,9 @@ export const clearAllCaches = (): void => {
 export const resetDatabase = async (): Promise<void> => {
   try {
     await executeBatch(
-      [...SCHEMA].reverse().map(([name]) => ({
-        args: [],
-        sql: `DROP TABLE IF EXISTS ${name}`,
-      })),
+      [...SCHEMA]
+        .reverse()
+        .map(([name]) => sql`DROP TABLE IF EXISTS ${TODO_SQL_TEXT(name)}`),
     );
   } finally {
     clearAllCaches();

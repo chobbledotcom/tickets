@@ -27,12 +27,13 @@ import {
   dropCheckoutAnswersStatement,
   readCheckoutAnswers,
 } from "#db/checkout-pending-answers.ts";
-import type { SqlStatement } from "#db/client.ts";
+
 import { bookedAnswersTail } from "#db/questions/attendee-answers/at-booking.ts";
 import {
   groupListingAnswerSets,
   prepareAttendeeAnswerSave,
 } from "#db/questions/attendee-answers/save.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { requiredMapValue } from "#fp";
 import {
   type BookingIntent,
@@ -129,11 +130,9 @@ const flagStatement =
     column: "email_pending" | "webhooks_pending",
     value: PendingNotificationFlag,
   ): ((tokenIndex: string) => SqlStatement) =>
-  (tokenIndex) => ({
-    args: [tokenIndex],
-    sql: `UPDATE attendees SET ${column} = ${value}
-          WHERE ticket_token_index = ?`,
-  });
+  (tokenIndex) =>
+    sql`UPDATE attendees SET ${TODO_SQL_TEXT(column)} = ${TODO_SQL_TEXT(value)}
+          WHERE ticket_token_index = ${tokenIndex}`;
 
 export type PaidBookingTail = {
   /** The buyer's typed free-text answers, read from the staged row for the

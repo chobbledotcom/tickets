@@ -1,3 +1,4 @@
+import { sql } from "#db/sql.ts";
 import { schemaMigration } from "./define.ts";
 
 /**
@@ -32,12 +33,11 @@ export default schemaMigration(
     // column: once listings has been rebuilt without group_id, the backfill is
     // already done and there is nothing to copy or drop. INSERT OR IGNORE
     // tolerates rows a prior partial run already wrote.
-    const info = await getDb().execute("PRAGMA table_info(listings)");
+    const info = await getDb().execute(sql`PRAGMA table_info(listings)`);
     const hasLegacyGroupId = info.rows.some((row) => row.name === "group_id");
     if (!hasLegacyGroupId) return;
     await getDb().execute(
-      "INSERT OR IGNORE INTO group_listings (group_id, listing_id) " +
-        "SELECT group_id, id FROM listings WHERE group_id > 0",
+      sql`INSERT OR IGNORE INTO group_listings (group_id, listing_id) SELECT group_id, id FROM listings WHERE group_id > 0`,
     );
     await recreateTable("listings");
   },

@@ -18,7 +18,6 @@ import {
   insertedRowId,
   queryAll,
   resultRows,
-  type SqlStatement,
   type TxScope,
   useTransaction,
 } from "#db/client.ts";
@@ -38,6 +37,7 @@ import {
   unclaimedSlugCondition,
 } from "#db/slug-registry.ts";
 import type { SluggedContentInput } from "#db/slugged-content-input.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { col } from "#db/table.ts";
 import { readById, readBySlugIndex } from "#db/table-reader.ts";
 import { fieldById, mapParallel } from "#fp";
@@ -111,10 +111,7 @@ export const newsSlugBase = (created: string, name: string): string =>
 
 // The existence probe every public page's nav runs: one indexed LIMIT 1 read,
 // nothing decrypted. Request-scoped and auto-cleared on any news_posts write.
-const existenceStatement: SqlStatement = {
-  args: [],
-  sql: "SELECT id FROM news_posts LIMIT 1",
-};
+const existenceStatement: SqlStatement = sql`SELECT id FROM news_posts LIMIT 1`;
 const existenceCache = requestCache(() =>
   queryAll<{ id: number }>(existenceStatement.sql),
 );
@@ -257,5 +254,5 @@ export const updateNewsPost = async (
 export const deleteNewsPostWithImages = (id: number): Promise<void> =>
   executeBatch([
     clearImageUsesForItemStatement(imageUseTargets.of("news")(id)),
-    { args: [id], sql: "DELETE FROM news_posts WHERE id = ?" },
+    sql`DELETE FROM news_posts WHERE id = ${id}`,
   ]);

@@ -20,12 +20,13 @@ import {
   type CountingDayRange,
   dateToRange,
 } from "#db/capacity.ts";
-import type { SqlStatement } from "#db/client.ts";
+
 import {
   numberedStatement,
   type SqlParameter,
   type SqlParameterToken,
 } from "#db/numbered-statement.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { countsPerDate } from "#shared/capacity-rules.ts";
 import { remembered } from "#shared/remembered.ts";
 import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";

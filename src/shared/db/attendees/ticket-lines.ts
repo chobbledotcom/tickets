@@ -11,7 +11,8 @@ import {
   LISTING_ATTENDEE_REFUNDED_ROW,
   refundedForBooking,
 } from "#db/attendees/select.ts";
-import { inPlaceholders, queryAll } from "#db/client.ts";
+import { queryAll } from "#db/client.ts";
+import { sql, sqlList } from "#db/sql.ts";
 import { unique } from "#fp";
 
 /** Read the pairs' ticket lines. A no-quantity (quantity 0) line and a
@@ -21,16 +22,13 @@ export const ticketLinesQuery = (
 ): { args: number[]; sql: string } => {
   const attendeeIds = unique(pairs.map((pair) => pair.attendeeId));
   const listingIds = unique(pairs.map((pair) => pair.listingId));
-  return {
-    args: [...attendeeIds, ...listingIds],
-    sql: `SELECT id, attendee_id, listing_id, quantity, checked_in
+  return sql`SELECT id, attendee_id, listing_id, quantity, checked_in
           FROM listing_attendees AS listingAttendee
-          WHERE listingAttendee.attendee_id IN (${inPlaceholders(attendeeIds)})
-            AND listingAttendee.listing_id IN (${inPlaceholders(listingIds)})
+          WHERE listingAttendee.attendee_id IN (${sqlList(attendeeIds)})
+            AND listingAttendee.listing_id IN (${sqlList(listingIds)})
             AND listingAttendee.quantity > 0
-            AND NOT (${refundedForBooking(LISTING_ATTENDEE_REFUNDED_ROW)})
-          ORDER BY listingAttendee.start_at, listingAttendee.id`,
-  };
+            AND NOT (${TODO_SQL_TEXT(refundedForBooking(LISTING_ATTENDEE_REFUNDED_ROW))})
+          ORDER BY listingAttendee.start_at, listingAttendee.id`;
 };
 
 /** Each pair's whole booking, keyed by `pairKey`. A page that shows only

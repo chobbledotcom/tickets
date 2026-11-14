@@ -5,6 +5,7 @@ import {
   remainingBalanceFromLedger,
 } from "#db/attendees/select.ts";
 import { queryAllPrimary } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import {
   type CreatedEntry,
   pairEntriesByListing,
@@ -37,31 +38,31 @@ export const committedEntries = async (
   intent: BookingIntent,
   validatedItems: ValidatedItem[],
 ): Promise<CreatedEntry[]> => {
-  const rows = await queryAllPrimary<CommittedBookingRow>({
-    args: [attendeeId],
-    sql: `SELECT attendee.created,
+  const rows =
+    await queryAllPrimary<CommittedBookingRow>(sql`SELECT attendee.created,
                    SUBSTR(listingAttendee.start_at, 1, 10) AS date,
                    SUBSTR(listingAttendee.end_at, 1, 10) AS end_date,
                    attendee.kind,
                    listingAttendee.listing_id,
                    listingAttendee.package_group_id,
-                   ${pricePaidFromLedger(
-                     "listingAttendee.attendee_id",
-                     "listingAttendee.listing_id",
-                     "listingAttendee.ledger_event_group",
-                     "listingAttendee.id",
+                   ${TODO_SQL_TEXT(
+                     pricePaidFromLedger(
+                       "listingAttendee.attendee_id",
+                       "listingAttendee.listing_id",
+                       "listingAttendee.ledger_event_group",
+                       "listingAttendee.id",
+                     ),
                    )},
                    listingAttendee.quantity,
-                   ${remainingBalanceFromLedger("attendee.id")},
+                   ${TODO_SQL_TEXT(remainingBalanceFromLedger("attendee.id"))},
                    attendee.status_id,
                    attendee.ticket_token_index,
                    attendee.webhooks_pending
             FROM attendees AS attendee
             JOIN listing_attendees AS listingAttendee
               ON listingAttendee.attendee_id = attendee.id
-            WHERE attendee.id = ?
-            ORDER BY listingAttendee.id`,
-  });
+            WHERE attendee.id = ${attendeeId}
+            ORDER BY listingAttendee.id`);
   const attendees: CreatedEntry["attendee"][] = rows.map((row) => ({
     ...contactFields(intent),
     attachment_downloads: 0,

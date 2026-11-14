@@ -17,10 +17,10 @@ import {
   queryOne,
   queryOnePrimary,
   resultRows,
-  type SqlStatement,
   type TxScope,
 } from "#db/client.ts";
 import { queryAndMap } from "#db/query.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { byPrimaryKey, readerFor, type TableReader } from "#db/table-reader.ts";
 import { compact, filter, mapParallel, reduce } from "#fp";
 import {
@@ -490,15 +490,16 @@ export const defineTable = <Row, Input = Row>(
    * still be behind the write (see {@link Table.findByIdPrimary}). */
   const findByIdPrimary = async (id: InValue): Promise<Row | null> => {
     const row = await queryOnePrimary<Row>(
-      `SELECT ${qualifiedPhysicalColumnsSql} FROM ${name} AS record WHERE record.${primaryKey} = ?`,
-      [id],
+      sql`SELECT ${TODO_SQL_TEXT(qualifiedPhysicalColumnsSql)} FROM ${TODO_SQL_TEXT(name)} AS record WHERE record.${TODO_SQL_TEXT(primaryKey)} = ${id}`,
     );
     return row ? fromDb(row) : null;
   };
 
   // Delete by ID implementation
   const deleteById = async (id: InValue): Promise<void> => {
-    await execute(`DELETE FROM ${name} WHERE ${primaryKey} = ?`, [id]);
+    await execute(
+      sql`DELETE FROM ${TODO_SQL_TEXT(name)} WHERE ${TODO_SQL_TEXT(primaryKey)} = ${id}`,
+    );
   };
 
   // Row → Input: copy input-eligible columns from a row, translating

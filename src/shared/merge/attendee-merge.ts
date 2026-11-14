@@ -17,7 +17,7 @@ import {
   checkoutStageDeleteStatements,
   repointAttendeeDependents,
 } from "#db/attendees/delete.ts";
-import { insert, type SqlStatement, withTransaction } from "#db/client.ts";
+import { insert, withTransaction } from "#db/client.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
 import { assertRowsFreeToMove } from "#db/payment-admit-move.ts";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
@@ -29,6 +29,7 @@ import {
   prepareAttendeeAnswerSave,
   saveAttendeeAnswersTx,
 } from "#db/questions/attendee-answers/save.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { fieldById, map, mapNotNullish, mapParallel, reduce } from "#fp";
 import { legMatches, sumLegs } from "#shared/ledger/legs.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
@@ -810,31 +811,25 @@ export const applyAttendeeMerge = async (
     ...checkoutStageDeleteStatements({ args: [targetId], sql: "?" }),
     // An old source without payment provenance makes the merged history
     // unqualified too; carry that fact before deleting its attendee row.
-    {
-      args: [targetId, sourceId],
-      sql: `UPDATE attendees
+    sql`UPDATE attendees
                SET pii_payment_session_id = NULL
-             WHERE id = ?
+             WHERE id = ${targetId}
                AND EXISTS (
                  SELECT 1
                    FROM attendees AS sourceAttendee
-                  WHERE sourceAttendee.id = ?
+                  WHERE sourceAttendee.id = ${sourceId}
                     AND sourceAttendee.pii_payment_session_id IS NULL
                )`,
-    },
     // Move source-owned payment references before deleting the source attendee,
     // so refunds on the merged person can return every charge whose ledger rows
     // now live on the target account.
-    {
-      args: [targetId, sourceId],
-      sql: "UPDATE processed_payments SET attendee_id = ? WHERE attendee_id = ?",
-    },
+    sql`UPDATE processed_payments SET attendee_id = ${targetId} WHERE attendee_id = ${sourceId}`,
     ...repointAttendeeDependents(sourceId, targetId),
     // The source is going away, so clear every row whose identity belongs to
     // it through the same schema as ordinary deletion. Payment rows survive:
     // the statement above has already moved them to the target.
     ...attendeeRemovalStatements({ args: [sourceId], sql: "?" }),
-    { args: [sourceId], sql: "DELETE FROM attendees WHERE id = ?" },
+    sql`DELETE FROM attendees WHERE id = ${sourceId}`,
     // Move the source's ledger rows onto the target — the sole sanctioned
     // account-id mutation — so its financial history follows the merged person
     // rather than stranding on the deleted source (plan §5.17).

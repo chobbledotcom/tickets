@@ -26,9 +26,9 @@ import {
   executeBatch,
   orIgnore,
   queryBatch,
-  type SqlStatement,
   type TxScope,
 } from "#db/client.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { inList } from "#db/where-clauses.ts";
 import { identity, mapById, mapNotNullish, unique } from "#fp";
 import { allUnique } from "#shared/all-unique.ts";

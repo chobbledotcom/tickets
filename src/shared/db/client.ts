@@ -378,9 +378,8 @@ export const queryAll = async <T>(statement: SqlStatement): Promise<T[]> =>
     : resultRows<T>(await execute(statement));
 
 /** Query one row, or null when the query returns none. */
-export const queryOne = async <T>(
-  statement: SqlStatement,
-): Promise<T | null> => (await queryAll<T>(statement))[0] ?? null;
+export const queryOne = async <T>(statement: SqlStatement): Promise<T | null> =>
+  (await queryAll<T>(statement))[0] ?? null;
 
 const requireQueryRow = async <T>(
   row: Promise<T | null>,
@@ -829,7 +828,9 @@ const insertStartingWith =
     returningColumn?: string,
   ): SqlStatement => {
     const columns = sqlNames(Object.keys(values));
-    const slots = sqlCommas(Object.values(values).map((value) => sql`${value}`));
+    const slots = sqlCommas(
+      Object.values(values).map((value) => sql`${value}`),
+    );
     const written = sql`${opening} ${sqlName(table)} (${columns}) VALUES (${slots})`;
     return returningColumn === undefined
       ? written

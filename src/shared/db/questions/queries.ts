@@ -6,12 +6,13 @@
  * here too; display order always comes from the question's own sort_order.
  */
 
-import { queryAll, queryAllPrimary, type SqlStatement } from "#db/client.ts";
+import { queryAll, queryAllPrimary } from "#db/client.ts";
 import { linkTableSide } from "#db/link-table.ts";
 import { numberedListStatement } from "#db/numbered-statement.ts";
 import type { Answer, QuestionWithAnswers } from "#db/question-types.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { readRows, readStatement } from "#db/read.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { equals, type WhereClause } from "#db/where-clauses.ts";
 import { filter, map, mapParallel, reduce } from "#fp";
 
@@ -156,12 +157,11 @@ export const getListingQuestionIds = async (
 ): Promise<number[]> =>
   map((r: { question_id: number }) => r.question_id)(
     await queryAll<{ question_id: number }>(
-      `SELECT question.id AS question_id
+      sql`SELECT question.id AS question_id
        FROM questions AS question
-       LEFT JOIN listing_questions AS listingQuestion ON question.id = listingQuestion.question_id AND listingQuestion.listing_id = ?
+       LEFT JOIN listing_questions AS listingQuestion ON question.id = listingQuestion.question_id AND listingQuestion.listing_id = ${listingId}
        WHERE question.assign_all = 1 OR listingQuestion.listing_id IS NOT NULL
        ORDER BY question.sort_order, question.id`,
-      [listingId],
     ),
   );
 

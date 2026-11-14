@@ -13,6 +13,7 @@ import {
   aggregateRepairs,
 } from "#db/common-schema.ts";
 import { rowsByIds, rowsByIdsPrimary } from "#db/query.ts";
+import { sql } from "#db/sql.ts";
 import { map } from "#fp";
 
 /** The owner-editable, trigger-maintained aggregate columns on an answer. */
@@ -62,11 +63,10 @@ export const getAnswerAggregateRecalculation = async (
   answerId: number,
 ): Promise<AnswerAggregateRecalculation> => {
   const row = await requireOne<{ current: number; recalculated: number }>(
-    `SELECT times_selected AS current,
+    sql`SELECT times_selected AS current,
             (SELECT COUNT(*) FROM attendee_answers WHERE answer_id = answers.id)
               AS recalculated
-     FROM answers WHERE id = ?`,
-    [answerId],
+     FROM answers WHERE id = ${answerId}`,
   );
   return {
     times_selected: { current: row.current, recalculated: row.recalculated },
@@ -90,8 +90,7 @@ export const getAnswerModifierId = async (
   answerId: number,
 ): Promise<number | null> => {
   const row = await queryOne<{ modifier_id: number | null }>(
-    "SELECT modifier_id FROM answers WHERE id = ?",
-    [answerId],
+    sql`SELECT modifier_id FROM answers WHERE id = ${answerId}`,
   );
   return row?.modifier_id ?? null;
 };
@@ -103,8 +102,7 @@ export const setAnswerModifier = async (
   answerId: number,
   modifierId: number | null,
 ): Promise<void> => {
-  await execute("UPDATE answers SET modifier_id = ? WHERE id = ?", [
-    modifierId,
-    answerId,
-  ]);
+  await execute(
+    sql`UPDATE answers SET modifier_id = ${modifierId} WHERE id = ${answerId}`,
+  );
 };

@@ -23,6 +23,7 @@ import {
   rowExistsForIdList,
 } from "#db/client.ts";
 import { columnFrom, columnMapByIds, nameSource } from "#db/query.ts";
+import { sql } from "#db/sql.ts";
 import type { AttendeeSort } from "#shared/attendee-list-controls.ts";
 import type { Attendee } from "#types";
 
@@ -231,9 +232,8 @@ export const hasActiveBookingLine = (
   listingId: number,
 ): Promise<boolean> =>
   rowExists(
-    `SELECT 1 FROM listing_attendees
-     WHERE attendee_id = ? AND listing_id = ? AND quantity > 0 LIMIT 1`,
-    [attendeeId, listingId],
+    sql`SELECT 1 FROM listing_attendees
+     WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId} AND quantity > 0 LIMIT 1`,
   );
 
 export type FirstBooking = {
@@ -251,14 +251,13 @@ export const getFirstBooking = async (
     listing_id: number;
     quantity: number;
   }>(
-    `SELECT listingAttendee.listing_id
+    sql`SELECT listingAttendee.listing_id
               , listingAttendee.quantity
          FROM listing_attendees AS listingAttendee
-        WHERE listingAttendee.attendee_id = ?
+        WHERE listingAttendee.attendee_id = ${attendeeId}
         ORDER BY (listingAttendee.quantity > 0) DESC,
                  listingAttendee.start_at, listingAttendee.listing_id
         LIMIT 1`,
-    [attendeeId],
   );
   return row === null
     ? null
@@ -331,10 +330,7 @@ export const getAttendeeRawByToken = async (
       await loadAttendeeRows({
         join: "left",
         where: {
-          attendeeIdsSubquery: {
-            args: [tokenIndex],
-            sql: "SELECT id FROM attendees WHERE ticket_token_index = ?",
-          },
+          attendeeIdsSubquery: sql`SELECT id FROM attendees WHERE ticket_token_index = ${tokenIndex}`,
         },
       })
     )[0] ?? null

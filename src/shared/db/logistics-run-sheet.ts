@@ -7,7 +7,7 @@
  */
 
 import { bookingSlotKey } from "#db/attendees/booking-slot.ts";
-import { execute, inPlaceholders, queryAll } from "#db/client.ts";
+import { execute, queryAll } from "#db/client.ts";
 import {
   type AssignmentRow,
   bookingAssignmentKey,
@@ -21,6 +21,7 @@ import {
   type SqlParameter,
 } from "#db/numbered-statement.ts";
 import { columnFrom } from "#db/query.ts";
+import { sql, sqlList } from "#db/sql.ts";
 import { compact, flatMap, uniqueBy } from "#fp";
 
 /** Which leg of a delivery a run-sheet entry represents. */
@@ -329,12 +330,11 @@ export const setLegDone = async (
     // a mark would flip legs on days the user isn't viewing.
     // quantity > 0: refuse to complete a leg on a no-quantity line, so a stale or
     // crafted delivery form can't mark a hidden ghost's drop-off/collection done.
-    `UPDATE listing_attendees SET ${doneColumn} = ?
-          WHERE attendee_id = ? AND listing_id = ?
-            AND ${dateExpression} = ?
-            AND ${agentColumn} IN (${inPlaceholders(agentIds)})
+    sql`UPDATE listing_attendees SET ${TODO_SQL_TEXT(doneColumn)} = ${done ? 1 : 0}
+          WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId}
+            AND ${TODO_SQL_TEXT(dateExpression)} = ${date}
+            AND ${TODO_SQL_TEXT(agentColumn)} IN (${sqlList(agentIds)})
             AND quantity > 0`,
-    [done ? 1 : 0, attendeeId, listingId, date, ...agentIds],
   );
   return result.rowsAffected > 0;
 };

@@ -7,18 +7,14 @@
  */
 
 import { ATTENDEE_BY_TOKEN_SQL } from "#db/attendees/create-batch.ts";
-import {
-  executeBatch,
-  type SqlStatement,
-  type TxScope,
-  withTransaction,
-} from "#db/client.ts";
+import { executeBatch, type TxScope, withTransaction } from "#db/client.ts";
 import type { TextAnswer, TextAnswerId } from "#db/question-types.ts";
 import {
   internWriteStatements,
   type PreparedStringRow,
   prepareStringRows,
 } from "#db/questions/strings.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { requiredMapValue } from "#fp";
 
 export type AttendeeAnswerSet = {

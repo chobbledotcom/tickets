@@ -2,6 +2,7 @@ import {
   executeBatchWithoutCacheInvalidation,
   queryAllPrimary,
 } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import { bareSchemaMigration } from "./define.ts";
 
@@ -25,10 +26,7 @@ export default bareSchemaMigration(
       end_date: string;
       id: number;
       start_date: string;
-    }>({
-      args: [],
-      sql: "SELECT id, start_date, end_date FROM holidays",
-    });
+    }>(sql`SELECT id, start_date, end_date FROM holidays`);
     // Validate every row before writing anything, then write the repairs as
     // one batch: one transaction per row costs three round-trips each, which
     // a twenty-row table cannot fit in one request's migration budget.
@@ -45,10 +43,7 @@ export default bareSchemaMigration(
       );
       if (startDate === row.start_date && endDate === row.end_date) return [];
       return [
-        {
-          args: [startDate, endDate, row.id],
-          sql: "UPDATE holidays SET start_date = ?, end_date = ? WHERE id = ?",
-        },
+        sql`UPDATE holidays SET start_date = ${startDate}, end_date = ${endDate} WHERE id = ${row.id}`,
       ];
     });
     await executeBatchWithoutCacheInvalidation(updates);

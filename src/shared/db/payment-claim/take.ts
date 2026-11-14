@@ -19,6 +19,7 @@ import {
   paymentReferencesByIndex,
   type TaggedRefundPaymentReference,
 } from "#db/payment-references.ts";
+import { sql, sqlList } from "#db/sql.ts";
 import {
   type ClaimDecision,
   claimLeaseMs,
@@ -256,12 +257,10 @@ export const claimAttendeeRows = async (
   const writtenAt = nowIso();
   const staleBefore = isoBefore(claimLeaseMs(STALE_RESERVATION_MS));
   return await withTransaction(async (tx) => {
-    const attendeeRead = await tx.execute({
-      args: [...attendeeIds],
-      sql: `SELECT attendee.id, attendee.pii_blob
+    const attendeeRead =
+      await tx.execute(sql`SELECT attendee.id, attendee.pii_blob
               FROM attendees AS attendee
-             WHERE attendee.id IN (${inPlaceholders(attendeeIds)})`,
-    });
+             WHERE attendee.id IN (${sqlList(attendeeIds)})`);
     if (!attendeesMatch(attendees, resultRows<StoredAttendee>(attendeeRead))) {
       return { kind: "changed" };
     }

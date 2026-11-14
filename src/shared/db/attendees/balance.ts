@@ -30,9 +30,9 @@ import {
   queryBatch,
   queryOne,
   resultRows,
-  type SqlStatement,
 } from "#db/client.ts";
 import { markOpenInvoicesPaidStatement } from "#db/invoices.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { compact, mapParallel, sumOf } from "#fp";
 import { formatCurrency } from "#shared/currency.ts";
 import { nowIso } from "#shared/now.ts";
@@ -60,10 +60,9 @@ export const getAttendeeBalanceState = async (
     status_id: number | null;
     remaining_balance: number;
   }>(
-    `SELECT status_id, ${remainingBalanceFromLedger(
-      "attendees.id",
-    )} FROM attendees WHERE id = ? AND kind = ?`,
-    [attendeeId, ATTENDEE_KIND],
+    sql`SELECT status_id, ${TODO_SQL_TEXT(
+      remainingBalanceFromLedger("attendees.id"),
+    )} FROM attendees WHERE id = ${attendeeId} AND kind = ${ATTENDEE_KIND}`,
   );
   return row
     ? {
@@ -103,21 +102,16 @@ type OrderRow = {
   listing_name: EnvKeyEncrypted | null;
 };
 
-const attendeeOrderRowsStatement = (attendeeId: number): SqlStatement => ({
-  args: [attendeeId],
-  sql:
-    // quantity > 0: a no-quantity sentinel line is not an order line — exclude it
-    // so the pay page shows (and checks out against) a real product, never a
-    // lower-id ghost.
-    `SELECT listingAttendee.listing_id,
+const attendeeOrderRowsStatement = (
+  attendeeId: number,
+): SqlStatement => sql`SELECT listingAttendee.listing_id,
             listingAttendee.package_group_id,
             listingAttendee.quantity,
             listing.name AS listing_name
        FROM listing_attendees AS listingAttendee
        LEFT JOIN listings AS listing ON listing.id = listingAttendee.listing_id
-      WHERE listingAttendee.attendee_id = ? AND listingAttendee.quantity > 0
-      ORDER BY listingAttendee.id`,
-});
+      WHERE listingAttendee.attendee_id = ${attendeeId} AND listingAttendee.quantity > 0
+      ORDER BY listingAttendee.id`;
 
 const attendeeOrderMoneyStatement = (attendeeId: number): SqlStatement => {
   const sql = `SELECT ${externalCashBalanceSubquery("attendee", "?")} AS amount_paid,
@@ -206,25 +200,14 @@ export const settleAttendeeBalance = async (
   // owed = 0 and no-ops, so the balance settles exactly once — no stored column.
   const owed = attendeeOwedSubquery(String(attendeeId));
   const results = await executeBatchWithResults([
-    {
-      // Verdict (first statement): a harmless self-update while they still owe
-      // the expected amount. A mismatched or already-settled balance matches 0
-      // rows, exactly like the old column guard.
-      args: [attendeeId, expectedAmount],
-      sql: `UPDATE attendees SET status_id = status_id WHERE id = ? AND ${owed} = ?`,
-    },
-    {
-      // Lifecycle move: only reservations advance to the paid default. Other
-      // statuses are operator-owned and stay put once their balance is cleared.
-      args: [paid.id, attendeeId, expectedAmount],
-      sql: `UPDATE attendees SET status_id = COALESCE(?, status_id)
-             WHERE id = ?
+    sql`UPDATE attendees SET status_id = status_id WHERE id = ${attendeeId} AND ${TODO_SQL_TEXT(owed)} = ${expectedAmount}`,
+    sql`UPDATE attendees SET status_id = COALESCE(${paid.id}, status_id)
+             WHERE id = ${attendeeId}
                AND status_id IN (
                  SELECT status.id FROM attendee_statuses AS status
                   WHERE status.is_reservation = 1
                )
-               AND ${owed} = ?`,
-    },
+               AND ${TODO_SQL_TEXT(owed)} = ${expectedAmount}`,
     ...extraStatements,
     // An invoice bills this attendee's outstanding balance. Clearing that
     // balance closes the open invoice in the same transaction.
@@ -261,8 +244,7 @@ export const settleAttendeeBalance = async (
   // real line normally exists; the lookup stays nullable for a purely
   // ledger-owed attendee with no booking row.
   const firstListing = await queryOne<{ listing_id: number }>(
-    "SELECT listing_id FROM listing_attendees WHERE attendee_id = ? AND quantity > 0 ORDER BY id LIMIT 1",
-    [attendeeId],
+    sql`SELECT listing_id FROM listing_attendees WHERE attendee_id = ${attendeeId} AND quantity > 0 ORDER BY id LIMIT 1`,
   );
   const listingId = firstListing ? firstListing.listing_id : null;
 

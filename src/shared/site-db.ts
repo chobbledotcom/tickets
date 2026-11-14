@@ -11,6 +11,7 @@ import { type Client, createClient } from "@libsql/client";
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { wrapExecute } from "#db/libsql-call.ts";
 import { countDatabaseRoundTrip } from "#db/query-log.ts";
+import { sql } from "#db/sql.ts";
 import type { Result } from "#shared/result.ts";
 
 /** Credentials needed to open a read-only connection to a site's database. */
@@ -72,10 +73,9 @@ export const readSiteSetting = (
   key: string,
 ): Promise<Result<string | null>> =>
   withSiteDb(creds, async (client) => {
-    const result = await client.execute({
-      args: [key],
-      sql: "SELECT value FROM settings WHERE key = ?",
-    });
+    const result = await client.execute(
+      sql`SELECT value FROM settings WHERE key = ${key}`,
+    );
     const row = result.rows[0];
     return row ? (row.value as string) : null;
   });

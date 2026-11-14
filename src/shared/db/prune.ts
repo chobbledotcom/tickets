@@ -7,7 +7,6 @@ import {
   executeBatchWithResults,
   inPlaceholders,
   queryAll,
-  type SqlStatement,
 } from "#db/client.ts";
 import {
   numberedStatement,
@@ -16,6 +15,7 @@ import {
 import { orphanIdsBatch } from "#db/orphan-attendees.ts";
 import { PRUNE_SCAN_OPERATIONS_RETENTION_MS } from "#db/processed-scan-operations.ts";
 import { settings } from "#db/settings.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import {
   refundAuthorityPrunableSql,
   refundAuthorityWorkSql,

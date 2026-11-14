@@ -3,6 +3,7 @@
 import { LISTING_ORDER_SQL } from "#db/listings/select.ts";
 import { rawListingsTable } from "#db/listings/table.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { notInSubquery } from "#db/where-clauses.ts";
 import {
   resolveListingDate,
@@ -49,10 +50,10 @@ export const getListingsNotInGroup = async (
     {
       alias: "listing",
       order: LISTING_ORDER_SQL.created_desc,
-      where: notInSubquery("listing.id", {
-        args: [groupId],
-        sql: "SELECT groupListing.listing_id FROM group_listings AS groupListing WHERE groupListing.group_id = ?",
-      }),
+      where: notInSubquery(
+        "listing.id",
+        sql`SELECT groupListing.listing_id FROM group_listings AS groupListing WHERE groupListing.group_id = ${groupId}`,
+      ),
     },
   );
   return rows.map((row) => {

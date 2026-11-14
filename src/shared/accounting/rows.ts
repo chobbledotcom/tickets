@@ -9,14 +9,10 @@
 
 import type { InValue, ResultSet } from "@libsql/client";
 import { ATTENDEE } from "#accounting/accounts.ts";
-import {
-  type BatchExecutor,
-  orIgnore,
-  resultRows,
-  type SqlStatement,
-} from "#db/client.ts";
+import { type BatchExecutor, orIgnore, resultRows } from "#db/client.ts";
 import { type NumberedSql, numberedStatement } from "#db/numbered-statement.ts";
 import { type Read, readStatement } from "#db/read.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { equals, matchesNoRows } from "#db/where-clauses.ts";
 import { account } from "#shared/ledger/account.ts";
 import type {

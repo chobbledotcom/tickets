@@ -11,9 +11,9 @@ import {
   inPlaceholders,
   queryAllPrimary,
   resultRows,
-  type SqlStatement,
   type TxScope,
 } from "#db/client.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { mapNotNullish, requiredMapValue } from "#fp";
 import { mirrorFor } from "#payment/admit-move.ts";
 import { refundAuthorityWorkSql } from "#payment/refund-authority-lifecycle.ts";
@@ -198,12 +198,9 @@ export const paymentRowStateStatement = async (
   state: PaymentRowState,
 ): Promise<SqlStatement> => {
   const stored = await paymentRowStateValues(state);
-  return {
-    args: [stored.failureData, stored.protectedState, row.sessionId, row.slot],
-    sql: `UPDATE processed_payments
-           SET failure_data = ?, protected_state = ?
-         WHERE payment_session_id = ? AND failure_data = ?`,
-  };
+  return sql`UPDATE processed_payments
+           SET failure_data = ${stored.failureData}, protected_state = ${stored.protectedState}
+         WHERE payment_session_id = ${row.sessionId} AND failure_data = ${row.slot}`;
 };
 
 /** The exact row transitions made under one durable claim. */

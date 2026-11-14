@@ -4,11 +4,12 @@
 
 import type { Client } from "@libsql/client";
 import * as v from "valibot";
-import type { SqlStatement } from "#db/client.ts";
+
 import {
   CANCEL_INVOICE_SQL,
   markOpenInvoicesPaidStatement,
 } from "#db/invoices.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import {
   corruptOneFact,
   type ModelDataSource,
@@ -72,20 +73,12 @@ export const isOpenInvoiceRefusal = (error: unknown): boolean =>
 
 /** One invoice row with one stored status. The seal holds placeholder
  *  ciphertext: this model reads the status column only. */
-const invoiceRow = (slot: number, status: InvoiceStatus): SqlStatement => ({
-  args: [
-    slot,
-    ATTENDEE_ID,
-    "enc:1:AQ==:AQ==",
-    status,
-    "hyb:1:AQ==:AQ==:AQ==",
-    `share-index-${slot}`,
-    CREATED,
-  ],
-  sql: `INSERT INTO invoices
+const invoiceRow = (
+  slot: number,
+  status: InvoiceStatus,
+): SqlStatement => sql`INSERT INTO invoices
           (id, attendee_id, body, status, share_token, share_token_index, created)
-        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-});
+        VALUES (${slot}, ${ATTENDEE_ID}, ${"enc:1:AQ==:AQ=="}, ${status}, ${"hyb:1:AQ==:AQ==:AQ=="}, ${`share-index-${slot}`}, ${CREATED})`;
 
 /** A fresh copy of the scenario: the production schema, then the rows the
  *  scenario names. */
@@ -104,7 +97,7 @@ const storedStatuses = async (
   client: Client,
 ): Promise<ReadonlyMap<number, SlotStatus>> =>
   new Map(
-    (await client.execute({ sql: "SELECT id, status FROM invoices" })).rows.map(
+    (await client.execute(sql`SELECT id, status FROM invoices`)).rows.map(
       (row) =>
         [Number(row.id), v.parse(InvoiceStatusSchema, row.status)] as const,
     ),

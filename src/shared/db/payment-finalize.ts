@@ -1,11 +1,12 @@
 import type { InValue } from "@libsql/client";
 import { attendeeOwedSubquery } from "#accounting/projection-sql.ts";
-import type { SqlStatement } from "#db/client.ts";
+
 import { preparePaymentReferenceWrite } from "#db/payment-reference-store.ts";
 import {
   encryptTicketTokens,
   UNRESOLVED_RESERVATION,
 } from "#db/processed-payments.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { CLAIM_MIRROR } from "#payment/admit-move.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 

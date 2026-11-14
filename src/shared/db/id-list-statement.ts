@@ -1,4 +1,5 @@
-import { inPlaceholders, type SqlStatement } from "#db/client.ts";
+import { inPlaceholders } from "#db/client.ts";
+import type { SqlStatement } from "#db/sql.ts";
 
 /** One SQL statement over a list of ids: the ids are the bind arguments and
  * the SQL names them in one IN (...) group. Give the SQL with the placeholder

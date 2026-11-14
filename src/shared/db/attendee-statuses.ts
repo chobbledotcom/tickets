@@ -15,13 +15,13 @@ import {
   execute,
   queryAll,
   resultRows,
-  type SqlStatement,
   type TxScope,
   withTransaction,
 } from "#db/client.ts";
 import type { NamedSortOrderInput } from "#db/common-schema.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { col, defineCachedListTable, writeTableRow } from "#db/table.ts";
 import { requiredMapValue } from "#fp";
 import { t } from "#i18n";
@@ -317,12 +317,12 @@ const reassignNameRows = async (
   fromId: number,
   toId: number,
 ): Promise<{ fromName: string; toName: string } | null> => {
-  const rows = await txRows<{ id: number; name: EnvKeyEncrypted }>(tx, {
-    args: [fromId, toId],
-    sql: `SELECT status.id, status.name
+  const rows = await txRows<{ id: number; name: EnvKeyEncrypted }>(
+    tx,
+    sql`SELECT status.id, status.name
             FROM attendee_statuses AS status
-           WHERE status.id IN (?, ?)`,
-  });
+           WHERE status.id IN (${fromId}, ${toId})`,
+  );
   if (rows.length !== 2) return null;
   const named = new Map(
     await Promise.all(
@@ -375,10 +375,9 @@ const reassignHeldAttendees = async (
   if (reassignTo === undefined || reassignTo === id) return null;
   const names = await reassignNameRows(tx, id, reassignTo);
   if (names === null) return null;
-  await tx.execute({
-    args: [reassignTo, id],
-    sql: "UPDATE attendees AS attendee SET status_id = ? WHERE attendee.status_id = ?",
-  });
+  await tx.execute(
+    sql`UPDATE attendees AS attendee SET status_id = ${reassignTo} WHERE attendee.status_id = ${id}`,
+  );
   await logActivity(
     `${held} attendee(s) moved from status '${names.fromName}' to '${names.toName}'`,
     null,
@@ -398,13 +397,13 @@ const deleteStatus = (
   withTransaction(async (tx) => {
     const status = await getCurrentDefaults(tx, id);
 
-    const [anotherStatus] = await txRows<{ id: number }>(tx, {
-      args: [id],
-      sql: `SELECT status.id
+    const [anotherStatus] = await txRows<{ id: number }>(
+      tx,
+      sql`SELECT status.id
               FROM attendee_statuses AS status
-             WHERE status.id != ?
+             WHERE status.id != ${id}
              LIMIT 1`,
-    });
+    );
     const blocker = statusDeleteBlocker(status, anotherStatus !== undefined);
     if (blocker) return errorResult(blocker);
 
@@ -412,10 +411,9 @@ const deleteStatus = (
       return errorResult("status_in_use");
     }
 
-    await tx.execute({
-      args: [id],
-      sql: "DELETE FROM attendee_statuses AS status WHERE status.id = ?",
-    });
+    await tx.execute(
+      sql`DELETE FROM attendee_statuses AS status WHERE status.id = ${id}`,
+    );
     return okResult(undefined);
   });
 
@@ -445,7 +443,7 @@ export const attendeeStatusWrites: AttendeeStatusWrites = {
  */
 export const ensureDefaultAttendeeStatus = async (): Promise<void> => {
   const existing = await queryAll<{ id: number }>(
-    "SELECT status.id FROM attendee_statuses AS status LIMIT 1",
+    sql`SELECT status.id FROM attendee_statuses AS status LIMIT 1`,
   );
   if (existing.length > 0) return;
   const status = await attendeeStatuses.table.insert({
@@ -457,7 +455,6 @@ export const ensureDefaultAttendeeStatus = async (): Promise<void> => {
     sortOrder: 0,
   });
   await execute(
-    "UPDATE attendees AS attendee SET status_id = ? WHERE attendee.status_id IS NULL",
-    [status.id],
+    sql`UPDATE attendees AS attendee SET status_id = ${status.id} WHERE attendee.status_id IS NULL`,
   );
 };

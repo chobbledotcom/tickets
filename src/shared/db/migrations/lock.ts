@@ -4,16 +4,12 @@
  * holding it.
  */
 
-import {
-  executeBatchWithResults,
-  getDb,
-  type SqlStatement,
-} from "#db/client.ts";
+import { executeBatchWithResults, getDb } from "#db/client.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { getEnv } from "#shared/env.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
-
 import {
   combinedFailures,
   isMissingSettingsTableError,
@@ -102,10 +98,8 @@ export const storedLease = async (
 /** The statement that gives up this request's lease. */
 export const releaseMigrationLockStatement = (
   lockToken: string,
-): SqlStatement => ({
-  args: [MIGRATION_LOCK_KEY, lockToken],
-  sql: "DELETE FROM settings WHERE key = ? AND value = ?",
-});
+): SqlStatement =>
+  sql`DELETE FROM settings WHERE key = ${MIGRATION_LOCK_KEY} AND value = ${lockToken}`;
 
 /** Release only the migration lock lease acquired by this request. */
 export const releaseMigrationLock = (lockToken: string): Promise<unknown> =>
@@ -127,10 +121,7 @@ export const executeWhileMigrationLockOwned = async (
   lockToken: string,
 ): Promise<void> => {
   const [ownership] = await executeBatchWithResults([
-    {
-      args: [MIGRATION_LOCK_KEY, lockToken],
-      sql: "UPDATE settings SET value = value WHERE key = ? AND value = ?",
-    },
+    sql`UPDATE settings SET value = value WHERE key = ${MIGRATION_LOCK_KEY} AND value = ${lockToken}`,
     ...statements,
   ]);
   if (ownership!.rowsAffected !== 1) {

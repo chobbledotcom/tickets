@@ -14,6 +14,7 @@ import { encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import { execute, inPlaceholders, queryAll } from "#db/client.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
+import { sql } from "#db/sql.ts";
 import {
   LINK_END_CHECKABLE_NODES,
   parseSquareLinkEndState,
@@ -102,16 +103,9 @@ export const claimSquareLinkEnd = async (
 ): Promise<string | null> => {
   const leaseUntil = isoAfter(SQUARE_LINK_LEASE_MS);
   const result = await execute(
-    `UPDATE square_link_ends
-        SET state = ?, next_attempt_at = ?
-      WHERE session_index = ? AND state = ? AND next_attempt_at = ?`,
-    [
-      squareLinkEndMoveTo("pending", "claim_due"),
-      leaseUntil,
-      row.sessionIndex,
-      row.state,
-      row.claimedAt,
-    ],
+    sql`UPDATE square_link_ends
+        SET state = ${squareLinkEndMoveTo("pending", "claim_due")}, next_attempt_at = ${leaseUntil}
+      WHERE session_index = ${row.sessionIndex} AND state = ${row.state} AND next_attempt_at = ${row.claimedAt}`,
   );
   return result.rowsAffected === 1 ? leaseUntil : null;
 };
@@ -138,10 +132,9 @@ export const applySquareLinkEndEvent = async (
     return deleteSquareLinkEnd(row.sessionIndex, row.state, row.claimedAt);
   }
   const result = await execute(
-    `UPDATE square_link_ends
-        SET state = ?, next_attempt_at = ?
-      WHERE session_index = ? AND state = ? AND next_attempt_at = ?`,
-    [to, nextAttemptFor(event), row.sessionIndex, row.state, row.claimedAt],
+    sql`UPDATE square_link_ends
+        SET state = ${to}, next_attempt_at = ${nextAttemptFor(event)}
+      WHERE session_index = ${row.sessionIndex} AND state = ${row.state} AND next_attempt_at = ${row.claimedAt}`,
   );
   return result.rowsAffected === 1;
 };

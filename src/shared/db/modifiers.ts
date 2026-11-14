@@ -35,6 +35,7 @@ import {
   type ListsByIds,
   queryAndMap,
 } from "#db/query.ts";
+import { sql } from "#db/sql.ts";
 import { col } from "#db/table.ts";
 import {
   clauseArgs,
@@ -195,12 +196,11 @@ export const getModifierAggregateRecalculation = async (
   modifier: ModifierRow,
 ): Promise<ModifierAggregateRecalculation> => {
   const row = await requireOne<ModifierAggregateValues>(
-    `SELECT
+    sql`SELECT
        COALESCE(SUM(quantity), 0) AS total_uses,
        COUNT(*) AS usage_count
      FROM modifier_usages
-     WHERE modifier_id = ?`,
-    [modifier.id],
+     WHERE modifier_id = ${modifier.id}`,
   );
   return {
     total_uses: { current: modifier.total_uses, recalculated: row.total_uses },
@@ -303,7 +303,7 @@ export const getModifierGroupListingIdsByModifierId =
 /** Answer ids an "answer"-triggered modifier is linked to (for the admin
  * editor) — i.e. the answers whose modifier_id points at this modifier. */
 export const getModifierAnswerIds = (modifierId: number): Promise<number[]> =>
-  queryIdColumn("SELECT id FROM answers WHERE modifier_id = ?", [modifierId]);
+  queryIdColumn(sql`SELECT id FROM answers WHERE modifier_id = ${modifierId}`);
 
 /** Point the given answers at an "answer"-triggered modifier (and clear any
  * answers previously pointing at it), so saving the editor is idempotent and

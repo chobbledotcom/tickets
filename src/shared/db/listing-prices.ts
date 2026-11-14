@@ -17,6 +17,7 @@ import {
   PRICE_TYPE_GROUP,
   PRICE_TYPE_GROUP_DAY,
 } from "#db/price-types.ts";
+import { sql, sqlList } from "#db/sql.ts";
 import { compact, mapNotNullish, requiredMapValue } from "#fp";
 import { type DayPrices, parseDayPrices } from "#types";
 
@@ -49,10 +50,8 @@ type PriceRow = [number, string, string, number];
  * head of every delete-then-insert replace this module writes. */
 const priceDimensionDelete =
   (priceType: string) =>
-  (listingId: number): PriceStatement => ({
-    args: [listingId, priceType],
-    sql: "DELETE FROM listing_prices WHERE listing_id = ? AND price_type = ?",
-  });
+  (listingId: number): PriceStatement =>
+    sql`DELETE FROM listing_prices WHERE listing_id = ${listingId} AND price_type = ${priceType}`;
 
 /** A SINGLE multi-row INSERT over the managed price rows, or `null` when there
  * are none. Every full-replace dimension (`day_count`, `group`, `group_day`)
@@ -94,10 +93,7 @@ export const groupDayPriceStatements = (
     }
   }
   return compact([
-    {
-      args: [PRICE_TYPE_GROUP_DAY, groupDayPriceId(groupId, "%")],
-      sql: "DELETE FROM listing_prices WHERE price_type = ? AND price_id LIKE ?",
-    },
+    sql`DELETE FROM listing_prices WHERE price_type = ${PRICE_TYPE_GROUP_DAY} AND price_id LIKE ${groupDayPriceId(groupId, "%")}`,
     multiInsertPriceStatement(rows),
   ]);
 };
@@ -125,10 +121,7 @@ export const groupFlatPriceStatements = (
       : [member.listingId, PRICE_TYPE_GROUP, String(groupId), member.price],
   )(members);
   return compact([
-    {
-      args: [PRICE_TYPE_GROUP, String(groupId)],
-      sql: "DELETE FROM listing_prices WHERE price_type = ? AND price_id = ?",
-    },
+    sql`DELETE FROM listing_prices WHERE price_type = ${PRICE_TYPE_GROUP} AND price_id = ${String(groupId)}`,
     multiInsertPriceStatement(rows),
   ]);
 };
@@ -221,14 +214,13 @@ export const getGroupDayPricesByGroupIds = async (
   if (groups.size === 0) return groups;
   const ids = [...groups.keys()];
   const rows = await queryAll<DayPriceRow>(
-    `SELECT listingPrice.listing_id, listingPrice.price_id, listingPrice.unit_price
+    sql`SELECT listingPrice.listing_id, listingPrice.price_id, listingPrice.unit_price
        FROM listing_prices AS listingPrice
        JOIN group_listings AS groupListing
          ON groupListing.listing_id = listingPrice.listing_id
         AND listingPrice.price_id LIKE (groupListing.group_id || '/%')
-      WHERE listingPrice.price_type = ?
-        AND groupListing.group_id IN (${inPlaceholders(ids)})`,
-    [PRICE_TYPE_GROUP_DAY, ...ids],
+      WHERE listingPrice.price_type = ${PRICE_TYPE_GROUP_DAY}
+        AND groupListing.group_id IN (${sqlList(ids)})`,
   );
   const groupIdOf = (row: DayPriceRow): number =>
     Number(row.price_id.split("/")[0]);
@@ -275,9 +267,8 @@ export const getListingDayPrices = async (
   listingId: number,
 ): Promise<DayPrices> => {
   const result = await execute(
-    `SELECT price_id, unit_price FROM listing_prices
-      WHERE listing_id = ? AND price_type = ?`,
-    [listingId, PRICE_TYPE_DAY_COUNT],
+    sql`SELECT price_id, unit_price FROM listing_prices
+      WHERE listing_id = ${listingId} AND price_type = ${PRICE_TYPE_DAY_COUNT}`,
   );
   const dayPrices: DayPrices = {};
   for (const row of v.parse(v.array(DayCountPriceRowSchema), result.rows)) {

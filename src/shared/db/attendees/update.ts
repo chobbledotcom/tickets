@@ -22,6 +22,7 @@ import {
   type TxScope,
   useTransaction,
 } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import {
   filter,
   map,
@@ -52,10 +53,10 @@ export const moveTickets = (
     const { changed, moved } = spreadTicketMoves(direction, lines, moves);
     if (changed.length > 0) {
       await tx.batch(
-        changed.map((line) => ({
-          args: [line.checked_in, line.id],
-          sql: "UPDATE listing_attendees SET checked_in = ? WHERE id = ?",
-        })),
+        changed.map(
+          (line) =>
+            sql`UPDATE listing_attendees SET checked_in = ${line.checked_in} WHERE id = ${line.id}`,
+        ),
       );
     }
     return moved;
@@ -97,10 +98,9 @@ export const recomputeListingBookingRanges = async (
 ): Promise<void> => {
   const duration = clampDurationDays(durationDays);
   await execute(
-    `UPDATE listing_attendees
-           SET end_at = REPLACE(datetime(start_at, '+' || ? || ' days'), ' ', 'T') || '.000Z'
-           WHERE listing_id = ? AND start_at IS NOT NULL`,
-    [duration, listingId],
+    sql`UPDATE listing_attendees
+           SET end_at = REPLACE(datetime(start_at, '+' || ${duration} || ' days'), ' ', 'T') || '.000Z'
+           WHERE listing_id = ${listingId} AND start_at IS NOT NULL`,
   );
 };
 
@@ -225,18 +225,16 @@ export const checkGroupCapAfterDurationChange = async (
   groupId: number,
 ): Promise<string | null> => {
   const cap = await queryAll<{ max_attendees: number }>(
-    "SELECT max_attendees FROM groups WHERE id = ?",
-    [groupId],
+    sql`SELECT max_attendees FROM groups WHERE id = ${groupId}`,
   );
   const groupLimit = cap[0]!.max_attendees;
   if (groupLimit <= 0) return null;
 
   const rows = await queryAll<GroupBookingRow>(
-    `SELECT listingAttendee.listing_id, listing.listing_type, listingAttendee.start_at, listingAttendee.end_at, listingAttendee.quantity
+    sql`SELECT listingAttendee.listing_id, listing.listing_type, listingAttendee.start_at, listingAttendee.end_at, listingAttendee.quantity
      FROM listing_attendees AS listingAttendee
      JOIN listings AS listing ON listing.id = listingAttendee.listing_id
-     WHERE listingAttendee.listing_id IN (SELECT listing_id FROM group_listings WHERE group_id = ?)`,
-    [groupId],
+     WHERE listingAttendee.listing_id IN (SELECT listing_id FROM group_listings WHERE group_id = ${groupId})`,
   );
 
   return groupCapOverflowDay(rows, listingId, groupLimit);

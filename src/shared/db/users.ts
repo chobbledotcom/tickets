@@ -29,6 +29,7 @@ import {
   registerTableInvalidation,
 } from "#db/common-schema.ts";
 import { type NumberedSql, numberedStatement } from "#db/numbered-statement.ts";
+import { sql } from "#db/sql.ts";
 import type { CacheInvalidation } from "#shared/cache-registry.ts";
 import { now } from "#shared/now.ts";
 import { type AdminLevel, isAdminLevel, type User } from "#types";
@@ -419,8 +420,7 @@ export const migrateUserToV2Kek = async (
   // wrapped_data_key bound to different passwords and lock the account out. A
   // no-op is safe: the login already holds the DATA_KEY for its own session.
   await execute(
-    "UPDATE users SET wrapped_data_key = ?, kek_version = 2 WHERE id = ? AND kek_version < 2",
-    [wrappedDataKey, userId],
+    sql`UPDATE users SET wrapped_data_key = ${wrappedDataKey}, kek_version = 2 WHERE id = ${userId} AND kek_version < 2`,
   );
 };
 

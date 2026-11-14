@@ -19,17 +19,13 @@ import {
 
 import type { EnvKeyEncrypted, OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { ATTENDEE_BY_TOKEN_SQL } from "#db/attendees/create-batch.ts";
-import {
-  queryBatch,
-  resultRows,
-  type SqlStatement,
-  type TxScope,
-} from "#db/client.ts";
+import { queryBatch, resultRows, type TxScope } from "#db/client.ts";
 import { idAndCreatedSchema } from "#db/common-schema.ts";
 import { decryptListingWithCount } from "#db/listings/records.ts";
 import { listingReader } from "#db/listings/select.ts";
 import { batchOnScope } from "#db/scope-batch.ts";
 import { CONFIG_KEYS, settings } from "#db/settings.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { col, defineTable } from "#db/table.ts";
 import { isNullish } from "#fp";
 import { nowIso } from "#shared/now.ts";

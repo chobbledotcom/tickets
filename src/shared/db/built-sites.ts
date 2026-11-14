@@ -7,6 +7,7 @@ import type { InValue } from "@libsql/client";
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { queryAll, queryOne } from "#db/client.ts";
 import { retryWrite } from "#db/retry-write.ts";
+import { sql } from "#db/sql.ts";
 import {
   cachedTable,
   col,
@@ -336,8 +337,7 @@ export const getBuiltSiteByRenewalTokenIndex = async (
   tokenIndex: string,
 ): Promise<BuiltSite | null> => {
   const rows = await queryAll<BuiltSiteRow>(
-    `SELECT ${builtSiteSelectColumns} FROM built_sites WHERE renewal_token_index = ?`,
-    [tokenIndex],
+    sql`SELECT ${TODO_SQL_TEXT(builtSiteSelectColumns)} FROM built_sites WHERE renewal_token_index = ${tokenIndex}`,
   );
   if (rows.length === 0) return null;
   const decrypted = await rawBuiltSitesTable.fromDb(rows[0]!);

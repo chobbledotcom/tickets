@@ -1,4 +1,5 @@
 import { countRows, getDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { escapeRegExp } from "#shared/regexp.ts";
 import { queryRowsWithArg } from "./master-query.ts";
 import {
@@ -102,11 +103,11 @@ const countColumnValueStats = async ({
   target,
 }: ColumnRename): Promise<ColumnValueStats> => {
   const result = await getDb().execute(
-    `SELECT
-       COALESCE(SUM(CASE WHEN ${legacy} IS NOT NULL THEN 1 ELSE 0 END), 0) AS legacy_count,
-       COALESCE(SUM(CASE WHEN ${target} IS NOT NULL THEN 1 ELSE 0 END), 0) AS target_count,
-       COALESCE(SUM(CASE WHEN ${legacy} IS NOT NULL AND ${target} IS NOT NULL AND ${legacy} != ${target} THEN 1 ELSE 0 END), 0) AS conflict_count
-     FROM ${table}`,
+    sql`SELECT
+       COALESCE(SUM(CASE WHEN ${TODO_SQL_TEXT(legacy)} IS NOT NULL THEN 1 ELSE 0 END), 0) AS legacy_count,
+       COALESCE(SUM(CASE WHEN ${TODO_SQL_TEXT(target)} IS NOT NULL THEN 1 ELSE 0 END), 0) AS target_count,
+       COALESCE(SUM(CASE WHEN ${TODO_SQL_TEXT(legacy)} IS NOT NULL AND ${TODO_SQL_TEXT(target)} IS NOT NULL AND ${TODO_SQL_TEXT(legacy)} != ${TODO_SQL_TEXT(target)} THEN 1 ELSE 0 END), 0) AS conflict_count
+     FROM ${TODO_SQL_TEXT(table)}`,
   );
   const row = result.rows[0]!;
   return {
@@ -144,7 +145,9 @@ const columnHasForeignKey = async (
   table: string,
   column: string,
 ): Promise<boolean> => {
-  const result = await getDb().execute(`PRAGMA foreign_key_list(${table})`);
+  const result = await getDb().execute(
+    sql`PRAGMA foreign_key_list(${TODO_SQL_TEXT(table)})`,
+  );
   return result.rows.some((row) => String(row.from) === column);
 };
 

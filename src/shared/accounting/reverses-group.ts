@@ -18,8 +18,8 @@ import {
   inPlaceholders,
   queryAllPrimary,
   queryOnePrimary,
-  type SqlStatement,
 } from "#db/client.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 
 /** One (refund group → booking group) attribution. */
 type ReversesPair = readonly [refundGroup: string, bookingGroup: string];
@@ -125,8 +125,7 @@ const unattributedRefundGroups = async (
 /** The walk's resumed position, or '' when the run starts fresh. */
 const readCursor = async (): Promise<GroupCursor> => {
   const row = await queryOnePrimary<{ value: string }>(
-    "SELECT value FROM settings WHERE key = ?",
-    [CURSOR_KEY],
+    sql`SELECT value FROM settings WHERE key = ${CURSOR_KEY}`,
   );
   return cursorOf(row?.value ?? "");
 };
@@ -134,21 +133,13 @@ const readCursor = async (): Promise<GroupCursor> => {
 /** Checkpoint the walk so a budget-stopped retry resumes here, never before. */
 const saveCursor = (after: GroupCursor): Promise<unknown> =>
   executeBatch([
-    {
-      args: [CURSOR_KEY, after],
-      sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-    },
+    sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CURSOR_KEY}, ${after})`,
   ]);
 
 /** Drop the checkpoint so the next run walks from the start. Only the orphan
  *  refusal runs it. A clean finish writes {@link CURSOR_COMPLETE} instead. */
 const clearCursor = (): Promise<unknown> =>
-  executeBatch([
-    {
-      args: [CURSOR_KEY],
-      sql: "DELETE FROM settings WHERE key = ?",
-    },
-  ]);
+  executeBatch([sql`DELETE FROM settings WHERE key = ${CURSOR_KEY}`]);
 
 /**
  * Attribute every stored refund leg to the booking order it reversed.

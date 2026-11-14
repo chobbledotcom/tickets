@@ -2,10 +2,10 @@ import {
   executeBatch,
   getDb,
   queryBatchPrimary,
-  type SqlStatement,
   withTransaction,
 } from "#db/client.ts";
 import { stringColumnSet } from "#db/query.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { logDebug } from "#shared/logger.ts";
 import {
   backfillAnswerAggregates,
@@ -46,7 +46,9 @@ export const runMigration = async (sql: string): Promise<void> => {
 export const getExistingColumns = async (
   table: string,
 ): Promise<Set<string>> => {
-  const result = await getDb().execute(`PRAGMA table_info(${table})`);
+  const result = await getDb().execute(
+    sql`PRAGMA table_info(${TODO_SQL_TEXT(table)})`,
+  );
   return stringColumnSet(result.rows, "name");
 };
 
@@ -82,21 +84,9 @@ export type LiveSchema = {
  */
 export const snapshotLiveSchema = async (): Promise<LiveSchema> => {
   const [columns, indexRows, triggerRows] = await queryBatchPrimary([
-    {
-      args: [],
-      sql:
-        "SELECT master.name AS tbl, tableInfo.name AS col " +
-        "FROM sqlite_master AS master JOIN pragma_table_info(master.name) AS tableInfo " +
-        "WHERE master.type = 'table'",
-    },
-    {
-      args: [],
-      sql: "SELECT name FROM sqlite_master WHERE type = 'index'",
-    },
-    {
-      args: [],
-      sql: "SELECT name FROM sqlite_master WHERE type = 'trigger'",
-    },
+    sql`SELECT master.name AS tbl, tableInfo.name AS col FROM sqlite_master AS master JOIN pragma_table_info(master.name) AS tableInfo WHERE master.type = 'table'`,
+    sql`SELECT name FROM sqlite_master WHERE type = 'index'`,
+    sql`SELECT name FROM sqlite_master WHERE type = 'trigger'`,
   ]);
 
   const tables = new Map<string, Set<string>>();
@@ -347,7 +337,7 @@ const backfillListingAttendees = fromAttendeeColumns(
     // price_paid_v2 values are not restored. A historical paid or refunded
     // booking re-surfaces via its backfilled ledger legs, not a per-row column.
     await getDb().execute(
-      `INSERT OR IGNORE INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, checked_in, attachment_downloads)
+      sql`INSERT OR IGNORE INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, checked_in, attachment_downloads)
      SELECT listing_id, id,
        CASE WHEN date IS NOT NULL THEN date || 'T00:00:00Z' ELSE NULL END,
        CASE WHEN date IS NOT NULL THEN DATE(date, '+1 day') || 'T00:00:00Z' ELSE NULL END,
@@ -448,10 +438,9 @@ export const applySchemaChanges = async (
     }
     for (const [col, type] of table.columns) {
       if (!existing.has(col)) {
-        alters.push({
-          args: [],
-          sql: `ALTER TABLE ${name} ADD COLUMN ${col} ${type}`,
-        });
+        alters.push(
+          sql`ALTER TABLE ${TODO_SQL_TEXT(name)} ADD COLUMN ${TODO_SQL_TEXT(col)} ${TODO_SQL_TEXT(type)}`,
+        );
       }
     }
   }

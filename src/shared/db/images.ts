@@ -8,7 +8,6 @@ import type { StoredRowOf } from "#db/chosen-columns.ts";
 import {
   executeBatch,
   queryAllPrimary,
-  type SqlStatement,
   type TxScope,
   useTransaction,
 } from "#db/client.ts";
@@ -23,6 +22,7 @@ import {
   type RecordTargets,
 } from "#db/record-target.ts";
 import { settingsVersionIncrement } from "#db/settings/cache.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { type ColumnDef, col, writeTableRow } from "#db/table.ts";
 import { readById } from "#db/table-reader.ts";
 import { txIdSetInTable } from "#db/transaction.ts";
@@ -400,8 +400,8 @@ export const updateImageRecord = async (
 
 export const deleteImageRecord = async (imageId: number): Promise<void> => {
   await executeBatch([
-    { args: [imageId], sql: "DELETE FROM image_uses WHERE image_id = ?" },
-    { args: [imageId], sql: "DELETE FROM images WHERE id = ?" },
+    sql`DELETE FROM image_uses WHERE image_id = ${imageId}`,
+    sql`DELETE FROM images WHERE id = ${imageId}`,
     // The shared version is the signal every isolate reads, so a deletion
     // here drops the cached URLs the other isolates still hold.
     settingsVersionIncrement(),

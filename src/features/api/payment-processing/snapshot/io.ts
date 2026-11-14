@@ -6,18 +6,14 @@ import {
 import { lineGroupIds } from "#booking/signed-metadata.ts";
 import { decrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
-import {
-  inPlaceholders,
-  queryBatch,
-  resultRows,
-  type SqlStatement,
-} from "#db/client.ts";
+import { inPlaceholders, queryBatch, resultRows } from "#db/client.ts";
 import { hashEmail, hashPhone } from "#db/contact-preferences.ts";
 import { imageFilenameSubqueries } from "#db/images.ts";
 import { decryptListingWithCount } from "#db/listings/records.ts";
 import type { ListingRecordRow } from "#db/listings/select.ts";
 import { rawListingsTable } from "#db/listings/table.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { unique } from "#fp";
 import { buildPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/build.ts";
 import type {

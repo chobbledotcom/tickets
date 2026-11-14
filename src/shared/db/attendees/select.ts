@@ -14,8 +14,9 @@ import {
 } from "#accounting/projection-sql.ts";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
 import { emailOwedColumn } from "#db/attendees/notification-flags.ts";
-import type { SqlStatement } from "#db/client.ts";
+
 import { defineReader } from "#db/read.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { inList, inSubquery, type WhereClause } from "#db/where-clauses.ts";
 import type { Attendee } from "#types";
 

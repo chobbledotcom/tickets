@@ -7,6 +7,7 @@
  */
 
 import { execute, executeBatch, insert, orIgnore } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { nowIso } from "#shared/now.ts";
 
 /** Claim an inbound webhook id. Returns false when it was already processed. */
@@ -29,8 +30,5 @@ export const pruneProcessedSmsInboundBefore = (
   cutoffIso: string,
 ): Promise<void> =>
   executeBatch([
-    {
-      args: [cutoffIso],
-      sql: "DELETE FROM processed_sms_inbound WHERE created < ?",
-    },
+    sql`DELETE FROM processed_sms_inbound WHERE created < ${cutoffIso}`,
   ]);

@@ -15,7 +15,6 @@ import { encrypt } from "#crypto/encryption.ts";
 import {
   executeBatchWithoutCacheInvalidation,
   executeWithoutCacheInvalidation,
-  type SqlStatement,
 } from "#db/client.ts";
 import {
   bumpSettingsVersion,
@@ -28,6 +27,7 @@ import {
   setSnapshotField,
 } from "#db/settings/snapshot.ts";
 import { recordSettingsLoaded } from "#db/settings-audit.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { bindFirst } from "#shared/fp-bind.ts";
 import type { EncryptedUpdateFn } from "#shared/wallets/wallet-settings-types.ts";
 
@@ -120,9 +120,9 @@ export const writeRawBatch = async (values: SettingsBatch): Promise<void> => {
 /** Delete a setting from the DB, drop it from the raw cache, and bump the
  *  shared version so other isolates reload on their next request. */
 export const deleteRaw = async (key: string): Promise<void> => {
-  await executeWithoutCacheInvalidation("DELETE FROM settings WHERE key = ?", [
-    key,
-  ]);
+  await executeWithoutCacheInvalidation(
+    sql`DELETE FROM settings WHERE key = ${key}`,
+  );
   await afterSettingChange(() =>
     syncStoredSetting(key, (values) => values.delete(key)),
   );

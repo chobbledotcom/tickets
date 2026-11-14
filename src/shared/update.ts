@@ -12,6 +12,7 @@ import {
   queryAll,
   queryOnePrimary,
 } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { compact, lazyRef } from "#fp";
 import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#shared/build-info.ts";
 import {
@@ -172,10 +173,10 @@ export const recordScriptVersion = async (): Promise<void> => {
       // Runs concurrently with the request; the normal write path would
       // wipe the settings snapshot the request just loaded.
       await executeBatchWithoutCacheInvalidation(
-        changes.map(([key, value]) => ({
-          args: [key, value],
-          sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-        })),
+        changes.map(
+          ([key, value]) =>
+            sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${key}, ${value})`,
+        ),
       );
     }
   } catch (e) {
@@ -194,8 +195,7 @@ export const recordScriptVersion = async (): Promise<void> => {
 export const readRecordedScriptCommit = async (): Promise<string> =>
   (
     await queryOnePrimary<{ value: string }>(
-      "SELECT value FROM settings WHERE key = ?",
-      [CURRENT_SCRIPT_COMMIT_KEY],
+      sql`SELECT value FROM settings WHERE key = ${CURRENT_SCRIPT_COMMIT_KEY}`,
     )
   )?.value ?? "";
 

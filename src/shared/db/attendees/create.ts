@@ -30,10 +30,11 @@ import {
 } from "#db/attendees/notification-flags.ts";
 import { annotateOrderParents } from "#db/attendees/order-parents.ts";
 import { contactFields, encryptAttendeeFields } from "#db/attendees/pii.ts";
-import { insert, type SqlStatement } from "#db/client.ts";
+import { insert } from "#db/client.ts";
 import { orderActivityStatements } from "#db/contact-tokens.ts";
 import { anyModifierSoldOut } from "#db/modifier-usage.ts";
 import type { NumberedSql } from "#db/numbered-statement.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { addDays } from "#shared/dates.ts";
 import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import { type Attendee, type ContactInfo, clampDurationDays } from "#types";

@@ -5,7 +5,6 @@
 import {
   deleteByFieldStatement,
   queryAll,
-  type SqlStatement,
   withTransaction,
 } from "#db/client.ts";
 import {
@@ -15,6 +14,7 @@ import {
 import { ticketCountSumExpr } from "#db/migrations/schema/listing-aggregates.ts";
 import { noteDeleteStatement } from "#db/notes/queries.ts";
 import { assertRowsFreeToMove } from "#db/payment-admit-move.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import {
   ATTENDEE_DATA_RULES,
   type AttendeeDataRule,
@@ -51,13 +51,12 @@ const attendeeListingContributions = (
 const restoreListingContributions = (
   contributions: ListingContribution[],
 ): SqlStatement[] =>
-  contributions.map((row) => ({
-    args: [row.booked_quantity, row.tickets_count, row.listing_id],
-    sql: `UPDATE listings
-             SET booked_quantity = booked_quantity + ?,
-                 tickets_count = tickets_count + ?
-           WHERE id = ?`,
-  }));
+  contributions.map(
+    (row) => sql`UPDATE listings
+             SET booked_quantity = booked_quantity + ${row.booked_quantity},
+                 tickets_count = tickets_count + ${row.tickets_count}
+           WHERE id = ${row.listing_id}`,
+  );
 
 const dependentDeleteStatement = (
   rule: Extract<AttendeeDataRule, { action: "delete" }>,
@@ -135,10 +134,7 @@ export const repointAttendeeDependents = (
       ? [
           rule.kind === "external-links"
             ? repointExternalLinksStatement(rule.target, sourceId, targetId)
-            : {
-                args: [targetId, sourceId],
-                sql: `UPDATE ${rule.table} SET ${rule.field} = ? WHERE ${rule.field} = ?`,
-              },
+            : sql`UPDATE ${TODO_SQL_TEXT(rule.table)} SET ${TODO_SQL_TEXT(rule.field)} = ${targetId} WHERE ${TODO_SQL_TEXT(rule.field)} = ${sourceId}`,
         ]
       : [],
   );

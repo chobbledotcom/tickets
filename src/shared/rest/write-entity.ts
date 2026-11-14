@@ -11,11 +11,11 @@
  */
 
 import {
-  type SqlStatement,
   type TransactionStateReader,
   type TxScope,
   writeRowInTransaction,
 } from "#db/client.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { refusingTheWriteOn } from "#db/transaction.ts";
 import type { CheckTxHook } from "#shared/rest/crud-api-types.ts";
 

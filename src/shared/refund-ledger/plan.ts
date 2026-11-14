@@ -10,7 +10,7 @@ import {
 } from "#accounting/mappers.ts";
 import { transfersByAccounts } from "#accounting/queries.ts";
 import { balanceEventGroup } from "#db/attendees/balance.ts";
-import type { SqlStatement } from "#db/client.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { requiredMapValue } from "#fp";
 import { accountKey } from "#shared/ledger/account.ts";
 import { legMatches } from "#shared/ledger/legs.ts";

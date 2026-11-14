@@ -14,7 +14,6 @@ import {
   executeBatch,
   queryAll,
   resultRows,
-  type SqlStatement,
   type TxScope,
   useTransaction,
 } from "#db/client.ts";
@@ -22,6 +21,7 @@ import type { FillableRead } from "#db/fill-together.ts";
 import { clearImageUsesForItemStatement, imageUseTargets } from "#db/images.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
 import { existingSitePageIdsStatement } from "#db/site-pages.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import {
   clauseArgs,
   deleteWhere,
@@ -62,10 +62,7 @@ export const sitePageItemOrder = defineOrderedCollection({
   table: "site_page_items",
 });
 
-const allItemsStatement: SqlStatement = {
-  args: [],
-  sql: `SELECT ${SELECT_COLS} FROM site_page_items ORDER BY page_id ASC, sort_order ASC, item_id ASC`,
-};
+const allItemsStatement: SqlStatement = sql`SELECT ${TODO_SQL_TEXT(SELECT_COLS)} FROM site_page_items ORDER BY page_id ASC, sort_order ASC, item_id ASC`;
 
 const fetchAllItems = (): Promise<SitePageItem[]> =>
   queryAll<SitePageItem>(allItemsStatement.sql);
@@ -92,8 +89,7 @@ export const invalidatePageItemsCache = (): void => itemsCache.invalidate();
  * {@link SitePageItem}s the core can consume). */
 export const getItemsForPage = (pageId: number): Promise<SitePageItem[]> =>
   queryAll<SitePageItem>(
-    `SELECT ${SELECT_COLS} FROM site_page_items WHERE page_id = ? ORDER BY sort_order ASC, item_id ASC`,
-    [pageId],
+    sql`SELECT ${TODO_SQL_TEXT(SELECT_COLS)} FROM site_page_items WHERE page_id = ${pageId} ORDER BY sort_order ASC, item_id ASC`,
   );
 
 type PageItemChange<T> = (
@@ -171,10 +167,9 @@ const addPageItemInTransaction: PageItemChangeInTransaction<boolean> = async (
     // Read all page edges once and enforce both page invariants against the
     // same in-transaction snapshot, before inserting.
     const pageEdges = resultRows<SitePageItem>(
-      await tx.execute({
-        args: [],
-        sql: `SELECT ${SELECT_COLS} FROM site_page_items WHERE item_type = 'page'`,
-      }),
+      await tx.execute(
+        sql`SELECT ${TODO_SQL_TEXT(SELECT_COLS)} FROM site_page_items WHERE item_type = 'page'`,
+      ),
     );
     // Single-parent: the page must not already be nested elsewhere.
     if (pageEdges.some((e) => e.item_id === itemId)) return false;
@@ -189,10 +184,9 @@ const addPageItemInTransaction: PageItemChangeInTransaction<boolean> = async (
     scope: pageId,
     transaction: tx,
   });
-  await tx.execute({
-    args: [pageId, itemType, itemId, next],
-    sql: "INSERT INTO site_page_items (page_id, item_type, item_id, sort_order) VALUES (?, ?, ?, ?)",
-  });
+  await tx.execute(
+    sql`INSERT INTO site_page_items (page_id, item_type, item_id, sort_order) VALUES (${pageId}, ${itemType}, ${itemId}, ${next})`,
+  );
   return true;
 };
 
@@ -238,8 +232,8 @@ export const removePageItem: PageItemChange<void> = pageItemChange(
  */
 export const deleteSitePageWithEdges = (pageId: number): Promise<void> =>
   executeBatch([
-    { args: [pageId], sql: "DELETE FROM site_page_items WHERE page_id = ?" },
+    sql`DELETE FROM site_page_items WHERE page_id = ${pageId}`,
     clearItemEdgesStatement(sitePageItemTargets.of("page")(pageId)),
     clearImageUsesForItemStatement(imageUseTargets.of("page")(pageId)),
-    { args: [pageId], sql: "DELETE FROM site_pages WHERE id = ?" },
+    sql`DELETE FROM site_pages WHERE id = ${pageId}`,
   ]);

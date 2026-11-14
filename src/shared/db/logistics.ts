@@ -8,6 +8,7 @@
 
 import { executeBatch, queryAll, update } from "#db/client.ts";
 import { rowsByIds } from "#db/query.ts";
+import { sql } from "#db/sql.ts";
 
 /** A start/end agent pair (null = unassigned) plus optional start/end times
  * ("" when unset). Times are logistics-only metadata — never used for
@@ -110,9 +111,8 @@ export const getLogisticsAssignments = async (
   attendeeId: number,
 ): Promise<Map<number, LogisticsAssignment>> => {
   const rows = await queryAll<AssignmentRow>(
-    `SELECT listing_id, start_agent_id, end_agent_id, start_time, end_time
-     FROM listing_attendees WHERE attendee_id = ?`,
-    [attendeeId],
+    sql`SELECT listing_id, start_agent_id, end_agent_id, start_time, end_time
+     FROM listing_attendees WHERE attendee_id = ${attendeeId}`,
   );
   return new Map(rows.map((row) => [row.listing_id, rowToAssignment(row)]));
 };

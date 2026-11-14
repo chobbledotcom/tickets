@@ -10,7 +10,8 @@
  * one sentence, just a longer one.
  */
 
-import { queryAll, type SqlStatement } from "#db/client.ts";
+import { queryAll } from "#db/client.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import {
   clauseArgs,
   rowsUnlessNoneMatch,

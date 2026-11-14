@@ -26,12 +26,9 @@ import { dateToStartEnd } from "#db/attendees/capacity/range.ts";
 import { attendeePiiWriteStatements } from "#db/attendees/pii-write.ts";
 import { LISTING_ATTENDEE_ROW_COLS } from "#db/attendees/queries.ts";
 import { capacityConditionFor } from "#db/capacity.ts";
-import {
-  executeBatchWithResults,
-  queryAll,
-  type SqlStatement,
-} from "#db/client.ts";
+import { executeBatchWithResults, queryAll } from "#db/client.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { requiredMapValue, unique } from "#fp";
 import type { AttendeeUpdateFailureReason } from "#shared/attendee-failures.ts";
 
@@ -115,10 +112,9 @@ export const loadExistingLines = async (
   attendeeId: number,
 ): Promise<ExistingLine[]> => {
   const rows = await queryAll<ListingAttendeeRow>(
-    `SELECT ${LISTING_ATTENDEE_ROW_COLS}
-     FROM listing_attendees WHERE attendee_id = ?
+    sql`SELECT ${TODO_SQL_TEXT(LISTING_ATTENDEE_ROW_COLS)}
+     FROM listing_attendees WHERE attendee_id = ${attendeeId}
      ORDER BY start_at, listing_id`,
-    [attendeeId],
   );
   return rows.map((booking) => ({
     booking,
@@ -301,17 +297,8 @@ export const buildAttendeeEditBatch = (
   );
   const statements: SqlStatement[] = [];
   for (const booking of removed) {
-    statements.push({
-      args: [
-        attendeeId,
-        booking.listing_id,
-        booking.start_at ?? null,
-        booking.parent_listing_id,
-        booking.package_group_id,
-      ],
-      sql: `DELETE FROM listing_attendees
-            WHERE attendee_id = ? AND listing_id = ? AND start_at IS ? AND parent_listing_id = ? AND package_group_id = ?`,
-    });
+    statements.push(sql`DELETE FROM listing_attendees
+            WHERE attendee_id = ${attendeeId} AND listing_id = ${booking.listing_id} AND start_at IS ${booking.start_at ?? null} AND parent_listing_id = ${booking.parent_listing_id} AND package_group_id = ${booking.package_group_id}`);
   }
   for (const line of [
     ...desired.filter((line) => line.exists),

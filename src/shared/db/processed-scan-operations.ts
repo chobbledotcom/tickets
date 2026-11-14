@@ -20,6 +20,7 @@ import {
   type TxScope,
   update,
 } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { limit } from "#shared/limits.ts";
 import { DAY_MS, nowIso } from "#shared/now.ts";
 
@@ -97,9 +98,8 @@ export const deliveredScanOperation = async (
   tokenHash: string,
 ): Promise<DeliveredScanOperation | null> => {
   const row = await queryOne<{ listing_ids: string; quantity: number }>(
-    `SELECT listing_ids, quantity FROM processed_scan_operations
-       WHERE operation_id = ? AND token_hash = ?`,
-    [operationId, tokenHash],
+    sql`SELECT listing_ids, quantity FROM processed_scan_operations
+       WHERE operation_id = ${operationId} AND token_hash = ${tokenHash}`,
   );
   if (!row) return null;
   return {

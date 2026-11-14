@@ -1,5 +1,5 @@
 import * as v from "valibot";
-import { resultRows, type SqlStatement, withTransaction } from "#db/client.ts";
+import { resultRows, withTransaction } from "#db/client.ts";
 import {
   numberedStatement,
   type SqlParameter,
@@ -7,6 +7,7 @@ import {
 import { settingsVersionIncrement } from "#db/settings/cache.ts";
 import { publishStoredSetting } from "#db/settings/raw-writes.ts";
 import type { StringSettingKey } from "#db/settings/snapshot.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 
 const StoredJsonSchema = v.object({ value: v.string() });
 
@@ -59,11 +60,8 @@ export const booleanJsonField = (
       // jscpd:ignore-end
       const [returned] = resultRows<unknown>(result);
       if (returned === undefined) {
-        const currentResult = await tx.execute({
-          args: [key, path, jsonType],
-          sql: `SELECT value FROM settings
-                WHERE key = ? AND json_type(value, ?) = ?`,
-        });
+        const currentResult = await tx.execute(sql`SELECT value FROM settings
+                WHERE key = ${key} AND json_type(value, ${path}) = ${jsonType}`);
         const [current] = resultRows<unknown>(currentResult);
         if (current === undefined) return null;
         const unchanged = parseStoredJson(current);

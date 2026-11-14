@@ -9,11 +9,9 @@ import type { BlindIndex } from "#crypto/sealed.ts";
 import {
   execute,
   executeBatch,
-  inPlaceholders,
   queryAll,
   resultRows,
   rowExists,
-  type SqlStatement,
   type TxScope,
 } from "#db/client.ts";
 import {
@@ -37,6 +35,7 @@ import { numberedStatement } from "#db/numbered-statement.ts";
 import { PRICE_TYPE_GROUP, PRICE_TYPE_GROUP_DAY } from "#db/price-types.ts";
 import { envNameSource, rowsByIds } from "#db/query.ts";
 import { slugTakenIn } from "#db/slug-registry.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { equals, inList } from "#db/where-clauses.ts";
 import {
@@ -219,10 +218,7 @@ const anyGroupMatching = async (
 ): Promise<boolean> => {
   if (groupIds.length === 0) return false;
   return rowExists(
-    `SELECT 1 FROM groups WHERE id IN (${inPlaceholders(
-      groupIds,
-    )}) AND ${condition} LIMIT 1`,
-    [...groupIds],
+    sql`SELECT 1 FROM groups WHERE id IN (${sqlList(groupIds)}) AND ${TODO_SQL_TEXT(condition)} LIMIT 1`,
   );
 };
 
@@ -243,13 +239,12 @@ export const anyListingInPackageGroup = async (
 ): Promise<boolean> => {
   if (listingIds.length === 0) return false;
   return rowExists(
-    `SELECT 1
+    sql`SELECT 1
        FROM group_listings AS groupListing
        JOIN groups AS groupRow ON groupRow.id = groupListing.group_id
-      WHERE groupListing.listing_id IN (${inPlaceholders(listingIds)})
+      WHERE groupListing.listing_id IN (${sqlList(listingIds)})
         AND groupRow.is_package = 1
       LIMIT 1`,
-    [...listingIds],
   );
 };
 
@@ -304,11 +299,8 @@ export const hasPackageBookingsTx = async (
   groupId: number,
 ): Promise<boolean> => {
   const rows = resultRows<{ id: number }>(
-    await tx.execute({
-      args: [groupId],
-      sql: `SELECT 1 AS id FROM listing_attendees
-             WHERE package_group_id = ? AND quantity > 0 LIMIT 1`,
-    }),
+    await tx.execute(sql`SELECT 1 AS id FROM listing_attendees
+             WHERE package_group_id = ${groupId} AND quantity > 0 LIMIT 1`),
   );
   return rows.length > 0;
 };
@@ -365,12 +357,9 @@ export const cloneGroupMembershipStatement = (member: {
   groupSlugIndex: string;
   listingSlugIndex: string;
   quantity: number;
-}): SqlStatement => ({
-  args: [member.groupSlugIndex, member.listingSlugIndex, member.quantity],
-  sql: `INSERT INTO group_listings (group_id, listing_id, quantity)
-        SELECT (SELECT id FROM groups WHERE slug_index = ?),
-               (SELECT id FROM listings WHERE slug_index = ?), ?`,
-});
+}): SqlStatement => sql`INSERT INTO group_listings (group_id, listing_id, quantity)
+        SELECT (SELECT id FROM groups WHERE slug_index = ${member.groupSlugIndex}),
+               (SELECT id FROM listings WHERE slug_index = ${member.listingSlugIndex}), ${member.quantity}`;
 
 /**
  * Replace a listing's full set of group memberships (the listing-form
@@ -396,12 +385,9 @@ const listingGroupDiffStatements = (
   // how many groups change, so the transactional path (setListingGroupsTx) stays
   // well under the interactive round-trip guard even for a large group selection.
   if (toRemove.length > 0) {
-    statements.push({
-      args: [listingId, ...toRemove],
-      sql: `DELETE FROM group_listings WHERE listing_id = ? AND group_id IN (${inPlaceholders(
-        toRemove,
-      )})`,
-    });
+    statements.push(
+      sql`DELETE FROM group_listings WHERE listing_id = ${listingId} AND group_id IN (${sqlList(toRemove)})`,
+    );
     // Drop the listing's package price overrides for the groups it is leaving —
     // they live in listing_prices, not on the membership row, so they'd otherwise
     // outlive the removal and resurrect on a re-add. Non-null: toRemove is
@@ -659,10 +645,8 @@ export const copyPackageMemberOverridesTx = async (
 
 /** Reset-every-member-to-default-quantity statement (quantity 1). The flat price
  * overrides are cleared separately via {@link groupFlatPriceStatements}. */
-const clearMembersStatement = (groupId: number) => ({
-  args: [groupId],
-  sql: "UPDATE group_listings SET quantity = 1 WHERE group_id = ?",
-});
+const clearMembersStatement = (groupId: number) =>
+  sql`UPDATE group_listings SET quantity = 1 WHERE group_id = ${groupId}`;
 
 /** The single CASE-UPDATE that applies each valid member's `quantity`, resetting
  * every other member to the default (quantity 1) via the ELSE branch. One

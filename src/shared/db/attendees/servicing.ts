@@ -35,6 +35,7 @@ import {
   type AttendeeAnswerSet,
   saveAttendeeAnswers,
 } from "#db/questions/attendee-answers/save.ts";
+import { sql } from "#db/sql.ts";
 import { requiredMapValue, sumByKey, sumOf, unique } from "#fp";
 import {
   type AttendeeUpdateFailureReason,
@@ -541,14 +542,13 @@ export const servicingHoldsListing = async (
   listingId: number,
 ): Promise<boolean> => {
   const row = await queryOne<{ one: number }>(
-    `SELECT 1 AS one
+    sql`SELECT 1 AS one
        FROM attendees AS attendee
        JOIN listing_attendees AS booking ON booking.attendee_id = attendee.id
-      WHERE attendee.id = ?
-        AND attendee.kind = ?
-        AND booking.listing_id = ?
+      WHERE attendee.id = ${servicingId}
+        AND attendee.kind = ${SERVICING_KIND}
+        AND booking.listing_id = ${listingId}
       LIMIT 1`,
-    [servicingId, SERVICING_KIND, listingId],
   );
   return row !== null;
 };
@@ -613,12 +613,11 @@ const matchingServiceCostReplayId = async (
     listing_id: number;
     memo: EnvKeyEncrypted;
   }>(
-    `SELECT transfer.id AS transfer_id, transfer.amount,
+    sql`SELECT transfer.id AS transfer_id, transfer.amount,
             cost.servicing_attendee_id, cost.listing_id, cost.memo
        FROM transfers AS transfer
        JOIN service_costs AS cost ON cost.transfer_id = transfer.id
-      WHERE transfer.reference = ?`,
-    [reference],
+      WHERE transfer.reference = ${reference}`,
   );
   if (!stored) return null;
   const matches =
@@ -658,24 +657,12 @@ export const recordServiceCost = async (
   // stale; the SELECT always resolves to the correct row regardless.
   await withTransaction(async (tx) => {
     await postTransfersTx(tx, [transfer]);
-    await tx.execute({
-      args: [
-        input.servicingId,
-        input.listingId,
-        input.occurredAt,
-        encryptedMemo,
-        nowIso(),
-        transfer.reference,
-      ],
-      sql:
-        "INSERT OR IGNORE INTO service_costs " +
-        "(servicing_attendee_id, listing_id, transfer_id, occurred_at, memo, created) " +
-        "SELECT ?, ?, id, ?, ?, ? FROM transfers WHERE reference = ?",
-    });
+    await tx.execute(
+      sql`INSERT OR IGNORE INTO service_costs (servicing_attendee_id, listing_id, transfer_id, occurred_at, memo, created) SELECT ${input.servicingId}, ${input.listingId}, id, ${input.occurredAt}, ${encryptedMemo}, ${nowIso()} FROM transfers WHERE reference = ${transfer.reference}`,
+    );
   });
   const row = await requireOne<{ id: number }>(
-    "SELECT id FROM transfers WHERE reference = ?",
-    [transfer.reference],
+    sql`SELECT id FROM transfers WHERE reference = ${transfer.reference}`,
   );
   return row.id;
 };
@@ -722,8 +709,7 @@ export const costBelongsToServicing = async (
   servicingId: number,
 ): Promise<boolean> => {
   const row = await queryOne<{ n: number }>(
-    "SELECT 1 AS n FROM service_costs WHERE transfer_id = ? AND servicing_attendee_id = ?",
-    [costId, servicingId],
+    sql`SELECT 1 AS n FROM service_costs WHERE transfer_id = ${costId} AND servicing_attendee_id = ${servicingId}`,
   );
   return row !== null;
 };
@@ -870,8 +856,7 @@ export const getServicingCosts = async (
     occurred_at: string;
     memo: EnvKeyEncrypted;
   }>(
-    "SELECT transfer_id, listing_id, occurred_at, memo FROM service_costs WHERE servicing_attendee_id = ? ORDER BY occurred_at, transfer_id",
-    [servicingId],
+    sql`SELECT transfer_id, listing_id, occurred_at, memo FROM service_costs WHERE servicing_attendee_id = ${servicingId} ORDER BY occurred_at, transfer_id`,
   );
   if (records.length === 0) return [];
   const legs = await loadServiceCostLegs(

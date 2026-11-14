@@ -15,9 +15,9 @@ import {
   executeBatchWithResults,
   inPlaceholders,
   resultRows,
-  type SqlStatement,
 } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import { nowIso } from "#shared/now.ts";
 
 /** One free-text answer's encrypted payload plus its blind index and plaintext.
@@ -118,10 +118,7 @@ export const internWriteStatements = (
     // only thing that removes strings). Refreshing a row that is reused now —
     // even one currently attached to another attendee — keeps it alive past
     // that other attendee later freeing it, until this checkout finalizes.
-    {
-      args: [created, ...indexes],
-      sql: `UPDATE strings SET created = ? WHERE text_index IN (${inPlaceholders(indexes)})`,
-    },
+    sql`UPDATE strings SET created = ${created} WHERE text_index IN (${sqlList(indexes)})`,
   ];
 };
 

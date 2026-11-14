@@ -1,3 +1,4 @@
+import { sql } from "#db/sql.ts";
 import { queryRowsWithArg } from "./master-query.ts";
 import { SCHEMA } from "./schema/index.ts";
 import type { MigrationContext, SchemaRequirement } from "./types.ts";
@@ -19,7 +20,7 @@ export const recreateSlotIndex = async ({
   getDb,
   syncIndexes,
 }: Pick<MigrationContext, "getDb" | "syncIndexes">): Promise<void> => {
-  await getDb().execute(`DROP INDEX IF EXISTS ${SLOT_INDEX}`);
+  await getDb().execute(sql`DROP INDEX IF EXISTS ${TODO_SQL_TEXT(SLOT_INDEX)}`);
   await syncIndexes();
 };
 

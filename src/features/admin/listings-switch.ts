@@ -12,7 +12,7 @@
  */
 
 import { buildListingCapCondition } from "#db/capacity.ts";
-import { resultRows, type SqlStatement, withTransaction } from "#db/client.ts";
+import { resultRows, withTransaction } from "#db/client.ts";
 import { holidays } from "#db/holidays.ts";
 import {
   type AssignPlan,
@@ -21,6 +21,7 @@ import {
 } from "#db/listings/daily-switch.ts";
 import { listingsTable } from "#db/listings/records.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { t } from "#i18n";
 import type { AuthSession } from "#routes/auth.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";

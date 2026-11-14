@@ -12,6 +12,7 @@ import {
   queryOne,
 } from "#db/client.ts";
 import { createPrimaryCacheRefill } from "#db/primary-reads.ts";
+import { sql } from "#db/sql.ts";
 import type { UserAuthFields } from "#db/users.ts";
 import { ttlCache } from "#fp";
 import {
@@ -20,7 +21,6 @@ import {
   registerTableInvalidation,
 } from "#shared/cache-registry.ts";
 import { requireValue } from "#shared/required-value.ts";
-
 import type { Session } from "#types";
 
 /**
@@ -124,8 +124,7 @@ export const getSession = async (token: string): Promise<Session | null> => {
   // Query DB and cache result (token column contains the hash)
   const session = await primaryRefill.fetch(() =>
     queryOne<Session>(
-      `SELECT ${SESSION_COLUMNS} FROM sessions WHERE token = ?`,
-      [tokenHash],
+      sql`SELECT ${TODO_SQL_TEXT(SESSION_COLUMNS)} FROM sessions WHERE token = ${tokenHash}`,
     ),
   );
   cacheSession(tokenHash, session);
@@ -175,12 +174,11 @@ export const getSessionWithUser = async (
   const tokenHash = await hashSessionToken(token);
   const row = await primaryRefill.fetch(() =>
     queryOne<SessionUserRow>(
-      `SELECT ${sessionColumnsOn("session")},
+      sql`SELECT ${TODO_SQL_TEXT(sessionColumnsOn("session"))},
               adminUser.id AS user_row_id, adminUser.admin_level
          FROM sessions AS session
          LEFT JOIN users AS adminUser ON adminUser.id = session.user_id
-        WHERE session.token = ?`,
-      [tokenHash],
+        WHERE session.token = ${tokenHash}`,
     ),
   );
   if (row === null) {
@@ -205,7 +203,7 @@ export const deleteSession = async (token: string): Promise<void> => {
  * Delete all sessions (used when password is changed)
  */
 export const deleteAllSessions = async (): Promise<void> => {
-  await execute("DELETE FROM sessions");
+  await execute(sql`DELETE FROM sessions`);
 };
 
 /**
@@ -213,7 +211,7 @@ export const deleteAllSessions = async (): Promise<void> => {
  */
 export const getAllSessions = (): Promise<Session[]> =>
   queryAll<Session>(
-    `SELECT ${SESSION_COLUMNS} FROM sessions ORDER BY expires DESC`,
+    sql`SELECT ${TODO_SQL_TEXT(SESSION_COLUMNS)} FROM sessions ORDER BY expires DESC`,
   );
 
 /**
@@ -225,7 +223,7 @@ export const deleteOtherSessions = async (
 ): Promise<void> => {
   const tokenHash = await hashSessionToken(currentToken);
   const currentSession = await getSession(currentToken);
-  await execute("DELETE FROM sessions WHERE token != ?", [tokenHash]);
+  await execute(sql`DELETE FROM sessions WHERE token != ${tokenHash}`);
 
   // The write invalidation clears every entry; the unchanged current session
   // can be restored without another database read.

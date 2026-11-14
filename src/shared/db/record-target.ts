@@ -10,8 +10,8 @@
  * This module is pure and never touches the database itself.
  */
 
-import type { SqlStatement } from "#db/client.ts";
 import type { SqlParameterToken } from "#db/numbered-statement.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import {
   deleteWhere,
   equals,

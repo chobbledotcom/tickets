@@ -4,6 +4,7 @@
  */
 
 import { getDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 
 /** One cached aggregate column, and the child query that recomputes it. */
 type CachedAggregate = {
@@ -22,7 +23,9 @@ const recomputeAggregates =
     const sets = aggregates.map(
       ({ column, from }) => `${column} = COALESCE((${from}), 0)`,
     );
-    await getDb().execute(`UPDATE ${parent} SET ${sets.join(", ")}`);
+    await getDb().execute(
+      sql`UPDATE ${TODO_SQL_TEXT(parent)} SET ${TODO_SQL_TEXT(sets.join(", "))}`,
+    );
   };
 
 /**

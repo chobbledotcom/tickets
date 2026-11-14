@@ -49,6 +49,7 @@ import {
   numberedStatement,
   type SqlParameter,
 } from "#db/numbered-statement.ts";
+import { sql, sqlList } from "#db/sql.ts";
 import { clauseArgs, type WhereClause, whereSql } from "#db/where-clauses.ts";
 import { groupToMap, requiredMapValue, unique, uniqueBy } from "#fp";
 import { accountKey } from "#shared/ledger/account.ts";
@@ -147,13 +148,12 @@ export const orderModifierLines = async (
   const groups = unique([...eventGroups]);
   if (groups.length === 0) return new Map();
   const rows = await queryAll<OrderModifierRow>(
-    `SELECT event_group, CAST(${modifierLeg.accountId} AS INTEGER) AS modifier_id,
-       ${modifierLeg.signedAmount} AS amount
+    sql`SELECT event_group, CAST(${TODO_SQL_TEXT(modifierLeg.accountId)} AS INTEGER) AS modifier_id,
+       ${TODO_SQL_TEXT(modifierLeg.signedAmount)} AS amount
      FROM transfers
-     WHERE ${modifierLeg.filter} AND event_group IN (${inPlaceholders(groups)})
+     WHERE ${TODO_SQL_TEXT(modifierLeg.filter)} AND event_group IN (${sqlList(groups)})
      GROUP BY event_group, modifier_id
      ORDER BY event_group, modifier_id`,
-    [...groups],
   );
   return groupToMap(
     (row: OrderModifierRow) => row.event_group,
@@ -254,8 +254,7 @@ export const transferActivityBounds = async (): Promise<{
     min_ms: number | bigint | null;
     max_ms: number | bigint | null;
   }>(
-    "SELECT MIN(occurred_at) AS min_ms, MAX(occurred_at) AS max_ms FROM transfers",
-    [],
+    sql`SELECT MIN(occurred_at) AS min_ms, MAX(occurred_at) AS max_ms FROM transfers`,
   );
   if (row.min_ms === null || row.max_ms === null) return null;
   return { maxMs: Number(row.max_ms), minMs: Number(row.min_ms) };
@@ -410,7 +409,7 @@ const readProjectedFigureTx = async (
   subquery: string,
 ): Promise<number> => {
   const rows = resultRows<{ figure: number | bigint }>(
-    await tx.execute({ args: [], sql: `SELECT ${subquery} AS figure` }),
+    await tx.execute(sql`SELECT ${TODO_SQL_TEXT(subquery)} AS figure`),
   );
   return Number(rows[0]!.figure);
 };

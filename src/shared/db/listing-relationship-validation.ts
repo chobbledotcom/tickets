@@ -3,6 +3,7 @@ import type { DayPriceRow } from "#db/listing-prices.ts";
 import { rawListingsTable } from "#db/listings/table.ts";
 import { modifiersTable } from "#db/modifiers.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
+import { sql } from "#db/sql.ts";
 import { refusingTheWriteOn } from "#db/transaction.ts";
 import { requiredMapValue, unique } from "#fp";
 import {
@@ -181,20 +182,14 @@ export const requireTouchingRelationshipsTx = async (
   listingId: number,
 ): Promise<void> => {
   const [childResult, parentResult] = await tx.batch([
-    {
-      args: [listingId],
-      sql: `SELECT listingParent.child_listing_id AS id
+    sql`SELECT listingParent.child_listing_id AS id
               FROM listing_parents AS listingParent
-             WHERE listingParent.parent_listing_id = ?
+             WHERE listingParent.parent_listing_id = ${listingId}
              ORDER BY listingParent.child_listing_id`,
-    },
-    {
-      args: [listingId],
-      sql: `SELECT listingParent.parent_listing_id AS id
+    sql`SELECT listingParent.parent_listing_id AS id
               FROM listing_parents AS listingParent
-             WHERE listingParent.child_listing_id = ?
+             WHERE listingParent.child_listing_id = ${listingId}
              ORDER BY listingParent.parent_listing_id`,
-    },
   ]);
   await requireCurrentRelationshipRules(tx, [
     ...resultRows<{ id: number }>(childResult!).map(({ id: childId }) => ({

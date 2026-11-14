@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { sql } from "#db/sql.ts";
 import {
   ADMIN_FEATURES,
   type EnabledFeatures,
@@ -43,7 +44,7 @@ export default schemaMigration(
   "Move admin feature visibility into one plain enabled-features setting and keep it in step with saved feature data.",
   { triggers: ADMIN_FEATURE_TRIGGER_NAMES },
   async ({ getDb }) => {
-    const result = await getDb().execute(`
+    const result = await getDb().execute(sql`
       SELECT
         EXISTS (SELECT 1 FROM attributes AS attribute) AS attributes,
         EXISTS (SELECT 1 FROM questions AS question) AS questions,
@@ -100,14 +101,8 @@ export default schemaMigration(
       site: configured.site || asBoolean(row.site),
     };
     await getDb().batch([
-      {
-        args: [
-          CONFIG_KEYS.ENABLED_FEATURES,
-          serializeEnabledFeatures(features),
-        ],
-        sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-      },
-      "DELETE FROM settings WHERE key IN ('has_logistics', 'show_public_site')",
+      sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CONFIG_KEYS.ENABLED_FEATURES}, ${serializeEnabledFeatures(features)})`,
+      sql`DELETE FROM settings WHERE key IN ('has_logistics', 'show_public_site')`,
     ]);
   },
 );

@@ -12,16 +12,12 @@ import {
   type CartDemand,
   getOrCreateBucket,
 } from "#db/capacity-batch.ts";
-import {
-  inPlaceholders,
-  queryAll,
-  requireOne,
-  type SqlStatement,
-} from "#db/client.ts";
+import { inPlaceholders, queryAll, requireOne } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { type NumberedSql, numberedStatement } from "#db/numbered-statement.ts";
 import { runWithPrimaryReads } from "#db/primary-reads.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { identity, map, mapById, requiredMapValue, unique } from "#fp";
 import { capacityDateFor } from "#shared/capacity-rules.ts";
 import { dateToStartEnd } from "./range.ts";

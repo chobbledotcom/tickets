@@ -10,8 +10,9 @@ import type {
   OwnerKeyEncrypted,
 } from "#crypto/sealed.ts";
 import { generateSecureToken } from "#crypto/utils.ts";
-import { execute, type SqlStatement } from "#db/client.ts";
+import { execute } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { col, defineTable } from "#db/table.ts";
 import { type RowFilter, readById } from "#db/table-reader.ts";
 import { invoiceBodyKey } from "#shared/invoices/seal.ts";
@@ -106,7 +107,7 @@ export const getInvoiceByShareToken = async (
 /** The next free invoice number, which the create form prefills. */
 export const nextInvoiceNumber = async (): Promise<number> => {
   const result = await execute(
-    "SELECT COALESCE(MAX(id), 0) + 1 AS next_number FROM invoices",
+    sql`SELECT COALESCE(MAX(id), 0) + 1 AS next_number FROM invoices`,
   );
   return Number(result.rows[0]!.next_number);
 };
@@ -164,8 +165,5 @@ export const markOpenInvoicesPaidStatement = (
   attendeeId: number,
   owedSql: string,
   expectedAmount: InValue,
-): SqlStatement => ({
-  args: [attendeeId, expectedAmount],
-  sql: `UPDATE invoices SET status = 'paid'
-         WHERE attendee_id = ? AND status = 'new' AND ${owedSql} = ?`,
-});
+): SqlStatement => sql`UPDATE invoices SET status = 'paid'
+         WHERE attendee_id = ${attendeeId} AND status = 'new' AND ${TODO_SQL_TEXT(owedSql)} = ${expectedAmount}`;

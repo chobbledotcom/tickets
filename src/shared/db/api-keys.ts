@@ -16,6 +16,7 @@ import type { BlindIndex, WrappedKey } from "#crypto/sealed.ts";
 import { execute, executeUpdate } from "#db/client.ts";
 import { idAndCreatedSchema } from "#db/common-schema.ts";
 import { defineIdTable } from "#db/define-id-table.ts";
+import { sql } from "#db/sql.ts";
 import { col } from "#db/table.ts";
 import { readerFor } from "#db/table-reader.ts";
 import { nowIso } from "#shared/now.ts";
@@ -147,8 +148,7 @@ export const deleteApiKey = async (
   userId: number,
 ): Promise<boolean> => {
   const result = await execute(
-    "DELETE FROM api_keys WHERE id = ? AND user_id = ?",
-    [id, userId],
+    sql`DELETE FROM api_keys WHERE id = ${id} AND user_id = ${userId}`,
   );
   return result.rowsAffected > 0;
 };

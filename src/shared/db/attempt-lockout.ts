@@ -17,6 +17,7 @@ import {
   numberedStatement,
   type SqlParameter,
 } from "#db/numbered-statement.ts";
+import { sql } from "#db/sql.ts";
 import { nowMs } from "#shared/now.ts";
 
 type StoredLockout = { locked_until: number | null };
@@ -49,8 +50,7 @@ export const isIpLockedOut = async (
   hashedIp: string,
 ): Promise<boolean> => {
   const row = await queryOne<StoredLockout>(
-    `SELECT locked_until FROM ${table} WHERE ip = ?`,
-    [hashedIp],
+    sql`SELECT locked_until FROM ${TODO_SQL_TEXT(table)} WHERE ip = ${hashedIp}`,
   );
   return lockoutActive(table, hashedIp, row?.locked_until);
 };
@@ -75,9 +75,8 @@ export const lockoutActive = async (
   if (lockedUntil > nowMs()) return true;
   // Delete only the exact lockout we read: a fresh one written by a
   // concurrent request has a different timestamp and must survive.
-  await execute(`DELETE FROM ${table} WHERE ip = ? AND locked_until = ?`, [
-    hashedIp,
-    lockedUntil,
-  ]);
+  await execute(
+    sql`DELETE FROM ${TODO_SQL_TEXT(table)} WHERE ip = ${hashedIp} AND locked_until = ${lockedUntil}`,
+  );
   return false;
 };

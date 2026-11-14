@@ -9,6 +9,7 @@
  */
 
 import { deleteByField, execute, insert, queryOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { nowIso } from "#shared/now.ts";
 
 export interface SmsMessageRow {
@@ -43,8 +44,7 @@ export const getSmsMessageByProviderId = (
   providerId === ""
     ? Promise.resolve(null)
     : queryOne<SmsMessageRow>(
-        `SELECT ${COLUMNS} FROM sms_messages WHERE provider_id = ? LIMIT 1`,
-        [providerId],
+        sql`SELECT ${TODO_SQL_TEXT(COLUMNS)} FROM sms_messages WHERE provider_id = ${providerId} LIMIT 1`,
       );
 
 /** Delete a row once its message reaches a terminal state. */
@@ -55,5 +55,5 @@ export const deleteSmsMessage = (id: number): Promise<void> =>
 export const pruneSmsMessagesBefore = async (
   cutoffIso: string,
 ): Promise<void> => {
-  await execute("DELETE FROM sms_messages WHERE created < ?", [cutoffIso]);
+  await execute(sql`DELETE FROM sms_messages WHERE created < ${cutoffIso}`);
 };

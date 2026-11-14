@@ -11,10 +11,10 @@ import {
   executeBatch,
   insert,
   orIgnore,
-  type SqlStatement,
   type TxScope,
 } from "#db/client.ts";
 import { readOneRow, readRows } from "#db/read.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { deleteWhere, type WhereClause } from "#db/where-clauses.ts";
 import { nowIso } from "#shared/now.ts";
 import { openNote, openNotes, sealNote } from "./sealing.ts";

@@ -16,12 +16,8 @@ import {
   CAPACITY_GUARD,
   updateStatementFor,
 } from "#db/attendees/atomic-update.ts";
-import {
-  queryAllPrimary,
-  resultRows,
-  type SqlStatement,
-  type TxScope,
-} from "#db/client.ts";
+import { queryAllPrimary, resultRows, type TxScope } from "#db/client.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { t } from "#i18n";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";

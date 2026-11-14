@@ -1,23 +1,26 @@
 /**
  * The shared parts of a declarative read: filter clauses that carry their own
- * bound arguments, and the tail SQL built from them.
+ * bound values, and the tail SQL built from them.
  *
  * The attendee and listing readers both let a caller declare WHICH rows it
  * wants instead of writing SQL. Both turn that declaration into a list of
- * clauses, join them with `AND`, and collect the arguments in clause order.
- * Keeping each clause and its arguments together is the point: it is what makes
- * the two orders impossible to drift apart.
+ * clauses and join them with `AND`.
  */
 
 import type { InValue } from "@libsql/client";
-import { inPlaceholders, type SqlStatement } from "#db/client.ts";
+import {
+  type SqlStatement,
+  sql,
+  sqlJoin,
+  sqlList,
+  sqlName,
+} from "#db/sql.ts";
 
-/** One filter clause and the arguments that fill its placeholders.
+/** One filter clause, with the values it binds.
  * `matchesNothing` marks a clause that no row can ever pass, so a reader can
  * skip the round-trip entirely — see {@link matchesNoRows}. */
 export type WhereClause = {
-  clause: string;
-  args: InValue[];
+  clause: SqlStatement;
   matchesNothing?: true;
 };
 
@@ -31,11 +34,8 @@ export const inList = (
   if (values === undefined) return [];
   return [
     values.length === 0
-      ? { args: [], clause: `${column} IN (NULL)`, matchesNothing: true }
-      : {
-          args: [...values],
-          clause: `${column} IN (${inPlaceholders(values)})`,
-        },
+      ? { clause: sql`${sqlName(column)} IN (NULL)`, matchesNothing: true }
+      : { clause: sql`${sqlName(column)} IN (${sqlList(values)})` },
   ];
 };
 
@@ -54,15 +54,15 @@ export const equals = (
   }
   return value === undefined
     ? []
-    : [{ args: [value], clause: `${column} = ?` }];
+    : [{ clause: sql`${sqlName(column)} = ${value}` }];
 };
 
 /** Keep rows whose `column` is (or is not) among the ones another query names.
- * The subquery brings its own values, so they stay tied to its placeholders. */
+ * The subquery brings its own values. */
 const bySubquery =
-  (keyword: string) =>
+  (keyword: SqlStatement) =>
   (column: string, subquery: SqlStatement): WhereClause[] => [
-    { args: subquery.args, clause: `${column} ${keyword} (${subquery.sql})` },
+    { clause: sql`${sqlName(column)} ${keyword} (${subquery})` },
   ];
 
 /** Keep or drop rows another query names. */
@@ -70,10 +70,10 @@ type SubqueryFilter = (column: string, subquery: SqlStatement) => WhereClause[];
 
 /** Keep rows the subquery names — "pick some rows, then read everything that
  * hangs off them". */
-export const inSubquery: SubqueryFilter = bySubquery("IN");
+export const inSubquery: SubqueryFilter = bySubquery(sql`IN`);
 
 /** Keep rows the subquery does NOT name. */
-export const notInSubquery: SubqueryFilter = bySubquery("NOT IN");
+export const notInSubquery: SubqueryFilter = bySubquery(sql`NOT IN`);
 
 /** Whether these clauses can never match a row — the ordinary cause being a
  * filter asking for none of something. A reader that bundles several queries
@@ -89,23 +89,19 @@ export const rowsUnlessNoneMatch = <Row>(
 ): Promise<Row[]> => (matchesNoRows(where) ? Promise.resolve([]) : run());
 
 /** The ` WHERE …` tail for a set of clauses, or nothing when there are none. */
-export const whereSql = (parts: readonly WhereClause[]): string =>
+export const whereSql = (parts: readonly WhereClause[]): SqlStatement =>
   parts.length === 0
-    ? ""
-    : ` WHERE ${parts.map((part) => part.clause).join(" AND ")}`;
-
-/** Every clause's arguments, in clause order. */
-export const clauseArgs = (parts: readonly WhereClause[]): InValue[] =>
-  parts.flatMap((part) => part.args);
+    ? sql``
+    : sql` WHERE ${sqlJoin(
+        parts.map((part) => part.clause),
+        sql` AND `,
+      )}`;
 
 /** A delete over whichever rows the clauses it is given select. */
 type DeleteFromTable = (where: readonly WhereClause[]) => SqlStatement;
 
-/** A delete over the rows some clauses select. `table` must be a trusted
- * constant, never anything a user typed. */
+/** A delete over the rows some clauses select. */
 export const deleteWhere =
   (table: string): DeleteFromTable =>
-  (where) => ({
-    args: clauseArgs(where),
-    sql: `DELETE FROM ${table}${whereSql(where)}`,
-  });
+  (where) =>
+    sql`DELETE FROM ${sqlName(table)}${whereSql(where)}`;

@@ -11,7 +11,8 @@
  */
 
 import { attendeeAccount } from "#accounting/accounts.ts";
-import { type SqlStatement, update } from "#db/client.ts";
+import { update } from "#db/client.ts";
+import type { SqlStatement } from "#db/sql.ts";
 
 export const repointAttendeeStatements = (
   fromAttendeeId: number,

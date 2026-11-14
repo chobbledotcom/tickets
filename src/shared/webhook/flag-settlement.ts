@@ -8,7 +8,8 @@ import {
   type PendingNotificationSide,
   restorePendingFlagStatement,
 } from "#db/attendees/notification-flags.ts";
-import { executeBatch, type SqlStatement } from "#db/client.ts";
+import { executeBatch } from "#db/client.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import type { RegistrationEmailResult } from "#shared/email/registration.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import {

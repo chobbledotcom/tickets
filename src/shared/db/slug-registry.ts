@@ -10,15 +10,14 @@
 import { hmacHash } from "#crypto/hashing.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import {
-  inPlaceholders,
   queryBatch,
   resultRows,
   rowExists,
-  type SqlStatement,
   type TxScope,
   useTransaction,
 } from "#db/client.ts";
 import type { SluggedContentInput } from "#db/slugged-content-input.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import { type Table, writeTableRow } from "#db/table.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import type { SitePageItemType } from "#types";
@@ -148,10 +147,9 @@ export const freshSlugIndexWrites = <Row, Input extends SluggedContentInput>(
         // so only this rejection path performs the narrow id probe.
         const exists =
           resultRows(
-            await tx.execute({
-              args: [id],
-              sql: `SELECT ${table.primaryKey} FROM ${table.name} WHERE ${table.primaryKey} = ?`,
-            }),
+            await tx.execute(
+              sql`SELECT ${TODO_SQL_TEXT(table.primaryKey)} FROM ${TODO_SQL_TEXT(table.name)} WHERE ${TODO_SQL_TEXT(table.primaryKey)} = ${id}`,
+            ),
           ).length > 0;
         return errorResult(exists ? "slugTaken" : "notFound");
       }),
@@ -181,10 +179,10 @@ export const takenSlugIndexes = async (
 ): Promise<Set<string>> => {
   if (slugIndexes.length === 0) return new Set();
   const results = await queryBatch(
-    SLUG_TABLES.map((table) => ({
-      args: [...slugIndexes],
-      sql: `SELECT slug_index FROM ${table} WHERE slug_index IN (${inPlaceholders(slugIndexes)})`,
-    })),
+    SLUG_TABLES.map(
+      (table) =>
+        sql`SELECT slug_index FROM ${TODO_SQL_TEXT(table)} WHERE slug_index IN (${sqlList(slugIndexes)})`,
+    ),
   );
   return new Set(
     results.flatMap((result) =>

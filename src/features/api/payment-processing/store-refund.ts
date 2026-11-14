@@ -11,7 +11,7 @@ import type { ResultSet } from "@libsql/client";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { settleAttendeeBalance } from "#db/attendees/balance.ts";
 import { attendeePaymentProvenance } from "#db/attendees/payment-provenance.ts";
-import type { SqlStatement } from "#db/client.ts";
+
 import { prepareClaimedAttendeePaymentAnchor } from "#db/payment-anchor/attendee.ts";
 import { balanceFinalizeStatements } from "#db/payment-finalize.ts";
 import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
@@ -19,6 +19,7 @@ import {
   type PreparedSessionFailure,
   prepareSessionFailure,
 } from "#db/processed-payments.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import {
   type PlaceholderRefund,
   placeholderRefund,

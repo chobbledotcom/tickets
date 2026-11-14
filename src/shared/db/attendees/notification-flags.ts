@@ -14,12 +14,11 @@
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import {
   executeBatch,
-  inPlaceholders,
   queryOne,
   resultRows,
-  type SqlStatement,
   withTransaction,
 } from "#db/client.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type { Attendee } from "#types";
 
@@ -50,12 +49,9 @@ const FLAG_COLUMN: Record<PendingNotificationSide, string> = {
 export const clearPendingFlagStatement = (
   side: PendingNotificationSide,
   attendeeIds: readonly number[],
-): SqlStatement => ({
-  args: [...attendeeIds],
-  sql: `UPDATE attendees SET ${FLAG_COLUMN[side]} = 0
-        WHERE id IN (${inPlaceholders(attendeeIds)})
-          AND ${FLAG_COLUMN[side]} > 0`,
-});
+): SqlStatement => sql`UPDATE attendees SET ${TODO_SQL_TEXT(FLAG_COLUMN[side])} = 0
+        WHERE id IN (${sqlList(attendeeIds)})
+          AND ${TODO_SQL_TEXT(FLAG_COLUMN[side])} > 0`;
 
 /** Write one side's flag back to the value the claim found. Touches rows
  * whose flag is down, and is what releases a recovery's claim. The captured
@@ -64,12 +60,9 @@ export const restorePendingFlagStatement = (
   side: PendingNotificationSide,
   attendeeIds: readonly number[],
   value: PendingNotificationFlag,
-): SqlStatement => ({
-  args: [value, ...attendeeIds],
-  sql: `UPDATE attendees SET ${FLAG_COLUMN[side]} = ?
-        WHERE id IN (${inPlaceholders(attendeeIds)})
-          AND ${FLAG_COLUMN[side]} = 0`,
-});
+): SqlStatement => sql`UPDATE attendees SET ${TODO_SQL_TEXT(FLAG_COLUMN[side])} = ${value}
+        WHERE id IN (${sqlList(attendeeIds)})
+          AND ${TODO_SQL_TEXT(FLAG_COLUMN[side])} = 0`;
 
 /** One side a recovery claimed, with the flag value the claim found. The
  * restore writes this value back, so a refused or failed send keeps the
@@ -88,10 +81,9 @@ export const claimOutstandingNotificationFlags = async (
   attendeeId: number,
 ): Promise<ClaimedNotificationSide[]> =>
   withTransaction(async (tx) => {
-    const read = await tx.execute({
-      args: [attendeeId],
-      sql: "SELECT email_pending AS email, webhooks_pending AS webhooks FROM attendees WHERE id = ?",
-    });
+    const read = await tx.execute(
+      sql`SELECT email_pending AS email, webhooks_pending AS webhooks FROM attendees WHERE id = ${attendeeId}`,
+    );
     const row = resultRows<{
       email: PendingNotificationFlag;
       webhooks: PendingNotificationFlag;
@@ -106,10 +98,9 @@ export const claimOutstandingNotificationFlags = async (
       .filter(([, value]) => value > 0)
       .map(([side, previous]) => ({ previous, side }));
     if (claimed.length > 0) {
-      await tx.execute({
-        args: [attendeeId],
-        sql: "UPDATE attendees SET email_pending = 0, webhooks_pending = 0 WHERE id = ?",
-      });
+      await tx.execute(
+        sql`UPDATE attendees SET email_pending = 0, webhooks_pending = 0 WHERE id = ${attendeeId}`,
+      );
     }
     return claimed;
   });

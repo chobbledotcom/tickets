@@ -12,15 +12,10 @@ import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/hybrid.ts";
 
 import { openEach } from "#crypto/open-each.ts";
 import type { BlindIndex, OwnerKeyEncrypted } from "#crypto/sealed.ts";
-import {
-  execute,
-  queryOne,
-  resultRows,
-  type SqlStatement,
-  type TxScope,
-} from "#db/client.ts";
+import { execute, queryOne, resultRows, type TxScope } from "#db/client.ts";
 import { type ContactChannel, contactHash } from "#db/contact-preferences.ts";
 import { settings } from "#db/settings.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { nowMs } from "#shared/now.ts";
 
 /** Booking origin: an online public checkout vs an admin manual add. Each is
@@ -229,14 +224,12 @@ const loadTokenBlob = async (
 ): Promise<string | null> => {
   const row = transaction
     ? resultRows<{ attendee_tokens_blob: string }>(
-        await transaction.execute({
-          args: [hash],
-          sql: "SELECT attendee_tokens_blob FROM contact_preferences WHERE contact_hash = ?",
-        }),
+        await transaction.execute(
+          sql`SELECT attendee_tokens_blob FROM contact_preferences WHERE contact_hash = ${hash}`,
+        ),
       )[0]
     : await queryOne<{ attendee_tokens_blob: string }>(
-        "SELECT attendee_tokens_blob FROM contact_preferences WHERE contact_hash = ?",
-        [hash],
+        sql`SELECT attendee_tokens_blob FROM contact_preferences WHERE contact_hash = ${hash}`,
       );
   return row?.attendee_tokens_blob ?? null;
 };
@@ -319,10 +312,10 @@ const removeBookingToken = async (
   // Delete just this entry's ciphertext line in place. REPLACE operates on the
   // column's current value at write time, so a keyless checkout append that
   // lands after our read is preserved instead of overwritten by a stale rewrite.
-  await writeTokenStatement(transaction, {
-    args: [`${match.raw}\n`, nowMs(), hash],
-    sql: "UPDATE contact_preferences SET attendee_tokens_blob = REPLACE(attendee_tokens_blob, ?, ''), last_activity = ? WHERE contact_hash = ?",
-  });
+  await writeTokenStatement(
+    transaction,
+    sql`UPDATE contact_preferences SET attendee_tokens_blob = REPLACE(attendee_tokens_blob, ${`${match.raw}\n`}, ''), last_activity = ${nowMs()} WHERE contact_hash = ${hash}`,
+  );
   return removed.source;
 };
 

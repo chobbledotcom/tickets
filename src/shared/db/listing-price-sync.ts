@@ -7,15 +7,11 @@
  */
 
 import * as v from "valibot";
-import {
-  inPlaceholders,
-  queryIdColumn,
-  resultRows,
-  type TxScope,
-} from "#db/client.ts";
+import { queryIdColumn, resultRows, type TxScope } from "#db/client.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
 import { PRICE_TYPE_BASE } from "#db/price-types.ts";
 import { batchOnScope } from "#db/scope-batch.ts";
+import { sql, sqlList } from "#db/sql.ts";
 import { chunk } from "#fp";
 
 /** A `listings` row projected to the one column the `base` mirror derives
@@ -74,11 +70,8 @@ export const syncListingPricesForIds = async (
   if (ids.length === 0) return;
   for (const page of chunk(SYNC_PAGE)([...ids])) {
     const statements = [
-      {
-        args: [...page],
-        sql: `SELECT id, unit_price FROM listings
-               WHERE id IN (${inPlaceholders(page)})`,
-      },
+      sql`SELECT id, unit_price FROM listings
+               WHERE id IN (${sqlList(page)})`,
       ...page.flatMap((id) => [guardedBaseDelete(id), guardedBaseInsert(id)]),
     ];
     const results = await batchOnScope(statements, transaction);
@@ -101,6 +94,6 @@ export const syncListingPrices = (
  * per-write paths keep them in step thereafter.)
  */
 export const backfillListingPrices = async (): Promise<void> => {
-  const ids = await queryIdColumn("SELECT id FROM listings ORDER BY id");
+  const ids = await queryIdColumn(sql`SELECT id FROM listings ORDER BY id`);
   await syncListingPricesForIds(ids);
 };

@@ -1,5 +1,6 @@
 import { hmacHash } from "#crypto/hashing.ts";
 import { resultRows, type TxScope } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { sortStrings, unique } from "#fp";
 import { nowIso } from "#shared/now.ts";
 
@@ -44,19 +45,17 @@ export const insertRefundConfirmation = async (
     referenceIndexes,
   );
   const [confirmationResult] = await transaction.batch([
-    {
-      args: [identity, input.attendeeId, nowIso()],
-      sql: `INSERT OR IGNORE INTO refund_confirmations
+    sql`INSERT OR IGNORE INTO refund_confirmations
               (identity, attendee_id, created)
-            VALUES (?, ?, ?)
+            VALUES (${identity}, ${input.attendeeId}, ${nowIso()})
             RETURNING identity`,
-    },
-    ...referenceIndexes.map((referenceIndex) => ({
-      args: [identity, referenceIndex],
-      sql: `INSERT OR IGNORE INTO refund_confirmation_references
+    ...referenceIndexes.map(
+      (
+        referenceIndex,
+      ) => sql`INSERT OR IGNORE INTO refund_confirmation_references
               (confirmation_identity, reference_index)
-            VALUES (?, ?)`,
-    })),
+            VALUES (${identity}, ${referenceIndex})`,
+    ),
   ]);
   if (confirmationResult === undefined) {
     throw new Error("Refund confirmation write returned no result");

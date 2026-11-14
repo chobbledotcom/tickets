@@ -13,13 +13,12 @@
 import {
   deleteByField,
   executeBatch,
-  inPlaceholders,
   queryAll,
   resultRows,
-  type SqlStatement,
   type TxScope,
 } from "#db/client.ts";
 import { numberedListStatement } from "#db/numbered-statement.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import { reduce, requiredMapValue, unique } from "#fp";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { requestBatchCache } from "#shared/request-cache.ts";
@@ -90,13 +89,10 @@ const byKeysStatement = (
   keyColumn: string,
   valueColumn: string,
   keyIds: readonly number[],
-): SqlStatement => ({
-  args: [...keyIds],
-  sql: `SELECT ${keyColumn} AS key_id, ${valueColumn} AS value_id
-          FROM ${table}
-         WHERE ${keyColumn} IN (${inPlaceholders(keyIds)})
-         ORDER BY ${keyColumn}, ${valueColumn}`,
-});
+): SqlStatement => sql`SELECT ${TODO_SQL_TEXT(keyColumn)} AS key_id, ${TODO_SQL_TEXT(valueColumn)} AS value_id
+          FROM ${TODO_SQL_TEXT(table)}
+         WHERE ${TODO_SQL_TEXT(keyColumn)} IN (${sqlList(keyIds)})
+         ORDER BY ${TODO_SQL_TEXT(keyColumn)}, ${TODO_SQL_TEXT(valueColumn)}`;
 
 /** Bucket link rows under their key. Every requested key comes back, including
  * keys with no rows, which stay empty lists. */
@@ -159,7 +155,7 @@ export const linkTableSide = (
   ): SqlStatement[] => {
     const deduped = dedupe(ids);
     return [
-      { args: [keyId], sql: `DELETE FROM ${table} WHERE ${keyColumn} = ?` },
+      sql`DELETE FROM ${TODO_SQL_TEXT(table)} WHERE ${TODO_SQL_TEXT(keyColumn)} = ${keyId}`,
       ...(deduped.length > 0 ? [insertStatement(keyId, deduped)] : []),
     ];
   };
@@ -167,11 +163,8 @@ export const linkTableSide = (
   const linkSide: LinkTableSide = {
     clear: (keyId) => deleteByField(table, keyColumn, keyId),
     copyLinksTx: async (tx, sourceKeyId, newKeyId) => {
-      await tx.execute({
-        args: [newKeyId, sourceKeyId],
-        sql: `INSERT INTO ${table} (${keyColumn}, ${valueColumn})
-              SELECT ?, ${valueColumn} FROM ${table} WHERE ${keyColumn} = ?`,
-      });
+      await tx.execute(sql`INSERT INTO ${TODO_SQL_TEXT(table)} (${TODO_SQL_TEXT(keyColumn)}, ${TODO_SQL_TEXT(valueColumn)})
+              SELECT ${newKeyId}, ${TODO_SQL_TEXT(valueColumn)} FROM ${TODO_SQL_TEXT(table)} WHERE ${TODO_SQL_TEXT(keyColumn)} = ${sourceKeyId}`);
     },
     getIds: async (keyId, tx?) =>
       requiredMapValue(

@@ -22,8 +22,8 @@ import {
   orIgnore,
   queryAll,
   queryIdColumn,
-  type SqlStatement,
 } from "#db/client.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { sumOf } from "#fp";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { nowIso } from "#shared/now.ts";
@@ -57,11 +57,7 @@ const nextPaidAttendeeIds = (
   pageSize: number,
 ): Promise<number[]> =>
   queryIdColumn(
-    "SELECT DISTINCT attendee.attendee_id AS id" +
-      " FROM listing_attendees AS attendee" +
-      " WHERE attendee.price_paid > 0 AND attendee.attendee_id > ?" +
-      " ORDER BY attendee.attendee_id LIMIT ?",
-    [afterId, pageSize],
+    sql`SELECT DISTINCT attendee.attendee_id AS id FROM listing_attendees AS attendee WHERE attendee.price_paid > 0 AND attendee.attendee_id > ${afterId} ORDER BY attendee.attendee_id LIMIT ${pageSize}`,
   );
 
 /** Every paid row for a page of attendees, ordered for stable grouping. */

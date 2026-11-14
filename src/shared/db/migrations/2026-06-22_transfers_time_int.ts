@@ -1,3 +1,4 @@
+import { sql } from "#db/sql.ts";
 import { schemaMigration } from "./define.ts";
 
 export default schemaMigration(
@@ -14,7 +15,9 @@ export default schemaMigration(
     // refuse loudly rather than silently corrupt it, instead of writing an
     // ISO→epoch conversion for a state the application says cannot exist. A
     // populated table needs an explicit, reviewed conversion before this runs.
-    const existing = await getDb().execute("SELECT 1 FROM transfers LIMIT 1");
+    const existing = await getDb().execute(
+      sql`SELECT 1 FROM transfers LIMIT 1`,
+    );
     if (existing.rows.length > 0) {
       throw new Error(
         "transfers is not empty; refusing to retype occurred_at/recorded_at to " +

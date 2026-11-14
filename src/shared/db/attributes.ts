@@ -27,6 +27,7 @@ import {
   listingOptionColumns,
 } from "#db/listings/table.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
+import { sql } from "#db/sql.ts";
 import { col, defineTable } from "#db/table.ts";
 import { txIdSetInTable } from "#db/transaction.ts";
 import {
@@ -235,7 +236,7 @@ export const getAllAttributesWithOptions = async (): Promise<
 > =>
   groupAttributeRows(
     await queryAll<JoinedAttributeRow>(
-      `SELECT ${ATTRIBUTE_COLS}
+      sql`SELECT ${TODO_SQL_TEXT(ATTRIBUTE_COLS)}
          FROM attributes AS attribute
          LEFT JOIN attribute_options AS attributeOption
            ON attributeOption.attribute_id = attribute.id
@@ -282,13 +283,12 @@ export const getAttributeWithOptionsOnPrimary = attributeWithOptions(true);
 export const getAttributeId = async (id: number): Promise<number | null> =>
   (
     await queryOne<{ id: number }>(
-      "SELECT id FROM attributes WHERE id = ? LIMIT 1",
-      [id],
+      sql`SELECT id FROM attributes WHERE id = ${id} LIMIT 1`,
     )
   )?.id ?? null;
 
 export const getAttributeIdsOrdered = async (): Promise<number[]> =>
-  queryIdColumn("SELECT id FROM attributes ORDER BY sort_order, id");
+  queryIdColumn(sql`SELECT id FROM attributes ORDER BY sort_order, id`);
 
 /** The submitted option ids the site has. Unknown ids drop out. The order
  * and any duplicates of the submitted list are kept. */
@@ -342,16 +342,15 @@ export const getAttributeListingUse = async (
   attributeId: number,
 ): Promise<AttributeListingUse> => {
   const rows = await queryAll<OptionListingRow>(
-    `SELECT listingAttribute.option_id,
-            ${listingOptionColumns.columnsSql("listing")}
+    sql`SELECT listingAttribute.option_id,
+            ${TODO_SQL_TEXT(listingOptionColumns.columnsSql("listing"))}
        FROM listing_attribute_options AS listingAttribute
        JOIN attribute_options AS attributeOption
          ON attributeOption.id = listingAttribute.option_id
        JOIN listings AS listing
          ON listing.id = listingAttribute.listing_id
-      WHERE attributeOption.attribute_id = ?
+      WHERE attributeOption.attribute_id = ${attributeId}
       ORDER BY listingAttribute.option_id, listingAttribute.listing_id`,
-    [attributeId],
   );
   const usedListings = sort(
     (a: OptionListingRow, b: OptionListingRow) => a.id - b.id,
@@ -371,17 +370,9 @@ export const deleteAttributeOption = deleteWithChildren("attribute_options", [
 
 export const deleteAttribute = async (attributeId: number): Promise<void> => {
   await executeBatch([
-    {
-      args: [attributeId],
-      sql:
-        "DELETE FROM listing_attribute_options WHERE option_id IN " +
-        "(SELECT id FROM attribute_options WHERE attribute_id = ?)",
-    },
-    {
-      args: [attributeId],
-      sql: "DELETE FROM attribute_options WHERE attribute_id = ?",
-    },
-    { args: [attributeId], sql: "DELETE FROM attributes WHERE id = ?" },
+    sql`DELETE FROM listing_attribute_options WHERE option_id IN (SELECT id FROM attribute_options WHERE attribute_id = ${attributeId})`,
+    sql`DELETE FROM attribute_options WHERE attribute_id = ${attributeId}`,
+    sql`DELETE FROM attributes WHERE id = ${attributeId}`,
   ]);
 };
 

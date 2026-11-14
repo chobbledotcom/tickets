@@ -1,14 +1,9 @@
 /** Atomic storage for the one provider-refund authority. */
 
-import {
-  execute,
-  queryAll,
-  queryOne,
-  resultRows,
-  type SqlStatement,
-} from "#db/client.ts";
+import { execute, queryAll, queryOne, resultRows } from "#db/client.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
 import { storePaymentReference } from "#db/payment-reference-store.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { type Money, sameMoney } from "#payment/money.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import {
@@ -84,10 +79,9 @@ const loadRefundAuthority = async (
   value: number | string,
 ): Promise<RefundAuthorityRow | null> => {
   const row = await queryOne<StoredRefundAuthorityRow>(
-    `SELECT ${REFUND_AUTHORITY_COLUMNS}
+    sql`SELECT ${TODO_SQL_TEXT(REFUND_AUTHORITY_COLUMNS)}
        FROM payment_charges
-      WHERE ${field} = ?`,
-    [value],
+      WHERE ${TODO_SQL_TEXT(field)} = ${value}`,
   );
   return row === null ? null : authorityRow(row);
 };
@@ -118,10 +112,9 @@ const loadRefundCallbackBinding = async ({
   referenceIndex,
 }: RefundCallbackBinding): Promise<RefundAuthorityRow | null> => {
   const owners = await queryAll<StoredRefundAuthorityRow>(
-    `SELECT ${REFUND_AUTHORITY_COLUMNS}
+    sql`SELECT ${TODO_SQL_TEXT(REFUND_AUTHORITY_COLUMNS)}
        FROM payment_charges
-      WHERE reference_index = ? OR callback_replay_index = ?`,
-    [referenceIndex, callbackReplayIndex],
+      WHERE reference_index = ${referenceIndex} OR callback_replay_index = ${callbackReplayIndex}`,
   );
   if (owners.length === 0) return null;
   if (owners.length === 1) {

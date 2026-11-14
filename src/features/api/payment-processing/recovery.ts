@@ -5,6 +5,7 @@ import {
   releaseReservation,
   UNRESOLVED_RESERVATION,
 } from "#db/processed-payments.ts";
+import { sql } from "#db/sql.ts";
 import { sessionSuccess } from "#routes/api/payment-processing/create.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import { decideUnexpectedCreate } from "#routes/api/payment-processing/recovery-decision.ts";
@@ -33,24 +34,15 @@ const loadRecoveryFacts = async (
 ) => {
   const [paymentResult, unresolvedResult, attendeeResult] =
     await queryBatchPrimary([
-      {
-        args: [sessionId, ticketTokenIndex],
-        sql: `SELECT processedPayment.attendee_id
+      sql`SELECT processedPayment.attendee_id
               FROM processed_payments AS processedPayment
               JOIN attendees AS attendee
                 ON attendee.id = processedPayment.attendee_id
-              WHERE processedPayment.payment_session_id = ?
-                AND attendee.ticket_token_index = ?`,
-      },
-      {
-        args: [sessionId],
-        sql: `SELECT 1 AS present FROM processed_payments
-              WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
-      },
-      {
-        args: [ticketTokenIndex],
-        sql: "SELECT id FROM attendees WHERE ticket_token_index = ?",
-      },
+              WHERE processedPayment.payment_session_id = ${sessionId}
+                AND attendee.ticket_token_index = ${ticketTokenIndex}`,
+      sql`SELECT 1 AS present FROM processed_payments
+              WHERE payment_session_id = ${sessionId} AND ${TODO_SQL_TEXT(UNRESOLVED_RESERVATION)}`,
+      sql`SELECT id FROM attendees WHERE ticket_token_index = ${ticketTokenIndex}`,
     ]);
   const payment = resultRows<{ attendee_id: number }>(paymentResult!)[0];
   const attendee = resultRows<{ id: number }>(attendeeResult!)[0];

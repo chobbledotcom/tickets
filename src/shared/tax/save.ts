@@ -2,12 +2,9 @@ import { attendeeAccount, MODIFIER, REVENUE } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import { eventGroup } from "#accounting/refs.ts";
 import { insertStatement, selectTransfersScope } from "#accounting/rows.ts";
-import {
-  queryBatchPrimary,
-  queryOnePrimary,
-  type SqlStatement,
-} from "#db/client.ts";
+import { queryBatchPrimary, queryOnePrimary } from "#db/client.ts";
 import { parseTaxPolicy } from "#db/settings/tax.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { CLAIM_MIRROR } from "#payment/admit-move.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
@@ -94,8 +91,7 @@ export const buildTaxSavePlan = async (
     return `(source_type = 'attendee' AND source_id = ${id}) OR (dest_type = 'attendee' AND dest_id = ${id})`;
   });
   const setting = await queryOnePrimary<{ value: string }>(
-    "SELECT value FROM settings WHERE key = 'tax'",
-    [],
+    sql`SELECT value FROM settings WHERE key = 'tax'`,
   );
   const rawPolicy = setting?.value ?? "";
   const policy = parseTaxPolicy(rawPolicy);

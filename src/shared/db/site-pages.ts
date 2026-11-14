@@ -11,7 +11,7 @@
 
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import type { StoredRowOf } from "#db/chosen-columns.ts";
-import { resultRows, type SqlStatement, type TxScope } from "#db/client.ts";
+import { resultRows, type TxScope } from "#db/client.ts";
 import { idAndEncryptedSlugSchema } from "#db/common-schema.ts";
 import { encryptedNameAndSeoSchema } from "#db/content-columns.ts";
 import { defineIdTable } from "#db/define-id-table.ts";
@@ -23,6 +23,7 @@ import {
   unclaimedSiteSlugCondition,
 } from "#db/slug-registry.ts";
 import type { SluggedContentInput } from "#db/slugged-content-input.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { cachedTable, col } from "#db/table.ts";
 import { readById, readBySlugIndex } from "#db/table-reader.ts";
 import type { Result } from "#shared/result.ts";

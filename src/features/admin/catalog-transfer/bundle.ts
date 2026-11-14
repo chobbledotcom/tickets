@@ -17,7 +17,6 @@ import type { BlindIndex } from "#crypto/sealed.ts";
 import {
   inPlaceholders,
   resultRows,
-  type SqlStatement,
   type TxScope,
   withTransaction,
 } from "#db/client.ts";
@@ -33,6 +32,7 @@ import { dayCountPriceStatements } from "#db/listing-prices.ts";
 import { requireCurrentRelationshipRules } from "#db/listing-relationship-validation.ts";
 import { listingsTable } from "#db/listings/records.ts";
 import { takenSlugIndexes } from "#db/slug-registry.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { requiredMapValue, unique } from "#fp";
 import { t } from "#i18n";

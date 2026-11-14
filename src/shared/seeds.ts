@@ -13,6 +13,7 @@ import { executeBatch, insert, queryAll } from "#db/client.ts";
 import { syncListingPricesForIds } from "#db/listing-price-sync.ts";
 import { dayCountPriceStatements } from "#db/listing-prices.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { chunk, map, range, sum } from "#fp";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import {
@@ -202,8 +203,7 @@ export const createSeeds = async (
 
   // Query the newly created listing IDs (ordered by id DESC, limit to listingCount)
   const rows = await queryAll<{ id: number }>(
-    "SELECT id FROM listings ORDER BY id DESC LIMIT ?",
-    [listingCount],
+    sql`SELECT id FROM listings ORDER BY id DESC LIMIT ${listingCount}`,
   );
   const listingIds = map((r: { id: number }) => r.id)(rows).reverse();
 

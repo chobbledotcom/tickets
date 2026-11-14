@@ -37,6 +37,7 @@ import {
 } from "#db/name-registry.ts";
 import { noteDeleteStatement } from "#db/notes/queries.ts";
 import { clearItemEdgesStatement } from "#db/site-page-items.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { createCrudHandlers } from "#routes/admin/crud-handlers.ts";
 import {
@@ -114,9 +115,8 @@ export const soldHiddenPackageError = (id: number): Promise<string | null> =>
     // A sold booking row carries this package's group id. Refund
     // placeholders (quantity 0) do not count.
     const sold = await rowExists(
-      `SELECT 1 FROM listing_attendees
-        WHERE package_group_id = ? AND quantity > 0 LIMIT 1`,
-      [id],
+      sql`SELECT 1 FROM listing_attendees
+        WHERE package_group_id = ${id} AND quantity > 0 LIMIT 1`,
     );
     return sold ? t("error.sold_hidden_package") : null;
   });
@@ -186,7 +186,7 @@ export const deleteGroup = async (id: InValue) => {
     clearImageUsesForItemStatement(imageUseTargets.of("group")(groupId)),
     clearExternalLinksStatement(externalLinkTargets.of("group")(groupId)),
     noteDeleteStatement("group", { args: [groupId], sql: "?" }),
-    { args: [groupId], sql: "DELETE FROM groups WHERE id = ?" },
+    sql`DELETE FROM groups WHERE id = ${groupId}`,
   ]);
 };
 

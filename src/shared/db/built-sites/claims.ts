@@ -7,12 +7,8 @@
 
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { builtSites, requireBuiltSiteByIdPrimary } from "#db/built-sites.ts";
-import {
-  execute,
-  inPlaceholders,
-  type SqlStatement,
-  withTransaction,
-} from "#db/client.ts";
+import { execute, withTransaction } from "#db/client.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 
 /** One statement over a buyer's site assignments: the select list and the
  * trailing clause vary, the attendee and the listing filter do not. */
@@ -20,12 +16,9 @@ export const buyerAssignmentStatement = (
   { select, tail = "" }: { select: string; tail?: string },
   attendeeId: number,
   listingIds: readonly number[],
-): SqlStatement => ({
-  args: [attendeeId, ...listingIds],
-  sql: `SELECT ${select} FROM built_sites
-     WHERE assigned_attendee_id = ?
-       AND assigned_listing_id IN (${inPlaceholders(listingIds)})${tail}`,
-});
+): SqlStatement => sql`SELECT ${TODO_SQL_TEXT(select)} FROM built_sites
+     WHERE assigned_attendee_id = ${attendeeId}
+       AND assigned_listing_id IN (${sqlList(listingIds)})${TODO_SQL_TEXT(tail)}`;
 
 /** A statement scoped to one buyer's plan listings. */
 export type BuyerPlanStatement = (
@@ -59,23 +52,20 @@ export const claimBuiltSiteStatement = (
   candidateIds: readonly number[],
   attendeeId: number,
   listingId: number,
-): SqlStatement => ({
-  args: [attendeeId, listingId, JSON.stringify(candidateIds)],
-  sql: `UPDATE built_sites
+): SqlStatement => sql`UPDATE built_sites
            SET assignable = 0,
-               assigned_attendee_id = ?,
-               assigned_listing_id = ?,
+               assigned_attendee_id = ${attendeeId},
+               assigned_listing_id = ${listingId},
                site_data_revision = site_data_revision + 1
          WHERE assignable = 1
            AND id = (
              SELECT candidate.id
-               FROM json_each(?) AS poolOrder
+               FROM json_each(${JSON.stringify(candidateIds)}) AS poolOrder
                JOIN built_sites AS candidate ON candidate.id = poolOrder.value
               WHERE candidate.assignable = 1
               ORDER BY poolOrder.key
               LIMIT 1
-           )`,
-});
+           )`;
 
 /** The site a claim just won for this attendee: the row the claim statement
  * above now carries, found on any of the plan listings the buyer booked — a

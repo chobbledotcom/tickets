@@ -8,7 +8,6 @@ import {
   queryOnePrimary,
   requireOnePrimary,
   resultRows,
-  type SqlStatement,
 } from "#db/client.ts";
 import { invalidateListingsCache } from "#db/listings/records.ts";
 import { notNullGuardFailure } from "#db/query.ts";
@@ -23,6 +22,7 @@ import {
   syncStoredSetting,
 } from "#db/settings/raw-writes.ts";
 import { setSnapshotField } from "#db/settings/snapshot.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { range } from "#fp";
 import {
   ADMIN_FEATURES,
@@ -84,7 +84,7 @@ export const getAdminFeatureUsage = async (): Promise<EnabledFeatures> => {
   const row = v.parse(
     StoredValueSchema,
     await queryOne<unknown>(
-      `SELECT json_object(${ADMIN_FEATURES.map(usageJsonEntry).join(", ")}) AS value`,
+      sql`SELECT json_object(${TODO_SQL_TEXT(ADMIN_FEATURES.map(usageJsonEntry).join(", "))}) AS value`,
     ),
   );
   return parseEnabledFeatures(row.value);
@@ -120,8 +120,7 @@ type PreparedLogisticsDefault = {
 
 const prepareLogisticsDefault = async (): Promise<PreparedLogisticsDefault> => {
   const result = await queryOnePrimary<unknown>(
-    "SELECT value FROM settings WHERE key = ?",
-    [CONFIG_KEYS.LISTING_DEFAULTS],
+    sql`SELECT value FROM settings WHERE key = ${CONFIG_KEYS.LISTING_DEFAULTS}`,
   );
   if (result === null) {
     return { current: null, nextEncrypted: null, nextPlain: null };
@@ -168,14 +167,9 @@ const logisticsDisableStatements = (
     requireSettingCondition(unchanged.sql, unchanged.args),
   ];
   if (prepared.nextEncrypted !== null) {
-    statements.push({
-      args: [
-        prepared.nextEncrypted,
-        CONFIG_KEYS.LISTING_DEFAULTS,
-        prepared.current,
-      ],
-      sql: "UPDATE settings SET value = ? WHERE key = ? AND value = ?",
-    });
+    statements.push(
+      sql`UPDATE settings SET value = ${prepared.nextEncrypted} WHERE key = ${CONFIG_KEYS.LISTING_DEFAULTS} AND value = ${prepared.current}`,
+    );
   }
   statements.push(
     requireSettingCondition(`NOT (${FEATURES_BY_KEY.logistics.inUseSql})`),
@@ -190,10 +184,7 @@ const logisticsDisableStatements = (
   );
   const featureResultIndex = statements.length;
   statements.push(
-    {
-      args: [CONFIG_KEYS.ENABLED_FEATURES],
-      sql: "SELECT value FROM settings WHERE key = ?",
-    },
+    sql`SELECT value FROM settings WHERE key = ${CONFIG_KEYS.ENABLED_FEATURES}`,
     settingsVersionIncrement(),
   );
   return { featureResultIndex, statements };
@@ -229,8 +220,7 @@ const saveLogisticsDisable = async (
 
 const validateStoredFeatureSetting = async (): Promise<void> => {
   const stored = await requireOnePrimary<unknown>(
-    "SELECT value FROM settings WHERE key = ?",
-    [CONFIG_KEYS.ENABLED_FEATURES],
+    sql`SELECT value FROM settings WHERE key = ${CONFIG_KEYS.ENABLED_FEATURES}`,
   );
   const row = v.parse(StoredValueSchema, stored);
   parseEnabledFeatures(row.value);

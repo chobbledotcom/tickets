@@ -1,6 +1,7 @@
 import { decrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { executeBatch } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { bareSchemaMigration } from "./define.ts";
 
 /**
@@ -32,7 +33,7 @@ export default bareSchemaMigration(
     // Scanned in id order, so an aborted run's behaviour is deterministic:
     // everything before the record that failed was identified, nothing after.
     const result = await getDb().execute(
-      "SELECT id, filename FROM images ORDER BY id",
+      sql`SELECT id, filename FROM images ORDER BY id`,
     );
     const brokenIds: number[] = [];
     for (const row of result.rows) {

@@ -10,7 +10,7 @@ import { decryptWithOwnerKey } from "#crypto/hybrid.ts";
 
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { ATTENDEE_BY_TOKEN_SQL } from "#db/attendees/create-batch.ts";
-import type { SqlStatement } from "#db/client.ts";
+
 import { rowsByIds } from "#db/query.ts";
 import type { BookedAnswer } from "#db/question-types.ts";
 import {
@@ -18,6 +18,7 @@ import {
   type PreparedAnswerSave,
 } from "#db/questions/attendee-answers/save.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { mapParallel } from "#fp";
 
 /** The questions the booked listings asked, recorded with the answers given.

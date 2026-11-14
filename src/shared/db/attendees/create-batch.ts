@@ -7,7 +7,6 @@ import type {
 import {
   executeBatchWithResults,
   resultRows,
-  type SqlStatement,
   type TxScope,
   withTransaction,
 } from "#db/client.ts";
@@ -19,6 +18,7 @@ import {
 import { boundSlots, type NumberedSql } from "#db/numbered-statement.ts";
 import { batchFinalizeStatements } from "#db/payment-finalize.ts";
 import { notNullGuardFailureAt } from "#db/query.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { namedError } from "#shared/named-error.ts";
@@ -64,11 +64,9 @@ export const ATTENDEE_BY_TOKEN_SQL =
 
 /** Abort the batch if the immediately preceding guarded booking did not insert
  * exactly one row. The deliberate NOT NULL failure rolls back every write. */
-const bookingWriteGuard = (): SqlStatement => ({
-  args: [1],
-  sql: `INSERT INTO listing_attendees (listing_id, attendee_id, quantity)
-        SELECT NULL, NULL, 1 WHERE changes() != ?`,
-});
+const bookingWriteGuard =
+  (): SqlStatement => sql`INSERT INTO listing_attendees (listing_id, attendee_id, quantity)
+        SELECT NULL, NULL, 1 WHERE changes() != ${1}`;
 
 const isBookingWriteGuardFailure = notNullGuardFailureAt(
   "listing_attendees.listing_id",
@@ -77,10 +75,8 @@ const isBookingWriteGuardFailure = notNullGuardFailureAt(
 const guardedBookings = (statements: SqlStatement[]): SqlStatement[] =>
   statements.flatMap((statement) => [statement, bookingWriteGuard()]);
 
-const attendeeIdStatement = (tokenIndex: string): SqlStatement => ({
-  args: [tokenIndex],
-  sql: "SELECT id FROM attendees WHERE ticket_token_index = ?",
-});
+const attendeeIdStatement = (tokenIndex: string): SqlStatement =>
+  sql`SELECT id FROM attendees WHERE ticket_token_index = ${tokenIndex}`;
 
 const runAtomicBatch = async (
   prepared: PreparedWrite,
