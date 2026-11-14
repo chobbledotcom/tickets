@@ -1,7 +1,6 @@
 /** Taking an all-or-none hold on the exact refund snapshot an admin loaded. */
 
 import {
-  inPlaceholders,
   resultRows,
   type TxScope,
   withTransaction,
@@ -134,18 +133,16 @@ const readClaimableRows = async (
 }> => {
   const own = await readPaymentClaimRows(
     tx,
-    `attendee_id IN (${inPlaceholders(attendeeIds)})
+    sql`attendee_id IN (${sqlList(attendeeIds)})
        AND payment_reference != ''`,
-    [...attendeeIds],
   );
   const indexes = [...new Set(matchingIndexes)].filter((index) => index !== "");
   if (indexes.length === 0) return { own, sharing: [] };
   const sharing = await readPaymentClaimRows(
     tx,
-    `attendee_id NOT IN (${inPlaceholders(attendeeIds)})
-       AND payment_reference_index IN (${inPlaceholders(indexes)})
+    sql`attendee_id NOT IN (${sqlList(attendeeIds)})
+       AND payment_reference_index IN (${sqlList(indexes)})
      LIMIT ${MAX_SHARED_PAYMENT_ROWS_PER_CLAIM + 1}`,
-    [...attendeeIds, ...indexes],
   );
   return { own, sharing };
 };

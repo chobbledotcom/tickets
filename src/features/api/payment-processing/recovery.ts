@@ -41,7 +41,7 @@ const loadRecoveryFacts = async (
               WHERE processedPayment.payment_session_id = ${sessionId}
                 AND attendee.ticket_token_index = ${ticketTokenIndex}`,
       sql`SELECT 1 AS present FROM processed_payments
-              WHERE payment_session_id = ${sessionId} AND ${TODO_SQL_TEXT(UNRESOLVED_RESERVATION)}`,
+              WHERE payment_session_id = ${sessionId} AND ${UNRESOLVED_RESERVATION}`,
       sql`SELECT id FROM attendees WHERE ticket_token_index = ${ticketTokenIndex}`,
     ]);
   const payment = resultRows<{ attendee_id: number }>(paymentResult!)[0];

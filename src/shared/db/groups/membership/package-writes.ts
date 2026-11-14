@@ -21,7 +21,6 @@ import {
 import { listingGroups } from "#db/groups/table.ts";
 import { hasPackageBookingsTx, setGroupPackageMembers } from "#db/groups.ts";
 import { removeGroupPricesStatement } from "#db/listing-prices.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
 import { sql, sqlList } from "#db/sql.ts";
 import {
   refusingTheWriteOn,
@@ -176,13 +175,11 @@ const groupListingAssignmentStatements = (
   listingIds: readonly number[],
   groupId: number,
 ) =>
-  listingIds.map((listingId) =>
-    numberedStatement((bind) => {
-      const listing = bind(listingId);
-      return `INSERT OR IGNORE INTO group_listings (group_id, listing_id)
-              SELECT ${bind(groupId)}, ${listing}
-               WHERE EXISTS (SELECT 1 FROM listings WHERE id = ${listing})`;
-    }),
+  listingIds.map(
+    (listingId) =>
+      sql`INSERT OR IGNORE INTO group_listings (group_id, listing_id)
+              SELECT ${groupId}, ${listingId}
+               WHERE EXISTS (SELECT 1 FROM listings WHERE id = ${listingId})`,
   );
 
 /** A membership write over one group: which listings, and the group they join

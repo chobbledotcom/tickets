@@ -21,14 +21,7 @@ import {
   type RecordTargets,
 } from "#db/record-target.ts";
 import { settingsVersionIncrement } from "#db/settings/cache.ts";
-import {
-  type SqlStatement,
-  sql,
-  sqlCommas,
-  sqlJoin,
-  sqlLiteral,
-  sqlName,
-} from "#db/sql.ts";
+import { sql, sqlCommas, sqlJoin, sqlLiteral, sqlName, type SqlStatement } from "#db/sql.ts";
 import { type ColumnDef, col, writeTableRow } from "#db/table.ts";
 import { readById } from "#db/table-reader.ts";
 import { txIdSetInTable } from "#db/transaction.ts";

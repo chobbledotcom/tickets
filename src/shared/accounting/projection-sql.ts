@@ -18,7 +18,7 @@ import {
 } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import { MANUAL_ATTENDEE_CHARGE } from "#accounting/manual-entries.ts";
-import { type SqlStatement, sql, sqlCommas, sqlLiteral } from "#db/sql.ts";
+import { sql, sqlCommas, sqlLiteral, type SqlStatement } from "#db/sql.ts";
 
 /** Account type/id columns for one leg side of a `transfers` row — the single
  *  home for these names. Every projection (the interpolated subqueries here

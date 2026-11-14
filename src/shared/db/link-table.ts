@@ -15,13 +15,7 @@ import {
   resultRows,
   type TxScope,
 } from "#db/client.ts";
-import {
-  type SqlStatement,
-  sql,
-  sqlCommas,
-  sqlList,
-  sqlName,
-} from "#db/sql.ts";
+import { sql, sqlCommas, sqlList, sqlName, type SqlStatement } from "#db/sql.ts";
 import { reduce, requiredMapValue, unique } from "#fp";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { requestBatchCache } from "#shared/request-cache.ts";

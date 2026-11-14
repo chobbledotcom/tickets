@@ -6,10 +6,10 @@ import type { Client } from "@libsql/client";
 import * as v from "valibot";
 
 import {
-  CANCEL_INVOICE_SQL,
+  cancelInvoiceStatement,
   markOpenInvoicesPaidStatement,
 } from "#db/invoices.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
+import { sql, type SqlStatement } from "#db/sql.ts";
 import {
   corruptOneFact,
   type ModelDataSource,
@@ -206,8 +206,12 @@ const updateAccepted = async (
   (
     await client.execute(
       kind === "cancel"
-        ? { args: [slot], sql: CANCEL_INVOICE_SQL }
-        : markOpenInvoicesPaidStatement(ATTENDEE_ID, "1", guardMatched ? 1 : 0),
+        ? cancelInvoiceStatement(slot)
+        : markOpenInvoicesPaidStatement(
+            ATTENDEE_ID,
+            sql`1`,
+            guardMatched ? 1 : 0,
+          ),
     )
   ).rowsAffected > 0;
 

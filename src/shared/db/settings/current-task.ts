@@ -7,7 +7,6 @@
  */
 
 import { executeWithoutCacheInvalidation } from "#db/client.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
 import { syncCache } from "#db/settings/cache.ts";
 import { writeOrDelete } from "#db/settings/raw-writes.ts";
 import { setSnapshotField } from "#db/settings/snapshot.ts";
@@ -39,8 +38,9 @@ export const withCurrentTask = async <T>(
     sql`INSERT OR IGNORE INTO settings (key, value) VALUES (${CONFIG_KEYS.CURRENT_TASK}, '')`,
   );
   // Atomic claim: only succeeds when no task is running
-  const { sql: claimSql, args: claimArgs } = sql`UPDATE settings SET value = ${taskName} WHERE key = ${CONFIG_KEYS.CURRENT_TASK} AND value = '' AND (${expectedVersion ?? null} IS NULL OR ${expectedVersion ?? null} = CAST(COALESCE((SELECT value FROM settings WHERE key = ${CONFIG_KEYS.SETTINGS_VERSION}), '0') AS INTEGER))`;
-  const claim = await executeWithoutCacheInvalidation(claimSql, claimArgs);
+  const claim = await executeWithoutCacheInvalidation(
+    sql`UPDATE settings SET value = ${taskName} WHERE key = ${CONFIG_KEYS.CURRENT_TASK} AND value = '' AND (${expectedVersion ?? null} IS NULL OR ${expectedVersion ?? null} = CAST(COALESCE((SELECT value FROM settings WHERE key = ${CONFIG_KEYS.SETTINGS_VERSION}), '0') AS INTEGER))`,
+  );
   if (claim.rowsAffected === 0) {
     const version = await executeWithoutCacheInvalidation(
       sql`SELECT CAST(COALESCE((SELECT value FROM settings WHERE key = ${CONFIG_KEYS.SETTINGS_VERSION}), '0') AS INTEGER) AS value`,

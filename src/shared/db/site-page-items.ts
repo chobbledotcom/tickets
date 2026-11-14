@@ -21,9 +21,8 @@ import type { FillableRead } from "#db/fill-together.ts";
 import { clearImageUsesForItemStatement, imageUseTargets } from "#db/images.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
 import { existingSitePageIdsStatement } from "#db/site-pages.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
+import { sql, type SqlStatement } from "#db/sql.ts";
 import {
-  clauseArgs,
   deleteWhere,
   type WhereClause,
   whereSql,
@@ -65,7 +64,7 @@ export const sitePageItemOrder = defineOrderedCollection({
 const allItemsStatement: SqlStatement = sql`SELECT ${SELECT_COLS} FROM site_page_items ORDER BY page_id ASC, sort_order ASC, item_id ASC`;
 
 const fetchAllItems = (): Promise<SitePageItem[]> =>
-  queryAll<SitePageItem>(allItemsStatement.sql);
+  queryAll<SitePageItem>(allItemsStatement);
 
 // Request-scoped: one query per request feeds the whole nav forest, fresh next
 // request, and cleared on any write to site_page_items.
@@ -157,10 +156,9 @@ const addPageItemInTransaction: PageItemChangeInTransaction<boolean> = async (
     sitePageItemTargets.of(itemType)(itemId),
   );
   const duplicate = resultRows<SitePageItem>(
-    await tx.execute({
-      args: clauseArgs(onThisPage),
-      sql: `SELECT ${SELECT_COLS} FROM site_page_items${whereSql(onThisPage)}`,
-    }),
+    await tx.execute(
+      sql`SELECT ${SELECT_COLS} FROM site_page_items${whereSql(onThisPage)}`,
+    ),
   );
   if (duplicate.length > 0) return false;
   if (itemType === "page") {

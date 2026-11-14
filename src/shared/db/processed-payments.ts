@@ -25,7 +25,7 @@ import {
   storePaymentReference,
   unclaimedPaymentReference,
 } from "#db/payment-reference-store.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
+import { sql, type SqlStatement } from "#db/sql.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import {
   EMPTY_ROW_STATE,
@@ -74,16 +74,12 @@ export type ReserveSessionResult =
   | { reserved: true }
   | { reserved: false; existing: ProcessedPayment };
 
-/** Execute a SQL statement parameterized by a single payment session ID */
-const execWithSessionId = (sessionId: string, sql: string): Promise<unknown> =>
-  execute(sql, [sessionId]);
-
-/** A void write parameterized by a single payment session ID: curries the SQL,
- * returns a function that runs it for one session. */
+/** A void write parameterized by a single payment session ID: takes the
+ * statement for one session and returns a function that runs it. */
 const sessionIdWrite =
-  (sql: string) =>
+  (statementFor: (sessionId: string) => SqlStatement) =>
   async (sessionId: string): Promise<void> => {
-    await execWithSessionId(sessionId, sql);
+    await execute(statementFor(sessionId));
   };
 
 /**
@@ -98,7 +94,8 @@ const sessionIdWrite =
  */
 export const releaseReservation: (sessionId: string) => Promise<void> =
   sessionIdWrite(
-    `DELETE FROM processed_payments WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
+    (sessionId) =>
+      sql`DELETE FROM processed_payments WHERE payment_session_id = ${sessionId} AND ${UNRESOLVED_RESERVATION}`,
   );
 
 /**
@@ -182,29 +179,21 @@ export const finalizeSessionIfUnresolved = async (
   const referenceClaim = await unclaimedPaymentReference(paymentReference);
   const storedReference = await storePaymentReference(paymentReference);
   await withTransaction(async (tx) => {
-    const finalized = await tx.execute({
-      args: [
-        attendeeId,
-        storedReference.encrypted,
-        storedReference.index,
-        sessionId,
-        ...referenceClaim.args,
-      ],
-      sql: `UPDATE processed_payments
-               SET attendee_id = ?, payment_reference = ?,
-                   payment_reference_index = ?
-             WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}
-               AND ${referenceClaim.sql}`,
-    });
+    const finalized = await tx.execute(
+      sql`UPDATE processed_payments
+               SET attendee_id = ${attendeeId}, payment_reference = ${storedReference.encrypted},
+                   payment_reference_index = ${storedReference.index}
+             WHERE payment_session_id = ${sessionId} AND ${UNRESOLVED_RESERVATION}
+               AND ${referenceClaim}`,
+    );
     if (finalized.rowsAffected > 0) return;
-    const blocked = await tx.execute({
-      args: [sessionId, ...referenceClaim.args],
-      sql: `SELECT 1
+    const blocked = await tx.execute(
+      sql`SELECT 1
               FROM processed_payments AS payment
-             WHERE payment.payment_session_id = ?
+             WHERE payment.payment_session_id = ${sessionId}
                AND ${UNRESOLVED_RESERVATION}
-               AND NOT (${referenceClaim.sql})`,
-    });
+               AND NOT (${referenceClaim})`,
+    );
     if (resultRows(blocked).length > 0) {
       throw new Error("Payment cannot finalize while its reference is held");
     }
@@ -361,5 +350,6 @@ export const decryptSessionTokens = async (
  */
 export const clearSessionTokens: (sessionId: string) => Promise<void> =
   sessionIdWrite(
-    "UPDATE processed_payments SET ticket_tokens = '' WHERE payment_session_id = ?",
+    (sessionId) =>
+      sql`UPDATE processed_payments SET ticket_tokens = '' WHERE payment_session_id = ${sessionId}`,
   );

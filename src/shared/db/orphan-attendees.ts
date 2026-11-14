@@ -12,7 +12,7 @@
 
 import { attendeeRemovalStatements } from "#db/attendees/delete.ts";
 import { executeBatchWithResults, queryAll, requireOne } from "#db/client.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
+import { sql, type SqlStatement } from "#db/sql.ts";
 import { refundAuthorityWorkSql } from "#payment/refund-authority-lifecycle.ts";
 import { requireValue } from "#shared/required-value.ts";
 

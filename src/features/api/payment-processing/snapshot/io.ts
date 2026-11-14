@@ -6,14 +6,13 @@ import {
 import { lineGroupIds } from "#booking/signed-metadata.ts";
 import { decrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
-import { inPlaceholders, queryBatch, resultRows } from "#db/client.ts";
+import { queryBatch, resultRows } from "#db/client.ts";
 import { hashEmail, hashPhone } from "#db/contact-preferences.ts";
 import { imageFilenameSubqueries } from "#db/images.ts";
 import { decryptListingWithCount } from "#db/listings/records.ts";
 import type { ListingRecordRow } from "#db/listings/select.ts";
 import { rawListingsTable } from "#db/listings/table.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
-import type { SqlStatement } from "#db/sql.ts";
+import { sql, sqlList, sqlName, sqlNames, type SqlStatement } from "#db/sql.ts";
 import { unique } from "#fp";
 import { buildPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/build.ts";
 import type {
@@ -26,29 +25,28 @@ import type {
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import type { GroupListing, ListingWithCount } from "#types";
 
-const selectIn = (column: string, values: readonly unknown[]): string =>
-  values.length === 0 ? "0" : `${column} IN (${inPlaceholders(values)})`;
-
-const statement = (sql: string, args: SqlStatement["args"]): SqlStatement => ({
-  args,
-  sql,
-});
+const selectIn = (
+  column: string,
+  values: readonly (number | string)[],
+): SqlStatement =>
+  values.length === 0
+    ? sql`0`
+    : sql`${sqlName(column)} IN (${sqlList(values)})`;
 
 const listingStatement = (listingIds: number[]): SqlStatement => {
-  const columns = rawListingsTable.columns
-    .map((column) => `listing.${column}`)
-    .join(", ");
+  const columns = sqlNames(
+    rawListingsTable.columns.map((column) => `listing.${column}`),
+  );
   const requested = selectIn("listing.id", listingIds);
   const linked = selectIn("listingParent.parent_listing_id", listingIds);
-  return statement(
-    `SELECT ${columns},
-       ${creditsLessWriteoffDebits("revenue", "listing.id")} AS income,
-       -${accountBalanceSubquery("cost", "listing.id")} AS cost,
+  return sql`SELECT ${columns},
+       ${creditsLessWriteoffDebits("revenue", sql`listing.id`)} AS income,
+       -${accountBalanceSubquery("cost", sql`listing.id`)} AS cost,
        COALESCE((SELECT json_group_object(listingPrice.price_id, listingPrice.unit_price)
          FROM listing_prices AS listingPrice
          WHERE listingPrice.listing_id = listing.id
            AND listingPrice.price_type = 'day_count'), '{}') AS day_prices,
-       ${imageFilenameSubqueries("listing", "listing.id")},
+       ${imageFilenameSubqueries("listing", sql`listing.id`)},
        listing.booked_quantity AS attendee_count
      FROM listings AS listing
      WHERE ${requested}
@@ -56,9 +54,7 @@ const listingStatement = (listingIds: number[]): SqlStatement => {
           SELECT listingParent.child_listing_id
           FROM listing_parents AS listingParent
           WHERE ${linked}
-        )`,
-    [...listingIds, ...listingIds],
-  );
+        )`;
 };
 
 const usableContactHashes = async (
@@ -79,21 +75,14 @@ const snapshotStatements = (
   const groupIds = [...lineGroupIds(intent.items)];
   const modifierIds = unique(intent.modifiers.map((ref) => ref.i));
   return [
-    numberedStatement((bind) => {
-      const group = bind(eventGroup);
-      return `SELECT EXISTS(SELECT 1 FROM transfers WHERE event_group = ${group} LIMIT 1) AS has_legs,
-        (SELECT attendee_id FROM listing_attendees WHERE ledger_event_group = ${group} LIMIT 1) AS owner_attendee_id`;
-    }),
+    sql`SELECT EXISTS(SELECT 1 FROM transfers WHERE event_group = ${eventGroup} LIMIT 1) AS has_legs,
+        (SELECT attendee_id FROM listing_attendees WHERE ledger_event_group = ${eventGroup} LIMIT 1) AS owner_attendee_id`,
     listingStatement(listingIds),
-    statement(
-      `SELECT id, name, hide_package_listings
+    sql`SELECT id, name, hide_package_listings
        FROM groups AS groupRow
        WHERE ${selectIn("groupRow.id", groupIds)} AND groupRow.is_package = 1
        ORDER BY groupRow.id`,
-      groupIds,
-    ),
-    statement(
-      `SELECT groupListing.group_id, groupListing.listing_id, groupListing.quantity,
+    sql`SELECT groupListing.group_id, groupListing.listing_id, groupListing.quantity,
         (SELECT listingPrice.unit_price FROM listing_prices AS listingPrice
           WHERE listingPrice.listing_id = groupListing.listing_id
             AND listingPrice.price_type = 'group'
@@ -101,10 +90,7 @@ const snapshotStatements = (
        FROM group_listings AS groupListing
        WHERE ${selectIn("groupListing.group_id", groupIds)}
        ORDER BY groupListing.group_id, groupListing.listing_id`,
-      groupIds,
-    ),
-    statement(
-      `SELECT groupListing.group_id, listingPrice.listing_id,
+    sql`SELECT groupListing.group_id, listingPrice.listing_id,
         CAST(SUBSTR(listingPrice.price_id, LENGTH(CAST(groupListing.group_id AS TEXT)) + 2) AS INTEGER) AS days,
         listingPrice.unit_price
        FROM group_listings AS groupListing
@@ -113,26 +99,17 @@ const snapshotStatements = (
         AND listingPrice.price_type = 'group_day'
         AND listingPrice.price_id LIKE (groupListing.group_id || '/%')
        WHERE ${selectIn("groupListing.group_id", groupIds)}`,
-      groupIds,
-    ),
-    statement(
-      `SELECT parent_listing_id, child_listing_id
+    sql`SELECT parent_listing_id, child_listing_id
        FROM listing_parents AS listingParent
        WHERE ${selectIn("listingParent.parent_listing_id", listingIds)}
           OR ${selectIn("listingParent.child_listing_id", listingIds)}
        ORDER BY parent_listing_id, child_listing_id`,
-      [...listingIds, ...listingIds],
-    ),
-    statement(
-      `SELECT modifier.id, modifier.name, modifier.calc_kind, modifier.calc_value,
+    sql`SELECT modifier.id, modifier.name, modifier.calc_kind, modifier.calc_value,
         modifier.direction, modifier.min_visits, modifier.scope, modifier.trigger
        FROM modifiers AS modifier
        WHERE ${selectIn("modifier.id", modifierIds)} AND modifier.active = 1
        ORDER BY modifier.id`,
-      modifierIds,
-    ),
-    statement(
-      `SELECT modifierListing.modifier_id, modifierListing.listing_id
+    sql`SELECT modifierListing.modifier_id, modifierListing.listing_id
        FROM modifier_listings AS modifierListing
         JOIN modifiers AS modifier
           ON modifier.id = modifierListing.modifier_id
@@ -146,17 +123,9 @@ const snapshotStatements = (
          AND modifier.scope = 'groups'
         JOIN group_listings AS groupListing ON groupListing.group_id = modifierGroup.group_id
         WHERE ${selectIn("modifierGroup.modifier_id", modifierIds)}`,
-      [...modifierIds, ...modifierIds],
-    ),
-    statement(
-      `SELECT visits FROM contact_preferences
+    sql`SELECT visits FROM contact_preferences
        WHERE ${selectIn("contact_hash", contactHashes)}`,
-      contactHashes,
-    ),
-    statement(
-      "SELECT id FROM attendee_statuses WHERE is_public_default = 1 ORDER BY sort_order, id",
-      [],
-    ),
+    sql`SELECT id FROM attendee_statuses WHERE is_public_default = 1 ORDER BY sort_order, id`,
   ];
 };
 

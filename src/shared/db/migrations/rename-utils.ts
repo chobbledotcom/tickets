@@ -1,5 +1,5 @@
 import { countRows, getDb } from "#db/client.ts";
-import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
+import { sql, sqlName, type SqlStatement } from "#db/sql.ts";
 import { escapeRegExp } from "#shared/regexp.ts";
 import {
   currentSchemaColumnsPresentIn,

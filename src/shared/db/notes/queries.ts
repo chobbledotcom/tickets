@@ -10,11 +10,11 @@ import {
   execute,
   executeBatch,
   insert,
-  orIgnore,
+  insertOrIgnore,
   type TxScope,
 } from "#db/client.ts";
 import { readOneRow, readRows } from "#db/read.ts";
-import type { SqlStatement } from "#db/sql.ts";
+import { sql, sqlLiteral, type SqlStatement } from "#db/sql.ts";
 import { deleteWhere, type WhereClause } from "#db/where-clauses.ts";
 import { nowIso } from "#shared/now.ts";
 import { openNote, openNotes, sealNote } from "./sealing.ts";
@@ -26,8 +26,7 @@ import type {
   SystemNoteType,
 } from "./types.ts";
 
-const NOTE_COLUMNS =
-  "id, entity_type, entity_id, type, note, system_name, created";
+const NOTE_COLUMNS = sql`id, entity_type, entity_id, type, note, system_name, created`;
 
 const storedSystemNoteName = ({ key, purpose }: SystemNoteName): string =>
   `system-note:1:${JSON.stringify([purpose, key])}`;
@@ -40,7 +39,9 @@ const writeNote = async (
   transaction?: TxScope,
 ): Promise<void> => {
   if (name?.key === "") throw new Error("A named system note needs a key");
-  const inserted = insert("system_notes", {
+  // A named note is unique by its name: a replayed write is a no-op, so a
+  // resumable flow can re-run its note step without a second copy landing.
+  const statement = (name === null ? insert : insertOrIgnore)("system_notes", {
     created: nowIso(),
     entity_id: target.id,
     entity_type: target.kind,
@@ -48,9 +49,6 @@ const writeNote = async (
     system_name: name === null ? null : storedSystemNoteName(name),
     type,
   });
-  // A named note is unique by its name: a replayed write is a no-op, so a
-  // resumable flow can re-run its note step without a second copy landing.
-  const statement = name === null ? inserted : orIgnore(inserted);
   if (transaction === undefined) {
     await execute(statement);
   } else {
@@ -85,8 +83,8 @@ export const createOwnerNote = (
 const noteRowsWhere = (where: WhereClause[]): Promise<SystemNoteRow[]> =>
   readRows<SystemNoteRow>({
     columns: NOTE_COLUMNS,
-    from: "system_notes",
-    order: "entity_id, id",
+    from: sql`system_notes`,
+    order: sql`entity_id, id`,
     where,
   });
 
@@ -111,13 +109,13 @@ export const getNoteRowsForListing = (
   listingId: number,
 ): Promise<SystemNoteRow[]> =>
   noteRowsWhere(
-    noteTargets.whereChosenBy("attendee", {
-      args: [listingId],
-      sql: `SELECT listingAttendee.attendee_id
+    noteTargets.whereChosenBy(
+      "attendee",
+      sql`SELECT listingAttendee.attendee_id
               FROM listing_attendees AS listingAttendee
               JOIN attendees AS attendee ON attendee.id = listingAttendee.attendee_id
-             WHERE listingAttendee.listing_id = ? AND attendee.kind = '${ATTENDEE_KIND}'`,
-    }),
+             WHERE listingAttendee.listing_id = ${listingId} AND attendee.kind = ${sqlLiteral(ATTENDEE_KIND)}`,
+    ),
   );
 
 /** All of one record's notes, opened up, oldest first. One record is a list of
@@ -180,7 +178,7 @@ export const getNote = async (
 ): Promise<SystemNote | null> => {
   const row = await readOneRow<SystemNoteRow>({
     columns: NOTE_COLUMNS,
-    from: "system_notes",
+    from: sql`system_notes`,
     where: noteOfTarget(target, noteId),
   });
   return row ? openNote(row, privateKey) : null;

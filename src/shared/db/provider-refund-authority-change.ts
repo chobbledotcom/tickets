@@ -20,6 +20,7 @@ import {
   refundStateMirror,
   writeRefundAuthorityState,
 } from "#payment/refund-authority-state.ts";
+import { sql, type SqlStatement } from "#db/sql.ts";
 
 export type RefundAuthorityMoney = Pick<
   RefundAuthorityRow,
@@ -49,64 +50,32 @@ const requireRefundMoney = (
   }
 };
 
-const stateWrite = (
-  state: RefundAuthorityState,
-  revision: number,
-  now: number,
-): readonly (string | number | null)[] => [
-  writeRefundAuthorityState(state, "payment_charges.refund_state"),
-  refundStateMirror(state),
-  refundLocalMirror(state),
-  refundNextActionAt(state),
-  revision + 1,
-  now,
-  now,
-];
-
 const changeRefundAuthorityStatement = (
   row: RefundAuthorityVersion,
   state: RefundAuthorityState,
   money: RefundAuthorityMoney,
   now: number,
-): { readonly args: (string | number | null)[]; readonly sql: string } => {
+): SqlStatement => {
   requireRefundMoney(row, money);
-  return {
-    args: [
-      money.captured.amount,
-      money.captured.currency,
-      money.refunded.amount,
-      ...stateWrite(state, row.revision, now),
-      row.id,
-      row.revision,
-    ],
-    sql: `UPDATE payment_charges
-             SET captured_amount = ?, currency = ?, refunded_amount = ?,
-                 refund_state = ?, refund_state_name = ?,
-                 refund_local_state = ?, next_refund_action_at = ?,
-                 refund_revision = ?, updated_at = ?, observed_at = ?
-           WHERE id = ? AND refund_revision = ?
-       RETURNING ${REFUND_AUTHORITY_COLUMNS}`,
-  };
+  return sql`UPDATE payment_charges
+             SET captured_amount = ${money.captured.amount}, currency = ${money.captured.currency}, refunded_amount = ${money.refunded.amount},
+                 refund_state = ${writeRefundAuthorityState(state, "payment_charges.refund_state")}, refund_state_name = ${refundStateMirror(state)},
+                 refund_local_state = ${refundLocalMirror(state)}, next_refund_action_at = ${refundNextActionAt(state)},
+                 refund_revision = ${row.revision + 1}, updated_at = ${now}, observed_at = ${now}
+           WHERE id = ${row.id} AND refund_revision = ${row.revision}
+       RETURNING ${REFUND_AUTHORITY_COLUMNS}`;
 };
 
-type RefundAuthorityStatement = ReturnType<
-  typeof changeRefundAuthorityStatement
->;
 type RefundAuthorityWriter = (
-  statement: RefundAuthorityStatement,
+  statement: SqlStatement,
 ) => ReturnType<TxScope["execute"]>;
-
-const executeRefundAuthorityStatement: RefundAuthorityWriter = ({
-  args,
-  sql,
-}) => execute(sql, args);
 
 const changeRefundAuthority = async (
   row: RefundAuthorityVersion,
   transition: RefundTransition,
   money: RefundAuthorityMoney,
   now: number,
-  write: RefundAuthorityWriter = executeRefundAuthorityStatement,
+  write: RefundAuthorityWriter = execute,
 ): Promise<RefundAuthorityRow | null> =>
   refundAuthorityFromResult(
     await write(

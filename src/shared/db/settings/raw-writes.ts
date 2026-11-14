@@ -27,21 +27,15 @@ import {
   setSnapshotField,
 } from "#db/settings/snapshot.ts";
 import { recordSettingsLoaded } from "#db/settings-audit.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
+import { sql, type SqlStatement } from "#db/sql.ts";
 import { bindFirst } from "#shared/fp-bind.ts";
 import type { EncryptedUpdateFn } from "#shared/wallets/wallet-settings-types.ts";
 
 export { getRawCached };
 
-/** Upsert a single settings key/value (latest write wins). */
-const SETTINGS_UPSERT_SQL =
-  "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)";
-
-/** Build a settings upsert as a batch statement (used by `completeSetup`). */
-export const settingUpsert = (key: string, value: string): SqlStatement => ({
-  args: [key, value],
-  sql: SETTINGS_UPSERT_SQL,
-});
+/** The upsert for one settings key and value. The latest write wins. */
+export const settingUpsert = (key: string, value: string): SqlStatement =>
+  sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${key}, ${value})`;
 
 /** Notify other isolates after this request mirrors a settings change. */
 const afterSettingChange = async (sync: () => void): Promise<void> => {
@@ -82,7 +76,7 @@ export const publishStoredSetting = (
 /** Write a setting to the DB, update the raw cache in-place, and bump the
  *  shared version so other isolates reload on their next request. */
 export const writeRaw = async (key: string, value: string): Promise<void> => {
-  await executeWithoutCacheInvalidation(SETTINGS_UPSERT_SQL, [key, value]);
+  await executeWithoutCacheInvalidation(settingUpsert(key, value));
   await syncWrittenSetting(key, value);
 };
 

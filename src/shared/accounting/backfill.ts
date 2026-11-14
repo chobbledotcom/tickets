@@ -16,13 +16,7 @@ import { asOrderLegs, mapBooking, mapRefund } from "#accounting/mappers.ts";
 import { accountBalancesForIds } from "#accounting/queries.ts";
 import { insertIfNewStatement } from "#accounting/rows.ts";
 import { executeBatch, queryAll, queryIdColumn } from "#db/client.ts";
-import {
-  type SqlSlot,
-  type SqlStatement,
-  sql,
-  sqlList,
-  sqlLiteral,
-} from "#db/sql.ts";
+import { sql, sqlList, sqlLiteral, type SqlSlot, type SqlStatement } from "#db/sql.ts";
 import { sumOf } from "#fp";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { nowIso } from "#shared/now.ts";

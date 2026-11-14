@@ -7,7 +7,7 @@ import { encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import { generateTicketToken } from "#crypto/utils.ts";
 import { buildAttendeeInsert } from "#db/attendees/create.ts";
-import { ATTENDEE_BY_TOKEN_SQL } from "#db/attendees/create-batch.ts";
+import { attendeeByToken } from "#db/attendees/create-batch.ts";
 import { encryptAttendeeFields } from "#db/attendees/pii.ts";
 import { executeBatch, insert, queryAll } from "#db/client.ts";
 import { syncListingPricesForIds } from "#db/listing-price-sync.ts";
@@ -140,11 +140,8 @@ const prepareAttendee = async (
 
   return [
     buildAttendeeInsert(enc, { statusId: null }),
-    {
-      args: [listingId, enc.ticketTokenIndex, quantity],
-      sql: `INSERT INTO listing_attendees (listing_id, attendee_id, quantity)
-            VALUES (?, ${ATTENDEE_BY_TOKEN_SQL}, ?)`,
-    },
+    sql`INSERT INTO listing_attendees (listing_id, attendee_id, quantity)
+            VALUES (${listingId}, ${attendeeByToken(enc.ticketTokenIndex)}, ${quantity})`,
   ];
 };
 

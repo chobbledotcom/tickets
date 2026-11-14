@@ -7,13 +7,7 @@ import type {
   RefundAuthorityState,
   RefundAuthorityStateName,
 } from "#payment/refund-authority-state.ts";
-import {
-  type SqlStatement,
-  sql,
-  sqlJoin,
-  sqlLiteral,
-  sqlName,
-} from "#db/sql.ts";
+import { sql, sqlJoin, sqlLiteral, sqlName, type SqlStatement } from "#db/sql.ts";
 import { constant } from "#shared/fp-bind.ts";
 
 type LifecycleExit =

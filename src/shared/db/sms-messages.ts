@@ -28,13 +28,14 @@ export const recordSmsMessage = async (input: {
   listingId: number;
   providerId: string;
 }): Promise<void> => {
-  const { sql, args } = insert("sms_messages", {
+  await execute(
+    insert("sms_messages", {
     attendee_id: input.attendeeId,
     created: nowIso(),
     listing_id: input.listingId,
     provider_id: input.providerId,
-  });
-  await execute(sql, args);
+  }),
+  );
 };
 
 /** Find the message a status event refers to, by the gateway's message id. */

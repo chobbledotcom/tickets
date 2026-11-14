@@ -185,7 +185,7 @@ export const deleteGroup = async (id: InValue) => {
     clearItemEdgesStatement(sitePageItemTargets.of("group")(groupId)),
     clearImageUsesForItemStatement(imageUseTargets.of("group")(groupId)),
     clearExternalLinksStatement(externalLinkTargets.of("group")(groupId)),
-    noteDeleteStatement("group", { args: [groupId], sql: "?" }),
+    noteDeleteStatement("group", sql`${groupId}`),
     sql`DELETE FROM groups WHERE id = ${groupId}`,
   ]);
 };

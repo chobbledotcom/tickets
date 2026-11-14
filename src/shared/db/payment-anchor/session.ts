@@ -5,7 +5,7 @@
  * neither should have to import the other to do it.
  */
 
-import { type SqlStatement, sql, sqlJoin, sqlLiteral } from "#db/sql.ts";
+import { sql, sqlJoin, sqlLiteral, type SqlStatement } from "#db/sql.ts";
 
 const ANCHOR_SESSION_PREFIX = "legacy:";
 

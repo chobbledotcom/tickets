@@ -25,6 +25,7 @@ import type {
   UntaggedPaymentReference,
 } from "#payment/provider-reference.ts";
 import { type RefundState, refundStateOf } from "#payment/refund-state.ts";
+import { sql, type SqlStatement } from "#db/sql.ts";
 
 export type RefundPaymentReferenceSource = {
   id: number;
@@ -123,18 +124,16 @@ type ReferenceProgressByKey = Map<string, ReferenceProgress>;
 
 const queryProcessedReferences = <Row>(
   attendeeIds: readonly number[],
-  select: string,
-  suffix = "",
+  select: SqlStatement,
 ): Promise<Row[]> =>
   querySelectedPaymentReferenceRows<Row>(
     attendeeIds,
     (idSlots) =>
-      `SELECT ${select}
+      sql`SELECT ${select}
            FROM processed_payments
           WHERE attendee_id IN (${idSlots})
             AND payment_reference != ''
-            AND payment_reference_index != ''
-          ${suffix}`,
+            AND payment_reference_index != ''`,
   );
 
 const attendeeIdsOf = (
@@ -148,7 +147,7 @@ export const attendeeIdsWithIndexedPaymentReferences = async (
   attendeeIdSet(
     await queryProcessedReferences<PaymentReferenceAttendeeRow>(
       attendeeIds,
-      "DISTINCT attendee_id",
+      sql`DISTINCT attendee_id`,
     ),
   );
 

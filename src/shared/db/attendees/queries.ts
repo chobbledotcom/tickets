@@ -18,13 +18,7 @@ import {
 } from "#db/attendees/select.ts";
 import { queryOne, rowExists } from "#db/client.ts";
 import { columnFrom, columnMapByIds, nameSource } from "#db/query.ts";
-import {
-  type SqlStatement,
-  sql,
-  sqlCommas,
-  sqlList,
-  sqlLiteral,
-} from "#db/sql.ts";
+import { sql, sqlCommas, sqlList, sqlLiteral, type SqlStatement } from "#db/sql.ts";
 import type { AttendeeSort } from "#shared/attendee-list-controls.ts";
 import type { Attendee } from "#types";
 

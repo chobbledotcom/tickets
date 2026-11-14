@@ -17,7 +17,6 @@ import {
   executeBatch,
   executeUpdate,
   queryAll,
-  rawSql,
   resultRows,
   type TxScope,
   useTransaction,
@@ -68,7 +67,7 @@ export const incrementAttachmentDownloads = async (
 ): Promise<void> => {
   await executeUpdate(
     "listing_attendees",
-    { attachment_downloads: rawSql("attachment_downloads + 1") },
+    { attachment_downloads: sql`attachment_downloads + 1` },
     { attendee_id: attendeeId, listing_id: listingId },
   );
 };

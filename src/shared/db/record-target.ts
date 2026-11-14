@@ -10,7 +10,7 @@
  * This module is pure and never touches the database itself.
  */
 
-import { type SqlSlot, type SqlStatement, sql, sqlName } from "#db/sql.ts";
+import { sql, sqlName, type SqlSlot, type SqlStatement } from "#db/sql.ts";
 import {
   deleteWhere,
   equals,

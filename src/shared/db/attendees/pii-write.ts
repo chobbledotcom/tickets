@@ -4,7 +4,7 @@ import type { UpdateAttendeePIIInput } from "#db/attendee-types.ts";
 import { buildPiiBlob, encryptPiiBlob } from "#db/attendees/pii.ts";
 
 import { settings } from "#db/settings.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
+import { sql, type SqlStatement } from "#db/sql.ts";
 
 export const attendeePiiWriteStatements = async (
   attendeeId: number,

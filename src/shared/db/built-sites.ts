@@ -7,7 +7,7 @@ import type { InValue } from "@libsql/client";
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { queryAll, queryOne } from "#db/client.ts";
 import { retryWrite } from "#db/retry-write.ts";
-import { sql } from "#db/sql.ts";
+import { sql, sqlNames, type SqlStatement } from "#db/sql.ts";
 import {
   cachedTable,
   col,
@@ -56,7 +56,7 @@ const rawBuiltSiteSchema = {
   site_data: col.encrypted(encrypt, decrypt),
 } satisfies TableSchema<BuiltSiteRow>;
 
-const builtSiteSelectColumns = Object.keys(rawBuiltSiteSchema).join(", ");
+const builtSiteSelectColumns = sqlNames(Object.keys(rawBuiltSiteSchema));
 
 const rawBuiltSitesTable = defineTable<BuiltSiteRow, BuiltSiteInput>({
   name: "built_sites",
@@ -98,15 +98,17 @@ const rowToBuiltSite = (row: BuiltSiteRow): BuiltSite => {
 export const builtSites = cachedTable({
   fetchAll: () =>
     queryAndDecrypt(
-      `SELECT ${builtSiteSelectColumns} FROM built_sites ORDER BY created DESC`,
+      sql`SELECT ${builtSiteSelectColumns} FROM built_sites ORDER BY created DESC`,
     ),
   name: "built_sites",
   table: rawBuiltSitesTable,
 });
 
 /** Query and decrypt built site rows */
-const queryAndDecrypt = async (sql: string): Promise<BuiltSite[]> => {
-  const rows = await queryAll<BuiltSiteRow>(sql);
+const queryAndDecrypt = async (
+  statement: SqlStatement,
+): Promise<BuiltSite[]> => {
+  const rows = await queryAll<BuiltSiteRow>(statement);
   const decrypted = await Promise.all(
     rows.map((row) => rawBuiltSitesTable.fromDb(row)),
   );
@@ -205,7 +207,7 @@ const storeBuiltSiteChanges = async (
       ...changes,
       siteDataRevision: existing.siteDataRevision + 1,
     }),
-    { args: [existing.siteDataRevision], sql: "site_data_revision = ?" },
+    sql`site_data_revision = ${existing.siteDataRevision}`,
   );
   return queryOne<BuiltSiteRow>(statement);
 };
@@ -337,7 +339,7 @@ export const getBuiltSiteByRenewalTokenIndex = async (
   tokenIndex: string,
 ): Promise<BuiltSite | null> => {
   const rows = await queryAll<BuiltSiteRow>(
-    sql`SELECT ${TODO_SQL_TEXT(builtSiteSelectColumns)} FROM built_sites WHERE renewal_token_index = ${tokenIndex}`,
+    sql`SELECT ${builtSiteSelectColumns} FROM built_sites WHERE renewal_token_index = ${tokenIndex}`,
   );
   if (rows.length === 0) return null;
   const decrypted = await rawBuiltSitesTable.fromDb(rows[0]!);

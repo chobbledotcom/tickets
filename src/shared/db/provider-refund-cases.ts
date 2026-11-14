@@ -25,6 +25,7 @@ import type {
 import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import { writeProviderRefundCursor } from "#shared/provider-refund-cursor.ts";
 import { isPaymentProvider, type PaymentProviderType } from "#types";
+import { sql } from "#db/sql.ts";
 
 const PAGE_SIZE = 20;
 const CASE_SQL = refundAuthorityWorkSql("charge.");
@@ -206,7 +207,7 @@ export const listProviderRefundCases = async (
     throw new Error("Refund-case boundary must be a positive safe integer");
   }
   const rows = await queryAll<SummaryRow>(
-    `SELECT charge.id,
+    sql`SELECT charge.id,
             charge.provider,
             charge.captured_amount,
             charge.currency,
@@ -216,10 +217,9 @@ export const listProviderRefundCases = async (
             charge.updated_at
        FROM payment_charges AS charge
       WHERE ${CASE_SQL}
-        ${after === undefined ? "" : "AND charge.id > ?"}
+        ${after === undefined ? sql`` : sql`AND charge.id > ${after}`}
       ORDER BY charge.id
-      LIMIT ?`,
-    after === undefined ? [PAGE_SIZE + 1] : [after, PAGE_SIZE + 1],
+      LIMIT ${PAGE_SIZE + 1}`,
   );
   const page = rows.slice(0, PAGE_SIZE).map(providerRefundCaseSummary);
   return {
@@ -233,7 +233,7 @@ export const listProviderRefundCases = async (
 
 const detailRow = (id: number): Promise<StoredProviderRefundCase | null> =>
   queryOnePrimary<StoredProviderRefundCase>(
-    `SELECT charge.id,
+    sql`SELECT charge.id,
             charge.provider,
             charge.provider_reference,
             charge.reference_index,
@@ -247,10 +247,9 @@ const detailRow = (id: number): Promise<StoredProviderRefundCase | null> =>
             charge.refund_revision AS revision,
             charge.updated_at
        FROM payment_charges AS charge
-      WHERE charge.id = ?
+      WHERE charge.id = ${id}
          AND ${CASE_SQL}
       LIMIT 1`,
-    [id],
   );
 
 export const loadProviderRefundCase = async (

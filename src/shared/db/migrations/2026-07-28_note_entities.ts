@@ -1,5 +1,5 @@
 import { queryAllPrimary } from "#db/client.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
+import { sql, type SqlStatement } from "#db/sql.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { bareSchemaMigration } from "./define.ts";
 

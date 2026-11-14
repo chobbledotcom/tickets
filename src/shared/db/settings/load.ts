@@ -7,7 +7,7 @@
  * back on a clean footing.
  */
 
-import { inPlaceholders, queryAll } from "#db/client.ts";
+import { queryAll } from "#db/client.ts";
 import { applyKeys } from "#db/settings/apply.ts";
 import {
   currentVersion,
@@ -28,6 +28,7 @@ import {
   type CacheInvalidation,
   registerTableInvalidation,
 } from "#shared/cache-registry.ts";
+import { sql, sqlList } from "#db/sql.ts";
 
 /**
  * Load only the given config keys, fetching just the ones not already resolved
@@ -46,8 +47,7 @@ export const loadKeys = async (keys: readonly string[]): Promise<void> => {
   if (missing.length === 0) return;
   const rows = await settingsReadRefill.fetch(() =>
     queryAll<{ key: string; value: string }>(
-      `SELECT key, value FROM settings WHERE key IN (${inPlaceholders(missing)})`,
-      missing,
+      sql`SELECT key, value FROM settings WHERE key IN (${sqlList(missing)})`,
     ),
   );
   for (const row of rows) s.values.set(row.key, row.value);

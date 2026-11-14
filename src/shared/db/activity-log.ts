@@ -18,7 +18,7 @@ import {
 } from "#crypto/hybrid.ts";
 
 import type { EnvKeyEncrypted, OwnerKeyEncrypted } from "#crypto/sealed.ts";
-import { ATTENDEE_BY_TOKEN_SQL } from "#db/attendees/create-batch.ts";
+import { attendeeByToken } from "#db/attendees/create-batch.ts";
 import { queryBatch, resultRows, type TxScope } from "#db/client.ts";
 import { idAndCreatedSchema } from "#db/common-schema.ts";
 import { decryptListingWithCount } from "#db/listings/records.ts";
@@ -81,7 +81,6 @@ export const activityLogTable = defineTable<
     message: col.simple<StoredLogMessage>(),
   },
 });
-const ACTIVITY_LOG_COLUMNS = activityLogTable.columns.join(", ");
 
 /** The whole stored entry — what every log read selects. */
 const logEntries = activityLogTable.read;
@@ -165,7 +164,7 @@ export const logActivities = async (
           ...(await sealedLine(activity, publicKey)),
         },
         undefined,
-        ACTIVITY_LOG_COLUMNS,
+        activityLogTable.columns,
       ),
     ),
   );
@@ -230,11 +229,11 @@ export const bookingActivityStatements = (
   activities: readonly BookedActivity[],
   tokenIndex: string,
 ): SqlStatement[] =>
-  activities.map((activity) => ({
-    args: [tokenIndex, activity.listingId, activity.message, nowIso()],
-    sql: `INSERT INTO activity_log (attendee_id, listing_id, message, created)
-          SELECT ${ATTENDEE_BY_TOKEN_SQL}, ?, ?, ?`,
-  }));
+  activities.map(
+    (activity) =>
+      sql`INSERT INTO activity_log (attendee_id, listing_id, message, created)
+          SELECT ${attendeeByToken(tokenIndex)}, ${activity.listingId}, ${activity.message}, ${nowIso()}`,
+  );
 
 /**
  * Decrypt the messages of a batch of raw activity log rows. The session private

@@ -8,7 +8,6 @@
 
 import * as v from "valibot";
 import { queryIdColumn, resultRows, type TxScope } from "#db/client.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
 import { PRICE_TYPE_BASE } from "#db/price-types.ts";
 import { batchOnScope } from "#db/scope-batch.ts";
 import { sql, sqlList } from "#db/sql.ts";

@@ -7,9 +7,8 @@ import {
 } from "#db/external-sources/target.ts";
 import { clearImageUsesForItemStatement, imageUseTargets } from "#db/images.ts";
 import { noteDeleteStatement } from "#db/notes/queries.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
 import { clearItemEdgesStatement } from "#db/site-page-items.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
+import { sql, type SqlStatement } from "#db/sql.ts";
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 
 /** Delete one listing and its listing-owned relationships in one batch. The
@@ -32,7 +31,7 @@ export const deleteListing = async (
     clearExternalLinksStatement(externalLinkTargets.of("listing")(listingId)),
     sql`DELETE FROM activity_log WHERE listing_id = ${listingId}`,
     sql`DELETE FROM listing_prices WHERE listing_id = ${listingId}`,
-    noteDeleteStatement("listing", { args: [listingId], sql: "?" }),
+    noteDeleteStatement("listing", sql`${listingId}`),
     sql`DELETE FROM listings WHERE id = ${listingId}`,
   ];
   await (tx === undefined ? executeBatch(statements) : tx.batch(statements));

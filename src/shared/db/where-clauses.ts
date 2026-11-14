@@ -8,7 +8,7 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { type SqlStatement, sql, sqlJoin, sqlList, sqlName } from "#db/sql.ts";
+import { sql, sqlJoin, sqlList, sqlName, type SqlStatement } from "#db/sql.ts";
 
 /** One filter clause, with the values it binds.
  * `matchesNothing` marks a clause that no row can ever pass, so a reader can

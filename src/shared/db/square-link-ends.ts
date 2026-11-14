@@ -12,9 +12,8 @@
 
 import { encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
-import { execute, inPlaceholders, queryAll } from "#db/client.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
-import { sql } from "#db/sql.ts";
+import { execute, queryAll } from "#db/client.ts";
+import { sql, sqlList } from "#db/sql.ts";
 import {
   LINK_END_CHECKABLE_NODES,
   parseSquareLinkEndState,
@@ -39,8 +38,6 @@ export type DueSquareLinkEnd = {
   readonly state: SquareLinkEndState;
 };
 
-const CHECKABLE_SLOTS = inPlaceholders(LINK_END_CHECKABLE_NODES);
-
 /**
  * The oldest link ends whose attempt time has come, newest-last so a row that
  * keeps failing cannot hold the front of the queue. A `pending` row is due
@@ -53,13 +50,12 @@ export const getDueSquareLinkEnds = async (): Promise<DueSquareLinkEnd[]> => {
     session_index: string;
     state: string;
   }>(
-    `SELECT session_index, sealed_handle, state, next_attempt_at
+    sql`SELECT session_index, sealed_handle, state, next_attempt_at
        FROM square_link_ends
-      WHERE state IN (${CHECKABLE_SLOTS})
-        AND next_attempt_at <= ?
+      WHERE state IN (${sqlList(LINK_END_CHECKABLE_NODES)})
+        AND next_attempt_at <= ${nowIso()}
       ORDER BY next_attempt_at
-      LIMIT ?`,
-    [...LINK_END_CHECKABLE_NODES, nowIso(), SQUARE_LINK_EXPIRY_BATCH],
+      LIMIT ${SQUARE_LINK_EXPIRY_BATCH}`,
   );
   return rows.map((row) => ({
     claimedAt: row.next_attempt_at,
@@ -83,14 +79,12 @@ export const stageSquareLinkEnd = async (
   const sessionIndex = await hmacHash(sessionId);
   const sealedHandle = await encrypt(linkId);
   const state = squareLinkEndMoveTo("unwritten", "checkout_created");
-  const statement = numberedStatement((bind) => {
-    const endsAt = bind(linkEndsAt);
-    return `INSERT INTO square_link_ends
+  await execute(
+    sql`INSERT INTO square_link_ends
                (session_index, state, sealed_handle, link_ends_at,
                 next_attempt_at, created_at)
-             VALUES (${bind(sessionIndex)}, ${bind(state)}, ${bind(sealedHandle)}, ${endsAt}, ${endsAt}, ${bind(nowIso())})`;
-  });
-  await execute(statement);
+             VALUES (${sessionIndex}, ${state}, ${sealedHandle}, ${linkEndsAt}, ${linkEndsAt}, ${nowIso()})`,
+  );
 };
 
 /**
@@ -147,12 +141,9 @@ const deleteSquareLinkEnd = async (
   claimedAt?: string,
 ): Promise<boolean> => {
   const result = await execute(
-    `DELETE FROM square_link_ends
-      WHERE session_index = ? AND state = ?
-        ${claimedAt === undefined ? "" : "AND next_attempt_at = ?"}`,
-    claimedAt === undefined
-      ? [sessionIndex, state]
-      : [sessionIndex, state, claimedAt],
+    sql`DELETE FROM square_link_ends
+      WHERE session_index = ${sessionIndex} AND state = ${state}
+        ${claimedAt === undefined ? sql`` : sql`AND next_attempt_at = ${claimedAt}`}`,
   );
   return result.rowsAffected === 1;
 };

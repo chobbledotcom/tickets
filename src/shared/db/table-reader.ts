@@ -20,7 +20,7 @@ import {
 } from "#db/chosen-columns.ts";
 
 import { type Read, readOneRow, readRows, readStatement } from "#db/read.ts";
-import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
+import { sql, sqlName, type SqlStatement } from "#db/sql.ts";
 import type { TableSchema } from "#db/table.ts";
 import { equals, inList, type WhereClause } from "#db/where-clauses.ts";
 import { once } from "#fp";

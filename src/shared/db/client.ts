@@ -27,15 +27,7 @@ import {
   enforceTransactionRoundTripGuard,
   trackSql,
 } from "#db/query-log.ts";
-import {
-  type SqlSlot,
-  type SqlStatement,
-  sql,
-  sqlCommas,
-  sqlJoin,
-  sqlName,
-  sqlNames,
-} from "#db/sql.ts";
+import { sql, sqlCommas, sqlJoin, sqlName, sqlNames, type SqlSlot, type SqlStatement } from "#db/sql.ts";
 import { isReadSql, sqlOf, writeSqlOf } from "#db/sql-text.ts";
 import { trackedTxBatch, trackedTxExecute } from "#db/tracked-transaction.ts";
 import { lazyRef } from "#fp";

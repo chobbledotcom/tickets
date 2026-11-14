@@ -19,9 +19,8 @@ import {
   withTransaction,
 } from "#db/client.ts";
 import type { NamedSortOrderInput } from "#db/common-schema.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
+import { sql, sqlName, type SqlStatement } from "#db/sql.ts";
 import { col, defineCachedListTable, writeTableRow } from "#db/table.ts";
 import { requiredMapValue } from "#fp";
 import { t } from "#i18n";
@@ -141,7 +140,7 @@ export const attendeeStatuses = defineCachedListTable<
   NamedSortOrderInput & Partial<AttendeeStatusWriteInput>
 >({
   name: "attendee_statuses",
-  orderBy: "sort_order ASC, id ASC",
+  orderBy: sql`sort_order ASC, id ASC`,
   primaryKey: "id",
   schema: {
     id: col.generated<number>(),
@@ -258,12 +257,9 @@ const clearChosenDefaults = async (
   ): Promise<void> => {
     await executeStatusWrite(
       tx,
-      numberedStatement((bind) => {
-        const statusId = bind(id);
-        return `UPDATE attendee_statuses AS status
-               SET ${column} = 0
-             WHERE (${statusId} IS NULL OR status.id != ${statusId}) AND status.${column} = 1`;
-      }),
+      sql`UPDATE attendee_statuses AS status
+               SET ${sqlName(column)} = 0
+             WHERE (${id} IS NULL OR status.id != ${id}) AND ${sqlName(`status.${column}`)} = 1`,
     );
   };
   if (input.isPublicDefault) {
@@ -342,20 +338,20 @@ const reassignNameRows = async (
 /** The one occupancy query, read two ways: through a write transaction (the
  *  delete command's probe) and through the plain client (the delete page's
  *  displayed count). One query, so the two can never disagree on what holds. */
-const HELD_COUNT_SQL =
-  "SELECT COUNT(*) AS held FROM attendees AS attendee WHERE attendee.status_id = ?";
+const heldCountSql = (statusId: number): SqlStatement =>
+  sql`SELECT COUNT(*) AS held FROM attendees AS attendee WHERE attendee.status_id = ${statusId}`;
 
 const heldOf = (rows: readonly { held: number }[]): number => rows[0]!.held;
 
 /** How many attendees sit on a status, read inside a transaction. */
 const heldAttendeeCountTx = async (tx: TxScope, id: number): Promise<number> =>
   heldOf(
-    await txRows<{ held: number }>(tx, { args: [id], sql: HELD_COUNT_SQL }),
+    await txRows<{ held: number }>(tx, heldCountSql(id)),
   );
 
 /** How many attendees sit on a status, read outside a transaction. */
 export const heldAttendeeCount = async (id: number): Promise<number> =>
-  heldOf(await queryAll<{ held: number }>(HELD_COUNT_SQL, [id]));
+  heldOf(await queryAll<{ held: number }>(heldCountSql(id)));
 
 /** Reads rows through an open write transaction, naming the rows. */
 const txRows = async <T>(tx: TxScope, stmt: SqlStatement): Promise<T[]> =>

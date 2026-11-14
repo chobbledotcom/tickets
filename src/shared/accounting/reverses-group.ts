@@ -13,7 +13,7 @@
 
 import { refundEventGroup } from "#accounting/mappers.ts";
 import { executeBatch, queryAllPrimary, queryOnePrimary } from "#db/client.ts";
-import { type SqlStatement, sql, sqlCommas, sqlList } from "#db/sql.ts";
+import { sql, sqlCommas, sqlList, type SqlStatement } from "#db/sql.ts";
 
 /** One (refund group → booking group) attribution. */
 type ReversesPair = readonly [refundGroup: string, bookingGroup: string];

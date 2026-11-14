@@ -8,11 +8,10 @@
 
 import {
   executeBatchWithoutCacheInvalidation,
-  inPlaceholders,
   queryAll,
   queryOnePrimary,
 } from "#db/client.ts";
-import { sql } from "#db/sql.ts";
+import { sql, sqlList } from "#db/sql.ts";
 import { compact, lazyRef } from "#fp";
 import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#shared/build-info.ts";
 import {
@@ -136,8 +135,7 @@ const readSettingMarkers = async (
   keys: string[],
 ): Promise<Map<string, string>> => {
   const rows = await queryAll<{ key: string; value: string }>(
-    `SELECT key, value FROM settings WHERE key IN (${inPlaceholders(keys)})`,
-    keys,
+    sql`SELECT key, value FROM settings WHERE key IN (${sqlList(keys)})`,
   );
   return new Map(rows.map((row) => [row.key, row.value]));
 };

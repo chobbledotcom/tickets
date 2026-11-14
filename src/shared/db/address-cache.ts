@@ -14,7 +14,7 @@ import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { blindIndexFor } from "#crypto/hashing.ts";
 import type { BlindIndex, EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { execute, queryOne } from "#db/client.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
+import { sql, type SqlStatement } from "#db/sql.ts";
 import {
   type AddressMatch,
   AddressMatchSchema,

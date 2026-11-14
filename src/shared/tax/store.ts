@@ -1,8 +1,7 @@
-import type { InValue } from "@libsql/client";
 import { eventGroup } from "#accounting/refs.ts";
 import type { TxScope } from "#db/client.ts";
 import { notNullGuardFailureAt, rowsByIdsPrimary } from "#db/query.ts";
-import type { SqlStatement } from "#db/sql.ts";
+import { sql, sqlNames, type SqlSlot, type SqlStatement } from "#db/sql.ts";
 import { col, defineTable } from "#db/table.ts";
 import { refundTax, type TaxState } from "#shared/tax/transitions.ts";
 import { type TaxAssessment, TaxAssessmentSchema } from "#shared/tax/types.ts";
@@ -56,7 +55,7 @@ export const readTaxAssessments = async (
   const rows = await rowsByIdsPrimary<AssessmentRow>(
     [...attendeeIds],
     (ids) =>
-      `SELECT ${table.columns.join(", ")} FROM booking_tax_assessments WHERE attendee_id IN (${ids}) ORDER BY booking_group, revision`,
+      sql`SELECT ${sqlNames(table.columns)} FROM booking_tax_assessments WHERE attendee_id IN (${ids}) ORDER BY booking_group, revision`,
   );
   return Promise.all(
     rows.map(async (raw) => {
@@ -82,19 +81,15 @@ export const taxRevisionGroup = (
 ): Promise<string> => eventGroup(["tax-assessment", bookingGroup, revision]);
 
 /** A failed condition aborts the whole domain-and-ledger batch. */
-export const taxAssessmentGuard = (condition: SqlStatement): SqlStatement => ({
-  args: condition.args,
-  sql: `INSERT INTO booking_tax_assessments (booking_group) SELECT NULL WHERE NOT (${condition.sql})`,
-});
+export const taxAssessmentGuard = (condition: SqlStatement): SqlStatement =>
+  sql`INSERT INTO booking_tax_assessments (booking_group) SELECT NULL WHERE NOT (${condition})`;
 
 export const taxRevisionFence = (
   bookingGroup: string,
   revision: number,
   attendeeId: number,
-): SqlStatement => ({
-  args: [bookingGroup, attendeeId, revision],
-  sql: "COALESCE((SELECT MAX(assessment.revision) FROM booking_tax_assessments AS assessment WHERE assessment.booking_group = ? AND assessment.attendee_id = ?), -1) = ?",
-});
+): SqlStatement =>
+  sql`COALESCE((SELECT MAX(assessment.revision) FROM booking_tax_assessments AS assessment WHERE assessment.booking_group = ${bookingGroup} AND assessment.attendee_id = ${attendeeId}), -1) = ${revision}`;
 
 export const taxStateInsert = (
   record: StoredTaxAssessment,
@@ -113,8 +108,7 @@ export const initialTaxAssessmentStatement = async (
   bookingGroup: string,
   assessment: TaxAssessment,
   occurredAt: string,
-  attendeeIdSql: string,
-  attendeeIdArgs: readonly InValue[],
+  attendeeId: SqlSlot,
 ): Promise<SqlStatement> => {
   const values = await table.toDbValues({
     assessment,
@@ -124,16 +118,7 @@ export const initialTaxAssessmentStatement = async (
     revision: 0,
     state: "active",
   });
-  return {
-    args: [
-      values.booking_group!,
-      ...attendeeIdArgs,
-      values.event_group!,
-      values.assessment!,
-      values.occurred_at!,
-    ],
-    sql: `INSERT INTO booking_tax_assessments (booking_group, revision, attendee_id, event_group, state, assessment, occurred_at) SELECT ?, 0, ${attendeeIdSql}, ?, 'active', ?, ?`,
-  };
+  return sql`INSERT INTO booking_tax_assessments (booking_group, revision, attendee_id, event_group, state, assessment, occurred_at) SELECT ${values.booking_group!}, 0, ${attendeeId}, ${values.event_group!}, 'active', ${values.assessment!}, ${values.occurred_at!}`;
 };
 
 export const postInitialTaxAssessmentTx = async (
@@ -148,8 +133,7 @@ export const postInitialTaxAssessmentTx = async (
       bookingGroup,
       assessment,
       occurredAt,
-      "?",
-      [attendeeId],
+      attendeeId,
     ),
   );
 };

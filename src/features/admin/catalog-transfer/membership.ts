@@ -7,9 +7,9 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { inPlaceholders, queryAll } from "#db/client.ts";
+import { queryAll } from "#db/client.ts";
 import { PRICE_TYPE_GROUP, PRICE_TYPE_GROUP_DAY } from "#db/price-types.ts";
-import type { SqlStatement } from "#db/sql.ts";
+import { sql, sqlCommas, sqlList, sqlLiteral, sqlName, sqlNames, type SqlStatement } from "#db/sql.ts";
 import { type DayPrices, type GroupListing, parseDayPrices } from "#types";
 
 /** Every group a listing belongs to, with this listing's per-package override
@@ -21,15 +21,14 @@ export const getListingGroupMemberships = (
   listingId: number,
 ): Promise<GroupListing[]> =>
   queryAll<GroupListing>(
-    `SELECT groupListing.group_id, groupListing.listing_id, groupListing.quantity,
+    sql`SELECT groupListing.group_id, groupListing.listing_id, groupListing.quantity,
             (SELECT listingPrice.unit_price FROM listing_prices AS listingPrice
                WHERE listingPrice.listing_id = groupListing.listing_id
-                 AND listingPrice.price_type = '${PRICE_TYPE_GROUP}'
+                 AND listingPrice.price_type = ${sqlLiteral(PRICE_TYPE_GROUP)}
                  AND listingPrice.price_id = CAST(groupListing.group_id AS TEXT))
               AS package_price
        FROM group_listings AS groupListing
-      WHERE groupListing.listing_id = ? ORDER BY groupListing.group_id ASC`,
-    [listingId],
+      WHERE groupListing.listing_id = ${listingId} ORDER BY groupListing.group_id ASC`,
   );
 
 /** One membership to (re)create on catalog import: which listing joins which
@@ -48,13 +47,9 @@ const multiRowInsert = (
   rows: readonly InValue[][],
 ): SqlStatement | null => {
   if (rows.length === 0) return null;
-  const placeholder = `(${inPlaceholders(columns)})`;
-  return {
-    args: rows.flat(),
-    sql: `INSERT INTO ${table} (${columns.join(", ")}) VALUES ${rows
-      .map(() => placeholder)
-      .join(", ")}`,
-  };
+  return sql`INSERT INTO ${sqlName(table)} (${sqlNames(columns)}) VALUES ${sqlCommas(
+    rows.map((row) => sql`(${sqlList(row)})`),
+  )}`;
 };
 
 /** The (at most two) batched statements that create every membership row plus

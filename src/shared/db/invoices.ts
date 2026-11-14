@@ -12,7 +12,7 @@ import type {
 import { generateSecureToken } from "#crypto/utils.ts";
 import { execute } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
+import { sql, type SqlStatement } from "#db/sql.ts";
 import { col, defineTable } from "#db/table.ts";
 import { type RowFilter, readById } from "#db/table-reader.ts";
 import { invoiceBodyKey } from "#shared/invoices/seal.ts";

@@ -4,6 +4,7 @@ import { settings } from "#db/settings.ts";
 import type { CatalogSourceListing } from "#shared/external-order.ts";
 import type { Listing } from "#types";
 import { rawListingsTable } from "./table.ts";
+import { sql, type SqlStatement } from "#db/sql.ts";
 
 export type ListingOfferFlags = Pick<
   Listing,
@@ -54,18 +55,19 @@ export const getListingPickerNames = async (): Promise<
 > => {
   const rows = await listingPickerColumns.many(
     {},
-    { alias: "listing", order: "listing.id ASC" },
+    { alias: "listing", order: sql`listing.id ASC` },
   );
   return new Map(rows.map(({ id, ...listing }) => [id, listing] as const));
 };
 
-const catalogVisibleSql = (hiddenDefault: boolean | undefined): string => {
-  const inheriting =
-    "(listing.use_defaults = 1 AND listing.months_per_unit = 0)";
-  if (hiddenDefault === undefined) return "listing.hidden = 0";
+const catalogVisibleSql = (
+  hiddenDefault: boolean | undefined,
+): SqlStatement => {
+  const inheriting = sql`(listing.use_defaults = 1 AND listing.months_per_unit = 0)`;
+  if (hiddenDefault === undefined) return sql`listing.hidden = 0`;
   return hiddenDefault
-    ? `listing.hidden = 0 AND NOT ${inheriting}`
-    : `(${inheriting} OR listing.hidden = 0)`;
+    ? sql`listing.hidden = 0 AND NOT ${inheriting}`
+    : sql`(${inheriting} OR listing.hidden = 0)`;
 };
 
 /** Read only active, effectively visible listings for the public catalog. */
@@ -75,18 +77,14 @@ export const getCatalogListings = async (): Promise<CatalogSourceListing[]> => {
     {
       alias: "listing",
       where: [
-        { args: [], clause: "listing.active = 1" },
+        { clause: sql`listing.active = 1` },
         // A built-site plan is booked on its own checkout page, so the external
         // order widget — which cannot carry the site-setup flow — never lists it.
-        { args: [], clause: "listing.assign_built_site = 0" },
-        {
-          args: [],
-          clause: catalogVisibleSql(settings.listingDefaults.hidden),
-        },
+        { clause: sql`listing.assign_built_site = 0` },
+        { clause: catalogVisibleSql(settings.listingDefaults.hidden) },
         // A child listing is only offered on its own when it says it can be.
         {
-          args: [],
-          clause: `(listing.bookable_alone = 1 OR listing.id NOT IN (
+          clause: sql`(listing.bookable_alone = 1 OR listing.id NOT IN (
           SELECT listingParent.child_listing_id FROM listing_parents AS listingParent))`,
         },
       ],

@@ -10,7 +10,6 @@ import type { StoredRowOf } from "#db/chosen-columns.ts";
 import {
   deleteWithChildren,
   executeBatch,
-  inPlaceholders,
   queryAll,
   queryAllPrimary,
   queryIdColumn,
@@ -27,7 +26,7 @@ import {
   listingOptionColumns,
 } from "#db/listings/table.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
-import { sql } from "#db/sql.ts";
+import { sql, sqlList, type SqlStatement } from "#db/sql.ts";
 import { col, defineTable } from "#db/table.ts";
 import { txIdSetInTable } from "#db/transaction.ts";
 import {
@@ -245,11 +244,11 @@ export const getAllAttributesWithOptions = async (): Promise<
     ),
   );
 
-const ATTRIBUTE_JOINED_SQL = `SELECT ${ATTRIBUTE_COLS}
+const attributeJoinedSql = (id: number): SqlStatement => sql`SELECT ${ATTRIBUTE_COLS}
        FROM attributes AS attribute
        LEFT JOIN attribute_options AS attributeOption
          ON attributeOption.attribute_id = attribute.id
-      WHERE attribute.id = ?
+      WHERE attribute.id = ${id}
       ORDER BY attributeOption.sort_order, attributeOption.id`;
 
 const attributeFromRows = async (
@@ -260,12 +259,9 @@ const attributeFromRows = async (
 /** The joined attribute rows for one id, on the replica (normal reads) or the
  * primary (read-your-writes after a write). */
 const attributeRows = (id: number, primary: boolean) =>
-  primary
-    ? queryAllPrimary<JoinedAttributeRow>({
-        args: [id],
-        sql: ATTRIBUTE_JOINED_SQL,
-      })
-    : queryAll<JoinedAttributeRow>(ATTRIBUTE_JOINED_SQL, [id]);
+  (primary ? queryAllPrimary : queryAll)<JoinedAttributeRow>(
+    attributeJoinedSql(id),
+  );
 
 const attributeWithOptions =
   (primary: boolean) =>
@@ -300,8 +296,7 @@ export const attributeOptionIdsIn = async (
     unique.length === 0
       ? []
       : await queryIdColumn(
-          `SELECT id FROM attribute_options WHERE id IN (${inPlaceholders(unique)})`,
-          unique,
+          sql`SELECT id FROM attribute_options WHERE id IN (${sqlList(unique)})`,
         ),
   );
   return filter((id: number) => found.has(id))(submitted);
@@ -343,7 +338,7 @@ export const getAttributeListingUse = async (
 ): Promise<AttributeListingUse> => {
   const rows = await queryAll<OptionListingRow>(
     sql`SELECT listingAttribute.option_id,
-            ${TODO_SQL_TEXT(listingOptionColumns.columnsSql("listing"))}
+            ${listingOptionColumns.columnsSql("listing")}
        FROM listing_attribute_options AS listingAttribute
        JOIN attribute_options AS attributeOption
          ON attributeOption.id = listingAttribute.option_id
@@ -382,17 +377,16 @@ const selectedOptionRows = (
   listingIds.length === 0
     ? Promise.resolve([])
     : queryAll<SelectedAttributeRow>(
-        `SELECT listingAttribute.listing_id, ${ATTRIBUTE_COLS}
+        sql`SELECT listingAttribute.listing_id, ${ATTRIBUTE_COLS}
            FROM listing_attribute_options AS listingAttribute
            JOIN attribute_options AS attributeOption
              ON attributeOption.id = listingAttribute.option_id
            JOIN attributes AS attribute
              ON attribute.id = attributeOption.attribute_id
-          WHERE listingAttribute.listing_id IN (${inPlaceholders(listingIds)})
+          WHERE listingAttribute.listing_id IN (${sqlList(listingIds)})
           ORDER BY listingAttribute.listing_id,
                    attribute.sort_order, attribute.id,
                    attributeOption.sort_order, attributeOption.id`,
-        listingIds,
       );
 
 const selectedRowsForListing = groupToMap<

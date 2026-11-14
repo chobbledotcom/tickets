@@ -14,13 +14,7 @@ import {
   getDb,
   type StatementClient,
 } from "#db/client.ts";
-import {
-  type SqlStatement,
-  sql,
-  sqlList,
-  sqlLiteral,
-  sqlName,
-} from "#db/sql.ts";
+import { sql, sqlList, sqlLiteral, sqlName, type SqlStatement } from "#db/sql.ts";
 import { lazyRef } from "#fp";
 import { resetAllCaches } from "#shared/cache-registry.ts";
 import { logDebug } from "#shared/logger.ts";

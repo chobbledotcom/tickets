@@ -8,13 +8,7 @@
  */
 
 import type { LineBooking } from "#db/attendee-types.ts";
-import {
-  type SqlSlot,
-  type SqlStatement,
-  sql,
-  sqlJoin,
-  sqlName,
-} from "#db/sql.ts";
+import { sql, sqlJoin, sqlName, type SqlSlot, type SqlStatement } from "#db/sql.ts";
 import { capacityRuleTypeSql } from "#shared/capacity-rules.ts";
 import { addDays } from "#shared/dates.ts";
 import { DAY_MS } from "#shared/now.ts";

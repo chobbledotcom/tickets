@@ -12,7 +12,6 @@ import { accountBalanceSubquery } from "#accounting/projection-sql.ts";
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import {
   executeBatch,
-  inPlaceholders,
   queryAll,
   queryIdColumn,
   queryOne,
@@ -35,10 +34,9 @@ import {
   type ListsByIds,
   queryAndMap,
 } from "#db/query.ts";
-import { sql } from "#db/sql.ts";
+import { sql, sqlList, sqlNames, type SqlStatement } from "#db/sql.ts";
 import { col } from "#db/table.ts";
 import {
-  clauseArgs,
   equals,
   type WhereClause,
   whereSql,
@@ -117,9 +115,8 @@ export const modifiersTable = defineIdTable<ModifierRow, ModifierInput>(
  * never off the now-dropped column. The trailing `AS total_revenue` names the
  * projected column.
  */
-export const modifierRevenueSubquery = (idExpr: string): string =>
-  `${accountBalanceSubquery("modifier", idExpr)} AS total_revenue`;
-const MODIFIER_COLUMNS = modifiersTable.columns.join(", ");
+const modifierRevenueSubquery = (idExpr: SqlStatement): SqlStatement =>
+  sql`${accountBalanceSubquery("modifier", idExpr)} AS total_revenue`;
 
 /** Decrypt a modifier row and merge the ledger-projected total_revenue its
  * loader selected alongside the stored modifier columns. The row carries
@@ -135,12 +132,12 @@ const mapModifierRow = async (row: Modifier): Promise<Modifier> => ({
  * ledger-projected total_revenue every loader selects. */
 const queryModifiers = queryAndMap<Modifier, Modifier>(mapModifierRow);
 
-const modifierSelect = (parts: WhereClause[] = []): string =>
-  `SELECT ${MODIFIER_COLUMNS}, ${modifierRevenueSubquery("modifiers.id")} FROM modifiers${whereSql(parts)}`;
+const modifierSelect = (parts: WhereClause[]): SqlStatement =>
+  sql`SELECT ${sqlNames(modifiersTable.columns)}, ${modifierRevenueSubquery(sql`modifiers.id`)} FROM modifiers${whereSql(parts)} ORDER BY id ASC`;
 
 /** Read the modifiers the clauses select, decrypted, oldest first. */
 const queryModifiersWhere = (parts: WhereClause[]): Promise<Modifier[]> =>
-  queryModifiers(`${modifierSelect(parts)} ORDER BY id ASC`, clauseArgs(parts));
+  queryModifiers(modifierSelect(parts));
 
 /** Get all modifiers, decrypted, ordered by id. */
 export const getAllModifiers = (): Promise<Modifier[]> =>
@@ -157,12 +154,10 @@ export const getModifierNamesByIds = envNameSource(
  * transaction sees that transaction's own earlier writes. */
 export const getActiveModifiers = async (tx?: TxScope): Promise<Modifier[]> => {
   const parts = equals("active", 1);
-  const sql = `${modifierSelect(parts)} ORDER BY id ASC`;
-  const args = clauseArgs(parts);
   return tx === undefined
     ? queryModifiersWhere(parts)
     : mapParallel(mapModifierRow)(
-        resultRows<Modifier>(await tx.execute({ args, sql })),
+        resultRows<Modifier>(await tx.execute(modifierSelect(parts))),
       );
 };
 
@@ -171,11 +166,7 @@ export const getActiveModifiers = async (tx?: TxScope): Promise<Modifier[]> => {
  * they see the projected figure rather than the dropped column (the bare
  * a plain read of the table returns only the stored {@link ModifierRow}). */
 export const getModifier = async (id: number): Promise<Modifier | null> => {
-  const parts = equals("id", id);
-  const row = await queryOne<Modifier>(
-    modifierSelect(parts),
-    clauseArgs(parts),
-  );
+  const row = await queryOne<Modifier>(modifierSelect(equals("id", id)));
   return row ? mapModifierRow(row) : null;
 };
 
@@ -227,10 +218,10 @@ export const adjustModifierRevenue = inOwnTx(ledgerTx.correct.modifierRevenue);
 export const modifierAggregates = aggregateRepairs<ModifierAggregateField>(
   "modifiers",
   {
-    total_uses:
-      "total_uses = COALESCE((SELECT SUM(quantity) FROM modifier_usages WHERE modifier_id = ?), 0)",
-    usage_count:
-      "usage_count = (SELECT COUNT(*) FROM modifier_usages WHERE modifier_id = ?)",
+    total_uses: (modifierId) =>
+      sql`total_uses = COALESCE((SELECT SUM(quantity) FROM modifier_usages WHERE modifier_id = ${modifierId}), 0)`,
+    usage_count: (modifierId) =>
+      sql`usage_count = (SELECT COUNT(*) FROM modifier_usages WHERE modifier_id = ${modifierId})`,
   },
 );
 
@@ -268,22 +259,20 @@ const appendModifierListingLinks = (
 };
 
 /** Build a batched modifier->listing scope lookup: the returned function runs
- * `buildSql` (given the bound `IN (...)` placeholders) and buckets the rows by
+ * `buildSql` (given the bound id list) and buckets the rows by
  * modifier id. */
 const modifierScopeListingIdsLookup =
-  (buildSql: (placeholders: string) => string) =>
+  (buildSql: (modifierIds: SqlStatement) => SqlStatement) =>
   async (
     modifierIds: number[],
     tx?: TxScope,
   ): Promise<Map<number, number[]>> => {
     if (modifierIds.length === 0) return new Map();
-    const sql = buildSql(inPlaceholders(modifierIds));
+    const statement = buildSql(sqlList(modifierIds));
     const rows =
       tx === undefined
-        ? await queryAll<ModifierListingLinkRow>(sql, modifierIds)
-        : resultRows<ModifierListingLinkRow>(
-            await tx.execute({ args: modifierIds, sql }),
-          );
+        ? await queryAll<ModifierListingLinkRow>(statement)
+        : resultRows<ModifierListingLinkRow>(await tx.execute(statement));
     return appendModifierListingLinks(
       emptyListsFor<number, number>(modifierIds),
       rows,
@@ -293,11 +282,11 @@ const modifierScopeListingIdsLookup =
 /** Listing ids belonging to linked groups for each group-scoped modifier id. */
 export const getModifierGroupListingIdsByModifierId =
   modifierScopeListingIdsLookup(
-    (placeholders) =>
-      `SELECT modifierGroup.modifier_id, groupListing.listing_id AS listing_id
+    (modifierIds) =>
+      sql`SELECT modifierGroup.modifier_id, groupListing.listing_id AS listing_id
        FROM modifier_groups AS modifierGroup
          JOIN group_listings AS groupListing ON groupListing.group_id = modifierGroup.group_id
-       WHERE modifierGroup.modifier_id IN (${placeholders})`,
+       WHERE modifierGroup.modifier_id IN (${modifierIds})`,
   );
 
 /** Answer ids an "answer"-triggered modifier is linked to (for the admin
@@ -333,7 +322,7 @@ export const modifierIdsByAnswerId: ListsByIds = async (answerIds) =>
         "answer",
         "modifier_id",
         answerIds,
-        " AND answer.modifier_id IS NOT NULL",
+        sql` AND answer.modifier_id IS NOT NULL`,
       )),
     ].map(([id, modifierId]) => [id, [modifierId]]),
   );

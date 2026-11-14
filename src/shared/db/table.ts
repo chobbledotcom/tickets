@@ -19,14 +19,7 @@ import {
   type TxScope,
 } from "#db/client.ts";
 import { queryAndMap } from "#db/query.ts";
-import {
-  type SqlStatement,
-  sql,
-  sqlCommas,
-  sqlList,
-  sqlName,
-  sqlNames,
-} from "#db/sql.ts";
+import { sql, sqlCommas, sqlList, sqlName, sqlNames, type SqlStatement } from "#db/sql.ts";
 import { byPrimaryKey, readerFor, type TableReader } from "#db/table-reader.ts";
 import { compact, filter, mapParallel, reduce } from "#fp";
 import {

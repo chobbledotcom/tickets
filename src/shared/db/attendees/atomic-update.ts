@@ -11,7 +11,6 @@
  * attendee an orphan row.
  */
 
-import type { InValue } from "@libsql/client";
 import type {
   DesiredListingLine,
   ListingAttendeeRow,
@@ -27,8 +26,7 @@ import { attendeePiiWriteStatements } from "#db/attendees/pii-write.ts";
 import { LISTING_ATTENDEE_ROW_COLS } from "#db/attendees/queries.ts";
 import { capacityConditionFor } from "#db/capacity.ts";
 import { executeBatchWithResults, queryAll } from "#db/client.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
+import { sql, type SqlStatement } from "#db/sql.ts";
 import { requiredMapValue, unique } from "#fp";
 import type { AttendeeUpdateFailureReason } from "#shared/attendee-failures.ts";
 
@@ -42,11 +40,8 @@ import type { AttendeeUpdateFailureReason } from "#shared/attendee-failures.ts";
  * `batch()` — a zero-row capacity statement is not itself an error and would
  * otherwise commit alongside the unconditional PII/DELETE writes.
  */
-export const CAPACITY_GUARD = {
-  args: [] as [],
-  sql: `INSERT INTO listing_attendees (listing_id, attendee_id, quantity)
-        SELECT NULL, NULL, 1 WHERE changes() = 0`,
-};
+export const CAPACITY_GUARD: SqlStatement = sql`INSERT INTO listing_attendees (listing_id, attendee_id, quantity)
+        SELECT NULL, NULL, 1 WHERE changes() = 0`;
 
 /** A desired final-state line for the atomic update path — the shared
  * DesiredListingLine the listings types module exports. */
@@ -60,11 +55,10 @@ export const CAPACITY_GUARD = {
  * line is later re-activated. Real lines (quantity ≥ 1) keep their state. The
  * fragment carries no bind args, so it slots into both update branches.
  */
-const noQuantityResetColumns = (quantity: number): string =>
+const noQuantityResetColumns = (quantity: number): SqlStatement =>
   quantity === 0
-    ? ", start_agent_id = NULL, end_agent_id = NULL," +
-      " start_time = '', end_time = '', start_done = 0, end_done = 0"
-    : "";
+    ? sql`, start_agent_id = NULL, end_agent_id = NULL, start_time = '', end_time = '', start_done = 0, end_done = 0`
+    : sql``;
 
 /** The booking shape `checkLineCapacity` and `buildCapacityCheckedInsert`
  * expect, projected from a desired line. */
@@ -112,7 +106,7 @@ export const loadExistingLines = async (
   attendeeId: number,
 ): Promise<ExistingLine[]> => {
   const rows = await queryAll<ListingAttendeeRow>(
-    sql`SELECT ${TODO_SQL_TEXT(LISTING_ATTENDEE_ROW_COLS)}
+    sql`SELECT ${LISTING_ATTENDEE_ROW_COLS}
      FROM listing_attendees WHERE attendee_id = ${attendeeId}
      ORDER BY start_at, listing_id`,
   );
@@ -228,27 +222,16 @@ export const updateStatementFor = (
     packageGroupId: number;
   },
   skipCapacityGuard: boolean,
-): SqlStatement =>
-  numberedStatement((bind) => {
-    const quantitySql = bind(line.quantity);
-    const attendeeIdSql = bind(attendeeId);
-    const listingIdSql = bind(line.listingId);
-    const { startAt, endAt } = lineRange(line);
-    // A smaller quantity also lowers the admitted count, so it never exceeds it.
-    const setClause =
-      `UPDATE listing_attendees SET quantity = ${quantitySql}, checked_in = MIN(checked_in, ${quantitySql}), start_at = ${bind(startAt)}, end_at = ${bind(endAt)}${noQuantityResetColumns(
-        line.quantity,
-      )}` +
-      ` WHERE attendee_id = ${attendeeIdSql} AND listing_id = ${listingIdSql} AND start_at IS ${bind(oldPin.startAt)} AND parent_listing_id = ${bind(oldPin.parentListingId)} AND package_group_id = ${bind(oldPin.packageGroupId)}`;
-    if (skipCapacityGuard) return setClause;
-
-    const condition = capacityConditionFor(line, attendeeId)(bind, {
-      excludeAttendeeId: attendeeIdSql,
-      listingId: listingIdSql,
-      quantity: quantitySql,
-    });
-    return `${setClause}\n              AND ${condition}`;
-  });
+): SqlStatement => {
+  const { startAt, endAt } = lineRange(line);
+  // A smaller quantity also lowers the admitted count, so it never exceeds it.
+  const setClause = sql`UPDATE listing_attendees SET quantity = ${line.quantity}, checked_in = MIN(checked_in, ${line.quantity}), start_at = ${startAt}, end_at = ${endAt}${noQuantityResetColumns(
+    line.quantity,
+  )} WHERE attendee_id = ${attendeeId} AND listing_id = ${line.listingId} AND start_at IS ${oldPin.startAt} AND parent_listing_id = ${oldPin.parentListingId} AND package_group_id = ${oldPin.packageGroupId}`;
+  return skipCapacityGuard
+    ? setClause
+    : sql`${setClause} AND ${capacityConditionFor(line, attendeeId)}`;
+};
 
 /** One desired line's write statement, and whether the batch must follow it
  * with CAPACITY_GUARD: a capacity-checked write can affect zero rows, an
@@ -264,7 +247,7 @@ export const lineStatementFor = (
       guarded: !allowOverbook,
       statement: buildCapacityCheckedInsert(
         lineBooking(line),
-        (bind) => bind(attendeeId),
+        attendeeId,
         allowOverbook,
       ),
     };
@@ -359,7 +342,7 @@ export const applyAttendeeAtomicEdit = async (
   // Build one batch that runs as a single ACID transaction. Each
   // capacity-checked write is immediately followed by CAPACITY_GUARD, which
   // aborts (and rolls back) the whole batch if that write affected no rows.
-  const statements: Array<{ args: InValue[]; sql: string }> = [
+  const statements: SqlStatement[] = [
     ...work.before,
     ...(await attendeePiiWriteStatements(attendeeId, pii)),
     ...buildAttendeeEditBatch(

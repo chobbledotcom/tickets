@@ -18,13 +18,7 @@ import {
   resultRows,
   withTransaction,
 } from "#db/client.ts";
-import {
-  type SqlStatement,
-  sql,
-  sqlList,
-  sqlLiteral,
-  sqlName,
-} from "#db/sql.ts";
+import { sql, sqlList, sqlLiteral, sqlName, type SqlStatement } from "#db/sql.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type { Attendee } from "#types";
 

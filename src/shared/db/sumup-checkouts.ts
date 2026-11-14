@@ -61,7 +61,8 @@ export const storeSumupCheckout = async (
       dataKey,
     ),
   ]);
-  const { sql, args } = insert("sumup_checkouts", {
+  await execute(
+    insert("sumup_checkouts", {
     created_at: nowIso(),
     metadata: ciphertext,
     // No checkout id yet, so there is nothing to ask SumUp about and nothing
@@ -71,8 +72,8 @@ export const storeSumupCheckout = async (
     reference_index: referenceIndex,
     sumup_id: "",
     wrapped_key: wrappedKey,
-  });
-  await execute(sql, args);
+    }),
+  );
 };
 
 /** Record the SumUp-side checkout id once creation succeeds, and put the row

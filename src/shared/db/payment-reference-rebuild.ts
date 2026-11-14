@@ -15,7 +15,6 @@ import { provenancePointerStatement } from "#db/attendees/payment-provenance.ts"
 import { decryptPiiBlob } from "#db/attendees/pii.ts";
 import {
   executeBatchWithResults,
-  inPlaceholders,
   queryAllPrimary,
   queryOnePrimary,
 } from "#db/client.ts";
@@ -25,7 +24,7 @@ import {
   type StoredPaymentReference,
   storePaymentReference,
 } from "#db/payment-reference-store.ts";
-import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
+import { sql, sqlList, type SqlStatement } from "#db/sql.ts";
 import { requiredMapValue } from "#fp";
 import {
   type PaymentReference,
@@ -127,12 +126,11 @@ const attendeePiiPaymentIds = async (
   const blobs = await queryAllPrimary<{
     id: number;
     pii_blob: OwnerKeyEncrypted | "";
-  }>({
-    args: attendeeIds,
-    sql: `SELECT id, pii_blob
+  }>(
+    sql`SELECT id, pii_blob
             FROM attendees
-           WHERE id IN (${inPlaceholders(attendeeIds)})`,
-  });
+           WHERE id IN (${sqlList(attendeeIds)})`,
+  );
   return new Map(
     await Promise.all(
       blobs.map(

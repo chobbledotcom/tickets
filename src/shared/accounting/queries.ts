@@ -42,13 +42,7 @@ import {
   resultRows,
   type TxScope,
 } from "#db/client.ts";
-import {
-  type SqlStatement,
-  sql,
-  sqlJoin,
-  sqlList,
-  sqlLiteral,
-} from "#db/sql.ts";
+import { sql, sqlJoin, sqlList, sqlLiteral, type SqlStatement } from "#db/sql.ts";
 import { type WhereClause, whereSql } from "#db/where-clauses.ts";
 import { groupToMap, requiredMapValue, unique, uniqueBy } from "#fp";
 import { accountKey } from "#shared/ledger/account.ts";

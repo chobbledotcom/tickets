@@ -12,6 +12,7 @@ import { queryAll } from "#db/client.ts";
 import { answersTable } from "#db/questions/tables.ts";
 import { mapParallel } from "#fp";
 import { ascending } from "#types";
+import { sql } from "#db/sql.ts";
 
 /** The fields a stored answer row and its API answer share: the booking, the
  *  chosen answer row, and the answer's stored text. */
@@ -48,7 +49,7 @@ export const getQuestionBookings = async (
   privateKey: CryptoKey,
 ): Promise<QuestionBooking[]> => {
   const rows = await queryAll<QuestionBookingRow>(
-    `SELECT attendee_answer.attendee_id,
+    sql`SELECT attendee_answer.attendee_id,
             attendee_answer.answer_id,
             answer.text AS answer_text,
             string.encrypted_text,
@@ -64,9 +65,8 @@ export const getQuestionBookings = async (
          ON answer.id = attendee_answer.answer_id
        LEFT JOIN strings AS string
          ON string.id = attendee_answer.string_id
-      WHERE attendee_answer.question_id = ?
+      WHERE attendee_answer.question_id = ${questionId}
       ORDER BY attendee.created DESC, attendee_answer.attendee_id DESC`,
-    [questionId],
   );
   return mapParallel(async (row: QuestionBookingRow) => {
     // The booking's listing ids read back from the comma-separated

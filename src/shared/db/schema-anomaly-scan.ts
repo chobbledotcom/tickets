@@ -1,8 +1,8 @@
 /** Find stored rows that do not fit their declared machine rules. */
 
-import type { InValue } from "@libsql/client";
 import * as v from "valibot";
-import { inPlaceholders, queryAllPrimary } from "#db/client.ts";
+import { queryAllPrimary } from "#db/client.ts";
+import { sql, sqlList } from "#db/sql.ts";
 import {
   RECOVERY_CHECKABLE_NODES,
   RECOVERY_STATE_WITHOUT_CHECKOUT_ID,
@@ -31,8 +31,6 @@ export type SchemaAnomaly = {
  * site returns none at all. Shared by every bounded operator listing on the
  * system map. */
 export const SCAN_LIMIT = 25;
-const SUMUP_STATE_SLOTS = inPlaceholders(SumupRecoveryStateSchema.options);
-const SUMUP_CHECKABLE_SLOTS = inPlaceholders(RECOVERY_CHECKABLE_NODES);
 
 interface SumupScanRow {
   readonly record_id: string;
@@ -62,11 +60,11 @@ const sumupAnomaly = (row: SumupScanRow): SchemaAnomaly => {
 // checkout-id rule is `recoveryCheckoutIdAgrees`. The clock rule mirrors the
 // declared checkable list bound below. A checkable row carries a well-formed
 // check time. Every other row carries none.
-const SUMUP_SCAN_SQL = `SELECT reference_index AS record_id, recovery_state, sumup_id
+const SUMUP_SCAN = sql`SELECT reference_index AS record_id, recovery_state, sumup_id
           FROM sumup_checkouts
-         WHERE recovery_state NOT IN (${SUMUP_STATE_SLOTS})
-            OR (recovery_state = ?) != (sumup_id = '')
-            OR CASE WHEN recovery_state IN (${SUMUP_CHECKABLE_SLOTS})
+         WHERE recovery_state NOT IN (${sqlList(SumupRecoveryStateSchema.options)})
+            OR (recovery_state = ${RECOVERY_STATE_WITHOUT_CHECKOUT_ID}) != (sumup_id = '')
+            OR CASE WHEN recovery_state IN (${sqlList(RECOVERY_CHECKABLE_NODES)})
                  THEN next_check_at IS NULL OR
                       strftime(
                         '%Y-%m-%dT%H:%M:%fZ', next_check_at, '+0 seconds'
@@ -74,20 +72,10 @@ const SUMUP_SCAN_SQL = `SELECT reference_index AS record_id, recovery_state, sum
                         IS NOT next_check_at
                  ELSE next_check_at IS NOT NULL
                END
-         LIMIT ?`;
-
-const SUMUP_SCAN_ARGS: InValue[] = [
-  ...SumupRecoveryStateSchema.options,
-  RECOVERY_STATE_WITHOUT_CHECKOUT_ID,
-  ...RECOVERY_CHECKABLE_NODES,
-  SCAN_LIMIT,
-];
+         LIMIT ${SCAN_LIMIT}`;
 
 /** Scan the stored rows for every declared impossible state. */
 export const scanSchemaAnomalies = async (): Promise<SchemaAnomaly[]> =>
   (
-    await queryAllPrimary<SumupScanRow>({
-      args: SUMUP_SCAN_ARGS,
-      sql: SUMUP_SCAN_SQL,
-    })
+    await queryAllPrimary<SumupScanRow>(SUMUP_SCAN)
   ).map(sumupAnomaly);

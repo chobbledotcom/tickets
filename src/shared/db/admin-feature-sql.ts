@@ -1,4 +1,4 @@
-import { type SqlStatement, sql, sqlJoin, sqlLiteral } from "#db/sql.ts";
+import { sql, sqlJoin, sqlLiteral, type SqlStatement } from "#db/sql.ts";
 import { ADMIN_FEATURES } from "#shared/admin-features.ts";
 
 /** SQL that accepts only a complete enabled-feature JSON object. */

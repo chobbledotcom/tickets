@@ -14,8 +14,7 @@
 import { type TicketMoveAnswer, ticketCount } from "#booking/ticket-moves.ts";
 import type { ScanOperationGuard } from "#db/attendees/door-moves.ts";
 import {
-  insert,
-  orIgnore,
+  insertOrIgnore,
   queryOne,
   type TxScope,
   update,
@@ -51,15 +50,13 @@ export const claimScanOperation =
   (delivery: ScanDelivery): ((tx: TxScope) => Promise<boolean>) =>
   async (tx) => {
     const result = await tx.execute(
-      orIgnore(
-        insert("processed_scan_operations", {
+      insertOrIgnore("processed_scan_operations", {
           created: nowIso(),
           listing_ids: JSON.stringify([...delivery.listingIds]),
           operation_id: delivery.operationId,
           quantity: delivery.quantity,
           token_hash: delivery.tokenHash,
         }),
-      ),
     );
     return result.rowsAffected > 0;
   };

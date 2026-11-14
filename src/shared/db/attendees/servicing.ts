@@ -26,7 +26,6 @@ import { loadAttendeeRows } from "#db/attendees/queries.ts";
 import { type AttendeeRowFor, getAttendees } from "#db/attendees/select.ts";
 import { queryAll, queryOne, requireOne, withTransaction } from "#db/client.ts";
 import { listingNames } from "#db/listings/records.ts";
-import { numberedListStatement } from "#db/numbered-statement.ts";
 import {
   type AttendeeAnswersBatch,
   getAttendeeAnswersBatch,
@@ -35,7 +34,7 @@ import {
   type AttendeeAnswerSet,
   saveAttendeeAnswers,
 } from "#db/questions/attendee-answers/save.ts";
-import { sql } from "#db/sql.ts";
+import { sql, sqlList, sqlLiteral } from "#db/sql.ts";
 import { requiredMapValue, sumByKey, sumOf, unique } from "#fp";
 import {
   type AttendeeUpdateFailureReason,
@@ -676,15 +675,13 @@ type CostRow = TransferEndpoints & {
   memo?: EnvKeyEncrypted;
 };
 
-const COST_ROW_SELECT =
-  "id, source_type, source_id, dest_type, dest_id, amount";
+const COST_ROW_SELECT = sql`id, source_type, source_id, dest_type, dest_id, amount`;
 
 const getCostRow = async (costId: number): Promise<CostRow | null> =>
   queryOne<CostRow>(
-    `SELECT ${COST_ROW_SELECT}
+    sql`SELECT ${COST_ROW_SELECT}
        FROM transfers
-      WHERE id = ? AND kind = '${KIND.serviceCost}'`,
-    [costId],
+      WHERE id = ${costId} AND kind = ${sqlLiteral(KIND.serviceCost)}`,
   );
 
 const loadCostRow = async (costId: number): Promise<CostRow> => {
@@ -805,16 +802,14 @@ const loadServiceCostLegs = async (
   // records.length; editServiceCost passes the cost's single listing), so no
   // empty-set guard — an empty `IN ()` would be a caller bug, not a silent [].
   const ids = listingIds.map(String);
-  const statement = numberedListStatement(
-    ids,
-    (inIds) =>
-      `SELECT ${COST_ROW_SELECT}, memo FROM transfers
-      WHERE kind = '${KIND.serviceCost}'
+  const inIds = sqlList(ids);
+  const legs = await queryAll<CostRow>(
+    sql`SELECT ${COST_ROW_SELECT}, memo FROM transfers
+      WHERE kind = ${sqlLiteral(KIND.serviceCost)}
         AND ((source_type = 'cost' AND source_id IN (${inIds}))
           OR (dest_type = 'cost' AND dest_id IN (${inIds})))
       ORDER BY id`,
   );
-  const legs = await queryAll<CostRow>(statement);
   return Promise.all(
     legs.map(async (leg): Promise<DecodedCostLeg> => {
       const match = (await decrypt(leg.memo!)).match(EDIT_COST_MEMO);

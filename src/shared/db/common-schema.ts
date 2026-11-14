@@ -1,5 +1,6 @@
 import type { BlindIndex, EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { executeUpdate, resetAggregates } from "#db/client.ts";
+import type { InValue } from "@libsql/client";
 import {
   createKeyedCache,
   type KeyedCache,
@@ -12,6 +13,7 @@ import {
   registerDependencies,
   registerTableInvalidation,
 } from "#shared/cache-registry.ts";
+import { type SqlStatement } from "#db/sql.ts";
 
 // Re-exported for users.ts, which caches a table-less query and so wires the
 // cache by hand rather than through cachedEntityTable.
@@ -70,7 +72,7 @@ export type AggregateRepairs<F extends string> = {
  */
 export const aggregateRepairs = <F extends string>(
   table: string,
-  resetSql: Record<F, string>,
+  resetSql: Record<F, (entityId: InValue) => SqlStatement>,
 ): AggregateRepairs<F> => ({
   reset: (entityId, fields) =>
     resetAggregates(table, entityId, fields, resetSql),

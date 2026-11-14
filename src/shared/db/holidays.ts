@@ -9,6 +9,7 @@ import { col, defineCachedListTable } from "#db/table.ts";
 import { filter } from "#fp";
 import { todayInTz } from "#shared/timezone.ts";
 import type { DateString } from "#shared/validation/date-string.ts";
+import { sql } from "#db/sql.ts";
 
 export interface Holiday {
   end_date: string;
@@ -29,7 +30,7 @@ export type HolidayInput = {
  * auto-invalidate the cache. */
 export const holidays = defineCachedListTable<Holiday, HolidayInput>({
   name: "holidays",
-  orderBy: "start_date ASC",
+  orderBy: sql`start_date ASC`,
   primaryKey: "id",
   schema: {
     ...idAndEncryptedNameSchema(encrypt, decrypt),

@@ -1,4 +1,5 @@
-import { inPlaceholders, queryAll } from "#db/client.ts";
+import { queryAll } from "#db/client.ts";
+import { sql, sqlList, type SqlStatement } from "#db/sql.ts";
 
 /** Maximum payment-reference rows one attendee refund can open. */
 export const MAX_REFUND_REFERENCES_PER_ATTENDEE = 10;
@@ -17,11 +18,11 @@ export type PaymentReferenceRow = {
 /** Run a payment-reference query only for the attendee ids it names. */
 export const querySelectedPaymentReferenceRows = <Row>(
   attendeeIds: readonly number[],
-  statement: (idSlots: string) => string,
+  statement: (attendeeIds: SqlStatement) => SqlStatement,
 ): Promise<Row[]> =>
   attendeeIds.length === 0
     ? Promise.resolve([])
-    : queryAll<Row>(statement(inPlaceholders(attendeeIds)), [...attendeeIds]);
+    : queryAll<Row>(statement(sqlList(attendeeIds)));
 
 /** Load indexed references for only the chosen attendees. One marker row per
  * attendee reports old history without reading its encrypted reference. */
@@ -31,7 +32,7 @@ export const loadSelectedPaymentReferenceRows = (
   querySelectedPaymentReferenceRows<PaymentReferenceRow>(
     attendeeIds,
     (idSlots) =>
-      `WITH selectedPayment AS (
+      sql`WITH selectedPayment AS (
        SELECT attendee_id, payment_session_id, payment_reference,
               payment_reference_index, protected_state,
               charge.refund_state_name, processed_at

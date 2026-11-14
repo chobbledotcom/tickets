@@ -11,13 +11,12 @@ import { blindIndexFor } from "#crypto/hashing.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import {
   deleteByFieldBatch,
-  inPlaceholders,
   queryAll,
   resultRows,
   type TxScope,
   withTransaction,
 } from "#db/client.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
+import { sql, sqlList, sqlNames, type SqlStatement } from "#db/sql.ts";
 import type { RowFilter } from "#db/table-reader.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
@@ -30,7 +29,6 @@ import type {
   ExternalSource,
   ExternalSourceLink,
 } from "./types.ts";
-import { sql } from "#db/sql.ts";
 
 /* jscpd:ignore-end */
 
@@ -85,7 +83,7 @@ export const listExternalSourceLinks = async (
   filter: ExternalLinkFilter,
 ): Promise<ExternalSourceLink[]> =>
   externalSourceLinksTable.read.many(await linkFilter(sourceId, filter), {
-    order: "id ASC",
+    order: sql`id ASC`,
   });
 
 /** Every source's links that name one record, oldest first. The record page
@@ -104,7 +102,7 @@ export type ExternalLinkMatch = {
   source: ExternalSource;
 };
 
-const LINK_COLUMNS = externalSourceLinksTable.columns.join(", ");
+const LINK_COLUMNS = sqlNames(externalSourceLinksTable.columns);
 
 /** The sources under their ids, for pairing a row with the source that holds
  *  it. */
@@ -125,10 +123,9 @@ export const lookupExternalLinks = async (
     sources.map((source) => externalLinkIndex(source.id, externalId)),
   );
   const stored = await queryAll<ExternalSourceLink>(
-    `SELECT ${LINK_COLUMNS} FROM external_source_links
-      WHERE external_id_index IN (${inPlaceholders(indexes)})
+    sql`SELECT ${LINK_COLUMNS} FROM external_source_links
+      WHERE external_id_index IN (${sqlList(indexes)})
       ORDER BY id ASC`,
-    indexes,
   );
   const byId = sourcesById(sources);
   return Promise.all(
@@ -167,24 +164,22 @@ type LinkWriteFacts = { duplicate: number; target_missing: number };
 const linkWriteFactsStatement = (
   input: ExternalLinkInput,
   excludingId: number,
-) =>
-  numberedStatement((bind) => {
-    const target = externalLinkTargets.of(input.linkType)(input.linkId);
-    const duplicate =
-      input.externalIdIndex === null
-        ? "0"
-        : `EXISTS (
+): SqlStatement => {
+  const duplicate =
+    input.externalIdIndex === null
+      ? sql`0`
+      : sql`EXISTS (
         SELECT 1 FROM external_source_links AS existingLink
-         WHERE existingLink.source_id = ${bind(input.sourceId)}
-           AND existingLink.external_id_index = ${bind(input.externalIdIndex)}
-           AND existingLink.link_type = ${bind(input.linkType)}
-           AND existingLink.link_id = ${bind(input.linkId)}
-           AND existingLink.id != ${bind(excludingId)}
+         WHERE existingLink.source_id = ${input.sourceId}
+           AND existingLink.external_id_index = ${input.externalIdIndex}
+           AND existingLink.link_type = ${input.linkType}
+           AND existingLink.link_id = ${input.linkId}
+           AND existingLink.id != ${excludingId}
       )`;
-    return `SELECT
+  return sql`SELECT
       ${duplicate} AS duplicate,
-      NOT ${externalLinkTargets.existsSql(target.kind, bind(target.id))} AS target_missing`;
-  });
+      NOT ${externalLinkTargets.existsSql(input.linkType, input.linkId)} AS target_missing`;
+};
 
 /** The columns to store for a link write, or the reason it cannot be stored.
  *  The reason names a missing target record, or an external id the source
@@ -259,7 +254,7 @@ export const createExternalSourceLink = (
     const statement = await externalSourceLinksTable.insertStatement(
       input,
       undefined,
-      "created, id",
+      ["created", "id"],
     );
     const row = requireValue(
       resultRows<{ created: string; id: number }>(

@@ -16,13 +16,12 @@ import { base64ToBase64Url } from "#crypto/utils.ts";
 import {
   execute,
   executeBatch,
-  inPlaceholders,
   queryAll,
   queryOne,
 } from "#db/client.ts";
 import { queryColumnSet } from "#db/query.ts";
 import { settings } from "#db/settings.ts";
-import { sql } from "#db/sql.ts";
+import { sql, sqlList, type SqlStatement } from "#db/sql.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { namedError } from "#shared/named-error.ts";
@@ -74,8 +73,8 @@ export const fromContactHashParam = (param: string): string => {
   return base64 + "=".repeat((4 - (base64.length % 4)) % 4);
 };
 
-const run = async (sql: string, args: (string | number)[]): Promise<void> => {
-  await execute(sql, args);
+const run = async (statement: SqlStatement): Promise<void> => {
+  await execute(statement);
 };
 
 export const isHashUnsubscribed = async (hash: string): Promise<boolean> => {
@@ -87,19 +86,17 @@ export const isHashUnsubscribed = async (hash: string): Promise<boolean> => {
 
 export const unsubscribeHash = (hash: string): Promise<void> =>
   run(
-    "INSERT INTO contact_preferences (contact_hash, unsubscribed, last_activity) VALUES (?, 1, ?) ON CONFLICT(contact_hash) DO UPDATE SET unsubscribed = 1, last_activity = excluded.last_activity",
-    [hash, nowMs()],
+    sql`INSERT INTO contact_preferences (contact_hash, unsubscribed, last_activity) VALUES (${hash}, 1, ${nowMs()}) ON CONFLICT(contact_hash) DO UPDATE SET unsubscribed = 1, last_activity = excluded.last_activity`,
   );
 
 export const resubscribeHash = (hash: string): Promise<void> =>
   run(
-    "UPDATE contact_preferences SET unsubscribed = 0, last_activity = ? WHERE contact_hash = ?",
-    [nowMs(), hash],
+    sql`UPDATE contact_preferences SET unsubscribed = 0, last_activity = ${nowMs()} WHERE contact_hash = ${hash}`,
   );
 
 export const getUnsubscribedHashSet = (): Promise<Set<string>> =>
   queryColumnSet(
-    "SELECT contact_hash FROM contact_preferences WHERE unsubscribed = 1",
+    sql`SELECT contact_hash FROM contact_preferences WHERE unsubscribed = 1`,
     "contact_hash",
   );
 
@@ -197,9 +194,8 @@ const loadStatsBlobs = async (
     contact_hash: string;
     stats_blob: OwnerKeyEncrypted | "";
   }>(
-    `SELECT contact_hash, stats_blob FROM contact_preferences
-     WHERE contact_hash IN (${inPlaceholders(hashes)})`,
-    hashes,
+    sql`SELECT contact_hash, stats_blob FROM contact_preferences
+     WHERE contact_hash IN (${sqlList(hashes)})`,
   );
   return new Map(rows.map((r) => [r.contact_hash, r.stats_blob]));
 };
@@ -320,7 +316,7 @@ const saveStats = async (
   hash: string,
   stats: ContactStats,
   lastActivity = nowMs(),
-): Promise<{ args: (string | number)[]; sql: string }> =>
+): Promise<SqlStatement> =>
   sql`INSERT INTO contact_preferences (contact_hash, stats_blob, last_activity) VALUES (${hash}, ${await encryptWithOwnerKey(
     statsJson.write(statsToBlob(stats), "contact_preferences.stats_blob"),
     settings.publicKey,

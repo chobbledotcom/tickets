@@ -11,13 +11,7 @@ import type { ResultSet } from "@libsql/client";
 import { ATTENDEE } from "#accounting/accounts.ts";
 import { type BatchExecutor, resultRows } from "#db/client.ts";
 import { type Read, readStatement } from "#db/read.ts";
-import {
-  type SqlSlot,
-  type SqlStatement,
-  sql,
-  sqlCommas,
-  sqlNames,
-} from "#db/sql.ts";
+import { sql, sqlCommas, sqlNames, type SqlSlot, type SqlStatement } from "#db/sql.ts";
 import { equals, matchesNoRows } from "#db/where-clauses.ts";
 import { account } from "#shared/ledger/account.ts";
 import type {

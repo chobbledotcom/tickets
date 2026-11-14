@@ -37,7 +37,7 @@ import {
   unclaimedSlugCondition,
 } from "#db/slug-registry.ts";
 import type { SluggedContentInput } from "#db/slugged-content-input.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
+import { sql, type SqlStatement } from "#db/sql.ts";
 import { col } from "#db/table.ts";
 import { readById, readBySlugIndex } from "#db/table-reader.ts";
 import { fieldById, mapParallel } from "#fp";
@@ -113,7 +113,7 @@ export const newsSlugBase = (created: string, name: string): string =>
 // nothing decrypted. Request-scoped and auto-cleared on any news_posts write.
 const existenceStatement: SqlStatement = sql`SELECT id FROM news_posts LIMIT 1`;
 const existenceCache = requestCache(() =>
-  queryAll<{ id: number }>(existenceStatement.sql),
+  queryAll<{ id: number }>(existenceStatement),
 );
 registerTableInvalidation(["news_posts"], existenceCache.invalidate);
 
@@ -146,9 +146,9 @@ export const getNewsPostSummaries = (): Promise<NewsPostSummary[]> =>
  * that shows pictures. */
 export const getNewsPostCards = async (): Promise<NewsPostCard[]> => {
   const rows = await readRows<SealedCardRow>({
-    columns: `${newsSummaryColumns.columnsSql("news_post")}, ${imageFilenameSubqueries("news", "news_post.id")}`,
-    from: "news_posts AS news_post",
-    order: "news_post.created DESC, news_post.id DESC",
+    columns: sql`${newsSummaryColumns.columnsSql("news_post")}, ${imageFilenameSubqueries("news", sql`news_post.id`)}`,
+    from: sql`news_posts AS news_post`,
+    order: sql`news_post.created DESC, news_post.id DESC`,
   });
   return mapParallel(async (row: SealedCardRow) => ({
     ...(await newsSummaryColumns.read(row)),
@@ -203,10 +203,7 @@ export const createNewsPost = async (
         const condition = unclaimedNewsSlugCondition(await hmacHash(slug));
         return (
           resultRows(
-            await tx.execute({
-              args: condition.args,
-              sql: `SELECT 1 WHERE NOT (${condition.sql})`,
-            }),
+            await tx.execute(sql`SELECT 1 WHERE NOT (${condition})`),
           ).length > 0
         );
       },

@@ -49,6 +49,7 @@ import { nowIso } from "#shared/now.ts";
 import { uploadRaw } from "#shared/storage.ts";
 import { getSubrequestRemaining } from "#shared/subrequest-budget.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
+import { sql, sqlName } from "#db/sql.ts";
 
 /** Thrown by restoreFromSql after resetDatabase() runs but a later step fails,
  *  so callers can distinguish a post-reset failure (DB wiped) from a pre-reset
@@ -138,20 +139,20 @@ const restoreBatches = ([first, ...statements]: [
 const removeDeferredSchemaWork = async (): Promise<void> => {
   const drops = [
     ...RESTORE_DEFERRED_INDEXES.map(
-      ({ name }) => `DROP INDEX IF EXISTS ${name}`,
+      ({ name }) => sql`DROP INDEX IF EXISTS ${sqlName(name)}`,
     ),
     ...RESTORE_DEFERRED_TRIGGERS.map(
-      ({ name }) => `DROP TRIGGER IF EXISTS ${name}`,
+      ({ name }) => sql`DROP TRIGGER IF EXISTS ${sqlName(name)}`,
     ),
   ];
-  await executeBatch(noArgStatements(drops));
+  await executeBatch(drops);
 };
 
 /** Rebuild deferred indexes one transaction at a time so indexing a populated
  * database cannot turn into one transaction that exceeds libSQL's deadline. */
 const rebuildDeferredSchemaWork = async (): Promise<void> => {
-  for (const { sql } of RESTORE_DEFERRED_INDEXES) {
-    await executeBatch(noArgStatements([sql]));
+  for (const { sql: statement } of RESTORE_DEFERRED_INDEXES) {
+    await executeBatch([statement]);
   }
   for (const trigger of RESTORE_DEFERRED_TRIGGERS) {
     await execute(trigger.sql);

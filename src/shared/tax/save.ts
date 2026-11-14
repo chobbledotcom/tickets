@@ -4,7 +4,7 @@ import { eventGroup } from "#accounting/refs.ts";
 import { insertStatement, selectTransfersScope } from "#accounting/rows.ts";
 import { queryBatchPrimary, queryOnePrimary } from "#db/client.ts";
 import { parseTaxPolicy } from "#db/settings/tax.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
+import { sql, type SqlStatement } from "#db/sql.ts";
 import { CLAIM_MIRROR } from "#payment/admit-move.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
@@ -86,10 +86,11 @@ export const buildTaxSavePlan = async (
   attendeeId: number,
 ): Promise<TaxSavePlan> => {
   const stored = await readTaxAssessments([attendeeId]);
-  const legs = await selectTransfersScope(queryBatchPrimary, (bind) => {
-    const id = bind(String(attendeeId));
-    return `(source_type = 'attendee' AND source_id = ${id}) OR (dest_type = 'attendee' AND dest_id = ${id})`;
-  });
+  const accountId = String(attendeeId);
+  const legs = await selectTransfersScope(
+    queryBatchPrimary,
+    sql`(source_type = 'attendee' AND source_id = ${accountId}) OR (dest_type = 'attendee' AND dest_id = ${accountId})`,
+  );
   const setting = await queryOnePrimary<{ value: string }>(
     sql`SELECT value FROM settings WHERE key = 'tax'`,
   );
@@ -113,29 +114,18 @@ export const buildTaxSavePlan = async (
     ),
   ]);
   const before: SqlStatement[] = [
-    taxAssessmentGuard({
-      args: [rawPolicy],
-      sql: "COALESCE((SELECT value FROM settings WHERE key = 'tax'), '') = ?",
-    }),
-    taxAssessmentGuard({
-      args: [
-        highWater,
-        legs.length,
-        String(attendeeId),
-        -beforeBalance,
-        String(attendeeId),
-        String(attendeeId),
-      ],
-      sql: `(SELECT COALESCE(MAX(transfer.id), 0) = ? AND COUNT(*) = ? AND COALESCE(SUM(CASE WHEN transfer.dest_type = 'attendee' AND transfer.dest_id = ? THEN transfer.amount ELSE -transfer.amount END), 0) = ? FROM transfers AS transfer WHERE (transfer.source_type = 'attendee' AND transfer.source_id = ?) OR (transfer.dest_type = 'attendee' AND transfer.dest_id = ?))`,
-    }),
-    taxAssessmentGuard({
-      args: [attendeeId, stored.length],
-      sql: "(SELECT COUNT(*) FROM booking_tax_assessments AS assessment WHERE assessment.attendee_id = ?) = ?",
-    }),
-    taxAssessmentGuard({
-      args: [attendeeId, CLAIM_MIRROR],
-      sql: "NOT EXISTS (SELECT 1 FROM processed_payments AS payment WHERE payment.attendee_id = ? AND payment.protected_state = ?)",
-    }),
+    taxAssessmentGuard(
+      sql`COALESCE((SELECT value FROM settings WHERE key = 'tax'), '') = ${rawPolicy}`,
+    ),
+    taxAssessmentGuard(
+      sql`(SELECT COALESCE(MAX(transfer.id), 0) = ${highWater} AND COUNT(*) = ${legs.length} AND COALESCE(SUM(CASE WHEN transfer.dest_type = 'attendee' AND transfer.dest_id = ${accountId} THEN transfer.amount ELSE -transfer.amount END), 0) = ${-beforeBalance} FROM transfers AS transfer WHERE (transfer.source_type = 'attendee' AND transfer.source_id = ${accountId}) OR (transfer.dest_type = 'attendee' AND transfer.dest_id = ${accountId}))`,
+    ),
+    taxAssessmentGuard(
+      sql`(SELECT COUNT(*) FROM booking_tax_assessments AS assessment WHERE assessment.attendee_id = ${attendeeId}) = ${stored.length}`,
+    ),
+    taxAssessmentGuard(
+      sql`NOT EXISTS (SELECT 1 FROM processed_payments AS payment WHERE payment.attendee_id = ${attendeeId} AND payment.protected_state = ${CLAIM_MIRROR})`,
+    ),
   ];
   const after: SqlStatement[] = [];
   const occurredAt = nowIso();

@@ -12,7 +12,6 @@
  */
 
 import { queryIdColumn, resultRows, type TxScope } from "#db/client.ts";
-import { idListStatement } from "#db/id-list-statement.ts";
 import { type LinkTableSide, selfLinkTableSides } from "#db/link-table.ts";
 import { guardEdgeWriteTx } from "#db/listing-edge-write.ts";
 import { requireCurrentRelationshipRules } from "#db/listing-relationship-validation.ts";
@@ -36,6 +35,7 @@ import {
   packageChildEdgeError,
 } from "#shared/package-membership.ts";
 import type { ListingWithCount } from "#types";
+import { sql, sqlList, type SqlStatement } from "#db/sql.ts";
 
 /** Both directions of the edge table. Parents and children are both listings,
  * so one read answers "who are my children" and "whose child am I" together —
@@ -113,13 +113,12 @@ export const listingIdsWithLinks = (
  * set for empty input (no query). An optional transaction reads the same rows
  * through it, so a would-be reachability guard inside a write transaction sees
  * that transaction's own earlier writes. */
-const nonStandaloneChildStatement = idListStatement(
-  (ids) => `SELECT DISTINCT listingParent.child_listing_id AS id
+const nonStandaloneChildStatement = (ids: readonly number[]): SqlStatement =>
+  sql`SELECT DISTINCT listingParent.child_listing_id AS id
           FROM listing_parents AS listingParent
           JOIN listings AS listing ON listing.id = listingParent.child_listing_id
-         WHERE listingParent.child_listing_id IN (${ids})
-           AND listing.bookable_alone = 0`,
-);
+         WHERE listingParent.child_listing_id IN (${sqlList(ids)})
+           AND listing.bookable_alone = 0`;
 
 export const getNonStandaloneChildIds = async (
   ids: readonly number[],

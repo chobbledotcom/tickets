@@ -1,28 +1,19 @@
 import * as v from "valibot";
 import { resultRows, withTransaction } from "#db/client.ts";
-import {
-  numberedStatement,
-  type SqlParameter,
-} from "#db/numbered-statement.ts";
 import { settingsVersionIncrement } from "#db/settings/cache.ts";
 import { publishStoredSetting } from "#db/settings/raw-writes.ts";
 import type { StringSettingKey } from "#db/settings/snapshot.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
+import { sql, type SqlStatement } from "#db/sql.ts";
 
 const StoredJsonSchema = v.object({ value: v.string() });
 
 const parseStoredJson = (row: unknown): string =>
   v.parse(StoredJsonSchema, row).value;
 
-/** The condition a feature write keeps true on both passes. The builder binds
- * the clause's own values, and both passes read the same tokens, so a value
- * the clause needs twice is bound once. */
-export type WhenClause = (bind: SqlParameter) => string;
-
 export interface BooleanJsonField {
-  statement: (when: WhenClause) => SqlStatement;
+  statement: (when: SqlStatement) => SqlStatement;
   write: (
-    when: WhenClause,
+    when: SqlStatement,
     validate: (stored: string) => void,
   ) => Promise<string | null>;
 }
@@ -36,21 +27,19 @@ export const booleanJsonField = (
   value: boolean,
 ): BooleanJsonField => {
   const jsonType = value ? "true" : "false";
-  const statement = (when: WhenClause): SqlStatement =>
-    numberedStatement((bind) => {
-      const clause = when(bind);
-      return `INSERT INTO settings (key, value)
-        SELECT ${bind(key)}, ${bind(initialValue)}
-        WHERE ${clause}
+  /** `when` is the condition the write keeps true on both passes. */
+  const statement = (when: SqlStatement): SqlStatement =>
+    sql`INSERT INTO settings (key, value)
+        SELECT ${key}, ${initialValue}
+        WHERE ${when}
         ON CONFLICT(key) DO UPDATE SET
-          value = json_set(settings.value, ${bind(path)}, json(${bind(jsonType)}))
-        WHERE (${clause})
-          AND json_type(settings.value, ${bind(path)}) IS NOT ${bind(jsonType)}
+          value = json_set(settings.value, ${path}, json(${jsonType}))
+        WHERE (${when})
+          AND json_type(settings.value, ${path}) IS NOT ${jsonType}
         RETURNING value`;
-    });
 
   const write = async (
-    when: WhenClause,
+    when: SqlStatement,
     validate: (stored: string) => void,
   ): Promise<string | null> => {
     // jscpd:ignore-start — the shared shape is withTransaction's own

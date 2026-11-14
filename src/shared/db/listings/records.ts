@@ -37,6 +37,7 @@ import {
   listingOptionColumns,
   rawListingsTable,
 } from "./table.ts";
+import { sql } from "#db/sql.ts";
 
 const decryptStoredListingWithCount = async (
   row: ListingRecordRow,
@@ -173,7 +174,7 @@ export const getListingsById = async (): Promise<
 
 /** Read the narrow listing option projection used by item pickers. */
 export const getAllListingOptions = (): Promise<ListingOption[]> =>
-  listingOptionColumns.many({}, { alias: "listing", order: "listing.id ASC" });
+  listingOptionColumns.many({}, { alias: "listing", order: sql`listing.id ASC` });
 
 /** Read and decrypt listing names without loading full records. */
 export const listingNames = envNameSource("listings", "listing");
@@ -206,8 +207,9 @@ export const getListingWithCount = (
 export const getListingWithCountPrimary = async (
   id: number,
 ): Promise<ListingWithCount | null> => {
-  const { sql, args } = listingReader.statement({ where: { ids: [id] } });
-  const row = await queryOnePrimary<ListingRecordRow>(sql, args);
+  const row = await queryOnePrimary<ListingRecordRow>(
+    listingReader.statement({ where: { ids: [id] } }),
+  );
   return row === null ? null : decryptListingWithCount(row);
 };
 

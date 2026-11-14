@@ -15,14 +15,13 @@ import { settingsVersionIncrement } from "#db/settings/cache.ts";
 import {
   type BooleanJsonField,
   booleanJsonField,
-  type WhenClause,
 } from "#db/settings/json-field.ts";
 import {
   publishStoredSetting,
   syncStoredSetting,
 } from "#db/settings/raw-writes.ts";
 import { setSnapshotField } from "#db/settings/snapshot.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
+import { sql, sqlCommas, sqlLiteral, type SqlStatement } from "#db/sql.ts";
 import { range } from "#fp";
 import {
   ADMIN_FEATURES,
@@ -50,14 +49,9 @@ const FEATURES_BY_KEY = Object.fromEntries(
   ADMIN_FEATURES.map((feature) => [feature.key, feature]),
 ) as AdminFeaturesByKey;
 
-const requireSettingCondition = (
-  conditionSql: string,
-  conditionArgs: readonly string[] = [],
-): SqlStatement => ({
-  args: ["__required_setting_condition__", ...conditionArgs],
-  sql: `INSERT INTO settings (key, value)
-        SELECT ?, NULL WHERE NOT (${conditionSql})`,
-});
+const requireSettingCondition = (condition: SqlStatement): SqlStatement =>
+  sql`INSERT INTO settings (key, value)
+        SELECT ${"__required_setting_condition__"}, NULL WHERE NOT (${condition})`;
 
 const initialFeatureValue = (key: AdminFeatureKey, enabled: boolean): string =>
   serializeEnabledFeatures(
@@ -75,8 +69,8 @@ const featureField = (
     enabled,
   );
 
-const usageJsonEntry = (feature: AdminFeatureDefinition): string =>
-  `'${feature.key}', json(IIF(${feature.inUseSql ?? "FALSE"}, 'true', 'false'))`;
+const usageJsonEntry = (feature: AdminFeatureDefinition): SqlStatement =>
+  sql`${sqlLiteral(feature.key)}, json(IIF(${feature.inUseSql ?? sql`FALSE`}, 'true', 'false'))`;
 
 /** Read every feature's usage in one database round trip. Money deliberately
  * has no usage rule: its switch only controls display and is always changeable. */
@@ -84,7 +78,7 @@ export const getAdminFeatureUsage = async (): Promise<EnabledFeatures> => {
   const row = v.parse(
     StoredValueSchema,
     await queryOne<unknown>(
-      sql`SELECT json_object(${TODO_SQL_TEXT(ADMIN_FEATURES.map(usageJsonEntry).join(", "))}) AS value`,
+      sql`SELECT json_object(${sqlCommas(ADMIN_FEATURES.map(usageJsonEntry))}) AS value`,
     ),
   );
   return parseEnabledFeatures(row.value);
@@ -93,7 +87,7 @@ export const getAdminFeatureUsage = async (): Promise<EnabledFeatures> => {
 const featureWriteStatement = (
   key: AdminFeatureKey,
   enabled: boolean,
-  when: WhenClause,
+  when: SqlStatement,
 ): SqlStatement => featureField(key, enabled).statement(when);
 
 const syncFeatureSetting = (stored: string): void =>
@@ -105,7 +99,7 @@ const writeAdminFeatureEnabled = async (
 ): Promise<boolean> => {
   const inUseSql = FEATURES_BY_KEY[key].inUseSql;
   const stored = await featureField(key, enabled).write(
-    !enabled && inUseSql ? () => `NOT (${inUseSql})` : () => "TRUE",
+    !enabled && inUseSql ? sql`NOT (${inUseSql})` : sql`TRUE`,
     parseEnabledFeatures,
   );
   if (stored === null) return false;
@@ -141,23 +135,15 @@ const prepareLogisticsDefault = async (): Promise<PreparedLogisticsDefault> => {
   };
 };
 
-const listingDefaultsUnchanged = (
-  current: string | null,
-): { args: string[]; sql: string } =>
+const listingDefaultsUnchanged = (current: string | null): SqlStatement =>
   current === null
-    ? {
-        args: [],
-        sql: `NOT EXISTS (
-          SELECT 1 FROM settings WHERE key = '${CONFIG_KEYS.LISTING_DEFAULTS}'
-        )`,
-      }
-    : {
-        args: [current],
-        sql: `EXISTS (
+    ? sql`NOT EXISTS (
+          SELECT 1 FROM settings WHERE key = ${sqlLiteral(CONFIG_KEYS.LISTING_DEFAULTS)}
+        )`
+    : sql`EXISTS (
           SELECT 1 FROM settings
-          WHERE key = '${CONFIG_KEYS.LISTING_DEFAULTS}' AND value = ?
-        )`,
-      };
+          WHERE key = ${sqlLiteral(CONFIG_KEYS.LISTING_DEFAULTS)} AND value = ${current}
+        )`;
 
 const logisticsDisableStatements = (
   prepared: PreparedLogisticsDefault,
@@ -170,14 +156,14 @@ const logisticsDisableStatements = (
     );
   }
   statements.push(
-    requireSettingCondition(`NOT (${FEATURES_BY_KEY.logistics.inUseSql})`),
+    requireSettingCondition(sql`NOT (${FEATURES_BY_KEY.logistics.inUseSql})`),
   );
-  statements.push(featureWriteStatement("logistics", false, () => "TRUE"));
+  statements.push(featureWriteStatement("logistics", false, sql`TRUE`));
   statements.push(
-    requireSettingCondition(`EXISTS (
+    requireSettingCondition(sql`EXISTS (
       SELECT 1 FROM settings
-      WHERE key = '${CONFIG_KEYS.ENABLED_FEATURES}'
-        AND ${enabledFeaturesAreValidSql("value")}
+      WHERE key = ${sqlLiteral(CONFIG_KEYS.ENABLED_FEATURES)}
+        AND ${enabledFeaturesAreValidSql(sql`value`)}
     )`),
   );
   const featureResultIndex = statements.length;

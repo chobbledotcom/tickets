@@ -12,7 +12,7 @@ import {
   refundedForBooking,
 } from "#db/attendees/select.ts";
 import { queryAll } from "#db/client.ts";
-import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
+import { sql, sqlList, type SqlStatement } from "#db/sql.ts";
 import { unique } from "#fp";
 
 /** Read the pairs' ticket lines. A no-quantity (quantity 0) line and a

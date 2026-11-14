@@ -12,7 +12,7 @@ import {
   queryOne,
 } from "#db/client.ts";
 import { createPrimaryCacheRefill } from "#db/primary-reads.ts";
-import { sql } from "#db/sql.ts";
+import { sql, sqlNames, type SqlStatement } from "#db/sql.ts";
 import type { UserAuthFields } from "#db/users.ts";
 import { ttlCache } from "#fp";
 import {
@@ -89,8 +89,7 @@ export const createSession = async (
     user_id: userId,
     wrapped_data_key: wrappedDataKey,
   };
-  const { sql, args } = insert("sessions", session);
-  await execute(sql, args);
+  await execute(insert("sessions", session));
   // Pre-cache the new session using token hash as key
   cacheSession(tokenHash, session);
 };
@@ -104,11 +103,11 @@ const SESSION_COLUMN_NAMES = [
   "user_id",
 ] as const;
 
-const SESSION_COLUMNS = SESSION_COLUMN_NAMES.join(", ");
+const SESSION_COLUMNS = sqlNames(SESSION_COLUMN_NAMES);
 
 /** The same columns read through a join, where the table carries an alias. */
-const sessionColumnsOn = (alias: string): string =>
-  SESSION_COLUMN_NAMES.map((column) => `${alias}.${column}`).join(", ");
+const sessionColumnsOn = (alias: string): SqlStatement =>
+  sqlNames(SESSION_COLUMN_NAMES.map((column) => `${alias}.${column}`));
 
 /**
  * Get a session by token (with 10s TTL cache)
@@ -124,7 +123,7 @@ export const getSession = async (token: string): Promise<Session | null> => {
   // Query DB and cache result (token column contains the hash)
   const session = await primaryRefill.fetch(() =>
     queryOne<Session>(
-      sql`SELECT ${TODO_SQL_TEXT(SESSION_COLUMNS)} FROM sessions WHERE token = ${tokenHash}`,
+      sql`SELECT ${SESSION_COLUMNS} FROM sessions WHERE token = ${tokenHash}`,
     ),
   );
   cacheSession(tokenHash, session);
@@ -174,7 +173,7 @@ export const getSessionWithUser = async (
   const tokenHash = await hashSessionToken(token);
   const row = await primaryRefill.fetch(() =>
     queryOne<SessionUserRow>(
-      sql`SELECT ${TODO_SQL_TEXT(sessionColumnsOn("session"))},
+      sql`SELECT ${sessionColumnsOn("session")},
               adminUser.id AS user_row_id, adminUser.admin_level
          FROM sessions AS session
          LEFT JOIN users AS adminUser ON adminUser.id = session.user_id
@@ -211,7 +210,7 @@ export const deleteAllSessions = async (): Promise<void> => {
  */
 export const getAllSessions = (): Promise<Session[]> =>
   queryAll<Session>(
-    sql`SELECT ${TODO_SQL_TEXT(SESSION_COLUMNS)} FROM sessions ORDER BY expires DESC`,
+    sql`SELECT ${SESSION_COLUMNS} FROM sessions ORDER BY expires DESC`,
   );
 
 /**

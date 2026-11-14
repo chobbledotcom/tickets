@@ -40,6 +40,7 @@ import type { ParamsRoute } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { AttendeeMergePanel } from "#templates/admin/attendees/merge-panel.tsx";
 import type { Attendee, ContactInfo } from "#types";
+import { sql } from "#db/sql.ts";
 
 /** Load and decrypt a target attendee by ID for merge operations */
 const loadMergeTarget = async (
@@ -88,9 +89,8 @@ const loadAttendeeBookings = (
   attendeeId: number,
 ): Promise<ListingAttendeeRow[]> =>
   queryAll<ListingAttendeeRow>(
-    `SELECT ${LISTING_ATTENDEE_ROW_COLS}
-     FROM listing_attendees WHERE attendee_id = ? ORDER BY start_at, listing_id`,
-    [attendeeId],
+    sql`SELECT ${LISTING_ATTENDEE_ROW_COLS}
+     FROM listing_attendees WHERE attendee_id = ${attendeeId} ORDER BY start_at, listing_id`,
   );
 
 /** Collect unique listing IDs from two sets of bookings */

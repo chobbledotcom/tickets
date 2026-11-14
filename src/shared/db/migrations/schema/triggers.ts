@@ -6,7 +6,7 @@ import {
   ticketCountPredicateFor,
 } from "./listing-aggregates.ts";
 import type { Trigger } from "./types.ts";
-import { type SqlStatement, sql, sqlName, sqlNames } from "#db/sql.ts";
+import { sql, sqlName, sqlNames, type SqlStatement } from "#db/sql.ts";
 
 /**
  * The per-row delta a listing-aggregate trigger adds to or subtracts from

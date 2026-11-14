@@ -1,11 +1,10 @@
 /** Durable refund identity attached to an attendee. */
 
-import { numberedStatement } from "#db/numbered-statement.ts";
 import {
   paymentRowStateValues,
   type RowSettlement,
 } from "#db/payment-claim.ts";
-import type { SqlStatement } from "#db/sql.ts";
+import { sql, sqlList, type SqlStatement } from "#db/sql.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import { EMPTY_ROW_STATE } from "#payment/row-state.ts";
 import { checkingClaimFor, grantClaim } from "#payment/row-transitions.ts";
@@ -64,26 +63,19 @@ export const prepareClaimedAttendeePaymentAnchor = async (
         heldSince,
         rows: new Map([[sessionId, { claim: "release", phase: "checking" }]]),
       },
-      statement: numberedStatement((bind) => {
-        const attendee = bind(attendeeId);
-        const storedIndex = bind(stored.index);
-        const matchingIndexSlots = matchingIndexes
-          .map((index) => (index === stored.index ? storedIndex : bind(index)))
-          .join(", ");
-        return `INSERT INTO processed_payments
+      statement: sql`INSERT INTO processed_payments
             (payment_session_id, attendee_id, processed_at, payment_reference,
              payment_reference_index, failure_data, protected_state)
-          SELECT ${bind(sessionId)}, ${attendee}, ${bind(heldSince)}, ${bind(stored.encrypted)},
-                 ${storedIndex}, ${bind(state.failureData)}, ${bind(state.protectedState)}
+          SELECT ${sessionId}, ${attendeeId}, ${heldSince}, ${stored.encrypted},
+                 ${stored.index}, ${state.failureData}, ${state.protectedState}
            WHERE EXISTS (
-             SELECT 1 FROM attendees AS attendee WHERE attendee.id = ${attendee}
+             SELECT 1 FROM attendees AS attendee WHERE attendee.id = ${attendeeId}
            )
               AND NOT EXISTS (
                 SELECT 1 FROM processed_payments AS payment
-                WHERE payment.attendee_id = ${attendee}
-                  AND payment.payment_reference_index IN (${matchingIndexSlots})
-              )`;
-      }),
+                WHERE payment.attendee_id = ${attendeeId}
+                  AND payment.payment_reference_index IN (${sqlList(matchingIndexes)})
+              )`,
     };
   };
   return {

@@ -10,13 +10,7 @@
  * This module is pure and never touches the database.
  */
 
-import {
-  type SqlStatement,
-  sql,
-  sqlCommas,
-  sqlLiteral,
-  sqlName,
-} from "#db/sql.ts";
+import { sql, sqlCommas, sqlLiteral, sqlName, type SqlStatement } from "#db/sql.ts";
 import { type ListingType, ListingTypeSchema } from "#types";
 
 /** The two listing facts that decide which capacity checks apply. */

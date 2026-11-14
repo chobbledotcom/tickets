@@ -14,14 +14,8 @@ import {
   type DeliveryBookingRef,
   mapBookingRows,
 } from "#db/logistics.ts";
-import {
-  boundSlots,
-  numberedListStatement,
-  numberedStatement,
-  type SqlParameter,
-} from "#db/numbered-statement.ts";
 import { columnFrom } from "#db/query.ts";
-import { sql, sqlList } from "#db/sql.ts";
+import { sql, sqlCommas, sqlList, sqlName, type SqlStatement } from "#db/sql.ts";
 import { compact, flatMap, uniqueBy } from "#fp";
 
 /** Which leg of a delivery a run-sheet entry represents. */
@@ -76,41 +70,16 @@ const buildLeg = (
 /** The alias every run-sheet read walks `listing_attendees` rows under. */
 const SOURCE = "listingAttendee";
 
-const runSheetLegWhere = (agentSlots: string, dateSlots: string): string => {
+/** Keeps the rows whose drop-off or collection leg one of the agents owns on
+ *  one of the dates. Callers must return early on an empty list. */
+const runSheetLegWhere = (agentIds: number[], dates: string[]): SqlStatement => {
   const column = columnFrom(SOURCE);
-  return `((${column("start_agent_id")} IN (${agentSlots}) AND DATE(${column("start_at")}) IN (${dateSlots}))
-        OR (${column("end_agent_id")} IN (${agentSlots}) AND DATE(${column("end_at")}, '-1 day') IN (${dateSlots})))
+  const agents = sqlList(agentIds);
+  const days = sqlList(dates);
+  return sql`((${column("start_agent_id")} IN (${agents}) AND DATE(${column("start_at")}) IN (${days}))
+        OR (${column("end_agent_id")} IN (${agents}) AND DATE(${column("end_at")}, '-1 day') IN (${days})))
         AND ${column("quantity")} > 0`;
 };
-
-/** Runs a run-sheet read for the given agents and dates: both id lists bind
- *  once, and the writer receives the slot lists its SQL reads wherever it
- *  needs them again. Callers must return early on empty id lists. */
-const queryRunSheetLegs = async <Row>(
-  agentIds: number[],
-  dates: string[],
-  write: (
-    slots: { agentSlots: string; dateSlots: string },
-    bind: SqlParameter,
-  ) => string,
-): Promise<Row[]> => {
-  const { sql, args } = numberedStatement((bind) =>
-    write(
-      {
-        agentSlots: boundSlots(bind, agentIds),
-        dateSlots: boundSlots(bind, dates),
-      },
-      bind,
-    ),
-  );
-  return queryAll<Row>(sql, args);
-};
-
-/** The run-sheet rows' source: every listing_attendees row whose drop-off or
- *  collection leg one of the bound agents owns on one of the bound dates. */
-const runSheetRowsWhere = (agentSlots: string, dateSlots: string): string =>
-  `FROM listing_attendees AS ${SOURCE}
-      WHERE ${runSheetLegWhere(agentSlots, dateSlots)}`;
 
 /** Collapse the identical legs a multi-path booking yields (a listing booked
  *  * through a package beside its standalone or second-package row is several
@@ -156,14 +125,12 @@ export const getAgentRunSheet = async (
   dates: string[],
 ): Promise<AgentRunLeg[]> => {
   if (agentIds.length === 0 || dates.length === 0) return [];
-  const rows = await queryRunSheetLegs<RunSheetRow>(
-    agentIds,
-    dates,
-    ({ agentSlots, dateSlots }) =>
-      `SELECT attendee_id, listing_id, start_agent_id, end_agent_id,
+  const rows = await queryAll<RunSheetRow>(
+    sql`SELECT attendee_id, listing_id, start_agent_id, end_agent_id,
             start_time, end_time, start_done, end_done,
             DATE(start_at) AS start_date, DATE(end_at, '-1 day') AS end_date
-     ${runSheetRowsWhere(agentSlots, dateSlots)}`,
+     FROM listing_attendees AS ${sqlName(SOURCE)}
+      WHERE ${runSheetLegWhere(agentIds, dates)}`,
   );
   const agentSet = new Set(agentIds);
   const dateSet = new Set(dates);
@@ -239,35 +206,33 @@ export const getAgentRunSheetBookings = async (
   if (bookings.length === 0) return [];
 
   const uniqueBookings = uniqueBy(bookingRefKey)(bookings);
-  // The agent and date lists bind first; the VALUES pairs bind through the
-  // same binder, so no list is bound twice.
-  const rows = await queryRunSheetLegs<{
+  const source = columnFrom(SOURCE);
+  const bookingPairs = sqlCommas(
+    uniqueBookings.map(
+      (booking) => sql`(${booking.attendeeId}, ${booking.listingId})`,
+    ),
+  );
+  const rows = await queryAll<{
     attendee_id: number;
     date: string | null;
     listing_id: number;
     parent_listing_id: number;
     package_group_id: number;
-  }>(agentIds, dates, ({ agentSlots, dateSlots }, bind) => {
-    const bookingPairs = uniqueBookings
-      .map(
-        (booking) =>
-          `(${bind(booking.attendeeId)}, ${bind(booking.listingId)})`,
-      )
-      .join(", ");
-    return `WITH requested_booking(attendee_id, listing_id) AS (
+  }>(
+    sql`WITH requested_booking(attendee_id, listing_id) AS (
        VALUES ${bookingPairs}
      )
-     SELECT DISTINCT ${SOURCE}.attendee_id,
-                      ${SOURCE}.listing_id,
-                      DATE(${SOURCE}.start_at) AS date,
-                      ${SOURCE}.parent_listing_id,
-                      ${SOURCE}.package_group_id
-     FROM listing_attendees AS ${SOURCE}
+     SELECT DISTINCT ${source("attendee_id")},
+                      ${source("listing_id")},
+                      DATE(${source("start_at")}) AS date,
+                      ${source("parent_listing_id")},
+                      ${source("package_group_id")}
+     FROM listing_attendees AS ${sqlName(SOURCE)}
      JOIN requested_booking AS requestedBooking
-       ON requestedBooking.attendee_id = ${SOURCE}.attendee_id
-      AND requestedBooking.listing_id = ${SOURCE}.listing_id
-     WHERE ${runSheetLegWhere(agentSlots, dateSlots)}`;
-  });
+       ON requestedBooking.attendee_id = ${source("attendee_id")}
+      AND requestedBooking.listing_id = ${source("listing_id")}
+     WHERE ${runSheetLegWhere(agentIds, dates)}`,
+  );
   return mapBookingRows(rows, (row) => ({
     date: row.date,
     packageGroupId: row.package_group_id,
@@ -286,21 +251,18 @@ export const getAgentRunSheetDates = async (
   agentIds: number[],
 ): Promise<string[]> => {
   if (agentIds.length === 0) return [];
-  // Both UNION arms read the same agents, so the list is bound once.
-  const { sql, args } = numberedListStatement(
-    agentIds,
+  const agents = sqlList(agentIds);
+  const rows = await queryAll<{ date: string }>(
     // quantity > 0 mirrors the run-sheet query: a no-quantity sentinel line is
     // never an operational delivery, so it must not offer a date to open.
-    (agentSlots) =>
-      `SELECT DATE(start_at) AS date FROM listing_attendees
-        WHERE start_agent_id IN (${agentSlots})
+    sql`SELECT DATE(start_at) AS date FROM listing_attendees
+        WHERE start_agent_id IN (${agents})
           AND start_at IS NOT NULL AND quantity > 0
       UNION
       SELECT DATE(end_at, '-1 day') AS date FROM listing_attendees
-        WHERE end_agent_id IN (${agentSlots})
+        WHERE end_agent_id IN (${agents})
           AND end_at IS NOT NULL AND quantity > 0`,
   );
-  const rows = await queryAll<{ date: string }>(sql, args);
   return rows.map((row) => row.date).sort((a, b) => a.localeCompare(b));
 };
 
@@ -320,20 +282,21 @@ export const setLegDone = async (
   agentIds: number[],
 ): Promise<boolean> => {
   if (agentIds.length === 0) return false;
-  const doneColumn = kind === "start" ? "start_done" : "end_done";
-  const agentColumn = kind === "start" ? "start_agent_id" : "end_agent_id";
+  const doneColumn = kind === "start" ? sql`start_done` : sql`end_done`;
+  const agentColumn =
+    kind === "start" ? sql`start_agent_id` : sql`end_agent_id`;
   const dateExpression =
-    kind === "start" ? "DATE(start_at)" : "DATE(end_at, '-1 day')";
+    kind === "start" ? sql`DATE(start_at)` : sql`DATE(end_at, '-1 day')`;
   const result = await execute(
     // The date predicate scopes the update to the leg on the claimed run-sheet
     // day: a listing+attendee can have several rows across dates, so without it
     // a mark would flip legs on days the user isn't viewing.
     // quantity > 0: refuse to complete a leg on a no-quantity line, so a stale or
     // crafted delivery form can't mark a hidden ghost's drop-off/collection done.
-    sql`UPDATE listing_attendees SET ${TODO_SQL_TEXT(doneColumn)} = ${done ? 1 : 0}
+    sql`UPDATE listing_attendees SET ${doneColumn} = ${done ? 1 : 0}
           WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId}
-            AND ${TODO_SQL_TEXT(dateExpression)} = ${date}
-            AND ${TODO_SQL_TEXT(agentColumn)} IN (${sqlList(agentIds)})
+            AND ${dateExpression} = ${date}
+            AND ${agentColumn} IN (${sqlList(agentIds)})
             AND quantity > 0`,
   );
   return result.rowsAffected > 0;

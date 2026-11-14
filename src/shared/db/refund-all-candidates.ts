@@ -12,7 +12,7 @@ import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import { refundedForBooking } from "#db/attendees/select.ts";
 import { queryAllPrimary, queryBatchPrimary, resultRows } from "#db/client.ts";
 import { paymentAnchorSessionCondition } from "#db/payment-anchor/session.ts";
-import { type SqlStatement, sql, sqlLiteral } from "#db/sql.ts";
+import { sql, sqlLiteral, type SqlStatement } from "#db/sql.ts";
 import { rowWorkMirrorSql } from "#payment/admit-move.ts";
 import { refundAuthorityWorkSql } from "#payment/refund-authority-lifecycle.ts";
 import { requireValue } from "#shared/required-value.ts";

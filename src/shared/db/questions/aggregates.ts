@@ -35,10 +35,10 @@ const answerSelectionTotalsWith =
   async (questionIds: number[]): Promise<Map<number, number>> => {
     const rows = await readRows<{ id: number; times_selected: number }>(
       questionIds,
-      (placeholders) =>
-        `SELECT answer.id, answer.times_selected
+      (questionIdList) =>
+        sql`SELECT answer.id, answer.times_selected
          FROM answers AS answer
-        WHERE answer.question_id IN (${placeholders})`,
+        WHERE answer.question_id IN (${questionIdList})`,
     );
     return new Map(
       map(
@@ -78,8 +78,8 @@ export const getAnswerAggregateRecalculation = async (
 export const answerAggregates = aggregateRepairs<AnswerAggregateField>(
   "answers",
   {
-    times_selected:
-      "times_selected = COALESCE((SELECT COUNT(*) FROM attendee_answers WHERE answer_id = ?), 0)",
+    times_selected: (answerId) =>
+      sql`times_selected = COALESCE((SELECT COUNT(*) FROM attendee_answers WHERE answer_id = ${answerId}), 0)`,
   },
 );
 

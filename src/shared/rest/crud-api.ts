@@ -4,7 +4,6 @@
  * a JSON body → camelCase input conversion.
  */
 
-import type { InValue } from "@libsql/client";
 import { logActivity } from "#db/activity-log.ts";
 import { byPrimaryKey } from "#db/table-reader.ts";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
@@ -38,6 +37,7 @@ import {
 import { writeEntityOrValidationResponse } from "#shared/rest/write-error.ts";
 import { okResult, type Result } from "#shared/result.ts";
 import type { AdminSession } from "#types";
+import { type SqlStatement } from "#db/sql.ts";
 
 /** Strip internal keys from a row before sending in the response */
 const stripRow = <Row>(row: Row, keys: string[]): Record<string, unknown> => {
@@ -229,7 +229,7 @@ export const defineCrudApi = <
    * rejection, or the logged JSON response on success. */
   const checkAndWrite = async (
     inputs: WriteInputs,
-    getStatement: () => Promise<{ args: InValue[]; sql: string }>,
+    getStatement: () => Promise<SqlStatement>,
     plainWrite: () => Promise<Row>,
     existingId: number | null,
     action: string,

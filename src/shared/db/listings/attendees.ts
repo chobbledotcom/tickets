@@ -10,7 +10,7 @@ import {
 } from "#db/attendees/select.ts";
 import { dateToRange } from "#db/capacity.ts";
 import { queryAll, queryBatch, resultRows } from "#db/client.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
+import { sql, type SqlStatement } from "#db/sql.ts";
 import { flatMap, sortStrings, unique } from "#fp";
 import { coveredDays } from "#shared/dates.ts";
 import type { Attendee, ListingWithCount } from "#types";

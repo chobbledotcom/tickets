@@ -16,7 +16,7 @@ import {
   getOrCreateBucket,
 } from "#db/capacity-batch.ts";
 import { queryBatchPrimary, resultRows } from "#db/client.ts";
-import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
+import { sql, sqlList, type SqlStatement } from "#db/sql.ts";
 import { requiredMapValue, unique } from "#fp";
 import { MAX_FORM_LINES } from "#shared/limits.ts";
 import type { ListingCapacityRow } from "./types.ts";

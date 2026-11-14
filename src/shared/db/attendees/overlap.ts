@@ -10,6 +10,7 @@
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import { queryAll } from "#db/client.ts";
 import type { AssignmentRow } from "#db/logistics.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 
 /** One overlapping booking line: the logistics leg columns plus when and
  * how many. */
@@ -31,17 +32,16 @@ export const getOverlappingBookings = (
   endAt: string,
 ): Promise<OverlappingBooking[]> =>
   queryAll<OverlappingBooking>(
-    `SELECT listingAttendee.attendee_id, listingAttendee.listing_id,
+    sql`SELECT listingAttendee.attendee_id, listingAttendee.listing_id,
             listingAttendee.start_at, listingAttendee.end_at,
             listingAttendee.quantity,
             listingAttendee.start_agent_id, listingAttendee.end_agent_id,
             listingAttendee.start_time, listingAttendee.end_time
      FROM listing_attendees AS listingAttendee
      JOIN attendees AS attendee ON attendee.id = listingAttendee.attendee_id
-     WHERE listingAttendee.attendee_id != ?
-       AND attendee.kind = '${ATTENDEE_KIND}'
+     WHERE listingAttendee.attendee_id != ${attendeeId}
+       AND attendee.kind = ${sqlLiteral(ATTENDEE_KIND)}
        AND listingAttendee.quantity > 0
-       AND listingAttendee.start_at < ? AND listingAttendee.end_at > ?
+       AND listingAttendee.start_at < ${endAt} AND listingAttendee.end_at > ${startAt}
      ORDER BY listingAttendee.start_at, listingAttendee.attendee_id, listingAttendee.listing_id`,
-    [attendeeId, endAt, startAt],
   );

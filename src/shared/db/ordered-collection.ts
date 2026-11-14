@@ -6,14 +6,7 @@ import {
   useTransaction,
   writeRowInTransaction,
 } from "#db/client.ts";
-import {
-  type SqlStatement,
-  sql,
-  sqlJoin,
-  sqlLiteral,
-  sqlName,
-  sqlNames,
-} from "#db/sql.ts";
+import { sql, sqlJoin, sqlLiteral, sqlName, sqlNames, type SqlStatement } from "#db/sql.ts";
 
 type Columns = string | readonly [string, ...string[]];
 type ColumnValues<Names extends Columns> = Names extends string

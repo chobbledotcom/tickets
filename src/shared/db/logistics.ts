@@ -128,7 +128,7 @@ export const getLogisticsAssignmentsForAttendees = async (
   const rows = await rowsByIds<AssignmentRow>(
     attendeeIds,
     (ids) =>
-      `SELECT attendee_id, listing_id, start_agent_id, end_agent_id, start_time, end_time
+      sql`SELECT attendee_id, listing_id, start_agent_id, end_agent_id, start_time, end_time
      FROM listing_attendees WHERE attendee_id IN (${ids})`,
   );
   return mapBookingRows(rows, rowToAssignment);
