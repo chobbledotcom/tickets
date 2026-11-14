@@ -214,6 +214,9 @@ describeWithEnv("db > table utilities", { db: true }, () => {
 
     const rows = await testTable.read.many();
     expect(rows.length).toBe(2);
+    expect((await testTable.read.every()()).map((row) => row.id)).toEqual(
+      rows.map((row) => row.id),
+    );
   });
 
   test("defineTable reads one id and a list of them the same way", async () => {

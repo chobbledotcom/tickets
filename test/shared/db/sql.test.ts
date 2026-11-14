@@ -4,6 +4,7 @@ import {
   type SqlSlot,
   sql,
   sqlCommas,
+  sqlExists,
   sqlFromDump,
   sqlInsertRowsOrNull,
   sqlJoin,
@@ -300,6 +301,21 @@ describe("sqlInsertRowsOrNull", () => {
   test("refuses a column that is not a name", () => {
     expect(() => sqlInsertRowsOrNull("listings", ["id) --"], [[1]])).toThrow(
       'Not a valid SQL name: "id) --"',
+    );
+  });
+});
+
+describe("sqlExists", () => {
+  test("probes the named table under the condition, with its values bound", () => {
+    expect(rendered(sqlExists("transfers", sql`kind = ${"sale"}`))).toEqual({
+      args: ["sale"],
+      sql: "EXISTS(SELECT 1 FROM transfers WHERE kind = ?1)",
+    });
+  });
+
+  test("refuses a table that is not a name", () => {
+    expect(() => sqlExists("transfers; --", sql`1 = 1`)).toThrow(
+      'Not a valid SQL name: "transfers; --"',
     );
   });
 });

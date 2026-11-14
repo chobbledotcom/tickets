@@ -208,7 +208,7 @@ export const sqlInsertRowsOrNull = (
 
 /** Whether a row of `table` satisfies `where`: an EXISTS probe. */
 export const sqlExists = (table: string, where: SqlStatement): SqlStatement =>
-  sql`EXISTS (SELECT 1 FROM ${sqlName(table)} WHERE ${where})`;
+  sql`EXISTS(SELECT 1 FROM ${sqlName(table)} WHERE ${where})`;
 
 /** A constant written into the SQL text as a literal. For schema text, which
  * takes no bound arguments, and for a constant that a partial index names. */

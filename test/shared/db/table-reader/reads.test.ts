@@ -28,6 +28,21 @@ describeWithEnv("db > table reader > reads", { db: true }, () => {
     );
   });
 
+  test("every reads all rows when called, in the order it was given", async () => {
+    const readAll = listingOptionColumns.every({
+      alias: "listing",
+      order: sql`listing.id DESC`,
+    });
+    const first = await createTestListing({ name: "Alpha" });
+    const second = await createTestListing({ name: "Beta" });
+
+    // The read runs at the call, so rows written after it was built appear.
+    expect((await readAll()).map(({ id }) => id)).toEqual([
+      second.id,
+      first.id,
+    ]);
+  });
+
   test("keeps only the rows the clauses select", async () => {
     const wanted = await createTestListing({ name: "Wanted" });
     await createTestListing({ name: "Unwanted" });
