@@ -7,6 +7,7 @@ import {
 } from "#scripts/check-jscpd-baselines/base-scan.ts";
 import {
   addedCloneCount,
+  cloneTotalRose,
   RATCHET_GUIDE,
   riseFindings,
 } from "#scripts/check-jscpd-baselines/baseline-ratchet.ts";
@@ -143,6 +144,18 @@ describe("addedCloneCount", () => {
   });
 });
 
+describe("cloneTotalRose", () => {
+  test("is true only when the baseline accepts more clones than the base", () => {
+    const rose = (head: Record<string, number>): boolean =>
+      cloneTotalRose(BASELINE, baseline(head), baseline({ kept: 2 }));
+    expect([
+      rose({ kept: 2, new: 1 }),
+      rose({ kept: 1, new: 1 }),
+      rose({ new: 1 }),
+    ]).toEqual([true, false, false]);
+  });
+});
+
 describe("riseFindings with re-pairs", () => {
   const RAISED =
     `${BASELINE}:kept [raised-clone]: holds 2 clone(s), up from 1 — merge ` +
@@ -276,6 +289,31 @@ describe("ratchetExit with re-pairs", () => {
       "git diff --name-only base123 failed: fatal: bad revision",
     );
   });
+
+  for (const [name, head, code, lines] of [
+    [
+      "passes a reshaped clone with no scan when the total does not rise",
+      { new: 1 },
+      0,
+      ["No jscpd baseline holds a clone above the merge base on origin/main."],
+    ],
+    [
+      "runs no scan for a raised count with no added clone",
+      { kept: 2 },
+      1,
+      [
+        `${BASELINE}:kept [raised-clone]: holds 2 clone(s), up from 1 — merge ` +
+          "the duplicated code, then lower the baseline with --update",
+        `\n1 jscpd-baseline issue(s) found. See ${RATCHET_GUIDE}.`,
+      ],
+    ],
+  ] as const) {
+    test(name, async () => {
+      expect(await runRatchet({ head })).toBe(code);
+      expect(scanned).toEqual([]);
+      expect(output.lines).toEqual([...lines]);
+    });
+  }
 
   test("runs no scan when the baseline adds no clone", async () => {
     expect(await runRatchet({ head: { kept: 1 } })).toBe(0);

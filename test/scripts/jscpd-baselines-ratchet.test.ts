@@ -172,22 +172,25 @@ describe("fingerprintCounts", () => {
 });
 
 describe("riseFindings", () => {
-  test("passes when every clone count matches the base", () => {
-    expect(
-      riseFindings(BASELINE, baseline({ aaa: 1 }), baseline({ aaa: 1 }), 0),
-    ).toEqual([]);
-  });
-
-  test("passes a clone the branch removed and one it lowered", () => {
-    expect(
-      riseFindings(
-        BASELINE,
-        baseline({ aaa: 1 }),
-        baseline({ aaa: 2, bbb: 1 }),
-        0,
-      ),
-    ).toEqual([]);
-  });
+  for (const [name, head, base] of [
+    ["passes when every clone count matches the base", { aaa: 1 }, { aaa: 1 }],
+    [
+      "passes a clone the branch removed and one it lowered",
+      { aaa: 1 },
+      { aaa: 2, bbb: 1 },
+    ],
+    [
+      "passes a reshaped clone while the total does not rise",
+      { bbb: 1 },
+      { aaa: 1 },
+    ],
+  ] as const) {
+    test(name, () => {
+      expect(riseFindings(BASELINE, baseline(head), baseline(base), 0)).toEqual(
+        [],
+      );
+    });
+  }
 
   test("names a clone the base does not hold", () => {
     expect(
@@ -196,6 +199,20 @@ describe("riseFindings", () => {
       `${BASELINE}:aaa [added-clone]: holds 1 clone(s) that the merge base ` +
         "does not hold — merge the duplicated code, then lower the baseline " +
         "with --update",
+    ]);
+  });
+
+  test("names a raised count while the total does not rise", () => {
+    expect(
+      riseFindings(
+        BASELINE,
+        baseline({ aaa: 2 }),
+        baseline({ aaa: 1, bbb: 1 }),
+        0,
+      ),
+    ).toEqual([
+      `${BASELINE}:aaa [raised-clone]: holds 2 clone(s), up from 1 — merge the ` +
+        "duplicated code, then lower the baseline with --update",
     ]);
   });
 

@@ -10,7 +10,7 @@
 
 import { basename } from "node:path";
 import * as v from "valibot";
-import { flatMap, sort, sortStrings, unique } from "#fp";
+import { flatMap, sort, sortStrings, sum, unique } from "#fp";
 import { formatFinding } from "#scripts/check-report.ts";
 import { parseJsonWith } from "#scripts/read-json.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -145,8 +145,24 @@ const addedClones = (
     0,
   );
 
+/** The number of clones a baseline accepts. */
+const totalClones = (counts: FingerprintCounts): number =>
+  sum(Object.values(counts));
+
+/** Whether one baseline file accepts more clones than its merge base copy.
+ * An edit can give a clone a new fingerprint. While the total does not rise,
+ * the branch added no clone, so the ratchet needs no scan for re-pairs. */
+export const cloneTotalRose = (
+  path: string,
+  headText: string,
+  baseText: string,
+): boolean =>
+  totalClones(fingerprintCounts(path, headText)) >
+  totalClones(fingerprintCounts(path, baseText));
+
 /** How many clones one baseline file holds that its merge base copy does not
- * hold. The ratchet scans for re-pairs only when this is above zero. */
+ * hold. The ratchet scans for re-pairs only when this is above zero and the
+ * total rose. */
 export const addedCloneCount = (
   path: string,
   headText: string,
@@ -160,15 +176,18 @@ export const addedCloneCount = (
 /** The finding lines for one baseline file's clones above the base's counts,
  * in fingerprint order. A fingerprint the base does not hold is absent from
  * the scan's record, so it counts as zero accepted clones there, and any
- * count above zero is a rise. The added clones pass together when the scan
- * finds at least that many re-pairs. */
+ * count above zero is a rise. The added clones pass together when the
+ * baseline total does not rise, or when the scan finds at least that many
+ * re-pairs. */
 const risenFindings = (
   path: string,
   head: FingerprintCounts,
   base: FingerprintCounts,
   rePairs: number,
 ): string[] => {
-  const addedPass = addedClones(head, base) <= rePairs;
+  const addedPass =
+    totalClones(head) <= totalClones(base) ||
+    addedClones(head, base) <= rePairs;
   const rises = Object.entries(head).filter(
     ([fingerprint, count]) =>
       count > (base[fingerprint] ?? 0) &&

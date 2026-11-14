@@ -555,11 +555,15 @@ A flagged pair is one merge:
   new. It fails on a scan task that names another path, so a new scan's
   baseline is compared too. Run it on its own with
   `deno task check:jscpd-baselines`.
-- The ratchet accepts a re-paired clone. A clone pair has one fingerprint.
-  When a branch deletes one side of a pair, the scan pairs the other side
-  with a new partner, and that pair has a new fingerprint. When a baseline
-  holds a fingerprint that the merge base does not hold, the ratchet repeats
-  the scan with the merge base's baseline. An added clone passes when the
+- The ratchet accepts a reshaped clone. An edit to a file can give a recorded
+  clone in that file a new fingerprint. Record the new fingerprint with
+  `--update`. The added clones pass when the baseline does not accept more
+  clones than the same baseline at the merge base. Say so in the pull
+  request.
+- The ratchet accepts a re-paired clone when the total rises. A clone pair has
+  one fingerprint. When a branch deletes one side of a pair, the scan pairs
+  the other side with a new partner, and that pair has a new fingerprint. The
+  ratchet then repeats the scan with the merge base's baseline. An added clone passes when the
   branch changed neither of its files. The count of added clones must not
   exceed the count of such re-pairs.
 - After each scan, `deno task cpd` names the worst duplication: the code in the
