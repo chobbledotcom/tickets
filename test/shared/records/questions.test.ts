@@ -4,9 +4,9 @@ import type { Question, QuestionDisplayType } from "#db/question-types.ts";
 import { answersTable } from "#db/questions/tables.ts";
 import { questionRecord, questionRule } from "#shared/records/questions.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
 import { createQuestionWithAnswer } from "#test-utils/db-helpers/questions.ts";
-import { deleteConfirmLabel } from "#test-utils/record-labels.ts";
+import { expectRecordDelete } from "#test-utils/record-commands.ts";
+import { describeRecord } from "#test-utils/record-labels.ts";
 
 const LIMIT = 10_240;
 
@@ -70,21 +70,22 @@ describe("the question rule", () => {
   });
 });
 
-describe("the question record's declaration", () => {
+describe("the question record's names", () => {
   test("names a question by its text", () => {
     expect([
-      questionRecord.activityName,
-      deleteConfirmLabel(questionRecord),
       questionRecord.nameOf(stored("radio")),
       questionRecord.logName({ displayType: "radio", text: "Typed" }),
-    ]).toEqual(["Question", "Question text", "Stored", "Typed"]);
+    ]).toEqual(["Stored", "Typed"]);
   });
 });
 
-describeWithEnv("the question record's commands", { db: true }, () => {
+describeRecord(questionRecord, "Question", "Question text", () => {
   test("creates questions in order and logs each by its text", async () => {
     await questionRecord.create({ displayType: "radio", text: "First?" });
-    await questionRecord.create({ displayType: "free_text", text: "Second?" });
+    await questionRecord.create({
+      displayType: "free_text",
+      text: "Second?",
+    });
 
     expect(
       (await questionRecord.getAll()).map((question) => question.text),
@@ -98,13 +99,9 @@ describeWithEnv("the question record's commands", { db: true }, () => {
   test("deletes a question with its answers and logs it", async () => {
     const { questionId } = await createQuestionWithAnswer();
 
-    expect(await questionRecord.remove(questionId)).toEqual({
-      kind: "deleted",
-    });
-    expect([
-      await questionRecord.load(questionId),
-      await answersTable.read.many({}),
-    ]).toEqual([null, []]);
-    expect(await activityMessages()).toEqual(["Question 'Choose one' deleted"]);
+    await expectRecordDelete(questionRecord, questionId, [
+      "Question 'Choose one' deleted",
+    ]);
+    expect(await answersTable.read.many({})).toEqual([]);
   });
 });

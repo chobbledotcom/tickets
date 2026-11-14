@@ -1,9 +1,8 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { listingGroups } from "#db/groups/table.ts";
 import type { ModifierInput } from "#db/modifiers.ts";
 import { modifierRecord } from "#shared/records/modifiers.ts";
-import { activityMessages } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
@@ -12,7 +11,8 @@ import {
   linkModifierListing,
 } from "#test-utils/modifiers.ts";
 import { makeParent } from "#test-utils/parents.ts";
-import { deleteConfirmLabel } from "#test-utils/record-labels.ts";
+import { expectWrittenAndLogged } from "#test-utils/record-commands.ts";
+import { describeRecord } from "#test-utils/record-labels.ts";
 
 const modifierInput = (
   overrides: Partial<ModifierInput> = {},
@@ -58,13 +58,6 @@ const updateAnswer = async (id: number, overrides: Partial<ModifierInput>) => {
   const verdict = await modifierRecord.update(id, modifierInput(overrides));
   return verdict.kind === "refused" ? verdict.message : verdict.kind;
 };
-
-describe("the modifier record's declaration", () => {
-  test("names a modifier on its pages and its delete page", () => {
-    expect(modifierRecord.activityName).toBe("Modifier");
-    expect(deleteConfirmLabel(modifierRecord)).toBe("Modifier name");
-  });
-});
 
 describeWithEnv("the modifier rule", { db: true }, () => {
   test("asks a promo-code modifier for its code", async () => {
@@ -112,13 +105,12 @@ describeWithEnv("the modifier rule", { db: true }, () => {
   });
 });
 
-describeWithEnv("the modifier record's commands", { db: true }, () => {
+describeRecord(modifierRecord, "Modifier", "Modifier name", () => {
   test("creates a modifier and logs it with the modifier name", async () => {
-    expect(
-      await modifierRecord.create(modifierInput({ name: "Booking fee" })),
-    ).toMatchObject({ kind: "written", row: { name: "Booking fee" } });
-    expect(await activityMessages()).toEqual([
-      "Modifier 'Booking fee' created",
-    ]);
+    await expectWrittenAndLogged(
+      modifierRecord.create(modifierInput({ name: "Booking fee" })),
+      { name: "Booking fee" },
+      ["Modifier 'Booking fee' created"],
+    );
   });
 });

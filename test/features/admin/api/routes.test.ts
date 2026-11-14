@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { assertJson } from "#test-utils/assertions.ts";
+import { assertJson, expectApiError } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createBooking } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -18,12 +18,10 @@ describeWithEnv("Admin API - route table", { db: true }, () => {
   });
 
   test("names the listing when the roster's listing is missing", async () => {
-    await assertJson(
+    await expectApiError(
       apiRequest("/api/admin/listings/99999/attendees"),
       404,
-      (body) => {
-        expect(body.error).toBe("Listing not found");
-      },
+      "Listing not found",
     );
   });
 });

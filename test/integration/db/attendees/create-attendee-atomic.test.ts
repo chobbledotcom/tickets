@@ -9,7 +9,10 @@ import { listingAggregates } from "#db/listings/aggregates.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { expectNoAttendeesForListings } from "#test-utils/db-helpers/attendees.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createPackageWithMember,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import {
   createDailyTestListing,
   createTestListing,
@@ -74,8 +77,7 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
     // selects must hydrate it too — otherwise a re-sent notification for a
     // hidden package booking treats the row as a standalone member and can leak
     // the hidden listing or its base price.
-    const group = await createTestGroup({ isPackage: true, name: "Pkg" });
-    const listing = await createTestListing({ groupId: group.id });
+    const { group, member: listing } = await createPackageWithMember("Pkg");
     const result = await createAttendeeAtomic({
       bookings: [
         { listingId: listing.id, packageGroupId: group.id, quantity: 1 },
@@ -370,9 +372,6 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
     groupMax: number,
     memberMax: number,
   ) => {
-    const { createTestGroup } = await import(
-      "#test-utils/db-helpers/groups.ts"
-    );
     const group = await createTestGroup({
       isPackage: true,
       maxAttendees: groupMax,

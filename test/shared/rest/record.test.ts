@@ -15,6 +15,7 @@ import {
   defineRecord,
   type RecordShapeOf,
   type RecordSpec,
+  type WritePlan,
 } from "#shared/rest/record.ts";
 import { errorResult, okResult } from "#shared/result.ts";
 import {
@@ -198,7 +199,9 @@ describeWithEnv("the admin record write path", { db: true }, () => {
     const reads: string[] = [];
     const spied = {
       ...table,
-      findByIdPrimary: (id: number) => {
+      findByIdPrimary: (
+        id: Parameters<NonNullable<typeof table.findByIdPrimary>>[0],
+      ) => {
         reads.push(`primary ${id}`);
         return table.findByIdPrimary!(id);
       },
@@ -274,34 +277,31 @@ describeWithEnv("the admin record write path", { db: true }, () => {
     expect(await getAllActivityLog()).toEqual([]);
   });
 
-  test("a plan refusal writes nothing", async () => {
-    const record = widgetRecord();
-
-    const verdict = await record.create(
-      { name: "Side effect" },
+  const refusedPlans: [string, WritePlan<undefined>, string][] = [
+    [
+      "a plan refusal writes nothing",
       { prepare: () => Promise.resolve({ error: "No side data" }) },
-    );
-
-    expect(verdict).toEqual({ kind: "refused", message: "No side data" });
-    expect(await storedWidgets()).toEqual([]);
-  });
-
-  test("a failed join write rolls the row and the log back", async () => {
-    const record = widgetRecord();
-
-    const verdict = await record.create(
-      { name: "Rolled back" },
+      "No side data",
+    ],
+    [
+      "a failed join write rolls the row and the log back",
       {
         persist: () => {
           throw new TransactionValidationError("Join failed");
         },
       },
-    );
+      "Join failed",
+    ],
+  ];
+  for (const [title, plan, message] of refusedPlans) {
+    test(title, async () => {
+      const verdict = await widgetRecord().create({ name: "Planned" }, plan);
 
-    expect(verdict).toEqual({ kind: "refused", message: "Join failed" });
-    expect(await storedWidgets()).toEqual([]);
-    expect(await wasActivityLogged("Widget 'Rolled back' created")).toBe(false);
-  });
+      expect(verdict).toEqual({ kind: "refused", message });
+      expect(await storedWidgets()).toEqual([]);
+      expect(await getAllActivityLog()).toEqual([]);
+    });
+  }
 
   test("a failed order append rolls the row back", async () => {
     const record = widgetRecord({
@@ -356,32 +356,35 @@ describe("the record read defaults", () => {
     expect(await record.loadAfterWrite(3)).toEqual(row);
   });
 
-  test("a record with no table refuses every generated write", async () => {
-    const record = bareRecord({
-      getAll: () => Promise.resolve([]),
-      load: (id) =>
-        Promise.resolve(id === 1 ? { id: 1, name: "Loaded" } : null),
+  const tablelessReads: [string, Partial<RecordSpec<Widget>>][] = [
+    [
+      "a record with no table refuses every generated write",
+      {
+        getAll: () => Promise.resolve([]),
+        load: (id) =>
+          Promise.resolve(id === 1 ? { id: 1, name: "Loaded" } : null),
+      },
+    ],
+    [
+      "a record with no table finds a write's row through its read-back",
+      {
+        load: () => Promise.resolve(null),
+        loadAfterWrite: (id) =>
+          Promise.resolve(id === 1 ? { id: 1, name: "Committed" } : null),
+      },
+    ],
+  ];
+  for (const [title, reads] of tablelessReads) {
+    test(title, async () => {
+      const record = bareRecord(reads);
+
+      expect(() => record.create({ name: "Orphan" })).toThrow(
+        "The record for holidays declares no table",
+      );
+      await expect(record.update(1, { name: "Orphan" })).rejects.toThrow(
+        "The record for holidays declares no table",
+      );
+      expect(await record.remove(2)).toEqual({ kind: "not-found" });
     });
-
-    expect(() => record.create({ name: "Orphan" })).toThrow(
-      "The record for holidays declares no table",
-    );
-    await expect(record.update(1, { name: "Orphan" })).rejects.toThrow(
-      "The record for holidays declares no table",
-    );
-    expect(await record.remove(2)).toEqual({ kind: "not-found" });
-  });
-
-  test("a record with no table finds a write's row through its read-back", async () => {
-    const record = bareRecord({
-      load: () => Promise.resolve(null),
-      loadAfterWrite: (id) =>
-        Promise.resolve(id === 1 ? { id: 1, name: "Committed" } : null),
-    });
-
-    await expect(record.update(1, { name: "Orphan" })).rejects.toThrow(
-      "The record for holidays declares no table",
-    );
-    expect(await record.remove(2)).toEqual({ kind: "not-found" });
-  });
+  }
 });

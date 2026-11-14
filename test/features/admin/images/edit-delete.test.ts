@@ -15,6 +15,7 @@ import {
   adminGet,
   expectImageName,
   formRequest,
+  imageBesideListingAndGroup,
   imageNamesForItem,
   imageOnListingAndGroup,
   makeImage,
@@ -24,10 +25,9 @@ import {
   expectHtmlResponse,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
+  createDeactivatedTestListing,
   createTestListing,
-  deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import {
   mockFormRequest,
@@ -175,9 +175,10 @@ describeWithEnv(
 
       test("lists a deactivated listing muted at the end of its row", async () => {
         const image = await makeImage("Fading");
-        const retired = await createTestListing({ name: "Retired listing" });
+        const retired = await createDeactivatedTestListing({
+          name: "Retired listing",
+        });
         const live = await createTestListing({ name: "Live listing" });
-        await deactivateTestListing(retired.id);
 
         const response = await adminGet(`/admin/images/${image.id}/edit`);
         expect(response.status).toBe(200);
@@ -223,9 +224,11 @@ describeWithEnv(
       });
 
       test("updates image metadata and linked items", async () => {
-        const image = await makeImage("Original");
-        const listing = await createTestListing({ name: "Editable listing" });
-        const group = await createTestGroup({ name: "Editable group" });
+        const { group, image, listing } = await imageBesideListingAndGroup(
+          "Original",
+          "Editable listing",
+          "Editable group",
+        );
         const { cookie, response } = await postImageEdit(image, [
           ["name", "Updated"],
           ["alt_text", "Updated alt"],

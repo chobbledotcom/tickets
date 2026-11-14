@@ -5,6 +5,7 @@
  */
 
 import { expect } from "@std/expect";
+import { it as test } from "@std/testing/bdd";
 import type { CrudHandlers } from "#routes/admin/route-tables.ts";
 import type { FormSchema } from "#shared/forms/definition.ts";
 import {
@@ -18,6 +19,7 @@ import {
   recordPages,
 } from "#shared/rest/record-pages.ts";
 import { okResult } from "#shared/result.ts";
+import { expectRedirectWithFlash } from "#test-utils/assertions/redirect.ts";
 import type { TestFormValues } from "#test-utils/form-values.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
@@ -66,6 +68,12 @@ export const pagesFor = (
 ): CrudHandlers =>
   recordPages(recordWith(write), { form: form("Widget"), toInput, ...config });
 
+/** The default pages over a widget record that declares `spec`. */
+export const pagesForRecord = (
+  spec: Partial<RecordSpec<Shape>>,
+): CrudHandlers =>
+  recordPages(recordWith({}, spec), { form: form("Widget"), toInput });
+
 /** A guarded form POST from the test owner's session. */
 export const formRequest = async (
   path: string,
@@ -110,3 +118,34 @@ export const editUrl = "/admin/holidays/7/edit";
 
 export const refusedWrite = () =>
   Promise.resolve({ kind: "refused" as const, message: "Nope" });
+
+/** The page config, the landing path, and the flash of one case. */
+export type LandingRow = [
+  config: Partial<PagesConfig>,
+  path: string,
+  flash: string,
+];
+
+/** What every row in one group shares: the action, the writes it meets, and
+ * whether the flash is a success. */
+export type LandingGroup = {
+  act: (pages: CrudHandlers) => Promise<Response>;
+  succeeded: boolean;
+  write?: Partial<WriteSet>;
+};
+
+/** Register one test per row, named by its key. */
+export const testLandings = (
+  group: LandingGroup,
+  rows: Readonly<Record<string, LandingRow>>,
+): void => {
+  for (const [name, [config, path, flash]] of Object.entries(rows)) {
+    test(name, async () => {
+      expectRedirectWithFlash(
+        path,
+        flash,
+        group.succeeded,
+      )(await group.act(pagesFor(config, group.write)));
+    });
+  }
+};

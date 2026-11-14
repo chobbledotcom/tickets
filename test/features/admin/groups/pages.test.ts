@@ -1,5 +1,5 @@
-/** The admin group pages, and the routes that create, delete and illustrate a
- * group. */
+/** The admin group pages, and the routes that create and delete a group. The
+ * image routes are in item-images.test.ts. */
 
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -10,21 +10,13 @@ import { groups } from "#db/groups.ts";
 import { createOwnerNote, getNoteRows } from "#db/notes/queries.ts";
 import { noteTargets } from "#db/notes/target.ts";
 import { deleteGroup } from "#shared/records/groups.ts";
-import {
-  imageNamesForItem,
-  makeImage,
-  postImageUpload,
-} from "#test-utils/admin-images.ts";
 import { parseFlashCookie } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { withStorageMock } from "#test-utils/mocks.ts";
 import {
-  adminFormPost,
-  adminGet,
-  getTestSession,
-} from "#test-utils/session.ts";
+  createGroupWithListings,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("admin group pages", { db: true }, () => {
   test("lists every group", async () => {
@@ -76,46 +68,11 @@ describeWithEnv("admin group pages", { db: true }, () => {
     assertStringIncludes(parseFlashCookie(response).success ?? "", "Group");
   });
 
-  test("adds an uploaded image to the group", async () => {
-    const group = await createTestGroup({ name: "Illustrated group" });
-    const session = await getTestSession();
-
-    await withStorageMock(async () => {
-      const response = await postImageUpload(
-        `/admin/groups/${group.id}/images/upload`,
-        session.cookie,
-        session.csrfToken,
-        "Group photo",
-      );
-      expect(response.status).toBe(302);
-    });
-    expect(await imageNamesForItem("group", group.id)).toEqual(["Group photo"]);
-  });
-
-  test("links a library image to the group", async () => {
-    const group = await createTestGroup({ name: "Linked group" });
-    const image = await makeImage("Library shot");
-
-    await withStorageMock(async () => {
-      const { response } = await adminFormPost(
-        `/admin/groups/${group.id}/images`,
-        {
-          image_ids: [String(image.id)],
-        },
-      );
-      expect(response.status).toBe(302);
-    });
-    expect(await imageNamesForItem("group", group.id)).toEqual([
-      "Library shot",
-    ]);
-  });
-
   test("deletes a group and frees its listings", async () => {
-    const group = await createTestGroup({ name: "Doomed group" });
-    const listing = await createTestListing({
-      groupId: group.id,
-      name: "Freed listing",
-    });
+    const {
+      group,
+      listings: [listing],
+    } = await createGroupWithListings("Doomed group", ["Freed listing"]);
     // The group carries a note; deleting the group must clear it with it.
     await createOwnerNote(
       noteTargets.of("group")(group.id),
@@ -130,7 +87,7 @@ describeWithEnv("admin group pages", { db: true }, () => {
         [group.id],
       ),
     ).toEqual([]);
-    expect(await listingGroups.getIds(listing.id)).toEqual([]);
+    expect(await listingGroups.getIds(listing!.id)).toEqual([]);
     expect(await getNoteRows("group", [group.id])).toEqual([]);
   });
 });

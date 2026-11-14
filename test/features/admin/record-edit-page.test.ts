@@ -10,7 +10,10 @@ import { it as test } from "@std/testing/bdd";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { recordEditPage } from "#routes/admin/record-edit-page.ts";
 import { holidayRecord } from "#shared/records/holidays.ts";
-import { expectIncludesAll } from "#test-utils/assertions.ts";
+import {
+  expectHtmlResponse,
+  expectIncludesAll,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestHoliday } from "#test-utils/db-helpers/holidays.ts";
 import { getTestAuthSession } from "#test-utils/session.ts";
@@ -23,70 +26,63 @@ const holidayPageWith = (navActive?: string) =>
     ...(navActive ? { navActive } : {}),
   });
 
+/** Renders the page's `tab` for record `id` as the owner. */
+const renderHolidayPage = async (
+  id: number,
+  tab: string,
+  navActive?: string,
+): Promise<Response> =>
+  holidayPageWith(navActive).renderPage(await getTestAuthSession(), id, tab);
+
+/** Stores a holiday called `name`, then renders the page's `tab` for it and
+ * checks that the page loads. */
+const holidayPage = async (
+  name: string,
+  tab: string,
+  navActive?: string,
+): Promise<{ id: number; html: string }> => {
+  const { id } = await createTestHoliday({ name });
+  return {
+    html: await expectHtmlResponse(
+      await renderHolidayPage(id, tab, navActive),
+      200,
+    ),
+    id,
+  };
+};
+
 describeWithEnv("a record edit page", { db: true }, () => {
   test("reads the record and links its tabs by the record id", async () => {
-    const holiday = await createTestHoliday({ name: "Boxing Day" });
-    const session = await getTestAuthSession();
+    const { html, id } = await holidayPage("Boxing Day", "");
 
-    const response = await holidayPageWith().renderPage(
-      session,
-      holiday.id,
-      "",
-    );
-    const html = await response.text();
-
-    expect(response.status).toBe(200);
     expectIncludesAll(html, [
       "<h1>Boxing Day</h1>",
       "<p>Editing Boxing Day</p>",
-      `href="/admin/holidays/${holiday.id}/edit"`,
-      `href="/admin/holidays/${holiday.id}/actions"`,
+      `href="/admin/holidays/${id}/edit"`,
+      `href="/admin/holidays/${id}/actions"`,
     ]);
   });
 
   test("leads the delete action to the record's delete route", async () => {
-    const holiday = await createTestHoliday({ name: "New Year" });
-    const session = await getTestAuthSession();
+    const { html, id } = await holidayPage("New Year", "actions");
 
-    const html = await (
-      await holidayPageWith().renderPage(session, holiday.id, "actions")
-    ).text();
-
-    assertStringIncludes(html, `href="/admin/holidays/${holiday.id}/delete"`);
+    assertStringIncludes(html, `href="/admin/holidays/${id}/delete"`);
   });
 
   test("marks the record's list in the nav when no section is given", async () => {
-    const holiday = await createTestHoliday({ name: "Easter" });
-    const session = await getTestAuthSession();
-
-    const html = await (
-      await holidayPageWith().renderPage(session, holiday.id, "")
-    ).text();
+    const { html } = await holidayPage("Easter", "");
 
     assertStringIncludes(html, '<a class="active" href="/admin/holidays">');
   });
 
   test("marks the given nav section in place of the record's list", async () => {
-    const holiday = await createTestHoliday({ name: "Whitsun" });
-    const session = await getTestAuthSession();
-
-    const html = await (
-      await holidayPageWith("/admin/settings").renderPage(
-        session,
-        holiday.id,
-        "",
-      )
-    ).text();
+    const { html } = await holidayPage("Whitsun", "", "/admin/settings");
 
     assertStringIncludes(html, '<a href="/admin/holidays">');
     expect(html).not.toContain('<a class="active" href="/admin/holidays">');
   });
 
   test("answers 404 for a record that is not there", async () => {
-    const session = await getTestAuthSession();
-
-    expect(
-      (await holidayPageWith().renderPage(session, 99999, "")).status,
-    ).toBe(404);
+    expect((await renderHolidayPage(99999, "")).status).toBe(404);
   });
 });

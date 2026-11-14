@@ -1,102 +1,101 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { externalSourceRecord } from "#shared/records/external-sources.ts";
-import { activityMessages } from "#test-utils/activity-log.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  expectCreateThenDelete,
+  expectWrittenAndLogged,
+} from "#test-utils/record-commands.ts";
+import { describeRecord } from "#test-utils/record-labels.ts";
 import { withTestSession } from "#test-utils/session.ts";
 
 const PATTERN = "https://dashboard.stripe.com/invoices/{external_id}";
+const LIMIT_NAME = "n".repeat(250);
+const LIMIT_PATTERN = `https://${"u".repeat(242)}`;
 
-const rule = (name: string, urlPattern: string) =>
-  externalSourceRecord.rule({ name, urlPattern }, null);
+/** One rule case: what it checks, the name and pattern, and the answer. */
+const RULE_CASES: readonly [
+  string,
+  string,
+  string,
+  { error: string } | { name: string; urlPattern: string },
+][] = [
+  [
+    "trims the name and the URL pattern it stores",
+    "  Stripe  ",
+    `  ${PATTERN}  `,
+    { name: "Stripe", urlPattern: PATTERN },
+  ],
+  [
+    "refuses an empty name before it reads the pattern",
+    "   ",
+    "",
+    { error: "name cannot be empty" },
+  ],
+  [
+    "refuses an empty URL pattern",
+    "Stripe",
+    "  ",
+    { error: "url_pattern cannot be empty" },
+  ],
+  [
+    "refuses a name past the text box limit",
+    "n".repeat(251),
+    PATTERN,
+    { error: "name must be 250 characters or fewer" },
+  ],
+  [
+    "refuses a URL pattern past the text box limit",
+    "Stripe",
+    `https://${"u".repeat(243)}`,
+    { error: "url_pattern must be 250 characters or fewer" },
+  ],
+  [
+    "accepts a name and a URL pattern at the limit",
+    LIMIT_NAME,
+    LIMIT_PATTERN,
+    { name: LIMIT_NAME, urlPattern: LIMIT_PATTERN },
+  ],
+  [
+    "refuses a URL pattern that is not a web address",
+    "Stripe",
+    "ftp://files",
+    { error: "url_pattern must start with http:// or https://" },
+  ],
+];
 
 describe("the external source rule", () => {
-  test("trims the name and the URL pattern it stores", async () => {
-    expect(await rule("  Stripe  ", `  ${PATTERN}  `)).toEqual({
-      ok: true,
-      value: { name: "Stripe", urlPattern: PATTERN },
+  for (const [title, name, urlPattern, answer] of RULE_CASES) {
+    test(title, async () => {
+      expect(
+        await externalSourceRecord.rule({ name, urlPattern }, null),
+      ).toEqual(
+        "error" in answer
+          ? { error: answer.error, ok: false }
+          : { ok: true, value: answer },
+      );
     });
-  });
-
-  test("refuses an empty name before it reads the pattern", async () => {
-    expect(await rule("   ", "")).toEqual({
-      error: "name cannot be empty",
-      ok: false,
-    });
-  });
-
-  test("refuses an empty URL pattern", async () => {
-    expect(await rule("Stripe", "  ")).toEqual({
-      error: "url_pattern cannot be empty",
-      ok: false,
-    });
-  });
-
-  test("refuses a name past the text box limit", async () => {
-    expect(await rule("n".repeat(251), PATTERN)).toEqual({
-      error: "name must be 250 characters or fewer",
-      ok: false,
-    });
-  });
-
-  test("refuses a URL pattern past the text box limit", async () => {
-    expect(await rule("Stripe", `https://${"u".repeat(243)}`)).toEqual({
-      error: "url_pattern must be 250 characters or fewer",
-      ok: false,
-    });
-  });
-
-  test("accepts a name and a URL pattern at the limit", async () => {
-    const name = "n".repeat(250);
-    const urlPattern = `https://${"u".repeat(242)}`;
-
-    expect(await rule(name, urlPattern)).toEqual({
-      ok: true,
-      value: { name, urlPattern },
-    });
-  });
-
-  test("refuses a URL pattern that is not a web address", async () => {
-    expect(await rule("Stripe", "ftp://files")).toEqual({
-      error: "url_pattern must start with http:// or https://",
-      ok: false,
-    });
-  });
+  }
 });
 
-describe("the external source record's declaration", () => {
-  test("names a source on its pages", () => {
-    expect(externalSourceRecord.activityName).toBe("Source");
-  });
-});
-
-describeWithEnv("the external source record's commands", { db: true }, () => {
+describeRecord(externalSourceRecord, "Source", null, () => {
   test("creates a source, reads it back, and logs it", async () => {
-    const created = await withTestSession(() =>
-      externalSourceRecord.create({ name: "Stripe", urlPattern: PATTERN }),
+    await expectWrittenAndLogged(
+      withTestSession(() =>
+        externalSourceRecord.create({ name: "Stripe", urlPattern: PATTERN }),
+      ),
+      { id: 1, name: "Stripe", url_pattern: PATTERN },
+      ["Source 'Stripe' created"],
     );
-
-    expect(created).toMatchObject({
-      kind: "written",
-      row: { id: 1, name: "Stripe", url_pattern: PATTERN },
-    });
-    expect(await activityMessages()).toEqual(["Source 'Stripe' created"]);
   });
 
   test("deletes a source and logs it", async () => {
-    await withTestSession(() =>
-      externalSourceRecord.create({ name: "Old", urlPattern: PATTERN }),
-    );
-
-    expect(
-      await withTestSession(() => externalSourceRecord.remove(1)),
-    ).toEqual({ kind: "deleted" });
-    expect(
-      await withTestSession(async () => [
-        await externalSourceRecord.load(1),
-        await externalSourceRecord.getAll(),
-      ]),
-    ).toEqual([null, []]);
-    expect((await activityMessages())[0]).toBe("Source 'Old' deleted");
+    await withTestSession(async () => {
+      await expectCreateThenDelete(
+        externalSourceRecord,
+        { name: "Old", urlPattern: PATTERN },
+        ["Source 'Old' deleted", "Source 'Old' created"],
+      );
+      expect(await externalSourceRecord.getAll()).toEqual([]);
+    });
   });
 });

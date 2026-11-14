@@ -23,9 +23,14 @@ import {
   allDays,
   bookableStartDates,
   createTestListing,
+  dailySwitchForm,
+  listingWithOneBooking,
   listingWithTwoUndatedBookings,
 } from "#test-utils/db-helpers/listings.ts";
-import { testFormParams } from "#test-utils/form-values.ts";
+import {
+  type TestFormValues,
+  testFormParams,
+} from "#test-utils/form-values.ts";
 import { adminMultipartPost } from "#test-utils/session.ts";
 import type { ListingWithCount } from "#types";
 
@@ -59,41 +64,23 @@ const rawRows = async (
   );
 };
 
-/** The switch form values an organiser submits for `stored`: the minimal valid
- * edit form, switched to daily, with the offered day under the assign field. */
+/** The switch form values an organiser submits for `stored`: a two-day stay,
+ * with the offered day under the assign field. */
 const switchForm = (
   stored: ListingWithCount,
-  extra: Record<string, string | string[]> = {},
+  extra: TestFormValues = {},
 ): ReturnType<typeof testFormParams> =>
-  testFormParams({
-    assign_undated_to: "",
-    bookable_days: [
-      "Monday",
-      "Tuesday",
-      "Wednesday",
-      "Thursday",
-      "Friday",
-      "Saturday",
-      "Sunday",
-    ],
-    duration_days: "2",
-    listing_type: "daily",
-    max_attendees: String(stored.max_attendees),
-    max_quantity: "1",
-    maximum_days_after: "90",
-    minimum_days_before: "1",
-    name: stored.name,
-    slug: stored.slug,
-    thank_you_url: "https://example.com",
-    ...extra,
-  });
+  testFormParams(
+    dailySwitchForm(stored, {
+      assign_undated_to: "",
+      duration_days: "2",
+      ...extra,
+    }),
+  );
 
 /** A two-place listing holding one undated booking — the switch's subject. */
-const hallWithOneUndatedBooking = async (): Promise<ListingWithCount> => {
-  const listing = await createTestListing({ maxAttendees: 2, name: "Hall" });
-  await bookAttendee(listing, { quantity: 1 });
-  return listing;
-};
+const hallWithOneUndatedBooking = (): Promise<ListingWithCount> =>
+  listingWithOneBooking({ maxAttendees: 2, name: "Hall" }, { quantity: 1 });
 
 /** The plan for a save that names its day: the confirmed pick's step. */
 const confirmedPickStep = (
@@ -104,6 +91,19 @@ const confirmedPickStep = (
     listing,
     switchForm(listing, { assign_undated_to: day }),
   );
+
+/** Confirms a pick of the listing's first bookable day, and checks that the
+ * plan moves `count` bookings to that day. */
+const firstDayAssignStep = async (
+  listing: ListingWithCount,
+  count: number,
+): Promise<{ day: string; step: Extract<SwitchStep, { kind: "assign" }> }> => {
+  const [day] = await bookableStartDates(listing.id);
+  const step = await confirmedPickStep(listing, day!);
+  expect(step).toMatchObject({ kind: "assign", plan: { count, date: day } });
+  if (step.kind !== "assign") throw new Error("The pick planned no move.");
+  return { day: day!, step };
+};
 
 describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
   test("wouldBeStartDates falls back to the stored fields the submission omits", async () => {
@@ -179,8 +179,10 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
   });
 
   test("the probe judges each offered date with the production per-day cap SQL", async () => {
-    const listing = await createTestListing({ maxAttendees: 2 });
-    await bookAttendee(listing, { date: "2026-11-05", quantity: 2 });
+    const listing = await listingWithOneBooking(
+      { maxAttendees: 2 },
+      { date: "2026-11-05", quantity: 2 },
+    );
     const fits = await probeAssignDates(
       listing,
       wouldBeInput(listing, { listingType: "daily" }),
@@ -265,13 +267,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
   test("the card and the plan count the bookings, not the places they hold", async () => {
     // Two bookings hold five places between them: the warning names the two.
     const listing = await listingWithTwoUndatedBookings();
-    const [day] = await bookableStartDates(listing.id);
-    const step = await confirmedPickStep(listing, day!);
-    expect(step).toMatchObject({
-      kind: "assign",
-      plan: { count: 2, date: day },
-    });
-    if (step.kind !== "assign") return;
+    const { step } = await firstDayAssignStep(listing, 2);
     expect(step.page.card.count).toBe(2);
     expect(step.page.card.noneFits).toBe(false);
   });
@@ -286,11 +282,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
   });
 
   test("a listing with no bookable dates offers none and asks for none", async () => {
-    const listing = await createTestListing({
-      maxAttendees: 2,
-      name: "Hall",
-    });
-    await bookAttendee(listing, { quantity: 1 });
+    const listing = await hallWithOneUndatedBooking();
     // The submission checks no bookable day, so the would-be calendar is
     // empty and there is no date to pick.
     const step = await planListingTypeSwitch(
@@ -319,7 +311,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
 
     await setCapacity(listing.id, 4);
     await bookAttendee(listing, {
-      date: day,
+      date: day!,
       email: "z@example.com",
       name: "Z",
       quantity: 2,
@@ -341,7 +333,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     const [day] = await bookableStartDates(listing.id);
     await setCapacity(listing.id, 6);
     await bookAttendee(listing, {
-      date: day,
+      date: day!,
       email: "z@example.com",
       name: "Z",
     });
@@ -386,13 +378,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
 
   test("a confirmed pick carries the move into the save", async () => {
     const listing = await hallWithOneUndatedBooking();
-    const [day] = await bookableStartDates(listing.id);
-    const step = await confirmedPickStep(listing, day!);
-    expect(step).toMatchObject({
-      kind: "assign",
-      plan: { count: 1, date: day },
-    });
-    if (step.kind !== "assign") return;
+    const { day, step } = await firstDayAssignStep(listing, 1);
     await withTransaction(async (tx) => {
       const moved = await moveUndatedBookingsToDayTx(
         tx,
@@ -404,6 +390,6 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
       expect(moved).toBe(1);
     });
     const rows = await rawRows(listing.id);
-    expect(rows[0]!.start_at).toContain(day!);
+    expect(rows[0]!.start_at).toContain(day);
   });
 });

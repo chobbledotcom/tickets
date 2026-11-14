@@ -2,7 +2,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { appendImageToItem, imagesTable } from "#db/images.ts";
+import { appendImageToItem } from "#db/images.ts";
 import {
   byNameThenUpload,
   isSiteContentImageType,
@@ -10,9 +10,8 @@ import {
   whenSiteContentBlocksManager,
 } from "#shared/images/library.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
+import { imageOnListingAndGroup, makeImage } from "#test-utils/admin-images.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   createTestNewsPost,
   createTestSitePage,
@@ -26,14 +25,6 @@ const libraryImage = (id: number, name: string): Image => ({
   id,
   name,
 });
-
-const makeImage = (name: string): Promise<Image> =>
-  imagesTable.insert({
-    altText: "",
-    filename: nonEmptyString(`${name}.webp`, "test image filename"),
-    filenameThumb: nonEmptyString(`${name}-thumb.webp`, "test thumb filename"),
-    name,
-  });
 
 describe("image library order", () => {
   test("sorts by name, then the older upload first", () => {
@@ -88,11 +79,11 @@ describeWithEnv("image library Site content", { db: true }, () => {
   });
 
   test("an image only on listings and groups blocks nobody", async () => {
-    const onListing = await makeImage("on-listing");
-    const listing = await createTestListing({ name: "Linked listing" });
-    const group = await createTestGroup({ name: "Linked group" });
-    await appendImageToItem(onListing.id, { id: listing.id, kind: "listing" });
-    await appendImageToItem(onListing.id, { id: group.id, kind: "group" });
+    const { image: onListing } = await imageOnListingAndGroup(
+      "on-listing",
+      "Linked listing",
+      "Linked group",
+    );
 
     expect(await siteContentBlocksManager("manager", onListing.id)).toBe(false);
     expect(

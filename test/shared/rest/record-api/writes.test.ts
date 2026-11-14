@@ -49,12 +49,26 @@ const deleteWith = (verdicts: Verdicts, calls = newCalls(), name = "One") =>
     1,
   );
 
+/** Send one write through routes whose side effect records each step. */
+const writeWithSideEffect = async (
+  key: string,
+  body: Record<string, unknown>,
+  id?: number,
+): Promise<{ calls: WriteCalls; seen: unknown[] }> => {
+  const calls = newCalls();
+  const seen: unknown[] = [];
+  await callRoute(
+    widgetRoutes({ sideEffect: recordingSideEffect(seen) }, {}, calls),
+    key,
+    body,
+    id,
+  );
+  return { calls, seen };
+};
+
 describeWithEnv("the record API writes", { db: true }, () => {
   test("a create hands its side effect to the write as a plan", async () => {
-    const calls = newCalls();
-    const seen: unknown[] = [];
-    await callRoute(
-      widgetRoutes({ sideEffect: recordingSideEffect(seen) }, {}, calls),
+    const { calls, seen } = await writeWithSideEffect(
       "POST /api/admin/widgets",
       { name: "Made" },
     );
@@ -71,10 +85,7 @@ describeWithEnv("the record API writes", { db: true }, () => {
   });
 
   test("an update plan validates against the stored row", async () => {
-    const calls = newCalls();
-    const seen: unknown[] = [];
-    await callRoute(
-      widgetRoutes({ sideEffect: recordingSideEffect(seen) }, {}, calls),
+    const { calls, seen } = await writeWithSideEffect(
       "PUT /api/admin/widgets/:widgetId",
       { name: "New" },
       2,

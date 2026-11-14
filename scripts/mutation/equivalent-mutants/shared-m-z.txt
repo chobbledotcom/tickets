@@ -407,8 +407,26 @@ src/shared/square/limits.ts::SQUARE_LINK_EXPIRY_BATCH~1mbbncc  1 → 0 audited:1
 # every writer there rejects an empty name, so the ?? never sees "".
 src/shared/order-line-items.ts::orderLineItems.name~0am8pen  ??→|| audited:04chtsp # a package display name comes from the groups table, where every writer rejects an empty name
 
+src/shared/records/images.ts::uploadImageFiles.filename~1k7olk9  image filename→"" audited:05jtm1l # the label reaches only the error for an empty name; uploadImageTargets names every file with generateWebpFilename, a UUID plus .webp, so the name is never empty
+src/shared/records/images.ts::uploadImageFiles.filenameThumb~1phf0ix  image thumbnail filename→"" audited:05jtm1l # the label reaches only the error for an empty name; uploadImageTargets names every file with generateWebpFilename, a UUID plus .webp, so the name is never empty
+src/shared/records/images.ts::imageRule.metadata~0s6dubv  ??→|| audited:05jtm1l # input.altText is a string or undefined; its one falsy string is "", which both operators send to ""
+src/shared/records/images.ts::updateInTransaction.missing~10n891b  ??→|| audited:05jtm1l # input.items is an array, null, or undefined; an array is never falsy, so ?? and || pick the same value
 src/shared/rest/field-reads.ts::BODY_READS.switch~0d60jwz  ??→|| audited:16bxpfj # a stored switch is boolean or null on create, and both null and false fall back to false under ?? and ||
 src/shared/rest/record.ts::buildRecord.rule~0wug6os  ??→|| audited:1a2111p # spec.rule is a function or undefined; a function is never falsy, so ?? and || pick the same value
+src/shared/rest/record-pages.ts::resolvePagePaths.skipped~133lhn6  ??→|| audited:0ikjm5v # config.skip is an array or undefined; an array is never falsy, so ?? and || pick the same value
+src/shared/rest/record-pages.ts::recordPages~12ka3fc  ??→|| audited:0ikjm5v # record.saveLanding is an AdminDestinationId or undefined; every destination id is a non-empty string, so it is never falsy
+src/shared/rest/record-pages.ts::recordPages.editVerdict~199e4ug  ??→|| audited:0ikjm5v # config.updateSavePath is a function or undefined; a function is never falsy, so ?? and || pick the same value
+src/shared/rest/record-pages.ts::recordPages.confirmedDelete.onConfirm~17rcqfd  ??→|| audited:0ikjm5v # failure is a Response or null; a Response object is never falsy, and null gives undefined under both
+src/shared/rest/record-pages.ts::recordPages.confirmedDelete.render~1jop8vb  ??→|| audited:0ikjm5v # config.renderDelete is a function or undefined; a function is never falsy, so ?? and || pick the same value
 
-# crud-api.ts: a resource declares its children and custom routes as an object
-# or leaves them out.
+# record-api.ts: a resource declares its children and custom routes as an object
+# or leaves them out. Every config default it reads is an array, an object, or a
+# function, so no operand is falsy-but-present.
+src/shared/rest/record-api.ts::declaredRecords~1k64ef7  ??→|| audited:1ffzijz # records is an object or undefined; an object is never falsy, so ?? and || pick the same value
+src/shared/rest/record-api.ts::recordApi.stripKeys~0dyd9rx  ??→|| audited:1ffzijz # config.stripKeys is an array or undefined; an array is never falsy, and an empty array strips nothing either way
+src/shared/rest/record-api.ts::recordApi.routes~102ig5u  ??→|| audited:1ffzijz # config.overrides is an object or undefined; an object is never falsy, so ?? and || pick the same value
+src/shared/rest/record-api.ts::recordApi.%60GET%20%2fapi%2fadmin%2f$%7bname%7d%60~1o2oy72  ??→|| audited:1ffzijz # routes.list is a route handler function or undefined; a function is never falsy
+src/shared/rest/record-api.ts::recordApi.%60GET%20%2fapi%2fadmin%2f$%7bname%7d%2f%3a$%7bparamName%7d%60~0a388jo  ??→|| audited:1ffzijz # routes.get is a route handler function or undefined; a function is never falsy
+src/shared/rest/record-api.ts::recordApi.%60POST%20%2fapi%2fadmin%2f$%7bname%7d%60~09o99ta  ??→|| audited:1ffzijz # routes.create is a route handler function or undefined; a function is never falsy
+src/shared/rest/record-api.ts::recordApi.%60PUT%20%2fapi%2fadmin%2f$%7bname%7d%2f%3a$%7bparamName%7d%60~0tnvf8c  ??→|| audited:1ffzijz # routes.update is a route handler function or undefined; a function is never falsy
+src/shared/rest/record-api.ts::recordApi.%60DELETE%20%2fapi%2fadmin%2f$%7bname%7d%2f%3a$%7bparamName%7d%60~1xjrlr0  ??→|| audited:1ffzijz # routes.delete is a route handler function or undefined; a function is never falsy

@@ -121,10 +121,11 @@ describe("a route's read-only switches", () => {
 
 describe("adminPathSegment", () => {
   test("picks the part after /admin", () => {
-    expect(adminPathSegment("/admin")).toBe("");
-    expect(adminPathSegment("/admin/")).toBe("");
-    expect(adminPathSegment("/admin/settings")).toBe("settings");
-    expect(adminPathSegment("/admin/listing/5/edit")).toBe("listing");
+    expect(
+      ["/admin", "/admin/", "/admin/settings", "/admin/listing/5/edit"].map(
+        adminPathSegment,
+      ),
+    ).toEqual(["", "", "settings", "listing"]);
   });
 });
 

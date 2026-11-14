@@ -1,14 +1,14 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { buildCreateListingResource } from "#routes/admin/listings-form.ts";
 import { listingRecord } from "#shared/records/listings.ts";
 import {
   activityMessages,
   getListingActivityLog,
 } from "#test-utils/activity-log.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
 import { storedListingNames } from "#test-utils/db-helpers/listings.ts";
 import { testFormParams } from "#test-utils/form-values.ts";
+import { describeRecord } from "#test-utils/record-labels.ts";
 import { statementSql, wrapDbClient } from "#test-utils/record-queries.ts";
 
 /** Whether one batch statement writes an activity line. */
@@ -25,13 +25,7 @@ const createListing = (name: string) => {
   return buildCreateListingResource(form).create(form);
 };
 
-describe("the listing record's declaration", () => {
-  test("names a listing on its pages", () => {
-    expect(listingRecord.activityName).toBe("Listing");
-  });
-});
-
-describeWithEnv("the listing record's commands", { db: true }, () => {
+describeRecord(listingRecord, "Listing", null, () => {
   test("logs a new listing on that listing's own activity log", async () => {
     const created = await createListing("Pottery day");
     if (!created.ok) throw new Error(created.error);

@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { holidayRecord, holidayRule } from "#shared/records/holidays.ts";
 import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { deleteConfirmLabel } from "#test-utils/record-labels.ts";
+import { describeRecord } from "#test-utils/record-labels.ts";
+import { describeRuleCases } from "#test-utils/rule-cases.ts";
 
 const holidayInput = (name: string, start: string, end: string) => ({
   endDate: parseDateStringOrThrow(end, "the holiday end date"),
@@ -19,36 +19,25 @@ const summerRow = {
   start_date: "2026-07-01",
 };
 
-describe("the holiday rule", () => {
-  test("refuses an end date before the start date", () => {
-    expect(
-      holidayRule(holidayInput("Back", "2026-06-02", "2026-06-01")),
-    ).toEqual({
-      error: "End date must be on or after the start date",
-      ok: false,
-    });
-  });
+describeRuleCases("the holiday rule", holidayRule, [
+  [
+    "refuses an end date before the start date",
+    holidayInput("Break", "2026-06-02", "2026-06-01"),
+    "End date must be on or after the start date",
+  ],
+  [
+    "accepts one day, where the two dates are equal",
+    holidayInput("Break", "2026-06-01", "2026-06-01"),
+    null,
+  ],
+  [
+    "accepts an end date after the start date",
+    holidayInput("Break", "2026-06-01", "2026-06-02"),
+    null,
+  ],
+]);
 
-  test("accepts one day, where the two dates are equal", () => {
-    const input = holidayInput("One day", "2026-06-01", "2026-06-01");
-
-    expect(holidayRule(input)).toEqual({ ok: true, value: input });
-  });
-
-  test("accepts an end date after the start date", () => {
-    const input = holidayInput("Two days", "2026-06-01", "2026-06-02");
-
-    expect(holidayRule(input)).toEqual({ ok: true, value: input });
-  });
-});
-
-describe("the holiday record's declaration", () => {
-  test("asks for the holiday name on its delete page", () => {
-    expect(deleteConfirmLabel(holidayRecord)).toBe("Holiday name");
-  });
-});
-
-describeWithEnv("the holiday record's commands", { db: true }, () => {
+describeRecord(holidayRecord, "Holiday", "Holiday name", () => {
   test("creates a holiday and logs it with the holiday name", async () => {
     const input = holidayInput("Summer", "2026-07-01", "2026-07-02");
 

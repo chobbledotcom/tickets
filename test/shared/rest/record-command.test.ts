@@ -6,6 +6,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { TxScope } from "#db/client.ts";
+import type { RecordRule, WriteVerdict } from "#shared/rest/record.ts";
 import {
   commitCommand,
   contentCommands,
@@ -24,6 +25,41 @@ import type { IdNameInput, IdNameRow } from "#test-utils/rest-fixtures.ts";
 
 const passRule = (input: IdNameInput) => okResult(input);
 const refuseRule = () => errorResult("Rule says no");
+
+type MarkingRule = RecordRule<IdNameInput, IdNameRow>;
+
+/** Run one command with a rule that marks the input name. Expect the command
+ *  to write the marked name, and the rule to see the stored row. */
+const expectRuledWrite = async (
+  id: number,
+  command: (
+    rule: MarkingRule,
+    stored: IdNameRow,
+  ) => Promise<WriteVerdict<IdNameRow>>,
+): Promise<void> => {
+  const seen: (IdNameRow | null)[] = [];
+  const stored = { id, name: "Stored" };
+  const rule: MarkingRule = (input, row) => {
+    seen.push(row);
+    return okResult({ name: `${input.name}!` });
+  };
+
+  expect(await command(rule, stored)).toEqual({
+    kind: "written",
+    row: { id, name: "raw!" },
+  });
+  expect(seen).toEqual([stored]);
+};
+
+/** A command whose write answers its own not-found error. */
+const GONE_COMMAND = {
+  input: { name: "raw" },
+  log: () => Promise.resolve(),
+  message: () => "refused",
+  notFound: "gone" as const,
+  rule: passRule,
+  write: () => Promise.resolve(errorResult("gone" as const)),
+};
 
 describe("the command write answers", () => {
   test("answers the written row and logs it", async () => {
@@ -93,20 +129,18 @@ describe("the record rule steps", () => {
   });
 
   test("a ruled command runs on the ruled value and hands the rule the stored row", async () => {
-    const seen: (IdNameRow | null)[] = [];
-    const verdict = await ruledCommand<IdNameRow, IdNameInput>({
-      input: { name: "raw" },
-      rule: (input, stored) => {
-        seen.push(stored);
-        return okResult({ name: `${input.name}!` });
-      },
-      run: (value) =>
-        Promise.resolve({ kind: "written", row: { id: 1, name: value.name } }),
-      stored: { id: 1, name: "Stored" },
-    });
-
-    expect(verdict).toEqual({ kind: "written", row: { id: 1, name: "raw!" } });
-    expect(seen).toEqual([{ id: 1, name: "Stored" }]);
+    await expectRuledWrite(1, (rule, stored) =>
+      ruledCommand<IdNameRow, IdNameInput>({
+        input: { name: "raw" },
+        rule,
+        run: (value) =>
+          Promise.resolve({
+            kind: "written",
+            row: { id: 1, name: value.name },
+          }),
+        stored,
+      }),
+    );
   });
 
   test("a ruled command answers the rule's refusal without running", async () => {
@@ -122,36 +156,28 @@ describe("the record rule steps", () => {
 
   test("a committed command writes the ruled value and logs the row", async () => {
     const logged: IdNameRow[] = [];
-    const seen: (IdNameRow | null)[] = [];
-    const verdict = await commitCommand<IdNameRow, IdNameInput>({
-      input: { name: "raw" },
-      log: (row) => {
-        logged.push(row);
-        return Promise.resolve();
-      },
-      message: () => "refused",
-      rule: (input, stored) => {
-        seen.push(stored);
-        return okResult({ name: `${input.name}!` });
-      },
-      stored: { id: 2, name: "Stored" },
-      write: (value) => Promise.resolve(okResult({ id: 2, name: value.name })),
-    });
+    await expectRuledWrite(2, (rule, stored) =>
+      commitCommand<IdNameRow, IdNameInput>({
+        input: { name: "raw" },
+        log: (row) => {
+          logged.push(row);
+          return Promise.resolve();
+        },
+        message: () => "refused",
+        rule,
+        stored,
+        write: (value) =>
+          Promise.resolve(okResult({ id: 2, name: value.name })),
+      }),
+    );
 
-    expect(verdict).toEqual({ kind: "written", row: { id: 2, name: "raw!" } });
     expect(logged).toEqual([{ id: 2, name: "raw!" }]);
-    expect(seen).toEqual([{ id: 2, name: "Stored" }]);
   });
 
   test("a committed command answers its not-found error as not found", async () => {
     const verdict = await commitCommand<IdNameRow, IdNameInput, "gone">({
-      input: { name: "raw" },
-      log: () => Promise.resolve(),
-      message: () => "refused",
-      notFound: "gone",
-      rule: passRule,
+      ...GONE_COMMAND,
       stored: null,
-      write: () => Promise.resolve(errorResult("gone")),
     });
 
     expect(verdict).toEqual({ kind: "not-found" });
@@ -260,14 +286,9 @@ describeWithEnv("the transacted command writes", { db: true }, () => {
   });
 
   test("a transacted command answers its not-found error as not found", async () => {
-    const verdict = await transactCommand<IdNameRow, IdNameInput, "gone">({
-      input: { name: "raw" },
-      log: () => Promise.resolve(),
-      message: () => "refused",
-      notFound: "gone",
-      rule: passRule,
-      write: () => Promise.resolve(errorResult("gone")),
-    });
+    const verdict = await transactCommand<IdNameRow, IdNameInput, "gone">(
+      GONE_COMMAND,
+    );
 
     expect(verdict).toEqual({ kind: "not-found" });
   });

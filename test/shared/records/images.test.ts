@@ -18,10 +18,10 @@ import {
   uploadImageFiles,
 } from "#shared/records/images.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
+import { loggedMessages } from "#test-utils/activity-log.ts";
 import {
   imageOnListing,
   imageOnListingAndGroup,
-  loggedMessages,
   makeImage,
 } from "#test-utils/admin-images.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -34,13 +34,29 @@ import {
   withExpectedError,
   withStorageDisabled,
 } from "#test-utils/mocks.ts";
-import { deleteConfirmLabel } from "#test-utils/record-labels.ts";
+import {
+  expectRecordDelete,
+  expectRefused,
+  listedNames,
+  testMissingUpdate,
+} from "#test-utils/record-commands.ts";
+import { describeRecord } from "#test-utils/record-labels.ts";
 import { beforeNextTransaction } from "#test-utils/record-queries.ts";
 import { makeTestPng } from "#test-utils/test-image.ts";
 
 /** Whether the local storage folder still holds one stored file. */
 const storedFileExists = (filename: string): Promise<boolean> =>
   pathExists(`${getTestStoragePath()}/${filename}`);
+
+/** Upload a small PNG and answer the two stored file names. */
+const uploadTestPng = async () => {
+  const uploaded = await uploadImageFiles({
+    bytes: await makeTestPng(4, 4),
+    contentType: "image/png",
+  });
+  if (!uploaded.ok) throw new Error(uploaded.error);
+  return uploaded.value;
+};
 
 const imageInput = {
   altText: "A cat",
@@ -52,52 +68,62 @@ const imageInput = {
 const LONG = "x".repeat(251);
 const LIMIT = "x".repeat(250);
 
+/** One metadata case: what it checks, the name and alt text, and the
+ *  refusal, or the stored name and alt text. */
+const METADATA_CASES: readonly [
+  string,
+  string,
+  string,
+  string | { altText: string; name: string },
+][] = [
+  [
+    "trims the name and alt text it stores",
+    "  Cat photo  ",
+    "  A cat  ",
+    { altText: "A cat", name: "Cat photo" },
+  ],
+  [
+    "refuses a name with nothing in it",
+    "   ",
+    "A cat",
+    "Image name is required",
+  ],
+  ["refuses an empty name", "", "", "Image name is required"],
+  [
+    "refuses a name past the text box limit",
+    LONG,
+    "",
+    "Image name must be 250 characters or fewer",
+  ],
+  [
+    "refuses alt text past the text box limit",
+    "Cat",
+    LONG,
+    "Alt text must be 250 characters or fewer",
+  ],
+  [
+    "accepts a name and alt text at the limit",
+    LIMIT,
+    LIMIT,
+    { altText: LIMIT, name: LIMIT },
+  ],
+  ["accepts empty alt text", " Cat ", "", { altText: "", name: "Cat" }],
+];
+
 describe("the image metadata rule", () => {
-  test("trims the name and alt text it stores", () => {
-    expect(imageMetadata("  Cat photo  ", "  A cat  ")).toEqual({
-      ok: true,
-      value: { altText: "A cat", name: "Cat photo" },
-    });
-  });
+  for (const [title, name, altText, answer] of METADATA_CASES) {
+    test(`${title}, through both doors`, () => {
+      const expected =
+        typeof answer === "string"
+          ? { error: answer, ok: false }
+          : { ok: true, value: answer };
 
-  test("refuses a name with nothing in it", () => {
-    expect(imageMetadata("   ", "A cat")).toEqual({
-      error: "Image name is required",
-      ok: false,
+      expect([
+        imageMetadata(name, altText),
+        imageMetadataOrError(name, altText),
+      ]).toEqual([expected, expected]);
     });
-  });
-
-  test("refuses a name past the text box limit", () => {
-    expect(imageMetadata(LONG, "")).toEqual({
-      error: "Image name must be 250 characters or fewer",
-      ok: false,
-    });
-  });
-
-  test("refuses alt text past the text box limit", () => {
-    expect(imageMetadata("Cat", LONG)).toEqual({
-      error: "Alt text must be 250 characters or fewer",
-      ok: false,
-    });
-  });
-
-  test("accepts a name and alt text at the limit", () => {
-    expect(imageMetadata(LIMIT, LIMIT)).toEqual({
-      ok: true,
-      value: { altText: LIMIT, name: LIMIT },
-    });
-  });
-
-  test("answers the same refusal through the shared door", () => {
-    expect(imageMetadataOrError("", "")).toEqual({
-      error: "Image name is required",
-      ok: false,
-    });
-    expect(imageMetadataOrError(" Cat ", "")).toEqual({
-      ok: true,
-      value: { altText: "", name: "Cat" },
-    });
-  });
+  }
 });
 
 describe("the image record's rule", () => {
@@ -130,15 +156,6 @@ describe("the image record's rule", () => {
   });
 });
 
-describe("the image record's declaration", () => {
-  test("asks for the image name on its delete page", () => {
-    expect(imageRecord.activityName).toBe("Image");
-    expect(deleteConfirmLabel(imageRecord)).toBe(
-      "Type the image name to confirm",
-    );
-  });
-});
-
 describeWithEnv(
   "the image upload boundary",
   { db: true, storage: "local" },
@@ -166,12 +183,7 @@ describeWithEnv(
     });
 
     test("stores the full image and its thumbnail under two names", async () => {
-      const uploaded = await uploadImageFiles({
-        bytes: await makeTestPng(4, 4),
-        contentType: "image/png",
-      });
-      if (!uploaded.ok) throw new Error(uploaded.error);
-      const { filename, filenameThumb } = uploaded.value;
+      const { filename, filenameThumb } = await uploadTestPng();
 
       expect([
         filename.endsWith(".webp"),
@@ -183,12 +195,7 @@ describeWithEnv(
     });
 
     test("removes both stored files when the image insert fails", async () => {
-      const uploaded = await uploadImageFiles({
-        bytes: await makeTestPng(4, 4),
-        contentType: "image/png",
-      });
-      if (!uploaded.ok) throw new Error(uploaded.error);
-      const { filename, filenameThumb } = uploaded.value;
+      const { filename, filenameThumb } = await uploadTestPng();
       const restore = beforeNextTransaction(() =>
         Promise.reject(new Error("insert down")),
       );
@@ -259,7 +266,7 @@ describeWithEnv(
   },
 );
 
-describeWithEnv("the image record's commands", { db: true }, () => {
+describeRecord(imageRecord, "Image", "Type the image name to confirm", () => {
   test("creates an image from uploaded files and logs the upload", async () => {
     expect(
       await imageRecord.create({ ...imageInput, name: "  Cat  " }),
@@ -271,10 +278,10 @@ describeWithEnv("the image record's commands", { db: true }, () => {
   });
 
   test("refuses to create an image whose name is empty", async () => {
-    expect(await imageRecord.create({ ...imageInput, name: "" })).toEqual({
-      kind: "refused",
-      message: "Image name is required",
-    });
+    await expectRefused(
+      imageRecord.create({ ...imageInput, name: "" }),
+      "Image name is required",
+    );
     expect(await imageRecord.getAll()).toEqual([]);
   });
 
@@ -282,10 +289,7 @@ describeWithEnv("the image record's commands", { db: true }, () => {
     await makeImage("Zebra");
     await makeImage("Ant");
 
-    expect((await imageRecord.getAll()).map((image) => image.name)).toEqual([
-      "Ant",
-      "Zebra",
-    ]);
+    expect(await listedNames(imageRecord)).toEqual(["Ant", "Zebra"]);
   });
 
   test("updates the name and alt text and logs it", async () => {
@@ -341,8 +345,8 @@ describeWithEnv("the image record's commands", { db: true }, () => {
     const image = await makeImage("Kept");
     const listing = await createTestListing({ name: "Real" });
 
-    expect(
-      await imageRecord.update(image.id, {
+    await expectRefused(
+      imageRecord.update(image.id, {
         ...imageInput,
         items: [
           { id: listing.id, kind: "listing" },
@@ -351,10 +355,8 @@ describeWithEnv("the image record's commands", { db: true }, () => {
         ],
         name: "Changed",
       }),
-    ).toEqual({
-      kind: "refused",
-      message: "items must name existing records: listing:98, group:99",
-    });
+      "items must name existing records: listing:98, group:99",
+    );
     expect((await getImageById(image.id))?.name).toBe("Kept");
     expect(await loggedMessages()).toEqual(["Listing 'Real' created"]);
   });
@@ -362,16 +364,13 @@ describeWithEnv("the image record's commands", { db: true }, () => {
   test("refuses an update whose name is empty", async () => {
     const image = await makeImage("Named");
 
-    expect(
-      await imageRecord.update(image.id, { ...imageInput, name: " " }),
-    ).toEqual({ kind: "refused", message: "Image name is required" });
+    await expectRefused(
+      imageRecord.update(image.id, { ...imageInput, name: " " }),
+      "Image name is required",
+    );
   });
 
-  test("answers not-found for an update of a missing image", async () => {
-    expect(await imageRecord.update(99, imageInput)).toEqual({
-      kind: "not-found",
-    });
-  });
+  testMissingUpdate(imageRecord, imageInput);
 
   test("answers not-found when the image is deleted before the write", async () => {
     const image = await makeImage("Vanishing");
@@ -393,8 +392,7 @@ describeWithEnv("the image record's commands", { db: true }, () => {
   test("deletes an image and logs it with the image name", async () => {
     const image = await makeImage("Old");
 
-    expect(await imageRecord.remove(image.id)).toEqual({ kind: "deleted" });
+    await expectRecordDelete(imageRecord, image.id, ["Image 'Old' deleted"]);
     expect(await getImageById(image.id)).toBe(null);
-    expect(await loggedMessages()).toEqual(["Image 'Old' deleted"]);
   });
 });

@@ -2,7 +2,7 @@
  * members, and the delete that clears everything a group carries. */
 
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
 import {
   createExternalSourceLink,
@@ -18,15 +18,20 @@ import { groupRecord } from "#shared/records/groups.ts";
 import { groupInput } from "#test/features/admin/groups/helpers.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
 import {
+  createPackageWithMember,
   createSoldPackageMember,
   createTestGroup,
   getTestPackagePrices,
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
-import { deleteConfirmLabel } from "#test-utils/record-labels.ts";
+import {
+  expectRefused,
+  expectWrittenAndLogged,
+  listedNames,
+} from "#test-utils/record-commands.ts";
+import { describeRecord } from "#test-utils/record-labels.ts";
 import { withTestSession } from "#test-utils/session.ts";
 
 /** Everything one group carries that its delete must clear. */
@@ -48,37 +53,33 @@ const groupLeftovers = async (
   ),
 });
 
-describe("the group record's declaration", () => {
-  test("names a group on its pages and its delete page", () => {
-    expect(groupRecord.activityName).toBe("Group");
-    expect(deleteConfirmLabel(groupRecord)).toBe("Group name");
-  });
-});
+/** A package whose one member carries a 300 package price. */
+const pricedBundle = async () => {
+  const { group, member } = await createPackageWithMember("Bundle");
+  await groupRecord.update(
+    group.id,
+    await groupInput({
+      isPackage: true,
+      name: "Bundle",
+      packageMembers: [{ listingId: member.id, price: 300 }],
+      slug: group.slug,
+    }),
+  );
+  return { group, member };
+};
 
-describeWithEnv("the group record's commands", { db: true }, () => {
+describeRecord(groupRecord, "Group", "Group name", () => {
   test("creates a group and logs it with the group name", async () => {
-    expect(
-      await groupRecord.create(await groupInput({ name: "Club" })),
-    ).toMatchObject({ kind: "written", row: { name: "Club" } });
-    expect(await activityMessages()).toEqual(["Group 'Club' created"]);
-    expect((await groupRecord.getAll()).map((group) => group.name)).toEqual([
-      "Club",
-    ]);
+    await expectWrittenAndLogged(
+      groupRecord.create(await groupInput({ name: "Club" })),
+      { name: "Club" },
+      ["Group 'Club' created"],
+    );
+    expect(await listedNames(groupRecord)).toEqual(["Club"]);
   });
 
   test("stores the package members an update carries", async () => {
-    const group = await createTestGroup({ isPackage: true, name: "Bundle" });
-    const member = await createTestListing({ groupId: group.id });
-
-    await groupRecord.update(
-      group.id,
-      await groupInput({
-        isPackage: true,
-        name: "Bundle",
-        packageMembers: [{ listingId: member.id, price: 300 }],
-        slug: group.slug,
-      }),
-    );
+    const { group, member } = await pricedBundle();
 
     expect(await getTestPackagePrices(group.id)).toEqual(
       new Map([[member.id, 300]]),
@@ -86,19 +87,15 @@ describeWithEnv("the group record's commands", { db: true }, () => {
   });
 
   test("clears the package members when a group stops being a package", async () => {
-    const group = await createTestGroup({ isPackage: true, name: "Bundle" });
-    const member = await createTestListing({ groupId: group.id });
-    const packaged = await groupInput({
-      isPackage: true,
-      name: "Bundle",
-      packageMembers: [{ listingId: member.id, price: 300 }],
-      slug: group.slug,
-    });
-    await groupRecord.update(group.id, packaged);
+    const { group } = await pricedBundle();
 
     await groupRecord.update(
       group.id,
-      await groupInput({ isPackage: false, name: "Bundle", slug: group.slug }),
+      await groupInput({
+        isPackage: false,
+        name: "Bundle",
+        slug: group.slug,
+      }),
     );
 
     expect(await getTestPackagePrices(group.id)).toEqual(new Map());
@@ -107,11 +104,10 @@ describeWithEnv("the group record's commands", { db: true }, () => {
   test("refuses to delete a hidden package with sold tickets", async () => {
     const { group } = await createSoldPackageMember("Hidden sold", true);
 
-    expect(await groupRecord.remove(group.id)).toEqual({
-      kind: "refused",
-      message:
-        "This package has sold tickets that hide listing names. Show its listing names first if you want to un-package or delete it.",
-    });
+    await expectRefused(
+      groupRecord.remove(group.id),
+      "This package has sold tickets that hide listing names. Show its listing names first if you want to un-package or delete it.",
+    );
   });
 
   test("deletes a group with every link, edge, note, and image use", async () => {

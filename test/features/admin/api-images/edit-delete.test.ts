@@ -15,6 +15,7 @@ import {
 } from "#db/images.ts";
 import { writeImageUpdate } from "#routes/admin/api-images.ts";
 import { imageRecord } from "#shared/records/images.ts";
+import { loggedMessages } from "#test-utils/activity-log.ts";
 import {
   type ApiImageRow,
   deleteImage,
@@ -24,7 +25,6 @@ import {
   imageApiPath,
   imageOnListing,
   imageOnPage,
-  loggedMessages,
   makeImage,
   putImage,
 } from "#test-utils/admin-images.ts";

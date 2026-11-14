@@ -9,6 +9,7 @@ import { getImageById, setItemsForImage } from "#db/images.ts";
 import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
+import { loggedMessages } from "#test-utils/activity-log.ts";
 import {
   type ApiImageRow,
   expectImageNotFound,
@@ -17,7 +18,6 @@ import {
   imageApiPath,
   imageOnListingAndGroup,
   imageUploadBody,
-  loggedMessages,
   makeImage,
 } from "#test-utils/admin-images.ts";
 import { assertJson, expectApiError } from "#test-utils/assertions.ts";

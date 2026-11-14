@@ -104,12 +104,14 @@ describeWithEnv("validateListingInput boundaries", { db: true }, () => {
     ).rejects.toThrow("Missing group listing membership");
   });
 
-  test("refuses a contact field it does not know", async () => {
-    await expect(
-      validateListingInput(
-        inputFor({ fields: "email,shoe_size", name: "Odd Fields" }),
-      ),
-    ).resolves.toBe(t("error.listing_fields_unknown"));
+  test("refuses a contact field it does not know, and only that field", async () => {
+    const withFields = (fields: string) =>
+      validateListingInput(inputFor({ fields, name: "Odd Fields" }));
+
+    await expect(withFields("email,shoe_size")).resolves.toBe(
+      t("error.listing_fields_unknown"),
+    );
+    await expect(withFields("email,phone")).resolves.toBeNull();
   });
 
   test("defaults an omitted customisable-days flag to false for group checks", async () => {

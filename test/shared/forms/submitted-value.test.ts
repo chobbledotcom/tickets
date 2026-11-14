@@ -16,6 +16,10 @@ const dateField = {
   type: "date",
 } as const;
 
+/** The value a form that submits `raw` as the start date reads as. */
+const readStartDate = (raw: string) =>
+  readSubmittedFieldValue(new FormParams([["start_date", raw]]), dateField);
+
 const datetimeField = {
   label: "Closes",
   name: "closes_at",
@@ -25,8 +29,7 @@ const datetimeField = {
 
 describe("readSubmittedFieldValue date cleanup", () => {
   test("a date field returns the trimmed real date", () => {
-    const form = new FormParams([["start_date", "  2027-06-01  "]]);
-    expect(readSubmittedFieldValue(form, dateField)).toBe("2027-06-01");
+    expect(readStartDate("  2027-06-01  ")).toBe("2027-06-01");
   });
 
   test("a date field passes an unusable value through for the field message", () => {
@@ -40,8 +43,7 @@ describe("readSubmittedFieldValue date cleanup", () => {
       "mutated",
     ];
     for (const raw of unusable) {
-      const form = new FormParams([["start_date", raw]]);
-      expect(readSubmittedFieldValue(form, dateField)).toBe(raw);
+      expect(readStartDate(raw)).toBe(raw);
     }
   });
 
@@ -54,29 +56,32 @@ describe("readSubmittedFieldValue date cleanup", () => {
   });
 
   test("a blank date field stays blank", () => {
-    const form = new FormParams([["start_date", "   "]]);
-    expect(readSubmittedFieldValue(form, dateField)).toBe("");
+    expect(readStartDate("   ")).toBe("");
   });
 
-  test("a datetime field cleans its date half before composing the value", () => {
-    const form = new FormParams([
-      ["closes_at_date", " 2027-06-01 "],
-      ["closes_at_time", "18:30"],
-    ]);
-    expect(readSubmittedFieldValue(form, datetimeField)).toBe(
+  // Each row: the test name, the submitted date half at 18:30, the value read.
+  const COMPOSED = [
+    [
+      "a datetime field cleans its date half before composing the value",
+      " 2027-06-01 ",
       "2027-06-01T18:30",
-    );
-  });
-
-  test("a datetime field composes an unusable date half raw", () => {
-    const form = new FormParams([
-      ["closes_at_date", "2027-02-30"],
-      ["closes_at_time", "18:30"],
-    ]);
-    expect(readSubmittedFieldValue(form, datetimeField)).toBe(
+    ],
+    [
+      "a datetime field composes an unusable date half raw",
+      "2027-02-30",
       "2027-02-30T18:30",
-    );
-  });
+    ],
+  ] as const;
+
+  for (const [name, date, value] of COMPOSED) {
+    test(name, () => {
+      const form = new FormParams([
+        ["closes_at_date", date],
+        ["closes_at_time", "18:30"],
+      ]);
+      expect(readSubmittedFieldValue(form, datetimeField)).toBe(value);
+    });
+  }
 });
 
 describe("readSubmittedFieldValue Markdown text", () => {

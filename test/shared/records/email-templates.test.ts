@@ -1,11 +1,12 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { decryptWithOwnerKey } from "#crypto/hybrid.ts";
+import { execute } from "#db/client.ts";
 import { getAllRawEmailTemplates } from "#db/email-templates.ts";
 import { emailTemplateRecord } from "#shared/records/email-templates.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { deleteConfirmLabel } from "#test-utils/record-labels.ts";
+import { writtenRow } from "#test-utils/record-commands.ts";
+import { describeRecord } from "#test-utils/record-labels.ts";
 import { withTestSession } from "#test-utils/session.ts";
 
 /** Every stored template, decrypted the way the owner reads it. */
@@ -24,20 +25,10 @@ const storedTemplates = () =>
     );
   });
 
-const createTemplate = async (subject: string, body: string) => {
-  const created = await emailTemplateRecord.create({ body, subject });
-  if (created.kind !== "written") throw new Error("create failed");
-  return created.row;
-};
+const createTemplate = (subject: string, body: string) =>
+  writtenRow(emailTemplateRecord.create({ body, subject }));
 
-describe("the email template record's declaration", () => {
-  test("names a template on its pages and its delete page", () => {
-    expect(emailTemplateRecord.activityName).toBe("Template");
-    expect(deleteConfirmLabel(emailTemplateRecord)).toBe("Template subject");
-  });
-});
-
-describeWithEnv("the email template record's commands", { db: true }, () => {
+describeRecord(emailTemplateRecord, "Template", "Template subject", () => {
   test("lists no templates through the record", async () => {
     await createTemplate("Hello", "Body");
 
@@ -67,6 +58,21 @@ describeWithEnv("the email template record's commands", { db: true }, () => {
     expect(await storedTemplates()).toEqual([
       { body: "Kept body", id: 1, subject: "Keep" },
       { body: "New body", id: second.id, subject: "New" },
+    ]);
+  });
+
+  test("updates a template stored under id 0 in place", async () => {
+    await createTemplate("Old", "Old body");
+    await execute("UPDATE email_templates SET id = 0 WHERE id = 1");
+
+    expect(
+      await emailTemplateRecord.update(0, {
+        body: "New body",
+        subject: "New",
+      }),
+    ).toEqual({ kind: "written", row: { id: 0, subject: "New" } });
+    expect(await storedTemplates()).toEqual([
+      { body: "New body", id: 0, subject: "New" },
     ]);
   });
 

@@ -17,14 +17,33 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import { createTestApiKeyFull } from "#test-utils/session.ts";
 
+/** Two keys of user 1, made in order. The second key's token comes from
+ * `token`. */
+const twoKeys = async (
+  firstName: string,
+  secondName: string,
+  token: () => string = generateSecureToken,
+): Promise<{ id: number; second: { apiKey: string; id: number } }> => {
+  const { dataKey, id } = await createTestApiKeyFull(firstName);
+  return { id, second: await createApiKey(1, secondName, dataKey, token) };
+};
+
+const deleteCases = [
+  { deleted: true, kept: [], name: "deletes the key of its own user", user: 1 },
+  {
+    deleted: false,
+    kept: ["Kept"],
+    name: "refuses to delete another user's key",
+    user: 999,
+  },
+];
+
 describeWithEnv("db > api keys", { db: true }, () => {
   describe("creating and finding a key", () => {
     test("hands back the token once and finds the key by it", async () => {
-      const { dataKey, id } = await createTestApiKeyFull();
-      const second = await createApiKey(
-        1,
+      const { id, second } = await twoKeys(
+        "Test Key",
         "Second",
-        dataKey,
         () => "fixed-token",
       );
 
@@ -63,8 +82,7 @@ describeWithEnv("db > api keys", { db: true }, () => {
 
   describe("listing a user's keys", () => {
     test("lists each key with its decrypted name, oldest first", async () => {
-      const { dataKey, id } = await createTestApiKeyFull("Key A");
-      await createApiKey(1, "Key B", dataKey, generateSecureToken);
+      const { id } = await twoKeys("Key A", "Key B");
 
       const keys = await getApiKeysForUser(1);
       expect(
@@ -110,32 +128,21 @@ describeWithEnv("db > api keys", { db: true }, () => {
   });
 
   describe("deleting a key", () => {
-    test("deletes the key of its own user", async () => {
-      const { id } = await createTestApiKeyFull();
+    for (const { deleted, kept, name, user } of deleteCases) {
+      test(name, async () => {
+        const { id } = await createTestApiKeyFull("Kept");
 
-      expect(await deleteApiKey(id, 1)).toBe(true);
-      expect(await getApiKeysForUser(1)).toEqual([]);
-    });
-
-    test("refuses to delete another user's key", async () => {
-      const { id } = await createTestApiKeyFull("Kept");
-
-      expect(await deleteApiKey(id, 999)).toBe(false);
-      expect((await getApiKeysForUser(1)).map((key) => key.name)).toEqual([
-        "Kept",
-      ]);
-    });
+        expect(await deleteApiKey(id, user)).toBe(deleted);
+        expect((await getApiKeysForUser(1)).map((key) => key.name)).toEqual(
+          kept,
+        );
+      });
+    }
   });
 
   describe("stamping last use", () => {
     test("stamps last_used on the touched row only", async () => {
-      const { dataKey, id } = await createTestApiKeyFull("Touch Test");
-      const other = await createApiKey(
-        1,
-        "Untouched",
-        dataKey,
-        generateSecureToken,
-      );
+      const { id, second: other } = await twoKeys("Touch Test", "Untouched");
 
       await touchApiKeyLastUsed(id);
 

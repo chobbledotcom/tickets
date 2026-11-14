@@ -1,24 +1,19 @@
-import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { assertJson } from "#test-utils/assertions.ts";
+import { expectApiError } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
 import { apiRequest } from "#test-utils/session.ts";
 
 describeWithEnv("Admin API - Site pages - taken slug", { db: true }, () => {
-  test("a create refuses a slug a listing owns with the form's message", async () => {
-    const listing = await createTestListing({ name: "Kayak" });
-    await assertJson(
+  test("a create refuses a slug another page owns with the form's message", async () => {
+    const owner = await createTestSitePage("visit", { name: "Visit" });
+    await expectApiError(
       apiRequest("/api/admin/site-pages", {
-        body: { name: "Kayak page", slug: listing.slug },
+        body: { name: "Second visit", slug: owner.slug },
         method: "POST",
       }),
       400,
-      (body) => {
-        expect(body.error).toBe(
-          "That slug is already in use by a listing, group, or page.",
-        );
-      },
+      "That slug is already in use by a listing, group, or page.",
     );
   });
 });

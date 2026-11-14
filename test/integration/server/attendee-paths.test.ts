@@ -18,7 +18,10 @@ import {
   attendeeLineFields,
   buildAttendeeEditForm,
 } from "#test-utils/db-helpers/attendees.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createPackageWithMember,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import {
   createTestListing,
   deactivateTestListing,
@@ -37,9 +40,7 @@ import type { Group, Listing } from "#types";
 const packageAndMember = async (
   name: string,
 ): Promise<{ group: Group; listing: Listing }> => {
-  const group = await createTestGroup({ isPackage: true, name });
-  const listing = await createTestListing({
-    groupId: group.id,
+  const { group, member: listing } = await createPackageWithMember(name, {
     maxAttendees: 10,
     maxQuantity: 5,
     name: `${name} Tent`,

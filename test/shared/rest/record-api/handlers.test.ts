@@ -12,6 +12,7 @@ import {
   answerOf,
   callRoute,
   type Row,
+  type Verdicts,
   type WriteCalls,
   widgetRoutes,
 } from "#test-utils/record-api.ts";
@@ -189,26 +190,6 @@ describeWithEnv("the record API handlers", { db: true }, () => {
     expect(calls.create).toEqual([]);
   });
 
-  test("a refused create answers 400 with the refusal", async () => {
-    const response = await callRoute(
-      widgetRoutes({}, { create: refused }),
-      "POST /api/admin/widgets",
-      { name: "Made" },
-    );
-
-    expect(await answerOf(response)).toEqual([400, { error: "Nope" }]);
-  });
-
-  test("a create that writes no row answers 404", async () => {
-    const response = await callRoute(
-      widgetRoutes({}, { create: missing }),
-      "POST /api/admin/widgets",
-      { name: "Made" },
-    );
-
-    expect(await answerOf(response)).toEqual(notFoundAnswer);
-  });
-
   test("an update with no schema maps the raw body against the stored row", async () => {
     const calls = newCalls();
     const existing: [Row, string | undefined][] = [];
@@ -238,21 +219,21 @@ describeWithEnv("the record API handlers", { db: true }, () => {
     expect(existing).toEqual([[{ id: 2, name: "Two" }, "owner"]]);
   });
 
-  test("a refused update answers 400 and a vanished one 404", async () => {
-    const put = (verdicts: Parameters<typeof widgetRoutes>[1]) =>
-      callRoute(
-        widgetRoutes({}, verdicts),
-        "PUT /api/admin/widgets/:widgetId",
-        { name: "New" },
-        1,
-      );
+  for (const [verb, key, id] of [
+    ["create", "POST /api/admin/widgets", undefined],
+    ["update", "PUT /api/admin/widgets/:widgetId", 1],
+  ] as const) {
+    test(`a refused ${verb} answers 400 and a vanished one 404`, async () => {
+      const send = (verdicts: Verdicts) =>
+        callRoute(widgetRoutes({}, verdicts), key, { name: "New" }, id);
 
-    expect(await answerOf(await put({ update: refused }))).toEqual([
-      400,
-      { error: "Nope" },
-    ]);
-    expect(await answerOf(await put({ update: missing }))).toEqual(
-      notFoundAnswer,
-    );
-  });
+      expect(await answerOf(await send({ [verb]: refused }))).toEqual([
+        400,
+        { error: "Nope" },
+      ]);
+      expect(await answerOf(await send({ [verb]: missing }))).toEqual(
+        notFoundAnswer,
+      );
+    });
+  }
 });

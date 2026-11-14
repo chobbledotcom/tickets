@@ -7,20 +7,17 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { setFlashContext } from "#shared/flash-context.ts";
 import { runWithRequestContext } from "#shared/request-context.ts";
-import { recordPages } from "#shared/rest/record-pages.ts";
-import { expectRedirectWithFlash } from "#test-utils/assertions/redirect.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import {
   createAs,
   editAs,
   form,
+  type Input,
   pagesFor,
-  recordWith,
+  pagesForRecord,
   refusedWrite,
-  type Shape,
-  toInput,
-  type Values,
+  testLandings,
 } from "#test-utils/record-pages.ts";
 import { testCookie } from "#test-utils/session.ts";
 
@@ -44,122 +41,127 @@ const withFlash = async (
   );
 };
 
+/** Render one page with both flash messages; the renderer answers the
+ * route's own name, so the body proves which renderer ran. */
+const expectFlashPage = async (
+  path: string,
+  route: "listGet" | "newGet",
+  config: Parameters<typeof pagesFor>[0],
+): Promise<void> => {
+  const response = await withFlash(path, pagesFor(config)[route]);
+
+  expect([response.status, await response.text()]).toEqual([200, route]);
+};
+
 const missing = () => Promise.resolve({ kind: "not-found" as const });
 
+const refused = { create: refusedWrite, update: refusedWrite };
+
+const created = { act: createAs, succeeded: true };
+const refusedCreate = { act: createAs, succeeded: false, write: refused };
+const updated = { act: editAs, succeeded: true };
+const refusedEdit = { act: editAs, succeeded: false, write: refused };
+
 describeWithEnv("the record page answers", { db: true }, () => {
-  test("a create lands on the save page with a success flash", async () => {
-    expectRedirectWithFlash(
+  testLandings(created, {
+    "a create lands on the save page with a success flash": [
+      {},
       "/admin/holidays/9",
       "Widget created",
-    )(await createAs(pagesFor()));
-  });
-
-  test("the flash names the singular the page declares", async () => {
-    expectRedirectWithFlash(
-      "/admin/holidays/9",
-      "Gadget created",
-    )(await createAs(pagesFor({ singular: "Gadget" })));
-  });
-
-  test("a refused create returns to the new page with its refusal", async () => {
-    expectRedirectWithFlash(
-      "/admin/holidays/new",
-      "Nope",
-      false,
-    )(await createAs(pagesFor({}, { create: refusedWrite })));
-  });
-
-  test("a refused create goes to the error path the page names", async () => {
-    const pages = pagesFor(
-      { createErrorPath: "/admin/holidays" },
-      { create: refusedWrite },
-    );
-
-    expectRedirectWithFlash(
-      "/admin/holidays",
-      "Nope",
-      false,
-    )(await createAs(pages));
-  });
-
-  test("a form refusal returns to the new page route the page names", async () => {
-    const pages = pagesFor({
-      routes: { new: "groupNew" },
-      validateForm: () => "Fill it in",
-    });
-
-    expectRedirectWithFlash(
-      "/admin/groups/new",
-      "Fill it in",
-      false,
-    )(await createAs(pages));
-  });
-
-  test("a save path the page names moves the create landing", async () => {
-    const pages = pagesFor({ savePath: (id) => `/admin/holidays/${id}/edit` });
-
-    expectRedirectWithFlash(
+    ],
+    "a save path the page names moves the create landing": [
+      { savePath: (id) => `/admin/holidays/${id}/edit` },
       "/admin/holidays/9/edit",
       "Widget created",
-    )(await createAs(pages));
+    ],
+    "an empty save path is kept, not replaced by the record page": [
+      { savePath: () => "" },
+      "/",
+      "Widget created",
+    ],
+    "an empty singular stays empty in the flash": [
+      { singular: "" },
+      "/admin/holidays/9",
+      " created",
+    ],
+    "the flash names the singular the page declares": [
+      { singular: "Gadget" },
+      "/admin/holidays/9",
+      "Gadget created",
+    ],
   });
 
-  test("an update lands on the save page with a success flash", async () => {
-    expectRedirectWithFlash(
+  testLandings(refusedCreate, {
+    "a form refusal returns to the new page route the page names": [
+      { routes: { new: "groupNew" }, validateForm: () => "Fill it in" },
+      "/admin/groups/new",
+      "Fill it in",
+    ],
+    "a refused create goes to the error path the page names": [
+      { createErrorPath: "/admin/holidays" },
+      "/admin/holidays",
+      "Nope",
+    ],
+    "a refused create returns to the new page with its refusal": [
+      {},
+      "/admin/holidays/new",
+      "Nope",
+    ],
+    "an empty error path is kept, not replaced by the new page": [
+      { createErrorPath: "" },
+      "/",
+      "Nope",
+    ],
+  });
+
+  testLandings(updated, {
+    "an update lands on the save page with a success flash": [
+      {},
       "/admin/holidays/7",
       "Widget updated",
-    )(await editAs(pagesFor()));
-  });
-
-  test("an update lands on the update save path when the page names one", async () => {
-    const pages = pagesFor({
-      savePath: () => "/admin/holidays",
-      updateSavePath: (id) => `/admin/holidays/${id}/edit`,
-    });
-
-    expectRedirectWithFlash(
+    ],
+    "an update lands on the update save path when the page names one": [
+      {
+        savePath: () => "/admin/holidays",
+        updateSavePath: (id) => `/admin/holidays/${id}/edit`,
+      },
       "/admin/holidays/7/edit",
       "Widget updated",
-    )(await editAs(pages));
+    ],
+  });
+
+  testLandings(refusedEdit, {
+    "a refused edit returns to the edit route the page names": [
+      { routes: { edit: "groupEdit" } },
+      "/admin/groups/7/edit",
+      "Nope",
+    ],
+    "an empty edit error path is kept, not replaced by the edit page": [
+      { editErrorPath: () => "" },
+      "/",
+      "Nope",
+    ],
   });
 
   test("an update of a vanished row answers 404", async () => {
     expect((await editAs(pagesFor({}, { update: missing }))).status).toBe(404);
   });
 
-  test("a refused edit returns to the edit route the page names", async () => {
-    const pages = pagesFor(
-      { routes: { edit: "groupEdit" } },
-      { update: refusedWrite },
-    );
-
-    expectRedirectWithFlash(
-      "/admin/groups/7/edit",
-      "Nope",
-      false,
-    )(await editAs(pages));
-  });
-
   test("a surface with no edit page answers the edit POST with 404", async () => {
-    const pages = recordPages<Shape, Values>(
-      recordWith({}, { surface: "invoices" }),
-      { form: form("Widget"), toInput },
-    );
+    const pages = pagesForRecord({ surface: "invoices" });
 
     expect((await editAs(pages)).status).toBe(404);
   });
 
   test("the list page renders the rows and the success flash", async () => {
     const seen: unknown[] = [];
-    const pages = pagesFor({
+    await expectFlashPage("/admin/holidays", "listGet", {
       renderList: (rows, session, success) => {
         seen.push([rows, session.adminLevel, success]);
-        return "list";
+        return "listGet";
       },
     });
-    const response = await withFlash("/admin/holidays", pages.listGet);
 
-    expect([response.status, await response.text()]).toEqual([200, "list"]);
     expect(seen).toEqual([[[{ id: 7, name: "Widget" }], "owner", "Saved"]]);
   });
 
@@ -171,15 +173,13 @@ describeWithEnv("the record page answers", { db: true }, () => {
 
   test("the new page renders the error flash", async () => {
     const seen: unknown[] = [];
-    const pages = pagesFor({
+    await expectFlashPage("/admin/holidays/new", "newGet", {
       renderNew: (session, error) => {
         seen.push([session.adminLevel, error]);
-        return "new";
+        return "newGet";
       },
     });
-    const response = await withFlash("/admin/holidays/new", pages.newGet);
 
-    expect([response.status, await response.text()]).toEqual([200, "new"]);
     expect(seen).toEqual([["owner", "Bad"]]);
   });
 
@@ -197,6 +197,23 @@ describeWithEnv("the record page answers", { db: true }, () => {
     );
 
     expect(response.status).toBe(404);
+  });
+
+  test("a create parses the create form, not the edit form", async () => {
+    const created: Input[] = [];
+    const pages = pagesFor(
+      { editForm: form("Edited name"), form: form("Created name") },
+      {
+        create: (input) => {
+          created.push(input);
+          return Promise.resolve({ kind: "written", row: { id: 9, ...input } });
+        },
+      },
+    );
+
+    await createAs(pages);
+
+    expect(created).toEqual([{ name: "Created name" }]);
   });
 
   test("an override replaces the generated route", () => {

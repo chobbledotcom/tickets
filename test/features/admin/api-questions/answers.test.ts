@@ -12,10 +12,50 @@ import { activityMessages } from "#test-utils/activity-log.ts";
 import {
   adminApiTestTransport,
   expectAdminApiError,
+  expectTextChildCreateRefusals,
 } from "#test-utils/admin-api-transport.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const { questions } = ADMIN_API_RESOURCES;
+
+/** Add one answer to a question through the client. */
+const addAnswer = (questionId: number, body: { text: string }) =>
+  adminApiChildCreate(
+    adminApiTestTransport,
+    questions,
+    "answers",
+    questionId,
+    body,
+  );
+
+/** Add one answer and name the id it was stored under. */
+const addAnswerTo = async (questionId: number, text: string) => {
+  const created = await addAnswer(questionId, { text });
+  return { answerId: created.question.answers[0]!.id, created };
+};
+
+/** A new question holding one answer. */
+const questionWithAnswer = async (questionText: string, answerText: string) => {
+  const question = await createQuestion(questionText);
+  return { ...(await addAnswerTo(question.id, answerText)), question };
+};
+
+/** One update or delete on an answer's own route through the client. */
+const answerCall = (
+  action: "delete" | "update",
+  questionId: number,
+  answerId: number,
+  body: unknown,
+) =>
+  adminApiChildCall(
+    adminApiTestTransport,
+    questions,
+    action,
+    "answers",
+    questionId,
+    answerId,
+    body,
+  );
 
 /** Create one question row directly, so the child routes always have a
  *  parent whose display type the test chose. */
@@ -82,71 +122,29 @@ describeWithEnv("Admin API - Question answers", { db: true }, () => {
       expect((await getQuestionWithAnswers(question.id))!.answers).toEqual([]);
     });
 
-    test("returns error when text is missing", async () => {
+    test("refuses a missing text, an over-long text, and an unknown question", async () => {
       const question = await createQuestion("No Text");
 
-      await expectAdminApiError(
-        adminApiChildCreate(
-          adminApiTestTransport,
-          questions,
-          "answers",
-          question.id,
-          {},
-        ),
-        "text is required (status 400)",
-      );
-    });
-
-    test("refuses an answer past the form's input cap", async () => {
-      const question = await createQuestion("Too Long");
-
-      await expectAdminApiError(
-        adminApiChildCreate(
-          adminApiTestTransport,
-          questions,
-          "answers",
-          question.id,
-          { text: "x".repeat(251) },
-        ),
-        "Answer text must be 250 characters or fewer (status 400)",
-      );
-    });
-
-    test("returns 404 for a non-existent question", async () => {
-      await expectAdminApiError(
-        adminApiChildCreate(
-          adminApiTestTransport,
-          questions,
-          "answers",
-          99999,
-          { text: "Nope" },
-        ),
-        "Question not found (status 404)",
-      );
+      await expectTextChildCreateRefusals(questions, "answers", question.id, [
+        {
+          body: { text: "x".repeat(251) },
+          message: "Answer text must be 250 characters or fewer (status 400)",
+          parentId: question.id,
+        },
+      ]);
     });
   });
 
   describe("PUT /api/admin/questions/:questionId/answers/:answerId", () => {
     test("renames an answer", async () => {
-      const question = await createQuestion("T-shirt size?");
-      const created = await adminApiChildCreate(
-        adminApiTestTransport,
-        questions,
-        "answers",
-        question.id,
-        { text: "Medium" },
+      const { answerId, created, question } = await questionWithAnswer(
+        "T-shirt size?",
+        "Medium",
       );
-      const answerId = created.question.answers[0]!.id;
 
-      const answered = (await adminApiChildCall(
-        adminApiTestTransport,
-        questions,
-        "update",
-        "answers",
-        question.id,
-        answerId,
-        { text: "Extra large" },
-      )) as typeof created;
+      const answered = (await answerCall("update", question.id, answerId, {
+        text: "Extra large",
+      })) as typeof created;
       expect(answered.question.answers.map((option) => option.text)).toEqual([
         "Extra large",
       ]);
@@ -157,15 +155,7 @@ describeWithEnv("Admin API - Question answers", { db: true }, () => {
 
     test("returns 404 for an unknown question", async () => {
       await expectAdminApiError(
-        adminApiChildCall(
-          adminApiTestTransport,
-          questions,
-          "update",
-          "answers",
-          99999,
-          1,
-          { text: "Nope" },
-        ),
+        answerCall("update", 99999, 1, { text: "Nope" }),
         "Question not found (status 404)",
       );
     });
@@ -173,25 +163,10 @@ describeWithEnv("Admin API - Question answers", { db: true }, () => {
     test("returns 404 for an answer under another question", async () => {
       const first = await createQuestion("First?");
       const second = await createQuestion("Second?");
-      const created = await adminApiChildCreate(
-        adminApiTestTransport,
-        questions,
-        "answers",
-        first.id,
-        { text: "First's answer" },
-      );
-      const answerId = created.question.answers[0]!.id;
+      const { answerId } = await addAnswerTo(first.id, "First's answer");
 
       await expectAdminApiError(
-        adminApiChildCall(
-          adminApiTestTransport,
-          questions,
-          "update",
-          "answers",
-          second.id,
-          answerId,
-          { text: "Nope" },
-        ),
+        answerCall("update", second.id, answerId, { text: "Nope" }),
         "Answer not found (status 404)",
       );
     });
@@ -199,25 +174,14 @@ describeWithEnv("Admin API - Question answers", { db: true }, () => {
 
   describe("DELETE /api/admin/questions/:questionId/answers/:answerId", () => {
     test("deletes an answer with a matching confirmation", async () => {
-      const question = await createQuestion("Dietary needs?");
-      const created = await adminApiChildCreate(
-        adminApiTestTransport,
-        questions,
-        "answers",
-        question.id,
-        { text: "Vegan" },
+      const { answerId, question } = await questionWithAnswer(
+        "Dietary needs?",
+        "Vegan",
       );
-      const answerId = created.question.answers[0]!.id;
 
-      const answered = (await adminApiChildCall(
-        adminApiTestTransport,
-        questions,
-        "delete",
-        "answers",
-        question.id,
-        answerId,
-        { confirm_identifier: "Vegan" },
-      )) as { status: string };
+      const answered = (await answerCall("delete", question.id, answerId, {
+        confirm_identifier: "Vegan",
+      })) as { status: string };
       expect(answered.status).toBe("ok");
       expect((await getQuestionWithAnswers(question.id))!.answers).toEqual([]);
       assertArrayIncludes(await activityMessages(), [
@@ -226,26 +190,15 @@ describeWithEnv("Admin API - Question answers", { db: true }, () => {
     });
 
     test("rejects a delete with the wrong confirmation", async () => {
-      const question = await createQuestion("Protected?");
-      const created = await adminApiChildCreate(
-        adminApiTestTransport,
-        questions,
-        "answers",
-        question.id,
-        { text: "Stays" },
+      const { answerId, question } = await questionWithAnswer(
+        "Protected?",
+        "Stays",
       );
-      const answerId = created.question.answers[0]!.id;
 
       await expectAdminApiError(
-        adminApiChildCall(
-          adminApiTestTransport,
-          questions,
-          "delete",
-          "answers",
-          question.id,
-          answerId,
-          { confirm_identifier: "Wrong" },
-        ),
+        answerCall("delete", question.id, answerId, {
+          confirm_identifier: "Wrong",
+        }),
         "Answer text does not match. Please provide the exact answer text in confirm_identifier. (status 400)",
       );
       expect(

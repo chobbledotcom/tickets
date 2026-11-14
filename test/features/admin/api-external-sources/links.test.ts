@@ -7,7 +7,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { HYBRID_PREFIX } from "#crypto/hybrid.ts";
 import { queryOne } from "#db/client.ts";
-import { assertJson } from "#test-utils/assertions.ts";
+import { assertJson, expectApiError } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   addListing,
@@ -48,17 +48,38 @@ describeWithEnv("Admin API - External source links", { db: true }, () => {
   const externalIds = (links: { external_id: string }[]): string[] =>
     links.map((link) => link.external_id);
 
+  /** One link body that points at a listing. */
+  const listingLink = (externalId: string, linkId: number) => ({
+    external_id: externalId,
+    link_id: linkId,
+    link_type: "listing",
+  });
+
+  /** One write to a link route. */
+  const sendLink = (
+    method: "POST" | "PUT",
+    path: string,
+    body: Record<string, unknown>,
+  ) => apiRequest(path, { body, method });
+
+  /** A fresh source with one listing linked under `externalId`. */
+  const linkedListing = async (externalId: string) => {
+    const sourceId = await newSourceId();
+    const listing = await addListing();
+    const link = await createLink(
+      sourceId,
+      listingLink(externalId, listing.id),
+    );
+    return { link, listing, sourceId };
+  };
+
+  /** A fresh source's id, for the routes that only need one to exist. */
+  const newSourceId = async (): Promise<number> =>
+    Number((await createSource()).source.id);
+
   describe("POST /api/admin/external-sources/:sourceId/links", () => {
     test("links a record and answers with its opened external id", async () => {
-      const created = await createSource();
-      const sourceId = Number(created.source.id);
-      const listing = await addListing();
-
-      const link = await createLink(sourceId, {
-        external_id: "INV-1001",
-        link_id: listing.id,
-        link_type: "listing",
-      });
+      const { link, listing, sourceId } = await linkedListing("INV-1001");
 
       expect(link.link).toEqual(
         expect.objectContaining({
@@ -77,50 +98,40 @@ describeWithEnv("Admin API - External source links", { db: true }, () => {
       expect(stored!.external_id.startsWith(HYBRID_PREFIX)).toBe(true);
     });
 
-    test("refuses a record that does not exist", async () => {
-      const created = await createSource();
-
-      await assertJson(
-        apiRequest(linksPath(Number(created.source.id)), {
-          body: {
-            external_id: "INV-404",
-            link_id: 999_999,
-            link_type: "listing",
-          },
-          method: "POST",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("No listing has id 999999");
-        },
-      );
+    test("refuses a body it cannot link", async () => {
+      const sourceId = await newSourceId();
+      const notAnId = "link_id must be a whole number of 1 or more";
+      const cases: [Record<string, unknown>, string][] = [
+        [listingLink("INV-404", 999_999), "No listing has id 999999"],
+        [
+          { external_id: "X", link_id: 7, link_type: "invoice" },
+          "link_type must be one of: attendee, listing, group",
+        ],
+        [{ external_id: "X", link_id: 0, link_type: "listing" }, notAnId],
+        [{ external_id: "X", link_id: "7", link_type: "listing" }, notAnId],
+      ];
+      for (const [body, error] of cases) {
+        await expectApiError(
+          sendLink("POST", linksPath(sourceId), body),
+          400,
+          error,
+        );
+      }
     });
 
     test("refuses the same record twice with one external id", async () => {
-      const created = await createSource();
-      const sourceId = Number(created.source.id);
+      const sourceId = await newSourceId();
       const listing = await addListing();
-      await createLink(sourceId, {
-        external_id: "INV-1001",
-        link_id: listing.id,
-        link_type: "listing",
-      });
+      await createLink(sourceId, listingLink("INV-1001", listing.id));
 
-      await assertJson(
-        apiRequest(linksPath(sourceId), {
-          body: {
-            external_id: "INV-1001",
-            link_id: listing.id,
-            link_type: "listing",
-          },
-          method: "POST",
-        }),
+      await expectApiError(
+        sendLink(
+          "POST",
+          linksPath(sourceId),
+          listingLink("INV-1001", listing.id),
+        ),
         400,
-        (body) => {
-          expect(body.error).toBe(
-            "This source already links that record to that external id",
-          );
-        },
+        "This source already links that record to that external id",
       );
     });
 
@@ -149,53 +160,11 @@ describeWithEnv("Admin API - External source links", { db: true }, () => {
       );
     });
 
-    test("refuses a link kind the directory does not name", async () => {
-      const created = await createSource();
-
-      await assertJson(
-        apiRequest(linksPath(Number(created.source.id)), {
-          body: { external_id: "X", link_id: 7, link_type: "invoice" },
-          method: "POST",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe(
-            "link_type must be one of: attendee, listing, group",
-          );
-        },
-      );
-    });
-
-    test("refuses a link id that is not a whole number of 1 or more", async () => {
-      const created = await createSource();
-      for (const linkId of [0, "7"]) {
-        await assertJson(
-          apiRequest(linksPath(Number(created.source.id)), {
-            body: { external_id: "X", link_id: linkId, link_type: "listing" },
-            method: "POST",
-          }),
-          400,
-          (body) => {
-            expect(body.error).toBe(
-              "link_id must be a whole number of 1 or more",
-            );
-          },
-        );
-      }
-    });
-
     test("refuses a blank or over-long external id", async () => {
-      const created = await createSource();
+      const sourceId = await newSourceId();
       for (const externalId of ["", "x".repeat(251)]) {
         await assertJson(
-          apiRequest(linksPath(Number(created.source.id)), {
-            body: {
-              external_id: externalId,
-              link_id: 7,
-              link_type: "listing",
-            },
-            method: "POST",
-          }),
+          sendLink("POST", linksPath(sourceId), listingLink(externalId, 7)),
           400,
           (body) => {
             expect(body.error).toContain("external_id");
@@ -240,142 +209,84 @@ describeWithEnv("Admin API - External source links", { db: true }, () => {
       );
     });
 
-    test("refuses half a record filter", async () => {
-      const created = await createSource();
-
-      await assertJson(
-        apiRequest(`${linksPath(Number(created.source.id))}?link_type=listing`),
-        400,
-        (body) => {
-          expect(body.error).toBe("link_type and link_id go together");
-        },
-      );
-    });
-
-    test("refuses a filter value it cannot read", async () => {
-      const created = await createSource();
-      const base = linksPath(Number(created.source.id));
-      await assertJson(
-        apiRequest(`${base}?link_type=invoice&link_id=7`),
-        400,
-        (body) => {
-          expect(body.error).toBe(
-            "link_type must be one of: attendee, listing, group",
-          );
-        },
-      );
-      await assertJson(
-        apiRequest(`${base}?link_type=listing&link_id=seven`),
-        400,
-        (body) => {
-          expect(body.error).toBe(
-            "link_id must be a whole number of 1 or more",
-          );
-        },
-      );
+    test("refuses a record filter it cannot read", async () => {
+      const base = linksPath(await newSourceId());
+      const cases: [string, string][] = [
+        ["link_type=listing", "link_type and link_id go together"],
+        [
+          "link_type=invoice&link_id=7",
+          "link_type must be one of: attendee, listing, group",
+        ],
+        [
+          "link_type=listing&link_id=seven",
+          "link_id must be a whole number of 1 or more",
+        ],
+      ];
+      for (const [query, error] of cases) {
+        await expectApiError(apiRequest(`${base}?${query}`), 400, error);
+      }
     });
   });
 
   describe("PUT /api/admin/external-sources/:sourceId/links/:linkId", () => {
     test("changes the external id a record holds", async () => {
-      const created = await createSource();
-      const sourceId = Number(created.source.id);
-      const listing = await addListing();
-      const link = await createLink(sourceId, {
-        external_id: "INV-1",
-        link_id: listing.id,
-        link_type: "listing",
-      });
+      const { link, listing, sourceId } = await linkedListing("INV-1");
 
-      await assertJson(
-        apiRequest(linkPath(sourceId, Number(link.link.id)), {
-          body: {
-            external_id: "INV-2",
-            link_id: listing.id,
-            link_type: "listing",
-          },
-          method: "PUT",
-        }),
+      const changed = await assertJson(
+        sendLink(
+          "PUT",
+          linkPath(sourceId, Number(link.link.id)),
+          listingLink("INV-2", listing.id),
+        ),
         200,
-        (body) => {
-          expect(body.link.external_id).toBe("INV-2");
-        },
       );
+      expect(changed.link.external_id).toBe("INV-2");
     });
 
     test("returns 404 for a link of another source", async () => {
-      const first = await createSource();
+      const first = await newSourceId();
       const second = await createSource({
         name: "Imports",
         url_pattern: "https://imports.example/{external_id}",
       });
       const listing = await addListing();
-      const link = await createLink(Number(first.source.id), {
-        external_id: "INV-1",
-        link_id: listing.id,
-        link_type: "listing",
-      });
+      const link = await createLink(first, listingLink("INV-1", listing.id));
 
-      await assertJson(
-        apiRequest(linkPath(Number(second.source.id), Number(link.link.id)), {
-          body: {
-            external_id: "INV-1",
-            link_id: listing.id,
-            link_type: "listing",
-          },
-          method: "PUT",
-        }),
+      await expectApiError(
+        sendLink(
+          "PUT",
+          linkPath(Number(second.source.id), Number(link.link.id)),
+          listingLink("INV-1", listing.id),
+        ),
         404,
-        (body) => {
-          expect(body.error).toBe("Link not found");
-        },
+        "Link not found",
       );
     });
 
     test("refuses the record it already links under that external id", async () => {
-      const created = await createSource();
-      const sourceId = Number(created.source.id);
+      const sourceId = await newSourceId();
       const listing = await addListing();
-      await createLink(sourceId, {
-        external_id: "INV-1",
-        link_id: listing.id,
-        link_type: "listing",
-      });
-      const second = await createLink(sourceId, {
-        external_id: "INV-2",
-        link_id: listing.id,
-        link_type: "listing",
-      });
+      await createLink(sourceId, listingLink("INV-1", listing.id));
+      const second = await createLink(
+        sourceId,
+        listingLink("INV-2", listing.id),
+      );
 
-      await assertJson(
-        apiRequest(linkPath(sourceId, Number(second.link.id)), {
-          body: {
-            external_id: "INV-1",
-            link_id: listing.id,
-            link_type: "listing",
-          },
-          method: "PUT",
-        }),
+      await expectApiError(
+        sendLink(
+          "PUT",
+          linkPath(sourceId, Number(second.link.id)),
+          listingLink("INV-1", listing.id),
+        ),
         400,
-        (body) => {
-          expect(body.error).toBe(
-            "This source already links that record to that external id",
-          );
-        },
+        "This source already links that record to that external id",
       );
     });
   });
 
   describe("DELETE /api/admin/external-sources/:sourceId/links/:linkId", () => {
     test("needs the exact external id, then deletes the link", async () => {
-      const created = await createSource();
-      const sourceId = Number(created.source.id);
-      const listing = await addListing();
-      const link = await createLink(sourceId, {
-        external_id: "INV-1",
-        link_id: listing.id,
-        link_type: "listing",
-      });
+      const { link, sourceId } = await linkedListing("INV-1");
       const path = linkPath(sourceId, Number(link.link.id));
 
       await assertJson(

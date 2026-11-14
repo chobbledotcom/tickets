@@ -4,9 +4,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { loadItemImagesPanel } from "#routes/admin/item-images.ts";
+import { loggedMessages } from "#test-utils/activity-log.ts";
 import {
   imageNamesForItem,
-  loggedMessages,
   makeImage,
   postImageUpload,
 } from "#test-utils/admin-images.ts";

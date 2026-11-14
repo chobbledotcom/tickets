@@ -169,15 +169,6 @@ describe("admin field schemas", () => {
     ]);
   });
 
-  test("the built-site URL label links to the saved address", () => {
-    const [, siteUrl] = getBuiltSiteForm("https://a.example/?x=1&y=2").fields;
-    expect(siteUrl).toMatchObject({
-      labelSuffixHtml:
-        ' <a href="https://a.example/?x=1&amp;y=2" target="_blank" rel="noopener noreferrer">(visit)</a>',
-      name: "site_url",
-    });
-  });
-
   test("the setup form serves exactly its declared fields", () => {
     expect(getSetupForm().fields.map(shape)).toEqual([
       {
@@ -355,5 +346,16 @@ describe("admin field schemas", () => {
         type: "select",
       },
     ]);
+  });
+});
+
+describe("the built-site form", () => {
+  test("the site URL label links to the saved address", () => {
+    const [, siteUrl] = getBuiltSiteForm("https://a.example/?x=1&y=2").fields;
+    expect(siteUrl).toMatchObject({
+      labelSuffixHtml:
+        ' <a href="https://a.example/?x=1&amp;y=2" target="_blank" rel="noopener noreferrer">(visit)</a>',
+      name: "site_url",
+    });
   });
 });

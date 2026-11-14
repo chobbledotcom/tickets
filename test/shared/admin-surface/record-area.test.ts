@@ -166,37 +166,35 @@ describe("recordArea", () => {
 });
 
 describe("the shared write sets", () => {
-  test("move a row down and up under its path", () => {
-    expect(moveWrites("row", "/admin/rows/:id")).toStrictEqual({
-      rowMoveDown: "/admin/rows/:id/move-down",
-      rowMoveUp: "/admin/rows/:id/move-up",
-    });
-  });
-
-  test("set and upload a record's images", () => {
-    expect(imageWrites("post", "/admin/posts/:id")).toStrictEqual({
-      postImages: "/admin/posts/:id/images",
-      postImagesUpload: "/admin/posts/:id/images/upload",
-    });
-  });
-
-  test("give a content record its actions and its images", () => {
-    expect(contentWrites("page", "/admin/pages/:id")).toStrictEqual({
-      pageActions: "/admin/pages/:id/actions",
-      pageImages: "/admin/pages/:id/images",
-      pageImagesUpload: "/admin/pages/:id/images/upload",
-    });
-  });
-
-  test("add a child, then edit, delete, and move one under its own path", () => {
-    expect(
-      childWrites("answer", "/admin/questions/:id/answers", "answerId"),
-    ).toStrictEqual({
-      answerAdd: "/admin/questions/:id/answers",
-      answerDelete: "/admin/questions/:id/answers/:answerId/delete",
-      answerEdit: "/admin/questions/:id/answers/:answerId/edit",
-      answerMoveDown: "/admin/questions/:id/answers/:answerId/move-down",
-      answerMoveUp: "/admin/questions/:id/answers/:answerId/move-up",
+  test("name each write under the record's own path", () => {
+    expect({
+      child: childWrites("answer", "/admin/questions/:id/answers", "answerId"),
+      content: contentWrites("page", "/admin/pages/:id"),
+      image: imageWrites("post", "/admin/posts/:id"),
+      move: moveWrites("row", "/admin/rows/:id"),
+    }).toStrictEqual({
+      // Add a child, then edit, delete, and move one under its own path.
+      child: {
+        answerAdd: "/admin/questions/:id/answers",
+        answerDelete: "/admin/questions/:id/answers/:answerId/delete",
+        answerEdit: "/admin/questions/:id/answers/:answerId/edit",
+        answerMoveDown: "/admin/questions/:id/answers/:answerId/move-down",
+        answerMoveUp: "/admin/questions/:id/answers/:answerId/move-up",
+      },
+      // A content record gets its actions and its images.
+      content: {
+        pageActions: "/admin/pages/:id/actions",
+        pageImages: "/admin/pages/:id/images",
+        pageImagesUpload: "/admin/pages/:id/images/upload",
+      },
+      image: {
+        postImages: "/admin/posts/:id/images",
+        postImagesUpload: "/admin/posts/:id/images/upload",
+      },
+      move: {
+        rowMoveDown: "/admin/rows/:id/move-down",
+        rowMoveUp: "/admin/rows/:id/move-up",
+      },
     });
   });
 });

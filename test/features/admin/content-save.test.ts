@@ -21,17 +21,17 @@ import {
 const saved = {
   flashMessage: "Saved it",
   logMessage: "Wrote the thing",
-  path: "/admin/news/7/edit",
+  path: "/admin/site/news/7/edit",
 };
 
 describeWithEnv("content save", { db: true, storage: "cdn" }, () => {
   test("logs the write and redirects with its flash", async () => {
     const response = await saveContent(
       () => Promise.resolve(7),
-      (value) => ({ ...saved, path: `/admin/news/${value}/edit` }),
+      (value) => ({ ...saved, path: `/admin/site/news/${value}/edit` }),
     );
 
-    expectRedirectWithFlash("/admin/news/7/edit", "Saved it")(response);
+    expectRedirectWithFlash("/admin/site/news/7/edit", "Saved it")(response);
     expect(await activityMessages()).toEqual(["Wrote the thing"]);
   });
 
@@ -49,19 +49,21 @@ describeWithEnv("content save", { db: true, storage: "cdn" }, () => {
 
   test("names the new page and the Edit tab under the record's list", () => {
     expect(contentPagePaths(newsRecord).createErrorPath).toBe(
-      "/admin/news/new",
+      "/admin/site/news/new",
     );
-    expect(contentPagePaths(newsRecord).savePath(4)).toBe("/admin/news/4/edit");
+    expect(contentPagePaths(newsRecord).savePath(4)).toBe(
+      "/admin/site/news/4/edit",
+    );
     expect(contentPagePaths(sitePageRecord).savePath(2)).toBe(
-      "/admin/site-pages/2/edit",
+      "/admin/site/pages/2/edit",
     );
   });
 
   test("binds the record routes and both image writes", () => {
     expect(Object.keys(newsHandlers)).toEqual(
       expect.arrayContaining([
-        "POST /admin/news/:id/images",
-        "POST /admin/news/:id/images/upload",
+        "POST /admin/site/news/:id/images",
+        "POST /admin/site/news/:id/images/upload",
       ]),
     );
   });
@@ -70,12 +72,15 @@ describeWithEnv("content save", { db: true, storage: "cdn" }, () => {
     const post = await createTestNewsPost("Pictured post");
     const image = await makeImage("News shot");
 
-    const { response } = await adminFormPost(`/admin/news/${post.id}/images`, {
-      image_ids: [String(image.id)],
-    });
+    const { response } = await adminFormPost(
+      `/admin/site/news/${post.id}/images`,
+      {
+        image_ids: [String(image.id)],
+      },
+    );
 
     expectRedirectWithFlash(
-      `/admin/news/${post.id}/images`,
+      `/admin/site/news/${post.id}/images`,
       "Images updated",
     )(response);
   });
@@ -84,9 +89,13 @@ describeWithEnv("content save", { db: true, storage: "cdn" }, () => {
     const post = await createTestNewsPost("Guarded post");
     const cookie = await createTestManagerSession();
 
-    const response = await postFormAs(`/admin/news/${post.id}/images`, cookie, {
-      image_ids: [],
-    });
+    const response = await postFormAs(
+      `/admin/site/news/${post.id}/images`,
+      cookie,
+      {
+        image_ids: [],
+      },
+    );
 
     expect(response.status).toBe(403);
   });

@@ -12,6 +12,12 @@ import { foldAdminAreas } from "#shared/admin-surface/definitions.ts";
 const { areas, destinations } = foldAdminAreas(AREAS_M_Z);
 const routes = Object.values(destinations);
 
+/** Each route that declares `field`, as its id and the declared value. */
+const routesDeclaring = (field: "afterSave" | "readOnlyWrite") =>
+  routes
+    .filter((route) => route[field] !== undefined)
+    .map((route) => [route.id, route[field]]);
+
 /* jscpd:ignore-start -- a list of strings, not code */
 const PATHS = {
   answerAdd: "/admin/questions/:id/answers",
@@ -191,11 +197,7 @@ describe("the M-Z admin areas", () => {
   });
 
   test("keep the scans and the support page open in read-only mode", () => {
-    expect(
-      routes
-        .filter((route) => route.readOnlyWrite !== undefined)
-        .map((route) => [route.id, route.readOnlyWrite]),
-    ).toEqual([
+    expect(routesDeclaring("readOnlyWrite")).toEqual([
       ["groupScan", "read-only"],
       ["listingScan", "read-only"],
       ["support", "read-only"],
@@ -204,11 +206,7 @@ describe("the M-Z admin areas", () => {
   });
 
   test("land a status save on the status page, and a list save on the list", () => {
-    expect(
-      routes
-        .filter((route) => route.afterSave !== undefined)
-        .map((route) => [route.id, route.afterSave]),
-    ).toEqual([["statusEdit", "status"]]);
+    expect(routesDeclaring("afterSave")).toEqual([["statusEdit", "status"]]);
   });
 
   test("let only the owner see modifier revenue", () => {

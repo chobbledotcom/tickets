@@ -5,7 +5,10 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { getAttributeWithOptions } from "#db/attributes.ts";
 import { getDb } from "#db/client.ts";
-import { adminApiChildCreate } from "#shared/admin-api-client.ts";
+import {
+  type AdminApiResponse,
+  adminApiChildCreate,
+} from "#shared/admin-api-client.ts";
 import {
   ADMIN_API_RESOURCES,
   type AdminApiAttribute,
@@ -13,7 +16,7 @@ import {
 import { activityMessages } from "#test-utils/activity-log.ts";
 import {
   adminApiTestTransport,
-  expectAdminApiError,
+  expectTextChildCreateRefusals,
 } from "#test-utils/admin-api-transport.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -23,6 +26,52 @@ import {
 import { withEnv } from "#test-utils/env.ts";
 
 const { attributes } = ADMIN_API_RESOURCES;
+
+/** A stored attribute that holds one option. */
+const attributeWithOption = async (name: string, text: string) => {
+  const attribute = await createTestAttribute(name);
+  const option = await createTestAttributeOption(attribute.id, text, 0);
+  return { attribute, option };
+};
+
+/** One request to an option's own route. */
+const optionRoute = (
+  method: "DELETE" | "PUT",
+  attributeId: number,
+  optionId: number,
+  body?: Record<string, unknown>,
+): Promise<AdminApiResponse> =>
+  adminApiTestTransport({
+    body,
+    method,
+    path: `/api/admin/attributes/${attributeId}/options/${optionId}`,
+  });
+
+/** Send one accepted request to a fresh attribute's only option. */
+const acceptedForNewOption = async (
+  names: { attribute: string; option: string },
+  method: "DELETE" | "PUT",
+  body: Record<string, unknown>,
+) => {
+  const { attribute, option } = await attributeWithOption(
+    names.attribute,
+    names.option,
+  );
+  const answered = await optionRoute(method, attribute.id, option.id, body);
+  expect(answered.status).toBe(200);
+  return { answered, attribute, option };
+};
+
+/** Expect one option route to refuse with this status and message. */
+const expectRefusal = async (
+  sent: Promise<AdminApiResponse>,
+  status: number,
+  error: string,
+): Promise<void> => {
+  const failure = await sent;
+  expect(failure.status).toBe(status);
+  expect(failure.data).toEqual({ error });
+};
 
 describeWithEnv("Admin API - Attribute options", { db: true }, () => {
   describe("POST /api/admin/attributes/:attributeId/options", () => {
@@ -92,50 +141,20 @@ describeWithEnv("Admin API - Attribute options", { db: true }, () => {
       ]);
     });
 
-    test("returns error when text is missing", async () => {
+    test("refuses a missing text and an unknown attribute", async () => {
       const attribute = await createTestAttribute("No Text");
 
-      await expectAdminApiError(
-        adminApiChildCreate(
-          adminApiTestTransport,
-          attributes,
-          "options",
-          attribute.id,
-          {},
-        ),
-        "text is required (status 400)",
-      );
-    });
-
-    test("returns 404 for a non-existent attribute", async () => {
-      await expectAdminApiError(
-        adminApiChildCreate(
-          adminApiTestTransport,
-          attributes,
-          "options",
-          99999,
-          { text: "Nope" },
-        ),
-        "Attribute not found (status 404)",
-      );
+      await expectTextChildCreateRefusals(attributes, "options", attribute.id);
     });
   });
 
   describe("PUT /api/admin/attributes/:attributeId/options/:optionId", () => {
     test("renames an option", async () => {
-      const attribute = await createTestAttribute("Player Count");
-      const option = await createTestAttributeOption(
-        attribute.id,
-        "2 players",
-        0,
+      const { answered, attribute, option } = await acceptedForNewOption(
+        { attribute: "Player Count", option: "2 players" },
+        "PUT",
+        { text: "2-4 players" },
       );
-
-      const answered = await adminApiTestTransport({
-        body: { text: "2-4 players" },
-        method: "PUT",
-        path: `/api/admin/attributes/${attribute.id}/options/${option.id}`,
-      });
-      expect(answered.status).toBe(200);
       const renamed = (answered.data as { attribute: AdminApiAttribute })
         .attribute;
       expect(renamed.options).toEqual([
@@ -152,44 +171,32 @@ describeWithEnv("Admin API - Attribute options", { db: true }, () => {
     });
 
     test("returns 404 for an unknown attribute", async () => {
-      const failure = await adminApiTestTransport({
-        method: "PUT",
-        path: "/api/admin/attributes/99999/options/1",
-      });
-      expect(failure.status).toBe(404);
-      expect(failure.data).toEqual({ error: "Attribute not found" });
+      await expectRefusal(
+        optionRoute("PUT", 99999, 1),
+        404,
+        "Attribute not found",
+      );
     });
 
     test("returns 404 for an option under another attribute", async () => {
       const attribute = await createTestAttribute("Owner");
-      const other = await createTestAttribute("Other");
-      const option = await createTestAttributeOption(other.id, "Stray", 0);
+      const { option } = await attributeWithOption("Other", "Stray");
 
-      const failure = await adminApiTestTransport({
-        body: { text: "Hijack" },
-        method: "PUT",
-        path: `/api/admin/attributes/${attribute.id}/options/${option.id}`,
-      });
-      expect(failure.status).toBe(404);
-      expect(failure.data).toEqual({ error: "Attribute option not found" });
+      await expectRefusal(
+        optionRoute("PUT", attribute.id, option.id, { text: "Hijack" }),
+        404,
+        "Attribute option not found",
+      );
     });
   });
 
   describe("DELETE /api/admin/attributes/:attributeId/options/:optionId", () => {
     test("deletes an option with the right confirmation", async () => {
-      const attribute = await createTestAttribute("Game Length");
-      const option = await createTestAttributeOption(
-        attribute.id,
-        "5 minutes",
-        0,
+      const { attribute } = await acceptedForNewOption(
+        { attribute: "Game Length", option: "5 minutes" },
+        "DELETE",
+        { confirm_identifier: "5 minutes" },
       );
-
-      const answered = await adminApiTestTransport({
-        body: { confirm_identifier: "5 minutes" },
-        method: "DELETE",
-        path: `/api/admin/attributes/${attribute.id}/options/${option.id}`,
-      });
-      expect(answered.status).toBe(200);
       expect((await getAttributeWithOptions(attribute.id))?.options).toEqual(
         [],
       );
@@ -199,23 +206,18 @@ describeWithEnv("Admin API - Attribute options", { db: true }, () => {
     });
 
     test("rejects a delete with the wrong confirmation", async () => {
-      const attribute = await createTestAttribute("Player Count");
-      const option = await createTestAttributeOption(
-        attribute.id,
+      const { attribute, option } = await attributeWithOption(
+        "Player Count",
         "1 player",
-        0,
       );
 
-      const failure = await adminApiTestTransport({
-        body: { confirm_identifier: "wrong" },
-        method: "DELETE",
-        path: `/api/admin/attributes/${attribute.id}/options/${option.id}`,
-      });
-      expect(failure.status).toBe(400);
-      expect(failure.data).toEqual({
-        error:
-          "Option text does not match. Please provide the exact option text in confirm_identifier.",
-      });
+      await expectRefusal(
+        optionRoute("DELETE", attribute.id, option.id, {
+          confirm_identifier: "wrong",
+        }),
+        400,
+        "Option text does not match. Please provide the exact option text in confirm_identifier.",
+      );
       expect(
         (await getAttributeWithOptions(attribute.id))?.options.length,
       ).toBe(1);

@@ -55,37 +55,20 @@ describe("field specs", () => {
       "note",
       "start_date",
     ]);
-    expect(viewAnswer(views.start_date.create, 5)).toEqual({
-      error: "start_date has an invalid value",
-      ok: false,
-    });
-    expect(viewAnswer(views.start_date.create, undefined)).toEqual({
-      error: "start_date is required",
-      ok: false,
-    });
-    expect(viewAnswer(views.name.create, " Summer ")).toEqual({
-      ok: true,
-      value: "Summer",
-    });
-    expect(viewAnswer(views.name.create, 5)).toEqual({
-      error: "name must be a string",
-      ok: false,
-    });
-    expect(viewAnswer(views.is_public.create, undefined)).toEqual({
-      ok: true,
-      value: undefined,
-    });
-    expect(viewAnswer(views.is_public.update, "yes")).toEqual({
-      error: "is_public must be a boolean",
-      ok: false,
-    });
-    expect(viewAnswer(views.note.create, undefined)).toEqual({
-      ok: true,
-      value: undefined,
-    });
-    expect(viewAnswer(views.note.update, 1)).toEqual({
-      error: "note must be a string",
-      ok: false,
-    });
+    const refused = (error: string) => ({ error, ok: false });
+    const accepted = (value: unknown) => ({ ok: true, value });
+    const cases: [v.GenericSchema, unknown, object][] = [
+      [views.start_date.create, 5, refused("start_date has an invalid value")],
+      [views.start_date.create, undefined, refused("start_date is required")],
+      [views.name.create, " Summer ", accepted("Summer")],
+      [views.name.create, 5, refused("name must be a string")],
+      [views.is_public.create, undefined, accepted(undefined)],
+      [views.is_public.update, "yes", refused("is_public must be a boolean")],
+      [views.note.create, undefined, accepted(undefined)],
+      [views.note.update, 1, refused("note must be a string")],
+    ];
+    expect(cases.map(([schema, value]) => viewAnswer(schema, value))).toEqual(
+      cases.map(([, , answer]) => answer),
+    );
   });
 });

@@ -5,6 +5,8 @@ import {
   type TestListingOverrides,
   testListingInput,
 } from "#test-utils/factories.ts";
+import type { TestFormValues } from "#test-utils/form-values.ts";
+import type { BookAttendeeOpts } from "#test-utils/internal.ts";
 import type { Listing, ListingWithCount } from "#types";
 import {
   buildCreateListingForm,
@@ -159,6 +161,15 @@ const changeListingStatus =
 export const deactivateTestListing = changeListingStatus("deactivate");
 export const reactivateTestListing = changeListingStatus("reactivate");
 
+/** Create a listing, then deactivate it through the admin form. */
+export const createDeactivatedTestListing = async (
+  overrides: TestListingOverrides,
+): Promise<Pick<ListingWithCount, "id" | "name">> => {
+  const { id, name } = await createTestListing(overrides);
+  await deactivateTestListing(id);
+  return { id, name };
+};
+
 /** Delete a listing the way the admin's confirmed delete form does. */
 export const deleteTestListing = async (
   listing: Pick<ListingWithCount, "id" | "name">,
@@ -194,6 +205,39 @@ export const bookableStartDates = async (
     (await getListingWithCount(listingId))!,
     await getActiveHolidays(),
   );
+};
+
+/** The minimal valid edit form for a switch to booked by the day: the fields
+ * the real form always submits, at the listing's stored values. Each ticked
+ * day is one field, as a browser sends a checkbox group. */
+export const dailySwitchForm = (
+  listing: Pick<ListingWithCount, "max_attendees" | "name" | "slug">,
+  extra: TestFormValues = {},
+): TestFormValues => ({
+  bookable_days: allDays,
+  duration_days: "1",
+  listing_type: "daily",
+  max_attendees: String(listing.max_attendees),
+  max_quantity: "1",
+  maximum_days_after: "90",
+  minimum_days_before: "1",
+  name: listing.name,
+  slug: listing.slug,
+  thank_you_url: "https://example.com",
+  ...extra,
+});
+
+/** A listing holding one booking. */
+export const listingWithOneBooking = async (
+  overrides: TestListingOverrides,
+  booking: BookAttendeeOpts,
+): Promise<ListingWithCount> => {
+  const { bookAttendee } = await import(
+    "#test-utils/db-helpers/attendee-payments.ts"
+  );
+  const listing = await createTestListing(overrides);
+  await bookAttendee(listing, booking);
+  return listing;
 };
 
 /** A listing holding two undated bookings: one row of 2 places, one row of 3.

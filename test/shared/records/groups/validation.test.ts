@@ -3,7 +3,6 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { listingChildren } from "#db/listing-parents.ts";
 import { t } from "#i18n";
 import {
   soldHiddenPackageError,
@@ -15,10 +14,10 @@ import {
 } from "#test/features/admin/groups/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
+  createGroupOfOneChild,
   createHiddenPackageGroup,
   createTestGroup,
 } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv("admin group validation", { db: true }, () => {
   test("rejects a name another group already uses", async () => {
@@ -53,13 +52,11 @@ describeWithEnv("admin group validation", { db: true }, () => {
   });
 
   test("rejects making a group a package when a member cannot be one", async () => {
-    const group = await createTestGroup({ name: "Would be package" });
-    const parent = await createTestListing({ name: "Package parent" });
-    const child = await createTestListing({
-      groupId: group.id,
-      name: "Package child",
+    const group = await createGroupOfOneChild({
+      child: "Package child",
+      group: "Would be package",
+      parent: "Package parent",
     });
-    await listingChildren.setIds(parent.id, [child.id]);
 
     const error = await validateGroupWithPackage(
       await groupInput({ isPackage: true, name: group.name, slug: group.slug }),

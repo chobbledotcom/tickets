@@ -12,6 +12,7 @@ import {
   childTextConfig,
   recordChildSurface,
 } from "#shared/rest/child-surface.ts";
+import type { CrudChildHandlers } from "#shared/rest/crud-api-types.ts";
 import { withRequiredText } from "#shared/rest/crud-parsers.ts";
 import { recordSurfaceOf } from "#shared/rest/record.ts";
 import { recordJsonPolicy } from "#shared/rest/record-api.ts";
@@ -98,6 +99,101 @@ const textRoutes = (seen: unknown[], refusal?: Response | null) =>
     recordingWrites(seen, refusal),
   );
 
+/** One text-route call, the answer it gives, and the writes it makes. */
+type TextCase = {
+  answer: [number, unknown];
+  body: Record<string, unknown>;
+  name: string;
+  params: Record<string, number>;
+  refusal?: Response | null;
+  route: keyof CrudChildHandlers;
+  seen: unknown[];
+};
+
+const textCases: TextCase[] = [
+  {
+    answer: [404, { error: "Attribute not found" }],
+    body: { text: "x" },
+    name: "a missing parent answers 404 with the parent label",
+    params: { attributeId: 2 },
+    route: "create",
+    seen: [],
+  },
+  {
+    answer: [404, { error: "Option not found" }],
+    body: { text: "x" },
+    name: "a missing child answers 404 with the child label",
+    params: { attributeId: 1, optionId: 9 },
+    route: "update",
+    seen: [],
+  },
+  {
+    answer: [201, { parentId: 1 }],
+    body: { text: "Green" },
+    name: "a create adds the text and answers the parent with 201",
+    params: { attributeId: 1 },
+    route: "create",
+    seen: [
+      ["add", 1, "Green"],
+      ["respond", 1, 201],
+    ],
+  },
+  {
+    answer: [409, { error: "Full" }],
+    body: { text: "x" },
+    name: "a create the parent refuses answers the refusal and adds nothing",
+    params: { attributeId: 1 },
+    refusal: jsonResponse({ error: "Full" }, 409),
+    route: "create",
+    seen: [],
+  },
+  {
+    answer: [201, { parentId: 1 }],
+    body: { text: "x" },
+    name: "a create the parent allows adds the text",
+    params: { attributeId: 1 },
+    refusal: null,
+    route: "create",
+    seen: [
+      ["add", 1, "x"],
+      ["respond", 1, 201],
+    ],
+  },
+  {
+    answer: [200, { parentId: 1 }],
+    body: { text: "Navy" },
+    name: "an update renames the picked child and answers the parent",
+    params: both,
+    route: "update",
+    seen: [
+      ["rename", 1, 5, "Navy"],
+      ["respond", 1, undefined],
+    ],
+  },
+  {
+    answer: [200, { status: "ok" }],
+    body: { confirm_identifier: "Blue" },
+    name: "a confirmed delete removes the picked child and answers ok",
+    params: both,
+    route: "delete",
+    seen: [["remove", 1, 5]],
+  },
+  {
+    answer: [
+      400,
+      {
+        error:
+          "Option text does not match. Please provide the exact option text in confirm_identifier.",
+      },
+    ],
+    body: { confirm_identifier: "Red" },
+    name: "a delete whose text does not match removes nothing",
+    params: both,
+    route: "delete",
+    seen: [],
+  },
+];
+
 describeWithEnv("one child surface", { db: true }, () => {
   test("the parent gate hands the loaded parent and body to its handler", async () => {
     const seen: unknown[] = [];
@@ -114,63 +210,17 @@ describeWithEnv("one child surface", { db: true }, () => {
     expect(seen).toEqual([[1, { text: "Hi" }]]);
   });
 
-  test("a missing parent answers 404 with the parent label", async () => {
-    const { create } = textRoutes([]);
+  for (const textCase of textCases) {
+    test(textCase.name, async () => {
+      const seen: unknown[] = [];
+      const routes = textRoutes(seen, textCase.refusal);
 
-    expect(await call(create, { attributeId: 2 }, { text: "x" })).toEqual([
-      404,
-      { error: "Attribute not found" },
-    ]);
-  });
-
-  test("a missing child answers 404 with the child label", async () => {
-    const seen: unknown[] = [];
-    const { update } = textRoutes(seen);
-
-    expect(
-      await call(update, { attributeId: 1, optionId: 9 }, { text: "x" }),
-    ).toEqual([404, { error: "Option not found" }]);
-    expect(seen).toEqual([]);
-  });
-
-  test("a create adds the text and answers the parent with 201", async () => {
-    const seen: unknown[] = [];
-
-    expect(
-      await call(
-        textRoutes(seen).create,
-        { attributeId: 1 },
-        { text: "Green" },
-      ),
-    ).toEqual([201, { parentId: 1 }]);
-    expect(seen).toEqual([
-      ["add", 1, "Green"],
-      ["respond", 1, 201],
-    ]);
-  });
-
-  test("a create the parent refuses answers the refusal and adds nothing", async () => {
-    const seen: unknown[] = [];
-    const routes = textRoutes(seen, jsonResponse({ error: "Full" }, 409));
-
-    expect(
-      await call(routes.create, { attributeId: 1 }, { text: "x" }),
-    ).toEqual([409, { error: "Full" }]);
-    expect(seen).toEqual([]);
-  });
-
-  test("a create the parent allows adds the text", async () => {
-    const seen: unknown[] = [];
-    const routes = textRoutes(seen, null);
-
-    expect(
-      await call(routes.create, { attributeId: 1 }, { text: "x" }),
-    ).toEqual([201, { parentId: 1 }]);
-    expect(seen).toEqual([
-      ["add", 1, "x"],
-      ["respond", 1, 201],
-    ]);
-  });
+      expect(
+        await call(routes[textCase.route], textCase.params, textCase.body),
+      ).toEqual(textCase.answer);
+      expect(seen).toEqual(textCase.seen);
+    });
+  }
 
   test("a create without text answers the reader's 400", async () => {
     const seen: unknown[] = [];
@@ -178,43 +228,6 @@ describeWithEnv("one child surface", { db: true }, () => {
     const [status] = await call(textRoutes(seen).create, { attributeId: 1 });
 
     expect(status).toBe(400);
-    expect(seen).toEqual([]);
-  });
-
-  test("an update renames the picked child and answers the parent", async () => {
-    const seen: unknown[] = [];
-
-    expect(await call(textRoutes(seen).update, both, { text: "Navy" })).toEqual(
-      [200, { parentId: 1 }],
-    );
-    expect(seen).toEqual([
-      ["rename", 1, 5, "Navy"],
-      ["respond", 1, undefined],
-    ]);
-  });
-
-  test("a confirmed delete removes the picked child and answers ok", async () => {
-    const seen: unknown[] = [];
-    const body = { confirm_identifier: "Blue" };
-
-    expect(await call(textRoutes(seen).delete, both, body)).toEqual([
-      200,
-      { status: "ok" },
-    ]);
-    expect(seen).toEqual([["remove", 1, 5]]);
-  });
-
-  test("a delete whose text does not match removes nothing", async () => {
-    const seen: unknown[] = [];
-    const body = { confirm_identifier: "Red" };
-
-    expect(await call(textRoutes(seen).delete, both, body)).toEqual([
-      400,
-      {
-        error:
-          "Option text does not match. Please provide the exact option text in confirm_identifier.",
-      },
-    ]);
     expect(seen).toEqual([]);
   });
 

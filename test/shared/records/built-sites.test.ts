@@ -1,11 +1,15 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import type { BuiltSiteFormInput } from "#db/built-sites/types.ts";
-import { builtSites } from "#db/built-sites.ts";
 import { builtSiteRecord } from "#shared/records/built-sites.ts";
-import { activityMessages } from "#test-utils/activity-log.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { deleteConfirmLabel } from "#test-utils/record-labels.ts";
+import {
+  expectCreateThenDelete,
+  expectWrittenAndLogged,
+  listedNames,
+  testMissingUpdate,
+  writtenRow,
+} from "#test-utils/record-commands.ts";
+import { describeRecord } from "#test-utils/record-labels.ts";
 
 const siteInput = (name: string): BuiltSiteFormInput => ({
   assignable: false,
@@ -18,57 +22,45 @@ const siteInput = (name: string): BuiltSiteFormInput => ({
   siteUrl: "https://shop.b-cdn.net",
 });
 
-const writtenName = (verdict: { kind: string; row?: { name: string } }) =>
-  verdict.kind === "written" ? verdict.row?.name : verdict.kind;
+const createSite = async (name: string) =>
+  (await writtenRow(builtSiteRecord.create(siteInput(name)))).id;
 
-describe("the built site record's declaration", () => {
-  test("names a built site on its pages and its delete page", () => {
-    expect(builtSiteRecord.activityName).toBe("Built site");
-    expect(deleteConfirmLabel(builtSiteRecord)).toBe("Built site name");
-  });
-});
-
-describeWithEnv("the built site record's commands", { db: true }, () => {
+describeRecord(builtSiteRecord, "Built site", "Built site name", () => {
   test("creates a built site and logs it with the site name", async () => {
-    expect(writtenName(await builtSiteRecord.create(siteInput("Shop")))).toBe(
-      "Shop",
+    await expectWrittenAndLogged(
+      builtSiteRecord.create(siteInput("Shop")),
+      { name: "Shop" },
+      ["Built site 'Shop' created"],
     );
-    expect((await builtSites.getAll()).map((site) => site.name)).toEqual([
-      "Shop",
-    ]);
-    expect(await activityMessages()).toEqual(["Built site 'Shop' created"]);
+    expect(await listedNames(builtSiteRecord)).toEqual(["Shop"]);
   });
 
   test("updates the one site it names and logs it", async () => {
-    await builtSiteRecord.create(siteInput("First"));
-    const second = await builtSiteRecord.create(siteInput("Second"));
-    if (second.kind !== "written") throw new Error("create failed");
+    await createSite("First");
+    const second = await createSite("Second");
 
-    expect(
-      writtenName(
-        await builtSiteRecord.update(second.row.id, siteInput("Renamed")),
-      ),
-    ).toBe("Renamed");
-    expect((await builtSites.getAll()).map((site) => site.name).sort()).toEqual(
-      ["First", "Renamed"],
+    await expectWrittenAndLogged(
+      builtSiteRecord.update(second, siteInput("Renamed")),
+      { id: second, name: "Renamed" },
+      [
+        "Built site 'Renamed' updated",
+        "Built site 'Second' created",
+        "Built site 'First' created",
+      ],
     );
-    expect((await activityMessages())[0]).toBe("Built site 'Renamed' updated");
+    expect((await listedNames(builtSiteRecord)).toSorted()).toEqual([
+      "First",
+      "Renamed",
+    ]);
   });
 
-  test("answers not-found for an update of a missing site", async () => {
-    expect(await builtSiteRecord.update(99, siteInput("Gone"))).toEqual({
-      kind: "not-found",
-    });
-  });
+  testMissingUpdate(builtSiteRecord, siteInput("Gone"));
 
   test("deletes a built site and logs it with the site name", async () => {
-    const created = await builtSiteRecord.create(siteInput("Old"));
-    if (created.kind !== "written") throw new Error("create failed");
-
-    expect(await builtSiteRecord.remove(created.row.id)).toEqual({
-      kind: "deleted",
-    });
-    expect(await builtSites.getAll()).toEqual([]);
-    expect((await activityMessages())[0]).toBe("Built site 'Old' deleted");
+    await expectCreateThenDelete(builtSiteRecord, siteInput("Old"), [
+      "Built site 'Old' deleted",
+      "Built site 'Old' created",
+    ]);
+    expect(await listedNames(builtSiteRecord)).toEqual([]);
   });
 });
