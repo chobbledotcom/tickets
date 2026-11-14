@@ -290,23 +290,30 @@ describe("ratchetExit with re-pairs", () => {
     );
   });
 
-  test("passes a reshaped clone with no scan when the total does not rise", async () => {
-    expect(await runRatchet({ head: { new: 1 } })).toBe(0);
-    expect(scanned).toEqual([]);
-    expect(output.lines).toEqual([
-      "No jscpd baseline holds a clone above the merge base on origin/main.",
-    ]);
-  });
-
-  test("runs no scan for a raised count with no added clone", async () => {
-    expect(await runRatchet({ head: { kept: 2 } })).toBe(1);
-    expect(scanned).toEqual([]);
-    expect(output.lines).toEqual([
-      `${BASELINE}:kept [raised-clone]: holds 2 clone(s), up from 1 — merge ` +
-        "the duplicated code, then lower the baseline with --update",
-      `\n1 jscpd-baseline issue(s) found. See ${RATCHET_GUIDE}.`,
-    ]);
-  });
+  for (const [name, head, code, lines] of [
+    [
+      "passes a reshaped clone with no scan when the total does not rise",
+      { new: 1 },
+      0,
+      ["No jscpd baseline holds a clone above the merge base on origin/main."],
+    ],
+    [
+      "runs no scan for a raised count with no added clone",
+      { kept: 2 },
+      1,
+      [
+        `${BASELINE}:kept [raised-clone]: holds 2 clone(s), up from 1 — merge ` +
+          "the duplicated code, then lower the baseline with --update",
+        `\n1 jscpd-baseline issue(s) found. See ${RATCHET_GUIDE}.`,
+      ],
+    ],
+  ] as const) {
+    test(name, async () => {
+      expect(await runRatchet({ head })).toBe(code);
+      expect(scanned).toEqual([]);
+      expect(output.lines).toEqual([...lines]);
+    });
+  }
 
   test("runs no scan when the baseline adds no clone", async () => {
     expect(await runRatchet({ head: { kept: 1 } })).toBe(0);
