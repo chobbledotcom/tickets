@@ -6,6 +6,7 @@ import type {
   MigrationContext,
   SchemaRequirement,
 } from "./types.ts";
+import { sql } from "#db/sql.ts";
 
 const requires: SchemaRequirement = {
   absentTables: ["email_preferences"],
@@ -32,9 +33,7 @@ const tableState = async (
 const renameLegacyTable = async (context: MigrationContext): Promise<void> => {
   const state = await tableState(context);
   if (state === "legacy_only") {
-    await runMigration(
-      "ALTER TABLE email_preferences RENAME TO contact_preferences",
-    );
+    await runMigration(sql`ALTER TABLE email_preferences RENAME TO contact_preferences`);
     return;
   }
   if (state !== "both") return;
@@ -44,14 +43,12 @@ const renameLegacyTable = async (context: MigrationContext): Promise<void> => {
     countRows("contact_preferences"),
   ]);
   if (targetRows === 0) {
-    await runMigration("DROP TABLE contact_preferences");
-    await runMigration(
-      "ALTER TABLE email_preferences RENAME TO contact_preferences",
-    );
+    await runMigration(sql`DROP TABLE contact_preferences`);
+    await runMigration(sql`ALTER TABLE email_preferences RENAME TO contact_preferences`);
     return;
   }
   if (legacyRows === 0) {
-    await runMigration("DROP TABLE email_preferences");
+    await runMigration(sql`DROP TABLE email_preferences`);
     return;
   }
   throw new Error(
@@ -69,9 +66,7 @@ const withContactColumns =
 
 const renameLegacyHashColumn = withContactColumns(async (columns) => {
   if (columns.has("email_hash") && !columns.has("contact_hash")) {
-    await runMigration(
-      "ALTER TABLE contact_preferences RENAME COLUMN email_hash TO contact_hash",
-    );
+    await runMigration(sql`ALTER TABLE contact_preferences RENAME COLUMN email_hash TO contact_hash`);
   }
 });
 
@@ -80,10 +75,10 @@ const backfillAndDropCreated = withContactColumns(async (columns) => {
   if (columns.has("last_activity")) {
     const migratedAtMs = nowMs();
     await runMigration(
-      `UPDATE contact_preferences SET last_activity = ${migratedAtMs} WHERE last_activity = 0`,
+      sql`UPDATE contact_preferences SET last_activity = ${migratedAtMs} WHERE last_activity = 0`,
     );
   }
-  await runMigration("ALTER TABLE contact_preferences DROP COLUMN created");
+  await runMigration(sql`ALTER TABLE contact_preferences DROP COLUMN created`);
 });
 
 export default (context: MigrationContext): Migration =>

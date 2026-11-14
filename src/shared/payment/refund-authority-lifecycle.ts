@@ -205,14 +205,20 @@ const storedWorkSql = (
     : sql`(${inState} AND ${stateColumn(prefix, "refund_local_state")} = 'due')`;
 };
 
-/** The one SQL form of the same states that block destructive work. */
-export const refundAuthorityWorkSql = (
+/** The one SQL form of the same states that block destructive work, without
+ * brackets: the form a partial index names. */
+export const refundAuthorityWorkCondition = (
   prefix: RefundAuthorityColumnPrefix,
 ): SqlStatement =>
-  sql`(${sqlJoin(
+  sqlJoin(
     Object.values(REFUND_LIFECYCLE).map((rule) => storedWorkSql(prefix, rule)),
     sql` OR `,
-  )})`;
+  );
+
+/** The same condition in brackets, for a place inside a larger condition. */
+export const refundAuthorityWorkSql = (
+  prefix: RefundAuthorityColumnPrefix,
+): SqlStatement => sql`(${refundAuthorityWorkCondition(prefix)})`;
 
 /** The exact stored authority states whose evidence and local books are done. */
 export const refundAuthorityPrunableSql = (

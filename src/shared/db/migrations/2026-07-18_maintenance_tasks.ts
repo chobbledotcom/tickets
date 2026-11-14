@@ -1,5 +1,5 @@
 import { executeBatch, queryAll } from "#db/client.ts";
-import { sql } from "#db/sql.ts";
+import { sql, sqlList } from "#db/sql.ts";
 import {
   ACTIVITY_LOG_BACKFILL_INTERVAL_MS,
   PRUNE_INTERVAL_MS,
@@ -49,9 +49,8 @@ export default schemaMigration(
   },
   async () => {
     const rows = await queryAll<MarkerRow>(
-      `SELECT key, value FROM settings
-        WHERE key IN (${OLD_MARKERS.map(() => "?").join(", ")})`,
-      [...OLD_MARKERS],
+      sql`SELECT key, value FROM settings
+        WHERE key IN (${sqlList(OLD_MARKERS)})`,
     );
     const now = Date.now();
     const done = rows.some(
@@ -69,11 +68,8 @@ export default schemaMigration(
               now,
             )})`,
           ]),
-      {
-        args: [...OLD_MARKERS],
-        sql: `DELETE FROM settings
-               WHERE key IN (${OLD_MARKERS.map(() => "?").join(", ")})`,
-      },
+      sql`DELETE FROM settings
+               WHERE key IN (${sqlList(OLD_MARKERS)})`,
     ]);
   },
 );

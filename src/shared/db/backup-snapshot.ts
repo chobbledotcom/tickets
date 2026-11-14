@@ -7,7 +7,7 @@ import {
 } from "#db/client.ts";
 import { SCHEMA_TABLE_NAMES } from "#db/migrations.ts";
 import { stringColumnSet } from "#db/query.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
+import { sql, sqlName, type SqlStatement } from "#db/sql.ts";
 import { chunk, sumOf } from "#fp";
 import { readLimit } from "#shared/limits.ts";
 
@@ -21,8 +21,7 @@ export type TableBackup = {
 /** Double-quote a SQL identifier (table or column name) */
 const quoteId = (name: string): string => `"${name}"`;
 
-const EXISTING_TABLES_SQL =
-  "SELECT name FROM sqlite_master WHERE type = 'table'";
+const EXISTING_TABLES_SQL = sql`SELECT name FROM sqlite_master WHERE type = 'table'`;
 
 /**
  * The schema's tables that currently exist, in SCHEMA (FK-dependency) order.
@@ -32,7 +31,7 @@ const EXISTING_TABLES_SQL =
 const existingSchemaTables = async (snapshot: TxScope): Promise<string[]> => {
   const existing = stringColumnSet(
     resultRows<Row>(
-      await snapshot.execute({ args: [], sql: EXISTING_TABLES_SQL }),
+      await snapshot.execute(EXISTING_TABLES_SQL),
     ),
     "name",
   );
@@ -61,7 +60,7 @@ const ROWS_PER_INSERT = 100;
 const DEFAULT_BACKUP_PAGE_SIZE = 500;
 
 /** Result-set key carrying the keyset cursor (rowid); stripped from the dump. */
-const ROWID_ALIAS = sql`__backup_rowid__`;
+const ROWID_ALIAS = "__backup_rowid__";
 
 type BackupRow = Record<string, unknown>;
 
@@ -70,7 +69,7 @@ const tablePageStatement = (
   cursor: number,
   pageSize: number,
 ): SqlStatement =>
-  sql`SELECT rowid AS ${ROWID_ALIAS}, * FROM ${TODO_SQL_TEXT(quoteId(table))} WHERE rowid > ${cursor} ORDER BY rowid LIMIT ${pageSize}`;
+  sql`SELECT rowid AS ${sqlName(ROWID_ALIAS)}, * FROM ${sqlName(table)} WHERE rowid > ${cursor} ORDER BY rowid LIMIT ${pageSize}`;
 
 /** The snapshot-scoped page reader a dump's keyset loop reads through. */
 export type SnapshotReader = (statement: SqlStatement) => Promise<BackupRow[]>;
@@ -132,7 +131,7 @@ export const countSchemaTableRows = async (): Promise<number[]> => {
   const results = await queryBatch(
     SCHEMA_TABLE_NAMES.map(
       (table) =>
-        sql`SELECT count(*) AS rowCount FROM ${TODO_SQL_TEXT(quoteId(table))}`,
+        sql`SELECT count(*) AS rowCount FROM ${sqlName(table)}`,
     ),
   );
   // count(*) always returns exactly one row per statement.

@@ -1,4 +1,4 @@
-import type { Client } from "@libsql/client";
+import type { StatementClient } from "#db/client.ts";
 
 /**
  * The tables a scoped schema step can touch. A schemaMigration passes the
@@ -49,7 +49,7 @@ export type MigrationContext = {
   backfillListingAggregates: () => Promise<void>;
   backfillModifierAggregates: () => Promise<void>;
   ensureDefaultAttendeeStatus: () => Promise<void>;
-  getDb: () => Client;
+  getDb: () => StatementClient;
   /** Rebuild a table from its SCHEMA definition, dropping any columns and
    * attached triggers no longer declared (preserving data for shared columns). */
   recreateTable: (table: string) => Promise<void>;

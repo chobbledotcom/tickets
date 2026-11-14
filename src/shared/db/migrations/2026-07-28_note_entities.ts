@@ -1,5 +1,5 @@
 import { queryAllPrimary } from "#db/client.ts";
-import { sql } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { bareSchemaMigration } from "./define.ts";
 
@@ -9,7 +9,7 @@ const ALREADY_ADDED = "duplicate column name";
 /** What it says when `attendee_id` has already gone, so its notes are moved. */
 const ALREADY_MOVED = "no such column: attendee_id";
 
-type RunSql = (sql: string) => Promise<unknown>;
+type RunSql = (statement: SqlStatement) => Promise<unknown>;
 
 /**
  * Do a step, treating the database's own "that is already so" as done.
@@ -31,11 +31,11 @@ const stepDone = async (
   }
 };
 
-const addColumn = (execute: RunSql, column: string): Promise<void> =>
+const addColumn = (execute: RunSql, column: SqlStatement): Promise<void> =>
   stepDone(
     () =>
       execute(
-        sql`ALTER TABLE system_notes ADD COLUMN ${TODO_SQL_TEXT(column)}`,
+        sql`ALTER TABLE system_notes ADD COLUMN ${column}`,
       ),
     ALREADY_ADDED,
   );
@@ -79,8 +79,8 @@ export default bareSchemaMigration(
     }
 
     const execute: RunSql = (sql) => getDb().execute(sql);
-    await addColumn(execute, "entity_type TEXT NOT NULL DEFAULT 'attendee'");
-    await addColumn(execute, "entity_id INTEGER NOT NULL DEFAULT 0");
+    await addColumn(execute, sql`entity_type TEXT NOT NULL DEFAULT 'attendee'`);
+    await addColumn(execute, sql`entity_id INTEGER NOT NULL DEFAULT 0`);
     await moveNotesToTargets(execute);
     // The rebuild drops attendee_id, and takes the table's indexes from SCHEMA
     // as it goes, so idx_system_notes_entity arrives with it.

@@ -21,6 +21,7 @@ import {
   wholeNumberStartingAtZero,
 } from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
+import { sql } from "#db/sql.ts";
 
 export const questionTables: [name: string, table: Table][] = [
   [
@@ -210,15 +211,15 @@ export const questionTables: [name: string, table: Table][] = [
         ["answer_id", wholeNumberOrNull],
         [
           "answer_text",
-          checked("(answer_text IS NULL) = (answer_id IS NULL)")(textOrNull),
+          checked(sql`(answer_text IS NULL) = (answer_id IS NULL)`)(textOrNull),
         ],
         [
           "free_text",
-          checked("free_text IS NULL OR answer_id IS NULL")(textOrNull),
+          checked(sql`free_text IS NULL OR answer_id IS NULL`)(textOrNull),
         ],
         [
           "free_text_index",
-          checked("(free_text_index IS NULL) = (free_text IS NULL)")(
+          checked(sql`(free_text_index IS NULL) = (free_text IS NULL)`)(
             textOrNull,
           ),
         ],
@@ -286,9 +287,7 @@ export const questionTables: [name: string, table: Table][] = [
         ["note", text],
         [
           "system_name",
-          checked(
-            "system_name IS NULL OR (type = 'system' AND system_name GLOB 'system-note:1:?*')",
-          )(textOrNull),
+          checked(sql`system_name IS NULL OR (type = 'system' AND system_name GLOB 'system-note:1:?*')`)(textOrNull),
         ],
         ["created", text],
       ],

@@ -34,7 +34,8 @@ type Piece = string | { readonly bound: InValue };
  * is numbered again as part of the whole. */
 const piecesBehind = new WeakMap<SqlStatement, readonly Piece[]>();
 
-const isStatement = (slot: unknown): slot is SqlStatement =>
+/** Whether a value is a statement that this module made. */
+export const isSqlStatement = (slot: unknown): slot is SqlStatement =>
   typeof slot === "object" &&
   slot !== null &&
   piecesBehind.has(slot as SqlStatement);
@@ -48,7 +49,7 @@ const isBindable = (slot: unknown): slot is InValue =>
 
 /** The pieces one template slot adds. */
 const piecesOfSlot = (slot: SqlSlot): readonly Piece[] => {
-  if (isStatement(slot)) return piecesBehind.get(slot)!;
+  if (isSqlStatement(slot)) return piecesBehind.get(slot)!;
   if (isBindable(slot)) return [{ bound: slot }];
   throw new Error(
     `A value in SQL must be a statement or a value libsql can bind. Got ${

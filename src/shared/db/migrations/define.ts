@@ -1,4 +1,4 @@
-import { sql } from "#db/sql.ts";
+import { sql, sqlName } from "#db/sql.ts";
 import { TRIGGERS } from "./schema/triggers.ts";
 import type {
   MigrationBuilder,
@@ -112,7 +112,7 @@ export const backfillDropColumnMigration = (
 ): MigrationBuilder =>
   bareSchemaMigration(id, description, async ({ getDb, recreateTable }) => {
     const info = await getDb().execute(
-      sql`PRAGMA table_info(${TODO_SQL_TEXT(table)})`,
+      sql`PRAGMA table_info(${sqlName(table)})`,
     );
     if (!info.rows.some((row) => row.name === column)) return;
     await backfill(getDb);
@@ -140,7 +140,7 @@ export const triggerRewriteDropMigration = (
     async ({ getDb, recreateTable, syncTriggers }) => {
       for (const trigger of triggers) {
         await getDb().execute(
-          sql`DROP TRIGGER IF EXISTS ${TODO_SQL_TEXT(trigger)}`,
+          sql`DROP TRIGGER IF EXISTS ${sqlName(trigger)}`,
         );
       }
       await recreateTable(table); // rebuild from SCHEMA, dropping the column

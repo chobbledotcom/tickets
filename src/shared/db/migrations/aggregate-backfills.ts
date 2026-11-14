@@ -4,13 +4,13 @@
  */
 
 import { getDb } from "#db/client.ts";
-import { sql } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlCommas, sqlName } from "#db/sql.ts";
 
 /** One cached aggregate column, and the child query that recomputes it. */
 type CachedAggregate = {
   readonly column: string;
   /** A query over the child rows that reads the parent row by name. */
-  readonly from: string;
+  readonly from: SqlStatement;
 };
 
 /**
@@ -21,10 +21,10 @@ const recomputeAggregates =
   (parent: string, aggregates: readonly CachedAggregate[]) =>
   async (): Promise<void> => {
     const sets = aggregates.map(
-      ({ column, from }) => `${column} = COALESCE((${from}), 0)`,
+      ({ column, from }) => sql`${sqlName(column)} = COALESCE((${from}), 0)`,
     );
     await getDb().execute(
-      sql`UPDATE ${TODO_SQL_TEXT(parent)} SET ${TODO_SQL_TEXT(sets.join(", "))}`,
+      sql`UPDATE ${sqlName(parent)} SET ${sqlCommas(sets)}`,
     );
   };
 
@@ -36,12 +36,12 @@ const recomputeAggregates =
 export const backfillModifierAggregates = recomputeAggregates("modifiers", [
   {
     column: "total_uses",
-    from: `SELECT SUM(quantity) FROM modifier_usages
+    from: sql`SELECT SUM(quantity) FROM modifier_usages
             WHERE modifier_id = modifiers.id`,
   },
   {
     column: "usage_count",
-    from: `SELECT COUNT(*) FROM modifier_usages
+    from: sql`SELECT COUNT(*) FROM modifier_usages
             WHERE modifier_id = modifiers.id`,
   },
 ]);
@@ -54,7 +54,7 @@ export const backfillModifierAggregates = recomputeAggregates("modifiers", [
 export const backfillAnswerAggregates = recomputeAggregates("answers", [
   {
     column: "times_selected",
-    from: `SELECT COUNT(*) FROM attendee_answers
+    from: sql`SELECT COUNT(*) FROM attendee_answers
             WHERE answer_id = answers.id`,
   },
 ]);

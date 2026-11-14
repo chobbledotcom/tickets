@@ -2,6 +2,7 @@ import { TAX_STATE_KINDS } from "#shared/tax/transitions.ts";
 import { attendeeIdColumn } from "./columns.ts";
 import { checked, oneOf, text, wholeNumber } from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
+import { sql } from "#db/sql.ts";
 
 export const taxTables: [string, Table][] = [
   [
@@ -9,11 +10,11 @@ export const taxTables: [string, Table][] = [
     {
       columns: [
         ["booking_group", text],
-        ["revision", checked("revision >= 0")(wholeNumber)],
+        ["revision", checked(sql`revision >= 0`)(wholeNumber)],
         attendeeIdColumn,
         ["event_group", text],
         ["state", oneOf("state", TAX_STATE_KINDS)(text)],
-        ["assessment", checked("json_valid(assessment)")(text)],
+        ["assessment", checked(sql`json_valid(assessment)`)(text)],
         ["occurred_at", text],
       ],
       indexes: [

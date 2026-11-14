@@ -9,6 +9,7 @@ import {
 } from "#db/migrations/schema/scalar-columns.ts";
 import type { Table } from "#db/migrations/schema/types.ts";
 import { madeAndTouched, ownerEncryptedRuleOrNull } from "./columns.ts";
+import { sql } from "#db/sql.ts";
 
 const HIDDEN_COLUMNS = [
   "session_resource",
@@ -24,7 +25,7 @@ const HIDDEN_COLUMNS = [
  *  rule carries its own brackets because it hangs on a whole row, not on the
  *  column it rides on. */
 const ABOUT_THE_PAYMENT = HIDDEN_COLUMNS.map(
-  (name) => `(${ownerEncryptedRuleOrNull(name)})`,
+  (name) => sql`(${ownerEncryptedRuleOrNull(name)})`,
 );
 
 export const paymentSessionTable: [name: string, table: Table] = [

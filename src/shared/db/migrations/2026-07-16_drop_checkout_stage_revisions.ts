@@ -1,5 +1,5 @@
 import { executeBatch } from "#db/client.ts";
-import { sql } from "#db/sql.ts";
+import { sql, sqlName } from "#db/sql.ts";
 import { schemaMigration } from "./define.ts";
 
 const LEGACY_REVISION_TRIGGERS = ["insert", "update", "delete"].map(
@@ -13,7 +13,7 @@ export default schemaMigration(
   async () => {
     await executeBatch([
       ...LEGACY_REVISION_TRIGGERS.map(
-        (trigger) => sql`DROP TRIGGER IF EXISTS ${TODO_SQL_TEXT(trigger)}`,
+        (trigger) => sql`DROP TRIGGER IF EXISTS ${sqlName(trigger)}`,
       ),
       sql`DROP TABLE IF EXISTS checkout_stage_revisions`,
     ]);

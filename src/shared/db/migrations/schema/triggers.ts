@@ -6,16 +6,17 @@ import {
   ticketCountPredicateFor,
 } from "./listing-aggregates.ts";
 import type { Trigger } from "./types.ts";
+import { type SqlStatement, sql, sqlName, sqlNames } from "#db/sql.ts";
 
 /**
  * The per-row delta a listing-aggregate trigger adds to or subtracts from
  * tickets_count for a NEW/OLD row. It is +1 only when that row is a real
  * ticket. Toggling a line 0↔n nets out correctly via the OLD/NEW deltas.
  */
-const ticketCountTriggerDelta = (row: "NEW" | "OLD"): string =>
-  `CASE WHEN ${ticketCountPredicateFor(
-    `${row}.quantity`,
-    `${row}.attendee_id`,
+const ticketCountTriggerDelta = (row: "NEW" | "OLD"): SqlStatement =>
+  sql`CASE WHEN ${ticketCountPredicateFor(
+    sqlName(`${row}.quantity`),
+    sqlName(`${row}.attendee_id`),
   )} THEN 1 ELSE 0 END`;
 
 const LISTING_AGGREGATE_USES = {
@@ -39,7 +40,7 @@ const LISTING_AGGREGATE_USES = {
 const LISTING_AGGREGATE_TRIGGERS: Trigger[] = [
   {
     name: "trg_listing_attendees_aggregates_insert",
-    sql: `CREATE TRIGGER IF NOT EXISTS trg_listing_attendees_aggregates_insert
+    sql: sql`CREATE TRIGGER IF NOT EXISTS trg_listing_attendees_aggregates_insert
 AFTER INSERT ON listing_attendees
 FOR EACH ROW
 BEGIN
@@ -53,7 +54,7 @@ END`,
   },
   {
     name: "trg_listing_attendees_aggregates_delete",
-    sql: `CREATE TRIGGER IF NOT EXISTS trg_listing_attendees_aggregates_delete
+    sql: sql`CREATE TRIGGER IF NOT EXISTS trg_listing_attendees_aggregates_delete
 AFTER DELETE ON listing_attendees
 FOR EACH ROW
 BEGIN
@@ -67,10 +68,8 @@ END`,
   },
   {
     name: "trg_listing_attendees_aggregates_update",
-    sql: `CREATE TRIGGER IF NOT EXISTS trg_listing_attendees_aggregates_update
-AFTER UPDATE OF ${LISTING_AGGREGATE_WRITE_COLUMNS.join(
-      ", ",
-    )} ON listing_attendees
+    sql: sql`CREATE TRIGGER IF NOT EXISTS trg_listing_attendees_aggregates_update
+AFTER UPDATE OF ${sqlNames(LISTING_AGGREGATE_WRITE_COLUMNS)} ON listing_attendees
 FOR EACH ROW
 BEGIN
   UPDATE listings SET
@@ -103,7 +102,7 @@ const MODIFIER_AGGREGATE_USES = {
 const MODIFIER_AGGREGATE_TRIGGERS: Trigger[] = [
   {
     name: "trg_modifier_usages_aggregates_insert",
-    sql: `CREATE TRIGGER IF NOT EXISTS trg_modifier_usages_aggregates_insert
+    sql: sql`CREATE TRIGGER IF NOT EXISTS trg_modifier_usages_aggregates_insert
 AFTER INSERT ON modifier_usages
 FOR EACH ROW
 BEGIN
@@ -117,7 +116,7 @@ END`,
   },
   {
     name: "trg_modifier_usages_aggregates_delete",
-    sql: `CREATE TRIGGER IF NOT EXISTS trg_modifier_usages_aggregates_delete
+    sql: sql`CREATE TRIGGER IF NOT EXISTS trg_modifier_usages_aggregates_delete
 AFTER DELETE ON modifier_usages
 FOR EACH ROW
 BEGIN
@@ -131,7 +130,7 @@ END`,
   },
   {
     name: "trg_modifier_usages_aggregates_update",
-    sql: `CREATE TRIGGER IF NOT EXISTS trg_modifier_usages_aggregates_update
+    sql: sql`CREATE TRIGGER IF NOT EXISTS trg_modifier_usages_aggregates_update
 AFTER UPDATE OF quantity, modifier_id ON modifier_usages
 FOR EACH ROW
 BEGIN
@@ -168,7 +167,7 @@ const ANSWER_AGGREGATE_USES = {
 const ANSWER_AGGREGATE_TRIGGERS: Trigger[] = [
   {
     name: "trg_attendee_answers_aggregates_insert",
-    sql: `CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_aggregates_insert
+    sql: sql`CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_aggregates_insert
 AFTER INSERT ON attendee_answers
 FOR EACH ROW
 WHEN NEW.answer_id IS NOT NULL
@@ -181,7 +180,7 @@ END`,
   },
   {
     name: "trg_attendee_answers_aggregates_delete",
-    sql: `CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_aggregates_delete
+    sql: sql`CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_aggregates_delete
 AFTER DELETE ON attendee_answers
 FOR EACH ROW
 WHEN OLD.answer_id IS NOT NULL
@@ -194,7 +193,7 @@ END`,
   },
   {
     name: "trg_attendee_answers_aggregates_update",
-    sql: `CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_aggregates_update
+    sql: sql`CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_aggregates_update
 AFTER UPDATE OF answer_id ON attendee_answers
 FOR EACH ROW
 WHEN OLD.answer_id IS NOT NEW.answer_id
@@ -216,7 +215,7 @@ const ATTENDEE_ANSWER_VALIDATION_USES = {
 const ATTENDEE_ANSWER_VALIDATION_TRIGGERS: Trigger[] = [
   {
     name: "trg_attendee_answers_validate_insert",
-    sql: `CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_validate_insert
+    sql: sql`CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_validate_insert
 BEFORE INSERT ON attendee_answers
 WHEN NOT (
   (NEW.answer_id IS NOT NULL AND NEW.question_id IS NOT NULL AND NEW.string_id IS NULL) OR
@@ -230,7 +229,7 @@ END`,
   },
   {
     name: "trg_attendee_answers_validate_update",
-    sql: `CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_validate_update
+    sql: sql`CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_validate_update
 BEFORE UPDATE ON attendee_answers
 WHEN NOT (
   (NEW.answer_id IS NOT NULL AND NEW.question_id IS NOT NULL AND NEW.string_id IS NULL) OR
@@ -257,7 +256,7 @@ const ATTENDEE_STATUS_VALIDATION_USES = {
 const ATTENDEE_STATUS_VALIDATION_TRIGGERS: Trigger[] = [
   {
     name: "trg_attendees_validate_status_insert",
-    sql: `CREATE TRIGGER IF NOT EXISTS trg_attendees_validate_status_insert
+    sql: sql`CREATE TRIGGER IF NOT EXISTS trg_attendees_validate_status_insert
 BEFORE INSERT ON attendees
 WHEN NEW.status_id IS NOT NULL AND NOT EXISTS (
   SELECT status.id FROM attendee_statuses AS status WHERE status.id = NEW.status_id
@@ -270,7 +269,7 @@ END`,
   },
   {
     name: "trg_attendees_validate_status_update",
-    sql: `CREATE TRIGGER IF NOT EXISTS trg_attendees_validate_status_update
+    sql: sql`CREATE TRIGGER IF NOT EXISTS trg_attendees_validate_status_update
 BEFORE UPDATE OF status_id ON attendees
 WHEN NEW.status_id IS NOT NULL AND NOT EXISTS (
   SELECT status.id FROM attendee_statuses AS status WHERE status.id = NEW.status_id
@@ -286,7 +285,7 @@ END`,
 const STRING_AGGREGATE_TRIGGERS: Trigger[] = [
   {
     name: "trg_attendee_answers_strings_insert",
-    sql: `CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_strings_insert
+    sql: sql`CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_strings_insert
 AFTER INSERT ON attendee_answers
 WHEN NEW.string_id IS NOT NULL
 BEGIN
@@ -297,7 +296,7 @@ END`,
   },
   {
     name: "trg_attendee_answers_strings_delete",
-    sql: `CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_strings_delete
+    sql: sql`CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_strings_delete
 AFTER DELETE ON attendee_answers
 WHEN OLD.string_id IS NOT NULL
 BEGIN
@@ -308,7 +307,7 @@ END`,
   },
   {
     name: "trg_attendee_answers_strings_update",
-    sql: `CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_strings_update
+    sql: sql`CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_strings_update
 AFTER UPDATE OF string_id ON attendee_answers
 WHEN OLD.string_id IS NOT NEW.string_id
 BEGIN

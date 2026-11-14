@@ -5,7 +5,6 @@
  */
 
 import { executeBatchWithResults, getDb } from "#db/client.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 import { getEnv } from "#shared/env.ts";
 import { errorMessage } from "#shared/error-message.ts";
@@ -48,12 +47,9 @@ export const acquireMigrationLock = async (
   const cutoff = new Date(now.getTime() - MIGRATION_LOCK_TTL_MS).toISOString();
   const stamp = now.toISOString();
   const lockToken = `${stamp}|${crypto.randomUUID()}`;
-  const statement = numberedStatement((bind) => {
-    const token = bind(lockToken);
-    return `INSERT INTO settings (key, value) VALUES (${bind(MIGRATION_LOCK_KEY)}, ${token})
-            ON CONFLICT(key) DO UPDATE SET value = ${token}
-            WHERE settings.value < ${bind(cutoff)}`;
-  });
+  const statement = sql`INSERT INTO settings (key, value) VALUES (${MIGRATION_LOCK_KEY}, ${lockToken})
+            ON CONFLICT(key) DO UPDATE SET value = ${lockToken}
+            WHERE settings.value < ${cutoff}`;
   const result = await getDb()
     .execute(statement)
     .catch((error) => {
@@ -107,13 +103,10 @@ export const releaseMigrationLock = (lockToken: string): Promise<unknown> =>
 
 /** Make a statement do nothing unless this request still holds the lease. */
 export const whileMigrationLockOwned = (
-  sql: string,
-  args: SqlStatement["args"],
+  write: SqlStatement,
   lockToken: string,
-): SqlStatement => ({
-  args: [...args, MIGRATION_LOCK_KEY, lockToken],
-  sql: `${sql} WHERE EXISTS (SELECT 1 FROM settings WHERE key = ? AND value = ?)`,
-});
+): SqlStatement =>
+  sql`${write} WHERE EXISTS (SELECT 1 FROM settings WHERE key = ${MIGRATION_LOCK_KEY} AND value = ${lockToken})`;
 
 /** Run statements in one batch that fails when the lease has been lost. */
 export const executeWhileMigrationLockOwned = async (

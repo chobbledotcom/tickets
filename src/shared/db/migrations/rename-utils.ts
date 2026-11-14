@@ -1,7 +1,6 @@
 import { countRows, getDb } from "#db/client.ts";
-import { sql } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import { escapeRegExp } from "#shared/regexp.ts";
-import { queryRowsWithArg } from "./master-query.ts";
 import {
   currentSchemaColumnsPresentIn,
   getExistingColumns,
@@ -40,11 +39,11 @@ const renameState = (
 
 const applyDirectRename = async (
   state: RenameState,
-  sql: string,
+  rename: SqlStatement,
 ): Promise<boolean> => {
   if (state === "neither" || state === "target_only") return true;
   if (state !== "legacy_only") return false;
-  await runMigration(sql);
+  await runMigration(rename);
   return true;
 };
 
@@ -59,13 +58,16 @@ const tableRenameState = async (
   return renameState(legacyExists, targetExists);
 };
 
+const renameTableStatement = (legacy: string, target: string): SqlStatement =>
+  sql`ALTER TABLE ${sqlName(legacy)} RENAME TO ${sqlName(target)}`;
+
 const repairLegacyTableRename = async (
   legacy: string,
   target: string,
 ): Promise<void> => {
   const state = await tableRenameState(legacy, target);
   if (
-    await applyDirectRename(state, `ALTER TABLE ${legacy} RENAME TO ${target}`)
+    await applyDirectRename(state, renameTableStatement(legacy, target))
   ) {
     return;
   }
@@ -81,8 +83,8 @@ const repairLegacyTableRename = async (
         "drop the legacy table, then re-run the migration.",
     );
   }
-  await runMigration(`DROP TABLE ${target}`);
-  await runMigration(`ALTER TABLE ${legacy} RENAME TO ${target}`);
+  await runMigration(sql`DROP TABLE ${sqlName(target)}`);
+  await runMigration(renameTableStatement(legacy, target));
 };
 
 const columnRenameState = (
@@ -104,10 +106,10 @@ const countColumnValueStats = async ({
 }: ColumnRename): Promise<ColumnValueStats> => {
   const result = await getDb().execute(
     sql`SELECT
-       COALESCE(SUM(CASE WHEN ${TODO_SQL_TEXT(legacy)} IS NOT NULL THEN 1 ELSE 0 END), 0) AS legacy_count,
-       COALESCE(SUM(CASE WHEN ${TODO_SQL_TEXT(target)} IS NOT NULL THEN 1 ELSE 0 END), 0) AS target_count,
-       COALESCE(SUM(CASE WHEN ${TODO_SQL_TEXT(legacy)} IS NOT NULL AND ${TODO_SQL_TEXT(target)} IS NOT NULL AND ${TODO_SQL_TEXT(legacy)} != ${TODO_SQL_TEXT(target)} THEN 1 ELSE 0 END), 0) AS conflict_count
-     FROM ${TODO_SQL_TEXT(table)}`,
+       COALESCE(SUM(CASE WHEN ${sqlName(legacy)} IS NOT NULL THEN 1 ELSE 0 END), 0) AS legacy_count,
+       COALESCE(SUM(CASE WHEN ${sqlName(target)} IS NOT NULL THEN 1 ELSE 0 END), 0) AS target_count,
+       COALESCE(SUM(CASE WHEN ${sqlName(legacy)} IS NOT NULL AND ${sqlName(target)} IS NOT NULL AND ${sqlName(legacy)} != ${sqlName(target)} THEN 1 ELSE 0 END), 0) AS conflict_count
+     FROM ${sqlName(table)}`,
   );
   const row = result.rows[0]!;
   return {
@@ -124,19 +126,15 @@ const dropProjectIndexesReferencingColumn = async (
   table: string,
   column: string,
 ): Promise<void> => {
-  const rows = await queryRowsWithArg(
-    getDb(),
-    "SELECT name, sql FROM sqlite_master " +
-      "WHERE type = 'index' AND tbl_name = ? AND sql IS NOT NULL",
-    table,
+  const { rows } = await getDb().execute(
+    sql`SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = ${table} AND sql IS NOT NULL`,
   );
 
   const referencesColumn = sqlIdentifierPattern(column);
   for (const row of rows) {
     const name = String(row.name);
-    const sql = String(row.sql);
-    if (name.startsWith("idx_") && referencesColumn.test(sql)) {
-      await runMigration(`DROP INDEX IF EXISTS ${name}`);
+    if (name.startsWith("idx_") && referencesColumn.test(String(row.sql))) {
+      await runMigration(sql`DROP INDEX IF EXISTS ${sqlName(name)}`);
     }
   }
 };
@@ -146,7 +144,7 @@ const columnHasForeignKey = async (
   column: string,
 ): Promise<boolean> => {
   const result = await getDb().execute(
-    sql`PRAGMA foreign_key_list(${TODO_SQL_TEXT(table)})`,
+    sql`PRAGMA foreign_key_list(${sqlName(table)})`,
   );
   return result.rows.some((row) => String(row.from) === column);
 };
@@ -163,7 +161,7 @@ const repairLegacyColumnRename = async ({
   if (
     await applyDirectRename(
       state,
-      `ALTER TABLE ${table} RENAME COLUMN ${legacy} TO ${target}`,
+      sql`ALTER TABLE ${sqlName(table)} RENAME COLUMN ${sqlName(legacy)} TO ${sqlName(target)}`,
     )
   ) {
     return;
@@ -184,7 +182,7 @@ const repairLegacyColumnRename = async ({
 
   if (legacyCount > 0) {
     await runMigration(
-      `UPDATE ${table} SET ${target} = ${legacy} WHERE ${target} IS NULL`,
+      sql`UPDATE ${sqlName(table)} SET ${sqlName(target)} = ${sqlName(legacy)} WHERE ${sqlName(target)} IS NULL`,
     );
   }
   if (await columnHasForeignKey(table, legacy)) {
@@ -195,7 +193,9 @@ const repairLegacyColumnRename = async ({
     });
   } else {
     await dropProjectIndexesReferencingColumn(table, legacy);
-    await runMigration(`ALTER TABLE ${table} DROP COLUMN ${legacy}`);
+    await runMigration(
+      sql`ALTER TABLE ${sqlName(table)} DROP COLUMN ${sqlName(legacy)}`,
+    );
   }
 };
 

@@ -24,6 +24,7 @@ import {
   wholeNumberStartingAtZero,
 } from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 
 export const attendeeTables: [name: string, table: Table][] = [
   [
@@ -54,7 +55,9 @@ export const attendeeTables: [name: string, table: Table][] = [
         ...datedRowColumns,
         [
           "kind",
-          checked(`kind IN ('${ATTENDEE_KIND}', '${SERVICING_KIND}')`)(
+          checked(
+            sql`kind IN (${sqlLiteral(ATTENDEE_KIND)}, ${sqlLiteral(SERVICING_KIND)})`,
+          )(
             defaulted(text, ATTENDEE_KIND),
           ),
         ],
@@ -87,7 +90,7 @@ export const attendeeTables: [name: string, table: Table][] = [
         {
           columns: ["kind"],
           name: "idx_attendees_pending_flags",
-          where: "email_pending > 0 OR webhooks_pending > 0",
+          where: sql`email_pending > 0 OR webhooks_pending > 0`,
         },
         {
           columns: ["ticket_token_index"],
@@ -268,7 +271,7 @@ export const attendeeTables: [name: string, table: Table][] = [
         {
           columns: ["attendee_id"],
           name: "idx_processed_payments_protected_attendee",
-          where: "protected_state != ''",
+          where: sql`protected_state != ''`,
         },
       ],
       // FK declarations removed — libsql's FK enforcement breaks table

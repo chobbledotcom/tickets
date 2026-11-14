@@ -1,5 +1,5 @@
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
-import { sql } from "#db/sql.ts";
+import { sql, sqlName } from "#db/sql.ts";
 import type { MigrationContext, SchemaRequirement } from "./types.ts";
 
 const LISTING_AGGREGATE_TRIGGER_NAMES = [
@@ -31,7 +31,7 @@ export default function attendeesKindMigration(context: MigrationContext) {
       for (const name of LISTING_AGGREGATE_TRIGGER_NAMES) {
         await context
           .getDb()
-          .execute(sql`DROP TRIGGER IF EXISTS ${TODO_SQL_TEXT(name)}`);
+          .execute(sql`DROP TRIGGER IF EXISTS ${sqlName(name)}`);
       }
       await context.syncTriggers();
       await context.backfillListingAggregates();

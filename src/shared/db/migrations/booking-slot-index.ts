@@ -1,5 +1,4 @@
-import { sql } from "#db/sql.ts";
-import { queryRowsWithArg } from "./master-query.ts";
+import { sql, sqlName } from "#db/sql.ts";
 import { SCHEMA } from "./schema/index.ts";
 import type { MigrationContext, SchemaRequirement } from "./types.ts";
 
@@ -7,7 +6,7 @@ import type { MigrationContext, SchemaRequirement } from "./types.ts";
  * a column to its identity) means DROP plus recreate. `syncIndexes` never
  * alters a same-named index whose columns changed. A widening migration drops
  * the old index first and lets the (updated) SCHEMA recreate it. */
-export const SLOT_INDEX = sql`idx_listing_attendees_listing_attendee_start`;
+export const SLOT_INDEX = "idx_listing_attendees_listing_attendee_start";
 
 /** The requirement an index-only widening migration declares and verifies. */
 export const SLOT_INDEX_REQUIREMENT: SchemaRequirement = {
@@ -20,7 +19,7 @@ export const recreateSlotIndex = async ({
   getDb,
   syncIndexes,
 }: Pick<MigrationContext, "getDb" | "syncIndexes">): Promise<void> => {
-  await getDb().execute(sql`DROP INDEX IF EXISTS ${SLOT_INDEX}`);
+  await getDb().execute(sql`DROP INDEX IF EXISTS ${sqlName(SLOT_INDEX)}`);
   await syncIndexes();
 };
 
@@ -41,10 +40,8 @@ export const slotIndexColumns = (): string[] =>
 export const verifySlotIndex =
   ({ getDb }: Pick<MigrationContext, "getDb">) =>
   async (): Promise<void> => {
-    const rows = await queryRowsWithArg(
-      getDb(),
-      "SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?",
-      SLOT_INDEX,
+    const { rows } = await getDb().execute(
+      sql`SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ${SLOT_INDEX}`,
     );
     const live = rows.length > 0 ? String(rows[0]!.sql) : "";
     const missing = slotIndexColumns().filter(

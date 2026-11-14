@@ -5,13 +5,12 @@ import {
   withTransaction,
 } from "#db/client.ts";
 import { stringColumnSet } from "#db/query.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
+import { sql, sqlCommas, sqlLiteral, sqlName, sqlNames, type SqlStatement } from "#db/sql.ts";
 import { logDebug } from "#shared/logger.ts";
 import {
   backfillAnswerAggregates,
   backfillModifierAggregates,
 } from "./aggregate-backfills.ts";
-import { queryRowsWithArg } from "./master-query.ts";
 import { APP_SCHEMA, SCHEMA } from "./schema/index.ts";
 import {
   TICKET_COUNTS_PREDICATE,
@@ -26,9 +25,9 @@ import {
 import type { SchemaApplyScope } from "./types.ts";
 
 /** Run an idempotent migration — swallows expected "already done" errors */
-export const runMigration = async (sql: string): Promise<void> => {
+export const runMigration = async (statement: SqlStatement): Promise<void> => {
   try {
-    await getDb().execute(sql);
+    await getDb().execute(statement);
   } catch (e) {
     const msg = String(e);
     // Expected when re-running on an already-migrated DB or racing another
@@ -37,7 +36,7 @@ export const runMigration = async (sql: string): Promise<void> => {
       return;
     }
     // Anything else is a real error — log and rethrow
-    logDebug("Migration", `Error: ${msg} — SQL: ${sql.slice(0, 80)}`);
+    logDebug("Migration", `Error: ${msg} — SQL: ${statement.sql.slice(0, 80)}`);
     throw e;
   }
 };
@@ -47,18 +46,16 @@ export const getExistingColumns = async (
   table: string,
 ): Promise<Set<string>> => {
   const result = await getDb().execute(
-    sql`PRAGMA table_info(${TODO_SQL_TEXT(table)})`,
+    sql`PRAGMA table_info(${sqlName(table)})`,
   );
   return stringColumnSet(result.rows, "name");
 };
 
 export const tableExists = async (table: string): Promise<boolean> => {
-  const rows = await queryRowsWithArg(
-    getDb(),
-    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
-    table,
+  const result = await getDb().execute(
+    sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ${table}`,
   );
-  return rows.length > 0;
+  return result.rows.length > 0;
 };
 
 /** Each table's live column names, keyed by table name. */
@@ -118,13 +115,12 @@ const fromLiveSchema = stepUsing(snapshotLiveSchema);
 const fromAttendeeColumns = stepUsing(() => getExistingColumns("attendees"));
 
 /** Build the idempotent CREATE INDEX statement for a declared index. */
-const createIndexSql = (tableName: string, idx: Index): string => {
-  const unique = idx.unique ? "UNIQUE " : "";
-  const where = idx.where === undefined ? "" : ` WHERE ${idx.where}`;
-  return `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${tableName}(${idx.columns.join(
-    ", ",
-  )})${where}`;
-};
+const createIndexSql = (tableName: string, idx: Index): SqlStatement =>
+  sql`CREATE ${idx.unique ? sql`UNIQUE ` : sql``}INDEX IF NOT EXISTS ${sqlName(
+    idx.name,
+  )} ON ${sqlName(tableName)}(${sqlNames(idx.columns)})${
+    idx.where === undefined ? sql`` : sql` WHERE ${idx.where}`
+  }`;
 
 /** SQL identifiers, normalised the same way SQLite matches their case. */
 export const schemaSqlIdentifiers = (sql: string): Set<string> =>
@@ -136,7 +132,7 @@ export const schemaSqlIdentifiers = (sql: string): Set<string> =>
 
 /** Every table column an index definition reads, including its predicate. */
 const columnsUsedByIndex = (index: Index, table: Table): string[] => {
-  const predicateNames = schemaSqlIdentifiers(index.where ?? "");
+  const predicateNames = schemaSqlIdentifiers(index.where?.sql ?? "");
   return [
     ...new Set([
       ...index.columns,
@@ -161,10 +157,16 @@ export const currentSchemaColumnsPresentIn = (
     existingColumns.has(column),
   );
 
-const copyExpressionFor = ([column, type]: Column): string => {
-  const defaultMatch = type.match(/DEFAULT\s+'([^']*)'/i);
-  return defaultMatch ? `COALESCE(${column}, '${defaultMatch[1]}')` : column;
+const copyExpressionFor = ([column, type]: Column): SqlStatement => {
+  const defaultMatch = type.sql.match(/DEFAULT\s+'([^']*)'/i);
+  return defaultMatch
+    ? sql`COALESCE(${sqlName(column)}, ${sqlLiteral(defaultMatch[1]!)})`
+    : sqlName(column);
 };
+
+/** Each column's name and type, as a table definition lists them. */
+const columnDefinitions = (columns: readonly Column[]): SqlStatement =>
+  sqlCommas(columns.map(([column, type]) => sql`${sqlName(column)} ${type}`));
 
 type RebuildParams = {
   columns: readonly Column[];
@@ -187,27 +189,28 @@ const rebuildStatements = ({
   sourceExists = true,
   tableName,
   tmpName = `${tableName}_new`,
-}: RebuildParams): string[] => {
-  const colNames = copyColumns.map(([col]) => col).join(", ");
-  const colDefs = columns.map(([col, type]) => `${col} ${type}`).join(", ");
-  const selectExprs = copyColumns.map(copyExpressionFor).join(", ");
+}: RebuildParams): SqlStatement[] => {
+  const source = sqlName(tableName);
+  const staged = sqlName(tmpName);
   return [
-    `DROP TABLE IF EXISTS ${tmpName}`,
-    `CREATE TABLE ${tmpName} (${colDefs})`,
+    sql`DROP TABLE IF EXISTS ${staged}`,
+    sql`CREATE TABLE ${staged} (${columnDefinitions(columns)})`,
     ...(sourceExists && copyColumns.length > 0
       ? [
-          `INSERT INTO ${tmpName} (${colNames}) SELECT ${selectExprs} FROM ${tableName}`,
+          sql`INSERT INTO ${staged} (${sqlNames(
+            copyColumns.map(([column]) => column),
+          )}) SELECT ${sqlCommas(copyColumns.map(copyExpressionFor))} FROM ${source}`,
         ]
       : []),
-    `DROP TABLE ${sourceExists ? "" : "IF EXISTS "}${tableName}`,
-    `ALTER TABLE ${tmpName} RENAME TO ${tableName}`,
+    sql`DROP TABLE ${sourceExists ? sql`` : sql`IF EXISTS `}${source}`,
+    sql`ALTER TABLE ${staged} RENAME TO ${source}`,
   ];
 };
 
 export const rebuildTableWithColumns = async (
   params: RebuildParams,
 ): Promise<void> => {
-  await executeBatch(noArgStatements(rebuildStatements(params)));
+  await executeBatch(rebuildStatements(params));
 };
 
 const triggersDependingOn = (tableName: string) =>
@@ -266,7 +269,7 @@ export const recreateTable = async (tableName: string): Promise<void> => {
   );
   const statements = [
     ...dependentTriggers.map(
-      (trigger) => `DROP TRIGGER IF EXISTS ${trigger.name}`,
+      (trigger) => sql`DROP TRIGGER IF EXISTS ${sqlName(trigger.name)}`,
     ),
     ...rebuildStatements({
       columns: tableSchema.columns,
@@ -285,7 +288,7 @@ export const recreateTable = async (tableName: string): Promise<void> => {
     ).map((trg) => trg.sql),
   ];
   await withTransaction(async (tx) => {
-    await tx.batch(statements.map(writeStatement));
+    await tx.batch(statements);
   });
 };
 
@@ -385,10 +388,10 @@ const dropDeprecatedAttendeeColumns = fromAttendeeColumns(async (cols) => {
 });
 
 /** Create missing tables and add missing columns in a single pass */
-export const createTableSql = ([name, table]: [string, Table]): string => {
-  const parts = table.columns.map(([col, type]) => `${col} ${type}`);
-  return `CREATE TABLE IF NOT EXISTS ${name} (${parts.join(", ")})`;
-};
+export const createTableSql = ([name, table]: [string, Table]): SqlStatement =>
+  sql`CREATE TABLE IF NOT EXISTS ${sqlName(name)} (${columnDefinitions(
+    table.columns,
+  )})`;
 
 /**
  * Every CREATE TABLE and CREATE INDEX statement for the full current schema,
@@ -398,17 +401,11 @@ export const createTableSql = ([name, table]: [string, Table]): string => {
  * path, straight after resetDatabase()) can rebuild it without trusting a
  * schema snapshot that may lag behind the drops.
  */
-export const fullSchemaCreateStatements = (): string[] =>
+export const fullSchemaCreateStatements = (): SqlStatement[] =>
   SCHEMA.flatMap(([name, table]) => [
     createTableSql([name, table]),
     ...(table.indexes ?? []).map((index) => createIndexSql(name, index)),
   ]);
-
-const writeStatement = (sql: string): SqlStatement => ({ args: [], sql });
-
-/** Turn a list of SQL strings into batch statements with no bound arguments. */
-export const noArgStatements = (sqls: string[]): SqlStatement[] =>
-  sqls.map(writeStatement);
 
 /** The SCHEMA subset a scoped step can touch. A name outside SCHEMA is
  * refused. */
@@ -433,13 +430,13 @@ export const applySchemaChanges = async (
     const existing = live.tables.get(name);
     if (!existing) {
       // Missing table: one CREATE carries every column, so no ALTERs follow.
-      creates.push({ args: [], sql: createTableSql(entry) });
+      creates.push(createTableSql(entry));
       continue;
     }
     for (const [col, type] of table.columns) {
       if (!existing.has(col)) {
         alters.push(
-          sql`ALTER TABLE ${TODO_SQL_TEXT(name)} ADD COLUMN ${TODO_SQL_TEXT(col)} ${TODO_SQL_TEXT(type)}`,
+          sql`ALTER TABLE ${sqlName(name)} ADD COLUMN ${sqlName(col)} ${type}`,
         );
       }
     }
@@ -450,7 +447,7 @@ export const applySchemaChanges = async (
   // already-added column is accepted without hiding real failures.
   if (creates.length > 0) await executeBatch(creates);
   for (const statement of alters) {
-    await runMigration(statement.sql);
+    await runMigration(statement);
   }
 };
 
@@ -481,14 +478,14 @@ export const syncIndexes: () => Promise<void> = fromLiveSchema(async (live) => {
         !live.indexes.has(d.name)
       );
     })
-    .map((d) => writeStatement(d.sql));
+    .map((d) => d.sql);
 
   // Drop any project-owned (idx_*) index no longer declared in SCHEMA. The
   // sqlite_autoindex_* entries backing UNIQUE/PRIMARY KEY constraints never
   // match this prefix, so they're left untouched.
   const drops = [...live.indexes]
     .filter((name) => name.startsWith("idx_") && !declaredNames.has(name))
-    .map((name) => writeStatement(`DROP INDEX IF EXISTS ${name}`));
+    .map((name) => sql`DROP INDEX IF EXISTS ${sqlName(name)}`);
 
   // One batched write (one subrequest) instead of a CREATE/DROP per index.
   const statements = [...creates, ...drops];
@@ -510,7 +507,7 @@ export const syncTriggers: () => Promise<void> = fromLiveSchema(
     }
     for (const name of live.triggers) {
       if (name.startsWith("trg_") && !declaredNames.has(name)) {
-        await runMigration(`DROP TRIGGER IF EXISTS ${name}`);
+        await runMigration(sql`DROP TRIGGER IF EXISTS ${sqlName(name)}`);
       }
     }
   },
@@ -525,16 +522,16 @@ export const syncTriggers: () => Promise<void> = fromLiveSchema(
  * shared-predicate guard test. One-time on migration; afterwards the triggers
  * keep them current. Idempotent (absolute recompute, not a delta), so re-runs.
  */
-export const BACKFILL_LISTING_AGGREGATES_SQL = `UPDATE listings SET
+export const BACKFILL_LISTING_AGGREGATES_SQL = sql`UPDATE listings SET
        booked_quantity = COALESCE(
          (SELECT SUM(quantity) FROM listing_attendees WHERE listing_id = listings.id), 0),
        tickets_count = COALESCE(
          (SELECT COUNT(*) FROM listing_attendees WHERE listing_id = listings.id AND ${ticketCountPredicateFor(
-           "quantity",
-           "attendee_id",
+           sql`quantity`,
+           sql`attendee_id`,
          )}), 0)`;
 
-const BACKFILL_LEGACY_LISTING_AGGREGATES_SQL = `UPDATE listings SET
+const BACKFILL_LEGACY_LISTING_AGGREGATES_SQL = sql`UPDATE listings SET
        booked_quantity = COALESCE(
          (SELECT SUM(quantity) FROM listing_attendees WHERE listing_id = listings.id), 0),
        tickets_count = COALESCE(
@@ -547,10 +544,11 @@ const BACKFILL_LISTING_AGGREGATES_SQL_BY_SCHEMA = {
 
 export const backfillListingAggregates: () => Promise<void> =
   fromAttendeeColumns(async (attendeeColumns) => {
-    const sql = attendeeColumns.has("kind")
-      ? BACKFILL_LISTING_AGGREGATES_SQL_BY_SCHEMA.current
-      : BACKFILL_LISTING_AGGREGATES_SQL_BY_SCHEMA.legacy;
-    await getDb().execute({ args: [], sql });
+    await getDb().execute(
+      attendeeColumns.has("kind")
+        ? BACKFILL_LISTING_AGGREGATES_SQL_BY_SCHEMA.current
+        : BACKFILL_LISTING_AGGREGATES_SQL_BY_SCHEMA.legacy,
+    );
   });
 
 // One batched snapshot replaces the per-table tableExists/getExistingColumns

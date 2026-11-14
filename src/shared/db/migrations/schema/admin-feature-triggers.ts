@@ -1,5 +1,12 @@
 import { enabledFeaturesAreValidSql } from "#db/admin-feature-sql.ts";
 import {
+  type SqlStatement,
+  sql,
+  sqlLiteral,
+  sqlName,
+  sqlNames,
+} from "#db/sql.ts";
+import {
   type AdminFeatureKey,
   parseEnabledFeatures,
   serializeEnabledFeatures,
@@ -13,7 +20,7 @@ type FeatureWriteSourceBase = {
   feature: AdminFeatureKey;
   name: string;
   table: string;
-  when?: string;
+  when?: SqlStatement;
 };
 
 type FeatureWriteSource = FeatureWriteSourceBase &
@@ -92,7 +99,7 @@ const FEATURE_WRITE_SOURCES: FeatureWriteSource[] = [
     feature: "logistics",
     name: "trg_admin_feature_logistics_listings_insert",
     table: "listings",
-    when: "NEW.uses_logistics = 1",
+    when: sql`NEW.uses_logistics = 1`,
   },
   {
     columns: ["uses_logistics"],
@@ -100,7 +107,7 @@ const FEATURE_WRITE_SOURCES: FeatureWriteSource[] = [
     feature: "logistics",
     name: "trg_admin_feature_logistics_listings_update",
     table: "listings",
-    when: "NEW.uses_logistics = 1",
+    when: sql`NEW.uses_logistics = 1`,
   },
   {
     event: "INSERT",
@@ -114,7 +121,7 @@ const FEATURE_WRITE_SOURCES: FeatureWriteSource[] = [
     feature: "servicing",
     name: "trg_admin_feature_servicing_insert",
     table: "attendees",
-    when: "NEW.kind = 'servicing'",
+    when: sql`NEW.kind = 'servicing'`,
   },
   {
     columns: ["kind", "pii_blob"],
@@ -122,7 +129,7 @@ const FEATURE_WRITE_SOURCES: FeatureWriteSource[] = [
     feature: "servicing",
     name: "trg_admin_feature_servicing_update",
     table: "attendees",
-    when: "NEW.kind = 'servicing'",
+    when: sql`NEW.kind = 'servicing'`,
   },
 ];
 
@@ -131,28 +138,28 @@ const initialFeaturesFor = (feature: AdminFeatureKey): string =>
     setFeatureEnabled(parseEnabledFeatures(""), feature, true),
   );
 
-const triggerEvent = (source: FeatureWriteSource): string =>
+const triggerEvent = (source: FeatureWriteSource): SqlStatement =>
   source.event === "UPDATE"
-    ? `AFTER UPDATE OF ${source.columns.join(", ")}`
-    : "AFTER INSERT";
+    ? sql`AFTER UPDATE OF ${sqlNames(source.columns)}`
+    : sql`AFTER INSERT`;
 
 const featureWriteTrigger = (source: FeatureWriteSource): Trigger => ({
   name: source.name,
-  sql: `CREATE TRIGGER IF NOT EXISTS ${source.name}
-${triggerEvent(source)} ON ${source.table}
-FOR EACH ROW${source.when ? `\nWHEN ${source.when}` : ""}
+  sql: sql`CREATE TRIGGER IF NOT EXISTS ${sqlName(source.name)}
+${triggerEvent(source)} ON ${sqlName(source.table)}
+FOR EACH ROW${source.when ? sql`\nWHEN ${source.when}` : sql``}
 BEGIN
   SELECT CASE WHEN EXISTS (
     SELECT 1 FROM settings
-    WHERE key = '${CONFIG_KEYS.ENABLED_FEATURES}'
-      AND NOT (${enabledFeaturesAreValidSql("value")})
+    WHERE key = ${sqlLiteral(CONFIG_KEYS.ENABLED_FEATURES)}
+      AND NOT (${enabledFeaturesAreValidSql(sql`value`)})
   ) THEN RAISE(ABORT, 'enabled feature setting is invalid') END;
   INSERT INTO settings (key, value)
-  VALUES ('${CONFIG_KEYS.ENABLED_FEATURES}', '${initialFeaturesFor(source.feature)}')
+  VALUES (${sqlLiteral(CONFIG_KEYS.ENABLED_FEATURES)}, ${sqlLiteral(initialFeaturesFor(source.feature))})
   ON CONFLICT(key) DO UPDATE SET
-    value = json_set(value, '$.${source.feature}', json('true'));
+    value = json_set(value, ${sqlLiteral(`$.${source.feature}`)}, json('true'));
   INSERT INTO settings (key, value)
-  VALUES ('${CONFIG_KEYS.SETTINGS_VERSION}', '1')
+  VALUES (${sqlLiteral(CONFIG_KEYS.SETTINGS_VERSION)}, '1')
   ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1;
 END`,
   table: source.table,

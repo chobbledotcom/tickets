@@ -1,8 +1,11 @@
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 import { schemaMigration } from "./define.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 
 /** The feature key this release adds to every stored feature setting. */
 const EXTERNAL_SOURCES_FEATURE = "externalSources";
+
+const FEATURE_PATH = sqlLiteral(`$.${EXTERNAL_SOURCES_FEATURE}`);
 
 export default schemaMigration(
   "2026-11-03_external_sources",
@@ -19,13 +22,12 @@ export default schemaMigration(
     // A stored setting written before this release carries no value for the new
     // feature. The strict reader refuses an incomplete setting, so add the key
     // as off before any read.
-    await getDb().execute({
-      args: [CONFIG_KEYS.ENABLED_FEATURES],
-      sql: `UPDATE settings
-               SET value = json_set(value, '$.${EXTERNAL_SOURCES_FEATURE}', json('false'))
-             WHERE key = ?
+    await getDb().execute(
+      sql`UPDATE settings
+               SET value = json_set(value, ${FEATURE_PATH}, json('false'))
+             WHERE key = ${CONFIG_KEYS.ENABLED_FEATURES}
                AND json_valid(value)
-               AND json_type(value, '$.${EXTERNAL_SOURCES_FEATURE}') IS NULL`,
-    });
+               AND json_type(value, ${FEATURE_PATH}) IS NULL`,
+    );
   },
 );

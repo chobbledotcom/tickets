@@ -8,9 +8,19 @@
  * and routes to the right response.
  */
 
-import type { Client } from "@libsql/client";
-import { executeBatch, getDb, inPlaceholders } from "#db/client.ts";
-import { sql } from "#db/sql.ts";
+import {
+  executeBatch,
+  executeScript,
+  getDb,
+  type StatementClient,
+} from "#db/client.ts";
+import {
+  type SqlStatement,
+  sql,
+  sqlList,
+  sqlLiteral,
+  sqlName,
+} from "#db/sql.ts";
 import { lazyRef } from "#fp";
 import { resetAllCaches } from "#shared/cache-registry.ts";
 import { logDebug } from "#shared/logger.ts";
@@ -57,7 +67,6 @@ import {
 import {
   applySchemaChanges,
   fullSchemaCreateStatements,
-  noArgStatements,
   syncIndexes,
   syncTriggers,
 } from "./migrations/schema-sync.ts";
@@ -83,7 +92,7 @@ type DbProbe = {
   appliedMigrations: number | null;
 };
 
-const SCHEMA_MARKERS_SQL = `SELECT key, value FROM settings WHERE key IN ('${LATEST_DB_UPDATE_KEY}', '${DB_SCHEMA_HASH_KEY}')`;
+const SCHEMA_MARKERS_SQL = sql`SELECT key, value FROM settings WHERE key IN (${sqlLiteral(LATEST_DB_UPDATE_KEY)}, ${sqlLiteral(DB_SCHEMA_HASH_KEY)})`;
 
 /** Turn a probe's key/value rows into a lookup map. */
 const rowsToMap = (rows: readonly Record<string, unknown>[]) =>
@@ -107,13 +116,12 @@ const MISSING_SETTINGS_PROBE: DbProbe = {
 
 /** Run one probe query and translate its rows or failure into a DbProbe. */
 const runProbeQuery = async (
-  sql: string,
-  args: string[],
+  probe: SqlStatement,
   toProbe: (values: Map<string, string>) => DbProbe,
   onMissingHistory?: () => Promise<DbProbe>,
 ): Promise<DbProbe> => {
   try {
-    const result = await getDb().execute({ args, sql });
+    const result = await getDb().execute(probe);
     return toProbe(rowsToMap(result.rows));
   } catch (error) {
     if (isMissingSettingsTableError(error)) return MISSING_SETTINGS_PROBE;
@@ -127,27 +135,22 @@ const runProbeQuery = async (
 /** Probe fallback when schema_migrations doesn't exist (settings may be
  *  missing too — SQLite reports one missing table at a time). */
 const probeWithoutHistory = (): Promise<DbProbe> =>
-  runProbeQuery(SCHEMA_MARKERS_SQL, [], (values) => ({
+  runProbeQuery(SCHEMA_MARKERS_SQL, (values) => ({
     appliedMigrations: null,
     state: markerState(values),
   }));
 
 /** Read the schema state AND count the recorded migration history in one
  *  round trip — every isolate's first request pays for this. */
-const probeDbState = (): Promise<DbProbe> => {
-  const ids = MIGRATION_IDS;
-  return runProbeQuery(
-    `${SCHEMA_MARKERS_SQL} UNION ALL SELECT 'applied_migrations', ` +
-      `CAST(COUNT(*) AS TEXT) FROM ${SCHEMA_MIGRATIONS_TABLE} ` +
-      `WHERE id IN (${inPlaceholders(ids)})`,
-    ids,
+const probeDbState = (): Promise<DbProbe> =>
+  runProbeQuery(
+    sql`${SCHEMA_MARKERS_SQL} UNION ALL SELECT 'applied_migrations', CAST(COUNT(*) AS TEXT) FROM ${sqlName(SCHEMA_MIGRATIONS_TABLE)} WHERE id IN (${sqlList(MIGRATION_IDS)})`,
     (values) => ({
       appliedMigrations: Number(values.get("applied_migrations")),
       state: markerState(values),
     }),
     probeWithoutHistory,
   );
-};
 
 // ─── Creating a schema from scratch ─────────────────────────────
 
@@ -197,12 +200,8 @@ const initializeFreshSchema = async (): Promise<void> => {
  */
 export const rebuildWipedSchema = async (): Promise<void> => {
   logDebug("Migration", "Rebuilding wiped database from current schema");
-  await executeBatch(noArgStatements(fullSchemaCreateStatements()));
-  // executeMultiple accepts a SQL script, so it preserves each compound
-  // trigger body while rebuilding every trigger in one network round trip.
-  await getDb().executeMultiple(
-    `${TRIGGERS.map((trigger) => trigger.sql).join(";\n")};`,
-  );
+  await executeBatch(fullSchemaCreateStatements());
+  await executeScript(TRIGGERS.map((trigger) => trigger.sql));
   await sealFreshSchema();
 };
 
@@ -228,7 +227,7 @@ type InitDbOptions = {
  * request, so once a client is confirmed the hot path must cost zero
  * queries. Only success is cached — failures are retried on the next call.
  */
-const [getReadyClient, setReadyClient] = lazyRef<Client | null>(() => null);
+const [getReadyClient, setReadyClient] = lazyRef<StatementClient | null>(() => null);
 
 /** Forget the per-isolate "database is ready" cache. */
 export const invalidateInitDbCache = (): void => {
@@ -382,7 +381,7 @@ export const resetDatabase = async (): Promise<void> => {
     await executeBatch(
       [...SCHEMA]
         .reverse()
-        .map(([name]) => sql`DROP TABLE IF EXISTS ${TODO_SQL_TEXT(name)}`),
+        .map(([name]) => sql`DROP TABLE IF EXISTS ${sqlName(name)}`),
     );
   } finally {
     clearAllCaches();

@@ -1,7 +1,7 @@
 import { decrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { executeBatch } from "#db/client.ts";
-import { sql } from "#db/sql.ts";
+import { sql, sqlList } from "#db/sql.ts";
 import { bareSchemaMigration } from "./define.ts";
 
 /**
@@ -42,16 +42,10 @@ export default bareSchemaMigration(
     }
     if (brokenIds.length === 0) return;
 
-    const placeholders = brokenIds.map(() => "?").join(", ");
+    const broken = sqlList(brokenIds);
     await executeBatch([
-      {
-        args: brokenIds,
-        sql: `DELETE FROM image_uses WHERE image_id IN (${placeholders})`,
-      },
-      {
-        args: brokenIds,
-        sql: `DELETE FROM images WHERE id IN (${placeholders})`,
-      },
+      sql`DELETE FROM image_uses WHERE image_id IN (${broken})`,
+      sql`DELETE FROM images WHERE id IN (${broken})`,
     ]);
   },
 );

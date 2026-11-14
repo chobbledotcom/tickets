@@ -34,11 +34,11 @@ export default schemaMigration(
     const columns = await getExistingColumns("listings");
     if (columns.has("image_url")) {
       const thumbnail = columns.has("image_thumb_url")
-        ? "CASE WHEN listing.image_thumb_url = '' THEN listing.image_url ELSE listing.image_thumb_url END"
-        : "listing.image_url";
+        ? sql`CASE WHEN listing.image_thumb_url = '' THEN listing.image_url ELSE listing.image_thumb_url END`
+        : sql`listing.image_url`;
       await executeBatch([
         sql`INSERT OR IGNORE INTO images (id, name, filename, filename_thumb, alt_text)
-                SELECT listing.id, listing.name, listing.image_url, ${TODO_SQL_TEXT(thumbnail)}, ''
+                SELECT listing.id, listing.name, listing.image_url, ${thumbnail}, ''
                   FROM listings AS listing
                  WHERE listing.image_url <> ''`,
         sql`INSERT OR IGNORE INTO image_uses (image_id, item_type, item_id, sort_order)
