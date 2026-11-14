@@ -18,6 +18,7 @@ import {
 } from "#db/attendees/select.ts";
 import { inPlaceholders, queryAll } from "#db/client.ts";
 import { groupToMap, map, unique } from "#fp";
+import { withoutKey } from "#shared/without-key.ts";
 
 const ATTENDEE_ALIAS = "attendee";
 const LISTING_ATTENDEE_ALIAS = "listingAttendee";
@@ -47,10 +48,9 @@ type PreviousBookingLine = Pick<
 type BookingRowWithAttendee = TokenBookingRow & { attendee_id: number };
 type RowWithAttendee<Row> = Row & { attendee_id: number };
 
-const bookingRowWithoutAttendee = ({
-  attendee_id: _attendeeId,
-  ...row
-}: BookingRowWithAttendee): TokenBookingRow => row;
+const bookingRowWithoutAttendee: (
+  row: BookingRowWithAttendee,
+) => TokenBookingRow = withoutKey("attendee_id");
 
 /** Load the booking lines for a set of attendees, grouped by attendee id.
  * Callers vary only in which columns they read, any extra join, and any

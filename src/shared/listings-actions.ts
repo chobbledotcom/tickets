@@ -464,9 +464,8 @@ export const toggleListingActive = async (
       }
       // Every table on the transactional write path carries updateStatement
       // (see the record's write path), so the toggle's row write joins the
-      // guard's tx. The
-      // price mirror and the activity log join it too: a failure in either
-      // rolls the toggle back, so a retry re-runs all three.
+      // guard's tx. The price mirror and the activity log join it too: a
+      // failure in either rolls the toggle back, so a retry re-runs all three.
       await tx.execute(
         await listingsTable.updateStatement!(listingId, { active }),
       );

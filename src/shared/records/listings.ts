@@ -19,7 +19,7 @@ import {
 } from "#shared/listings-actions.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
 import type { RecordRule, RecordShapeOf } from "#shared/rest/record.ts";
-import { errorResult, okResult } from "#shared/result.ts";
+import { ruleFromValidator } from "#shared/rest/record-command.ts";
 import type { Listing, ListingWithCount } from "#types";
 
 /** The prices and the recurring plan that the saved row will hold. A save
@@ -38,16 +38,10 @@ const savedListingInput = (
       };
 
 /** Judge the row as the save leaves it, and write the input as it came. */
-const listingRule: RecordRule<ListingInput, Listing> = async (
-  input,
-  stored,
-) => {
-  const error = await validateListingInput(
-    savedListingInput(input, stored),
-    stored?.id,
-  );
-  return error === null ? okResult(input) : errorResult(error);
-};
+const listingRule: RecordRule<ListingInput, Listing> = (input, stored) =>
+  ruleFromValidator<ListingInput, Listing>((_, id) =>
+    validateListingInput(savedListingInput(input, stored), id),
+  )(input, stored);
 
 export const listingRecord = defineNamedRowRecord<
   RecordShapeOf<Listing, ListingInput, ListingWithCount>

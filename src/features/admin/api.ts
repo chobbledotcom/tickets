@@ -40,6 +40,7 @@ import { apiEntityGate, withApiEntity } from "#shared/rest/crud-parsers.ts";
 import type { RecordShapeOf } from "#shared/rest/record.ts";
 import { recordApi, recordJsonDeletePolicy } from "#shared/rest/record-api.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
+import { withoutKey } from "#shared/without-key.ts";
 import type { AdminListing, Listing, ListingWithCount } from "#types";
 import { handleCreateAttendee, toApiAttendee } from "./api-attendees.ts";
 import { bodyToCreateInput, bodyToUpdateInput } from "./api-listing-body.ts";
@@ -99,10 +100,8 @@ const handleToggleActive = (
   });
 
 /** Strip slug_index from listing row, producing the admin API shape */
-export const toAdminListing = ({
-  slug_index: _,
-  ...rest
-}: ListingWithCount): AdminListing => rest;
+export const toAdminListing: (row: ListingWithCount) => AdminListing =
+  withoutKey("slug_index");
 
 /** Batched join-table hydration for a set of listing rows, keyed by listing
  * id. One query per link table covers the whole list rather than one per row.
