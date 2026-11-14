@@ -163,9 +163,7 @@ const logisticsDisableStatements = (
   prepared: PreparedLogisticsDefault,
 ): { featureResultIndex: number; statements: SqlStatement[] } => {
   const unchanged = listingDefaultsUnchanged(prepared.current);
-  const statements: SqlStatement[] = [
-    requireSettingCondition(unchanged),
-  ];
+  const statements: SqlStatement[] = [requireSettingCondition(unchanged)];
   if (prepared.nextEncrypted !== null) {
     statements.push(
       sql`UPDATE settings SET value = ${prepared.nextEncrypted} WHERE key = ${CONFIG_KEYS.LISTING_DEFAULTS} AND value = ${prepared.current}`,

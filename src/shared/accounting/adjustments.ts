@@ -10,14 +10,14 @@
  * (`world→*`) stay honest — see {@link WRITEOFF}.
  */
 
-import type { InValue } from "@libsql/client";
 import { WRITEOFF } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import { eventGroup, legReference, type RefPart } from "#accounting/refs.ts";
-import { insertStatement } from "#accounting/rows.ts";
+import { insertIfNewStatement } from "#accounting/rows.ts";
 import { signedLegParts } from "#accounting/signed-leg.ts";
 import { postTransfersTx } from "#accounting/store.ts";
-import { orIgnore, type TxScope } from "#db/client.ts";
+import type { TxScope } from "#db/client.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import type { AccountRef, TransferInput } from "#shared/ledger/types.ts";
 import { nowIso } from "#shared/now.ts";
 
@@ -89,13 +89,13 @@ export type WriteoffAdjustment = {
 export const writeoffAdjustmentInserts = async (
   adjustments: WriteoffAdjustment[],
   recordedAt: string,
-): Promise<{ sql: string; args: InValue[] }[]> => {
+): Promise<SqlStatement[]> => {
   const legs = await Promise.all(
     adjustments.map((a) =>
       writeoffAdjustmentLeg(a.account, a.delta, a.keyParts),
     ),
   );
   return legs.flatMap((leg) =>
-    leg === null ? [] : [orIgnore(insertStatement(leg, recordedAt))],
+    leg === null ? [] : [insertIfNewStatement(leg, recordedAt)],
   );
 };

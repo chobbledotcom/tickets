@@ -216,11 +216,7 @@ const runItemDelete = async (
 export const removePageItem: PageItemChange<void> = pageItemChange(
   (transaction, ...args) =>
     runItemDelete((statement) => transaction.execute(statement), ...args),
-  (...args) =>
-    runItemDelete(
-      (statement) => execute(statement),
-      ...args,
-    ),
+  (...args) => runItemDelete((statement) => execute(statement), ...args),
 );
 
 /**

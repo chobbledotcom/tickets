@@ -67,7 +67,8 @@ export const readOneRow = async <Row>(read: Read): Promise<Row | null> =>
 const namedOrder = <Order extends string>(
   orders: Record<Order, SqlStatement>,
   order: Order | undefined,
-): SqlStatement | undefined => (order === undefined ? undefined : orders[order]);
+): SqlStatement | undefined =>
+  order === undefined ? undefined : orders[order];
 
 /** What a reader can be asked for: which rows, and which of its named orders
  * they come back in. */

@@ -151,9 +151,7 @@ export const bindRefundCallbackIfChargeExists = async (
           )
       RETURNING ${REFUND_AUTHORITY_COLUMNS}`;
   });
-  const changed = refundAuthorityFromResult(
-    await execute(statement),
-  );
+  const changed = refundAuthorityFromResult(await execute(statement));
   if (changed !== null) return changed;
   return await loadRefundCallbackBinding(binding);
 };

@@ -11,15 +11,9 @@
  * settings after each page, so a stopped run resumes rather than re-walking.
  */
 
-import type { InValue } from "@libsql/client";
 import { refundEventGroup } from "#accounting/mappers.ts";
-import {
-  executeBatch,
-  inPlaceholders,
-  queryAllPrimary,
-  queryOnePrimary,
-} from "#db/client.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
+import { executeBatch, queryAllPrimary, queryOnePrimary } from "#db/client.ts";
+import { type SqlStatement, sql, sqlCommas, sqlList } from "#db/sql.ts";
 
 /** One (refund group → booking group) attribution. */
 type ReversesPair = readonly [refundGroup: string, bookingGroup: string];
@@ -30,7 +24,7 @@ const GROUP_PAGE = 5000;
 
 /** Refund legs are exactly the `refund_`-prefixed kinds (`refundKind` prefixes
  *  every mapped reversal). GLOB keeps `_` literal, unlike LIKE. */
-const REFUND_KIND_GLOB = "refund_*";
+const REFUND_KIND = sql`GLOB 'refund_*'`;
 
 /** The settings row holding the walk's position. A stopped run leaves it
  *  behind. A finished run leaves {@link CURSOR_COMPLETE} in it. */
@@ -40,15 +34,11 @@ const CURSOR_KEY = "backfill_reverses_group_cursor";
  *  page's start, in index order. */
 const eventGroupsPage = (
   pageSize: number,
-  condition: string,
-  conditionArgs: readonly InValue[],
+  condition: SqlStatement,
 ): Promise<{ event_group: string }[]> =>
-  queryAllPrimary<{ event_group: string }>({
-    args: [...conditionArgs, pageSize],
-    sql:
-      "SELECT DISTINCT event_group FROM transfers" +
-      ` WHERE ${condition} ORDER BY event_group LIMIT ?`,
-  });
+  queryAllPrimary<{ event_group: string }>(
+    sql`SELECT DISTINCT event_group FROM transfers WHERE ${condition} ORDER BY event_group LIMIT ${pageSize}`,
+  );
 
 /** Keyset cursor over the event-group index. Branded, so a plain `+=`
  *  concatenation of two cursors is a type error instead of a page replay. */
@@ -79,10 +69,7 @@ const pagePairs = async (
   );
   const stored = await eventGroupsPage(
     pageSize,
-    `kind GLOB '${REFUND_KIND_GLOB}' AND event_group IN (${inPlaceholders(
-      refundGroupOf,
-    )})`,
-    refundGroupOf,
+    sql`kind ${REFUND_KIND} AND event_group IN (${sqlList(refundGroupOf)})`,
   );
   const storedGroups = new Set(stored.map((row) => row.event_group));
   return bookingGroups
@@ -92,17 +79,12 @@ const pagePairs = async (
 
 /** Stamp one page's pairs in a single UPDATE, joining each refund event's
  *  legs through the event-group index. */
-const pageUpdate = (pairs: readonly ReversesPair[]): SqlStatement => ({
-  args: pairs.flat(),
-  sql:
-    "WITH pairs(refund_group, booking_group) AS (VALUES" +
-    ` ${pairs.map(() => "(?, ?)").join(", ")})` +
-    " UPDATE transfers SET reverses_group = pairs.booking_group" +
-    " FROM pairs" +
-    " WHERE transfers.event_group = pairs.refund_group" +
-    ` AND transfers.kind GLOB '${REFUND_KIND_GLOB}'` +
-    " AND transfers.reverses_group = ''",
-});
+const pageUpdate = (pairs: readonly ReversesPair[]): SqlStatement =>
+  sql`WITH pairs(refund_group, booking_group) AS (VALUES ${sqlCommas(
+    pairs.map(
+      ([refundGroup, bookingGroup]) => sql`(${refundGroup}, ${bookingGroup})`,
+    ),
+  )}) UPDATE transfers SET reverses_group = pairs.booking_group FROM pairs WHERE transfers.event_group = pairs.refund_group AND transfers.kind ${REFUND_KIND} AND transfers.reverses_group = ''`;
 
 /** Every refund group still carrying an unattributed leg, page by page. */
 const unattributedRefundGroups = async (
@@ -113,8 +95,7 @@ const unattributedRefundGroups = async (
   for (;;) {
     const page = await eventGroupsPage(
       pageSize,
-      `kind GLOB '${REFUND_KIND_GLOB}' AND reverses_group = '' AND event_group > ?`,
-      [after],
+      sql`kind ${REFUND_KIND} AND reverses_group = '' AND event_group > ${after}`,
     );
     if (page.length === 0) return orphans;
     after = cursorAfter(page);
@@ -166,8 +147,7 @@ export const backfillReversesGroup = async (
   for (;;) {
     const bookingGroups = await eventGroupsPage(
       pageSize,
-      `kind NOT GLOB '${REFUND_KIND_GLOB}' AND event_group > ?`,
-      [after],
+      sql`kind NOT ${REFUND_KIND} AND event_group > ${after}`,
     );
     if (bookingGroups.length === 0) break;
     after = cursorAfter(bookingGroups);

@@ -243,9 +243,7 @@ const fitExpression = (demand: CartDemand): SqlStatement => {
     ),
     ...demandClauses(demand.groupDemand, groupPerDayClause, GROUP_UNDATED),
   ];
-  return clauses.length === 0
-    ? sql`1`
-    : sql`(${sqlJoin(clauses, sql` AND `)})`;
+  return clauses.length === 0 ? sql`1` : sql`(${sqlJoin(clauses, sql` AND `)})`;
 };
 
 /** One SELECT returning `fits` (1/0): does this cart demand fit right now?
