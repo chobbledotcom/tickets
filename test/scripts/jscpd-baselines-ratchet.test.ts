@@ -199,6 +199,26 @@ describe("riseFindings", () => {
     ]);
   });
 
+  test("passes a reshaped clone while the total does not rise", () => {
+    expect(
+      riseFindings(BASELINE, baseline({ bbb: 1 }), baseline({ aaa: 1 }), 0),
+    ).toEqual([]);
+  });
+
+  test("names a raised count while the total does not rise", () => {
+    expect(
+      riseFindings(
+        BASELINE,
+        baseline({ aaa: 2 }),
+        baseline({ aaa: 1, bbb: 1 }),
+        0,
+      ),
+    ).toEqual([
+      `${BASELINE}:aaa [raised-clone]: holds 2 clone(s), up from 1 — merge the ` +
+        "duplicated code, then lower the baseline with --update",
+    ]);
+  });
+
   test("names a clone count above the base's", () => {
     expect(
       riseFindings(BASELINE, baseline({ aaa: 3 }), baseline({ aaa: 2 }), 0),

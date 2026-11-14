@@ -228,10 +228,12 @@ Each scan holds these clones in its committed baseline and runs with
 `--fail-on-new-clones`. A new renamed copy fails the gate. The fingerprints do
 not change when lines move. A code change can pair a recorded window with a
 different identical copy. That pair has a new fingerprint, so the gate fails
-on code that it already recorded. The ratchet in `deno task cpd` refuses that
-fingerprint, because the merge base on `main` does not hold it. Merge the pair
-instead. After a merge, run the scan with `--update` to remove the fixed
-clones, and the baseline shrinks.
+on code that it already recorded. Record the new pair with `--update`. The
+ratchet in `deno task cpd` accepts that fingerprint when the baseline does not
+accept more clones than the merge base on `main`. When the total rises, the
+ratchet accepts only a re-paired clone. Merge any other pair. After a merge,
+run the scan with `--update` to remove the fixed clones, and the baseline
+shrinks.
 
 Each TypeScript scan skips import and re-export statements through its
 `ignorePattern` list. Source files carry no ignore markers around imports.

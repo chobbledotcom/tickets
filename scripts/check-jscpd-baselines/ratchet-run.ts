@@ -23,6 +23,7 @@ import {
   baselineFileNames,
   baselinePathsNamed,
   basePathFor,
+  cloneTotalRose,
   RATCHET_GUIDE,
   riseFindings,
   unreadBaselineFindings,
@@ -108,13 +109,15 @@ const unchangedSince = async ({
 };
 
 /** How many re-paired clones one baseline can accept. The scan runs only when
- * the baseline holds a clone that its merge base copy does not hold. */
+ * the baseline total rose and the baseline holds a clone that its merge base
+ * copy does not hold. */
 const rePairsFor = async (
   context: BaseContext,
   { path, text }: BaselineFile,
   base: string | undefined,
 ): Promise<number> => {
-  if (base === undefined || addedCloneCount(path, text, base) === 0) return 0;
+  if (base === undefined || !cloneTotalRose(path, text, base)) return 0;
+  if (addedCloneCount(path, text, base) === 0) return 0;
   return rePairCount(
     await context.scanNewClones(path, base),
     await unchangedSince(context),

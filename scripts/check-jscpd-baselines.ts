@@ -4,8 +4,9 @@
  * The jscpd baseline ratchet: fail when this branch accepts a clone that the
  * merge base on `origin/main` does not accept, and when a scan task names a
  * baseline that the check cannot read. The baselines only shrink, so a branch
- * must never raise one. A re-paired clone is the one accepted rise, and the
- * check repeats the scan with jscpd to find it. Run as part of
+ * must never raise one. A reshaped clone passes while the total does not rise.
+ * A re-paired clone is the one accepted rise, and the check repeats the scan
+ * with jscpd to find it. Run as part of
  * `deno task precommit`, or on its own with `deno task check:jscpd-baselines`.
  * See "Code Duplication" in AGENTS.md.
  */
