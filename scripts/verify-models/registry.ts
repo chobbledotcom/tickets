@@ -5,6 +5,7 @@ import {
   type ModelControl,
   type VerificationModule,
 } from "#scripts/verify-models/spec.ts";
+import { SUBSCRIPTION_MODULES } from "#scripts/verify-models/subscriptions/registry.ts";
 
 const vat = dataFrom(() => import("#scripts/verify-models/vat.ts"));
 const square = dataFrom(() => import("#scripts/verify-models/square.ts"));
@@ -383,6 +384,7 @@ export const VERIFICATION_MODULES = [
     kind: "model",
     module: "InvoiceFlow",
   },
+  ...SUBSCRIPTION_MODULES,
 ] as const satisfies readonly VerificationModule[];
 
 /** A maintained source must declare its role before the tools can assess it. */

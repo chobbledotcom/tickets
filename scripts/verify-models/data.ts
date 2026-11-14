@@ -4,7 +4,7 @@ import { unique } from "#fp";
 type TlaAtom = string | boolean | number;
 
 export type TlaRecord = Readonly<Record<string, TlaAtom>>;
-type TlaRecordSchema = Readonly<Record<string, "Str" | "Bool" | "Int">>;
+export type TlaRecordSchema = Readonly<Record<string, "Str" | "Bool" | "Int">>;
 type FieldValues = { Bool: boolean; Int: number; Str: string };
 export type TlaFact<Schema extends TlaRecordSchema> = {
   readonly [Field in keyof Schema]: FieldValues[Schema[Field]];
@@ -69,8 +69,45 @@ export const tlaSet = (values: readonly string[]): string =>
 
 const record = (value: TlaRecord, name: string): string =>
   `[${Object.entries(value)
+    .sort(([left], [right]) => left.localeCompare(right))
     .map(([field, value]) => `${field} |-> ${atom(value, `${name}.${field}`)}`)
     .join(", ")}]`;
+
+// Each indexed lookup selects a page, then at most 32 rows within that page.
+// This avoids a single recursive equality builder over the entire fact table
+// while retaining the original semantic set.
+const RECORD_PAGE_SIZE = 32;
+
+const indexedDefinitions = (
+  name: string,
+  type: string,
+  values: readonly string[],
+): string[] => {
+  const pages: string[] = [];
+  for (let index = 0; index < values.length; index += RECORD_PAGE_SIZE) {
+    pages.push(
+      `<<${values.slice(index, index + RECORD_PAGE_SIZE).join(", ")}>>`,
+    );
+  }
+  return [
+    `\\* @type: Seq(Seq(${type}));\n${name}Pages == <<${pages.join(",\n")}>>`,
+    `${name}Count == ${values.length}`,
+    `${name}Indices == 1..${values.length}`,
+    `\\* ${name}At requires index \\in ${name}Indices; no value is defined outside that domain.`,
+    `\\* @type: (Int) => ${type};\n${name}At(index) == ${name}Pages[((index - 1) \\div ${RECORD_PAGE_SIZE}) + 1][((index - 1) % ${RECORD_PAGE_SIZE}) + 1]`,
+  ];
+};
+
+/** Preserve a semantic string set and index its distinct identities separately. */
+export const tlaStringSet = (name: string, values: readonly string[]): string =>
+  [
+    `${name} == ${tlaSet(values)}`,
+    ...indexedDefinitions(
+      name,
+      "Str",
+      unique([...values]).map((value) => atom(value, "set member")),
+    ),
+  ].join("\n");
 
 /** One field declaration supplies both the fact type and the checker type. */
 export const tlaRecords = <const Schema extends TlaRecordSchema>(
@@ -82,7 +119,19 @@ export const tlaRecords = <const Schema extends TlaRecordSchema>(
     .map(([field, type]) => `${field}: ${type}`)
     .join(", ");
   const alias = `${name.charAt(0).toLowerCase()}${name.slice(1)}Fact`;
-  return `\\* @typeAlias: ${alias} = { ${fields} };\n\\* @type: Set($${alias});\n${name} == {\n${unique(values.map((value, index) => record(value, `${name}[${index}]`))).join(",\n")}\n}`;
+  const rows = unique(
+    values.map((value, index) => record(value, `${name}[${index}]`)),
+  );
+  const names = rows.map((_, index) => `${name}Record${index}`);
+  const definitions = rows.map(
+    (row, index) => `\\* @type: $${alias};\n${names[index]} == ${row}`,
+  );
+  return [
+    `\\* @typeAlias: ${alias} = { ${fields} };`,
+    ...definitions,
+    `\\* @type: Set($${alias});\n${name} == {\n${names.join(",\n")}\n}`,
+    ...indexedDefinitions(name, `$${alias}`, names),
+  ].join("\n");
 };
 
 export const tlaModule = (

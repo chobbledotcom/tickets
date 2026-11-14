@@ -9,7 +9,7 @@ const { data: bookingReplayModelData, controls } =
 const duplicateBookingData = controls[0].data;
 const deletedRowRefundData = controls[1]!.data;
 
-type Fact = Record<string, string | boolean>;
+type Fact = ReturnType<typeof records>[number];
 
 /** The delivery facts the clean module and one corrupted module both emit,
  * plus the facts whose `field` the corruption changed. */

@@ -1,6 +1,6 @@
 # Subscription model checks
 
-Status: draft. A human must approve this contract before tests or implementation.
+Status: approved. A human approved this contract before tests and implementation.
 This plan follows [the pull request workflow](pr-workflow.md) and the
 [model verification guide](model-verification.md).
 
@@ -19,7 +19,7 @@ The four lower pull requests keep their existing order and scope.
 | --- | --- | --- |
 | Observed | Checkout admission and plan attachment | Execute `subscriptionOrderError`, `subscriptionStartOf`, and `withSubscriptionPlan`. |
 | Observed | Subscription status, retained rows, and ledger legs | Execute the production write paths against isolated copies of the production schema. Read stored results. |
-| Observed | Provider requests and replies at the local boundary | Use deterministic provider fixtures. Record the request identity and the supplied reply separately. |
+| Observed | Request arguments and local handling of supplied provider replies | Capture request identities at the client boundary. Fixture reply contents remain assumptions. |
 | Expected | Allowed orders, preserved plan identity, and cancellation order | State independent laws in TLA. Do not copy a production verdict into its expectation. |
 | Expected | Cash, sale, VAT, and replay effects | Use exact integer arithmetic and the input invoice universe. Do not reuse the production money calculation as its oracle. |
 | Assumed | Stripe reports truthful identities, statuses, amounts, and paid times | Local fixtures and models cannot establish provider truth. Keep the required Stripe test-mode proof. |
@@ -56,8 +56,8 @@ TLA sets must not collapse distinct attempts or equal-value invoices.
 | Model | Production evidence | Safety laws |
 | --- | --- | --- |
 | `SubscriptionCheckout` | Checkout admission, Stripe session parameters, `subscriptionStartOf`, `withSubscriptionPlan`, and stored plan columns | Unsupported orders refuse. Ordinary extra tickets remain valid. Exactly the subscribed booking receives the observed plan. Later listing or tax edits do not change it. |
-| `SubscriptionRenewals` | `recordObserved`, `renewalTax`, `mapRenewal`, `postTransferGroups`, `renewalBookingGuard`, and stored transfers | Each eligible invoice posts once to its true attendee and listing. Cash equals the observed amount. Sale plus VAT equals cash. References and paid times remain exact. A stale booking cannot post. |
-| `SubscriptionCancellation` | `cancelOwnerSubscription`, `endFailedCheckoutSubscription`, the failed-checkout refund paths, and `statusWrite` | Stripe must confirm the end before a failed checkout refunds. Successful bookings never enter that refund path. Stale checks cannot overwrite an ended status. An ended status becomes visible only with its final returned renewals. |
+| `SubscriptionRenewals` | `recordObserved`, `renewalTax`, `mapRenewal`, `postTransferGroups`, `renewalBookingGuard`, and stored transfers | Each eligible invoice posts once to its true attendee and listing. Cash equals the observed amount. Sale plus VAT equals cash. References and paid times remain exact. A changed booking identity cannot post from the old snapshot. |
+| `SubscriptionCancellation` | `cancelOwnerSubscription`, `endFailedCheckoutSubscription`, the failed-checkout refund paths, and `statusWrite` | A failed checkout needs an observed ended status before a refund. An already-observed end needs no extra cancel call. Booked or orphaned ledger dispositions never enter that refund path. Stale checks cannot overwrite an ended status. An ended status becomes visible only with its final returned renewals. |
 | `SubscriptionRecords` | The production edit, delete, merge, and subscriber-read paths | No permitted operation loses a live plan. Safe moves preserve it. Subscriber reads include live, ended, and quantity-zero plans exactly once per stored booking. |
 
 Each model has its own law, domain explanation, and named controls.
@@ -72,8 +72,8 @@ Existing rendered-page tests retain responsibility for access, labels, links, an
 | Event | Required observation |
 | --- | --- |
 | Start an eligible checkout | Keep the initial payment separate from the first later recurring charge. Bind the plan to the subscribed listing. |
-| Complete or replay a paid checkout | Store one booking and its observed plan. Use the payment intent from the session's first invoice, not a later renewal. Do not cancel an existing successful booking. |
-| Refuse a paid subscription checkout | Preserve the valid observed plan before cancellation. Do not refund until Stripe confirms the end. |
+| Complete or replay a paid checkout | Store one booking and its observed plan. Use the payment intent from the session's first invoice, not a later renewal. Durable booked or orphaned ledger dispositions prevent cancellation and refund. |
+| Refuse a paid subscription checkout | Preserve the valid observed plan before cancellation. An observed ended status must precede refund. An already-observed end needs no extra provider call. |
 | Read a paid renewal | Ignore the first invoice, non-renewal reasons, and zero payments. Post eligible invoices at their observed amounts and times. |
 | Repeat an invoice | The stored legs remain equal. A different amount under the same identity fails loudly. |
 | Observe a live status | Write only over the expected live status. Keep a concurrent ended status. |
@@ -171,8 +171,9 @@ Reuse `ModelRules.tla`, `schemaClientWith`, the existing record renderers, and t
 Keep the registry free of application IO at import time.
 Declare each producer and relevant production source as review context.
 Use the existing SQLite fault and payment observer patterns. Add no production test hooks.
+Statement producers use `schemaClientWith`. Full-function producers install the isolated client through the existing `setDb` seam and restore it afterwards.
 
-Expected files are four TLA modules, their producers, focused fixture or schema helpers, direct tests, and one lazy registry group.
+Expected files are four TLA modules, their producers, focused fixture or schema helpers, direct tests, and four flat registry entries.
 Keep each file near 400 lines and below the enforced 500-line limit.
 Production behaviour, schema, environment keys, and provider call budgets remain unchanged.
 Producers use isolated synthetic databases and local provider fixtures only.
