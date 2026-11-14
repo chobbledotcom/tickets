@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
-  type AttendeeStatusWriteInput,
   attendeeStatuses,
   attendeeStatusOrder,
   attendeeStatusWrites,
@@ -18,20 +17,9 @@ import { getDb } from "#db/client.ts";
 import { sql, sqlLiteral } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { statusInput } from "#test-utils/db-helpers/attendee-statuses.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
-
-const statusInput = (
-  name: string,
-  defaults: Partial<AttendeeStatusWriteInput> = {},
-): AttendeeStatusWriteInput => ({
-  isPaidDefault: false,
-  isPublicDefault: false,
-  isReservation: false,
-  name,
-  reservationAmount: "0",
-  ...defaults,
-});
 
 describeWithEnv("db > attendee statuses", { db: true }, () => {
   test("the migration seeds a single non-reservation default status", async () => {

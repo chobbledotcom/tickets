@@ -5,7 +5,6 @@ import { hmacHash } from "#crypto/hashing.ts";
 import { getSitePageById, getSitePageBySlugIndex } from "#db/site-pages.ts";
 import { wasActivityLogged as wasLogged } from "#test-utils/activity-log.ts";
 import {
-  expectErrorFlash,
   expectFlash,
   expectHtmlResponse,
   expectIncludesAll,
@@ -158,40 +157,66 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       expect((await getSitePageById(page.id))?.hidden).toBe(false);
     });
 
+    /** Post a page edit that the form refuses. The answer is the edit page
+     *  again, and the stored slug stays. */
+    const refusedEdit = async (
+      slug: string,
+      fields: Record<string, string>,
+    ): Promise<string> => {
+      await create(slug);
+      const page = await findPage(slug);
+      const { response } = await adminFormPost(
+        `${BASE}/${page.id}/edit`,
+        fields,
+      );
+      expect(response.status).toBe(400);
+      expect((await getSitePageById(page.id))?.slug).toBe(slug);
+      return response.text();
+    };
+
     test("update rejects a slug taken by another page", async () => {
       await create("keep-a");
-      await create("keep-b");
-      const b = await findPage("keep-b");
-      const { response } = await adminFormPost(`${BASE}/${b.id}/edit`, {
-        name: "B",
-        slug: "keep-a",
-      });
-      expectErrorFlash(response, "already in use by a listing, group, or page");
-      expect((await getSitePageById(b.id))?.slug).toBe("keep-b");
+      assertStringIncludes(
+        await refusedEdit("keep-b", { name: "B", slug: "keep-a" }),
+        "already in use by a listing, group, or page",
+      );
     });
 
     test("update rejects a reserved slug", async () => {
-      await create("keep-reserved");
-      const page = await findPage("keep-reserved");
-      const { response } = await adminFormPost(`${BASE}/${page.id}/edit`, {
-        name: "Still here",
+      assertStringIncludes(
+        await refusedEdit("keep-reserved", {
+          name: "Still here",
+          slug: "contact",
+        }),
+        "reserved",
+      );
+    });
+
+    test("a rejected update keeps every submitted box", async () => {
+      const html = await refusedEdit("restore-me", {
+        content: "Changed body",
+        meta_title: "Changed title",
+        name: "Changed name",
         slug: "contact",
       });
-      expectErrorFlash(response, "reserved");
-      expect((await getSitePageById(page.id))?.slug).toBe("keep-reserved");
+      expectIncludesAll(html, [
+        "reserved",
+        'value="Changed name"',
+        'value="contact"',
+        'value="Changed title"',
+        "Changed body</textarea>",
+      ]);
     });
 
     test("update rejects a missing name and changes nothing", async () => {
-      await create("unchanged");
-      const page = await findPage("unchanged");
-      const { response } = await adminFormPost(`${BASE}/${page.id}/edit`, {
-        name: "",
-        slug: "changed",
+      assertStringIncludes(
+        await refusedEdit("unchanged", { name: "", slug: "changed" }),
+        "Page Name is required",
+      );
+      expect(await findPage("unchanged")).toMatchObject({
+        name: "Name unchanged",
+        slug: "unchanged",
       });
-      expectErrorFlash(response, "Page Name is required");
-      const unchanged = await getSitePageById(page.id);
-      expect(unchanged?.name).toBe("Name unchanged");
-      expect(unchanged?.slug).toBe("unchanged");
     });
 
     test("update 404s for a missing page", async () => {

@@ -1,10 +1,10 @@
 # Known-equivalent mutants — see README.txt in this directory.
 
 src/features/admin/entity-pages.ts::defineEntityPage.renderPage~0r9wwy4  ?? → || audited:1i6yq97 # titleNav is undefined or a Promise from its declared type; every Promise is truthy, and both operators send undefined to null
-src/features/auth.ts::recordPageGuardFor~01c7xvj  ?? → || audited:1bovven # audience is undefined or a readonly AdminLevel array; every array is truthy, and both operators send undefined to the route audience
+src/features/auth.ts::recordPageGuardFor~01c7xvj  ?? → || audited:03bfead # audience is undefined or a readonly AdminLevel array; every array is truthy, and both operators send undefined to the route audience
 
-src/features/response.ts::maybeStashForm.source~05i3xv9  ?? → || audited:1352b04 # Explicit forms are URLSearchParams objects or undefined. Captured forms are FormParams objects or null. Every present object is truthy.
-src/features/response.ts::redirect.flash~0r1iimg  ?? → || audited:1352b04 # maybeStashForm returns null or a non-empty token from generateSecureToken. Both operators select undefined only for null.
+src/features/response.ts::maybeStashForm.source~05i3xv9  ?? → || audited:1dfd0jf # Explicit forms are URLSearchParams objects or undefined. Captured forms are FormParams objects or null. Every present object is truthy.
+src/features/response.ts::redirect.flash~0r1iimg  ?? → || audited:1dfd0jf # maybeStashForm returns null or a non-empty token from generateSecureToken. Both operators select undefined only for null.
 
 src/features/admin/settings-general.ts::handlePaymentProviderPost.validate~1wzn0s8  0 → 1 audited:04hbhdx # recoveryChoices is never length 1: a single configured provider resolves unambiguously in existingPaymentProviderState, so the list is empty or holds two or more
 src/features/admin/api-listing-body.ts::bodyToUpdateInput.input.wouldBeGroupIds~1erbpzo  ?? → || audited:1ht6jt6 # joinIds.groupIds is an array or undefined, and arrays are always truthy
@@ -12,7 +12,7 @@ src/features/admin/api-listing-joins.ts::persistListingJoins.groupIds~0ey19t2  ?
 src/features/admin/entity-pages.ts::defineEntityPage.renderPage.ctx.baseUrl~0v3px31  ?? → || audited:1i6yq97 # opts.baseUrl is a string and the only falsy string is the empty fallback itself
 src/features/admin/entity-pages.ts::defineEntityPage.renderPage.ctx.query~1xs3bh3  ?? → || audited:1i6yq97 # opts.query is a URLSearchParams object when present, so it is always truthy
 src/features/admin/listing-page-data.ts::loadListingRosterPanel.childNames~049e0ek  ?? → || audited:0ylj68l # listingsByKey holds only non-empty ListingWithCount[], so get() is an array or undefined and an array is always truthy
-src/features/admin/site-content-page.ts::defineSiteContentPage.tabs~0786g3u  ?? → || audited:1d0ow5b # extraTabs is an array when present, and arrays are always truthy
+src/features/admin/site-content-page.ts::defineSiteContentPage.extraTabs~0786g3u  ?? → || audited:0aietun # extraTabs is an array when present, and arrays are always truthy
 src/ui/templates/admin/holidays.tsx::HolidayEditPanel.html~1nrsidb  ?? → || audited:0bymeb7 # values is a render-values object when present, so it is always truthy
 src/ui/client/admin/manual-checkin.ts::initManualCheckin.filterOptions.text~0hoqwoy  ?? → || audited:1jdc1my # textContent is string|null; its only falsy string is the empty fallback itself
 src/ui/client/admin/order-gallery.ts::initOrderGallery.refresh.timer~1xo126t  ?? → || audited:1fyzmqa # states is a record object when present, so it is always truthy
@@ -153,7 +153,7 @@ src/features/api/folded-booking.ts::processParentApiBooking.built.dayCount~1moog
 
 # question answers (features/admin/questions/answers.ts) — the ordered-insert
 # placeholder and a throw-only label that can never throw.
-src/features/admin/questions/answers.ts::addAnswerWithLog.sortOrder~1g336tf  0 → 1 audited:0i1vbsl # the inserted sortOrder is a placeholder: insertScopedOrderedRow runs order.append in the same transaction, and append sets sort_order from MAX over siblings that explicitly exclude the row itself, then overwrites it unconditionally before commit — the placeholder value is never read by anything
+src/features/admin/questions/answers.ts::addAnswerWithLog.sortOrder~1g336tf  0 → 1 audited:1hox5zn # the inserted sortOrder is a placeholder: insertScopedOrderedRow runs order.append in the same transaction, and append sets sort_order from MAX over siblings that explicitly exclude the row itself, then overwrites it unconditionally before commit — the placeholder value is never read by anything
 src/features/admin/questions/forms.ts::questionTextForm.fields.options~0y51s1u  Display as → "" audited:1prcbvl # requireChoiceOptions reads its label only in its two throw paths: an empty options list, or a value failing an invalid-rule. QUESTION_DISPLAY_TYPES is a non-empty picklist constant and requireChoiceOptions carries no invalid rule, so neither throw is reachable and the label is never read
 
 # Cart package resolution (features/public/groups.ts): map lookups whose key is
@@ -198,27 +198,32 @@ src/features/public/order.ts::bookingUrlFor.chosen.rawId~1xqr8m1   → "mutated"
 # a default the field's own bounds make unreachable, error text no surface can
 # show, and a fallback whose left side is never falsy-but-present.
 src/features/admin/listings-form.ts::parseDayPricesFromForm~11szepb  1 → 0 audited:097t1ct # reading day_price_0 as well changes nothing: parseDayPrices keeps only whole day counts of 1 or more
-src/features/admin/listings-form.ts::extractCommonFields.durationDays~1nsjfgg  ?? → || audited:097t1ct # duration_days is a number field with min 1 whose validate rejects anything below 1, so the value here is a positive number or absent
-src/features/admin/listings-form.ts::extractCommonFields.unitPrice~0fxriin  ?? → || audited:097t1ct # the only falsy non-null price is 0, and unit_price is a withDefault(() => 0) column, so the undefined the mutant produces is stored as that same 0
-src/features/admin/listings-form.ts::extractCommonFields.closesAt~1ox85dk  closes_at → "" audited:097t1ct # the label only appears in normalizeDatetime's throw, and the field's validateDatetime already refused every value localToUtc would reject
-src/features/admin/listings-form.ts::extractCommonFields.date~1ogjyd0  date → "" audited:097t1ct # same: the date field is validated by the same parser before toInput runs, so the throw naming it is unreachable
-src/features/admin/listings-form.ts::listingValidate~19dmftv  ?? → || audited:097t1ct # validateDayPricesFromForm returns null or one fixed non-empty message, so it is never falsy-but-present
+src/features/admin/listings-form.ts::extractCommonFields.durationDays~1nsjfgg  ?? → || audited:1gokb09 # duration_days is a number field with min 1 whose validate rejects anything below 1, so the value here is a positive number or absent
+src/features/admin/listings-form.ts::extractCommonFields.unitPrice~0fxriin  ?? → || audited:1gokb09 # the only falsy non-null price is 0, and unit_price is a withDefault(() => 0) column, so the undefined the mutant produces is stored as that same 0
+src/features/admin/listings-form.ts::buildCreateListingResource.create~1t2nxlh  ?? → || audited:1gokb09 # validateDayPricesFromForm returns null or one fixed non-empty message, so it is never falsy-but-present
+src/features/admin/listings-form.ts::buildUpdateListingResource.update~17jwr6r  ?? → || audited:1gokb09 # validateDayPricesFromForm returns null or one fixed non-empty message, so it is never falsy-but-present
+src/features/admin/listings-form.ts::extractCommonFields.closesAt~1ox85dk  closes_at → "" audited:1gokb09 # the label only appears in normalizeDatetime's throw, and the field's validateDatetime already refused every value localToUtc would reject
+src/features/admin/listings-form.ts::extractCommonFields.date~1ogjyd0  date → "" audited:1gokb09 # same: the date field is validated by the same parser before toInput runs, so the throw naming it is unreachable
 src/features/admin/listings-edit.ts::handleNewListingGet.templateId~06kqyx5  ?? → || audited:04qz4ln # gate.template?.id is a TemplateId or undefined, and every TemplateId is a non-empty string, so the fallback runs on exactly the same input either way
 src/features/admin/listings-edit.ts::chosenTemplateOrPicker.template~09uwhwd  ?? → || audited:04qz4ln # Array.find returns a template object or undefined, and objects are always truthy
 src/features/admin/listings-edit.ts::resolveErrorTemplateId~1v3vh1c  ?? → || audited:04qz4ln # inferTemplate(...)?.id is a TemplateId or undefined, and every TemplateId is a non-empty string
 src/features/admin/listings-form.ts::EDITOR_FORM_FREEZE.use_defaults~1h0dnu7   → "mutated" audited:097t1ct # the editor lock writes use_defaults, which is only ever read through FormParams.getFlag and the form's own `=== "1"` comparison, so every value other than "1" is off
-src/features/auth.ts::loadAuthUserFields~0qjvs2i  ?? → || audited:1bovven # getUserAuthFieldsById gives back a user-fields object or null, and objects are always truthy
-src/features/auth.ts::cookieSessionOrFailure~1y4flpo  ?? → || audited:1bovven # getAuthenticatedSession gives back an AuthSession object or null, and objects are always truthy
-src/features/auth.ts::parseCsrfBody.err~0lmzdfk  ?? → || audited:1bovven # Headers.get gives back a string or null, and the only falsy string is the empty fallback itself
-src/features/auth.ts::parseCsrfBody.err~0lmzdfk   → "mutated" audited:1bovven # the fallback is only reached when the header is absent, and every value that is not a signed token fails verification the same way
-src/features/auth.ts::parseCsrfBody~091hnp4  ?? → || audited:1bovven # err is a Response object or null, and objects are always truthy
-src/features/auth.ts::parseCsrfBody.err~0mxpuuo  ?? → || audited:1bovven # FormData.get gives back a string, a File, or null; a File is truthy so both operators keep it, and the only falsy string is the empty fallback itself
-src/features/auth.ts::parseCsrfBody.err~0mxpuuo   → "mutated" audited:1bovven # the fallback is only reached when the field is absent, and every value that is not a signed token fails verification the same way
-src/features/auth.ts::parseCsrfBody~1gwik7o  ?? → || audited:1bovven # err is a Response object or null, and objects are always truthy
-src/features/admin/users.ts::toDisplayUser.inviteExpired~1fwmcbe  false → true audited:08ev9ii # the flag has one reader, userStatus, which answers "Active" from the activated flag before it looks at this one, so the value it takes for an activated user is never read
+src/features/admin/listings-switch.ts::wouldBeStartDates.bookable_days~0rat0ln  ?? → || audited:00bfgth # input.bookableDays is a string array or undefined, and an array is always truthy, even when empty
+src/features/admin/listings-switch.ts::wouldBeStartDates.duration_days~0wk4gst  ?? → || audited:00bfgth # input.durationDays is undefined or a whole number the duration_days field validates to 1 or more, so it is never falsy
+src/features/admin/listings-switch.ts::AssignProbe.constructor~1e9p7fd  the assign probe always rolls back → "" audited:00bfgth # probeAssignDates catches every AssignProbe by instanceof and returns only its fits, so no caller can read the message
+src/features/auth.ts::loadAuthUserFields~0qjvs2i  ?? → || audited:03bfead # getUserAuthFieldsById gives back a user-fields object or null, and objects are always truthy
+src/features/auth.ts::cookieSessionOrFailure~1y4flpo  ?? → || audited:03bfead # getAuthenticatedSession gives back an AuthSession object or null, and objects are always truthy
+src/features/auth.ts::parseCsrfBody.err~0lmzdfk  ?? → || audited:03bfead # Headers.get gives back a string or null, and the only falsy string is the empty fallback itself
+src/features/auth.ts::parseCsrfBody.err~0lmzdfk   → "mutated" audited:03bfead # the fallback is only reached when the header is absent, and every value that is not a signed token fails verification the same way
+src/features/auth.ts::parseCsrfBody~091hnp4  ?? → || audited:03bfead # err is a Response object or null, and objects are always truthy
+src/features/auth.ts::parseCsrfBody.err~0mxpuuo  ?? → || audited:03bfead # FormData.get gives back a string, a File, or null; a File is truthy so both operators keep it, and the only falsy string is the empty fallback itself
+src/features/auth.ts::parseCsrfBody.err~0mxpuuo   → "mutated" audited:03bfead # the fallback is only reached when the field is absent, and every value that is not a signed token fails verification the same way
+src/features/auth.ts::parseCsrfBody~1gwik7o  ?? → || audited:03bfead # err is a Response object or null, and objects are always truthy
+src/features/admin/users.ts::toDisplayUser.inviteExpired~1fwmcbe  false → true audited:0pbb6y8 # the flag has one reader, userStatus, which answers "Active" from the activated flag before it looks at this one, so the value it takes for an activated user is never read
+src/features/admin/users.ts::userRecord.activityName~0yj4u4w  User → "" audited:0pbb6y8 # activityName is read only by recordPages' createPost, editPost and deletePost and the record's create, update and remove commands they call; users.ts overrides createPost and deletePost, never binds editPost, and its own delete logs through confirmDeleteWithLog with a literal "User"
 src/features/admin/entity-write-tab.ts::defineEditEntityPage.extraTabs~1333wen  ?? → || audited:1gtnu6j # configuredExtraTabs is an array of tab definitions or undefined, and an array is always truthy, so || keeps exactly what ?? keeps
 src/features/admin/attendee-page.ts::loadEditPanel.data.returnUrl~0i4v0pb  ?? → || audited:017u8kr # URLSearchParams.get gives back a string or null, and the only falsy string is the empty fallback itself
-src/features/admin/route-tables.ts::idParamOf.name~0rg3o3r   → "mutated" audited:1xymyec # the stand-in name for a path with no "/:" is only ever fed to the guard below, which throws for every name that is not "id" and does not end with "Id", and the message it throws names the pattern rather than the name
+src/features/admin/route-tables.ts::idParamOf.name~0rg3o3r   → "mutated" audited:0aoff5w # the stand-in name for a path with no "/:" is only ever fed to the guard below, which throws for every name that is not "id" and does not end with "Id", and the message it throws names the pattern rather than the name
 
 # Route ordering (router.ts) — two array fallbacks, and a replacement string
 # whose length cancels out of the only comparison that reads it.
@@ -243,8 +248,29 @@ src/features/public/ticket-submit.ts::parseQuantityPrefill.promo~0tck3kx  ?? →
 src/features/public/ticket-submit.ts::parseQuantityPrefill.qty~15gaxm3  ?? → || audited:1ntpyzf # URLSearchParams.get answers a string or null, and the only falsy string is the empty fallback
 src/features/public/ticket-submit.ts::parseQuantityPrefill.qty~15gaxm3   → "mutated" audited:1ntpyzf # an absent quantity uses the fallback, and both fallback strings fail the positive-integer parser
 src/features/public/ticket-submit.ts::renderTicketFlow.prefill~160lbzo  ?? → || audited:1ntpyzf # a supplied prefill is an object, so every present value is truthy
-src/features/admin/api-groups.ts::parsePackageMember.dayPrices~1ac0u3a  ?? → || audited:1vdp8rs # parseMemberDayPrices answers a DayPrices Map or undefined, never a falsy value, so the || fallback is unreachable
-src/features/admin/api-groups.ts::groupApiRoutes.hydrate.pricing~02yma27  Missing package pricing → "" audited:1vdp8rs # loadPackageMemberPricingByGroupIds builds its map over the same id list hydrate passes it, so requiredMapValue always finds the entry; the message is an impossible-state guard (AGENTS.md: do not defend against the impossible)
+src/features/admin/api-groups.ts::parsePackageMember.dayPrices~1ac0u3a  ?? → || audited:1iurmhx # parseMemberDayPrices answers a DayPrices record object or undefined, never a falsy value, so the || fallback is unreachable
+src/features/admin/api-groups.ts::groupApiRoutes.hydrate.pricing~02yma27  Missing package pricing → "" audited:1iurmhx # loadPackageMemberPricingByGroupIds builds its map over the same id list hydrate passes it, so requiredMapValue always finds the entry; the message is an impossible-state guard (AGENTS.md: do not defend against the impossible)
+src/features/admin/api.ts::hydrateListingJoins.attribute_option_ids~0qoqna9  Missing listing attribute selection → "" audited:0whldby # listingAttributeOptions.getIdsByKeys seeds every requested key with [] (rowsToIdsByKeys in link-table.ts), and hydrate asks for the ids of the same rows it reads back, so requiredMapValue always finds the entry and the message never shows
+src/features/admin/api-external-sources.ts::handleLinkSearch.links~17226un  Every link names a source in the directory → "" audited:1pkpvge # a link is only created under a source the gate loaded, and deleteExternalSource deletes the source's links in the same batch, so every link's source_id is in the full source list and requiredMapValue never throws (AGENTS.md: do not defend against the impossible)
+src/features/admin/api-external-sources.ts::logLink~08el8qp  ?? → || audited:1pkpvge # external_id is null or non-empty: parseLinkWrite reads a supplied id through requireEntityField with no stored value, and requireStrings refuses a blank one, so "" never reaches a stored link
+src/features/admin/api-external-sources.ts::linkConfirmText~08el8qp  ?? → || audited:1pkpvge # external_id is null or non-empty: parseLinkWrite reads a supplied id through requireEntityField with no stored value, and requireStrings refuses a blank one, so "" never reaches a stored link
+src/features/admin/api-questions.ts::createQuestionInput.assignAll~1g4dg5p  ?? → || audited:1gxyldu # the flag is a boolean or undefined, and the only falsy boolean is the false fallback itself
+src/features/admin/api-questions.ts::updateQuestionInput.displayType~0yok5cu  ?? → || audited:1gxyldu # the schema's display_type picklist holds only non-empty type names, so a present value is never falsy
+src/features/admin/api-site-pages.ts::toRow.parent~1gj7tiu  ?? → || audited:1whf57q # pageParents maps a child page id to its parent's page id, a positive row id, so a present value is never falsy
+src/features/admin/api-images.ts::hydrateImages~1spe1vb  ?? → || audited:1ascacv # the uses map holds an array or nothing for an id, and an array is always truthy
+src/features/admin/api-images.ts::toCreateInput.metadata~01ftj84  ?? → || audited:1ascacv # the alt text is a string or undefined, and the only falsy string is the "" fallback itself
+src/features/admin/api-images.ts::withImageWrite~0huqk3x  ?? → || audited:1ascacv # siteContentRefusal answers a Response object or null, and a Response is always truthy
+src/features/admin/api-images.ts::handleUpdate.outcome.items~122be3t  ?? → || audited:1ascacv # toUpdateInput sets items to null or a mapped array, and an array is always truthy
+src/features/admin/api-site-pages-input.ts::storedText.content~1l5x8n4  ?? → || audited:0gc96vr # the stored text is a string or absent, and the only falsy string is the "" fallback itself
+src/features/admin/api-site-pages-input.ts::storedText.meta_description~0w7ukff  ?? → || audited:0gc96vr # the stored text is a string or absent, and the only falsy string is the "" fallback itself
+src/features/admin/api-site-pages-input.ts::storedText.meta_title~0xmnzkb  ?? → || audited:0gc96vr # the stored text is a string or absent, and the only falsy string is the "" fallback itself
+src/features/admin/api-site-pages-input.ts::toPageWrite.name~0n7sg45  ?? → || audited:0gc96vr # the two differ only on a stored empty name, and there writeEntityName trims both "" and null to "" and refuses the same way
+src/features/admin/api-site-pages-input.ts::toPageWrite.slug~16rc0kc  ?? → || audited:0gc96vr # the stored slug is a string or the "" fallback, and "" || "" is ""
+src/features/admin/api-site-pages-input.ts::toPageWrite.slug~16rc0kc   → "mutated" audited:0gc96vr # the fallback is read only when the body has no slug, and only on a create (an update always has a stored slug); the create schema requires slug ("Slug is required"), so a create with no slug never reaches it
+src/features/admin/api-site-pages-input.ts::toPageWrite.text.content~031zupw   → "mutated" audited:0gc96vr # the text-field loop always assigns all three keys before anything reads text, so the starting value is overwritten
+src/features/admin/api-site-pages-input.ts::toPageWrite.text.meta_description~0xk8nhn   → "mutated" audited:0gc96vr # the text-field loop always assigns all three keys before anything reads text, so the starting value is overwritten
+src/features/admin/api-site-pages-input.ts::toPageWrite.text.meta_title~1roq3rf   → "mutated" audited:0gc96vr # the text-field loop always assigns all three keys before anything reads text, so the starting value is overwritten
+src/features/admin/api-site-pages-input.ts::toPageWrite.text%5bkey%5d~1p0q4n9  = → += audited:0gc96vr # each key starts as "" and gets exactly one assignment, so "" + value equals value
 src/features/admin/attributes.ts::addAttributeOptionWithLog.sortOrder~1g336tf  0 → 1 audited:0a10nuy # the input's sort_order is a placeholder: insertScopedOrderedRow overwrites it with the collection append (MAX+1) inside the same transaction before any read can see it
 src/features/public/ticket-routes.ts::getFromEmailIfConfigured.config~15giq6g  ?? → || audited:0e3zqxa # getEmailConfig answers a populated config object or null (email.ts returns null when apiKey or fromAddress is missing), so the || fallback is unreachable
 src/features/public/ticket-routes.ts::getFromEmailIfConfigured~0uy8up8  ?? → || audited:0e3zqxa # a present config carries a parsed ValidEmail fromAddress, never empty, so fromAddress is truthy whenever it exists
@@ -303,7 +329,7 @@ src/features/app/routes.ts::routeMainApp~1y8hd7c  ?? → || audited:0fd39ql # ro
 # Restriction-refusals branch (restriction-refusals): mutants whose observable
 # behavior no reachable caller or input can separate from the original.
 src/features/admin/confirmation.ts::createConfirmedHandlers.post~0ilb5xo  ?? → || audited:1ubyiqu # onConfirm answers Promise<void> or Promise<Response|undefined>; a Response is never falsy, so the fallthrough runs only for nullish values and both operators redirect the same way
-src/features/admin/settings-statuses.ts::statusOperations.delete.result~0royxm1  ?? → || audited:0bs20rd # getOptionalInt answers a non-negative integer or null; the only falsy-but-non-null value is 0, and a posted target of 0 misses the two-row target read exactly like an absent one, so both spellings refuse with status_in_use
+src/features/admin/settings-statuses.ts::pages.deleteInput~111zaxq  ?? → || audited:1i8cila # getOptionalInt answers a non-negative integer or null; the only falsy-but-non-null value is 0, and a posted target of 0 misses the two-row target read exactly like an absent one, so both spellings refuse with status_in_use
 src/shared/db/groups/membership.ts::oneMembershipErrorTx.ownQuantity~00fsoji  ?? → || audited:0w5b3ei # groupStatesTx coalesces stored member quantities to one, so the default only runs for a fresh join; a stored quantity is never 0, so the || side cannot fire on a present value
 src/shared/package-membership.ts::packageMemberQuantityBroken.quantity~1p9t5cr  ?? → || audited:1agvoyd # the judge runs before any message builds, so the pick count is either undefined (both operators give one) or at least one (both give the count)
 src/shared/db/attendee-statuses.ts::reassignHeldAttendees~17u7hro  0 → 1 audited:0jpbm0m # deleteStatus reads the moved count only through a null comparison; the empty status returns 0 or 1, both reading as not-null, and a held delete always returns a count of at least one, so no input separates the two returns
@@ -348,6 +374,7 @@ src/features/admin/contact-history.ts::nonNegativeInt~1sju92h  ?? → || audited
 # Admin API attendee create (features/admin/api-attendees-parse.ts): the
 # daily-line count is clamped to the booking range, and a site always has a
 # public default status.
+src/features/admin/api-attendees.ts::answersCreationWork.prepared~1kj2wva  0 → 1 audited:1hwl4bt # the key is a placeholder: prepareAttendeeAnswerSave only carries it through, and bindPreparedSaveToAttendee rebuilds the map from the values alone under the real attendee id, so any key writes the same rows
 src/features/admin/api-attendees-parse.ts::LINE_SCHEMA.durationDays~1x7kj9p  1 → 0  audited:0o50jyh   # the schema's floor feeds clampDurationDays, which clamps to 1..MAX_DURATION_DAYS, so a slipped 0 stores the same one day
 src/features/admin/api-attendees-parse.ts::resolveLineDate.date~0ch97uo  ?? → ||  audited:0o50jyh   # date reaches the fallback only as undefined or a daily line's real calendar day; "" cannot arrive, because a non-daily line refuses any present date and a daily line demands a real YYYY-MM-DD day
 src/features/admin/api-attendees-parse.ts::parseLine.durationDays~1y2h8m9  ?? → ||  audited:0o50jyh   # the line schema admits undefined or a whole number from 1, never a falsy non-null

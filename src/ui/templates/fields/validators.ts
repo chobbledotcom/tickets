@@ -10,7 +10,7 @@
 import * as v from "valibot";
 import { isUpdateTier } from "#db/built-sites/types.ts";
 import { t } from "#i18n";
-import { VALID_DAY_NAMES } from "#shared/day-names.ts";
+import { isValidDayName, VALID_DAY_NAMES } from "#shared/day-names.ts";
 import type {
   ChoiceField,
   Field,
@@ -183,10 +183,6 @@ export const validateUpdateTier = matchedBy(
   isUpdateTier,
   "fields.validation.update_tier",
 );
-
-/** Check if a string is a valid day name */
-const isValidDayName = (s: string): boolean =>
-  (VALID_DAY_NAMES as readonly string[]).includes(s);
 
 /** Validate bookable days (comma-separated day names) */
 export const validateBookableDays = (value: string): string | null => {

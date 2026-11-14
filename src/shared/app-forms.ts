@@ -6,7 +6,6 @@ import {
 } from "#routes/auth.ts";
 import { applyFlash, requireCsrfFormWithMessage } from "#routes/csrf.ts";
 import {
-  errorRedirect,
   notFoundResponse,
   publicPageResponse,
   redirect,
@@ -160,26 +159,6 @@ type FormRouteConfig<TValues, TParams, TContext> = AuthedBase<
   onInvalid: ResponseHandler<[args: InvalidArgs<TParams, TContext>]>;
   onValid: ResponseHandler<[args: HandlerArgs<TValues, TParams, TContext>]>;
 };
-
-/** Collect common typed-form config while leaving persistence at the direct
- * `createAuthedFormRoute` call. */
-export function authedFormConfig<
-  TValues,
-  TParams = Record<string, never>,
-  TContext = void,
->(
-  auth: AuthPolicy<"form">,
-  form: FormValidator<TValues>,
-  errorPath: (context: TContext) => string,
-  loadContext?: AuthedBase<TParams, TContext>["loadContext"],
-): Omit<FormRouteConfig<TValues, TParams, TContext>, "onValid"> {
-  return {
-    auth,
-    ...(loadContext ? { loadContext } : {}),
-    form,
-    onInvalid: ({ context, error }) => errorRedirect(errorPath(context), error),
-  };
-}
 
 /** Require auth, optionally load context, validate a typed form, then dispatch. */
 export const createAuthedFormRoute = <

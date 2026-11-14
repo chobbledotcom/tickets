@@ -174,7 +174,7 @@ describe("fingerprintCounts", () => {
 describe("riseFindings", () => {
   test("passes when every clone count matches the base", () => {
     expect(
-      riseFindings(BASELINE, baseline({ aaa: 1 }), baseline({ aaa: 1 })),
+      riseFindings(BASELINE, baseline({ aaa: 1 }), baseline({ aaa: 1 }), 0),
     ).toEqual([]);
   });
 
@@ -184,12 +184,15 @@ describe("riseFindings", () => {
         BASELINE,
         baseline({ aaa: 1 }),
         baseline({ aaa: 2, bbb: 1 }),
+        0,
       ),
     ).toEqual([]);
   });
 
   test("names a clone the base does not hold", () => {
-    expect(riseFindings(BASELINE, baseline({ aaa: 1 }), baseline({}))).toEqual([
+    expect(
+      riseFindings(BASELINE, baseline({ aaa: 1 }), baseline({}), 0),
+    ).toEqual([
       `${BASELINE}:aaa [added-clone]: holds 1 clone(s) that the merge base ` +
         "does not hold — merge the duplicated code, then lower the baseline " +
         "with --update",
@@ -198,7 +201,7 @@ describe("riseFindings", () => {
 
   test("names a clone count above the base's", () => {
     expect(
-      riseFindings(BASELINE, baseline({ aaa: 3 }), baseline({ aaa: 2 })),
+      riseFindings(BASELINE, baseline({ aaa: 3 }), baseline({ aaa: 2 }), 0),
     ).toEqual([
       `${BASELINE}:aaa [raised-clone]: holds 3 clone(s), up from 2 — merge the ` +
         "duplicated code, then lower the baseline with --update",
@@ -207,7 +210,7 @@ describe("riseFindings", () => {
 
   test("reports raised clones in fingerprint order", () => {
     expect(
-      riseFindings(BASELINE, baseline({ aaa: 1, zzz: 1 }), baseline({})).map(
+      riseFindings(BASELINE, baseline({ aaa: 1, zzz: 1 }), baseline({}), 0).map(
         (line) => line.slice(0, line.indexOf(" ")),
       ),
     ).toEqual([`${BASELINE}:aaa`, `${BASELINE}:zzz`]);
@@ -215,7 +218,7 @@ describe("riseFindings", () => {
 
   test("fails a new baseline that accepts clones", () => {
     expect(
-      riseFindings(BASELINE, baseline({ aaa: 1, bbb: 1 }), undefined),
+      riseFindings(BASELINE, baseline({ aaa: 1, bbb: 1 }), undefined, 0),
     ).toEqual([
       `${BASELINE} [added-baseline]: is a new baseline that accepts 2 ` +
         "clone(s) — merge the duplicated code before you add the scan",
@@ -223,7 +226,7 @@ describe("riseFindings", () => {
   });
 
   test("passes a new baseline that accepts no clone", () => {
-    expect(riseFindings(BASELINE, baseline({}), undefined)).toEqual([]);
+    expect(riseFindings(BASELINE, baseline({}), undefined, 0)).toEqual([]);
   });
 });
 
@@ -234,6 +237,7 @@ describe("ratchetExit", () => {
    * keyed by the path the base keeps. */
   const stubFor = (base: Record<string, string>) => {
     const answers: Record<string, GitStubAnswer> = {
+      "git diff --name-only base123": { code: 0, stdout: "" },
       "git merge-base HEAD origin/main": { code: 0, stdout: "base123" },
       [lsPaths("base123")]: {
         code: 0,
@@ -260,6 +264,7 @@ describe("ratchetExit", () => {
       readBaselines: () => Promise.resolve(files),
       readNamedBaselines: () => Promise.resolve(named),
       run: stubFor(base),
+      scanNewClones: () => Promise.resolve([]),
     });
   };
 
@@ -347,6 +352,7 @@ describe("ratchetExit", () => {
           Promise.resolve([{ path: BASELINE, text: baseline({}) }]),
         readNamedBaselines: () => Promise.resolve([BASELINE]),
         run,
+        scanNewClones: () => Promise.resolve([]),
       }),
     ).rejects.toThrow(
       "git ls-tree -r --name-only base123 failed: fatal: bad object base123",
@@ -367,6 +373,7 @@ describe("ratchetExit", () => {
         readBaselines: () => Promise.resolve([]),
         readNamedBaselines: () => Promise.resolve([]),
         run,
+        scanNewClones: () => Promise.resolve([]),
       }),
     ).rejects.toThrow(/git fetch origin main/);
   });

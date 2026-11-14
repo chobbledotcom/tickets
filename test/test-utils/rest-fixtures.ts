@@ -1,8 +1,7 @@
 /**
- * A minimal `{ id, name }` table for exercising the REST factories
- * (`writeEntity`, `defineCrudApi`) without a real domain table. Kept here so the
- * REST test suites share one fixture rather than each re-declaring the table and
- * its DDL.
+ * A minimal `{ id, name }` table for exercising the REST write steps without a
+ * real domain table. Kept here so the REST test suites share one fixture rather
+ * than each re-declaring the table and its DDL.
  */
 
 import { getDb } from "#db/client.ts";

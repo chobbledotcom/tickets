@@ -32,6 +32,16 @@ const writeCommand = (args: string[]) =>
 
 /** The describe shape of one child whose three writes carry only the shared
  *  required text and the delete confirmation. */
+/** One described body of fields, from rows of name, type, and requiredness. */
+const fieldsBody = (
+  ...fields: readonly [name: string, type: string, required: boolean][]
+) => ({
+  body: {
+    fields: fields.map(([name, type, required]) => ({ name, required, type })),
+    kind: "fields",
+  },
+});
+
 const textChildDoc = (idParam: string, path: string) => ({
   idParam,
   path,
@@ -134,31 +144,25 @@ describe("CLI describe", () => {
 
   test("derives requiredness from the schema the table declares", () => {
     const doc = describeEntries(Object.entries(ADMIN_API_RESOURCES));
-    expect(doc.resources.holidays!.verbs.update).toEqual({
-      body: {
-        fields: [
-          { name: "end_date", required: false, type: "string" },
-          { name: "name", required: false, type: "string" },
-          { name: "start_date", required: false, type: "string" },
-        ],
-        kind: "fields",
-      },
-    });
+    expect(doc.resources.holidays!.verbs.update).toEqual(
+      fieldsBody(
+        ["name", "string", false],
+        ["start_date", "string", false],
+        ["end_date", "string", false],
+      ),
+    );
     // The server defaults a silent site-page create to empty text and a
     // visible page, so describe names only the name and the slug required.
-    expect(doc.resources["site-pages"]!.verbs.create).toEqual({
-      body: {
-        fields: [
-          { name: "content", required: false, type: "string" },
-          { name: "hidden", required: false, type: "boolean" },
-          { name: "meta_description", required: false, type: "string" },
-          { name: "meta_title", required: false, type: "string" },
-          { name: "name", required: true, type: "string" },
-          { name: "slug", required: true, type: "string" },
-        ],
-        kind: "fields",
-      },
-    });
+    expect(doc.resources["site-pages"]!.verbs.create).toEqual(
+      fieldsBody(
+        ["content", "string", false],
+        ["hidden", "boolean", false],
+        ["meta_description", "string", false],
+        ["meta_title", "string", false],
+        ["name", "string", true],
+        ["slug", "string", true],
+      ),
+    );
   });
 
   test("answers the resources of the table it is handed", () => {
@@ -167,12 +171,7 @@ describe("CLI describe", () => {
     const parts = doc.resources.gadgets!.children.parts!;
     expect(parts).toMatchObject({ idParam: "partId", path: "parts" });
     expect(Object.keys(parts.verbs)).toEqual(["create", "delete", "update"]);
-    expect(parts.verbs.create).toEqual({
-      body: {
-        fields: [{ name: "label", required: true, type: "string" }],
-        kind: "fields",
-      },
-    });
+    expect(parts.verbs.create).toEqual(fieldsBody(["label", "string", true]));
     expect(doc.resources.gadgets!.customRoutes.recalibrate).toEqual({
       method: "POST",
       subpath: ":gadgetId/recalibrate",

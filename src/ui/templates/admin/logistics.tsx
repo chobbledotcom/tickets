@@ -17,6 +17,7 @@ import { Raw } from "#jsx/jsx-runtime.ts";
 import { adminPath, adminPattern } from "#shared/admin-surface.ts";
 import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
 import { entityToFieldValues } from "#shared/forms/values.ts";
+import { logisticsAgentRecord } from "#shared/records/logistics-agents.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import {
   recordEditPanel,
@@ -24,7 +25,7 @@ import {
 } from "#templates/admin/admin-page.tsx";
 import {
   confirmByName,
-  defineAdminResourcePages,
+  defineRecordPages,
 } from "#templates/admin/resource-pages.tsx";
 import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
 import { guideFooterFor } from "#templates/components/actions.tsx";
@@ -135,9 +136,7 @@ const AgentUsersSelector = ({
   </CheckboxFieldset>
 );
 
-export const logisticsAgentPages = defineAdminResourcePages<LogisticsAgent>({
-  active: adminPattern("logistics"),
-  basePath: adminPattern("logistics"),
+export const logisticsAgentPages = defineRecordPages(logisticsAgentRecord, {
   delete: {
     confirm: (agent) => ({
       args: { name: escapeHtml(agent.name) },
