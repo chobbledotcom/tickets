@@ -129,7 +129,7 @@ export const getNonStandaloneChildIds = async (
   const statement = nonStandaloneChildStatement(ids);
   const idRows =
     tx === undefined
-      ? await queryIdColumn(statement.sql, statement.args)
+      ? await queryIdColumn(statement)
       : resultRows<{ id: number }>(await tx.execute(statement)).map(
           (row) => row.id,
         );

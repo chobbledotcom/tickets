@@ -1,4 +1,3 @@
-import type { InValue } from "@libsql/client";
 import type {
   BatchAvailabilityItem,
   LineBooking,
@@ -12,12 +11,18 @@ import {
   type CartDemand,
   getOrCreateBucket,
 } from "#db/capacity-batch.ts";
-import { inPlaceholders, queryAll, requireOne } from "#db/client.ts";
+import { queryAll, requireOne } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
-import { type NumberedSql, numberedStatement } from "#db/numbered-statement.ts";
 import { runWithPrimaryReads } from "#db/primary-reads.ts";
-import type { SqlStatement } from "#db/sql.ts";
+import {
+  type SqlSlot,
+  type SqlStatement,
+  sql,
+  sqlCommas,
+  sqlList,
+  sqlName,
+} from "#db/sql.ts";
 import { identity, map, mapById, requiredMapValue, unique } from "#fp";
 import { capacityDateFor } from "#shared/capacity-rules.ts";
 import { dateToStartEnd } from "./range.ts";
@@ -32,9 +37,9 @@ import type { ListingCapacityRow } from "./types.ts";
  * order-level extra condition still applies. */
 export const buildCapacityCheckedInsert = (
   booking: ListingBooking,
-  attendeeIdSql: NumberedSql = () => "last_insert_rowid()",
+  attendeeId: SqlSlot = sql`last_insert_rowid()`,
   allowOverbook = false,
-  extraCondition?: NumberedSql,
+  extraCondition?: SqlStatement,
 ): SqlStatement => {
   const {
     listingId,
@@ -46,39 +51,27 @@ export const buildCapacityCheckedInsert = (
     packageGroupId = 0,
   } = booking;
   const { startAt, endAt } = dateToStartEnd(date, durationDays);
-  return numberedStatement((bind) => {
-    const listingIdSql = bind(listingId);
-    const attendeeSql = attendeeIdSql(bind);
-    const startAtSql = bind(startAt);
-    const endAtSql = bind(endAt);
-    const quantitySql = bind(quantity);
-    const insertSelect = `INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, order_token, parent_listing_id, package_group_id)
-          SELECT ${listingIdSql}, ${attendeeSql}, ${startAtSql}, ${endAtSql}, ${quantitySql}, ${bind(orderToken)}, ${bind(parentListingId)}, ${bind(packageGroupId)}`;
-    if (allowOverbook) {
-      if (extraCondition === undefined) return insertSelect;
-      return `${insertSelect}\n          WHERE ${extraCondition(bind)}`;
-    }
-    if (quantity === 0) {
-      const exists = `EXISTS (SELECT 1 FROM listings AS listing WHERE listing.id = ${listingIdSql})`;
-      if (extraCondition === undefined) {
-        return `${insertSelect}\n          WHERE ${exists}`;
-      }
-      return `${insertSelect}\n          WHERE ${exists} AND (${extraCondition(bind)})`;
-    }
-
-    const capacity = buildCapacityCondition(
-      listingId,
-      quantity,
-      date,
-      undefined,
-      durationDays,
-    )(bind, { listingId: listingIdSql, quantity: quantitySql });
-    const conditions =
+  const insertSelect = sql`INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, order_token, parent_listing_id, package_group_id)
+          SELECT ${listingId}, ${attendeeId}, ${startAt}, ${endAt}, ${quantity}, ${orderToken}, ${parentListingId}, ${packageGroupId}`;
+  const guardedBy = (condition: SqlStatement): SqlStatement =>
+    sql`${insertSelect}\n          WHERE ${
       extraCondition === undefined
-        ? capacity
-        : `${capacity} AND (${extraCondition(bind)})`;
-    return `${insertSelect}\n          WHERE ${conditions}`;
-  });
+        ? condition
+        : sql`${condition} AND (${extraCondition})`
+    }`;
+  if (allowOverbook) {
+    return extraCondition === undefined
+      ? insertSelect
+      : sql`${insertSelect}\n          WHERE ${extraCondition}`;
+  }
+  if (quantity === 0) {
+    return guardedBy(
+      sql`EXISTS (SELECT 1 FROM listings AS listing WHERE listing.id = ${listingId})`,
+    );
+  }
+  return guardedBy(
+    buildCapacityCondition(listingId, quantity, date, undefined, durationDays),
+  );
 };
 
 /** Check several capacity conditions in one query. */
@@ -90,22 +83,12 @@ export const checkLinesCapacity = async (
   const conditions = bookings.map((booking) =>
     capacityConditionFor(booking, excludeAttendeeId),
   );
-  const statement = numberedStatement((bind) => {
-    const excludeAttendeeIdSql =
-      excludeAttendeeId === undefined ? undefined : bind(excludeAttendeeId);
-    const shared =
-      excludeAttendeeIdSql === undefined
-        ? {}
-        : { excludeAttendeeId: excludeAttendeeIdSql };
-    const columns = conditions
-      .map((condition, index) => `(${condition(bind, shared)}) AS ok${index}`)
-      .join(", ");
-    return `SELECT ${columns}`;
-  });
-  const row = await requireOne<Record<string, number>>(
-    statement.sql,
-    statement.args,
+  const columns = sqlCommas(
+    conditions.map(
+      (condition, index) => sql`(${condition}) AS ${sqlName(`ok${index}`)}`,
+    ),
   );
+  const row = await requireOne<Record<string, number>>(sql`SELECT ${columns}`);
   return conditions.map((_, index) => row[`ok${index}`] === 1);
 };
 
@@ -182,11 +165,10 @@ export const checkBatchAvailabilityImpl = async (
       items,
     );
     const listingRows = await queryAll<ListingCapacityRow>(
-      `SELECT listing.id, listing.max_attendees, listing.listing_type,
+      sql`SELECT listing.id, listing.max_attendees, listing.listing_type,
             listing.booked_quantity as attendee_count
        FROM listings AS listing
-      WHERE listing.id IN (${inPlaceholders(listingIds)})`,
-      listingIds,
+      WHERE listing.id IN (${sqlList(listingIds)})`,
     );
     const listingsById = mapById(identity<ListingCapacityRow>)(listingRows);
     const missingListingId = listingIds.find((id) => !listingsById.has(id));
@@ -207,9 +189,8 @@ export const checkBatchAvailabilityImpl = async (
  * preflight runs under the primary-read scope, so this read lands on the
  * primary with the rest of the preflight. */
 const fitsThrough =
-  (read: <T>(sql: string, args: InValue[]) => Promise<T>) =>
+  (read: <T>(statement: SqlStatement) => Promise<T>) =>
   async (demand: CartDemand): Promise<boolean> => {
-    const { sql, args } = buildCartCapacitySql(demand);
-    const row = await read<{ fits: number }>(sql, args);
+    const row = await read<{ fits: number }>(buildCartCapacitySql(demand));
     return row.fits === 1;
   };

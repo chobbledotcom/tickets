@@ -52,7 +52,7 @@ const writeNote = async (
   // resumable flow can re-run its note step without a second copy landing.
   const statement = name === null ? inserted : orIgnore(inserted);
   if (transaction === undefined) {
-    await execute(statement.sql, statement.args);
+    await execute(statement);
   } else {
     await transaction.execute(statement);
   }

@@ -814,7 +814,7 @@ const loadServiceCostLegs = async (
           OR (dest_type = 'cost' AND dest_id IN (${inIds})))
       ORDER BY id`,
   );
-  const legs = await queryAll<CostRow>(statement.sql, statement.args);
+  const legs = await queryAll<CostRow>(statement);
   return Promise.all(
     legs.map(async (leg): Promise<DecodedCostLeg> => {
       const match = (await decrypt(leg.memo!)).match(EDIT_COST_MEMO);

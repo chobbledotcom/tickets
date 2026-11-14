@@ -90,7 +90,7 @@ export const stageSquareLinkEnd = async (
                 next_attempt_at, created_at)
              VALUES (${bind(sessionIndex)}, ${bind(state)}, ${bind(sealedHandle)}, ${endsAt}, ${endsAt}, ${bind(nowIso())})`;
   });
-  await execute(statement.sql, statement.args);
+  await execute(statement);
 };
 
 /**

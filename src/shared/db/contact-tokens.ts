@@ -155,7 +155,7 @@ const writeTokenStatement = (
   statement: SqlStatement,
 ): Promise<ResultSet> =>
   transaction === undefined
-    ? execute(statement.sql, statement.args)
+    ? execute(statement)
     : transaction.execute(statement);
 
 /** Append one encrypted ticket token without changing booking counts. */

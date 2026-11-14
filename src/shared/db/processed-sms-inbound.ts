@@ -21,7 +21,7 @@ export const claimProcessedSmsInbound = async (
       webhook_id: webhookId,
     }),
   );
-  const result = await execute(stmt.sql, stmt.args);
+  const result = await execute(stmt);
   return result.rowsAffected > 0;
 };
 

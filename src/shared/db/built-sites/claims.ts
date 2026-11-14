@@ -40,7 +40,7 @@ export const hasAssignedBuiltSite = async (
   listingIds: number[],
 ): Promise<boolean> => {
   const exists = assignedBuiltSiteExistsStatement(attendeeId, listingIds);
-  return (await execute(exists.sql, exists.args)).rows.length > 0;
+  return (await execute(exists)).rows.length > 0;
 };
 
 /** The claim as one statement: it takes the first still-assignable candidate,

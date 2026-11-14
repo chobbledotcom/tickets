@@ -152,7 +152,7 @@ export const bindRefundCallbackIfChargeExists = async (
       RETURNING ${REFUND_AUTHORITY_COLUMNS}`;
   });
   const changed = refundAuthorityFromResult(
-    await execute(statement.sql, statement.args),
+    await execute(statement),
   );
   if (changed !== null) return changed;
   return await loadRefundCallbackBinding(binding);
@@ -275,7 +275,7 @@ export const createOrLoadRefundAuthority = async (
 ): Promise<RefundAuthorityRow> => {
   const { loadConflictOwner, prepared } =
     await prepareRefundAuthorityWrite(input);
-  const result = await execute(prepared.statement.sql, prepared.statement.args);
+  const result = await execute(prepared.statement);
   const returned = refundAuthorityFromResult(result);
   return returned === null
     ? requireAuthority(await loadConflictOwner(), input)

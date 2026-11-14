@@ -207,7 +207,7 @@ const storeBuiltSiteChanges = async (
     }),
     { args: [existing.siteDataRevision], sql: "site_data_revision = ?" },
   );
-  return queryOne<BuiltSiteRow>(statement.sql, statement.args);
+  return queryOne<BuiltSiteRow>(statement);
 };
 
 /** Apply `changes` only while the row still sits at `expectedRevision`; a

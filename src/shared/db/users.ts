@@ -164,7 +164,7 @@ const runUserInsert = async ({
   statement,
   values,
 }: BuiltUserInsert): Promise<User> => {
-  const result = await execute(statement.sql, statement.args);
+  const result = await execute(statement);
   return { id: insertedRowId(result), ...values };
 };
 

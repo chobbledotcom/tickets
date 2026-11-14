@@ -464,7 +464,7 @@ export const resetGroupListings = async (groupId: number): Promise<void> => {
     ...groupFlatPriceStatements(groupId, []),
     ...groupDayPriceStatements(groupId, []),
   ]) {
-    await execute(stmt.sql, stmt.args);
+    await execute(stmt);
   }
 };
 
@@ -742,7 +742,7 @@ export const setGroupPackageMembers = (
     tx
       ? async () => new Set(await groupListings.getIds(groupId, tx))
       : async () => new Set(await groupListings.getIds(groupId)),
-    tx ? (stmt) => tx.execute(stmt) : (stmt) => execute(stmt.sql, stmt.args),
+    tx ? (stmt) => tx.execute(stmt) : (stmt) => execute(stmt),
   );
 
 /** Set the `active` flag on every listing in a group, optionally inside an

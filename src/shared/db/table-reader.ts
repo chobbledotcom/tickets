@@ -20,7 +20,7 @@ import {
 } from "#db/chosen-columns.ts";
 
 import { type Read, readOneRow, readRows, readStatement } from "#db/read.ts";
-import type { SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import type { TableSchema } from "#db/table.ts";
 import { equals, inList, type WhereClause } from "#db/where-clauses.ts";
 import { once } from "#fp";
@@ -51,7 +51,7 @@ export type RowOptions = {
   /** Table alias, when the clauses or the order qualify their columns. */
   alias?: string;
   /** An `ORDER BY` body without the keyword. Omit for no ordering. */
-  order?: string;
+  order?: SqlStatement;
   /** A row cap. Omit for no limit. */
   limit?: number;
 };
@@ -166,7 +166,9 @@ const selectionOf = <Row, Columns extends ColumnNames<Row>>(
     { alias, limit, order, where = [] }: RowOptions,
   ): Read => ({
     columns: chosen.readColumnsSql(alias),
-    from: alias ? `${table.name} AS ${alias}` : table.name,
+    from: alias
+      ? sql`${sqlName(table.name)} AS ${sqlName(alias)}`
+      : sqlName(table.name),
     limit,
     order,
     where: [...filterClauses(table, filter, alias), ...where],

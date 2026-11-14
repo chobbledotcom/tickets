@@ -11,9 +11,8 @@
  */
 
 import { queryAll } from "#db/client.ts";
-import type { SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import {
-  clauseArgs,
   rowsUnlessNoneMatch,
   type WhereClause,
   whereSql,
@@ -22,55 +21,41 @@ import {
 /** A read, said rather than written. */
 export type Read = {
   /** The SELECT column list, without the keyword. */
-  columns: string;
-  /** The FROM body, without the keyword — a table name, or a whole join. A
-   * join that narrows on a value (an `ON … = ?`) brings that value with it. */
-  from: string | SqlStatement;
+  columns: SqlStatement;
+  /** The FROM body, without the keyword — a table name, or a whole join. */
+  from: SqlStatement;
   /** Which rows to keep. Absent or empty keeps every row. */
   where?: readonly WhereClause[] | undefined;
   /** A `GROUP BY` body without the keyword, for a read that folds rows. */
-  groupBy?: string | undefined;
+  groupBy?: SqlStatement | undefined;
   /** An `ORDER BY` body without the keyword. Omit when the caller does not care
-   * how the rows come back. Always a constant belonging to the read, never
-   * caller input, so unlike a filter it carries no values of its own. */
-  order?: string | undefined;
+   * how the rows come back. */
+  order?: SqlStatement | undefined;
   /** A row cap. Omit for no limit. */
   limit?: number | undefined;
 };
 
-const tail = (part: string, body: string | undefined): string =>
-  body === undefined ? "" : `${part}${body}`;
+const tail = (
+  part: SqlStatement,
+  body: SqlStatement | undefined,
+): SqlStatement => (body === undefined ? sql`` : sql`${part}${body}`);
 
-/** The statement a read becomes: its SQL, and the values that fill it in the
- * order the placeholders appear. For a caller that must embed the read in a
+/** The statement a read becomes. For a caller that must embed the read in a
  * batch rather than run it. */
-export const readStatement = (read: Read): SqlStatement => {
-  const from =
-    typeof read.from === "string" ? { args: [], sql: read.from } : read.from;
-  return {
-    // Placeholder order, which is SQL order: the join's values, then the
-    // filters', then the cap.
-    args: [
-      ...from.args,
-      ...clauseArgs(read.where ?? []),
-      ...(read.limit === undefined ? [] : [read.limit]),
-    ],
-    sql:
-      `SELECT ${read.columns} FROM ${from.sql}` +
-      whereSql(read.where ?? []) +
-      tail(" GROUP BY ", read.groupBy) +
-      tail(" ORDER BY ", read.order) +
-      (read.limit === undefined ? "" : " LIMIT ?"),
-  };
-};
+export const readStatement = (read: Read): SqlStatement =>
+  sql`SELECT ${read.columns} FROM ${read.from}${whereSql(
+    read.where ?? [],
+  )}${tail(sql` GROUP BY `, read.groupBy)}${tail(
+    sql` ORDER BY `,
+    read.order,
+  )}${read.limit === undefined ? sql`` : sql` LIMIT ${read.limit}`}`;
 
 /** Run a read and return every matching row. A filter that cannot match
  * anything is already answered, so it costs no round trip. */
 export const readRows = <Row>(read: Read): Promise<Row[]> =>
-  rowsUnlessNoneMatch(read.where ?? [], () => {
-    const { sql, args } = readStatement(read);
-    return queryAll<Row>(sql, args);
-  });
+  rowsUnlessNoneMatch(read.where ?? [], () =>
+    queryAll<Row>(readStatement(read)),
+  );
 
 /** Run a read for at most one row. Capping the read is the whole difference
  * from {@link readRows} — there is no second path for a single row. */
@@ -80,9 +65,9 @@ export const readOneRow = async <Row>(read: Read): Promise<Row | null> =>
 /** The `ORDER BY` body for a named order, or nothing when the caller does not
  * care. Named so a caller cannot hand-roll a stray order of its own. */
 const namedOrder = <Order extends string>(
-  orders: Record<Order, string>,
+  orders: Record<Order, SqlStatement>,
   order: Order | undefined,
-): string | undefined => (order === undefined ? undefined : orders[order]);
+): SqlStatement | undefined => (order === undefined ? undefined : orders[order]);
 
 /** What a reader can be asked for: which rows, and which of its named orders
  * they come back in. */
@@ -106,7 +91,7 @@ export const defineReader = <
   Order extends string,
   Query extends NamedOrderQuery<Order>,
 >(
-  orders: Record<Order, string>,
+  orders: Record<Order, SqlStatement>,
   readFor: (query: Query) => Omit<Read, "order">,
 ): Reader<Query> => {
   const read = (query: Query): Read => ({

@@ -325,7 +325,7 @@ export const markSessionFailed = async (
   failure: StoredPaymentFailure,
 ): Promise<void> => {
   const prepared = await prepareSessionFailure(sessionId, failure);
-  await execute(prepared.statement.sql, prepared.statement.args);
+  await execute(prepared.statement);
 };
 
 /**

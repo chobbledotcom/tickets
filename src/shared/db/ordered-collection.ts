@@ -183,7 +183,7 @@ export const defineOrderedCollection = <
     });
     await (operation.transaction
       ? operation.transaction.execute(statement)
-      : execute(statement.sql, statement.args));
+      : execute(statement));
   };
 
   const swap: OrderedCollection<Key, Scope>["swap"] = (operation) =>

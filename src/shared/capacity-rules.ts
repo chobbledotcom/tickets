@@ -10,6 +10,13 @@
  * This module is pure and never touches the database.
  */
 
+import {
+  type SqlStatement,
+  sql,
+  sqlCommas,
+  sqlLiteral,
+  sqlName,
+} from "#db/sql.ts";
 import { type ListingType, ListingTypeSchema } from "#types";
 
 /** The two listing facts that decide which capacity checks apply. */
@@ -201,16 +208,15 @@ export const listingTypesWithRule = (
  * and the inline SQL guard: the guard interpolates these fragments instead of
  * hardcoding type literals, so it enforces the same declaration the JS
  * preflight reads. The type list is never empty ({@link
- * assertCapacityRulesCoherent} rejects a rule applying to no listing), and
- * types come from our own picklist, never user input.
+ * assertCapacityRulesCoherent} rejects a rule applying to no listing).
  */
 export const capacityRuleTypeSql = (
   key: CapacityRuleKey,
   column: string,
-): string =>
-  `${column} IN (${listingTypesWithRule(key)
-    .map((type) => `'${type}'`)
-    .join(", ")})`;
+): SqlStatement =>
+  sql`${sqlName(column)} IN (${sqlCommas(
+    listingTypesWithRule(key).map(sqlLiteral),
+  )})`;
 
 const perDateTypes = listingTypesWithRule("perDateCap");
 

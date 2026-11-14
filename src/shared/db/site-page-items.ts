@@ -218,7 +218,7 @@ export const removePageItem: PageItemChange<void> = pageItemChange(
     runItemDelete((statement) => transaction.execute(statement), ...args),
   (...args) =>
     runItemDelete(
-      (statement) => execute(statement.sql, statement.args),
+      (statement) => execute(statement),
       ...args,
     ),
 );
