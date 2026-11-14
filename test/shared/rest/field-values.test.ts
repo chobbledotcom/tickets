@@ -146,6 +146,16 @@ describe("field values", () => {
     ]);
   });
 
+  test("a date takes only a real calendar day", () => {
+    expectRules([
+      [
+        { kind: "date" },
+        ["2026-02-28"],
+        ["2026-02-30", "", "2026-06-01T10:00Z"],
+      ],
+    ]);
+  });
+
   test("a contact list comes back tidy, and a bad entry names its rule", () => {
     const rule = (kind: FieldKind) => fieldValueSchema({ key: "x", kind });
     expect([

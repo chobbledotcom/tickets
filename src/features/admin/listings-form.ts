@@ -252,7 +252,7 @@ const extractListingInput = async (
 const extractListingUpdateInput = async (
   values: ListingEditFormValues,
   form: FormParams,
-): Promise<ListingInput> => {
+): Promise<ListingInput & { date: string }> => {
   const slug = normalizeSlug(values.slug);
   const slugIndex = await hmacHash(slug);
   return {

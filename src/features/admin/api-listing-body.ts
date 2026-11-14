@@ -115,11 +115,11 @@ const parseOptionalIdArray = (
  * stays undefined: persistListingJoins skips the link write for it, so an
  * unrelated update never restores a stale set. `existing` is null on
  * create. */
-const withParsedJoinIds = (
+const withParsedJoinIds = <Read extends ApiFields>(
   session: AdminSession | undefined,
   body: Record<string, unknown>,
   existing: ListingWithCount | null,
-  build: (fields: ApiFields) => Promise<Result<ListingInput>>,
+  build: (fields: Read) => Promise<Result<ListingInput>>,
 ): Promise<Result<ListingInput>> => {
   if (
     body.attribute_option_ids !== undefined &&
@@ -141,7 +141,7 @@ const withParsedJoinIds = (
   );
   if (!attributeOptionIds.ok) return Promise.resolve(attributeOptionIds);
   // The read keys each checked value by its input name.
-  const read = fields.value as ApiFields;
+  const read = fields.value as Read;
   return build({
     ...read,
     attributeOptionIds: attributeOptionIds.value,
@@ -182,6 +182,13 @@ export const bodyToCreateInput = async (
   });
 };
 
+/** An update read keeps the stored value of each field the body leaves out. */
+type StoredRead = ApiFields & {
+  date: string;
+  maxAttendees: number;
+  maxPrice: number;
+};
+
 /** Convert JSON body to ListingInput for update (merges with existing) */
 export const bodyToUpdateInput = async (
   body: Record<string, unknown>,
@@ -193,38 +200,41 @@ export const bodyToUpdateInput = async (
   const parsedName = requireEntityField(body, "name", existing.name);
   if (!parsedName.ok) return parsedName;
 
-  return withParsedJoinIds(session, body, existing, async (fields) => {
-    const { slug, slugIndex } = await parseUpdatedListingSlug(
-      body,
-      existing.slug,
-    );
+  return withParsedJoinIds<StoredRead>(
+    session,
+    body,
+    existing,
+    async (fields) => {
+      const { slug, slugIndex } = await parseUpdatedListingSlug(
+        body,
+        existing.slug,
+      );
 
-    const input: ListingInput = {
-      ...fields,
-      // The JSON API cannot set these four fields, so fold the stored ones in
-      // as the update's final facts. An update that adds groups or children
-      // must read them the way the validators do, not as absent-and-false.
-      assignBuiltSite: existing.assign_built_site,
-      initialSiteMonths: existing.initial_site_months,
-      maxAttendees: fields.maxAttendees ?? existing.max_attendees,
-      maxPrice: fields.maxPrice ?? existing.max_price,
-      monthsPerUnit: existing.months_per_unit,
-      name: parsedName.value,
-      purchaseOnly: existing.purchase_only,
-      slug,
-      slugIndex,
-      // The validators judge the membership as it will stand after the write:
-      // the submitted set, or the stored set when the body omits group_ids.
-      wouldBeGroupIds:
-        fields.groupIds ?? (await listingGroups.getIds(existing.id)),
-    };
-    return okResult({
-      ...input,
-      // The field read keeps the stored date when the body has none, and reads
-      // a null date as empty. A daily listing's date must survive an
-      // empty-date update, so the owner can switch the type back to standard
-      // and get it back. The type itself can flip in this same update.
-      date: keepDailyListingDate(fields.date, existing, input.listingType),
-    });
-  });
+      const input: ListingInput = {
+        ...fields,
+        // The JSON API cannot set these four fields, so fold the stored ones in
+        // as the update's final facts. An update that adds groups or children
+        // must read them the way the validators do, not as absent-and-false.
+        assignBuiltSite: existing.assign_built_site,
+        initialSiteMonths: existing.initial_site_months,
+        monthsPerUnit: existing.months_per_unit,
+        name: parsedName.value,
+        purchaseOnly: existing.purchase_only,
+        slug,
+        slugIndex,
+        // The validators judge the membership as it will stand after the write:
+        // the submitted set, or the stored set when the body omits group_ids.
+        wouldBeGroupIds:
+          fields.groupIds ?? (await listingGroups.getIds(existing.id)),
+      };
+      return okResult({
+        ...input,
+        // The field read keeps the stored date when the body has none, and reads
+        // a null date as empty. A daily listing's date must survive an
+        // empty-date update, so the owner can switch the type back to standard
+        // and get it back. The type itself can flip in this same update.
+        date: keepDailyListingDate(fields.date, existing, input.listingType),
+      });
+    },
+  );
 };
