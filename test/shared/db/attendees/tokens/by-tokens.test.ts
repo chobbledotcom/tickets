@@ -2,9 +2,9 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
 import { getDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("db > attendees > getAttendeesByTokens", { db: true }, () => {
   test("returns an empty list for no tokens", async () => {
@@ -56,7 +56,9 @@ describeWithEnv("db > attendees > getAttendeesByTokens", { db: true }, () => {
       "Orphan",
       "orphan@test.com",
     );
-    await getDb().execute(sql`DELETE FROM listing_attendees WHERE attendee_id = ${attendee.id}`);
+    await getDb().execute(
+      sql`DELETE FROM listing_attendees WHERE attendee_id = ${attendee.id}`,
+    );
     const results = await getAttendeesByTokens([token]);
     expect(results[0]).not.toBeNull();
     expect(results[0]!.bookings).toEqual([]);

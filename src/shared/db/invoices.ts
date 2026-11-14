@@ -12,7 +12,7 @@ import type {
 import { generateSecureToken } from "#crypto/utils.ts";
 import { execute } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
-import { sql, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { col, defineTable } from "#db/table.ts";
 import { type RowFilter, readById } from "#db/table-reader.ts";
 import { invoiceBodyKey } from "#shared/invoices/seal.ts";
@@ -79,7 +79,9 @@ export const getInvoice = readById(invoicesTable);
 const summariesNewestFirst = (
   filter: RowFilter<InvoiceSummary>,
 ): Promise<InvoiceSummary[]> =>
-  invoicesTable.read.pick(SUMMARY_COLUMNS).many(filter, { order: sql`id DESC` });
+  invoicesTable.read
+    .pick(SUMMARY_COLUMNS)
+    .many(filter, { order: sql`id DESC` });
 
 /** Every invoice, newest first, without its sealed body. */
 export const getInvoices = (): Promise<InvoiceSummary[]> =>

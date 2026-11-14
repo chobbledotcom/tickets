@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { queryAll } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import type { ListingWithCount } from "#types";
 
@@ -8,9 +9,8 @@ export const priceRows = (
   listingId: number,
 ): Promise<{ price_type: string; price_id: string; unit_price: number }[]> =>
   queryAll(
-    `SELECT price_type, price_id, unit_price FROM listing_prices
-      WHERE listing_id = ? ORDER BY price_type, price_id`,
-    [listingId],
+    sql`SELECT price_type, price_id, unit_price FROM listing_prices
+      WHERE listing_id = ${listingId} ORDER BY price_type, price_id`,
   );
 
 /** Create a customisable listing with the given per-day-count prices through
@@ -34,7 +34,7 @@ export const expectBackfillRebuildsBaseRows = async (
 ): Promise<void> => {
   const a = await createTestListing({ unitPrice: 750 });
   const b = await createTestListing({ unitPrice: 400 });
-  await queryAll("DELETE FROM listing_prices WHERE price_type = 'base'");
+  await queryAll(sql`DELETE FROM listing_prices WHERE price_type = 'base'`);
   await runBackfill();
   expect(await priceRows(a.id)).toEqual([
     { price_id: "", price_type: "base", unit_price: 750 },

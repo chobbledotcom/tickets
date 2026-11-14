@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { sql } from "#db/sql.ts";
 import {
   createLegacyMigrationHarness,
   stubPragmaForeignKeysOff,
 } from "#test/integration/db/legacy-migration/helpers.ts";
-import { sql } from "#db/sql.ts";
 
 describe("db > legacy migration harness > stubPragmaForeignKeysOff", () => {
   const h = createLegacyMigrationHarness();

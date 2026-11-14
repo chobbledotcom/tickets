@@ -7,7 +7,7 @@
  */
 
 import { queryAllPrimary, resultRows, type TxScope } from "#db/client.ts";
-import { sql, sqlList, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import {
   mirroredMoveRefusalOrNull,
   type PaymentWork,

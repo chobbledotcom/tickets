@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
 import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
+import { sql } from "#db/sql.ts";
 import { refundCallbackReplayIndex } from "#payment/refund-request-identity.ts";
 import { REFUND_OBSERVATION_DELAY_MS } from "#shared/provider-refunds/state.ts";
 import {
@@ -292,7 +293,7 @@ describeWithEnv("provider refund target authority", { db: true }, () => {
         callback_replay_index: string | null;
         refund_state_name: string;
       }>(
-        `SELECT callback_replay_index, refund_state_name
+        sql`SELECT callback_replay_index, refund_state_name
            FROM payment_charges`,
       ),
     ).toEqual([

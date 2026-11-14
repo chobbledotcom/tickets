@@ -1,5 +1,5 @@
 import { countRows, getDb } from "#db/client.ts";
-import { sql, sqlName, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import { escapeRegExp } from "#shared/regexp.ts";
 import {
   currentSchemaColumnsPresentIn,
@@ -66,9 +66,7 @@ const repairLegacyTableRename = async (
   target: string,
 ): Promise<void> => {
   const state = await tableRenameState(legacy, target);
-  if (
-    await applyDirectRename(state, renameTableStatement(legacy, target))
-  ) {
+  if (await applyDirectRename(state, renameTableStatement(legacy, target))) {
     return;
   }
   // state === "both" — a failed prior migration attempt created the empty

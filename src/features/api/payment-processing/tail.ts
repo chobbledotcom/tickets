@@ -33,7 +33,7 @@ import {
   groupListingAnswerSets,
   prepareAttendeeAnswerSave,
 } from "#db/questions/attendee-answers/save.ts";
-import { sql, sqlName, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import { requiredMapValue } from "#fp";
 import {
   type BookingIntent,

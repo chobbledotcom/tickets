@@ -15,6 +15,7 @@ import {
 import { deleteQuestion } from "#db/questions/delete.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { sql } from "#db/sql.ts";
 import {
   addAnswer,
   createAttendee,
@@ -23,7 +24,6 @@ import {
 } from "#test/shared/db/questions/helpers.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { sql } from "#db/sql.ts";
 
 /** A listing asking a choice question (Small or Large) and a free-text
  * question, with one attendee booked on it. */
@@ -39,7 +39,7 @@ const seedBooking = async () => {
       [listing.id],
     );
     for (const statement of tail(attendee.ticket_token_index)) {
-      await execute(statement.sql, statement.args);
+      await execute(statement);
     }
   };
   const edit = (answers: AttendeeAnswerSet) =>
@@ -50,7 +50,7 @@ const seedBooking = async () => {
 const recordRows = (attendeeId: number) =>
   queryAll<{ question_id: number; answer_id: number | null }>(
     sql`SELECT question_id, answer_id FROM answers_at_booking
-     WHERE attendee_id = ${attendeeId} ORDER BY question_id`
+     WHERE attendee_id = ${attendeeId} ORDER BY question_id`,
   );
 
 const bookedAnswers = (attendeeId: number) =>
@@ -250,7 +250,9 @@ describeWithEnv("db > attendee answers > at booking", { db: true }, () => {
     const { attendee, small } = await seedSmallChangedToLarge();
     expect((await bookedAnswers(attendee.id))[0]?.changesPrice).toBe(false);
 
-    await execute(sql`UPDATE answers SET modifier_id = 1 WHERE id = ${small.id}`);
+    await execute(
+      sql`UPDATE answers SET modifier_id = 1 WHERE id = ${small.id}`,
+    );
     expect((await bookedAnswers(attendee.id))[0]?.changesPrice).toBe(true);
   });
 

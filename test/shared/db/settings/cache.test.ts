@@ -9,11 +9,10 @@ import {
   getCurrentSettingsVersion,
   settings,
 } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
-
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("db > settings > cache", { db: true }, () => {
   describe("the cached state itself", () => {
@@ -75,7 +74,9 @@ describeWithEnv("db > settings > cache", { db: true }, () => {
       await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
       expect(settings.paymentProvider).toBe("stripe");
 
-      await execute(sql`UPDATE settings SET value = ${"square"} WHERE key = ${CONFIG_KEYS.PAYMENT_PROVIDER}`);
+      await execute(
+        sql`UPDATE settings SET value = ${"square"} WHERE key = ${CONFIG_KEYS.PAYMENT_PROVIDER}`,
+      );
       await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
 
       expect(settings.paymentProvider).toBe("square");
@@ -89,7 +90,9 @@ describeWithEnv("db > settings > cache", { db: true }, () => {
       // Simulate another isolate switching to Stripe: it changes the value in
       // the DB and bumps the shared settings version, exactly as its write
       // would leave the database.
-      await getDb().execute(sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CONFIG_KEYS.PAYMENT_PROVIDER}, ${"stripe"})`);
+      await getDb().execute(
+        sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CONFIG_KEYS.PAYMENT_PROVIDER}, ${"stripe"})`,
+      );
       await bumpSettingsVersion();
 
       // The bumped version invalidates this process's cache on the next load.
@@ -103,7 +106,9 @@ describeWithEnv("db > settings > cache", { db: true }, () => {
       expect(settings.paymentProvider).toBe("stripe");
 
       // Sneak a value change straight into the DB without bumping the version.
-      await getDb().execute(sql`UPDATE settings SET value = ${"square"} WHERE key = ${CONFIG_KEYS.PAYMENT_PROVIDER}`);
+      await getDb().execute(
+        sql`UPDATE settings SET value = ${"square"} WHERE key = ${CONFIG_KEYS.PAYMENT_PROVIDER}`,
+      );
       await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
 
       // Version unchanged → no reload → the cached value is served.
@@ -118,13 +123,15 @@ describeWithEnv("db > settings > cache", { db: true }, () => {
         const stamped = settings.version;
 
         // Another isolate bumps the version without telling this request...
-        await getDb().execute(sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${"memo_version"}, ${"two"})`);
+        await getDb().execute(
+          sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${"memo_version"}, ${"two"})`,
+        );
         await bumpSettingsVersion();
 
         // ...then a settings write through the client invalidates this
         // request's caches, the version memo included.
         await execute(
-          sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${"memo_version"}, ${"two"})`
+          sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${"memo_version"}, ${"two"})`,
         );
 
         // The dropped memo re-probes, so the reload stamps the version that
@@ -138,7 +145,9 @@ describeWithEnv("db > settings > cache", { db: true }, () => {
 
   describe("settings version probe", () => {
     test("treats a missing settings_version row as version 0", async () => {
-      await getDb().execute(sql`DELETE FROM settings WHERE key = ${CONFIG_KEYS.SETTINGS_VERSION}`);
+      await getDb().execute(
+        sql`DELETE FROM settings WHERE key = ${CONFIG_KEYS.SETTINGS_VERSION}`,
+      );
       expect(await getCurrentSettingsVersion()).toBe(0);
     });
 

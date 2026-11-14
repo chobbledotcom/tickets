@@ -12,10 +12,10 @@ import {
   prepareSessionFailure,
   reserveSession,
 } from "#db/processed-payments.ts";
+import { sql } from "#db/sql.ts";
 import type { StoredPaymentFailure } from "#payment/row-state.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
-import { sql } from "#db/sql.ts";
 
 const PENDING: StoredPaymentFailure = {
   completion: { code: "capacity_full" },
@@ -33,7 +33,7 @@ const FINAL: StoredPaymentFailure = {
 const storePendingOutcome = async (sessionId: string): Promise<void> => {
   await reserveSession(sessionId);
   const prepared = await prepareSessionFailure(sessionId, PENDING);
-  await execute(prepared.statement.sql, prepared.statement.args);
+  await execute(prepared.statement);
 };
 
 const storedFailure = async (
@@ -126,7 +126,7 @@ describeWithEnv("db > processed payment outcome advance", { db: true }, () => {
     await storePendingOutcome(sessionId);
     const staleFence = await storedBytes(sessionId);
     await execute(
-      sql`DELETE FROM processed_payments WHERE payment_session_id = ${sessionId}`
+      sql`DELETE FROM processed_payments WHERE payment_session_id = ${sessionId}`,
     );
 
     await advanceStoredOutcomeOnce(sessionId, staleFence, FINAL);
@@ -139,7 +139,7 @@ describeWithEnv("db > processed payment outcome advance", { db: true }, () => {
     await storePendingOutcome(sessionId);
     const staleFence = await storedBytes(sessionId);
     await execute(
-      sql`DELETE FROM processed_payments WHERE payment_session_id = ${sessionId}`
+      sql`DELETE FROM processed_payments WHERE payment_session_id = ${sessionId}`,
     );
     await reserveSession(sessionId);
 

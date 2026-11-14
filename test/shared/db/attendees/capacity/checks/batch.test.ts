@@ -362,13 +362,13 @@ describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
 
     // The free listing fits; the statement runs and returns one row.
     const fits = buildCartCapacitySql(demandFor(free.id));
-    expect(await queryOne<{ fits: number }>(fits.sql, fits.args)).toEqual({
+    expect(await queryOne<{ fits: number }>(fits)).toEqual({
       fits: 1,
     });
 
     // A cart carrying both listings does not fit: the full one is over cap.
     const both = buildCartCapacitySql(demandFor(free.id, full.id));
-    expect(await queryOne<{ fits: number }>(both.sql, both.args)).toEqual({
+    expect(await queryOne<{ fits: number }>(both)).toEqual({
       fits: 0,
     });
   });

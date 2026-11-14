@@ -16,7 +16,7 @@ import {
   wholeNumber,
 } from "#db/migrations/schema/scalar-columns.ts";
 import type { Column, Table } from "#db/migrations/schema/types.ts";
-import { sql, sqlLiteral, sqlName, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
 
 /**
  * A value counts as hidden only if it is really text, says how it was hidden,

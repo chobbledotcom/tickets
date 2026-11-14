@@ -33,6 +33,7 @@ import { SCHEMA_MIGRATIONS_TABLE } from "#db/migrations/schema/version.ts";
 import { fullSchemaCreateStatements } from "#db/migrations/schema-sync.ts";
 import { LATEST_UPDATE, SCHEMA_HASH } from "#db/migrations.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
+import { sql, sqlNames } from "#db/sql.ts";
 import { lazyRef, once } from "#fp";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { createTestDbClient } from "#test-utils/db-client.ts";
@@ -46,7 +47,6 @@ import {
   DB_FILE_SUFFIXES,
 } from "#test-utils/temp-db-files.ts";
 import { TEST_STATE_DIR_ENV } from "#test-utils/test-state-env.ts";
-import { sql } from "#db/sql.ts";
 
 const GOLDEN_DB_FILE = "golden.db";
 const STATE_JSON_FILE = "state.json";
@@ -71,7 +71,7 @@ const UserRowSchema = v.object({
 });
 
 /** The columns a captured user row carries, as one SELECT list. */
-const USER_ROW_COLUMNS = Object.keys(UserRowSchema.entries).join(", ");
+const USER_ROW_COLUMNS = sqlNames(Object.keys(UserRowSchema.entries));
 
 const AdminSessionRowSchema = v.object({
   csrf_token: v.string(),
@@ -280,13 +280,13 @@ export const runSetupCeremony = async (
   settings.setForTest({ timezone: "UTC" });
 
   const settingsResult = await getDb().execute(
-    sql`SELECT key, value FROM settings AS setting`
+    sql`SELECT key, value FROM settings AS setting`,
   );
   const settingsRows = settingsResult.rows.map((row) =>
     v.parse(SettingsRowSchema, row),
   );
   const usersResult = await getDb().execute(
-    sql`SELECT ${TODO_SQL_TEXT(USER_ROW_COLUMNS)} FROM users AS user`
+    sql`SELECT ${USER_ROW_COLUMNS} FROM users AS user`,
   );
   const users = usersResult.rows.map((row) => v.parse(UserRowSchema, row));
 
@@ -294,7 +294,7 @@ export const runSetupCeremony = async (
   const sessionsResult = await getDb().execute(
     sql`SELECT token, csrf_token, expires,
             wrapped_data_key, user_id
-     FROM sessions AS session LIMIT 1`
+     FROM sessions AS session LIMIT 1`,
   );
   const sessionRow = sessionsResult.rows[0];
   if (!sessionRow) {

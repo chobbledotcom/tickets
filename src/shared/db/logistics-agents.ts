@@ -9,9 +9,9 @@
 
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { idAndEncryptedNameSchema } from "#db/common-schema.ts";
+import { sql } from "#db/sql.ts";
 import { defineCachedListTable } from "#db/table.ts";
 import type { LogisticsAgent } from "#types";
-import { sql } from "#db/sql.ts";
 
 /** Logistics agent input fields for create/update (camelCase). */
 export type LogisticsAgentInput = {

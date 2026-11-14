@@ -8,8 +8,8 @@ import {
   type StoredPaymentClaimRow,
 } from "#db/payment-claim.ts";
 import { matchingPaymentReferenceIndexes } from "#db/payment-reference-store.ts";
-import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import { sql, sqlList } from "#db/sql.ts";
+import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 
 /** One anchor row with the joined authority's plain state word, so a resume
  * can tell "money known returned" from "refund still underway" in one read. */

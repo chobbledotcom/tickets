@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { sql } from "#db/sql.ts";
 import { col, defineTable, type Table } from "#db/table.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { FormParams } from "#shared/form-data.ts";
@@ -10,7 +11,6 @@ import {
   expectResultNotFound,
 } from "#test-utils/assertions.ts";
 import { createTestDb, describeWithEnv, resetDb } from "#test-utils/db.ts";
-import { sql } from "#db/sql.ts";
 
 /** Test row type */
 type TestRow = {

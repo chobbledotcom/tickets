@@ -1,5 +1,5 @@
 import { queryAllPrimary } from "#db/client.ts";
-import { sql, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { bareSchemaMigration } from "./define.ts";
 
@@ -33,10 +33,7 @@ const stepDone = async (
 
 const addColumn = (execute: RunSql, column: SqlStatement): Promise<void> =>
   stepDone(
-    () =>
-      execute(
-        sql`ALTER TABLE system_notes ADD COLUMN ${column}`,
-      ),
+    () => execute(sql`ALTER TABLE system_notes ADD COLUMN ${column}`),
     ALREADY_ADDED,
   );
 

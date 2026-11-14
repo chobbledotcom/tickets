@@ -6,13 +6,13 @@ import {
 } from "@libsql/hrana-client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { sql } from "#db/sql.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import {
   hranaBatchReply,
   hranaChangedReply,
   hranaTestDatabase,
 } from "#test-utils/hrana.ts";
-import { sql } from "#db/sql.ts";
 
 for (const fault of ["begin", "select", "commit"] as const) {
   test(`rejects a ${fault} failure without a partial result`, async () => {
@@ -205,7 +205,9 @@ test("preserves a transport failure without an automatic retry", async () => {
       },
     },
   });
-  await expect(remote.client.batch([sql`SELECT 1`], "write")).rejects.toBe(error);
+  await expect(remote.client.batch([sql`SELECT 1`], "write")).rejects.toBe(
+    error,
+  );
   expect(calls).toBe(1);
 });
 

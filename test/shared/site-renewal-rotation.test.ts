@@ -7,7 +7,7 @@ import { builtSites, insertBuiltSite } from "#db/built-sites.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { renewalUrlFor, rotateRenewalToken } from "#shared/site-renewal.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { statementSql, wrapDbClient } from "#test-utils/record-queries.ts";
+import { wrapDbClient } from "#test-utils/record-queries.ts";
 
 describeWithEnv("renewal token rotation", { db: true }, () => {
   test("out-of-order responses leave the stored token on the site", async () => {
@@ -49,7 +49,7 @@ describeWithEnv("renewal token rotation", { db: true }, () => {
     const restoreDb = wrapDbClient({
       batch: () => undefined,
       execute: (statement): Promise<ResultSet> | null => {
-        if (statementSql(statement).includes("renewal_token_index")) {
+        if (statement.sql.includes("renewal_token_index")) {
           secondPersistLanded.resolve();
           restoreDb();
         }

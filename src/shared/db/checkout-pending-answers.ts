@@ -15,7 +15,7 @@ import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { execute, queryOne } from "#db/client.ts";
-import { sql, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import type { FreeTextAnswers } from "#shared/email/answers.ts";
 import { nowIso } from "#shared/now.ts";
 import { stringRecordJson } from "#shared/validation/stored-json.ts";

@@ -3,7 +3,7 @@ import { resultRows, withTransaction } from "#db/client.ts";
 import { settingsVersionIncrement } from "#db/settings/cache.ts";
 import { publishStoredSetting } from "#db/settings/raw-writes.ts";
 import type { StringSettingKey } from "#db/settings/snapshot.ts";
-import { sql, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 
 const StoredJsonSchema = v.object({ value: v.string() });
 

@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { createDatabaseClient } from "#db/database-client.ts";
+import { sql } from "#db/sql.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { hranaTestDatabase, hranaTestFetch } from "#test-utils/hrana.ts";
-import { sql } from "#db/sql.ts";
 
 describe("primary read pipeline", () => {
   test("uses the configured HTTP URL, credentials, and encryption header", async () => {

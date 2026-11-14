@@ -14,6 +14,7 @@ import {
   listingsTable,
 } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { handleSitemapXml } from "#routes/sitemap.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
@@ -28,7 +29,6 @@ import { testListingInput } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { soldOutParentInGroup } from "#test-utils/parents.ts";
 import { disablePublicSite, enablePublicSite } from "#test-utils/settings.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("server public > sitemap.xml", { db: true }, () => {
   test("answers 404 from a site before setup", async () => {

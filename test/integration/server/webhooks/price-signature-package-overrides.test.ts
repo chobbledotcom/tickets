@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { groups, setGroupPackageMembers } from "#db/groups.ts";
 import { modifiersTable } from "#db/modifiers.ts";
+import { sql } from "#db/sql.ts";
 import {
   expectPackageRefund,
   expectProcessed,
@@ -22,7 +23,6 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta, webhookMeta } from "#test-utils/factories.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv(
   "webhook signed price oracle — mismatch & package overrides",
@@ -236,7 +236,9 @@ describeWithEnv(
         direction: "charge",
         name: "Add-on",
       });
-      await execute(sql`UPDATE modifiers SET trigger = ${"optional"} WHERE id = ${addOn.id}`);
+      await execute(
+        sql`UPDATE modifiers SET trigger = ${"optional"} WHERE id = ${addOn.id}`,
+      );
       const metadata = signMeta(
         webhookMeta({
           email: "buyer@example.com",

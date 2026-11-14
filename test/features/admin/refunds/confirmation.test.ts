@@ -4,6 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { execute, queryAll, queryOne } from "#db/client.ts";
 import { createSystemNote, getNotesFor } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
+import { sql } from "#db/sql.ts";
 import { confirmRefund } from "#routes/admin/refunds/confirmation.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -15,7 +16,6 @@ import {
   DEFAULT_PAYMENT,
   setupConfirmation as setup,
 } from "./confirmation-fixture.ts";
-import { sql } from "#db/sql.ts";
 
 const expectNoVisibleConfirmation = async (
   attendeeId: number,
@@ -79,7 +79,7 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
     const stored = await queryOne<{ identity: string }>(
       sql`SELECT confirmation.identity
          FROM refund_confirmations AS confirmation
-        WHERE confirmation.attendee_id = ${refund.attendee.id}`
+        WHERE confirmation.attendee_id = ${refund.attendee.id}`,
     );
     if (stored === null) throw new Error("the confirmation was not stored");
     assert(!stored.identity.includes(refund.reference.reference));
@@ -119,7 +119,7 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
            JOIN refund_confirmations AS confirmation
              ON confirmation.identity = reference.confirmation_identity
           WHERE confirmation.attendee_id = ${refund.attendee.id}
-          ORDER BY reference.reference_index`
+          ORDER BY reference.reference_index`,
       ),
     ).toEqual(
       refund.references
@@ -149,7 +149,7 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
        BEFORE INSERT ON activity_log
        BEGIN
          SELECT RAISE(ABORT, 'activity write failed');
-       END`
+       END`,
     );
 
     await expect(
@@ -161,7 +161,7 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
     expect(await confirmationCount(refund.attendee.id)).toBe(0);
     expect(
       await queryOne<{ count: number }>(
-        sql`SELECT COUNT(*) AS count FROM refund_confirmation_references`
+        sql`SELECT COUNT(*) AS count FROM refund_confirmation_references`,
       ),
     ).toEqual({ count: 0 });
     await expectNoVisibleConfirmation(refund.attendee.id, refund.privateKey);
@@ -184,12 +184,12 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
     await execute(
       sql`INSERT INTO activity_log
          (created, listing_id, attendee_id, message)
-       VALUES (${"2026-08-01T00:00:00.000Z"}, ${refund.listingId}, ${refund.attendee.id}, ${"not encrypted activity"})`
+       VALUES (${"2026-08-01T00:00:00.000Z"}, ${refund.listingId}, ${refund.attendee.id}, ${"not encrypted activity"})`,
     );
     await execute(
       sql`INSERT INTO system_notes
          (created, entity_type, entity_id, type, note)
-       VALUES (${"2026-08-01T00:00:00.000Z"}, 'attendee', ${refund.attendee.id}, 'system', ${"not encrypted note"})`
+       VALUES (${"2026-08-01T00:00:00.000Z"}, 'attendee', ${refund.attendee.id}, 'system', ${"not encrypted note"})`,
     );
 
     expect(
@@ -201,7 +201,7 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
     const activityCount = await queryOne<{ count: number }>(
       sql`SELECT COUNT(*) AS count
          FROM activity_log AS activity
-        WHERE activity.attendee_id = ${refund.attendee.id}`
+        WHERE activity.attendee_id = ${refund.attendee.id}`,
     );
     if (activityCount === null) {
       throw new Error("the attendee activity count was not found");

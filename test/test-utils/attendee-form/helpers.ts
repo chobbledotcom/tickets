@@ -2,12 +2,12 @@ import { expect } from "@std/expect";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getDb } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { sql } from "#db/sql.ts";
 
 type AttendeeRow = Awaited<ReturnType<typeof getAttendeesRaw>>[number];
 
@@ -75,6 +75,8 @@ export const attendeeWithNoBookings = async (name: string) => {
     name,
     `${name.toLowerCase()}@example.com`,
   );
-  await getDb().execute(sql`DELETE FROM listing_attendees WHERE attendee_id = ${attendee.id}`);
+  await getDb().execute(
+    sql`DELETE FROM listing_attendees WHERE attendee_id = ${attendee.id}`,
+  );
   return attendee;
 };

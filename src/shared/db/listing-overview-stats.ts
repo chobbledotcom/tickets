@@ -23,7 +23,7 @@ import {
   refundedForBooking,
 } from "#db/attendees/select.ts";
 import { requireOne } from "#db/client.ts";
-import { sql, sqlLiteral, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlLiteral } from "#db/sql.ts";
 import { isPaidListing, type Listing } from "#types";
 
 /**

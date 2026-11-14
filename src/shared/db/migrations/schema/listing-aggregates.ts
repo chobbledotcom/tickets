@@ -1,7 +1,7 @@
 /** Pure predicates and SQL expressions for the listing count aggregates. */
 
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
-import { sql, sqlLiteral, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlLiteral } from "#db/sql.ts";
 
 /**
  * The listing_attendees columns that shift the listing count aggregates

@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { executeWithoutCacheInvalidation } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { handleScheduledRequest } from "#routes/scheduled.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";
@@ -8,7 +9,6 @@ import {
   expectScheduledResponse,
   scheduledAuthorization,
 } from "#test-utils/scheduled.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv(
   "server > scheduled > effective domain",

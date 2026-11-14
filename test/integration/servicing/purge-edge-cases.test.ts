@@ -20,6 +20,7 @@ import {
   countPurgeableOrphanedAttendees,
   purgeOrphanedAttendees,
 } from "#db/orphan-attendees.ts";
+import { sql } from "#db/sql.ts";
 import { nowIso } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { attendeeExists } from "#test-utils/db-helpers/attendees.ts";
@@ -31,7 +32,6 @@ import {
   orphanServicingEvent,
   recordServiceCost,
 } from "#test-utils/servicing.ts";
-import { sql } from "#db/sql.ts";
 
 /** How many notes this attendee has — a dependent row the purge clears. */
 const noteCount = async (attendeeId: number): Promise<number> =>
@@ -45,8 +45,12 @@ describeWithEnv("servicing edge cases — purge", { db: true }, () => {
     await orphanServicingEvent(oldId, 30);
     // One orphan at the boundary (created == cutoff; NOT swept — strict <).
     const { id: edgeId } = await createServicingHold();
-    await getDb().execute(sql`DELETE FROM listing_attendees WHERE attendee_id = ${edgeId}`);
-    await getDb().execute(sql`UPDATE attendees SET created = ${cutoff} WHERE id = ${edgeId}`);
+    await getDb().execute(
+      sql`DELETE FROM listing_attendees WHERE attendee_id = ${edgeId}`,
+    );
+    await getDb().execute(
+      sql`UPDATE attendees SET created = ${cutoff} WHERE id = ${edgeId}`,
+    );
     expect(
       await countPurgeableOrphanedAttendees(cutoff),
     ).toBeGreaterThanOrEqual(1);
@@ -61,7 +65,9 @@ describeWithEnv("servicing edge cases — purge", { db: true }, () => {
     await orphanServicingEvent(id);
     // Attach an answer so the sweep has something to delete.
     const { getDb: db } = await import("#db/client.ts");
-    await db().execute(sql`INSERT INTO attendee_answers (attendee_id, question_id, answer_id) VALUES (${id}, ${1}, ${1})`);
+    await db().execute(
+      sql`INSERT INTO attendee_answers (attendee_id, question_id, answer_id) VALUES (${id}, ${1}, ${1})`,
+    );
     expect(await childRowCount("attendee_answers", id)).toBe(1);
     await purgeOrphanedAttendees(nowIso());
     expect(await childRowCount("attendee_answers", id)).toBe(0);
@@ -83,8 +89,12 @@ describeWithEnv("servicing edge cases — purge", { db: true }, () => {
     await orphanServicingEvent(servicingId);
     const { createRealAttendee } = await import("#test-utils/servicing.ts");
     const { attendee: real } = await createRealAttendee();
-    await getDb().execute(sql`DELETE FROM listing_attendees WHERE attendee_id = ${real.id}`);
-    await getDb().execute(sql`UPDATE attendees SET created = ${daysAgoIso(30)} WHERE id = ${real.id}`);
+    await getDb().execute(
+      sql`DELETE FROM listing_attendees WHERE attendee_id = ${real.id}`,
+    );
+    await getDb().execute(
+      sql`UPDATE attendees SET created = ${daysAgoIso(30)} WHERE id = ${real.id}`,
+    );
     expect(
       await countPurgeableOrphanedAttendees(nowIso()),
     ).toBeGreaterThanOrEqual(2);

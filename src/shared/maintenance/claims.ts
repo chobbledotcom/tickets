@@ -2,8 +2,7 @@ import { generateSecureToken } from "#crypto/utils.ts";
 import { execute, queryOne } from "#db/client.ts";
 import { sql, sqlCommas, sqlList } from "#db/sql.ts";
 
-const DATABASE_NOW_MS =
-  sql`CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)`;
+const DATABASE_NOW_MS = sql`CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)`;
 
 export type MaintenanceClaim = {
   checkpoint: string | null;

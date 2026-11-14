@@ -3,12 +3,12 @@ import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { executeWithoutCacheInvalidation } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { handleRobotsTxt } from "#routes/robots-txt.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv(
   "server public > robots.txt settings failures",

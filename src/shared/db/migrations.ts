@@ -14,7 +14,13 @@ import {
   getDb,
   type StatementClient,
 } from "#db/client.ts";
-import { sql, sqlList, sqlLiteral, sqlName, type SqlStatement } from "#db/sql.ts";
+import {
+  type SqlStatement,
+  sql,
+  sqlList,
+  sqlLiteral,
+  sqlName,
+} from "#db/sql.ts";
 import { lazyRef } from "#fp";
 import { resetAllCaches } from "#shared/cache-registry.ts";
 import { logDebug } from "#shared/logger.ts";
@@ -221,7 +227,9 @@ type InitDbOptions = {
  * request, so once a client is confirmed the hot path must cost zero
  * queries. Only success is cached — failures are retried on the next call.
  */
-const [getReadyClient, setReadyClient] = lazyRef<StatementClient | null>(() => null);
+const [getReadyClient, setReadyClient] = lazyRef<StatementClient | null>(
+  () => null,
+);
 
 /** Forget the per-isolate "database is ready" cache. */
 export const invalidateInitDbCache = (): void => {

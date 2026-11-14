@@ -7,6 +7,7 @@ import {
   invalidateListingsCache,
   listingsTable,
 } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import {
   expectFlash,
   expectFlashRedirect,
@@ -19,7 +20,6 @@ import {
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost, setupListingAndLogin } from "#test-utils/session.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv(
   "server listings > error pages and fallbacks",
@@ -176,7 +176,9 @@ describeWithEnv(
           const found = await originalExists(filter);
           if (found) {
             // Delete the listing from DB so getListingWithCount returns null
-            await getDb().execute(sql`DELETE FROM listings WHERE id = ${Number(filter?.id)}`);
+            await getDb().execute(
+              sql`DELETE FROM listings WHERE id = ${Number(filter?.id)}`,
+            );
             invalidateListingsCache();
           }
           return found;

@@ -4,16 +4,16 @@ import { ACTIVITY_LOG_BACKFILL_COMPLETE } from "#db/activity-log-backfill.ts";
 import { getDb } from "#db/client.ts";
 import maintenanceCompletionMigration from "#db/migrations/2026-07-22_maintenance_completion.ts";
 import { applySchemaChanges } from "#db/migrations/schema-sync.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
-import { sql } from "#db/sql.ts";
 
 const context = buildMigrationContext({ applySchemaChanges });
 const runMigration = (): Promise<void> =>
   maintenanceCompletionMigration(context).up();
 const activityTask = () =>
   getDb().execute(
-    sql`SELECT checkpoint, completed_at FROM maintenance_tasks WHERE name = 'activity_log_backfill'`
+    sql`SELECT checkpoint, completed_at FROM maintenance_tasks WHERE name = 'activity_log_backfill'`,
   );
 const replaceActivityTask = (checkpoint: string | null) =>
   getDb().execute(sql`INSERT OR REPLACE INTO maintenance_tasks

@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
 import { execute } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import { createReservedAttendee } from "#test-utils/balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -15,7 +16,6 @@ import { setupStripe } from "#test-utils/settings.ts";
 import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 import { bookingIntent, trustedPayment } from "./helpers.ts";
-import { sql } from "#db/sql.ts";
 
 const balanceData = (
   id: string,
@@ -62,7 +62,7 @@ describeWithEnv("payment processing balance outcomes", { db: true }, () => {
     const data = balanceData(id, attendeeId, listingId, 1200);
     await processPaymentSession(id, data);
     await execute(
-      sql`DELETE FROM processed_payments WHERE payment_session_id = ${id}`
+      sql`DELETE FROM processed_payments WHERE payment_session_id = ${id}`,
     );
     using refund = stubRefundPayment("re_should_not_run");
 
@@ -128,7 +128,7 @@ describeWithEnv("payment processing balance outcomes", { db: true }, () => {
     // durable authority answers from its completed row, so nothing is sent
     // to the provider twice.
     await execute(
-      sql`UPDATE processed_payments SET processed_at = ${"2020-01-01T00:00:00.000Z"} WHERE payment_session_id = ${id}`
+      sql`UPDATE processed_payments SET processed_at = ${"2020-01-01T00:00:00.000Z"} WHERE payment_session_id = ${id}`,
     );
     expect(await processPaymentSession(id, data)).toMatchObject({
       error:

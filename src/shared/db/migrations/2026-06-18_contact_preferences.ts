@@ -1,4 +1,5 @@
 import { countRows } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { nowMs } from "#shared/now.ts";
 import { getExistingColumns, runMigration } from "./schema-sync.ts";
 import type {
@@ -6,7 +7,6 @@ import type {
   MigrationContext,
   SchemaRequirement,
 } from "./types.ts";
-import { sql } from "#db/sql.ts";
 
 const requires: SchemaRequirement = {
   absentTables: ["email_preferences"],
@@ -33,7 +33,9 @@ const tableState = async (
 const renameLegacyTable = async (context: MigrationContext): Promise<void> => {
   const state = await tableState(context);
   if (state === "legacy_only") {
-    await runMigration(sql`ALTER TABLE email_preferences RENAME TO contact_preferences`);
+    await runMigration(
+      sql`ALTER TABLE email_preferences RENAME TO contact_preferences`,
+    );
     return;
   }
   if (state !== "both") return;
@@ -44,7 +46,9 @@ const renameLegacyTable = async (context: MigrationContext): Promise<void> => {
   ]);
   if (targetRows === 0) {
     await runMigration(sql`DROP TABLE contact_preferences`);
-    await runMigration(sql`ALTER TABLE email_preferences RENAME TO contact_preferences`);
+    await runMigration(
+      sql`ALTER TABLE email_preferences RENAME TO contact_preferences`,
+    );
     return;
   }
   if (legacyRows === 0) {
@@ -66,7 +70,9 @@ const withContactColumns =
 
 const renameLegacyHashColumn = withContactColumns(async (columns) => {
   if (columns.has("email_hash") && !columns.has("contact_hash")) {
-    await runMigration(sql`ALTER TABLE contact_preferences RENAME COLUMN email_hash TO contact_hash`);
+    await runMigration(
+      sql`ALTER TABLE contact_preferences RENAME COLUMN email_hash TO contact_hash`,
+    );
   }
 });
 

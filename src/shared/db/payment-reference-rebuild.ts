@@ -24,7 +24,7 @@ import {
   type StoredPaymentReference,
   storePaymentReference,
 } from "#db/payment-reference-store.ts";
-import { sql, sqlList, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import { requiredMapValue } from "#fp";
 import {
   type PaymentReference,

@@ -19,6 +19,7 @@ import {
 import { PRICE_TYPE_BASE } from "#db/price-types.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { settings } from "#db/settings.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -27,7 +28,6 @@ import {
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("db > listings > records", { db: true, triggers: true }, () => {
   describe("batch queries", () => {
@@ -192,7 +192,7 @@ describeWithEnv(
       expect(listing.image_alt_text).toBe("");
       expect((await getListingDayPrices(listing.id))[2]).toBe(500);
       const base = await queryOne<{ unit_price: number }>(
-        sql`SELECT unit_price FROM listing_prices WHERE listing_id = ${listing.id} AND price_type = ${PRICE_TYPE_BASE}`
+        sql`SELECT unit_price FROM listing_prices WHERE listing_id = ${listing.id} AND price_type = ${PRICE_TYPE_BASE}`,
       );
       expect(base?.unit_price).toBe(700);
     });
@@ -207,7 +207,7 @@ describeWithEnv(
       expect(prices[2]).toBeUndefined();
       expect(prices[3]).toBe(900);
       const base = await queryOne<{ unit_price: number }>(
-        sql`SELECT unit_price FROM listing_prices WHERE listing_id = ${listing.id} AND price_type = ${PRICE_TYPE_BASE}`
+        sql`SELECT unit_price FROM listing_prices WHERE listing_id = ${listing.id} AND price_type = ${PRICE_TYPE_BASE}`,
       );
       expect(base?.unit_price).toBe(800);
     });
@@ -244,24 +244,24 @@ describeWithEnv(
       // Each dependency table's writes must empty the cache again: the next
       // read re-queries. A no-op write still counts — invalidation keys on the
       // statement's table and (for attendees) its written columns.
-      const writes: [string, string][] = [
+      const writes: [string, SqlStatement][] = [
         [
           "listing_attendees",
-          "UPDATE listing_attendees SET quantity = quantity WHERE id = -1",
+          sql`UPDATE listing_attendees SET quantity = quantity WHERE id = -1`,
         ],
-        ["transfers", "UPDATE transfers SET id = id WHERE id = -1"],
+        ["transfers", sql`UPDATE transfers SET id = id WHERE id = -1`],
         [
           "listing_prices",
-          "UPDATE listing_prices SET unit_price = unit_price WHERE listing_id = -1",
+          sql`UPDATE listing_prices SET unit_price = unit_price WHERE listing_id = -1`,
         ],
         [
           "image_uses",
-          "UPDATE image_uses SET image_id = image_id WHERE image_id = -1",
+          sql`UPDATE image_uses SET image_id = image_id WHERE image_id = -1`,
         ],
-        ["images", "UPDATE images SET id = id WHERE id = -1"],
+        ["images", sql`UPDATE images SET id = id WHERE id = -1`],
       ];
-      for (const [table, sql] of writes) {
-        await execute(sql);
+      for (const [table, statement] of writes) {
+        await execute(statement);
         const calls = await withRequestContext(async () => {
           enableQueryLog();
           await getAllListings();

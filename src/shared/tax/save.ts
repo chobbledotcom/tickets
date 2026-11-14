@@ -4,7 +4,7 @@ import { eventGroup } from "#accounting/refs.ts";
 import { insertStatement, selectTransfersScope } from "#accounting/rows.ts";
 import { queryBatchPrimary, queryOnePrimary } from "#db/client.ts";
 import { parseTaxPolicy } from "#db/settings/tax.ts";
-import { sql, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { CLAIM_MIRROR } from "#payment/admit-move.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import type { Transfer } from "#shared/ledger/types.ts";

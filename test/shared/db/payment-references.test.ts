@@ -13,6 +13,7 @@ import {
   underRefundClaim,
 } from "#db/payment-references.ts";
 import { reserveSession } from "#db/processed-payments.ts";
+import { sql } from "#db/sql.ts";
 import type { RefundState } from "#payment/refund-state.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -29,7 +30,6 @@ import {
   refundReferencesFor,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("db > payment references", { db: true }, () => {
   test("PII-only payment ids make refund history incomplete", async () => {
@@ -98,7 +98,7 @@ describeWithEnv("db > payment references", { db: true }, () => {
     const payment = taggedPaymentReference("pi_index_marker");
     const prepared = await prepareClaimedAttendeePaymentAnchor(payment);
     const anchor = await prepared.forAttendee(attendeeId);
-    await execute(anchor.statement.sql, anchor.statement.args);
+    await execute(anchor.statement);
     const [reference] = await refundReferencesFor(
       attendeeId,
       await getTestPrivateKey(),
@@ -165,7 +165,7 @@ describeWithEnv("db > payment references", { db: true }, () => {
           (payment_session_id, attendee_id, processed_at, payment_reference,
            payment_reference_index)
         VALUES (${"sess_shared_a_middle"}, ${attendeeId}, ${"2026-06-22T00:00:00.000Z"}, ${stored.encrypted}, ${stored.index}), (${"sess_shared_d_earlier"}, ${attendeeId}, ${"2026-06-21T00:00:00.000Z"}, ${stored.encrypted}, ${stored.index}),
-               (${"sess_shared_b_earlier"}, ${attendeeId}, ${"2026-06-21T00:00:00.000Z"}, ${stored.encrypted}, ${stored.index}), (${"sess_shared_c_later"}, ${attendeeId}, ${"2026-06-23T00:00:00.000Z"}, ${stored.encrypted}, ${stored.index})`
+               (${"sess_shared_b_earlier"}, ${attendeeId}, ${"2026-06-21T00:00:00.000Z"}, ${stored.encrypted}, ${stored.index}), (${"sess_shared_c_later"}, ${attendeeId}, ${"2026-06-23T00:00:00.000Z"}, ${stored.encrypted}, ${stored.index})`,
     );
 
     const inProcessedOrder: [string, ...string[]] = [
@@ -252,7 +252,7 @@ describeWithEnv(
       await execute(
         sql`UPDATE processed_payments
           SET attendee_id = ${attendeeId}, payment_reference = '', processed_at = ${"2026-06-21T00:00:00.000Z"}
-        WHERE payment_session_id = ${"sess_no_reference"}`
+        WHERE payment_session_id = ${"sess_no_reference"}`,
       );
 
       const references = await getRefundPaymentReferences(

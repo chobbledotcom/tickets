@@ -20,6 +20,7 @@ import {
   getQuestionsWithListingIds,
   questionListings,
 } from "#db/questions/queries.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
@@ -52,8 +53,7 @@ const attachQuestion = async (
 
 const answersFor = (attendeeId: number) =>
   queryAll<{ question_id: number; answer_id: number }>(
-    "SELECT question_id, answer_id FROM attendee_answers WHERE attendee_id = ?",
-    [attendeeId],
+    sql`SELECT question_id, answer_id FROM attendee_answers WHERE attendee_id = ${attendeeId}`,
   );
 
 /** Listing "L" with a "Boiler model?" question and a servicing hold that already

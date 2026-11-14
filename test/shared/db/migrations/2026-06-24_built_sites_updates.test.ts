@@ -4,9 +4,9 @@ import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import builtSitesUpdatesMigration from "#db/migrations/2026-06-24_built_sites_updates.ts";
 import { applySchemaChanges } from "#db/migrations/schema-sync.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
-import { sql } from "#db/sql.ts";
 
 const context = buildMigrationContext({ applySchemaChanges });
 
@@ -46,7 +46,9 @@ describeWithEnv(
       await runMigration();
 
       assertArrayIncludes(await columnNames(), ["updates"]);
-      const { rows } = await getDb().execute(sql`SELECT updates FROM built_sites`);
+      const { rows } = await getDb().execute(
+        sql`SELECT updates FROM built_sites`,
+      );
       // A site that predates the channel feature lands on the safe default.
       expect(rows[0]?.updates).toBe("release");
     });
@@ -64,7 +66,7 @@ describeWithEnv(
         await insertSite(tier);
       }
       const { rows } = await getDb().execute(
-        sql`SELECT updates FROM built_sites ORDER BY updates`
+        sql`SELECT updates FROM built_sites ORDER BY updates`,
       );
       expect(rows.map((row) => String(row.updates))).toEqual([
         "alpha",

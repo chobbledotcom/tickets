@@ -8,6 +8,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { sql } from "#db/sql.ts";
 import {
   ADMIN_API,
   type AuthSession,
@@ -20,7 +21,6 @@ import { MAX_APIKEY_ATTEMPTS } from "#shared/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { createTestApiKeyToken, requestAsApiKey } from "#test-utils/session.ts";
-import { sql } from "#db/sql.ts";
 
 /** A request carrying whatever the caller wants in the Authorization header. */
 const withAuthorization = (value: string): Request =>
@@ -93,7 +93,7 @@ describeWithEnv("refusing a Bearer token", { db: true }, () => {
     const apiKey = await createTestApiKeyToken();
     const { execute } = await import("#shared/db/client.ts");
     await execute(
-      sql`UPDATE api_keys SET wrapped_data_key = ${"not-a-wrapped-key"} WHERE user_id = 1`
+      sql`UPDATE api_keys SET wrapped_data_key = ${"not-a-wrapped-key"} WHERE user_id = 1`,
     );
 
     expect(await sessionFor(withAuthorization(`Bearer ${apiKey}`))).toBe(null);

@@ -5,6 +5,7 @@
  */
 
 import { logActivity } from "#db/activity-log.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { byPrimaryKey } from "#db/table-reader.ts";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
@@ -37,7 +38,6 @@ import {
 import { writeEntityOrValidationResponse } from "#shared/rest/write-error.ts";
 import { okResult, type Result } from "#shared/result.ts";
 import type { AdminSession } from "#types";
-import { type SqlStatement } from "#db/sql.ts";
 
 /** Strip internal keys from a row before sending in the response */
 const stripRow = <Row>(row: Row, keys: string[]): Record<string, unknown> => {

@@ -14,11 +14,7 @@
 import type { ResultSet } from "@libsql/client";
 import { hmacHash } from "#crypto/hashing.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
-import {
-  resultRows,
-  type TxScope,
-  withTransaction,
-} from "#db/client.ts";
+import { resultRows, type TxScope, withTransaction } from "#db/client.ts";
 import {
   requireMembershipValidation,
   validateMembershipPairsTx,
@@ -31,7 +27,13 @@ import { dayCountPriceStatements } from "#db/listing-prices.ts";
 import { requireCurrentRelationshipRules } from "#db/listing-relationship-validation.ts";
 import { listingsTable } from "#db/listings/records.ts";
 import { takenSlugIndexes } from "#db/slug-registry.ts";
-import { sql, sqlCommas, sqlList, sqlName, type SqlStatement } from "#db/sql.ts";
+import {
+  type SqlStatement,
+  sql,
+  sqlCommas,
+  sqlList,
+  sqlName,
+} from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { requiredMapValue, unique } from "#fp";
 import { t } from "#i18n";
@@ -87,7 +89,9 @@ export const requireRowsTx = async (
   const wanted = [...new Set(ids)];
   if (wanted.length === 0) return;
   const found = resultRows<{ id: number }>(
-    await tx.execute(sql`SELECT id FROM ${sqlName(table)} WHERE id IN (${sqlList(wanted)})`),
+    await tx.execute(
+      sql`SELECT id FROM ${sqlName(table)} WHERE id IN (${sqlList(wanted)})`,
+    ),
   );
   if (found.length !== wanted.length) {
     throw new TransactionValidationError(t(messageKey));

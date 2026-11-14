@@ -9,25 +9,25 @@ import {
   PaymentRowsBusyError,
 } from "#db/payment-admit-move.ts";
 import { listProviderRefundCases } from "#db/provider-refund-cases.ts";
+import { sql } from "#db/sql.ts";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { protectedStateOf } from "#test-utils/payment-claim.ts";
-import { statementSql, wrapDbClient } from "#test-utils/record-queries.ts";
+import { wrapDbClient } from "#test-utils/record-queries.ts";
 import { withRefreshPaymentProbe } from "#test-utils/refund-routes.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import {
   reservedPlaceholder,
   storePlaceholder,
 } from "./store-refund-helpers.ts";
-import { sql } from "#db/sql.ts";
 
 const failNextCallbackAuthorityLookup = (): (() => void) => {
   let pending = true;
   return wrapDbClient({
     batch: () => undefined,
     execute: (statement) => {
-      const sql = statementSql(statement);
+      const sql = statement.sql;
       if (
         pending &&
         sql.includes("UPDATE payment_charges") &&
@@ -50,7 +50,7 @@ const expectPlaceholderRolledBack = async (
     await queryOne<{ attendee_id: number | null; failure_data: string }>(
       sql`SELECT attendee_id, failure_data
          FROM processed_payments
-        WHERE payment_session_id = ${placeholder.data.session.id}`
+        WHERE payment_session_id = ${placeholder.data.session.id}`,
     ),
   ).toEqual({ attendee_id: null, failure_data: "" });
 };
@@ -64,7 +64,7 @@ describeWithEnv("terminal placeholder refund authority", { db: true }, () => {
          BEFORE INSERT ON payment_charges
        BEGIN
          SELECT RAISE(ABORT, 'refund authority unavailable');
-       END`
+       END`,
     );
     try {
       await expect(storePlaceholder(placeholder)).rejects.toThrow(
@@ -87,7 +87,7 @@ describeWithEnv("terminal placeholder refund authority", { db: true }, () => {
            WHEN NEW.pii_payment_session_id IS NULL
        BEGIN
          UPDATE attendees SET pii_payment_session_id = '' WHERE id = NEW.id;
-       END`
+       END`,
     );
     try {
       await expect(storePlaceholder(placeholder)).rejects.toThrow(
@@ -133,7 +133,7 @@ describeWithEnv("terminal placeholder refund authority", { db: true }, () => {
       sql`SELECT payment_session_id
          FROM processed_payments
         WHERE attendee_id = ${attendee.id}
-          AND payment_session_id LIKE 'legacy:%'`
+          AND payment_session_id LIKE 'legacy:%'`,
     );
     if (anchor === null) throw new Error("placeholder anchor was not stored");
     // The resume already let go of the crashed run's claim; the durable

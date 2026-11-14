@@ -17,7 +17,7 @@ import {
 } from "#db/modifier-usage.ts";
 import { batchFinalizeStatements } from "#db/payment-finalize.ts";
 import { notNullGuardFailureAt } from "#db/query.ts";
-import { sql, sqlJoin, sqlList, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlJoin, sqlList } from "#db/sql.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { namedError } from "#shared/named-error.ts";

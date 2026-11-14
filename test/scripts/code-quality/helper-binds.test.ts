@@ -9,7 +9,6 @@ import {
   sqlConstantUses,
 } from "#test/scripts/code-quality/helper-binds.ts";
 import { REPO_ROOT } from "#test/scripts/code-quality/scan-context.ts";
-import { sql, type SqlStatement } from "#db/sql.ts";
 
 /**
  * The checker's SQL helper set and the client module's exported bind helpers

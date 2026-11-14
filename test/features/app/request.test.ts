@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { ALL_SETTINGS_KEYS, CONFIG_KEYS, settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { buildFlashCookie } from "#shared/cookies.ts";
 import { initSentry } from "#shared/sentry.ts";
@@ -20,7 +21,6 @@ import { testCookie } from "#test-utils/session.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 import { expectTemporaryError } from "#test-utils/temporary-error.ts";
 import { withVirtualBackoff } from "#test-utils/virtual-time.ts";
-import { sql } from "#db/sql.ts";
 
 const deleteSetting = async (key: string): Promise<void> => {
   const { getDb } = await import("#db/client.ts");

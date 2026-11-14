@@ -1,9 +1,9 @@
 /** Real database failures used by refund recovery stories. */
 
 import { execute } from "#db/client.ts";
+import { sql, sqlName } from "#db/sql.ts";
 import type { PutsThingsBack } from "#test/specs/support/memory.ts";
 import { refundLedgerFaultTrigger } from "#test-utils/refund-ledger-fault.ts";
-import { sql, sqlName } from "#db/sql.ts";
 
 const REFUND_LEDGER_FAULT = "refund_story_ledger_fault";
 

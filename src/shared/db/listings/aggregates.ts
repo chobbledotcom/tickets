@@ -11,8 +11,8 @@ import {
   ticketCountPredicateFor,
   ticketCountSumExpr,
 } from "#db/migrations/schema/listing-aggregates.ts";
-import type { ListingWithCount } from "#types";
 import { sql } from "#db/sql.ts";
+import type { ListingWithCount } from "#types";
 
 export const LISTING_AGGREGATE_FIELDS = [
   "booked_quantity",

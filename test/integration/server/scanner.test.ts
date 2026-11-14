@@ -10,6 +10,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { isJsonApiPath } from "#routes/middleware.ts";
 import { signCsrfToken, verifySignedCsrfToken } from "#shared/csrf.ts";
@@ -26,7 +27,6 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
-import { sql } from "#db/sql.ts";
 
 /** Create a JSON POST request for the scan API */
 const mockScanRequest = (
@@ -402,7 +402,9 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       const { settings: s } = await import("#db/settings.ts");
 
       // Remove wrapped_private_key from settings to make key derivation fail
-      await getDb().execute(sql`DELETE FROM settings WHERE key = 'wrapped_private_key'`);
+      await getDb().execute(
+        sql`DELETE FROM settings WHERE key = 'wrapped_private_key'`,
+      );
       s.invalidateCache();
 
       const { response } = await setupLoginAndScan({ token: "some-token" });

@@ -1,5 +1,5 @@
 import { execute } from "#db/client.ts";
-import { sql, sqlName } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
 
 /**
  * Run `body` with one database fault installed — a trigger that makes a
@@ -8,7 +8,7 @@ import { sql, sqlName } from "#db/sql.ts";
  * exactly as a production write would.
  */
 export const withDbFault = async <T>(
-  createTrigger: string,
+  createTrigger: SqlStatement,
   name: string,
   body: () => Promise<T>,
 ): Promise<T> => {
@@ -28,7 +28,7 @@ export const withAuthorityRetirementFault = <T>(
   body: () => Promise<T>,
 ): Promise<T> =>
   withDbFault(
-    `CREATE TRIGGER ${RETIREMENT_FAULT}
+    sql`CREATE TRIGGER ${sqlName(RETIREMENT_FAULT)}
       BEFORE UPDATE ON payment_charges
       WHEN NEW.refund_local_state = 'recorded'
       BEGIN
@@ -46,7 +46,7 @@ export const withSessionFailureFault = <T>(
   body: () => Promise<T>,
 ): Promise<T> =>
   withDbFault(
-    `CREATE TRIGGER ${SESSION_FAILURE_FAULT}
+    sql`CREATE TRIGGER ${sqlName(SESSION_FAILURE_FAULT)}
       BEFORE UPDATE OF failure_data ON processed_payments
       WHEN NEW.failure_data != ''
       BEGIN
@@ -64,7 +64,7 @@ export const withRefundConfirmationFault = <T>(
   body: () => Promise<T>,
 ): Promise<T> =>
   withDbFault(
-    `CREATE TRIGGER ${CONFIRMATION_FAULT}
+    sql`CREATE TRIGGER ${sqlName(CONFIRMATION_FAULT)}
       BEFORE INSERT ON refund_confirmations
       BEGIN
         SELECT RAISE(ABORT, 'refund confirmation unavailable');
@@ -85,7 +85,7 @@ export const withConcurrentDoorDrain = <T>(
   body: () => Promise<T>,
 ): Promise<T> =>
   withDbFault(
-    `CREATE TRIGGER ${CONCURRENT_DOOR_DRAIN}
+    sql`CREATE TRIGGER ${sqlName(CONCURRENT_DOOR_DRAIN)}
       AFTER INSERT ON processed_scan_operations
       BEGIN
         UPDATE listing_attendees

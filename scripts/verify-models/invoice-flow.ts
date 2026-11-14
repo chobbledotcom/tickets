@@ -9,7 +9,7 @@ import {
   cancelInvoiceStatement,
   markOpenInvoicesPaidStatement,
 } from "#db/invoices.ts";
-import { sql, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import {
   corruptOneFact,
   type ModelDataSource,

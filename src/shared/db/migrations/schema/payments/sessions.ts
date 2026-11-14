@@ -8,8 +8,8 @@ import {
   wholeNumberStartingAtOne,
 } from "#db/migrations/schema/scalar-columns.ts";
 import type { Table } from "#db/migrations/schema/types.ts";
-import { madeAndTouched, ownerEncryptedRuleOrNull } from "./columns.ts";
 import { sql } from "#db/sql.ts";
+import { madeAndTouched, ownerEncryptedRuleOrNull } from "./columns.ts";
 
 const HIDDEN_COLUMNS = [
   "session_resource",

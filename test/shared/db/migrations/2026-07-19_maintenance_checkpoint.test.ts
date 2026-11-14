@@ -4,9 +4,9 @@ import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import maintenanceCheckpointMigration from "#db/migrations/2026-07-19_maintenance_checkpoint.ts";
 import { applySchemaChanges } from "#db/migrations/schema-sync.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
-import { sql } from "#db/sql.ts";
 
 const context = buildMigrationContext({ applySchemaChanges });
 
@@ -30,13 +30,13 @@ describeWithEnv(
 
     test("adds the checkpoint column to an existing maintenance table", async () => {
       await getDb().execute(
-        sql`ALTER TABLE maintenance_tasks DROP COLUMN checkpoint`
+        sql`ALTER TABLE maintenance_tasks DROP COLUMN checkpoint`,
       );
 
       await maintenanceCheckpointMigration(context).up();
 
       const columns = await getDb().execute(
-        sql`PRAGMA table_info(maintenance_tasks)`
+        sql`PRAGMA table_info(maintenance_tasks)`,
       );
       assertArrayIncludes(
         columns.rows.map((row) => row.name),

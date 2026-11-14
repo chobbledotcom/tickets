@@ -15,7 +15,7 @@ import type { BlindIndex, OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { execute, queryOne, resultRows, type TxScope } from "#db/client.ts";
 import { type ContactChannel, contactHash } from "#db/contact-preferences.ts";
 import { settings } from "#db/settings.ts";
-import { sql, sqlName, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import { nowMs } from "#shared/now.ts";
 
 /** Booking origin: an online public checkout vs an admin manual add. Each is

@@ -3,11 +3,11 @@ import { it as test } from "@std/testing/bdd";
 import { getAllActivityLog } from "#db/activity-log.ts";
 import { execute, queryOne } from "#db/client.ts";
 import { resolveProviderRefundCase } from "#db/provider-refund-case-resolution.ts";
+import { sql } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { addProviderRefundTestCase } from "#test-utils/provider-refund-cases.ts";
 import { withTestSession } from "#test-utils/session.ts";
-import { sql } from "#db/sql.ts";
 
 type StoredCase = {
   readonly refund_revision: number;
@@ -18,7 +18,7 @@ const storedCase = (id: number): Promise<StoredCase | null> =>
   queryOne<StoredCase>(
     sql`SELECT refund_revision, refund_state
        FROM payment_charges
-      WHERE id = ${id}`
+      WHERE id = ${id}`,
   );
 
 const resolveReturned = async (id: number): Promise<void> => {
@@ -55,7 +55,7 @@ describeWithEnv("provider refund case audit", { db: true }, () => {
        BEFORE INSERT ON activity_log
        BEGIN
          SELECT RAISE(ABORT, 'refund audit unavailable');
-       END`
+       END`,
     );
 
     await expect(resolveReturned(id)).rejects.toThrow(

@@ -6,16 +6,20 @@ import {
   getAttendeeStatus,
 } from "#db/attendee-statuses.ts";
 import { getDb, update, withTransaction } from "#db/client.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
 import { sql } from "#db/sql.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 const createAttendeeWithStatus = async (statusId: number): Promise<number> => {
-  const attendee = await getDb().execute(sql`INSERT INTO attendees (created, pii_blob, status_id) VALUES (${new Date().toISOString()}, '', ${statusId})`);
+  const attendee = await getDb().execute(
+    sql`INSERT INTO attendees (created, pii_blob, status_id) VALUES (${new Date().toISOString()}, '', ${statusId})`,
+  );
   return Number(attendee.lastInsertRowid);
 };
 
 const storedAttendeeStatus = async (attendeeId: number): Promise<number> => {
-  const stored = await getDb().execute(sql`SELECT attendee.status_id FROM attendees AS attendee WHERE attendee.id = ${attendeeId}`);
+  const stored = await getDb().execute(
+    sql`SELECT attendee.status_id FROM attendees AS attendee WHERE attendee.id = ${attendeeId}`,
+  );
   return Number(stored.rows[0]!.status_id);
 };
 
@@ -60,7 +64,9 @@ describeWithEnv("db > attendee status deletion", { db: true }, () => {
 
   test("attendee creation rejects a missing status", async () => {
     await expect(
-      getDb().execute(sql`INSERT INTO attendees (created, pii_blob, status_id) VALUES (${new Date().toISOString()}, '', ${99_999})`),
+      getDb().execute(
+        sql`INSERT INTO attendees (created, pii_blob, status_id) VALUES (${new Date().toISOString()}, '', ${99_999})`,
+      ),
     ).rejects.toThrow("attendee status does not exist");
   });
 
@@ -68,7 +74,7 @@ describeWithEnv("db > attendee status deletion", { db: true }, () => {
     const seed = (await attendeeStatuses.getAll())[0]!;
     const spare = await attendeeStatuses.table.insert({ name: "Spare" });
     await getDb().execute(
-      sql`UPDATE attendee_statuses AS status SET is_public_default = 0, is_paid_default = 0`
+      sql`UPDATE attendee_statuses AS status SET is_public_default = 0, is_paid_default = 0`,
     );
 
     const results = await Promise.all([
@@ -81,7 +87,7 @@ describeWithEnv("db > attendee status deletion", { db: true }, () => {
       { error: "last_status", ok: false },
     ]);
     const remaining = await getDb().execute(
-      sql`SELECT status.id FROM attendee_statuses AS status`
+      sql`SELECT status.id FROM attendee_statuses AS status`,
     );
     expect(remaining.rows).toEqual([{ id: spare.id }]);
   });
@@ -112,7 +118,7 @@ describeWithEnv("db > attendee status deletion", { db: true }, () => {
     const seed = (await attendeeStatuses.getAll())[0]!;
     const spare = await attendeeStatuses.table.insert({ name: "Free To Go" });
     await getDb().execute(
-      sql`UPDATE attendee_statuses AS status SET is_public_default = 0, is_paid_default = 0`
+      sql`UPDATE attendee_statuses AS status SET is_public_default = 0, is_paid_default = 0`,
     );
 
     expect(await attendeeStatusWrites.delete(spare.id)).toEqual({
@@ -127,7 +133,7 @@ describeWithEnv("db > attendee status deletion", { db: true }, () => {
     const busy = await attendeeStatuses.table.insert({ name: "Busy" });
     const other = await attendeeStatuses.table.insert({ name: "Landing" });
     await getDb().execute(
-      sql`UPDATE attendee_statuses AS status SET is_public_default = 0, is_paid_default = 0`
+      sql`UPDATE attendee_statuses AS status SET is_public_default = 0, is_paid_default = 0`,
     );
     const attendeeId = await createAttendeeWithStatus(busy.id);
 
@@ -143,7 +149,7 @@ describeWithEnv("db > attendee status deletion", { db: true }, () => {
     const seed = (await attendeeStatuses.getAll())[0]!;
     const busy = await attendeeStatuses.table.insert({ name: "Stuck" });
     await getDb().execute(
-      sql`UPDATE attendee_statuses AS status SET is_public_default = 0, is_paid_default = 0`
+      sql`UPDATE attendee_statuses AS status SET is_public_default = 0, is_paid_default = 0`,
     );
     const attendeeId = await createAttendeeWithStatus(busy.id);
 

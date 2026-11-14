@@ -4,6 +4,7 @@ import { getAttendeeOrNull } from "#db/attendees/queries.ts";
 import { updateAttendeePII } from "#db/attendees/update.ts";
 import { execute, requireOne } from "#db/client.ts";
 import { getRefundPaymentReferencesForAttendee } from "#db/payment-references.ts";
+import { sql } from "#db/sql.ts";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
@@ -17,7 +18,6 @@ import {
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
 import type { Attendee } from "#types";
-import { sql } from "#db/sql.ts";
 
 const withStoredRevision = async (
   attendee: Pick<Attendee, "id" | "payment_id">,
@@ -26,7 +26,7 @@ const withStoredRevision = async (
     ...attendee,
     pii_blob: (
       await requireOne<{ pii_blob: Attendee["pii_blob"] }>(
-        sql`SELECT pii_blob FROM attendees WHERE id = ${attendee.id}`
+        sql`SELECT pii_blob FROM attendees WHERE id = ${attendee.id}`,
       )
     ).pii_blob,
   } as Attendee,
@@ -89,7 +89,7 @@ describeWithEnv(
         payment_id: "",
       });
       await execute(
-        sql`DELETE FROM processed_payments WHERE payment_session_id = ${"sess_deleted_before_claim"}`
+        sql`DELETE FROM processed_payments WHERE payment_session_id = ${"sess_deleted_before_claim"}`,
       );
       await expectRunStandsDown(candidate, 7);
     });
@@ -108,7 +108,7 @@ describeWithEnv(
         "pi_move_destination",
       );
       await execute(
-        sql`UPDATE processed_payments SET attendee_id = ${destinationId} WHERE payment_session_id = ${"sess_moved_before_claim"}`
+        sql`UPDATE processed_payments SET attendee_id = ${destinationId} WHERE payment_session_id = ${"sess_moved_before_claim"}`,
       );
 
       await expectRunStandsDown(candidate, 7);
@@ -151,7 +151,7 @@ describeWithEnv(
       await execute(
         sql`UPDATE processed_payments
             SET payment_reference_index = ''
-          WHERE payment_session_id = ${"sess_unindexed_after_load"}`
+          WHERE payment_session_id = ${"sess_unindexed_after_load"}`,
       );
 
       await expectRunStandsDown(candidate, 7);

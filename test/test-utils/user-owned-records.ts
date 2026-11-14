@@ -2,8 +2,8 @@ import { encrypt } from "#crypto/encryption.ts";
 import { getDb, insert, queryAll } from "#db/client.ts";
 import { logisticsAgents } from "#db/logistics-agents.ts";
 import { createSession } from "#db/sessions.ts";
-import { userAgents } from "#db/user-agents.ts";
 import { sql } from "#db/sql.ts";
+import { userAgents } from "#db/user-agents.ts";
 
 export const addUserOwnedAccessRecords = async (
   userId: number,
@@ -38,6 +38,6 @@ export const getUserOwnedRowSources = async (
       sql`SELECT 'api_keys' AS source FROM api_keys WHERE user_id = ${userId}
        UNION ALL SELECT 'sessions' FROM sessions WHERE user_id = ${userId}
        UNION ALL SELECT 'user_logistics_agents' FROM user_logistics_agents WHERE user_id = ${userId}
-       UNION ALL SELECT 'users' FROM users WHERE id = ${userId}`
+       UNION ALL SELECT 'users' FROM users WHERE id = ${userId}`,
     )
   ).map(({ source }) => source);

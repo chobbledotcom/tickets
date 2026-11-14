@@ -34,7 +34,14 @@ import { type ListingRecordRow, listingReader } from "#db/listings/select.ts";
 import { PRICE_TYPE_GROUP, PRICE_TYPE_GROUP_DAY } from "#db/price-types.ts";
 import { envNameSource, rowsByIds } from "#db/query.ts";
 import { slugTakenIn } from "#db/slug-registry.ts";
-import { sql, sqlCommas, sqlJoin, sqlList, sqlLiteral, type SqlStatement } from "#db/sql.ts";
+import {
+  type SqlStatement,
+  sql,
+  sqlCommas,
+  sqlJoin,
+  sqlList,
+  sqlLiteral,
+} from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { equals, inList } from "#db/where-clauses.ts";
 import {

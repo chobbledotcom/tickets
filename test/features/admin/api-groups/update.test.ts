@@ -5,6 +5,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { groups } from "#db/groups.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { assertJson, expectRejectsEmptyName } from "#test-utils/assertions.ts";
@@ -16,7 +17,6 @@ import {
   createTestEditorSession,
   requestAsSession,
 } from "#test-utils/session.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("Admin API - Groups", { db: true }, () => {
   describe("PUT /api/admin/groups/:groupId", () => {
@@ -245,7 +245,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
          WHEN NEW.id = ${group.id}
          BEGIN
            DELETE FROM groups WHERE id = NEW.id;
-         END`
+         END`,
       );
 
       try {
@@ -261,7 +261,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         );
       } finally {
         await getDb().execute(
-          sql`DROP TRIGGER IF EXISTS delete_group_during_update`
+          sql`DROP TRIGGER IF EXISTS delete_group_during_update`,
         );
       }
     });

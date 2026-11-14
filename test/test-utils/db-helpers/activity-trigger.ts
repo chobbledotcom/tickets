@@ -13,7 +13,7 @@ export const installRejectingActivityTrigger = async (): Promise<void> => {
      WHEN NEW.attendee_id IS NOT NULL
      BEGIN
        SELECT RAISE(ABORT, 'registration activity rejected');
-     END`
+     END`,
   );
 };
 

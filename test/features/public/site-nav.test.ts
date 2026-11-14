@@ -7,8 +7,8 @@ import { listingChildren } from "#db/listing-parents.ts";
 import { settings } from "#db/settings.ts";
 import { addPageItem } from "#db/site-page-items.ts";
 import { sitePages } from "#db/site-pages.ts";
+import { sql } from "#db/sql.ts";
 import { publicNavModel, publicNavProps } from "#routes/public/site-nav.ts";
-
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import type { NavModel, NavNode, TargetKey } from "#shared/site-pages/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -20,7 +20,6 @@ import {
 } from "#test-utils/db-helpers/misc.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
-import { sql } from "#db/sql.ts";
 
 const addPage = async (name: string, slug: string, sortOrder: number) =>
   sitePages.table.insert({

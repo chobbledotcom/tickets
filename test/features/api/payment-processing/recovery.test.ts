@@ -7,6 +7,7 @@ import {
   finalizeSessionIfUnresolved,
   reserveSession,
 } from "#db/processed-payments.ts";
+import { sql } from "#db/sql.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import { recoverOrRefundUnexpectedCreate } from "#routes/api/payment-processing/recovery.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
@@ -18,7 +19,6 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { paidSession } from "#test-utils/payment-session.ts";
 import type { ListingWithCount } from "#types";
 import { bookingIntent } from "./index/helpers.ts";
-import { sql } from "#db/sql.ts";
 
 /** The listing a test just made. It is always there; saying so here keeps
  *  every case below from repeating the check. */
@@ -35,7 +35,9 @@ const prepareTicketToken = async (
   attendeeId: number,
   token: string,
 ): Promise<string> => {
-  await getDb().execute(sql`UPDATE attendees SET ticket_token_index = ${await hmacHash(token)} WHERE id = ${attendeeId}`);
+  await getDb().execute(
+    sql`UPDATE attendees SET ticket_token_index = ${await hmacHash(token)} WHERE id = ${attendeeId}`,
+  );
   return token;
 };
 
@@ -139,7 +141,9 @@ describeWithEnv(
 
       // The reservation is gone, so the redelivery starts fresh instead of
       // stalling behind the old lock.
-      const row = await getDb().execute(sql`SELECT 1 AS present FROM processed_payments WHERE payment_session_id = ${"cs_rollback"}`);
+      const row = await getDb().execute(
+        sql`SELECT 1 AS present FROM processed_payments WHERE payment_session_id = ${"cs_rollback"}`,
+      );
       expect(row.rows).toHaveLength(0);
     });
 

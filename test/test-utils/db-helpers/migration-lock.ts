@@ -20,15 +20,19 @@ export const withMigrationLock = async (
   const db = getDb();
   try {
     await db.execute(
-      sql`UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'`
+      sql`UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'`,
     );
-    await db.execute(sql`INSERT INTO settings (key, value) VALUES (${"migration_lock"}, ${new Date().toISOString()})`);
+    await db.execute(
+      sql`INSERT INTO settings (key, value) VALUES (${"migration_lock"}, ${new Date().toISOString()})`,
+    );
     invalidateInitDbCache();
 
     await run();
   } finally {
     await db.execute(sql`DELETE FROM settings WHERE key = 'migration_lock'`);
-    await db.execute(sql`UPDATE settings SET value = ${SCHEMA_HASH} WHERE key = 'db_schema_hash'`);
+    await db.execute(
+      sql`UPDATE settings SET value = ${SCHEMA_HASH} WHERE key = 'db_schema_hash'`,
+    );
     invalidateInitDbCache();
   }
 };

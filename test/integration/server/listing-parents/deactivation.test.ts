@@ -218,7 +218,7 @@ describeWithEnv(
       // The cross-isolate write: the row goes dark on the database while this
       // isolate's cache still shows it active.
       const stmt = update("listings", { active: 0 }, { id: pageTwo.id });
-      await executeWithoutCacheInvalidation(stmt.sql, stmt.args);
+      await executeWithoutCacheInvalidation(stmt);
       const { response } = await adminFormPost(
         `/admin/listing/${pageOne.id}/delete?verify_identifier=false`,
       );

@@ -21,12 +21,8 @@ import type { FillableRead } from "#db/fill-together.ts";
 import { clearImageUsesForItemStatement, imageUseTargets } from "#db/images.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
 import { existingSitePageIdsStatement } from "#db/site-pages.ts";
-import { sql, type SqlStatement } from "#db/sql.ts";
-import {
-  deleteWhere,
-  type WhereClause,
-  whereSql,
-} from "#db/where-clauses.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
+import { deleteWhere, type WhereClause, whereSql } from "#db/where-clauses.ts";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { requestCache } from "#shared/request-cache.ts";
 import {

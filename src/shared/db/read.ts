@@ -11,7 +11,7 @@
  */
 
 import { queryAll } from "#db/client.ts";
-import { sql, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import {
   rowsUnlessNoneMatch,
   type WhereClause,

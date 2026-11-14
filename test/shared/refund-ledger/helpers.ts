@@ -1,4 +1,3 @@
-import type { InStatement } from "@libsql/client";
 import { expect } from "@std/expect";
 import { attendeeAccount, revenueAccount } from "#accounting/accounts.ts";
 import { type BookingFacts, mapBooking } from "#accounting/mappers.ts";
@@ -6,11 +5,11 @@ import { accountBalance, transfersByAccount } from "#accounting/queries.ts";
 import { postTransfers } from "#accounting/store.ts";
 import { getDb, setDb } from "#db/client.ts";
 import type { RefundPaymentReference } from "#db/payment-references.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
 import { proxyMembers } from "#shared/proxy-members.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
 import { refundReference } from "#test-utils/payment-state.ts";
-import { statementSql } from "#test-utils/record-queries.ts";
 import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
 
 export const ATTENDEE = 3;
@@ -101,8 +100,8 @@ export const withBrokenLedger = async <T>(
   const real = getDb();
   setDb(
     proxyMembers(real, {
-      batch: (statements: InStatement[], mode?: "write" | "read") =>
-        statements.map(statementSql).some(broken)
+      batch: (statements: SqlStatement[], mode?: "write" | "read") =>
+        statements.map((statement) => statement.sql).some(broken)
           ? Promise.reject(new Error(message))
           : real.batch(statements, mode),
     }),

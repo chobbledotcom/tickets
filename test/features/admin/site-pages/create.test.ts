@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { sitePages } from "#db/site-pages.ts";
+import { sql } from "#db/sql.ts";
 import { wasActivityLogged as wasLogged } from "#test-utils/activity-log.ts";
 import {
   expectErrorFlash,
@@ -12,7 +13,6 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { withExpectedError } from "#test-utils/mocks.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 import { BASE, create, findPage } from "./helpers.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("server (admin site pages)", { db: true }, () => {
   describe("create", () => {

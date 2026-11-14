@@ -13,9 +13,9 @@ import {
   modifierAggregates,
   modifiersTable,
 } from "#db/modifiers.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { insertModifier, insertModifierUsage } from "#test-utils/modifiers.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("db modifiers table", { db: true }, () => {
   describe("modifiersTable", () => {
@@ -76,8 +76,12 @@ describeWithEnv("db modifiers table", { db: true }, () => {
 
     test("group scopes resolve through each group's listings", async () => {
       const row = await insertModifier({ name: "Scoped" });
-      await getDb().execute(sql`INSERT INTO modifier_groups (modifier_id, group_id) VALUES (${row.id}, ${42})`);
-      await getDb().execute(sql`INSERT INTO group_listings (group_id, listing_id) VALUES (${42}, ${7})`);
+      await getDb().execute(
+        sql`INSERT INTO modifier_groups (modifier_id, group_id) VALUES (${row.id}, ${42})`,
+      );
+      await getDb().execute(
+        sql`INSERT INTO group_listings (group_id, listing_id) VALUES (${42}, ${7})`,
+      );
 
       expect(await getModifierGroupListingIdsByModifierId([row.id])).toEqual(
         new Map([[row.id, [7]]]),

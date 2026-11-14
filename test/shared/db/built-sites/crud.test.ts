@@ -13,7 +13,7 @@ import {
 import { mustReadFromPrimary } from "#db/primary-reads.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { testBuiltSite } from "#test-utils/factories.ts";
-import { statementSql, wrapDbClient } from "#test-utils/record-queries.ts";
+import { wrapDbClient } from "#test-utils/record-queries.ts";
 import { builtSiteFormInput } from "./fixtures.ts";
 
 const siteFixture = (overrides: Partial<BuiltSite> = {}): BuiltSite =>
@@ -197,14 +197,14 @@ describeWithEnv("built-sites CRUD table", { db: true }, () => {
       batch: (statements, mode) => {
         if (
           statements.some((statement) =>
-            statementSql(statement).includes("FROM built_sites"),
+            statement.sql.includes("FROM built_sites"),
           )
         ) {
           primaryReads.push(mode === "write");
         }
       },
       execute: (statement) => {
-        if (statementSql(statement).includes("FROM built_sites")) {
+        if (statement.sql.includes("FROM built_sites")) {
           primaryReads.push(mustReadFromPrimary());
         }
         return null;

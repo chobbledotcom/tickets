@@ -10,6 +10,7 @@ import type { QuestionWithAnswers } from "#db/question-types.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { sql } from "#db/sql.ts";
 import {
   applyAttendeeMerge,
   buildAttendeeMergeDiff,
@@ -54,11 +55,10 @@ export const getBookings = (attendeeId: number) =>
     parent_listing_id: number;
     package_group_id: number;
   }>(
-    `SELECT ${LISTING_ATTENDEE_ROW_COLS}
+    sql`SELECT ${LISTING_ATTENDEE_ROW_COLS}
      FROM listing_attendees
-     WHERE attendee_id = ?
+     WHERE attendee_id = ${attendeeId}
      ORDER BY start_at, listing_id`,
-    [attendeeId],
   );
 
 /** Create a question with answers and assign to listing */

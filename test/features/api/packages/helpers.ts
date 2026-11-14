@@ -4,6 +4,7 @@ import { queryAll } from "#db/client.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -72,9 +73,8 @@ export const bookingRows = (
   { quantity: number; package_group_id: number; parent_listing_id: number }[]
 > =>
   queryAll(
-    `SELECT quantity, package_group_id, parent_listing_id FROM listing_attendees
-      WHERE listing_id = ? AND quantity > 0 ORDER BY id DESC`,
-    [listingId],
+    sql`SELECT quantity, package_group_id, parent_listing_id FROM listing_attendees
+      WHERE listing_id = ${listingId} AND quantity > 0 ORDER BY id DESC`,
   );
 
 /** A fixed-price two-member package: member A at its own 1000 ×2 per package,

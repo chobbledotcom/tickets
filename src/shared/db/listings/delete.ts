@@ -8,7 +8,7 @@ import {
 import { clearImageUsesForItemStatement, imageUseTargets } from "#db/images.ts";
 import { noteDeleteStatement } from "#db/notes/queries.ts";
 import { clearItemEdgesStatement } from "#db/site-page-items.ts";
-import { sql, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 
 /** Delete one listing and its listing-owned relationships in one batch. The

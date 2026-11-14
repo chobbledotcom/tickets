@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { withTransaction } from "#db/client.ts";
 import { listingChildren } from "#db/listing-parents.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import {
   deactivationOrphanedAddOnError,
@@ -21,7 +22,6 @@ import {
   soloChildAddOn,
 } from "#test-utils/listing-parents/helpers.ts";
 import { optInAddOnForListings } from "#test-utils/modifiers.ts";
-import { sql } from "#db/sql.ts";
 
 const childAddOnError = (name: string): string =>
   t("modifiers.err_child_only_addon", { name });

@@ -3,6 +3,7 @@ import { afterEach, beforeEach } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { execute, getDb } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { setSumupCheckoutId, storeSumupCheckout } from "#db/sumup-checkouts.ts";
 import type { ProviderRead } from "#payment/provider-read.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
@@ -17,7 +18,6 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { withMocks } from "#test-utils/mocks.ts";
-import { sql } from "#db/sql.ts";
 
 type SumupClient = NonNullable<ReturnType<typeof sumupApi.getSumupClient>>;
 
@@ -141,7 +141,9 @@ export const makeSumupCheckoutDue = (
   checkoutId: string,
   when = "2000-01-01T00:00:00.000Z",
 ): Promise<unknown> =>
-  execute(sql`UPDATE sumup_checkouts SET next_check_at = ${when} WHERE sumup_id = ${checkoutId}`);
+  execute(
+    sql`UPDATE sumup_checkouts SET next_check_at = ${when} WHERE sumup_id = ${checkoutId}`,
+  );
 
 /** Store one recovery row exactly as SQL sees it. Machine scan tests use this
  * to plant combinations that no production writer can make. `createdAt`
@@ -156,7 +158,7 @@ export const plantSumupRecoveryRow = (
     sql`INSERT INTO sumup_checkouts
        (reference_index, wrapped_key, metadata, sumup_id, created_at,
         recovery_state, next_check_at)
-     VALUES (${`idx_${id}`}, '', '', ${id}, ${createdAt}, ${state}, ${nextCheckAt})`
+     VALUES (${`idx_${id}`}, '', '', ${id}, ${createdAt}, ${state}, ${nextCheckAt})`,
   );
 
 /** How a staged checkout's recovery row reads right now. Every caller has
@@ -165,7 +167,9 @@ export const plantSumupRecoveryRow = (
 export const sumupRecoveryRow = async (
   checkoutId: string,
 ): Promise<{ nextCheckAt: string | null; state: string }> => {
-  const result = await getDb().execute(sql`SELECT recovery_state, next_check_at FROM sumup_checkouts WHERE sumup_id = ${checkoutId}`);
+  const result = await getDb().execute(
+    sql`SELECT recovery_state, next_check_at FROM sumup_checkouts WHERE sumup_id = ${checkoutId}`,
+  );
   const row = result.rows[0]!;
   return {
     nextCheckAt: row.next_check_at === null ? null : String(row.next_check_at),

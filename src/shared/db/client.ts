@@ -27,7 +27,15 @@ import {
   enforceTransactionRoundTripGuard,
   trackSql,
 } from "#db/query-log.ts";
-import { sql, sqlCommas, sqlJoin, sqlName, sqlNames, type SqlSlot, type SqlStatement } from "#db/sql.ts";
+import {
+  type SqlSlot,
+  type SqlStatement,
+  sql,
+  sqlCommas,
+  sqlJoin,
+  sqlName,
+  sqlNames,
+} from "#db/sql.ts";
 import { isReadSql, sqlOf, writeSqlOf } from "#db/sql-text.ts";
 import { trackedTxBatch, trackedTxExecute } from "#db/tracked-transaction.ts";
 import { lazyRef } from "#fp";
@@ -250,7 +258,9 @@ export const executeScript = async (
 /**
  * Set database client (for testing)
  */
-export const setDb = (client: Client | null): void => dbSetter(client);
+export const setDb = (client: Client | StatementClient | null): void =>
+  // A StatementClient is a libsql client behind a narrower type.
+  dbSetter(client as Client | null);
 
 /** Cast libsql ResultSet rows to a typed array (single centralized assertion) */
 export const resultRows = <T>(result: ResultSet): T[] => result.rows as T[];

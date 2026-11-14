@@ -4,6 +4,7 @@ import {
   dumpMigrationState,
   legacyColumnRestores,
 } from "#db/restore-legacy-columns.ts";
+import { sql } from "#db/sql.ts";
 
 describe("db > restore legacy columns", () => {
   describe("dumpMigrationState", () => {
@@ -98,7 +99,7 @@ describe("db > restore legacy columns", () => {
 
   test("re-adds a column the current schema no longer declares", () => {
     expect(legacyColumnRestores([legacyInsert])).toEqual([
-      `ALTER TABLE "listings" ADD COLUMN "image_url"`,
+      sql`ALTER TABLE "listings" ADD COLUMN "image_url"`,
     ]);
   });
 
@@ -112,7 +113,7 @@ describe("db > restore legacy columns", () => {
 
   test("re-adds each legacy column once across repeated statements", () => {
     expect(legacyColumnRestores([legacyInsert, legacyInsert])).toEqual([
-      `ALTER TABLE "listings" ADD COLUMN "image_url"`,
+      sql`ALTER TABLE "listings" ADD COLUMN "image_url"`,
     ]);
   });
 
@@ -122,8 +123,8 @@ describe("db > restore legacy columns", () => {
       `INSERT INTO "holidays" ("id", "legacy_note") VALUES (1, 'x');`,
     ];
     expect(legacyColumnRestores(statements)).toEqual([
-      `ALTER TABLE "listings" ADD COLUMN "image_url"`,
-      `ALTER TABLE "holidays" ADD COLUMN "legacy_note"`,
+      sql`ALTER TABLE "listings" ADD COLUMN "image_url"`,
+      sql`ALTER TABLE "holidays" ADD COLUMN "legacy_note"`,
     ]);
   });
 

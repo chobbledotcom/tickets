@@ -13,6 +13,7 @@ import {
   loadPaymentReference,
   paymentReferenceIndex,
 } from "#db/payment-reference-store.ts";
+import { sql } from "#db/sql.ts";
 import { rowNodeOf } from "#payment/row-machine-spec.ts";
 import { readRowState } from "#payment/row-state.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
@@ -20,7 +21,6 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { taggedPaymentReference } from "#test-utils/processed-payments.ts";
-import { sql } from "#db/sql.ts";
 
 type StoredAnchor = {
   failure_data: EnvKeyEncrypted | "";
@@ -47,7 +47,7 @@ const anchorRows = (attendeeId: number): Promise<StoredAnchor[]> =>
        FROM processed_payments
       WHERE attendee_id = ${attendeeId}
         AND payment_session_id LIKE 'legacy:%'
-      ORDER BY payment_session_id`
+      ORDER BY payment_session_id`,
   );
 
 /** Book an attendee, store a claimed anchor for it, and read the held row. */
@@ -65,7 +65,7 @@ const storeHeldAnchor = async (
     returnedAt,
   );
   const anchor = await prepared.forAttendee(attendeeId);
-  await execute(anchor.statement.sql, anchor.statement.args);
+  await execute(anchor.statement);
 
   const [held] = await anchorRows(attendeeId);
   if (held === undefined || held.failure_data === "") {
@@ -94,7 +94,7 @@ describeWithEnv("db > payment anchor > attendee", { db: true }, () => {
       ]);
 
       for (const _attempt of [1, 2]) {
-        await execute(anchor.statement.sql, anchor.statement.args);
+        await execute(anchor.statement);
       }
 
       const rows = await anchorRows(attendeeId);
@@ -119,11 +119,11 @@ describeWithEnv("db > payment anchor > attendee", { db: true }, () => {
       const payment = taggedPaymentReference("pi_missing_attendee");
       const prepared = await prepareClaimedAttendeePaymentAnchor(payment);
       const anchor = await prepared.forAttendee(999_999);
-      await execute(anchor.statement.sql, anchor.statement.args);
+      await execute(anchor.statement);
 
       expect(
         await queryOne<{ count: number }>(
-          sql`SELECT COUNT(*) AS count FROM processed_payments WHERE payment_reference_index = ${await paymentReferenceIndex(payment)}`
+          sql`SELECT COUNT(*) AS count FROM processed_payments WHERE payment_reference_index = ${await paymentReferenceIndex(payment)}`,
         ),
       ).toEqual({ count: 0 });
     });

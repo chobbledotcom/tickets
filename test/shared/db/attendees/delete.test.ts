@@ -14,6 +14,7 @@ import { getAllModifiers, modifiersTable } from "#db/modifiers.ts";
 import { createSystemNote, getNoteRows } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
 import { reserveSession } from "#db/processed-payments.ts";
+import { sql } from "#db/sql.ts";
 import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -27,7 +28,6 @@ import {
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
 import { insertRefundConfirmationFixture } from "#test-utils/refund-confirmations.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
   test("removes attendee", async () => {
@@ -88,7 +88,7 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
     await deleteAttendee(attendee.id);
 
     const stage = await queryOne<{ count: number }>(
-      sql`SELECT COUNT(*) AS count FROM checkout_stages WHERE attendee_id = ${attendee.id}`
+      sql`SELECT COUNT(*) AS count FROM checkout_stages WHERE attendee_id = ${attendee.id}`,
     );
     expect(stage?.count).toBe(0);
   });
@@ -115,7 +115,7 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
 
     expect(
       await queryOne<{ assigned_attendee_id: number | null }>(
-        sql`SELECT assigned_attendee_id FROM built_sites WHERE id = ${site.id}`
+        sql`SELECT assigned_attendee_id FROM built_sites WHERE id = ${site.id}`,
       ),
     ).toEqual({ assigned_attendee_id: null });
   });
@@ -178,7 +178,9 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
     // Turn the single line into a no-quantity sentinel: the UPDATE trigger drops
     // tickets_count to 0. The hold-delete restore must add 0 back (SUM(CASE …)),
     // not 1 (a plain COUNT(*) would permanently inflate tickets_count).
-    await getDb().execute(sql`UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ${attendee.id}`);
+    await getDb().execute(
+      sql`UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ${attendee.id}`,
+    );
     // The raw UPDATE bypasses the wrapped client's cache invalidation.
     invalidateListingsCache();
     expect(await getListingWithCount(listing.id)).toMatchObject({
@@ -216,14 +218,14 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
 
     await insertModifierUsage(modifier.id, attendee.id, 3, 1500);
     const before = await queryOne<{ n: number }>(
-      sql`SELECT COUNT(*) AS n FROM modifier_usages WHERE attendee_id = ${attendee.id}`
+      sql`SELECT COUNT(*) AS n FROM modifier_usages WHERE attendee_id = ${attendee.id}`,
     );
     expect(before?.n).toBe(1);
 
     await deleteAttendee(attendee.id);
 
     const after = await queryOne<{ n: number }>(
-      sql`SELECT COUNT(*) AS n FROM modifier_usages WHERE attendee_id = ${attendee.id}`
+      sql`SELECT COUNT(*) AS n FROM modifier_usages WHERE attendee_id = ${attendee.id}`,
     );
     expect(after?.n).toBe(1);
     expect(await modifierUsedQuantities([modifier.id])).toEqual(
@@ -277,13 +279,13 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
     const remaining = await queryOne<{ count: number }>(
       sql`SELECT COUNT(*) AS count
          FROM refund_confirmations AS confirmation
-        WHERE confirmation.attendee_id = ${attendee.id}`
+        WHERE confirmation.attendee_id = ${attendee.id}`,
     );
     expect(remaining?.count).toBe(0);
     const remainingReferences = await queryOne<{ count: number }>(
       sql`SELECT COUNT(*) AS count
          FROM refund_confirmation_references AS reference
-        WHERE reference.confirmation_identity = ${confirmation.identity}`
+        WHERE reference.confirmation_identity = ${confirmation.identity}`,
     );
     expect(remainingReferences?.count).toBe(0);
   });

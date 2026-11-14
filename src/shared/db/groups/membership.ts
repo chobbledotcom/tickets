@@ -8,6 +8,7 @@ import {
   type GroupListingSettings,
 } from "#db/groups/homogeneity.ts";
 import { groupListings } from "#db/groups/table.ts";
+import { sql, sqlList } from "#db/sql.ts";
 import { TransactionValidationError, txIdSetInTable } from "#db/transaction.ts";
 import { byId, mapNotNullish, requiredMapValue } from "#fp";
 import { t } from "#i18n";
@@ -20,7 +21,6 @@ import {
   sitePlanMemberError,
 } from "#shared/package-membership.ts";
 import type { ListingType } from "#types";
-import { sql, sqlList } from "#db/sql.ts";
 
 type GroupStateRow = {
   group_id: number;

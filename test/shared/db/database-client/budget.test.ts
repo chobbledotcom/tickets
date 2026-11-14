@@ -7,6 +7,7 @@ import {
   setDb,
 } from "#db/client.ts";
 import { runWithPrimaryReads } from "#db/primary-reads.ts";
+import { sql } from "#db/sql.ts";
 import {
   getSubrequestUsage,
   runWithSubrequestBudget,
@@ -14,7 +15,6 @@ import {
 import { withEnv } from "#test-utils/env.ts";
 import { hranaTestDatabase } from "#test-utils/hrana.ts";
 import { withVirtualBackoff } from "#test-utils/virtual-time.ts";
-import { sql } from "#db/sql.ts";
 
 describe("primary pipeline budget and retries", () => {
   afterEach(() => setDb(null));

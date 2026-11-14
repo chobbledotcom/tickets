@@ -22,11 +22,11 @@ import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import type { DayRange } from "#db/capacity.ts";
 import { queryAll, queryOne } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
+import { type SqlStatement, sql, sqlList, sqlLiteral } from "#db/sql.ts";
 import { map } from "#fp";
 import { nowIso } from "#shared/now.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 import type { ContactInfo, PiiBlob } from "#types";
-import { sql, sqlList, sqlLiteral, type SqlStatement } from "#db/sql.ts";
 
 /** Current PII blob schema version */
 export const PII_BLOB_VERSION = 1;

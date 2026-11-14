@@ -11,6 +11,7 @@
  */
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { sql } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -26,7 +27,6 @@ import {
   servicingRowsForListing,
   updateServicingEvent,
 } from "#test-utils/servicing.ts";
-import { sql } from "#db/sql.ts";
 
 /** Fail the FIRST `attendee_answers` write (the answer save), so the
  *  create/update compensation runs. */
@@ -159,7 +159,7 @@ describeWithEnv(
       expect((await servicingRowsForListing(listing.id)).length).toBe(0);
       const { queryOne } = await import("#db/client.ts");
       const row = await queryOne<{ c: number }>(
-        sql`SELECT COUNT(*) AS c FROM attendees WHERE kind = 'servicing'`
+        sql`SELECT COUNT(*) AS c FROM attendees WHERE kind = 'servicing'`,
       );
       expect(Number(row!.c)).toBe(0);
     });

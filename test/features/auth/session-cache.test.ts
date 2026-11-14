@@ -10,12 +10,12 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { createSession } from "#db/sessions.ts";
+import { sql } from "#db/sql.ts";
 import {
   getAuthenticatedApiKey,
   getAuthenticatedSession,
 } from "#routes/auth.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
-
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
@@ -24,7 +24,6 @@ import {
   getTestSession,
   requestAsApiKey,
 } from "#test-utils/session.ts";
-import { sql } from "#db/sql.ts";
 
 const requestWith = (cookie?: string): Request =>
   new Request("http://localhost/admin/", {

@@ -23,7 +23,7 @@ import {
   unclaimedSiteSlugCondition,
 } from "#db/slug-registry.ts";
 import type { SluggedContentInput } from "#db/slugged-content-input.ts";
-import { sql, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { cachedTable, col } from "#db/table.ts";
 import { readById, readBySlugIndex } from "#db/table-reader.ts";
 import type { Result } from "#shared/result.ts";

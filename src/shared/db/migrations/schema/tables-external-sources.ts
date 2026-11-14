@@ -3,6 +3,7 @@
 
 /* jscpd:ignore-start */
 import { EXTERNAL_LINK_KINDS } from "#db/external-sources/types.ts";
+import { sql } from "#db/sql.ts";
 import { datedRowColumns } from "./columns.ts";
 import {
   checked,
@@ -12,7 +13,6 @@ import {
   wholeNumber,
 } from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
-import { sql } from "#db/sql.ts";
 
 /* jscpd:ignore-end */
 

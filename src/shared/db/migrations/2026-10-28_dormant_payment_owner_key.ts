@@ -28,9 +28,7 @@ const storedRowCounts = async (): Promise<Map<string, number>> => {
   const names = present.map((row) => row.name);
   if (names.length === 0) return new Map();
   const counts = await queryBatchPrimary(
-    names.map(
-      (name) => sql`SELECT COUNT(*) AS stored FROM ${sqlName(name)}`,
-    ),
+    names.map((name) => sql`SELECT COUNT(*) AS stored FROM ${sqlName(name)}`),
   );
   return new Map(
     names.map((name, index) => [name, Number(counts[index]!.rows[0]!.stored)]),

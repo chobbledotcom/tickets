@@ -6,6 +6,7 @@ import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { listingParents } from "#db/listing-parents.ts";
 import { requireListingWithCount } from "#db/listings/records.ts";
 import { getAllModifiers, modifierListings } from "#db/modifiers.ts";
+import { sql } from "#db/sql.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { requireEntityImport } from "#test-utils/catalog-import.ts";
@@ -17,7 +18,6 @@ import {
   optInAddOnForGroups,
   patchModifier,
 } from "#test-utils/modifiers.ts";
-import { sql } from "#db/sql.ts";
 
 // Child add-on reachability on import lives in its own file: the setup creates
 // listings, a group, and an opt-in modifier, and folding it into
@@ -115,7 +115,7 @@ describeWithEnv(
              UPDATE modifiers SET active = 1 WHERE id = ${modifier.id};
              INSERT INTO modifier_listings (modifier_id, listing_id)
              VALUES (${modifier.id}, NEW.id);
-           END`
+           END`,
       );
       const before = await countRows("listings");
 

@@ -13,6 +13,7 @@ import { setListingGroups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { getListingDayPrices } from "#db/listing-prices.ts";
 import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { bodyToUpdateInput } from "#routes/admin/api-listing-body.ts";
 import {
@@ -29,7 +30,6 @@ import {
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListingInput } from "#test-utils/factories.ts";
 import type { ListingWithCount } from "#types";
-import { sql, type SqlStatement } from "#db/sql.ts";
 
 const baseInput = (
   overrides: Parameters<typeof testListingInput>[0] = {},
@@ -384,7 +384,10 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
     await listingChildren.setIds(parent.id, [child.id]);
 
     await expect(
-      persistAfterRowChange(child.id, sql`UPDATE listings SET listing_type = 'daily' WHERE id = ${child.id}`),
+      persistAfterRowChange(
+        child.id,
+        sql`UPDATE listings SET listing_type = 'daily' WHERE id = ${child.id}`,
+      ),
     ).rejects.toThrow(
       t("listings_table.children_err_child_daily", { name: child.name }),
     );
@@ -399,7 +402,10 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
     await listingChildren.setIds(parent.id, [child.id]);
 
     await expect(
-      persistAfterRowChange(parent.id, sql`UPDATE listings SET months_per_unit = 1 WHERE id = ${parent.id}`),
+      persistAfterRowChange(
+        parent.id,
+        sql`UPDATE listings SET months_per_unit = 1 WHERE id = ${parent.id}`,
+      ),
     ).rejects.toThrow(
       t("listings_table.children_err_parent_renewal", { name: parent.name }),
     );

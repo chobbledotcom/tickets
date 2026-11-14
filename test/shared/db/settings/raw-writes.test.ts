@@ -12,7 +12,6 @@ import { CONFIG_KEYS, settings } from "#db/settings.ts";
 import { assertSettingsReadsDeclared } from "#db/settings-audit.ts";
 
 import { describeWithEnv } from "#test-utils/db.ts";
-import { statementSql } from "#test-utils/record-queries.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
 const expectSquareLocationAbsent = async (): Promise<void> => {
@@ -105,7 +104,7 @@ describeWithEnv("writeRaw", { db: true }, () => {
 
       expect(
         reads.calls.filter(({ args }) =>
-          statementSql(args[0]).includes("SELECT key, value FROM settings"),
+          args[0].sql.includes("SELECT key, value FROM settings"),
         ),
       ).toEqual([]);
       expect(settings.getCachedRaw(CONFIG_KEYS.SQUARE_LOCATION_ID)).toBe(

@@ -8,6 +8,7 @@ import {
   getRefundAllSummary,
   loadRefundAllBatch,
 } from "#db/refund-all-candidates.ts";
+import { sql } from "#db/sql.ts";
 import { armRefundSend, readyRefund } from "#payment/refund-authority.ts";
 import { markRefundProviderConflict } from "#payment/refund-authority-choice.ts";
 import {
@@ -40,7 +41,6 @@ import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
 import { addProviderRefundTestCase } from "#test-utils/provider-refund-cases.ts";
 import { getCompleteRefundCandidatesForListing } from "#test-utils/refund-candidates.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
-import { sql } from "#db/sql.ts";
 
 const candidateFor = async (listingId: number, attendeeId: number) => {
   const candidate = (
@@ -176,7 +176,7 @@ describeWithEnv("db > Refund All candidates", { db: true }, () => {
     await execute(
       sql`UPDATE processed_payments
           SET payment_reference_index = ''
-        WHERE payment_session_id = ${paymentRowOf(oldPayment)}`
+        WHERE payment_session_id = ${paymentRowOf(oldPayment)}`,
     );
     await finalizeProcessedPayment("new_indexed_payment", attendee.id, "", {
       kind: "tagged",

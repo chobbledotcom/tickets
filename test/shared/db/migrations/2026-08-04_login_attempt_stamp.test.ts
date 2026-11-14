@@ -4,19 +4,23 @@ import { FakeTime } from "@std/testing/time";
 import { getDb } from "#db/client.ts";
 import loginAttemptStampMigration from "#db/migrations/2026-08-04_login_attempt_stamp.ts";
 import { applySchemaChanges, syncIndexes } from "#db/migrations/schema-sync.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
-import { sql } from "#db/sql.ts";
 
 const context = buildMigrationContext({ applySchemaChanges, syncIndexes });
 const runMigration = (): Promise<void> =>
   loginAttemptStampMigration(context).up();
 
 const insertRow = (ip: string, lastAttempt: number) =>
-  getDb().execute(sql`INSERT INTO login_attempts (ip, attempts, locked_until, last_attempt) VALUES (${ip}, 2, NULL, ${lastAttempt})`);
+  getDb().execute(
+    sql`INSERT INTO login_attempts (ip, attempts, locked_until, last_attempt) VALUES (${ip}, 2, NULL, ${lastAttempt})`,
+  );
 
 const storedStamp = async (ip: string): Promise<number> => {
-  const result = await getDb().execute(sql`SELECT last_attempt FROM login_attempts WHERE ip = ${ip}`);
+  const result = await getDb().execute(
+    sql`SELECT last_attempt FROM login_attempts WHERE ip = ${ip}`,
+  );
   return Number(result.rows[0]!.last_attempt);
 };
 

@@ -4,7 +4,7 @@
  */
 
 import { getDb } from "#db/client.ts";
-import { sql, sqlCommas, sqlName, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlCommas, sqlName } from "#db/sql.ts";
 
 /** One cached aggregate column, and the child query that recomputes it. */
 type CachedAggregate = {

@@ -1,10 +1,10 @@
 import { getDb } from "#db/client.ts";
-import { sql, sqlName } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
 
 const withBookingWriteTrigger = async (
   triggerName: string,
   listingId: number,
-  action: string,
+  action: SqlStatement,
   body: () => Promise<void>,
 ): Promise<void> => {
   const db = getDb();
@@ -13,8 +13,8 @@ const withBookingWriteTrigger = async (
        BEFORE INSERT ON listing_attendees
        WHEN NEW.listing_id = ${listingId}
        BEGIN
-         ${TODO_SQL_TEXT(action)}
-       END`
+         ${action}
+       END`,
   );
   try {
     await body();
@@ -32,7 +32,7 @@ export const withRejectedBookingWrite = async (
   withBookingWriteTrigger(
     `test_reject_booking_write_${listingId}`,
     listingId,
-    "SELECT RAISE(ABORT, 'unexpected booking write');",
+    sql`SELECT RAISE(ABORT, 'unexpected booking write');`,
     body,
   );
 
@@ -45,6 +45,6 @@ export const withSkippedBookingWrite = async (
   withBookingWriteTrigger(
     `test_skip_booking_write_${listingId}`,
     listingId,
-    "SELECT RAISE(IGNORE);",
+    sql`SELECT RAISE(IGNORE);`,
     body,
   );

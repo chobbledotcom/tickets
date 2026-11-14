@@ -18,6 +18,7 @@ import {
   reserveSession,
   STALE_RESERVATION_MS,
 } from "#db/processed-payments.ts";
+import { sql } from "#db/sql.ts";
 import {
   type StoredPaymentFailure,
   writeRowState,
@@ -40,7 +41,6 @@ import {
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("db > processed payments", { db: true }, () => {
   describe("reserveSession", () => {

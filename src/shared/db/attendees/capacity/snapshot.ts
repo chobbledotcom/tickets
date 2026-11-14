@@ -10,6 +10,7 @@
 
 import { queryAll } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
+import { sql, sqlList } from "#db/sql.ts";
 import { requiredMapValue } from "#fp";
 import { countsPerDate } from "#shared/capacity-rules.ts";
 import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
@@ -26,7 +27,6 @@ import {
   perDayLoads,
 } from "./range.ts";
 import type { ListingCapacityRow } from "./types.ts";
-import { sql, sqlList } from "#db/sql.ts";
 
 /** Booked units per day for each listing, in one query. */
 const loadsByListing = async (

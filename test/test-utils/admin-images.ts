@@ -3,6 +3,7 @@ import { toBase64 } from "#crypto/utils.ts";
 import { execute } from "#db/client.ts";
 import { getImagesForItem, imagesTable, setItemsForImage } from "#db/images.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
@@ -13,7 +14,6 @@ import { mockMultipartRequest, mockRequest } from "#test-utils/mocks.ts";
 import { apiRequest, testCookie } from "#test-utils/session.ts";
 import { makeTestPng } from "#test-utils/test-image.ts";
 import type { Image, ImageUseItemType } from "#types";
-import { sql } from "#db/sql.ts";
 
 export const makeImage = (name: string): Promise<Image> =>
   imagesTable.insert({
@@ -57,9 +57,11 @@ export const insertBrokenImage = async (
   const brokenFilename = await encrypt("");
   const result = await execute(
     sql`INSERT INTO images (name, filename, filename_thumb, alt_text)
-     VALUES (${await encrypt(options.name ?? "Broken")}, ${brokenFilename}, ${options.thumbFilename === undefined
-        ? brokenFilename
-        : await encrypt(options.thumbFilename)}, '')`
+     VALUES (${await encrypt(options.name ?? "Broken")}, ${brokenFilename}, ${
+       options.thumbFilename === undefined
+         ? brokenFilename
+         : await encrypt(options.thumbFilename)
+}, '')`,
   );
   return Number(result.lastInsertRowid);
 };

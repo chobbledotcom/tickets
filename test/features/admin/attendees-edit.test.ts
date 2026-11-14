@@ -10,6 +10,7 @@ import { balanceEventGroup } from "#db/attendees/balance.ts";
 import { execute } from "#db/client.ts";
 import { loadPaymentMoveSnapshot } from "#db/payment-admit-move.ts";
 import { reserveSession } from "#db/processed-payments.ts";
+import { sql } from "#db/sql.ts";
 import { filter, map, pipe } from "#fp";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import { expectErrorFlash, expectFlash } from "#test-utils/assertions.ts";
@@ -36,7 +37,6 @@ import {
 } from "#test-utils/refund-routes.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 import type { Attendee } from "#types";
-import { sql } from "#db/sql.ts";
 
 const OCCURRED_AT = "2026-07-01T00:00:00.000Z";
 
@@ -177,7 +177,7 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
         sql`UPDATE processed_payments
             SET payment_reference_index = ''
           WHERE attendee_id = ${attendee.id}
-            AND payment_session_id != ${"refresh-incomplete-balance-session"}`
+            AND payment_session_id != ${"refresh-incomplete-balance-session"}`,
       );
 
       await expectIncompleteRefreshRefused(attendee);

@@ -1,8 +1,8 @@
 import type { Transaction } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb, queryBatch, setDb, withTransaction } from "#db/client.ts";
-
+import { queryBatch, setDb, withTransaction } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import {
   BUNNY_SUBREQUEST_LIMIT,
   getSubrequestUsage,
@@ -10,8 +10,8 @@ import {
   withSubrequestAllowance,
 } from "#shared/subrequest-budget.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { rawDbClient } from "#test-utils/raw-db.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("db > client round-trip limit", { db: true }, () => {
   test("counts every database operation at the client boundary", async () => {
@@ -24,26 +24,29 @@ describeWithEnv("db > client round-trip limit", { db: true }, () => {
       const directCalls =
         BUNNY_SUBREQUEST_LIMIT - guardedCalls - executeWithArgsCalls;
       await Promise.all(
-        Array.from({ length: directCalls }, () => getDb().execute(sql`SELECT 1`)),
+        Array.from({ length: directCalls }, () =>
+          rawDbClient().execute(sql`SELECT 1`),
+        ),
       );
-      await getDb().execute(sql`SELECT ${1}`);
-      await queryBatch([
-        sql`SELECT 2`,
-        sql`SELECT 3`,
-      ]);
-      const transaction = await getDb().transaction("write");
+      await rawDbClient().execute(sql`SELECT ${1}`);
+      await queryBatch([sql`SELECT 2`, sql`SELECT 3`]);
+      const transaction = await rawDbClient().transaction("write");
       await transaction.execute(sql`SELECT 4`);
       await transaction.batch([sql`SELECT 5`, sql`SELECT 6`]);
       await transaction.executeMultiple("SELECT 7;");
       await transaction.commit();
-      await getDb().executeMultiple("SELECT 8;");
-      await getDb().migrate([sql`SELECT 9`]);
-      await expect(getDb().sync()).rejects.toThrow('SyncNotSupported("File")');
-      const rolledBack = await getDb().transaction();
+      await rawDbClient().executeMultiple("SELECT 8;");
+      await rawDbClient().migrate([sql`SELECT 9`]);
+      await expect(rawDbClient().sync()).rejects.toThrow(
+        'SyncNotSupported("File")',
+      );
+      const rolledBack = await rawDbClient().transaction();
       await rolledBack.rollback();
 
       const blocked = async () => {
-        await getDb().execute(sql`SELECT missing_column_that_must_not_run`);
+        await rawDbClient().execute(
+          sql`SELECT missing_column_that_must_not_run`,
+        );
       };
       await expect(blocked()).rejects.toThrow(/51 calls.*limit 50.*statement/);
     });
@@ -64,18 +67,22 @@ describeWithEnv("db > client round-trip limit", { db: true }, () => {
       {
         label: "script",
         needsTx: false,
-        run: () => getDb().executeMultiple("SELECT 1;"),
+        run: () => rawDbClient().executeMultiple("SELECT 1;"),
       },
       {
         label: "migration batch",
         needsTx: false,
-        run: () => getDb().migrate([sql`SELECT 1`]),
+        run: () => rawDbClient().migrate([sql`SELECT 1`]),
       },
-      { label: "replica sync", needsTx: false, run: () => getDb().sync() },
+      {
+        label: "replica sync",
+        needsTx: false,
+        run: () => rawDbClient().sync(),
+      },
       {
         label: "transaction begin",
         needsTx: false,
-        run: () => getDb().transaction(),
+        run: () => rawDbClient().transaction(),
       },
       {
         label: "transaction batch",
@@ -101,10 +108,12 @@ describeWithEnv("db > client round-trip limit", { db: true }, () => {
     for (const { label, needsTx, run } of operations) {
       let tx: Transaction | undefined;
       await withRequestContext(async () => {
-        if (needsTx) tx = await getDb().transaction("write");
+        if (needsTx) tx = await rawDbClient().transaction("write");
         const fills = BUNNY_SUBREQUEST_LIMIT - (needsTx ? 1 : 0);
         await Promise.all(
-          Array.from({ length: fills }, () => getDb().execute(sql`SELECT 1`)),
+          Array.from({ length: fills }, () =>
+            rawDbClient().execute(sql`SELECT 1`),
+          ),
         );
         const blocked = async () => {
           await run(tx!);
@@ -130,11 +139,11 @@ describeWithEnv("db > client round-trip limit", { db: true }, () => {
         await withSubrequestAllowance(
           { database: reservedCap, external: reservedCap, total: reservedCap },
           async () => {
-            const tx = await getDb().transaction("write");
+            const tx = await rawDbClient().transaction("write");
             await tx.execute(sql`SELECT 1`);
             await Promise.all(
               Array.from({ length: reservedCap - 2 }, () =>
-                getDb().execute(sql`SELECT 1`),
+                rawDbClient().execute(sql`SELECT 1`),
               ),
             );
             // A counted transaction statement is blocked at the cap (the guard
@@ -164,10 +173,10 @@ describeWithEnv("db > client round-trip limit", { db: true }, () => {
     // would be a genuine over-limit subrequest that Bunny rejects, so the guard
     // blocks it here too rather than pretending it succeeds.
     const tx = await withRequestContext(async () => {
-      const openTx = await getDb().transaction("write");
+      const openTx = await rawDbClient().transaction("write");
       await Promise.all(
         Array.from({ length: BUNNY_SUBREQUEST_LIMIT - 1 }, () =>
-          getDb().execute(sql`SELECT 1`),
+          rawDbClient().execute(sql`SELECT 1`),
         ),
       );
       const rollbackAtLimit = async () => {
@@ -238,10 +247,10 @@ describeWithEnv("db > client round-trip limit", { db: true }, () => {
     // Handing an already-guarded client back to setDb must not stack a second
     // guard on top: each statement would then count two round trips, halving
     // the real budget (the 26th statement would throw here).
-    setDb(getDb());
+    setDb(rawDbClient());
     await withRequestContext(async () => {
       await Promise.all(
-        Array.from({ length: 30 }, () => getDb().execute(sql`SELECT 1`)),
+        Array.from({ length: 30 }, () => rawDbClient().execute(sql`SELECT 1`)),
       );
     });
   });

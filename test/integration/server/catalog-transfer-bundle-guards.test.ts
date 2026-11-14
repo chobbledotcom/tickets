@@ -7,6 +7,7 @@ import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { listingParents } from "#db/listing-parents.ts";
 import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
 import { loadCatalogNameIndex, matchName } from "#db/name-registry.ts";
+import { sql } from "#db/sql.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import type { CatalogBundle } from "#routes/admin/catalog-transfer/schema.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
@@ -14,7 +15,6 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { optInAddOnForGroups } from "#test-utils/modifiers.ts";
-import { sql } from "#db/sql.ts";
 
 // The bundle import bypasses the single import's write guards (one batched
 // write, no per-row transaction checks), so its validation phases must refuse
@@ -51,7 +51,7 @@ const storePlanInGroup = async (
     slugIndex: await hmacHash("legacy-plan"),
   });
   await execute(
-    sql`INSERT INTO group_listings (group_id, listing_id, quantity) VALUES (${groupId}, ${plan.id}, 1)`
+    sql`INSERT INTO group_listings (group_id, listing_id, quantity) VALUES (${groupId}, ${plan.id}, 1)`,
   );
 };
 

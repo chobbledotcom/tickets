@@ -5,9 +5,9 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb, resultRows } from "#db/client.ts";
 import listingFieldsTrimMigration from "#db/migrations/2026-10-12_listing_fields_trim.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
-import { sql } from "#db/sql.ts";
 
 type ListingRow = { fields: string; id: number };
 
@@ -15,7 +15,9 @@ const listingFieldRows = async (): Promise<ListingRow[]> =>
   resultRows(await getDb().execute(sql`SELECT id, fields FROM listings`));
 
 const insertListingFields = async (fields: string): Promise<number> => {
-  const result = await getDb().execute(sql`INSERT INTO listings (created, max_attendees, fields) VALUES (${new Date().toISOString()}, ${10}, ${fields})`);
+  const result = await getDb().execute(
+    sql`INSERT INTO listings (created, max_attendees, fields) VALUES (${new Date().toISOString()}, ${10}, ${fields})`,
+  );
   return Number(result.lastInsertRowid);
 };
 

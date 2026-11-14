@@ -1,10 +1,10 @@
 /** The invoice table: one frozen rendered invoice per row. */
 
+import { sql } from "#db/sql.ts";
 import { INVOICE_STATUSES } from "#shared/invoices/status.ts";
 import { attendeeIdColumn } from "./columns.ts";
 import { checked, defaulted, oneOf, rowId, text } from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
-import { sql } from "#db/sql.ts";
 
 export const invoiceTables: [name: string, table: Table][] = [
   [

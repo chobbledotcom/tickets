@@ -4,9 +4,9 @@ import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import dropLastPrunedMigration from "#db/migrations/2026-07-18_drop_built_sites_last_pruned.ts";
 import { recreateTable } from "#db/migrations/schema-sync.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
-import { sql } from "#db/sql.ts";
 
 const context = buildMigrationContext({ recreateTable });
 
@@ -24,12 +24,14 @@ describeWithEnv(
 
     test("uses the current schema to remove only last_pruned", async () => {
       await getDb().execute(
-        sql`ALTER TABLE built_sites ADD COLUMN last_pruned TEXT NOT NULL DEFAULT ''`
+        sql`ALTER TABLE built_sites ADD COLUMN last_pruned TEXT NOT NULL DEFAULT ''`,
       );
 
       await dropLastPrunedMigration(context).up();
 
-      const columns = await getDb().execute(sql`PRAGMA table_info(built_sites)`);
+      const columns = await getDb().execute(
+        sql`PRAGMA table_info(built_sites)`,
+      );
       const names = columns.rows.map((row) => String(row.name));
       assert(!names.includes("last_pruned"));
       assertArrayIncludes(names, ["site_data_revision"]);

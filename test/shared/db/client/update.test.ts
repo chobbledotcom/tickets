@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { rawSql, update } from "#db/client.ts";
+import { update } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
 
 /**
@@ -15,11 +15,13 @@ describe("db > client update builder", () => {
       update(
         "listing_attendees",
         {
-          attachment_downloads: rawSql("attachment_downloads + 1"),
+          attachment_downloads: sql`attachment_downloads + 1`,
           price_paid: 500,
         },
         { attendee_id: 1, listing_id: 2 },
       ),
-    ).toEqual(sql`UPDATE listing_attendees SET attachment_downloads = attachment_downloads + 1, price_paid = ${500} WHERE attendee_id = ${1} AND listing_id = ${2}`);
+    ).toEqual(
+      sql`UPDATE listing_attendees SET attachment_downloads = attachment_downloads + 1, price_paid = ${500} WHERE attendee_id = ${1} AND listing_id = ${2}`,
+    );
   });
 });

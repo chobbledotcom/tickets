@@ -13,6 +13,7 @@ import {
 } from "#db/listing-prices.ts";
 import { deleteListing } from "#db/listings/delete.ts";
 import { listingsTable } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { updateTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -20,7 +21,6 @@ import {
   createDayPricedListing,
   priceRows,
 } from "./listing-prices/fixtures.ts";
-import { sql } from "#db/sql.ts";
 
 describe("dayCountPriceStatements", () => {
   test("emits a day_count-scoped delete then ONE multi-row insert for all day counts", () => {
@@ -216,7 +216,7 @@ describeWithEnv("listing_prices persistence", { db: true }, () => {
     // one — or none at all.
     const listing = await createDayPricedListing({ 2: 640 });
     await queryAll(
-      sql`UPDATE listing_prices SET unit_price = 'free' WHERE price_type = 'day_count' AND listing_id = ${listing.id}`
+      sql`UPDATE listing_prices SET unit_price = 'free' WHERE price_type = 'day_count' AND listing_id = ${listing.id}`,
     );
     await expect(getListingDayPrices(listing.id)).rejects.toThrow(
       "Invalid type",
@@ -264,14 +264,14 @@ describeWithEnv("listing_prices persistence", { db: true }, () => {
     price: number,
   ): Promise<unknown> =>
     queryAll(
-      sql`INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES (${listingId}, 'group_day', ${priceId}, ${price})`
+      sql`INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES (${listingId}, 'group_day', ${priceId}, ${price})`,
     );
 
   /** Insert a bare membership row — the readers only surface a group_day row
    * whose listing is a CURRENT member of that group. */
   const seedMembership = (groupId: number, listingId: number) =>
     queryAll(
-      sql`INSERT INTO group_listings (group_id, listing_id) VALUES (${groupId}, ${listingId})`
+      sql`INSERT INTO group_listings (group_id, listing_id) VALUES (${groupId}, ${listingId})`,
     );
 
   test("getGroupDayPrices folds only its own group's current members — a prefix-sharing id never matches and a removed member's stale rows are invisible", async () => {

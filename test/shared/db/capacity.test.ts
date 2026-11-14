@@ -6,7 +6,6 @@ import {
   capacityConditionFor,
   dateToRange,
 } from "#db/capacity.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
 import { capacityRuleTypeSql } from "#shared/capacity-rules.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { flatSql, occurrences } from "#test-utils/sql-text.ts";
@@ -35,7 +34,7 @@ const dayRangeArgs = (day: string): unknown[] => {
 
 const capacityStatement = (
   ...args: Parameters<typeof buildCapacityCondition>
-) => numberedStatement(buildCapacityCondition(...args));
+) => buildCapacityCondition(...args);
 
 describe("dateToRange", () => {
   test("returns exact half-open UTC timestamps", () => {
@@ -72,9 +71,9 @@ describe("buildCapacityCondition", () => {
   test("dated: every listing-type predicate comes from the rule table", () => {
     const cond = capacityStatement(LISTING, QTY, DAY);
     expectIncludesAll(cond.sql, [
-      capacityRuleTypeSql("perDateCap", "listing.listing_type"),
-      capacityRuleTypeSql("dateLessCap", "memberListing.listing_type"),
-      capacityRuleTypeSql("perDateCap", "memberListing.listing_type"),
+      capacityRuleTypeSql("perDateCap", "listing.listing_type").sql,
+      capacityRuleTypeSql("dateLessCap", "memberListing.listing_type").sql,
+      capacityRuleTypeSql("perDateCap", "memberListing.listing_type").sql,
     ]);
     // No hand-written type comparison survives anywhere in the guard.
     assert(!cond.sql.includes("!= 'daily'"));
@@ -98,7 +97,7 @@ describe("buildCapacityCondition", () => {
     expect(
       occurrences(
         cond.sql,
-        capacityRuleTypeSql("dateLessCap", "memberListing.listing_type"),
+        capacityRuleTypeSql("dateLessCap", "memberListing.listing_type").sql,
       ),
     ).toBe(2);
     assert(!cond.sql.includes("undefined"));
@@ -129,24 +128,20 @@ describe("buildCapacityCondition", () => {
     // the trivially-true clause, so no full or inactive listing can strand
     // it — while any real quantity still gets the full condition.
     expect(
-      numberedStatement(
-        capacityConditionFor({
-          date: null,
-          durationDays: 1,
-          listingId: LISTING,
-          quantity: 0,
-        }),
-      ).sql,
+      capacityConditionFor({
+        date: null,
+        durationDays: 1,
+        listingId: LISTING,
+        quantity: 0,
+      }).sql,
     ).toBe("1");
     expect(
-      numberedStatement(
-        capacityConditionFor({
-          date: null,
-          durationDays: 1,
-          listingId: LISTING,
-          quantity: QTY,
-        }),
-      ).sql,
+      capacityConditionFor({
+        date: null,
+        durationDays: 1,
+        listingId: LISTING,
+        quantity: QTY,
+      }).sql,
     ).not.toBe("1");
   });
 });

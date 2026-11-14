@@ -17,6 +17,7 @@ import {
   loadIndexedPaymentReference,
   matchingPaymentReferenceIndexes,
 } from "#db/payment-reference-store.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { requiredMapValue } from "#fp";
 import { CLAIM_MIRROR } from "#payment/admit-move.ts";
 import type {
@@ -25,7 +26,6 @@ import type {
   UntaggedPaymentReference,
 } from "#payment/provider-reference.ts";
 import { type RefundState, refundStateOf } from "#payment/refund-state.ts";
-import { sql, type SqlStatement } from "#db/sql.ts";
 
 export type RefundPaymentReferenceSource = {
   id: number;

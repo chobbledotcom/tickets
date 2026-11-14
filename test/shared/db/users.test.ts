@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#crypto/encryption.ts";
 import { hashPassword, hmacHash } from "#crypto/hashing.ts";
 import { execute, getDb, insert } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import {
   createInvitedUser,
   decryptAdminLevel,
@@ -22,7 +23,6 @@ import {
 } from "#test-utils/db-helpers/misc.ts";
 import { TEST_ADMIN_USERNAME } from "#test-utils/internal.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("users CRUD", () => {
@@ -32,7 +32,9 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       try {
         const before = await getUserAuthFieldsById(1);
         expect(await decryptAdminLevel(before!)).toBe("owner");
-        await execute(sql`UPDATE users SET admin_level = ${await encrypt("manager")} WHERE id = ${1}`);
+        await execute(
+          sql`UPDATE users SET admin_level = ${await encrypt("manager")} WHERE id = ${1}`,
+        );
         const after = await getUserAuthFieldsById(1);
         expect(await decryptAdminLevel(after!)).toBe("manager");
       } finally {
@@ -189,7 +191,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
       // Accepting an invite clears its code to an encrypted empty string.
       await getDb().execute(
-        sql`UPDATE users SET invite_code_hash = ${await encrypt("")} WHERE id = ${user.id}`
+        sql`UPDATE users SET invite_code_hash = ${await encrypt("")} WHERE id = ${user.id}`,
       );
 
       const { getUserById: getUser } = await import("#db/users.ts");

@@ -76,6 +76,4 @@ const SUMUP_SCAN = sql`SELECT reference_index AS record_id, recovery_state, sumu
 
 /** Scan the stored rows for every declared impossible state. */
 export const scanSchemaAnomalies = async (): Promise<SchemaAnomaly[]> =>
-  (
-    await queryAllPrimary<SumupScanRow>(SUMUP_SCAN)
-  ).map(sumupAnomaly);
+  (await queryAllPrimary<SumupScanRow>(SUMUP_SCAN)).map(sumupAnomaly);

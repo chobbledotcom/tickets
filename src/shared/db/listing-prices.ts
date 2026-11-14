@@ -17,7 +17,13 @@ import {
   PRICE_TYPE_GROUP,
   PRICE_TYPE_GROUP_DAY,
 } from "#db/price-types.ts";
-import { sql, sqlCommas, sqlJoin, sqlList, type SqlStatement } from "#db/sql.ts";
+import {
+  type SqlStatement,
+  sql,
+  sqlCommas,
+  sqlJoin,
+  sqlList,
+} from "#db/sql.ts";
 import { compact, mapNotNullish, requiredMapValue } from "#fp";
 import { type DayPrices, parseDayPrices } from "#types";
 

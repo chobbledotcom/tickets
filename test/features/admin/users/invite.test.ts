@@ -11,6 +11,7 @@ import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, queryOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { getUserByUsername } from "#db/users.ts";
 import { t } from "#i18n";
 import { activityMessages } from "#test-utils/activity-log.ts";
@@ -27,7 +28,6 @@ import {
   adminGet,
   getTestSession,
 } from "#test-utils/session.ts";
-import { sql } from "#db/sql.ts";
 
 const NEW_PATH = "/admin/user/new";
 const LIST_PATH = "/admin/users";
@@ -39,7 +39,7 @@ const invite = (username: string, adminLevel = "manager") =>
 const wrappedKeyOf = async (username: string): Promise<string | null> => {
   const user = await getUserByUsername(username);
   const row = await queryOne<{ invite_wrapped_data_key: string | null }>(
-    sql`SELECT invite_wrapped_data_key FROM users WHERE id = ${user!.id}`
+    sql`SELECT invite_wrapped_data_key FROM users WHERE id = ${user!.id}`,
   );
   return row!.invite_wrapped_data_key;
 };
@@ -240,7 +240,9 @@ describeWithEnv(
       // way the invite wrote it.
       const { encrypt } = await import("#crypto/encryption.ts");
       const { invalidateUsersCache } = await import("#db/users.ts");
-      await execute(sql`UPDATE users SET invite_expiry = ${await encrypt(new Date(Date.now() - 1000).toISOString())} WHERE id = ${user.id}`);
+      await execute(
+        sql`UPDATE users SET invite_expiry = ${await encrypt(new Date(Date.now() - 1000).toISOString())} WHERE id = ${user.id}`,
+      );
       invalidateUsersCache();
 
       const html = await (await adminGet(LIST_PATH)).text();

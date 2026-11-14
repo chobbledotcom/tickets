@@ -17,7 +17,7 @@ import { withTransaction } from "#db/client.ts";
 import { bumpSettingsVersion } from "#db/settings/cache.ts";
 import { invalidateCache, loadKeys } from "#db/settings/load.ts";
 import { getRawCached, settingUpsert } from "#db/settings/raw-writes.ts";
-import { sql, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { buildCreateUserStatement } from "#db/users.ts";
 import { lazyRef } from "#fp";
 import { registerCacheReset } from "#shared/cache-registry.ts";

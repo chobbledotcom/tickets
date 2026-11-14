@@ -3,15 +3,15 @@ import { it as test } from "@std/testing/bdd";
 import { ACTIVITY_LOG_BACKFILL_COMPLETE } from "#db/activity-log-backfill.ts";
 import { getDb } from "#db/client.ts";
 import activityBackfillCompleteMigration from "#db/migrations/2026-07-21_activity_backfill_complete.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
-import { sql } from "#db/sql.ts";
 
 const context = buildMigrationContext({});
 const runMigration = () => activityBackfillCompleteMigration(context).up();
 const activityTask = () =>
   getDb().execute(
-    sql`SELECT checkpoint, next_run_at FROM maintenance_tasks WHERE name = 'activity_log_backfill'`
+    sql`SELECT checkpoint, next_run_at FROM maintenance_tasks WHERE name = 'activity_log_backfill'`,
   );
 const replaceActivityTask = (checkpoint: string | null, nextRunAt: number) =>
   getDb().execute(sql`INSERT OR REPLACE INTO maintenance_tasks
@@ -38,7 +38,7 @@ describeWithEnv(
 
     test("restores the completed checkpoint for an absent old task", async () => {
       await getDb().execute(
-        sql`DELETE FROM maintenance_tasks WHERE name = 'activity_log_backfill'`
+        sql`DELETE FROM maintenance_tasks WHERE name = 'activity_log_backfill'`,
       );
 
       await runMigration();

@@ -14,7 +14,7 @@ import {
   type TxScope,
 } from "#db/client.ts";
 import { readOneRow, readRows } from "#db/read.ts";
-import { sql, sqlLiteral, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlLiteral } from "#db/sql.ts";
 import { deleteWhere, type WhereClause } from "#db/where-clauses.ts";
 import { nowIso } from "#shared/now.ts";
 import { openNote, openNotes, sealNote } from "./sealing.ts";

@@ -14,6 +14,7 @@ import {
   getListingWithAttendeeRaw,
   getListingWithAttendeesRaw,
 } from "#db/listings/attendees.ts";
+import { sql } from "#db/sql.ts";
 import { brunoOnTwoListings } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -24,7 +25,6 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import { createServicingEvent } from "#test-utils/servicing.ts";
-import { sql } from "#db/sql.ts";
 
 /** Book one attendee on 4 July and hand back the created row. */
 const bookedAttendee = async (
@@ -115,7 +115,7 @@ describeWithEnv(
         "bo@test.com",
       );
       await execute(
-        sql`UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ${emptied.id}`
+        sql`UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ${emptied.id}`,
       );
 
       // The default keeps every line, emptied ones included.
@@ -160,7 +160,7 @@ describeWithEnv(
       const booked = await bookedAttendee(listing, "Kept");
       const emptied = await bookedAttendee(listing, "Emptied");
       await execute(
-        sql`UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ${emptied.id}`
+        sql`UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ${emptied.id}`,
       );
 
       const onTheDay = await getDailyListingAttendeesByDate("2026-07-04");

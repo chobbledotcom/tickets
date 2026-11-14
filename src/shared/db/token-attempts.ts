@@ -17,13 +17,13 @@ import {
   isIpLockedOut,
   makeAttemptRecorder,
 } from "#db/attempt-lockout.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import {
   MAX_TOKEN_404S,
   TOKEN_LOCKOUT_MS,
   TOKEN_WINDOW_MS,
 } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
-import { sql, type SqlStatement } from "#db/sql.ts";
 
 /** The values one recorded failure carries. */
 interface TokenFailureValues {

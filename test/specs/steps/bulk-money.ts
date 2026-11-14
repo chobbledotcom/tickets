@@ -3,6 +3,7 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { execute } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import {
   contradictFirstPayment,
   correctFirstPayment,
@@ -31,7 +32,6 @@ import {
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
-import { sql } from "#db/sql.ts";
 
 Given(
   "{int} people each paid {word} for a {word} place",
@@ -90,7 +90,7 @@ Given(
     await execute(
       sql`UPDATE processed_payments
           SET payment_reference_index = ''
-        WHERE attendee_id = ${first}`
+        WHERE attendee_id = ${first}`,
     );
   },
 );

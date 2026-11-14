@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeStatuses, getAttendeeStatus } from "#db/attendee-statuses.ts";
 import { getDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -13,7 +14,6 @@ import {
   requestAsSession,
   testCsrfToken,
 } from "#test-utils/session.ts";
-import { sql } from "#db/sql.ts";
 
 const createStatus = async (
   name: string,
@@ -23,7 +23,9 @@ const createStatus = async (
 
 /** Point one attendee at a status, the way a booking would. */
 const holdStatus = async (statusId: number): Promise<void> => {
-  await getDb().execute(sql`INSERT INTO attendees (created, pii_blob, status_id) VALUES (${new Date().toISOString()}, '', ${statusId})`);
+  await getDb().execute(
+    sql`INSERT INTO attendees (created, pii_blob, status_id) VALUES (${new Date().toISOString()}, '', ${statusId})`,
+  );
 };
 
 describeWithEnv("Admin API - Attendee statuses", { db: true }, () => {

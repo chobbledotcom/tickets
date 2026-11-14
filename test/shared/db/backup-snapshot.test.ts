@@ -16,12 +16,12 @@ import {
 } from "#db/backup-snapshot.ts";
 import { getDb, setDb, withReadSnapshot } from "#db/client.ts";
 import { initDb, SCHEMA_TABLE_NAMES } from "#db/migrations.ts";
+import { sql } from "#db/sql.ts";
 import { getEnv } from "#shared/env.ts";
 import { proxyMembers } from "#shared/proxy-members.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("backup snapshot", { db: true }, () => {
   /** Export one table through its own snapshot, the way a dump does. */
@@ -73,12 +73,11 @@ describeWithEnv("backup snapshot", { db: true }, () => {
     test("escapes single quotes by doubling them", async () => {
       // Seeded at the storage layer with bound args, so nothing escapes the
       // quote on the way in — only the dump's own escaping can double it.
-      await getDb().execute({
-        args: ["quote-test", "O'Brien's Gala"],
-        sql: "INSERT INTO settings (key, value) VALUES (?, ?)",
-      });
-      const { sql } = await exportFromSnapshot("settings");
-      assertStringIncludes(sql, "'O''Brien''s Gala'");
+      await getDb().execute(
+        sql`INSERT INTO settings (key, value) VALUES (${"quote-test"}, ${"O'Brien's Gala"})`,
+      );
+      const { sql: dump } = await exportFromSnapshot("settings");
+      assertStringIncludes(dump, "'O''Brien''s Gala'");
     });
 
     test("keyset-paginates across multiple pages without losing rows", async () => {
@@ -139,7 +138,9 @@ describeWithEnv("backup snapshot", { db: true }, () => {
           return proxyMembers(tx, {
             batch: async (statements: InStatement[]) => {
               if (snapshotBatches++ === 0) {
-                await intruder.execute(sql`INSERT INTO listings (created, max_attendees, name) VALUES (${"2026-01-01T00:00:00.000Z"}, ${10}, ${"Mid-dump intruder"})`);
+                await intruder.execute(
+                  sql`INSERT INTO listings (created, max_attendees, name) VALUES (${"2026-01-01T00:00:00.000Z"}, ${10}, ${"Mid-dump intruder"})`,
+                );
               }
               return tx.batch(statements);
             },

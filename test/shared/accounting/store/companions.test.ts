@@ -7,12 +7,15 @@ import {
   postTransfers,
 } from "#accounting/store.ts";
 import { execute, queryAll } from "#db/client.ts";
-import { tx, useTransactionalDb } from "#test-utils/ledger.ts";
 import { sql } from "#db/sql.ts";
+import { tx, useTransactionalDb } from "#test-utils/ledger.ts";
 
-const marker = (name: string) => (sql`INSERT INTO posting_markers (name) VALUES (${name})`);
+const marker = (name: string) =>
+  sql`INSERT INTO posting_markers (name) VALUES (${name})`;
 const markers = () =>
-  queryAll<{ name: string }>(sql`SELECT name FROM posting_markers ORDER BY name`);
+  queryAll<{ name: string }>(
+    sql`SELECT name FROM posting_markers ORDER BY name`,
+  );
 
 describe("db > accounting > atomic companion statements", () => {
   useTransactionalDb();
@@ -22,7 +25,7 @@ describe("db > accounting > atomic companion statements", () => {
 
   test("runs domain guards before transfer inserts in the same commit", async () => {
     await execute(
-      sql`CREATE TRIGGER require_marker BEFORE INSERT ON transfers WHEN NOT EXISTS (SELECT 1 FROM posting_markers WHERE name = 'ready') BEGIN SELECT RAISE(ABORT, 'The domain marker is missing'); END`
+      sql`CREATE TRIGGER require_marker BEFORE INSERT ON transfers WHEN NOT EXISTS (SELECT 1 FROM posting_markers WHERE name = 'ready') BEGIN SELECT RAISE(ABORT, 'The domain marker is missing'); END`,
     );
     await postTransferGroups([[tx()]], [marker("ready")]);
     expect(await markers()).toEqual([{ name: "ready" }]);

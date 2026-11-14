@@ -7,6 +7,7 @@ import { backfillReversesGroup } from "#accounting/reverses-group.ts";
 import { postTransfers } from "#accounting/store.ts";
 import { getDb } from "#db/client.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import {
   expectStampedToBooking,
@@ -20,7 +21,6 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { withDbFault } from "#test-utils/db-fault.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import { tx } from "#test-utils/transfer-factory.ts";
-import { sql } from "#db/sql.ts";
 
 /** A refund leg no derivation can attribute — an event group nothing derived
  *  ever lands on. `suffix` keeps several orphans' groups distinct. */
@@ -36,7 +36,9 @@ const orphanRefundLeg = (suffix = ""): TransferInput =>
 
 /** The stored cursor checkpoint, or "" when no run is paused. */
 const storedCursor = async (): Promise<string> => {
-  const rows = await getDb().execute(sql`SELECT value FROM settings WHERE key = ${"backfill_reverses_group_cursor"}`);
+  const rows = await getDb().execute(
+    sql`SELECT value FROM settings WHERE key = ${"backfill_reverses_group_cursor"}`,
+  );
   return String(rows.rows[0]?.value ?? "");
 };
 
@@ -90,9 +92,9 @@ describeWithEnv("accounting > reverses-group backfill", { db: true }, () => {
 
     await expect(
       withDbFault(
-        `CREATE TRIGGER test_reverses_page_stop
+        sql`CREATE TRIGGER test_reverses_page_stop
           BEFORE UPDATE ON transfers
-          WHEN NEW.reverses_group = '${laterGroup}'
+          WHEN NEW.reverses_group = ${sqlLiteral(laterGroup)}
           BEGIN SELECT RAISE(ABORT, 'stop before the later page'); END`,
         "test_reverses_page_stop",
         () => backfillReversesGroup(1),

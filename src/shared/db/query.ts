@@ -2,7 +2,7 @@ import type { InValue, Row } from "@libsql/client";
 import { decrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { execute, queryAll, queryAllPrimary, resultRows } from "#db/client.ts";
-import { sql, sqlList, sqlName, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlList, sqlName } from "#db/sql.ts";
 import { mapParallel } from "#fp";
 
 /**

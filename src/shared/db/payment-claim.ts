@@ -11,7 +11,7 @@ import {
   resultRows,
   type TxScope,
 } from "#db/client.ts";
-import { sql, sqlList, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import { mapNotNullish, requiredMapValue } from "#fp";
 import { mirrorFor } from "#payment/admit-move.ts";
 import { refundAuthorityWorkSql } from "#payment/refund-authority-lifecycle.ts";
@@ -223,9 +223,7 @@ const rewriteRows = async (
   // read. Pinned to the primary because a caller may be reading its own claim
   // — a lagging replica would match no write and leave the claim standing.
   const stored = await queryAllPrimary<StoredPaymentClaimRow>(
-    paymentClaimRowsSql(
-      sql`payment_session_id IN (${sqlList(sessionIds)})`,
-    ),
+    paymentClaimRowsSql(sql`payment_session_id IN (${sqlList(sessionIds)})`),
   );
   const rows = await asPaymentRowRecords(stored);
   const writes = await Promise.all(

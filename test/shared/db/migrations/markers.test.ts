@@ -18,12 +18,12 @@ import {
   SCHEMA_MIGRATIONS_TABLE,
 } from "#db/migrations/schema/version.ts";
 import type { Migration } from "#db/migrations/types.ts";
+import { sql, sqlLiteral, sqlName } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   settingsValueOrNull,
   takeMigrationLock,
 } from "#test-utils/migrations.ts";
-import { sql, sqlName } from "#db/sql.ts";
 
 describeWithEnv("db > migrations > markers", { db: true }, () => {
   const testMigration: Migration = {
@@ -35,12 +35,14 @@ describeWithEnv("db > migrations > markers", { db: true }, () => {
 
   const staleSchemaMarkers = async (): Promise<void> => {
     await getDb().execute(
-      `UPDATE settings SET value = 'stale' WHERE key IN ('${LATEST_DB_UPDATE_KEY}', '${DB_SCHEMA_HASH_KEY}')`,
+      sql`UPDATE settings SET value = 'stale' WHERE key IN (${sqlLiteral(LATEST_DB_UPDATE_KEY)}, ${sqlLiteral(DB_SCHEMA_HASH_KEY)})`,
     );
   };
 
   const forgetTestMigration = async (): Promise<void> => {
-    await getDb().execute(sql`DELETE FROM ${sqlName(SCHEMA_MIGRATIONS_TABLE)} WHERE id = ${testMigration.id}`);
+    await getDb().execute(
+      sql`DELETE FROM ${sqlName(SCHEMA_MIGRATIONS_TABLE)} WHERE id = ${testMigration.id}`,
+    );
   };
 
   test("the marker statement records the migration's own id and description", () => {

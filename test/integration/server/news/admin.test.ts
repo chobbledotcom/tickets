@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { getNewsPostById, getNewsPostCards } from "#db/news-posts.ts";
+import { sql } from "#db/sql.ts";
 import { CONTENT_FIELD_LIMITS } from "#routes/admin/content-form-fields.ts";
 import { wasActivityLogged as wasLogged } from "#test-utils/activity-log.ts";
 import {
@@ -19,7 +20,6 @@ import { withExpectedError } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 import type { NewsPost } from "#types";
-import { sql } from "#db/sql.ts";
 
 const BASE = "/admin/site/news";
 

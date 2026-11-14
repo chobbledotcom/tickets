@@ -5,8 +5,8 @@ import { ADMIN_FEATURE_TRIGGERS } from "#db/migrations/schema/admin-feature-trig
 const SETTINGS_USE = { settings: ["key", "value"] } as const;
 
 const triggerContract = (trigger: (typeof ADMIN_FEATURE_TRIGGERS)[number]) => ({
-  condition: trigger.sql.match(/\nWHEN ([^\n]+)\nBEGIN/)?.[1] ?? null,
-  event: trigger.sql.split("\n")[1],
+  condition: trigger.sql.sql.match(/\nWHEN ([^\n]+)\nBEGIN/)?.[1] ?? null,
+  event: trigger.sql.sql.split("\n")[1],
   name: trigger.name,
   table: trigger.table,
   uses: trigger.uses,

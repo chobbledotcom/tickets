@@ -13,11 +13,11 @@ import {
   modifierAggregates,
   modifiersTable,
 } from "#db/modifiers.ts";
+import { sql } from "#db/sql.ts";
 import { readModifierAggregates as aggregates } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { postModifierLeg } from "#test-utils/ledger.ts";
 import { insertModifierUsage } from "#test-utils/modifiers.ts";
-import { sql } from "#db/sql.ts";
 
 const MIGRATIONS = await loadMigrations();
 /**
@@ -133,7 +133,9 @@ describeWithEnv(
       const m = await makeModifier();
       await insertModifierUsage(m.id, 1, 3, 1500);
       await insertModifierUsage(m.id, 2, 2, 1000);
-      await getDb().execute(sql`DELETE FROM modifier_usages WHERE modifier_id = ${m.id} AND attendee_id = ${1}`);
+      await getDb().execute(
+        sql`DELETE FROM modifier_usages WHERE modifier_id = ${m.id} AND attendee_id = ${1}`,
+      );
       expect(await aggregates(m.id)).toEqual({
         total_uses: 2,
         usage_count: 1,
@@ -143,7 +145,9 @@ describeWithEnv(
     test("updating quantity applies the delta", async () => {
       const m = await makeModifier();
       await insertModifierUsage(m.id, 1, 3, 1500);
-      await getDb().execute(sql`UPDATE modifier_usages SET quantity = 5 WHERE modifier_id = ${m.id} AND attendee_id = ${1}`);
+      await getDb().execute(
+        sql`UPDATE modifier_usages SET quantity = 5 WHERE modifier_id = ${m.id} AND attendee_id = ${1}`,
+      );
       expect(await aggregates(m.id)).toEqual({
         total_uses: 5,
         usage_count: 1,
@@ -155,7 +159,9 @@ describeWithEnv(
       const to = await makeModifier();
       await insertModifierUsage(from.id, 1, 4, 2000);
 
-      await getDb().execute(sql`UPDATE modifier_usages SET modifier_id = ${to.id} WHERE modifier_id = ${from.id} AND attendee_id = ${1}`);
+      await getDb().execute(
+        sql`UPDATE modifier_usages SET modifier_id = ${to.id} WHERE modifier_id = ${from.id} AND attendee_id = ${1}`,
+      );
 
       expect(await aggregates(from.id)).toEqual({
         total_uses: 0,
@@ -174,7 +180,9 @@ describeWithEnv(
 
       // amount_applied is no longer in the trigger's UPDATE OF list (it drives
       // no maintained aggregate now), so changing it must not fire the trigger.
-      await getDb().execute(sql`UPDATE modifier_usages SET amount_applied = 9999 WHERE modifier_id = ${m.id} AND attendee_id = ${1}`);
+      await getDb().execute(
+        sql`UPDATE modifier_usages SET amount_applied = 9999 WHERE modifier_id = ${m.id} AND attendee_id = ${1}`,
+      );
 
       expect(await aggregates(m.id)).toEqual(before);
     });
@@ -294,7 +302,7 @@ describeWithEnv(
         "write",
       );
       await getDb().execute(
-        sql`UPDATE modifiers SET total_uses = 999, usage_count = 999`
+        sql`UPDATE modifiers SET total_uses = 999, usage_count = 999`,
       );
 
       // Re-running up() recreates the triggers and recomputes the absolute totals.

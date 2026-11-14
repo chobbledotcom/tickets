@@ -11,7 +11,7 @@ import {
   createTestListing,
   pastCloseTime,
 } from "#test-utils/db-helpers/listings.ts";
-import { statementSql, wrapDbClient } from "#test-utils/record-queries.ts";
+import { wrapDbClient } from "#test-utils/record-queries.ts";
 
 describePackageBooking(() => {
   test("POST keeps a package fact read failure after a free booking", async () => {
@@ -35,9 +35,7 @@ describePackageBooking(() => {
     const restoreDb = wrapDbClient({
       batch: () => {},
       execute: (statement) => {
-        if (
-          !statementSql(statement).includes("groupRecord.hide_package_listings")
-        ) {
+        if (!statement.sql.includes("groupRecord.hide_package_listings")) {
           return null;
         }
         packageFactFailureRan = true;

@@ -17,7 +17,13 @@ import {
   remainingBalanceFromLedger,
 } from "#db/attendees/select.ts";
 import { queryAll } from "#db/client.ts";
-import { sql, sqlCommas, sqlList, sqlLiteral, type SqlStatement } from "#db/sql.ts";
+import {
+  type SqlStatement,
+  sql,
+  sqlCommas,
+  sqlList,
+  sqlLiteral,
+} from "#db/sql.ts";
 import { groupToMap, map, unique } from "#fp";
 
 /** Shared ordering for an attendee's booking rows so grouped reads are

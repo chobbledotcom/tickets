@@ -4,7 +4,7 @@ import {
   paymentRowStateValues,
   type RowSettlement,
 } from "#db/payment-claim.ts";
-import { sql, sqlList, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import { EMPTY_ROW_STATE } from "#payment/row-state.ts";
 import { checkingClaimFor, grantClaim } from "#payment/row-transitions.ts";

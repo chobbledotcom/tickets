@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { loadSelectedPaymentReferenceRows } from "#db/payment-reference-rows.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   bookAttendee,
@@ -12,7 +13,6 @@ import {
   finalizeProcessedPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("db > selected payment reference rows", { db: true }, () => {
   test("returns no rows for no selected attendees", async () => {
@@ -42,7 +42,7 @@ describeWithEnv("db > selected payment reference rows", { db: true }, () => {
     await execute(
       sql`INSERT INTO processed_payments
           (payment_session_id, attendee_id, processed_at, payment_reference)
-        VALUES (${"selected_unindexed"}, ${selected.id}, ${"2026-08-13T00:00:00.000Z"}, ${"pi_selected_unindexed"}), (${"unrelated_unindexed"}, ${unrelated.id}, ${"2026-08-13T00:00:00.000Z"}, ${"pi_unrelated_unindexed"})`
+        VALUES (${"selected_unindexed"}, ${selected.id}, ${"2026-08-13T00:00:00.000Z"}, ${"pi_selected_unindexed"}), (${"unrelated_unindexed"}, ${unrelated.id}, ${"2026-08-13T00:00:00.000Z"}, ${"pi_unrelated_unindexed"})`,
     );
 
     const rows = await loadSelectedPaymentReferenceRows([selected.id]);

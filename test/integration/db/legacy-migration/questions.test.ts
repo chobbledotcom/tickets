@@ -3,11 +3,11 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { insert } from "#db/client.ts";
 import { deleteListing } from "#db/listings/delete.ts";
 import { initDb } from "#db/migrations.ts";
+import { sql } from "#db/sql.ts";
 import {
   createLegacyMigrationHarness,
   stubPragmaForeignKeysOff,
 } from "#test/integration/db/legacy-migration/helpers.ts";
-import { sql } from "#db/sql.ts";
 
 describe("db > listing_attendees migration from legacy schema (questions)", () => {
   const h = createLegacyMigrationHarness();
@@ -40,7 +40,7 @@ describe("db > listing_attendees migration from legacy schema (questions)", () =
     await initDb();
 
     const questions = await client.execute(
-      sql`SELECT id, text, sort_order, display_type FROM questions`
+      sql`SELECT id, text, sort_order, display_type FROM questions`,
     );
     expect(questions.rows.length).toBe(1);
     expect(questions.rows[0]!.display_type).toBe("radio");
@@ -48,7 +48,7 @@ describe("db > listing_attendees migration from legacy schema (questions)", () =
     expect(questions.rows[0]!.text).toBe("Encrypted question");
 
     const answers = await client.execute(
-      sql`SELECT id, question_id, text FROM answers`
+      sql`SELECT id, question_id, text FROM answers`,
     );
     expect(answers.rows).toEqual([
       { id: 1, question_id: 1, text: "Encrypted answer" },

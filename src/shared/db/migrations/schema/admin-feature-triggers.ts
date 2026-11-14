@@ -1,5 +1,11 @@
 import { enabledFeaturesAreValidSql } from "#db/admin-feature-sql.ts";
-import { sql, sqlLiteral, sqlName, sqlNames, type SqlStatement } from "#db/sql.ts";
+import {
+  type SqlStatement,
+  sql,
+  sqlLiteral,
+  sqlName,
+  sqlNames,
+} from "#db/sql.ts";
 import {
   type AdminFeatureKey,
   parseEnabledFeatures,

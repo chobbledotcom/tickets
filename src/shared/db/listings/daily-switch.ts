@@ -17,7 +17,7 @@ import {
   updateStatementFor,
 } from "#db/attendees/atomic-update.ts";
 import { queryAllPrimary, resultRows, type TxScope } from "#db/client.ts";
-import { sql, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { t } from "#i18n";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
@@ -68,7 +68,9 @@ const storedTypeTx = async (
 const undatedWhere = (listingId: number): SqlStatement =>
   sql`listing_id = ${listingId} AND start_at IS NULL AND quantity > 0`;
 
-const undatedRowsSql = (listingId: number): SqlStatement => sql`SELECT attendee_id AS "attendeeId",
+const undatedRowsSql = (
+  listingId: number,
+): SqlStatement => sql`SELECT attendee_id AS "attendeeId",
             package_group_id AS "packageGroupId",
             parent_listing_id AS "parentListingId",
             quantity
@@ -97,9 +99,7 @@ export const refuseUndatedSwitchTx = async (
 ): Promise<string | null> => {
   if (wouldBeType !== "daily") return null;
   if ((await storedTypeTx(tx, listingId)) === "daily") return null;
-  const results = await tx.batch([
-    undatedCountSql(listingId),
-  ]);
+  const results = await tx.batch([undatedCountSql(listingId)]);
   const { undated } = resultRows<{ undated: number }>(results[0]!)[0]!;
   return undated === 0
     ? null
@@ -150,9 +150,7 @@ export const moveUndatedBookingsToDayTx = async (
   date: string,
   durationDays: number,
 ): Promise<number> => {
-  const results = await tx.batch([
-    undatedRowsSql(listingId),
-  ]);
+  const results = await tx.batch([undatedRowsSql(listingId)]);
   const rows = resultRows<UndatedBooking>(results[0]!);
   if (rows.length === 0) return 0;
   const statements = rows.flatMap((row) => [

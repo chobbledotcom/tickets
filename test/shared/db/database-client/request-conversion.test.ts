@@ -4,8 +4,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { createDatabaseClient, databaseFetch } from "#db/database-client.ts";
-import { hranaTestFetch } from "#test-utils/hrana.ts";
 import { sql } from "#db/sql.ts";
+import { hranaTestFetch } from "#test-utils/hrana.ts";
 
 /** The engine hands the configured fetch its own Request object; the client
  *  rebuilds it as a native request and forwards the engine's call arguments.

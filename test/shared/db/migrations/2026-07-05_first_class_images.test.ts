@@ -12,6 +12,7 @@ import {
 } from "#db/migrations/schema-sync.ts";
 import type { MigrationContext } from "#db/migrations/types.ts";
 import { additive } from "#db/migrations/verify.ts";
+import { sql } from "#db/sql.ts";
 import {
   columnNames,
   tableRowCount,
@@ -19,7 +20,6 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
-import { sql } from "#db/sql.ts";
 
 // The real additive() (not the no-op stub) so runMigration's verify() genuinely
 // checks the tables and indexes the migration's `requires` claims.
@@ -40,12 +40,12 @@ const runMigration = async (): Promise<void> => {
 
 const addListingImageUrlColumn = (): Promise<unknown> =>
   getDb().execute(
-    sql`ALTER TABLE listings ADD COLUMN image_url TEXT NOT NULL DEFAULT ''`
+    sql`ALTER TABLE listings ADD COLUMN image_url TEXT NOT NULL DEFAULT ''`,
   );
 
 const addListingImageThumbColumn = (): Promise<unknown> =>
   getDb().execute(
-    sql`ALTER TABLE listings ADD COLUMN image_thumb_url TEXT NOT NULL DEFAULT ''`
+    sql`ALTER TABLE listings ADD COLUMN image_thumb_url TEXT NOT NULL DEFAULT ''`,
   );
 
 const addListingImageColumns = async (): Promise<void> => {
@@ -60,13 +60,15 @@ const setListingImageColumns = async (
   filename: string,
   thumbnail: string,
 ): Promise<unknown> =>
-  getDb().execute(sql`UPDATE listings SET image_url = ${await encrypt(filename)}, image_thumb_url = ${thumbnail === "" ? "" : await encrypt(thumbnail)} WHERE id = ${listingId}`);
+  getDb().execute(
+    sql`UPDATE listings SET image_url = ${await encrypt(filename)}, image_thumb_url = ${thumbnail === "" ? "" : await encrypt(thumbnail)} WHERE id = ${listingId}`,
+  );
 
 const imageUseRows = (): Promise<
   { image_id: number; item_id: number; item_type: string; sort_order: number }[]
 > =>
   queryAll(
-    sql`SELECT image_id, item_type, item_id, sort_order FROM image_uses ORDER BY item_id`
+    sql`SELECT image_id, item_type, item_id, sort_order FROM image_uses ORDER BY item_id`,
   );
 
 const expectListingImageColumnsGone = async (): Promise<void> => {
@@ -131,7 +133,9 @@ describeWithEnv(
     test("backfills a database whose listings never had the thumbnail column", async () => {
       await addListingImageUrlColumn();
       const listing = await createTestListing({ name: "Ancient listing" });
-      await getDb().execute(sql`UPDATE listings SET image_url = ${await encrypt("products/old.webp")} WHERE id = ${listing.id}`);
+      await getDb().execute(
+        sql`UPDATE listings SET image_url = ${await encrypt("products/old.webp")} WHERE id = ${listing.id}`,
+      );
 
       await runMigration();
 

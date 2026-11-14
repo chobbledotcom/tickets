@@ -29,7 +29,6 @@ import {
   RESTORE_DEFERRED_INDEXES,
   RESTORE_DEFERRED_TRIGGERS,
 } from "#db/migrations/schema/restore-work.ts";
-import { noArgStatements } from "#db/migrations/schema-sync.ts";
 import {
   clearAllCaches,
   LATEST_UPDATE,
@@ -42,6 +41,7 @@ import {
   dumpMigrationState,
   legacyColumnRestores,
 } from "#db/restore-legacy-columns.ts";
+import { type SqlStatement, sql, sqlFromDump, sqlName } from "#db/sql.ts";
 import { compact, reduce, sum } from "#fp";
 import { utf8ByteLength } from "#shared/bytes.ts";
 import { namedError } from "#shared/named-error.ts";
@@ -49,7 +49,6 @@ import { nowIso } from "#shared/now.ts";
 import { uploadRaw } from "#shared/storage.ts";
 import { getSubrequestRemaining } from "#shared/subrequest-budget.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
-import { sql, sqlName } from "#db/sql.ts";
 
 /** Thrown by restoreFromSql after resetDatabase() runs but a later step fails,
  *  so callers can distinguish a post-reset failure (DB wiped) from a pre-reset
@@ -104,20 +103,20 @@ const RESTORE_CORE_TABLES = [
 ] as const;
 
 type RestoreBatchState = {
-  completed: string[][];
-  current: { bytes: number; statements: string[] };
+  completed: SqlStatement[][];
+  current: { bytes: number; statements: SqlStatement[] };
 };
 
 const restoreBatches = ([first, ...statements]: [
-  string,
-  ...string[],
-]): string[][] => {
+  SqlStatement,
+  ...SqlStatement[],
+]): SqlStatement[][] => {
   const initial: RestoreBatchState = {
     completed: [],
-    current: { bytes: utf8ByteLength(first), statements: [first] },
+    current: { bytes: utf8ByteLength(first.sql), statements: [first] },
   };
-  const result = reduce((state: RestoreBatchState, statement: string) => {
-    const statementBytes = utf8ByteLength(statement);
+  const result = reduce((state: RestoreBatchState, statement: SqlStatement) => {
+    const statementBytes = utf8ByteLength(statement.sql);
     if (
       state.current.statements.length === RESTORE_BATCH_STATEMENT_LIMIT ||
       state.current.bytes + statementBytes > RESTORE_BATCH_BYTE_LIMIT
@@ -385,10 +384,10 @@ export const inspectBackupZip = (zipData: Uint8Array): BackupInspection =>
  * are skipped), making an accidental rollback look like a successful restore.
  */
 export const restoreFromSql = async (
-  sql: string,
+  dump: string,
   onProgress: RestoreProgressHandler = ignoreRestoreProgress,
 ): Promise<void> => {
-  const statements = splitStatements(sql);
+  const statements = splitStatements(dump);
   const report = (stage: RestoreStage): void =>
     onProgress({ stage, statementCount: statements.length });
   report("checking");
@@ -427,14 +426,16 @@ export const restoreFromSql = async (
     // preserving aggregate values already stored in the backup. Data checks
     // remain active.
     report("importing");
-    const restoreStatements: [string, ...string[]] = [
-      `DELETE FROM ${RESTORE_CORE_TABLES[0]}`,
-      ...RESTORE_CORE_TABLES.slice(1).map((table) => `DELETE FROM ${table}`),
+    const restoreStatements: [SqlStatement, ...SqlStatement[]] = [
+      sql`DELETE FROM ${sqlName(RESTORE_CORE_TABLES[0])}`,
+      ...RESTORE_CORE_TABLES.slice(1).map(
+        (table) => sql`DELETE FROM ${sqlName(table)}`,
+      ),
       ...(migrations.hasPending ? legacyColumnRestores(statements) : []),
-      ...statements,
+      ...statements.map(sqlFromDump),
     ];
     for (const batch of restoreBatches(restoreStatements)) {
-      await executeBatch(noArgStatements(batch));
+      await executeBatch(batch);
     }
     await rebuildDeferredSchemaWork();
   } catch (err) {

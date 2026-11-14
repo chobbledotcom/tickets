@@ -11,6 +11,7 @@ import { expect } from "@std/expect";
 import * as v from "valibot";
 import { execute } from "#db/client.ts";
 import { listingsTable } from "#db/listings/records.ts";
+import { sql, sqlName } from "#db/sql.ts";
 import { t } from "#i18n";
 import { nowMs } from "#shared/now.ts";
 import {
@@ -47,7 +48,6 @@ import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments
 import { TEST_ADMIN_USERNAME } from "#test-utils/internal.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 import type { Listing } from "#types";
-import { sql, sqlName } from "#db/sql.ts";
 
 /** The code the site gave somebody, read off the link on the page their
  * booking landed on. A booking whose page offers no way back to a ticket is a
@@ -249,7 +249,7 @@ export const theWaitPasses = async (): Promise<void> => {
   const past = nowMs() - 1;
   for (const table of ["login_attempts", "token_attempts"]) {
     await execute(
-      sql`UPDATE ${sqlName(table)} SET locked_until = ${past} WHERE locked_until IS NOT NULL`
+      sql`UPDATE ${sqlName(table)} SET locked_until = ${past} WHERE locked_until IS NOT NULL`,
     );
   }
 };

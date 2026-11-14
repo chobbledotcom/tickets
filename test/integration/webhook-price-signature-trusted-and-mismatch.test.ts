@@ -9,6 +9,7 @@ import { listingChildren } from "#db/listing-parents.ts";
 import { deleteListing } from "#db/listings/delete.ts";
 import { listingsTable } from "#db/listings/records.ts";
 import { runDatabasePruning } from "#db/prune.ts";
+import { sql } from "#db/sql.ts";
 import {
   expectProcessed,
   expectReplayOutcome,
@@ -26,7 +27,6 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { sql } from "#db/sql.ts";
 
 const pruneLegacyReplayRow = async (sessionId: string) => {
   await execute(
@@ -36,12 +36,12 @@ const pruneLegacyReplayRow = async (sessionId: string) => {
         SELECT attendee_id
           FROM processed_payments
          WHERE payment_session_id = ${sessionId}
-      )`
+      )`,
   );
   await execute(
     sql`UPDATE processed_payments
         SET processed_at = ${"2000-01-01T00:00:00.000Z"}, payment_reference = ''
-      WHERE payment_session_id = ${sessionId}`
+      WHERE payment_session_id = ${sessionId}`,
   );
   await runDatabasePruning();
   expect(await getProcessedPayment(sessionId)).toBe(null);

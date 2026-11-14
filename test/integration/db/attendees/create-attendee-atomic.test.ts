@@ -6,6 +6,7 @@ import { getAttendeeRaw, getAttendeesRaw } from "#db/attendees/queries.ts";
 import { dateToRange } from "#db/capacity.ts";
 import { getDb } from "#db/client.ts";
 import { listingAggregates } from "#db/listings/aggregates.ts";
+import { sql } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { expectNoAttendeesForListings } from "#test-utils/db-helpers/attendees.ts";
@@ -15,13 +16,14 @@ import {
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
-import { sql } from "#db/sql.ts";
 
 /** Fetch raw start_at/end_at for an listing (getAttendeesRaw drops them). */
 const getRange = async (
   listingId: number,
 ): Promise<{ start_at: string; end_at: string }> => {
-  const res = await getDb().execute(sql`SELECT start_at, end_at FROM listing_attendees WHERE listing_id = ${listingId}`);
+  const res = await getDb().execute(
+    sql`SELECT start_at, end_at FROM listing_attendees WHERE listing_id = ${listingId}`,
+  );
   return res.rows[0] as unknown as { start_at: string; end_at: string };
 };
 
@@ -415,7 +417,7 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
     const { queryAll } = await import("#db/client.ts");
     for (const member of [memberA, memberB]) {
       const rows = await queryAll<{ quantity: number }>(
-        sql`SELECT quantity FROM listing_attendees WHERE listing_id = ${member.id}`
+        sql`SELECT quantity FROM listing_attendees WHERE listing_id = ${member.id}`,
       );
       expect(rows).toHaveLength(1);
       expect(rows[0]!.quantity).toBe(1);

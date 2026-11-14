@@ -4,6 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { getGroupPackagePrices } from "#db/groups.ts";
 import { listingParents } from "#db/listing-parents.ts";
+import { sql } from "#db/sql.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import type { CatalogBundle } from "#routes/admin/catalog-transfer/schema.ts";
 import {
@@ -17,7 +18,6 @@ import {
   createTestGroup,
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { sql } from "#db/sql.ts";
 
 /** A planned listing that joins a stored package and one that carries a
  * stored parent: the mixed document the site-reference paths serve. */
@@ -152,7 +152,7 @@ describeWithEnv("bundle references to stored rows", { db: true }, () => {
     await createGroupWithListings("Hiding Pack", ["Stored Parent"]);
     const packId = await storedGroupIdOf("Hiding Pack");
     await execute(
-      sql`UPDATE groups SET is_package = 1, hide_package_listings = 1 WHERE id = ${packId}`
+      sql`UPDATE groups SET is_package = 1, hide_package_listings = 1 WHERE id = ${packId}`,
     );
     const bundle = mixedBundle();
     bundle.listings[0]!.groups = [];

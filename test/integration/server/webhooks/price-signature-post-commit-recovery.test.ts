@@ -23,6 +23,7 @@ import { getAttendeeAnswersBatch } from "#db/questions/attendee-answers/reads.ts
 import { listingQuestions } from "#db/questions/queries.ts";
 import { getOrCreateStringIds } from "#db/questions/strings.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import {
   runWebhook,
@@ -44,12 +45,11 @@ import {
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks/stripe.ts";
-import { sql } from "#db/sql.ts";
 
 const contactCountsByHash = async (hash: string) =>
   queryOne<{ public_booking_count: number; visits: number }>(
     sql`SELECT public_booking_count, visits FROM contact_preferences
-     WHERE contact_hash = ${hash}`
+     WHERE contact_hash = ${hash}`,
   );
 
 const contactCounts = async (email: string) =>
@@ -117,7 +117,7 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
     // The listings.fields column stores env-key encrypted values, so the
     // fixture writes the collected field the way every write path does.
     await execute(
-      sql`UPDATE listings SET fields = ${await encrypt("email")}, webhook_url = ${await encrypt("https://registration.example.com/hook")} WHERE id = ${listing.id}`
+      sql`UPDATE listings SET fields = ${await encrypt("email")}, webhook_url = ${await encrypt("https://registration.example.com/hook")} WHERE id = ${listing.id}`,
     );
     await configureTestEmail({ businessEmail: "owner@example.com" });
     const sessionId = "cs_lost_committed_result";
@@ -327,7 +327,7 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
           }
 
           await execute(
-            sql`DELETE FROM processed_payments WHERE payment_session_id = ${sessionId}`
+            sql`DELETE FROM processed_payments WHERE payment_session_id = ${sessionId}`,
           );
           await assertJson(webhookRequest(), 200, (json) => {
             expect(json.processed).toBe(true);

@@ -9,6 +9,7 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb, queryOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import {
   adminCheckinPost as checkIn,
@@ -18,14 +19,15 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import { adminFormPost, getTestSession } from "#test-utils/session.ts";
-import { sql } from "#db/sql.ts";
 
 /** Whether the roster row for one attendee on one listing is checked in. */
 const isCheckedIn = async (
   listingId: number,
   attendeeId: number,
 ): Promise<boolean> => {
-  const rows = await getDb().execute(sql`SELECT checked_in FROM listing_attendees WHERE listing_id = ${listingId} AND attendee_id = ${attendeeId}`);
+  const rows = await getDb().execute(
+    sql`SELECT checked_in FROM listing_attendees WHERE listing_id = ${listingId} AND attendee_id = ${attendeeId}`,
+  );
   return Number(rows.rows[0]!.checked_in) === 1;
 };
 
@@ -114,7 +116,7 @@ describeWithEnv("adding an attendee by hand", { db: true }, () => {
       webhooks_pending: number;
     }>(
       sql`SELECT email_pending, webhooks_pending FROM attendees
-       WHERE id = (SELECT MAX(attendee_id) FROM listing_attendees WHERE listing_id = ${listing.id})`
+       WHERE id = (SELECT MAX(attendee_id) FROM listing_attendees WHERE listing_id = ${listing.id})`,
     );
     expect(row).toEqual({ email_pending: 2, webhooks_pending: 0 });
   });
@@ -130,7 +132,7 @@ describeWithEnv("adding an attendee by hand", { db: true }, () => {
     expect(response.status).toBe(302);
     const row = await queryOne<{ email_pending: number }>(
       sql`SELECT email_pending FROM attendees
-       WHERE id = (SELECT MAX(attendee_id) FROM listing_attendees WHERE listing_id = ${listing.id})`
+       WHERE id = (SELECT MAX(attendee_id) FROM listing_attendees WHERE listing_id = ${listing.id})`,
     );
     expect(row).toEqual({ email_pending: 0 });
   });

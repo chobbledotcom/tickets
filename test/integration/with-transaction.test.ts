@@ -14,6 +14,7 @@ import {
   setN1GuardNotifyOnly,
   TRANSACTION_ROUNDTRIP_THRESHOLD,
 } from "#db/query-log.ts";
+import { sql } from "#db/sql.ts";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { stubClient } from "#test-utils/db-helpers/result-set.ts";
 import { transactionStub } from "#test-utils/db-helpers/stub-transaction.ts";
@@ -23,7 +24,6 @@ import {
   createTrackedTestDbFile,
 } from "#test-utils/temp-db-files.ts";
 import { withVirtualBackoff } from "#test-utils/virtual-time.ts";
-import { sql } from "#db/sql.ts";
 
 /**
  * withTransaction needs an interactive transaction that shares state with the

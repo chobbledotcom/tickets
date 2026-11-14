@@ -9,6 +9,7 @@ import {
   ownerEncryptedRuleOrNull,
   paymentRecord,
 } from "#db/migrations/schema/payments/columns.ts";
+import { sql } from "#db/sql.ts";
 
 describe("the kinds of column a payment record is built from", () => {
   // These say what a column is, and nothing about what a payment may say —
@@ -37,7 +38,7 @@ describe("the kinds of column a payment record is built from", () => {
 
   test("every record hanging off a payment opens the same way", () => {
     const [name, table] = paymentRecord("payment_charges", {
-      columns: [["captured_amount", "INTEGER"]],
+      columns: [["captured_amount", sql`INTEGER`]],
       indexes: [{ columns: ["payment_id"], name: "idx_charges_payment" }],
     });
 

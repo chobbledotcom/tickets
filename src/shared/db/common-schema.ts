@@ -1,11 +1,12 @@
+import type { InValue } from "@libsql/client";
 import type { BlindIndex, EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { executeUpdate, resetAggregates } from "#db/client.ts";
-import type { InValue } from "@libsql/client";
 import {
   createKeyedCache,
   type KeyedCache,
   type KeyedCacheConfig,
 } from "#db/keyed-cache.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { type ColumnDef, col, type Table } from "#db/table.ts";
 import {
   type DependsOnEntry,
@@ -13,7 +14,6 @@ import {
   registerDependencies,
   registerTableInvalidation,
 } from "#shared/cache-registry.ts";
-import { type SqlStatement } from "#db/sql.ts";
 
 // Re-exported for users.ts, which caches a table-less query and so wires the
 // cache by hand rather than through cachedEntityTable.

@@ -5,11 +5,11 @@
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { idAndEncryptedNameSchema } from "#db/common-schema.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { col, defineCachedListTable } from "#db/table.ts";
 import { filter } from "#fp";
 import { todayInTz } from "#shared/timezone.ts";
 import type { DateString } from "#shared/validation/date-string.ts";
-import { sql } from "#db/sql.ts";
 
 export interface Holiday {
   end_date: string;

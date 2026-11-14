@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import {
   assertAdminHtml,
@@ -13,7 +14,6 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { apiRequest, createTestApiKeyToken } from "#test-utils/session.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("Admin API - Listings", { db: true }, () => {
   describe("PUT /api/admin/listings/:listingId", () => {
@@ -70,7 +70,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
          WHEN NEW.id = ${listing.id}
          BEGIN
            DELETE FROM listings WHERE id = NEW.id;
-         END`
+         END`,
       );
 
       const response = await apiRequest(`/api/admin/listings/${listing.id}`, {

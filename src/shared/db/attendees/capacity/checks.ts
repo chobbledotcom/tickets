@@ -15,7 +15,14 @@ import { queryAll, requireOne } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { runWithPrimaryReads } from "#db/primary-reads.ts";
-import { sql, sqlCommas, sqlList, sqlName, type SqlSlot, type SqlStatement } from "#db/sql.ts";
+import {
+  type SqlSlot,
+  type SqlStatement,
+  sql,
+  sqlCommas,
+  sqlList,
+  sqlName,
+} from "#db/sql.ts";
 import { identity, map, mapById, requiredMapValue, unique } from "#fp";
 import { capacityDateFor } from "#shared/capacity-rules.ts";
 import { dateToStartEnd } from "./range.ts";

@@ -2,7 +2,7 @@
 
 import { execute, queryAll, queryOne, resultRows } from "#db/client.ts";
 import { storePaymentReference } from "#db/payment-reference-store.ts";
-import { sql, sqlName, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import { type Money, sameMoney } from "#payment/money.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import {

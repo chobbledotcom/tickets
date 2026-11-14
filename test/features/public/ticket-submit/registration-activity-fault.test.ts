@@ -12,6 +12,7 @@ import { queryOne } from "#db/client.ts";
 import { getVisits, hashEmail } from "#db/contact-preferences.ts";
 import { modifierUsedQuantities } from "#db/modifier-usage.ts";
 import { modifiersTable } from "#db/modifiers.ts";
+import { sql } from "#db/sql.ts";
 import { processParentApiBooking } from "#routes/api/folded-booking.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -34,12 +35,12 @@ const expectNothingCommitted = async (
 ): Promise<void> => {
   expect(
     (await queryOne<{ count: number }>(
-      "SELECT COUNT(*) AS count FROM attendees",
+      sql`SELECT COUNT(*) AS count FROM attendees`,
     ))!.count,
   ).toBe(0);
   expect(
     (await queryOne<{ count: number }>(
-      "SELECT COUNT(*) AS count FROM attendee_answers",
+      sql`SELECT COUNT(*) AS count FROM attendee_answers`,
     ))!.count,
   ).toBe(0);
   expect(await getVisits(await hashEmail(email))).toBe(0);

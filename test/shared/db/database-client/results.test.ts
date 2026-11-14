@@ -1,6 +1,7 @@
 import type { Client } from "@libsql/client";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { sql } from "#db/sql.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import {
   hranaBatchReply,
@@ -8,7 +9,6 @@ import {
   hranaTestDatabase,
   hranaTestSqlite,
 } from "#test-utils/hrana.ts";
-import { sql } from "#db/sql.ts";
 
 describe("primary read results", () => {
   for (const intMode of ["number", "bigint", "string"] as const) {

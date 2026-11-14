@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { stripeApi } from "#shared/stripe.ts";
 import { twoListingsAttendees } from "#test/integration/server/attendee-read-helpers.ts";
@@ -18,7 +19,6 @@ import { signMeta } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubCheckoutSession } from "#test-utils/stripe/responses.ts";
-import { sql } from "#db/sql.ts";
 
 /** Assert every package member's most recent booking landed on `date` and
  *  carries the package's group id — the shared check for a dated package
@@ -31,7 +31,9 @@ const expectMembersBookedOnDate = async (
   const { getDb } = await import("#db/client.ts");
   for (const member of members) {
     const row = (
-      await getDb().execute(sql`SELECT start_at, package_group_id FROM listing_attendees WHERE listing_id = ${member.id} ORDER BY id DESC LIMIT 1`)
+      await getDb().execute(
+        sql`SELECT start_at, package_group_id FROM listing_attendees WHERE listing_id = ${member.id} ORDER BY id DESC LIMIT 1`,
+      )
     ).rows[0]!;
     expect(String(row.start_at).slice(0, 10)).toBe(date);
     expect(Number(row.package_group_id)).toBe(groupId);
@@ -154,7 +156,9 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         expectRedirect(redirectResponse, /^\/payment\/success\?tokens=.+$/);
 
         const row = (
-          await getDb().execute(sql`SELECT package_group_id FROM listing_attendees WHERE listing_id = ${member.id} ORDER BY id DESC LIMIT 1`)
+          await getDb().execute(
+            sql`SELECT package_group_id FROM listing_attendees WHERE listing_id = ${member.id} ORDER BY id DESC LIMIT 1`,
+          )
         ).rows[0]!;
         expect(Number(row.package_group_id)).toBe(group.id);
       } finally {

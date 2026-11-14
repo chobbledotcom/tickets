@@ -4,9 +4,9 @@ import { it as test } from "@std/testing/bdd";
 import { getDb, queryAll } from "#db/client.ts";
 import groupFlatPricesMigration from "#db/migrations/2026-07-02_group_flat_prices.ts";
 import { recreateTable } from "#db/migrations/schema-sync.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
-import { sql } from "#db/sql.ts";
 
 // The migration's up() reads the live schema and rebuilds group_listings; getDb
 // is real by default, recreateTable does the column drop.
@@ -18,7 +18,7 @@ const runMigration = () => groupFlatPricesMigration(context).up();
  * A test DB is built from the current SCHEMA, which no longer has the column. */
 const addLegacyColumn = (): Promise<unknown> =>
   getDb().execute(
-    sql`ALTER TABLE group_listings ADD COLUMN package_price INTEGER`
+    sql`ALTER TABLE group_listings ADD COLUMN package_price INTEGER`,
   );
 
 /** Insert a legacy membership row carrying a `package_price` value. */
@@ -28,7 +28,9 @@ const seedMember = (
   quantity: number,
   packagePrice: number | null,
 ): Promise<unknown> =>
-  getDb().execute(sql`INSERT INTO group_listings (group_id, listing_id, quantity, package_price) VALUES (${groupId}, ${listingId}, ${quantity}, ${packagePrice})`);
+  getDb().execute(
+    sql`INSERT INTO group_listings (group_id, listing_id, quantity, package_price) VALUES (${groupId}, ${listingId}, ${quantity}, ${packagePrice})`,
+  );
 
 /** The migrated `group` price rows, ordered for stable assertions. */
 const groupPriceRows = (): Promise<
@@ -36,7 +38,7 @@ const groupPriceRows = (): Promise<
 > =>
   queryAll(
     sql`SELECT listing_id, price_id, unit_price FROM listing_prices
-      WHERE price_type = 'group' ORDER BY price_id, listing_id`
+      WHERE price_type = 'group' ORDER BY price_id, listing_id`,
   );
 
 const groupListingsColumns = async (): Promise<string[]> => {
@@ -68,7 +70,7 @@ describeWithEnv(
       // The column is gone but membership + quantity survive the rebuild.
       assert(!(await groupListingsColumns()).includes("package_price"));
       const rows = await queryAll<{ listing_id: number; quantity: number }>(
-        sql`SELECT listing_id, quantity FROM group_listings WHERE group_id = 1 ORDER BY listing_id`
+        sql`SELECT listing_id, quantity FROM group_listings WHERE group_id = 1 ORDER BY listing_id`,
       );
       expect(rows).toEqual([
         { listing_id: 10, quantity: 2 },

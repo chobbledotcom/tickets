@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, queryAll } from "#db/client.ts";
 import { runDatabasePruning } from "#db/prune.ts";
+import { sql } from "#db/sql.ts";
 import {
   RECOVERY_NODES,
   type RecoveryNodeId,
@@ -10,7 +11,6 @@ import {
 import { PRUNE_SUMUP_RETENTION_MS } from "#shared/limits.ts";
 import { isoBefore } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("server > SumUp recovery pruning", { db: true }, () => {
   /** An ancient row in each state, well past the retention window. */
@@ -21,7 +21,7 @@ describeWithEnv("server > SumUp recovery pruning", { db: true }, () => {
         sql`INSERT INTO sumup_checkouts
            (reference_index, wrapped_key, metadata, sumup_id, created_at,
             recovery_state, next_check_at)
-         VALUES (${`idx_${node.id}`}, '', '', ${node.id === "staged" ? "" : `co_${node.id}`}, ${old}, ${node.id}, NULL)`
+         VALUES (${`idx_${node.id}`}, '', '', ${node.id === "staged" ? "" : `co_${node.id}`}, ${old}, ${node.id}, NULL)`,
       );
     }
   };
@@ -29,7 +29,7 @@ describeWithEnv("server > SumUp recovery pruning", { db: true }, () => {
   const survivingStates = async (): Promise<RecoveryNodeId[]> =>
     (
       await queryAll<{ recovery_state: RecoveryNodeId }>(
-        sql`SELECT recovery_state FROM sumup_checkouts ORDER BY recovery_state`
+        sql`SELECT recovery_state FROM sumup_checkouts ORDER BY recovery_state`,
       )
     ).map((row) => row.recovery_state);
 

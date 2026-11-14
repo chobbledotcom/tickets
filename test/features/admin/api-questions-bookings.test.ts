@@ -3,12 +3,12 @@
  * question, and the selection total each answer carries.
  */
 
-import type { InStatement } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { execute, getDb } from "#db/client.ts";
 import { getAnswerSelectionTotals } from "#db/questions/aggregates.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { seedChoiceAndTextQuestions } from "#test/shared/db/questions/helpers.ts";
 import { assertJson } from "#test-utils/assertions.ts";
@@ -23,7 +23,6 @@ import {
   requestAsSession,
   testCsrfToken,
 } from "#test-utils/session.ts";
-import { sql } from "#db/sql.ts";
 
 /** One booking's id, from the create answer. */
 const bookAnswer = async (
@@ -217,8 +216,8 @@ describeWithEnv(
       using _laggingReplica = stub(
         database,
         "execute",
-        (statement: InStatement) => {
-          const sql = typeof statement === "string" ? statement : statement.sql;
+        (statement: SqlStatement) => {
+          const sql = statement.sql;
           return sql.includes("answer.times_selected")
             ? Promise.resolve(emptyResultSet())
             : liveExecute(statement);
@@ -294,7 +293,9 @@ describeWithEnv(
       });
       // A deleted listing removes its lines. The booking and its answer stay,
       // so the link answers with no listing to name.
-      await execute(sql`DELETE FROM listing_attendees WHERE attendee_id = ${attendeeId}`);
+      await execute(
+        sql`DELETE FROM listing_attendees WHERE attendee_id = ${attendeeId}`,
+      );
 
       await assertJson(
         apiRequest(`/api/admin/questions/${size.id}/bookings`),

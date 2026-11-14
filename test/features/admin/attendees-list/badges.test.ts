@@ -3,11 +3,11 @@
 
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { expectHtml } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendeeWithFlags } from "#test-utils/db-helpers/attendees.ts";
 import { adminGet } from "#test-utils/session.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("pending notification badges", { db: true }, () => {
   test("a red badge says the email never went out for an online booking", async () => {
@@ -40,7 +40,9 @@ describeWithEnv("pending notification badges", { db: true }, () => {
     // The listing no longer collects an email, so the stored flag no longer
     // means an owed send: the badge follows the current rule, not the flag
     // alone.
-    await execute(sql`UPDATE listings SET fields = 'phone' WHERE id = ${listing.id}`);
+    await execute(
+      sql`UPDATE listings SET fields = 'phone' WHERE id = ${listing.id}`,
+    );
 
     await expectHtml(await adminGet("/admin/attendees"), {
       contains: ["Dropped Email Buyer"],

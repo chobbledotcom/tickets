@@ -10,9 +10,9 @@ import { decryptWithOwnerKey } from "#crypto/hybrid.ts";
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { queryAll } from "#db/client.ts";
 import { answersTable } from "#db/questions/tables.ts";
+import { sql } from "#db/sql.ts";
 import { mapParallel } from "#fp";
 import { ascending } from "#types";
-import { sql } from "#db/sql.ts";
 
 /** The fields a stored answer row and its API answer share: the booking, the
  *  chosen answer row, and the answer's stored text. */

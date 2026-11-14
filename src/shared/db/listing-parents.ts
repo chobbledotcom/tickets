@@ -16,6 +16,7 @@ import { type LinkTableSide, selfLinkTableSides } from "#db/link-table.ts";
 import { guardEdgeWriteTx } from "#db/listing-edge-write.ts";
 import { requireCurrentRelationshipRules } from "#db/listing-relationship-validation.ts";
 import { requireListingsWithCountsByIds } from "#db/listings/records.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import {
   firstProblem,
@@ -35,7 +36,6 @@ import {
   packageChildEdgeError,
 } from "#shared/package-membership.ts";
 import type { ListingWithCount } from "#types";
-import { sql, sqlList, type SqlStatement } from "#db/sql.ts";
 
 /** Both directions of the edge table. Parents and children are both listings,
  * so one read answers "who are my children" and "whose child am I" together —

@@ -3,9 +3,9 @@ import { describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#crypto/encryption.ts";
 import { executeWithoutCacheInvalidation } from "#db/client.ts";
 import { ALL_SETTINGS_KEYS, CONFIG_KEYS, settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { updateBusinessEmail } from "#shared/validation/email.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { sql } from "#db/sql.ts";
 
 const reloadBusinessEmail = async (): Promise<void> => {
   settings.invalidateCache();
@@ -77,7 +77,7 @@ describeWithEnv("business-email", { db: true }, () => {
       await updateBusinessEmail("cached@example.com");
       await settings.loadKeys([CONFIG_KEYS.BUSINESS_EMAIL]);
       await executeWithoutCacheInvalidation(
-        sql`UPDATE settings SET value = ${await encrypt("changed@example.com")} WHERE key = ${CONFIG_KEYS.BUSINESS_EMAIL}`
+        sql`UPDATE settings SET value = ${await encrypt("changed@example.com")} WHERE key = ${CONFIG_KEYS.BUSINESS_EMAIL}`,
       );
       await settings.loadKeys([CONFIG_KEYS.BUSINESS_EMAIL]);
 
@@ -87,7 +87,7 @@ describeWithEnv("business-email", { db: true }, () => {
     test("invalidateSettingsCache forces decrypt from database", async () => {
       await updateBusinessEmail("encrypted@example.com");
       await executeWithoutCacheInvalidation(
-        sql`UPDATE settings SET value = ${await encrypt("refreshed@example.com")} WHERE key = ${CONFIG_KEYS.BUSINESS_EMAIL}`
+        sql`UPDATE settings SET value = ${await encrypt("refreshed@example.com")} WHERE key = ${CONFIG_KEYS.BUSINESS_EMAIL}`,
       );
       settings.invalidateCache();
       await settings.loadKeys(ALL_SETTINGS_KEYS);

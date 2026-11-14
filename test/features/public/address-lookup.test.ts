@@ -9,6 +9,7 @@ import { hmacHash } from "#crypto/hashing.ts";
 import { execute } from "#db/client.ts";
 import { makeIpRateLimiter } from "#db/login-attempts.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import {
   ADDRESS_LOOKUP_LOCKOUT_MS,
   MAX_ADDRESS_LOOKUPS,
@@ -18,7 +19,6 @@ import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { createTestScannerSession } from "#test-utils/role-sessions.ts";
 import { testCookie } from "#test-utils/session.ts";
-import { sql } from "#db/sql.ts";
 
 /** The same namespaced counter the route itself counts against. */
 const limiter = makeIpRateLimiter(
@@ -49,7 +49,9 @@ describeWithEnv("the address lookup route's limiter", { db: true }, () => {
 
   afterEach(async () => {
     // The counter's row keys on the limiter's own prefix plus the IP.
-    await execute(sql`DELETE FROM login_attempts WHERE ip = ${await hmacHash("address:direct")}`);
+    await execute(
+      sql`DELETE FROM login_attempts WHERE ip = ${await hmacHash("address:direct")}`,
+    );
     settings.clearTestOverrides();
   });
 

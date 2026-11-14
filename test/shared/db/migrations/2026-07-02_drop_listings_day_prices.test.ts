@@ -4,9 +4,9 @@ import { it as test } from "@std/testing/bdd";
 import { getDb, queryAll } from "#db/client.ts";
 import dropListingsDayPricesMigration from "#db/migrations/2026-07-02_drop_listings_day_prices.ts";
 import { recreateTable } from "#db/migrations/schema-sync.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
-import { sql } from "#db/sql.ts";
 
 // The migration's up() reads the live schema and rebuilds listings; getDb is real
 // by default, recreateTable does the column drop.
@@ -17,12 +17,14 @@ const runMigration = () => dropListingsDayPricesMigration(context).up();
  * column-free SCHEMA) so the fixture mirrors a real pre-migration database. */
 const addLegacyColumn = (): Promise<unknown> =>
   getDb().execute(
-    sql`ALTER TABLE listings ADD COLUMN day_prices TEXT NOT NULL DEFAULT '{}'`
+    sql`ALTER TABLE listings ADD COLUMN day_prices TEXT NOT NULL DEFAULT '{}'`,
   );
 
 /** Insert a bare listing row carrying a `day_prices` JSON value. */
 const seedListing = (id: number, dayPrices: string): Promise<unknown> =>
-  getDb().execute(sql`INSERT INTO listings (id, created, max_attendees, day_prices) VALUES (${id}, '2026-07-02', 10, ${dayPrices})`);
+  getDb().execute(
+    sql`INSERT INTO listings (id, created, max_attendees, day_prices) VALUES (${id}, '2026-07-02', 10, ${dayPrices})`,
+  );
 
 /** The `day_count` rows, ordered for stable assertions. */
 const dayCountRows = (): Promise<
@@ -30,7 +32,7 @@ const dayCountRows = (): Promise<
 > =>
   queryAll(
     sql`SELECT listing_id, price_id, unit_price FROM listing_prices
-      WHERE price_type = 'day_count' ORDER BY listing_id, CAST(price_id AS INTEGER)`
+      WHERE price_type = 'day_count' ORDER BY listing_id, CAST(price_id AS INTEGER)`,
   );
 
 const listingsColumns = async (): Promise<string[]> => {
@@ -49,7 +51,7 @@ describeWithEnv(
       // A stale day_count row for listing 10 must be replaced by the column's
       // authoritative contents (the migration does a full DELETE + rebuild).
       await getDb().execute(
-        sql`INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES (10, 'day_count', '9', 99)`
+        sql`INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES (10, 'day_count', '9', 99)`,
       );
 
       await runMigration();
@@ -62,7 +64,7 @@ describeWithEnv(
       // The column is gone; the listing rows survive the rebuild.
       assert(!(await listingsColumns()).includes("day_prices"));
       const ids = await queryAll<{ id: number }>(
-        sql`SELECT id FROM listings ORDER BY id`
+        sql`SELECT id FROM listings ORDER BY id`,
       );
       expect(ids).toEqual([{ id: 10 }, { id: 11 }]);
     });

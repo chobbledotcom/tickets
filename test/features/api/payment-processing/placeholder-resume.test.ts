@@ -14,6 +14,7 @@ import { prepareClaimedAttendeePaymentAnchor } from "#db/payment-anchor/attendee
 import { settleAttendeeRows } from "#db/payment-claim.ts";
 import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
 import { parseSessionFailure } from "#db/processed-payments.ts";
+import { sql } from "#db/sql.ts";
 import { placeholderRefund } from "#payment/placeholder-refund.ts";
 import { readRowState } from "#payment/row-state.ts";
 import { paidPaymentReferenceOf } from "#payment/validated-session.ts";
@@ -43,7 +44,6 @@ import {
   crashedPlaceholderStore,
   type reservedPlaceholder,
 } from "./store-refund-helpers.ts";
-import { sql } from "#db/sql.ts";
 
 const REFUNDED_ANSWER =
   "We couldn't complete your booking, so we've saved your details and a member of our team can help you rebook.";
@@ -59,7 +59,7 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
       protected_state: string;
     }>(
       sql`SELECT failure_data, payment_session_id, protected_state
-         FROM processed_payments WHERE payment_reference_index != ''`
+         FROM processed_payments WHERE payment_reference_index != ''`,
     );
     if (row === null || row.failure_data === "") {
       throw new Error("the crashed store left no held anchor row");
@@ -70,21 +70,21 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
   /** The anchor row's one-word mirror: "" once every piece of work is done. */
   const anchorMirror = async (): Promise<string | null> => {
     const row = await queryOne<{ protected_state: string }>(
-      sql`SELECT protected_state FROM processed_payments WHERE payment_reference_index != ''`
+      sql`SELECT protected_state FROM processed_payments WHERE payment_reference_index != ''`,
     );
     return row === null ? null : row.protected_state;
   };
 
   const noteCount = async (): Promise<number> => {
     const row = await queryOne<{ total: number }>(
-      sql`SELECT COUNT(*) AS total FROM system_notes WHERE entity_type = 'attendee'`
+      sql`SELECT COUNT(*) AS total FROM system_notes WHERE entity_type = 'attendee'`,
     );
     return Number(row!.total);
   };
 
   const chargeState = () =>
     queryOne<{ refund_local_state: string; refund_state_name: string }>(
-      sql`SELECT refund_local_state, refund_state_name FROM payment_charges`
+      sql`SELECT refund_local_state, refund_state_name FROM payment_charges`,
     );
 
   /** The held anchor row's stored claim, with the facts the tests rebuild
@@ -239,7 +239,7 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
         ).toEqual([]);
         const note = requireValue(
           await queryOne<{ note: EnvKeyEncrypted }>(
-            sql`SELECT note FROM system_notes WHERE entity_type = 'attendee'`
+            sql`SELECT note FROM system_notes WHERE entity_type = 'attendee'`,
           ),
           "the refund recovery note is missing",
         );
@@ -461,7 +461,7 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
         if (!made.success) throw new Error("attendee setup failed");
         const prepared = await prepareClaimedAttendeePaymentAnchor(payment);
         const anchor = await prepared.forAttendee(made.attendees[0]!.id);
-        await execute(anchor.statement.sql, anchor.statement.args);
+        await execute(anchor.statement);
       }
 
       const search = await findHeldAnchor(payment, "cs_two_anchors");

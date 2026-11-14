@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getDb, queryAll } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { expectReservedRedirectWithTokens } from "#test-utils/assertions.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -11,7 +12,6 @@ import {
   createFreeTextQuestion,
   createQuestionWithAnswer,
 } from "#test-utils/db-helpers/questions.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv(
   "server public > free booking answer atomicity",
@@ -26,7 +26,7 @@ describeWithEnv(
            WHEN NEW.answer_id = ${answerId}
            BEGIN
              SELECT RAISE(ABORT, 'answers write failed');
-           END`
+           END`,
       );
     };
 
@@ -52,7 +52,7 @@ describeWithEnv(
       await expectNoAttendeesForListings([listing.id]);
       expect(
         await queryAll(
-          sql`SELECT id FROM listing_attendees WHERE listing_id = ${listing.id}`
+          sql`SELECT id FROM listing_attendees WHERE listing_id = ${listing.id}`,
         ),
       ).toEqual([]);
     });
@@ -77,12 +77,12 @@ describeWithEnv(
       expect(attendees).toHaveLength(1);
       expect(
         await queryAll(
-          sql`SELECT answer_id FROM attendee_answers WHERE attendee_id = ${attendees[0]!.id}`
+          sql`SELECT answer_id FROM attendee_answers WHERE attendee_id = ${attendees[0]!.id}`,
         ),
       ).toEqual([{ answer_id: answerId }]);
       expect(
         await queryAll(
-          sql`SELECT answer_id FROM answers_at_booking WHERE attendee_id = ${attendees[0]!.id}`
+          sql`SELECT answer_id FROM answers_at_booking WHERE attendee_id = ${attendees[0]!.id}`,
         ),
       ).toEqual([{ answer_id: answerId }]);
     });
@@ -105,12 +105,12 @@ describeWithEnv(
       expect(attendees).toHaveLength(1);
       expect(
         await queryAll(
-          sql`SELECT string_id FROM attendee_answers WHERE attendee_id = ${attendees[0]!.id}`
+          sql`SELECT string_id FROM attendee_answers WHERE attendee_id = ${attendees[0]!.id}`,
         ),
       ).toEqual([{ string_id: expect.any(Number) }]);
       expect(
         await queryAll(
-          sql`SELECT free_text_index FROM answers_at_booking WHERE attendee_id = ${attendees[0]!.id}`
+          sql`SELECT free_text_index FROM answers_at_booking WHERE attendee_id = ${attendees[0]!.id}`,
         ),
       ).toEqual([{ free_text_index: expect.any(String) }]);
     });

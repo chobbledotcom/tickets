@@ -142,3 +142,8 @@ export const sqlLiteral = (value: string | number): SqlStatement => {
   }
   return statementOf([String(value)]);
 };
+
+/** A statement read back from a backup dump: SQL text that this application
+ * exported to a file. Restore is the only caller. No other SQL arrives as
+ * text. */
+export const sqlFromDump = (text: string): SqlStatement => statementOf([text]);

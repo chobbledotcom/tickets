@@ -11,6 +11,7 @@ import { pricePaidFromLedger } from "#db/attendees/select.ts";
 import { getDb } from "#db/client.ts";
 import { modifiersTable } from "#db/modifiers.ts";
 import { settings } from "#db/settings.ts";
+import { sql, sqlName } from "#db/sql.ts";
 import type { RefundRequest } from "#payment/refund-attempt.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -21,11 +22,12 @@ import {
 } from "#test-utils/modifiers.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks/stripe.ts";
-import { sql, sqlName } from "#db/sql.ts";
 
 /** Turn the seeded public-default status into a reservation charging `amount`. */
 export const setPublicReservation = async (amount: string): Promise<number> => {
-  await getDb().execute(sql`UPDATE attendee_statuses SET is_reservation = 1, reservation_amount = ${amount} WHERE is_public_default = 1`);
+  await getDb().execute(
+    sql`UPDATE attendee_statuses SET is_reservation = 1, reservation_amount = ${amount} WHERE is_public_default = 1`,
+  );
   attendeeStatuses.invalidate();
   const status = await requirePublicDefaultStatus();
   return status!.id;
@@ -54,19 +56,21 @@ export const latestAttendee = async (): Promise<{
   pricePaid: number;
 }> => {
   const { rows } = await getDb().execute(
-    sql`SELECT id FROM attendees ORDER BY id DESC LIMIT 1`
+    sql`SELECT id FROM attendees ORDER BY id DESC LIMIT 1`,
   );
   const id = Number(rows[0]!.id);
   const state = await getAttendeeBalanceState(id);
   // price_paid is a ledger projection now (the booking's gross sale leg), not a
   // stored column. For a reservation this is the gross sale, not the deposit —
   // the accepted gross-sale divergence (deposit accuracy returns in concern 5).
-  const paid = await getDb().execute(sql`SELECT ${pricePaidFromLedger(
+  const paid = await getDb().execute(
+    sql`SELECT ${pricePaidFromLedger(
       sqlName("listing_attendees.attendee_id"),
       sqlName("listing_attendees.listing_id"),
       sqlName("listing_attendees.ledger_event_group"),
       sqlName("listing_attendees.id"),
-    )} FROM listing_attendees WHERE attendee_id = ${id}`);
+    )} FROM listing_attendees WHERE attendee_id = ${id}`,
+  );
   return {
     id,
     pricePaid: Number(paid.rows[0]!.price_paid),
@@ -76,7 +80,9 @@ export const latestAttendee = async (): Promise<{
 };
 
 export const attendeeCount = async (): Promise<number> => {
-  const { rows } = await getDb().execute(sql`SELECT COUNT(*) AS c FROM attendees`);
+  const { rows } = await getDb().execute(
+    sql`SELECT COUNT(*) AS c FROM attendees`,
+  );
   return Number(rows[0]!.c);
 };
 
@@ -114,7 +120,7 @@ export const totalContactActivity = async (): Promise<{
   bookings: number;
 }> => {
   const { rows } = await getDb().execute(
-    sql`SELECT COALESCE(SUM(visits), 0) AS visits, COALESCE(SUM(public_booking_count), 0) AS bookings FROM contact_preferences`
+    sql`SELECT COALESCE(SUM(visits), 0) AS visits, COALESCE(SUM(public_booking_count), 0) AS bookings FROM contact_preferences`,
   );
   return {
     bookings: Number(rows[0]!.bookings),
@@ -159,7 +165,9 @@ export const createOptionalAddOn = async (calcValue = 5) => {
     direction: "charge",
     name: "Programme",
   });
-  await getDb().execute(sql`UPDATE modifiers SET trigger = ${"optional"} WHERE id = ${addOn.id}`);
+  await getDb().execute(
+    sql`UPDATE modifiers SET trigger = ${"optional"} WHERE id = ${addOn.id}`,
+  );
   return addOn;
 };
 

@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { applyAttendeeAtomicEdit } from "#db/attendees/atomic-update.ts";
 import { execute, queryOne } from "#db/client.ts";
+import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -13,18 +14,17 @@ import {
   keepLine,
   twoListings,
 } from "./helpers.ts";
-import { sql } from "#db/sql.ts";
 
 const withDatabaseTrigger = async <Result>(
   name: string,
-  sql: string,
+  trigger: SqlStatement,
   run: () => Promise<Result>,
 ): Promise<Result> => {
-  await execute(sql);
+  await execute(trigger);
   try {
     return await run();
   } finally {
-    await execute(`DROP TRIGGER ${name}`);
+    await execute(sql`DROP TRIGGER ${sqlName(name)}`);
   }
 };
 
@@ -48,7 +48,7 @@ describeWithEnv("db > attendees > atomic edit guards", { db: true }, () => {
           SET checked_in = 1, start_agent_id = 7, end_agent_id = 8,
               start_time = '09:00', end_time = '10:00',
               start_done = 1, end_done = 1
-        WHERE attendee_id = ${attendee.id}`
+        WHERE attendee_id = ${attendee.id}`,
     );
 
     const update = await applyAttendeeAtomicEdit(attendee.id, blob, [
@@ -60,7 +60,7 @@ describeWithEnv("db > attendees > atomic edit guards", { db: true }, () => {
       await queryOne(
         sql`SELECT quantity, checked_in, start_agent_id, end_agent_id,
                 start_time, end_time, start_done, end_done
-           FROM listing_attendees WHERE attendee_id = ${attendee.id}`
+           FROM listing_attendees WHERE attendee_id = ${attendee.id}`,
       ),
     ).toEqual({
       checked_in: 0,
@@ -103,7 +103,7 @@ describeWithEnv("db > attendees > atomic edit guards", { db: true }, () => {
     await expect(
       withDatabaseTrigger(
         "test_ignore_booking_update",
-        `CREATE TRIGGER test_ignore_booking_update
+        sql`CREATE TRIGGER test_ignore_booking_update
            BEFORE UPDATE ON listing_attendees
            BEGIN SELECT RAISE(IGNORE); END`,
         () =>
@@ -124,11 +124,11 @@ describeWithEnv("db > attendees > atomic edit guards", { db: true }, () => {
     await expect(
       withDatabaseTrigger(
         "test_take_insert_capacity",
-        `CREATE TRIGGER test_take_insert_capacity
+        sql`CREATE TRIGGER test_take_insert_capacity
            AFTER UPDATE ON attendees
            BEGIN
              UPDATE listings SET booked_quantity = max_attendees
-              WHERE id = ${listing2.id};
+              WHERE id = ${sqlLiteral(listing2.id)};
            END`,
         () =>
           applyAttendeeAtomicEdit(attendee.id, blob, [

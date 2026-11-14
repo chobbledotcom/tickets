@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { execute, queryAll } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { SUMUP_RECOVERY_BATCH } from "#shared/limits.ts";
 import { runSumupRecovery } from "#shared/sumup/recovery-run.ts";
 import { sumupApi } from "#shared/sumup.ts";
@@ -10,7 +11,6 @@ import {
   makeSumupCheckoutDue,
   stageSignedSumupCheckout,
 } from "#test-utils/sumup.ts";
-import { sql } from "#db/sql.ts";
 
 /** More checkouts than one run can take, so the queue order decides who is
  * seen. All of them are due, oldest first. */
@@ -19,7 +19,7 @@ const DUE_COUNT = SUMUP_RECOVERY_BATCH + 2;
 const checkedIds = async (): Promise<string[]> =>
   (
     await queryAll<{ sumup_id: string }>(
-      sql`SELECT sumup_id FROM sumup_checkouts WHERE next_check_at > ${"2000-01-02T00:00:00.000Z"} ORDER BY sumup_id`
+      sql`SELECT sumup_id FROM sumup_checkouts WHERE next_check_at > ${"2000-01-02T00:00:00.000Z"} ORDER BY sumup_id`,
     )
   ).map((row) => row.sumup_id);
 
@@ -35,7 +35,7 @@ describeWithEnv("server > SumUp recovery queue order", { db: true }, () => {
       await makeSumupCheckoutDue(id);
       // Stagger them so the order is well defined.
       await execute(
-        sql`UPDATE sumup_checkouts SET next_check_at = ${`2000-01-01T00:00:0${index}.000Z`} WHERE sumup_id = ${id}`
+        sql`UPDATE sumup_checkouts SET next_check_at = ${`2000-01-01T00:00:0${index}.000Z`} WHERE sumup_id = ${id}`,
       );
     }
     // SumUp can never answer for any of them, so none of them ever settles.

@@ -1,4 +1,5 @@
 import { listingChildren } from "#db/listing-parents.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { assertJson } from "#test-utils/assertions.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -13,7 +14,6 @@ import {
 } from "#test-utils/modifiers.ts";
 import { postChildren } from "#test-utils/parents.ts";
 import { apiRequest, getTestSession } from "#test-utils/session.ts";
-import { sql } from "#db/sql.ts";
 
 type TestListing = Awaited<ReturnType<typeof createTestListing>>;
 type ParentChild = { parent: TestListing; child: TestListing };
@@ -190,5 +190,7 @@ export const postListingEdit = async (
  * invalidates the listings cache, so subsequent reads see the change. */
 export const makeRenewalTier = async (listingId: number): Promise<void> => {
   const { execute } = await import("#db/client.ts");
-  await execute(sql`UPDATE listings SET months_per_unit = 12 WHERE id = ${listingId}`);
+  await execute(
+    sql`UPDATE listings SET months_per_unit = 12 WHERE id = ${listingId}`,
+  );
 };

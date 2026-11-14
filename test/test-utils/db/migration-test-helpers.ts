@@ -1,36 +1,32 @@
-import type { InValue, ResultSet } from "@libsql/client";
+import type { ResultSet } from "@libsql/client";
 import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { executeBatch, getDb, queryBatch } from "#db/client.ts";
 import { initDb, invalidateInitDbCache } from "#db/migrations.ts";
+import {
+  type SqlStatement,
+  sql,
+  sqlLiteral,
+  sqlName,
+  sqlNames,
+} from "#db/sql.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { sql, sqlName } from "#db/sql.ts";
 
-/** Run many plain SQL strings as a single batched write round-trip. */
-export const executeStatements = (sqls: readonly string[]): Promise<void> =>
-  executeBatch(sqls.map((sql) => ({ args: [], sql })));
+/** Run many statements as a single batched write round-trip. */
+export const executeStatements = (
+  statements: readonly SqlStatement[],
+): Promise<void> => executeBatch([...statements]);
 
 /** A read statement paired with a label, so a batch's results can be read by
- *  name instead of by position. Keeps the batch list and the assertion list
- *  self-aligning: insert or reorder a statement and its follow-up read stays
- *  attached to the same label. */
-export type LabelledStatement = {
-  label: string;
-  args: InValue[];
-  sql: string;
-};
+ *  name instead of by position. */
+type LabelledStatement = { label: string; statement: SqlStatement };
 
-/** Run a list of labelled read statements in one batch round-trip and return
- *  the results keyed by label. The caller reads specific results by name
- *  instead of remembering which index a statement landed at. */
-export const queryLabelledBatch = async (
+const queryLabelledBatch = async (
   statements: readonly LabelledStatement[],
 ): Promise<Map<string, ResultSet>> => {
-  const results = await queryBatch(
-    statements.map((stmt) => ({ args: stmt.args, sql: stmt.sql })),
-  );
-  return new Map(statements.map((stmt, i) => [stmt.label, results[i]!]!));
+  const results = await queryBatch(statements.map((stmt) => stmt.statement));
+  return new Map(statements.map((stmt, i) => [stmt.label, results[i]!]));
 };
 
 export type SchemaRenameStep =
@@ -48,10 +44,10 @@ export const renameColumnStep = (
   to: string,
 ): SchemaRenameStep => ({ from, kind: "column", table, to });
 
-const renameStepSql = (step: SchemaRenameStep): string =>
+const renameStepSql = (step: SchemaRenameStep): SqlStatement =>
   step.kind === "table"
-    ? `ALTER TABLE ${step.from} RENAME TO ${step.to}`
-    : `ALTER TABLE ${step.table} RENAME COLUMN ${step.from} TO ${step.to}`;
+    ? sql`ALTER TABLE ${sqlName(step.from)} RENAME TO ${sqlName(step.to)}`
+    : sql`ALTER TABLE ${sqlName(step.table)} RENAME COLUMN ${sqlName(step.from)} TO ${sqlName(step.to)}`;
 
 export const applySchemaRenameSteps = (steps: readonly SchemaRenameStep[]) =>
   getDb().batch(steps.map(renameStepSql), "write");
@@ -80,15 +76,15 @@ export const markCurrentSchemaMigrationPending = () => {
 
 export const markMigrationsForRerun = async (): Promise<void> => {
   await executeStatements([
-    "DROP TABLE IF EXISTS schema_migrations",
-    "UPDATE settings SET value = 'stale' WHERE key IN ('latest_db_update', 'db_schema_hash')",
+    sql`DROP TABLE IF EXISTS schema_migrations`,
+    sql`UPDATE settings SET value = 'stale' WHERE key IN ('latest_db_update', 'db_schema_hash')`,
   ]);
   invalidateInitDbCache();
 };
 
 export const schemaHashMarker = async (): Promise<unknown> => {
   const result = await getDb().execute(
-    sql`SELECT value FROM settings WHERE key = 'db_schema_hash'`
+    sql`SELECT value FROM settings WHERE key = 'db_schema_hash'`,
   );
   return result.rows[0]?.value;
 };
@@ -117,8 +113,8 @@ export const seedListingDomainRows = async (): Promise<number> => {
  */
 export const seedPreDropLedgerColumns = (): Promise<void> =>
   executeStatements([
-    "ALTER TABLE listing_attendees ADD COLUMN refunded INTEGER NOT NULL DEFAULT 0",
-    "ALTER TABLE listing_attendees ADD COLUMN price_paid INTEGER NOT NULL DEFAULT 0",
+    sql`ALTER TABLE listing_attendees ADD COLUMN refunded INTEGER NOT NULL DEFAULT 0`,
+    sql`ALTER TABLE listing_attendees ADD COLUMN price_paid INTEGER NOT NULL DEFAULT 0`,
   ]);
 
 /**
@@ -132,29 +128,35 @@ export const stampHistoricalPricePaid = (
   listingId: number,
   amount: number,
 ): Promise<unknown> =>
-  getDb().execute(sql`UPDATE listing_attendees SET price_paid = ${amount} WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId}`);
+  getDb().execute(
+    sql`UPDATE listing_attendees SET price_paid = ${amount} WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId}`,
+  );
 
 export const columnNames = async (table: string): Promise<string[]> => {
   const result = await getDb().execute(
-    `SELECT name FROM pragma_table_info('${table}')`,
+    sql`SELECT name FROM pragma_table_info(${sqlLiteral(table)})`,
   );
   return result.rows.map((row) => String(row.name));
 };
 
 export const tableExists = async (table: string): Promise<boolean> => {
-  const result = await getDb().execute(sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ${table}`);
+  const result = await getDb().execute(
+    sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ${table}`,
+  );
   return result.rows.length > 0;
 };
 
 export const tableNames = async (): Promise<Set<string>> => {
   const result = await getDb().execute(
-    sql`SELECT name FROM sqlite_master WHERE type = 'table'`
+    sql`SELECT name FROM sqlite_master WHERE type = 'table'`,
   );
   return new Set(result.rows.map((row) => String(row.name)));
 };
 
 export const tableRowCount = async (table: string): Promise<number> => {
-  const result = await getDb().execute(sql`SELECT COUNT(*) AS n FROM ${sqlName(table)}`);
+  const result = await getDb().execute(
+    sql`SELECT COUNT(*) AS n FROM ${sqlName(table)}`,
+  );
   return Number(result.rows[0]!.n);
 };
 
@@ -164,7 +166,9 @@ export const tableRowCount = async (table: string): Promise<number> => {
 export const readModifierAggregates = async (
   modifierId: number,
 ): Promise<Record<string, number>> => {
-  const result = await getDb().execute(sql`SELECT total_uses, usage_count FROM modifiers WHERE id = ${modifierId}`);
+  const result = await getDb().execute(
+    sql`SELECT total_uses, usage_count FROM modifiers WHERE id = ${modifierId}`,
+  );
   const row = result.rows[0]!;
   return {
     total_uses: Number(row.total_uses),
@@ -178,7 +182,9 @@ export const readModifierAggregates = async (
 export const readListingAggregates = async (
   listingId: number,
 ): Promise<Record<string, number>> => {
-  const result = await getDb().execute(sql`SELECT booked_quantity, tickets_count FROM listings WHERE id = ${listingId}`);
+  const result = await getDb().execute(
+    sql`SELECT booked_quantity, tickets_count FROM listings WHERE id = ${listingId}`,
+  );
   const row = result.rows[0]!;
   return {
     booked_quantity: Number(row.booked_quantity),
@@ -188,7 +194,7 @@ export const readListingAggregates = async (
 
 export const triggerNames = async (): Promise<Set<string>> => {
   const result = await getDb().execute(
-    sql`SELECT name FROM sqlite_master WHERE type = 'trigger'`
+    sql`SELECT name FROM sqlite_master WHERE type = 'trigger'`,
   );
   return new Set(result.rows.map((row) => String(row.name)));
 };
@@ -234,7 +240,7 @@ export type LegacyAggregateTriggerSpec = {
   /** Columns listed in the `AFTER UPDATE OF <cols>` clause of the update trigger. */
   readonly updateOfColumns: readonly string[];
   /** Incrementing SQL the legacy triggers apply to the target row (signed `+`/`-`, `NEW`/`OLD`). */
-  readonly contribution: (sign: "+" | "-", row: "NEW" | "OLD") => string;
+  readonly contribution: (sign: "+" | "-", row: "NEW" | "OLD") => SqlStatement;
   /** Create the subject target row before restoring the dropped column, so the app's
    *  ledger-based read isn't run against a table that also carries the stored column. */
   readonly createSubject: () => Promise<{ id: number }>;
@@ -269,18 +275,17 @@ export const installLegacyAggregateTriggers = async (
   const [insertName, deleteName, updateName] = legacyAggregateTriggerNames(
     spec.triggerStem,
   );
-  const bodies: Record<string, string> = {
-    [deleteName]: `AFTER DELETE ON ${spec.usageTable}
+  const usageTable = sqlName(spec.usageTable);
+  const bodies: Record<string, SqlStatement> = {
+    [deleteName]: sql`AFTER DELETE ON ${usageTable}
 FOR EACH ROW BEGIN
   ${spec.contribution("-", "OLD")}
 END`,
-    [insertName]: `AFTER INSERT ON ${spec.usageTable}
+    [insertName]: sql`AFTER INSERT ON ${usageTable}
 FOR EACH ROW BEGIN
   ${spec.contribution("+", "NEW")}
 END`,
-    [updateName]: `AFTER UPDATE OF ${spec.updateOfColumns.join(
-      ", ",
-    )} ON ${spec.usageTable}
+    [updateName]: sql`AFTER UPDATE OF ${sqlNames(spec.updateOfColumns)} ON ${usageTable}
 FOR EACH ROW BEGIN
   ${spec.contribution("-", "OLD")}
   ${spec.contribution("+", "NEW")}
@@ -288,10 +293,12 @@ END`,
   };
   const names = legacyAggregateTriggerNames(spec.triggerStem);
   await executeStatements(
-    names.map((name) => `DROP TRIGGER IF EXISTS ${name}`),
+    names.map((name) => sql`DROP TRIGGER IF EXISTS ${sqlName(name)}`),
   );
   for (const name of names) {
-    await getDb().execute(sql`CREATE TRIGGER ${sqlName(name)} ${TODO_SQL_TEXT(bodies[name])}`);
+    await getDb().execute(
+      sql`CREATE TRIGGER ${sqlName(name)} ${bodies[name]!}`,
+    );
   }
 };
 
@@ -313,7 +320,7 @@ export const seedLegacyAggregateColumnDropSchema = async (
   >,
 ): Promise<void> => {
   await getDb().execute(
-    sql`ALTER TABLE ${sqlName(spec.targetTable)} ADD COLUMN ${sqlName(spec.dropColumn)} INTEGER NOT NULL DEFAULT 0`
+    sql`ALTER TABLE ${sqlName(spec.targetTable)} ADD COLUMN ${sqlName(spec.dropColumn)} INTEGER NOT NULL DEFAULT 0`,
   );
   await installLegacyAggregateTriggers(spec);
 };
@@ -332,59 +339,48 @@ export const expectListingDomainRestored = async (
 ): Promise<void> => {
   const results = await queryLabelledBatch([
     {
-      args: ["events"],
       label: "events_exists",
-      sql: "SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=?",
+      statement: sql`SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=${"events"}`,
     },
     {
-      args: ["event_attendees"],
       label: "event_attendees_exists",
-      sql: "SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=?",
+      statement: sql`SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=${"event_attendees"}`,
     },
     {
-      args: ["event_questions"],
       label: "event_questions_exists",
-      sql: "SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=?",
+      statement: sql`SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=${"event_questions"}`,
     },
     {
-      args: ["listings"],
       label: "listings_exists",
-      sql: "SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=?",
+      statement: sql`SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=${"listings"}`,
     },
     {
-      args: ["listing_attendees"],
       label: "listing_attendees_exists",
-      sql: "SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=?",
+      statement: sql`SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=${"listing_attendees"}`,
     },
     {
-      args: ["listing_questions"],
       label: "listing_questions_exists",
-      sql: "SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=?",
+      statement: sql`SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=${"listing_questions"}`,
     },
     {
-      args: [],
       label: "listings_count",
-      sql: "SELECT COUNT(*) AS v FROM listings",
+      statement: sql`SELECT COUNT(*) AS v FROM listings`,
     },
     {
-      args: [],
       label: "listing_attendees_count",
-      sql: "SELECT COUNT(*) AS v FROM listing_attendees",
+      statement: sql`SELECT COUNT(*) AS v FROM listing_attendees`,
     },
     {
-      args: [],
       label: "listing_questions_count",
-      sql: "SELECT COUNT(*) AS v FROM listing_questions",
+      statement: sql`SELECT COUNT(*) AS v FROM listing_questions`,
     },
     {
-      args: [],
       label: "activity_log_listing_id",
-      sql: "SELECT listing_id AS v FROM activity_log WHERE message = 'legacy listing activity'",
+      statement: sql`SELECT listing_id AS v FROM activity_log WHERE message = 'legacy listing activity'`,
     },
     {
-      args: [],
       label: "built_sites_listing_id",
-      sql: "SELECT assigned_listing_id AS v FROM built_sites WHERE site_data = '{}'",
+      statement: sql`SELECT assigned_listing_id AS v FROM built_sites WHERE site_data = '{}'`,
     },
   ]);
   const exists = (label: string) => results.get(label)!.rows.length > 0;

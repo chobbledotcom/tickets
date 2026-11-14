@@ -1,7 +1,6 @@
 // Contract tests for the image library's admin JSON API writes: the metadata
 // and link update, the roles that may change a Site image, and the delete.
 // Technical surface — direct Deno tests (docs/e2e-tests.md).
-import type { InStatement } from "@libsql/client";
 import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -13,6 +12,7 @@ import {
   getImagesForItem,
   getImageUsesForImage,
 } from "#db/images.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { writeImageUpdate } from "#routes/admin/api-images.ts";
 import {
   type ApiImageRow,
@@ -116,10 +116,8 @@ describeWithEnv(
         const db = getDb();
         const realExecute = db.execute.bind(db);
         // A replica that has not caught up with the links the write replaced.
-        using _replica = stub(db, "execute", (statement: InStatement) =>
-          (typeof statement === "string" ? statement : statement.sql).includes(
-            "FROM image_uses",
-          )
+        using _replica = stub(db, "execute", (statement: SqlStatement) =>
+          statement.sql.includes("FROM image_uses")
             ? Promise.resolve(emptyResultSet())
             : realExecute(statement),
         );

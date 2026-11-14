@@ -13,6 +13,7 @@ import { LISTING_AGGREGATE_WRITE_COLUMNS } from "#db/migrations/schema/listing-a
 import { envNameSource } from "#db/query.ts";
 import { settings } from "#db/settings.ts";
 import { slugTakenIn } from "#db/slug-registry.ts";
+import { sql } from "#db/sql.ts";
 import { byId, mapParallel } from "#fp";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import {
@@ -37,7 +38,6 @@ import {
   listingOptionColumns,
   rawListingsTable,
 } from "./table.ts";
-import { sql } from "#db/sql.ts";
 
 const decryptStoredListingWithCount = async (
   row: ListingRecordRow,
@@ -174,7 +174,10 @@ export const getListingsById = async (): Promise<
 
 /** Read the narrow listing option projection used by item pickers. */
 export const getAllListingOptions = (): Promise<ListingOption[]> =>
-  listingOptionColumns.many({}, { alias: "listing", order: sql`listing.id ASC` });
+  listingOptionColumns.many(
+    {},
+    { alias: "listing", order: sql`listing.id ASC` },
+  );
 
 /** Read and decrypt listing names without loading full records. */
 export const listingNames = envNameSource("listings", "listing");

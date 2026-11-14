@@ -4,6 +4,7 @@ import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";
 import { queryAll } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { choicesForQuestion } from "#test/specs/support/form-controls/reading.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import { buyFreePlaceThroughPublicPage } from "#test/specs/support/refund-safety/journeys.ts";
@@ -202,10 +203,9 @@ const rememberMovedPayment: OnPaidAndFreeAttendees<void> = async (
   target,
 ) => {
   const paymentRows = await queryAll<MovedPaymentRow>(
-    `SELECT attendee_id, protected_state
+    sql`SELECT attendee_id, protected_state
        FROM processed_payments
-      WHERE payment_session_id = ?`,
-    [paid.sessionId],
+      WHERE payment_session_id = ${paid.sessionId}`,
   );
   expect(source).toBeNull();
   if (target === null) throw new Error("The free merge target disappeared");
@@ -238,11 +238,10 @@ const expectBothPresent: OnPaidAndFreeAttendees<void> = async (
     throw new Error("The free Workshop listing was not remembered");
   }
   const rows = await queryAll<BookingRow>(
-    `SELECT attendee_id, listing_id FROM listing_attendees
-   WHERE (attendee_id = ? AND listing_id = ?)
-      OR (attendee_id = ? AND listing_id = ?)
+    sql`SELECT attendee_id, listing_id FROM listing_attendees
+   WHERE (attendee_id = ${paid.attendeeId} AND listing_id = ${paid.listingId})
+      OR (attendee_id = ${freeId} AND listing_id = ${freeListingId})
    ORDER BY attendee_id`,
-    [paid.attendeeId, paid.listingId, freeId, freeListingId],
   );
   expect(paidAttendee?.name).toBe(paid.who);
   expect(freeAttendee?.name).toBe(paid.who);

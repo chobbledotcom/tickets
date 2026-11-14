@@ -9,9 +9,9 @@ import {
   wholeNumberStartingAtZero,
 } from "#db/migrations/schema/scalar-columns.ts";
 import type { Table } from "#db/migrations/schema/types.ts";
+import { sql } from "#db/sql.ts";
 import { refundAuthorityWorkCondition } from "#payment/refund-authority-lifecycle.ts";
 import { madeAndTouched, ownerEncryptedColumn } from "./columns.ts";
-import { sql } from "#db/sql.ts";
 
 /** Rules the database can prove without understanding the whole state machine. */
 const ABOUT_THE_CHARGE = [

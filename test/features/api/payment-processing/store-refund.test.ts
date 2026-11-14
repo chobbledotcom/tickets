@@ -15,6 +15,7 @@ import {
 import { getRefundPaymentReferencesForAttendee } from "#db/payment-references.ts";
 import { markSessionFailed, reserveSession } from "#db/processed-payments.ts";
 import { listProviderRefundCases } from "#db/provider-refund-cases.ts";
+import { sql } from "#db/sql.ts";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import {
   placeholderBookings,
@@ -41,7 +42,6 @@ import {
   storedPlaceholder,
   storePlaceholder,
 } from "./store-refund-helpers.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
   checkPaymentSeam();
@@ -54,7 +54,7 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
           const payment = await queryOne<{ attendee_id: number }>(
             sql`SELECT attendee_id
                FROM processed_payments
-              WHERE payment_reference_index != ''`
+              WHERE payment_reference_index != ''`,
           );
           if (payment === null) {
             throw new Error("payment anchor was not stored");
@@ -120,11 +120,11 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
       // books not caught up — and the authority stays due and visible.
       const row = await queryOne<{ protected_state: string }>(
         sql`SELECT protected_state FROM processed_payments
-          WHERE payment_reference_index != ''`
+          WHERE payment_reference_index != ''`,
       );
       expect(row?.protected_state).toBe("unrecorded");
       const charge = await queryOne<{ refund_local_state: string }>(
-        sql`SELECT refund_local_state FROM payment_charges`
+        sql`SELECT refund_local_state FROM payment_charges`,
       );
       expect(charge?.refund_local_state).toBe("due");
     });
@@ -145,13 +145,13 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
         success: false,
       });
       const anchor = await queryOne<{ protected_state: string }>(
-        sql`SELECT protected_state FROM processed_payments WHERE payment_reference_index != ''`
+        sql`SELECT protected_state FROM processed_payments WHERE payment_reference_index != ''`,
       );
       expect(anchor?.protected_state).toBe("");
       const note = requireValue(
         await queryOne<{ system_name: string; total: number }>(
           sql`SELECT system_name, COUNT(*) OVER () AS total
-           FROM system_notes WHERE entity_type = 'attendee'`
+           FROM system_notes WHERE entity_type = 'attendee'`,
         ),
         "the refund note",
       );
@@ -168,7 +168,7 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
       expect(
         Number(
           (await queryOne<{ total: number }>(
-            sql`SELECT COUNT(*) AS total FROM system_notes WHERE entity_type = 'attendee'`
+            sql`SELECT COUNT(*) AS total FROM system_notes WHERE entity_type = 'attendee'`,
           ))!.total,
         ),
       ).toBe(1);
@@ -199,7 +199,7 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
            JOIN listing_attendees AS booking
              ON booking.attendee_id = note.entity_id
           WHERE note.entity_type = 'attendee'
-            AND booking.listing_id = ${listing.id}`
+            AND booking.listing_id = ${listing.id}`,
       );
       if (row === null) {
         throw new Error("the refund explanation was not stored");
@@ -268,7 +268,7 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
             WHEN NEW.payment_session_id LIKE 'legacy:%'
          BEGIN
            SELECT RAISE(ABORT, 'payment anchor unavailable');
-         END`
+         END`,
       );
 
       try {
@@ -372,7 +372,7 @@ describeWithEnv(
       // has to override.
       const { getDb } = await import("#db/client.ts");
       await getDb().execute(
-        sql`UPDATE listings SET max_attendees = 1 WHERE id = ${listing.id}`
+        sql`UPDATE listings SET max_attendees = 1 WHERE id = ${listing.id}`,
       );
 
       const intent = bookingIntent([{ e: listing.id, p: 1000, q: 1 }]);

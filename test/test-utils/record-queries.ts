@@ -1,25 +1,13 @@
-import type { Client, InStatement, ResultSet } from "@libsql/client";
-import { getDb, setDb } from "#db/client.ts";
-import { wrapExecute } from "#db/libsql-call.ts";
+import type { ResultSet } from "@libsql/client";
+import { getDb, type StatementClient, setDb } from "#db/client.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { proxyMembers } from "#shared/proxy-members.ts";
-
-type BatchStatement = Parameters<ReturnType<typeof getDb>["batch"]>[0][number];
-
-/** The SQL text of a statement in either InStatement form. */
-export const statementSql = (
-  statement: BatchStatement | InStatement | string,
-): string =>
-  Array.isArray(statement)
-    ? statement[0]
-    : typeof statement === "string"
-      ? statement
-      : statement.sql;
 
 export type DbCallHooks = {
   /** Take over the statement by returning a promise, or null to forward. */
-  execute: (statement: InStatement | string) => Promise<ResultSet> | null;
+  execute: (statement: SqlStatement) => Promise<ResultSet> | null;
   /** Observe a batch's statements before they forward. */
-  batch: (statements: InStatement[], mode?: "write" | "read") => void;
+  batch: (statements: SqlStatement[], mode?: "write" | "read") => void;
 };
 
 /** Swap the db client for a proxy that observes or intercepts statements
@@ -29,14 +17,12 @@ export const wrapDbClient = (hooks: DbCallHooks): (() => void) => {
   const real = getDb();
   setDb(
     proxyMembers(real, {
-      batch: (statements: InStatement[], mode?: "write" | "read") => {
+      batch: (statements: SqlStatement[], mode?: "write" | "read") => {
         hooks.batch(statements, mode);
         return real.batch(statements, mode);
       },
-      execute: wrapExecute(
-        real,
-        (statement, execute) => hooks.execute(statement) ?? execute(),
-      ),
+      execute: (statement: SqlStatement) =>
+        hooks.execute(statement) ?? real.execute(statement),
     }),
   );
   return () => setDb(real);
@@ -50,7 +36,9 @@ export const beforeNextTransaction = (
   let pending = true;
   setDb(
     proxyMembers(real, {
-      transaction: async (...args: Parameters<Client["transaction"]>) => {
+      transaction: async (
+        ...args: Parameters<StatementClient["transaction"]>
+      ) => {
         if (pending) {
           pending = false;
           await before();
@@ -70,10 +58,12 @@ export const recordQueries = (seen: string[]): (() => void) => {
   };
   return wrapDbClient({
     batch: (statements) => {
-      record(`batch[${statements.map(statementSql).join(" | ")}]`);
+      record(
+        `batch[${statements.map((statement) => statement.sql).join(" | ")}]`,
+      );
     },
     execute: (statement) => {
-      record(statementSql(statement));
+      record(statement.sql);
       return null;
     },
   });

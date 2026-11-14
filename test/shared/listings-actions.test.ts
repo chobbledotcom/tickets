@@ -5,6 +5,7 @@ import { withTransaction } from "#db/client.ts";
 import { groups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { listingInputToEdge } from "#shared/listing-edge.ts";
@@ -377,7 +378,7 @@ describeWithEnv("performListingDelete", { db: true }, () => {
       const withCount = (await getListingWithCount(listing.id))!;
 
       await withDbFault(
-        `CREATE TRIGGER test_listing_delete_fault
+        sql`CREATE TRIGGER test_listing_delete_fault
           BEFORE DELETE ON listings
           BEGIN
             SELECT RAISE(ABORT, 'listing delete unavailable');

@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { execute } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { SUMUP_RECOVERY_BATCH } from "#shared/limits.ts";
 import { runSumupRecovery } from "#shared/sumup/recovery-run.ts";
 import { sumupApi } from "#shared/sumup.ts";
@@ -13,7 +14,6 @@ import {
   stageSignedSumupCheckout,
   sumupRecoveryRow,
 } from "#test-utils/sumup.ts";
-import { sql } from "#db/sql.ts";
 
 /** SumUp is never reachable, so every checkout stays open — this suite is
  * about how a run picks work up, not about what an answer means. */
@@ -120,7 +120,7 @@ describeWithEnv("sumup recovery run", { db: true }, () => {
     const read = stub(sumupApi, "readCheckoutById", async () => {
       // Another runner answers the row while this one is out asking.
       await execute(
-        sql`UPDATE sumup_checkouts SET next_check_at = ${"2999-01-01T00:00:00.000Z"} WHERE sumup_id = ${"co_race"}`
+        sql`UPDATE sumup_checkouts SET next_check_at = ${"2999-01-01T00:00:00.000Z"} WHERE sumup_id = ${"co_race"}`,
       );
       return {
         reason: "provider_error" as const,

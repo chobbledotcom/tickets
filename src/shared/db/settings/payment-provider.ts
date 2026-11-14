@@ -24,6 +24,7 @@ import {
   writeRawBatch,
 } from "#db/settings/raw-writes.ts";
 import { data, snap } from "#db/settings/snapshot.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import { PAYMENT_PROVIDER_IDS } from "#shared/payment-providers.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 import {
@@ -32,7 +33,6 @@ import {
   PaymentProviderSettingSchema,
   type PaymentProviderType,
 } from "#types";
-import { sql, sqlList, type SqlStatement } from "#db/sql.ts";
 
 /** Stripe alone names a key's mode by its prefix. A SumUp key starts `sup_sk_`
  * whichever account it belongs to, so only Stripe carries a `keyMode` getter. */
@@ -173,7 +173,6 @@ const changeProviderStatement = ({
   ON CONFLICT(key) DO UPDATE SET value = excluded.value
   RETURNING key, value`;
 };
-
 
 const changePaymentProvider = async (
   kind: "activate" | "credentials" | "disable" | "recover",

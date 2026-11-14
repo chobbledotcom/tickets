@@ -37,7 +37,7 @@ import {
   unclaimedSlugCondition,
 } from "#db/slug-registry.ts";
 import type { SluggedContentInput } from "#db/slugged-content-input.ts";
-import { sql, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { col } from "#db/table.ts";
 import { readById, readBySlugIndex } from "#db/table-reader.ts";
 import { fieldById, mapParallel } from "#fp";
@@ -202,9 +202,8 @@ export const createNewsPost = async (
       isTaken: async (slug) => {
         const condition = unclaimedNewsSlugCondition(await hmacHash(slug));
         return (
-          resultRows(
-            await tx.execute(sql`SELECT 1 WHERE NOT (${condition})`),
-          ).length > 0
+          resultRows(await tx.execute(sql`SELECT 1 WHERE NOT (${condition})`))
+            .length > 0
         );
       },
     });

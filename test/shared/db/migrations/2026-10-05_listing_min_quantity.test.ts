@@ -12,7 +12,7 @@ const migration = () => listingMinQuantity(buildMigrationContext());
 const listingsColumns = () =>
   listingsTable
     .filter((entry) => entry[0] === "listings")
-    .flatMap((entry) => (entry[1] as { columns: [string, string][] }).columns);
+    .flatMap((entry) => entry[1].columns);
 const minimumColumn = () =>
   listingsColumns().find(([name]) => name === "min_quantity");
 

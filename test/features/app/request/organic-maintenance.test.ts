@@ -2,10 +2,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, queryOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { adminGet } from "#test-utils/session.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("organic maintenance failure isolation", { db: true }, () => {
   const errors = setupErrorSpy();
@@ -20,7 +20,7 @@ describeWithEnv("organic maintenance failure isolation", { db: true }, () => {
     expect(errors.calls.length).toBe(1);
     expect(
       await queryOne<{ name: string }>(
-        sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'maintenance_tasks'`
+        sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'maintenance_tasks'`,
       ),
     ).toBeNull();
   });

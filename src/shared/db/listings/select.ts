@@ -16,7 +16,7 @@ import {
 } from "#accounting/projection-sql.ts";
 import { imageFilenameSubqueries } from "#db/images.ts";
 import { defineReader } from "#db/read.ts";
-import { sql, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { inList, type WhereClause } from "#db/where-clauses.ts";
 import type { ListingWithCount } from "#types";
 

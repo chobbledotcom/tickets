@@ -3,9 +3,9 @@ import { it as test } from "@std/testing/bdd";
 import * as v from "valibot";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import { listingsTable } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { sql } from "#db/sql.ts";
 
 const enc = (v: string) => Promise.resolve(`enc:${v}`);
 const dec = (v: string) => Promise.resolve(v.replace("enc:", ""));

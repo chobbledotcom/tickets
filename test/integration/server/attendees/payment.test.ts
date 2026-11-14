@@ -6,6 +6,7 @@ import { moveTickets } from "#db/attendees/update.ts";
 import { getNotesFor } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { paymentsApi } from "#shared/payments.ts";
 import { createRefundableAttendee } from "#test/features/admin/refunds-helpers.ts";
 import {
@@ -28,7 +29,6 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { refundBookedOrder } from "#test-utils/ledger.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
-import { sql } from "#db/sql.ts";
 
 /** A paid listing (`unitPrice: 1000`, 100 spots) — the shared setup for the
  *  "payment details on edit page" tests. */
@@ -190,7 +190,9 @@ describeWithEnv(
         const { attendee } = await setupListingAndAttendee();
         const { getDb: getDbFn } = await import("#db/client.ts");
         const db = getDbFn();
-        await db.execute(sql`DELETE FROM listing_attendees WHERE attendee_id = ${attendee.id}`);
+        await db.execute(
+          sql`DELETE FROM listing_attendees WHERE attendee_id = ${attendee.id}`,
+        );
         const { response } = await adminFormPost(
           `/admin/attendees/${attendee.id}/refresh-payment`,
         );

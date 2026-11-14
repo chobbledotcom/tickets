@@ -14,6 +14,7 @@ import { encryptWithKey } from "#crypto/encryption.ts";
 import { unwrapKeyWithToken } from "#crypto/keys.ts";
 import type { WrappedKey } from "#crypto/sealed.ts";
 import { getDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import {
   getSealedSumupCheckout,
   getSumupCheckout,
@@ -24,7 +25,6 @@ import {
 import { SUMUP_FIRST_CHECK_MS } from "#shared/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { rejectedError } from "#test-utils/errors.ts";
-import { sql } from "#db/sql.ts";
 
 const REFERENCE = "9c1f7a52-1b3e-4f6d-8a2c-5e9d0b4c7a31";
 
@@ -40,7 +40,7 @@ const METADATA = {
 /** Fetch the single raw stored row (all columns) for at-rest inspection. */
 const rawRow = async (): Promise<Record<string, unknown>> => {
   const { rows } = await getDb().execute(
-    sql`SELECT reference_index, wrapped_key, metadata, sumup_id, created_at FROM sumup_checkouts`
+    sql`SELECT reference_index, wrapped_key, metadata, sumup_id, created_at FROM sumup_checkouts`,
   );
   expect(rows.length).toBe(1);
   return rows[0] as Record<string, unknown>;
@@ -84,7 +84,7 @@ describeWithEnv("db > sumup-checkouts", { db: true }, () => {
       );
       const malformed = await encryptWithKey('{"email":123}', dataKey);
       await getDb().execute(
-        sql`UPDATE sumup_checkouts SET metadata = ${malformed} WHERE reference_index = ${row.reference_index as string}`
+        sql`UPDATE sumup_checkouts SET metadata = ${malformed} WHERE reference_index = ${row.reference_index as string}`,
       );
 
       const error = await rejectedError(getSumupCheckout(REFERENCE));
@@ -123,7 +123,7 @@ describeWithEnv("db > sumup-checkouts", { db: true }, () => {
       const after = Date.now();
 
       const { rows } = await getDb().execute(
-        sql`SELECT next_check_at FROM sumup_checkouts WHERE sumup_id = 'co_first_check'`
+        sql`SELECT next_check_at FROM sumup_checkouts WHERE sumup_id = 'co_first_check'`,
       );
       const scheduled = Date.parse(String(rows[0]!.next_check_at));
       expect(scheduled).toBeGreaterThanOrEqual(before + SUMUP_FIRST_CHECK_MS);
@@ -209,7 +209,7 @@ describeWithEnv("db > sumup-checkouts", { db: true }, () => {
       await storeSumupCheckout(crypto.randomUUID(), METADATA);
 
       const { rows } = await getDb().execute(
-        sql`SELECT metadata, wrapped_key FROM sumup_checkouts`
+        sql`SELECT metadata, wrapped_key FROM sumup_checkouts`,
       );
 
       expect(rows.length).toBe(2);

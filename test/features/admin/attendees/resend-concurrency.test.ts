@@ -11,6 +11,7 @@ import { it as test } from "@std/testing/bdd";
 import { claimOutstandingNotificationFlags } from "#db/attendees/notification-flags.ts";
 import { execute } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -28,7 +29,6 @@ import {
   recoverAllSides,
   resend,
 } from "./resend-press.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv(
   "concurrent presses and the recovery claim",
@@ -267,7 +267,7 @@ describeWithEnv(
        WHEN NEW.attendee_id = ${attendee.id}
        BEGIN
          SELECT RAISE(ABORT, 'activity rejected');
-       END`
+       END`,
       );
       try {
         // The refused activity write surfaces as the press's own rejection.
@@ -311,7 +311,7 @@ describeWithEnv(
        WHEN NEW.attendee_id = ${attendee.id}
        BEGIN
          SELECT RAISE(ABORT, 'activity rejected');
-       END`
+       END`,
       );
       await execute(
         sql`CREATE TRIGGER reject_flag_restore BEFORE UPDATE ON attendees
@@ -320,7 +320,7 @@ describeWithEnv(
            OR NEW.webhooks_pending > OLD.webhooks_pending)
        BEGIN
          SELECT RAISE(ABORT, 'restore rejected');
-       END`
+       END`,
       );
       try {
         // The refused activity write surfaces as the press's own rejection,

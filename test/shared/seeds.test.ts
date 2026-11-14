@@ -7,6 +7,7 @@ import { getDb } from "#db/client.ts";
 import { getListingDayPrices } from "#db/listing-prices.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { sum } from "#fp";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import {
@@ -23,7 +24,6 @@ import {
 } from "#shared/seeds.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("seeds", { db: true }, () => {
   // The seeds page clamps to these two ceilings and offers each as its box's
@@ -165,7 +165,7 @@ describeWithEnv("seeds", { db: true }, () => {
   test("each seeded listing gets its own slug", async () => {
     await createSeeds(3, 0);
     const rows = await getDb().execute(
-      sql`SELECT listing.slug_index FROM listings AS listing`
+      sql`SELECT listing.slug_index FROM listings AS listing`,
     );
     const indexes = rows.rows.map((row) => row.slug_index);
     expect(new Set(indexes).size).toBe(3);

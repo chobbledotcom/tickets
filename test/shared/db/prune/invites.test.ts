@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { executeBatch, getDb, setDb } from "#db/client.ts";
 import { runDatabasePruning } from "#db/prune.ts";
+import { sql } from "#db/sql.ts";
 import { createInvitedUser, getAllUsers } from "#db/users.ts";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
 import { MAINTENANCE_PRUNE_BATCH } from "#shared/limits.ts";
@@ -11,7 +12,6 @@ import {
   addUserOwnedAccessRecords,
   getUserOwnedRowSources,
 } from "#test-utils/user-owned-records.ts";
-import { sql } from "#db/sql.ts";
 
 const createInvite = (username: string, expiry: string) =>
   createInvitedUser(username, "agent", `${username}-invite`, expiry);
@@ -22,7 +22,9 @@ const cloneInvites = (
   count: number,
 ): Promise<void> =>
   executeBatch(
-    Array.from({ length: count }, (_, index) => (sql`INSERT INTO users (
+    Array.from(
+      { length: count },
+      (_, index) => sql`INSERT INTO users (
               username_hash, username_index, password_hash, wrapped_data_key,
               admin_level, invite_code_hash, invite_expiry, kek_version,
               invite_wrapped_data_key
@@ -30,7 +32,8 @@ const cloneInvites = (
             SELECT username_hash, ${`${prefix}-${index}`}, password_hash, wrapped_data_key,
                    admin_level, invite_code_hash, invite_expiry, kek_version,
                    invite_wrapped_data_key
-              FROM users WHERE id = ${sourceId}`)),
+              FROM users WHERE id = ${sourceId}`,
+    ),
   );
 
 describeWithEnv("db > expired invite pruning", { db: true }, () => {

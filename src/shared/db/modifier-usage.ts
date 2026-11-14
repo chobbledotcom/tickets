@@ -10,7 +10,7 @@
 
 import { queryOnePrimary } from "#db/client.ts";
 import { mapByIds } from "#db/query.ts";
-import { sql, sqlJoin, type SqlSlot, type SqlStatement } from "#db/sql.ts";
+import { type SqlSlot, type SqlStatement, sql, sqlJoin } from "#db/sql.ts";
 import { nowIso } from "#shared/now.ts";
 
 /** One modifier consumed by an order: the modifier, how many, and the amount

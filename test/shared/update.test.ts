@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { execute, getDb, queryAll, queryOne } from "#db/client.ts";
+import { sql, sqlList } from "#db/sql.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import {
@@ -26,7 +27,6 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { MOCK_RELEASE, stubReleaseFetch } from "#test-utils/mocks.ts";
-import { sql } from "#db/sql.ts";
 
 describe("update constants", () => {
   test("points to the public tickets release page", () => {
@@ -239,11 +239,10 @@ describeWithEnv("recordScriptVersion", { db: true }, () => {
   const commitKey = "current_script_commit";
   const markerKeys = [commitKey, CURRENT_SCRIPT_VERSION_KEY];
   const clearMarkers = (): Promise<unknown> =>
-    execute("DELETE FROM settings WHERE key IN (?, ?)", markerKeys);
+    execute(sql`DELETE FROM settings WHERE key IN (${sqlList(markerKeys)})`);
   const markerRows = (): Promise<{ key: string; value: string }[]> =>
     queryAll<{ key: string; value: string }>(
-      "SELECT key, value FROM settings WHERE key IN (?, ?) ORDER BY key",
-      markerKeys,
+      sql`SELECT key, value FROM settings WHERE key IN (${sqlList(markerKeys)}) ORDER BY key`,
     );
 
   afterEach(() => {
@@ -257,7 +256,7 @@ describeWithEnv("recordScriptVersion", { db: true }, () => {
 
     expect(
       await queryOne<{ value: string }>(
-        sql`SELECT value FROM settings WHERE key = 'current_script_commit'`
+        sql`SELECT value FROM settings WHERE key = 'current_script_commit'`,
       ),
     ).toEqual({ value: "abc123def4567890" });
   });
@@ -269,7 +268,7 @@ describeWithEnv("recordScriptVersion", { db: true }, () => {
 
     expect(
       await queryOne<{ value: string }>(
-        sql`SELECT value FROM settings WHERE key = 'current_script_commit'`
+        sql`SELECT value FROM settings WHERE key = 'current_script_commit'`,
       ),
     ).toBeNull();
   });
@@ -325,7 +324,9 @@ describeWithEnv("recordScriptVersion", { db: true }, () => {
     ]);
 
     await clearMarkers();
-    await execute(sql`INSERT INTO settings (key, value) VALUES (${commitKey}, ${"stale-commit"})`);
+    await execute(
+      sql`INSERT INTO settings (key, value) VALUES (${commitKey}, ${"stale-commit"})`,
+    );
     setBuildTimestampForTest("2026-06-20T00:00:00Z");
     setBuildCommitForTest("");
     await recordScriptVersion();

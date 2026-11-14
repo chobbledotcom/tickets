@@ -5,6 +5,7 @@ import { encrypt } from "#crypto/encryption.ts";
 import { hashPassword } from "#crypto/hashing.ts";
 import { getDb, insert } from "#db/client.ts";
 import { createSession } from "#db/sessions.ts";
+import { sql } from "#db/sql.ts";
 import { getUserByUsername, invalidateUsersCache } from "#db/users.ts";
 import { handleRequest } from "#routes";
 import { getSessionCookieName } from "#shared/cookies.ts";
@@ -29,7 +30,6 @@ import {
   adminGet,
   createTestManagerSession,
 } from "#test-utils/session.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("role enforcement", () => {
@@ -128,7 +128,9 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
   describe("settings updateUserPassword failure", () => {
     test("password change returns 500 when wrapped_data_key is corrupted", async () => {
-      await getDb().execute(sql`UPDATE users SET wrapped_data_key = 'corrupted_key' WHERE id = 1`);
+      await getDb().execute(
+        sql`UPDATE users SET wrapped_data_key = 'corrupted_key' WHERE id = 1`,
+      );
       invalidateUsersCache();
 
       const { response } = await adminFormPost("/admin/settings", {

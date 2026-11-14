@@ -18,7 +18,13 @@ import {
   resultRows,
   withTransaction,
 } from "#db/client.ts";
-import { sql, sqlList, sqlLiteral, sqlName, type SqlStatement } from "#db/sql.ts";
+import {
+  type SqlStatement,
+  sql,
+  sqlList,
+  sqlLiteral,
+  sqlName,
+} from "#db/sql.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type { Attendee } from "#types";
 
@@ -193,11 +199,11 @@ const bookedLineSql = (attendeeRef: string): SqlStatement => sql`EXISTS (
 
 /** The count statement, separate from the count so the plan test can pin the
  * index the planner picks. */
-  // The plain OR term repeats the partial index's own predicate. Without it
-  // the planner cannot prove the count's WHERE implies the index's WHERE,
-  // and it falls back to the kind index over every attendee row. With it the
-  // plan seeks idx_attendees_pending_flags, and the second conjunct keeps
-  // the email and booking rules. EXPLAIN QUERY PLAN pins this.
+// The plain OR term repeats the partial index's own predicate. Without it
+// the planner cannot prove the count's WHERE implies the index's WHERE,
+// and it falls back to the kind index over every attendee row. With it the
+// plan seeks idx_attendees_pending_flags, and the second conjunct keeps
+// the email and booking rules. EXPLAIN QUERY PLAN pins this.
 export const pendingFlagsCountStatement = (): SqlStatement =>
   sql`SELECT COUNT(*) AS n FROM attendees
      WHERE kind = ${sqlLiteral(ATTENDEE_KIND)}

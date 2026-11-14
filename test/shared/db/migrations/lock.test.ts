@@ -1,4 +1,3 @@
-import type { InStatement } from "@libsql/client";
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -16,6 +15,7 @@ import {
   whileMigrationLockOwned,
 } from "#db/migrations/lock.ts";
 import { MIGRATION_LOCK_KEY } from "#db/migrations/schema/version.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   freshLockStamp,
@@ -24,20 +24,23 @@ import {
   takeMigrationLock,
 } from "#test-utils/migrations.ts";
 import { stubNtfyFetch } from "#test-utils/mocks.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("db > migrations > lock", { db: true }, () => {
   const heldLock = (): Promise<string | null> =>
     settingsValueOrNull(MIGRATION_LOCK_KEY);
 
   const holdLockSince = async (stamp: string): Promise<void> => {
-    await getDb().execute(sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${MIGRATION_LOCK_KEY}, ${stamp})`);
+    await getDb().execute(
+      sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${MIGRATION_LOCK_KEY}, ${stamp})`,
+    );
   };
 
   const holdFreshLock = (): Promise<void> => holdLockSince(freshLockStamp());
 
   const clearLock = async (): Promise<void> => {
-    await getDb().execute(sql`DELETE FROM settings WHERE key = ${MIGRATION_LOCK_KEY}`);
+    await getDb().execute(
+      sql`DELETE FROM settings WHERE key = ${MIGRATION_LOCK_KEY}`,
+    );
   };
 
   /** Take the lock and check the row now holding it is this lease's own. */
@@ -109,15 +112,14 @@ describeWithEnv("db > migrations > lock", { db: true }, () => {
 
   test("a statement only runs while the lease is still held", () => {
     const statement = whileMigrationLockOwned(
-      "INSERT INTO settings (key, value) SELECT ?, ?",
-      ["a", "b"],
+      sql`INSERT INTO settings (key, value) SELECT ${"a"}, ${"b"}`,
       "token",
     );
 
     expect(statement.args).toEqual(["a", "b", MIGRATION_LOCK_KEY, "token"]);
     expect(statement.sql).toBe(
-      "INSERT INTO settings (key, value) SELECT ?, ? " +
-        "WHERE EXISTS (SELECT 1 FROM settings WHERE key = ? AND value = ?)",
+      "INSERT INTO settings (key, value) SELECT ?1, ?2 " +
+        "WHERE EXISTS (SELECT 1 FROM settings WHERE key = ?3 AND value = ?4)",
     );
   });
 
@@ -127,8 +129,7 @@ describeWithEnv("db > migrations > lock", { db: true }, () => {
       await executeWhileMigrationLockOwned(
         [
           whileMigrationLockOwned(
-            "INSERT OR REPLACE INTO settings (key, value) SELECT ?, ?",
-            ["lock_test_marker", "written"],
+            sql`INSERT OR REPLACE INTO settings (key, value) SELECT ${"lock_test_marker"}, ${"written"}`,
             lockToken,
           ),
         ],
@@ -136,12 +137,12 @@ describeWithEnv("db > migrations > lock", { db: true }, () => {
       );
 
       const result = await getDb().execute(
-        sql`SELECT value FROM settings WHERE key = 'lock_test_marker'`
+        sql`SELECT value FROM settings WHERE key = 'lock_test_marker'`,
       );
       expect(result.rows[0]?.value).toBe("written");
     } finally {
       await getDb().execute(
-        sql`DELETE FROM settings WHERE key = 'lock_test_marker'`
+        sql`DELETE FROM settings WHERE key = 'lock_test_marker'`,
       );
       await releaseMigrationLock(lockToken);
     }
@@ -155,8 +156,7 @@ describeWithEnv("db > migrations > lock", { db: true }, () => {
       executeWhileMigrationLockOwned(
         [
           whileMigrationLockOwned(
-            "INSERT OR REPLACE INTO settings (key, value) SELECT ?, ?",
-            ["lock_test_marker", "written"],
+            sql`INSERT OR REPLACE INTO settings (key, value) SELECT ${"lock_test_marker"}, ${"written"}`,
             lockToken,
           ),
         ],
@@ -169,7 +169,7 @@ describeWithEnv("db > migrations > lock", { db: true }, () => {
     );
 
     const result = await getDb().execute(
-      sql`SELECT value FROM settings WHERE key = 'lock_test_marker'`
+      sql`SELECT value FROM settings WHERE key = 'lock_test_marker'`,
     );
     expect(result.rows).toEqual([]);
   });
@@ -189,7 +189,7 @@ describeWithEnv("db > migrations > lock", { db: true }, () => {
   const failLockWriteWith = (message: string) => {
     const client = getDb();
     const execute = client.execute.bind(client);
-    return stub(client, "execute", (statement: InStatement) =>
+    return stub(client, "execute", (statement: SqlStatement) =>
       typeof statement !== "string" &&
       statement.sql.startsWith("INSERT INTO settings")
         ? Promise.reject(new Error(message))

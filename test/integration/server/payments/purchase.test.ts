@@ -5,6 +5,7 @@ import { stub } from "@std/testing/mock";
 import { hmacHash } from "#crypto/hashing.ts";
 import { getDb } from "#db/client.ts";
 import { modifiersTable } from "#db/modifiers.ts";
+import { sql } from "#db/sql.ts";
 import { ProviderCheckoutError } from "#payment/checkout-failure.ts";
 import { matchKey } from "#shared/keys.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
@@ -19,7 +20,6 @@ import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { sql } from "#db/sql.ts";
 
 // Enables Stripe and creates a standard paid listing: 50 spots that redirect
 // to the thank-you page on success, priced at the given amount.
@@ -221,9 +221,15 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
         direction: "discount",
         name: "SAVE10",
       });
-      await getDb().execute(sql`UPDATE modifiers SET trigger = ${"optional"} WHERE id = ${addOn.id}`);
-      await getDb().execute(sql`UPDATE modifiers SET trigger = ${"optional"} WHERE id = ${skippedAddOn.id}`);
-      await getDb().execute(sql`UPDATE modifiers SET trigger = ${"code"}, code_index = ${await hmacHash(matchKey("SAVE10"))} WHERE id = ${promo.id}`);
+      await getDb().execute(
+        sql`UPDATE modifiers SET trigger = ${"optional"} WHERE id = ${addOn.id}`,
+      );
+      await getDb().execute(
+        sql`UPDATE modifiers SET trigger = ${"optional"} WHERE id = ${skippedAddOn.id}`,
+      );
+      await getDb().execute(
+        sql`UPDATE modifiers SET trigger = ${"code"}, code_index = ${await hmacHash(matchKey("SAVE10"))} WHERE id = ${promo.id}`,
+      );
 
       const { checkout, getCaptured } = stubCheckout("cs_modifiers_web");
 

@@ -31,7 +31,7 @@ import {
   resultRows,
 } from "#db/client.ts";
 import { markOpenInvoicesPaidStatement } from "#db/invoices.ts";
-import { sql, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { compact, mapParallel, sumOf } from "#fp";
 import { formatCurrency } from "#shared/currency.ts";
 import { nowIso } from "#shared/now.ts";

@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
 import { loadRefundAuthorityByReference } from "#db/provider-refund-authority.ts";
+import { sql } from "#db/sql.ts";
 import {
   type RefundRequestGeneration,
   writeRefundAuthorityState,
@@ -18,7 +19,6 @@ import {
 } from "#test/shared/provider-refunds/engine-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { chargeMoney, foundCharge } from "#test-utils/payment-state.ts";
-import { sql } from "#db/sql.ts";
 
 const replaceStoredRequest = async (
   payment: ReturnType<typeof refundReference>,
@@ -32,7 +32,7 @@ const replaceStoredRequest = async (
   await execute(
     sql`UPDATE payment_charges
         SET capability = ${state.request.capability}, refund_state = ${writeRefundAuthorityState(state)}
-      WHERE id = ${row.id}`
+      WHERE id = ${row.id}`,
   );
 };
 

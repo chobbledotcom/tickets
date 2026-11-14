@@ -6,6 +6,7 @@ import { attendeesApi } from "#db/attendees/api.ts";
 import { LISTING_ATTENDEE_ROW_COLS } from "#db/attendees/queries.ts";
 import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
 import { queryAll } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { account } from "#shared/ledger/account.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -78,9 +79,7 @@ describeWithEnv("db > attendees > booking row columns", { db: true }, () => {
 
     // The bare column list builds valid SQL over the real table.
     const rows = await queryAll<{ listing_id: number; quantity: number }>(
-      `SELECT ${LISTING_ATTENDEE_ROW_COLS} FROM listing_attendees` +
-        " WHERE attendee_id = ? ORDER BY quantity DESC",
-      [attendeeId],
+      sql`SELECT ${LISTING_ATTENDEE_ROW_COLS} FROM listing_attendees WHERE attendee_id = ${attendeeId} ORDER BY quantity DESC`,
     );
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({ listing_id: listing.id, quantity: 1 });

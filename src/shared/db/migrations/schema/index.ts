@@ -1,5 +1,6 @@
 /** Assembles the ordered schema and computes its identity hash. */
 
+import { isSqlStatement } from "#db/sql.ts";
 import { paymentTables } from "./payments/index.ts";
 import { attendeeTables } from "./tables-attendees.ts";
 import { catalogTables } from "./tables-catalog.ts";
@@ -12,7 +13,6 @@ import { taxTables } from "./tables-tax.ts";
 import { TRIGGERS } from "./triggers.ts";
 import type { Table } from "./types.ts";
 import { SCHEMA_MIGRATIONS_TABLE } from "./version.ts";
-import { isSqlStatement } from "#db/sql.ts";
 
 // Schema (ordered: tables with no FK deps first). Concatenating the groups in
 // this order reproduces the original FK-dependency sequence exactly, so the

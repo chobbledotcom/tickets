@@ -12,6 +12,7 @@ import { getGroupsById } from "#db/groups.ts";
 import { listingParents } from "#db/listing-parents.ts";
 import { requireListingsWithCountsByIds } from "#db/listings/records.ts";
 import { modifiersTable } from "#db/modifiers.ts";
+import { sql, sqlList } from "#db/sql.ts";
 import { requiredMapValue, unique } from "#fp";
 import { matchKey as nameKey } from "#shared/keys.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -41,7 +42,6 @@ import type {
   ListingBody,
   ListingMembership,
 } from "./schema.ts";
-import { sql, sqlList } from "#db/sql.ts";
 
 /** Everything the later phases read: the document and its per-item resolution
  * maps (keyed by the item objects themselves), plus the stored rows the site

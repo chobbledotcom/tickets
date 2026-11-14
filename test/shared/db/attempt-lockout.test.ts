@@ -4,15 +4,15 @@ import { FakeTime } from "@std/testing/time";
 import { hmacHash } from "#crypto/hashing.ts";
 import { clearAttemptsFor, lockoutActive } from "#db/attempt-lockout.ts";
 import { execute, queryOne } from "#db/client.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
 import { sql } from "#db/sql.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 const insertLockout = async (
   hashedIp: string,
   lockedUntil: number,
 ): Promise<void> => {
   await execute(
-    sql`INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (${hashedIp}, 5, ${lockedUntil})`
+    sql`INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (${hashedIp}, 5, ${lockedUntil})`,
   );
 };
 
@@ -20,7 +20,7 @@ const storedLockedUntil = async (
   hashedIp: string,
 ): Promise<number | null | undefined> => {
   const row = await queryOne<{ locked_until: number | null }>(
-    sql`SELECT loginAttempt.locked_until FROM login_attempts AS loginAttempt WHERE loginAttempt.ip = ${hashedIp}`
+    sql`SELECT loginAttempt.locked_until FROM login_attempts AS loginAttempt WHERE loginAttempt.ip = ${hashedIp}`,
   );
   return row?.locked_until;
 };

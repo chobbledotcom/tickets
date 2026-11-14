@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { setN1GuardNotifyOnly } from "#db/query-log.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import {
   createPaidListing,
@@ -26,7 +27,6 @@ import {
   withRefundMock,
 } from "#test-utils/refund-routes.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("server (admin refund-all)", { db: true }, () => {
   describe("GET /admin/listing/:id/refund-all", () => {
@@ -245,7 +245,7 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
            ledger_event_group)
          SELECT ${listing.id}, ${repeated.id}, 1, ${listing.id + 1000}, ledger_event_group
            FROM listing_attendees
-          WHERE attendee_id = ${repeated.id} AND listing_id = ${listing.id}`
+          WHERE attendee_id = ${repeated.id} AND listing_id = ${listing.id}`,
       );
 
       await withRefundMock(refundCompletes, async (mockRefund) => {

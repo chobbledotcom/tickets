@@ -4,6 +4,7 @@ import { getAttendeeAnswersBatch } from "#db/questions/attendee-answers/reads.ts
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import {
   expectFlash,
@@ -22,7 +23,6 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 import type { Attendee, Listing } from "#types";
-import { sql } from "#db/sql.ts";
 
 type ListingAndPersonOpts = {
   listing?: Parameters<typeof createTestListing>[0];
@@ -231,7 +231,7 @@ export const dualPackageRows = async (
     quantity: number;
   }>(
     sql`SELECT package_group_id, quantity FROM listing_attendees
-          WHERE attendee_id = ${attendeeId} ORDER BY package_group_id ASC`
+          WHERE attendee_id = ${attendeeId} ORDER BY package_group_id ASC`,
   );
   return rows.map((row) => [Number(row.package_group_id), row.quantity]);
 };
@@ -297,7 +297,7 @@ export const emptyBookingLine = async (
 ): Promise<void> => {
   const { execute } = await import("#shared/db/client.ts");
   await execute(
-    sql`UPDATE listing_attendees SET quantity = 0 WHERE listing_id = ${listingId} AND attendee_id = ${attendeeId}`
+    sql`UPDATE listing_attendees SET quantity = 0 WHERE listing_id = ${listingId} AND attendee_id = ${attendeeId}`,
   );
 };
 

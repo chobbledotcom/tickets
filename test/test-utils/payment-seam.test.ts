@@ -8,6 +8,7 @@ import {
   loadRefundAuthorityByReference,
 } from "#db/provider-refund-authority.ts";
 import { transitionRefundAuthority } from "#db/provider-refund-authority-change.ts";
+import { sql } from "#db/sql.ts";
 import { CLAIM_MIRROR } from "#payment/admit-move.ts";
 import {
   armRefundSend,
@@ -33,7 +34,6 @@ import {
   bookedWithPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("payment proof boundary observer", { db: true }, () => {
   test("records a changed refund generation even after the authority leaves its armed state", async () => {
@@ -82,7 +82,7 @@ describeWithEnv("payment proof boundary observer", { db: true }, () => {
     await reserveSession("sess_missing_reference");
     for (const mirror of [CLAIM_MIRROR, ""]) {
       await execute(
-        sql`UPDATE processed_payments SET protected_state = ${mirror} WHERE payment_session_id = ${"sess_missing_reference"}`
+        sql`UPDATE processed_payments SET protected_state = ${mirror} WHERE payment_session_id = ${"sess_missing_reference"}`,
       );
     }
     await expect(verify()).rejects.toThrow("Payment claim guard failed");
@@ -98,7 +98,7 @@ describeWithEnv("payment proof boundary observer", { db: true }, () => {
     await claimCurrentAttendeeRows([attendeeId]);
     for (const index of ["", await paymentReferenceIndex(reference)]) {
       await execute(
-        sql`UPDATE processed_payments SET payment_reference_index = ${index} WHERE payment_session_id = ${"sess_stripped"}`
+        sql`UPDATE processed_payments SET payment_reference_index = ${index} WHERE payment_session_id = ${"sess_stripped"}`,
       );
     }
     await expect(verify()).rejects.toThrow("Payment claim guard failed");
@@ -118,7 +118,7 @@ describeWithEnv("payment proof boundary observer", { db: true }, () => {
         });
         expect(
           await queryAll(
-            sql`SELECT payment_session_id FROM processed_payments WHERE payment_reference_index = ${index}`
+            sql`SELECT payment_session_id FROM processed_payments WHERE payment_reference_index = ${index}`,
           ),
         ).toEqual([]);
         return completedRefund(request.charge);

@@ -8,6 +8,7 @@ import {
   setN1GuardNotifyOnly,
   TRANSACTION_ROUNDTRIP_THRESHOLD,
 } from "#db/query-log.ts";
+import { sql } from "#db/sql.ts";
 import {
   getSubrequestRemaining,
   runWithSubrequestBudget,
@@ -24,7 +25,6 @@ import {
   transactionStub,
 } from "#test-utils/db-helpers/stub-transaction.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
-import { sql } from "#db/sql.ts";
 
 /**
  * Interactive-transaction internals: the per-transaction statement budget (the
@@ -224,7 +224,7 @@ describeWithEnv("db > client transaction", { db: true }, () => {
       rollback: () => Promise.resolve(),
     });
     const id = await writeRowInTransaction(
-      "UPDATE rows SET x = 1",
+      sql`UPDATE rows SET x = 1`,
       0,
       (_tx, rowId) => {
         persistedIds.push(rowId);
@@ -248,7 +248,7 @@ describeWithEnv("db > client transaction", { db: true }, () => {
     });
     try {
       await writeRowInTransaction(
-        "INSERT INTO rows (x) VALUES (1)",
+        sql`INSERT INTO rows (x) VALUES (1)`,
         null,
         (_tx, rowId) => {
           persistedIds.push(rowId);

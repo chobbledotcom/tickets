@@ -9,13 +9,13 @@
  */
 
 import { resultRows, type TxScope } from "#db/client.ts";
+import { type SqlStatement, sql, sqlList, sqlName } from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { t } from "#i18n";
 import {
   type PackageChildEdgeBlock,
   packageChildEdgeConflict,
 } from "#shared/package-membership.ts";
-import { sql, sqlList, sqlName, type SqlStatement } from "#db/sql.ts";
 
 /** How the guard surfaces a package conflict: the children writer returns it,
  *  the parent writer throws it (after this module reports it). */

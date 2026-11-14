@@ -7,6 +7,7 @@ import { queryAll } from "#db/client.ts";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { getListingsByGroupId, setGroupPackageMembers } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import {
@@ -46,8 +47,7 @@ const confirmRemoval = async (
 
 const flatOverrideRows = (listingId: number, groupId: number) =>
   queryAll<{ unit_price: number }>(
-    "SELECT unit_price FROM listing_prices WHERE listing_id = ? AND price_type = 'group' AND price_id = ?",
-    [listingId, String(groupId)],
+    sql`SELECT unit_price FROM listing_prices WHERE listing_id = ${listingId} AND price_type = 'group' AND price_id = ${String(groupId)}`,
   );
 
 describeWithEnv("admin group listing removal", { db: true }, () => {

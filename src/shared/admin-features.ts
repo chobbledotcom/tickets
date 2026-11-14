@@ -1,6 +1,6 @@
 import * as v from "valibot";
-import { defineStoredJson } from "#shared/validation/stored-json.ts";
 import { sql } from "#db/sql.ts";
+import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
 /**
  * The admin features operators can choose to show. This one registry drives the

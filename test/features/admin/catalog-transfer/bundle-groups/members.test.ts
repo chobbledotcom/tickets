@@ -2,13 +2,13 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import type { CatalogBundle } from "#routes/admin/catalog-transfer/schema.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { requireBundleImport } from "#test-utils/catalog-import.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { sql } from "#db/sql.ts";
 
 /** The mixed package with its stored member re-added at quantity 1, beside
  * the second member the caller declares. */
@@ -99,7 +99,9 @@ describeWithEnv("bundle package member checks", { db: true }, () => {
       name: "Stored Member",
     });
     // The create form carries no built-site switch; the column is the fact.
-    await execute(sql`UPDATE listings SET assign_built_site = 1 WHERE id = ${member.id}`);
+    await execute(
+      sql`UPDATE listings SET assign_built_site = 1 WHERE id = ${member.id}`,
+    );
     const result = await importCatalog(mixedPackage());
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("unreachable");

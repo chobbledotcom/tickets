@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { insert, setDb } from "#db/client.ts";
 import { initDb, invalidateInitDbCache } from "#db/migrations.ts";
+import { sql } from "#db/sql.ts";
 import {
   createLegacyMigrationHarness,
   expectAttendeeCols,
@@ -11,7 +12,6 @@ import {
   stubPragmaForeignKeysOff,
 } from "#test/integration/db/legacy-migration/helpers.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
-import { sql } from "#db/sql.ts";
 
 describe("db > listing_attendees migration from legacy schema (backfill)", () => {
   const h = createLegacyMigrationHarness();
@@ -53,7 +53,9 @@ describe("db > listing_attendees migration from legacy schema (backfill)", () =>
     using _pragmaStub = stubPragmaForeignKeysOff(client);
     await initDb();
 
-    const listings = await client.execute(sql`SELECT duration_days FROM listings`);
+    const listings = await client.execute(
+      sql`SELECT duration_days FROM listings`,
+    );
     expect(listings.rows[0]!.duration_days).toBe(1);
 
     const ea = await client.execute(sql`SELECT * FROM listing_attendees`);
@@ -86,7 +88,9 @@ describe("db > listing_attendees migration from legacy schema (backfill)", () =>
       ["id", "pii_blob"],
     );
 
-    const payments = await client.execute(sql`SELECT * FROM processed_payments`);
+    const payments = await client.execute(
+      sql`SELECT * FROM processed_payments`,
+    );
     expect(payments.rows.length).toBe(1);
     expect(payments.rows[0]!.attendee_id).toBe(1);
   });
@@ -111,8 +115,12 @@ describe("db > listing_attendees migration from legacy schema (backfill)", () =>
 
     // Force a named migration re-run by making legacy markers stale and
     // clearing named migration history.
-    await client.execute(sql`UPDATE settings SET value = ${LEGACY_DB_UPDATE} WHERE key = 'latest_db_update'`);
-    await client.execute(sql`UPDATE settings SET value = ${LEGACY_DB_SCHEMA_HASH} WHERE key = 'db_schema_hash'`);
+    await client.execute(
+      sql`UPDATE settings SET value = ${LEGACY_DB_UPDATE} WHERE key = 'latest_db_update'`,
+    );
+    await client.execute(
+      sql`UPDATE settings SET value = ${LEGACY_DB_SCHEMA_HASH} WHERE key = 'db_schema_hash'`,
+    );
     await client.execute(sql`DROP TABLE schema_migrations`);
     invalidateInitDbCache();
     await initDb();
@@ -123,7 +131,9 @@ describe("db > listing_attendees migration from legacy schema (backfill)", () =>
     assertArrayIncludes(colNames, ["pii_blob"]);
     assertArrayIncludes(colNames, ["created"]);
 
-    const rows = await client.execute(sql`SELECT * FROM attendees WHERE id = 1`);
+    const rows = await client.execute(
+      sql`SELECT * FROM attendees WHERE id = 1`,
+    );
     expect(rows.rows.length).toBe(1);
     expect(rows.rows[0]!.pii_blob).toBe("blob-data");
     expect(rows.rows[0]!.ticket_token_index).toBe("tok_skip");

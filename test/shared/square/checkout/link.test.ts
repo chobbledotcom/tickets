@@ -5,6 +5,7 @@ import { decrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { queryOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { extractSessionMetadata } from "#shared/payment-helpers.ts";
 import { squareApi } from "#shared/square/api.ts";
 import { squareLinkEndsAt } from "#shared/square/checkout.ts";
@@ -230,8 +231,7 @@ describeSquare(() => {
             sealed_handle: string;
             state: string;
           }>(
-            "SELECT state, sealed_handle, link_ends_at, next_attempt_at FROM square_link_ends WHERE session_index = ?",
-            [await hmacHash("order_stage")],
+            sql`SELECT state, sealed_handle, link_ends_at, next_attempt_at FROM square_link_ends WHERE session_index = ${await hmacHash("order_stage")}`,
           );
           expect(row?.state).toBe("pending");
           // The first attempt lands exactly at the window, which Square's

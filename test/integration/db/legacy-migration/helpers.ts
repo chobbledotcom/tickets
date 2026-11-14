@@ -2,13 +2,13 @@ import { createClient, type ResultSet } from "@libsql/client";
 import { assert, assertArrayIncludes } from "@std/assert";
 import { stub } from "@std/testing/mock";
 import { insert, setDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { resetDb } from "#test-utils/db.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import {
   cleanupTestDbPath,
   createTrackedTestDbFile,
 } from "#test-utils/temp-db-files.ts";
-import { sql } from "#db/sql.ts";
 
 /**
  * Shared setup for the legacy-schema migration tests: the full on-main
@@ -203,8 +203,12 @@ export const LEGACY_SCHEMA_SQL = [
 export const seedLegacySchemaMarkers = async (
   client: Client,
 ): Promise<void> => {
-  await client.execute(sql`INSERT INTO settings (key, value) VALUES (${"latest_db_update"}, ${LEGACY_DB_UPDATE})`);
-  await client.execute(sql`INSERT INTO settings (key, value) VALUES (${"db_schema_hash"}, ${LEGACY_DB_SCHEMA_HASH})`);
+  await client.execute(
+    sql`INSERT INTO settings (key, value) VALUES (${"latest_db_update"}, ${LEGACY_DB_UPDATE})`,
+  );
+  await client.execute(
+    sql`INSERT INTO settings (key, value) VALUES (${"db_schema_hash"}, ${LEGACY_DB_SCHEMA_HASH})`,
+  );
 };
 
 /**

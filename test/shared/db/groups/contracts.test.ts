@@ -14,6 +14,7 @@ import {
   setGroupPackageMembers,
 } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -23,7 +24,6 @@ import {
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { runAndCountRoundTrips } from "#test-utils/query-log.ts";
-import { sql } from "#db/sql.ts";
 
 const insertMinimalGroup = async (name: string) => {
   const slug = name.toLowerCase().replaceAll(" ", "-");
@@ -103,7 +103,7 @@ describeWithEnv("db > group listing read contracts", { db: true }, () => {
     const listing = await createTestListing({ name: "Invalid group member" });
     await execute(sql`UPDATE groups SET id = 0 WHERE id = ${group.id}`);
     await execute(
-      sql`INSERT INTO group_listings (group_id, listing_id) VALUES (0, ${listing.id})`
+      sql`INSERT INTO group_listings (group_id, listing_id) VALUES (0, ${listing.id})`,
     );
 
     await expect(getListingsByGroupIds([0])).rejects.toThrow();
@@ -193,7 +193,9 @@ describeWithEnv("db > group package write contracts", { db: true }, () => {
 
     await withTransaction(async (tx) => {
       // The link row does not exist yet: the same transaction creates it.
-      await tx.execute(sql`INSERT INTO group_listings (group_id, listing_id) VALUES (${group.id}, ${member.id})`);
+      await tx.execute(
+        sql`INSERT INTO group_listings (group_id, listing_id) VALUES (${group.id}, ${member.id})`,
+      );
       await setGroupPackageMembers(
         group.id,
         [{ listingId: member.id, price: null, quantity: 2 }],

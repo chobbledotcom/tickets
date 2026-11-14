@@ -1,13 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { numberedStatement } from "#db/numbered-statement.ts";
 import { defineRecordTarget, ITEM_TARGET_COLUMNS } from "#db/record-target.ts";
-import {
-  clauseArgs,
-  rowsUnlessNoneMatch,
-  whereSql,
-} from "#db/where-clauses.ts";
 import { sql } from "#db/sql.ts";
+import { rowsUnlessNoneMatch, whereSql } from "#db/where-clauses.ts";
 
 /** A make-believe domain: notes-style columns, two kinds, tables listed. */
 const targets = defineRecordTarget({
@@ -66,37 +61,39 @@ describe("asking for a record's rows", () => {
   test("uses item_type/item_id where rows hang off any record", () => {
     const where = tablelessTargets.where({ id: 8, kind: "listing" });
 
-    expect(whereSql(where)).toBe(" WHERE item_type = ? AND item_id = ?");
-    expect(clauseArgs(where)).toEqual(["listing", 8]);
+    expect(whereSql(where).sql).toBe(" WHERE item_type = ?1 AND item_id = ?2");
+    expect(whereSql(where).args).toEqual(["listing", 8]);
   });
 
   test("asks by both of its parts", () => {
     const where = targets.where({ id: 4, kind: "attendee" });
 
-    expect(whereSql(where)).toBe(" WHERE entity_type = ? AND entity_id = ?");
-    expect(clauseArgs(where)).toEqual(["attendee", 4]);
+    expect(whereSql(where).sql).toBe(
+      " WHERE entity_type = ?1 AND entity_id = ?2",
+    );
+    expect(whereSql(where).args).toEqual(["attendee", 4]);
   });
 
   test("names the table when the read joins", () => {
     const where = targets.where({ id: 4, kind: "attendee" }, "note");
 
-    expect(whereSql(where)).toBe(
-      " WHERE note.entity_type = ? AND note.entity_id = ?",
+    expect(whereSql(where).sql).toBe(
+      " WHERE note.entity_type = ?1 AND note.entity_id = ?2",
     );
   });
 
   test("asks for several records of one kind in one go", () => {
     const where = targets.whereMany("attendee", [4, 5]);
 
-    expect(whereSql(where)).toBe(
-      " WHERE entity_type = ? AND entity_id IN (?, ?)",
+    expect(whereSql(where).sql).toBe(
+      " WHERE entity_type = ?1 AND entity_id IN (?2, ?3)",
     );
-    expect(clauseArgs(where)).toEqual(["attendee", 4, 5]);
+    expect(whereSql(where).args).toEqual(["attendee", 4, 5]);
   });
 
   test("names the table for several records too", () => {
-    expect(whereSql(targets.whereMany("attendee", [4], "note"))).toBe(
-      " WHERE note.entity_type = ? AND note.entity_id IN (?)",
+    expect(whereSql(targets.whereMany("attendee", [4], "note")).sql).toBe(
+      " WHERE note.entity_type = ?1 AND note.entity_id IN (?2)",
     );
   });
 
@@ -117,13 +114,16 @@ describe("asking for a record's rows", () => {
   });
 
   test("keeps another query's own arguments after the kind", () => {
-    const where = targets.whereChosenBy("attendee", sql`SELECT attendee_id FROM listing_attendees WHERE listing_id = ${12}`);
-
-    expect(whereSql(where)).toBe(
-      " WHERE entity_type = ? AND entity_id IN" +
-        " (SELECT attendee_id FROM listing_attendees WHERE listing_id = ?)",
+    const where = targets.whereChosenBy(
+      "attendee",
+      sql`SELECT attendee_id FROM listing_attendees WHERE listing_id = ${12}`,
     );
-    expect(clauseArgs(where)).toEqual(["attendee", 12]);
+
+    expect(whereSql(where).sql).toBe(
+      " WHERE entity_type = ?1 AND entity_id IN" +
+        " (SELECT attendee_id FROM listing_attendees WHERE listing_id = ?2)",
+    );
+    expect(whereSql(where).args).toEqual(["attendee", 12]);
   });
 });
 
@@ -131,30 +131,33 @@ describe("deleting a record's rows", () => {
   test("deletes the rows of one record", () => {
     expect(
       targets.deleteFrom("system_notes")({ id: 4, kind: "attendee" }),
-    ).toEqual(sql`DELETE FROM system_notes WHERE entity_type = ${"attendee"} AND entity_id = ${4}`);
+    ).toEqual(
+      sql`DELETE FROM system_notes WHERE entity_type = ${"attendee"} AND entity_id = ${4}`,
+    );
   });
 
   test("deletes the rows of the records another query names", () => {
     expect(
-      targets.deleteChosenBy("system_notes")("attendee", sql`SELECT attendee_id FROM listing_attendees WHERE listing_id = ${12}`),
-    ).toEqual(sql`DELETE FROM system_notes WHERE entity_type = ${"attendee"} AND entity_id IN (SELECT attendee_id FROM listing_attendees WHERE listing_id = ${12})`);
+      targets.deleteChosenBy("system_notes")(
+        "attendee",
+        sql`SELECT attendee_id FROM listing_attendees WHERE listing_id = ${12}`,
+      ),
+    ).toEqual(
+      sql`DELETE FROM system_notes WHERE entity_type = ${"attendee"} AND entity_id IN (SELECT attendee_id FROM listing_attendees WHERE listing_id = ${12})`,
+    );
   });
 });
 
 describe("checking a record is really there", () => {
   test("asks the table that kind of record lives in", () => {
-    const statement = numberedStatement((bind) =>
-      targets.existsSql("listing", bind(4)),
-    );
+    const statement = targets.existsSql("listing", 4);
     expect(statement.sql).toBe("EXISTS (SELECT 1 FROM listings WHERE id = ?1)");
     expect(statement.args).toEqual([4]);
   });
 
   test("says so loudly when the domain listed no tables", () => {
-    expect(() =>
-      numberedStatement((bind) =>
-        tablelessTargets.existsSql("listing", bind(1)),
-      ),
-    ).toThrow("No table listed for listing records");
+    expect(() => tablelessTargets.existsSql("listing", 1)).toThrow(
+      "No table listed for listing records",
+    );
   });
 });

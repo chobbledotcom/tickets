@@ -7,7 +7,7 @@ import type { InValue } from "@libsql/client";
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { queryAll, queryOne } from "#db/client.ts";
 import { retryWrite } from "#db/retry-write.ts";
-import { sql, sqlNames, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlNames } from "#db/sql.ts";
 import {
   cachedTable,
   col,

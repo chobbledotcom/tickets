@@ -5,6 +5,7 @@ import {
   unfitListingIds,
 } from "#db/attendees/capacity/checks.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -14,7 +15,6 @@ import {
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
-import { sql } from "#db/sql.ts";
 
 const createCappedListingWithJohn = async () => {
   const listing = await createTestListing({ maxAttendees: 2 });
@@ -135,7 +135,9 @@ describeWithEnv("db > attendees > hasAvailableSpots", { db: true }, () => {
       3,
     );
     const { getDb } = await import("#db/client.ts");
-    await getDb().execute(sql`UPDATE listings SET listing_type = 'standard' WHERE id = ${sibling.id}`);
+    await getDb().execute(
+      sql`UPDATE listings SET listing_type = 'standard' WHERE id = ${sibling.id}`,
+    );
     // Sibling's 3 now count on every day — a 2-day booking far from
     // 2026-09-01 still only has 5 - 3 = 2 group spots per day.
     expect(await hasAvailableSpots(listing.id, 3, "2026-11-01", 2)).toBe(false);

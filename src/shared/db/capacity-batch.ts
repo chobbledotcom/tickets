@@ -21,7 +21,14 @@ import {
   dateToRange,
 } from "#db/capacity.ts";
 
-import { sql, sqlCommas, sqlJoin, sqlLiteral, sqlName, type SqlStatement } from "#db/sql.ts";
+import {
+  type SqlStatement,
+  sql,
+  sqlCommas,
+  sqlJoin,
+  sqlLiteral,
+  sqlName,
+} from "#db/sql.ts";
 import { countsPerDate } from "#shared/capacity-rules.ts";
 import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 

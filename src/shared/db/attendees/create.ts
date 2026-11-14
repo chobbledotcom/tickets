@@ -12,8 +12,8 @@ import { hasDuplicateBookingSlot } from "#db/attendees/booking-slot.ts";
 import { buildCapacityCheckedInsert } from "#db/attendees/capacity/checks.ts";
 import { refusedOrderUnfitListingIds } from "#db/attendees/capacity/refusal-diagnosis.ts";
 import {
-  attendeeByToken,
   type AttendeeCreationWork,
+  attendeeByToken,
   type BatchTail,
   type BookingBatchPlan,
   bookingBatchCondition,
@@ -33,7 +33,7 @@ import { contactFields, encryptAttendeeFields } from "#db/attendees/pii.ts";
 import { insert } from "#db/client.ts";
 import { orderActivityStatements } from "#db/contact-tokens.ts";
 import { anyModifierSoldOut } from "#db/modifier-usage.ts";
-import { type SqlStatement } from "#db/sql.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { addDays } from "#shared/dates.ts";
 import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import { type Attendee, type ContactInfo, clampDurationDays } from "#types";

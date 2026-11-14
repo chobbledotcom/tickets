@@ -25,7 +25,7 @@ import {
   storePaymentReference,
   unclaimedPaymentReference,
 } from "#db/payment-reference-store.ts";
-import { sql, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import {
   EMPTY_ROW_STATE,
@@ -48,8 +48,7 @@ export { STALE_RESERVATION_MS };
  * single source of truth for the unresolved shape, so the encoding can't drift
  * between call sites.
  */
-export const UNRESOLVED_RESERVATION =
-  sql`attendee_id IS NULL AND failure_data = ''`;
+export const UNRESOLVED_RESERVATION = sql`attendee_id IS NULL AND failure_data = ''`;
 
 /** Processed payment record */
 export type ProcessedPayment = {

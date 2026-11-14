@@ -13,6 +13,7 @@ import {
 } from "#db/groups/membership/package-writes.ts";
 import { getGroupPackagePrices, setGroupPackageMembers } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import type { PackageMemberInput } from "#shared/catalog-fields/fields.ts";
 import { sitePlanMemberError } from "#shared/package-membership.ts";
@@ -24,7 +25,6 @@ import {
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
-import { sql } from "#db/sql.ts";
 
 /** Runs writePackageMembersTx inside a transaction and returns the resulting
  *  package price for the group's first member, so each allow-path test shares
@@ -172,7 +172,9 @@ describeWithEnv(
 
       await expect(
         withTransaction(async (tx) => {
-          await tx.execute(sql`UPDATE groups SET is_package = 1, hide_package_listings = 1 WHERE id = ${group.id}`);
+          await tx.execute(
+            sql`UPDATE groups SET is_package = 1, hide_package_listings = 1 WHERE id = ${group.id}`,
+          );
           await writePackageMembersTx(
             tx,
             group.id,

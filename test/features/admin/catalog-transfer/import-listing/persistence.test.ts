@@ -9,6 +9,7 @@ import {
 import { listingParents } from "#db/listing-parents.ts";
 import { getGroupDayPrices } from "#db/listing-prices.ts";
 import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { t } from "#i18n";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
@@ -21,7 +22,6 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListingInput } from "#test-utils/factories.ts";
-import { sql } from "#db/sql.ts";
 
 const importedId = async (blob: unknown): Promise<number> => {
   const result = await importCatalog(blob);
@@ -184,7 +184,7 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
     await execute(
       sql`CREATE TRIGGER reject_imported_listing
          BEFORE INSERT ON listings
-         BEGIN SELECT RAISE(ABORT, 'import write failed'); END`
+         BEGIN SELECT RAISE(ABORT, 'import write failed'); END`,
     );
 
     await expect(
@@ -205,7 +205,7 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
          WHEN NEW.listing_id = ${first.id}
          BEGIN
            UPDATE listings SET listing_type = 'daily' WHERE id = ${first.id};
-         END`
+         END`,
     );
 
     const result = await importCatalog({
@@ -228,7 +228,7 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
       sql`CREATE TRIGGER delete_imported_member
          BEFORE INSERT ON group_listings
          WHEN NEW.listing_id = ${member.id}
-         BEGIN DELETE FROM listings WHERE id = ${member.id}; END`
+         BEGIN DELETE FROM listings WHERE id = ${member.id}; END`,
     );
     const before = await Promise.all([
       countRows("listings"),
@@ -266,7 +266,7 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
     await execute(
       sql`CREATE TRIGGER delete_imported_parent
          AFTER INSERT ON listings
-         BEGIN DELETE FROM listings WHERE id = ${parent.id}; END`
+         BEGIN DELETE FROM listings WHERE id = ${parent.id}; END`,
     );
     const before = await Promise.all([
       countRows("listings"),

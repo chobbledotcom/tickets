@@ -9,7 +9,7 @@ import {
 
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { settings } from "#db/settings.ts";
-import { sql, sqlList, sqlLiteral, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlList, sqlLiteral } from "#db/sql.ts";
 import { CLAIM_MIRROR } from "#payment/admit-move.ts";
 import {
   type PaymentReference,

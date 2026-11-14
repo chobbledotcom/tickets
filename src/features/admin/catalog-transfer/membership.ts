@@ -9,7 +9,15 @@
 import type { InValue } from "@libsql/client";
 import { queryAll } from "#db/client.ts";
 import { PRICE_TYPE_GROUP, PRICE_TYPE_GROUP_DAY } from "#db/price-types.ts";
-import { sql, sqlCommas, sqlList, sqlLiteral, sqlName, sqlNames, type SqlStatement } from "#db/sql.ts";
+import {
+  type SqlStatement,
+  sql,
+  sqlCommas,
+  sqlList,
+  sqlLiteral,
+  sqlName,
+  sqlNames,
+} from "#db/sql.ts";
 import { type DayPrices, type GroupListing, parseDayPrices } from "#types";
 
 /** Every group a listing belongs to, with this listing's per-package override

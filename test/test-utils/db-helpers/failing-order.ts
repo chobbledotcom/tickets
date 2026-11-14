@@ -18,6 +18,8 @@ export const withFailingOrderTrigger = async (
   try {
     await run();
   } finally {
-    await execute(sql`DROP TRIGGER IF EXISTS ${sqlName(`fail_${table}_order`)}`);
+    await execute(
+      sql`DROP TRIGGER IF EXISTS ${sqlName(`fail_${table}_order`)}`,
+    );
   }
 };

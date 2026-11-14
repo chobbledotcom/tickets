@@ -13,6 +13,7 @@ import {
   MAX_REFUND_REFERENCES_PER_ATTENDEE,
 } from "#db/payment-reference-rows.ts";
 import { getRefundPaymentReferences } from "#db/payment-references.ts";
+import { sql } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -25,7 +26,6 @@ import { seedHistoricalProcessedPayment } from "#test-utils/historical-payment-r
 import { protectedStateOf } from "#test-utils/payment-claim.ts";
 import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
-import { sql } from "#db/sql.ts";
 
 type StoredPaymentRow = {
   payment_reference_index: string;
@@ -37,7 +37,7 @@ const paymentRowsFor = (attendeeId: number): Promise<StoredPaymentRow[]> =>
     sql`SELECT payment_session_id, payment_reference_index
        FROM processed_payments
       WHERE attendee_id = ${attendeeId}
-      ORDER BY payment_session_id`
+      ORDER BY payment_session_id`,
   );
 
 describeWithEnv("db > payment reference readiness", { db: true }, () => {
@@ -65,7 +65,7 @@ describeWithEnv("db > payment reference readiness", { db: true }, () => {
     await execute(
       sql`UPDATE processed_payments
           SET payment_reference = ${"not a payment reference"}, payment_reference_index = ${"unrelated-old-index"}
-        WHERE payment_session_id = ${"unrelated_unindexed"}`
+        WHERE payment_session_id = ${"unrelated_unindexed"}`,
     );
 
     const queries: string[] = [];
@@ -108,7 +108,7 @@ describeWithEnv("db > payment reference readiness", { db: true }, () => {
     await execute(
       sql`UPDATE processed_payments
           SET payment_reference_index = ''
-        WHERE payment_session_id = ${"old_unindexed"}`
+        WHERE payment_session_id = ${"old_unindexed"}`,
     );
     await finalizeProcessedPayment("new_indexed", attendee.id, "", {
       kind: "tagged",
@@ -148,7 +148,7 @@ describeWithEnv("db > payment reference readiness", { db: true }, () => {
       ),
     );
     await execute(
-      sql`UPDATE processed_payments SET payment_reference = 'not ciphertext' WHERE attendee_id = ${attendee.id}`
+      sql`UPDATE processed_payments SET payment_reference = 'not ciphertext' WHERE attendee_id = ${attendee.id}`,
     );
 
     expect(
@@ -214,7 +214,7 @@ describeWithEnv("db > payment reference readiness", { db: true }, () => {
     const warning = await queryAll<{ system_name: string | null }>(
       sql`SELECT system_name
          FROM system_notes AS note
-        WHERE note.entity_type = 'attendee' AND note.entity_id = ${attendee.id}`
+        WHERE note.entity_type = 'attendee' AND note.entity_id = ${attendee.id}`,
     );
     expect(warning).toEqual([{ system_name: null }]);
   });

@@ -8,6 +8,7 @@ import {
   renameEventsToListings,
 } from "#db/migrations/context.ts";
 import { MIGRATION_IDS } from "#db/migrations/registry.ts";
+import { sql } from "#db/sql.ts";
 import {
   columnNames,
   downgradeListingDomainToLegacyNames,
@@ -16,7 +17,6 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { indexExists } from "#test-utils/migrations.ts";
-import { sql } from "#db/sql.ts";
 
 describe("db > migrations > context", () => {
   test("builds one migration per registry entry, in run order", async () => {
@@ -103,7 +103,9 @@ describeWithEnv(
     });
 
     test("the rename puts back a column the current schema declares", async () => {
-      await getDb().execute(sql`ALTER TABLE listings DROP COLUMN thank_you_url`);
+      await getDb().execute(
+        sql`ALTER TABLE listings DROP COLUMN thank_you_url`,
+      );
 
       await renameEventsToListings();
 

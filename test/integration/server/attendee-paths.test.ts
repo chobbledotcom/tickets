@@ -8,6 +8,7 @@ import { loadExistingLines } from "#db/attendees/atomic-update.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { queryAll } from "#db/client.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
+import { sql } from "#db/sql.ts";
 import {
   attendeeLineIndex,
   expectIncludesAll,
@@ -84,10 +85,9 @@ const pathRows = (
   listingId: number,
 ): Promise<{ package_group_id: number; quantity: number }[]> =>
   queryAll(
-    `SELECT package_group_id, quantity FROM listing_attendees
-      WHERE attendee_id = ? AND listing_id = ?
+    sql`SELECT package_group_id, quantity FROM listing_attendees
+      WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId}
       ORDER BY package_group_id ASC`,
-    [attendeeId, listingId],
   );
 
 /** Assert the attendee's stored [package path, quantity] pairs. */

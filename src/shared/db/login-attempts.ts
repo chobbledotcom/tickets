@@ -15,15 +15,17 @@ import {
   isIpLockedOut,
   makeAttemptRecorder,
 } from "#db/attempt-lockout.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { LOGIN_LOCKOUT_MS, MAX_LOGIN_ATTEMPTS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
-import { sql, type SqlStatement } from "#db/sql.ts";
 
 /** One statement counts the attempt and applies the lockout: the VALUES arm
  * covers an IP's first attempt, the conflict arm every later one, and both
  * decide the lockout inside the database — concurrent attempts each land as
  * their own increment instead of overwriting a shared read. */
-const recordAttemptStatement = (values: LoginAttemptValues): SqlStatement => sql`
+const recordAttemptStatement = (
+  values: LoginAttemptValues,
+): SqlStatement => sql`
   INSERT INTO login_attempts (ip, attempts, locked_until, last_attempt)
   VALUES (${values.hashedIp}, 1, CASE WHEN 1 >= ${values.maxAttempts} THEN ${values.lockDeadline} ELSE NULL END, ${values.now})
   ON CONFLICT (ip) DO UPDATE SET

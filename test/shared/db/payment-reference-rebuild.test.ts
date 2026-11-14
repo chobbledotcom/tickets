@@ -8,6 +8,7 @@ import {
   rebuildLegacyPaymentReferences,
 } from "#db/payment-reference-rebuild.ts";
 import { getRefundPaymentReferences } from "#db/payment-references.ts";
+import { sql } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -27,7 +28,6 @@ import {
   finalizeProcessedPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("db > legacy payment reference rebuild", { db: true }, () => {
   test("a legacy payment is refused before the rebuild and refundable after", async () => {
@@ -82,7 +82,7 @@ describeWithEnv("db > legacy payment reference rebuild", { db: true }, () => {
     );
     await rebuildStatingProviderForEveryRow("stripe");
     const storedIndex = await queryOne<{ payment_reference_index: string }>(
-      sql`SELECT payment_reference_index FROM processed_payments WHERE payment_session_id = ${"sess_replay"}`
+      sql`SELECT payment_reference_index FROM processed_payments WHERE payment_session_id = ${"sess_replay"}`,
     );
 
     expect(await rebuildStatingProviderForEveryRow("stripe")).toEqual({
@@ -93,7 +93,7 @@ describeWithEnv("db > legacy payment reference rebuild", { db: true }, () => {
     expect(await countLegacyPaymentReferences()).toBe(0);
     expect(
       await queryOne<{ payment_reference_index: string }>(
-        sql`SELECT payment_reference_index FROM processed_payments WHERE payment_session_id = ${"sess_replay"}`
+        sql`SELECT payment_reference_index FROM processed_payments WHERE payment_session_id = ${"sess_replay"}`,
       ),
     ).toEqual(storedIndex);
     expect(await provenancePointerOf(attendee.id)).toBe("sess_replay");
@@ -114,7 +114,7 @@ describeWithEnv("db > legacy payment reference rebuild", { db: true }, () => {
       reference: "pi_tagged_blank",
     });
     await execute(
-      sql`UPDATE processed_payments SET payment_reference_index = '' WHERE payment_session_id = ${"sess_tagged_blank"}`
+      sql`UPDATE processed_payments SET payment_reference_index = '' WHERE payment_session_id = ${"sess_tagged_blank"}`,
     );
 
     const pointed = bookedAttendee(
@@ -130,10 +130,10 @@ describeWithEnv("db > legacy payment reference rebuild", { db: true }, () => {
       "pi_pointed",
     );
     await execute(
-      sql`UPDATE processed_payments SET payment_reference_index = '' WHERE payment_session_id = ${"sess_pointed"}`
+      sql`UPDATE processed_payments SET payment_reference_index = '' WHERE payment_session_id = ${"sess_pointed"}`,
     );
     await execute(
-      sql`UPDATE attendees SET pii_payment_session_id = 'sess_pointed' WHERE id = ${pointed.id}`
+      sql`UPDATE attendees SET pii_payment_session_id = 'sess_pointed' WHERE id = ${pointed.id}`,
     );
 
     const privateKey = await getTestPrivateKey();
@@ -220,7 +220,7 @@ describeWithEnv("db > legacy payment reference rebuild", { db: true }, () => {
       reference: "pi_kept_tag",
     });
     await execute(
-      sql`UPDATE processed_payments SET payment_reference_index = '' WHERE payment_session_id = ${"sess_kept_tag"}`
+      sql`UPDATE processed_payments SET payment_reference_index = '' WHERE payment_session_id = ${"sess_kept_tag"}`,
     );
     const privateKey = await getTestPrivateKey();
     expect(await legacyPaymentReferencePage(privateKey)).toEqual([
@@ -248,7 +248,7 @@ describeWithEnv("db > legacy payment reference rebuild", { db: true }, () => {
       "pi_broken_row",
     );
     await execute(
-      sql`UPDATE processed_payments SET payment_reference = ${await encrypt("stored under the wrong key")} WHERE payment_session_id = ${"sess_broken_row"}`
+      sql`UPDATE processed_payments SET payment_reference = ${await encrypt("stored under the wrong key")} WHERE payment_session_id = ${"sess_broken_row"}`,
     );
 
     await expect(
@@ -277,10 +277,10 @@ describeWithEnv("db > legacy payment reference rebuild", { db: true }, () => {
       "pi_unresolved",
     );
     await execute(
-      sql`UPDATE processed_payments SET attendee_id = NULL WHERE payment_session_id = ${"sess_unresolved"}`
+      sql`UPDATE processed_payments SET attendee_id = NULL WHERE payment_session_id = ${"sess_unresolved"}`,
     );
     await execute(
-      sql`UPDATE processed_payments SET payment_reference = '' WHERE payment_session_id = ${"sess_unresolved"}`
+      sql`UPDATE processed_payments SET payment_reference = '' WHERE payment_session_id = ${"sess_unresolved"}`,
     );
 
     expect(await countLegacyPaymentReferences()).toBe(1);

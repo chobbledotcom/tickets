@@ -11,7 +11,7 @@
 import { executeWithoutCacheInvalidation, queryAll } from "#db/client.ts";
 import { createPrimaryCacheRefill } from "#db/primary-reads.ts";
 import { recordSettingRead } from "#db/settings-audit.ts";
-import { sql, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { lazyRef } from "#fp";
 import {
   type CacheInvalidation,

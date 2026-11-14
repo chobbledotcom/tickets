@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   bookAttendee,
@@ -22,7 +23,6 @@ import {
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv(
   "db > taking a payment claim > claiming",
@@ -178,7 +178,7 @@ describeWithEnv(
                   FROM attendees AS replacement
                  WHERE replacement.id = ${replacement}
               )
-            WHERE id = ${attendeeId}`
+            WHERE id = ${attendeeId}`,
         );
       });
 
@@ -194,7 +194,7 @@ describeWithEnv(
 
       const result = await claimCurrentAttendeeRows([attendeeId], async () => {
         await execute(
-          sql`DELETE FROM processed_payments WHERE payment_session_id = ${"sess-deleted-payment"}`
+          sql`DELETE FROM processed_payments WHERE payment_session_id = ${"sess-deleted-payment"}`,
         );
       });
 

@@ -5,6 +5,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb, resultRows } from "#db/client.ts";
 import holidayDatePaddingMigration from "#db/migrations/2026-10-07_holiday_date_padding.ts";
+import { sql } from "#db/sql.ts";
 import {
   BUNNY_SUBREQUEST_LIMIT,
   runWithSubrequestBudget,
@@ -12,7 +13,6 @@ import {
 } from "#shared/subrequest-budget.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
-import { sql } from "#db/sql.ts";
 
 type HolidayRow = {
   end_date: string;
@@ -24,7 +24,7 @@ type HolidayRow = {
 const holidayRows = async (): Promise<HolidayRow[]> =>
   resultRows(
     await getDb().execute(
-      sql`SELECT id, name, start_date, end_date FROM holidays`
+      sql`SELECT id, name, start_date, end_date FROM holidays`,
     ),
   );
 
@@ -33,7 +33,9 @@ const insertHoliday = async (
   startDate: string,
   endDate: string,
 ): Promise<void> => {
-  await getDb().execute(sql`INSERT INTO holidays (name, start_date, end_date) VALUES (${name}, ${startDate}, ${endDate})`);
+  await getDb().execute(
+    sql`INSERT INTO holidays (name, start_date, end_date) VALUES (${name}, ${startDate}, ${endDate})`,
+  );
 };
 
 describeWithEnv("holiday date padding migration", { db: true }, () => {

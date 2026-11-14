@@ -8,11 +8,11 @@ import {
   setImagesForItem,
 } from "#db/images.ts";
 import removeBrokenImageRecords from "#db/migrations/2026-07-12_remove_broken_image_records.ts";
+import { sql } from "#db/sql.ts";
 import { insertBrokenImage, makeImage } from "#test-utils/admin-images.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
-import { sql } from "#db/sql.ts";
 
 // Data-only migration: it scans and deletes image rows via getDb.
 const context = buildMigrationContext({});
@@ -34,7 +34,7 @@ describeWithEnv(
       // Both broken records and the one's link are gone; the real image and
       // its link survive at its original sort order.
       const remainingIds = await queryAll<{ id: number }>(
-        sql`SELECT id FROM images ORDER BY id`
+        sql`SELECT id FROM images ORDER BY id`,
       );
       expect(remainingIds.map((row) => row.id)).toEqual([real.id]);
       expect(await getImageUsesForImage(brokenId)).toEqual([]);
@@ -62,7 +62,7 @@ describeWithEnv(
       await setImagesForItem("listing", listing.id, [brokenId]);
       const malformed = await execute(
         sql`INSERT INTO images (name, filename, filename_thumb, alt_text)
-         VALUES (${await encrypt("Unknown corruption")}, 'not-a-ciphertext', 'not-a-ciphertext', '')`
+         VALUES (${await encrypt("Unknown corruption")}, 'not-a-ciphertext', 'not-a-ciphertext', '')`,
       );
       const malformedId = Number(malformed.lastInsertRowid);
 
@@ -74,7 +74,7 @@ describeWithEnv(
       // Every record survives — including the already-identified broken one
       // and its item link, because deletes only run after the full scan.
       const remaining = await queryAll<{ id: number }>(
-        sql`SELECT id FROM images ORDER BY id`
+        sql`SELECT id FROM images ORDER BY id`,
       );
       expect(remaining.map((row) => row.id)).toEqual([
         kept.id,

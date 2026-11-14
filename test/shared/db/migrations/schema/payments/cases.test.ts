@@ -2,20 +2,20 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { paymentCaseTable } from "#db/migrations/schema/payments/cases.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   expectAccepted,
   expectRefused,
   expectRefusedAsRepeat,
 } from "./refuses.ts";
-import { sql } from "#db/sql.ts";
 
 /** A problem the table is happy with. What a problem may *say* is the record
  *  layer's to judge, so these rows only have to be the right shape. */
 const aCase = (
-  columns = "payment_id, resource, resource_index, reason, state, first_observed_at, last_observed_at, consecutive_count, evidence, revision",
-  values = "'case-1', 'hyb:1:a:b:c', 'case-1-index', 'network_error', 'needs_action', 1, 1, 1, 'hyb:1:a:b:c', 1",
-) => `INSERT INTO payment_cases (${columns}) VALUES (${values})`;
+  columns = sql`payment_id, resource, resource_index, reason, state, first_observed_at, last_observed_at, consecutive_count, evidence, revision`,
+  values = sql`'case-1', 'hyb:1:a:b:c', 'case-1-index', 'network_error', 'needs_action', 1, 1, 1, 'hyb:1:a:b:c', 1`,
+) => sql`INSERT INTO payment_cases (${columns}) VALUES (${values})`;
 
 test("is what a problem for the owner is made of", () => {
   const [name, table] = paymentCaseTable;
@@ -57,8 +57,8 @@ describeWithEnv("db > payment case rules", { db: true }, () => {
     test(`refuses a problem whose evidence is held ${name}`, async () => {
       await expectRefused(
         aCase(
-          "payment_id, resource, resource_index, reason, state, first_observed_at, last_observed_at, consecutive_count, evidence, revision",
-          `'plain', 'hyb:1:a:b:c', 'plain-index', 'network_error', 'needs_action', 1, 1, 1, '${resource}', 1`,
+          sql`payment_id, resource, resource_index, reason, state, first_observed_at, last_observed_at, consecutive_count, evidence, revision`,
+          sql`'plain', 'hyb:1:a:b:c', 'plain-index', 'network_error', 'needs_action', 1, 1, 1, ${sqlLiteral(resource)}, 1`,
         ),
       );
     });
@@ -83,12 +83,12 @@ describeWithEnv("db > payment case rules", { db: true }, () => {
   test("starts a problem at version one when the write does not say", async () => {
     await expectAccepted(
       aCase(
-        "payment_id, resource, resource_index, reason, state, first_observed_at, last_observed_at, consecutive_count, evidence",
-        "'no-version', 'hyb:1:a:b:c', 'no-version-index', 'network_error', 'needs_action', 1, 1, 1, 'hyb:1:a:b:c'",
+        sql`payment_id, resource, resource_index, reason, state, first_observed_at, last_observed_at, consecutive_count, evidence`,
+        sql`'no-version', 'hyb:1:a:b:c', 'no-version-index', 'network_error', 'needs_action', 1, 1, 1, 'hyb:1:a:b:c'`,
       ),
     );
     const saved = await getDb().execute(
-      sql`SELECT revision FROM payment_cases WHERE payment_id = 'no-version'`
+      sql`SELECT revision FROM payment_cases WHERE payment_id = 'no-version'`,
     );
     expect(Number(saved.rows[0]?.revision)).toBe(1);
   });
@@ -99,8 +99,8 @@ describeWithEnv("db > payment case rules", { db: true }, () => {
     await expectAccepted(aCase());
     await expectRefusedAsRepeat(
       aCase(
-        "payment_id, resource, resource_index, reason, state, first_observed_at, last_observed_at, consecutive_count, evidence, revision",
-        "'case-1', 'hyb:1:a:b:c', 'case-1-index', 'timeout', 'retrying', 2, 2, 2, 'hyb:1:a:b:c', 2",
+        sql`payment_id, resource, resource_index, reason, state, first_observed_at, last_observed_at, consecutive_count, evidence, revision`,
+        sql`'case-1', 'hyb:1:a:b:c', 'case-1-index', 'timeout', 'retrying', 2, 2, 2, 'hyb:1:a:b:c', 2`,
       ),
     );
   });

@@ -6,6 +6,7 @@ import {
   syncListingPrices,
   syncListingPricesForIds,
 } from "#db/listing-price-sync.ts";
+import { sql } from "#db/sql.ts";
 import {
   expectBackfillRebuildsBaseRows,
   priceRows,
@@ -39,16 +40,16 @@ describeWithEnv("listing base-mirror sync", { db: true }, () => {
     // reached the column as text is a drifted shape the read must refuse, not
     // pass through to the base row as-is.
     const listing = await createTestListing({ unitPrice: 750 });
-    await queryAll("UPDATE listings SET unit_price = 'free' WHERE id = ?", [
-      listing.id,
-    ]);
+    await queryAll(
+      sql`UPDATE listings SET unit_price = 'free' WHERE id = ${listing.id}`,
+    );
     await expect(backfillListingPrices()).rejects.toThrow("Invalid type");
   });
 
   test("syncListingPricesForIds rebuilds base rows for the given listings only", async () => {
     const a = await createTestListing({ unitPrice: 300 });
     const b = await createTestListing({ unitPrice: 700 });
-    await queryAll("DELETE FROM listing_prices WHERE price_type = 'base'");
+    await queryAll(sql`DELETE FROM listing_prices WHERE price_type = 'base'`);
     await syncListingPricesForIds([a.id, b.id]);
     expect(await priceRows(a.id)).toEqual([
       { price_id: "", price_type: "base", unit_price: 300 },
@@ -64,12 +65,11 @@ describeWithEnv("listing base-mirror sync", { db: true }, () => {
     // The other listing's mirror is left deliberately stale. Syncing one id
     // must not quietly refresh it — that is what proves the scope is honoured
     // rather than the whole table being rebuilt.
-    await queryAll("DELETE FROM listing_prices WHERE listing_id = ?", [
-      only.id,
-    ]);
     await queryAll(
-      "UPDATE listing_prices SET unit_price = 1 WHERE listing_id = ?",
-      [untouched.id],
+      sql`DELETE FROM listing_prices WHERE listing_id = ${only.id}`,
+    );
+    await queryAll(
+      sql`UPDATE listing_prices SET unit_price = 1 WHERE listing_id = ${untouched.id}`,
     );
 
     await syncListingPricesForIds([only.id]);
@@ -89,9 +89,9 @@ describeWithEnv("listing base-mirror sync", { db: true }, () => {
 
   test("the bulk sync maps a NULL column to zero", async () => {
     const listing = await createTestListing({ unitPrice: 640 });
-    await queryAll("UPDATE listings SET unit_price = NULL WHERE id = ?", [
-      listing.id,
-    ]);
+    await queryAll(
+      sql`UPDATE listings SET unit_price = NULL WHERE id = ${listing.id}`,
+    );
 
     await syncListingPricesForIds([listing.id]);
 
@@ -107,9 +107,9 @@ describeWithEnv("listing base-mirror sync", { db: true }, () => {
 
   test("a source row that is not a number fails the sync loudly", async () => {
     const listing = await createTestListing({ unitPrice: 750 });
-    await queryAll("UPDATE listings SET unit_price = 'free' WHERE id = ?", [
-      listing.id,
-    ]);
+    await queryAll(
+      sql`UPDATE listings SET unit_price = 'free' WHERE id = ${listing.id}`,
+    );
     await expect(syncListingPrices(listing.id)).rejects.toThrow("Invalid type");
     // The loud failure must leave the valid mirror standing. The writes are
     // guarded by the same numeric check the parse enforces, so a drifted
@@ -125,8 +125,7 @@ describeWithEnv("listing base-mirror sync", { db: true }, () => {
     // read — a single database round trip.
     const listing = await createTestListing({ unitPrice: 640 });
     await queryAll(
-      "UPDATE listing_prices SET unit_price = 1 WHERE listing_id = ? AND price_type = 'base'",
-      [listing.id],
+      sql`UPDATE listing_prices SET unit_price = 1 WHERE listing_id = ${listing.id} AND price_type = 'base'`,
     );
 
     expect(
@@ -159,9 +158,9 @@ describeWithEnv("listing base-mirror sync", { db: true }, () => {
 
   test("syncListingPrices maps a NULL column to zero", async () => {
     const listing = await createTestListing({ unitPrice: 640 });
-    await queryAll("UPDATE listings SET unit_price = NULL WHERE id = ?", [
-      listing.id,
-    ]);
+    await queryAll(
+      sql`UPDATE listings SET unit_price = NULL WHERE id = ${listing.id}`,
+    );
 
     await syncListingPrices(listing.id);
 

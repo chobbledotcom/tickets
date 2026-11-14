@@ -7,6 +7,7 @@ import {
   listProviderRefundCases,
   loadProviderRefundCase,
 } from "#db/provider-refund-cases.ts";
+import { sql } from "#db/sql.ts";
 import {
   armRefundSend,
   markRefundCompleted,
@@ -22,7 +23,6 @@ import {
   ownerRefundChoiceTestState,
   readyRefundTestState,
 } from "#test-utils/provider-refund-cases.ts";
-import { sql } from "#db/sql.ts";
 
 type CorruptibleCaseColumn =
   | "capability"

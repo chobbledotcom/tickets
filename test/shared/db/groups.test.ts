@@ -28,6 +28,7 @@ import {
   setGroupPackageMembers,
 } from "#db/groups.ts";
 import { listingAggregates } from "#db/listings/aggregates.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
@@ -36,7 +37,6 @@ import {
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { runAndCountRoundTrips } from "#test-utils/query-log.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("db > groups", { db: true, triggers: true }, () => {
   /** Create a capped group with two listings (each with listing-level max of 10). */
@@ -166,7 +166,9 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         name: "Batch Shared",
       });
       await assignListingsToGroup([shared.id], empty.id);
-      await getDb().execute(sql`UPDATE listings SET active = 0 WHERE id = ${inactive.id}`);
+      await getDb().execute(
+        sql`UPDATE listings SET active = 0 WHERE id = ${inactive.id}`,
+      );
       const attendee = await bookAttendee(active, {
         email: "batch-a@example.com",
         name: "A",

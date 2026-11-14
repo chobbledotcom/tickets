@@ -2,17 +2,17 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { execute, getDb, queryAll, withTransaction } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { col, defineTable, writeTableRow } from "#db/table.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
-import { sql } from "#db/sql.ts";
 
 type WriteRow = { id: number; name: string };
 type WriteInput = { name: string };
 
 const createWriteTable = async () => {
   await execute(
-    sql`CREATE TABLE table_write_rows (id INTEGER PRIMARY KEY, name TEXT NOT NULL)`
+    sql`CREATE TABLE table_write_rows (id INTEGER PRIMARY KEY, name TEXT NOT NULL)`,
   );
   return defineTable<WriteRow, WriteInput>({
     name: "table_write_rows",
@@ -61,14 +61,16 @@ describeWithEnv("db > writeTableRow", { db: true }, () => {
     const table = await createWriteTable();
     const row = await withTransaction((transaction) =>
       writeTableRow(transaction, table, {
-        condition: { args: [], sql: "0" },
+        condition: sql`0`,
         input: { name: "Skipped" },
         kind: "insert",
       }),
     );
 
     expect(row).toBeNull();
-    expect(await queryAll(sql`SELECT id, name FROM table_write_rows`)).toEqual([]);
+    expect(await queryAll(sql`SELECT id, name FROM table_write_rows`)).toEqual(
+      [],
+    );
   });
 
   // The id comes back from the row the INSERT wrote, so it needs no help from

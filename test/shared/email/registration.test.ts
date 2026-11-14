@@ -4,6 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { sendRegistrationEmails } from "#shared/email/registration.ts";
 import {
   RegistrationDeliveryError,
@@ -29,7 +30,6 @@ import {
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
 import { useFetchStub } from "#test-utils/mocks.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
-import { sql } from "#db/sql.ts";
 
 const setupAndSendRegistration = async (
   opts: { businessEmail?: string } = {},
@@ -41,7 +41,9 @@ const setupAndSendRegistration = async (
 
 const createHiddenPackage = async (name: string): Promise<number> => {
   const group = await createTestGroup({ isPackage: true, name });
-  await execute(sql`UPDATE groups SET hide_package_listings = 1 WHERE id = ${group.id}`);
+  await execute(
+    sql`UPDATE groups SET hide_package_listings = 1 WHERE id = ${group.id}`,
+  );
   return group.id;
 };
 

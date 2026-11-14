@@ -21,7 +21,7 @@ import {
   syncStoredSetting,
 } from "#db/settings/raw-writes.ts";
 import { setSnapshotField } from "#db/settings/snapshot.ts";
-import { sql, sqlCommas, sqlLiteral, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlCommas, sqlLiteral } from "#db/sql.ts";
 import { range } from "#fp";
 import {
   ADMIN_FEATURES,

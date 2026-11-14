@@ -6,11 +6,11 @@ import { hmacHash } from "#crypto/hashing.ts";
 import { getDb } from "#db/client.ts";
 import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
 import { rawListingsTable } from "#db/listings/table.ts";
+import { sql } from "#db/sql.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { type DayPrices, MAX_DURATION_DAYS } from "#types";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("db > listings", { db: true, triggers: true }, () => {
   const errors = setupErrorSpy();
@@ -226,7 +226,9 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         slug: "test-bd-json",
         slugIndex: await hmacHash("test-bd-json"),
       });
-      await getDb().execute(sql`UPDATE listings SET bookable_days = ${"["} WHERE id = ${listing.id}`);
+      await getDb().execute(
+        sql`UPDATE listings SET bookable_days = ${"["} WHERE id = ${listing.id}`,
+      );
       await expect(getListingWithCount(listing.id)).rejects.toThrow(
         `Invalid stored JSON in listings.bookable_days row ${listing.id}`,
       );
@@ -240,7 +242,9 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         slug: "test-bd-1",
         slugIndex: await hmacHash("test-bd-1"),
       });
-      await getDb().execute(sql`UPDATE listings SET bookable_days = ${'"not-an-array"'} WHERE id = ${listing.id}`);
+      await getDb().execute(
+        sql`UPDATE listings SET bookable_days = ${'"not-an-array"'} WHERE id = ${listing.id}`,
+      );
       await expect(getListingWithCount(listing.id)).rejects.toThrow(
         `Invalid stored JSON in listings.bookable_days row ${listing.id}`,
       );
@@ -254,7 +258,9 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         slug: "test-bd-2",
         slugIndex: await hmacHash("test-bd-2"),
       });
-      await getDb().execute(sql`UPDATE listings SET bookable_days = ${'["Monday",1]'} WHERE id = ${listing.id}`);
+      await getDb().execute(
+        sql`UPDATE listings SET bookable_days = ${'["Monday",1]'} WHERE id = ${listing.id}`,
+      );
       await expect(getListingWithCount(listing.id)).rejects.toThrow(
         `Invalid stored JSON in listings.bookable_days row ${listing.id}`,
       );
@@ -268,7 +274,9 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         slug: "test-bd-day",
         slugIndex: await hmacHash("test-bd-day"),
       });
-      await getDb().execute(sql`UPDATE listings SET bookable_days = ${'["Monday","Funday"]'} WHERE id = ${listing.id}`);
+      await getDb().execute(
+        sql`UPDATE listings SET bookable_days = ${'["Monday","Funday"]'} WHERE id = ${listing.id}`,
+      );
       expect((await getListingWithCount(listing.id))?.bookable_days).toEqual([
         "Monday",
         "Funday",

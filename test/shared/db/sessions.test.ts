@@ -13,6 +13,7 @@ import {
   getSession,
   getSessionWithUser,
 } from "#db/sessions.ts";
+import { sql } from "#db/sql.ts";
 import { createUser } from "#db/users.ts";
 import {
   getAllCacheStats,
@@ -22,7 +23,6 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("db > sessions", { db: true }, () => {
   test("createSession and getSession work together", async () => {
@@ -222,7 +222,7 @@ describeWithEnv("db > sessions", { db: true }, () => {
     await createSession("ttl-requery", "csrf-old", start + 60000, null, 1);
     // Within TTL: cached (stale) value is served even after the DB changes.
     await executeWithoutCacheInvalidation(
-      sql`UPDATE sessions SET csrf_token = 'csrf-new'`
+      sql`UPDATE sessions SET csrf_token = 'csrf-new'`,
     );
     expect((await getSession("ttl-requery"))?.csrf_token).toBe("csrf-old");
 
@@ -261,7 +261,7 @@ describeWithEnv("db > sessions", { db: true }, () => {
       1,
     );
     const staleReplicaResult = await getDb().execute(
-      sql`SELECT token, csrf_token, expires, wrapped_data_key, user_id FROM sessions`
+      sql`SELECT token, csrf_token, expires, wrapped_data_key, user_id FROM sessions`,
     );
     await executeWithoutCacheInvalidation(sql`DELETE FROM sessions`);
 

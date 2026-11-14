@@ -8,7 +8,7 @@
  * This module is pure: it decides from the records it is shown.
  */
 
-import { sql, sqlLiteral, sqlName, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
 import type { PaymentRowState } from "#payment/row-state.ts";
 
 /** The attendee actions that can advance durable payment work. */

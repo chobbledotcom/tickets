@@ -7,6 +7,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingsTable } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import { withMessageGroups } from "#i18n";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
@@ -25,7 +26,6 @@ import { setupStripe } from "#test-utils/settings.ts";
 import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 import { listingPair } from "./helpers.ts";
-import { sql } from "#db/sql.ts";
 
 type ValidationResult = Awaited<ReturnType<typeof validateAllItems>>;
 
@@ -60,7 +60,9 @@ const twoPathIntent = async (
     unitPrice: 200,
   });
   const { execute } = await import("#db/client.ts");
-  await execute(sql`UPDATE listings SET max_quantity = ${maxQuantity} WHERE id = ${listing.id}`);
+  await execute(
+    sql`UPDATE listings SET max_quantity = ${maxQuantity} WHERE id = ${listing.id}`,
+  );
   return bookingIntent([
     { e: listing.id, p: 200, q: first },
     { e: listing.id, p: 200, q: second },

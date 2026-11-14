@@ -13,6 +13,7 @@ import { execute, queryOne } from "#db/client.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
 import { getOrCreateStringIds } from "#db/questions/strings.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { sql } from "#db/sql.ts";
 import { stageSquareLinkEnd } from "#db/square-link-ends.ts";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import type { ValidatedSession } from "#routes/api/webhook-types.ts";
@@ -39,7 +40,6 @@ import {
   singleListingPayment,
   trustedPayment,
 } from "./helpers.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("payment processing booking outcomes", { db: true }, () => {
   const fetch = useFetchStub();
@@ -127,7 +127,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     // A Square link dies with its first payment, so its end row is gone.
     expect(
       await queryOne(
-        sql`SELECT session_index FROM square_link_ends WHERE session_index = ${await hmacHash(id)}`
+        sql`SELECT session_index FROM square_link_ends WHERE session_index = ${await hmacHash(id)}`,
       ),
     ).toBeNull();
   });
@@ -217,7 +217,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     // The reservation was released, so the redelivery starts fresh.
     expect(
       await queryOne(
-        sql`SELECT 1 FROM processed_payments WHERE payment_session_id = ${id}`
+        sql`SELECT 1 FROM processed_payments WHERE payment_session_id = ${id}`,
       ),
     ).toBeNull();
   });
@@ -275,7 +275,9 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     const id = "cs_direct_orphan";
     const { attendeeId, data, listing } =
       await ledgeredPaymentWithoutReservation(id, 700);
-    await execute(sql`DELETE FROM listing_attendees WHERE attendee_id = ${attendeeId}`);
+    await execute(
+      sql`DELETE FROM listing_attendees WHERE attendee_id = ${attendeeId}`,
+    );
     await execute(sql`DELETE FROM attendees WHERE id = ${attendeeId}`);
 
     expect(await processPaymentSession(id, data)).toEqual({
@@ -308,7 +310,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     ]);
     expect(
       await queryOne<{ listing_id: number; quantity: number }>(
-        sql`SELECT listing_id, quantity FROM listing_attendees WHERE listing_id = ${listing.id}`
+        sql`SELECT listing_id, quantity FROM listing_attendees WHERE listing_id = ${listing.id}`,
       ),
     ).toEqual({ listing_id: listing.id, quantity: 0 });
     await expectSessionFailed(id);

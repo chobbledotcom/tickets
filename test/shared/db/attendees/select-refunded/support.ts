@@ -12,6 +12,7 @@ import type { CreateAttendeeResult } from "#db/attendee-types.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getDb, withTransaction } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { postBookingLegsTx } from "#shared/checkout-complete.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import { createPaidListing } from "#test/features/admin/refunds-helpers.ts";
@@ -21,7 +22,6 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import type { Attendee } from "#types";
-import { sql } from "#db/sql.ts";
 
 export const PRICE = 500;
 export const REVERSED_AT = "2026-08-11T00:00:00.000Z";
@@ -165,7 +165,9 @@ export const bookTwoOrdersOnOneListing = async (): Promise<{
   const attendeeId = made.attendees[0]!.id;
   // The second order's row, as a merge moves it in: the same listing on
   // another day, so the booking-slot identity stays distinct.
-  await getDb().execute(sql`INSERT INTO listing_attendees (attendee_id, listing_id, start_at) VALUES (${attendeeId}, ${listing.id}, ${`${DAYS[1]}T00:00:00Z`})`);
+  await getDb().execute(
+    sql`INSERT INTO listing_attendees (attendee_id, listing_id, start_at) VALUES (${attendeeId}, ${listing.id}, ${`${DAYS[1]}T00:00:00Z`})`,
+  );
   await postListingSale({
     attendeeId,
     eventId: "order-one",

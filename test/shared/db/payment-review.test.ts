@@ -10,6 +10,7 @@ import {
   acknowledgeCurrentPaymentReview,
   getPaymentReviewState,
 } from "#db/payment-review.ts";
+import { sql } from "#db/sql.ts";
 import type { PaymentReviewCase } from "#payment/review.ts";
 import type { PaymentRowState } from "#payment/row-state.ts";
 import { nowIso } from "#shared/now.ts";
@@ -29,7 +30,6 @@ import {
   finalizeProcessedPayment,
 } from "#test-utils/processed-payments.ts";
 import { addProviderRefundTestCase } from "#test-utils/provider-refund-cases.ts";
-import { sql } from "#db/sql.ts";
 
 const LISTING_ID = 1;
 const REVIEW_ACTIVITY = "Payment review acknowledged by owner";
@@ -310,7 +310,7 @@ describeWithEnv(
         sql`CREATE TRIGGER ignore_payment_review
           BEFORE UPDATE ON processed_payments
           WHEN OLD.payment_session_id = 'sess-cas-lost'
-          BEGIN SELECT RAISE(IGNORE); END`
+          BEGIN SELECT RAISE(IGNORE); END`,
       );
 
       await expect(acknowledge(attendeeId)).rejects.toThrow(
@@ -331,7 +331,7 @@ describeWithEnv(
       await execute(
         sql`CREATE TRIGGER refuse_payment_review_activity
           BEFORE INSERT ON activity_log
-          BEGIN SELECT RAISE(ABORT, 'activity unavailable'); END`
+          BEGIN SELECT RAISE(ABORT, 'activity unavailable'); END`,
       );
 
       await expect(acknowledge(attendeeId)).rejects.toThrow(

@@ -8,6 +8,7 @@ import {
 } from "#accounting/accounts.ts";
 import { transfersByAccount } from "#accounting/queries.ts";
 import { getDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { bookingKey } from "#shared/merge/attendee-merge.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -21,7 +22,6 @@ import {
   postPaidSale,
   runMerge,
 } from "./helpers.ts";
-import { sql } from "#db/sql.ts";
 
 const mergePaidSourceConflict = async (
   eventGroup: string,
@@ -37,7 +37,9 @@ const mergePaidSourceConflict = async (
     eventGroup,
     listingId: listing.id,
   });
-  await getDb().execute(sql`UPDATE listing_attendees SET ledger_event_group = ${eventGroup} WHERE attendee_id = ${source.id} AND listing_id = ${listing.id}`);
+  await getDb().execute(
+    sql`UPDATE listing_attendees SET ledger_event_group = ${eventGroup} WHERE attendee_id = ${source.id} AND listing_id = ${listing.id}`,
+  );
   const key = bookingKey(listing.id, null, 0, 0);
   const { result } = await runMerge({
     decide: () => ({
@@ -77,7 +79,9 @@ describeWithEnv("attendee merge service", { db: true }, () => {
           eventGroup,
           listingId: listing.id,
         });
-        await getDb().execute(sql`UPDATE listing_attendees SET ledger_event_group = ${eventGroup} WHERE attendee_id = ${source.id} AND listing_id = ${listing.id}`);
+        await getDb().execute(
+          sql`UPDATE listing_attendees SET ledger_event_group = ${eventGroup} WHERE attendee_id = ${source.id} AND listing_id = ${listing.id}`,
+        );
       }
 
       const sourcePii = pii("Bob", "bob@test.com");

@@ -20,7 +20,7 @@ import {
 } from "#db/client.ts";
 import type { NamedSortOrderInput } from "#db/common-schema.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
-import { sql, sqlName, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import { col, defineCachedListTable, writeTableRow } from "#db/table.ts";
 import { requiredMapValue } from "#fp";
 import { t } from "#i18n";
@@ -345,9 +345,7 @@ const heldOf = (rows: readonly { held: number }[]): number => rows[0]!.held;
 
 /** How many attendees sit on a status, read inside a transaction. */
 const heldAttendeeCountTx = async (tx: TxScope, id: number): Promise<number> =>
-  heldOf(
-    await txRows<{ held: number }>(tx, heldCountSql(id)),
-  );
+  heldOf(await txRows<{ held: number }>(tx, heldCountSql(id)));
 
 /** How many attendees sit on a status, read outside a transaction. */
 export const heldAttendeeCount = async (id: number): Promise<number> =>

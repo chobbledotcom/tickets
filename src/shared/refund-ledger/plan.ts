@@ -10,7 +10,7 @@ import {
 } from "#accounting/mappers.ts";
 import { transfersByAccounts } from "#accounting/queries.ts";
 import { balanceEventGroup } from "#db/attendees/balance.ts";
-import { sql, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { requiredMapValue } from "#fp";
 import { accountKey } from "#shared/ledger/account.ts";
 import { legMatches } from "#shared/ledger/legs.ts";
@@ -347,7 +347,9 @@ const computeAttendeeRefundFromLegs = async (
   // Also fence an empty snapshot: a legacy booking can gain its first assessment.
   if (toRecord.length > 0 || statements.length > 0) {
     statements.unshift(
-      taxAssessmentGuard(sql`(SELECT COUNT(*) FROM booking_tax_assessments WHERE attendee_id = ${attendeeId}) = ${assessments.length}`),
+      taxAssessmentGuard(
+        sql`(SELECT COUNT(*) FROM booking_tax_assessments WHERE attendee_id = ${attendeeId}) = ${assessments.length}`,
+      ),
     );
   }
   return computedRefund(

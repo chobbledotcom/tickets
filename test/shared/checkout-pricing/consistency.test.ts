@@ -9,6 +9,7 @@ import {
 } from "#db/modifier-resolve.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { sql } from "#db/sql.ts";
 import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
 import type { BookingIntent, ModifierRef } from "#shared/booking-intent.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
@@ -29,7 +30,6 @@ import {
 } from "#test-utils/modifiers.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import { useSetting } from "#test-utils/settings.ts";
-import { sql } from "#db/sql.ts";
 
 /**
  * The public checkout and the webhook must price the same cart identically: the

@@ -7,6 +7,7 @@ import { holidays } from "#db/holidays.ts";
 import { invalidateListingsCache } from "#db/listings/records.ts";
 import { logisticsAgents } from "#db/logistics-agents.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { invalidateUsersCache } from "#db/users.ts";
 import { lazyRef } from "#fp";
 import { runCleanups } from "#scripts/cleanup.ts";
@@ -46,7 +47,6 @@ import {
   runSetupCeremony,
   setSetupState,
 } from "#test-utils/test-state.ts";
-import { sql } from "#db/sql.ts";
 
 interface TestDbResource {
   client: Client;
@@ -310,5 +310,5 @@ export const rawListingRange = (
   listingId: number,
 ): Promise<RawListingRange | null> =>
   queryOne<RawListingRange>(
-    sql`SELECT start_at, end_at, quantity FROM listing_attendees WHERE listing_id = ${listingId} ORDER BY attendee_id LIMIT 1`
+    sql`SELECT start_at, end_at, quantity FROM listing_attendees WHERE listing_id = ${listingId} ORDER BY attendee_id LIMIT 1`,
   );

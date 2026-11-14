@@ -8,6 +8,7 @@ import { checkBatchAvailabilityImpl as checkBatchAvailability } from "#db/attend
 import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#db/attendees/create.ts";
 import { execute, queryAll } from "#db/client.ts";
 import { listingAggregates } from "#db/listings/aggregates.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -15,7 +16,6 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
-import { sql } from "#db/sql.ts";
 
 /**
  * The read-time availability preflight (`checkBatchAvailability`) and the
@@ -59,7 +59,7 @@ describeWithEnv(
       let fullyBooked = false;
       if (write.success) {
         const rows = await queryAll<{ c: number }>(
-          sql`SELECT COUNT(*) AS c FROM listing_attendees WHERE attendee_id = ${write.attendees[0]!.id}`
+          sql`SELECT COUNT(*) AS c FROM listing_attendees WHERE attendee_id = ${write.attendees[0]!.id}`,
         );
         fullyBooked = rows[0]!.c === bookings.length;
       }

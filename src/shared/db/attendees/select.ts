@@ -16,7 +16,13 @@ import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
 import { emailOwedColumn } from "#db/attendees/notification-flags.ts";
 
 import { defineReader } from "#db/read.ts";
-import { sql, sqlCommas, sqlLiteral, sqlName, type SqlStatement } from "#db/sql.ts";
+import {
+  type SqlStatement,
+  sql,
+  sqlCommas,
+  sqlLiteral,
+  sqlName,
+} from "#db/sql.ts";
 import { inList, inSubquery, type WhereClause } from "#db/where-clauses.ts";
 import type { Attendee } from "#types";
 

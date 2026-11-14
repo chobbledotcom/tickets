@@ -1,13 +1,19 @@
 // effects: pure
 /** The declared exit and destructive-write policy for every refund state. */
 
+import {
+  type SqlStatement,
+  sql,
+  sqlJoin,
+  sqlLiteral,
+  sqlName,
+} from "#db/sql.ts";
 import type { RowMove } from "#payment/admit-move.ts";
 import type {
   NeedsProviderCheckRefundState,
   RefundAuthorityState,
   RefundAuthorityStateName,
 } from "#payment/refund-authority-state.ts";
-import { sql, sqlJoin, sqlLiteral, sqlName, type SqlStatement } from "#db/sql.ts";
 import { constant } from "#shared/fp-bind.ts";
 
 type LifecycleExit =

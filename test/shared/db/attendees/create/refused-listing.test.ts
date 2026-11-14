@@ -11,13 +11,13 @@ import { attendeesApi } from "#db/attendees/api.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getDb } from "#db/client.ts";
 import { getListingsWithCountsByIds } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTwoListingsSharingOnePlace } from "#test-utils/db-helpers/groups.ts";
 import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
-import { sql } from "#db/sql.ts";
 
 const FULL_DAY = "2026-10-01";
 

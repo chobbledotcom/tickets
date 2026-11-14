@@ -8,7 +8,7 @@
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { builtSites, requireBuiltSiteByIdPrimary } from "#db/built-sites.ts";
 import { execute, withTransaction } from "#db/client.ts";
-import { sql, sqlList, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 
 /** One statement over a buyer's site assignments: the select list and the
  * trailing clause vary, the attendee and the listing filter do not. */

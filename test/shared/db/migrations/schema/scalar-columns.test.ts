@@ -22,6 +22,7 @@ import {
   wholeNumberStartingAtOne,
   wholeNumberStartingAtZero,
 } from "#db/migrations/schema/scalar-columns.ts";
+import { sql } from "#db/sql.ts";
 
 describe("schema column types", () => {
   test("spells a column that may hold nothing", () => {
@@ -62,12 +63,12 @@ describe("schema column types", () => {
   });
 
   test("adds a rule about the column's own value", () => {
-    expect(checked("state IN ('active', 'refunded')")(text)).toBe(
+    expect(checked(sql`state IN ('active', 'refunded')`)(text)).toBe(
       "TEXT NOT NULL CHECK (state IN ('active', 'refunded'))",
     );
     // A rule comes after the column's starting value.
     expect(
-      checked("type IN ('system', 'owner')")(defaulted(text, "system")),
+      checked(sql`type IN ('system', 'owner')`)(defaulted(text, "system")),
     ).toBe(
       "TEXT NOT NULL DEFAULT 'system' CHECK (type IN ('system', 'owner'))",
     );
@@ -88,12 +89,12 @@ describe("schema column types", () => {
   });
 
   test("hangs a rule about the whole row on its last column", () => {
-    expect(aboutTheRow(["a IS NULL", "b IS NULL"])(wholeNumberOrNull)).toBe(
-      "INTEGER\n          CHECK (a IS NULL)\n          CHECK (b IS NULL)",
-    );
+    expect(
+      aboutTheRow([sql`a IS NULL`, sql`b IS NULL`])(wholeNumberOrNull).sql,
+    ).toBe("INTEGER\n          CHECK (a IS NULL)\n          CHECK (b IS NULL)");
   });
 
   test("leaves a row with no rules as it is", () => {
-    expect(aboutTheRow([])(wholeNumberOrNull)).toBe("INTEGER");
+    expect(aboutTheRow([])(wholeNumberOrNull).sql).toBe("INTEGER");
   });
 });

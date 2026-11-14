@@ -2,7 +2,7 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { allTransfers } from "#accounting/queries.ts";
-import { ATTENDEE_LISTING_CONTRIBUTIONS_SQL } from "#db/attendees/delete.ts";
+import { attendeeListingContributionsSql } from "#db/attendees/delete.ts";
 import { getDb } from "#db/client.ts";
 import {
   adjustListingIncome,
@@ -20,13 +20,12 @@ import {
 } from "#db/migrations/schema/listing-aggregates.ts";
 import { TRIGGERS } from "#db/migrations/schema/triggers.ts";
 import { BACKFILL_LISTING_AGGREGATES_SQL } from "#db/migrations/schema-sync.ts";
-
+import { sql } from "#db/sql.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
 import { readListingAggregates as aggregates } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
-import { sql } from "#db/sql.ts";
 
 const MIGRATIONS = await loadMigrations();
 const refundPostedSale = async (
@@ -48,7 +47,7 @@ describe("LISTING_AGGREGATE_WRITE_COLUMNS matches the trigger SQL", () => {
     );
     const expectedCols = [...LISTING_AGGREGATE_WRITE_COLUMNS].join(", ");
     assertStringIncludes(
-      updateTrigger!.sql,
+      updateTrigger!.sql.sql,
       `AFTER UPDATE OF ${expectedCols} ON listing_attendees`,
     );
   });
@@ -60,17 +59,17 @@ describe("tickets_count shared predicate guard", () => {
   // reference it, or the recalculate/repair flow would fight the triggers. This
   // asserts the shared predicate appears in the exported schema SQL. Listing
   // recalculation and reset behavior are covered through their public methods.
-  const ticketCountSites: [name: string, sql: string][] = [
+  const ticketCountSites: [name: string, text: string][] = [
     ...TRIGGERS.filter((t) =>
       t.name.startsWith("trg_listing_attendees_aggregates_"),
-    ).map((t): [string, string] => [t.name, t.sql]),
-    ["backfillListingAggregates", BACKFILL_LISTING_AGGREGATES_SQL],
-    ["attendeeListingContributions", ATTENDEE_LISTING_CONTRIBUTIONS_SQL],
+    ).map((t): [string, string] => [t.name, t.sql.sql]),
+    ["backfillListingAggregates", BACKFILL_LISTING_AGGREGATES_SQL.sql],
+    ["attendeeListingContributions", attendeeListingContributionsSql(1).sql],
   ];
 
-  for (const [name, sql] of ticketCountSites) {
+  for (const [name, text] of ticketCountSites) {
     test(`${name} references the shared quantity predicate`, () => {
-      assertStringIncludes(sql, TICKET_COUNTS_PREDICATE);
+      assertStringIncludes(text, TICKET_COUNTS_PREDICATE.sql);
     });
   }
 });
@@ -99,7 +98,9 @@ describeWithEnv(
       attendeeId: number,
       quantity: number,
     ): Promise<unknown> =>
-      getDb().execute(sql`INSERT INTO listing_attendees (listing_id, attendee_id, quantity) VALUES (${listingId}, ${attendeeId}, ${quantity})`);
+      getDb().execute(
+        sql`INSERT INTO listing_attendees (listing_id, attendee_id, quantity) VALUES (${listingId}, ${attendeeId}, ${quantity})`,
+      );
 
     const incomeOf = async (listingId: number): Promise<number> => {
       invalidateListingsCache();
@@ -153,14 +154,18 @@ describeWithEnv(
       expect(await aggregates(listing.id)).toMatchObject({ tickets_count: 0 });
 
       // 0 -> n: the UPDATE trigger adds the ticket and the quantity.
-      await getDb().execute(sql`UPDATE listing_attendees SET quantity = 4 WHERE listing_id = ${listing.id} AND attendee_id = ${1}`);
+      await getDb().execute(
+        sql`UPDATE listing_attendees SET quantity = 4 WHERE listing_id = ${listing.id} AND attendee_id = ${1}`,
+      );
       expect(await aggregates(listing.id)).toEqual({
         booked_quantity: 4,
         tickets_count: 1,
       });
 
       // n -> 0: and removes them again.
-      await getDb().execute(sql`UPDATE listing_attendees SET quantity = 0 WHERE listing_id = ${listing.id} AND attendee_id = ${1}`);
+      await getDb().execute(
+        sql`UPDATE listing_attendees SET quantity = 0 WHERE listing_id = ${listing.id} AND attendee_id = ${1}`,
+      );
       expect(await aggregates(listing.id)).toEqual({
         booked_quantity: 0,
         tickets_count: 0,
@@ -196,7 +201,9 @@ describeWithEnv(
       const listing = await createTestListing({ maxAttendees: 50 });
       await insertAttendee(listing.id, 1, 2);
       await insertAttendee(listing.id, 2, 0);
-      await getDb().execute(sql`DELETE FROM listing_attendees WHERE listing_id = ${listing.id} AND attendee_id = ${2}`);
+      await getDb().execute(
+        sql`DELETE FROM listing_attendees WHERE listing_id = ${listing.id} AND attendee_id = ${2}`,
+      );
       expect(await aggregates(listing.id)).toEqual({
         booked_quantity: 2,
         tickets_count: 1,
@@ -207,7 +214,9 @@ describeWithEnv(
       const listing = await createTestListing({ maxAttendees: 50 });
       await insertAttendee(listing.id, 1, 3);
       await insertAttendee(listing.id, 2, 2);
-      await getDb().execute(sql`DELETE FROM listing_attendees WHERE listing_id = ${listing.id} AND attendee_id = ${1}`);
+      await getDb().execute(
+        sql`DELETE FROM listing_attendees WHERE listing_id = ${listing.id} AND attendee_id = ${1}`,
+      );
       expect(await aggregates(listing.id)).toEqual({
         booked_quantity: 2,
         tickets_count: 1,
@@ -217,7 +226,9 @@ describeWithEnv(
     test("updating quantity applies the delta", async () => {
       const listing = await createTestListing({ maxAttendees: 50 });
       await insertAttendee(listing.id, 1, 3);
-      await getDb().execute(sql`UPDATE listing_attendees SET quantity = 5 WHERE listing_id = ${listing.id} AND attendee_id = ${1}`);
+      await getDb().execute(
+        sql`UPDATE listing_attendees SET quantity = 5 WHERE listing_id = ${listing.id} AND attendee_id = ${1}`,
+      );
       expect(await aggregates(listing.id)).toEqual({
         booked_quantity: 5,
         tickets_count: 1,
@@ -229,7 +240,9 @@ describeWithEnv(
       const to = await createTestListing({ maxAttendees: 50 });
       await insertAttendee(from.id, 1, 4);
 
-      await getDb().execute(sql`UPDATE listing_attendees SET listing_id = ${to.id} WHERE listing_id = ${from.id} AND attendee_id = ${1}`);
+      await getDb().execute(
+        sql`UPDATE listing_attendees SET listing_id = ${to.id} WHERE listing_id = ${from.id} AND attendee_id = ${1}`,
+      );
 
       expect(await aggregates(from.id)).toEqual({
         booked_quantity: 0,
@@ -247,7 +260,9 @@ describeWithEnv(
       const before = await aggregates(listing.id);
 
       // checked_in is not in the trigger's UPDATE OF list, so this must not fire.
-      await getDb().execute(sql`UPDATE listing_attendees SET checked_in = 1 WHERE listing_id = ${listing.id} AND attendee_id = ${1}`);
+      await getDb().execute(
+        sql`UPDATE listing_attendees SET checked_in = 1 WHERE listing_id = ${listing.id} AND attendee_id = ${1}`,
+      );
 
       expect(await aggregates(listing.id)).toEqual(before);
     });
@@ -407,7 +422,7 @@ describeWithEnv(
         "write",
       );
       await getDb().execute(
-        sql`UPDATE listings SET booked_quantity = 999, tickets_count = 999`
+        sql`UPDATE listings SET booked_quantity = 999, tickets_count = 999`,
       );
 
       // Re-running up() recreates the triggers and recomputes the absolute totals.

@@ -7,9 +7,9 @@ import {
   tableExists as schemaTableExists,
   syncIndexes,
 } from "#db/migrations/schema-sync.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
-import { sql } from "#db/sql.ts";
 
 const context = buildMigrationContext({
   applySchemaChanges,
@@ -31,7 +31,9 @@ const createPreSplitTable = () =>
   );
 
 const insertContact = (hash: string, visits: number) =>
-  getDb().execute(sql`INSERT INTO contact_preferences (contact_hash, visits) VALUES (${hash}, ${visits})`);
+  getDb().execute(
+    sql`INSERT INTO contact_preferences (contact_hash, visits) VALUES (${hash}, ${visits})`,
+  );
 
 describeWithEnv(
   "db > migrations > 2026-06-20_contact_booking_counts",
@@ -46,7 +48,7 @@ describeWithEnv(
         await runMigration();
 
         const { rows } = await getDb().execute(
-          sql`SELECT contact_hash, visits, public_booking_count, admin_booking_count FROM contact_preferences ORDER BY contact_hash`
+          sql`SELECT contact_hash, visits, public_booking_count, admin_booking_count FROM contact_preferences ORDER BY contact_hash`,
         );
         // A returning contact's prior orders surface as public bookings; a
         // contact with no visits stays at zero. Admin counts are never guessed.

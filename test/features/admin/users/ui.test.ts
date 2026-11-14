@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#crypto/encryption.ts";
 import { getDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { invalidateUsersCache } from "#db/users.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { assertPublicHtml, expectIncludesAll } from "#test-utils/assertions.ts";
@@ -13,7 +14,6 @@ import {
   adminGet,
   createTestManagerSession,
 } from "#test-utils/session.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("navigation", () => {
@@ -89,7 +89,9 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const expiredExpiry = await encrypt(
         new Date(Date.now() - 1000).toISOString(),
       );
-      await getDb().execute(sql`UPDATE users SET invite_expiry = ${expiredExpiry} WHERE id = 2`);
+      await getDb().execute(
+        sql`UPDATE users SET invite_expiry = ${expiredExpiry} WHERE id = 2`,
+      );
       invalidateUsersCache();
 
       const response = await adminGet("/admin/users");

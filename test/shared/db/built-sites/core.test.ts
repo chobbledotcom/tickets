@@ -7,10 +7,10 @@ import {
   insertBuiltSite,
 } from "#db/built-sites.ts";
 import { execute } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";
-import { sql } from "#db/sql.ts";
 
 const formBlob = async (
   input: Parameters<typeof builtSitesCrudTable.toDbValues>[0],
@@ -123,8 +123,12 @@ describeWithEnv("built-site storage", { db: true }, () => {
   test("getAll returns decrypted sites sorted by name", async () => {
     const alpha = await insertBuiltSite("Alpha", "alpha.b-cdn.net");
     const zulu = await insertBuiltSite("Zulu", "zulu.b-cdn.net");
-    await execute(sql`UPDATE built_sites SET created = ${"2025-01-01T00:00:00Z"} WHERE id = ${alpha.id}`);
-    await execute(sql`UPDATE built_sites SET created = ${"2026-01-01T00:00:00Z"} WHERE id = ${zulu.id}`);
+    await execute(
+      sql`UPDATE built_sites SET created = ${"2025-01-01T00:00:00Z"} WHERE id = ${alpha.id}`,
+    );
+    await execute(
+      sql`UPDATE built_sites SET created = ${"2026-01-01T00:00:00Z"} WHERE id = ${zulu.id}`,
+    );
     expect((await builtSites.getAll()).map(({ name }) => name)).toEqual([
       "Alpha",
       "Zulu",

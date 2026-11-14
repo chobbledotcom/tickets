@@ -3,9 +3,9 @@ import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
+import { sql } from "#db/sql.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { hranaTestDatabase } from "#test-utils/hrana.ts";
-import { sql } from "#db/sql.ts";
 
 describe("database client delegation", () => {
   /** A concurrency-1 database whose "SELECT 1" reply waits on `release`, so a
@@ -95,7 +95,10 @@ describe("database client delegation", () => {
           return Promise.resolve(emptyResultSet());
         },
       });
-      const results = await remote.client.batch([sql`SELECT 1`, sql`SELECT 2`], mode);
+      const results = await remote.client.batch(
+        [sql`SELECT 1`, sql`SELECT 2`],
+        mode,
+      );
       expect(results).toHaveLength(2);
       expect(primaries).toEqual([false, false]);
       expect(remote.requests).toEqual([
@@ -164,7 +167,8 @@ describe("database client delegation", () => {
 
   test("keeps interactive transaction statements inside the shared limit", async () => {
     const { closed, requests } = await queueBehindHeldSlot(
-      (tx) => Promise.all([tx.execute(sql`SELECT 2`), tx.batch([sql`SELECT 3`])]),
+      (tx) =>
+        Promise.all([tx.execute(sql`SELECT 2`), tx.batch([sql`SELECT 3`])]),
       "commit",
     );
     expect(requests).toHaveLength(4);

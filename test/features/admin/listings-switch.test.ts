@@ -4,6 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { withTransaction } from "#db/client.ts";
 import { moveUndatedBookingsToDayTx } from "#db/listings/daily-switch.ts";
 import { listingsTable } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import {
   planListingTypeSwitch,
   probeAssignDates,
@@ -40,8 +41,7 @@ const rawRows = async (
 ): Promise<{ start_at: string | null }[]> => {
   const { queryAll } = await import("#db/client.ts");
   return queryAll(
-    "SELECT start_at FROM listing_attendees WHERE listing_id = ?",
-    [listingId],
+    sql`SELECT start_at FROM listing_attendees WHERE listing_id = ${listingId}`,
   );
 };
 
@@ -145,17 +145,17 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     const day = (await bookableStartDates(listing.id))[0]!;
     // One dated place occupies the day; the cap only widens while it is set.
     const { queryAll } = await import("#db/client.ts");
-    await queryAll("UPDATE listings SET max_attendees = 6 WHERE id = ?", [
-      listing.id,
-    ]);
+    await queryAll(
+      sql`UPDATE listings SET max_attendees = 6 WHERE id = ${listing.id}`,
+    );
     await bookAttendee(listing, {
       date: day,
       email: "z@example.com",
       name: "Z",
     });
-    await queryAll("UPDATE listings SET max_attendees = 5 WHERE id = ?", [
-      listing.id,
-    ]);
+    await queryAll(
+      sql`UPDATE listings SET max_attendees = 5 WHERE id = ${listing.id}`,
+    );
     // The two bookings hold five places against four free: asking for their
     // row count (2) would wrongly fit.
     const fits = await probeAssignDates(

@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { initDb, SCHEMA_HASH } from "#db/migrations.ts";
+import { sql } from "#db/sql.ts";
 import {
   columnNames,
   downgradeListingDomainToLegacyNames,
@@ -15,7 +16,6 @@ import {
 } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv(
   "db > migrations > 2026-06-14_rename_events_to_listings",
@@ -75,13 +75,13 @@ describeWithEnv(
       test("a database with duplicate legacy and target column values self-heals by dropping the legacy column", async () => {
         const listing = await createTestListing();
         await getDb().execute(
-          sql`INSERT INTO activity_log (created, listing_id, message) VALUES ('2024-01-01T00:00:00Z', ${listing.id}, 'duplicate listing activity')`
+          sql`INSERT INTO activity_log (created, listing_id, message) VALUES ('2024-01-01T00:00:00Z', ${listing.id}, 'duplicate listing activity')`,
         );
         await getDb().execute(
-          sql`ALTER TABLE activity_log ADD COLUMN event_id INTEGER`
+          sql`ALTER TABLE activity_log ADD COLUMN event_id INTEGER`,
         );
         await getDb().execute(
-          sql`UPDATE activity_log SET event_id = listing_id WHERE listing_id IS NOT NULL`
+          sql`UPDATE activity_log SET event_id = listing_id WHERE listing_id IS NOT NULL`,
         );
 
         await markMigrationsForRerun();
@@ -90,7 +90,7 @@ describeWithEnv(
         assertArrayIncludes(await columnNames("activity_log"), ["listing_id"]);
         assert(!(await columnNames("activity_log")).includes("event_id"));
         const row = await getDb().execute(
-          sql`SELECT listing_id FROM activity_log WHERE message = 'duplicate listing activity'`
+          sql`SELECT listing_id FROM activity_log WHERE message = 'duplicate listing activity'`,
         );
         expect(row.rows[0]?.listing_id).toBe(listing.id);
         expect(await schemaHashMarker()).toBe(SCHEMA_HASH);
@@ -107,10 +107,10 @@ describeWithEnv(
             listing_id INTEGER,
             message TEXT NOT NULL,
             FOREIGN KEY (event_id) REFERENCES listings(id) ON DELETE SET NULL
-          )`
+          )`,
         );
         await getDb().execute(
-          sql`INSERT INTO activity_log (created, event_id, listing_id, message) VALUES ('2024-01-01T00:00:00Z', ${listing.id}, ${listing.id}, 'stale fk listing activity')`
+          sql`INSERT INTO activity_log (created, event_id, listing_id, message) VALUES ('2024-01-01T00:00:00Z', ${listing.id}, ${listing.id}, 'stale fk listing activity')`,
         );
 
         await markMigrationsForRerun();
@@ -121,11 +121,11 @@ describeWithEnv(
         assertArrayIncludes(cols, ["attendee_id"]);
         assert(!cols.includes("event_id"));
         const row = await getDb().execute(
-          sql`SELECT listing_id FROM activity_log WHERE message = 'stale fk listing activity'`
+          sql`SELECT listing_id FROM activity_log WHERE message = 'stale fk listing activity'`,
         );
         expect(row.rows[0]?.listing_id).toBe(listing.id);
         const foreignKeys = await getDb().execute(
-          sql`PRAGMA foreign_key_list(activity_log)`
+          sql`PRAGMA foreign_key_list(activity_log)`,
         );
         expect(
           foreignKeys.rows.some(
@@ -159,7 +159,7 @@ describeWithEnv(
         expect(await tableRowCount("events")).toBe(1);
         expect(await tableRowCount("listings")).toBe(1);
         const lockResult = await getDb().execute(
-          sql`SELECT 1 FROM settings WHERE key = 'migration_lock'`
+          sql`SELECT 1 FROM settings WHERE key = 'migration_lock'`,
         );
         expect(lockResult.rows.length).toBe(0);
       });
@@ -168,13 +168,13 @@ describeWithEnv(
         const listing = await createTestListing();
         const listingId = listing.id;
         await getDb().execute(
-          sql`INSERT INTO activity_log (created, listing_id, message) VALUES ('2024-01-01T00:00:00Z', ${listingId}, 'target listing activity')`
+          sql`INSERT INTO activity_log (created, listing_id, message) VALUES ('2024-01-01T00:00:00Z', ${listingId}, 'target listing activity')`,
         );
         await getDb().execute(
-          sql`ALTER TABLE activity_log ADD COLUMN event_id INTEGER`
+          sql`ALTER TABLE activity_log ADD COLUMN event_id INTEGER`,
         );
         await getDb().execute(
-          sql`UPDATE activity_log SET event_id = 999 WHERE message = 'target listing activity'`
+          sql`UPDATE activity_log SET event_id = 999 WHERE message = 'target listing activity'`,
         );
 
         await markMigrationsForRerun();
@@ -185,7 +185,7 @@ describeWithEnv(
         await expect(initDb()).rejects.toThrow("Manual migration is required");
 
         const row = await getDb().execute(
-          sql`SELECT event_id, listing_id FROM activity_log WHERE message = 'target listing activity'`
+          sql`SELECT event_id, listing_id FROM activity_log WHERE message = 'target listing activity'`,
         );
         expect(row.rows[0]?.event_id).toBe(999);
         expect(row.rows[0]?.listing_id).toBe(listingId);

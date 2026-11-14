@@ -17,6 +17,7 @@ import {
   transitionRefundAuthority,
 } from "#db/provider-refund-authority-change.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
+import { sql } from "#db/sql.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import {
   armRefundSend,
@@ -28,7 +29,6 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { gbp } from "#test-utils/payment-state.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
-import { sql } from "#db/sql.ts";
 
 const reference = (
   raw: string,
@@ -117,7 +117,7 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
         updated_at: number;
       }>(
         sql`SELECT created_at, updated_at, observed_at
-           FROM payment_charges WHERE id = ${authority.id}`
+           FROM payment_charges WHERE id = ${authority.id}`,
       ),
     ).toEqual({
       created_at: input.now,

@@ -5,6 +5,7 @@ import { afterEach, it as test } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
 import { queryOne } from "#db/client.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { siteDbApi } from "#shared/site-db.ts";
 import {
   type DeployedRelease,
@@ -30,7 +31,6 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
-import { sql } from "#db/sql.ts";
 
 const LATEST_TAG = "v2099-01-01-120000";
 
@@ -172,10 +172,12 @@ describeWithEnv(
 const seedSiteDb = async (version: string | null): Promise<Client> => {
   const client = createClient({ url: ":memory:" });
   await client.execute(
-    sql`CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT)`
+    sql`CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT)`,
   );
   if (version !== null) {
-    await client.execute(sql`INSERT INTO settings (key, value) VALUES (${CURRENT_SCRIPT_VERSION_KEY}, ${version})`);
+    await client.execute(
+      sql`INSERT INTO settings (key, value) VALUES (${CURRENT_SCRIPT_VERSION_KEY}, ${version})`,
+    );
   }
   return client;
 };
@@ -336,7 +338,9 @@ describeWithEnv("recordScriptVersion", { db: true }, () => {
   });
 
   const readVersion = (): Promise<{ value: string } | null> =>
-    queryOne<{ value: string }>(sql`SELECT value FROM settings WHERE key = ${CURRENT_SCRIPT_VERSION_KEY}`);
+    queryOne<{ value: string }>(
+      sql`SELECT value FROM settings WHERE key = ${CURRENT_SCRIPT_VERSION_KEY}`,
+    );
 
   test("records the running build's version", async () => {
     setBuildTimestampForTest("2026-06-19T12:00:00Z");

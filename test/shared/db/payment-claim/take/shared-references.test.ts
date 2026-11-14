@@ -8,6 +8,7 @@ import {
   storePaymentReference,
 } from "#db/payment-reference-store.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { historicalPaymentReferenceStorage } from "#test-utils/historical-payment-references.ts";
 import {
@@ -22,7 +23,6 @@ import {
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
-import { sql } from "#db/sql.ts";
 
 const repointPaymentRow = async (
   sessionId: string,
@@ -31,7 +31,7 @@ const repointPaymentRow = async (
   await execute(
     sql`UPDATE processed_payments
         SET payment_reference = ${stored.encrypted}, payment_reference_index = ${stored.index}
-      WHERE payment_session_id = ${sessionId}`
+      WHERE payment_session_id = ${sessionId}`,
   );
 };
 
@@ -67,7 +67,7 @@ const addUnreadableSharingRows = async (
             source.payment_reference_index
        FROM sharingRow
        JOIN processed_payments AS source
-         ON source.payment_session_id = ${sourceSessionId}`
+         ON source.payment_session_id = ${sourceSessionId}`,
   );
 };
 
@@ -149,7 +149,7 @@ describeWithEnv(
         "pi_index_separator",
       );
       const attendee = await requireOne<{ pii_blob: string }>(
-        sql`SELECT pii_blob FROM attendees WHERE id = ${attendeeId}`
+        sql`SELECT pii_blob FROM attendees WHERE id = ${attendeeId}`,
       );
       const references = await getCompleteRefundPaymentReferencesForAttendee({
         currentPaymentId: "pi_index_separator",
@@ -192,7 +192,7 @@ describeWithEnv(
         "pi_no_reference",
       );
       await execute(
-        sql`DELETE FROM processed_payments WHERE payment_session_id = ${"sess-no-reference"}`
+        sql`DELETE FROM processed_payments WHERE payment_session_id = ${"sess-no-reference"}`,
       );
 
       const { queries, result } = await withRequestContext(async () => {
@@ -241,7 +241,7 @@ describeWithEnv(
             SELECT payment_reference_index
               FROM processed_payments
              WHERE payment_session_id = ${sourceSessionId}
-          )`
+          )`,
       );
       expect(state.rows[0]).toMatchObject({
         claimed_count: 0,

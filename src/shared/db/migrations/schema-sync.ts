@@ -5,7 +5,14 @@ import {
   withTransaction,
 } from "#db/client.ts";
 import { stringColumnSet } from "#db/query.ts";
-import { sql, sqlCommas, sqlLiteral, sqlName, sqlNames, type SqlStatement } from "#db/sql.ts";
+import {
+  type SqlStatement,
+  sql,
+  sqlCommas,
+  sqlLiteral,
+  sqlName,
+  sqlNames,
+} from "#db/sql.ts";
 import { logDebug } from "#shared/logger.ts";
 import {
   backfillAnswerAggregates,

@@ -14,7 +14,13 @@ import {
   type PreparedStringRow,
   prepareStringRows,
 } from "#db/questions/strings.ts";
-import { sql, sqlCommas, sqlList, type SqlSlot, type SqlStatement } from "#db/sql.ts";
+import {
+  type SqlSlot,
+  type SqlStatement,
+  sql,
+  sqlCommas,
+  sqlList,
+} from "#db/sql.ts";
 import { requiredMapValue } from "#fp";
 
 export type AttendeeAnswerSet = {

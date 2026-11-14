@@ -3,7 +3,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { executeBatch, getDb, inPlaceholders } from "#db/client.ts";
+import { executeBatch, getDb } from "#db/client.ts";
 import { loadMigrations } from "#db/migrations/context.ts";
 import { MigrationInProgressError } from "#db/migrations/errors.ts";
 import { baselineCurrentSchemaIfNeeded } from "#db/migrations/runner.ts";
@@ -27,6 +27,13 @@ import {
 } from "#db/migrations.ts";
 import { createSession } from "#db/sessions.ts";
 import { settings } from "#db/settings.ts";
+import {
+  type SqlStatement,
+  sql,
+  sqlList,
+  sqlLiteral,
+  sqlName,
+} from "#db/sql.ts";
 import { markCurrentSchemaMigrationPending } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -43,7 +50,6 @@ import {
 } from "#test-utils/migrations.ts";
 import { expectNtfyNotification, stubNtfyFetch } from "#test-utils/mocks.ts";
 import { invalidateTestDbCache } from "#test-utils/test-state.ts";
-import { sql, sqlName } from "#db/sql.ts";
 
 type BatchStatement = Parameters<ReturnType<typeof getDb>["batch"]>[0][number];
 
@@ -55,7 +61,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
   const setStaleSchemaAndLock = async (heldSince: Date): Promise<void> => {
     await getDb().batch(
       [
-        `UPDATE settings SET value = 'stale' WHERE key = '${DB_SCHEMA_HASH_KEY}'`,
+        sql`UPDATE settings SET value = 'stale' WHERE key = ${DB_SCHEMA_HASH_KEY}`,
         sql`INSERT INTO settings (key, value) VALUES (${MIGRATION_LOCK_KEY}, ${heldSince.toISOString()})`,
       ],
       "write",
@@ -67,11 +73,8 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
   const restoreLockSettings = (): Promise<unknown> =>
     getDb().batch(
       [
-        `DELETE FROM settings WHERE key = '${MIGRATION_LOCK_KEY}'`,
-        {
-          args: [SCHEMA_HASH],
-          sql: `UPDATE settings SET value = ? WHERE key = '${DB_SCHEMA_HASH_KEY}'`,
-        },
+        sql`DELETE FROM settings WHERE key = ${MIGRATION_LOCK_KEY}`,
+        sql`UPDATE settings SET value = ${SCHEMA_HASH} WHERE key = ${DB_SCHEMA_HASH_KEY}`,
       ],
       "write",
     );
@@ -84,14 +87,8 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
     migrationIds: string[],
   ): Promise<void> => {
     await executeBatch([
-      {
-        args: migrationIds,
-        sql: `DELETE FROM ${SCHEMA_MIGRATIONS_TABLE} WHERE id IN (${inPlaceholders(migrationIds)})`,
-      },
-      {
-        args: [],
-        sql: `UPDATE settings SET value = 'stale' WHERE key IN ('${LATEST_DB_UPDATE_KEY}', '${DB_SCHEMA_HASH_KEY}')`,
-      },
+      sql`DELETE FROM ${sqlName(SCHEMA_MIGRATIONS_TABLE)} WHERE id IN (${sqlList(migrationIds)})`,
+      sql`UPDATE settings SET value = 'stale' WHERE key IN (${sqlLiteral(LATEST_DB_UPDATE_KEY)}, ${sqlLiteral(DB_SCHEMA_HASH_KEY)})`,
     ]);
     invalidateInitDbCache();
   };
@@ -106,7 +103,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
   const stubLockReleaseFailure = () => {
     const client = getDb();
     const execute = client.execute.bind(client);
-    return stub(client, "execute", (statement: InStatement) =>
+    return stub(client, "execute", (statement: SqlStatement) =>
       statementSql(statement) ===
       "DELETE FROM settings WHERE key = ? AND value = ?"
         ? Promise.reject(new Error("lock release failed"))
@@ -128,14 +125,14 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
       using tmpDir = tempDir();
       using _env = withEnv({ LOCAL_STORAGE_PATH: tmpDir.path });
       await getDb().execute(
-        `UPDATE settings SET value = 'stale' WHERE key = '${DB_SCHEMA_HASH_KEY}'`,
+        sql`UPDATE settings SET value = 'stale' WHERE key = ${sqlLiteral(DB_SCHEMA_HASH_KEY)}`,
       );
       await markCurrentSchemaMigrationPending();
       await initDb();
 
       // The migration completed...
       const result = await getDb().execute(
-        `SELECT value FROM settings WHERE key = '${DB_SCHEMA_HASH_KEY}'`,
+        sql`SELECT value FROM settings WHERE key = ${sqlLiteral(DB_SCHEMA_HASH_KEY)}`,
       );
       expect(result.rows[0]?.value).toBe(SCHEMA_HASH);
 
@@ -214,12 +211,12 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
         await initDb();
 
         const result = await getDb().execute(
-          `SELECT value FROM settings WHERE key = '${DB_SCHEMA_HASH_KEY}'`,
+          sql`SELECT value FROM settings WHERE key = ${sqlLiteral(DB_SCHEMA_HASH_KEY)}`,
         );
         expect(result.rows[0]?.value).toBe(SCHEMA_HASH);
       } finally {
         await getDb().execute(
-          `DELETE FROM settings WHERE key = '${MIGRATION_LOCK_KEY}'`,
+          sql`DELETE FROM settings WHERE key = ${sqlLiteral(MIGRATION_LOCK_KEY)}`,
         );
       }
     });
@@ -243,31 +240,32 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
       await markMigrationsPending([migration.id]);
       migration.verify = async () => {
         await originalVerify();
-        await getDb().execute({
-          args: [successorLock],
-          sql: `UPDATE settings SET value = ? WHERE key = '${MIGRATION_LOCK_KEY}'`,
-        });
+        await getDb().execute(
+          sql`UPDATE settings SET value = ${successorLock} WHERE key = ${MIGRATION_LOCK_KEY}`,
+        );
       };
 
       try {
         await expect(initDb()).rejects.toThrow("lock ownership was lost");
         const lock = await getDb().execute(
-          `SELECT value FROM settings WHERE key = '${MIGRATION_LOCK_KEY}'`,
+          sql`SELECT value FROM settings WHERE key = ${sqlLiteral(MIGRATION_LOCK_KEY)}`,
         );
         expect(lock.rows[0]?.value).toBe(successorLock);
-        const marker = await getDb().execute(sql`SELECT id FROM ${sqlName(SCHEMA_MIGRATIONS_TABLE)} WHERE id = ${migration.id}`);
+        const marker = await getDb().execute(
+          sql`SELECT id FROM ${sqlName(SCHEMA_MIGRATIONS_TABLE)} WHERE id = ${migration.id}`,
+        );
         expect(marker.rows).toHaveLength(0);
       } finally {
         migration.verify = originalVerify;
         await getDb().execute(
-          `DELETE FROM settings WHERE key = '${MIGRATION_LOCK_KEY}'`,
+          sql`DELETE FROM settings WHERE key = ${sqlLiteral(MIGRATION_LOCK_KEY)}`,
         );
       }
     });
 
     test("surfaces a lock release failure after otherwise successful work", async () => {
       await getDb().execute(
-        `UPDATE settings SET value = 'stale' WHERE key = '${DB_SCHEMA_HASH_KEY}'`,
+        sql`UPDATE settings SET value = 'stale' WHERE key = ${sqlLiteral(DB_SCHEMA_HASH_KEY)}`,
       );
       invalidateInitDbCache();
       const executeStub = stubLockReleaseFailure();
@@ -349,7 +347,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
       invalidateTestDbCache();
 
       const tablesResult = await getDb().execute(
-        sql`SELECT name FROM sqlite_master WHERE type='table'`
+        sql`SELECT name FROM sqlite_master WHERE type='table'`,
       );
       const tableNames = tablesResult.rows.map((r) => r.name);
       assert(!tableNames.includes("listings"));
@@ -415,18 +413,18 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
 
       // One CREATE TABLE per schema table, in SCHEMA (FK-dependency) order.
       const createdTables = statements
-        .map((sql) => sql.match(/^CREATE TABLE IF NOT EXISTS (\w+) /)?.[1])
+        .map(({ sql }) => sql.match(/^CREATE TABLE IF NOT EXISTS (\w+) /)?.[1])
         .filter((name) => name !== undefined);
       expect(createdTables).toEqual(SCHEMA_TABLE_NAMES);
 
       // Declared indexes ride along (spot-check a known one), and every
       // statement is IF NOT EXISTS so a replay can never fail.
       expect(
-        statements.some((sql) =>
+        statements.some(({ sql }) =>
           sql.includes("CREATE INDEX IF NOT EXISTS idx_attendees_kind"),
         ),
       ).toBe(true);
-      for (const sql of statements) {
+      for (const { sql } of statements) {
         assertStringIncludes(sql, "IF NOT EXISTS");
       }
     });

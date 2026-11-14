@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { buildCapacityCheckedInsert } from "#db/attendees/capacity/checks.ts";
 import { dateToStartEnd } from "#db/attendees/capacity/range.ts";
+import { sql } from "#db/sql.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 describe("buildCapacityCheckedInsert", () => {
@@ -34,7 +35,7 @@ describe("buildCapacityCheckedInsert", () => {
         parentListingId: 19,
         quantity: 3,
       },
-      (bind) => bind(41),
+      41,
       true,
     );
 
@@ -57,7 +58,7 @@ describe("buildCapacityCheckedInsert", () => {
   test("omits the capacity clause when overbooking is allowed", () => {
     const statement = buildCapacityCheckedInsert(
       { date: "2026-06-24", listingId: 17 },
-      (bind) => bind(41),
+      41,
       true,
     );
 
@@ -88,7 +89,7 @@ describe("buildCapacityCheckedInsert", () => {
     // contract is that the row always writes.
     const statement = buildCapacityCheckedInsert(
       { date: "2026-06-24", listingId: 17, quantity: 0 },
-      (bind) => bind(41),
+      41,
       true,
     );
 
@@ -98,9 +99,9 @@ describe("buildCapacityCheckedInsert", () => {
   test("an overbook caller keeps an extra condition the caller passed", () => {
     const statement = buildCapacityCheckedInsert(
       { date: "2026-06-24", listingId: 17, quantity: 2 },
-      (bind) => bind(41),
+      41,
       true,
-      () => "order_not_yet_recorded",
+      sql`order_not_yet_recorded`,
     );
 
     assertStringIncludes(statement.sql, "WHERE order_not_yet_recorded");
@@ -110,9 +111,9 @@ describe("buildCapacityCheckedInsert", () => {
   test("a zero-quantity booking keeps an extra condition the caller passed", () => {
     const statement = buildCapacityCheckedInsert(
       { date: "2026-06-24", listingId: 17, quantity: 0 },
-      (bind) => bind(41),
+      41,
       false,
-      () => "order_not_yet_recorded",
+      sql`order_not_yet_recorded`,
     );
 
     assertStringIncludes(

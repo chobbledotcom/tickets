@@ -5,8 +5,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { type Spy, spy, stub } from "@std/testing/mock";
 import { createDatabaseClient, PROXY_ENV_NAMES } from "#db/database-client.ts";
-import { hranaTestFetch } from "#test-utils/hrana.ts";
 import { sql } from "#db/sql.ts";
+import { hranaTestFetch } from "#test-utils/hrana.ts";
 
 type WatchedPool = {
   pool: Deno.HttpClient;

@@ -139,9 +139,7 @@ export const triggerRewriteDropMigration = (
     description,
     async ({ getDb, recreateTable, syncTriggers }) => {
       for (const trigger of triggers) {
-        await getDb().execute(
-          sql`DROP TRIGGER IF EXISTS ${sqlName(trigger)}`,
-        );
+        await getDb().execute(sql`DROP TRIGGER IF EXISTS ${sqlName(trigger)}`);
       }
       await recreateTable(table); // rebuild from SCHEMA, dropping the column
       await syncTriggers(); // re-create the column-free trigger bodies

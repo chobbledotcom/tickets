@@ -9,13 +9,20 @@ import {
   selectTransfers,
   selectTransfersMany,
 } from "#accounting/rows.ts";
-import { type BatchExecutor, executeBatch, queryBatch, queryOne, type TxScope, withTransaction } from "#db/client.ts";
+import {
+  type BatchExecutor,
+  executeBatch,
+  queryBatch,
+  queryOne,
+  type TxScope,
+  withTransaction,
+} from "#db/client.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { inList } from "#db/where-clauses.ts";
 import { account } from "#shared/ledger/account.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { useTransactionalDb } from "#test-utils/ledger.ts";
-import { sql, type SqlStatement } from "#db/sql.ts";
 
 /** The value bound to `column` in a built INSERT, by pairing the SQL's leading
  *  column list with its positional args. */
@@ -72,22 +79,27 @@ describe("accounting > rows > bookingLegBatchInsert", () => {
     reference: "ref",
     source: account("attendee", 3),
   };
-  const guard = { args: ["g"], sql: "? = 'g'" };
+  const guard = sql`${"g"} = 'g'`;
 
   test("renders ONLY the attendee side via the in-batch id subquery", () => {
-    const built = bookingLegBatchInsert(leg, recordedAt, "MAX(id)", 7, guard);
+    const built = bookingLegBatchInsert(
+      leg,
+      recordedAt,
+      sql`MAX(id) + ${7}`,
+      guard,
+    );
     // source is the attendee account -> subquery; destination (revenue) stays a
     // bound literal. Swapping the two would post the sale to a phantom account.
-    assertStringIncludes(built.sql, "CAST(MAX(id) AS TEXT)");
-    expect(built.sql.indexOf("CAST(MAX(id) AS TEXT)")).toBe(
-      built.sql.lastIndexOf("CAST(MAX(id) AS TEXT)"),
+    assertStringIncludes(built.sql, "CAST(MAX(id) + ?");
+    expect(built.sql.indexOf("CAST(MAX(id) + ?")).toBe(
+      built.sql.lastIndexOf("CAST(MAX(id) + ?"),
     );
     assertArrayIncludes(built.args, [7]); // the subquery's bound arg
     assertArrayIncludes(built.args, ["9"]); // revenue id still a bound literal
     assert(!built.args.includes("3")); // attendee id replaced by subquery
     expect(built.args.at(-1)).toBe("g"); // guard args come last
     expect(built.sql).toMatch(/^INSERT OR IGNORE INTO transfers /);
-    assertStringIncludes(built.sql, "WHERE ? = 'g'");
+    expect(built.sql).toMatch(/WHERE \?\d+ = 'g'$/);
   });
 });
 
@@ -127,7 +139,7 @@ const storeTwoLegs = (): Promise<void> =>
  *  one reader must not lean on another to set itself up. */
 const storedIdFor = async (reference: string): Promise<number> => {
   const row = await queryOne<{ id: number | bigint }>(
-    sql`SELECT id FROM transfers WHERE reference = ${reference}`
+    sql`SELECT id FROM transfers WHERE reference = ${reference}`,
   );
   if (row === null) throw new Error(`Nothing was stored for ${reference}`);
   return Number(row.id);
@@ -263,7 +275,7 @@ describe("accounting > rows > stored-row round-trip", () => {
       insertStatement(voiding, recordedAt),
     ]);
 
-    const all = await selectTransfers(queryBatch, { order: "id" });
+    const all = await selectTransfers(queryBatch, { order: sql`id` });
     expect(all.length).toBe(2);
     const [first, second] = all;
 
@@ -345,7 +357,7 @@ describe("accounting > rows > stored-row round-trip", () => {
       insertStatement(refund, recordedAt),
     ]);
 
-    const all = await selectTransfers(queryBatch, { order: "id" });
+    const all = await selectTransfers(queryBatch, { order: sql`id` });
     const [sale, reversal] = all;
     expect(sale!.reversesGroup).toBeUndefined();
     expect("reversesGroup" in sale!).toBe(false);

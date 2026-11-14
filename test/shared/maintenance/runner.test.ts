@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, queryOne } from "#db/client.ts";
+import { sql, sqlList } from "#db/sql.ts";
 import {
   defineMaintenanceTasks,
   MAINTENANCE_MIN_INTERVAL_MS,
@@ -15,18 +16,16 @@ import {
 } from "#shared/subrequest-budget.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { maintenanceDeclaration as declaration } from "./fixtures.ts";
-import { sql } from "#db/sql.ts";
 
 const forceDue = (names: string[]): Promise<unknown> =>
   execute(
-    `UPDATE maintenance_tasks SET next_run_at = 0
-      WHERE name IN (${names.map(() => "?").join(", ")})`,
-    names,
+    sql`UPDATE maintenance_tasks SET next_run_at = 0
+      WHERE name IN (${sqlList(names)})`,
   );
 
 const nextRunAt = async (name: string): Promise<number> => {
   const row = await queryOne<{ next_run_at: number }>(
-    sql`SELECT next_run_at FROM maintenance_tasks WHERE name = ${name}`
+    sql`SELECT next_run_at FROM maintenance_tasks WHERE name = ${name}`,
   );
   if (!row) throw new Error(`Maintenance task not found: ${name}`);
   return row.next_run_at;
@@ -35,7 +34,7 @@ const nextRunAt = async (name: string): Promise<number> => {
 const taskTiming = (name: string) =>
   queryOne<{ last_finished_at: number; next_run_at: number }>(
     sql`SELECT last_finished_at, next_run_at
-       FROM maintenance_tasks WHERE name = ${name}`
+       FROM maintenance_tasks WHERE name = ${name}`,
   );
 
 describeWithEnv("maintenance runner", { db: true }, () => {
@@ -145,7 +144,7 @@ describeWithEnv("maintenance runner", { db: true }, () => {
   test("passes and saves a successful task checkpoint", async () => {
     await execute(
       sql`INSERT INTO maintenance_tasks (name, checkpoint, next_run_at)
-       VALUES ('checkpoint_task', 'page-1', 0)`
+       VALUES ('checkpoint_task', 'page-1', 0)`,
     );
     const tasks = defineMaintenanceTasks([
       declaration("checkpoint_task", ({ checkpoint, setCheckpoint }) => {
@@ -158,7 +157,7 @@ describeWithEnv("maintenance runner", { db: true }, () => {
 
     expect(
       await queryOne<{ checkpoint: string }>(
-        sql`SELECT checkpoint FROM maintenance_tasks WHERE name = 'checkpoint_task'`
+        sql`SELECT checkpoint FROM maintenance_tasks WHERE name = 'checkpoint_task'`,
       ),
     ).toEqual({ checkpoint: "page-2" });
   });
@@ -192,7 +191,7 @@ describeWithEnv("maintenance runner", { db: true }, () => {
     ).rejects.toThrow("Maintenance failed: conflicting_result");
     expect(
       await queryOne<{ completed_at: number | null }>(
-        sql`SELECT completed_at FROM maintenance_tasks WHERE name = 'conflicting_result'`
+        sql`SELECT completed_at FROM maintenance_tasks WHERE name = 'conflicting_result'`,
       ),
     ).toEqual({ completed_at: null });
   });
@@ -216,7 +215,7 @@ describeWithEnv("maintenance runner", { db: true }, () => {
 
   test("a disabled task is removed without running", async () => {
     await execute(
-      sql`INSERT INTO maintenance_tasks (name, next_run_at) VALUES ('disabled', 0)`
+      sql`INSERT INTO maintenance_tasks (name, next_run_at) VALUES ('disabled', 0)`,
     );
     const tasks = defineMaintenanceTasks([
       declaration(
@@ -234,7 +233,7 @@ describeWithEnv("maintenance runner", { db: true }, () => {
 
     expect(
       await queryOne(
-        sql`SELECT name FROM maintenance_tasks WHERE name = 'disabled'`
+        sql`SELECT name FROM maintenance_tasks WHERE name = 'disabled'`,
       ),
     ).toBeNull();
   });
@@ -263,7 +262,7 @@ describeWithEnv("maintenance runner", { db: true }, () => {
     await runWithSubrequestBudget(() => maintenance.run(tasks));
     await forceDue(["too_large"]);
     const before = await queryOne<{ next_run_at: number }>(
-      sql`SELECT next_run_at FROM maintenance_tasks WHERE name = 'too_large'`
+      sql`SELECT next_run_at FROM maintenance_tasks WHERE name = 'too_large'`,
     );
 
     await runWithSubrequestBudget(() =>
@@ -271,7 +270,7 @@ describeWithEnv("maintenance runner", { db: true }, () => {
     );
 
     const after = await queryOne<{ next_run_at: number }>(
-      sql`SELECT next_run_at FROM maintenance_tasks WHERE name = 'too_large'`
+      sql`SELECT next_run_at FROM maintenance_tasks WHERE name = 'too_large'`,
     );
     expect(after?.next_run_at).toBe(before?.next_run_at);
   });
@@ -321,7 +320,7 @@ describeWithEnv("maintenance runner", { db: true }, () => {
         "lease_lifetime",
         async () => {
           const row = await queryOne<{ lease_expires_at: number }>(
-            sql`SELECT lease_expires_at FROM maintenance_tasks WHERE name = 'lease_lifetime'`
+            sql`SELECT lease_expires_at FROM maintenance_tasks WHERE name = 'lease_lifetime'`,
           );
           if (!row) throw new Error("Maintenance lease not found");
           leaseExpiresAt = row.lease_expires_at;

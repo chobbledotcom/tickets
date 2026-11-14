@@ -2,8 +2,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { CONFIG_KEYS, settings } from "#db/settings.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("db > settings payment credentials", { db: true }, () => {
   describe("the Stripe secret key", () => {
@@ -144,10 +144,10 @@ describeWithEnv("db > settings payment credentials", { db: true }, () => {
       webhookSecret: "whsec_old",
     });
     await settings.update.paymentProvider("square");
-    await getDb().execute(`
+    await getDb().execute(sql`
       CREATE TRIGGER fail_stripe_endpoint_id
       BEFORE INSERT ON settings
-      WHEN NEW.key = '${CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID}'
+      WHEN NEW.key = ${sqlLiteral(CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID)}
       BEGIN
         SELECT RAISE(ABORT, 'endpoint id write failed');
       END

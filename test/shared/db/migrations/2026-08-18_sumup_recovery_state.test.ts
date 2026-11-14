@@ -3,13 +3,13 @@ import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import sumupRecoveryMigration from "#db/migrations/2026-08-18_sumup_recovery_state.ts";
 import { applySchemaChanges, syncIndexes } from "#db/migrations/schema-sync.ts";
+import { sql } from "#db/sql.ts";
 import {
   recoveryNodeOf,
   type SumupRecoveryState,
 } from "#payment/sumup-recovery-machine-spec.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
-import { sql } from "#db/sql.ts";
 
 const context = buildMigrationContext({ applySchemaChanges, syncIndexes });
 const runMigration = (): Promise<void> => sumupRecoveryMigration(context).up();
@@ -21,7 +21,9 @@ const insertLegacyRow = (index: string, sumupId: string) =>
           VALUES (${index}, '', '', ${sumupId}, '2026-08-01T00:00:00.000Z')`);
 
 const storedRow = async (index: string) => {
-  const result = await getDb().execute(sql`SELECT sumup_id, recovery_state, next_check_at FROM sumup_checkouts WHERE reference_index = ${index}`);
+  const result = await getDb().execute(
+    sql`SELECT sumup_id, recovery_state, next_check_at FROM sumup_checkouts WHERE reference_index = ${index}`,
+  );
   const row = result.rows[0]!;
   return {
     nextCheckAt: row.next_check_at as string | null,
@@ -97,7 +99,7 @@ describeWithEnv("db > migrations > sumup recovery state", { db: true }, () => {
     await insertLegacyRow("idx_done", "co_done");
     await runMigration();
     await getDb().execute(
-      sql`UPDATE sumup_checkouts SET recovery_state = 'finished', next_check_at = NULL WHERE reference_index = 'idx_done'`
+      sql`UPDATE sumup_checkouts SET recovery_state = 'finished', next_check_at = NULL WHERE reference_index = 'idx_done'`,
     );
 
     await runMigration();

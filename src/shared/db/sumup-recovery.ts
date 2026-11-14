@@ -9,14 +9,9 @@
  * SQL that carries it out.
  */
 
-import {
-  execute,
-  queryAll,
-  queryBatch,
-  resultRows,
-} from "#db/client.ts";
+import { execute, queryAll, queryBatch, resultRows } from "#db/client.ts";
 import { SCAN_LIMIT } from "#db/schema-anomaly-scan.ts";
-import { sql, sqlList, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import {
   parseSumupRecoveryState,
   RECOVERY_CHECKABLE_NODES,

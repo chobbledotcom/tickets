@@ -13,6 +13,7 @@ import { getDb, queryAll, queryOne, withReadSnapshot } from "#db/client.ts";
 import { verifyCurrentAppSchema } from "#db/migrations/schema-sync.ts";
 import { initDb } from "#db/migrations.ts";
 import { CONFIG_KEYS, settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   bookTestAttendee,
@@ -22,7 +23,6 @@ import {
   createTestListing,
   storedListingNames,
 } from "#test-utils/db-helpers/listings.ts";
-import { sql } from "#db/sql.ts";
 
 /**
  * Regression tests for restoring a backup taken before a column-dropping
@@ -50,12 +50,12 @@ describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
     listingId: number,
   ): Promise<{ booked_quantity: number; tickets_count: number } | null> =>
     queryOne(
-      sql`SELECT booked_quantity, tickets_count FROM listings WHERE id = ${listingId}`
+      sql`SELECT booked_quantity, tickets_count FROM listings WHERE id = ${listingId}`,
     );
 
   const listingColumnNames = async (): Promise<string[]> => {
     const rows = await queryAll<{ name: string }>(
-      sql`SELECT name FROM pragma_table_info('listings')`
+      sql`SELECT name FROM pragma_table_info('listings')`,
     );
     return rows.map((row) => row.name);
   };
@@ -91,9 +91,11 @@ describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
     await restoreFromZip(await createBackupZip());
 
     const attendee = await getDb().execute(
-      sql`INSERT INTO attendees (created, pii_blob) VALUES ('2026-07-22T00:00:00.000Z', '')`
+      sql`INSERT INTO attendees (created, pii_blob) VALUES ('2026-07-22T00:00:00.000Z', '')`,
     );
-    await getDb().execute(sql`INSERT INTO listing_attendees (listing_id, attendee_id) VALUES (${listing.id}, ${Number(attendee.lastInsertRowid)})`);
+    await getDb().execute(
+      sql`INSERT INTO listing_attendees (listing_id, attendee_id) VALUES (${listing.id}, ${Number(attendee.lastInsertRowid)})`,
+    );
 
     expect(await listingTotals(listing.id)).toEqual({
       booked_quantity: 1,
@@ -108,7 +110,7 @@ describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
 
     expect(
       await queryOne<{ count: number }>(
-        sql`SELECT COUNT(*) AS count FROM attendee_answers`
+        sql`SELECT COUNT(*) AS count FROM attendee_answers`,
       ),
     ).toEqual({ count: 0 });
     await verifyCurrentAppSchema();
@@ -200,13 +202,17 @@ describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
      *  legacy encrypted image columns are back on listings and the migration
      *  that drops them is not yet recorded. */
     const downgradeToLegacyImageColumns = async (): Promise<void> => {
-      await getDb().executeMultiple(
-        "ALTER TABLE listings ADD COLUMN image_url TEXT NOT NULL DEFAULT '';" +
-          "ALTER TABLE listings ADD COLUMN image_thumb_url TEXT NOT NULL DEFAULT '';",
-      );
-      await getDb().execute(sql`DELETE FROM schema_migrations WHERE id = ${FIRST_CLASS_IMAGES_ID}`);
       await getDb().execute(
-        sql`UPDATE settings SET value = 'pre-images' WHERE key = 'db_schema_hash'`
+        sql`ALTER TABLE listings ADD COLUMN image_url TEXT NOT NULL DEFAULT ''`,
+      );
+      await getDb().execute(
+        sql`ALTER TABLE listings ADD COLUMN image_thumb_url TEXT NOT NULL DEFAULT ''`,
+      );
+      await getDb().execute(
+        sql`DELETE FROM schema_migrations WHERE id = ${FIRST_CLASS_IMAGES_ID}`,
+      );
+      await getDb().execute(
+        sql`UPDATE settings SET value = 'pre-images' WHERE key = 'db_schema_hash'`,
       );
     };
 
@@ -217,7 +223,7 @@ describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
       await createTestListing({ name: "Legacy Image Listing" });
       await downgradeToLegacyImageColumns();
       await getDb().execute(
-        sql`UPDATE listings SET image_url = 'legacy-image-cipher'`
+        sql`UPDATE listings SET image_url = 'legacy-image-cipher'`,
       );
       const zip = await createBackupZip();
 
@@ -226,7 +232,7 @@ describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
       // The replayed dump carried the since-dropped column; the restore must
       // re-add it so the data survives for the pending migration to pick up.
       const replayed = await queryOne<{ image_url: string }>(
-        sql`SELECT image_url FROM listings`
+        sql`SELECT image_url FROM listings`,
       );
       expect(replayed?.image_url).toBe("legacy-image-cipher");
 
@@ -241,7 +247,7 @@ describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
       expect(image?.filename).toBe("legacy-image-cipher");
       expect(image?.filename_thumb).toBe("legacy-image-cipher");
       const use = await queryOne<{ item_type: string }>(
-        sql`SELECT item_type FROM image_uses`
+        sql`SELECT item_type FROM image_uses`,
       );
       expect(use?.item_type).toBe("listing");
       assert(!(await listingColumnNames()).includes("image_url"));
@@ -276,7 +282,7 @@ describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
 
       await expect(restoreFromSql(dump)).rejects.toThrow(PostResetError);
       const holidayColumns = await queryAll<{ name: string }>(
-        sql`SELECT name FROM pragma_table_info('holidays')`
+        sql`SELECT name FROM pragma_table_info('holidays')`,
       );
       assert(!holidayColumns.map((c) => c.name).includes("stray_col"));
     });

@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
+import { sql } from "#db/sql.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -17,7 +18,6 @@ import {
   updateServicingEvent,
 } from "#test-utils/servicing.ts";
 import { adminFormPost } from "#test-utils/session.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("servicing §4 — editing", { db: true }, () => {
   test("editing a servicing event preserves its token", async () => {

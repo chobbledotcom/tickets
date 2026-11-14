@@ -6,7 +6,14 @@ import {
   useTransaction,
   writeRowInTransaction,
 } from "#db/client.ts";
-import { sql, sqlJoin, sqlLiteral, sqlName, sqlNames, type SqlStatement } from "#db/sql.ts";
+import {
+  type SqlStatement,
+  sql,
+  sqlJoin,
+  sqlLiteral,
+  sqlName,
+  sqlNames,
+} from "#db/sql.ts";
 
 type Columns = string | readonly [string, ...string[]];
 type ColumnValues<Names extends Columns> = Names extends string
@@ -100,8 +107,7 @@ const equalityOf = (
 ): SqlStatement =>
   sqlJoin(
     columns.map(
-      (column, index) =>
-        sql`${sqlName(column)} = ${values[index] as InValue}`,
+      (column, index) => sql`${sqlName(column)} = ${values[index] as InValue}`,
     ),
     sql` AND `,
   );

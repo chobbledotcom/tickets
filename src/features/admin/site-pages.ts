@@ -29,6 +29,7 @@ import {
   sitePageOrder,
   updateSitePage,
 } from "#db/site-pages.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { formGuard, SITE_FORM } from "#routes/auth.ts";
 import {
@@ -66,7 +67,6 @@ import {
 import { buildListModel, offerableListing } from "./site-pages-data.ts";
 import { sitePageEditForm, sitePageForm } from "./site-pages-form.ts";
 import { sitePageEntityPage } from "./site-pages-page.ts";
-import { sql } from "#db/sql.ts";
 
 // ─── Field validation ───────────────────────────────────────────
 
@@ -224,7 +224,7 @@ const isEligibleTarget = async (
   }
   if (type === "group") {
     // Single-row check: no name decryption, never the whole table.
-    return rowExists(sql`SELECT 1 FROM groups WHERE id = ${itemId} LIMIT 1`,);
+    return rowExists(sql`SELECT 1 FROM groups WHERE id = ${itemId} LIMIT 1`);
   }
   return eligibleChildPages((await loadPageForest()).forest, pageId).some(
     (p) => p.id === itemId,

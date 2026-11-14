@@ -8,6 +8,7 @@ import {
   rowExists,
   withTransaction,
 } from "#db/client.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import {
   registerTableInvalidation,
   type Unregister,
@@ -15,7 +16,6 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { stubTransaction } from "#test-utils/db-helpers/stub-transaction.ts";
-import { sql } from "#db/sql.ts";
 
 /**
  * Column-driven cache invalidation: after every write, the db client reads the
@@ -47,10 +47,11 @@ describeWithEnv("db > client write invalidation", { db: true }, () => {
     return counter;
   };
 
-  const SETTINGS_INSERT = "INSERT INTO settings (key, value) VALUES (?, ?)";
+  const settingsInsert = (key: string, value: string): SqlStatement =>
+    sql`INSERT INTO settings (key, value) VALUES (${key}, ${value})`;
 
   const seedRow = (key: string): Promise<unknown> =>
-    execute(SETTINGS_INSERT, [key, "seed"]);
+    execute(settingsInsert(key, "seed"));
 
   test("INSERT fires an unconditional invalidator", async () => {
     const counter = countFirings();
@@ -61,14 +62,18 @@ describeWithEnv("db > client write invalidation", { db: true }, () => {
   test("UPDATE assigning a gated column fires the gated invalidator", async () => {
     await seedRow("inv_update_hit");
     const counter = countFirings(["value"]);
-    await execute(sql`UPDATE settings SET value = ${"new"} WHERE key = ${"inv_update_hit"}`);
+    await execute(
+      sql`UPDATE settings SET value = ${"new"} WHERE key = ${"inv_update_hit"}`,
+    );
     expect(counter.fired).toBe(1);
   });
 
   test("UPDATE assigning only ungated columns skips the gated invalidator", async () => {
     await seedRow("inv_update_miss");
     const counter = countFirings(["some_other_column"]);
-    await execute(sql`UPDATE settings SET value = ${"new"} WHERE key = ${"inv_update_miss"}`);
+    await execute(
+      sql`UPDATE settings SET value = ${"new"} WHERE key = ${"inv_update_miss"}`,
+    );
     // The gate must apply: misclassifying the UPDATE's verb (or dropping the
     // parsed columns) would fire this unconditionally.
     expect(counter.fired).toBe(0);
@@ -77,8 +82,8 @@ describeWithEnv("db > client write invalidation", { db: true }, () => {
   test("a committed batch invalidates for each written statement", async () => {
     const counter = countFirings();
     await executeBatch([
-      { args: ["inv_batch_1", "a"], sql: SETTINGS_INSERT },
-      { args: ["inv_batch_2", "b"], sql: SETTINGS_INSERT },
+      settingsInsert("inv_batch_1", "a"),
+      settingsInsert("inv_batch_2", "b"),
     ]);
     expect(counter.fired).toBe(2);
   });
@@ -96,7 +101,7 @@ describeWithEnv("db > client write invalidation", { db: true }, () => {
     await seedRow("inv_cte");
     const counter = countFirings(["value"]);
     await execute(
-      sql`WITH ignored AS (SELECT 1) UPDATE settings SET value = ${"new"} WHERE key = ${"inv_cte"}`
+      sql`WITH ignored AS (SELECT 1) UPDATE settings SET value = ${"new"} WHERE key = ${"inv_cte"}`,
     );
     // The CTE prefix must be stripped before verb/column classification —
     // classifying the whole statement finds no write verb and never fires.
@@ -106,12 +111,14 @@ describeWithEnv("db > client write invalidation", { db: true }, () => {
   test("executeBatchWithoutCacheInvalidation writes without firing invalidators", async () => {
     const counter = countFirings();
     await executeBatchWithoutCacheInvalidation([
-      { args: ["inv_marker", "seed"], sql: SETTINGS_INSERT },
+      settingsInsert("inv_marker", "seed"),
     ]);
     expect(counter.fired).toBe(0);
     // The write still lands — only the invalidation is skipped.
     expect(
-      await rowExists(sql`SELECT 1 FROM settings WHERE key = ${"inv_marker"} LIMIT 1`),
+      await rowExists(
+        sql`SELECT 1 FROM settings WHERE key = ${"inv_marker"} LIMIT 1`,
+      ),
     ).toBe(true);
   });
 
@@ -151,7 +158,7 @@ describeWithEnv("db > client write invalidation", { db: true }, () => {
     });
     const counter = countFirings();
     const done = withTransaction(async (tx) => {
-      await tx.execute({ args: ["inv_tx", "seed"], sql: SETTINGS_INSERT });
+      await tx.execute(settingsInsert("inv_tx", "seed"));
     });
     // Wait until commit has been called — by then the write has run and any
     // premature invalidation would have fired.
@@ -171,9 +178,7 @@ describeWithEnv("db > client write invalidation", { db: true }, () => {
     });
     const counter = countFirings();
     const done = withTransaction(async (tx) => {
-      await tx.batch([
-        { args: ["inv_tx_batch", "seed"], sql: SETTINGS_INSERT },
-      ]);
+      await tx.batch([settingsInsert("inv_tx_batch", "seed")]);
     });
     await pending.commitStarted;
     expect(counter.fired).toBe(0);

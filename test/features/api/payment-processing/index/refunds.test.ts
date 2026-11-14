@@ -6,6 +6,7 @@ import { attendeesApi } from "#db/attendees/api.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { execute, queryOne } from "#db/client.ts";
 import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
+import { sql } from "#db/sql.ts";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -24,7 +25,6 @@ import {
   singleListingPayment,
   trustedPayment,
 } from "./helpers.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("payment processing refund outcomes", { db: true }, () => {
   test("releases the reservation without repeating a rejected refund", async () => {
@@ -115,7 +115,7 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
       sql`SELECT failure_data, payment_reference_index
          FROM processed_payments
         WHERE attendee_id = ${placeholder.id}
-          AND payment_session_id LIKE 'legacy:%'`
+          AND payment_session_id LIKE 'legacy:%'`,
     );
     expect(anchor).toEqual({
       failure_data: expect.stringMatching(/.+/),
@@ -126,7 +126,7 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
       }),
     });
     await execute(
-      sql`UPDATE processed_payments SET processed_at = ${"2000-01-01T00:00:00.000Z"} WHERE payment_session_id = ${id}`
+      sql`UPDATE processed_payments SET processed_at = ${"2000-01-01T00:00:00.000Z"} WHERE payment_session_id = ${id}`,
     );
 
     // The crashed delivery never sent the refund, so the replay resumes the

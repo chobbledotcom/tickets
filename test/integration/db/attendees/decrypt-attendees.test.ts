@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -12,7 +13,6 @@ import {
   expectNoDecryptedAttendees,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("db > attendees > decryptAttendees", { db: true }, () => {
   test("returns empty array when no attendees", async () => {

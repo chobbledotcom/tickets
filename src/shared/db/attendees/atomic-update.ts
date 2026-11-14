@@ -26,7 +26,7 @@ import { attendeePiiWriteStatements } from "#db/attendees/pii-write.ts";
 import { LISTING_ATTENDEE_ROW_COLS } from "#db/attendees/queries.ts";
 import { capacityConditionFor } from "#db/capacity.ts";
 import { executeBatchWithResults, queryAll } from "#db/client.ts";
-import { sql, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { requiredMapValue, unique } from "#fp";
 import type { AttendeeUpdateFailureReason } from "#shared/attendee-failures.ts";
 

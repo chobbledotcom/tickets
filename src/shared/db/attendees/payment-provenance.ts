@@ -2,7 +2,7 @@
 
 import type { ResultSet } from "@libsql/client";
 
-import { sql, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 
 interface AttendeePaymentProvenance {
   /** Refuse a batch result that did not record exactly one attendee. */

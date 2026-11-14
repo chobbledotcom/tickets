@@ -15,8 +15,8 @@ import type { QuestionWithAnswers } from "#db/question-types.ts";
 import { attendeesWithChangedAnswers } from "#db/questions/attendee-answers/at-booking.ts";
 import { getQuestionsWithListingIds } from "#db/questions/queries.ts";
 import { answersTable } from "#db/questions/tables.ts";
+import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
 import { groupToMap, mapParallel } from "#fp";
-import { sql, sqlLiteral, sqlName, type SqlStatement } from "#db/sql.ts";
 
 /** Group `(attendee_id, answer_id)` rows into an attendee → answer-ids map. */
 const choiceAnswerMapFromRows = groupToMap(

@@ -18,7 +18,7 @@ import {
   type PreparedAnswerSave,
 } from "#db/questions/attendee-answers/save.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
-import { sql, sqlCommas, type SqlSlot, type SqlStatement } from "#db/sql.ts";
+import { type SqlSlot, type SqlStatement, sql, sqlCommas } from "#db/sql.ts";
 import { mapParallel } from "#fp";
 
 /** The answers-at-booking record: the questions the booked listings asked,

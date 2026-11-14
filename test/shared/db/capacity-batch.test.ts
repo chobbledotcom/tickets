@@ -9,11 +9,11 @@ import {
   type CartDemand,
   getOrCreateBucket,
 } from "#db/capacity-batch.ts";
+import { sql } from "#db/sql.ts";
 import { addDays } from "#shared/dates.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { flatSql, occurrences } from "#test-utils/sql-text.ts";
-import { sql } from "#db/sql.ts";
 
 /**
  * Pure unit tests for the cart read preflight's SQL builder. Behaviour
@@ -57,7 +57,9 @@ describe("buildCartCapacitySql", () => {
   });
 
   test("no demand at all trivially fits", () => {
-    expect(buildCartCapacitySql(demandWith(new Map()))).toEqual(sql`SELECT 1 AS fits`);
+    expect(buildCartCapacitySql(demandWith(new Map()))).toEqual(
+      sql`SELECT 1 AS fits`,
+    );
   });
 
   test("an empty bucket produces no clause", () => {

@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";
 import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
 import { getDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { isTokenRateLimited, recordTokenFailure } from "#db/token-attempts.ts";
 import {
   buildWalletPassData,
@@ -27,13 +28,16 @@ import {
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
-import { sql } from "#db/sql.ts";
 
 const setBookingDates = (attendeeId: number, startAt: string, endAt: string) =>
-  getDb().execute(sql`UPDATE listing_attendees SET start_at = ${startAt}, end_at = ${endAt} WHERE attendee_id = ${attendeeId}`);
+  getDb().execute(
+    sql`UPDATE listing_attendees SET start_at = ${startAt}, end_at = ${endAt} WHERE attendee_id = ${attendeeId}`,
+  );
 
 const setBookingQuantity = (attendeeId: number, quantity: number) =>
-  getDb().execute(sql`UPDATE listing_attendees SET quantity = ${quantity} WHERE attendee_id = ${attendeeId}`);
+  getDb().execute(
+    sql`UPDATE listing_attendees SET quantity = ${quantity} WHERE attendee_id = ${attendeeId}`,
+  );
 
 const entriesForToken = async (token: string): Promise<TokenEntry[]> => {
   const attendees = await getAttendeesByTokens([token]);
@@ -103,7 +107,9 @@ describeWithEnv("ticket token utils", { db: true }, () => {
       maxAttendees: 10,
       name: "Entry Quiz",
     });
-    await getDb().execute(sql`UPDATE listings SET fields = ${"phone"} WHERE id = ${stopped.id}`);
+    await getDb().execute(
+      sql`UPDATE listings SET fields = ${"phone"} WHERE id = ${stopped.id}`,
+    );
     const attendee = await createMultiBookingAttendee(
       "Entry Buyer",
       "entry-buyer@example.com",
@@ -134,7 +140,9 @@ describeWithEnv("ticket token utils", { db: true }, () => {
       "Tab Pad Buyer",
       "tab-pad@example.com",
     );
-    await getDb().execute(sql`UPDATE listings SET fields = ${"phone,\temail"} WHERE id = ${listing.id}`);
+    await getDb().execute(
+      sql`UPDATE listings SET fields = ${"phone,\temail"} WHERE id = ${listing.id}`,
+    );
     await setPendingNotificationFlags(attendee.id, 1, 0);
 
     const entries = await entriesForToken(token);
@@ -168,7 +176,9 @@ describeWithEnv("ticket token utils", { db: true }, () => {
       "No booking",
       "nobooking@example.com",
     );
-    await getDb().execute(sql`DELETE FROM listing_attendees WHERE attendee_id = ${attendee.id}`);
+    await getDb().execute(
+      sql`DELETE FROM listing_attendees WHERE attendee_id = ${attendee.id}`,
+    );
 
     const attendees = await getAttendeesByTokens([token]);
     expect(await resolveEntries([attendees[0]!])).toEqual([]);
@@ -326,7 +336,9 @@ describeWithEnv("ticket token utils", { db: true }, () => {
       "Bundled",
       "bundled@example.com",
     );
-    await getDb().execute(sql`UPDATE listing_attendees SET package_group_id = ${group.id} WHERE attendee_id = ${attendee.id}`);
+    await getDb().execute(
+      sql`UPDATE listing_attendees SET package_group_id = ${group.id} WHERE attendee_id = ${attendee.id}`,
+    );
 
     await expectPassLookupNotFound([token]);
   });

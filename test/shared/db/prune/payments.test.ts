@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { runDatabasePruning } from "#db/prune.ts";
+import { sql } from "#db/sql.ts";
 import {
   markRefundCompleted,
   markRefundLocalRecorded,
@@ -35,7 +36,6 @@ import {
   paymentExists,
   postRefundCash,
 } from "./helpers.ts";
-import { sql } from "#db/sql.ts";
 
 const oldEnoughToPrune = () =>
   new Date(nowMs() - PRUNE_PAYMENTS_RETENTION_MS - 60_000).toISOString();
@@ -59,7 +59,7 @@ const insertOldReferencedPayment = async (
     taggedPaymentReference(`pi_${sessionId}`),
   );
   await execute(
-    sql`UPDATE processed_payments SET processed_at = ${oldEnoughToPrune()} WHERE payment_session_id = ${sessionId}`
+    sql`UPDATE processed_payments SET processed_at = ${oldEnoughToPrune()} WHERE payment_session_id = ${sessionId}`,
   );
   return attendeeId;
 };
@@ -124,7 +124,7 @@ describeWithEnv("db > prunePayments", { db: true }, () => {
     const sessionId = "sess_attendee_provenance";
     const attendeeId = await insertOldReferencedPayment(sessionId);
     await execute(
-      sql`UPDATE attendees SET pii_payment_session_id = ${sessionId} WHERE id = ${attendeeId}`
+      sql`UPDATE attendees SET pii_payment_session_id = ${sessionId} WHERE id = ${attendeeId}`,
     );
     await finishRefundFor(sessionId, attendeeId);
 
@@ -204,7 +204,7 @@ describeWithEnv(
       // A keyless refund whose answer went missing keeps its claim on purpose,
       // so the claim ages past the point where a live run could still hold it.
       await execute(
-        sql`UPDATE processed_payments SET failure_data = ${await staleClaimSlot(attendeeId)} WHERE payment_session_id = ${"sess_claim_stale"}`
+        sql`UPDATE processed_payments SET failure_data = ${await staleClaimSlot(attendeeId)} WHERE payment_session_id = ${"sess_claim_stale"}`,
       );
 
       await runDatabasePruning();

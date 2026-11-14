@@ -19,6 +19,7 @@ import {
   loadRefundAuthorityById,
   loadRefundAuthorityByReference,
 } from "#db/provider-refund-authority.ts";
+import { sql } from "#db/sql.ts";
 import { placeholderRefund } from "#payment/placeholder-refund.ts";
 import { taggedPaymentReference } from "#payment/provider-reference.ts";
 import { completedAtOf } from "#payment/refund-authority-state.ts";
@@ -58,16 +59,14 @@ describeWithEnv("placeholder money completion", { db: true }, () => {
       system_name: string | null;
       total: number;
     }>(
-      `SELECT note.note, note.system_name, COUNT(*) OVER () AS total
+      sql`SELECT note.note, note.system_name, COUNT(*) OVER () AS total
          FROM system_notes AS note
         WHERE note.entity_type = 'attendee'`,
-      [],
     );
 
   const activityCount = async (): Promise<number> => {
     const row = await queryOne<{ total: number }>(
-      "SELECT COUNT(*) AS total FROM activity_log WHERE attendee_id IS NOT NULL",
-      [],
+      sql`SELECT COUNT(*) AS total FROM activity_log WHERE attendee_id IS NOT NULL`,
     );
     return Number(row!.total);
   };
@@ -93,8 +92,7 @@ describeWithEnv("placeholder money completion", { db: true }, () => {
       attendee_id: number;
       failure_data: EnvKeyEncrypted | "";
     }>(
-      "SELECT attendee_id, failure_data FROM processed_payments WHERE payment_reference_index = ?",
-      [referenceIndex],
+      sql`SELECT attendee_id, failure_data FROM processed_payments WHERE payment_reference_index = ${referenceIndex}`,
     );
     if (held === null || held.failure_data === "") {
       throw new Error("crashed delivery left no held anchor row");
@@ -162,8 +160,7 @@ describeWithEnv("placeholder money completion", { db: true }, () => {
     // The durable handle a resume holds: the anchor row found through the
     // deterministic reference index names the attendee.
     const anchorRow = await queryOne<{ attendee_id: number }>(
-      "SELECT attendee_id FROM processed_payments WHERE payment_reference_index = ?",
-      [referenceIndex],
+      sql`SELECT attendee_id FROM processed_payments WHERE payment_reference_index = ${referenceIndex}`,
     );
     expect(anchorRow).not.toBeNull();
     const attendeeId = anchorRow!.attendee_id;
@@ -233,8 +230,7 @@ describeWithEnv("placeholder money completion", { db: true }, () => {
     expect(await activityCount()).toBe(0);
     expect(
       await queryOne<{ protected_state: string }>(
-        "SELECT protected_state FROM processed_payments WHERE payment_reference_index = ?",
-        [referenceIndex],
+        sql`SELECT protected_state FROM processed_payments WHERE payment_reference_index = ${referenceIndex}`,
       ),
     ).toEqual({ protected_state: "unrecorded" });
   });
@@ -281,8 +277,7 @@ describeWithEnv("placeholder money completion", { db: true }, () => {
     expect(after?.state.local.kind).toBe("recorded");
     expect(
       await queryOne<{ failure_data: string; protected_state: string }>(
-        "SELECT failure_data, protected_state FROM processed_payments WHERE payment_reference_index = ?",
-        [referenceIndex],
+        sql`SELECT failure_data, protected_state FROM processed_payments WHERE payment_reference_index = ${referenceIndex}`,
       ),
     ).toEqual({ failure_data: "", protected_state: "" });
   });

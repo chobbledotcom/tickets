@@ -1,12 +1,12 @@
 /** Triggers that keep derived database state in step with its source rows. */
 
+import { type SqlStatement, sql, sqlName, sqlNames } from "#db/sql.ts";
 import { ADMIN_FEATURE_TRIGGERS } from "./admin-feature-triggers.ts";
 import {
   LISTING_AGGREGATE_WRITE_COLUMNS,
   ticketCountPredicateFor,
 } from "./listing-aggregates.ts";
 import type { Trigger } from "./types.ts";
-import { sql, sqlName, sqlNames, type SqlStatement } from "#db/sql.ts";
 
 /**
  * The per-row delta a listing-aggregate trigger adds to or subtracts from

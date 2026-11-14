@@ -27,7 +27,7 @@ import {
   setSnapshotField,
 } from "#db/settings/snapshot.ts";
 import { recordSettingsLoaded } from "#db/settings-audit.ts";
-import { sql, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { bindFirst } from "#shared/fp-bind.ts";
 import type { EncryptedUpdateFn } from "#shared/wallets/wallet-settings-types.ts";
 

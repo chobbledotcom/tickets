@@ -1,10 +1,6 @@
 /** Taking an all-or-none hold on the exact refund snapshot an admin loaded. */
 
-import {
-  resultRows,
-  type TxScope,
-  withTransaction,
-} from "#db/client.ts";
+import { resultRows, type TxScope, withTransaction } from "#db/client.ts";
 import { claimRequestFor } from "#db/payment-claim/scope.ts";
 import {
   asPaymentRowRecord,

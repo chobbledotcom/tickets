@@ -23,12 +23,12 @@ import {
   setSnapshotField,
 } from "#db/settings/snapshot.ts";
 import { recordSettingsLoaded } from "#db/settings-audit.ts";
+import { sql, sqlList } from "#db/sql.ts";
 import { unique } from "#fp";
 import {
   type CacheInvalidation,
   registerTableInvalidation,
 } from "#shared/cache-registry.ts";
-import { sql, sqlList } from "#db/sql.ts";
 
 /**
  * Load only the given config keys, fetching just the ones not already resolved

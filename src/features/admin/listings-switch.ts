@@ -20,7 +20,7 @@ import {
   wouldBeStaySpanDays,
 } from "#db/listings/daily-switch.ts";
 import { listingsTable } from "#db/listings/records.ts";
-import { sql, sqlCommas, sqlName, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlCommas, sqlName } from "#db/sql.ts";
 import { t } from "#i18n";
 import type { AuthSession } from "#routes/auth.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";

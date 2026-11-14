@@ -5,9 +5,9 @@ import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { ALL_SETTINGS_KEYS, CONFIG_KEYS, settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { seedCountry, testWithSetting } from "#test-utils/settings.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("db > settings > apply", { db: true }, () => {
   describe("the settings key registry", () => {
@@ -34,14 +34,18 @@ describeWithEnv("db > settings > apply", { db: true }, () => {
     });
 
     test("getTimezoneFromDb returns default when no country is stored", async () => {
-      await getDb().execute(sql`DELETE FROM settings WHERE key = ${CONFIG_KEYS.COUNTRY}`);
+      await getDb().execute(
+        sql`DELETE FROM settings WHERE key = ${CONFIG_KEYS.COUNTRY}`,
+      );
       settings.invalidateCache();
       const value = settings.timezone;
       expect(value).toBe("Europe/London");
     });
 
     test("getTimezoneCached reads default from TTL cache when no country is stored", async () => {
-      await getDb().execute(sql`DELETE FROM settings WHERE key = ${CONFIG_KEYS.COUNTRY}`);
+      await getDb().execute(
+        sql`DELETE FROM settings WHERE key = ${CONFIG_KEYS.COUNTRY}`,
+      );
       settings.invalidateCache();
       settings.getCachedRaw(CONFIG_KEYS.COUNTRY);
       expect(settings.timezone).toBe("Europe/London");

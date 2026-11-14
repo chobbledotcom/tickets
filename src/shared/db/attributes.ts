@@ -26,7 +26,7 @@ import {
   listingOptionColumns,
 } from "#db/listings/table.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
-import { sql, sqlList, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import { col, defineTable } from "#db/table.ts";
 import { txIdSetInTable } from "#db/transaction.ts";
 import {
@@ -244,7 +244,9 @@ export const getAllAttributesWithOptions = async (): Promise<
     ),
   );
 
-const attributeJoinedSql = (id: number): SqlStatement => sql`SELECT ${ATTRIBUTE_COLS}
+const attributeJoinedSql = (
+  id: number,
+): SqlStatement => sql`SELECT ${ATTRIBUTE_COLS}
        FROM attributes AS attribute
        LEFT JOIN attribute_options AS attributeOption
          ON attributeOption.attribute_id = attribute.id

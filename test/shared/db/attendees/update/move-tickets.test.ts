@@ -3,10 +3,10 @@ import { it as test } from "@std/testing/bdd";
 import type { TicketDirection } from "#booking/ticket-moves.ts";
 import { moveTickets } from "#db/attendees/update.ts";
 import { executeUpdate, queryOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv(
   "db > attendees > admit and release tickets",
@@ -31,7 +31,7 @@ describeWithEnv(
       listingId: number,
     ): Promise<number> => {
       const row = await queryOne<{ checked_in: number }>(
-        sql`SELECT checked_in FROM listing_attendees WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId}`
+        sql`SELECT checked_in FROM listing_attendees WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId}`,
       );
       return row!.checked_in;
     };

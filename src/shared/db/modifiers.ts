@@ -34,13 +34,9 @@ import {
   type ListsByIds,
   queryAndMap,
 } from "#db/query.ts";
-import { sql, sqlList, sqlNames, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlList, sqlNames } from "#db/sql.ts";
 import { col } from "#db/table.ts";
-import {
-  equals,
-  type WhereClause,
-  whereSql,
-} from "#db/where-clauses.ts";
+import { equals, type WhereClause, whereSql } from "#db/where-clauses.ts";
 import { emptyListsFor, mapParallel, requiredMapValue } from "#fp";
 import type {
   CalcKind,

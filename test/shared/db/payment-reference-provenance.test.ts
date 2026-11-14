@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { getRefundAllSummary } from "#db/refund-all-candidates.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   bookLegacyPaidAttendee,
@@ -9,7 +10,6 @@ import {
   rebuildStatingProviderForEveryRow,
   seedHistoricalProcessedPayment,
 } from "#test-utils/historical-payment-references.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("db > legacy rebuild provenance pointer", { db: true }, () => {
   test("the rebuild qualifies the attendee provenance pointer and unblocks Refund All", async () => {
@@ -43,13 +43,13 @@ describeWithEnv("db > legacy rebuild provenance pointer", { db: true }, () => {
       "pi_balance",
     );
     await execute(
-      sql`UPDATE processed_payments SET payment_reference_index = '' WHERE payment_session_id = ${"sess_balance"}`
+      sql`UPDATE processed_payments SET payment_reference_index = '' WHERE payment_session_id = ${"sess_balance"}`,
     );
     await execute(
-      sql`UPDATE processed_payments SET processed_at = ${"2026-07-02T00:00:00.000Z"} WHERE payment_session_id = ${"sess_deposit"}`
+      sql`UPDATE processed_payments SET processed_at = ${"2026-07-02T00:00:00.000Z"} WHERE payment_session_id = ${"sess_deposit"}`,
     );
     await execute(
-      sql`UPDATE processed_payments SET processed_at = ${"2026-07-01T00:00:00.000Z"} WHERE payment_session_id = ${"sess_balance"}`
+      sql`UPDATE processed_payments SET processed_at = ${"2026-07-01T00:00:00.000Z"} WHERE payment_session_id = ${"sess_balance"}`,
     );
 
     // The attendee is qualified by the row that matches its PII payment, so
@@ -70,7 +70,7 @@ describeWithEnv("db > legacy rebuild provenance pointer", { db: true }, () => {
     // The PII payment predates the reference column, so only the balance row
     // is rebuildable - and it is not the payment the PII names.
     await execute(
-      sql`UPDATE processed_payments SET payment_reference = '' WHERE payment_session_id = ${"sess_original"}`
+      sql`UPDATE processed_payments SET payment_reference = '' WHERE payment_session_id = ${"sess_original"}`,
     );
     await seedHistoricalProcessedPayment(
       "sess_balance_only",
@@ -78,7 +78,7 @@ describeWithEnv("db > legacy rebuild provenance pointer", { db: true }, () => {
       "pi_balance_only",
     );
     await execute(
-      sql`UPDATE processed_payments SET payment_reference_index = '' WHERE payment_session_id = ${"sess_balance_only"}`
+      sql`UPDATE processed_payments SET payment_reference_index = '' WHERE payment_session_id = ${"sess_balance_only"}`,
     );
 
     expect(await rebuildStatingProviderForEveryRow("stripe")).toEqual({
@@ -100,7 +100,9 @@ describeWithEnv("db > legacy rebuild provenance pointer", { db: true }, () => {
       "sess_no_pii",
       "pi_no_pii",
     );
-    await execute(sql`UPDATE attendees SET pii_blob = '' WHERE id = ${attendee.id}`);
+    await execute(
+      sql`UPDATE attendees SET pii_blob = '' WHERE id = ${attendee.id}`,
+    );
 
     expect(await rebuildStatingProviderForEveryRow("stripe")).toEqual({
       rebuilt: 1,
@@ -117,10 +119,10 @@ describeWithEnv("db > legacy rebuild provenance pointer", { db: true }, () => {
     );
     await seedHistoricalProcessedPayment("sess_later", attendee.id, "pi_later");
     await execute(
-      sql`UPDATE processed_payments SET payment_reference_index = '' WHERE payment_session_id = ${"sess_later"}`
+      sql`UPDATE processed_payments SET payment_reference_index = '' WHERE payment_session_id = ${"sess_later"}`,
     );
     await execute(
-      sql`UPDATE attendees SET pii_payment_session_id = ${"sess_pointed_early"} WHERE id = ${attendee.id}`
+      sql`UPDATE attendees SET pii_payment_session_id = ${"sess_pointed_early"} WHERE id = ${attendee.id}`,
     );
 
     // The later row matches no PII payment, but this attendee was never

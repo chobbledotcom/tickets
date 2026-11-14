@@ -12,7 +12,7 @@
 
 import { attendeeRemovalStatements } from "#db/attendees/delete.ts";
 import { executeBatchWithResults, queryAll, requireOne } from "#db/client.ts";
-import { sql, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { refundAuthorityWorkSql } from "#payment/refund-authority-lifecycle.ts";
 import { requireValue } from "#shared/required-value.ts";
 
@@ -197,7 +197,10 @@ export const getOrphanPaymentWorkPage = async (
  * a time. This separate query adds the age and cleanup rules without duplicating
  * the shared definition of a purgeable orphan.
  */
-export const orphanIdsBatch = (cutoffIso: string, limit: number): SqlStatement =>
+export const orphanIdsBatch = (
+  cutoffIso: string,
+  limit: number,
+): SqlStatement =>
   sql`${orphanIds(cutoffIso)}\n ORDER BY attendee.id LIMIT ${limit}`;
 
 /** Count purgeable orphans whose `created` is before `cutoffIso`. */

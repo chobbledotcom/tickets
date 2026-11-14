@@ -1,7 +1,7 @@
 import { eventGroup } from "#accounting/refs.ts";
 import type { TxScope } from "#db/client.ts";
 import { notNullGuardFailureAt, rowsByIdsPrimary } from "#db/query.ts";
-import { sql, sqlNames, type SqlSlot, type SqlStatement } from "#db/sql.ts";
+import { type SqlSlot, type SqlStatement, sql, sqlNames } from "#db/sql.ts";
 import { col, defineTable } from "#db/table.ts";
 import { refundTax, type TaxState } from "#shared/tax/transitions.ts";
 import { type TaxAssessment, TaxAssessmentSchema } from "#shared/tax/types.ts";

@@ -1,31 +1,36 @@
 import { afterEach, beforeEach } from "@std/testing/bdd";
 import { execute, queryAll } from "#db/client.ts";
+import {
+  sql,
+  sqlCommas,
+  sqlJoin,
+  sqlLiteral,
+  sqlName,
+  sqlNames,
+} from "#db/sql.ts";
 import { paymentModel } from "#scripts/verify-models/model.ts";
-import { sql, sqlName } from "#db/sql.ts";
 
 /** Record guard facts at each real write. Later cleanup cannot erase a violation. */
 export const observePaymentSeam = async (): Promise<() => Promise<void>> => {
   const model = await paymentModel();
-  const sqlWord = (word: string): string => `'${word.replaceAll("'", "''")}'`;
-  const sameRequest = [
-    "capability",
-    "generation",
-    "identityIndex",
-    "replayUntil",
-  ]
-    .map(
-      (field) => `json_extract(OLD.refund_state, '$.request.${field}') IS
-      json_extract(NEW.refund_state, '$.request.${field}')`,
-    )
-    .join(" AND ");
-  const claimLegal = "NEW.payment_reference_index != ''";
+  const sameRequest = sqlJoin(
+    ["capability", "generation", "identityIndex", "replayUntil"].map(
+      (field) => {
+        const path = sqlLiteral(`$.request.${field}`);
+        return sql`json_extract(OLD.refund_state, ${path}) IS
+      json_extract(NEW.refund_state, ${path})`;
+      },
+    ),
+    sql` AND `,
+  );
+  const claimLegal = sql`NEW.payment_reference_index != ''`;
   const rules = [
     {
-      column: "refund_state",
-      identity: "NEW.reference_index",
+      columns: ["refund_state"],
+      identity: sqlName("NEW.reference_index"),
       legal: {
-        INSERT: "0",
-        UPDATE: `NEW.refund_state_name = 'send_armed'
+        INSERT: sql`0`,
+        UPDATE: sql`NEW.refund_state_name = 'send_armed'
           AND NEW.reference_index != ''
           AND NEW.reference_index = OLD.reference_index
           AND NEW.refund_revision = OLD.refund_revision + 1
@@ -33,15 +38,15 @@ export const observePaymentSeam = async (): Promise<() => Promise<void>> => {
       },
       name: "send",
       table: "payment_charges",
-      when: `NEW.refund_state_name IN (${model.sendAuthorityNames.map(sqlWord).join(", ")})`,
+      when: sql`NEW.refund_state_name IN (${sqlCommas(model.sendAuthorityNames.map(sqlLiteral))})`,
     },
     {
-      column: "protected_state, payment_reference_index",
-      identity: "NEW.payment_session_id",
+      columns: ["protected_state", "payment_reference_index"],
+      identity: sqlName("NEW.payment_session_id"),
       legal: { INSERT: claimLegal, UPDATE: claimLegal },
       name: "claim",
       table: "processed_payments",
-      when: `NEW.protected_state = ${sqlWord(model.claimMirror)}`,
+      when: sql`NEW.protected_state = ${sqlLiteral(model.claimMirror)}`,
     },
   ];
   await execute(sql`CREATE TABLE test_payment_edges (
@@ -52,13 +57,15 @@ export const observePaymentSeam = async (): Promise<() => Promise<void>> => {
     for (const event of ["INSERT", "UPDATE"] as const) {
       const name = `test_payment_edge_${triggers.length}`;
       const operation =
-        event === "INSERT" ? event : `${event} OF ${rule.column}`;
+        event === "INSERT"
+          ? sql`INSERT`
+          : sql`UPDATE OF ${sqlNames(rule.columns)}`;
       await execute(sql`CREATE TRIGGER ${sqlName(name)}
-        AFTER ${TODO_SQL_TEXT(operation)} ON ${sqlName(rule.table)}
-        WHEN ${TODO_SQL_TEXT(rule.when)}
+        AFTER ${operation} ON ${sqlName(rule.table)}
+        WHEN ${rule.when}
         BEGIN
           INSERT INTO test_payment_edges (edge, identity, guard_ok)
-          SELECT ${TODO_SQL_TEXT(sqlWord(rule.name))}, ${TODO_SQL_TEXT(rule.identity)}, ${TODO_SQL_TEXT(rule.legal[event])};
+          SELECT ${sqlLiteral(rule.name)}, ${rule.identity}, ${rule.legal[event]};
         END`);
       triggers.push(name);
     }
@@ -78,7 +85,8 @@ export const observePaymentSeam = async (): Promise<() => Promise<void>> => {
         }
       }
     } finally {
-      for (const name of triggers) await execute(sql`DROP TRIGGER ${sqlName(name)}`);
+      for (const name of triggers)
+        await execute(sql`DROP TRIGGER ${sqlName(name)}`);
       await execute(sql`DROP TABLE test_payment_edges`);
     }
   };

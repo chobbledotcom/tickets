@@ -13,15 +13,10 @@ import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/hybrid.ts";
 
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { base64ToBase64Url } from "#crypto/utils.ts";
-import {
-  execute,
-  executeBatch,
-  queryAll,
-  queryOne,
-} from "#db/client.ts";
+import { execute, executeBatch, queryAll, queryOne } from "#db/client.ts";
 import { queryColumnSet } from "#db/query.ts";
 import { settings } from "#db/settings.ts";
-import { sql, sqlList, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { namedError } from "#shared/named-error.ts";

@@ -7,7 +7,7 @@ import {
 } from "#db/client.ts";
 import { SCHEMA_TABLE_NAMES } from "#db/migrations.ts";
 import { stringColumnSet } from "#db/query.ts";
-import { sql, sqlName, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import { chunk, sumOf } from "#fp";
 import { readLimit } from "#shared/limits.ts";
 
@@ -30,9 +30,7 @@ const EXISTING_TABLES_SQL = sql`SELECT name FROM sqlite_master WHERE type = 'tab
  */
 const existingSchemaTables = async (snapshot: TxScope): Promise<string[]> => {
   const existing = stringColumnSet(
-    resultRows<Row>(
-      await snapshot.execute(EXISTING_TABLES_SQL),
-    ),
+    resultRows<Row>(await snapshot.execute(EXISTING_TABLES_SQL)),
     "name",
   );
   return SCHEMA_TABLE_NAMES.filter((table) => existing.has(table));
@@ -130,8 +128,7 @@ export const exportTable = async (
 export const countSchemaTableRows = async (): Promise<number[]> => {
   const results = await queryBatch(
     SCHEMA_TABLE_NAMES.map(
-      (table) =>
-        sql`SELECT count(*) AS rowCount FROM ${sqlName(table)}`,
+      (table) => sql`SELECT count(*) AS rowCount FROM ${sqlName(table)}`,
     ),
   );
   // count(*) always returns exactly one row per statement.

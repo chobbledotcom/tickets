@@ -8,6 +8,7 @@ import {
   type SettingsData,
   settings,
 } from "#db/settings.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 import {
   type AdminFeatureKey,
   type EnabledFeatures,
@@ -19,7 +20,6 @@ import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { describeWithEnv } from "./db.ts";
 import { withMocks } from "./mocks.ts";
 import { insertModifier } from "./modifiers.ts";
-import { sql } from "#db/sql.ts";
 
 /** Read every setting back off disk, throwing away what this process last
  * cached. A test that saved through a route and then asks what the site holds
@@ -97,7 +97,7 @@ export const enableFeature = async (key: AdminFeatureKey): Promise<void> => {
 
 export const settingValue = async (key: string): Promise<string> => {
   const row = await queryOne<{ value: string }>(
-    sql`SELECT value FROM settings WHERE key = ${key}`
+    sql`SELECT value FROM settings WHERE key = ${key}`,
   );
   if (!row) throw new Error(`Setting ${key} was not stored`);
   return row.value;
@@ -119,15 +119,13 @@ export const seedFeatureRecords = async (
   includeLogistics = true,
 ): Promise<void> => {
   await executeBatch([
-    ...[
-      "INSERT INTO attributes (name) VALUES ('Level')",
-      "INSERT INTO questions (text, display_type) VALUES ('Notes?', 'free_text')",
-      ...(includeLogistics
-        ? ["INSERT INTO logistics_agents (name) VALUES ('Delivery team')"]
-        : []),
-      "INSERT INTO api_keys (user_id, key_index, wrapped_data_key, name, created) VALUES (1, 'index', 'key', 'Sync', '2026-07-15')",
-      "INSERT INTO attendees (created, kind) VALUES ('2026-07-15', 'servicing')",
-    ].map((sql) => ({ args: [], sql })),
+    sql`INSERT INTO attributes (name) VALUES ('Level')`,
+    sql`INSERT INTO questions (text, display_type) VALUES ('Notes?', 'free_text')`,
+    ...(includeLogistics
+      ? [sql`INSERT INTO logistics_agents (name) VALUES ('Delivery team')`]
+      : []),
+    sql`INSERT INTO api_keys (user_id, key_index, wrapped_data_key, name, created) VALUES (1, 'index', 'key', 'Sync', '2026-07-15')`,
+    sql`INSERT INTO attendees (created, kind) VALUES ('2026-07-15', 'servicing')`,
   ]);
   await saveAModifier();
 };
@@ -149,10 +147,10 @@ export const SEEDED_FEATURE_RECORDS: EnabledFeatures = {
 export const withFeatureWriteFailure = async <T>(
   run: () => Promise<T>,
 ): Promise<T> => {
-  await execute(`
+  await execute(sql`
     CREATE TRIGGER fail_feature_write
     BEFORE INSERT ON settings
-    WHEN NEW.key = '${CONFIG_KEYS.ENABLED_FEATURES}'
+    WHEN NEW.key = ${sqlLiteral(CONFIG_KEYS.ENABLED_FEATURES)}
     BEGIN
       SELECT RAISE(ABORT, 'feature enable failed');
     END

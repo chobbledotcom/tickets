@@ -6,7 +6,8 @@ import {
   NOTE_ENTITIES,
   noteTargets,
 } from "#db/notes/target.ts";
-import { clauseArgs, whereSql } from "#db/where-clauses.ts";
+import { sql } from "#db/sql.ts";
+import { whereSql } from "#db/where-clauses.ts";
 
 describe("what a note is about", () => {
   test("names a record by its kind and its id", () => {
@@ -21,8 +22,9 @@ describe("what a note is about", () => {
 
   test("asks for a note's record by the columns notes store it in", () => {
     const where = noteTargets.where(attendeeNotes(4));
-    expect(whereSql(where)).toBe(" WHERE entity_type = ? AND entity_id = ?");
-    expect(clauseArgs(where)).toEqual(["attendee", 4]);
+    expect(whereSql(where)).toEqual(
+      sql` WHERE entity_type = ${"attendee"} AND entity_id = ${4}`,
+    );
   });
 
   test("groups notes by the record they are about, keeping their order", () => {

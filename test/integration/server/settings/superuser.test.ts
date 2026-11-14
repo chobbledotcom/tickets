@@ -32,7 +32,6 @@ import {
   mockFormRequest,
   withMocks,
 } from "#test-utils/mocks.ts";
-import { statementSql } from "#test-utils/record-queries.ts";
 import {
   adminFormPost,
   createTestManagerSession,
@@ -399,7 +398,7 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
           () => ({
             batchStub: stub(db, "batch", (statements, mode) =>
               statements.some((statement) =>
-                statementSql(statement).startsWith("DELETE FROM users"),
+                statement.sql.startsWith("DELETE FROM users"),
               )
                 ? Promise.reject(rejection)
                 : batch(statements, mode),

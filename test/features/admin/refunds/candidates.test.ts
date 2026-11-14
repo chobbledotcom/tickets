@@ -10,6 +10,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { getRefundCandidates } from "#routes/admin/refunds/candidates.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -34,7 +35,6 @@ import {
 } from "#test-utils/processed-payments.ts";
 import { getCompleteRefundCandidates } from "#test-utils/refund-candidates.ts";
 import type { Attendee } from "#types";
-import { sql } from "#db/sql.ts";
 
 /** An attendee whose one charge the provider has already returned, so nothing
  *  is still out and their row reads refunded. */
@@ -142,7 +142,7 @@ describeWithEnv("admin refunds > who a run picks up", { db: true }, () => {
     await execute(
       sql`UPDATE processed_payments
           SET payment_reference_index = ''
-        WHERE payment_session_id = ${"sess_unindexed_candidate"}`
+        WHERE payment_session_id = ${"sess_unindexed_candidate"}`,
     );
 
     await expect(candidateIds([attendee])).rejects.toThrow(

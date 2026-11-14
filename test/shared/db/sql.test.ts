@@ -1,6 +1,15 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { sql, sqlCommas, sqlJoin, sqlList, sqlLiteral, sqlName, sqlNames, type SqlSlot } from "#db/sql.ts";
+import {
+  type SqlSlot,
+  sql,
+  sqlCommas,
+  sqlJoin,
+  sqlList,
+  sqlLiteral,
+  sqlName,
+  sqlNames,
+} from "#db/sql.ts";
 
 /** The text and the arguments, without the type mark. */
 const rendered = ({ args, sql: text }: { args: unknown[]; sql: string }) => ({

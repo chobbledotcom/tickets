@@ -8,6 +8,7 @@ import {
   type RefundAuthorityVersion,
   refundAuthorityFromResult,
 } from "#db/provider-refund-authority.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import type { Money } from "#payment/money.ts";
 import {
   markRefundCompleted,
@@ -20,7 +21,6 @@ import {
   refundStateMirror,
   writeRefundAuthorityState,
 } from "#payment/refund-authority-state.ts";
-import { sql, type SqlStatement } from "#db/sql.ts";
 
 export type RefundAuthorityMoney = Pick<
   RefundAuthorityRow,

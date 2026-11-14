@@ -5,7 +5,7 @@ import {
   encryptTicketTokens,
   UNRESOLVED_RESERVATION,
 } from "#db/processed-payments.ts";
-import { sql, sqlLiteral, type SqlSlot, type SqlStatement } from "#db/sql.ts";
+import { type SqlSlot, type SqlStatement, sql, sqlLiteral } from "#db/sql.ts";
 import { CLAIM_MIRROR } from "#payment/admit-move.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 

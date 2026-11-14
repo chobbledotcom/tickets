@@ -12,9 +12,9 @@ import {
   flatCollectionSwap,
   scopedCollectionSwap,
 } from "#db/ordered-collection.ts";
+import { sql } from "#db/sql.ts";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { sql } from "#db/sql.ts";
 
 const statuses = defineOrderedCollection({
   key: "id",
@@ -43,12 +43,12 @@ const insertStatus = async (sortOrder: number): Promise<number> => {
     reservation_amount: "0",
     sort_order: sortOrder,
   });
-  return Number((await execute(statement.sql, statement.args)).lastInsertRowid);
+  return Number((await execute(statement)).lastInsertRowid);
 };
 
 const statusOrder = async (id: number): Promise<number> =>
   (await queryOne<{ sort_order: number }>(
-    sql`SELECT sort_order FROM attendee_statuses WHERE id = ${id}`
+    sql`SELECT sort_order FROM attendee_statuses WHERE id = ${id}`,
   ))!.sort_order;
 
 const insertAnswer = async (
@@ -56,7 +56,7 @@ const insertAnswer = async (
   sortOrder: number,
 ): Promise<number> => {
   const result = await execute(
-    sql`INSERT INTO answers (question_id, text, sort_order, active) VALUES (${questionId}, '', ${sortOrder}, 1)`
+    sql`INSERT INTO answers (question_id, text, sort_order, active) VALUES (${questionId}, '', ${sortOrder}, 1)`,
   );
   return Number(result.lastInsertRowid);
 };
@@ -68,7 +68,7 @@ const insertPageItem = (
   sortOrder: number,
 ): Promise<unknown> =>
   execute(
-    sql`INSERT INTO site_page_items (page_id, item_type, item_id, sort_order) VALUES (${pageId}, ${itemType}, ${itemId}, ${sortOrder})`
+    sql`INSERT INTO site_page_items (page_id, item_type, item_id, sort_order) VALUES (${pageId}, ${itemType}, ${itemId}, ${sortOrder})`,
   );
 
 describeWithEnv("db > ordered collection", { db: true }, () => {
@@ -96,7 +96,7 @@ describeWithEnv("db > ordered collection", { db: true }, () => {
     await answers.append({ key: appended, scope: 10 });
 
     const rows = await queryAll<{ sort_order: number }>(
-      sql`SELECT sort_order FROM answers WHERE question_id = ${10} ORDER BY sort_order`
+      sql`SELECT sort_order FROM answers WHERE question_id = ${10} ORDER BY sort_order`,
     );
     expect(rows.map((row) => row.sort_order)).toEqual([2, 3]);
   });
@@ -108,7 +108,7 @@ describeWithEnv("db > ordered collection", { db: true }, () => {
     await answers.append({ key: appended, scope: 30 });
     expect(
       await queryOne<{ sort_order: number }>(
-        sql`SELECT sort_order FROM answers WHERE id = ${appended}`
+        sql`SELECT sort_order FROM answers WHERE id = ${appended}`,
       ),
     ).toEqual({ sort_order: 0 });
   });
@@ -120,7 +120,7 @@ describeWithEnv("db > ordered collection", { db: true }, () => {
     await oneBasedAnswers.append({ key: appended, scope: 30 });
     expect(
       await queryOne<{ sort_order: number }>(
-        sql`SELECT sort_order FROM answers WHERE id = ${appended}`
+        sql`SELECT sort_order FROM answers WHERE id = ${appended}`,
       ),
     ).toEqual({ sort_order: 1 });
   });
@@ -141,7 +141,7 @@ describeWithEnv("db > ordered collection", { db: true }, () => {
       page_id: number;
       sort_order: number;
     }>(
-      sql`SELECT page_id, item_type, sort_order FROM site_page_items ORDER BY page_id, item_type`
+      sql`SELECT page_id, item_type, sort_order FROM site_page_items ORDER BY page_id, item_type`,
     );
     expect(rows).toEqual([
       { item_type: "group", page_id: 1, sort_order: 10 },
@@ -160,7 +160,7 @@ describeWithEnv("db > ordered collection", { db: true }, () => {
 
     expect(
       await queryOne<{ sort_order: number }>(
-        sql`SELECT sort_order FROM site_page_items WHERE page_id = ${3} AND item_type = ${"listing"} AND item_id = ${7}`
+        sql`SELECT sort_order FROM site_page_items WHERE page_id = ${3} AND item_type = ${"listing"} AND item_id = ${7}`,
       ),
     ).toEqual({ sort_order: 6 });
   });
@@ -191,7 +191,7 @@ describeWithEnv("db > ordered collection", { db: true }, () => {
 
     expect(
       await queryAll<{ id: number; sort_order: number }>(
-        sql`SELECT id, sort_order FROM answers ORDER BY id`
+        sql`SELECT id, sort_order FROM answers ORDER BY id`,
       ),
     ).toEqual([
       { id: first, sort_order: 10 },
@@ -202,7 +202,9 @@ describeWithEnv("db > ordered collection", { db: true }, () => {
   test("uses a caller-owned transaction for next order and append", async () => {
     const first = await insertStatus(8);
     const second = await withTransaction(async (transaction) => {
-      const result = await transaction.execute(sql`INSERT INTO attendee_statuses (name, reservation_amount, sort_order) VALUES (${"transaction"}, ${"0"}, ${0})`);
+      const result = await transaction.execute(
+        sql`INSERT INTO attendee_statuses (name, reservation_amount, sort_order) VALUES (${"transaction"}, ${"0"}, ${0})`,
+      );
       const id = Number(result.lastInsertRowid);
       expect(await statuses.next({ transaction })).toBe(9);
       await statuses.append({ key: id, transaction });

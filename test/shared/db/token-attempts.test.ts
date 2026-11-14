@@ -11,6 +11,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import { hmacHash } from "#crypto/hashing.ts";
 import { queryOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import {
   clearTokenAttempts,
   isTokenRateLimited,
@@ -27,9 +28,9 @@ const makeTokens = (prefix: string, count: number): string[] =>
   Array.from({ length: count }, (_, i) => `${prefix}-${i}`);
 
 const rawRow = async (ip: string): Promise<{ ip: string } | null> =>
-  queryOne<{ ip: string }>("SELECT ip FROM token_attempts WHERE ip = ?", [
-    await hmacHash(ip),
-  ]);
+  queryOne<{ ip: string }>(
+    sql`SELECT ip FROM token_attempts WHERE ip = ${await hmacHash(ip)}`,
+  );
 
 describeWithEnv("db > token-attempts", { db: true }, () => {
   describe("isTokenRateLimited", () => {

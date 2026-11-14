@@ -6,8 +6,8 @@
  */
 
 import { getDb } from "#db/client.ts";
-import { col, defineTable, type Table } from "#db/table.ts";
 import { sql, sqlName } from "#db/sql.ts";
+import { col, defineTable, type Table } from "#db/table.ts";
 
 export type IdNameRow = { id: number; name: string };
 export type IdNameInput = { name: string };
@@ -23,6 +23,6 @@ export const makeIdNameTable = (name: string): Table<IdNameRow, IdNameInput> =>
 /** Create the backing table for {@link makeIdNameTable} in the current test DB. */
 export const createIdNameTable = async (name: string): Promise<void> => {
   await getDb().execute(
-    sql`CREATE TABLE IF NOT EXISTS ${sqlName(name)} (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)`
+    sql`CREATE TABLE IF NOT EXISTS ${sqlName(name)} (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)`,
   );
 };

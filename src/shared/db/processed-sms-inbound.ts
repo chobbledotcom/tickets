@@ -16,9 +16,9 @@ export const claimProcessedSmsInbound = async (
 ): Promise<boolean> => {
   if (webhookId === "") return true;
   const stmt = insertOrIgnore("processed_sms_inbound", {
-      created: nowIso(),
-      webhook_id: webhookId,
-    });
+    created: nowIso(),
+    webhook_id: webhookId,
+  });
   const result = await execute(stmt);
   return result.rowsAffected > 0;
 };

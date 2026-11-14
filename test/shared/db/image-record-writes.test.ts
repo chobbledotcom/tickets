@@ -1,4 +1,3 @@
-import type { InStatement, InValue } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -12,6 +11,7 @@ import {
   updateImageRecord,
 } from "#db/images.ts";
 import { getCurrentSettingsVersion } from "#db/settings.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
 import { createTestDbWithSetup, describeWithEnv } from "#test-utils/db.ts";
@@ -91,8 +91,8 @@ describeWithEnv("db > image record writes", { db: true }, () => {
     // lookup's id list. img#2 must reach it even when no row carries it.
     const db = getDb();
     const realExecute = db.execute.bind(db);
-    const ran: InStatement[] = [];
-    const executeStub = stub(db, "execute", (stmt: InStatement) => {
+    const ran: SqlStatement[] = [];
+    const executeStub = stub(db, "execute", (stmt: SqlStatement) => {
       ran.push(stmt);
       return realExecute(stmt);
     });
@@ -101,12 +101,9 @@ describeWithEnv("db > image record writes", { db: true }, () => {
     } finally {
       executeStub.restore();
     }
-    const imageReads = ran.filter(
-      (stmt): stmt is { sql: string; args: InValue[] } =>
-        typeof stmt !== "string" && stmt.sql.includes("FROM images"),
-    );
+    const imageReads = ran.filter((stmt) => stmt.sql.includes("FROM images"));
     expect(imageReads).toEqual([
-      { args: [2], sql: expect.stringContaining("id IN (?)") },
+      { args: [2], sql: expect.stringContaining("id IN (?1)") },
     ]);
   });
 });

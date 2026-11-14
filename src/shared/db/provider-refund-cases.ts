@@ -3,6 +3,7 @@ import {
   loadPaymentReference,
   paymentReferenceIndex,
 } from "#db/payment-reference-store.ts";
+import { sql } from "#db/sql.ts";
 import { type Money, money } from "#payment/money.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import {
@@ -25,7 +26,6 @@ import type {
 import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import { writeProviderRefundCursor } from "#shared/provider-refund-cursor.ts";
 import { isPaymentProvider, type PaymentProviderType } from "#types";
-import { sql } from "#db/sql.ts";
 
 const PAGE_SIZE = 20;
 const CASE_SQL = refundAuthorityWorkSql("charge.");

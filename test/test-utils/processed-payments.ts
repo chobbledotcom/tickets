@@ -15,6 +15,7 @@ import {
   type ProcessedPayment,
   reserveSession,
 } from "#db/processed-payments.ts";
+import { sql } from "#db/sql.ts";
 import { requiredMapValue } from "#fp";
 import type {
   PaymentReference,
@@ -28,13 +29,12 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { requireCompleteRefundReferences } from "#test-utils/payment-references.ts";
 import { refundReference } from "#test-utils/payment-state.ts";
 import type { PaymentProviderType } from "#types";
-import { sql } from "#db/sql.ts";
 
 export const getProcessedPayment = (
   sessionId: string,
 ): Promise<ProcessedPayment | null> =>
   queryOne<ProcessedPayment>(
-    sql`SELECT payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data, payment_reference FROM processed_payments WHERE payment_session_id = ${sessionId}`
+    sql`SELECT payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data, payment_reference FROM processed_payments WHERE payment_session_id = ${sessionId}`,
   );
 
 export const expectSessionFailed = async (sessionId: string): Promise<void> => {
@@ -67,7 +67,6 @@ export const finalizeReservedPayment = async (
   await executeBatch(
     await batchFinalizeStatements(
       sessionId,
-      "?",
       attendeeId,
       paymentReference,
       ticketToken,

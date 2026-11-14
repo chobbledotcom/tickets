@@ -22,6 +22,7 @@ import {
   resetDatabase,
   SCHEMA_HASH,
 } from "#db/migrations.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { parseEnabledFeatures } from "#shared/admin-features.ts";
 import { insertBrokenImage } from "#test-utils/admin-images.ts";
 import {
@@ -46,7 +47,6 @@ import { stubNtfyFetch } from "#test-utils/mocks.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
 import { saveAModifier, settingValue } from "#test-utils/settings.ts";
 import { invalidateTestDbCache } from "#test-utils/test-state.ts";
-import { sql } from "#db/sql.ts";
 
 const MIGRATIONS = await loadMigrations();
 describeWithEnv("db > migrations", { db: true }, () => {
@@ -103,7 +103,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
 
     const createEmptySettingsTable = () =>
       getDb().execute(
-        sql`CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`
+        sql`CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
       );
 
     /** The migration id is recorded in schema_migrations. */
@@ -152,7 +152,9 @@ describeWithEnv("db > migrations", { db: true }, () => {
     test("initDb does not re-baseline over an orphaned history row", async () => {
       // A restored backup may carry a row for a renamed migration id;
       // counting it would send every cold boot down the baseline reconcile.
-      await getDb().execute(sql`INSERT INTO schema_migrations (id, description, applied_at) VALUES (${"2020-01-01_renamed_away_long_ago"}, ${"orphan"}, ${"2020-01-01"})`);
+      await getDb().execute(
+        sql`INSERT INTO schema_migrations (id, description, applied_at) VALUES (${"2020-01-01_renamed_away_long_ago"}, ${"orphan"}, ${"2020-01-01"})`,
+      );
       invalidateInitDbCache();
 
       const seen: string[] = [];
@@ -161,7 +163,9 @@ describeWithEnv("db > migrations", { db: true }, () => {
         await initDb();
       } finally {
         restore();
-        await getDb().execute(sql`DELETE FROM schema_migrations WHERE id = ${"2020-01-01_renamed_away_long_ago"}`);
+        await getDb().execute(
+          sql`DELETE FROM schema_migrations WHERE id = ${"2020-01-01_renamed_away_long_ago"}`,
+        );
       }
 
       // The one probe answers everything; the baseline reconcile's
@@ -183,7 +187,9 @@ describeWithEnv("db > migrations", { db: true }, () => {
       // LATEST_UPDATE bump beside it, a site last migrated at the previous
       // release reads up_to_date and baselines the migration id WITHOUT
       // running its up(); the bump flips the state to needs_migration.
-      await getDb().execute(sql`INSERT OR REPLACE INTO settings (key, value) VALUES ('attendee_column_order', ${"{{name}}, {{listing}}, {{email}}"})`);
+      await getDb().execute(
+        sql`INSERT OR REPLACE INTO settings (key, value) VALUES ('attendee_column_order', ${"{{name}}, {{listing}}, {{email}}"})`,
+      );
       await simulateUpgradeFromRelease(
         "Migrate listings.day_prices into the listing_prices 'day_count' dimension and drop the column.",
         "2026-07-03_attendee_listings_tag",
@@ -224,7 +230,9 @@ describeWithEnv("db > migrations", { db: true }, () => {
       // Without a LATEST_UPDATE bump beside holiday_date_padding, a site last
       // migrated at the previous release reads up_to_date and baselines the
       // migration id WITHOUT padding the stored holiday dates.
-      await getDb().execute(sql`INSERT INTO holidays (name, start_date, end_date) VALUES (${"Upgrade Party"}, ${"2027-6-1"}, ${"2027-6-2"})`);
+      await getDb().execute(
+        sql`INSERT INTO holidays (name, start_date, end_date) VALUES (${"Upgrade Party"}, ${"2027-6-1"}, ${"2027-6-2"})`,
+      );
       await simulateUpgradeFromRelease(
         "Store each listing's minimum purchasable quantity, so buyers can only book none or at least that many.",
         "2026-10-07_holiday_date_padding",
@@ -233,7 +241,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
       await initDb();
 
       const party = await getDb().execute(
-        sql`SELECT start_date, end_date FROM holidays WHERE name = 'Upgrade Party'`
+        sql`SELECT start_date, end_date FROM holidays WHERE name = 'Upgrade Party'`,
       );
       expect(party.rows[0]).toMatchObject({
         end_date: "2027-06-02",
@@ -245,7 +253,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
 
     test("runs the completed activity backfill migration on an old completed site", async () => {
       await getDb().execute(
-        sql`DELETE FROM maintenance_tasks WHERE name = 'activity_log_backfill'`
+        sql`DELETE FROM maintenance_tasks WHERE name = 'activity_log_backfill'`,
       );
       await simulateUpgradeFromRelease(
         "Add secure local scheduled maintenance and durable task claims.",
@@ -255,7 +263,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
       await initDb();
 
       const task = await getDb().execute(
-        sql`SELECT checkpoint FROM maintenance_tasks WHERE name = 'activity_log_backfill'`
+        sql`SELECT checkpoint FROM maintenance_tasks WHERE name = 'activity_log_backfill'`,
       );
       expect(task.rows).toEqual([
         { checkpoint: ACTIVITY_LOG_BACKFILL_COMPLETE },
@@ -266,10 +274,10 @@ describeWithEnv("db > migrations", { db: true }, () => {
 
     test("moves feature visibility on a site upgrading from the previous release", async () => {
       await getDb().execute(
-        sql`INSERT OR REPLACE INTO settings (key, value) VALUES ('has_logistics', 'true')`
+        sql`INSERT OR REPLACE INTO settings (key, value) VALUES ('has_logistics', 'true')`,
       );
       await getDb().execute(
-        sql`INSERT OR REPLACE INTO settings (key, value) VALUES ('show_public_site', 'true')`
+        sql`INSERT OR REPLACE INTO settings (key, value) VALUES ('show_public_site', 'true')`,
       );
       await saveAModifier();
       await simulateUpgradeFromRelease(
@@ -296,10 +304,10 @@ describeWithEnv("db > migrations", { db: true }, () => {
       // Crash state: all named migrations recorded in schema_migrations,
       // but the isolate died before refreshing the settings markers.
       await getDb().execute(
-        sql`UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'`
+        sql`UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'`,
       );
       await getDb().execute(
-        sql`UPDATE settings SET value = 'stale' WHERE key = 'latest_db_update'`
+        sql`UPDATE settings SET value = 'stale' WHERE key = 'latest_db_update'`,
       );
       invalidateInitDbCache();
 
@@ -358,14 +366,16 @@ describeWithEnv("db > migrations", { db: true }, () => {
       expect(await settingsValueOrNull("db_schema_hash")).toBe(SCHEMA_HASH);
       expect(await settingsValueOrNull("latest_db_update")).toBe(LATEST_UPDATE);
       // The pre-crash row survived the crash and the recovery re-run intact.
-      const survived = await getDb().execute(sql`SELECT 1 FROM listings WHERE id = ${listingId}`);
+      const survived = await getDb().execute(
+        sql`SELECT 1 FROM listings WHERE id = ${listingId}`,
+      );
       expect(survived.rows.length).toBe(1);
     });
 
     test("initDb fails without rewriting markers when the schema does not match and no migration is pending", async () => {
       await getDb().execute(sql`DROP INDEX idx_listings_slug_index`);
       await getDb().execute(
-        sql`UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'`
+        sql`UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'`,
       );
       invalidateInitDbCache();
 
@@ -487,22 +497,26 @@ describeWithEnv("db > migrations", { db: true }, () => {
     const assertLegacyObjectDropped = async (
       type: string,
       name: string,
-      createSql: string,
+      createSql: SqlStatement,
     ): Promise<void> => {
       await getDb().execute(createSql);
       expect(
         (
-          await getDb().execute(sql`SELECT name FROM sqlite_master WHERE type = ${type} AND name = ${name}`)
+          await getDb().execute(
+            sql`SELECT name FROM sqlite_master WHERE type = ${type} AND name = ${name}`,
+          )
         ).rows.length,
       ).toBe(1);
       await getDb().execute(
-        sql`UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'`
+        sql`UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'`,
       );
       await markCurrentSchemaMigrationPending();
       await initDb();
       expect(
         (
-          await getDb().execute(sql`SELECT name FROM sqlite_master WHERE type = ${type} AND name = ${name}`)
+          await getDb().execute(
+            sql`SELECT name FROM sqlite_master WHERE type = ${type} AND name = ${name}`,
+          )
         ).rows.length,
       ).toBe(0);
     };
@@ -511,14 +525,14 @@ describeWithEnv("db > migrations", { db: true }, () => {
       assertLegacyObjectDropped(
         "index",
         "idx_attendees_legacy_created",
-        "CREATE INDEX IF NOT EXISTS idx_attendees_legacy_created ON attendees(created)",
+        sql`CREATE INDEX IF NOT EXISTS idx_attendees_legacy_created ON attendees(created)`,
       ));
 
     test("named legacy migration drops legacy triggers not in declarative schema", () =>
       assertLegacyObjectDropped(
         "trigger",
         "trg_legacy_noop",
-        `CREATE TRIGGER IF NOT EXISTS trg_legacy_noop
+        sql`CREATE TRIGGER IF NOT EXISTS trg_legacy_noop
          AFTER INSERT ON attendees
          FOR EACH ROW BEGIN SELECT 1; END`,
       ));

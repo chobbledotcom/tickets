@@ -5,13 +5,13 @@ import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { groups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { getAllListings } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
-import { sql } from "#db/sql.ts";
 
 const expectImportError = async (
   blob: unknown,
@@ -121,7 +121,9 @@ describeWithEnv("catalog import references", { db: true }, () => {
 
   test("does not treat a visible ordinary-group member as a hidden-package parent", async () => {
     const group = await createTestGroup({ name: "Visible ordinary group" });
-    await execute(sql`UPDATE groups SET hide_package_listings = 1 WHERE id = ${group.id}`);
+    await execute(
+      sql`UPDATE groups SET hide_package_listings = 1 WHERE id = ${group.id}`,
+    );
     groups.cache.invalidate();
     const parent = await createTestListing({ name: "Visible parent" });
     await assignListingsToGroup([parent.id], group.id);

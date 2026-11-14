@@ -2,8 +2,8 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
 import { execute, getDb, setDb } from "#db/client.ts";
-import { wrapExecute } from "#db/libsql-call.ts";
 import { setN1GuardNotifyOnly } from "#db/query-log.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { claimLeaseMs } from "#payment/claim.ts";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
@@ -43,7 +43,6 @@ import {
   withRefundMock,
 } from "#test-utils/refund-routes.ts";
 import { testCookie } from "#test-utils/session.ts";
-import { sql, type SqlStatement } from "#db/sql.ts";
 
 const EXPECTED_REFUND_ALL_PAGE_SIZE = 1;
 const REVIEWED_SET_SIZE = 3;
@@ -159,8 +158,8 @@ const withPaymentChangeBeforeReferenceLoad = async (
   let changed = false;
   setDb(
     proxyMembers(real, {
-      execute: wrapExecute(real, async (statement, execute) => {
-        const sql = typeof statement === "string" ? statement : statement.sql;
+      execute: async (statement: SqlStatement) => {
+        const sql = statement.sql;
         if (
           !changed &&
           sql.includes("FROM processed_payments") &&
@@ -169,8 +168,8 @@ const withPaymentChangeBeforeReferenceLoad = async (
           changed = true;
           await real.execute(change);
         }
-        return await execute();
-      }),
+        return await real.execute(statement);
+      },
     }),
   );
 
@@ -360,7 +359,9 @@ describeWithEnv(
         "old-deposit@example.com",
         "pi_old_deposit",
       );
-      await execute(sql`DELETE FROM processed_payments WHERE attendee_id = ${attendee.id}`);
+      await execute(
+        sql`DELETE FROM processed_payments WHERE attendee_id = ${attendee.id}`,
+      );
       await finalizeProcessedPayment(
         "new_balance_payment",
         attendee.id,

@@ -1,9 +1,9 @@
 import { createClient } from "@libsql/client";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { sql } from "#db/sql.ts";
 import { createTestDbClient } from "#test-utils/db-client.ts";
 import { tempDir } from "#test-utils/files.ts";
-import { sql } from "#db/sql.ts";
 
 /** Swap `globalThis.gc` for a counter, returning it with its restorer. The
  * collector is only exposed under `--expose-gc`, so the original may be
@@ -85,7 +85,7 @@ describe("test database client", () => {
     await client.execute(sql`INSERT INTO counters (value) VALUES (11)`);
 
     const result = await client.execute(
-      sql`SELECT value FROM counters ORDER BY value ASC`
+      sql`SELECT value FROM counters ORDER BY value ASC`,
     );
     expect(result.rows.map((row) => row.value)).toEqual([7, 11]);
   });

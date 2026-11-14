@@ -33,10 +33,10 @@ import {
   SCHEMA_HASH,
   type SchemaRequirement,
 } from "#db/migrations.ts";
+import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
 import { seedPreDropLedgerColumns } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { indexExists } from "#test-utils/migrations.ts";
-import { sql, sqlName } from "#db/sql.ts";
 
 const MIGRATIONS = await loadMigrations();
 export const migrationById = (id: string): Migration =>
@@ -60,13 +60,15 @@ const verifyMigratedSchema = async (): Promise<void> => {
 
 export const tableColumns = async (table: string): Promise<Set<string>> => {
   const result = await getDb().execute(
-    `SELECT name FROM pragma_table_info('${table}')`,
+    sql`SELECT name FROM pragma_table_info(${sqlLiteral(table)})`,
   );
   return new Set(result.rows.map((row) => String(row.name)));
 };
 
 export const triggerExists = async (name: string): Promise<boolean> => {
-  const result = await getDb().execute(sql`SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = ${name}`);
+  const result = await getDb().execute(
+    sql`SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = ${name}`,
+  );
   return result.rows.length > 0;
 };
 
@@ -76,7 +78,9 @@ const indexesReferencingColumn = async (
   table: string,
   column: string,
 ): Promise<string[]> => {
-  const indexes = await getDb().execute(sql`SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = ${table} AND sql IS NOT NULL`);
+  const indexes = await getDb().execute(
+    sql`SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = ${table} AND sql IS NOT NULL`,
+  );
   const wanted = column.toLowerCase();
   return indexes.rows
     .filter((row) => schemaSqlIdentifiers(String(row.sql)).has(wanted))
@@ -105,7 +109,9 @@ const dropRequiredColumns = async (
       for (const index of await indexesReferencingColumn(table, col)) {
         await getDb().execute(sql`DROP INDEX IF EXISTS ${sqlName(index)}`);
       }
-      await getDb().execute(sql`ALTER TABLE ${sqlName(table)} DROP COLUMN ${sqlName(col)}`);
+      await getDb().execute(
+        sql`ALTER TABLE ${sqlName(table)} DROP COLUMN ${sqlName(col)}`,
+      );
     }
   }
 };
@@ -146,8 +152,8 @@ export const seedSentinelListing = (): Promise<unknown> =>
     }),
   );
 
-export const scalar = async (sql: string): Promise<unknown> => {
-  const result = await getDb().execute(sql);
+export const scalar = async (statement: SqlStatement): Promise<unknown> => {
+  const result = await getDb().execute(statement);
   return result.rows[0]?.value;
 };
 
@@ -208,47 +214,47 @@ const assertPopulatedFixtureSurvived = async (
 ): Promise<void> => {
   expect(
     await scalar(
-      "SELECT COUNT(*) AS value FROM listings WHERE id = 902 AND name = 'migration-listing' AND booked_quantity = 2 AND tickets_count = 1",
+      sql`SELECT COUNT(*) AS value FROM listings WHERE id = 902 AND name = 'migration-listing' AND booked_quantity = 2 AND tickets_count = 1`,
     ),
   ).toBe(1);
   expect(
     await scalar(
-      "SELECT COUNT(*) AS value FROM listing_attendees WHERE id = 904 AND listing_id = 902 AND attendee_id = 903 AND quantity = 2",
+      sql`SELECT COUNT(*) AS value FROM listing_attendees WHERE id = 904 AND listing_id = 902 AND attendee_id = 903 AND quantity = 2`,
     ),
   ).toBe(1);
   expect(
     await scalar(
-      "SELECT COUNT(*) AS value FROM attendees WHERE id = 903 AND ticket_token_index = 'ticket-index'",
+      sql`SELECT COUNT(*) AS value FROM attendees WHERE id = 903 AND ticket_token_index = 'ticket-index'`,
     ),
   ).toBe(1);
   expect(
     await scalar(
-      "SELECT COUNT(*) AS value FROM activity_log WHERE id = 905 AND listing_id = 902 AND message = 'fixture activity'",
+      sql`SELECT COUNT(*) AS value FROM activity_log WHERE id = 905 AND listing_id = 902 AND message = 'fixture activity'`,
     ),
   ).toBe(1);
   expect(
     await scalar(
-      "SELECT COUNT(*) AS value FROM groups WHERE id = 901 AND slug_index = 'group-index'",
+      sql`SELECT COUNT(*) AS value FROM groups WHERE id = 901 AND slug_index = 'group-index'`,
     ),
   ).toBe(1);
   expect(
     await scalar(
-      "SELECT COUNT(*) AS value FROM built_sites WHERE id = 913 AND assigned_listing_id = 902 AND assigned_attendee_id = 903",
+      sql`SELECT COUNT(*) AS value FROM built_sites WHERE id = 913 AND assigned_listing_id = 902 AND assigned_attendee_id = 903`,
     ),
   ).toBe(1);
   expect(
     await scalar(
-      "SELECT COUNT(*) AS value FROM questions WHERE id = 906 AND text = 'Meal choice?'",
+      sql`SELECT COUNT(*) AS value FROM questions WHERE id = 906 AND text = 'Meal choice?'`,
     ),
   ).toBe(1);
   expect(
     await scalar(
-      "SELECT COUNT(*) AS value FROM answers WHERE id = 908 AND question_id = 906 AND times_selected = 1",
+      sql`SELECT COUNT(*) AS value FROM answers WHERE id = 908 AND question_id = 906 AND times_selected = 1`,
     ),
   ).toBe(1);
   expect(
     await scalar(
-      "SELECT COUNT(*) AS value FROM attendee_answers WHERE id = 910 AND attendee_id = 903 AND answer_id = 908",
+      sql`SELECT COUNT(*) AS value FROM attendee_answers WHERE id = 910 AND attendee_id = 903 AND answer_id = 908`,
     ),
   ).toBe(1);
 
@@ -258,7 +264,7 @@ const assertPopulatedFixtureSurvived = async (
   ) {
     expect(
       await scalar(
-        "SELECT COUNT(*) AS value FROM activity_log WHERE id = 905 AND attendee_id = 903",
+        sql`SELECT COUNT(*) AS value FROM activity_log WHERE id = 905 AND attendee_id = 903`,
       ),
     ).toBe(1);
   }
@@ -272,12 +278,12 @@ const assertPopulatedFixtureSurvived = async (
     // (trigger-maintained) survive here.
     expect(
       await scalar(
-        "SELECT COUNT(*) AS value FROM modifiers WHERE id = 907 AND total_uses = 2 AND usage_count = 1",
+        sql`SELECT COUNT(*) AS value FROM modifiers WHERE id = 907 AND total_uses = 2 AND usage_count = 1`,
       ),
     ).toBe(1);
     expect(
       await scalar(
-        "SELECT COUNT(*) AS value FROM modifier_usages WHERE id = 911 AND modifier_id = 907 AND attendee_id = 903",
+        sql`SELECT COUNT(*) AS value FROM modifier_usages WHERE id = 911 AND modifier_id = 907 AND attendee_id = 903`,
       ),
     ).toBe(1);
   }
@@ -285,7 +291,7 @@ const assertPopulatedFixtureSurvived = async (
 
 export const sentinelListingExists = async (): Promise<boolean> => {
   const result = await getDb().execute(
-    sql`SELECT 1 FROM listings WHERE name = 'sentinel-listing'`
+    sql`SELECT 1 FROM listings WHERE name = 'sentinel-listing'`,
   );
   return result.rows.length > 0;
 };
@@ -298,7 +304,10 @@ export const markAppliedThrough = async (lastId: string): Promise<void> => {
   await getDb().batch(
     [
       sql`DELETE FROM schema_migrations`,
-      ...applied.map((migration) => (sql`INSERT INTO schema_migrations (id, description, applied_at) VALUES (${migration.id}, ${migration.description}, '2026-01-01T00:00:00.000Z')`)),
+      ...applied.map(
+        (migration) =>
+          sql`INSERT INTO schema_migrations (id, description, applied_at) VALUES (${migration.id}, ${migration.description}, '2026-01-01T00:00:00.000Z')`,
+      ),
       sql`UPDATE settings SET value = ${LATEST_UPDATE} WHERE key = 'latest_db_update'`,
       sql`UPDATE settings SET value = ${SCHEMA_HASH} WHERE key = 'db_schema_hash'`,
     ],
@@ -328,12 +337,12 @@ export const ownsSchemaObjects = (req: SchemaRequirement): boolean =>
       Object.values(req.columns ?? {}).some((cols) => cols.length > 0),
   );
 
-const columnsRemovedByMigration: Partial<Record<string, string[]>> = {
+const columnsRemovedByMigration: Partial<Record<string, SqlStatement[]>> = {
   "2026-07-05_first_class_images": [
-    "ALTER TABLE listings ADD COLUMN image_url TEXT NOT NULL DEFAULT ''",
+    sql`ALTER TABLE listings ADD COLUMN image_url TEXT NOT NULL DEFAULT ''`,
   ],
   "2026-07-18_drop_built_sites_last_pruned": [
-    "ALTER TABLE built_sites ADD COLUMN last_pruned TEXT NOT NULL DEFAULT ''",
+    sql`ALTER TABLE built_sites ADD COLUMN last_pruned TEXT NOT NULL DEFAULT ''`,
   ],
 };
 

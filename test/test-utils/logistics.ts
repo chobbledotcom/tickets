@@ -4,9 +4,9 @@ import {
   type LogisticsAssignment,
   setLogisticsAssignments,
 } from "#db/logistics.ts";
+import { sql } from "#db/sql.ts";
 import { addDays } from "#shared/dates.ts";
 import type { DateString } from "#shared/validation/date-string.ts";
-import { sql } from "#db/sql.ts";
 
 export const logisticsAgentAssignment = (
   agentId: number,
@@ -23,7 +23,9 @@ export const setBookingWindow = async (
   startDate: string,
   endDate: string,
 ): Promise<void> => {
-  await getDb().execute(sql`UPDATE listing_attendees SET start_at = ${`${startDate}T00:00:00Z`}, end_at = ${`${endDate}T00:00:00Z`} WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId}`);
+  await getDb().execute(
+    sql`UPDATE listing_attendees SET start_at = ${`${startDate}T00:00:00Z`}, end_at = ${`${endDate}T00:00:00Z`} WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId}`,
+  );
 };
 
 export const assignBookingLogistics = async (

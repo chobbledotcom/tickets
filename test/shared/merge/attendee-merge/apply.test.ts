@@ -6,6 +6,7 @@ import {
   getAttendeeAnswersByQuestion,
   getAttendeeTextAnswers,
 } from "#db/questions/attendee-answers/reads.ts";
+import { sql } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -142,13 +143,11 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       expect(finalAnswers.get(question.id)?.answerId).toBe(answers[1]!.id);
       expect(
         await queryAll<{ id: number }>(
-          "SELECT id FROM attendees WHERE id = ?",
-          [source.id],
+          sql`SELECT id FROM attendees WHERE id = ${source.id}`,
         ),
       ).toEqual([]);
       const listingLinks = await queryAll<{ listing_id: number }>(
-        "SELECT listing_id FROM listing_attendees WHERE attendee_id = ? ORDER BY listing_id",
-        [target.id],
+        sql`SELECT listing_id FROM listing_attendees WHERE attendee_id = ${target.id} ORDER BY listing_id`,
       );
       expect(listingLinks).toEqual(
         [listing1.id, listing2.id]

@@ -3,10 +3,10 @@ import { it as test } from "@std/testing/bdd";
 import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#db/attendees/create.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { queryAll } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { expectNoAttendeesForListings } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { sql } from "#db/sql.ts";
 
 /** The caller-supplied writes a reservation can ride on the atomic create:
  * creation work on the interactive transaction, or tail statements on the
@@ -25,7 +25,9 @@ describeWithEnv(
           name: "Work User",
         },
         async (tx, attendeeId) => {
-          await tx.execute(sql`UPDATE attendees SET checked_in = 'worked' WHERE id = ${attendeeId}`);
+          await tx.execute(
+            sql`UPDATE attendees SET checked_in = 'worked' WHERE id = ${attendeeId}`,
+          );
         },
       );
 
@@ -35,7 +37,9 @@ describeWithEnv(
       const attendees = await getAttendeesRaw(listing.id);
       expect(attendees).toHaveLength(1);
       expect(
-        await queryAll(sql`SELECT checked_in FROM attendees WHERE id = ${attendees[0]!.id}`),
+        await queryAll(
+          sql`SELECT checked_in FROM attendees WHERE id = ${attendees[0]!.id}`,
+        ),
       ).toEqual([{ checked_in: "worked" }]);
     });
 
@@ -62,7 +66,7 @@ describeWithEnv(
       await expectNoAttendeesForListings([listing.id]);
       expect(
         await queryAll(
-          sql`SELECT id FROM strings WHERE text_index = 'work-marker'`
+          sql`SELECT id FROM strings WHERE text_index = 'work-marker'`,
         ),
       ).toEqual([]);
     });
@@ -87,7 +91,7 @@ describeWithEnv(
       // The tail statement landed on the attendee the batch itself created.
       expect(
         await queryAll<{ checked_in: string }>(
-          sql`SELECT checked_in FROM attendees WHERE id IN (SELECT attendee_id FROM listing_attendees WHERE listing_id = ${listing.id})`
+          sql`SELECT checked_in FROM attendees WHERE id IN (SELECT attendee_id FROM listing_attendees WHERE listing_id = ${listing.id})`,
         ),
       ).toEqual([{ checked_in: "tail" }]);
     });

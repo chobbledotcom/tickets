@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAttendeeRaw } from "#db/attendees/queries.ts";
 import { queryAll } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import {
   expectFlash,
@@ -221,8 +222,7 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
 
       // Target should now have both listing links
       const targetListingLinks = await queryAll<{ listing_id: number }>(
-        "SELECT listing_id FROM listing_attendees WHERE attendee_id = ?",
-        [target.id],
+        sql`SELECT listing_id FROM listing_attendees WHERE attendee_id = ${target.id}`,
       );
       const listingIds = targetListingLinks.map((r) => r.listing_id).sort();
       expect(listingIds).toEqual([listing1.id, listing2.id].sort());
@@ -299,8 +299,7 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
 
       // Target still has exactly one link to the listing (conflict was skipped)
       const links = await queryAll<{ listing_id: number }>(
-        "SELECT listing_id FROM listing_attendees WHERE attendee_id = ?",
-        [target.id],
+        sql`SELECT listing_id FROM listing_attendees WHERE attendee_id = ${target.id}`,
       );
       expect(links.length).toBe(1);
       expect(links[0]!.listing_id).toBe(listing1.id);

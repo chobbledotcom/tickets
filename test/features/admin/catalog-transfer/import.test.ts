@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { getGroupPackagePrices, getListingsByGroupId } from "#db/groups.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import { sitePlanMemberError } from "#shared/package-membership.ts";
@@ -10,7 +11,6 @@ import { requireEntityImport } from "#test-utils/catalog-import.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("catalog group import", { db: true }, () => {
   test("creates a group with its named member", async () => {
@@ -127,7 +127,7 @@ describeWithEnv("in-tx member validation", { db: true }, () => {
     await execute(
       sql`CREATE TRIGGER delete_member_after_group_insert
          AFTER INSERT ON groups
-         BEGIN DELETE FROM listings WHERE id = ${member.id}; END`
+         BEGIN DELETE FROM listings WHERE id = ${member.id}; END`,
     );
 
     expect(
@@ -159,7 +159,7 @@ describeWithEnv("in-tx member validation", { db: true }, () => {
     await execute(
       sql`CREATE TRIGGER plan_member_after_group_insert
          AFTER INSERT ON groups
-         BEGIN UPDATE listings SET assign_built_site = 1 WHERE id = ${member.id}; END`
+         BEGIN UPDATE listings SET assign_built_site = 1 WHERE id = ${member.id}; END`,
     );
 
     try {

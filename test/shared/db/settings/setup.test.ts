@@ -20,13 +20,13 @@ import type { KeyEncrypted, PasswordHash, WrappedKey } from "#crypto/sealed.ts";
 import { getDb } from "#db/client.ts";
 import { SetupAlreadyCompleteError } from "#db/settings/setup.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import {
   createUser,
   getUserByUsername,
   verifyUserPassword,
 } from "#db/users.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { sql } from "#db/sql.ts";
 
 const emptySite = async (): Promise<void> => {
   await getDb().execute(sql`DELETE FROM users`);

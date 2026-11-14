@@ -22,7 +22,7 @@ import {
   setItemsForImage,
 } from "#db/images.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
+import { sql } from "#db/sql.ts";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
 import {
   currentRequestStore,
@@ -36,7 +36,6 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import type { Image } from "#types";
-import { sql } from "#db/sql.ts";
 
 const makeImage = (
   name: string,
@@ -87,7 +86,7 @@ describeWithEnv("db > images", { db: true }, () => {
         filename_thumb: string;
         name: string;
       }>(
-        sql`SELECT name, filename, filename_thumb, alt_text FROM images WHERE id = ${image.id}`
+        sql`SELECT name, filename, filename_thumb, alt_text FROM images WHERE id = ${image.id}`,
       );
       expect(raw?.name.startsWith("enc:")).toBe(true);
       expect(raw?.filename.startsWith("enc:")).toBe(true);
@@ -159,10 +158,7 @@ describeWithEnv("db > images", { db: true }, () => {
 
   describe("item links", () => {
     test("uses the declared table for page and news targets", () => {
-      const statement = numberedStatement(
-        (bind) =>
-          `${imageUseTargets.existsSql("news", bind(7))} AND ${imageUseTargets.existsSql("page", bind(8))}`,
-      );
+      const statement = sql`${imageUseTargets.existsSql("news", 7)} AND ${imageUseTargets.existsSql("page", 8)}`;
       expect(statement.sql).toBe(
         "EXISTS (SELECT 1 FROM news_posts WHERE id = ?1)" +
           " AND EXISTS (SELECT 1 FROM site_pages WHERE id = ?2)",
@@ -227,7 +223,7 @@ describeWithEnv("db > images", { db: true }, () => {
           sql`SELECT image_id, sort_order
              FROM image_uses
             WHERE item_type = ${"listing"} AND item_id = ${listing.id}
-            ORDER BY sort_order ASC, image_id ASC`
+            ORDER BY sort_order ASC, image_id ASC`,
         ),
       ).toEqual([
         { image_id: existing.id, sort_order: 0 },
@@ -289,7 +285,7 @@ describeWithEnv("db > images", { db: true }, () => {
       expect(
         await queryAll<{ item_id: number; item_type: string }>(
           sql`SELECT item_type, item_id FROM image_uses
-            WHERE image_id = ${image.id} ORDER BY item_type, item_id`
+            WHERE image_id = ${image.id} ORDER BY item_type, item_id`,
         ),
       ).toEqual([
         { item_id: group.id, item_type: "group" },

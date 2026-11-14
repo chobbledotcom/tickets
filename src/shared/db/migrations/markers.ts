@@ -6,7 +6,7 @@
 import { executeBatch, getDb } from "#db/client.ts";
 import { stringColumnSet } from "#db/query.ts";
 import { settingsVersionIncrement } from "#db/settings/cache.ts";
-import { sql, sqlLiteral, sqlName, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
 import { nowIso } from "#shared/now.ts";
 import {
   executeWhileMigrationLockOwned,

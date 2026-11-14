@@ -1,10 +1,10 @@
-import type { InStatement } from "@libsql/client";
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { invalidateInitDbCache, resetDatabase } from "#db/migrations.ts";
 import { settings } from "#db/settings.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
@@ -30,14 +30,9 @@ import {
   withExpectedError,
   withMocks,
 } from "#test-utils/mocks.ts";
-import {
-  recordQueries,
-  statementSql,
-  wrapDbClient,
-} from "#test-utils/record-queries.ts";
+import { recordQueries, wrapDbClient } from "#test-utils/record-queries.ts";
 import { reloginAsAdmin } from "#test-utils/session.ts";
 import { invalidateTestDbCache } from "#test-utils/test-state.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("server (setup)", { db: true }, () => {
   /** Get CSRF token from setup page and submit setup form with given fields */
@@ -102,7 +97,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
 
   async function createEmptySettingsTable(): Promise<void> {
     await getDb().execute(
-      sql`CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`
+      sql`CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
     );
     settings.invalidateCache();
     settings.setup.clearCache();
@@ -136,15 +131,15 @@ describeWithEnv("server (setup)", { db: true }, () => {
         const released = new Promise<void>((resolve) => {
           release = resolve;
         });
-        const holdProbe = async (statement: InStatement) => {
+        const holdProbe = async (statement: SqlStatement) => {
           await released;
           return real.execute(statement);
         };
         const restore = wrapDbClient({
           batch: () => {},
           execute: (statement) =>
-            statementSql(statement).startsWith("SELECT value FROM settings")
-              ? holdProbe(statement as InStatement)
+            statement.sql.startsWith("SELECT value FROM settings")
+              ? holdProbe(statement)
               : null,
         });
         try {

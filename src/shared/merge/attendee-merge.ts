@@ -28,7 +28,7 @@ import {
   prepareAttendeeAnswerSave,
   saveAttendeeAnswersTx,
 } from "#db/questions/attendee-answers/save.ts";
-import { sql, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { fieldById, map, mapNotNullish, mapParallel, reduce } from "#fp";
 import { legMatches, sumLegs } from "#shared/ledger/legs.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";

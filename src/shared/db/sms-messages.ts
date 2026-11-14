@@ -30,11 +30,11 @@ export const recordSmsMessage = async (input: {
 }): Promise<void> => {
   await execute(
     insert("sms_messages", {
-    attendee_id: input.attendeeId,
-    created: nowIso(),
-    listing_id: input.listingId,
-    provider_id: input.providerId,
-  }),
+      attendee_id: input.attendeeId,
+      created: nowIso(),
+      listing_id: input.listingId,
+      provider_id: input.providerId,
+    }),
   );
 };
 

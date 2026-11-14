@@ -17,7 +17,7 @@ import {
   useTransaction,
 } from "#db/client.ts";
 import type { SluggedContentInput } from "#db/slugged-content-input.ts";
-import { sql, sqlJoin, sqlList, sqlName, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlJoin, sqlList, sqlName } from "#db/sql.ts";
 import { type Table, writeTableRow } from "#db/table.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import type { SitePageItemType } from "#types";

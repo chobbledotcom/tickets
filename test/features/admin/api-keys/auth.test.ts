@@ -4,6 +4,7 @@ import { hmacHash } from "#crypto/hashing.ts";
 import { generateSecureToken } from "#crypto/utils.ts";
 import { apiKeyLimiter } from "#db/api-key-attempts.ts";
 import { getDb, insert } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { MAX_APIKEY_ATTEMPTS } from "#shared/limits.ts";
 import { assertJson } from "#test-utils/assertions.ts";
@@ -17,7 +18,6 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("API key authentication", { db: true }, () => {
   describe("Bearer token authentication", () => {
@@ -148,7 +148,9 @@ describeWithEnv("API key authentication", { db: true }, () => {
       const { apiKey, id } = await createTestApiKeyFull("Corrupt Key");
 
       // Corrupt the wrapped_data_key in the DB
-      await getDb().execute(sql`UPDATE api_keys SET wrapped_data_key = ${"corrupted-data"} WHERE id = ${id}`);
+      await getDb().execute(
+        sql`UPDATE api_keys SET wrapped_data_key = ${"corrupted-data"} WHERE id = ${id}`,
+      );
 
       const response = await handleRequest(
         requestAsApiKey("/api/admin/listings", apiKey),

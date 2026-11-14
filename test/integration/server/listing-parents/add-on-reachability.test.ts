@@ -6,6 +6,7 @@ import { listingGroups } from "#db/groups/table.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { getAllModifiers, modifierListings } from "#db/modifiers.ts";
+import { sql } from "#db/sql.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -28,7 +29,6 @@ import {
 } from "#test-utils/modifiers.ts";
 import { postChildren } from "#test-utils/parents.ts";
 import { apiRequest } from "#test-utils/session.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv(
   "server > listing parents > add-on reachability",
@@ -64,7 +64,7 @@ describeWithEnv(
         sql`CREATE TRIGGER activate_child_add_on
            AFTER UPDATE ON listings
            WHEN NEW.id = ${parent.id}
-           BEGIN UPDATE modifiers SET active = 1 WHERE id = ${modifier.id}; END`
+           BEGIN UPDATE modifiers SET active = 1 WHERE id = ${modifier.id}; END`,
       );
 
       await assertJson(

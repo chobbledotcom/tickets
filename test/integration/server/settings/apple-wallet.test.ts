@@ -4,6 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { unzipSync } from "fflate";
 import { MASK_SENTINEL } from "#db/settings/mask.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import {
   expectFlashRedirect,
@@ -25,7 +26,6 @@ import {
 import { withEnv } from "#test-utils/env.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
-import { sql } from "#db/sql.ts";
 
 /** Reuse cached certs for all wallet configuration */
 const testCerts = generateTestCerts();
@@ -107,7 +107,9 @@ describeWithEnv("wallet route (/wallet/:token)", { db: true }, () => {
       "orphan@test.com",
     );
     const { getDb } = await import("#db/client.ts");
-    await getDb().execute(sql`DELETE FROM listing_attendees WHERE attendee_id = ${attendee.id}`);
+    await getDb().execute(
+      sql`DELETE FROM listing_attendees WHERE attendee_id = ${attendee.id}`,
+    );
     const response = await awaitTestRequest(`/wallet/${token}.pkpass`);
     expect(response.status).toBe(404);
   });

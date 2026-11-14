@@ -4,6 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { getLogisticsAssignments } from "#db/logistics.ts";
 import { logisticsAgents } from "#db/logistics-agents.ts";
+import { sql } from "#db/sql.ts";
 import { agentUsers } from "#db/user-agents.ts";
 import { getAllUsers } from "#db/users.ts";
 import {
@@ -27,7 +28,6 @@ import {
   createTestManagerSession,
 } from "#test-utils/session.ts";
 import { enableFeature, storedFeatureEnabled } from "#test-utils/settings.ts";
-import { sql } from "#db/sql.ts";
 
 /** Create a listing + attendee pair and assign logistics agents to the
  *  booking line. Delegates to the shared `createListingWithAttendeeAndLogistics`

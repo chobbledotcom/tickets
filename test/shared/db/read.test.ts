@@ -9,35 +9,36 @@ import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { defineReader, readStatement } from "#db/read.ts";
-import { equals, inList } from "#db/where-clauses.ts";
 import { sql } from "#db/sql.ts";
+import { equals, inList } from "#db/where-clauses.ts";
 
 describe("readStatement", () => {
   test("says the plainest read with nothing but columns and a table", () => {
-    expect(readStatement({ columns: "id, name", from: "listings" })).toEqual(sql`SELECT id, name FROM listings`);
+    expect(
+      readStatement({ columns: sql`id, name`, from: sql`listings` }),
+    ).toEqual(sql`SELECT id, name FROM listings`);
   });
 
   test("assembles the parts in SQL order", () => {
     expect(
       readStatement({
-        columns: "listing.id",
-        from: "listings AS listing",
-        groupBy: "listing.id",
+        columns: sql`listing.id`,
+        from: sql`listings AS listing`,
+        groupBy: sql`listing.id`,
         limit: 5,
-        order: "listing.created DESC",
+        order: sql`listing.created DESC`,
         where: equals("listing.active", 1),
       }),
-    ).toEqual(sql`SELECT listing.id FROM listings AS listing WHERE listing.active = ${1} GROUP BY listing.id ORDER BY listing.created DESC LIMIT ${5}`);
+    ).toEqual(
+      sql`SELECT listing.id FROM listings AS listing WHERE listing.active = ${1} GROUP BY listing.id ORDER BY listing.created DESC LIMIT ${5}`,
+    );
   });
 
   test("binds a join's own values before the filter's, then the cap", () => {
     expect(
       readStatement({
-        columns: "question.id",
-        from: {
-          args: ["joined"],
-          sql: "questions AS question LEFT JOIN listing_questions AS listingQuestion ON listingQuestion.listing_id = ?",
-        },
+        columns: sql`question.id`,
+        from: sql`questions AS question LEFT JOIN listing_questions AS listingQuestion ON listingQuestion.listing_id = ${"joined"}`,
         limit: 2,
         where: equals("question.active", "filtered"),
       }).args,
@@ -45,17 +46,20 @@ describe("readStatement", () => {
   });
 
   test("omits every part the read does not ask for", () => {
-    const { sql } = readStatement({ columns: "id", from: "listings" });
+    const { sql: text } = readStatement({
+      columns: sql`id`,
+      from: sql`listings`,
+    });
 
-    assert(!sql.includes("WHERE"));
-    assert(!sql.includes("GROUP BY"));
-    assert(!sql.includes("ORDER BY"));
-    assert(!sql.includes("LIMIT"));
+    assert(!text.includes("WHERE"));
+    assert(!text.includes("GROUP BY"));
+    assert(!text.includes("ORDER BY"));
+    assert(!text.includes("LIMIT"));
   });
 
   test("an empty filter list adds no WHERE", () => {
     expect(
-      readStatement({ columns: "id", from: "listings", where: [] }).sql,
+      readStatement({ columns: sql`id`, from: sql`listings`, where: [] }).sql,
     ).toBe("SELECT id FROM listings");
   });
 
@@ -64,8 +68,8 @@ describe("readStatement", () => {
     // must still get valid SQL rather than an invalid `IN ()`.
     expect(
       readStatement({
-        columns: "id",
-        from: "listings",
+        columns: sql`id`,
+        from: sql`listings`,
         where: inList("id", []),
       }).sql,
     ).toBe("SELECT id FROM listings WHERE id IN (NULL)");
@@ -76,9 +80,9 @@ describe("defineReader", () => {
   const reader = defineReader<
     "newest" | "oldest",
     { order?: "newest" | "oldest" }
-  >({ newest: "created DESC", oldest: "created ASC" }, () => ({
-    columns: "id",
-    from: "listings",
+  >({ newest: sql`created DESC`, oldest: sql`created ASC` }, () => ({
+    columns: sql`id`,
+    from: sql`listings`,
   }));
 
   test("each named order becomes its own ORDER BY", () => {

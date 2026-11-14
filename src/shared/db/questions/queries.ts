@@ -11,7 +11,7 @@ import { linkTableSide } from "#db/link-table.ts";
 import type { Answer, QuestionWithAnswers } from "#db/question-types.ts";
 import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { readRows, readStatement } from "#db/read.ts";
-import { sql, sqlList, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import { equals, type WhereClause } from "#db/where-clauses.ts";
 import { filter, map, mapParallel, reduce } from "#fp";
 
@@ -108,10 +108,7 @@ const QUESTION_ORDER = sql`question.sort_order, question.id, answer.sort_order`;
 /** Fetch questions with their answers, keeping only the ones the clauses
  * select. `from` differs only for the per-listing read, which joins the
  * assignment table to find out which questions a listing asks. */
-const fetchQuestions = (
-  where: WhereClause[],
-  from: SqlStatement = QA_JOIN,
-) =>
+const fetchQuestions = (where: WhereClause[], from: SqlStatement = QA_JOIN) =>
   readRows<JoinedRow>({
     columns: QA_COLS,
     from,

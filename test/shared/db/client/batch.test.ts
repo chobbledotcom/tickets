@@ -17,13 +17,13 @@ import {
   getQueryLog,
   N_PLUS_ONE_THRESHOLD,
 } from "#db/query-log.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttributeWithOptions } from "#test-utils/db-helpers/attributes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
-import { sql } from "#db/sql.ts";
 
 /**
  * Batch execution: the transaction mode routes a batch to a replica ("read")
@@ -33,7 +33,7 @@ import { sql } from "#db/sql.ts";
 describeWithEnv("db > client batch", { db: true }, () => {
   /** Run `batch` with a stubbed client and return the modes it was given. */
   const captureBatchModes = async (
-    batch: (stmts: { sql: string; args: never[] }[]) => Promise<unknown>,
+    batch: (stmts: SqlStatement[]) => Promise<unknown>,
   ): Promise<string[]> => {
     const modes: string[] = [];
     const batchStub = stub(
@@ -62,7 +62,7 @@ describeWithEnv("db > client batch", { db: true }, () => {
     await withRequestContext(async () => {
       const statements = Array.from(
         { length: N_PLUS_ONE_THRESHOLD + 1 },
-        () => (sql`SELECT 1`),
+        () => sql`SELECT 1`,
       );
       expect(await queryBatch(statements)).toHaveLength(statements.length);
     });
@@ -77,7 +77,7 @@ describeWithEnv("db > client batch", { db: true }, () => {
     });
 
     const result = await getDb().execute(
-      sql`SELECT value FROM transaction_batch_test`
+      sql`SELECT value FROM transaction_batch_test`,
     );
     expect(result.rows.map(({ value }) => String(value))).toEqual(["saved"]);
   });
@@ -169,7 +169,7 @@ describeWithEnv("db > client batch", { db: true }, () => {
 
     expect(
       await queryAll<{ listing_id: number }>(
-        sql`SELECT listing_id FROM listing_attribute_options`
+        sql`SELECT listing_id FROM listing_attribute_options`,
       ),
     ).toEqual([]);
     expect(await queryAll(sql`SELECT id FROM attribute_options`)).toEqual([]);

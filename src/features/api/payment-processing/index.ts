@@ -19,6 +19,7 @@ import {
   releaseReservation,
   reserveSession,
 } from "#db/processed-payments.ts";
+import { sql } from "#db/sql.ts";
 import { forgetSquareLinkEnd } from "#db/square-link-ends.ts";
 import { t } from "#i18n";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
@@ -58,7 +59,6 @@ import type {
 import { type PricedOrder, priceCheckout } from "#shared/checkout-pricing.ts";
 import { logDebug } from "#shared/logger.ts";
 import type { BookingLedgerDisposition } from "#shared/session-ledger.ts";
-import { sql } from "#db/sql.ts";
 
 /** The shared shape of the two-phase session processors: reserve/process a paid
  * session by id, given its validated data, and resolve to a {@link

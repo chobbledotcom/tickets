@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { listingChildren } from "#db/listing-parents.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlash, expectIncludesAll } from "#test-utils/assertions.ts";
@@ -15,7 +16,6 @@ import {
   postChildren,
 } from "#test-utils/parents.ts";
 import { beforeNextTransaction } from "#test-utils/record-queries.ts";
-import { sql } from "#db/sql.ts";
 
 /** The rendered edit-page HTML for the first attendee of a booking result. */
 const attendeeEditHtml = async (result: unknown): Promise<string> => {

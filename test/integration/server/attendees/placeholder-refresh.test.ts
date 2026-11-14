@@ -9,6 +9,7 @@ import { queryOne } from "#db/client.ts";
 import { deleteListing } from "#db/listings/delete.ts";
 import { reserveSession } from "#db/processed-payments.ts";
 import { listProviderRefundCases } from "#db/provider-refund-cases.ts";
+import { sql } from "#db/sql.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -123,7 +124,7 @@ describeWithEnv(
 
         expect(
           await queryOne<{ count: number }>(
-            "SELECT COUNT(*) AS count FROM payment_charges",
+            sql`SELECT COUNT(*) AS count FROM payment_charges`,
           ),
         ).toEqual({ count: 0 });
         expect((await listProviderRefundCases()).cases).toEqual([]);

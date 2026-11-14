@@ -7,6 +7,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { requireOne } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -306,8 +307,7 @@ describeWithEnv("Admin API - External sources", { db: true }, () => {
       );
       await assertJson(apiRequest(sourcePath(sourceId)), 404);
       const links = await requireOne<{ total: number }>(
-        "SELECT COUNT(*) AS total FROM external_source_links WHERE source_id = ?",
-        [sourceId],
+        sql`SELECT COUNT(*) AS total FROM external_source_links WHERE source_id = ${sourceId}`,
       );
       expect(links.total).toBe(0);
     });

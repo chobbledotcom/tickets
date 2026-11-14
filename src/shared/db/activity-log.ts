@@ -25,7 +25,7 @@ import { decryptListingWithCount } from "#db/listings/records.ts";
 import { listingReader } from "#db/listings/select.ts";
 import { batchOnScope } from "#db/scope-batch.ts";
 import { CONFIG_KEYS, settings } from "#db/settings.ts";
-import { sql, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { col, defineTable } from "#db/table.ts";
 import { isNullish } from "#fp";
 import { nowIso } from "#shared/now.ts";

@@ -11,6 +11,7 @@ import { getDb, insert } from "#db/client.ts";
 import { clearLoginAttempts, loginLimiter } from "#db/login-attempts.ts";
 import { createSession, getSession } from "#db/sessions.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { getUserByUsername, verifyUserPassword } from "#db/users.ts";
 import { MAX_LOGIN_ATTEMPTS } from "#shared/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -24,7 +25,6 @@ import {
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
 } from "#test-utils/internal.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("db > auth", { db: true }, () => {
   describe("admin password", () => {
@@ -232,7 +232,9 @@ describeWithEnv("db > auth", { db: true }, () => {
       const ip = "192.168.1.8";
       await loginLimiter.record(ip);
 
-      const row = await getDb().execute(sql`SELECT attempts FROM login_attempts WHERE ip = ${await hmacHash(ip)}`);
+      const row = await getDb().execute(
+        sql`SELECT attempts FROM login_attempts WHERE ip = ${await hmacHash(ip)}`,
+      );
       expect(row.rows).toEqual([{ attempts: 1 }]);
     });
 
@@ -279,7 +281,9 @@ describeWithEnv("db > auth", { db: true }, () => {
       );
 
       expect(await loginLimiter.isLimited(ip)).toBe(false);
-      const row = await getDb().execute(sql`SELECT attempts FROM login_attempts WHERE ip = ${ipHash}`);
+      const row = await getDb().execute(
+        sql`SELECT attempts FROM login_attempts WHERE ip = ${ipHash}`,
+      );
       expect(row.rows).toEqual([]);
     });
 

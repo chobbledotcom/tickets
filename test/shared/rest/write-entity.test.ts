@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { resultRows, type TxScope } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import type { Table } from "#db/table.ts";
 import { type EntityWrite, writeEntity } from "#shared/rest/write-entity.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
@@ -10,7 +11,6 @@ import {
   makeIdNameTable,
   type IdNameRow as Row,
 } from "#test-utils/rest-fixtures.ts";
-import { sql } from "#db/sql.ts";
 
 const makeTable = (): Table<Row, Input> => makeIdNameTable("we_items");
 const createTable = (): Promise<void> => createIdNameTable("we_items");

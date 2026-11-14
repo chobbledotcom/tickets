@@ -1,5 +1,5 @@
 import { queryAll } from "#db/client.ts";
-import { sql, sqlList, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 
 /** Maximum payment-reference rows one attendee refund can open. */
 export const MAX_REFUND_REFERENCES_PER_ATTENDEE = 10;

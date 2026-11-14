@@ -16,7 +16,7 @@ import {
   type TxScope,
   withTransaction,
 } from "#db/client.ts";
-import { sql, sqlList, sqlNames, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlList, sqlNames } from "#db/sql.ts";
 import type { RowFilter } from "#db/table-reader.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";

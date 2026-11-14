@@ -4,9 +4,10 @@
 import { assert } from "@std/assert";
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
-import { execute, inPlaceholders, queryAll, requireOne } from "#db/client.ts";
+import { execute, queryAll, requireOne } from "#db/client.ts";
 import { type ClaimResult, claimAttendeeRows } from "#db/payment-claim/take.ts";
 import { settleAttendeeRows } from "#db/payment-claim.ts";
+import { sql, sqlList, sqlName } from "#db/sql.ts";
 import { requiredMapValue } from "#fp";
 import { mirrorFor } from "#payment/admit-move.ts";
 import type {
@@ -23,7 +24,6 @@ import type { PaymentRowSettlement } from "#payment/row-transitions.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 import { getCompleteRefundPaymentReferences } from "#test-utils/payment-references.ts";
-import { sql, sqlList, sqlName } from "#db/sql.ts";
 
 const SLOT = "processed_payments.failure_data";
 
@@ -43,7 +43,7 @@ export const claimCurrentAttendeeRows = async (
   const stored = await queryAll<StoredClaimAttendee>(
     sql`SELECT attendee.id, attendee.pii_blob
        FROM attendees AS attendee
-      WHERE attendee.id IN (${sqlList(attendeeIds)})`
+      WHERE attendee.id IN (${sqlList(attendeeIds)})`,
   );
   const storedById = new Map(stored.map((attendee) => [attendee.id, attendee]));
   const sources = attendeeIds.map((id) => ({
@@ -107,7 +107,7 @@ const paymentRowColumn =
       await requireOne<{ v: string }>(
         sql`SELECT payment.${sqlName(column)} AS v
            FROM processed_payments AS payment
-          WHERE payment.payment_session_id = ${sessionId}`
+          WHERE payment.payment_session_id = ${sessionId}`,
       )
     ).v;
 
@@ -130,7 +130,7 @@ export const makeClaimsStale = async (
     const stored = await requireOne<{ failure_data: EnvKeyEncrypted }>(
       sql`SELECT payment.failure_data
          FROM processed_payments AS payment
-        WHERE payment.payment_session_id = ${sessionId}`
+        WHERE payment.payment_session_id = ${sessionId}`,
     );
     const state = readRowState(await decrypt(stored.failure_data), SLOT);
     assert(
@@ -207,7 +207,7 @@ export const putRowState = async (
   await execute(
     sql`UPDATE processed_payments
         SET failure_data = ${slot}, protected_state = ${mirror}
-      WHERE payment_session_id = ${sessionId}`
+      WHERE payment_session_id = ${sessionId}`,
   );
 };
 

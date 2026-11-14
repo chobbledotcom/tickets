@@ -2,8 +2,8 @@
  * Filling a listing with attendees quickly, for tests about paging and volume.
  */
 
-import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { sql } from "#db/sql.ts";
+import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 
 /**
  * Register `count` throwaway attendees on the listing. One is booked through

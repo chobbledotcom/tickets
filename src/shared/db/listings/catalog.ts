@@ -1,10 +1,10 @@
 /** Narrow listing reads for catalogs and site-page pickers. */
 
 import { settings } from "#db/settings.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import type { CatalogSourceListing } from "#shared/external-order.ts";
 import type { Listing } from "#types";
 import { rawListingsTable } from "./table.ts";
-import { sql, type SqlStatement } from "#db/sql.ts";
 
 export type ListingOfferFlags = Pick<
   Listing,

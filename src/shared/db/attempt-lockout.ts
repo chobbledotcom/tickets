@@ -13,7 +13,7 @@ import {
   executeReturningRow,
   queryOne,
 } from "#db/client.ts";
-import { sql, sqlName, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import { nowMs } from "#shared/now.ts";
 
 type StoredLockout = { locked_until: number | null };

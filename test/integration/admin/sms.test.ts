@@ -19,6 +19,7 @@ import { countRows, getDb } from "#db/client.ts";
 import { hashPhone } from "#db/contact-preferences.ts";
 import { settings } from "#db/settings.ts";
 import { getSmsMessageByProviderId } from "#db/sms-messages.ts";
+import { sql } from "#db/sql.ts";
 import { SMS_MESSAGE_MAX_LENGTH } from "#shared/sms/message-limit.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
@@ -27,7 +28,6 @@ import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
-import { sql } from "#db/sql.ts";
 
 const PHONE = "+447700900123";
 

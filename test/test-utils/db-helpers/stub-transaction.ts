@@ -1,6 +1,10 @@
-import type { Client, Transaction } from "@libsql/client";
+import type { Transaction } from "@libsql/client";
 import { type Stub, stub } from "@std/testing/mock";
-import { getDb } from "#db/client.ts";
+import {
+  getDb,
+  type StatementClient,
+  type StatementTransaction,
+} from "#db/client.ts";
 
 /**
  * Replace the guarded client's `transaction` with one that resolves to `tx`,
@@ -14,8 +18,11 @@ import { getDb } from "#db/client.ts";
  */
 export const stubTransaction = (
   tx: Partial<Transaction>,
-): Stub<Client, Parameters<Client["transaction"]>, Promise<Transaction>> =>
-  stub(getDb(), "transaction", () => Promise.resolve(tx as Transaction));
+): Stub<
+  StatementClient,
+  Parameters<StatementClient["transaction"]>,
+  Promise<StatementTransaction>
+> => stub(getDb(), "transaction", () => Promise.resolve(tx as Transaction));
 
 /**
  * A Transaction object for tests that drive begin/commit/rollback by hand —

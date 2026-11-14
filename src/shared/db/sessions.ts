@@ -12,7 +12,7 @@ import {
   queryOne,
 } from "#db/client.ts";
 import { createPrimaryCacheRefill } from "#db/primary-reads.ts";
-import { sql, sqlNames, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlNames } from "#db/sql.ts";
 import type { UserAuthFields } from "#db/users.ts";
 import { ttlCache } from "#fp";
 import {

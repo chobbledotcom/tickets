@@ -2,6 +2,7 @@ import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { sql } from "#db/sql.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { requireEnv } from "#shared/env.ts";
 import { expectHtmlEscaped, rejectionMessage } from "#test-utils/assertions.ts";
@@ -30,7 +31,6 @@ import {
   getSetupState,
   invalidateTestDbCache,
 } from "#test-utils/test-state.ts";
-import { sql } from "#db/sql.ts";
 
 describe("test-utils — stubs, caches & request mocks", () => {
   afterEach(() => {

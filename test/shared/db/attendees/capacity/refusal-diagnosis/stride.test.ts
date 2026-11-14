@@ -10,6 +10,7 @@ import {
 } from "#db/groups.ts";
 import { listingsTable } from "#db/listings/records.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
+import { sql } from "#db/sql.ts";
 import { buildDuplicateListingInput } from "#shared/listings-actions.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -21,7 +22,6 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 import { line } from "./helpers.ts";
-import { sql } from "#db/sql.ts";
 
 /** The stride-batch tests for a refused order too long for one probe batch:
  * the bracket narrows over a bounded sample of prefixes, and every batch
@@ -128,7 +128,7 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
     using _batchGate = gateDiagnosisBatches(async (call) => {
       if (call === 2) {
         await execute(
-          sql`INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, order_token, parent_listing_id, package_group_id) VALUES (${a.id}, ${999_999}, NULL, NULL, ${12}, ${""}, 0, 0)`
+          sql`INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, order_token, parent_listing_id, package_group_id) VALUES (${a.id}, ${999_999}, NULL, NULL, ${12}, ${""}, 0, 0)`,
         );
       }
     });
@@ -156,11 +156,11 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
     const holdPlaces = async (places: number): Promise<void> => {
       if (churnPlaces === 0) {
         await execute(
-          sql`INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, order_token, parent_listing_id, package_group_id) VALUES (${a.id}, ${999_998}, NULL, NULL, ${places}, '', 0, 0)`
+          sql`INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, order_token, parent_listing_id, package_group_id) VALUES (${a.id}, ${999_998}, NULL, NULL, ${places}, '', 0, 0)`,
         );
       } else {
         await execute(
-          sql`UPDATE listing_attendees SET quantity = ${places} WHERE attendee_id = ${999_998}`
+          sql`UPDATE listing_attendees SET quantity = ${places} WHERE attendee_id = ${999_998}`,
         );
       }
       churnPlaces = places;
@@ -208,7 +208,7 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
       // stale-sided fits.
       if (call === 1) {
         await execute(
-          sql`INSERT INTO group_listings (group_id, listing_id) VALUES (${fullGroup.id}, ${a.id}), (${fullGroup.id}, ${b.id})`
+          sql`INSERT INTO group_listings (group_id, listing_id) VALUES (${fullGroup.id}, ${a.id}), (${fullGroup.id}, ${b.id})`,
         );
       }
     });
@@ -241,7 +241,7 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
       name: "Two-group member",
     });
     await execute(
-      sql`INSERT INTO group_listings (group_id, listing_id) VALUES (${other.id}, ${first.id})`
+      sql`INSERT INTO group_listings (group_id, listing_id) VALUES (${other.id}, ${first.id})`,
     );
     const second = await createTestListing({
       groupId: shared.id,
@@ -253,12 +253,14 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
     using _batchGate = gateDiagnosisBatches(async (call) => {
       if (call === 1) {
         // The rows land in the opposite scan order; the set is unchanged.
-        await execute(sql`DELETE FROM group_listings WHERE listing_id = ${first.id}`);
         await execute(
-          sql`INSERT INTO group_listings (group_id, listing_id) VALUES (${other.id}, ${first.id})`
+          sql`DELETE FROM group_listings WHERE listing_id = ${first.id}`,
         );
         await execute(
-          sql`INSERT INTO group_listings (group_id, listing_id) VALUES (${shared.id}, ${first.id})`
+          sql`INSERT INTO group_listings (group_id, listing_id) VALUES (${other.id}, ${first.id})`,
+        );
+        await execute(
+          sql`INSERT INTO group_listings (group_id, listing_id) VALUES (${shared.id}, ${first.id})`,
         );
       }
     });

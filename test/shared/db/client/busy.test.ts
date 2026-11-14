@@ -3,13 +3,13 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import { DatabaseBusyError, execute, setDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { expectFullBackoffWalk } from "#test-utils/backoff-walk.ts";
 import {
   emptyResultSet,
   stubClient,
 } from "#test-utils/db-helpers/result-set.ts";
 import { withEnv } from "#test-utils/env.ts";
-import { sql } from "#db/sql.ts";
 
 /**
  * The write-lock retry: a statement that loses SQLite's single write lock
@@ -62,7 +62,7 @@ describe("db > client write-lock retry", () => {
       failsWith: busyError,
       outcome: (operation) =>
         expect(operation).rejects.toThrow(DatabaseBusyError),
-      sql: "INSERT INTO t (x) VALUES (1)",
+      sql: sql`INSERT INTO t (x) VALUES (1)`,
       waits: [50, 150, 350],
     }));
 
@@ -99,7 +99,7 @@ describe("db > client write-lock retry", () => {
       failsWith: busyError,
       outcome: (operation) =>
         expect(operation).rejects.toThrow(DatabaseBusyError),
-      sql: "INSERT INTO t (x) VALUES (1)",
+      sql: sql`INSERT INTO t (x) VALUES (1)`,
       waits: [50, 150, 350, 700, 1400],
     }));
 });

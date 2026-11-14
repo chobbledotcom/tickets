@@ -11,6 +11,6 @@ export const setContactVisits = async (
      VALUES (${contactHash}, ${Date.now()}, ${visits})
      ON CONFLICT(contact_hash) DO UPDATE SET
        last_activity = excluded.last_activity,
-       visits = excluded.visits`
+       visits = excluded.visits`,
   );
 };

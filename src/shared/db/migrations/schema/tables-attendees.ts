@@ -1,6 +1,7 @@
 /** Attendee, booking, payment, and activity tables. */
 
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 import {
   attendeeIdColumn,
   datedRowColumns,
@@ -24,7 +25,6 @@ import {
   wholeNumberStartingAtZero,
 } from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
-import { sql, sqlLiteral } from "#db/sql.ts";
 
 export const attendeeTables: [name: string, table: Table][] = [
   [
@@ -57,9 +57,7 @@ export const attendeeTables: [name: string, table: Table][] = [
           "kind",
           checked(
             sql`kind IN (${sqlLiteral(ATTENDEE_KIND)}, ${sqlLiteral(SERVICING_KIND)})`,
-          )(
-            defaulted(text, ATTENDEE_KIND),
-          ),
+          )(defaulted(text, ATTENDEE_KIND)),
         ],
         ["checked_in", textStartingBlank],
         ["ticket_token_index", textOrNull],

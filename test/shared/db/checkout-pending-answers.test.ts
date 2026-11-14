@@ -14,6 +14,7 @@ import {
 } from "#db/checkout-pending-answers.ts";
 import { execute, queryOne } from "#db/client.ts";
 import { runDatabasePruning } from "#db/prune.ts";
+import { sql } from "#db/sql.ts";
 import { stageSquareLinkEnd } from "#db/square-link-ends.ts";
 import {
   PRUNE_PAYMENTS_RETENTION_MS,
@@ -23,7 +24,6 @@ import { DAY_MS, nowMs } from "#shared/now.ts";
 import { SQUARE_NATIVE_LIFETIME_MS } from "#shared/square/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
-import { sql } from "#db/sql.ts";
 
 /** The row's lookup key, the way the module itself computes it. */
 const sessionIndexOf = (sessionId: string): Promise<string> =>
@@ -45,7 +45,7 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
     await stageCheckoutAnswers("cs_sealed", { "7": "Coming by bus" }, null);
 
     const row = await queryOne<{ sealed: string }>(
-      sql`SELECT sealed FROM checkout_pending_answers WHERE session_index = ${await sessionIndexOf("cs_sealed")}`
+      sql`SELECT sealed FROM checkout_pending_answers WHERE session_index = ${await sessionIndexOf("cs_sealed")}`,
     );
     expect(row).not.toBeNull();
     assert(!row!.sealed.includes("Coming by bus"));
@@ -57,7 +57,7 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
     // For SumUp the session id is the checkout reference, which must never
     // rest in this database: the sumup_checkouts rows stay sealed without it.
     const row = await queryOne<{ session_index: string }>(
-      sql`SELECT session_index FROM checkout_pending_answers WHERE session_index = ${await sessionIndexOf("cs_reference")}`
+      sql`SELECT session_index FROM checkout_pending_answers WHERE session_index = ${await sessionIndexOf("cs_reference")}`,
     );
     expect(row).toEqual({
       session_index: await sessionIndexOf("cs_reference"),
@@ -70,7 +70,7 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
       new Map([[7, "Once only"]]),
     );
     const drop = await dropCheckoutAnswersStatement("cs_taken");
-    await execute(drop.sql, drop.args);
+    await execute(drop);
     expect(await readCheckoutAnswers("cs_taken")).toEqual(new Map());
   });
 
@@ -99,7 +99,7 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
     await stageCheckoutAnswers("cs_abandoned", { "7": "never paid" }, null);
     await stageCheckoutAnswers("cs_open", { "7": "still open" }, null);
     await execute(
-      sql`UPDATE checkout_pending_answers SET created_at = ${new Date(nowMs() - PRUNE_PAYMENTS_RETENTION_MS - 60_000).toISOString()} WHERE session_index = ${await sessionIndexOf("cs_abandoned")}`
+      sql`UPDATE checkout_pending_answers SET created_at = ${new Date(nowMs() - PRUNE_PAYMENTS_RETENTION_MS - 60_000).toISOString()} WHERE session_index = ${await sessionIndexOf("cs_abandoned")}`,
     );
 
     await runDatabasePruning();
@@ -122,7 +122,7 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
       "2020-01-01T01:00:00Z",
     );
     await execute(
-      sql`UPDATE checkout_pending_answers SET created_at = ${new Date(nowMs() - PRUNE_PAYMENTS_RETENTION_MS - 60_000).toISOString()} WHERE session_index = ${await sessionIndexOf("cs_square")}`
+      sql`UPDATE checkout_pending_answers SET created_at = ${new Date(nowMs() - PRUNE_PAYMENTS_RETENTION_MS - 60_000).toISOString()} WHERE session_index = ${await sessionIndexOf("cs_square")}`,
     );
 
     // The window is long past and the payments clock has run, but the handle
@@ -131,12 +131,14 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
     await runDatabasePruning();
     expect(
       await queryOne(
-        sql`SELECT session_index FROM checkout_pending_answers WHERE session_index = ${await sessionIndexOf("cs_square")}`
+        sql`SELECT session_index FROM checkout_pending_answers WHERE session_index = ${await sessionIndexOf("cs_square")}`,
       ),
     ).not.toBeNull();
 
     // The expiry task observed the link's end, so the answers go too.
-    await execute(sql`DELETE FROM square_link_ends WHERE session_index = ${await sessionIndexOf("cs_square")}`);
+    await execute(
+      sql`DELETE FROM square_link_ends WHERE session_index = ${await sessionIndexOf("cs_square")}`,
+    );
     await runDatabasePruning();
     expect(await readCheckoutAnswers("cs_square")).toEqual(new Map());
   });
@@ -159,7 +161,7 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
         60_000,
     ).toISOString();
     await execute(
-      sql`UPDATE checkout_pending_answers SET created_at = ${pastSquareLifetime} WHERE session_index = ${await sessionIndexOf("cs_fallback")}`
+      sql`UPDATE checkout_pending_answers SET created_at = ${pastSquareLifetime} WHERE session_index = ${await sessionIndexOf("cs_fallback")}`,
     );
 
     // No monitor ever ran and the handle row still stands, but past
@@ -180,19 +182,19 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
       "2026-01-01T00:00:00Z",
     );
     await execute(
-      sql`UPDATE square_link_ends SET created_at = ${new Date(nowMs() - requiredSquareRetentionMs - 60_000).toISOString()} WHERE session_index = ${await sessionIndexOf("cs_handle_old")}`
+      sql`UPDATE square_link_ends SET created_at = ${new Date(nowMs() - requiredSquareRetentionMs - 60_000).toISOString()} WHERE session_index = ${await sessionIndexOf("cs_handle_old")}`,
     );
 
     await runDatabasePruning();
 
     expect(
       await queryOne(
-        sql`SELECT session_index FROM square_link_ends WHERE session_index = ${await sessionIndexOf("cs_handle_old")}`
+        sql`SELECT session_index FROM square_link_ends WHERE session_index = ${await sessionIndexOf("cs_handle_old")}`,
       ),
     ).toBeNull();
     expect(
       await queryOne(
-        sql`SELECT session_index FROM square_link_ends WHERE session_index = ${await sessionIndexOf("cs_handle_young")}`
+        sql`SELECT session_index FROM square_link_ends WHERE session_index = ${await sessionIndexOf("cs_handle_young")}`,
       ),
     ).not.toBeNull();
   });

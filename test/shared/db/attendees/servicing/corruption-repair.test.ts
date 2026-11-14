@@ -16,6 +16,7 @@ import { SERVICING_KIND } from "#db/attendees/kind.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getServicingEvent } from "#db/attendees/servicing.ts";
 import { getDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
@@ -25,7 +26,6 @@ import {
   renderAdminPage,
   servicingRowsForListing,
 } from "#test-utils/servicing.ts";
-import { sql } from "#db/sql.ts";
 
 /**
  * Insert an attendee row with an arbitrary `kind` and a booking on `listingId`,
@@ -42,9 +42,13 @@ const insertRowWithKind = async (
 ): Promise<number> => {
   await getDb().execute(sql`PRAGMA ignore_check_constraints = true`);
   try {
-    const res = await getDb().execute(sql`INSERT INTO attendees (created, ticket_token_index, pii_blob, kind) VALUES ('2026-01-01T00:00:00Z', ${`corrupt-${kind}-${crypto.randomUUID()}`}, '', ${kind})`);
+    const res = await getDb().execute(
+      sql`INSERT INTO attendees (created, ticket_token_index, pii_blob, kind) VALUES ('2026-01-01T00:00:00Z', ${`corrupt-${kind}-${crypto.randomUUID()}`}, '', ${kind})`,
+    );
     const id = Number(res.lastInsertRowid);
-    await getDb().execute(sql`INSERT INTO listing_attendees (listing_id, attendee_id, quantity, start_at, end_at) VALUES (${listingId}, ${id}, 1, '2026-07-01T00:00:00Z', '2026-07-02T00:00:00Z')`);
+    await getDb().execute(
+      sql`INSERT INTO listing_attendees (listing_id, attendee_id, quantity, start_at, end_at) VALUES (${listingId}, ${id}, 1, '2026-07-01T00:00:00Z', '2026-07-02T00:00:00Z')`,
+    );
     return id;
   } finally {
     await getDb().execute(sql`PRAGMA ignore_check_constraints = false`);
@@ -74,10 +78,14 @@ describeWithEnv(
       // The first line of defence: without the pragma bypass, the DB itself
       // refuses an out-of-range kind, so a corrupt row can't be created through
       // normal SQL at all.
-      const res = await getDb().execute(sql`INSERT INTO attendees (created, ticket_token_index, pii_blob, kind) VALUES ('2026-01-01T00:00:00Z', ${`reject-${crypto.randomUUID()}`}, '', 'attendee')`);
+      const res = await getDb().execute(
+        sql`INSERT INTO attendees (created, ticket_token_index, pii_blob, kind) VALUES ('2026-01-01T00:00:00Z', ${`reject-${crypto.randomUUID()}`}, '', 'attendee')`,
+      );
       const id = Number(res.lastInsertRowid);
       await expect(
-        getDb().execute(sql`UPDATE attendees SET kind = ${"staff"} WHERE id = ${id}`),
+        getDb().execute(
+          sql`UPDATE attendees SET kind = ${"staff"} WHERE id = ${id}`,
+        ),
       ).rejects.toThrow();
     });
 
@@ -87,7 +95,9 @@ describeWithEnv(
       // the attendee route succeeds.
       const { id } = await createServicingHold();
       expect(await kindOf(id)).toBe(SERVICING_KIND);
-      await getDb().execute(sql`UPDATE attendees SET kind = ${"attendee"} WHERE id = ${id}`);
+      await getDb().execute(
+        sql`UPDATE attendees SET kind = ${"attendee"} WHERE id = ${id}`,
+      );
       expect(await kindOf(id)).toBe("attendee");
     });
 
@@ -114,7 +124,9 @@ describeWithEnv(
       );
       // Backdate so the attendee is "upcoming" by date — but it's kind='attendee',
       // so the service-events table must not list it.
-      await getDb().execute(sql`UPDATE attendees SET created = ${"2099-01-01T00:00:00Z"} WHERE id = ${attendee.id}`);
+      await getDb().execute(
+        sql`UPDATE attendees SET created = ${"2099-01-01T00:00:00Z"} WHERE id = ${attendee.id}`,
+      );
       const service = await createServicingHold({
         date: "2099-01-01",
         listing: { name: "L" },

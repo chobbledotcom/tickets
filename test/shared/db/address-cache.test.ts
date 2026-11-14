@@ -13,10 +13,10 @@ import {
 } from "#db/address-cache.ts";
 import { queryOne } from "#db/client.ts";
 import { runDatabasePruning } from "#db/prune.ts";
+import { sql } from "#db/sql.ts";
 import { ADDRESS_CACHE_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { sql } from "#db/sql.ts";
 
 const ADDRESSES = [
   {
@@ -30,7 +30,9 @@ const ADDRESSES = [
 /** Backdate a cached row's created stamp by `ageMs`. */
 const backdateRow = async (searchIndex: string, ageMs: number) => {
   const { execute } = await import("#db/client.ts");
-  await execute(sql`UPDATE address_cache SET created = ${new Date(nowMs() - ageMs).toISOString()} WHERE search_index = ${searchIndex}`);
+  await execute(
+    sql`UPDATE address_cache SET created = ${new Date(nowMs() - ageMs).toISOString()} WHERE search_index = ${searchIndex}`,
+  );
 };
 
 describeWithEnv("address cache", { db: true }, () => {
@@ -82,7 +84,7 @@ describeWithEnv("address cache", { db: true }, () => {
     const index = await computeAddressSearchIndex("easypostcodes", "SW1A 2AA");
     await storeCachedAddresses(index, ADDRESSES);
     const row = await queryOne<{ results: string }>(
-      sql`SELECT results FROM address_cache WHERE search_index = ${index}`
+      sql`SELECT results FROM address_cache WHERE search_index = ${index}`,
     );
     expect(row!.results.startsWith("enc:1:")).toBe(true);
     assert(!row!.results.includes("Downing"));
@@ -105,7 +107,7 @@ describeWithEnv("address cache", { db: true }, () => {
     await storeCachedAddresses(index, ADDRESSES);
     expect(await getCachedAddresses(index)).toEqual(ADDRESSES);
     const count = await queryOne<{ n: number }>(
-      sql`SELECT COUNT(*) AS n FROM address_cache`
+      sql`SELECT COUNT(*) AS n FROM address_cache`,
     );
     expect(count!.n).toBe(1);
   });
@@ -134,7 +136,7 @@ describeWithEnv("address cache", { db: true }, () => {
     await runDatabasePruning();
 
     const count = await queryOne<{ n: number }>(
-      sql`SELECT COUNT(*) AS n FROM address_cache`
+      sql`SELECT COUNT(*) AS n FROM address_cache`,
     );
     expect(count!.n).toBe(1);
     expect(await getCachedAddresses(fresh)).toEqual(ADDRESSES);

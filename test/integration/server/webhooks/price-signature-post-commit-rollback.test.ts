@@ -9,6 +9,7 @@ import { allTransfers } from "#accounting/queries.ts";
 import { encrypt } from "#crypto/encryption.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { execute, queryOne } from "#db/client.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 import {
   runWebhook,
   setupWithListing,
@@ -24,7 +25,6 @@ import { createQuestionWithAnswer } from "#test-utils/db-helpers/questions.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";
-import { sql } from "#db/sql.ts";
 
 /** Two webhook deliveries, each answered 503, and no refund issued: the
  *  proven-rollback answer whose redelivery starts fresh. */
@@ -51,7 +51,7 @@ describeWithEnv(
       const fetchCallsBefore = fetchSpy.calls.length;
       const listing = await setupWithListing();
       await execute(
-        sql`UPDATE listings SET fields = ${await encrypt("email")}, webhook_url = ${await encrypt("https://registration.example.com/hook")} WHERE id = ${listing.id}`
+        sql`UPDATE listings SET fields = ${await encrypt("email")}, webhook_url = ${await encrypt("https://registration.example.com/hook")} WHERE id = ${listing.id}`,
       );
       // A real answered question rides the batch, so the zero answer-row
       // assertion proves the answers rolled back with the booking.
@@ -76,12 +76,12 @@ describeWithEnv(
       expect(await getAttendeesRaw(listing.id)).toEqual([]);
       expect(
         (await queryOne<{ count: number }>(
-          sql`SELECT COUNT(*) AS count FROM attendee_answers`
+          sql`SELECT COUNT(*) AS count FROM attendee_answers`,
         ))!.count,
       ).toBe(0);
       expect(
         (await queryOne<{ count: number }>(
-          sql`SELECT COUNT(*) AS count FROM contact_preferences`
+          sql`SELECT COUNT(*) AS count FROM contact_preferences`,
         ))!.count,
       ).toBe(0);
       expect(await allTransfers()).toEqual([]);
@@ -98,9 +98,9 @@ describeWithEnv(
         }),
       };
       await execute(
-        `CREATE TRIGGER test_late_payment_finalize_failure
+        sql`CREATE TRIGGER test_late_payment_finalize_failure
        AFTER UPDATE OF attendee_id ON processed_payments
-       WHEN NEW.payment_session_id = '${session.id}'
+       WHEN NEW.payment_session_id = ${sqlLiteral(session.id)}
        BEGIN
          SELECT RAISE(ABORT, 'late payment finalize failure');
        END`,

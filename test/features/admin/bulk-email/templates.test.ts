@@ -13,6 +13,7 @@ import {
   updateEmailTemplate,
 } from "#db/email-templates.ts";
 import { settings } from "#db/settings.ts";
+import { sql, sqlCommas } from "#db/sql.ts";
 import { MAX_EMAIL_TEMPLATES } from "#shared/limits.ts";
 import { seedDraft } from "#test/integration/server/bulk-email/helpers.ts";
 import {
@@ -24,7 +25,6 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
-import { sql, sqlCommas } from "#db/sql.ts";
 
 const seedTemplate = async (subject: string, body: string) => {
   const encSubject = await encryptWithOwnerKey(subject, settings.publicKey);
@@ -176,7 +176,7 @@ describeWithEnv("server bulk email > templates", { db: true }, () => {
         () => sql`('x', 'y')`,
       );
       await getDb().execute(
-        sql`INSERT INTO email_templates (subject, body) VALUES ${sqlCommas(rows)}`
+        sql`INSERT INTO email_templates (subject, body) VALUES ${sqlCommas(rows)}`,
       );
       const { response } = await adminFormPost("/admin/emails/templates", {
         audience: "active",

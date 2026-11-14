@@ -4,6 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { buildTaxSavePlan } from "#shared/tax/save.ts";
 import { readTaxAssessments } from "#shared/tax/store.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
@@ -83,7 +84,7 @@ describeWithEnv("server (attendee form) — tax save", { db: true }, () => {
     await withDbFault(
       // The guard abort surfaces as a NOT NULL constraint failure naming the
       // assessment's group column — the one shape the save path recovers.
-      "CREATE TRIGGER tax_assessment_fault BEFORE INSERT ON booking_tax_assessments WHEN NEW.revision > 0 BEGIN SELECT RAISE(ABORT, 'NOT NULL constraint failed: booking_tax_assessments.booking_group'); END",
+      sql`CREATE TRIGGER tax_assessment_fault BEFORE INSERT ON booking_tax_assessments WHEN NEW.revision > 0 BEGIN SELECT RAISE(ABORT, 'NOT NULL constraint failed: booking_tax_assessments.booking_group'); END`,
       "tax_assessment_fault",
       async () => {
         const { response } = await adminFormPost(
@@ -146,7 +147,7 @@ describeWithEnv("server (attendee form) — tax save", { db: true }, () => {
   test("rethrows a save failure that is not a tax assessment conflict", async () => {
     const { attendee, form } = await changedTaxForm("boom@e.com");
     await withDbFault(
-      "CREATE TRIGGER tax_assessment_fault BEFORE INSERT ON booking_tax_assessments WHEN NEW.revision > 0 BEGIN SELECT RAISE(ABORT, 'tax assessment unavailable'); END",
+      sql`CREATE TRIGGER tax_assessment_fault BEFORE INSERT ON booking_tax_assessments WHEN NEW.revision > 0 BEGIN SELECT RAISE(ABORT, 'tax assessment unavailable'); END`,
       "tax_assessment_fault",
       async () => {
         await expect(

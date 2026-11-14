@@ -14,6 +14,7 @@ import { deriveDoorCacheKey } from "#crypto/hashing.ts";
 import { generateTicketToken } from "#crypto/utils.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { execute } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { doorCacheName, pageDoorCacheKey } from "#routes/admin/scan-cache.ts";
 import { addDays } from "#shared/dates.ts";
@@ -35,7 +36,6 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
-import { sql } from "#db/sql.ts";
 
 const authedGet = async (path: string): Promise<Response> =>
   awaitTestRequest(path, { cookie: await testCookie() });
@@ -259,7 +259,7 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
     // The early line on the first listing holds no places the door can
     // still admit: both of its places are checked in.
     await execute(
-      sql`UPDATE listing_attendees SET checked_in = quantity WHERE attendee_id = ${attendee.id} AND quantity = 2`
+      sql`UPDATE listing_attendees SET checked_in = quantity WHERE attendee_id = ${attendee.id} AND quantity = 2`,
     );
     const body = await assertJson(
       authedGet(`/admin/groups/${group.id}/scan-cache`),

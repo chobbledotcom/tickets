@@ -15,6 +15,7 @@ import {
   hashEmail,
   saveContactRecord,
 } from "#db/contact-preferences.ts";
+import { sql } from "#db/sql.ts";
 import {
   expectHtmlResponse,
   expectIncludesAll,
@@ -30,7 +31,6 @@ import {
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale, postWriteoffAdjustment } from "#test-utils/ledger.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv(
   "server (unified attendee form) — status, balance & tabs",

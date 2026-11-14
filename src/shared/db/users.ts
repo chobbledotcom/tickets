@@ -27,7 +27,7 @@ import {
   registerCache,
   registerTableInvalidation,
 } from "#db/common-schema.ts";
-import { sql, sqlList, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import type { CacheInvalidation } from "#shared/cache-registry.ts";
 import { now } from "#shared/now.ts";
 import { type AdminLevel, isAdminLevel, type User } from "#types";

@@ -2,13 +2,13 @@ import { createClient } from "@libsql/client";
 import { expect } from "@std/expect";
 import { join, toFileUrl } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
+import { sql } from "#db/sql.ts";
 import {
   createDatabaseSnapshot,
   type SnapshotClientFactory,
 } from "#scripts/database-snapshot-lib.ts";
 import { verifyTursoUploadFile } from "#scripts/turso-migration-file.ts";
 import { directoryNames, withTempDir } from "#test-utils/files.ts";
-import { sql } from "#db/sql.ts";
 
 describe("database snapshot", () => {
   test("publishes a complete SQLite database", () =>
@@ -38,8 +38,12 @@ describe("database snapshot", () => {
           INSERT INTO audit (outside_id) VALUES (NEW.id);
         END;
       `);
-      await source.execute(sql`INSERT INTO outside_app (value, payload) VALUES (${9223372036854775806n}, ${new Uint8Array([0, 127, 128, 255])})`);
-      await source.execute(sql`INSERT INTO outside_app (value, payload) VALUES (${12n}, ${new Uint8Array([1])})`);
+      await source.execute(
+        sql`INSERT INTO outside_app (value, payload) VALUES (${9223372036854775806n}, ${new Uint8Array([0, 127, 128, 255])})`,
+      );
+      await source.execute(
+        sql`INSERT INTO outside_app (value, payload) VALUES (${12n}, ${new Uint8Array([1])})`,
+      );
       await source.execute(sql`DELETE FROM outside_app WHERE id = 2`);
       await source.execute(sql`PRAGMA wal_checkpoint(TRUNCATE)`);
       source.close();
@@ -75,7 +79,7 @@ describe("database snapshot", () => {
       });
       try {
         const objects = await snapshot.execute(
-          sql`SELECT type, name FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name`
+          sql`SELECT type, name FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name`,
         );
         expect(objects.rows).toEqual([
           { name: "outside_value_idx", type: "index" },
@@ -85,7 +89,7 @@ describe("database snapshot", () => {
           { name: "outside_values", type: "view" },
         ]);
         const values = await snapshot.execute(
-          sql`SELECT id, value, payload FROM outside_app`
+          sql`SELECT id, value, payload FROM outside_app`,
         );
         const [stored] = values.rows;
         if (!stored) throw new Error("Snapshot row is missing");
@@ -98,19 +102,18 @@ describe("database snapshot", () => {
         expect(Array.from(new Uint8Array(stored.payload))).toEqual([
           0, 127, 128, 255,
         ]);
-        expect((await snapshot.execute(sql`SELECT * FROM audit`)).rows).toEqual([
-          { outside_id: 1n },
-          { outside_id: 2n },
-        ]);
+        expect((await snapshot.execute(sql`SELECT * FROM audit`)).rows).toEqual(
+          [{ outside_id: 1n }, { outside_id: 2n }],
+        );
         expect(
           (await snapshot.execute(sql`SELECT seq FROM sqlite_sequence`)).rows,
         ).toEqual([{ seq: 2n }]);
-        expect((await snapshot.execute(sql`PRAGMA application_id`)).rows).toEqual([
-          { application_id: 1414090059n },
-        ]);
-        expect((await snapshot.execute(sql`PRAGMA user_version`)).rows).toEqual([
-          { user_version: 37n },
-        ]);
+        expect(
+          (await snapshot.execute(sql`PRAGMA application_id`)).rows,
+        ).toEqual([{ application_id: 1414090059n }]);
+        expect((await snapshot.execute(sql`PRAGMA user_version`)).rows).toEqual(
+          [{ user_version: 37n }],
+        );
       } finally {
         snapshot.close();
       }

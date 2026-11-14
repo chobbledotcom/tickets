@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { unzipSync } from "fflate";
 import { attendeesApi } from "#db/attendees/api.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { createHiddenPackageGroup } from "#test/integration/server/payment-success-helpers.ts";
 import { assertJson } from "#test-utils/assertions.ts";
@@ -9,7 +10,6 @@ import { configureAppleWallet } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { sql } from "#db/sql.ts";
 
 /** Make a request through the full handler pipeline */
 const walletRequest = (
@@ -217,7 +217,9 @@ describeWithEnv("Apple Wallet web service (/v1)", { db: true }, () => {
       // The standalone row isn't part of the package — clear its package id so
       // the token genuinely mixes a standalone and a package booking.
       const { getDb } = await import("#db/client.ts");
-      await getDb().execute(sql`UPDATE listing_attendees SET package_group_id = 0 WHERE listing_id = ${standalone.id}`);
+      await getDb().execute(
+        sql`UPDATE listing_attendees SET package_group_id = 0 WHERE listing_id = ${standalone.id}`,
+      );
       const token = result.attendees[0]!.ticket_token;
 
       const response = await walletRequest(

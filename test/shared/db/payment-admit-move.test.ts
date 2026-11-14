@@ -8,6 +8,7 @@ import {
   orRefusal,
   PaymentRowsBusyError,
 } from "#db/payment-admit-move.ts";
+import { sql } from "#db/sql.ts";
 import {
   armRefundSend,
   markRefundCompleted,
@@ -29,7 +30,6 @@ import {
 } from "#test-utils/payment-claim.ts";
 import { bookedWithPayment } from "#test-utils/processed-payments.ts";
 import { addProviderRefundTestCase } from "#test-utils/provider-refund-cases.ts";
-import { sql } from "#db/sql.ts";
 
 const CLAIM_REFUSAL =
   "A refund for this person is still in progress. Finish or re-run the refund, then try again.";
@@ -94,15 +94,17 @@ const givenUnreadableRefundState = (): Promise<unknown> =>
             refund_state_name = 'ready',
             refund_local_state = 'not_due',
             capability = 'keyed',
-            next_refund_action_at = 10`
+            next_refund_action_at = 10`,
   );
 
 const attendeeStillThere = async (attendeeId: number): Promise<boolean> =>
-  (await queryOne<{ id: number }>(sql`SELECT id FROM attendees WHERE id = ${attendeeId}`)) !== null;
+  (await queryOne<{ id: number }>(
+    sql`SELECT id FROM attendees WHERE id = ${attendeeId}`,
+  )) !== null;
 
 const paymentStillThere = async (sessionId: string): Promise<boolean> =>
   (await queryOne<{ id: number }>(
-    sql`SELECT rowid AS id FROM processed_payments WHERE payment_session_id = ${sessionId}`
+    sql`SELECT rowid AS id FROM processed_payments WHERE payment_session_id = ${sessionId}`,
   )) !== null;
 
 const snapshotFor = (attendeeId: number) =>

@@ -12,7 +12,7 @@ import { imageFilenameSubqueries } from "#db/images.ts";
 import { decryptListingWithCount } from "#db/listings/records.ts";
 import type { ListingRecordRow } from "#db/listings/select.ts";
 import { rawListingsTable } from "#db/listings/table.ts";
-import { sql, sqlList, sqlName, sqlNames, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlList, sqlName, sqlNames } from "#db/sql.ts";
 import { unique } from "#fp";
 import { buildPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/build.ts";
 import type {

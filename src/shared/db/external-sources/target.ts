@@ -12,7 +12,7 @@ import {
   type RecordTarget,
   type RecordTargets,
 } from "#db/record-target.ts";
-import { sql, sqlName, type SqlStatement } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import { EXTERNAL_LINK_KINDS, type ExternalLinkKind } from "./types.ts";
 
 /** The table the links live in. Trusted constant, never input. */

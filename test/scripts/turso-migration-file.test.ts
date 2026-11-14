@@ -4,6 +4,7 @@ import { createClient } from "@libsql/client";
 import { expect } from "@std/expect";
 import { join, toFileUrl } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
+import { sql } from "#db/sql.ts";
 import {
   uploadTursoDatabaseFile,
   verifyTursoUploadFile,
@@ -15,7 +16,6 @@ import {
   uploadCredentials,
   withUploadServer,
 } from "./turso-upload-harness.ts";
-import { sql } from "#db/sql.ts";
 
 const createSqliteFile = async (
   path: string,

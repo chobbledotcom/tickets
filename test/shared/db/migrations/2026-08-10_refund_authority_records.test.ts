@@ -4,9 +4,9 @@ import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import refundAuthorityRecords from "#db/migrations/2026-08-10_refund_authority_records.ts";
 import { applySchemaChanges, syncIndexes } from "#db/migrations/schema-sync.ts";
+import { sql, sqlName } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
-import { sql, sqlName } from "#db/sql.ts";
 
 const QUEUE_INDEX = "idx_processed_payments_protected_attendee";
 
@@ -29,7 +29,9 @@ const columnsOf = async (table: string): Promise<Set<string>> => {
 };
 
 const storedIndexSql = async (name: string): Promise<string> => {
-  const result = await getDb().execute(sql`SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ${name}`);
+  const result = await getDb().execute(
+    sql`SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ${name}`,
+  );
   return String(result.rows[0]?.sql ?? "");
 };
 
@@ -54,7 +56,7 @@ const givenReleasedChargeTable = async (): Promise<void> => {
        created_at INTEGER NOT NULL DEFAULT 0,
        updated_at INTEGER NOT NULL DEFAULT 0,
        observed_at INTEGER NOT NULL DEFAULT 0
-     )`
+     )`,
   );
 };
 

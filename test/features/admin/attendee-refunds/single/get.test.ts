@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { sql } from "#db/sql.ts";
 import {
   createPaidListing,
   setBookingLineQuantity,
@@ -16,7 +17,6 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { refundUrl } from "#test-utils/refund-routes.ts";
 import { setupListingAndLogin, testCookie } from "#test-utils/session.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("server (admin refunds)", { db: true }, () => {
   describe("GET /admin/listing/:listingId/attendee/:attendeeId/refund", () => {
@@ -50,7 +50,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       );
       const { getDb } = await import("#db/client.ts");
       await getDb().execute(
-        sql`DELETE FROM listing_attendees WHERE attendee_id = ${attendee.id}`
+        sql`DELETE FROM listing_attendees WHERE attendee_id = ${attendee.id}`,
       );
       const response = await awaitTestRequest(refundUrl(attendee.id), {
         cookie: await testCookie(),

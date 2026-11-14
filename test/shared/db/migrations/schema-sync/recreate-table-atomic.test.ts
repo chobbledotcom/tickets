@@ -3,8 +3,8 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { recreateTable } from "#db/migrations/schema-sync.ts";
-import { setupTransactionalTestDb } from "#test-utils/db.ts";
 import { sql, sqlName } from "#db/sql.ts";
+import { setupTransactionalTestDb } from "#test-utils/db.ts";
 
 /**
  * recreateTable rebuilds a table, then (re)creates its indexes and triggers, all
@@ -39,21 +39,25 @@ describe("db > recreateTable atomicity", () => {
     const db = getDb();
     await db.execute(sql`DROP INDEX idx_users_username_index`);
     await db.execute(
-      sql`ALTER TABLE users ADD COLUMN legacy_extra TEXT NOT NULL DEFAULT 'keep'`
+      sql`ALTER TABLE users ADD COLUMN legacy_extra TEXT NOT NULL DEFAULT 'keep'`,
     );
     for (const usernameIndex of usernameIndexes) {
-      await db.execute(sql`INSERT INTO users (username_hash, username_index, admin_level) VALUES ('h', ${usernameIndex}, 'owner')`);
+      await db.execute(
+        sql`INSERT INTO users (username_hash, username_index, admin_level) VALUES ('h', ${usernameIndex}, 'owner')`,
+      );
     }
   };
 
   const columnNames = async (table: string): Promise<string[]> =>
-    (await getDb().execute(sql`PRAGMA table_info(${sqlName(table)})`)).rows.map((row) =>
-      String(row.name),
+    (await getDb().execute(sql`PRAGMA table_info(${sqlName(table)})`)).rows.map(
+      (row) => String(row.name),
     );
 
   const indexNames = async (table: string): Promise<string[]> =>
     (
-      await getDb().execute(sql`SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = ${table}`)
+      await getDb().execute(
+        sql`SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = ${table}`,
+      )
     ).rows.map((row) => String(row.name));
 
   test("rolls the entire rebuild back when the UNIQUE index cannot be built", async () => {
@@ -68,7 +72,7 @@ describe("db > recreateTable atomicity", () => {
 
     // Both duplicate rows are still present and untouched.
     const rows = await getDb().execute(
-      sql`SELECT username_index FROM users ORDER BY id`
+      sql`SELECT username_index FROM users ORDER BY id`,
     );
     expect(rows.rows.map((row) => row.username_index)).toEqual(["dup", "dup"]);
 
@@ -77,7 +81,7 @@ describe("db > recreateTable atomicity", () => {
 
     // The staged rebuild table must not be left behind either.
     const staged = await getDb().execute(
-      sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'users_new'`
+      sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'users_new'`,
     );
     expect(staged.rows.length).toBe(0);
   });
@@ -110,7 +114,7 @@ describe("db > recreateTable atomicity", () => {
       "end_date",
     ]);
     const rows = await getDb().execute(
-      sql`SELECT COUNT(*) AS count FROM holidays`
+      sql`SELECT COUNT(*) AS count FROM holidays`,
     );
     expect(Number(rows.rows[0]!.count)).toBe(0);
   });

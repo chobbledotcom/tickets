@@ -12,6 +12,7 @@ import {
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { requireOne } from "#db/client.ts";
 import { reserveSession } from "#db/processed-payments.ts";
+import { sql } from "#db/sql.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type {
   ModifierApplication,
@@ -143,8 +144,7 @@ export const expectCapacityExceeded = async (
 
 export const storedEventGroup = async (attendeeId: number): Promise<string> => {
   const row = await requireOne<{ ledger_event_group: string }>(
-    "SELECT ledger_event_group FROM listing_attendees AS attendee WHERE attendee_id = ?",
-    [attendeeId],
+    sql`SELECT ledger_event_group FROM listing_attendees AS attendee WHERE attendee_id = ${attendeeId}`,
   );
   return row.ledger_event_group;
 };

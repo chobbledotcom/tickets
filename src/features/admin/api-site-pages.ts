@@ -25,6 +25,7 @@ import {
   sitePagesTable,
   updateSitePage,
 } from "#db/site-pages.ts";
+import { sql } from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { filter, map, pipe } from "#fp";
 import { t } from "#i18n";
@@ -50,7 +51,6 @@ import {
   toFixedPageContent,
   toPageWrite,
 } from "./api-site-pages-input.ts";
-import { sql } from "#db/sql.ts";
 
 const ENTRY = ADMIN_API_RESOURCES["site-pages"];
 const RESPONSE_KEY = "page";

@@ -1,6 +1,6 @@
+import { sql, sqlLiteral } from "#db/sql.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 import { schemaMigration } from "./define.ts";
-import { sql, sqlLiteral } from "#db/sql.ts";
 
 /** The feature key this release adds to every stored feature setting. */
 const EXTERNAL_SOURCES_FEATURE = "externalSources";

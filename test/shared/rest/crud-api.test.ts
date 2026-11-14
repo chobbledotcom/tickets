@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
 import { resultRows } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import type { Table } from "#db/table.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { isNotNullish } from "#fp";
@@ -28,7 +29,6 @@ import {
   type IdNameRow as Row,
 } from "#test-utils/rest-fixtures.ts";
 import { createTestApiKeyToken, requestAsApiKey } from "#test-utils/session.ts";
-import { sql } from "#db/sql.ts";
 
 const makeTable = (): Table<Row, Input> => makeIdNameTable("widgets");
 
@@ -334,7 +334,9 @@ describeWithEnv("defineCrudApi", { db: true }, () => {
       sideEffect: {
         persist: async (tx, id, _value, state) => {
           const current = resultRows<Row>(
-            await tx.execute(sql`SELECT id, name FROM widgets WHERE id = ${id}`),
+            await tx.execute(
+              sql`SELECT id, name FROM widgets WHERE id = ${id}`,
+            ),
           )[0];
           events.push(`side:${current?.name}:${state}`);
         },

@@ -1,5 +1,6 @@
 /** Content, communications, ledger, and page tables. */
 
+import { sql } from "#db/sql.ts";
 import {
   attendeeIdColumn,
   datedRowColumns,
@@ -19,7 +20,6 @@ import {
   wholeNumberStartingAtZero,
 } from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
-import { sql } from "#db/sql.ts";
 
 export const contentTables: [name: string, table: Table][] = [
   [

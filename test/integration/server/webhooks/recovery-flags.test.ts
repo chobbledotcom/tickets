@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { encrypt } from "#crypto/encryption.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { execute } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import {
   runWebhook,
   setupRenewalSite,
@@ -15,7 +16,6 @@ import { readPendingNotificationFlags } from "#test-utils/db-helpers/attendees.t
 import { configureTestEmail } from "#test-utils/email.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv("paid booking lost-result recovery flags", { db: true }, () => {
   const fetchSpy = stubFetchEachTest(() => new Response());
@@ -30,7 +30,9 @@ describeWithEnv("paid booking lost-result recovery flags", { db: true }, () => {
       "Recovery Flags Site",
       "recovery-flags.b-cdn.net",
     );
-    await execute(sql`UPDATE listings SET webhook_url = ${await encrypt("https://registration.example.com/hook")} WHERE id = ${listing.id}`);
+    await execute(
+      sql`UPDATE listings SET webhook_url = ${await encrypt("https://registration.example.com/hook")} WHERE id = ${listing.id}`,
+    );
     const metadata = signMeta(
       webhookMeta({
         email: "recovery.flags@example.com",
@@ -72,7 +74,7 @@ describeWithEnv("paid booking lost-result recovery flags", { db: true }, () => {
 
       // The finalized session's send-free replay changes nothing.
       await execute(
-        sql`DELETE FROM processed_payments WHERE payment_session_id = ${"cs_recovery_flags"}`
+        sql`DELETE FROM processed_payments WHERE payment_session_id = ${"cs_recovery_flags"}`,
       );
       await runLostWebhook("cs_recovery_flags");
       expect(await readPendingNotificationFlags(attendee!.id)).toEqual({

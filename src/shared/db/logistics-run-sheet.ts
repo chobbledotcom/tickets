@@ -15,7 +15,13 @@ import {
   mapBookingRows,
 } from "#db/logistics.ts";
 import { columnFrom } from "#db/query.ts";
-import { sql, sqlCommas, sqlList, sqlName, type SqlStatement } from "#db/sql.ts";
+import {
+  type SqlStatement,
+  sql,
+  sqlCommas,
+  sqlList,
+  sqlName,
+} from "#db/sql.ts";
 import { compact, flatMap, uniqueBy } from "#fp";
 
 /** Which leg of a delivery a run-sheet entry represents. */
@@ -72,7 +78,10 @@ const SOURCE = "listingAttendee";
 
 /** Keeps the rows whose drop-off or collection leg one of the agents owns on
  *  one of the dates. Callers must return early on an empty list. */
-const runSheetLegWhere = (agentIds: number[], dates: string[]): SqlStatement => {
+const runSheetLegWhere = (
+  agentIds: number[],
+  dates: string[],
+): SqlStatement => {
   const column = columnFrom(SOURCE);
   const agents = sqlList(agentIds);
   const days = sqlList(dates);

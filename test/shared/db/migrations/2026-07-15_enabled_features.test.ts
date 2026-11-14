@@ -5,6 +5,7 @@ import enabledFeaturesMigration from "#db/migrations/2026-07-15_enabled_features
 import { ADMIN_FEATURE_TRIGGER_NAMES } from "#db/migrations/schema/admin-feature-triggers.ts";
 import { syncTriggers } from "#db/migrations/schema-sync.ts";
 import { CONFIG_KEYS } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import {
   parseEnabledFeatures,
   serializeEnabledFeatures,
@@ -15,7 +16,6 @@ import {
   SEEDED_FEATURE_RECORDS,
   seedFeatureRecords,
 } from "#test-utils/settings.ts";
-import { sql } from "#db/sql.ts";
 
 const context = buildMigrationContext({ syncTriggers });
 const DEFAULT_ENABLED_FEATURES = parseEnabledFeatures("");
@@ -24,7 +24,7 @@ const runMigration = (): Promise<void> =>
 
 const storedFeatures = async (): Promise<unknown> => {
   const row = await queryOne<{ value: string }>(
-    sql`SELECT value FROM settings WHERE key = ${CONFIG_KEYS.ENABLED_FEATURES}`
+    sql`SELECT value FROM settings WHERE key = ${CONFIG_KEYS.ENABLED_FEATURES}`,
   );
   if (!row) throw new Error("enabled_features was not stored");
   return JSON.parse(row.value);
@@ -49,10 +49,10 @@ describeWithEnv(
 
     test("moves old feature settings and removes their rows", async () => {
       await execute(
-        sql`INSERT OR REPLACE INTO settings (key, value) VALUES ('has_logistics', 'true')`
+        sql`INSERT OR REPLACE INTO settings (key, value) VALUES ('has_logistics', 'true')`,
       );
       await execute(
-        sql`INSERT OR REPLACE INTO settings (key, value) VALUES ('show_public_site', 'true')`
+        sql`INSERT OR REPLACE INTO settings (key, value) VALUES ('show_public_site', 'true')`,
       );
       await runMigration();
 
@@ -63,19 +63,19 @@ describeWithEnv(
       });
       expect(
         await queryOne(
-          sql`SELECT value FROM settings WHERE key = 'has_logistics'`
+          sql`SELECT value FROM settings WHERE key = 'has_logistics'`,
         ),
       ).toBeNull();
       expect(
         await queryOne(
-          sql`SELECT value FROM settings WHERE key = 'show_public_site'`
+          sql`SELECT value FROM settings WHERE key = 'show_public_site'`,
         ),
       ).toBeNull();
     });
 
     test("counts a logistics listing and stays idempotent", async () => {
       await execute(
-        sql`INSERT INTO listings (created, max_attendees, uses_logistics) VALUES ('2026-07-15', 10, 1)`
+        sql`INSERT INTO listings (created, max_attendees, uses_logistics) VALUES ('2026-07-15', 10, 1)`,
       );
       await runMigration();
       await runMigration();
@@ -87,7 +87,7 @@ describeWithEnv(
 
     test("keeps Site enabled when the migration runs again", async () => {
       await execute(
-        sql`INSERT OR REPLACE INTO settings (key, value) VALUES ('show_public_site', 'true')`
+        sql`INSERT OR REPLACE INTO settings (key, value) VALUES ('show_public_site', 'true')`,
       );
       await runMigration();
       await runMigration();
@@ -102,7 +102,7 @@ describeWithEnv(
         Object.keys(DEFAULT_ENABLED_FEATURES).map((key) => [key, true]),
       ) as typeof DEFAULT_ENABLED_FEATURES;
       await execute(
-        sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CONFIG_KEYS.ENABLED_FEATURES}, ${serializeEnabledFeatures(enabled)})`
+        sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CONFIG_KEYS.ENABLED_FEATURES}, ${serializeEnabledFeatures(enabled)})`,
       );
 
       await runMigration();
@@ -114,7 +114,7 @@ describeWithEnv(
       const { externalSources: _newFeature, ...previousFeatures } =
         DEFAULT_ENABLED_FEATURES;
       await execute(
-        sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CONFIG_KEYS.ENABLED_FEATURES}, ${JSON.stringify({ ...previousFeatures, money: true })})`
+        sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CONFIG_KEYS.ENABLED_FEATURES}, ${JSON.stringify({ ...previousFeatures, money: true })})`,
       );
 
       await runMigration();

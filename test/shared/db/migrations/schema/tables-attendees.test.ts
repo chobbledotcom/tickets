@@ -20,7 +20,7 @@ const tableNamed = (name: string) => {
 const columnNamed = (table: string, column: string): string => {
   const found = tableNamed(table).columns.find(([name]) => name === column);
   if (!found) throw new Error(`${table} declares no ${column} column`);
-  return found[1];
+  return found[1].sql;
 };
 
 describe("attendee schema tables", () => {

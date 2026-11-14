@@ -63,15 +63,15 @@ export const storeSumupCheckout = async (
   ]);
   await execute(
     insert("sumup_checkouts", {
-    created_at: nowIso(),
-    metadata: ciphertext,
-    // No checkout id yet, so there is nothing to ask SumUp about and nothing
-    // to schedule. Both land together when creation succeeds.
-    next_check_at: null,
-    recovery_state: "staged",
-    reference_index: referenceIndex,
-    sumup_id: "",
-    wrapped_key: wrappedKey,
+      created_at: nowIso(),
+      metadata: ciphertext,
+      // No checkout id yet, so there is nothing to ask SumUp about and nothing
+      // to schedule. Both land together when creation succeeds.
+      next_check_at: null,
+      recovery_state: "staged",
+      reference_index: referenceIndex,
+      sumup_id: "",
+      wrapped_key: wrappedKey,
     }),
   );
 };

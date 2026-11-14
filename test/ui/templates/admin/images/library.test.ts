@@ -8,6 +8,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { getAllImages } from "#db/images.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
@@ -32,7 +33,6 @@ import {
   withStorageMock,
 } from "#test-utils/mocks.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
-import { sql } from "#db/sql.ts";
 
 describeWithEnv(
   "admin image library routes",
